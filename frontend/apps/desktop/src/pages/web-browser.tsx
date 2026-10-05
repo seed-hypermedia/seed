@@ -8,13 +8,32 @@ import {useListenAppEvent} from '@/utils/window-events'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {Button} from '@shm/ui/button'
-import type {WebviewTag} from 'electron'
 import {ExternalLink, Globe, RotateCw, X} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 
 let nextRequestId = 0
 
-/** Keeps a website guest alive across native routes so Chromium can restore page history and form state. */
+/** Whether an app overlay (dialog, menu, popover) is open; the native page view would otherwise cover it. */
+function useOverlayPresence(enabled: boolean) {
+  const [present, setPresent] = useState(false)
+  useEffect(() => {
+    if (!enabled || typeof MutationObserver !== 'function') return
+    const selector =
+      '[data-radix-popper-content-wrapper], [role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"], [role="menu"]'
+    const check = () => setPresent(!!document.querySelector(selector))
+    const observer = new MutationObserver(check)
+    observer.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['data-state']})
+    check()
+    return () => observer.disconnect()
+  }, [enabled])
+  return present
+}
+
+/**
+ * Shows a website in a main-process-owned view. This renderer never holds a web view: it asks the
+ * main process for a guest, reports the rectangle to draw it in, and receives its events. The guest
+ * stays alive across native routes so Chromium can restore page history and form state.
+ */
 export function WebBrowser() {
   const route = useNavRoute()
   const dispatch = useNavigationDispatch()
@@ -22,7 +41,6 @@ export function WebBrowser() {
   const enabled = experiments.data?.webBrowser === true
   const {externalOpen} = useAppContext()
   const container = useRef<HTMLDivElement>(null)
-  const guest = useRef<WebviewTag | null>(null)
   const [browserId, setBrowserId] = useState<number>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,52 +57,58 @@ export function WebBrowser() {
   }, [active])
 
   useEffect(() => {
-    if (!enabled || !mounted || !container.current) return
-    const view = document.createElement('webview') as WebviewTag
-    view.setAttribute('partition', 'persist:seed-web-browser')
-    view.setAttribute('src', 'about:blank')
-    view.setAttribute('allowpopups', '')
-    view.setAttribute('aria-label', 'Web page')
-    view.style.width = '100%'
-    view.style.height = '100%'
-    const attached = () => setBrowserId(view.getWebContentsId())
-    const started = () => {
-      setLoading(true)
-      setError(null)
-    }
-    const stopped = () => setLoading(false)
-    const failed = (event: Electron.DidFailLoadEvent) => {
-      if (event.isMainFrame && event.errorCode !== -3) {
-        setLoading(false)
-        setError(event.errorDescription || 'The page could not be loaded.')
-      }
-    }
-    const crashed = () => {
-      setLoading(false)
-      setError('The web page stopped responding. Reload to try again.')
-    }
-    view.addEventListener('did-attach', attached)
-    view.addEventListener('did-start-loading', started)
-    view.addEventListener('did-stop-loading', stopped)
-    view.addEventListener('did-fail-load', failed)
-    view.addEventListener('render-process-gone', crashed)
-    guest.current = view
-    container.current.appendChild(view)
-    return () => {
-      resolution.current++
-      view.remove()
-      guest.current = null
+    if (!enabled || !mounted) {
       setBrowserId(undefined)
+      return
+    }
+    let cancelled = false
+    ipc
+      .invoke('web-browser-create', {})
+      .then((result) => {
+        const id = (result as {browserId?: unknown} | undefined)?.browserId
+        if (!cancelled && typeof id === 'number') setBrowserId(id)
+      })
+      .catch((reason) => {
+        if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason))
+      })
+    return () => {
+      cancelled = true
+      resolution.current++
       location.current = undefined
     }
   }, [enabled, mounted])
+
+  const obscured = useOverlayPresence(active && browserId !== undefined)
+  // The main process draws the page where this element is, and only while it should be seen.
+  useEffect(() => {
+    if (browserId === undefined) return
+    const element = container.current
+    const shown = active && enabled && !error && !obscured
+    const report = () => {
+      const rect = element?.getBoundingClientRect()
+      ipc.send('web-browser-bounds', {
+        browserId,
+        visible: shown && !!rect && rect.width > 0 && rect.height > 0,
+        ...(rect ? {bounds: {x: rect.left, y: rect.top, width: rect.width, height: rect.height}} : {}),
+      })
+    }
+    report()
+    const observer = typeof ResizeObserver === 'function' && element ? new ResizeObserver(report) : undefined
+    if (element) observer?.observe(element)
+    window.addEventListener('resize', report)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', report)
+      ipc.send('web-browser-bounds', {browserId, visible: false})
+    }
+  }, [browserId, active, enabled, error, obscured])
 
   useEffect(() => {
     if (route.key !== 'web' || !browserId || !enabled) {
       resolution.current++
       pending.current = undefined
       location.current = undefined
-      if (browserId) guest.current?.stop()
+      if (browserId) ipc.send('web-browser-control', {browserId, action: 'stop'})
       return
     }
     if (
@@ -122,6 +146,16 @@ export function WebBrowser() {
     void resolveOmnibarUrlToRoute(event.url, {domainResolver}).then((nativeRoute) => {
       if (nativeRoute && generation === resolution.current) resolveBrowserRoute(event.url, nativeRoute)
     })
+  })
+  useListenAppEvent('browser-loading', (event) => {
+    if (event.browserId !== browserId) return
+    setLoading(event.loading)
+    if (event.loading) setError(null)
+  })
+  useListenAppEvent('browser-load-error', (event) => {
+    if (event.browserId !== browserId) return
+    setLoading(false)
+    setError(event.description)
   })
   useListenAppEvent('browser-title', (event) => {
     if (event.browserId !== browserId || !location.current || pending.current !== undefined) return
@@ -166,7 +200,10 @@ export function WebBrowser() {
             variant="ghost"
             aria-label={loading ? 'Stop loading' : 'Reload page'}
             disabled={!enabled || !browserId}
-            onClick={() => (loading ? guest.current?.stop() : guest.current?.reload())}
+            onClick={() =>
+              browserId !== undefined &&
+              ipc.send('web-browser-control', {browserId, action: loading ? 'stop' : 'reload'})
+            }
           >
             {loading ? <X className="size-4" /> : <RotateCw className="size-4" />}
           </Button>
@@ -192,7 +229,10 @@ export function WebBrowser() {
         <div role="alert" className="bg-background flex flex-col items-center gap-3 p-6">
           <p>Unable to load this page</p>
           <p className="text-muted-foreground text-sm">{error}</p>
-          <Button variant="outline" onClick={() => guest.current?.reload()}>
+          <Button
+            variant="outline"
+            onClick={() => browserId !== undefined && ipc.send('web-browser-control', {browserId, action: 'reload'})}
+          >
             Try again
           </Button>
         </div>

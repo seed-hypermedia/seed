@@ -95,26 +95,16 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       platform: 'node',
       external: ['electron'],
     })
-    await writeFile(
-      html,
-      `<html><body><webview id="browser" partition="persist:seed-web-browser" src="about:blank" allowpopups style="width:900px;height:600px"></webview></body></html>`,
-    )
+    await writeFile(html, `<html><body><div id="browser" style="width:900px;height:600px"></div></body></html>`)
     electron = await _electron.launch({args: [main, '--fixture', html, preload, path.join(directory, 'profile')]})
     const page = await electron.firstWindow()
-    await expect
-      .poll(() =>
-        page.evaluate(() => {
-          try {
-            return (document.getElementById('browser') as Electron.WebviewTag).getWebContentsId()
-          } catch {
-            return null
-          }
-        }),
-      )
-      .toBeTruthy()
-    const browserId = await page.evaluate(() =>
-      (document.getElementById('browser') as Electron.WebviewTag).getWebContentsId(),
-    )
+    // The app page never holds a web view: it asks the main process for a guest and places it.
+    const browserId: number = await page.evaluate(async () => {
+      const {browserId} = await (window as any).browserTest.create()
+      ;(window as any).browserTest.bounds({browserId, visible: true, bounds: {x: 0, y: 0, width: 900, height: 600}})
+      return browserId
+    })
+    expect(await page.evaluate(() => document.querySelector('webview'))).toBeNull()
     const navigate = async (url: string, requestId: number, historyIndex?: number) => {
       await page.evaluate((input) => (window as any).browserTest.navigate(input), {
         browserId,

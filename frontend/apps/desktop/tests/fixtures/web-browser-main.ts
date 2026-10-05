@@ -7,7 +7,7 @@ void app.whenReady().then(async () => {
   const window = new BrowserWindow({
     width: 1000,
     height: 700,
-    webPreferences: {preload: process.argv[4], webviewTag: true, contextIsolation: true, sandbox: true},
+    webPreferences: {preload: process.argv[4], contextIsolation: true, sandbox: true},
   })
   setupWebBrowser(
     window,

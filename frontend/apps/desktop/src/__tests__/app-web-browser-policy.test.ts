@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
   publicUrl: vi.fn(),
   networkCallbacks: {} as Record<string, Function>,
+  currentGuest: undefined as unknown,
 }))
 vi.mock('../app-browser-agent', () => ({executeBrowserCommand: mocks.execute}))
 vi.mock('../app-browser-favicon', () => ({readBrowserFavicons: async () => [], loadBrowserFavicon: async () => null}))
@@ -24,7 +25,17 @@ vi.mock('electron', async () => {
     setPermissionRequestHandler: vi.fn(),
     setPermissionCheckHandler: vi.fn(),
   })
-  return {app: new EventEmitter(), nativeTheme: new EventEmitter(), session: {fromPartition: () => session}}
+  class WebContentsView {
+    webContents = mocks.currentGuest
+    setBounds = vi.fn()
+    setVisible = vi.fn()
+  }
+  return {
+    app: new EventEmitter(),
+    nativeTheme: new EventEmitter(),
+    session: {fromPartition: () => session},
+    WebContentsView,
+  }
 })
 import {setupWebBrowser} from '../app-web-browser'
 
@@ -41,9 +52,17 @@ function fixture() {
     setWindowOpenHandler: vi.fn(),
     navigationHistory: {getActiveIndex: () => 0, length: () => 0},
   })
-  setupWebBrowser({webContents: host} as unknown as BrowserWindow, () => true)
-  host.emit('did-attach-webview', {}, guest)
+  const window = Object.assign(new EventEmitter(), {
+    webContents: host,
+    contentView: {addChildView: vi.fn(), removeChildView: vi.fn(), children: []},
+    getContentSize: () => [1000, 700],
+    isDestroyed: () => false,
+  })
+  mocks.currentGuest = guest
+  setupWebBrowser(window as unknown as BrowserWindow, () => true)
   const event = {sender: host, senderFrame: host.mainFrame}
+  expect(handlers.get('web-browser-create')!(event)).toEqual({browserId: 42})
+  expect(window.contentView.addChildView).toHaveBeenCalledOnce()
   ipc.emit('web-browser-navigate', event, {browserId: 42, requestId: 1, url: 'https://example.com'})
   handlers.get('browser-agent-access')!(event, {
     connectionId: 'test',
@@ -56,6 +75,9 @@ function fixture() {
   return {
     host,
     guest,
+    handlers,
+    event,
+    window,
     execute: () => handlers.get('browser-agent-execute')!(event, {connectionId: 'test', command: {action: 'snapshot'}}),
   }
 }
@@ -104,11 +126,11 @@ it('awaits public URL validation before issuing an agent navigation', async () =
   await execute()
   expect(guest.loadURL).toHaveBeenCalledWith('https://example.com/next')
 })
-it('rejects attaching frames other than the host main frame when exposed', () => {
-  const {host} = fixture()
-  const event = {preventDefault: vi.fn(), senderFrame: {}}
-  host.emit('will-attach-webview', event, {}, {partition: 'persist:seed-web-browser', src: 'about:blank'})
-  expect(event.preventDefault).toHaveBeenCalledOnce()
+it('only the host main frame can create a guest, and one guest serves the window', () => {
+  const {host, handlers, event, window} = fixture()
+  expect(() => handlers.get('web-browser-create')!({sender: host, senderFrame: {}})).toThrow('Invalid browser host')
+  expect(handlers.get('web-browser-create')!(event)).toEqual({browserId: 42})
+  expect(window.contentView.addChildView).toHaveBeenCalledOnce()
 })
 
 it('refuses commands and in-flight results from a rebound document', async () => {

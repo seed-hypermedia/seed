@@ -1,17 +1,12 @@
 import type {BrowserWindow, WebContents} from 'electron'
-import {nativeTheme} from 'electron'
+import {WebContentsView, nativeTheme} from 'electron'
 import {z} from 'zod'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {loadBrowserFavicon, readBrowserFavicons} from './app-browser-favicon'
 import {executeBrowserCommand, type BrowserArchive} from './app-browser-agent'
 
 import {isGuestOnPrivateNetwork, navigatePublicBrowser, trackBrowserNetwork} from './browser-network-policy'
-import {
-  browserPartition as partition,
-  browserUserGesture,
-  hardenBrowserPreferences,
-  setupBrowserSessionPolicy,
-} from './browser-session-policy'
+import {browserUserGesture, hardenBrowserPreferences, setupBrowserSessionPolicy} from './browser-session-policy'
 const activeGuests = new WeakMap<BrowserWindow, WebContents>()
 
 /** The visible page to target with native find commands, whether a website or Seed content. */
@@ -19,6 +14,14 @@ export function getPageWebContents(window: BrowserWindow): WebContents {
   const guest = activeGuests.get(window)
   return guest && !guest.isDestroyed() ? guest : window.webContents
 }
+const boundsSchema = z.object({
+  browserId: z.number(),
+  visible: z.boolean(),
+  bounds: z
+    .object({x: z.number().finite(), y: z.number().finite(), width: z.number().finite(), height: z.number().finite()})
+    .optional(),
+})
+const controlSchema = z.object({browserId: z.number(), action: z.enum(['reload', 'stop'])})
 const commandSchema = z.object({
   browserId: z.number(),
   requestId: z.number(),
@@ -60,8 +63,34 @@ export function setupWebBrowser(
   const host = window.webContents
   let access: {connectionId: string; browserId: number; accountUid: string; origins: string[]} | undefined
   const guests = new Map<number, WebContents>()
+  const views = new Map<number, WebContentsView>()
   const requests = new Map<number, number>()
   setupBrowserSessionPolicy()
+
+  /**
+   * Creates the website guest as a main-process-owned view. The app renderer never holds web view
+   * privileges: it only asks for a guest, reports where to draw it, and receives events.
+   */
+  const createGuest = (): WebContentsView => {
+    const webPreferences: Electron.WebPreferences = {}
+    hardenBrowserPreferences(webPreferences)
+    const view = new WebContentsView({webPreferences})
+    view.setVisible(false)
+    view.setBounds({x: 0, y: 0, width: 0, height: 0})
+    window.contentView.addChildView(view)
+    const guest = view.webContents
+    views.set(guest.id, view)
+    attachGuest(guest)
+    guest.once('destroyed', () => {
+      views.delete(guest.id)
+      if (!window.isDestroyed()) window.contentView.removeChildView(view)
+    })
+    return view
+  }
+  const liveView = () => Array.from(views.values()).find((view) => !view.webContents.isDestroyed())
+  window.once('closed', () => {
+    for (const view of Array.from(views.values())) if (!view.webContents.isDestroyed()) view.webContents.close()
+  })
 
   host.ipc.on('windowNavState', (event, state) => {
     if (event.sender !== host) return
@@ -70,21 +99,47 @@ export function setupWebBrowser(
       access = undefined
       activeGuests.delete(window)
       guests.forEach((guest) => guest.stop())
+      views.forEach((view) => view.setVisible(false))
     }
   })
 
-  host.on('will-attach-webview', (event, preferences, params) => {
-    const frame = (event as Electron.Event & {senderFrame?: Electron.WebFrameMain}).senderFrame
-    if (
-      !isWebBrowserEnabled() ||
-      params.partition !== partition ||
-      params.src !== 'about:blank' ||
-      (frame !== undefined && frame !== host.mainFrame)
-    ) {
-      event.preventDefault()
-      return
+  host.ipc.handle('web-browser-create', (event) => {
+    if (event.sender !== host || event.senderFrame !== host.mainFrame) throw new Error('Invalid browser host')
+    if (!isWebBrowserEnabled()) throw new Error('The web browser is disabled')
+    const view = liveView() ?? createGuest()
+    return {browserId: view.webContents.id}
+  })
+  host.ipc.on('web-browser-bounds', (event, input: unknown) => {
+    if (event.sender !== host || event.senderFrame !== host.mainFrame) return
+    const parsed = boundsSchema.safeParse(input)
+    if (!parsed.success) return
+    const view = views.get(parsed.data.browserId)
+    if (!view || view.webContents.isDestroyed()) return
+    if (parsed.data.bounds) {
+      // The renderer measures in CSS pixels of the app page; the view is placed in the window's
+      // content coordinates, so page zoom has to be applied, and the view can never leave the window.
+      const zoom = host.getZoomFactor()
+      const [contentWidth, contentHeight] = window.getContentSize()
+      const clamp = (value: number, max: number) => Math.min(Math.max(Math.round(value * zoom), 0), max)
+      const x = clamp(parsed.data.bounds.x, contentWidth)
+      const y = clamp(parsed.data.bounds.y, contentHeight)
+      view.setBounds({
+        x,
+        y,
+        width: clamp(parsed.data.bounds.width, contentWidth - x),
+        height: clamp(parsed.data.bounds.height, contentHeight - y),
+      })
     }
-    hardenBrowserPreferences(preferences)
+    view.setVisible(parsed.data.visible && isWebBrowserEnabled())
+  })
+  host.ipc.on('web-browser-control', (event, input: unknown) => {
+    if (event.sender !== host || event.senderFrame !== host.mainFrame) return
+    const parsed = controlSchema.safeParse(input)
+    if (!parsed.success) return
+    const guest = guests.get(parsed.data.browserId)
+    if (!guest || guest.isDestroyed()) return
+    if (parsed.data.action === 'reload') guest.reload()
+    else guest.stop()
   })
 
   host.ipc.handle('browser-agent-access', (event, input: unknown) => {
@@ -155,7 +210,7 @@ export function setupWebBrowser(
     return result
   })
 
-  host.on('did-attach-webview', (_event, guest) => {
+  function attachGuest(guest: WebContents) {
     guests.set(guest.id, guest)
     trackBrowserNetwork(guest)
     const gesture = browserUserGesture(guest)
@@ -225,6 +280,15 @@ export function setupWebBrowser(
       }
     })
     guest.on('page-title-updated', (_event, title) => send({type: 'browser-title', title}))
+    guest.on('did-start-loading', () => send({type: 'browser-loading', loading: true}))
+    guest.on('did-stop-loading', () => send({type: 'browser-loading', loading: false}))
+    guest.on('did-fail-load', (_event, errorCode, errorDescription, _url, isMainFrame) => {
+      if (isMainFrame && errorCode !== -3)
+        send({type: 'browser-load-error', description: errorDescription || 'The page could not be loaded.'})
+    })
+    guest.on('render-process-gone', () =>
+      send({type: 'browser-load-error', description: 'The web page stopped responding. Reload to try again.'}),
+    )
     guest.on('found-in-page', (event, result) => {
       if (activeGuests.get(window) === guest) host.emit('found-in-page', event, result)
     })
@@ -253,7 +317,7 @@ export function setupWebBrowser(
       requests.delete(guest.id)
       if (activeGuests.get(window) === guest) activeGuests.delete(window)
     })
-  })
+  }
 
   host.ipc.on('web-browser-navigate', (event, input: unknown) => {
     if (event.sender !== host || event.senderFrame !== host.mainFrame || !isWebBrowserEnabled()) return

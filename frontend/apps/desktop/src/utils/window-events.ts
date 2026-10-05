@@ -7,6 +7,8 @@ export type AppWindowEvent =
   | {type: 'open_web_url'; url: string}
   | {type: 'browser-open-url'; browserId: number; url: string}
   | {type: 'browser-title'; browserId: number; title: string}
+  | {type: 'browser-loading'; browserId: number; loading: boolean}
+  | {type: 'browser-load-error'; browserId: number; description: string}
   | {
       type: 'browser-location'
       userInitiated?: boolean

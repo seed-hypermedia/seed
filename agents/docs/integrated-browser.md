@@ -56,6 +56,8 @@ Browser results stay with the owner:
 
 ## Other website protections
 
+- The website runs in a `WebContentsView` owned by the main process. The app page never holds a web view: it asks for a
+  guest, reports where to draw it, and receives events. `webviewTag` is off in every window.
 - Websites get no permissions, never auto-select a client certificate, and can only download after a click, with a save
   dialog.
 - A page can only switch the app to a Seed page or open a popup right after real user input, and never while an agent

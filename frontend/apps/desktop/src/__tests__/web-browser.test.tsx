@@ -10,6 +10,7 @@ import type {AppWindowEvent} from '../utils/window-events'
 const mocks = vi.hoisted(() => ({
   enabled: true,
   send: vi.fn(),
+  invoke: vi.fn(),
   externalOpen: vi.fn(),
   commit: vi.fn(),
   resolveRoute: vi.fn(),
@@ -18,7 +19,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('../models/experiments', () => ({useExperiments: () => ({data: {webBrowser: mocks.enabled}})}))
 vi.mock('../app-context', () => ({useAppContext: () => ({externalOpen: mocks.externalOpen})}))
 vi.mock('../grpc-client', () => ({domainResolver: {}}))
-vi.mock('../ipc', () => ({ipc: {send: mocks.send}}))
+vi.mock('../ipc', () => ({ipc: {send: mocks.send, invoke: mocks.invoke}}))
 vi.mock('../omnibar-url', () => ({resolveOmnibarUrlToRoute: mocks.resolve}))
 vi.mock('../utils/navigation-container', () => ({
   commitBrowserLocation: mocks.commit,
@@ -33,17 +34,16 @@ describe('browser page lifecycle', () => {
   let dispatch: (action: NavAction) => void
   let getState: () => NavState
   let emit: (event: AppWindowEvent) => void
-  const reload = vi.fn()
-  const stop = vi.fn()
+  /** Commands sent to the main process for one IPC channel. */
+  const sent = (command: string) => mocks.send.mock.calls.filter((call) => call[0] === command).map((call) => call[1])
 
   beforeEach(() => {
     ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
     mocks.enabled = true
     mocks.send.mockClear()
+    mocks.invoke.mockReset().mockResolvedValue({browserId: 42})
     mocks.resolveRoute.mockClear()
     mocks.resolve.mockReset().mockResolvedValue(null)
-    reload.mockClear()
-    stop.mockClear()
     const [setState, state] = writeableStateStream<NavState>({
       routes: [{key: 'contacts'}, {key: 'web', url: 'https://example.com/a'}],
       routeIndex: 1,
@@ -57,12 +57,6 @@ describe('browser page lifecycle', () => {
     const [sendEvent, events] = eventStream<AppWindowEvent>()
     emit = sendEvent
     ;(window as any).appWindowEvents = events
-    const createElement = document.createElement.bind(document)
-    vi.spyOn(document, 'createElement').mockImplementation((tag: string, options?: ElementCreationOptions) => {
-      const element = createElement(tag, options)
-      if (tag === 'webview') Object.assign(element, {getWebContentsId: () => 42, reload, stop})
-      return element as Electron.WebviewTag
-    })
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -81,28 +75,31 @@ describe('browser page lifecycle', () => {
     vi.restoreAllMocks()
   })
 
+  /** Lets the guest creation resolve, then completes the first navigation it requested. */
   async function attachAndCommit() {
-    act(() => container.querySelector('webview')!.dispatchEvent(new Event('did-attach')))
-    const request = mocks.send.mock.lastCall![1]
+    await act(async () => {})
+    const request = sent('web-browser-navigate').at(-1)
     await act(async () => emit({type: 'browser-location', ...request, title: 'First page', historyIndex: 1}))
   }
 
   it('attaches once, records page navigation, and restores web history after a native Seed link', async () => {
     await attachAndCommit()
-    const view = container.querySelector('webview')!
-    expect(mocks.send).toHaveBeenCalledTimes(1)
+    expect(mocks.invoke).toHaveBeenCalledWith('web-browser-create', {})
+    expect(mocks.invoke).toHaveBeenCalledTimes(1)
+    expect(sent('web-browser-navigate')).toHaveLength(1)
     expect(getState().routes[1]).toMatchObject({key: 'web', title: 'First page', historyIndex: 1})
     await act(async () =>
       emit({type: 'browser-location', browserId: 42, url: 'https://example.com/b', title: 'Second', historyIndex: 2}),
     )
     expect(getState().routeIndex).toBe(2)
-    expect(mocks.send).toHaveBeenCalledTimes(1)
+    expect(sent('web-browser-navigate')).toHaveLength(1)
     act(() => emit({type: 'browser-open-url', browserId: 42, url: 'hm://alice/docs'}))
     expect(getState().routes[3].key).toBe('document')
-    expect(container.querySelector('webview')).toBe(view)
-    expect(stop).toHaveBeenCalled()
+    expect(mocks.invoke).toHaveBeenCalledTimes(1)
+    expect(sent('web-browser-control').at(-1)).toEqual({browserId: 42, action: 'stop'})
+    expect(sent('web-browser-bounds').at(-1)).toMatchObject({browserId: 42, visible: false})
     act(() => dispatch({type: 'pop'}))
-    const request = mocks.send.mock.lastCall![1]
+    const request = sent('web-browser-navigate').at(-1)
     expect(request).toMatchObject({url: 'https://example.com/b', historyIndex: 2})
     await act(async () => emit({type: 'browser-location', ...request, title: 'Second'}))
     expect(getState().routes).toHaveLength(4)
@@ -110,8 +107,8 @@ describe('browser page lifecycle', () => {
   })
 
   it('ignores stale navigation completions when a newer URL is already loading', async () => {
-    act(() => container.querySelector('webview')!.dispatchEvent(new Event('did-attach')))
-    const oldRequest = mocks.send.mock.lastCall![1]
+    await act(async () => {})
+    const oldRequest = sent('web-browser-navigate').at(-1)
     act(() => dispatch({type: 'push', route: {key: 'web', url: 'https://example.com/new'}}))
     await act(async () => emit({type: 'browser-location', ...oldRequest, historyIndex: 1, title: 'Stale'}))
     expect(getState().routes[getState().routeIndex]).toEqual({key: 'web', url: 'https://example.com/new'})
@@ -119,16 +116,13 @@ describe('browser page lifecycle', () => {
 
   it('surfaces main-frame load errors with a working retry action', async () => {
     await attachAndCommit()
-    const failed = Object.assign(new Event('did-fail-load'), {
-      isMainFrame: true,
-      errorCode: -105,
-      errorDescription: 'Name not resolved',
-    })
-    act(() => container.querySelector('webview')!.dispatchEvent(failed))
+    act(() => emit({type: 'browser-load-error', browserId: 42, description: 'Name not resolved'}))
     expect(container.querySelector('[role="alert"]')?.textContent).toContain('Name not resolved')
+    // The page view is hidden while the error panel is shown, so the panel is not covered.
+    expect(sent('web-browser-bounds').at(-1)).toMatchObject({browserId: 42, visible: false})
     const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Try again')!
     act(() => retry.click())
-    expect(reload).toHaveBeenCalledOnce()
+    expect(sent('web-browser-control').at(-1)).toEqual({browserId: 42, action: 'reload'})
   })
 
   it('places the favicon before the title and refresh immediately before external open', async () => {
@@ -181,7 +175,7 @@ describe('browser page lifecycle', () => {
     await attachAndCommit()
     mocks.enabled = false
     act(() => dispatch({type: 'replace', route: {...getState().routes[getState().routeIndex]}}))
-    expect(container.querySelector('webview')).toBeNull()
+    expect(sent('web-browser-bounds').at(-1)).toMatchObject({browserId: 42, visible: false})
     expect(container.textContent).toContain('The experimental web browser is disabled.')
   })
 })
