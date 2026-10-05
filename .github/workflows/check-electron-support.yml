@@ -1,0 +1,28 @@
+name: Supported Electron runtime
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/apps/desktop/package.json'
+      - 'frontend/apps/desktop/electron-release.json'
+      - 'frontend/apps/desktop/scripts/check-electron-support.mjs'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/check-electron-support.yml'
+  schedule:
+    - cron: '0 8 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+      - name: Require a supported stable Electron major
+        run: node frontend/apps/desktop/scripts/check-electron-support.mjs
