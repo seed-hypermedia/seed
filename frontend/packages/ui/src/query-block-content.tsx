@@ -14,11 +14,11 @@ import {
   ArrowUpDown,
   FileText,
   Filter,
+  GitCompareArrows,
   Grid3X3,
   MessageSquare,
   Plus,
   Search,
-  Share2,
   SlidersHorizontal,
   X,
 } from 'lucide-react'
@@ -1076,7 +1076,8 @@ function SelectedAttributes({
           ))
         }
         if (descriptor.id === 'children' || descriptor.id === 'comments' || descriptor.id === 'citations') {
-          const Icon = descriptor.id === 'children' ? FileText : descriptor.id === 'comments' ? MessageSquare : Share2
+          const Icon =
+            descriptor.id === 'children' ? FileText : descriptor.id === 'comments' ? MessageSquare : GitCompareArrows
           if (descriptor.id === 'comments' && commentAction) {
             return (
               <Button

@@ -8,7 +8,7 @@ import {
   type ColumnDef,
   type SortingState,
 } from '@tanstack/react-table'
-import {ChevronDown, ChevronUp, ChevronsUpDown, FileText, Grid3X3, MessageSquare, Share2} from 'lucide-react'
+import {ChevronDown, ChevronUp, ChevronsUpDown, FileText, Grid3X3, MessageSquare, GitCompareArrows} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from './components/table'
 import {FacePile} from './face-pile'
@@ -135,7 +135,7 @@ export function QueryBlockTable({
               ) : descriptor.id === 'comments' ? (
                 <MessageSquare className="size-4" />
               ) : (
-                <Share2 className="size-4" />
+                <GitCompareArrows className="size-4" />
               )
             return (
               <span className="inline-flex items-center gap-1">
