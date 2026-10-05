@@ -41,10 +41,11 @@ The log is the canonical record. The store is the model's view of it. They are k
 
 **From the log to the store.** Many things write to the log without the harness: a user message, a verb the user ran from the [wrench palette](./wrench-palette.md), a system notice about an open obligation, the result of a delegated [child](./child.md). Before a turn, every event past the import mark that has no `pi_entry_id` is pending. The import mark lives in the `seed.sync` document and is committed together with the imported entries.
 
-There are two ways to import:
+There are three ways to import:
 
   - **Append.** User messages, user actions, and assistant text that Seed wrote itself are appended behind the entries the harness produced. The newest user message becomes the input. This is the usual case. The conversation orders messages by when the model takes them in, so a message that arrived while the previous answer was still streaming follows that answer.
-  - **Rebuild.** Some events cannot be appended: a tool result that arrives after its call was already answered, which is how a delegated child reports back, or a result the runtime wrote for a call that a restart cut off. A session that has no store yet is the same case. Then a `pi.reset` entry starts a new context and the whole log is replayed behind it, with every result attached to its call. Earlier entries stay in the store, outside the context. A rebuilt context keeps the text, calls, and results of the log, and not the provider's own record of each response.
+  - **Edit.** The result of a delegated child arrives after its call was already answered with a placeholder. It is written as a context edit: an entry that carries no message of its own and replaces what the placeholder entry contributes to the model's context. The model reads the real result where the placeholder was, and every other entry is untouched. When nobody said anything new, the input is `<background_work_update>`.
+  - **Rebuild.** Some events fit neither: a result the runtime wrote for a call that a restart cut off, or a late result whose placeholder is no longer in the context. A session that has no store yet is the same case. Then a `pi.reset` entry starts a new context and the whole log is replayed behind it, with every result attached to its call. Earlier entries stay in the store, outside the context. A rebuilt context keeps the text, calls, and results of the log, and not the provider's own record of each response.
 
 A store that was lost is rebuilt the same way. The entry ids in the log mean nothing to a new store, so they are cleared first.
 
@@ -63,7 +64,7 @@ Because the prefix does not change between requests, a provider's prompt cache k
 
 Three verbs end the turn after the current batch of tool calls: `delegate` when it [parks](./park.md) the run on a child, `return_result` in a [typed child](./typed-result.md), and `continue_session`. The harness would normally send the tool results back to the model. A hook that runs before every request sees that the turn is over and aborts the conversation, so the request never leaves.
 
-A parked `delegate` call is answered in the store with a placeholder that says the child is still running. The log keeps the call unanswered until the child's real result arrives. The next turn then rebuilds the context, so the model reads the real result in the place of the placeholder.
+A parked `delegate` call is answered in the store with a placeholder that says the child is still running. The log keeps the call unanswered until the child's real result arrives. The next turn then writes that result as an edit of the placeholder, so the model reads the real result in its place.
 
 `StopSession` aborts the conversation the same way. Text that was already streamed stays in the log as an assistant message.
 
@@ -82,7 +83,6 @@ A process that dies in the middle of a turn leaves the turn's input unsettled in
 
 # Open work
 
-  - A delegated child's result rebuilds the parent's context. Writing it as an edit of the placeholder entry would keep the provider-exact transcript.
   - A message sent while a turn runs waits for the next turn. Pi Durable can hand it to the running turn at the next tool boundary.
   - `main.jsonl` grows with every commit and is never compacted. A session of a few hundred turns stays in the low megabytes.
 

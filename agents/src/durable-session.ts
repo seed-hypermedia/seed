@@ -18,9 +18,11 @@
  *   of delegated work) is imported into the conversation before the next turn. The import mark
  *   lives in the {@link SyncDoc} document, committed together with the imported entries.
  *
- * When the log holds something that cannot be appended to the conversation as it stands (a result
- * arriving long after its call, a session that predates this store), the conversation's context is
- * rebuilt from the log behind a fresh head; the earlier entries stay in storage.
+ * A result that arrives long after its call (a delegated child finishing) is written as a context
+ * edit of the placeholder the call was answered with. When the log holds something that cannot be
+ * added to the conversation as it stands (a session that predates this store, a call the runtime
+ * had to answer after a restart), the conversation's context is rebuilt from the log behind a
+ * fresh head; the earlier entries stay in storage.
  *
  * One process owns a store at a time. Only the run that holds the session's turn opens it.
  */

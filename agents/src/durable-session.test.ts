@@ -463,6 +463,60 @@ describe('durable sessions', () => {
     expect(fs.readFileSync(path.join(h.durableDir, 'main.jsonl'), 'utf8')).not.toContain(imageBase64)
   })
 
+  test("a delegated child's result replaces its placeholder without rebuilding the conversation", async () => {
+    const h = await createSession()
+    const parentRequests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      const messages = providerMessages(init)
+      // The child carries the persona its parent gave it; the parent's prompt names none.
+      if (String(messages[0]?.content).includes('You are the worker.')) return textReply('child', 'Worker finished.')
+      parentRequests.push(messages)
+      if (parentRequests.length === 1) {
+        return toolCallReply('parent-1', 'spawn-1', 'delegate', {
+          title: 'Worker',
+          prompt: 'You are the worker.',
+          brief: 'Do the task',
+        })
+      }
+      return textReply(`parent-${parentRequests.length}`, 'All done.')
+    }) as unknown as typeof fetch
+
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Delegate the task'}]})
+    await h.service.awaitQueueIdle()
+
+    // The parent was asked twice: once before it parked, once with the child's real result sitting
+    // directly behind the call that spawned it.
+    expect(parentRequests).toHaveLength(2)
+    const resumed = parentRequests[1] ?? []
+    const resultAt = resumed.findIndex((message) => message.role === 'tool')
+    expect(resumed[resultAt]?.tool_call_id).toBe('spawn-1')
+    expect(String(resumed[resultAt]?.content)).toContain('Worker finished.')
+    expect(String(resumed[resultAt]?.content)).not.toContain('Still running in the background')
+    expect(resumed[resultAt - 1]?.role).toBe('assistant')
+    expect(resumed.some((message) => String(message.content).startsWith('<background_work_update>'))).toBe(true)
+
+    // The conversation was filled from the log once, on its first turn, and never rebuilt: the
+    // result arrived as an edit of the placeholder entry, and the response that made the call is
+    // still the provider's own record of it.
+    const entries = await durableEntries(h.durableDir)
+    expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
+    const edit = entries.find((entry) => entry.edits?.length)
+    const placeholder = entries.find((entry) => entry.id === edit?.edits?.[0]?.target)
+    const placeholderMessage = placeholder?.model?.[0]
+    if (placeholderMessage?.role !== 'toolResult') throw new Error('expected the edit to target a tool result')
+    expect(placeholderMessage.toolCallId).toBe('spawn-1')
+    const call = entries.find((entry) => durable.AssistantEntry.is(entry))?.model?.[0]
+    if (call?.role !== 'assistant') throw new Error('expected an assistant entry')
+    expect(call.provider).toBe('openai')
+
+    const session = await h.send({_: 'GetSession', sessionId: h.sessionId})
+    if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+    const types = session.events.map((event) => (event.event as {type: string}).type)
+    expect(types.filter((type) => type === 'tool_call')).toHaveLength(1)
+    expect(types.filter((type) => type === 'tool_result')).toHaveLength(1)
+    expect((session.events.at(-1)?.event as {content?: string}).content).toBe('All done.')
+  })
+
   test('deleting a session deletes its durable store', async () => {
     const h = await createSession()
     globalThis.fetch = mock(async () => textReply('chat-1', 'Hello')) as unknown as typeof fetch

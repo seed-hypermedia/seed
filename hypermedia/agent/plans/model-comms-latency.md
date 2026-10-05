@@ -32,13 +32,13 @@ Old tool results are the dead weight. A 64 KB exec output that stopped mattering
 ## 4. Byte-stable prefixes <!-- id:0Y96YhUF -->
 
 Prompt caching only pays when the prefix is identical across turns. Since the move to [durable sessions](../durable-sessions.md) the worst hazards are gone: the system prompt no longer carries the clock, the transcript is a list of stored entries that never change, and the per-turn state blocks (plan, context usage, session status, time) ride behind each turn's input without being stored. Hazards that remain: <!-- id:B7olBWqX -->
-  - A turn that rebuilds its context from the log (a park-resume, a restart repair) replays the transcript in the log's form, which differs from the provider-exact entries it replaces. That turn starts with a cold cache. Writing late results as context edits removes the common case. <!-- id:OAE1cKTo -->
+  - A delegated child's result is an edit of its placeholder entry, so a park-resume keeps the cache up to that entry and loses it from there on. A turn that rebuilds its whole context from the log (a restart repair, a session without a store) starts with a cold cache. <!-- id:OAE1cKTo -->
   - System-prompt resolution embeds remote [hm://](../../protocol/urls.md) docs (cached 5 min). A re-fetch that changes bytes mid-session breaks the whole cache. Consider pinning the resolved prompt for the session's lifetime. <!-- id:b8OqIR7C -->
   - Tool [promotion](../promotion.md) (touch-expand) changes the tool list mid-session. That can't be avoided when it happens. Tool definitions should sit in their own cache segment, so a promotion only invalidates from that point on. <!-- id:CXDfSExd -->
 
 ## 5. Leaner turn prep <!-- id:pKySxDLe -->
 
-`provider.request_gap` measures everything before the request leaves. Known costs in that window: opening the session's [durable store](../durable-sessions.md), which reads its `main.jsonl`, and importing what reached the log since the last turn. A turn that has to rebuild its context (a park-resume, a session without a store) also pays `#piMessages` decoding the full CBOR transcript. Both grow with session length. If prod shows this gap growing, the fixes are keeping a store open between the turns of a busy session and writing late results as context edits so resumes stop rebuilding. <!-- id:hfR4vki4 -->
+`provider.request_gap` measures everything before the request leaves. Known costs in that window: opening the session's [durable store](../durable-sessions.md), which reads its `main.jsonl`, and importing what reached the log since the last turn. A turn that has to rebuild its context (a restart repair, a session without a store) also pays `#piMessages` decoding the full CBOR transcript. Both grow with session length. If prod shows this gap growing, the fix is keeping a store open between the turns of a busy session. <!-- id:hfR4vki4 -->
 
 ## 6. Fewer round trips per task <!-- id:E8oP4Cft -->
 

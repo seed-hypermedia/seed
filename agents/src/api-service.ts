@@ -8001,12 +8001,13 @@ export class Service {
    * user ran, a system notice — is written behind the entries the harness produced itself, in the
    * order the model should read it, and the newest user message becomes the input. Because the
    * conversation orders messages by when the model takes them in, a message that arrived while the
-   * previous answer was still streaming simply follows that answer.
+   * previous answer was still streaming simply follows that answer. The result of a delegated
+   * child is written as a context edit: it replaces the placeholder its call was answered with.
    *
-   * When the log holds something that cannot be appended — a tool result arriving after its call
-   * was answered (a delegated child finishing), a call the runtime had to answer itself after a
-   * restart, or a session this store has never seen — the context is rebuilt from the log behind
-   * a fresh head, exactly as the log replays. Earlier entries stay in storage, out of context.
+   * When the log holds something that cannot be appended — a call the runtime had to answer
+   * itself after a restart, a late result whose placeholder is not in this context, or a session
+   * this store has never seen — the context is rebuilt from the log behind a fresh head, exactly
+   * as the log replays. Earlier entries stay in storage, out of context.
    */
   async #importSessionLog(
     conversation: durable.Conversation,
@@ -8030,31 +8031,96 @@ export class Service {
     const entryOf = (message: unknown): {model: piAi.Message[]} => ({model: [JSON.parse(JSON.stringify(message))]})
 
     const appended: unknown[] = []
+    // Results that arrived for calls the conversation already answered with a placeholder.
+    const late: {toolCallId: string; output?: unknown; error?: string; createdAt: number}[] = []
     let appendable = importedSeq > 0
     let interrupted = false
-    let lateResults = false
     for (const event of pending) {
-      const value = event.event as {type?: string; role?: string; content?: unknown; error?: unknown}
+      const value = event.event as {
+        type?: string
+        role?: string
+        content?: unknown
+        toolCallId?: unknown
+        output?: unknown
+        error?: unknown
+      }
       const userMessage = userEventReplayMessage(event)
       if (userMessage) {
         appended.push(userMessage)
       } else if (value.type === 'message' && value.role === 'assistant' && typeof value.content === 'string') {
         appended.push(replayAssistantMessage([{type: 'text', text: value.content}], event.createdAt))
+      } else if (value.type === 'tool_result' && value.error === INTERRUPTED_TOOL_RESULT_ERROR) {
+        appendable = false
+        interrupted = true
+      } else if (value.type === 'tool_result' && typeof value.toolCallId === 'string') {
+        late.push({
+          toolCallId: value.toolCallId,
+          output: value.output,
+          ...(typeof value.error === 'string' ? {error: value.error} : {}),
+          createdAt: event.createdAt,
+        })
       } else if (value.type === 'tool_call' || value.type === 'tool_result') {
         appendable = false
-        if (value.error === INTERRUPTED_TOOL_RESULT_ERROR) interrupted = true
-        else if (value.type === 'tool_result') lateResults = true
+      }
+    }
+    // A late result takes the place of its call's placeholder through a context edit: the entry
+    // stays where the model first read it, and from now on the model reads the real result there.
+    // Everything else in the conversation keeps the provider's own record.
+    const edits: durable.ContextEdit[] = []
+    if (appendable && late.length > 0) {
+      const active = (await conversation.context(durableSession.CONTEXT)).entries
+      for (const result of late) {
+        const placeholder = active.find((entry) => {
+          const message = entry.model?.[0]
+          return (
+            durable.ToolResultEntry.is(entry) &&
+            message?.role === 'toolResult' &&
+            message.toolCallId === result.toolCallId &&
+            isRecord(message.details) &&
+            message.details[PARKED_TOOL_RESULT_MARKER] === true
+          )
+        })
+        const message = placeholder?.model?.[0]
+        if (!placeholder || message?.role !== 'toolResult') {
+          // No placeholder in this context (it was rebuilt since, or the call predates the store).
+          appendable = false
+          break
+        }
+        edits.push({
+          target: placeholder.id,
+          action: 'replace',
+          messages: [
+            JSON.parse(
+              JSON.stringify({
+                ...message,
+                content: [
+                  {
+                    type: 'text',
+                    text: boundModelToolResultText(result.error ?? JSON.stringify(result.output ?? {})),
+                  },
+                ],
+                details: result.output ?? null,
+                isError: result.error !== undefined,
+                timestamp: result.createdAt,
+              }),
+            ),
+          ],
+        })
       }
     }
     const lastAppended = appended.at(-1) as {role?: string; content?: unknown} | undefined
-    if (appendable && lastAppended?.role === 'user' && typeof lastAppended.content === 'string') {
+    const newestUserMessage =
+      lastAppended?.role === 'user' && typeof lastAppended.content === 'string' ? lastAppended.content : undefined
+    if (appendable && (newestUserMessage !== undefined || edits.length > 0)) {
       await conversation.commit(async (tx) => {
-        for (const message of appended.slice(0, -1)) {
+        for (const message of newestUserMessage === undefined ? appended : appended.slice(0, -1)) {
           await tx.appendEntry(durableSession.ReplayEntry, conversation.id, entryOf(message))
         }
+        if (edits.length > 0) await tx.appendEntry(durableSession.ReplayEntry, conversation.id, {edits})
         ;(await tx.doc(durableSession.SyncDoc, conversation.id)).importedSeq = maxSeq
       }, durableSession.CONTEXT)
-      return lastAppended.content
+      // Children finished and nobody said anything new: hand the model back the floor explicitly.
+      return newestUserMessage ?? BACKGROUND_WORK_UPDATE_INPUT
     }
 
     const replay = this.#piMessages(sessionId)
@@ -8105,12 +8171,11 @@ export class Service {
       // The newest user message starts the run; everything before it is context.
       input = last.content
       replay.pop()
-    } else if (!interrupted && (lateResults || last?.role === 'assistant')) {
+    } else if (!interrupted && (late.length > 0 || last?.role === 'assistant')) {
       // A park-resume ends on the late tool results (attached adjacent to their calls) or, after
       // interleaved conversation, on an assistant message. Either way the model needs direction:
       // hand it back the floor explicitly.
-      input =
-        '<background_work_update>\nThe background sub-sessions/workflows you were waiting on have finished; their results are attached to their tool calls above. Continue now: act on those results and reply to the user, including anything you promised to deliver once they completed.\n</background_work_update>'
+      input = BACKGROUND_WORK_UPDATE_INPUT
     } else {
       // A retried turn that had already called tools (a provider error, a service restart) picks
       // up from their results.
@@ -16797,6 +16862,10 @@ const PARKED_TOOL_RESULT_TEXT = JSON.stringify({
   status: 'running',
   note: 'Still running in the background. Its real result will arrive in a later turn as this tool call’s result; do not wait for it — respond to the user now.',
 })
+
+/** The input of a turn that resumes because delegated work finished, with no new message to answer. */
+const BACKGROUND_WORK_UPDATE_INPUT =
+  '<background_work_update>\nThe background sub-sessions/workflows you were waiting on have finished; their results are attached to their tool calls above. Continue now: act on those results and reply to the user, including anything you promised to deliver once they completed.\n</background_work_update>'
 
 /** The result the runtime writes for a tool call a service restart cut off. */
 const INTERRUPTED_TOOL_RESULT_ERROR =
