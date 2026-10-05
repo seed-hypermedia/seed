@@ -128,7 +128,7 @@ The server fans events out to the owner and collaborator accounts. A public read
 
 # Replay <!-- id:V2Zm4-wC -->
 
-Only durable session events are replayed. Live partials are not persisted and cannot be replayed. <!-- id:Jy3_Xd4u -->
+Only durable session events are replayed. Live partials are not persisted and cannot be replayed. The replay is read in the same step that adds the socket to the session's subscribers, so an event is either in the replay or delivered live, never neither. `GetSession` reads the log last for the same reason: a client adds what its socket delivers to what it fetched. <!-- id:Jy3_Xd4u -->
 
 For `sessions/<id>`, with or without `afterSeq`, the server sends: <!-- id:pSK8r44j -->
   1. `subscribed`; <!-- id:DvtwIk6Y -->
