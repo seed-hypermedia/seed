@@ -190,7 +190,7 @@ func (c HTTP) Default() HTTP {
 // BindFlags binds the flags to the given FlagSet.
 func (c *HTTP) BindFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "http.port", c.Port, "Port for the HTTP server (including grpc-web); binds 127.0.0.1 unless -http.listen-all")
-	fs.BoolVar(&c.ListenAll, "http.listen-all", c.ListenAll, "Bind HTTP to all interfaces (required for container/server deployments, including -public-only); protect with a firewall")
+	fs.BoolVar(&c.ListenAll, "http.listen-all", c.ListenAll, "Server mode: bind HTTP to all interfaces and answer any web origin (required for container/server deployments); without it the daemon binds loopback and only the desktop app may call it from a browser page")
 	fs.StringVar(&c.AppOrigins, "http.app-origins", c.AppOrigins, "Additional comma-separated trusted app origins for CORS (desktop dev/test only); parent may provide a 32-byte hex SEED_APP_SECRET in the environment")
 }
 

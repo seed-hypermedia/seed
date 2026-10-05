@@ -19,7 +19,7 @@ Other binaries beside the daemon: `monitord` (health checks of sites), `relayd` 
 | HTTP | `-http.port` | 55001 | gRPC-web for every service, `/ipfs/*`, `/hm/api/config`, `/debug/*` <!-- id:G7uKQa9- --> |
 | gRPC | `-grpc.port` | 55002 | the same services over plain gRPC <!-- id:H9V6rMI- --> |
 
-HTTP binds `127.0.0.1` by default. Server and container deployments must pass `-http.listen-all` (or `SEED_HTTP_LISTEN_ALL=true`) to accept traffic from other hosts, including when using `-public-only`. Plain gRPC still binds all interfaces and needs a firewall. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
+HTTP binds `127.0.0.1` by default, and a daemon on loopback only answers a browser page that presents the desktop app secret or a bearer token. Server and container deployments must pass `-http.listen-all` (or `SEED_HTTP_LISTEN_ALL=true`): it binds all interfaces and keeps the open web policy, since the hosted web app uploads to the gateway straight from the browser. `-public-only` keeps the open policy too. Plain gRPC still binds all interfaces and needs a firewall. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
 
 # Flags that matter to operators <!-- id:qKo2ROZg -->
 
@@ -27,7 +27,7 @@ HTTP binds `127.0.0.1` by default. Server and container deployments must pass `-
 | Flag <!-- col:9aAQ-i5K --> | Default <!-- col:k2MWOcv4 --> | Meaning <!-- col:WdP1mgRz --> <!-- id:oDc0TVDL --> |
 | --- | --- | --- |
 | `-data-dir` | `~/.mtt` | Where everything is stored. The desktop app passes its own data directory. <!-- id:ypeA1_vg --> |
-| `-http.listen-all` | false | Bind HTTP to all interfaces instead of loopback. Required for hosted containers, including external SeedInfra deployments. |
+| `-http.listen-all` | false | Server mode: bind HTTP to all interfaces and answer any web origin. Required for hosted containers, including external SeedInfra deployments. |
 | `-http.app-origins` | empty | Additional comma-separated trusted app origins. The desktop supplies its Vite dev origin or custom local-server port range; production server deployments normally leave this empty. |
 | `-public-only` | false | Serve only public data in the APIs and over HTTP. Hosted sites and [gateways](../protocol/sites.md) use this mode. <!-- id:3vWzc_PR --> |
 | `-keystore-dir` | empty | Use a file-based keystore in place of the OS keychain or vault. It is marked insecure. Sites use it inside their container. <!-- id:7a5pl9E4 --> |

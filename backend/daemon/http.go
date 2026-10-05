@@ -74,9 +74,21 @@ func initHTTP(
 	}
 	allowedOrigin := appOriginAllowlist(httpCfg.AppOrigins)
 	router := &Router{mux: http.NewServeMux()}
+	// Server daemons (-http.listen-all or -public-only) serve websites directly: the hosted web app
+	// uploads to the gateway from the browser, from any custom domain. They keep the open policy,
+	// as before. A personal daemon on loopback authenticates every browser page instead.
+	if httpCfg.ListenAll || cfg.PublicOnly {
+		router.Use(
+			openCORSMiddleware,
+			bearerAuthMiddleware(apiServer.AuthenticateBearerToken),
+		)
+	} else {
+		router.Use(
+			browserGateMiddleware(secret, allowedOrigin, apiServer.AuthenticateBearerToken),
+			appCORSMiddleware(allowedOrigin),
+		)
+	}
 	router.Use(
-		browserGateMiddleware(secret, allowedOrigin, apiServer.AuthenticateBearerToken),
-		appCORSMiddleware(allowedOrigin),
 		publicOnlyMiddleware(cfg.PublicOnly),
 		handlerNameMiddleware(router.mux),
 		instrument,
@@ -250,6 +262,43 @@ func appOriginAllowlist(extra string) func(string) bool {
 		}
 	}
 	return func(origin string) bool { return origins[origin] }
+}
+
+// bearerAuthMiddleware attaches the caller of a valid bearer token, as before the browser gate existed.
+func bearerAuthMiddleware(authenticate func(context.Context, string) (core.Principal, error)) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
+			if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+			caller, err := authenticate(r.Context(), strings.TrimSpace(token))
+			if err != nil {
+				http.Error(w, "bad bearer authorization", http.StatusUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r.WithContext(blob.WithAuthenticatedCaller(r.Context(), caller)))
+		})
+	}
+}
+
+// openCORSMiddleware is the policy for public-only daemons: any origin may read public data and
+// upload public blobs, exactly as before. Private daemons never use it.
+func openCORSMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "*")
+		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+			if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+				w.Header().Set("Access-Control-Allow-Private-Network", "true")
+			}
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func browserGateMiddleware(secret string, allowedOrigin func(string) bool, authenticate func(context.Context, string) (core.Principal, error)) func(http.Handler) http.Handler {
