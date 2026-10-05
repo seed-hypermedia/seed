@@ -26,7 +26,7 @@ vi.mock('../utils/navigation-container', () => ({
   resolveBrowserRoute: mocks.resolveRoute,
 }))
 
-import {WebBrowser} from '../pages/web-browser'
+import {WebBrowser, displayedOrigin} from '../pages/web-browser'
 
 describe('browser page lifecycle', () => {
   let root: Root
@@ -136,7 +136,10 @@ describe('browser page lifecycle', () => {
       }),
     )
     const icon = container.querySelector('img')!
-    expect(icon.nextElementSibling?.getAttribute('role')).toBe('status')
+    // Icon, then the real origin Seed draws, then the page-chosen title.
+    expect(icon.nextElementSibling?.getAttribute('data-testid')).toBe('browser-origin')
+    expect(icon.nextElementSibling?.textContent).toContain('example.com')
+    expect(icon.nextElementSibling?.nextElementSibling?.getAttribute('role')).toBe('status')
     const refresh = container.querySelector('[aria-label="Reload page"]')!
     expect(refresh.nextElementSibling?.getAttribute('aria-label')).toBe('Open in default browser')
     act(() => icon.dispatchEvent(new Event('error')))
@@ -177,5 +180,14 @@ describe('browser page lifecycle', () => {
     act(() => dispatch({type: 'replace', route: {...getState().routes[getState().routeIndex]}}))
     expect(sent('web-browser-bounds').at(-1)).toMatchObject({browserId: 42, visible: false})
     expect(container.textContent).toContain('The experimental web browser is disabled.')
+  })
+})
+
+describe('displayed origin', () => {
+  it('shows the raw host and the connection state, never a page-chosen label', () => {
+    expect(displayedOrigin('https://xn--pple-43d.com/login?x=1#f')).toEqual({host: 'xn--pple-43d.com', secure: true})
+    expect(displayedOrigin('http://user:pw@bank.example:8080/')).toEqual({host: 'bank.example:8080', secure: false})
+    expect(displayedOrigin('hm://alice/docs')).toBeNull()
+    expect(displayedOrigin('not a url')).toBeNull()
   })
 })

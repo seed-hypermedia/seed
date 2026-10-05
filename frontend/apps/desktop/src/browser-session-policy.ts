@@ -82,6 +82,23 @@ export function setupBrowserSessionPolicy() {
     event.preventDefault()
     callback()
   })
+  // Chromium already refuses bad certificates; saying so here keeps a future "proceed anyway" from
+  // being added by accident, and keeps the rule testable.
+  app.on('certificate-error', (event, contents, _url, _error, _certificate, callback) => {
+    if (contents.session !== browserSession) return
+    event.preventDefault()
+    callback(false)
+  })
+  // Global Privacy Control on every request from the pane, so sites that honor it do not sell data.
+  browserSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    callback({requestHeaders: {...details.requestHeaders, 'Sec-GPC': '1'}})
+  })
+  // Encrypted DNS when the resolver supports it; the whole app shares Chromium's resolver.
+  try {
+    app.configureHostResolver({secureDnsMode: 'automatic'})
+  } catch {
+    // Older builds or test doubles without the API keep the system resolver.
+  }
   browserSession.on('will-download', (event, item, contents) => {
     if (!contents || !gestures.get(contents)?.consume()) {
       event.preventDefault()
@@ -98,6 +115,11 @@ export function setupBrowserSessionPolicy() {
     if (!path) event.preventDefault()
     else item.setSavePath(path)
   })
+}
+
+/** Per-guest settings that are not web preferences: WebRTC must not reveal local network addresses. */
+export function hardenGuestWebContents(guest: WebContents) {
+  guest.setWebRTCIPHandlingPolicy('default_public_interface_only')
 }
 
 /** Clears only website session data, stopping guests before removing their storage. */

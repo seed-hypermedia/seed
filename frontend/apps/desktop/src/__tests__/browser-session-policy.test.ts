@@ -10,9 +10,14 @@ const mocks = vi.hoisted(() => ({
 }))
 vi.mock('electron', async () => {
   const {EventEmitter} = await import('node:events')
-  mocks.app = new EventEmitter()
+  mocks.app = Object.assign(new EventEmitter(), {configureHostResolver: vi.fn()})
   mocks.session = Object.assign(new EventEmitter(), {
-    webRequest: {onBeforeRequest: vi.fn(), onResponseStarted: vi.fn(), onCompleted: vi.fn()},
+    webRequest: {
+      onBeforeRequest: vi.fn(),
+      onBeforeSendHeaders: vi.fn(),
+      onResponseStarted: vi.fn(),
+      onCompleted: vi.fn(),
+    },
     setPermissionRequestHandler: vi.fn(),
     setPermissionCheckHandler: vi.fn(),
     clearStorageData: vi.fn(),
@@ -33,6 +38,7 @@ import {
   browserUserGesture,
   clearBrowserData,
   hardenBrowserPreferences,
+  hardenGuestWebContents,
   setupBrowserSessionPolicy,
 } from '../browser-session-policy'
 
@@ -131,4 +137,25 @@ it('clears only the browser partition and stops its active documents first', asy
   expect(host.stop).not.toHaveBeenCalled()
   expect(mocks.session.clearStorageData).toHaveBeenCalledOnce()
   expect(mocks.session.clearCache).toHaveBeenCalledOnce()
+})
+it('refuses bad certificates for the browser partition only, sends GPC, and asks for encrypted DNS', () => {
+  setupBrowserSessionPolicy()
+  const event = {preventDefault: vi.fn()}
+  const callback = vi.fn()
+  mocks.app.emit('certificate-error', event, {session: {}}, 'https://a.example', 'ERR', {}, callback)
+  expect(callback).not.toHaveBeenCalled()
+  expect(event.preventDefault).not.toHaveBeenCalled()
+  mocks.app.emit('certificate-error', event, {session: mocks.session}, 'https://a.example', 'ERR', {}, callback)
+  expect(event.preventDefault).toHaveBeenCalledOnce()
+  expect(callback).toHaveBeenCalledWith(false)
+  const beforeSend = mocks.session.webRequest.onBeforeSendHeaders.mock.calls[0]![0]
+  const respond = vi.fn()
+  beforeSend({requestHeaders: {Accept: '*/*'}}, respond)
+  expect(respond).toHaveBeenCalledWith({requestHeaders: {Accept: '*/*', 'Sec-GPC': '1'}})
+  expect(mocks.app.configureHostResolver).toHaveBeenCalledWith({secureDnsMode: 'automatic'})
+})
+it('keeps WebRTC on the public interface for every guest', () => {
+  const guest = {setWebRTCIPHandlingPolicy: vi.fn()} as unknown as WebContents
+  hardenGuestWebContents(guest)
+  expect(guest.setWebRTCIPHandlingPolicy).toHaveBeenCalledWith('default_public_interface_only')
 })

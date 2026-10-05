@@ -6,7 +6,12 @@ import {loadBrowserFavicon, readBrowserFavicons} from './app-browser-favicon'
 import {executeBrowserCommand, type BrowserArchive} from './app-browser-agent'
 
 import {isGuestOnPrivateNetwork, navigatePublicBrowser, trackBrowserNetwork} from './browser-network-policy'
-import {browserUserGesture, hardenBrowserPreferences, setupBrowserSessionPolicy} from './browser-session-policy'
+import {
+  browserUserGesture,
+  hardenBrowserPreferences,
+  hardenGuestWebContents,
+  setupBrowserSessionPolicy,
+} from './browser-session-policy'
 const activeGuests = new WeakMap<BrowserWindow, WebContents>()
 
 /** The visible page to target with native find commands, whether a website or Seed content. */
@@ -79,6 +84,7 @@ export function setupWebBrowser(
     view.setBounds({x: 0, y: 0, width: 0, height: 0})
     window.contentView.addChildView(view)
     const guest = view.webContents
+    hardenGuestWebContents(guest)
     views.set(guest.id, view)
     attachGuest(guest)
     guest.once('destroyed', () => {

@@ -15,7 +15,7 @@ vi.mock('electron', async () => {
   const {EventEmitter} = await import('node:events')
   const session = Object.assign(new EventEmitter(), {
     webRequest: Object.fromEntries(
-      ['onBeforeRequest', 'onResponseStarted', 'onCompleted'].map((name) => [
+      ['onBeforeRequest', 'onBeforeSendHeaders', 'onResponseStarted', 'onCompleted'].map((name) => [
         name,
         (fn: Function) => {
           mocks.networkCallbacks[name] = fn
@@ -50,6 +50,7 @@ function fixture() {
     getTitle: () => 'Example',
     loadURL: vi.fn().mockResolvedValue(undefined),
     setWindowOpenHandler: vi.fn(),
+    setWebRTCIPHandlingPolicy: vi.fn(),
     navigationHistory: {getActiveIndex: () => 0, length: () => 0},
   })
   const window = Object.assign(new EventEmitter(), {

@@ -8,10 +8,24 @@ import {useListenAppEvent} from '@/utils/window-events'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {Button} from '@shm/ui/button'
-import {ExternalLink, Globe, RotateCw, X} from 'lucide-react'
+import {ExternalLink, Globe, Lock, LockOpen, RotateCw, X} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 
 let nextRequestId = 0
+
+/**
+ * The origin to show for a page: the host as Chromium sees it, so look-alike domains appear in
+ * their raw punycode form, never the pretty version the page might prefer.
+ */
+export function displayedOrigin(url: string): {host: string; secure: boolean} | null {
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null
+    return {host: parsed.host, secure: parsed.protocol === 'https:'}
+  } catch {
+    return null
+  }
+}
 
 /** Whether an app overlay (dialog, menu, popover) is open; the native page view would otherwise cover it. */
 function useOverlayPresence(enabled: boolean) {
@@ -192,6 +206,23 @@ export function WebBrowser() {
           ) : (
             <Globe aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
           )}
+          {(() => {
+            const origin = displayedOrigin(route.url)
+            return origin ? (
+              <span
+                className="flex min-w-0 shrink-0 items-center gap-1 font-mono text-xs"
+                data-testid="browser-origin"
+                title={origin.secure ? 'Secure connection' : 'Not secure'}
+              >
+                {origin.secure ? (
+                  <Lock aria-label="Secure connection" className="size-3 shrink-0" />
+                ) : (
+                  <LockOpen aria-label="Not secure" className="text-destructive size-3 shrink-0" />
+                )}
+                <span className="max-w-[40%] truncate">{origin.host}</span>
+              </span>
+            ) : null
+          })()}
           <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs" role="status">
             {loading ? 'Loading…' : route.title || route.url}
           </span>
