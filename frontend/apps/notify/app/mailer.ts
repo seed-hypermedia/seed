@@ -20,7 +20,7 @@ const transporter =
           user: NOTIFY_SMTP_USER as string,
           pass: NOTIFY_SMTP_PASSWORD as string,
         },
-      } as nodemailer.TransportOptions)
+      })
     : null
 
 /** Optional extra headers for deliverability. */
