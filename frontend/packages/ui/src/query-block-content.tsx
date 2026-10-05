@@ -1060,7 +1060,7 @@ function SelectedAttributes({
   return (
     <div
       data-testid={kind === 'counts' ? 'selected-attribute-counts' : undefined}
-      className={cn('text-muted-foreground flex items-center gap-x-3 gap-y-1 text-xs', className)}
+      className={cn('text-muted-foreground flex items-center gap-1 text-sm', className)}
     >
       {attributes.map((descriptor) => {
         const value = getQueryTableValue(item, descriptor.id, context)
@@ -1117,7 +1117,7 @@ function SelectedAttributes({
             <span
               className={cn(
                 badgeVariants({variant: 'outline'}),
-                'text-muted-foreground max-w-full min-w-0 text-[10px]',
+                'text-muted-foreground flex max-w-full min-w-0 items-center gap-1 text-sm',
               )}
               tabIndex={0}
             >

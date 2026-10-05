@@ -515,7 +515,7 @@ export function DocumentCard({
                     navigate({key: 'comments', id: docId})
                   }}
                 >
-                  <MessageSquare className="size-3" />
+                  <MessageSquare className="size-3.5" />
                   <SizableText size="xs" className="font-sans">
                     {commentCount}
                   </SizableText>
