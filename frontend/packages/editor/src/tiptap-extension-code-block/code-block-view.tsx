@@ -3,7 +3,7 @@ import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
 import {Check, ChevronDown, Copy, Eye, EyeOff, X} from 'lucide-react'
 import mermaid from 'mermaid'
-import {ReactNode, useCallback, useEffect, useRef, useState} from 'react'
+import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 
 // Initialize mermaid
@@ -13,16 +13,18 @@ mermaid.initialize({
   securityLevel: 'loose',
 })
 
+let mermaidRenderId = 0
+
 /** Renders code with copy controls and an optional Mermaid diagram view. */
 export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languages: string[]}) => {
   const {node, updateAttributes} = props
   const [hovered, setHovered] = useState(false)
-  const [language, setLanguage] = useState(node.attrs.language ? node.attrs.language : 'plaintext')
+  const language = node.attrs.language || 'plaintext'
   const [open, setOpen] = useState(false)
   const [dropdownPosition, setDropdownPosition] = useState({top: 0, left: 0})
   const buttonRef = useRef<HTMLButtonElement>(null)
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const [showMermaidPreview, setShowMermaidPreview] = useState(false)
+  const [showMermaidPreview, setShowMermaidPreview] = useState(true)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [mermaidSvg, setMermaidSvg] = useState<string>('')
   const [mermaidError, setMermaidError] = useState<string | null>(null)
@@ -35,30 +37,11 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
     ? languages
     : [...languages, 'mermaid'].sort((a, b) => a.localeCompare(b))
 
-  const renderMermaid = useCallback(async () => {
-    if (!isMermaid || !codeContent.trim()) {
-      setMermaidSvg('')
-      setMermaidError(null)
-      return
-    }
-
-    try {
-      const id = `mermaid-preview-${Date.now()}`
-      const {svg} = await mermaid.render(id, codeContent)
-      setMermaidSvg(svg)
-      setMermaidError(null)
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : 'Invalid diagram'
-      setMermaidError(errorMessage)
-      setMermaidSvg('')
-    }
-  }, [isMermaid, codeContent])
-
   useEffect(() => {
-    if (showMermaidPreview && isMermaid) {
-      renderMermaid()
-    }
-  }, [showMermaidPreview, isMermaid, renderMermaid])
+    setShowMermaidPreview(true)
+    setMermaidSvg('')
+    setMermaidError(null)
+  }, [language])
 
   useEffect(() => {
     setCopyState('idle')
@@ -69,6 +52,28 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
     const timeout = setTimeout(() => setCopyState('idle'), 2000)
     return () => clearTimeout(timeout)
   }, [copyState])
+
+  useEffect(() => {
+    if (!showMermaidPreview || !isMermaid) return
+    let cancelled = false
+    setMermaidSvg('')
+    setMermaidError(null)
+    if (!codeContent.trim()) return
+
+    const id = `mermaid-preview-${mermaidRenderId++}`
+    mermaid.render(id, codeContent).then(
+      ({svg}) => {
+        if (!cancelled) setMermaidSvg(svg)
+      },
+      (error) => {
+        document.getElementById(id)?.remove()
+        if (!cancelled) setMermaidError(error instanceof Error ? error.message : 'Invalid diagram')
+      },
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [showMermaidPreview, isMermaid, codeContent])
 
   const copyLabel =
     copyState === 'copied' ? 'Code Copied' : copyState === 'error' ? 'Copy Failed. Try Again' : 'Copy Code'
@@ -94,14 +99,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
 
   const handleChange = (newLanguage: string) => {
     updateAttributes({language: newLanguage})
-    setLanguage(newLanguage)
     setOpen(false)
-    // Reset mermaid preview when language changes
-    if (newLanguage !== 'mermaid') {
-      setShowMermaidPreview(false)
-      setMermaidSvg('')
-      setMermaidError(null)
-    }
   }
 
   const handleToggleDropdown = (e?: React.MouseEvent<HTMLButtonElement>) => {
@@ -205,7 +203,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
         </span>
       </div>
       {/* Show language button on hover or when dropdown is open */}
-      {(hovered || open) && (
+      {(hovered || open || isMermaid) && (
         <div
           className="code-block-language-dropdown pointer-events-auto absolute top-1 right-12 z-50 flex items-center gap-2 p-1"
           contentEditable={false}
@@ -221,10 +219,11 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
                   setShowMermaidPreview(!showMermaidPreview)
                 }}
                 type="button"
-                title={showMermaidPreview ? 'Hide Preview' : 'Preview Diagram'}
+                title={showMermaidPreview ? 'Show Code' : 'Preview Diagram'}
+                aria-label={showMermaidPreview ? 'Show Code' : 'Preview Diagram'}
               >
                 {showMermaidPreview ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
-                <span>{showMermaidPreview ? 'Hide' : 'Preview'}</span>
+                <span>{showMermaidPreview ? 'Code' : 'Preview'}</span>
               </Button>
             </>
           )}
@@ -283,7 +282,7 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
 
       {/* Mermaid preview area */}
       {isMermaid && showMermaidPreview && (
-        <div className="border-border bg-muted/30 mb-2 rounded-md border p-3" contentEditable={false}>
+        <div className="border-border bg-muted/30 mb-2 rounded-md border p-3 pt-14" contentEditable={false}>
           {mermaidError ? (
             <div className="rounded-md bg-red-100 p-3 text-red-600 dark:bg-red-900/30 dark:text-red-400">
               <p className="font-mono text-sm">Error: {mermaidError}</p>
@@ -294,14 +293,18 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
               dangerouslySetInnerHTML={{__html: mermaidSvg}}
             />
           ) : (
-            <p className="text-muted-foreground text-center text-sm">Enter diagram code to preview</p>
+            <p className="text-muted-foreground text-center text-sm">
+              {codeContent.trim() ? 'Rendering diagram…' : 'Enter diagram code to preview'}
+            </p>
           )}
         </div>
       )}
 
-      <CodeBlockScroller language={language}>
-        <NodeViewContent style={{whiteSpace: 'pre'}} />
-      </CodeBlockScroller>
+      <div hidden={isMermaid && showMermaidPreview} className={isMermaid ? 'pt-12' : undefined}>
+        <CodeBlockScroller language={language}>
+          <NodeViewContent style={{whiteSpace: 'pre'}} />
+        </CodeBlockScroller>
+      </div>
     </div>
   )
 }
