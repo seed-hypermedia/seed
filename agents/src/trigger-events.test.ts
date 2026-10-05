@@ -192,6 +192,30 @@ describe('run-completed triggers', () => {
     expect(firings[0]).toMatchObject({status: 'no-listener', activity_key: 'run:crawler'})
   })
 
+  test('a schedule keeps firing after an occurrence found nobody listening', async () => {
+    const harness = await createHarness()
+    const triggerId = await createTrigger(harness, {
+      name: 'Tick',
+      source: {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}},
+      continuation: {kind: 'wake', signal: 'go'},
+    })
+    const createdAt =
+      harness.db
+        .query<{created_at: number}, [string]>(`SELECT created_at FROM agent_triggers WHERE id = ?`)
+        .get(triggerId)?.created_at ?? 0
+    const hour = 60 * 60 * 1000
+
+    // Nobody waits for the signal. Each occurrence is still spent once it has fired, so the
+    // schedule moves on to the next one instead of computing the first one for ever.
+    await harness.service.processScheduledTriggers(createdAt + hour)
+    await harness.service.processScheduledTriggers(createdAt + hour + 60_000)
+    await harness.service.processScheduledTriggers(createdAt + 2 * hour)
+
+    const firings = firingsOf(harness, triggerId)
+    expect(firings.map((firing) => firing.status)).toEqual(['no-listener', 'no-listener'])
+    expect(new Set(firings.map((firing) => firing.activity_key)).size).toBe(2)
+  })
+
   test('a trigger already in the chain that produced a run does not fire on it again', async () => {
     const harness = await createHarness()
     const triggerId = await createTrigger(harness, {
