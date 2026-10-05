@@ -6,6 +6,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {type SortingState} from '@tanstack/react-table'
 import {
   ArrowDown,
@@ -1019,8 +1020,15 @@ function QueryBlockCard({
           className="mt-3 flex-wrap"
         />
       }
+      showCommentAction={false}
       actionDetails={
-        <SelectedAttributes item={item} context={context} descriptors={visibleDescriptors} kind="counts" />
+        <SelectedAttributes
+          item={item}
+          context={context}
+          descriptors={visibleDescriptors}
+          kind="counts"
+          commentAction
+        />
       }
     />
   )
@@ -1031,14 +1039,17 @@ function SelectedAttributes({
   context,
   descriptors,
   kind = 'all',
+  commentAction = false,
   className,
 }: {
   item: HMDocumentInfo
   context: QueryTableValueContext
   descriptors: QueryTableColumn[]
   kind?: 'all' | 'values' | 'counts'
+  commentAction?: boolean
   className?: string
 }) {
+  const navigate = useNavigate()
   const attributes = descriptors.filter((descriptor) => {
     if (descriptor.id === 'title') return false
     const isCount = descriptor.id === 'children' || descriptor.id === 'comments' || descriptor.id === 'citations'
@@ -1066,6 +1077,26 @@ function SelectedAttributes({
         }
         if (descriptor.id === 'children' || descriptor.id === 'comments' || descriptor.id === 'citations') {
           const Icon = descriptor.id === 'children' ? FileText : descriptor.id === 'comments' ? MessageSquare : Share2
+          if (descriptor.id === 'comments' && commentAction) {
+            return (
+              <Button
+                key={descriptor.id}
+                variant="ghost"
+                size="sm"
+                className="no-window-drag h-auto gap-1 p-1 text-xs"
+                title={descriptor.label}
+                aria-label={`View discussions (${queryTableValueToString(value) || '0'})`}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  navigate({key: 'comments', id: item.id})
+                }}
+              >
+                <Icon className="size-3.5" />
+                {queryTableValueToString(value) || '0'}
+              </Button>
+            )
+          }
           return (
             <span key={descriptor.id} className="inline-flex items-center gap-1" title={descriptor.label}>
               <Icon className="size-3.5" />

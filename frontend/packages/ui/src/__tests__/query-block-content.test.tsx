@@ -9,8 +9,9 @@ vi.mock('@shm/shared/models/interaction-summary', () => ({
   useInteractionSummaries: () => [{data: {citations: 2}}, {data: {citations: 8}}],
 }))
 
+const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@shm/shared/utils/navigation', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
 }))
 
 import {QueryBlockContent as QueryBlockContentImpl, type QueryBlockContentProps} from '../query-block-content'
@@ -49,6 +50,7 @@ class MockIntersectionObserver {
 
 beforeEach(() => {
   observers = []
+  navigate.mockClear()
   ;(globalThis as typeof globalThis & {IntersectionObserver?: typeof IntersectionObserver}).IntersectionObserver =
     MockIntersectionObserver as unknown as typeof IntersectionObserver
   container = document.createElement('div')
@@ -473,6 +475,61 @@ describe('QueryBlockContent list view with prepended draft items', () => {
     expect(container.querySelector('[data-testid="draft-slot"]')).toBeTruthy()
     expect(container.textContent).not.toContain('No documents found.')
     expect(container.textContent).not.toContain('No documents match the current search and filters.')
+  })
+})
+
+describe('QueryBlockContent selected card comments', () => {
+  it.each([0, 7])('shows one selected comment count (%i) and suppresses card navigation', (comments) => {
+    const items = makeItems(1)
+    let parentClicks = 0
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <div onClick={() => parentClicks++}>
+            <QueryBlockContent
+              items={items}
+              style="Card"
+              accountsMetadata={{}}
+              interactionSummaries={{[items[0].id.id]: {comments, children: 0, authors: []}} as any}
+              tableConfig={{columns: [{id: 'comments', visible: true}]}}
+            />
+          </div>
+        </TooltipProvider>,
+      )
+    })
+
+    const counts = container.querySelectorAll('[title="Comments"]')
+    expect(counts).toHaveLength(1)
+    expect(counts[0]?.textContent).toBe(String(comments))
+    expect(
+      Array.from(container.querySelectorAll('button')).filter((button) => button.textContent === String(comments)),
+    ).toHaveLength(1)
+    const selectedCount = container.querySelector('[data-testid="selected-attribute-counts"] button')
+    expect(selectedCount).toBeTruthy()
+    const click = new MouseEvent('click', {bubbles: true, cancelable: true})
+    act(() => selectedCount!.dispatchEvent(click))
+    expect(click.defaultPrevented).toBe(true)
+    expect(parentClicks).toBe(0)
+    expect(navigate).toHaveBeenCalledExactlyOnceWith({key: 'comments', id: items[0].id})
+  })
+
+  it('hides comments when the selected attribute is disabled, even with existing comments', () => {
+    const items = makeItems(1)
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <QueryBlockContent
+            items={items}
+            style="Card"
+            accountsMetadata={{}}
+            interactionSummaries={{[items[0].id.id]: {comments: 7, children: 0, authors: []}} as any}
+            tableConfig={{columns: [{id: 'comments', visible: false}]}}
+          />
+        </TooltipProvider>,
+      )
+    })
+    expect(container.querySelector('[title="Comments"]')).toBeNull()
+    expect(container.textContent).not.toContain('7')
   })
 })
 

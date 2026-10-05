@@ -355,6 +355,7 @@ export function DocumentCard({
   details,
   actionDetails,
   hideInlineActions = false,
+  showCommentAction = true,
   relocationOrigin,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
@@ -382,6 +383,8 @@ export function DocumentCard({
   details?: ReactNode
   /** Additional details rendered to the left of the card action buttons. */
   actionDetails?: ReactNode
+  /** Show the built-in comment action when counts are not supplied by the caller. */
+  showCommentAction?: boolean
   /** Hide the inline comments / options-dropdown row. */
   hideInlineActions?: boolean
   relocationOrigin?: DocumentCardActionOrigin
@@ -500,7 +503,7 @@ export function DocumentCard({
       actions={
         !hideInlineActions ? (
           <div className="flex items-center gap-1">
-            {commentCount > 0 && (
+            {showCommentAction && commentCount > 0 && (
               <Tooltip content="View discussions">
                 <Button
                   size="icon"
