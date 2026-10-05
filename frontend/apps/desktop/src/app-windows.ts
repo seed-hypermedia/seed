@@ -10,7 +10,7 @@ import {markAppWindowBlurred, markAppWindowFocused} from './app-focus'
 import {updateRecentRoute} from './app-recents'
 import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
-import {getDaemonState, subscribeDaemonState} from './daemon'
+import {daemonAppSecret, getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, isQuietNodeLogsEnabled, warn} from './logger'
 import {logWindowClose, logWindowOpen} from './memory-profiler-window'
 import {mergeWindowNavState, resolveSelectedIdentityForWindow, type WindowNavState} from './utils/account-selection'
@@ -587,8 +587,17 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   windowNavState[windowId] = initNavState
 
   browserWindow.webContents.ipc.on('initWindow', (e) => {
+    // Only the app's top-level renderer receives the daemon credential.
+    const rendererURL = MAIN_WINDOW_VITE_DEV_SERVER_URL
+      ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin
+      : `http://localhost:${(global as any).localServerPort}`
+    const trustedFrame =
+      e.senderFrame === browserWindow.webContents.mainFrame &&
+      !!e.senderFrame?.url &&
+      new URL(e.senderFrame.url).origin === rendererURL
     e.returnValue = {
       windowType,
+      daemonAppSecret: trustedFrame ? daemonAppSecret : undefined,
       navState: windowNavState[windowId],
       daemonState: getDaemonState(),
       windowId,

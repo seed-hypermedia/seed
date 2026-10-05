@@ -85,7 +85,7 @@ export const IS_PROD_DEV = IS_PROD_DESKTOP && VERSION?.includes('-dev')
 export const IS_TEST = process.env.NODE_ENV == 'test'
 
 export const DAEMON_HTTP_URL =
-  IME.DAEMON_HTTP_URL || process.env.DAEMON_HTTP_URL || `${DAEMON_HOSTNAME || 'http://localhost'}:${DAEMON_HTTP_PORT}`
+  IME.DAEMON_HTTP_URL || process.env.DAEMON_HTTP_URL || `${DAEMON_HOSTNAME || 'http://127.0.0.1'}:${DAEMON_HTTP_PORT}`
 
 export const API_HTTP_URL = `${DAEMON_HOSTNAME || 'http://localhost'}:${API_HTTP_PORT}`
 

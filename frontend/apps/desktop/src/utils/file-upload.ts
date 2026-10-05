@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 
 export async function fileUpload(file: File) {
@@ -5,7 +6,7 @@ export async function fileUpload(file: File) {
   formData.append('file', file)
   let response: Response
   try {
-    response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+    response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
       method: 'POST',
       body: formData,
     })

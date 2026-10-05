@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {toast} from '@shm/ui/toast'
 import {Node, NodeType} from 'prosemirror-model'
@@ -58,7 +59,7 @@ export async function handleDragMedia(file: File) {
   formData.append('file', file)
 
   try {
-    const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+    const response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
       method: 'POST',
       body: formData,
     })
