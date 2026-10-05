@@ -1,4 +1,9 @@
-# Agents Service Plan
+---
+name: Agents Service Plan
+summary: The original 2026 plan for the standalone agents service, its signed CBOR API, SQLite persistence and first desktop UI, kept as a historical record of where the runtime started.
+---
+Status: historical record from the first build of the service (mid 2026). Much of it shipped and much of it changed since: the action catalogue, tables and UI it sketches are superseded by the [signed API](../signed-api.md), [persistence](../persistence.md) and [desktop and web UI](../desktop-ui.md) pages, which describe what exists. The [roadmap](../roadmap.md) is the only live forward-looking page.
+
 
 The `agents` service is a standalone service in the Seed Hypermedia ecosystem. It hosts long-running AI agents on behalf of Seed accounts, stores agent/session state durably, exposes signed CBOR APIs, streams session events, and is consumed by desktop and eventually web clients.
 

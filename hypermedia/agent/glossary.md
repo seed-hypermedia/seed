@@ -38,6 +38,10 @@ The words the [Seed Agents](../agent.md) pages use, one line each, linked to the
 - [typed result](./typed-result.md): a child spawned with an `output` schema must deliver its result through the `return_result` tool. <!-- id:THID80eE -->
 - [script and ctx](./script.md): a script child's world: `ctx.call`, `ctx.delegate`, `ctx.parallel`, `ctx.step`, `ctx.plan`, `ctx.sleep`, `ctx.waitForEvent`, `ctx.continueAsNew`. <!-- id:QxQG0zGR -->
 - [journal](./journal.md): a script run's durable effect record; resume replays the source against it and completed effects never re-execute. <!-- id:Pi9NkRbM -->
+- journal entry: one record in a [journal](./journal.md), a JSON value with a `kind` (`call`, `result`, `timer`, `fired`, `wait`, `event`, `now`, `log`, `step`, `plan`), the `callSeq` of the ctx call it belongs to, and a content `key` replay matches on.
+- run tree: a root [run](./runs.md) and every run spawned under it, all sharing one `rootRunId`; what `ListRuns {rootRunId}` returns and a `runs/<rootRunId>` subscription replays.
+- root run: the run a message or a firing started, at depth 0; its children carry `parentRunId` and a greater `depth`.
+- turn: one model run of a session, from a message or a wake to the reply; each turn is a run row of kind `agent`.
 - [park and wait](./park.md): a run pausing without holding resources, for children, a timer, an event, or a budget pause. <!-- id:yYu22gIQ -->
 - [wake source](./wake-source.md): whatever ends a park: children finishing, a timer, a signal, an activity event, or a person resuming. <!-- id:3WjoeEZL -->
 - [continueAsNew](./continue-as-new.md): a long-running script finishing into a fresh successor run with a clean journal. <!-- id:RIJrxpyc -->

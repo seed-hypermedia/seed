@@ -1,4 +1,9 @@
-# Agent Unification Plan
+---
+name: Agent Unification Plan
+summary: The July 2026 plan that replaced the desktop app's separate assistant with the Agents service running as a local subprocess, kept as a historical record of the decisions and their reasons.
+---
+Status: historical record, July 2026. The unification it describes shipped: the desktop app embeds the agents server and there is one agent runtime, one protocol and one UI. Read the [system overview](../system-overview.md) and [desktop and web UI](../desktop-ui.md) for how things are today; the [roadmap](../roadmap.md) is the only live forward-looking page.
+
 
 Replace the desktop's bespoke assistant stack with the Agents service, running locally as a subprocess of the desktop
 app. One agent runtime, one protocol, one UI — everywhere.
@@ -141,7 +146,7 @@ gets *for free* on day one: triggers, usage/cost display, multi-agent, `web_sear
 ## 6. Parity gaps to close
 
 1. **ChatGPT OAuth login.** ~~The one genuine feature gap.~~ **Downgraded after research — see
-   [pi-chatgpt-oauth.md](./pi-chatgpt-oauth.md).** Pi already ships `openaiCodexOAuthProvider` (login, refresh,
+   [pi-chatgpt-oauth.md](https://github.com/seed-hypermedia/seed/blob/main/docs/plans/pi-chatgpt-oauth.md).** Pi already ships `openaiCodexOAuthProvider` (login, refresh,
    `chatgpt-account-id` header, `instructions`/`store:false` Responses semantics — everything
    `chat-provider-options.ts` hand-rolls). The agents service simply never wires pi's OAuth layer to its provider
    model: ~1 provider type + 3 protocol actions. Pi's login is loopback-only (`localhost:1455`), which is fine for the
