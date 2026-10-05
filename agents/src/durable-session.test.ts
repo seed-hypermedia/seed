@@ -825,6 +825,106 @@ describe('durable sessions', () => {
     expect(resets).toBe(resetsAfterSecond)
   })
 
+  test('a parked run whose children were answered for by another turn has nothing left to ask', async () => {
+    const h = await createSession()
+    const parentRequests: ChatMessage[][] = []
+    let releaseChild = () => {}
+    const childGate = new Promise<void>((resolve) => {
+      releaseChild = resolve
+    })
+    const childResultLogged = () =>
+      h.db
+        .query<{event_cbor: Uint8Array}, [string]>(`SELECT event_cbor FROM session_events WHERE session_id = ?`)
+        .all(h.sessionId)
+        .some((row) => {
+          const event = cbor.decode<{type: string; toolCallId?: string}>(row.event_cbor)
+          return event.type === 'tool_result' && event.toolCallId === 'spawn-1'
+        })
+    const plan = (first: string, second: string) => ({
+      steps: [
+        {id: 's1', label: 'Delegated part', status: first},
+        {id: 's2', label: 'Write up', status: second},
+      ],
+    })
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      const messages = providerMessages(init)
+      if (String(messages[0]?.content).includes('You are the worker.')) {
+        await childGate
+        return textReply('child', 'Worker finished.')
+      }
+      parentRequests.push(messages)
+      const request = parentRequests.length
+      if (request === 1) return toolCallReply('chat-1', 'plan-1', 'plan', plan('running', 'pending'))
+      if (request === 2) {
+        return toolCallReply('chat-2', 'spawn-1', 'delegate', {
+          title: 'Worker',
+          prompt: 'You are the worker.',
+          brief: 'Do the task',
+        })
+      }
+      if (request === 3) {
+        // The person's question is answered while the child finishes, with the plan still open:
+        // this turn takes a second pass, and that pass reads the child's result.
+        releaseChild()
+        while (!childResultLogged()) await Bun.sleep(1)
+        return textReply('chat-3', 'Still working.')
+      }
+      if (request === 4) return toolCallReply('chat-4', 'plan-4', 'plan', plan('done', 'done'))
+      return textReply(`chat-${request}`, `Reply ${request}`)
+    }) as unknown as typeof fetch
+
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Delegate the task'}]})
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'How is it going?'}]})
+    await h.service.awaitQueueIdle()
+
+    // The parked run wakes to find its child's result already read and answered for. It neither
+    // rebuilds the conversation nor asks the model a sixth time.
+    expect(parentRequests).toHaveLength(5)
+    expect(parentRequests.flat().some((message) => String(message.content).includes('<background_work_update>'))).toBe(
+      false,
+    )
+    const entries = await durableEntries(h)
+    expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
+    const statuses = h.db.query<{status: string}, []>(`SELECT status FROM runs`).all()
+    expect(statuses.map((row) => row.status)).toEqual(['succeeded', 'succeeded', 'succeeded'])
+  })
+
+  test('a store rebuilt while a run is parked still holds the request that run is working on', async () => {
+    const h = await createSession()
+    const parentRequests: ChatMessage[][] = []
+    let releaseChild = () => {}
+    const childGate = new Promise<void>((resolve) => {
+      releaseChild = resolve
+    })
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      const messages = providerMessages(init)
+      if (String(messages[0]?.content).includes('You are the worker.')) {
+        await childGate
+        return textReply('child', 'Worker finished.')
+      }
+      parentRequests.push(messages)
+      if (parentRequests.length === 1) {
+        return toolCallReply('chat-1', 'spawn-1', 'delegate', {
+          title: 'Worker',
+          prompt: 'You are the worker.',
+          brief: 'Do the task',
+        })
+      }
+      return textReply(`chat-${parentRequests.length}`, `Reply ${parentRequests.length}`)
+    }) as unknown as typeof fetch
+
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Delegate the task'}]})
+    dropStore(h)
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'How is it going?'}]})
+    releaseChild()
+    await h.service.awaitQueueIdle()
+
+    // The parked run is not waiting its turn; its message is part of what the model already read.
+    const rebuilt = (parentRequests[1] ?? []).map((message) => String(message.content))
+    expect(rebuilt.findIndex((content) => content.includes('Delegate the task'))).toBe(1)
+    expect(rebuilt.findIndex((content) => content.includes('How is it going?'))).toBeGreaterThan(1)
+  })
+
   test('a run restarted after its answer was committed does not ask the model again', async () => {
     const h = await createSession()
     let providerRequests = 0
