@@ -1,7 +1,7 @@
 import {Button} from '@shm/ui/button'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
-import {Check, ChevronDown, Eye, EyeOff} from 'lucide-react'
+import {Check, ChevronDown, Copy, Eye, EyeOff, X} from 'lucide-react'
 import mermaid from 'mermaid'
 import {ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
@@ -13,6 +13,7 @@ mermaid.initialize({
   securityLevel: 'loose',
 })
 
+/** Renders code with copy controls and an optional Mermaid diagram view. */
 export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languages: string[]}) => {
   const {node, updateAttributes} = props
   const [hovered, setHovered] = useState(false)
@@ -22,11 +23,12 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
   const buttonRef = useRef<HTMLButtonElement>(null)
   const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const [showMermaidPreview, setShowMermaidPreview] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [mermaidSvg, setMermaidSvg] = useState<string>('')
   const [mermaidError, setMermaidError] = useState<string | null>(null)
 
   const isMermaid = language === 'mermaid'
-  const codeContent = node.textContent || ''
+  const codeContent = node.textBetween(0, node.content.size, '', '\n')
 
   // Ensure mermaid is in the languages list
   const allLanguages = languages.includes('mermaid')
@@ -57,6 +59,19 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
       renderMermaid()
     }
   }, [showMermaidPreview, isMermaid, renderMermaid])
+
+  useEffect(() => {
+    setCopyState('idle')
+  }, [codeContent])
+
+  useEffect(() => {
+    if (copyState === 'idle') return
+    const timeout = setTimeout(() => setCopyState('idle'), 2000)
+    return () => clearTimeout(timeout)
+  }, [copyState])
+
+  const copyLabel =
+    copyState === 'copied' ? 'Code Copied' : copyState === 'error' ? 'Copy Failed. Try Again' : 'Copy Code'
 
   const cancelClose = () => {
     if (closeTimeoutRef.current) {
@@ -158,10 +173,41 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
         }
       }}
     >
+      <div className="absolute top-2 right-2 z-50" contentEditable={false}>
+        <Button
+          type="button"
+          size="icon"
+          aria-label={copyLabel}
+          title={copyLabel}
+          className="text-muted-foreground bg-background"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={async (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            try {
+              await navigator.clipboard.writeText(codeContent)
+              setCopyState('copied')
+            } catch {
+              setCopyState('error')
+            }
+          }}
+        >
+          {copyState === 'copied' ? (
+            <Check className="size-4" />
+          ) : copyState === 'error' ? (
+            <X className="size-4" />
+          ) : (
+            <Copy className="size-4" />
+          )}
+        </Button>
+        <span className="sr-only" role="status">
+          {copyState === 'idle' ? '' : copyLabel}
+        </span>
+      </div>
       {/* Show language button on hover or when dropdown is open */}
       {(hovered || open) && (
         <div
-          className="code-block-language-dropdown pointer-events-auto absolute top-1 right-4 z-50 flex items-center gap-2 p-1"
+          className="code-block-language-dropdown pointer-events-auto absolute top-1 right-12 z-50 flex items-center gap-2 p-1"
           contentEditable={false}
         >
           {/* Mermaid-specific buttons */}
@@ -270,7 +316,7 @@ export function CodeBlockScroller({language, children}: {language: string; child
     <div className="relative w-full max-w-full touch-pan-x touch-pan-y overflow-x-auto overflow-y-auto overscroll-x-contain">
       <pre className="m-0 rounded-md bg-transparent px-3 py-3">
         <code className={`hljs language-${language} block`}>
-          <div className="inline-block min-w-full pr-6" style={{whiteSpace: 'pre'}}>
+          <div className="inline-block min-w-full pr-12" style={{whiteSpace: 'pre'}}>
             {children}
           </div>
         </code>
