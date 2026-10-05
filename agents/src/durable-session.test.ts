@@ -302,7 +302,12 @@ describe('durable sessions', () => {
   })
 
   test('a lost durable store is rebuilt from the log on the next turn', async () => {
-    const h = await createSession()
+    const streamed: string[] = []
+    const h = await createSession({
+      onEvent: (event) => {
+        if (event.type === 'session-partial' && event.textDelta) streamed.push(event.textDelta)
+      },
+    })
     const requests: ChatMessage[][] = []
     globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
       requests.push(providerMessages(init))
@@ -312,7 +317,12 @@ describe('durable sessions', () => {
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'First question'}]})
     expect(fs.existsSync(h.durableDir)).toBe(true)
     fs.rmSync(h.durableDir, {recursive: true, force: true})
+    streamed.length = 0
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Second question'}]})
+
+    // Replaying the first answer into the new store is preparation, not this turn's output: only
+    // the new answer is streamed.
+    expect(streamed.join('')).toBe('Answer 2')
 
     // The log is the record: the new store's context was filled from it, so the model still reads
     // the whole conversation.
@@ -326,6 +336,39 @@ describe('durable sessions', () => {
     const entries = await durableEntries(h.durableDir)
     expect(entries.filter((entry) => durable.AssistantEntry.is(entry))).toHaveLength(1)
     expect(entries.filter((entry) => durableSession.ReplayEntry.is(entry)).length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('a store that lost its newest commits catches up from the log', async () => {
+    const h = await createSession()
+    const requests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      requests.push(providerMessages(init))
+      return textReply(`chat-${requests.length}`, `Answer ${requests.length}`)
+    }) as unknown as typeof fetch
+
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'First question'}]})
+    // A power failure can cost a store its newest commits while the database keeps its own:
+    // roll the store back to how it stood after the first turn.
+    const snapshot = `${h.durableDir}.snapshot`
+    fs.cpSync(h.durableDir, snapshot, {recursive: true})
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Second question'}]})
+    fs.rmSync(h.durableDir, {recursive: true, force: true})
+    fs.renameSync(snapshot, h.durableDir)
+
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Third question'}]})
+
+    // The third turn still reads the second, which only the log remembered, and its own answer is
+    // written to the log even though the store handed out entry ids the log had seen before.
+    const third = (requests[2] ?? []).slice(1).map((message) => `${message.role}:${String(message.content)}`)
+    expect(third.filter((line) => line.includes('Second question'))).toHaveLength(1)
+    expect(third).toContain('assistant:Answer 2')
+    expect(third.findIndex((line) => line.includes('Third question'))).toBeGreaterThan(
+      third.indexOf('assistant:Answer 2'),
+    )
+    const messages = eventRows(h.db, h.sessionId).filter((row) => row.type === 'message')
+    expect(messages.map((row) => row.role)).toEqual(['user', 'assistant', 'user', 'assistant', 'user', 'assistant'])
+    // The second answer is no longer tied to an entry; the first and third are.
+    expect(messages.map((row) => row.entry !== null)).toEqual([false, true, false, false, false, true])
   })
 
   test('a retry after a provider failure mid-turn continues from the tool results it already has', async () => {
@@ -406,8 +449,8 @@ describe('durable sessions', () => {
       .filter((event) => event.type === 'message' && event.role === 'assistant')
     expect(messages.map((message) => message.content)).toEqual(['The long answer begins'])
 
-    // The next turn appends to the same conversation. The cut-off answer is in the log for people;
-    // the model is not shown an answer it never finished.
+    // The next turn appends to the same conversation, and the model reads what it had said before
+    // it was stopped, as the person did.
     const requests: ChatMessage[][] = []
     globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
       requests.push(providerMessages(init))
@@ -415,8 +458,10 @@ describe('durable sessions', () => {
     }) as unknown as typeof fetch
     await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Shorter please'}]})
     const next = (requests[0] ?? []).slice(1).map((message) => String(message.content))
-    expect(next.some((content) => content.includes('Explain'))).toBe(true)
-    expect(next.some((content) => content.includes('Shorter please'))).toBe(true)
+    const explainAt = next.findIndex((content) => content.includes('Explain'))
+    expect(explainAt).toBeGreaterThan(-1)
+    expect(next[explainAt + 1]).toBe('The long answer begins')
+    expect(next.findIndex((content) => content.includes('Shorter please'))).toBeGreaterThan(explainAt + 1)
     const entries = await durableEntries(h.durableDir)
     expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
   })
@@ -515,6 +560,135 @@ describe('durable sessions', () => {
     expect(types.filter((type) => type === 'tool_call')).toHaveLength(1)
     expect(types.filter((type) => type === 'tool_result')).toHaveLength(1)
     expect((session.events.at(-1)?.event as {content?: string}).content).toBe('All done.')
+  })
+
+  test('messages that queue up behind a turn are each answered once, in order', async () => {
+    const h = await createSession()
+    let releaseFirst = () => {}
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    let markFirstStarted = () => {}
+    const firstStarted = new Promise<void>((resolve) => {
+      markFirstStarted = resolve
+    })
+    const requests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      requests.push(providerMessages(init))
+      const call = requests.length
+      if (call === 1) {
+        markFirstStarted()
+        await firstGate
+      }
+      return textReply(`chat-${call}`, `Answer ${call}`)
+    }) as unknown as typeof fetch
+
+    const first = h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Question one'}]})
+    await firstStarted
+    // Both follow-ups reach the log, in this order, before the first answer does.
+    const userMessagesLogged = () =>
+      eventRows(h.db, h.sessionId).filter((row) => row.type === 'message' && row.role === 'user').length
+    const second = h.send({
+      _: 'MessageSession',
+      sessionId: h.sessionId,
+      content: [{type: 'text', text: 'Question two'}],
+    })
+    while (userMessagesLogged() < 2) await Bun.sleep(1)
+    const third = h.send({
+      _: 'MessageSession',
+      sessionId: h.sessionId,
+      content: [{type: 'text', text: 'Question three'}],
+    })
+    while (userMessagesLogged() < 3) await Bun.sleep(1)
+    releaseFirst()
+    await Promise.all([first, second, third])
+    await h.service.awaitQueueIdle()
+
+    // Three messages, three provider requests. Each turn takes in its own message and leaves the
+    // later one for the turn queued for it, so no question is put to the model twice.
+    expect(requests).toHaveLength(3)
+    const questions = (messages: ChatMessage[] | undefined) =>
+      (messages ?? [])
+        .filter((message) => message.role === 'user')
+        .map((message) => String(message.content).match(/Question \w+/)?.[0])
+        .filter(Boolean)
+    expect(questions(requests[1])).toEqual(['Question one', 'Question two'])
+    expect(questions(requests[2])).toEqual(['Question one', 'Question two', 'Question three'])
+    const answers = (requests[2] ?? []).filter((message) => message.role === 'assistant')
+    expect(answers.map((message) => message.content)).toEqual(['Answer 1', 'Answer 2'])
+    const entries = await durableEntries(h.durableDir)
+    expect(entries.filter((entry) => durable.ResetEntry.is(entry))).toHaveLength(1)
+  })
+
+  test('a run restarted after its answer was committed does not ask the model again', async () => {
+    const h = await createSession()
+    let providerRequests = 0
+    globalThis.fetch = mock(async () => {
+      providerRequests += 1
+      return textReply(`chat-${providerRequests}`, `Answer ${providerRequests}`)
+    }) as unknown as typeof fetch
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Only question'}]})
+    h.service.stopRunQueue()
+    expect(providerRequests).toBe(1)
+
+    // The process died after the answer reached the store and the log, before the run was closed.
+    h.db.run(
+      `UPDATE runs SET status = 'running', lease_owner = 'dead-process', finished_at = NULL, output_cbor = NULL
+         WHERE session_id = ?`,
+      [h.sessionId],
+    )
+    const restarted = new apisvc.Service(h.db, h.dataDir, {})
+    cleanups.push(() => restarted.stopRunQueue())
+    await restarted.awaitQueueIdle()
+
+    expect(providerRequests).toBe(1)
+    const run = h.db
+      .query<{status: string; output_cbor: Uint8Array | null}, [string]>(
+        `SELECT status, output_cbor FROM runs WHERE session_id = ?`,
+      )
+      .get(h.sessionId)
+    expect(run?.status).toBe('succeeded')
+    const messages = eventRows(h.db, h.sessionId).filter((row) => row.type === 'message')
+    expect(messages.map((row) => row.role)).toEqual(['user', 'assistant'])
+    const answerEventId = h.db
+      .query<{id: string}, [string]>(
+        `SELECT id FROM session_events WHERE session_id = ? AND pi_entry_id IS NOT NULL ORDER BY seq DESC LIMIT 1`,
+      )
+      .get(h.sessionId)?.id
+    expect(cbor.decode<{assistantEventId?: string}>(run?.output_cbor ?? new Uint8Array()).assistantEventId).toBe(
+      answerEventId ?? '',
+    )
+  })
+
+  test('an input that was imported but never submitted still reaches the model, first', async () => {
+    const h = await createSession()
+    const requests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      requests.push(providerMessages(init))
+      return textReply(`chat-${requests.length}`, `Answer ${requests.length}`)
+    }) as unknown as typeof fetch
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'First question'}]})
+
+    // A turn that died between recording its input and submitting it leaves this behind.
+    const harness = await durableSession.openSessionHarness({
+      dir: h.durableDir,
+      models: piAi.createModels(),
+      registry: durable.createRegistry(),
+      onReport: () => {},
+    })
+    const root = await harness.root(durableSession.CONTEXT)
+    await root.commit(async (tx) => {
+      ;(await tx.doc(durableSession.SyncDoc, root.id)).input = {requestId: 'run:lost:1', content: 'Orphaned question'}
+    }, durableSession.CONTEXT)
+    await harness.close(durableSession.CONTEXT)
+
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Next question'}]})
+    const users = (requests[1] ?? [])
+      .filter((message) => message.role === 'user')
+      .map((message) => String(message.content))
+    const orphanAt = users.findIndex((content) => content === 'Orphaned question')
+    expect(orphanAt).toBeGreaterThan(-1)
+    expect(users.findIndex((content) => content.includes('Next question'))).toBeGreaterThan(orphanAt)
   })
 
   test('deleting a session deletes its durable store', async () => {

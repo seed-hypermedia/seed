@@ -57,12 +57,30 @@ export function deleteSessionDurable(stateDir: string, sessionId: string): void 
   fs.rmSync(sessionDurableDir(stateDir, sessionId), {recursive: true, force: true})
 }
 
-/**
- * How far the Seed log has been imported into the conversation: every event at or below
- * `importedSeq` that the harness did not produce itself is already part of the transcript. Zero
- * means the conversation has never been filled from the log.
- */
-export const SyncDoc = durable.defineDoc<{importedSeq: number}>({
+/** The input that starts a turn, under the request id it is submitted with. */
+export type TurnInput = {
+  requestId: string
+  content: string
+  /** The log event the input is the model-facing form of; absent for inputs Seed composed. */
+  eventId?: string
+}
+
+/** How far a session's log has been imported into its conversation, and the input it last produced. */
+export type SyncState = {
+  /**
+   * Every event at or below this sequence number that the harness did not produce itself is
+   * already part of the transcript. Zero means the conversation was never filled from the log.
+   */
+  importedSeq: number
+  /**
+   * The input the newest import held back for submission. It is recorded with the import, so an
+   * input that was never submitted is still known, and one that was is found by its request id.
+   */
+  input?: TurnInput
+}
+
+/** The sync bookkeeping of a conversation, committed together with what it describes. */
+export const SyncDoc = durable.defineDoc<SyncState>({
   kind: 'seed.sync',
   version: 1,
   scope: 'conversation',

@@ -7490,7 +7490,15 @@ export class Service {
     let lastProjectedEntry = 0
     // Whether this run adopted a turn an earlier process left unfinished in the durable store.
     let resumed = false
-    const projectEntry = (entry: durable.EntryRecord, live: boolean): void => {
+    // Whether the harness is working on this turn's input. Until then, what the store publishes is
+    // this run's own preparation (messages imported from the log, stale work being aborted), which
+    // is recorded but is neither streamed nor counted as the turn's output.
+    let turnLive = false
+    // One entry stands for several rows (an answer and its tool calls); they are written together
+    // or not at all, because the next open resumes after the highest entry id it finds.
+    const projectEntry = (entry: durable.EntryRecord, live: boolean): void =>
+      this.#db.transaction(() => projectEntryRows(entry, live))()
+    const projectEntryRows = (entry: durable.EntryRecord, live: boolean): void => {
       if (entry.id <= lastProjectedEntry) return
       const message = entry.model?.[0]
       if (durable.AssistantEntry.is(entry) && message?.role === 'assistant') {
@@ -7545,8 +7553,8 @@ export class Service {
         // stopped the turn, what was said stays said. When the harness cut it off itself (a turn
         // resumed after a restart asks again), the complete answer follows and the fragment is
         // not a message of its own.
-        const text =
-          message.stopReason === 'aborted' && !(live && runningSession?.stopped) ? '' : piAssistantText(message)
+        const stoppedPartial = message.stopReason === 'aborted'
+        const text = stoppedPartial && !(live && runningSession?.stopped) ? '' : piAssistantText(message)
         if (text.trim()) {
           this.#emit({type: 'session-partial', accountId, agentId: session.agentId, sessionId, partialId, done: true})
           const appended = this.#appendSessionEvent(
@@ -7560,7 +7568,10 @@ export class Service {
               meta: {...meta, ...(live ? {durationMs: Math.max(0, Date.now() - turnStartedAt)} : {})},
             },
             Date.now(),
-            entry.id,
+            // The harness leaves an aborted response out of the model's context. Written without
+            // its entry id, the text a person saw before stopping is imported with the next turn
+            // like any other message the harness does not know, so the model knows what it said.
+            stoppedPartial ? undefined : entry.id,
           )
           if (live) assistantEvent = appended
           partialId = crypto.randomUUID()
@@ -7634,10 +7645,11 @@ export class Service {
     const onHarnessEvent = (event: durable.AgentEvent): void => {
       if (event.type === 'snapshot') {
         // The stream fell too far behind and was handed the current state instead of every step.
-        for (const entry of event.entries) projectEntry(entry, true)
+        for (const entry of event.entries) projectEntry(entry, turnLive)
         return
       }
       if (event.type === 'message_start' || event.type === 'message_update') {
+        if (!turnLive) return
         const hadText = textTracker.text.length > 0
         const delta = textTracker.apply(event)
         if (!delta) return
@@ -7658,7 +7670,7 @@ export class Service {
         return
       }
       if (event.type === 'message_end') {
-        projectEntry(event.entry, true)
+        projectEntry(event.entry, turnLive)
         return
       }
       if (event.type === 'tool_execution_start') {
@@ -7724,6 +7736,9 @@ export class Service {
     const runningSessionKey = this.#runningSessionKey(accountId, sessionId)
     runningSession ??= {accountId, stopped: false}
     const live = runningSession
+    // The same record serves every pass of this run's loop; a handle to an earlier pass's closed
+    // store must not be what a stop reaches for.
+    live.abort = undefined
     this.#runningSessions.set(runningSessionKey, live)
 
     // The durable conversation of this session. Everything the turn needs to continue after a
@@ -7778,9 +7793,11 @@ export class Service {
               // spawned (park), a typed result was delivered, or the conversation moved into a
               // successor. The request never leaves — the run is aborted from inside, and the
               // hook waits for that abort to reach it.
-              if (live.parkToolCallIds?.length || live.completeAfterTools) {
-                console.info('[agents/runtime] ending turn after tool batch', {
+              // A stop that arrived while the turn was still being prepared ends it the same way.
+              if (live.stopped || live.parkToolCallIds?.length || live.completeAfterTools) {
+                console.info('[agents/runtime] ending turn before the next provider request', {
                   sessionId,
+                  stopped: live.stopped,
                   parked: live.parkToolCallIds?.length ?? 0,
                   resultDelivered: live.subResult !== undefined,
                 })
@@ -7826,14 +7843,16 @@ export class Service {
       const conversation = await harness.root(durableSession.CONTEXT)
       root = conversation
       const sync = await harness.snapshot(durableSession.SyncDoc, conversation.id, durableSession.CONTEXT)
-      if (!sync?.importedSeq) {
-        // A store that was never filled from the log knows none of the entry ids the log names
-        // (the store was lost, or this session predates it): nothing here is projected from it.
-        stmt(
-          this.#db,
-          `UPDATE session_events SET pi_entry_id = NULL WHERE session_id = ? AND pi_entry_id IS NOT NULL`,
-        ).run([sessionId])
-      }
+      // Entry ids the log names that this store does not hold belong to a store that is gone: it
+      // was lost (then it holds nothing), or it lost its newest commits to a power failure. Their
+      // events are no longer projected from anything here. Unmarked, they are imported again like
+      // every other event the harness does not know, and the store never reuses one of their ids
+      // for an entry the log would then take as already written.
+      const newestEntry = (await conversation.entries({}, 1, undefined, durableSession.CONTEXT)).items[0]?.id ?? 0
+      stmt(this.#db, `UPDATE session_events SET pi_entry_id = NULL WHERE session_id = ? AND pi_entry_id > ?`).run([
+        sessionId,
+        newestEntry,
+      ])
       lastProjectedEntry =
         stmt<{entry: number | null}, [string]>(
           this.#db,
@@ -7881,6 +7900,7 @@ export class Service {
       let submission = unsettled ? await harness.submission(unsettled.id, durableSession.CONTEXT) : undefined
       if (submission) {
         resumed = true
+        turnLive = true
         logRun('resuming the durable turn an earlier process left unfinished', {submissionId: submission.id})
         // Children that turn already spawned still park it.
         for (const entry of stream.snapshot.entries) {
@@ -7897,6 +7917,8 @@ export class Service {
           }
         }
       } else {
+        // Nothing of this turn is in the store yet: a stop now leaves the message for the next turn.
+        if (live.stopped) throw new SessionStoppedError()
         // Work left by a run that is not this one (it failed or was canceled across a restart) is
         // over: its calls are answered as interrupted and its input is withdrawn.
         this.#synthesizeInterruptedToolResults(accountId, session.agentId, sessionId)
@@ -7904,28 +7926,55 @@ export class Service {
           await conversation.abort(durableSession.CONTEXT)
         }
         const endReplaySpan = startPerfSpan('prep.replay')
-        const input = await this.#importSessionLog(conversation, sessionId, sync?.importedSeq ?? 0, run)
+        const turn = await this.#importSessionLog(conversation, sessionId, sync ?? {importedSeq: 0}, run)
         endReplaySpan()
-        if (live.stopped) throw new SessionStoppedError()
-        submission = await conversation.submit(
-          {type: 'input', content: input, requestId: `run:${run?.id ?? 'runless'}:${crypto.randomUUID()}`},
-          durableSession.CONTEXT,
-        )
+        if ('answered' in turn) {
+          // This run's message was already answered: by this run before a restart cut it off
+          // between the answer and its own bookkeeping, or by the turn of a message that arrived
+          // just before it and took both in. The answer stands; the model is not asked again.
+          logRun('turn already answered in the durable conversation; nothing to run')
+          settled = turn.answered
+          assistantEvent = stmt<SessionEventRow, [string, number]>(
+            this.#db,
+            `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+               WHERE session_id = ? AND pi_entry_id = ? ORDER BY seq ASC`,
+          )
+            .all(sessionId, turn.answered.answer)
+            .map(sessionEventRowToInfo)
+            .find((event) => (event.event as {type?: string}).type === 'message')
+        } else {
+          turnLive = true
+          // From here the input is the conversation's: a stop is an abort of the run it starts.
+          submission = await conversation.submit(
+            {type: 'input', content: turn.content, requestId: turn.requestId},
+            durableSession.CONTEXT,
+          )
+        }
       }
-      turnSubmission = submission
-      live.abort = () => conversation.abort(durableSession.CONTEXT)
-      if (live.stopped) await conversation.abort(durableSession.CONTEXT)
-      settled = await submission.wait(durableSession.CONTEXT)
-      // Every entry of the turn is committed; wait for the stream to hand the last of them over.
-      await Promise.race([settledSeen, stream.closed])
+      if (submission) {
+        turnSubmission = submission
+        live.abort = () =>
+          conversation.abort(durableSession.CONTEXT).catch((error) => {
+            logRunError('aborting the durable turn failed', {
+              error: error instanceof Error ? error.message : String(error),
+            })
+          })
+        if (live.stopped) await live.abort()
+        settled = await submission.wait(durableSession.CONTEXT)
+        // Every entry of the turn is committed; wait for the stream to hand the last of them over.
+        await Promise.race([settledSeen, stream.closed])
+      }
       await stream.stop()
-      for (const entry of (await conversation.context(durableSession.CONTEXT)).entries) projectEntry(entry, true)
+      for (const entry of (await conversation.context(durableSession.CONTEXT)).entries) {
+        projectEntry(entry, turnLive)
+      }
     } catch (error) {
       endStreamingLog()
       logRunError('agent run threw', {error: error instanceof Error ? error.message : String(error)})
       throw error
     } finally {
       endStreamingLog()
+      live.abort = undefined
       this.#runningSessions.delete(runningSessionKey)
       // Closing leaves unfinished work pending in the store; it never cancels it.
       await harness.close(durableSession.CONTEXT).catch((error) => {
@@ -7995,45 +8044,67 @@ export class Service {
 
   /**
    * Brings a session's durable conversation up to date with the Seed log and returns the user
-   * input that starts the turn.
+   * input that starts the turn, or the earlier answer when this run's message already has one.
    *
    * The usual case appends: what reached the log since the last turn — the new message, verbs the
    * user ran, a system notice — is written behind the entries the harness produced itself, in the
-   * order the model should read it, and the newest user message becomes the input. Because the
+   * order the model should read it, and the run's newest message becomes the input. Because the
    * conversation orders messages by when the model takes them in, a message that arrived while the
-   * previous answer was still streaming simply follows that answer. The result of a delegated
-   * child is written as a context edit: it replaces the placeholder its call was answered with.
+   * previous answer was still streaming simply follows that answer. A message that arrived after
+   * this run's own is left for the run queued for it. The result of a delegated child is written
+   * as a context edit: it replaces the placeholder its call was answered with.
    *
    * When the log holds something that cannot be appended — a call the runtime had to answer
    * itself after a restart, a late result whose placeholder is not in this context, or a session
    * this store has never seen — the context is rebuilt from the log behind a fresh head, exactly
    * as the log replays. Earlier entries stay in storage, out of context.
+   *
+   * The input is recorded in the sync document in the same commit that imports everything before
+   * it, with the request id it will be submitted under. An input that was recorded but never
+   * submitted (a crash in between) is therefore still known, and goes first next time.
    */
   async #importSessionLog(
     conversation: durable.Conversation,
     sessionId: string,
-    importedSeq: number,
+    sync: durableSession.SyncState,
     run: runs.RunRecord | undefined,
-  ): Promise<string> {
-    const pending = stmt<SessionEventRow, [string, number]>(
+  ): Promise<
+    durableSession.TurnInput | {answered: Extract<durable.SubmissionRecord, {type: 'input'; status: 'done'}>}
+  > {
+    const runInput = run && isRecord(run.input) ? run.input : undefined
+    const runEventIds = new Set(
+      Array.isArray(runInput?.userEventIds)
+        ? runInput.userEventIds.filter((id): id is string => typeof id === 'string')
+        : [],
+    )
+    const unimported = stmt<SessionEventRow, [string, number]>(
       this.#db,
       `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
          WHERE session_id = ? AND seq > ? AND pi_entry_id IS NULL ORDER BY seq ASC`,
     )
-      .all(sessionId, importedSeq)
+      .all(sessionId, sync.importedSeq)
       .map(sessionEventRowToInfo)
     const maxSeq =
       stmt<{seq: number}, [string]>(
         this.#db,
         `SELECT COALESCE(MAX(seq), 0) AS seq FROM session_events WHERE session_id = ?`,
       ).get(sessionId)?.seq ?? 0
+    // A message that arrived after this run's own has a run of its own queued behind this one.
+    const ownNewest = unimported.findLast((event) => runEventIds.has(event.id))
+    const pending = ownNewest ? unimported.filter((event) => event.seq <= ownNewest.seq) : unimported
+    const importedThrough = ownNewest ? ownNewest.seq : maxSeq
     // Strict JSON, as durable state requires: no undefined, nothing but plain data.
     const entryOf = (message: unknown): {model: piAi.Message[]} => ({model: [JSON.parse(JSON.stringify(message))]})
+    const newInput = (content: string, eventId: string | undefined): durableSession.TurnInput => ({
+      requestId: `run:${run?.id ?? 'runless'}:${crypto.randomUUID()}`,
+      content,
+      ...(eventId ? {eventId} : {}),
+    })
 
-    const appended: unknown[] = []
+    const appended: {message: Record<string, unknown>; eventId?: string}[] = []
     // Results that arrived for calls the conversation already answered with a placeholder.
     const late: {toolCallId: string; output?: unknown; error?: string; createdAt: number}[] = []
-    let appendable = importedSeq > 0
+    let appendable = sync.importedSeq > 0
     let interrupted = false
     for (const event of pending) {
       const value = event.event as {
@@ -8046,9 +8117,9 @@ export class Service {
       }
       const userMessage = userEventReplayMessage(event)
       if (userMessage) {
-        appended.push(userMessage)
+        appended.push({message: userMessage, eventId: event.id})
       } else if (value.type === 'message' && value.role === 'assistant' && typeof value.content === 'string') {
-        appended.push(replayAssistantMessage([{type: 'text', text: value.content}], event.createdAt))
+        appended.push({message: replayAssistantMessage([{type: 'text', text: value.content}], event.createdAt)})
       } else if (value.type === 'tool_result' && value.error === INTERRUPTED_TOOL_RESULT_ERROR) {
         appendable = false
         interrupted = true
@@ -8063,6 +8134,33 @@ export class Service {
         appendable = false
       }
     }
+
+    const recorded = sync.input
+    const submitted = recorded
+      ? await conversation.commit(
+          (tx) => tx.submissionByRequest(conversation.id, recorded.requestId),
+          durableSession.CONTEXT,
+        )
+      : undefined
+    if (recorded && !submitted) {
+      // Imported as the input of a turn that never got to submit it: it still goes first.
+      appended.unshift({
+        message: {role: 'user', content: recorded.content, timestamp: Date.now()},
+        ...(recorded.eventId ? {eventId: recorded.eventId} : {}),
+      })
+    } else if (
+      submitted?.type === 'input' &&
+      submitted.status === 'done' &&
+      recorded?.eventId !== undefined &&
+      runEventIds.has(recorded.eventId) &&
+      appended.length === 0 &&
+      late.length === 0 &&
+      (appendable || sync.importedSeq === 0)
+    ) {
+      // Nothing new, and the newest input the conversation answered is this run's own message.
+      return {answered: submitted}
+    }
+
     // A late result takes the place of its call's placeholder through a context edit: the entry
     // stays where the model first read it, and from now on the model reads the real result there.
     // Everything else in the conversation keeps the provider's own record.
@@ -8108,40 +8206,40 @@ export class Service {
         })
       }
     }
-    const lastAppended = appended.at(-1) as {role?: string; content?: unknown} | undefined
-    const newestUserMessage =
-      lastAppended?.role === 'user' && typeof lastAppended.content === 'string' ? lastAppended.content : undefined
-    if (appendable && (newestUserMessage !== undefined || edits.length > 0)) {
+    const newest = appended.at(-1)
+    const newestUser =
+      newest?.message.role === 'user' && typeof newest.message.content === 'string' ? newest : undefined
+    if (appendable && (newestUser !== undefined || edits.length > 0)) {
+      // Children finished and nobody said anything new: hand the model back the floor explicitly.
+      const input = newestUser
+        ? newInput(String(newestUser.message.content), newestUser.eventId)
+        : newInput(BACKGROUND_WORK_UPDATE_INPUT, undefined)
       await conversation.commit(async (tx) => {
-        for (const message of newestUserMessage === undefined ? appended : appended.slice(0, -1)) {
+        for (const {message} of newestUser ? appended.slice(0, -1) : appended) {
           await tx.appendEntry(durableSession.ReplayEntry, conversation.id, entryOf(message))
         }
         if (edits.length > 0) await tx.appendEntry(durableSession.ReplayEntry, conversation.id, {edits})
-        ;(await tx.doc(durableSession.SyncDoc, conversation.id)).importedSeq = maxSeq
+        const doc = await tx.doc(durableSession.SyncDoc, conversation.id)
+        doc.importedSeq = importedThrough
+        doc.input = input
       }, durableSession.CONTEXT)
-      // Children finished and nobody said anything new: hand the model back the floor explicitly.
-      return newestUserMessage ?? BACKGROUND_WORK_UPDATE_INPUT
+      return input
     }
 
     const replay = this.#piMessages(sessionId)
-    const runInput = run && isRecord(run.input) ? run.input : undefined
-    const queuedUserEventIds =
-      runInput?.queuedBehindAnotherTurn === true && Array.isArray(runInput.userEventIds)
-        ? runInput.userEventIds.filter((id): id is string => typeof id === 'string')
-        : []
+    const queuedUserEventIds = runInput?.queuedBehindAnotherTurn === true ? [...runEventIds] : []
     // A concurrent collaborator's message is appended immediately, even while the preceding
     // assistant response is still streaming. That means durable ordering can be user B, then the
     // tail of assistant A. A rebuilt context replays the log in that order, so it ends with a
     // handoff: the serialized follow-up turn cannot mistake A's later event for an answer to B.
     // The original messages remain the only copies in the log; this is provider guidance.
-    const wanted = new Set(queuedUserEventIds)
     const concurrentMessages = queuedUserEventIds.length
       ? stmt<SessionEventRow, [string]>(
           this.#db,
           `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
         )
           .all(sessionId)
-          .filter((row) => wanted.has(row.id))
+          .filter((row) => runEventIds.has(row.id))
           .map((row) => {
             const payload = cbor.decode<api.SessionEventPayload>(row.event_cbor) as {
               type?: string
@@ -8161,33 +8259,49 @@ export class Service {
       : []
     // Queued user events that are not plain messages (a user tool action behind a live turn)
     // render nothing here — they replay positionally as user_action messages instead.
-    let input: string
+    let input: durableSession.TurnInput
     const last = replay.at(-1) as {role?: string; content?: unknown} | undefined
     if (concurrentMessages.length) {
-      input = `<concurrent_user_messages>\nThese user messages arrived while the previous response was already in progress. Any assistant event that follows them in the durable transcript belongs to that earlier turn and does not answer them. Respond to these messages now:\n${JSON.stringify(
-        concurrentMessages,
-      )}\n</concurrent_user_messages>`
+      input = newInput(
+        `<concurrent_user_messages>\nThese user messages arrived while the previous response was already in progress. Any assistant event that follows them in the durable transcript belongs to that earlier turn and does not answer them. Respond to these messages now:\n${JSON.stringify(
+          concurrentMessages,
+        )}\n</concurrent_user_messages>`,
+        undefined,
+      )
     } else if (last?.role === 'user' && typeof last.content === 'string') {
-      // The newest user message starts the run; everything before it is context.
-      input = last.content
+      // The newest user message starts the run; everything before it is context. It is the newest
+      // event in the log that the user side wrote.
+      const newestUserEvent = stmt<SessionEventRow, [string]>(
+        this.#db,
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+           WHERE session_id = ? ORDER BY seq DESC LIMIT 32`,
+      )
+        .all(sessionId)
+        .map(sessionEventRowToInfo)
+        .find((event) => userEventReplayMessage(event) !== undefined)
+      input = newInput(last.content, newestUserEvent?.id)
       replay.pop()
     } else if (!interrupted && (late.length > 0 || last?.role === 'assistant')) {
       // A park-resume ends on the late tool results (attached adjacent to their calls) or, after
       // interleaved conversation, on an assistant message. Either way the model needs direction:
       // hand it back the floor explicitly.
-      input = BACKGROUND_WORK_UPDATE_INPUT
+      input = newInput(BACKGROUND_WORK_UPDATE_INPUT, undefined)
     } else {
       // A retried turn that had already called tools (a provider error, a service restart) picks
       // up from their results.
-      input =
-        '<turn_resumed>\nYour previous attempt at this turn stopped before it finished. The tool calls above show what completed and what was interrupted. Continue from there: verify anything whose outcome is unknown, then finish replying to the user.\n</turn_resumed>'
+      input = newInput(
+        '<turn_resumed>\nYour previous attempt at this turn stopped before it finished. The tool calls above show what completed and what was interrupted. Continue from there: verify anything whose outcome is unknown, then finish replying to the user.\n</turn_resumed>',
+        undefined,
+      )
     }
     await conversation.commit(async (tx) => {
       await tx.appendEntry(durable.ResetEntry, conversation.id, {head: 'self'})
       for (const message of replay) {
         await tx.appendEntry(durableSession.ReplayEntry, conversation.id, entryOf(message))
       }
-      ;(await tx.doc(durableSession.SyncDoc, conversation.id)).importedSeq = maxSeq
+      const doc = await tx.doc(durableSession.SyncDoc, conversation.id)
+      doc.importedSeq = maxSeq
+      doc.input = input
     }, durableSession.CONTEXT)
     return input
   }
