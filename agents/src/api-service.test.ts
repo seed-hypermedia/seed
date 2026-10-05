@@ -7465,7 +7465,16 @@ describe('api service', () => {
       )
       expect(sub.accountId).toBe(blobs.principalToString(account.principal))
       expect(sub.key).toBe(`sessions/${createdSession.sessionId}`)
-      expect(sub.replay?._).toBe('GetSessionResponse')
+      // The replay is read when the socket starts the subscription, not when the envelope was
+      // verified: what changed in between is in it, so nothing falls into a gap between the two.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'UpdateSession', sessionId: createdSession.sessionId, title: 'Renamed meanwhile'},
+        }),
+      )
+      const replay = sub.replay?.()
+      expect(replay?.session.title).toBe('Renamed meanwhile')
+      expect(replay?.events).toEqual([])
     } finally {
       sqlite.closeDatabase(db)
       cleanup()
