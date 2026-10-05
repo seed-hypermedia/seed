@@ -33,6 +33,8 @@ type SignedActionEnvelope = {
   sig: blobs.Signature
   account: blobs.Principal
   protocol?: number // AGENTS_PROTOCOL_VERSION of the client; absent = 1
+  capability?: string // CID of the Capability blob a delegated signer acts under
+  capabilityBlob?: Uint8Array // its bytes, so any server can verify without the network
   action: AgentAction
 }
 
@@ -46,8 +48,10 @@ type AgentAction = UnsignedAgentAction & {
   2. principal/signature byte shapes; <!-- id:_v8P7UA3 -->
   3. signed action timestamp is within five minutes of server local time; <!-- id:Zr6E8UHr -->
   4. Ed25519 signature through `verify()` from `@seed-hypermedia/client` (imported through the `@shm/shared/blobs` re-export); <!-- id:qOVjsEhi -->
-  5. signer is account or locally authorized for account; <!-- id:84U_5iGK -->
+  5. signer is the account, or a locally authorized signer for it, or presents a delegation: `capability` names a [Capability](../capability.md) blob whose bytes come from `capabilityBlob`, from a delegation this server verified before, or from the HM network; the blob must be issued by `account`, delegate to `signer`, carry role `AGENT` or `WRITER`, not be self-issued, and be under 64 KiB; <!-- id:84U_5iGK -->
   6. action is valid for the transport. <!-- id:1BkfRowE -->
+
+Every verification failure is HTTP 401. A body that is not `application/cbor` is 415, and undecodable CBOR is 400.
 
 Implementation: <!-- id:siTzEryg -->
   - `agents/src/auth.ts`: shape/signature/authorization. <!-- id:ifLx8GI- -->
@@ -89,6 +93,8 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `CancelProviderOAuth` <!-- id:liu6iRv_ -->
   - `SetSecret` <!-- id:NI0hTFIg -->
   - `GetAgent` <!-- id:Hud0FKeJ -->
+  - `RegisterSigner` (deprecated; delegations now ride in every envelope)
+  - `ImportSigningIdentity`
   - `UpdateAgent` <!-- id:vAg-7_PX -->
   - `DeleteAgent` <!-- id:qwa__7uq -->
   - `ListAgentTriggers` <!-- id:qe0-cmSS -->
@@ -96,8 +102,16 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `CreateAgentTrigger` <!-- id:e-DLTg3i -->
   - `UpdateAgentTrigger` <!-- id:hkAMZHcp -->
   - `DeleteAgentTrigger` <!-- id:DRLpAMii -->
+  - `CombineAgentTriggers`
   - `ListAgentMemory` <!-- id:6JNPVeDk -->
+  - `ListAgentMemoryDir`
   - `ListAgentTools` <!-- id:CdHDZq2J -->
+  - `SaveAgentTool`
+  - `DeleteAgentTool`
+  - `ListMcpServers`
+  - `SetMcpServer`
+  - `DeleteMcpServer`
+  - `RefreshMcpServer`
   - `ReadAgentMemoryFile` <!-- id:zURG_ATO -->
   - `WriteAgentMemoryFile` <!-- id:vrAHyHX- -->
   - `DeleteAgentMemoryFile` <!-- id:XQ3Loys4 -->
@@ -108,6 +122,7 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `UpdateSession` <!-- id:AhCWr-hY -->
   - `DeleteSession` <!-- id:vyqpa9m8 -->
   - `GetSession` <!-- id:iszDQeOJ -->
+  - `GetSessionEvent`
   - `MessageSession` <!-- id:PPkdIoCy -->
   - `InvokeSessionTool` <!-- id:-HEDVrWa -->
   - `UploadSessionAttachment` <!-- id:sYDub4m5 -->
@@ -135,10 +150,11 @@ Success responses are action-specific. Errors use: <!-- id:KFAyl_Mc -->
 type ErrorResponse = {
   _: 'Error'
   message: string
+  code?: ProtocolErrorCode // e.g. 'protocol_too_old'
 }
 ```
 
-HTTP status is set on expected API errors. Unexpected errors are logged and returned as `500` with a generic message. <!-- id:pwrb18VG -->
+HTTP status is set on expected API errors. Unexpected errors are logged and returned as `500` with `Internal server error: <message>`. <!-- id:pwrb18VG -->
 
 # Action reference <!-- id:TvquiIFE -->
 
@@ -199,6 +215,7 @@ Request: <!-- id:K1behmhG -->
 ```ts <!-- id:3_dA5ja1 -->
 {
   _: 'ListModelProviders'
+  agentId?: string // list on behalf of an agent the signer can read
 }
 ```
 
@@ -218,6 +235,7 @@ Request: <!-- id:j_1euAtv -->
 {
   _: 'ListProviderModels'
   provider: string
+  agentId?: string
 }
 ```
 
@@ -283,6 +301,7 @@ Request: <!-- id:ZxY_xq3E -->
   _: 'UpdateSigningIdentity'
   name: string
   label: string
+  icon?: SigningIdentityIcon
 }
 ```
 
@@ -405,10 +424,10 @@ Request: <!-- id:naq8zR8m -->
 Response: <!-- id:Kw8EAjk_ -->
 
 ```ts <!-- id:1UQ_SBPB -->
-{_: 'GetAgentResponse'; agent: AgentInfo; sessions: SessionInfo[]}
+{_: 'GetAgentResponse'; agent: AgentInfo; sessionCount: number}
 ```
 
-Requires owner, reader, or writer access to the agent. <!-- id:5OveoAaK -->
+Requires reader access: owner, collaborator, or any signed account when the agent has `publicRead`. Sessions come from the paginated `ListSessions {agentId, includeChildren: false}`; only protocol 1 clients still receive a synthesized `sessions` array (the newest 50). The same public-read rule applies to `ListAgentTriggers`, `ListAgentMemory`, `ListAgentTools`, and `ReadAgentMemoryFile`. <!-- id:5OveoAaK -->
 
 ## `UpdateAgent` <!-- id:YMWNoJDM -->
 
@@ -483,8 +502,8 @@ type AgentTriggerInput = {
   name: string
   enabled?: boolean
   source: AgentTriggerSource
-  prompt: string | AgentPromptBlock[]
-  continuation?: TriggerContinuation
+  prompt?: string | AgentPromptBlock[] // required for newThread; a recovery prompt for tool/script
+  continuation?: TriggerContinuation // omitted means newThread
 }
 ```
 
@@ -592,11 +611,13 @@ Request: <!-- id:_jZCrYXr -->
   _: 'CreateSession'
   agentId: string
   title?: string
+  modelOverride?: SessionModelOverride
+  thoroughness?: Thoroughness
   clientRequestId?: string
 }
 ```
 
-Creates an `idle` session for an account-owned agent. <!-- id:SmvTBbqB -->
+Creates an `idle` session. Requires chat access: owner, writer, or a chatter on a `publicChat` agent; readers get 403. <!-- id:SmvTBbqB -->
 
 Idempotent when `clientRequestId` is supplied. <!-- id:T5Yb-Vc0 -->
 
@@ -612,6 +633,7 @@ Request: <!-- id:zPLgZqk2 -->
   cursor?: {updatedBefore: number; idBefore: string}
   parentSessionId?: string
   includeChildren?: boolean
+  excludeTriggered?: boolean // leave out sessions a trigger started
 }
 ```
 
@@ -642,7 +664,9 @@ Request: <!-- id:eVAU-w3G -->
 {
   _: 'UpdateSession'
   sessionId: string
-  title: string
+  title?: string
+  modelOverride?: SessionModelOverride | null
+  thoroughness?: Thoroughness | null
 }
 ```
 
@@ -689,10 +713,12 @@ Request: <!-- id:oHMeIP3k -->
   _: 'GetSession'
   sessionId: string
   afterSeq?: number
+  beforeSeq?: number // page backwards from here
+  limit?: number
 }
 ```
 
-Returns session metadata, durable events with `seq > afterSeq` if provided, and `systemPromptMarkdown`, the current markdown system prompt that would be used to continue the session. <!-- id:AbyNtRFS -->
+Returns session metadata, durable events with `seq > afterSeq` if provided (or a page ending before `beforeSeq`, with `hasMoreBefore`), `systemPromptMarkdown`, the current markdown system prompt that would be used to continue the session, `triggerContext` when a trigger started the session, and `contextWindow`. An oversized event arrives with a `truncated` marker; `GetSessionEvent {sessionId, seq}` returns the whole event. <!-- id:AbyNtRFS -->
 
 ## `MessageSession` <!-- id:TKV37DpX -->
 
@@ -716,7 +742,7 @@ Request: <!-- id:05bA7uU0 -->
 `attachment` parts reference files already staged with `UploadSessionAttachment` (or a committed chunked upload). They are session-private [attachments](./attachment.md). They live with the session, the agent reaches them through `read attachment:<id>`, and they are deleted with the session. <!-- id:wmDG8nTx -->
 
 Flow: <!-- id:yODE0MM7 -->
-  1. Verify that the signed account has write access to the session's agent. <!-- id:hNR1Yvfr -->
+  1. Verify that the signed account has chat access to the session's agent (owner, writer, or chatter). <!-- id:hNR1Yvfr -->
   2. Append the durable user message immediately, with `content` and `rawMarkdown`, optional rich `blocks`, and `meta.accountId` plus the exact cryptographic `meta.signerId` from the verified envelope. <!-- id:34Huc5Bs -->
   3. Enqueue a durable run for that message. <!-- id:RvJ6zK-m -->
   4. Claim it inline when no other turn owns the session. Otherwise leave it queued behind the current turn. <!-- id:i6rKWsUz -->
@@ -729,7 +755,7 @@ So several writers may submit to one session at once. Their messages are saved a
 
 Internally each turn is a durable run row in the dispatch queue (`agents/src/runs.ts`). `MessageSessionResponse.assistantEventId` is an **empty string** when the request returned before a final assistant event existed. That happens for concurrent and background enqueues (including triggers and agent-started sessions), and for turns that parked on children spawned with `delegate`. The rest of the turn streams over WebSocket. <!-- id:12QoX7ZX -->
 
-Idempotent through `clientMessageId`. It avoids one long SQLite transaction around network calls, on purpose. <!-- id:0xWuAdF5 -->
+Idempotent through `clientMessageId` (a `text` part may carry its own `clientMessageId` too). The response also carries `continuedToSessionId` when the turn ended by `continue_session`, so the client can follow the conversation into its successor. It avoids one long SQLite transaction around network calls, on purpose. <!-- id:0xWuAdF5 -->
 
 ## `InvokeSessionTool` <!-- id:OttXxoDi -->
 
@@ -897,7 +923,10 @@ type AgentDefinition = {
   modelProvider: string
   model: string
   reasoningLevel?: ReasoningLevel
+  thoroughness?: Thoroughness // delegation preset: quick, normal, deep
+  enabledModels?: AgentModelRef[] // models a delegate child may pick
   tools?: string[]
+  mcpServers?: string[]
   signingKey?: string
   signingKeys?: string[]
   metadata?: Record<string, unknown>
