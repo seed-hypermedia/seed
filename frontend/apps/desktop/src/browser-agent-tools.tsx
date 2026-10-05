@@ -30,7 +30,9 @@ function hostOf(url: string): string {
   }
 }
 
-type PendingNavigation = {origin: string; answer: (approved: boolean) => void}
+type AccessLevel = 'read' | 'act'
+type WebsiteGrant = {origin: string; level: AccessLevel}
+type PendingNavigation = {origin: string; answer: (level: AccessLevel | null) => void}
 
 /**
  * Lets one agent session use the visible website, only after the user allows it.
@@ -62,7 +64,7 @@ export function BrowserAgentTools({
   const enabled = useExperiments().data?.webBrowser === true
   const browserId = enabled && route.key === 'web' ? route.browserId : undefined
   const pageOrigin = route.key === 'web' ? browserOrigin(route.url) : null
-  const [origins, setOrigins] = useState<string[]>([])
+  const [origins, setOrigins] = useState<WebsiteGrant[]>([])
   const originsRef = useRef(origins)
   originsRef.current = origins
   const [paused, setPaused] = useState(false)
@@ -74,7 +76,7 @@ export function BrowserAgentTools({
   const grantRef = useRef<{connectionId: string; browserId: number; accountUid: string}>()
   const available = browserId !== undefined && toolEnabled && isOwner && !isPublic
   const granted = origins.length > 0
-  const pageAllowed = !!pageOrigin && origins.includes(pageOrigin)
+  const pageAllowed = !!pageOrigin && origins.some((entry) => entry.origin === pageOrigin)
   const agentLabel = agentName || 'This agent'
   const serverHost = hostOf(serverUrl)
 
@@ -97,14 +99,14 @@ export function BrowserAgentTools({
       })
     const disconnect = () => send({_: 'DisconnectSessionBrowser', sessionId, connectionId}).catch(() => {})
     const askToOpen = (origin: string) =>
-      new Promise<boolean>((resolve) => {
-        const timeout = setTimeout(() => answer(false), NAVIGATION_APPROVAL_TIMEOUT)
-        const abort = () => answer(false)
-        const answer = (approved: boolean) => {
+      new Promise<AccessLevel | null>((resolve) => {
+        const timeout = setTimeout(() => answer(null), NAVIGATION_APPROVAL_TIMEOUT)
+        const abort = () => answer(null)
+        const answer = (level: AccessLevel | null) => {
           clearTimeout(timeout)
           polling.signal.removeEventListener('abort', abort)
           setPendingNavigation((pending) => (pending?.answer === answer ? undefined : pending))
-          resolve(approved)
+          resolve(level)
         }
         polling.signal.addEventListener('abort', abort, {once: true})
         setPendingNavigation({origin, answer})
@@ -112,9 +114,10 @@ export function BrowserAgentTools({
     const approveNavigation = async (command: BrowserCommand) => {
       if (command.action !== 'navigate') return
       const origin = browserOrigin(command.url)
-      if (!origin || originsRef.current.includes(origin)) return
-      if (!(await askToOpen(origin))) throw new Error(`The user did not allow opening ${origin}.`)
-      const next = [...originsRef.current, origin]
+      if (!origin || originsRef.current.some((entry) => entry.origin === origin)) return
+      const level = await askToOpen(origin)
+      if (!level) throw new Error(`The user did not allow opening ${origin}.`)
+      const next = [...originsRef.current, {origin, level}]
       originsRef.current = next
       setOrigins(next)
       await window.browserAgent.access({...access, origins: next, enabled: true})
@@ -185,9 +188,9 @@ export function BrowserAgentTools({
       setAssistantBrowserStatus(pageAllowed ? 'connected' : 'unavailable')
   }, [available, granted, pageAllowed, paused, status])
 
-  const allowPage = () => {
-    if (!pageOrigin || originsRef.current.includes(pageOrigin)) return
-    const next = [...originsRef.current, pageOrigin]
+  const allowPage = (level: AccessLevel) => {
+    if (!pageOrigin) return
+    const next = [...originsRef.current.filter((entry) => entry.origin !== pageOrigin), {origin: pageOrigin, level}]
     originsRef.current = next
     setOrigins(next)
     setPaused(false)
@@ -217,11 +220,15 @@ export function BrowserAgentTools({
         <p>
           {agentLabel} wants to open <strong>{pendingNavigation.origin}</strong> and use it with your signed-in session.
         </p>
-        <div className="mt-2 flex gap-2">
-          <Button size="xs" variant="outline" onClick={() => pendingNavigation.answer(true)}>
-            Allow
+        <p className="text-muted-foreground mt-1">Allowing actions lets the agent click and type as you.</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <Button size="xs" variant="outline" onClick={() => pendingNavigation.answer('read')}>
+            Allow reading
           </Button>
-          <Button size="xs" variant="ghost" onClick={() => pendingNavigation.answer(false)}>
+          <Button size="xs" variant="outline" onClick={() => pendingNavigation.answer('act')}>
+            Allow actions
+          </Button>
+          <Button size="xs" variant="ghost" onClick={() => pendingNavigation.answer(null)}>
             Deny
           </Button>
         </div>
@@ -231,14 +238,14 @@ export function BrowserAgentTools({
     return (
       <div className="border-border bg-muted/30 border-t px-3 py-2 text-xs">
         <p>
-          Let <strong>{agentLabel}</strong> on {serverHost} read, screenshot and act on{' '}
+          Let <strong>{agentLabel}</strong> on {serverHost} read and screenshot{' '}
           <strong>{pageOrigin ?? 'this page'}</strong>? It uses your signed-in session there, and what it reads is sent
           to the agent server.
         </p>
         {granted ? (
           <p className="text-muted-foreground mt-1">Access covers only the websites you allowed in this session.</p>
         ) : null}
-        <Button className="mt-2" size="xs" variant="outline" disabled={!pageOrigin} onClick={allowPage}>
+        <Button className="mt-2" size="xs" variant="outline" disabled={!pageOrigin} onClick={() => allowPage('read')}>
           Allow on this website
         </Button>
       </div>
@@ -287,10 +294,18 @@ export function BrowserAgentTools({
           ? 'No new browser commands will run while paused. Previously shared content remains in the session.'
           : error
             ? error
-            : `${agentLabel} can read, screenshot and act on ${origins.join(
-                ', ',
-              )}, including signed-in content. Shared with ${serverHost}.`}
+            : `${agentLabel} has ${
+                origins.find((entry) => entry.origin === pageOrigin)?.level === 'act' ? 'action' : 'read-only'
+              } access here, including signed-in content. Shared with ${serverHost}.`}
       </p>
+      {!paused && origins.find((entry) => entry.origin === pageOrigin)?.level === 'read' ? (
+        <div className="mt-2 flex flex-col items-start gap-2">
+          <p>Allow actions to let {agentLabel} click and type as you on this website.</p>
+          <Button size="xs" variant="outline" onClick={() => allowPage('act')}>
+            Allow actions on this website
+          </Button>
+        </div>
+      ) : null}
       {draftId ? (
         <Button className="mt-2" size="xs" variant="outline" onClick={() => navigate({key: 'draft', id: draftId})}>
           Review archived draft

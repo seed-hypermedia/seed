@@ -73,7 +73,7 @@ function fixture() {
     browserId: 42,
     accountUid: 'alice',
     enabled: true,
-    origins: ['https://example.com'],
+    origins: [{origin: 'https://example.com', level: 'act'}],
   })
   guest.loadURL.mockClear()
   return {
@@ -187,4 +187,48 @@ it('keeps public pages off the local network, while local pages may link locally
   event.preventDefault.mockClear()
   guest.emit('will-navigate', event, 'http://localhost:3000/next')
   expect(event.preventDefault).not.toHaveBeenCalled()
+})
+
+it('allows reading and scrolling but refuses every action until upgraded', async () => {
+  const {handlers, event} = fixture()
+  const grant = {connectionId: 'test', browserId: 42, accountUid: 'alice', enabled: true}
+  const access = handlers.get('browser-agent-access')!
+  const execute = handlers.get('browser-agent-execute')!
+  access(event, {...grant, origins: [{origin: 'https://example.com', level: 'read'}]})
+  mocks.execute.mockResolvedValue({ok: true})
+  for (const action of ['snapshot', 'screenshot', 'scroll']) {
+    await expect(execute(event, {connectionId: 'test', command: {action}})).resolves.toEqual({ok: true})
+  }
+  mocks.execute.mockClear()
+  for (const action of ['click', 'type', 'press', 'navigate', 'archive']) {
+    await expect(execute(event, {connectionId: 'test', command: {action}})).rejects.toThrow(
+      'The user allowed reading this website but not acting on it; ask them to allow actions',
+    )
+  }
+  expect(mocks.execute).not.toHaveBeenCalled()
+  access(event, {...grant, origins: [{origin: 'https://example.com', level: 'act'}]})
+  await expect(execute(event, {connectionId: 'test', command: {action: 'click'}})).resolves.toEqual({ok: true})
+})
+
+it('can open an approved read-only destination without granting actions there', async () => {
+  const {handlers, event, guest} = fixture()
+  handlers.get('browser-agent-access')!(event, {
+    connectionId: 'test',
+    browserId: 42,
+    accountUid: 'alice',
+    enabled: true,
+    origins: [
+      {origin: 'https://example.com', level: 'act'},
+      {origin: 'https://other.example', level: 'read'},
+    ],
+  })
+  mocks.execute.mockImplementation(async (_guest, _command, options) => {
+    options.assertOrigin('https://other.example')
+    guest.getURL = () => 'https://other.example'
+    options.assertActive()
+    return {ok: true}
+  })
+  const execute = handlers.get('browser-agent-execute')!
+  await expect(execute(event, {connectionId: 'test', command: {action: 'navigate'}})).resolves.toEqual({ok: true})
+  await expect(execute(event, {connectionId: 'test', command: {action: 'click'}})).rejects.toThrow('not acting on it')
 })

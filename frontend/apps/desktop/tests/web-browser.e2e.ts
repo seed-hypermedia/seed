@@ -145,7 +145,24 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     await page.evaluate((input) => (window as any).browserTest.access(input), grant)
     // A connection alone is not permission: the user has to allow this website.
     await expect(command({action: 'snapshot'})).rejects.toThrow('has not allowed browser access')
-    await page.evaluate((input) => (window as any).browserTest.access(input), {...grant, origins: [origin]})
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [{origin, level: 'act'}],
+    })
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [{origin, level: 'read'}],
+    })
+    const readSnapshot = await command({action: 'snapshot'})
+    await command({action: 'screenshot', document: readSnapshot.document})
+    await command({action: 'scroll', document: readSnapshot.document, y: 0})
+    await expect(command({action: 'click', document: readSnapshot.document, ref: 'e1'})).rejects.toThrow(
+      'allowed reading this website but not acting on it',
+    )
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [{origin, level: 'act'}],
+    })
     const snapshot = await command({action: 'snapshot'})
     expect(snapshot.text).toContain('Article heading')
     for (const secret of [
@@ -298,7 +315,7 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     // Even a website the user allowed is refused when its hostname resolves to a private address.
     await page.evaluate((input) => (window as any).browserTest.access(input), {
       ...grant,
-      origins: [origin, new URL(reboundUrl).origin],
+      origins: [origin, new URL(reboundUrl).origin].map((origin) => ({origin, level: 'act'})),
     })
     await navigate(reboundUrl, 4)
     await expect(command({action: 'snapshot'})).rejects.toThrow('private network')
