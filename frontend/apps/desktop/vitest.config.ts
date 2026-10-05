@@ -1,9 +1,8 @@
-import react from '@vitejs/plugin-react'
 import {resolve} from 'path'
 import {defineConfig} from 'vitest/config'
 
 export default defineConfig({
-  plugins: [react()],
+  esbuild: {jsx: 'automatic'},
   test: {
     testTimeout: 10000, // 10 seconds
     setupFiles: ['./vitest.setup.ts'],

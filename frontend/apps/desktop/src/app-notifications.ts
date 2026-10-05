@@ -19,7 +19,6 @@ import {base58btc} from 'multiformats/bases/base58'
 import {isAnyWindowFocused} from './app-focus'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
-// @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import * as log from './logger'
 
