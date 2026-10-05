@@ -91,7 +91,7 @@ export function getQueryBlockFilterOptions(items: HMDocumentInfo[]): HMQueryBloc
   const metadataKeys = new Set(
     items.flatMap((item) => Object.keys(item.metadata).filter((key) => !BUILTIN_METADATA_KEYS.has(key))),
   )
-  for (const key of metadataKeys) {
+  for (const key of Array.from(metadataKeys)) {
     const present = items.map((item) => item.metadata[key]).filter((value) => value != null && value !== '')
     let type: HMQueryBlockFilterOptions[string]['type'] = 'text'
     if (present.length) {
