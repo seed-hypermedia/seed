@@ -77,7 +77,8 @@ test('app guards contain a hostile page on the default session', async () => {
               }
             });
             const window = new BrowserWindow({
-              show: true,
+              show: !process.env.SEED_E2E_HIDDEN,
+              paintWhenInitiallyHidden: true,
               webPreferences: {preload: ${JSON.stringify(preloadPath)}, contextIsolation: true, sandbox: true},
             });
             installWindowGuards(window, policy);
