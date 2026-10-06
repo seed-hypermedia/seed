@@ -69,6 +69,25 @@ describe('compareBlocksWithMap', () => {
 
     expect(compareBlocksWithMap(blocksMap, [changed], '').changes).toHaveLength(1)
   })
+
+  it('treats a missing childrenType as Group, so an untouched SDK-written image is not a change', () => {
+    // Published by the SDK/agents: no childrenType. The editor reads the same block back with its 'Group' default.
+    const blocksMap = createBlocksMap(
+      [{block: {id: 'img', type: 'Image', text: 'alt', link: 'ipfs://cid', attributes: {}, annotations: []} as any}],
+      '',
+    )
+    const image = (childrenType: string) =>
+      ({
+        id: 'img',
+        type: 'image',
+        props: {url: 'ipfs://cid', childrenType},
+        content: [{type: 'text', text: 'alt', styles: {}}],
+        children: [],
+      }) as unknown as EditorBlock
+
+    expect(compareBlocksWithMap(blocksMap, [image('Group')], '').changes).toHaveLength(0)
+    expect(compareBlocksWithMap(blocksMap, [image('Ordered')], '').changes).toHaveLength(1)
+  })
 })
 
 describe('getDocAttributeChanges', () => {
