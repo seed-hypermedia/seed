@@ -1,7 +1,7 @@
 # Seed site on Dokploy
 
 This Dokploy Compose template runs one Seed site with `seed-daemon`, `seed-web`, a one-shot initializer for the web
-registration secret, and a scoped Watchtower updater. Dokploy domains route web traffic to the web app and `/ipfs` to
+registration secret, and a scoped Watchtower updater. Dokploy domains route web traffic to the web app and `/ipfs/` to
 the daemon; no Caddy proxy is needed.
 
 ## Deploy

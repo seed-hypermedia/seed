@@ -26,5 +26,5 @@ https = true
 serviceName = "seed-daemon"
 port = 56001
 host = "${main_domain}"
-path = "/ipfs"
+path = "/ipfs/"
 https = true
