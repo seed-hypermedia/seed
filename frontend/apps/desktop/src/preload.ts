@@ -30,7 +30,7 @@ declare global {
         browserId: number
         accountUid: string
         enabled: boolean
-        origins?: string[]
+        origins?: {origin: string; level: 'read' | 'act'}[]
       }) => Promise<void>
       execute: (connectionId: string, command: BrowserCommand) => Promise<Record<string, unknown>>
     }

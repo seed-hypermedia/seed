@@ -45,11 +45,17 @@ import {setupWebBrowser} from '../app-web-browser'
 function fixture() {
   const handlers = new Map<string, Function>()
   const ipc = Object.assign(new EventEmitter(), {handle: (name: string, fn: Function) => handlers.set(name, fn)})
-  const host = Object.assign(new EventEmitter(), {ipc, mainFrame: {}, isDestroyed: () => false, send: vi.fn()})
+  const host = Object.assign(new EventEmitter(), {
+    ipc,
+    mainFrame: {},
+    isDestroyed: () => false,
+    send: vi.fn(),
+    getZoomFactor: () => 1.5,
+  })
   const guest = Object.assign(new EventEmitter(), {
     id: 42,
     isDestroyed: () => false,
-    getURL: () => 'https://example.com',
+    getURL: (): string => 'https://example.com',
     getTitle: () => 'Example',
     loadURL: vi.fn().mockResolvedValue(undefined),
     setWindowOpenHandler: vi.fn(),
@@ -73,7 +79,7 @@ function fixture() {
     browserId: 42,
     accountUid: 'alice',
     enabled: true,
-    origins: ['https://example.com'],
+    origins: [{origin: 'https://example.com', level: 'act'}],
   })
   guest.loadURL.mockClear()
   return {
@@ -187,4 +193,73 @@ it('keeps public pages off the local network, while local pages may link locally
   event.preventDefault.mockClear()
   guest.emit('will-navigate', event, 'http://localhost:3000/next')
   expect(event.preventDefault).not.toHaveBeenCalled()
+})
+
+it('allows reading and scrolling but refuses every action until upgraded', async () => {
+  const {handlers, event} = fixture()
+  const grant = {connectionId: 'test', browserId: 42, accountUid: 'alice', enabled: true}
+  const access = handlers.get('browser-agent-access')!
+  const execute = handlers.get('browser-agent-execute')!
+  access(event, {...grant, origins: [{origin: 'https://example.com', level: 'read'}]})
+  mocks.execute.mockResolvedValue({ok: true})
+  for (const action of ['snapshot', 'screenshot', 'scroll']) {
+    await expect(execute(event, {connectionId: 'test', command: {action}})).resolves.toEqual({ok: true})
+  }
+  mocks.execute.mockClear()
+  for (const action of ['click', 'type', 'press', 'navigate', 'archive']) {
+    await expect(execute(event, {connectionId: 'test', command: {action}})).rejects.toThrow(
+      'The user allowed reading this website but not acting on it; ask them to allow actions',
+    )
+  }
+  expect(mocks.execute).not.toHaveBeenCalled()
+  access(event, {...grant, origins: [{origin: 'https://example.com', level: 'act'}]})
+  await expect(execute(event, {connectionId: 'test', command: {action: 'click'}})).resolves.toEqual({ok: true})
+})
+
+it('can open an approved read-only destination without granting actions there', async () => {
+  const {handlers, event, guest} = fixture()
+  handlers.get('browser-agent-access')!(event, {
+    connectionId: 'test',
+    browserId: 42,
+    accountUid: 'alice',
+    enabled: true,
+    origins: [
+      {origin: 'https://example.com', level: 'act'},
+      {origin: 'https://other.example', level: 'read'},
+    ],
+  })
+  mocks.execute.mockImplementation(async (_guest, _command, options) => {
+    options.assertOrigin('https://other.example')
+    guest.getURL = () => 'https://other.example'
+    options.assertActive()
+    return {ok: true}
+  })
+  const execute = handlers.get('browser-agent-execute')!
+  await expect(execute(event, {connectionId: 'test', command: {action: 'navigate'}})).resolves.toEqual({ok: true})
+  await expect(execute(event, {connectionId: 'test', command: {action: 'click'}})).rejects.toThrow('not acting on it')
+})
+
+it('clamps guest bounds to window content and hides the view while an overlay is open', () => {
+  const {host, event, window} = fixture()
+  const view = window.contentView.addChildView.mock.calls[0]![0]
+  host.ipc.emit('web-browser-bounds', event, {
+    browserId: 42,
+    visible: true,
+    bounds: {x: -100, y: 100, width: 2000, height: 2000},
+  })
+  expect(view.setBounds).toHaveBeenLastCalledWith({x: 0, y: 150, width: 1000, height: 550})
+  expect(view.setVisible).toHaveBeenLastCalledWith(true)
+  host.ipc.emit('web-browser-bounds', event, {
+    browserId: 42,
+    visible: false,
+    bounds: {x: 2000, y: 2000, width: 900, height: 600},
+  })
+  expect(view.setBounds).toHaveBeenLastCalledWith({x: 1000, y: 700, width: 0, height: 0})
+  expect(view.setVisible).toHaveBeenLastCalledWith(false)
+  // An overlay can hide the existing native view without supplying a new rectangle.
+  host.ipc.emit('web-browser-bounds', event, {browserId: 42, visible: false})
+  expect(view.setVisible).toHaveBeenLastCalledWith(false)
+  // Website IPC cannot unhide or reposition the view over Seed controls.
+  host.ipc.emit('web-browser-bounds', {sender: {}, senderFrame: {}}, {browserId: 42, visible: true})
+  expect(view.setVisible).toHaveBeenLastCalledWith(false)
 })

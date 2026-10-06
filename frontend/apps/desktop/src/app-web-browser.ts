@@ -45,7 +45,12 @@ const accessSchema = z.object({
   enabled: z.boolean(),
   /** Websites the user approved for this session, as exact `https://host[:port]` origins. */
   origins: z
-    .array(z.string().refine((origin) => webOrigin(origin) === origin, 'Invalid website origin'))
+    .array(
+      z.object({
+        origin: z.string().refine((origin) => webOrigin(origin) === origin, 'Invalid website origin'),
+        level: z.enum(['read', 'act']),
+      }),
+    )
     .max(100)
     .default([]),
 })
@@ -67,7 +72,9 @@ export function setupWebBrowser(
   archive?: (archive: BrowserArchive, accountUid: string) => Promise<{id: string}>,
 ) {
   const host = window.webContents
-  let access: {connectionId: string; browserId: number; accountUid: string; origins: string[]} | undefined
+  let access:
+    | {connectionId: string; browserId: number; accountUid: string; origins: {origin: string; level: 'read' | 'act'}[]}
+    | undefined
   const guests = new Map<number, WebContents>()
   const views = new Map<number, WebContentsView>()
   const requests = new Map<number, number>()
@@ -170,6 +177,7 @@ export function setupWebBrowser(
     if (event.sender !== host || event.senderFrame !== host.mainFrame) throw new Error('Invalid browser host')
     const grant = access
     const guest = grant && guests.get(grant.browserId)
+    const startingOrigin = guest && webOrigin(guest.getURL())
     const assertActive = () => {
       if (
         !grant ||
@@ -182,18 +190,26 @@ export function setupWebBrowser(
       )
         throw new Error('Browser access is paused or the connected page is no longer active')
       const origin = webOrigin(guest.getURL())
-      if (!origin || !grant.origins.includes(origin))
+      if (!origin || !grant.origins.some((entry) => entry.origin === origin))
         throw new Error(
           `The user has not allowed browser access on ${
             origin ?? 'this page'
           }. They can allow it in the assistant panel.`,
         )
+      // Opening an approved destination may leave it read-only. Navigation still requires
+      // action access on the source, including while the navigation is in flight.
+      const actionOrigin = input.command?.action === 'navigate' ? startingOrigin : origin
+      if (
+        !['snapshot', 'screenshot', 'scroll'].includes(input.command?.action) &&
+        grant.origins.find((entry) => entry.origin === actionOrigin)?.level !== 'act'
+      )
+        throw new Error('The user allowed reading this website but not acting on it; ask them to allow actions')
       if (isGuestOnPrivateNetwork(guest.id)) throw new Error('Browser page is on a private network')
     }
     const assertAllowed = (url: string) => {
       const origin = webOrigin(url)
       if (!origin) throw new Error('Agents can only open HTTP(S) websites. Ask the user to open Seed links.')
-      if (!grant!.origins.includes(origin))
+      if (!grant!.origins.some((entry) => entry.origin === origin))
         throw new Error(`Opening ${origin} needs the user's approval in the assistant panel.`)
     }
     assertActive()
@@ -202,7 +218,7 @@ export function setupWebBrowser(
         assertActive,
         assertOrigin: (url) => {
           const origin = webOrigin(url)
-          if (!origin || !grant!.origins.includes(origin))
+          if (!origin || !grant!.origins.some((entry) => entry.origin === origin))
             throw new Error('The page moved to a website the user has not allowed. Take a fresh snapshot.')
         },
         // Every hop, including redirects, must stay on websites the user allowed and off private networks.
