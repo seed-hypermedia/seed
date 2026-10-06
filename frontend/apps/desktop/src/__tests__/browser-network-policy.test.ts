@@ -21,6 +21,7 @@ function fixture() {
   let index = 0
   const guest = Object.assign(new EventEmitter(), {
     id: ++nextGuest,
+    getURL: () => 'https://www.example.com/',
     navigationHistory: {getActiveIndex: () => index},
     loadURL: vi.fn(),
   }) as unknown as WebContents
@@ -29,12 +30,14 @@ function fixture() {
   const handlers: Record<string, Function> = {}
   const session = {
     webRequest: Object.fromEntries(
-      ['onBeforeRequest', 'onResponseStarted', 'onCompleted'].map((name) => [
-        name,
-        (fn: Function) => {
-          handlers[name] = fn
-        },
-      ]),
+      ['onBeforeRequest', 'onBeforeSendHeaders', 'onHeadersReceived', 'onResponseStarted', 'onCompleted'].map(
+        (name) => [
+          name,
+          (fn: Function) => {
+            handlers[name] = fn
+          },
+        ],
+      ),
     ),
   } as unknown as Session
   setupBrowserNetworkPolicy(session)
@@ -153,4 +156,61 @@ it('retains known private peer provenance when a cached reload omits the IP', ()
   handlers.onResponseStarted!(response(4, url))
   commit(url, 1)
   expect(isGuestOnPrivateNetwork(guest.id)).toBe(true)
+})
+
+it.each([
+  ['https://tracker.test/pixel', 'image', false],
+  ['https://cdn.example.com/file', 'script', true],
+  ['https://login.identity.test/authorize', 'mainFrame', true],
+  ['https://www.example.com/callback?code=oauth', 'mainFrame', true],
+])('filters cookie headers for %s (%s)', (url, resourceType, keepsCookies) => {
+  const {guest, handlers} = fixture()
+  const details = {
+    url,
+    resourceType,
+    webContentsId: guest.id,
+    // An embedded tracker must not become its own first-party context.
+    frame: {url: 'https://tracker.test/frame'},
+    requestHeaders: {cOoKiE: 'session=secret', Accept: '*/*'},
+    responseHeaders: {'sEt-CoOkIe': ['session=new'], Location: ['https://www.example.com/callback']},
+  }
+  const sent = vi.fn()
+  const received = vi.fn()
+  handlers.onBeforeSendHeaders!(details, sent)
+  handlers.onHeadersReceived!(details, received)
+  expect(sent.mock.calls[0]![0].requestHeaders).toEqual({
+    Accept: '*/*',
+    'Sec-GPC': '1',
+    ...(keepsCookies ? {cOoKiE: 'session=secret'} : {}),
+  })
+  expect(received.mock.calls[0]![0].responseHeaders).toEqual({
+    Location: ['https://www.example.com/callback'],
+    ...(keepsCookies ? {'sEt-CoOkIe': ['session=new']} : {}),
+  })
+})
+it.each([
+  ['https://www.example.co.uk', 'https://cdn.example.co.uk', true],
+  ['https://a.co.uk', 'https://b.co.uk', false],
+  ['https://alice.github.io', 'https://bob.github.io', false],
+  ['http://127.0.0.1:3000', 'http://127.0.0.1:4000', true],
+  ['http://127.0.0.1', 'http://127.0.0.2', false],
+  ['http://[::1]:3000', 'http://[::1]:4000', true],
+  ['https://example.com.', 'https://cdn.example.com', true],
+])('compares top-level sites %s and %s', (top, url, keep) => {
+  const {handlers} = fixture()
+  const callback = vi.fn()
+  handlers.onBeforeSendHeaders!(
+    {url, resourceType: 'xhr', frame: {url: 'https://tracker.test', top: {url: top}}, requestHeaders: {Cookie: 'a=b'}},
+    callback,
+  )
+  expect(callback.mock.calls[0]![0].requestHeaders.Cookie).toBe(keep ? 'a=b' : undefined)
+})
+it('preserves cookies on unattributed main-process fetches', () => {
+  const {handlers} = fixture()
+  const callback = vi.fn()
+  handlers.onBeforeSendHeaders!(
+    {url: 'https://example.com', resourceType: 'xhr', requestHeaders: {Cookie: 'a=b'}},
+    callback,
+  )
+  expect(callback).toHaveBeenCalledWith({requestHeaders: {Cookie: 'a=b', 'Sec-GPC': '1'}})
 })
