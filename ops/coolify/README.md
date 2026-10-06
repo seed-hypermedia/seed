@@ -16,7 +16,7 @@ site on that server up to date.
    - `SEED_IS_GATEWAY` [`false`], `SEED_ENABLE_STATISTICS` [`false`], `SEED_LOG_LEVEL` [`info`], `SEED_P2P_TESTNET_NAME`
      [empty = mainnet; `dev` = testnet, also set `SEED_LIGHTNING_URL` to `https://ln.testnet.seed.hyper.media`],
      `SEED_NO_PULL` [`false`].
-4. Deploy. `seed-proxy` turns healthy once `https://<domain>/hm/api/config` answers.
+4. Deploy. `seed-proxy` turns healthy once the site answers on `/hm/api/config` (checked inside the container).
 5. Link the site from the Seed desktop app with `https://<domain>/hm/register?secret=<SERVICE_PASSWORD_SEEDLINK>` (copy
    the generated value from the stack's **Environment Variables**). The secret is written to the web data volume only on
    first start; it is consumed when the site is registered.
