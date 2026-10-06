@@ -60,7 +60,7 @@ services:
     expose: [3000]
     environment:
       - SEED_BASE_URL=${SEED_BASE_URL}
-      - DAEMON_HTTP_URL=http://seed-daemon:56001
+      - DAEMON_HTTP_URL=http://${COMPOSE_PROJECT_NAME}-seed-daemon-1:56001
       - NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}
       - SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}
       - SEED_ENABLE_STATISTICS=${SEED_ENABLE_STATISTICS:-false}
