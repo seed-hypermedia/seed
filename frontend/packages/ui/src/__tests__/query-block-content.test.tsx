@@ -251,7 +251,6 @@ describe('QueryBlockContent table view', () => {
 
     expect(Array.from(container.querySelectorAll('th')).map((cell) => cell.textContent)).toEqual([
       'Name',
-      'Tags',
       'Last Modified',
       'Subdocuments',
       'Comments',

@@ -71,7 +71,6 @@ export function buildQueryTableColumns(
   const coreColumns: QueryTableColumn[] = [
     {id: 'title', label: 'Name', type: 'text', defaultVisible: true},
     {id: 'space', label: 'Space', type: 'text', defaultVisible: false},
-    {id: 'tags', label: 'Tags', type: 'list', defaultVisible: true},
     {id: 'updated', label: 'Last Modified', type: 'date', defaultVisible: true},
     {id: 'children', label: 'Subdocuments', type: 'number', defaultVisible: true},
     {id: 'comments', label: 'Comments', type: 'number', defaultVisible: true},

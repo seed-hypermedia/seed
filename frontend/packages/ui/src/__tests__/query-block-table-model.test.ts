@@ -6,8 +6,8 @@ import {
   buildQueryTableColumns,
   filterQueryTableItems,
   getDocumentTags,
-  getQueryTableAccountIds,
   getQuerySortColumns,
+  getQueryTableAccountIds,
   inferAttributeType,
   moveQueryTableColumn,
   queryTableItemMatchesSearch,
@@ -39,7 +39,6 @@ describe('query block table model', () => {
     expect(columns.map((column) => [column.id, column.defaultVisible])).toEqual([
       ['title', true],
       ['space', false],
-      ['tags', true],
       ['updated', true],
       ['children', true],
       ['comments', true],
@@ -133,7 +132,6 @@ describe('query block table model', () => {
     ).toEqual([
       'title',
       'space',
-      'tags',
       'updated',
       'children',
       'comments',
