@@ -112,6 +112,7 @@ services:
         condition: service_started
     environment:
       - SEED_BASE_URL=${SERVICE_URL_SEED}
+      - SEED_ASSET_HOST=${SERVICE_URL_SEED}
       - DAEMON_HTTP_URL=http://seed-daemon:56001
       - NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}
       - SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}
