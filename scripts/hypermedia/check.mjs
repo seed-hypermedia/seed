@@ -94,7 +94,7 @@ function walkSchema(node, visit) {
     if (key === 'properties' && value && typeof value === 'object') {
       for (const entry of Object.values(value)) if (entry && typeof entry === 'object') walkSchema(entry.value, visit)
     } else if (key === 'values' || key === 'items') walkSchema(value, visit)
-    else if (key === 'anyOf' && Array.isArray(value)) value.forEach((n) => walkSchema(n, visit))
+    else if ((key === 'anyOf' || key === 'allOf') && Array.isArray(value)) value.forEach((n) => walkSchema(n, visit))
     else if ((key === 'params' || key === 'args') && value && typeof value === 'object') {
       for (const n of Object.values(value)) walkSchema(n, visit)
     }

@@ -47,12 +47,20 @@ const KINDS = [
 ] as const
 const isPrimitive = (name: string) => KINDS.includes(name as any)
 const primitiveKind = (name: string) => name
-const META_VARIANTS = ['schema/anyof', 'schema/property']
+const META_VARIANTS = ['schema/anyof', 'schema/allof', 'schema/property']
 const isMetaVariant = (name: string) =>
   META_VARIANTS.includes(name) || (name.startsWith('schema/') && name.endsWith('-schema') && name !== 'schema')
 const kindPrimitive = (kind: string) => (HM_SCHEMAS[kind] ? kind : null)
 
 // --- small pieces ----------------------------------------------------------
+
+/** The struct an intersection's arms merge into, as a field table; the reason when they cannot merge. */
+function MergedFields({schema, nav}: {schema: HypermediaSchema; nav: (slug: string) => void}) {
+  const merged = resolveSchema(schema).schema
+  if (merged.__invalid) return <p className="text-destructive text-sm">{merged.__invalid}</p>
+  if (merged.__missing || merged.__unbound || !merged.properties) return null
+  return <FieldsTable fields={structFields(merged)} nav={nav} />
+}
 
 /** The display name of a library schema: its page's name, else its slug. */
 const pageName = (slug: string) => HM_SCHEMA_PAGES[slug]?.name ?? slug
@@ -179,6 +187,18 @@ function SchemaRef({node, nav}: {node: any; nav: (slug: string) => void}): React
         {node.anyOf.map((v: any, i: number) => (
           <span key={i}>
             {i > 0 && <span className="text-muted-foreground"> | </span>}
+            <SchemaRef node={v} nav={nav} />
+          </span>
+        ))}
+      </span>
+    )
+  if (node.allOf)
+    return (
+      <span>
+        <span className="text-muted-foreground">all of </span>
+        {node.allOf.map((v: any, i: number) => (
+          <span key={i}>
+            {i > 0 && <span className="text-muted-foreground"> & </span>}
             <SchemaRef node={v} nav={nav} />
           </span>
         ))}
@@ -426,6 +446,7 @@ export function SchemaDocPage({
   const url = nameToUrl(slug)
   const cid = schemaCid(slug)
   const isUnion = Array.isArray(schema.anyOf)
+  const isIntersection = Array.isArray(schema.allOf)
   const isPrim = isPrimitive(slug)
   // A schema that NAMES another (rather than a kind) includes it; with any refinement it is a subtype.
   const base = namedSchemaUrl(schema)
@@ -477,6 +498,26 @@ export function SchemaDocPage({
         })}
       </div>
     )
+  } else if (isIntersection) {
+    // The arms, then the merged struct they make — every field of every arm, once.
+    const eff = resolveSchema(schema).schema
+    lead = (
+      <p className="text-sm" data-testid="schema-intersection-lead">
+        <Chip label="Intersection" onClick={() => nav('schema/allof')} />{' '}
+        <span className="text-muted-foreground">· all of {schema.allOf.length}:</span>{' '}
+        {schema.allOf.map((v: any, i: number) => (
+          <span key={i}>
+            {i > 0 && <span className="text-muted-foreground"> & </span>}
+            <SchemaRef node={v} nav={nav} />
+          </span>
+        ))}
+      </p>
+    )
+    main = eff.__invalid ? (
+      <p className="text-destructive text-sm">{eff.__invalid}</p>
+    ) : eff.properties ? (
+      <FieldsTable fields={structFields(eff)} nav={nav} />
+    ) : null
   } else if (hasExt) {
     const parent = refToName(base!)
     const eff = resolveSchema(schema).schema
@@ -692,6 +733,22 @@ export function SchemaView({
               </li>
             ))}
           </ul>
+        </div>
+      ) : schema.allOf ? (
+        <div className="flex flex-col gap-1.5" data-testid="schema-intersection-arms">
+          <p className="text-sm">
+            <Chip label="Intersection" onClick={() => nav('schema/allof')} />{' '}
+            <span className="text-muted-foreground">· all of {schema.allOf.length}:</span>
+          </p>
+          <ul className="flex flex-col gap-0.5 pl-1">
+            {schema.allOf.map((v: any, i: number) => (
+              <li key={i} className="flex items-baseline gap-1.5 text-sm">
+                <span className="text-muted-foreground select-none">&</span>
+                <SchemaRef node={v} nav={nav} />
+              </li>
+            ))}
+          </ul>
+          <MergedFields schema={schema} nav={nav} />
         </div>
       ) : schema.properties ? (
         <FieldsTable fields={structFields(schema)} nav={nav} />

@@ -6,10 +6,11 @@
 // every document the effective-schema rule types.
 import {useQuery} from '@tanstack/react-query'
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
-import {schemaForCid} from '@seed-hypermedia/client/schema-engine'
+import {schemaForCid, type HypermediaSchema} from '@seed-hypermedia/client/schema-engine'
 import {schemaDefinitionCid} from '@seed-hypermedia/client/schema-resolve'
 import {
   closeOverSubtypes,
+  extensionParentRefs,
   libraryCandidates,
   type SchemaCandidate,
   type SubtypeClosure,
@@ -38,13 +39,12 @@ const MAX_SCHEMA_PAGES = 500
 const canonicalUrl = (info: HMDocumentInfo): string =>
   `hm://${info.id.uid}${info.id.path?.length ? `/${info.id.path.join('/')}` : ''}`
 
-/** The `type` of the schema blob at `cid`: what it extends or includes, or its kind. */
-async function schemaTypeAt(client: UniversalClient, cid: string): Promise<string | null> {
+/** The schemas the blob at `cid` extends or includes: its `type`, or every arm of an intersection. */
+async function schemaParentsAt(client: UniversalClient, cid: string): Promise<string[]> {
   const bundled = schemaForCid(cid)
   const value =
     bundled ?? ((await client.request('GetCID', {cid}).catch(() => undefined)) as {value?: unknown} | undefined)?.value
-  const type = value && typeof value === 'object' ? (value as {type?: unknown}).type : undefined
-  return typeof type === 'string' ? type : null
+  return value && typeof value === 'object' ? extensionParentRefs(value as HypermediaSchema) : []
 }
 
 /** Every document that defines a schema, as candidates for the closure (each fetched once). */
@@ -71,8 +71,7 @@ async function networkCandidates(client: UniversalClient, signal?: AbortSignal):
     pages.map(async (info): Promise<SchemaCandidate | null> => {
       const cid = schemaDefinitionCid(info.metadata)
       if (!cid) return null
-      // The parent is `type` when that names a schema, which the closure decides; a kind is discarded there.
-      return {refs: [canonicalUrl(info), `ipfs://${cid}`], parent: await schemaTypeAt(client, cid)}
+      return {refs: [canonicalUrl(info), `ipfs://${cid}`], parents: await schemaParentsAt(client, cid)}
     }),
   )
   return candidates.filter((candidate): candidate is SchemaCandidate => !!candidate)

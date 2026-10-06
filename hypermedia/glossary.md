@@ -135,12 +135,13 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **`attributesSchema`.** A metadata key naming the schema a document's own attributes must satisfy. See [Typed Documents](./schema/typed-documents.md). <!-- id:-cQc8P7k -->
 - **`childAttributesSchema`.** A metadata key naming the schema that documents under this path must satisfy. See [Typed Documents](./schema/typed-documents.md). <!-- id:DwXMFGZK -->
 - **Data model and kind.** Every value is one of nine IPLD kinds: `null`, `boolean`, `integer`, `float`, `string`, `bytes`, `list`, `map` and `link`. See [Data Model](./schema/data-model.md) and [Kind](./schema/kind.md). <!-- id:SO32xew_ -->
-- **Variant.** One member of the meta-schema union: a scalar, literal, list, map, struct, link, union, reference or variable schema. See [Variant](./schema/variant.md). <!-- id:Ti9w96Q9 -->
+- **Variant.** One member of the meta-schema union: a scalar, literal, list, map, struct, link, union, intersection, reference or variable schema. See [Variant](./schema/variant.md). <!-- id:Ti9w96Q9 -->
 - **Struct schema.** A schema for a map with known fields, each a property. See [Struct schema](./schema/struct-schema.md) and [Property](./schema/property.md). <!-- id:RbR5twB1 -->
 - **Map schema.** A schema for a map whose arbitrary keys all hold values of one schema. See [Map schema](./schema/map-schema.md) and [Closed map](./schema/closed-map.md). <!-- id:AS8ovaOI -->
 - **List schema.** A schema for a list whose items match one schema. See [List schema](./schema/list-schema.md). <!-- id:TKRNLE7O -->
 - **Literal.** A schema that accepts exactly one value. A fixed set of choices is a union of literals. See [Literal schema](./schema/literal-schema.md). <!-- id:GPfun5BC -->
 - **Union.** A schema that matches any one of several alternatives, told apart by a discriminant when they are tagged. See [Union schema](./schema/anyof.md) and [Discriminated union](./schema/discriminated-union.md). <!-- id:Uw0jj-eH -->
+- **Intersection.** A schema a value must satisfy all of: its struct arms merge into one, so it is a subtype of each. Written `allOf`. See [Intersection schema](./schema/allof.md).
 - **Link schema.** A schema for a CID link, optionally naming the type the link must point at with `target`. See [Link schema](./schema/link-schema.md). <!-- id:ZR0vqtGY -->
 - **Include and extension.** A schema node whose `type` names another schema. Bare, it is an include, and with extra refining keys it is an extension. See [Reference Schema](./schema/include-schema.md) and [Extension](./schema/extension.md). <!-- id:97tuLxho -->
 - **Generic and variable.** A schema parameterized over a type, and the `{"var": "<name>"}` reference that stands for the bound parameter inside it. See [Generic](./schema/generic.md) and [Variable schema](./schema/var-schema.md). <!-- id:RwWUQUHb -->

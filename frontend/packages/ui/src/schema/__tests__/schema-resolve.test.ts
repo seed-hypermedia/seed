@@ -70,8 +70,8 @@ describe('classifyRef', () => {
     expect(classifyRef(`hm://${ACCOUNT}/document`)).toEqual({kind: 'hm-doc', url: `hm://${ACCOUNT}/document`})
     expect(classifyRef(`hm://${ACCOUNT}/string`)).toEqual({kind: 'hm-doc', url: `hm://${ACCOUNT}/string`})
   })
-  it('the legacy dev authorities still resolve to the bundle', () => {
-    expect(classifyRef('hm://seed.hyper.media/string')).toEqual({kind: 'hm-bundled', name: 'string'})
+  it('the retired dev authority is an ordinary document URL now, not the bundle', () => {
+    expect(classifyRef('hm://seed.hyper.media/string')).toEqual({kind: 'hm-doc', url: 'hm://seed.hyper.media/string'})
   })
   it('empty / junk is none', () => {
     expect(classifyRef('')).toEqual({kind: 'none'})

@@ -4,7 +4,7 @@ summary: The full schema vocabulary, covering closed maps, unions, generics, ext
 ---
 # The schema language <!-- id:yngrdImL -->
 
-A [Hypermedia schema](../schema.md) is a value of [kind](./kind.md) `map` built from **twelve core keys**, all optional, plus a few optional value constraints (below). It can also be a **literal**: a bare `null`, boolean, integer, or string, which accepts exactly that value. That is the whole language. <!-- id:EXSoVP3S -->
+A [Hypermedia schema](../schema.md) is a value of [kind](./kind.md) `map` built from **thirteen core keys**, all optional, plus a few optional value constraints (below). It can also be a **literal**: a bare `null`, boolean, integer, or string, which accepts exactly that value. That is the whole language. <!-- id:EXSoVP3S -->
 
 <!-- id:7guJrYQy -->
 | key <!-- col:PPQxsZds --> | applies to <!-- col:arAp45HF --> | meaning <!-- col:OMQjDwG3 --> <!-- id:lyC-RqMi --> |
@@ -16,6 +16,7 @@ A [Hypermedia schema](../schema.md) is a value of [kind](./kind.md) `map` built 
 | `value` | literal | the one value a literal schema accepts, when the literal needs a `description` (see below) <!-- id:Jh3SOAp5 --> |
 | `target` | `link`, reference string | the schema the pointed-at block or document is expected to conform to (see [references](./references.md)) <!-- id:8kpIEN7j --> |
 | `anyOf` | any | a **union**: the value must match one of the listed schemas <!-- id:Ww-tAztO --> |
+| `allOf` | structs | an **intersection**: the value must satisfy every listed schema; the struct arms merge into one |
 | `params` | any | declares type parameters (generics), each with a default <!-- id:LmVM4b91 --> |
 | `var` | any | a reference to a type parameter: `{ "var": "B" }` <!-- id:MeJc4pL2 --> |
 | `args` | reference | applies a generic, binding its parameters <!-- id:CAIxcz9j --> |
@@ -118,11 +119,25 @@ These constraints come from the "Seed Blob Schema v1" dialect. `validate()` repo
 
 ## Unions <!-- id:4Zeb0ssB -->
 
-[`anyOf`](./anyof.md) lists alternative schemas, and a value is valid if it matches **any** of them. It is the language's one composite construct. It makes the meta-schema a _[discriminated union](./discriminated-union.md)_: a value is one of a fixed set of shapes, told apart by a discriminant (here, the `type` tag). <!-- id:vsWv7IZH -->
+[`anyOf`](./anyof.md) lists alternative schemas, and a value is valid if it matches **any** of them. It makes the meta-schema a _[discriminated union](./discriminated-union.md)_: a value is one of a fixed set of shapes, told apart by a discriminant (here, the `type` tag). <!-- id:vsWv7IZH -->
 
 ```json <!-- id:DmjMbc7m -->
 { "anyOf": [ { "type": "schema/map-schema" }, { "type": "schema/link-schema" } ] }
 ```
+
+## Intersections
+
+[`allOf`](./allof.md) lists schemas a value must satisfy **all** of. It is the language's other composite construct, _and_ to `anyOf`'s _or_. Each arm must be a struct or map, or name one, and the arms **merge** into a single struct the same way an extension merges over its parent: the fields are united, a field is required when any arm requires it, and the result is closed when any arm is. Merging is what makes the intersection of two closed structs mean something: checked one arm at a time, two closed field sets would accept nothing. An inline struct arm adds fields, so an intersection is also an [extension](./extension.md) with several parents. The worked example is [`example/staff-member`](../example/staff-member.md), an employee who is also a contact:
+
+```json
+// example/staff-member = every field of employee and of contact, closed
+{ "allOf": [
+  { "type": "hm://hyper.media/example/employee" },
+  { "type": "hm://hyper.media/example/contact" }
+] }
+```
+
+Two arms that define the same field must define it the same way, and open arms must agree on `values`; a schema that breaks either rule, or whose arm is not a struct, accepts nothing and reports why. An empty `allOf` is not a schema. A typed [reference](./references.md) to either arm accepts a document of the intersection, because the intersection is a subtype of each.
 
 ## Generics <!-- id:Any3hnDc -->
 
@@ -147,7 +162,7 @@ The parameter passes through references: each level passes it down with `args`, 
 
 ## How the language describes itself <!-- id:zWshFjlg -->
 
-`schema` is a **discriminated union of nine [variants](./variant.md)**, the nine map shapes a schema can take, plus the four bare kinds a literal can be. This makes it much stricter than a loose map with optional keys: <!-- id:lI_lySSK -->
+`schema` is a **discriminated union of ten [variants](./variant.md)**, the ten map shapes a schema can take, plus the four bare kinds a literal can be. This makes it much stricter than a loose map with optional keys: <!-- id:lI_lySSK -->
 
 <!-- id:yZg8-sNO -->
 | variant <!-- col:kO3_qHrQ --> | matches <!-- col:rCN3fgm3 --> | discriminant <!-- col:zzQn7svL --> <!-- id:4VFkvrKJ --> |
@@ -159,6 +174,7 @@ The parameter passes through references: each level passes it down with `args`, 
 | `schema/link-schema` | `{type:"link", target?}` | `type` = `link` <!-- id:GXuPWZG4 --> |
 | `schema/include-schema` | `{type: <another schema's URL>, …refinements?}` | `type` names a schema, not a kind <!-- id:sBVesN99 --> |
 | `schema/anyof` | `{anyOf:[schema, …]}` | has `anyOf` <!-- id:uRuXGK92 --> |
+| `schema/allof` | `{allOf:[schema, …]}` | has `allOf` |
 | `schema/var-schema` | `{var}` | has `var` <!-- id:nw86Dhqn --> |
 | `schema/literal-schema` | `{value, description?}` | has `value` <!-- id:Lit5eral --> |
 | [string](../string.md), [integer](../integer.md), [boolean](../boolean.md), [null](../null.md) | a bare value | is not a map <!-- id:Lit6eral --> |
@@ -172,7 +188,7 @@ node scripts/hypermedia/validate.mjs
 
 ### The loop still closes <!-- id:cAg3Oszt -->
 
-`schema` is `{ "anyOf": [ …thirteen includes… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
+`schema` is `{ "anyOf": [ …fourteen includes… ] }`. Validate it against itself: <!-- id:Gjr5KNDl -->
   1. It matches the **`schema/anyof`** variant, because it has an `anyOf` that is a list of schemas. <!-- id:deE1RQMk -->
   2. Each item in that `anyOf` is a bare `{type: …}` naming a variant schema, which matches the **`schema/include-schema`** variant. <!-- id:yYBUIRiY -->
   3. Each variant file (e.g. `schema/map-schema`) is itself a `{type:"struct", …}`, which matches the **`schema/struct-schema`** variant. <!-- id:3RbdlEZc -->

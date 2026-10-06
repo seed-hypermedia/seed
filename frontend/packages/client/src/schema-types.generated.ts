@@ -849,6 +849,19 @@ export type HMExampleConstrained = {
 }
 
 /**
+ * Example: Contact
+ * Ways to reach someone, a required email and an optional phone number.
+ * Ways to reach someone: a required email and an optional phone number.
+ * Schema: hm://hyper.media/example/contact
+ */
+export type HMExampleContact = {
+  /** The address to write to. */
+  email: string
+  /** A telephone number, in any format. */
+  phone?: string
+}
+
+/**
  * Example: Counts
  * A map from string keys to integers: Map<Integer>.
  * A map from string keys to integers: `Map<Integer>`.
@@ -1092,6 +1105,14 @@ export type HMExamplePollBlock = HMBlockBase & {
  * Schema: hm://hyper.media/example/registry
  */
 export type HMExampleRegistry = {[key: string]: HMLink}
+
+/**
+ * Example: Staff Member
+ * An employee who is also a contact, the intersection of the two.
+ * An employee who is also a contact: every field of both, with name, employeeId and email required.
+ * Schema: hm://hyper.media/example/staff-member
+ */
+export type HMExampleStaffMember = HMExampleEmployee & HMExampleContact
 
 /**
  * Character Stats
@@ -1434,12 +1455,30 @@ export type HMSchema =
   | HMSchemaLinkSchema
   | HMSchemaIncludeSchema
   | HMSchemaAnyof
+  | HMSchemaAllof
   | HMSchemaVarSchema
   | HMSchemaLiteralSchema
   | string
   | number
   | boolean
   | null
+
+/**
+ * Intersection schema
+ * The variant for an intersection, which accepts a value that satisfies every schema listed under allOf, by merging its struct arms into one.
+ * An intersection schema: a value is valid if it satisfies every schema listed under `allOf`. The arms are structs, and they merge into one.
+ * Schema: hm://hyper.media/schema/allof
+ */
+export type HMSchemaAllof = {
+  /** The schemas to combine; a value must satisfy every one. Each arm must be a struct or map (or name one); their fields merge into one struct. */
+  allOf: HMSchema[]
+  /** What the intersection is for, when it is written inline; a published schema is described by its page. */
+  description?: string
+  /** Type parameters that make this schema generic, each with its default schema. */
+  params?: {[key: string]: HMSchema}
+  /** Legacy: a name some published schemas still carry. New schemas are named by their page. */
+  name?: string
+}
 
 /**
  * Union schema

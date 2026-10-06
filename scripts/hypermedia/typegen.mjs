@@ -15,6 +15,7 @@
 //   any          -> unknown
 //   a literal    -> a literal type ("Change", 1, true, null)
 //   anyOf        -> union (an empty union is never)
+//   allOf        -> intersection (A & B)
 //   ref          -> the referenced schema's generated type name
 //   extension    -> Base & {added/overridden fields} (literal `type` narrows the base)
 //   generics     -> params -> <T = Default>, var -> T, args -> Name<Arg> (1:1 with TS)
@@ -111,7 +112,7 @@ const isLiteralSchema = (s) => {
   if (s === undefined) return false
   if (s === null || typeof s !== 'object') return true
   if (Array.isArray(s)) return false
-  return 'value' in s && !('type' in s || 'ref' in s || 'anyOf' in s || 'var' in s || 'params' in s)
+  return 'value' in s && !('type' in s || 'ref' in s || 'anyOf' in s || 'allOf' in s || 'var' in s || 'params' in s)
 }
 const literalValue = (s) => (s !== null && typeof s === 'object' ? s.value : s)
 
@@ -127,6 +128,12 @@ function emit(node, env, pad = '') {
   if (node.anyOf) {
     const parts = [...new Set(node.anyOf.map((v) => emit(v, env, pad)))]
     return parts.length ? parts.join(' | ') : 'never'
+  }
+
+  if (node.allOf) {
+    // Each arm parenthesized when it is itself a union, so `(A | B) & C` keeps its meaning.
+    const parts = [...new Set(node.allOf.map((v) => emit(v, env, pad)))].map((t) => (/\|/.test(t) ? `(${t})` : t))
+    return parts.length ? parts.join(' & ') : 'unknown'
   }
 
   const named = namedSchemaUrl(node)

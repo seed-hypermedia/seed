@@ -18,7 +18,7 @@ Hypermedia Schemas is a small schema language for [IPLD](./ipld.md) data, the va
 
 **Types are documents.** Every schema is also published as a normal Hypermedia document, owned by an [account](../protocol/identity.md) and reachable at an [`hm://` URL](../protocol/urls.md). That gives types names, versions, human descriptions, and a place in the same browsable graph as everything else. A document declares what it is by pointing at one of these URLs. References are names, so types can refer to each other in cycles, such as a folder that contains files that live in folders. A pure hash graph cannot express that. See [references and naming](./references.md). <!-- id:o9b8CRI8 -->
 
-**Types are minimal.** There are nine [kinds](./kind.md) of value and nine shapes a schema can take. Every feature has to pass one test: the schema that defines what a schema is must stay a valid instance of itself. The [meta-schema](../schema.md) describes itself. That [self-description](./self-description.md) is the design constraint, and it keeps the language small. See [the schema language](./schema-language.md) and [design rationale](./design.md). <!-- id:ejkukc5O -->
+**Types are minimal.** There are nine [kinds](./kind.md) of value and ten shapes a schema can take. Every feature has to pass one test: the schema that defines what a schema is must stay a valid instance of itself. The [meta-schema](../schema.md) describes itself. That [self-description](./self-description.md) is the design constraint, and it keeps the language small. See [the schema language](./schema-language.md) and [design rationale](./design.md). <!-- id:ejkukc5O -->
 
 # What it makes possible <!-- id:n8_sc-MO -->
 
