@@ -2411,7 +2411,12 @@ Containers:`);
     const expectedLightning = config.testnet ? LIGHTNING_URL_TESTNET : LIGHTNING_URL_MAINNET;
     const expectedTestnetName = config.testnet ? "dev" : "";
     const checks = [
-      { container: "seed-daemon", envVar: "SEED_P2P_TESTNET_NAME", expected: expectedTestnetName, label: expectedTestnetName || "(empty, mainnet)" },
+      {
+        container: "seed-daemon",
+        envVar: "SEED_P2P_TESTNET_NAME",
+        expected: expectedTestnetName,
+        label: expectedTestnetName || "(empty, mainnet)"
+      },
       { container: "seed-daemon", envVar: "LIGHTNING_API_URL", expected: expectedLightning },
       { container: "seed-daemon", envVar: "SEED_LOG_LEVEL", expected: config.compose_envs.LOG_LEVEL },
       { container: "seed-web", envVar: "SEED_BASE_URL", expected: config.domain },
