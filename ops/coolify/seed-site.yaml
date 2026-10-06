@@ -13,9 +13,9 @@
 #   SEED_WEB_IMAGE=ghcr.io/horacioh/seed-web:main
 #   SEED_SITE_IMAGE=ghcr.io/horacioh/seed-site:main
 #
-# seed-updater polls the registry every SEED_UPDATE_INTERVAL seconds and recreates seed-web and
-# seed-daemon when their image tag points at a new digest. It only touches containers carrying
-# this stack's scope label, so several Seed sites can share one server.
+# Auto-update: deploy seed-updater.yaml once per server. It recreates seed-web and seed-daemon of
+# every Seed site on the server when their image tag points at a new digest (the static
+# watchtower labels below opt them in).
 #
 # Running more than one site on a server: give each stack its own SEED_P2P_PORT.
 
@@ -65,14 +65,15 @@ services:
     command:
       - sh
       - -c
-      - '[ -f /web/config.json ] || printf ''{"availableRegistrationSecret":"%s"}\n'' "$$SEED_LINK_SECRET" > /web/config.json; chown -R 1001:1001 /web'
+      - '[ -f /web/config.json ] || printf ''{"availableRegistrationSecret":"%s"}\n'' "$$SEED_LINK_SECRET" >
+        /web/config.json; chown -R 1001:1001 /web'
 
   seed-daemon:
     image: ${SEED_SITE_IMAGE:-seedhypermedia/site:latest}
     restart: unless-stopped
     labels:
       - com.centurylinklabs.watchtower.enable=true
-      - com.centurylinklabs.watchtower.scope=${SERVICE_PASSWORD_UPDATESCOPE}
+      - com.centurylinklabs.watchtower.scope=seed
     ports:
       - '${SEED_P2P_PORT:-56000}:56000'
       - '${SEED_P2P_PORT:-56000}:56000/udp'
@@ -103,7 +104,7 @@ services:
     restart: unless-stopped
     labels:
       - com.centurylinklabs.watchtower.enable=true
-      - com.centurylinklabs.watchtower.scope=${SERVICE_PASSWORD_UPDATESCOPE}
+      - com.centurylinklabs.watchtower.scope=seed
     depends_on:
       seed-init:
         condition: service_completed_successfully
@@ -119,19 +120,16 @@ services:
       - DATA_DIR=/data
     volumes:
       - seed-web-data:/data
-
-  seed-updater:
-    image: nickfedor/watchtower:latest
-    restart: unless-stopped
-    exclude_from_hc: true
-    environment:
-      - WATCHTOWER_SCOPE=${SERVICE_PASSWORD_UPDATESCOPE}
-      - WATCHTOWER_LABEL_ENABLE=true
-      - WATCHTOWER_POLL_INTERVAL=${SEED_UPDATE_INTERVAL:-600}
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_INCLUDE_RESTARTING=true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/hm/api/version').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
 volumes:
   seed-daemon-data:
