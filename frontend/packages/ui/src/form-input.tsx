@@ -6,6 +6,7 @@ import {Input} from './components/input'
 import {Label} from './components/label'
 import {Textarea} from './components/textarea'
 import {Text} from './text'
+import {PathInput} from './path-input'
 
 export function FormInput<Fields extends FieldValues>({
   control,
@@ -34,6 +35,20 @@ export function FormInput<Fields extends FieldValues>({
       {...props}
     />
   )
+}
+
+/** Connects an address input to a form using only completed, normalized values. */
+export function FormPathInput<Fields extends FieldValues>({
+  control,
+  name,
+  ...props
+}: Omit<React.ComponentProps<typeof PathInput>, 'value' | 'onValueChange' | 'name'> & {
+  control: Control<Fields>
+  name: Path<Fields>
+}) {
+  const {field} = useController({control, name})
+  const {onChange, value, ...inputProps} = field
+  return <PathInput {...inputProps} {...props} id={name} value={value ?? ''} onValueChange={onChange} />
 }
 
 export function FormCheckbox<Fields extends FieldValues>({
