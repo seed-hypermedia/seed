@@ -9,6 +9,7 @@ import type {AppWindowEvent} from '../utils/window-events'
 
 const mocks = vi.hoisted(() => ({
   enabled: true,
+  clearData: vi.fn().mockResolvedValue(undefined),
   send: vi.fn(),
   invoke: vi.fn(),
   externalOpen: vi.fn(),
@@ -16,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   resolveRoute: vi.fn(),
   resolve: vi.fn().mockResolvedValue(null),
 }))
+vi.mock('../trpc', () => ({client: {experiments: {clearBrowserData: {mutate: mocks.clearData}}}}))
 vi.mock('../models/experiments', () => ({useExperiments: () => ({data: {webBrowser: mocks.enabled}})}))
 vi.mock('../app-context', () => ({useAppContext: () => ({externalOpen: mocks.externalOpen})}))
 vi.mock('../grpc-client', () => ({domainResolver: {}}))
@@ -39,11 +41,16 @@ describe('browser page lifecycle', () => {
 
   beforeEach(() => {
     ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+    mocks.clearData.mockReset().mockResolvedValue(undefined)
     mocks.enabled = true
     mocks.send.mockClear()
     mocks.invoke.mockReset().mockResolvedValue({browserId: 42})
     ;(window as any).webBrowser = {
       create: mocks.invoke,
+      destroy: (input: unknown) => {
+        mocks.send('web-browser-destroy', input)
+        return Promise.resolve()
+      },
       setBounds: (input: unknown) => mocks.send('web-browser-bounds', input),
       control: (input: unknown) => mocks.send('web-browser-control', input),
       navigate: (input: unknown) => mocks.send('web-browser-navigate', input),
@@ -111,6 +118,65 @@ describe('browser page lifecycle', () => {
     expect(getState().routeIndex).toBe(2)
   })
 
+  it('opens the current URL privately and destroys private guests on close and route departure', async () => {
+    await attachAndCommit()
+    mocks.invoke.mockResolvedValueOnce({browserId: 43})
+    await act(async () => (container.querySelector('[aria-label="New private page"]') as HTMLButtonElement).click())
+    expect(mocks.invoke).toHaveBeenLastCalledWith({private: true})
+    expect(container.textContent).toContain('Private')
+    expect(sent('web-browser-navigate').at(-1)).toMatchObject({
+      browserId: 43,
+      url: 'https://example.com/a',
+      historyIndex: undefined,
+    })
+    await act(async () => (container.querySelector('[aria-label="Close private page"]') as HTMLButtonElement).click())
+    expect(sent('web-browser-destroy')).toEqual([{browserId: 43}])
+    expect(sent('web-browser-navigate').at(-1)?.browserId).toBe(42)
+    mocks.invoke.mockResolvedValueOnce({browserId: 44})
+    await act(async () => (container.querySelector('[aria-label="New private page"]') as HTMLButtonElement).click())
+    await act(async () => dispatch({type: 'push', route: {key: 'contacts'}}))
+    expect(sent('web-browser-destroy')).toContainEqual({browserId: 44})
+  })
+
+  it('confirms before clearing data from the page menu and allows cancellation', async () => {
+    await attachAndCommit()
+    const openConfirm = async () => {
+      await act(async () =>
+        container
+          .querySelector('[aria-label="Page menu"]')!
+          .dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true})),
+      )
+      await act(async () => (document.querySelector('[role="menuitem"]') as HTMLElement).click())
+    }
+    await openConfirm()
+    expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain('Clear browsing data?')
+    expect(mocks.clearData).not.toHaveBeenCalled()
+    await act(async () =>
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Cancel')!
+        .click(),
+    )
+    expect(mocks.clearData).not.toHaveBeenCalled()
+    await openConfirm()
+    await act(async () =>
+      Array.from(document.querySelectorAll('button'))
+        .find((button) => button.textContent === 'Clear browsing data')!
+        .click(),
+    )
+    expect(mocks.clearData).toHaveBeenCalledOnce()
+    expect(document.querySelector('[role="alertdialog"]')).toBeNull()
+  })
+
+  it('shows dialog origins only for the active guest and resets on navigation', async () => {
+    await attachAndCommit()
+    act(() => emit({type: 'browser-dialog', browserId: 99, origin: 'https://other.example'}))
+    expect(container.textContent).not.toContain('is showing dialogs')
+    act(() => emit({type: 'browser-dialog', browserId: 42, origin: 'https://iframe.example'}))
+    expect(container.textContent).toContain('https://iframe.example is showing dialogs')
+    act(() => emit({type: 'browser-loading', browserId: 42, loading: true}))
+    expect(container.textContent).not.toContain('is showing dialogs')
+  })
+
   it('ignores stale navigation completions when a newer URL is already loading', async () => {
     await act(async () => {})
     const oldRequest = sent('web-browser-navigate').at(-1)
@@ -121,11 +187,18 @@ describe('browser page lifecycle', () => {
 
   it('surfaces main-frame load errors with a working retry action', async () => {
     await attachAndCommit()
-    act(() => emit({type: 'browser-load-error', browserId: 42, description: 'Name not resolved'}))
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Name not resolved')
+    act(() =>
+      emit({
+        type: 'browser-load-error',
+        browserId: 42,
+        description: 'The web page stopped responding. Reload to try again.',
+      }),
+    )
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('The web page stopped responding')
     // The page view is hidden while the error panel is shown, so the panel is not covered.
     expect(sent('web-browser-bounds').at(-1)).toMatchObject({browserId: 42, visible: false})
     const retry = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Try again')!
+    expect(sent('web-browser-control').filter((input) => input.action === 'reload')).toHaveLength(0)
     act(() => retry.click())
     expect(sent('web-browser-control').at(-1)).toEqual({browserId: 42, action: 'reload'})
   })
