@@ -1,6 +1,7 @@
 import {daemonFetch} from '@shm/shared/daemon-http'
 import {parseDeepLink} from '@/utils/deep-links'
 import {getPageWebContents} from './app-web-browser'
+import {setupBrowserSessionPolicy} from './browser-session-policy'
 import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL, OS_PROTOCOL_SCHEME} from '@shm/shared/constants'
@@ -411,6 +412,9 @@ export const router = t.router({
       }),
     )
     .mutation(async ({input: {webUrl}}) => {
+      // The imported page is untrusted web content: it renders in the web pane's partition with the
+      // same isolation and policies, never in the app's own session.
+      setupBrowserSessionPolicy()
       const webView = new BrowserWindow({
         show: false,
         width: 1200,
@@ -418,6 +422,10 @@ export const router = t.router({
         webPreferences: {
           offscreen: true,
           spellcheck: true,
+          partition: 'persist:seed-web-browser',
+          contextIsolation: true,
+          sandbox: true,
+          nodeIntegration: false,
         },
         icon: process.env.CI
           ? path.resolve(__dirname, '../assets/icons-prod/icon.png')
