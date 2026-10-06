@@ -3,6 +3,7 @@ import {useEffect} from 'react'
 import {useIPC} from '../app-context'
 
 export type AppWindowEvent =
+  | import('../browser-content-blocker').BrowserBlockedCount
   | {type: 'browser-favicons'; browserId: number; url: string; icons: string[]}
   | {type: 'open_web_url'; url: string}
   | {type: 'browser-open-url'; browserId: number; url: string}

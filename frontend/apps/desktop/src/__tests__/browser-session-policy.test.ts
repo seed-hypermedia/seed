@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   message: vi.fn(),
 }))
+vi.mock('../app-store.mts', () => ({appStore: {get: vi.fn(), set: vi.fn()}}))
+vi.mock('../agents-server-process', () => ({getLocalAgentsServerUrl: () => null}))
 vi.mock('../browser-blocklist', async () => {
   const actual = await vi.importActual<typeof import('../browser-blocklist')>('../browser-blocklist')
   actual.browserBlocklist.load = vi.fn()

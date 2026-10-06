@@ -1,4 +1,5 @@
 import type {Session, WebContents} from 'electron'
+import {browserContentBlocker} from './browser-content-blocker'
 import {browserBlocklist, type BrowserBlocklistMatch} from './browser-blocklist'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {assertPublicWebUrl, isPrivateHost} from './browser-url-policy'
@@ -65,6 +66,10 @@ export function setupBrowserNetworkPolicy(browserSession: Session) {
     }
     const state = details.webContentsId === undefined ? undefined : guests.get(details.webContentsId)
     if (state && details.resourceType === 'mainFrame') state.requestId = details.id
+    if (browserContentBlocker.shouldBlock(browserSession, details)) {
+      callback({cancel: true})
+      return
+    }
     callback({})
   })
   // Electron supplies ip at runtime, but v39's response-event declarations omit it.

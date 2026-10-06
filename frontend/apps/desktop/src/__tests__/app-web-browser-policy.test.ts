@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   publicUrl: vi.fn(),
   networkCallbacks: {} as Record<string, Function>,
   currentGuest: undefined as unknown,
+  browserSession: undefined as unknown,
 }))
 vi.mock('../app-browser-agent', () => ({executeBrowserCommand: mocks.execute}))
 vi.mock('../app-browser-favicon', () => ({readBrowserFavicons: async () => [], loadBrowserFavicon: async () => null}))
@@ -15,6 +16,8 @@ vi.mock('../browser-url-policy', async () => ({
   ...(await vi.importActual<typeof import('../browser-url-policy')>('../browser-url-policy')),
   assertPublicWebUrl: mocks.publicUrl,
 }))
+vi.mock('../app-store.mts', () => ({appStore: {get: vi.fn(), set: vi.fn()}}))
+vi.mock('../agents-server-process', () => ({getLocalAgentsServerUrl: () => null}))
 vi.mock('../browser-blocklist', async () => {
   const actual = await vi.importActual<typeof import('../browser-blocklist')>('../browser-blocklist')
   actual.browserBlocklist.load = vi.fn()
@@ -35,6 +38,7 @@ vi.mock('electron', async () => {
     setPermissionRequestHandler: vi.fn(),
     setPermissionCheckHandler: vi.fn(),
   })
+  mocks.browserSession = session
   class WebContentsView {
     webContents = mocks.currentGuest
     setBounds = vi.fn()
@@ -56,6 +60,8 @@ function fixture() {
   const host = Object.assign(new EventEmitter(), {ipc, mainFrame: {}, isDestroyed: () => false, send: vi.fn()})
   const guest = Object.assign(new EventEmitter(), {
     id: 42,
+    session: mocks.browserSession,
+    reload: vi.fn(),
     isDestroyed: () => false,
     getURL: () => 'https://example.com',
     getTitle: () => 'Example',
@@ -234,4 +240,21 @@ it('allows warning actions only from the Seed page after physical input', () => 
   guest.emit('input-event', {}, {type: 'mouseDown'})
   guest.emit('will-navigate', event, 'seed-browser://back')
   expect(host.send).toHaveBeenCalledWith('appWindowEvent', {type: 'back', browserId: 42})
+})
+
+it('accepts tracker settings only from the owning app main frame for the current origin', () => {
+  const {guest, host, handlers, event} = fixture()
+  const update = handlers.get('web-browser-trackers')!
+  const input = {browserId: 42, origin: 'https://example.com', allowed: true}
+  expect(() => update({sender: host, senderFrame: {}}, input)).toThrow('Invalid browser host')
+  expect(() => update(event, {...input, browserId: 99})).toThrow('closed')
+  expect(() => update(event, {...input, origin: 'https://other.example'})).toThrow('changed')
+  update(event, input)
+  expect(guest.reload).toHaveBeenCalledOnce()
+  expect(host.send).toHaveBeenCalledWith(
+    'appWindowEvent',
+    expect.objectContaining({type: 'browser-blocked-count', browserId: 42, allowed: true}),
+  )
+  // Reset the persisted exception so later fixtures keep default protection.
+  update(event, {...input, allowed: false})
 })

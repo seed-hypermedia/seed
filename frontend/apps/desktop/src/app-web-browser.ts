@@ -2,6 +2,7 @@ import type {BrowserWindow, WebContents} from 'electron'
 import {WebContentsView, nativeTheme, shell} from 'electron'
 import {browserBlocklist, browserBlockedPage, type BrowserBlocklistMatch} from './browser-blocklist'
 import {z} from 'zod'
+import {browserContentBlocker} from './browser-content-blocker'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {loadBrowserFavicon, readBrowserFavicons} from './app-browser-favicon'
 import {executeBrowserCommand, type BrowserArchive} from './app-browser-agent'
@@ -141,6 +142,24 @@ export function setupWebBrowser(
     }
     view.setVisible(parsed.data.visible && isWebBrowserEnabled())
   })
+  host.ipc.handle('web-browser-trackers', (event, input: unknown) => {
+    if (event.sender !== host || event.senderFrame !== host.mainFrame || !isWebBrowserEnabled())
+      throw new Error('Invalid browser host')
+    const {browserId, origin, allowed} = z
+      .object({browserId: z.number(), origin: z.string().url(), allowed: z.boolean()})
+      .parse(input)
+    const guest = guests.get(browserId)
+    if (!guest || guest.isDestroyed()) throw new Error('The browser page closed')
+    browserContentBlocker.setAllowed(guest, origin, allowed)
+    guest.reload()
+  })
+  host.ipc.on('web-browser-blocking-state', (event, input: unknown) => {
+    if (event.sender !== host || event.senderFrame !== host.mainFrame) return
+    const parsed = z.object({browserId: z.number()}).safeParse(input)
+    if (!parsed.success) return
+    const guest = guests.get(parsed.data.browserId)
+    if (guest && !guest.isDestroyed()) browserContentBlocker.report(guest)
+  })
   host.ipc.on('web-browser-control', (event, input: unknown) => {
     if (event.sender !== host || event.senderFrame !== host.mainFrame) return
     const parsed = controlSchema.safeParse(input)
@@ -232,6 +251,7 @@ export function setupWebBrowser(
     const send = (event: Record<string, unknown>) => {
       if (!host.isDestroyed()) host.send('appWindowEvent', {...event, browserId: guest.id})
     }
+    browserContentBlocker.track(guest, send)
     const openUrl = (url: string) => send({type: 'browser-open-url', url})
     let faviconRevision = 0
     let faviconIcons: string[] = []

@@ -1,5 +1,6 @@
 import {test, expect, _electron} from '@playwright/test'
 import {build} from 'esbuild'
+import {FiltersEngine} from '@ghostery/adblocker'
 import {createServer} from 'node:http'
 import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
@@ -9,8 +10,20 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
   test.setTimeout(60000)
   const directory = await mkdtemp(path.join(tmpdir(), 'seed-web-browser-e2e-'))
   let blockedHostRequests = 0
+  let trackerRequests = 0
   const server = createServer((request, response) => {
     if (request.headers.host?.startsWith('seed-blocked.test:')) blockedHostRequests++
+    if (request.url === '/fixture-tracker.js') {
+      trackerRequests++
+      response.setHeader('Content-Type', 'application/javascript')
+      response.end('window.trackerLoaded = true')
+      return
+    }
+    if (request.url === '/tracking') {
+      response.setHeader('Content-Type', 'text/html')
+      response.end('<h1>Tracking fixture</h1><script src="/fixture-tracker.js"></script>')
+      return
+    }
     if (request.url === '/icons/site.svg') {
       if (!request.headers.cookie?.includes('icon-session=allowed')) {
         response.writeHead(401)
@@ -103,7 +116,15 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       path.join(directory, 'profile/browser/blocklist.json'),
       JSON.stringify({checkedAt: Date.now(), hosts: ['seed-blocked.test']}),
     )
-    electron = await _electron.launch({args: [main, '--fixture', html, preload, path.join(directory, 'profile')]})
+    const engine = FiltersEngine.parse('/fixture-tracker.js$script', {loadCosmeticFilters: false})
+    await writeFile(
+      path.join(directory, 'profile/browser/content-blocker.json'),
+      JSON.stringify({checkedAt: Date.now(), engine: Buffer.from(engine.serialize()).toString('base64')}),
+    )
+    electron = await _electron.launch({
+      args: [main, '--fixture', html, preload, path.join(directory, 'profile')],
+      env: {...process.env, SEED_FIXTURE_DATA_DIR: path.join(directory, 'profile')},
+    })
     const page = await electron.firstWindow()
     // Electron 44 hands Playwright the window before loadFile commits; wait for the fixture page.
     await page.waitForURL(/index\.html$/)
@@ -330,6 +351,59 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       .poll(() => guest.evaluate((contents) => contents.executeJavaScript('document.body.innerText')))
       .toContain('seed-blocked.test was flagged by OpenPhish')
     expect(blockedHostRequests).toBe(0)
+    await navigate(`${origin}/tracking`, 9)
+    await expect
+      .poll(() => page.evaluate(() => (window as any).browserTest.events()))
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'browser-blocked-count',
+            browserId,
+            url: `${origin}/tracking`,
+            count: 1,
+            allowed: false,
+          }),
+        ]),
+      )
+    expect(trackerRequests).toBe(0)
+    await page.evaluate((input) => (window as any).browserTest.allowTrackers(input), {browserId, origin, allowed: true})
+    await expect
+      .poll(() => guest.evaluate((contents) => contents.executeJavaScript('window.trackerLoaded === true')))
+      .toBe(true)
+    expect(trackerRequests).toBe(1)
+    await expect
+      .poll(() => page.evaluate(() => (window as any).browserTest.events()))
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'browser-blocked-count',
+            browserId,
+            url: `${origin}/tracking`,
+            count: 0,
+            allowed: true,
+          }),
+        ]),
+      )
+    const beforeToggle = await page.evaluate(() => (window as any).browserTest.events().length)
+    await page.evaluate((input) => (window as any).browserTest.allowTrackers(input), {
+      browserId,
+      origin,
+      allowed: false,
+    })
+    await expect
+      .poll(() => guest.evaluate((contents) => contents.executeJavaScript('document.readyState')))
+      .toBe('complete')
+    await expect
+      .poll(() => page.evaluate((start) => (window as any).browserTest.events().slice(start), beforeToggle))
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({type: 'browser-blocked-count', browserId, count: 1, allowed: false}),
+        ]),
+      )
+    expect(trackerRequests).toBe(1)
+    await page.addScriptTag({url: `${origin}/fixture-tracker.js`})
+    expect(await page.evaluate(() => (window as any).trackerLoaded)).toBe(true)
+    expect(trackerRequests).toBe(2)
     await page.evaluate(() => (window as any).browserTest.hide())
     await expect(command({action: 'snapshot'})).rejects.toThrow('Browser access is paused')
   } finally {
