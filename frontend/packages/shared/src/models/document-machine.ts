@@ -422,10 +422,12 @@ export function getCollectionEditorBlocks(context: DocumentMachineContext): Edit
 }
 
 function getMachineOwnedContentOverride(context: DocumentMachineContext): EditorBlock[] | undefined {
-  if (context.draftContent === null) return undefined
   const publishedType = deriveDocumentType(context.document?.content, context.documentId)
   if (context.documentType !== 'collection' && publishedType !== 'collection') return undefined
-  return contentToEditorBlocks(context.draftContent)
+  // A collection's body is its query block, owned by the machine. Before any query edit there is no
+  // draft content yet, so fall back to the published query rather than letting the writer read an
+  // (empty) editor, which would drop the query and make publish offer to delete every child.
+  return contentToEditorBlocks(context.draftContent ?? context.document?.content)
 }
 
 /** Returns the effective metadata derived from the published document and draft overlay. */
