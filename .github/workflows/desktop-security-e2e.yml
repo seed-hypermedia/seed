@@ -73,6 +73,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
+      - name: Configure Electron's SUID sandbox helper
+        # Chromium refuses to start on Linux unless chrome-sandbox is root-owned with mode 4755.
+        run: |
+          for helper in $(find node_modules/.pnpm -path '*electron/dist/chrome-sandbox' 2>/dev/null) node_modules/electron/dist/chrome-sandbox; do
+            if [ -f "$helper" ]; then sudo chown root:root "$helper" && sudo chmod 4755 "$helper"; fi
+          done
+
       - name: Build the daemon test server once
         # tests/daemon-auth.e2e.ts compiles it itself; warming the Go cache here keeps the test
         # inside its own timeout.
