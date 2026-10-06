@@ -73,12 +73,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Configure Electron's SUID sandbox helper
-        # Chromium refuses to start on Linux unless chrome-sandbox is root-owned with mode 4755.
+      - name: Let Chromium use its user-namespace sandbox
+        # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor, so Chromium
+        # falls back to the SUID helper and aborts. Lifting the restriction keeps the real sandbox
+        # on; the chown is a fallback for images without that knob.
         run: |
-          for helper in $(find node_modules/.pnpm -path '*electron/dist/chrome-sandbox' 2>/dev/null) node_modules/electron/dist/chrome-sandbox; do
-            if [ -f "$helper" ]; then sudo chown root:root "$helper" && sudo chmod 4755 "$helper"; fi
-          done
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          helper="$(readlink -f node_modules/electron/dist/chrome-sandbox || true)"
+          if [ -n "$helper" ] && [ -f "$helper" ]; then
+            sudo chown root:root "$helper" && sudo chmod 4755 "$helper"
+            ls -la "$helper"
+          else
+            echo "no chrome-sandbox helper found under node_modules/electron/dist"
+          fi
 
       - name: Build the daemon test server once
         # tests/daemon-auth.e2e.ts compiles it itself; warming the Go cache here keeps the test
