@@ -42,7 +42,7 @@
     "lucide-react": "^0.511.0",
     "mjml": "5.3.0",
     "multiformats": "^13.3.2",
-    "nodemailer": "^7.0.13",
+    "nodemailer": "^10.0.10",
     "react": "18.2.0 || 19.0.1",
     "react-dom": "18.2.0 || 19.0.1",
     "sharp": "^0.35.0",
