@@ -4158,7 +4158,7 @@ function DocumentCollection({
   )
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
+    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
     return (
       <QueryBlockContent
         toolbarActions={
@@ -4202,6 +4202,7 @@ function DocumentCollection({
         banner={bannerContent ? false : banner}
         bannerContent={bannerContent}
         prependItems={prependItems}
+        tableDrafts={tableDrafts}
         onCreateDocument={slot?.onCreateDraft}
         accountsMetadata={query.data?.accountsMetadata ?? {}}
         interactionSummaries={query.data?.interactionSummaries ?? {}}

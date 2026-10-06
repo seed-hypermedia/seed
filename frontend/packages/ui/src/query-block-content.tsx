@@ -1,3 +1,4 @@
+import {type QueryBlockDraftSlotData} from '@shm/shared/query-block-drafts-context'
 import * as Ariakit from '@ariakit/react'
 import {
   HMAccountsMetadata,
@@ -116,6 +117,8 @@ export interface QueryBlockContentProps {
   interactionSummaries?: Record<string, HMQueryBlockItemSummary>
   isDiscovering?: boolean
   prependItems?: ReactNode[]
+  /** Drafts rendered as table rows with a separate actions column. */
+  tableDrafts?: QueryBlockDraftSlotData
   /** Creates a document in the query target when the results are empty. */
   onCreateDocument?: () => void
   bannerContent?: ReactNode
@@ -149,6 +152,7 @@ export function QueryBlockContent({
   interactionSummaries,
   isDiscovering,
   prependItems,
+  tableDrafts,
   onCreateDocument,
   bannerContent,
   titleLinkOnly,
@@ -302,7 +306,7 @@ export function QueryBlockContent({
   )
 
   const hasPrependItems = prependItems && prependItems.length > 0
-  const hasItems = sortedItems.length > 0 || hasPrependItems || !!bannerContent
+  const hasItems = sortedItems.length > 0 || hasPrependItems || !!tableDrafts?.drafts.length || !!bannerContent
 
   return (
     <div className="border-border bg-background @container/collection flex min-w-0 flex-col rounded-md border">
@@ -347,10 +351,10 @@ export function QueryBlockContent({
         </div>
       ) : style === 'Table' ? (
         <>
-          {hasPrependItems ? <div className="flex flex-col gap-2 p-2">{prependItems}</div> : null}
-          {sortedItems.length > 0 ? (
+          {sortedItems.length > 0 || tableDrafts?.drafts.length ? (
             <QueryBlockTable
               items={sortedItems}
+              tableDrafts={tableDrafts}
               descriptors={descriptors}
               context={context}
               sorting={sorting}

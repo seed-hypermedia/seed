@@ -1,3 +1,5 @@
+import {type QueryBlockDraftSlotData} from '@shm/shared/query-block-drafts-context'
+import {InlineDraftListItem} from './inline-draft-list-item'
 import {HMDocumentInfo, type HMQueryTableConfig} from '@seed-hypermedia/client/hm-types'
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
 import {
@@ -28,6 +30,8 @@ const ROW_CHUNK = 25
 
 export interface QueryBlockTableProps {
   items: HMDocumentInfo[]
+  /** Drafts rendered before published rows, with actions in the last column. */
+  tableDrafts?: QueryBlockDraftSlotData
   descriptors: QueryTableColumn[]
   context: QueryTableValueContext
   sorting?: SortingState
@@ -46,6 +50,7 @@ export interface QueryBlockTableProps {
 
 export function QueryBlockTable({
   items,
+  tableDrafts,
   descriptors,
   context,
   sorting,
@@ -185,7 +190,9 @@ export function QueryBlockTable({
     getSortedRowModel: getSortedRowModel(),
   })
 
-  if (items.length === 0) {
+  const hasDrafts = !!tableDrafts?.drafts.length
+
+  if (items.length === 0 && !hasDrafts) {
     return (
       <div className="text-muted-foreground flex h-28 items-center justify-center rounded-md border text-sm">
         No documents found.
@@ -195,7 +202,7 @@ export function QueryBlockTable({
 
   return (
     <div className="border-border max-w-full overflow-x-auto overscroll-x-contain rounded-b-md border-x border-b">
-      <Table className="table-fixed" style={{width: '100%', minWidth: table.getTotalSize()}}>
+      <Table className="table-fixed" style={{width: '100%', minWidth: table.getTotalSize() + (hasDrafts ? 48 : 0)}}>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id}>
@@ -253,10 +260,27 @@ export function QueryBlockTable({
                   />
                 </TableHead>
               ))}
+              {hasDrafts ? (
+                <TableHead className="bg-background sticky right-0 z-20 w-12">
+                  <span className="sr-only">Draft actions</span>
+                </TableHead>
+              ) : null}
             </TableRow>
           ))}
         </TableHeader>
         <TableBody>
+          {tableDrafts?.drafts.map(({draft, autoFocus}) => (
+            <InlineDraftListItem
+              key={`draft-${draft.id}`}
+              draft={draft}
+              autoFocus={autoFocus}
+              tableColumns={table.getVisibleLeafColumns().map((column) => ({id: column.id, size: column.getSize()}))}
+              onOpenDraft={tableDrafts.onOpenDraft!}
+              onDeleteDraft={tableDrafts.onDeleteDraft!}
+              onMoveDraft={tableDrafts.onMoveDraft}
+              onUpdateDraftName={tableDrafts.onUpdateDraftName!}
+            />
+          ))}
           {table
             .getRowModel()
             .rows.slice(0, visibleCount)
@@ -273,6 +297,7 @@ export function QueryBlockTable({
                     </div>
                   </TableCell>
                 ))}
+                {hasDrafts ? <TableCell className="bg-background sticky right-0 z-10 w-12" /> : null}
               </TableRow>
             ))}
         </TableBody>

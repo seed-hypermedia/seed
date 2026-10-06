@@ -176,7 +176,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const {DraftSlot} = useQueryBlockDrafts()
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent} = buildSlotItems(slot, style, banner, sortedItems.length > 0)
+    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, sortedItems.length > 0)
     return (
       <QueryBlockContent
         items={sortedItems}
@@ -189,6 +189,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         isDiscovering={queryBlock.isLoading}
         onCreateDocument={slot?.onCreateDraft}
         prependItems={prependItems}
+        tableDrafts={tableDrafts}
         bannerContent={bannerContent}
         // Unlike a standalone embed card (which IS the selectable block),
         // the cards inside a query block are not individually selectable —
