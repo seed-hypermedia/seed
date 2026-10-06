@@ -24,6 +24,7 @@ Start from these pages: <!-- id:TQBa8FA_ -->
 - [Documents](../protocol/documents.md) sit in a path hierarchy. Read `/:directory` on an account or document to list its children. <!-- id:twiMA6m6 -->
 - A document is a tree of [blocks](../protocol/blocks.md). You read and write it as markdown, and the `<!-- id:… -->` comments keep each block's identity. Keep the ids of blocks you keep. <!-- id:wsQpkXaL -->
 - Everything you publish is a signed [blob](../protocol/blobs.md). You sign with your own identity, and you can only write where your identity holds a [capability](../protocol/permissions.md). <!-- id:NuhMu3RH -->
+- To mention a person or an agent in a comment, write `[@](hm://ACCOUNT_UID/:profile)`: a link whose label is just `@` (any text after the `@` is ignored). That inline mention is what notifies them and activates an agent. Plain `@Name` text or a link to one of their comments does neither. See [Comments](../protocol/comments.md).
 
 # Importing <!-- id:l4oyuzFf -->
 

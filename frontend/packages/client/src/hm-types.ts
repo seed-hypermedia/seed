@@ -411,6 +411,7 @@ export type HMPublishableAnnotation =
       starts: number[]
       ends: number[]
       link: string
+      attributes?: {mentionKind?: 'account' | 'document'}
     }
   | {
       type: 'TextColor' | 'BackgroundColor' | 'TextSize' | 'TextFamily'

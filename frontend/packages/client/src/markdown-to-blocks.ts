@@ -250,8 +250,17 @@ export function parseInlineFormatting(raw: string): InlineParseResult {
         if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\S*$/.test(inner) && !/[\s<>]/.test(inner)) {
           const start = text.length
           if (inner.startsWith('hm://')) {
+            // `@<hm://…>`: the `@` is the author's mention marker, not text; the chip renders the name.
+            if (text.endsWith('@')) text = text.slice(0, -1)
+            const mentionStart = text.length
             text += '￼'
-            annotations.push({type: 'Embed', starts: [start], ends: [text.length], link: inner})
+            annotations.push({
+              type: 'Embed',
+              starts: [mentionStart],
+              ends: [text.length],
+              link: inner,
+              ...(hmAccountMentionUid(inner) ? {attributes: {mentionKind: 'account'}} : {}),
+            })
           } else {
             text += inner
             annotations.push({type: 'Link', starts: [start], ends: [text.length], link: inner})
@@ -277,6 +286,24 @@ export function parseInlineFormatting(raw: string): InlineParseResult {
     if (ch === '[') {
       const link = readLink(raw, i)
       if (link) {
+        // Mention: `[@](hm://…)` — an `@` label on an hm:// link. The label text after the `@` is
+        // ignored (readers render the target's current name), so `[@Name](hm://UID/:profile)`, the
+        // form resolved markdown prints, parses back to the same inline Embed. An account URL
+        // (`hm://UID`, `hm://UID/:profile`) is an account mention; any other hm:// URL is a document
+        // mention. A Link annotation on the text "@Name" would notify and summon nobody.
+        if (isMentionLabel(link.label) && /^hm:\/\//.test(link.url.trim())) {
+          const start = text.length
+          text += '￼'
+          annotations.push({
+            type: 'Embed',
+            starts: [start],
+            ends: [text.length],
+            link: link.url.trim(),
+            attributes: {mentionKind: hmAccountMentionUid(link.url) ? 'account' : 'document'},
+          })
+          i = link.end
+          continue
+        }
         const parsed = parseInlineFormatting(link.label)
         const start = text.length
         appendParsed(parsed)
@@ -335,6 +362,21 @@ function findBacktickRun(s: string, from: number, n: number): number {
  * Read a `[label](url)` starting at `open` (the `[`). Brackets balance,
  * escapes and code spans are skipped, the url may be `<…>`-wrapped.
  */
+/**
+ * The account uid an `hm://` URL mentions, when it names an account itself: `hm://UID` (the
+ * account root) or `hm://UID/:profile`. A URL with any other path names a document, not a person,
+ * and returns null. Query strings and fragments are not accepted on a mention.
+ */
+export function hmAccountMentionUid(url: string): string | null {
+  const match = /^hm:\/\/([A-Za-z0-9]+)(?:\/(?::profile\/?)?)?$/.exec(url.trim())
+  return match ? match[1]! : null
+}
+
+/** A mention label: `@` alone, or `@Name` (the name is a hint only), with optional whitespace. */
+function isMentionLabel(label: string): boolean {
+  return /^\s*@/.test(label)
+}
+
 function readLink(s: string, open: number): {label: string; url: string; end: number} | null {
   let depth = 0
   let i = open

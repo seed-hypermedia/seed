@@ -47,7 +47,7 @@ Two attributes exist on every block that can have children. <!-- id:1GIO2fft -->
 | `Range` | ranges only | a highlight, rendered as marked text <!-- id:8yCEreSK --> |
 | `TextColor`, `BackgroundColor`, `TextSize`, `TextFamily` | `value` | a style value such as a color or a font family <!-- id:813uEvcy --> |
 
-A mention is an inline embed. The block's `text` holds a single placeholder character, U+FEFF, at the position of the mention. An `Embed` annotation covering that one character carries the [`hm://` link](./urls.md). `mentionKind` is `account` for a person (the link is the [account](./identity.md) or its `/:profile`) or `document` for a page. Readers render the current name of the target in place of the placeholder, so a mention follows a title change. Text fragments and search skip the placeholder characters when they count offsets. <!-- id:Db5LYiXW -->
+A mention is an inline embed. The block's `text` holds a single placeholder character, U+FFFC (the object replacement character), at the position of the mention. An `Embed` annotation covering that one character carries the [`hm://` link](./urls.md). `mentionKind` is `account` for a person (the link is the [account](./identity.md) or its `/:profile`) or `document` for a page. Readers render the current name of the target in place of the placeholder, so a mention follows a title change. Text fragments and search skip the placeholder characters when they count offsets. In markdown, a mention is a link whose label is `@`: `[@](hm://ACCOUNT_UID/:profile)` for a person, `[@](hm://UID/path)` for a document (text after the `@` is ignored); `<hm://ACCOUNT_UID/:profile>` is equivalent. See [Comments](./comments.md). <!-- id:Db5LYiXW -->
 
 # Built-in block types <!-- id:Ab6ehaxJ -->
 
