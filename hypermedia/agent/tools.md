@@ -388,6 +388,7 @@ Durable session events and the desktop UI keep the tool's full output. Only the 
 - [Grants](./grants.md) <!-- id:rK4BKGX7 -->
 - [Tool document](./tool-document.md) <!-- id:lG_ea_kJ -->
 - [MCP servers](./mcp.md) <!-- id:4D2TubeN -->
+- [Datalab PDF importer](./datalab-importer.md)
 - [Triggers](./triggers.md) <!-- id:F1npZzOs -->
 - [Security](./security.md) <!-- id:1gpCge_Z -->
 - [Session continuation](./session-continuation.md) <!-- id:5SxLzsxa -->
