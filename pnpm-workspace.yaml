@@ -21,6 +21,10 @@ minimumReleaseAge: 1440
 # toolchain by appdmg and does not process user-controlled images in Seed.
 auditConfig:
   ignoreGhsas:
+    # http-cache-semantics max-stale (build tooling via electron-forge); no patched release yet
+    - GHSA-ch52-4w7c-c8xp
+    # braces stack exhaustion (dev-only via jscodeshift>micromatch); no patched release yet
+    - GHSA-vfj7-8cjw-p6xm
     # extract-zip has no patched release. The dependency is patched locally
     # with the upstream fix to reject a symlink at an archive entry's leaf path.
     # It is only used by the desktop packaging toolchain with trusted archives.
