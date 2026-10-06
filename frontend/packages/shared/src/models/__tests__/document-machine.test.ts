@@ -20,6 +20,7 @@ import {
 } from '../use-document-machine'
 import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import type {ConfirmChildDeletionInput, ConfirmedChildDeletion} from '../../utils/confirmed-child-deletion'
 
 const mockDocumentId = {
   id: 'hm://z6Mktest/doc',
@@ -129,7 +130,7 @@ describe('document collection helpers', () => {
       const machine = documentMachine.provide({
         actors: {
           writeDraft: fromPromise(async () => ({id: 'conversion-draft'})),
-          inspectChildDeletions: fromPromise(async () => []),
+          inspectChildDeletions: fromPromise<ConfirmedChildDeletion[], ConfirmChildDeletionInput>(async () => []),
           publishDocument: fromPromise(async () => publishedDocument),
         },
       })
