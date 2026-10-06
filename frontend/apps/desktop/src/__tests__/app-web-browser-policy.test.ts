@@ -45,11 +45,17 @@ import {setupWebBrowser} from '../app-web-browser'
 function fixture() {
   const handlers = new Map<string, Function>()
   const ipc = Object.assign(new EventEmitter(), {handle: (name: string, fn: Function) => handlers.set(name, fn)})
-  const host = Object.assign(new EventEmitter(), {ipc, mainFrame: {}, isDestroyed: () => false, send: vi.fn()})
+  const host = Object.assign(new EventEmitter(), {
+    ipc,
+    mainFrame: {},
+    isDestroyed: () => false,
+    send: vi.fn(),
+    getZoomFactor: () => 1.5,
+  })
   const guest = Object.assign(new EventEmitter(), {
     id: 42,
     isDestroyed: () => false,
-    getURL: () => 'https://example.com',
+    getURL: (): string => 'https://example.com',
     getTitle: () => 'Example',
     loadURL: vi.fn().mockResolvedValue(undefined),
     setWindowOpenHandler: vi.fn(),
@@ -231,4 +237,29 @@ it('can open an approved read-only destination without granting actions there', 
   const execute = handlers.get('browser-agent-execute')!
   await expect(execute(event, {connectionId: 'test', command: {action: 'navigate'}})).resolves.toEqual({ok: true})
   await expect(execute(event, {connectionId: 'test', command: {action: 'click'}})).rejects.toThrow('not acting on it')
+})
+
+it('clamps guest bounds to window content and hides the view while an overlay is open', () => {
+  const {host, event, window} = fixture()
+  const view = window.contentView.addChildView.mock.calls[0]![0]
+  host.ipc.emit('web-browser-bounds', event, {
+    browserId: 42,
+    visible: true,
+    bounds: {x: -100, y: 100, width: 2000, height: 2000},
+  })
+  expect(view.setBounds).toHaveBeenLastCalledWith({x: 0, y: 150, width: 1000, height: 550})
+  expect(view.setVisible).toHaveBeenLastCalledWith(true)
+  host.ipc.emit('web-browser-bounds', event, {
+    browserId: 42,
+    visible: false,
+    bounds: {x: 2000, y: 2000, width: 900, height: 600},
+  })
+  expect(view.setBounds).toHaveBeenLastCalledWith({x: 1000, y: 700, width: 0, height: 0})
+  expect(view.setVisible).toHaveBeenLastCalledWith(false)
+  // An overlay can hide the existing native view without supplying a new rectangle.
+  host.ipc.emit('web-browser-bounds', event, {browserId: 42, visible: false})
+  expect(view.setVisible).toHaveBeenLastCalledWith(false)
+  // Website IPC cannot unhide or reposition the view over Seed controls.
+  host.ipc.emit('web-browser-bounds', {sender: {}, senderFrame: {}}, {browserId: 42, visible: true})
+  expect(view.setVisible).toHaveBeenLastCalledWith(false)
 })

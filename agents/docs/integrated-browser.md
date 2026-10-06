@@ -66,6 +66,11 @@ Browser results stay with the owner:
 
 - The website runs in a `WebContentsView` owned by the main process. The app page never holds a web view: it asks for a
   guest, reports where to draw it, and receives events. `webviewTag` is off in every window.
+- Guest bounds are clamped to the window content area, and the app hides the native view while overlays are open.
+- Paste and drag from websites use the same BlockNote schema parser as other external HTML. Scripts and event handlers
+  are not document content; link parsing rejects script and data URLs, including forged `data-hm-link` attributes.
+- Browser output is tool data. Page text asking to sign or publish cannot execute a write; publishing still requires an
+  explicit call through the normal write tool and its available write keys.
 - Websites get no permissions, never auto-select a client certificate, and can only download after a click, with a save
   dialog.
 - A page can only switch the app to a Seed page or open a popup right after real user input, and never while an agent

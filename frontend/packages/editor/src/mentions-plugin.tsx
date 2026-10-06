@@ -48,7 +48,8 @@ export function createInlineEmbedNode() {
           priority: 1000,
           getAttrs: (dom) => {
             if (dom instanceof HTMLElement) {
-              var value = dom.getAttribute('data-inline-embed')
+              const value = dom.getAttribute('data-inline-embed')
+              if (!value || !unpackHmId(value)) return false
               const kind = dom.getAttribute('data-mention-kind')
               return {link: value, mentionKind: kind === 'account' || kind === 'document' ? kind : null}
             }
@@ -60,7 +61,8 @@ export function createInlineEmbedNode() {
           priority: 1000,
           getAttrs: (dom) => {
             if (dom instanceof HTMLElement) {
-              var value = dom.getAttribute('data-inline-embed')
+              const value = dom.getAttribute('data-inline-embed')
+              if (!value || !unpackHmId(value)) return false
               const kind = dom.getAttribute('data-mention-kind')
               return {link: value, mentionKind: kind === 'account' || kind === 'document' ? kind : null}
             }
