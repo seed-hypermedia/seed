@@ -10,6 +10,8 @@
  */
 
 :root {
+  --duration-normal: 200ms;
+  --ease-out-smooth: cubic-bezier(0.16, 1, 0.3, 1);
   --brand-1: hsl(180, 29%, 17%);
   --brand-2: hsl(180, 36%, 22%);
   --brand-3: hsl(166, 30%, 29%);

@@ -28,6 +28,7 @@ import {Input} from './components/input'
 import {ScrollArea} from './components/scroll-area'
 import {HMIcon} from './hm-icon'
 import {Back, FileText, Forward, Help, Search as SearchIcon} from './icons'
+import {PathInput} from './path-input'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {toast} from './toast'
@@ -307,10 +308,10 @@ export function DocumentDestinationDialog({
             Draft moves keep the draft placeholder path until publish.
           </SizableText>
         ) : (
-          <Input
+          <PathInput
             className="h-11 rounded-xl text-base"
             value={slug}
-            onChange={(event) => setSlug(pathNameify(event.target.value))}
+            onValueChange={setSlug}
             placeholder="url-path"
           />
         )}
