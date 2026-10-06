@@ -426,20 +426,26 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		return nil, err
 	}
 
-	doc, err := srv.loadDocument(ctx, acc, u.Path, heads, false)
-	if err != nil {
-		return nil, srv.redirectOrError(ctx, iri, heads, err)
-	}
-
-	if doc.Visibility() == blob.VisibilityPrivate {
-		if err := srv.denyPrivateDocument(ctx, acc, u.Path); err != nil {
-			return nil, err
-		}
-	}
-
-	docpb, err := srv.hydrated.get(ctx, string(iri), doc)
+	docpb, ok, err := srv.cachedDocument(ctx, iri, acc, u.Path, heads)
 	if err != nil {
 		return nil, err
+	}
+	if !ok {
+		doc, err := srv.loadDocument(ctx, acc, u.Path, heads, false)
+		if err != nil {
+			return nil, srv.redirectOrError(ctx, iri, heads, err)
+		}
+
+		if doc.Visibility() == blob.VisibilityPrivate {
+			if err := srv.denyPrivateDocument(ctx, acc, u.Path); err != nil {
+				return nil, err
+			}
+		}
+
+		docpb, err = srv.hydrated.get(ctx, string(iri), doc)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &documents.Resource{

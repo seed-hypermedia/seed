@@ -1,5 +1,6 @@
 {
   "lockfileVersion": 1,
+  "configVersion": 0,
   "workspaces": {
     "": {
       "name": "@seed-hypermedia/vault",
@@ -65,15 +66,15 @@
     },
   },
   "overrides": {
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "@types/react": "18.2.64",
-    "@types/react-dom": "18.2.21",
-    "@types/mjml-core": "4.15.2",
     "@seed-hypermedia/agents-protocol": "file:../agents/protocol",
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "@shm/shared": "file:../frontend/packages/shared",
     "@shm/ui": "file:../frontend/packages/ui",
+    "@types/mjml-core": "4.15.2",
+    "@types/react": "18.2.64",
+    "@types/react-dom": "18.2.21",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
   },
   "packages": {
     "@adobe/css-tools": ["@adobe/css-tools@4.5.0", "", {}, "sha512-6OzddxPio9UiWTCemp4N8cYLV2ZN1ncRnV1cVGtve7dhPOtRkleRyx32GQCYSwDYgaHU3USMm84tNsvKzRCa1Q=="],
@@ -2154,13 +2155,13 @@
 
     "@scure/bip39/@noble/hashes": ["@noble/hashes@1.3.1", "", {}, "sha512-EbqwksQwz9xDRGfDST86whPBgM65E0OH/pCgqW0GBVzO22bNE+NuIbeTb714+IfSjU3aRk47EUvXIb5bTsenKA=="],
 
-    "@shm/shared/@seed-hypermedia/client": ["@seed-hypermedia/client@file:../frontend/packages/client", {}],
+    "@shm/shared/@seed-hypermedia/client": ["@seed-hypermedia/client@file:../frontend/packages/client", { "dependencies": { "@ipld/dag-cbor": "^9.2.5", "@noble/ciphers": "^2.1.1", "@noble/curves": "^2.0.1", "@noble/hashes": "^2.0.1", "blockstore-core": "^5.0.2", "cborg": "^4.5.8", "cheerio": "^1.2.0", "core-js": "^3.48.0", "hash-wasm": "^4.12.0", "ipfs-unixfs-importer": "^15.3.2", "multiformats": "^13.4.1", "superjson": "2.2.1", "yaml": "^2.6.0" }, "devDependencies": { "tsup": "^8.5.1", "typescript": "5.8.3", "vitest": "4.1.8", "zod": "3.25.76" }, "peerDependencies": { "pdfjs-dist": "^4.2.67", "zod": "^3.20.0" }, "optionalPeers": ["pdfjs-dist"] }],
 
     "@shm/ui/@seed-hypermedia/agents-protocol": ["@seed-hypermedia/agents-protocol@file:../agents/protocol", {}],
 
-    "@shm/ui/@seed-hypermedia/client": ["@seed-hypermedia/client@file:../frontend/packages/client", {}],
+    "@shm/ui/@seed-hypermedia/client": ["@seed-hypermedia/client@file:../frontend/packages/client", { "dependencies": { "@ipld/dag-cbor": "^9.2.5", "@noble/ciphers": "^2.1.1", "@noble/curves": "^2.0.1", "@noble/hashes": "^2.0.1", "blockstore-core": "^5.0.2", "cborg": "^4.5.8", "cheerio": "^1.2.0", "core-js": "^3.48.0", "hash-wasm": "^4.12.0", "ipfs-unixfs-importer": "^15.3.2", "multiformats": "^13.4.1", "superjson": "2.2.1", "yaml": "^2.6.0" }, "devDependencies": { "tsup": "^8.5.1", "typescript": "5.8.3", "vitest": "4.1.8", "zod": "3.25.76" }, "peerDependencies": { "pdfjs-dist": "^4.2.67", "zod": "^3.20.0" }, "optionalPeers": ["pdfjs-dist"] }],
 
-    "@shm/ui/@shm/shared": ["@shm/shared@file:../frontend/packages/shared", {}],
+    "@shm/ui/@shm/shared": ["@shm/shared@file:../frontend/packages/shared", { "dependencies": { "@bufbuild/protobuf": "1.10.0", "@connectrpc/connect-web": "1.4.0", "@ipld/dag-cbor": "^9.2.5", "@noble/curves": "^2.0.1", "@noble/hashes": "^2.0.1", "@seed-hypermedia/client": "workspace:*", "@tanstack/react-query": "^4.36.1", "@xstate/react": "4.1.3", "cborg": "^4.5.8", "cheerio": "^1.0.0", "katex": "0.16.9", "lowlight": "3.1.0", "multiformats": "^13.4.1", "nanoid": "^5.1.16", "react-tweet": "3.2.0", "superjson": "2.2.1", "xstate": "5.19.2", "zod-to-json-schema": "3.25.1" }, "devDependencies": { "typescript": "5.8.3", "vitest": "4.1.8" }, "peerDependencies": { "react": ">=18.2.0 <20" } }],
 
     "@shm/ui/lucide-react": ["lucide-react@0.511.0", "", { "peerDependencies": { "react": "^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0" } }, "sha512-VK5a2ydJ7xm8GvBeKLS9mu1pVK6ucef9780JVUjw6bAjJL/QXnd4Y0p7SPeOUMC27YhzNCZvm5d/QX0Tp3rc0w=="],
 
@@ -2311,6 +2312,8 @@
     "@multiformats/dns/@libp2p/interface/uint8arraylist": ["uint8arraylist@3.0.2", "", { "dependencies": { "uint8arrays": "^6.0.0" } }, "sha512-LDVoq9BQaGJzGDUovEnoX6rpKCvnY/Jbtws4ikwnBzjRbq5qBAFpBZevUEbSmMM87aO0Sp+wOZy2ZXf5yODmXQ=="],
 
     "@multiformats/dns/uint8arrays/multiformats": ["multiformats@14.0.5", "", {}, "sha512-vbIm83F2yZ1pWJGS0yl0ysracIvv56LtbrIyiIQHoLdYDJOMoLfVFsXhh9DUH4SFdkdkFhucyWniihsNzVEjkQ=="],
+
+    "@shm/ui/@shm/shared/@seed-hypermedia/client": ["@seed-hypermedia/client@file:../frontend/packages/client", { "dependencies": { "@ipld/dag-cbor": "^9.2.5", "@noble/ciphers": "^2.1.1", "@noble/curves": "^2.0.1", "@noble/hashes": "^2.0.1", "blockstore-core": "^5.0.2", "cborg": "^4.5.8", "cheerio": "^1.2.0", "core-js": "^3.48.0", "hash-wasm": "^4.12.0", "ipfs-unixfs-importer": "^15.3.2", "multiformats": "^13.4.1", "superjson": "2.2.1", "yaml": "^2.6.0" }, "devDependencies": { "tsup": "^8.5.1", "typescript": "5.8.3", "vitest": "4.1.8", "zod": "3.25.76" }, "peerDependencies": { "pdfjs-dist": "^4.2.67", "zod": "^3.20.0" }, "optionalPeers": ["pdfjs-dist"] }],
 
     "cytoscape-fcose/cose-base/layout-base": ["layout-base@2.0.1", "", {}, "sha512-dp3s92+uNI1hWIpPGH3jK2kxE2lMjdXdr+DH8ynZHpd6PUlH6x6cbuXnoMmiNumznqaNO31xu9e79F0uuZ0JFg=="],
 

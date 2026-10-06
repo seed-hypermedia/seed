@@ -8,9 +8,10 @@ import {DocumentRoute, hmId, hostnameStripProtocol, useUniversalAppContext} from
 import {SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
+import {validateDomain} from '@shm/shared/utils/path'
 import {Button} from '@shm/ui/button'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
-import {FormInput} from '@shm/ui/form-input'
+import {FormInput, FormPathInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
 import {IconComponent, PasteSetupUrl, SeedHost, SelfHost, UploadCloud} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
@@ -394,7 +395,10 @@ const RegisterSubdomainSchema = z.object({
   subdomain: z
     .string()
     .min(4, 'Subdomain must be at least 4 characters long')
-    .refine((val) => !val.endsWith('-'), 'Subdomain cannot end with a dash'),
+    .superRefine((value, ctx) => {
+      const error = validateDomain(value, 'subdomain')
+      if (error) ctx.addIssue({code: z.ZodIssueCode.custom, message: error})
+    }),
 })
 type RegisterSubdomainFields = z.infer<typeof RegisterSubdomainSchema>
 function SeedHostRegisterSubdomain({
@@ -469,17 +473,7 @@ function SeedHostRegisterSubdomain({
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <FormField name="subdomain" label="Subdomain" errors={errors}>
-          <FormInput
-            control={control}
-            name="subdomain"
-            placeholder="my-space-name"
-            transformInput={(text) =>
-              text
-                .replace(/[ _]/g, '-')
-                .replace(/[^a-zA-Z0-9-]/g, '')
-                .toLowerCase()
-            }
-          />
+          <FormPathInput control={control} name="subdomain" kind="subdomain" placeholder="my-space-name" />
         </FormField>
         <ErrorBox error={errorText} />
         <DialogFooter>
@@ -669,7 +663,10 @@ const RegisterCustomDomainSchema = z.object({
   domain: z
     .string()
     .min(3, 'Domain is required')
-    .regex(/^(?!.*\.\.)(?!.*\.$)(?!^\.)[a-z0-9.-]+$/, 'Invalid domain format'),
+    .superRefine((value, ctx) => {
+      const error = validateDomain(value)
+      if (error) ctx.addIssue({code: z.ZodIssueCode.custom, message: error})
+    }),
 })
 type RegisterCustomDomainFields = z.infer<typeof RegisterCustomDomainSchema>
 function SeedHostRegisterCustomDomain({
@@ -764,20 +761,7 @@ function SeedHostRegisterCustomDomain({
       {siteUrl ? (
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <FormField name="domain" label="Domain Name" errors={errors}>
-            <FormInput
-              control={control}
-              name="domain"
-              placeholder="mydomain.com"
-              transformInput={(text) => {
-                if (text.match(/https?:\/\//)) {
-                  text = text.replace(/https?:\/\//, '')
-                }
-                return text
-                  .replace(/[ _]/g, '-')
-                  .replace(/[^a-zA-Z0-9-\.]/g, '')
-                  .toLowerCase()
-              }}
-            />
+            <FormPathInput control={control} name="domain" kind="domain" placeholder="mydomain.com" />
           </FormField>
           {createDomain.error ? (
             // @ts-expect-error

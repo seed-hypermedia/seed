@@ -9,6 +9,7 @@ const mockState = vi.hoisted(() => ({
   loginWithVault: vi.fn(),
   startEmailCode: vi.fn(),
   verifyEmailCode: vi.fn(),
+  createSite: vi.fn(),
 }))
 
 vi.mock('@/models/host', () => ({
@@ -20,7 +21,7 @@ vi.mock('@/models/host', () => ({
     startEmailCode: {mutateAsync: mockState.startEmailCode, isLoading: false, error: null, reset: vi.fn()},
     verifyEmailCode: {mutate: mockState.verifyEmailCode, isLoading: false, error: null, reset: vi.fn()},
     logout: vi.fn(),
-    createSite: {mutateAsync: vi.fn(), isLoading: false, error: null},
+    createSite: {mutateAsync: mockState.createSite, isLoading: false, error: null},
     hostInfo: {
       isLoading: false,
       error: null,
@@ -150,6 +151,7 @@ describe('publishing to Seed hosting while connected to a remote vault', () => {
     mockState.loginWithVault.mockReset()
     mockState.startEmailCode.mockReset()
     mockState.verifyEmailCode.mockReset()
+    mockState.createSite.mockReset().mockImplementation(() => new Promise(() => {}))
   })
 
   afterEach(() => {
@@ -231,6 +233,29 @@ describe('publishing to Seed hosting while connected to a remote vault', () => {
       binding: 'binding-1',
       code: '4821',
     })
+  })
+
+  it('submits a completed normalized subdomain through the redesigned publishing form', async () => {
+    mockState.loggedIn = true
+    render()
+    await act(async () => {
+      fireInput(container.querySelector('input')!, 'My Space ')
+      container.querySelector('form')!.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mockState.createSite).toHaveBeenCalledWith({subdomain: 'my-space'})
+  })
+
+  it('retains domain label validation after combining the new publishing layout', async () => {
+    mockState.loggedIn = true
+    render()
+    await act(async () => {
+      fireInput(container.querySelector('input')!, 'a'.repeat(64))
+      container.querySelector('form')!.dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mockState.createSite).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('at most 63 characters')
   })
 
   it('does not ask the vault when already logged in', () => {

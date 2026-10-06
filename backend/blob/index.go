@@ -826,113 +826,12 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 		}
 		defer release()
 
-		headIDs, err := cidsToDBIDs(conn, heads)
+		headIDs, dg, found, err := resolveVersionGeneration(conn, resource, heads)
 		if err != nil {
 			outErr = err
 			return
 		}
-
-		var versionGenesis int64
-
-		for i, h := range headIDs {
-			genesis, err := dbBlobsGetGenesis(conn, h)
-			if err != nil {
-				outErr = err
-				return
-			}
-			if genesis == 0 {
-				// The query is COALESCE(genesis_blob, id), so a zero here can
-				// only mean there is no structural_blobs row for this change —
-				// it isn't indexed yet. That happens routinely mid-sync: we
-				// learn a version head from a Ref before the change itself
-				// arrives, or the change arrived and was stashed pending its
-				// genesis. It is a transient state, not a server fault, so
-				// report it as retryable rather than Internal — otherwise the
-				// UI shows a red "Something went wrong" for content that is
-				// simply still on its way.
-				outErr = status.Errorf(codes.Unavailable, "document is still syncing: change %s has not been indexed yet", heads[i])
-				return
-			}
-
-			if versionGenesis == 0 {
-				versionGenesis = genesis
-			} else if versionGenesis != genesis {
-				outErr = fmt.Errorf("changes of compound version %s have different genesis", NewVersion(heads...).String())
-				return
-			}
-		}
-
-		// Query document generations sorted by most recent.
-		lookup := NewLookupCache(conn)
-		versionGenesisCID, err := lookup.CID(versionGenesis)
-		if err != nil {
-			outErr = err
-			return
-		}
-
-		q := dqb.Select(
-			"dg.resource",
-			"dg.genesis_change_time",
-			"dg.last_change_time",
-			"dg.last_tombstone_ref_time",
-			"dg.last_alive_ref_time",
-			"dg.generation",
-			"dg.genesis",
-			"dg.last_comment",
-			"dg.last_comment_time",
-			"dg.comment_count",
-			"dg.heads",
-			"dg.changes",
-			"dg.change_count",
-			"dg.authors",
-			"dg.visibility",
-			"dg.visibility_timestamp",
-		).
-			From("document_generations dg", "resources r").
-			Where("r.id = dg.resource").
-			Where("r.iri = ?").
-			Where("dg.genesis = ?").
-			OrderBy("dg.generation DESC").
-			String()
-
-		rows2, discard2, check2 := sqlitex.Query(conn, q, resource, versionGenesisCID.String()).All()
-		defer discard2(&outErr)
-
-		var dg maybe.Value[documentGeneration]
-		var foundChanges []int64
-
-		for row := range rows2 {
-			var g documentGeneration
-			if err := g.fromRow(row); err != nil {
-				outErr = err
-				return
-			}
-
-			// Check if any of our version heads are in this generation's changes.
-			if g.Changes != nil {
-				found := false
-				for _, h := range headIDs {
-					if g.Changes.Contains(uint64(h)) {
-						found = true
-						dg = maybe.New(g)
-
-						// Get all changes from this generation.
-						it := g.Changes.Iterator()
-						for it.HasNext() {
-							foundChanges = append(foundChanges, int64(it.Next())) //nolint:gosec // We know this should not overflow.
-						}
-						break
-					}
-				}
-				if found {
-					break
-				}
-			}
-		}
-
-		outErr = errors.Join(outErr, check2())
-
-		if !dg.IsSet() {
+		if !found {
 			return
 		}
 
@@ -983,8 +882,8 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 			rec := ChangeRecord{
 				CID:        chcid,
 				Data:       ch,
-				Generation: dg.Value().Generation,
-				Visibility: dg.Value().Visibility,
+				Generation: dg.Generation,
+				Visibility: dg.Visibility,
 			}
 
 			if !yield(rec) {
@@ -998,6 +897,133 @@ func (idx *Index) IterChanges(ctx context.Context, resource IRI, heads []cid.Cid
 	}
 
 	return it, check
+}
+
+// ResolveVersion resolves the generation and visibility an explicit version of
+// a resource belongs to, without decoding or replaying a single change.
+//
+// It shares resolveVersionGeneration with IterChanges, so a caller that uses
+// this to skip a document load sees the same generation the load would replay.
+// Returns NotFound when no generation of the resource holds the version, which
+// is when IterChanges yields nothing.
+func (idx *Index) ResolveVersion(ctx context.Context, resource IRI, heads []cid.Cid) (DocumentState, error) {
+	conn, release, err := idx.db.ReadConn(ctx)
+	if err != nil {
+		return DocumentState{}, err
+	}
+	defer release()
+
+	_, dg, found, err := resolveVersionGeneration(conn, resource, heads)
+	if err != nil {
+		return DocumentState{}, err
+	}
+	if !found {
+		return DocumentState{}, status.Errorf(codes.NotFound, "document not found: %s", resource)
+	}
+
+	return DocumentState{
+		Heads:      heads,
+		Generation: dg.Generation,
+		Visibility: dg.Visibility,
+	}, nil
+}
+
+// resolveVersionGeneration finds the most recent generation of the resource
+// that holds any of the given version heads. It also returns the database IDs
+// of the heads, in the same order.
+//
+// found is false when no generation of the resource holds the version.
+func resolveVersionGeneration(conn *sqlite.Conn, resource IRI, heads []cid.Cid) (headIDs []int64, dg documentGeneration, found bool, err error) {
+	headIDs, err = cidsToDBIDs(conn, heads)
+	if err != nil {
+		return nil, dg, false, err
+	}
+
+	var versionGenesis int64
+
+	for i, h := range headIDs {
+		genesis, err := dbBlobsGetGenesis(conn, h)
+		if err != nil {
+			return nil, dg, false, err
+		}
+		if genesis == 0 {
+			// The query is COALESCE(genesis_blob, id), so a zero here can
+			// only mean there is no structural_blobs row for this change —
+			// it isn't indexed yet. That happens routinely mid-sync: we
+			// learn a version head from a Ref before the change itself
+			// arrives, or the change arrived and was stashed pending its
+			// genesis. It is a transient state, not a server fault, so
+			// report it as retryable rather than Internal — otherwise the
+			// UI shows a red "Something went wrong" for content that is
+			// simply still on its way.
+			return nil, dg, false, status.Errorf(codes.Unavailable, "document is still syncing: change %s has not been indexed yet", heads[i])
+		}
+
+		if versionGenesis == 0 {
+			versionGenesis = genesis
+		} else if versionGenesis != genesis {
+			return nil, dg, false, fmt.Errorf("changes of compound version %s have different genesis", NewVersion(heads...).String())
+		}
+	}
+
+	// Query document generations sorted by most recent.
+	lookup := NewLookupCache(conn)
+	versionGenesisCID, err := lookup.CID(versionGenesis)
+	if err != nil {
+		return nil, dg, false, err
+	}
+
+	q := dqb.Select(
+		"dg.resource",
+		"dg.genesis_change_time",
+		"dg.last_change_time",
+		"dg.last_tombstone_ref_time",
+		"dg.last_alive_ref_time",
+		"dg.generation",
+		"dg.genesis",
+		"dg.last_comment",
+		"dg.last_comment_time",
+		"dg.comment_count",
+		"dg.heads",
+		"dg.changes",
+		"dg.change_count",
+		"dg.authors",
+		"dg.visibility",
+		"dg.visibility_timestamp",
+	).
+		From("document_generations dg", "resources r").
+		Where("r.id = dg.resource").
+		Where("r.iri = ?").
+		Where("dg.genesis = ?").
+		OrderBy("dg.generation DESC").
+		String()
+
+	rows, discard, check := sqlitex.Query(conn, q, resource, versionGenesisCID.String()).All()
+	defer discard(&err)
+
+	for row := range rows {
+		var g documentGeneration
+		if err := g.fromRow(row); err != nil {
+			return nil, dg, false, err
+		}
+
+		if g.Changes == nil {
+			continue
+		}
+
+		// Check if any of our version heads are in this generation's changes.
+		if slices.ContainsFunc(headIDs, func(h int64) bool { return g.Changes.Contains(uint64(h)) }) { //nolint:gosec // Database IDs are never negative.
+			dg = g
+			found = true
+			break
+		}
+	}
+
+	if err := check(); err != nil {
+		return nil, dg, false, err
+	}
+
+	return headIDs, dg, found, nil
 }
 
 // changesFromHeadIDsConn loads all changes reachable from the given head

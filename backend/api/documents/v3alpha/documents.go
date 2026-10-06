@@ -906,16 +906,13 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		return nil, err
 	}
 
-	// Try to answer from the hydration cache before doing any real work. Only
-	// requests for the current version qualify -- see cachedDocument.
-	if len(heads) == 0 {
-		cached, ok, err := srv.cachedDocument(ctx, iri, ns, in.Path)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			return cached, nil
-		}
+	// Try to answer from the hydration cache before doing any real work.
+	cached, ok, err := srv.cachedDocument(ctx, iri, ns, in.Path, heads)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		return cached, nil
 	}
 
 	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, false)
@@ -954,26 +951,35 @@ func (srv *Server) redirectOrError(ctx context.Context, iri blob.IRI, heads []ci
 	return err
 }
 
-// cachedDocument tries to answer a GetDocument for the current version straight
-// from the hydration cache, without replaying the document's change log.
+// cachedDocument tries to answer a document read straight from the hydration
+// cache, without replaying the document's change log.
 //
-// The cache is keyed by the document's content-addressed version, and until now
-// that version was only known after loadDocument had already replayed every
-// change -- so even a cache hit paid the full cost, which the production profile
-// showed as ~22% of all daemon CPU. The version is also sitting in the index,
-// one indexed read away, and that same read carries the visibility we need for
-// the private-document check.
+// The cache is keyed by the document's content-addressed version. For the
+// current version (no heads) that version is one indexed read away. For an
+// explicit version the request itself carries it, and those requests are most
+// of the read load: embeds, citations and links all pin a version. In both
+// cases replaying every change only to look up a key we already had is what the
+// production profiles showed as ~20% of all daemon CPU.
 //
-// Only the current version takes this path. An explicit version may belong to
-// an older generation, and visibility is a per-generation attribute, so serving
-// one from here would risk applying the wrong generation's access rules.
+// Access is decided here on every call, from the index, and never from the
+// cached document: visibility is a per-generation attribute, so it is read from
+// the generation the full load would have replayed. ResolveLatest and
+// ResolveVersion share that selection with IterChanges.
 //
 // A miss is always safe: the caller falls through to the full load. A hit can't
-// be stale either, because ResolveLatest reads the very document_generations row
-// that IterChanges derives its replay set from -- if that row were behind, the
-// full load would compute the same version anyway.
-func (srv *Server) cachedDocument(ctx context.Context, iri blob.IRI, ns core.Principal, path string) (*documents.Document, bool, error) {
-	state, err := srv.idx.ResolveLatest(ctx, iri)
+// be stale either, because the resolution reads the very document_generations
+// row that IterChanges derives its replay set from -- if that row were behind,
+// the full load would compute the same version anyway.
+func (srv *Server) cachedDocument(ctx context.Context, iri blob.IRI, ns core.Principal, path string, heads []cid.Cid) (*documents.Document, bool, error) {
+	var (
+		state blob.DocumentState
+		err   error
+	)
+	if len(heads) == 0 {
+		state, err = srv.idx.ResolveLatest(ctx, iri)
+	} else {
+		state, err = srv.idx.ResolveVersion(ctx, iri, heads)
+	}
 	if err != nil {
 		// Any failure here just means no shortcut. We deliberately swallow it
 		// and fall through so the regular load stays responsible for every

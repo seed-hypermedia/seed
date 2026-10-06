@@ -185,6 +185,47 @@ describe('document collection helpers', () => {
     actor.stop()
   })
 
+  it('keeps the published collection query when the first draft edit is attributes-only', async () => {
+    const writeInputs: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
+          writeInputs.push(input)
+          return {id: 'collection-draft', content: input.contentOverride}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    }).start()
+    const publishedQuery = {
+      block: {
+        id: 'published-query',
+        type: 'Query',
+        attributes: {
+          style: 'Table',
+          query: {
+            includes: [{space: mockDocumentId.uid, path: (mockDocumentId.path || []).join('/'), mode: 'Children'}],
+          },
+        },
+      },
+      children: [],
+    }
+    loadDocument(actor, {...mockDocument, content: [publishedQuery]} as unknown as HMDocument)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+    expect(actor.getSnapshot().context.documentType).toBe('collection')
+
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change', bindingSchemaDrafts: {childAttributesSchema: {type: 'hm://hyper.media/struct'}}})
+
+    await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
+    expect(writeInputs[0].contentOverride).toEqual([expect.objectContaining({id: 'published-query', type: 'query'})])
+    actor.stop()
+  })
+
   it('derives a loaded collection without creating a style repair draft', async () => {
     const actor = createTestActor().start()
     const query = createDefaultCollectionQueryBlock('query')
