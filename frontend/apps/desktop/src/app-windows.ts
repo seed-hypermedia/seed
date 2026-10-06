@@ -500,6 +500,10 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       preload: path.join(__dirname, 'preload.js'),
       disableDialogs: true,
       spellcheck: true,
+      // Electron's defaults, stated so the static scan and readers see them.
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
     },
     minWidth: windowType.minWidth,
     minHeight: windowType.minHeight,

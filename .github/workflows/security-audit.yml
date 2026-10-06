@@ -7,11 +7,13 @@ on:
     paths:
       - 'pnpm-lock.yaml'
       - 'package.json'
+      - 'frontend/apps/desktop/**'
       - '.github/workflows/security-audit.yml'
   pull_request:
     paths:
       - 'pnpm-lock.yaml'
       - 'package.json'
+      - 'frontend/apps/desktop/**'
       - '.github/workflows/security-audit.yml'
   schedule:
     # Run every Monday at 09:00 UTC to catch newly-reported vulnerabilities
@@ -43,3 +45,26 @@ jobs:
         # --ignore-registry-errors: npm is retiring legacy audit endpoints
         # (pnpm/pnpm#11265) — don't fail the build when the registry is down.
         run: pnpm audit --audit-level=high --ignore-registry-errors
+
+  electron-static-scan:
+    name: Electron static scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Scan the desktop app with Electronegativity
+        # Fails on HIGH findings that are not tentative; see frontend/apps/desktop/scripts/electron-static-scan.mjs
+        run: node frontend/apps/desktop/scripts/electron-static-scan.mjs electronegativity.csv
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronegativity-report
+          path: electronegativity.csv

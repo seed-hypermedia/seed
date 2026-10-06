@@ -1,0 +1,108 @@
+name: Desktop security e2e
+
+# The hostile page suite, the web pane suite and the real-daemon authentication regression run
+# inside a real Electron build on every pull request that touches the desktop app, its shared
+# packages, or the daemon's HTTP surface. None of them need a packaged app.
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/apps/desktop/**'
+      - 'frontend/packages/**'
+      - 'backend/daemon/**'
+      - 'backend/config/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/desktop-security-e2e.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-security-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Hostile page, web pane and daemon auth
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: '1'
+      NODE_ENV: test
+      CGO_ENABLED: 1
+      LIBRARY_PATH: ${{ github.workspace }}/backend/util/llama-go
+      C_INCLUDE_PATH: ${{ github.workspace }}/backend/util/llama-go
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache GGUF model
+        uses: actions/cache@v4
+        with:
+          path: backend/llm/backends/llamacpp/models/*.gguf
+          key: gguf-model-granite-v2
+
+      - name: Download GGUF model
+        run: |
+          if [ ! -f backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf ]; then
+            mkdir -p backend/llm/backends/llamacpp/models
+            curl -fSL -o backend/llm/backends/llamacpp/models/granite-embedding-107m-multilingual-Q8_0.gguf \
+              "https://huggingface.co/keisuke-miyako/granite-embedding-107m-multilingual-gguf-q8_0/resolve/main/granite-embedding-107m-multilingual-Q8_0.gguf?download=true"
+          fi
+
+      - uses: ./.github/actions/ci-setup
+        with:
+          matrix-os: ubuntu-latest
+
+      - name: Install a display server for Electron
+        run: sudo apt-get install -y xvfb
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Let Chromium use its user-namespace sandbox
+        # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor, so Chromium
+        # falls back to the SUID helper and aborts. Lifting the restriction keeps the real sandbox
+        # on; the chown is a fallback for images without that knob.
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          helper="$(readlink -f node_modules/electron/dist/chrome-sandbox || true)"
+          if [ -n "$helper" ] && [ -f "$helper" ]; then
+            sudo chown root:root "$helper" && sudo chmod 4755 "$helper"
+            ls -la "$helper"
+          else
+            echo "no chrome-sandbox helper found under node_modules/electron/dist"
+          fi
+
+      - name: Build the daemon test server once
+        # tests/daemon-auth.e2e.ts compiles it itself; warming the Go cache here keeps the test
+        # inside its own timeout.
+        run: go test -c -o /tmp/daemon.test ./backend/daemon
+
+      - name: Run the security suites
+        working-directory: frontend/apps/desktop
+        run: |
+          xvfb-run -a npx playwright test --project=e2e \
+            tests/hostile-page.e2e.ts \
+            tests/web-browser.e2e.ts \
+            tests/daemon-auth.e2e.ts
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-security-e2e-report
+          path: frontend/apps/desktop/playwright-report/**/*
