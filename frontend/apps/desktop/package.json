@@ -166,7 +166,7 @@
     "@types/react": "18.2.64",
     "@types/react-dom": "18.2.21",
     "@vitejs/plugin-react": "5.1.2",
-    "electron": "39.8.10",
+    "electron": "41.10.6",
     "electron-playwright-helpers": "1.6.0",
     "happy-dom": "7.8.1",
     "jsdom": "22.1.0",

@@ -6,10 +6,25 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {type SortingState} from '@tanstack/react-table'
-import {ArrowDown, ArrowUp, ArrowUpDown, FileText, Filter, MessageSquare, Plus, Search, Share2, X} from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  FileText,
+  Filter,
+  GitCompareArrows,
+  Grid3X3,
+  MessageSquare,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react'
 import {ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {Button} from './button'
+import {badgeVariants} from './components/badge'
 import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {Switch} from './components/switch'
@@ -33,6 +48,7 @@ import {
   type QueryTableValueContext,
 } from './query-block-table-model'
 import {Spinner} from './spinner'
+import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
 const INITIAL_LIST_CHUNK_SIZE = 25
@@ -81,7 +97,10 @@ function createQueryTableState(
   return {sorting, columnOrder, columnVisibility, columnSizing}
 }
 
+/** Shared collection results and controls for table, list, and card views. */
 export interface QueryBlockContentProps {
+  /** Existing collection view and settings controls, shown after the search controls. */
+  toolbarActions?: ReactNode
   items: HMDocumentInfo[]
   style: 'Card' | 'List' | 'Table'
   columnCount?: string | number
@@ -92,6 +111,8 @@ export interface QueryBlockContentProps {
   interactionSummaries?: Record<string, HMQueryBlockItemSummary>
   isDiscovering?: boolean
   prependItems?: ReactNode[]
+  /** Creates a document in the query target when the results are empty. */
+  onCreateDocument?: () => void
   bannerContent?: ReactNode
   /** Render card titles as links (hover underline, navigate on first click) instead of whole-card navigation. */
   titleLinkOnly?: boolean
@@ -110,7 +131,9 @@ export interface QueryBlockContentProps {
   viewerQueryApplied?: boolean
 }
 
+/** Renders collection controls and results while retaining viewer state across view changes. */
 export function QueryBlockContent({
+  toolbarActions,
   items,
   style,
   columnCount = '3',
@@ -119,6 +142,7 @@ export function QueryBlockContent({
   interactionSummaries,
   isDiscovering,
   prependItems,
+  onCreateDocument,
   bannerContent,
   titleLinkOnly,
   navigateCards,
@@ -236,13 +260,6 @@ export function QueryBlockContent({
     })
   }, [filteredItems, sorting, context])
 
-  const visibleColumnCount = useMemo(() => {
-    if (Object.keys(columnVisibility).length === 0) {
-      return descriptors.filter((d) => d.defaultVisible).length
-    }
-    return columnOrder.filter((id) => columnVisibility[id] !== false).length
-  }, [columnOrder, columnVisibility, descriptors])
-
   const visibleDescriptors = useMemo(() => {
     const byId = new Map(descriptors.map((descriptor) => [descriptor.id, descriptor]))
     return columnOrder
@@ -269,28 +286,19 @@ export function QueryBlockContent({
     [columnOrder, persistTableConfig],
   )
 
-  if (items.length === 0 && isDiscovering) {
-    return (
-      <div className="bg-background text-muted-foreground flex items-center gap-2 rounded-lg p-4 font-sans">
-        <Spinner size="small" />
-        <span className="italic">Searching for documents…</span>
-      </div>
-    )
-  }
-
   const hasPrependItems = prependItems && prependItems.length > 0
-  const hasItems = sortedItems.length > 0 || hasPrependItems
+  const hasItems = sortedItems.length > 0 || hasPrependItems || !!bannerContent
 
   return (
-    <div className="border-border bg-background flex flex-col rounded-md border">
+    <div className="border-border bg-background @container/collection flex min-w-0 flex-col rounded-md border">
       <QueryBlockToolbar
-        showAttributes
+        actions={toolbarActions}
+        documentCount={usesRemoteViewerQuery ? totalMatches ?? items.length : filteredItems.length}
         descriptors={descriptors}
         items={items}
         context={context}
         columnOrder={columnOrder}
         columnVisibility={columnVisibility}
-        visibleColumnCount={visibleColumnCount}
         toggleColumnVisibility={toggleColumnVisibility}
         moveColumn={moveColumn}
         filters={effectiveFilters}
@@ -299,39 +307,49 @@ export function QueryBlockContent({
         setSorting={setSortingAndPersist}
         search={effectiveSearch}
         setSearch={setEffectiveSearch}
-        totalMatches={totalMatches}
+        loadedCount={filteredItems.length}
+        isUpdating={isUpdating}
       />
-      {isUpdating ? (
-        <p
-          aria-live="polite"
-          className="text-muted-foreground border-border flex items-center gap-2 border-b px-4 py-2 text-xs"
-        >
-          <Spinner size="small" /> Updating results…
-        </p>
-      ) : null}
-      {!hasItems ? (
+      {items.length === 0 && isDiscovering ? (
+        <div className="bg-background text-muted-foreground flex items-center gap-2 rounded-lg p-4 font-sans">
+          <Spinner size="small" />
+          <span className="italic">Searching for documents…</span>
+        </div>
+      ) : !hasItems ? (
         <div className="text-muted-foreground flex h-28 items-center justify-center rounded-md border text-sm">
-          {effectiveFilters.length || effectiveSearch
-            ? 'No documents match the current search and filters.'
-            : 'No documents found.'}
+          {effectiveFilters.length || effectiveSearch ? (
+            'No documents match the current search and filters.'
+          ) : onCreateDocument ? (
+            <Button type="button" variant="outline" size="sm" onClick={onCreateDocument}>
+              <Plus className="size-4" />
+              New Document
+            </Button>
+          ) : (
+            'No documents found.'
+          )}
         </div>
       ) : style === 'Table' ? (
-        <QueryBlockTable
-          items={sortedItems}
-          descriptors={descriptors}
-          context={context}
-          sorting={sorting}
-          onSortingChange={setSortingAndPersist}
-          columnOrder={columnOrder}
-          onColumnOrderChange={(columnOrder) => updateTableState({type: 'columnOrder', columnOrder})}
-          columnVisibility={columnVisibility}
-          onColumnVisibilityChange={(columnVisibility) =>
-            updateTableState({type: 'columnVisibility', columnVisibility})
-          }
-          columnSizing={columnSizing}
-          onColumnSizingChange={(columnSizing) => updateTableState({type: 'columnSizing', columnSizing})}
-          onColumnSizingCommit={(nextSizing) => persistTableConfig({columnSizing: nextSizing})}
-        />
+        <>
+          {hasPrependItems ? <div className="flex flex-col gap-2 p-2">{prependItems}</div> : null}
+          {sortedItems.length > 0 ? (
+            <QueryBlockTable
+              items={sortedItems}
+              descriptors={descriptors}
+              context={context}
+              sorting={sorting}
+              onSortingChange={setSortingAndPersist}
+              columnOrder={columnOrder}
+              onColumnOrderChange={(columnOrder) => updateTableState({type: 'columnOrder', columnOrder})}
+              columnVisibility={columnVisibility}
+              onColumnVisibilityChange={(columnVisibility) =>
+                updateTableState({type: 'columnVisibility', columnVisibility})
+              }
+              columnSizing={columnSizing}
+              onColumnSizingChange={(columnSizing) => updateTableState({type: 'columnSizing', columnSizing})}
+              onColumnSizingCommit={(nextSizing) => persistTableConfig({columnSizing: nextSizing})}
+            />
+          ) : null}
+        </>
       ) : style === 'Card' ? (
         <QueryBlockCards
           items={sortedItems}
@@ -358,13 +376,12 @@ export function QueryBlockContent({
 }
 
 function QueryBlockToolbar({
-  showAttributes,
+  actions,
   descriptors,
   items,
   context,
   columnOrder,
   columnVisibility,
-  visibleColumnCount,
   toggleColumnVisibility,
   moveColumn,
   filters,
@@ -373,15 +390,16 @@ function QueryBlockToolbar({
   setSorting,
   search,
   setSearch,
-  totalMatches,
+  documentCount,
+  loadedCount,
+  isUpdating,
 }: {
-  showAttributes: boolean
+  actions?: ReactNode
   descriptors: QueryTableColumn[]
   items: HMDocumentInfo[]
   context: QueryTableValueContext
   columnOrder: string[]
   columnVisibility: Record<string, boolean>
-  visibleColumnCount: number
   toggleColumnVisibility: (id: string) => void
   moveColumn: (id: string, offset: -1 | 1) => void
   filters: QueryTableFilter[]
@@ -390,11 +408,55 @@ function QueryBlockToolbar({
   setSorting: (sorting: SortingState) => void
   search: string
   setSearch: (value: string) => void
-  totalMatches?: number
+  documentCount: number
+  loadedCount: number
+  isUpdating?: boolean
 }) {
+  const [searchExpanded, setSearchExpanded] = useState(false)
   return (
-    <div data-query-block-toolbar className="border-border bg-muted/30 flex items-start gap-2 border-b px-4 py-3">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+    <div
+      data-query-block-toolbar
+      className="border-border bg-muted/30 flex min-w-0 flex-col gap-3 border-b px-2 py-3 @sm/collection:px-4 @3xl/collection:flex-row @3xl/collection:items-center"
+      onMouseDown={(event) => {
+        // Let the popover open before its trigger moves as search loses focus.
+        if (searchExpanded && (event.target as HTMLElement).closest('button[aria-haspopup="dialog"]')) {
+          event.preventDefault()
+        }
+      }}
+    >
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <div
+          className={cn(
+            'relative min-w-0 shrink transition-[width] duration-(--duration-normal) ease-(--ease-out-smooth) motion-reduce:transition-none',
+            searchExpanded ? 'w-64' : search ? 'w-40' : 'w-24',
+          )}
+        >
+          {searchExpanded ? (
+            <>
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+              <Input
+                autoFocus
+                value={search}
+                onChangeText={setSearch}
+                onBlur={() => setSearchExpanded(false)}
+                placeholder="Search documents…"
+                aria-label="Search documents"
+                className="bg-background h-8 pl-8"
+              />
+            </>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full min-w-0 justify-start"
+              aria-label="Search documents"
+              onClick={() => setSearchExpanded(true)}
+            >
+              <Search className="size-4" />
+              <span className="truncate">{search || 'Search'}</span>
+            </Button>
+          )}
+        </div>
         <FilterPopover
           descriptors={descriptors}
           items={items}
@@ -407,56 +469,34 @@ function QueryBlockToolbar({
           sorting={sorting}
           setSorting={setSorting}
         />
-        {showAttributes ? (
-          <AttributesPopover
-            descriptors={descriptors}
-            columnOrder={columnOrder}
-            columnVisibility={columnVisibility}
-            visibleColumnCount={visibleColumnCount}
-            toggleColumnVisibility={toggleColumnVisibility}
-            moveColumn={moveColumn}
-          />
-        ) : null}
-        {filters.length || search ? (
-          <ActiveFilterChipRow
-            onClear={() => {
-              setFilters([])
-              setSearch('')
-            }}
-          >
-            {filters.map((filter, index) => {
-              const column = descriptors.find((descriptor) => descriptor.id === filter.columnId)
-              const rawLabel = filter.columnId.replace(/^metadata:/, '')
-              const label = column?.label ?? rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1)
-              const text = `${label} ${filter.operator} ${filter.value}`
-              return (
-                <ActiveFilterChip
-                  key={`${filter.columnId}:${index}`}
-                  removeLabel={`Remove filter: ${text}`}
-                  onRemove={() => setFilters(filters.filter((_, filterIndex) => filterIndex !== index))}
-                >
-                  {text}
-                </ActiveFilterChip>
-              )
-            })}
-          </ActiveFilterChipRow>
-        ) : null}
-        {(filters.length || search) && totalMatches !== undefined ? (
-          <p className="text-muted-foreground shrink-0 text-xs tabular-nums">
-            Showing {items.length} of {totalMatches} matches
-          </p>
-        ) : null}
-      </div>
-      <div className="relative ml-auto w-64 shrink-0">
-        <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-        <Input
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search documents…"
-          aria-label="Search documents"
-          className="bg-white pl-9 dark:bg-black"
+        <AttributesPopover
+          descriptors={descriptors}
+          columnOrder={columnOrder}
+          columnVisibility={columnVisibility}
+          toggleColumnVisibility={toggleColumnVisibility}
+          moveColumn={moveColumn}
         />
+        <Tooltip
+          content={
+            loadedCount < documentCount
+              ? `Showing ${loadedCount} of ${documentCount} matches`
+              : `${documentCount} documents`
+          }
+        >
+          <span
+            className="border-border bg-background text-muted-foreground inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-xs whitespace-nowrap tabular-nums"
+            aria-label={`${documentCount} documents`}
+          >
+            {isUpdating ? <Spinner size="small" /> : null}
+            <span className="sr-only" aria-live="polite">
+              {isUpdating ? 'Updating results…' : ''}
+            </span>
+            {documentCount}
+            <span className="hidden @sm/collection:inline">{documentCount === 1 ? 'document' : 'documents'}</span>
+          </span>
+        </Tooltip>
       </div>
+      {actions ? <div className="flex shrink-0 items-center justify-end gap-2">{actions}</div> : null}
     </div>
   )
 }
@@ -477,20 +517,57 @@ function FilterPopover({
   const supportedDescriptors = descriptors.filter(
     (descriptor) => descriptor.id !== 'authors' && descriptor.id !== 'citations' && descriptor.id !== 'space',
   )
+  const appliedCount = filters.filter((filter) => filter.value.trim()).length
+  const filterLabel = appliedCount ? `Filters: ${appliedCount} applied` : 'Filter'
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn('rounded-full', filters.length > 0 && 'border-primary text-primary')}
-        >
-          <Filter className="size-4" />
-          {filters.length ? `Filter ${filters.length}` : 'Filter'}
-        </Button>
-      </PopoverTrigger>
+      <Tooltip content={filterLabel}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label={filterLabel}
+            className={cn('relative', appliedCount > 0 && 'border-primary bg-accent text-primary')}
+          >
+            <Filter className="size-4" />
+            {appliedCount ? (
+              <span
+                aria-hidden
+                className="bg-primary text-primary-foreground absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-xs tabular-nums"
+              >
+                {appliedCount}
+              </span>
+            ) : null}
+          </Button>
+        </PopoverTrigger>
+      </Tooltip>
       <PopoverContent align="start" className="w-[min(24rem,calc(100vw-2rem))]">
         <div className="flex flex-col gap-3">
+          {appliedCount ? (
+            <ActiveFilterChipRow>
+              {filters.map((filter, index) => {
+                if (!filter.value.trim()) return null
+                const column = descriptors.find((descriptor) => descriptor.id === filter.columnId)
+                const rawLabel = filter.columnId.replace(/^metadata:/, '')
+                const label = column?.label ?? rawLabel.charAt(0).toUpperCase() + rawLabel.slice(1)
+                const text = `${label} ${filter.operator} ${filter.value}`
+                return (
+                  <ActiveFilterChip
+                    key={`${filter.columnId}:${index}`}
+                    removeLabel={`Remove filter: ${text}`}
+                    onRemove={() => setFilters(filters.filter((_, filterIndex) => filterIndex !== index))}
+                  >
+                    {text}
+                  </ActiveFilterChip>
+                )
+              })}
+            </ActiveFilterChipRow>
+          ) : null}
+          {filters.length ? (
+            <Button variant="ghost" size="sm" className="self-start" onClick={() => setFilters([])}>
+              Clear filters
+            </Button>
+          ) : null}
           {filters.map((filter, index) => (
             <div
               key={index}
@@ -543,15 +620,17 @@ function FilterPopover({
                   }
                 />
               </div>
-              <Button
-                size="icon"
-                variant="ghost"
-                aria-label="Remove filter"
-                className="self-end"
-                onClick={() => setFilters(filters.filter((_, i) => i !== index))}
-              >
-                <X className="size-4" />
-              </Button>
+              <Tooltip content="Remove filter" asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Remove filter"
+                  className="self-end"
+                  onClick={() => setFilters(filters.filter((_, i) => i !== index))}
+                >
+                  <X className="size-4" />
+                </Button>
+              </Tooltip>
               <label className="col-span-full flex min-w-0 flex-col gap-1 text-sm">
                 <span className="text-muted-foreground text-xs">Value</span>
                 <Input
@@ -616,12 +695,13 @@ function SortPopover({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="rounded-full">
-          <ArrowUpDown className="size-4" />
-          Sort
-        </Button>
-      </PopoverTrigger>
+      <Tooltip content="Sort">
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="icon" aria-label="Sort">
+            <ArrowUpDown className="size-4" />
+          </Button>
+        </PopoverTrigger>
+      </Tooltip>
       <PopoverContent align="start" className="w-72">
         <div className="flex flex-col gap-4">
           <div className="flex min-w-0 flex-col gap-1 text-sm">
@@ -670,14 +750,12 @@ function AttributesPopover({
   descriptors,
   columnOrder,
   columnVisibility,
-  visibleColumnCount,
   toggleColumnVisibility,
   moveColumn,
 }: {
   descriptors: QueryTableColumn[]
   columnOrder: string[]
   columnVisibility: Record<string, boolean>
-  visibleColumnCount: number
   toggleColumnVisibility: (id: string) => void
   moveColumn: (id: string, offset: -1 | 1) => void
 }) {
@@ -688,25 +766,13 @@ function AttributesPopover({
 
   return (
     <Popover>
-      <PopoverTrigger asChild>
-        <Button variant="outline" size="sm">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="size-4"
-          >
-            <path d="M4 6h16" />
-            <path d="M8 12h12" />
-            <path d="M4 18h16" />
-          </svg>
-          Attributes ({visibleColumnCount})
-        </Button>
-      </PopoverTrigger>
+      <Tooltip content="Attributes">
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="icon" aria-label="Attributes">
+            <SlidersHorizontal className="size-4" />
+          </Button>
+        </PopoverTrigger>
+      </Tooltip>
       <PopoverContent align="start" className="w-64">
         <div className="flex flex-col gap-1">
           {orderedDescriptors.map((descriptor, index) => (
@@ -720,24 +786,28 @@ function AttributesPopover({
                 {descriptor.label}
               </label>
               <div className="flex items-center">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={`Move ${descriptor.label} left`}
-                  disabled={index === 0}
-                  onClick={() => moveColumn(descriptor.id, -1)}
-                >
-                  <ArrowUp className="size-3" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={`Move ${descriptor.label} right`}
-                  disabled={index === orderedDescriptors.length - 1}
-                  onClick={() => moveColumn(descriptor.id, 1)}
-                >
-                  <ArrowDown className="size-3" />
-                </Button>
+                <Tooltip content={`Move ${descriptor.label} left`}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Move ${descriptor.label} left`}
+                    disabled={index === 0}
+                    onClick={() => moveColumn(descriptor.id, -1)}
+                  >
+                    <ArrowUp className="size-3" />
+                  </Button>
+                </Tooltip>
+                <Tooltip content={`Move ${descriptor.label} right`}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Move ${descriptor.label} right`}
+                    disabled={index === orderedDescriptors.length - 1}
+                    onClick={() => moveColumn(descriptor.id, 1)}
+                  >
+                    <ArrowDown className="size-3" />
+                  </Button>
+                </Tooltip>
               </div>
             </div>
           ))}
@@ -815,7 +885,11 @@ function QueryBlockListItem({
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
-          <FileText className="size-5" />
+          {item.isCollection ? (
+            <Grid3X3 aria-label="Collection" className="size-5" />
+          ) : (
+            <FileText aria-label="Document" className="size-5" />
+          )}
         </div>
         <QueryBlockItemTitle item={item} className="truncate font-medium hover:underline">
           {title}
@@ -927,6 +1001,7 @@ function QueryBlockCard({
       entity={null}
       metadata={item.metadata}
       firstImageInContent={item.firstImageInContent}
+      isCollection={item.isCollection}
       visibility={item.visibility}
       version={item.version}
       interactionSummary={context.interactionSummaries?.[item.id.id]}
@@ -945,8 +1020,15 @@ function QueryBlockCard({
           className="mt-3 flex-wrap"
         />
       }
+      showCommentAction={false}
       actionDetails={
-        <SelectedAttributes item={item} context={context} descriptors={visibleDescriptors} kind="counts" />
+        <SelectedAttributes
+          item={item}
+          context={context}
+          descriptors={visibleDescriptors}
+          kind="counts"
+          commentAction
+        />
       }
     />
   )
@@ -957,14 +1039,17 @@ function SelectedAttributes({
   context,
   descriptors,
   kind = 'all',
+  commentAction = false,
   className,
 }: {
   item: HMDocumentInfo
   context: QueryTableValueContext
   descriptors: QueryTableColumn[]
   kind?: 'all' | 'values' | 'counts'
+  commentAction?: boolean
   className?: string
 }) {
+  const navigate = useNavigate()
   const attributes = descriptors.filter((descriptor) => {
     if (descriptor.id === 'title') return false
     const isCount = descriptor.id === 'children' || descriptor.id === 'comments' || descriptor.id === 'citations'
@@ -975,7 +1060,7 @@ function SelectedAttributes({
   return (
     <div
       data-testid={kind === 'counts' ? 'selected-attribute-counts' : undefined}
-      className={cn('text-muted-foreground flex items-center gap-x-3 gap-y-1 text-xs', className)}
+      className={cn('text-muted-foreground flex items-center gap-1 text-sm', className)}
     >
       {attributes.map((descriptor) => {
         const value = getQueryTableValue(item, descriptor.id, context)
@@ -991,7 +1076,28 @@ function SelectedAttributes({
           ))
         }
         if (descriptor.id === 'children' || descriptor.id === 'comments' || descriptor.id === 'citations') {
-          const Icon = descriptor.id === 'children' ? FileText : descriptor.id === 'comments' ? MessageSquare : Share2
+          const Icon =
+            descriptor.id === 'children' ? FileText : descriptor.id === 'comments' ? MessageSquare : GitCompareArrows
+          if (descriptor.id === 'comments' && commentAction) {
+            return (
+              <Button
+                key={descriptor.id}
+                variant="ghost"
+                size="sm"
+                className="no-window-drag h-auto gap-1 p-1 text-xs"
+                title={descriptor.label}
+                aria-label={`View discussions (${queryTableValueToString(value) || '0'})`}
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  navigate({key: 'comments', id: item.id})
+                }}
+              >
+                <Icon className="size-3.5" />
+                {queryTableValueToString(value) || '0'}
+              </Button>
+            )
+          }
           return (
             <span key={descriptor.id} className="inline-flex items-center gap-1" title={descriptor.label}>
               <Icon className="size-3.5" />
@@ -1007,9 +1113,17 @@ function SelectedAttributes({
             : queryTableValueToString(value)
         if (!displayValue) return null
         return (
-          <span key={descriptor.id} className="min-w-0 truncate" title={`${descriptor.label}: ${displayValue}`}>
-            {displayValue}
-          </span>
+          <Tooltip key={descriptor.id} content={`${descriptor.label}: ${displayValue}`} asChild>
+            <span
+              className={cn(
+                badgeVariants({variant: 'outline'}),
+                'text-muted-foreground flex max-w-full min-w-0 items-center gap-1 text-sm',
+              )}
+              tabIndex={0}
+            >
+              <span className="truncate">{displayValue}</span>
+            </span>
+          </Tooltip>
         )
       })}
     </div>

@@ -5,7 +5,7 @@ import {
   NOTIFY_SMTP_PORT,
   NOTIFY_SMTP_USER,
 } from '@shm/shared/constants'
-import nodemailer, {type TransportOptions} from 'nodemailer'
+import nodemailer from 'nodemailer'
 
 const transporter =
   NOTIFY_SMTP_HOST && NOTIFY_SMTP_USER && NOTIFY_SMTP_PASSWORD
@@ -20,7 +20,7 @@ const transporter =
           user: NOTIFY_SMTP_USER as string,
           pass: NOTIFY_SMTP_PASSWORD as string,
         },
-      } as TransportOptions)
+      })
     : null
 
 /** Optional extra headers for deliverability. */
