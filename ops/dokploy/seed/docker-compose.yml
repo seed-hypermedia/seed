@@ -60,6 +60,7 @@ services:
     expose: [3000]
     environment:
       - SEED_BASE_URL=${SEED_BASE_URL}
+      # Project-qualified name: without isolated deployments, every Seed stack's `seed-daemon` shares one network alias.
       - DAEMON_HTTP_URL=http://${COMPOSE_PROJECT_NAME}-seed-daemon-1:56001
       - NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}
       - SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}
