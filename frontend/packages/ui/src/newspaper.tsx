@@ -23,7 +23,7 @@ import {
 } from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Bookmark, Copy, FilePen, FileText, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
+import {Copy, FilePen, FileText, Forward, Grid3X3, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
 import {HTMLAttributes, ReactNode, useMemo} from 'react'
 import {Button} from './button'
 import {createCopyLinkMenuItem, getWebCopyLinkHostname} from './copy-link-menu'
@@ -228,14 +228,17 @@ export function documentCardContainerClassName({
   )
 }
 
-/** Left-hand thumbnail for a document card: wide cover, square icon, or the green doc placeholder. */
+/** Left-hand thumbnail for a document card: wide cover, square icon, or the document type placeholder. */
 export function DocumentCardThumbnail({
   coverImage,
   iconImage,
+  isCollection = false,
   banner = false,
 }: {
   coverImage?: string
   iconImage?: string
+  /** Uses the collection icon when no image is available. */
+  isCollection?: boolean
   banner?: boolean
 }) {
   const imageUrl = useImageUrl()
@@ -263,10 +266,15 @@ export function DocumentCardThumbnail({
       </div>
     )
   }
-  // Neither cover nor icon — green doc-icon placeholder.
+  // Neither cover nor icon — use the document type placeholder.
+  const Icon = isCollection ? Grid3X3 : FileText
   return (
     <div className="m-3 flex aspect-square size-12 shrink-0 items-center justify-center rounded-md bg-emerald-100 @md:size-14 dark:bg-emerald-900/30">
-      <FileText className="size-6 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
+      <Icon
+        aria-label={isCollection ? 'Collection' : 'Document'}
+        className="size-6 text-emerald-700 dark:text-emerald-400"
+        strokeWidth={1.5}
+      />
     </div>
   )
 }
@@ -332,6 +340,7 @@ export function DocumentCard({
   entity,
   metadata,
   firstImageInContent,
+  isCollection,
   visibility,
   version,
   interactionSummary: interactionSummaryProp,
@@ -346,6 +355,7 @@ export function DocumentCard({
   details,
   actionDetails,
   hideInlineActions = false,
+  showCommentAction = true,
   relocationOrigin,
   ...props
 }: HTMLAttributes<HTMLDivElement> & {
@@ -356,6 +366,8 @@ export function DocumentCard({
   metadata?: HMDocumentInfo['metadata']
   /** Indexer-derived fallback cover (see HMDocumentInfo.firstImageInContent). */
   firstImageInContent?: HMDocumentInfo['firstImageInContent']
+  /** Collection status from the document listing, used for the fallback icon. */
+  isCollection?: HMDocumentInfo['isCollection']
   visibility?: HMDocumentInfo['visibility']
   version?: string
   interactionSummary?: HMQueryBlockItemSummary | null
@@ -371,7 +383,9 @@ export function DocumentCard({
   details?: ReactNode
   /** Additional details rendered to the left of the card action buttons. */
   actionDetails?: ReactNode
-  /** Hide the inline bookmark / comments / options-dropdown row */
+  /** Show the built-in comment action when counts are not supplied by the caller. */
+  showCommentAction?: boolean
+  /** Hide the inline comments / options-dropdown row. */
   hideInlineActions?: boolean
   relocationOrigin?: DocumentCardActionOrigin
 }) {
@@ -424,9 +438,8 @@ export function DocumentCard({
   const doc = entity?.document
   const headCount = getVersionHeads(version ?? doc?.version).length
 
-  // Context-driven state for the inline row (badges, bookmark button).
+  // Context-driven state for the inline badges.
   const draftId = actions.getDraftId?.(docId) ?? draft?.id
-  const bookmarked = actions.isBookmarked?.(docId) ?? false
 
   const menuItems = useDocumentCardMenuItems(docId, doc, relocationOrigin)
 
@@ -443,7 +456,14 @@ export function DocumentCard({
     <DocumentCardShell
       interactive={navigateProp}
       hasCover={!!coverImage}
-      thumbnail={<DocumentCardThumbnail coverImage={coverImage} iconImage={iconImage} banner={banner} />}
+      thumbnail={
+        <DocumentCardThumbnail
+          coverImage={coverImage}
+          iconImage={iconImage}
+          isCollection={isCollection}
+          banner={banner}
+        />
+      }
       title={
         titleLinkOnly && linkAttributes.href ? (
           <a
@@ -483,23 +503,7 @@ export function DocumentCard({
       actions={
         !hideInlineActions ? (
           <div className="flex items-center gap-1">
-            {actions.onBookmarkToggle && (
-              <Tooltip content={bookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks'}>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="no-window-drag"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    actions.onBookmarkToggle!(docId)
-                  }}
-                >
-                  {bookmarked ? <Bookmark className="size-3.5 fill-current" /> : <Bookmark className="size-3.5" />}
-                </Button>
-              </Tooltip>
-            )}
-            {commentCount > 0 && (
+            {showCommentAction && commentCount > 0 && (
               <Tooltip content="View discussions">
                 <Button
                   size="icon"
@@ -511,7 +515,7 @@ export function DocumentCard({
                     navigate({key: 'comments', id: docId})
                   }}
                 >
-                  <MessageSquare className="size-3" />
+                  <MessageSquare className="size-3.5" />
                   <SizableText size="xs" className="font-sans">
                     {commentCount}
                   </SizableText>

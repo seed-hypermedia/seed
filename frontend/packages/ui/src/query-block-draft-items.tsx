@@ -1,20 +1,21 @@
 import {QueryBlockDraftSlotData} from '@shm/shared/query-block-drafts-context'
-import {InlineDraftCard} from '@shm/ui/inline-draft-card'
-import {InlineDraftListItem} from '@shm/ui/inline-draft-list-item'
-import {NewDocumentCard} from '@shm/ui/new-document-card'
-import {NewDocumentListItem} from '@shm/ui/new-document-list-item'
+import {InlineDraftCard} from './inline-draft-card'
+import {InlineDraftListItem} from './inline-draft-list-item'
+import {NewDocumentCard} from './new-document-card'
+import {NewDocumentListItem} from './new-document-list-item'
 import {ReactNode} from 'react'
 
 /** Builds draft and create-button elements that appear before query block results. */
 export function buildSlotItems(
   slot: QueryBlockDraftSlotData | null,
-  style: 'Card' | 'List',
+  style: 'Card' | 'List' | 'Table',
   banner: boolean,
   hasQueryResults = false,
 ): {prependItems?: ReactNode[]; bannerContent?: ReactNode} {
   if (!slot) return {}
   const {drafts, onCreateDraft, onOpenDraft, onDeleteDraft, onMoveDraft, onUpdateDraftName} = slot
   const hasDrafts = drafts.length > 0 && !!onOpenDraft && !!onDeleteDraft && !!onUpdateDraftName
+  if (!hasDrafts && !hasQueryResults) return {}
   const shouldHideCreateButton = style === 'Card' && banner && (hasDrafts || hasQueryResults)
 
   const createButton =
