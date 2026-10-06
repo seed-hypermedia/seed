@@ -210,6 +210,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         viewerFilters={viewerFilters}
         onViewerFiltersChange={setViewerFilters}
         totalMatches={queryBlock.data?.totalMatches}
+        filterOptions={queryBlock.data?.filterOptions}
         isUpdating={queryBlock.isFetching && !queryBlock.isLoading}
         viewerQueryApplied={queryBlock.data?.totalMatches !== undefined}
       />

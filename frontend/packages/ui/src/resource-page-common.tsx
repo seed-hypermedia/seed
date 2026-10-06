@@ -4216,6 +4216,7 @@ function DocumentCollection({
         viewerFilters={viewerFilters}
         onViewerFiltersChange={setViewerFilters}
         totalMatches={query.data?.totalMatches}
+        filterOptions={query.data?.filterOptions}
         isUpdating={query.isFetching && !query.isLoading}
         viewerQueryApplied={query.data?.totalMatches !== undefined}
       />
