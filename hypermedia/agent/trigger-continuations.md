@@ -16,7 +16,7 @@ What changed in the code at the time: <!-- id:kS3wzUEz -->
 Limits that still hold: <!-- id:W1lYXbqZ -->
   - Headless runs have `maxAttempts: 1`, so there is no automatic retry. <!-- id:nOByTf36 -->
   - The write-time tool check consults the registry and the agent's [tool documents](./tool-document.md), but not `definition.tools` narrowing. An excluded tool fails at run time, and the workflow's usual "not available" error is recorded on the firing. <!-- id:_KrDJgL2 -->
-  - `ctx.delegate` from a trigger [script](./script.md) creates a top-level session. <!-- id:WH-gbJ2z -->
+  - `ctx.delegate` from a trigger [script](./script.md) creates a session the firing adopts: the first child becomes the firing's session (it shows "Triggered by"), and later children nest under it. Headless runs have the id `firing-<firingId>`; an escalation thread's run is `firing-<firingId>-escalation`. <!-- id:WH-gbJ2z -->
   - A trigger script can call `execute` only where the server offers code execution. <!-- id:qLIVl-xn -->
 
 Tests: the headless cases in `trigger-events.test.ts`, the webhook `$event.payload` path in `main.test.ts`, the validation and explanation cases in `verbs.test.ts`, and the `run_id` column assertions in `sqlite.test.ts`. <!-- id:ldFwNcSx -->

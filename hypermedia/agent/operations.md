@@ -229,6 +229,9 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
   "uptime": 1234.5,
   "version": "2026.6.10",
   "hmServerUrl": "https://hyper.media",
+  "protocol": 3,
+  "minClientProtocol": 1,
+  "defaultPromptUrl": "hm://hyper.media/agent/guide",
   "ipfsServerUrl": "https://hyper.media",
   "webTools": {"search": true, "readBrowser": true},
   "subscriptionAuth": false,
@@ -279,7 +282,7 @@ SQLite is authoritative for everything except bytes on disk. An agent's state di
 | `/agents/api/version` | `GET` | Build metadata under `/agents`. <!-- id:UrIALpko --> |
 | `/agents/ws` | WebSocket | Signed live subscriptions. <!-- id:Em_QCmeP --> |
 
-Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on `/api/message` and `/agents/ws`. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)). Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on `/api/message` and `/agents/ws`. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
 
 # Trigger monitors <!-- id:KlGKY3Ne -->
 
@@ -292,12 +295,13 @@ The server also starts a background schedule monitor. It evaluates enabled `sche
 # Run queue and workflow engine <!-- id:jIKj9Ovy -->
 
 Every agent execution is a durable row in the `runs` table, which is also the dispatch queue (`agents/src/runs.ts`). See [Runs](./runs.md): <!-- id:Cdw3Ljyi -->
-  - **Queues**: interactive user turns are claimed inline by `MessageSession` (unchanged latency). Everything else (trigger firings, agent-started sessions, delegated model children, script children) dispatches on the `background` queue. Agent runs are capped at 8 concurrent provider streams. Script runs get their own pool of 32 (they hold no provider stream), so a script awaiting its children can never starve them. <!-- id:db3BA2As -->
+  - **Queues**: interactive user turns are claimed inline by `MessageSession` (unchanged latency). Everything else (trigger firings, agent-started sessions, delegated model children, script children) dispatches on the `background` queue. Agent runs are capped at `SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS` (default 8, flag `--max-concurrent-model-runs`) concurrent provider streams. Script runs get their own pool, `SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS` (default 32, `--max-concurrent-workflows`; they hold no provider stream). `SEED_AGENTS_WORKFLOW_WORKER=1` runs scripts in the isolated worker process described in the [worker plan](./plans/worker-isolated-execution.md); `SEED_AGENTS_STANDALONE` is injected into the desktop's bundled binary at build time, so a script awaiting its children can never starve them. <!-- id:db3BA2As -->
   - **One live agent run per session** is enforced at claim time (lease-based). This replaced the old racy status-column 409. <!-- id:ST5DHKVV -->
   - **Boot sweep**: on service construction, runs a dead process left `claimed` or `running` are requeued, and any queued backlog resumes. Agent runs resume by replaying their durable session events. A crash between a persisted `tool_call` and its `tool_result` gets a synthesized "interrupted by service restart" result so the provider request is well-formed and the model decides whether to retry. Script runs resume by [journal](./journal.md) replay. <!-- id:fGRoe2ad -->
   - **Retry classification**: provider 5xx and network failures are retryable with exponential backoff (base 5s, cap 5min). Validation and config errors fail immediately. `maxAttempts` is 3 (`AGENT_RUN_MAX_ATTEMPTS`) for background agent runs: trigger firings, agent-started sessions, delegated model children. It is 1 for interactive turns, which have a person waiting, and for script runs, which resume from their journal and never restart. <!-- id:it4z5p55 -->
   - **Parking**: a run [parks](./park.md) for one of four reasons: its children; a timer (`ctx.sleep` of 60s or more parks with `not_before`, and the dispatcher's 1-second interval wakes due timers); an event (`ctx.waitForEvent`, woken by a `SignalRun`, a trigger `wake` continuation, an activity event, or its timeout); or a budget pause a person resumes. Parked runs hold no resources. <!-- id:wYXSdipo -->
-  - **Leases** expire after 60 seconds. The boot sweep uses them to tell a live claim from a dead one. <!-- id:YD2c9GyO -->
+  - **Planner statistics**: every open runs `ANALYZE` on the small planner tables and sets the WAL, cache, and mmap pragmas; see [persistence](./persistence.md). Nothing runs `VACUUM`.
+  - **Leases** are recorded for 60 seconds on claim but not enforced: with one service process, the boot sweep requeues every run the previous process left claimed or running. <!-- id:YD2c9GyO -->
   - Tests and shutdown wait for the queue via `Service.drainTriggerSessions()`. `awaitQueueIdle()` is an alias for it under the name the runs feature documents. <!-- id:TebiC9QK -->
 
 [Script](./script.md) execution bounds (see `agents/src/workflow-host.ts`): QuickJS-WASM realm per run, 64 MiB memory cap, 2s pure-compute fuel between awaits, 256 KiB source cap, and journal caps of 5,000 entries / 8 MiB per run (`WORKFLOW_JOURNAL_MAX_ENTRIES` / `WORKFLOW_JOURNAL_MAX_BYTES` in `api-service.ts`). A long-lived loop escapes the journal cap with [`ctx.continueAsNew`](./continue-as-new.md), which ends the run and starts a successor carrying only the declared state. <!-- id:4CrPGBii -->
@@ -368,7 +372,7 @@ The service handles `SIGINT` and `SIGTERM`: <!-- id:27DpYHG3 -->
   3. close WebSocket clients with code `1001`; <!-- id:J6207Axe -->
   4. clear client set; <!-- id:sCNZyrwv -->
   5. stop Bun server; <!-- id:aDJ3JZvP -->
-  6. drain in-flight background runs, bounded at 5 seconds so one stuck session cannot block shutdown, then stop the run-queue timers; <!-- id:X8QzoNFd -->
+  6. drain in-flight background runs, bounded at 5 seconds so one stuck session cannot block shutdown (the HTTP server's own stop is bounded at 3 seconds before it is forced), then stop the run-queue timers; <!-- id:X8QzoNFd -->
   7. close SQLite DB; <!-- id:PpbedZlo -->
   8. exit. <!-- id:bAUcIud1 -->
 

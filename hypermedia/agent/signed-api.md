@@ -18,7 +18,7 @@ Equivalent prefixed endpoint: <!-- id:YXgAPHd9 -->
 POST /agents/api/message
 ```
 
-Responses are DAG-CBOR encoded `AgentResponse` values. Every response carries the server's protocol version in the `X-Agents-Protocol` header (also in `/api/version` as `protocol` and `minClientProtocol`). <!-- id:bhXf9yiI -->
+Responses are DAG-CBOR encoded `AgentResponse` values. Every response carries the server's protocol version in the `X-Agents-Protocol` header (also in `/api/version` and `/api/health` as `protocol` and `minClientProtocol`). <!-- id:bhXf9yiI -->
 
 # Protocol versioning <!-- id:XZricGGS -->
 
@@ -33,6 +33,8 @@ type SignedActionEnvelope = {
   sig: blobs.Signature
   account: blobs.Principal
   protocol?: number // AGENTS_PROTOCOL_VERSION of the client; absent = 1
+  capability?: string // CID of the Capability blob a delegated signer acts under
+  capabilityBlob?: Uint8Array // its bytes, so any server can verify without the network
   action: AgentAction
 }
 
@@ -46,8 +48,10 @@ type AgentAction = UnsignedAgentAction & {
   2. principal/signature byte shapes; <!-- id:_v8P7UA3 -->
   3. signed action timestamp is within five minutes of server local time; <!-- id:Zr6E8UHr -->
   4. Ed25519 signature through `verify()` from `@seed-hypermedia/client` (imported through the `@shm/shared/blobs` re-export); <!-- id:qOVjsEhi -->
-  5. signer is account or locally authorized for account; <!-- id:84U_5iGK -->
+  5. signer is the account, or a locally authorized signer for it, or presents a delegation: `capability` names a [Capability](../capability.md) blob whose bytes come from `capabilityBlob`, from a delegation this server verified before, or from the HM network; the blob must be issued by `account`, delegate to `signer`, carry role `AGENT` or `WRITER`, not be self-issued, and be under 64 KiB; <!-- id:84U_5iGK -->
   6. action is valid for the transport. <!-- id:1BkfRowE -->
+
+Every verification failure is HTTP 401. A body that is not `application/cbor` is 415, and undecodable CBOR is 400.
 
 Implementation: <!-- id:siTzEryg -->
   - `agents/src/auth.ts`: shape/signature/authorization. <!-- id:ifLx8GI- -->
@@ -64,7 +68,7 @@ Keep this rule: **never sign action objects containing explicit `undefined` fiel
 
 # Actions <!-- id:vqBlDC63 -->
 
-Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index.ts`, dispatched by the switch in `Service.message()`): <!-- id:dUWGdW72 -->
+Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index.ts`, dispatched by the `#dispatch` switch after `Service.message()` has checked the protocol and verified the envelope): <!-- id:dUWGdW72 -->
   - `ListAgents` <!-- id:qai6nbcf -->
   - `ListAgentInvites` <!-- id:uUf6bK4N -->
   - `ListAgentCollaborators` <!-- id:aoMnBkFu -->
@@ -89,6 +93,8 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `CancelProviderOAuth` <!-- id:liu6iRv_ -->
   - `SetSecret` <!-- id:NI0hTFIg -->
   - `GetAgent` <!-- id:Hud0FKeJ -->
+  - `RegisterSigner` (deprecated; delegations now ride in every envelope)
+  - `ImportSigningIdentity`
   - `UpdateAgent` <!-- id:vAg-7_PX -->
   - `DeleteAgent` <!-- id:qwa__7uq -->
   - `ListAgentTriggers` <!-- id:qe0-cmSS -->
@@ -96,8 +102,16 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `CreateAgentTrigger` <!-- id:e-DLTg3i -->
   - `UpdateAgentTrigger` <!-- id:hkAMZHcp -->
   - `DeleteAgentTrigger` <!-- id:DRLpAMii -->
+  - `CombineAgentTriggers`
   - `ListAgentMemory` <!-- id:6JNPVeDk -->
+  - `ListAgentMemoryDir`
   - `ListAgentTools` <!-- id:CdHDZq2J -->
+  - `SaveAgentTool`
+  - `DeleteAgentTool`
+  - `ListMcpServers`
+  - `SetMcpServer`
+  - `DeleteMcpServer`
+  - `RefreshMcpServer`
   - `ReadAgentMemoryFile` <!-- id:zURG_ATO -->
   - `WriteAgentMemoryFile` <!-- id:vrAHyHX- -->
   - `DeleteAgentMemoryFile` <!-- id:XQ3Loys4 -->
@@ -108,6 +122,7 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `UpdateSession` <!-- id:AhCWr-hY -->
   - `DeleteSession` <!-- id:vyqpa9m8 -->
   - `GetSession` <!-- id:iszDQeOJ -->
+  - `GetSessionEvent`
   - `MessageSession` <!-- id:PPkdIoCy -->
   - `InvokeSessionTool` <!-- id:-HEDVrWa -->
   - `UploadSessionAttachment` <!-- id:sYDub4m5 -->
@@ -135,10 +150,17 @@ Success responses are action-specific. Errors use: <!-- id:KFAyl_Mc -->
 type ErrorResponse = {
   _: 'Error'
   message: string
+  code?: ProtocolErrorCode // e.g. 'protocol_too_old'
 }
 ```
 
-HTTP status is set on expected API errors. Unexpected errors are logged and returned as `500` with a generic message. <!-- id:pwrb18VG -->
+HTTP status is set on expected API errors (`APIError`, with an optional `code`). Unexpected errors are logged and returned as `500` with `Internal server error: <message>`. <!-- id:pwrb18VG -->
+
+The status map: `401` any envelope or delegation failure; `415` a body that is not `application/cbor`; `400` undecodable CBOR, an unknown action, or invalid input; `403` the actor's access level is too low; `404` the resource does not exist or is not accessible (an agent you cannot read looks identical to one that does not exist); `409` an idempotency key reused with a different body, or a session with a live run; `413` an oversized upload chunk or attachment; `426` a client protocol the server no longer serves.
+
+# Access levels
+
+An agent has an owner, accepted collaborators with role `reader` or `writer`, and, when `publicRead` or `publicChat` is on, every other signed account as a `reader` or `chatter`. Actions are gated by level: **reader** (any of those), **chat** (every role except `reader`: owner, writer, chatter), **writer** (owner or writer), and **owner**. Reading an agent, its sessions, triggers, memory, and tools is reader level; creating a session, messaging it, invoking a tool as the user, uploading an attachment, stopping or retrying a run is chat level; editing the agent, its triggers, memory, and tools is writer level; collaborators and public access are owner level. State is stored under the owner's account whatever the actor's role; `#actionAccountId` resolves the owner for every action that names an agent, session, trigger, or run. The runtime behind each session is Pi, the model-loop library the server wraps.
 
 # Action reference <!-- id:TvquiIFE -->
 
@@ -199,6 +221,7 @@ Request: <!-- id:K1behmhG -->
 ```ts <!-- id:3_dA5ja1 -->
 {
   _: 'ListModelProviders'
+  agentId?: string // list on behalf of an agent the signer can read
 }
 ```
 
@@ -218,6 +241,7 @@ Request: <!-- id:j_1euAtv -->
 {
   _: 'ListProviderModels'
   provider: string
+  agentId?: string
 }
 ```
 
@@ -283,6 +307,7 @@ Request: <!-- id:ZxY_xq3E -->
   _: 'UpdateSigningIdentity'
   name: string
   label: string
+  icon?: SigningIdentityIcon
 }
 ```
 
@@ -405,10 +430,10 @@ Request: <!-- id:naq8zR8m -->
 Response: <!-- id:Kw8EAjk_ -->
 
 ```ts <!-- id:1UQ_SBPB -->
-{_: 'GetAgentResponse'; agent: AgentInfo; sessions: SessionInfo[]}
+{_: 'GetAgentResponse'; agent: AgentInfo; sessionCount: number}
 ```
 
-Requires owner, reader, or writer access to the agent. <!-- id:5OveoAaK -->
+Requires reader access: owner, collaborator, or any signed account when the agent has `publicRead`. Sessions come from the paginated `ListSessions {agentId, includeChildren: false}`; only protocol 1 clients still receive a synthesized `sessions` array (the newest 50). The same public-read rule applies to `ListAgentTriggers`, `ListAgentMemory`, `ListAgentTools`, and `ReadAgentMemoryFile`. <!-- id:5OveoAaK -->
 
 ## `UpdateAgent` <!-- id:YMWNoJDM -->
 
@@ -477,14 +502,18 @@ type AgentScheduleTrigger =
   | {kind: 'weekly'; daysOfWeek: number[]; timeOfDay: string; timezone: string}
   | {kind: 'once'; runAt: number; timezone?: string}
 
-type TriggerContinuation = {kind: 'newThread'} | {kind: 'wake'; signal: string; runId?: string; payload?: unknown}
+type TriggerContinuation =
+  | {kind: 'newThread'; systemPrompt?: string; includeAgentSystemPrompt?: boolean; tools?: string[]}
+  | {kind: 'wake'; signal: string; runId?: string; payload?: unknown}
+  | {kind: 'tool'; tool: string; input?: unknown; onFailure?: 'none' | 'thread'}
+  | {kind: 'script'; script: string; input?: unknown; onFailure?: 'none' | 'thread'}
 
 type AgentTriggerInput = {
   name: string
   enabled?: boolean
   source: AgentTriggerSource
-  prompt: string | AgentPromptBlock[]
-  continuation?: TriggerContinuation
+  prompt?: string | AgentPromptBlock[] // required for newThread; a recovery prompt for tool/script
+  continuation?: TriggerContinuation // omitted means newThread
 }
 ```
 
@@ -510,16 +539,19 @@ The `agent_triggers` table carries a `cooldown_ms` column, but no protocol field
 
 Actions: <!-- id:bwunosHW -->
   - `ListAgentTriggers {agentId}` returns `{_: 'ListAgentTriggersResponse'; triggers: AgentTriggerInfo[]}`. <!-- id:bXFKEmdY -->
-  - `GetAgentTrigger {triggerId}` returns `{_: 'GetAgentTriggerResponse'; trigger: AgentTriggerInfo; sessions: SessionInfo[]}`. <!-- id:zek5I_eN -->
-  - `CreateAgentTrigger {agentId, trigger, clientRequestId?}` returns `{_: 'CreateAgentTriggerResponse'; trigger}`. <!-- id:0u89fDzQ -->
+  - `GetAgentTrigger {triggerId}` returns `{_: 'GetAgentTriggerResponse'; trigger: AgentTriggerInfo; sessions: SessionInfo[]; firings: TriggerFiringInfo[]; webhookSecret?: string}` (at most 25 firings; the secret only for writers). <!-- id:zek5I_eN -->
+  - `CreateAgentTrigger {agentId, trigger, clientRequestId?}` returns `{_: 'CreateAgentTriggerResponse'; trigger; webhookSecret?}` (the plaintext secret of a new webhook trigger). <!-- id:0u89fDzQ -->
+  - `CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}` merges the other trigger into this one and retires it with `mergedInto`. See [triggers](./triggers.md).
+
+Webhook deliveries do not use the signed envelope: `POST /agents/api/webhooks/<triggerId>/<secret>` or `POST /agents/api/webhooks/<triggerId>` with `Authorization: Bearer <secret>`, JSON body, answers `202 {accepted, duplicate}`; see [triggers](./triggers.md).
   - `UpdateAgentTrigger {triggerId, patch}` returns `{_: 'UpdateAgentTriggerResponse'; trigger}`. <!-- id:GD1HRkZ9 -->
   - `DeleteAgentTrigger {triggerId}` returns `{_: 'DeleteAgentTriggerResponse'; triggerId}`. <!-- id:6K2fNfnq -->
 
-All trigger actions verify account ownership through the owning agent and trigger rows. `CreateAgentTrigger` supports the same `clientRequestId` idempotency pattern as other create actions. <!-- id:GOO4iIKu -->
+`ListAgentTriggers` and `GetAgentTrigger` need reader access to the agent; `CreateAgentTrigger`, `UpdateAgentTrigger`, `CombineAgentTriggers`, and `DeleteAgentTrigger` need writer access. `CreateAgentTrigger` supports the same `clientRequestId` idempotency pattern as other create actions. <!-- id:GOO4iIKu -->
 
 ## Agent memory actions <!-- id:sl55O0AI -->
 
-Each agent owns a private memory filesystem at `<stateDir>/memory`. It is the `~/memory/` half of its [Space](./space.md). The agent reaches it through the [`read`](./read.md) and [`write`](./write.md) verbs, and its owner sees it on the desktop Memory tab. All actions validate agent ownership for the signed account. Every path is a sandboxed relative path: no absolute paths, no `..`, symlinks refused. Files can be UTF-8 text or binary. <!-- id:F4plBjdL -->
+Each agent owns a private memory filesystem at `<stateDir>/memory`. It is the `~/memory/` half of its [Space](./space.md). The agent reaches it through the [`read`](./read.md) and [`write`](./write.md) verbs, and its owner sees it on the desktop Memory tab. `ListAgentMemory`, `ListAgentMemoryDir`, and `ReadAgentMemoryFile` need reader access to the agent; the writing actions need writer access. Every path is a sandboxed relative path: no absolute paths, no `..`, symlinks refused. Files can be UTF-8 text or binary. <!-- id:F4plBjdL -->
 
 ```ts <!-- id:igtkULLY -->
 type AgentMemoryEntry = {path: string; type: 'file' | 'dir'; size: number; updatedAt: number; mimeType?: string}
@@ -535,14 +567,14 @@ type AgentMemoryFile = {
 ```
 
 Actions: <!-- id:dRAJrWd3 -->
-  - `ListAgentMemory {agentId}` returns `{_: 'ListAgentMemoryResponse'; agentId; entries: AgentMemoryEntry[]; totalBytes}` with every file and directory sorted by path. <!-- id:5oZzSBlu -->
+  - `ListAgentMemory {agentId}` returns `{_: 'ListAgentMemoryResponse'; agentId; entries: AgentMemoryEntry[]; totalBytes}` with files and directories sorted by path, capped at `MAX_MEMORY_LIST_ENTRIES` (2000) with `truncated: true` past that. `ListAgentMemoryDir {agentId, path?}` lists one level with `entryCount` and totals per entry, and is the call to browse a large memory. <!-- id:5oZzSBlu -->
   - `ReadAgentMemoryFile {agentId, path}` returns `{_: 'ReadAgentMemoryFileResponse'; agentId; file: AgentMemoryFile}`. Small clean-UTF-8 files come back as text. Everything else comes back as raw bytes for preview and download in the Memory tab. <!-- id:gcXVifoW -->
   - `WriteAgentMemoryFile {agentId, path, content}` returns `{_: 'WriteAgentMemoryFileResponse'; agentId; entry}` after writing the full file content, creating parent directories as needed. `content` may be a string (UTF-8 text) or `Uint8Array` bytes (e.g. a local file uploaded from the Memory tab). Writes, downloads, and deletes emit an `account-change` event with reason `agent-memory-changed`, which is also fanned out to `agents/<agentId>` WebSocket subscribers so open Memory tabs refresh. <!-- id:Pf3XwaO2 -->
   - `DeleteAgentMemoryFile {agentId, path}` removes a file, or a directory recursively, and returns `{_: 'DeleteAgentMemoryFileResponse'; agentId; path; deleted}`. `deleted` is false when nothing existed. <!-- id:hslyEoNq -->
   - `DownloadAgentMemoryFile {agentId, url, path?}` server-side fetches a public http(s) URL into memory (streamed, with a 60-second idle timeout) and returns `{_: 'DownloadAgentMemoryFileResponse'; agentId; entry; finalUrl; contentType?}`. Omitting `path` stores the file under `downloads/`, named from the URL. Extension-less paths gain an extension from the response content type. <!-- id:iCJPpKHx -->
   - `UploadAgentMemoryFileToIpfs {agentId, path}` chunks the file as [UnixFS](../protocol/files.md) and publishes its blocks through the typed HM API's `PublishBlobs` action, then returns `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, where `url` is the `ipfs://<cid>` URL usable from Hypermedia content. Publishing makes the file publicly retrievable. <!-- id:b7BdF2s4 -->
 
-Path limits (`agents/src/agent-memory.ts`): 512 bytes per normalized relative path, 16 levels of nesting. Memory itself has no per-file, per-agent, or entry-count size cap. The server accepts uploads of any size (`main.ts` raises Bun's request-body limit for this). The 256 KiB `MAX_WRITE_CONTENT_BYTES` bound in `api-service.ts` applies only to hypermedia content the `write` verb publishes. It does not apply to memory files. <!-- id:eXN97pf8 -->
+Path limits (`agents/src/agent-memory.ts`): 512 bytes per normalized relative path, 16 levels of nesting. Memory itself has no per-file or per-agent size cap (only the listing is capped at 2000 entries). The server accepts uploads of any size (`main.ts` raises Bun's request-body limit for this). The 256 KiB `MAX_WRITE_CONTENT_BYTES` bound in `api-service.ts` applies only to hypermedia content the `write` verb publishes. It does not apply to memory files. <!-- id:eXN97pf8 -->
 
 ## `ListAgentTools` <!-- id:mFvD0Lfj -->
 
@@ -561,7 +593,7 @@ Response: <!-- id:Z80S3kNI -->
 {_: 'ListAgentToolsResponse'; agentId: string; tools: AgentToolInfo[]}
 ```
 
-Lists every [tool document](./tool-document.md) in the agent's `~/tools`, builtin bindings and authored lambdas alike, from the `tool_documents` table. It rebuilds the builtin rows first if the registry contract has changed. This is the owner's view of the same documents the agent sees when it reads `~/tools/`. See [tools](./tools.md). <!-- id:ckP2uqGJ -->
+Lists every [tool document](./tool-document.md) in the agent's `~/tools`, builtin bindings and authored lambdas alike, from the `tool_documents` table. It rebuilds the builtin rows first if the registry contract has changed. This is the reader's view of the same documents the agent sees when it reads `~/tools/`. See [tools](./tools.md). <!-- id:ckP2uqGJ -->
 
 ```ts <!-- id:9UmcWORw -->
 type AgentToolInfo = {
@@ -592,11 +624,13 @@ Request: <!-- id:_jZCrYXr -->
   _: 'CreateSession'
   agentId: string
   title?: string
+  modelOverride?: SessionModelOverride
+  thoroughness?: Thoroughness
   clientRequestId?: string
 }
 ```
 
-Creates an `idle` session for an account-owned agent. <!-- id:SmvTBbqB -->
+Creates an `idle` session. Requires chat access: owner, writer, or a chatter on a `publicChat` agent; readers get 403. <!-- id:SmvTBbqB -->
 
 Idempotent when `clientRequestId` is supplied. <!-- id:T5Yb-Vc0 -->
 
@@ -612,6 +646,7 @@ Request: <!-- id:zPLgZqk2 -->
   cursor?: {updatedBefore: number; idBefore: string}
   parentSessionId?: string
   includeChildren?: boolean
+  excludeTriggered?: boolean // leave out sessions a trigger started
 }
 ```
 
@@ -642,7 +677,9 @@ Request: <!-- id:eVAU-w3G -->
 {
   _: 'UpdateSession'
   sessionId: string
-  title: string
+  title?: string
+  modelOverride?: SessionModelOverride | null
+  thoroughness?: Thoroughness | null
 }
 ```
 
@@ -689,10 +726,12 @@ Request: <!-- id:oHMeIP3k -->
   _: 'GetSession'
   sessionId: string
   afterSeq?: number
+  beforeSeq?: number // page backwards from here
+  limit?: number
 }
 ```
 
-Returns session metadata, durable events with `seq > afterSeq` if provided, and `systemPromptMarkdown`, the current markdown system prompt that would be used to continue the session. <!-- id:AbyNtRFS -->
+Returns session metadata, durable events with `seq > afterSeq` if provided (or a page ending before `beforeSeq`, with `hasMoreBefore`), `systemPromptMarkdown`, the current markdown system prompt that would be used to continue the session, `triggerContext` when a trigger started the session, and `contextWindow`. An oversized event arrives with a `truncated` marker; `GetSessionEvent {sessionId, seq}` returns the whole event. <!-- id:AbyNtRFS -->
 
 ## `MessageSession` <!-- id:TKV37DpX -->
 
@@ -716,7 +755,7 @@ Request: <!-- id:05bA7uU0 -->
 `attachment` parts reference files already staged with `UploadSessionAttachment` (or a committed chunked upload). They are session-private [attachments](./attachment.md). They live with the session, the agent reaches them through `read attachment:<id>`, and they are deleted with the session. <!-- id:wmDG8nTx -->
 
 Flow: <!-- id:yODE0MM7 -->
-  1. Verify that the signed account has write access to the session's agent. <!-- id:hNR1Yvfr -->
+  1. Verify that the signed account has chat access to the session's agent (owner, writer, or chatter). <!-- id:hNR1Yvfr -->
   2. Append the durable user message immediately, with `content` and `rawMarkdown`, optional rich `blocks`, and `meta.accountId` plus the exact cryptographic `meta.signerId` from the verified envelope. <!-- id:34Huc5Bs -->
   3. Enqueue a durable run for that message. <!-- id:RvJ6zK-m -->
   4. Claim it inline when no other turn owns the session. Otherwise leave it queued behind the current turn. <!-- id:i6rKWsUz -->
@@ -729,7 +768,7 @@ So several writers may submit to one session at once. Their messages are saved a
 
 Internally each turn is a durable run row in the dispatch queue (`agents/src/runs.ts`). `MessageSessionResponse.assistantEventId` is an **empty string** when the request returned before a final assistant event existed. That happens for concurrent and background enqueues (including triggers and agent-started sessions), and for turns that parked on children spawned with `delegate`. The rest of the turn streams over WebSocket. <!-- id:12QoX7ZX -->
 
-Idempotent through `clientMessageId`. It avoids one long SQLite transaction around network calls, on purpose. <!-- id:0xWuAdF5 -->
+Idempotent through `clientMessageId` (a `text` part may carry its own `clientMessageId` too). The response also carries `continuedToSessionId` when the turn ended by `continue_session`, so the client can follow the conversation into its successor. It avoids one long SQLite transaction around network calls, on purpose. <!-- id:0xWuAdF5 -->
 
 ## `InvokeSessionTool` <!-- id:OttXxoDi -->
 
@@ -822,7 +861,7 @@ Re-runs a session whose latest run failed, without appending a new user message.
 
 ## `GetRun` <!-- id:Jj_eiypN -->
 
-`{_: 'GetRun', runId}` → `{_: 'GetRunResponse', run: RunInfo}`. 404 when the run does not belong to the account. <!-- id:9wrExQSN -->
+`{_: 'GetRun', runId}` → `{_: 'GetRunResponse', run: RunInfo}`. 404 when the run does not belong to the account, or when its agent has been deleted (`runs.agent_id` is NULL): such detached run history stays in the database but is not reachable through `GetRun`, `ListRuns {rootRunId}`, `GetRunJournal`, or a `runs/` subscription. <!-- id:9wrExQSN -->
 
 ## `ListRuns` <!-- id:vPQfRrOv -->
 
@@ -837,7 +876,7 @@ Re-runs a session whose latest run failed, without appending a new user message.
 }
 ```
 
-Exactly one selector is required. Response: `{_: 'ListRunsResponse', runs: RunInfo[]}`. <!-- id:eHggxzXS -->
+One selector is required; when several are given, `rootRunId` wins over `sessionId` over `agentId`, and none at all is a 400. Response: `{_: 'ListRunsResponse', runs: RunInfo[]}`. <!-- id:eHggxzXS -->
 
 ## `CancelRun` <!-- id:9aUU90Sl -->
 
@@ -897,7 +936,10 @@ type AgentDefinition = {
   modelProvider: string
   model: string
   reasoningLevel?: ReasoningLevel
+  thoroughness?: Thoroughness // delegation preset: quick, normal, deep
+  enabledModels?: AgentModelRef[] // models a delegate child may pick
   tools?: string[]
+  mcpServers?: string[]
   signingKey?: string
   signingKeys?: string[]
   metadata?: Record<string, unknown>

@@ -21,7 +21,7 @@ URL helper: `getAgentWebSocketUrl()` in `frontend/packages/ui/src/agents/client.
 # Transport <!-- id:Ylw5APIb -->
 
 Client → server: <!-- id:My7LMnqv -->
-  - binary DAG-CBOR `SignedActionEnvelope` whose action is `Subscribe`. <!-- id:iIh1wzuq -->
+  - binary DAG-CBOR `SignedActionEnvelope` whose action is `Subscribe` (a JSON text frame holding the same bytes as an array of numbers is accepted too). The envelope's `protocol` is checked like an HTTP action's; too old gets an `error` frame with code `protocol_too_old`. <!-- id:iIh1wzuq -->
 
 Server → client: <!-- id:3mOMpyjG -->
   - JSON string `AgentWSEvent` values. <!-- id:cGn80quA -->
@@ -69,7 +69,7 @@ type AgentWSEvent =
       partialId: string
       patch: {progress?: {fraction?: number; label?: string}; activity?: AgentRunActivity; usage?: AgentRunUsage}
     }
-  | {_: 'error'; message: string}
+  | {_: 'error'; message: string; code?: ProtocolErrorCode}
 ```
 
 # Subscription keys <!-- id:JtmJRPxg -->
@@ -116,9 +116,11 @@ The pinned run card on the session page is durable-first. It rebuilds from `List
 
 Rules: <!-- id:VJd0eD_k -->
   - `account/<accountId>` must equal verified account ID. <!-- id:axsKmzfR -->
-  - `agents/<agentId>` requires owner or accepted reader or writer access. <!-- id:GUmWMoXO -->
-  - `sessions/<sessionId>` requires owner or accepted reader or writer access to its agent. <!-- id:c2GU3GL- -->
-  - `runs/<rootRunId>` requires owner or accepted reader or writer access to its agent. <!-- id:JQdvUlVm -->
+  - `agents/<agentId>` requires reader access: owner, accepted reader or writer, or any signed account on a `publicRead` agent. <!-- id:GUmWMoXO -->
+  - `sessions/<sessionId>` requires reader access to its agent. <!-- id:c2GU3GL- -->
+  - `runs/<rootRunId>` requires reader access to its agent. <!-- id:JQdvUlVm -->
+
+The server fans events out to the owner and collaborator accounts. A public reader's socket is marked with the owner it reads through (`publicReadOf`), and the socket layer forwards the owner's events for that key to it, rewriting `accessRole` on `agents/` change frames to `reader` or `chatter`. A subscriber to `agents/<agentId>` also receives `change` frames whose key is `sessions/<id>` or `account/<ownerId>`, so a client must not drop frames whose key differs from the key it subscribed to.
   - Accepted collaborators receive the agent's live service events under their own account subscription. Pending and revoked collaborators do not. <!-- id:cMdZUdG1 -->
   - A socket may not switch accounts after a successful subscription. <!-- id:JAODdem0 -->
 
@@ -126,10 +128,10 @@ Rules: <!-- id:VJd0eD_k -->
 
 Only durable session events are replayed. Live partials are not persisted and cannot be replayed. <!-- id:Jy3_Xd4u -->
 
-For `sessions/<id>` with `afterSeq`, the server sends: <!-- id:pSK8r44j -->
+For `sessions/<id>`, with or without `afterSeq`, the server sends: <!-- id:pSK8r44j -->
   1. `subscribed`; <!-- id:DvtwIk6Y -->
   2. session `change`; <!-- id:mTWZ9qTP -->
-  3. durable `append` events where `seq > afterSeq`. <!-- id:Hi-9bxpk -->
+  3. durable `append` events where `seq > afterSeq`, or the whole transcript when `afterSeq` is absent. An oversized event, replayed or live, arrives with a `truncated` marker; `GetSessionEvent {sessionId, seq}` returns it whole. <!-- id:Hi-9bxpk -->
 
 # Durable appends vs partial appends <!-- id:Wjl8ZQla -->
 

@@ -193,7 +193,7 @@ triple that mutates on every refresh).
 
 ## 6. Consequence for the unification plan
 
-`docs/plans/agent-unification.md` §6.1 listed ChatGPT OAuth as the parity gap blocking deletion of
+`hypermedia/agent/plans/agent-unification.md` §6.1 listed ChatGPT OAuth as the parity gap blocking deletion of
 `app-ai-config.ts`. That is now downgraded:
 
 - for a **local** agent server, pi's existing loopback login works as-is — no upstream change needed, so it does not

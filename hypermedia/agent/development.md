@@ -55,6 +55,7 @@ The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` in `.env.vars`, so the dev serve
 | --- | --- |
 | server base | `http://localhost:3051` <!-- id:0JDepxKs --> |
 | health | `http://localhost:3051/agents/api/health` <!-- id:5IM7m_SR --> |
+| perf | `http://localhost:3051/api/perf` and `/api/perf/sessions/<sessionId>` |
 | signed API | `POST http://localhost:3051/api/message` <!-- id:hhM3PRG8 --> |
 | WebSocket | `ws://localhost:3051/agents/ws` <!-- id:omAL0PAD --> |
 | latency snapshot | `http://localhost:3051/api/perf` <!-- id:zM2v1hz1 --> |
@@ -99,7 +100,7 @@ The whole service suite runs from `agents/` with `bun test`: <!-- id:QcZ8YChE --
   - `tool-documents.test.ts`: CIDs, builtin materialization, lambda authoring validation. <!-- id:1H4sSkuE -->
   - `runs.test.ts`, `run-time.test.ts`: queue claiming, leases, sweeps, parks and wakes. <!-- id:caikMvwb -->
   - `workflow-host.test.ts`, `workflow-worker.test.ts`: the script engine: lint, journal replay, fuel and caps, the worker transport. <!-- id:fj1mr_e1 -->
-  - `activity-triggers.test.ts`, `trigger-events.test.ts`, `activity-trigger-race.test.ts`, `schedule-triggers.test.ts`: trigger matching, firing idempotency, the comment/citation sibling race. <!-- id:fTK3pA_y -->
+  - `activity-triggers.test.ts`, `activity-conditions.test.ts`, `activity-monitor.test.ts`, `trigger-events.test.ts`, `activity-trigger-race.test.ts`, `schedule-triggers.test.ts`: trigger matching, compound conditions, the monitor's watermark, firing idempotency, the comment/citation sibling race. <!-- id:fTK3pA_y -->
   - `agent-memory.test.ts`, `session-attachments.test.ts`, `code-exec.test.ts`, `exec-pool.test.ts`, `exec-verify.test.ts`, `web-tools.test.ts`, `agent-tools-api.test.ts`, `mcp.test.ts`, `session-continuation.test.ts`, `write-link-validation.test.ts`. <!-- id:tC2RMQQo -->
   - `auth.test.ts`, `sqlite.test.ts`, `main.test.ts`, `config.test.ts`, `json-schema.test.ts`, `poll-loop.test.ts`, `provider-oauth.test.ts`, `protocol-surface.test.ts`, `statements.test.ts`, `perf.test.ts`, `session-perf.test.ts`. <!-- id:-392qrQH -->
   - `e2e-replay.test.ts` shells out to `e2e/run.ts`. It currently **skips**: the cassettes predate the verb collapse (`e2e/recordings/STALE.md`), so a green run is not model-gate coverage. See [operations](./operations.md). <!-- id:cLhLv7ws -->

@@ -28,7 +28,7 @@ Each term above has its own page, listed in the [Agents glossary](./glossary.md)
 Seed app (desktop) and Seed web app, sharing frontend/packages/ui/src/agents
   ├─ Local agents server subprocess (desktop only; same artifact as the Docker image)
   │    configured with the desktop's typed HM API bridge plus its daemon's direct IPFS endpoint
-  ├─ Agents routes: list, detail, session
+  ├─ Agents routes: list, server, detail, session, run
   ├─ Assistant sidebar: sessions of any agent on any configured server
   ├─ Provider and create-agent dialogs
   ├─ daemon-backed signing for the selected account
@@ -76,7 +76,7 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 15. Server emits `session-partial` service events for model text deltas, cumulative usage, and the current activity phase. <!-- id:Tmz1FBxK -->
 16. WebSocket sends `appendPartial` events to subscribed desktop clients. <!-- id:t5ien6K3 -->
 17. Desktop renders the partial through the shared assistant markdown renderer. <!-- id:5V6t_xTb -->
-18. Tool calls and results are translated from Pi events and appended as durable Seed events stamped `actor: 'agent'`. A [`call`](./call.md) for a tool the thread has not expanded returns that tool's contract instead of an error (touch-expand). Once the contract is in the transcript, the tool is promoted for the rest of the thread. <!-- id:aSLd8Isz -->
+18. Tool calls and results are translated from Pi events and appended as durable Seed events whose actor reads as `agent` (derived from their shape; only `user` and `system` are ever stamped). A [`call`](./call.md) for a tool the thread has not expanded returns that tool's contract instead of an error (touch-expand). Once the contract is in the transcript, the tool is promoted for the rest of the thread. <!-- id:aSLd8Isz -->
 19. If the turn used `delegate`, each child gets its own run row: a model child with its own session, or a script child in the QuickJS engine. The parent's run parks on them without holding resources and resumes when they resolve. <!-- id:nKBBy1Gx -->
 20. The final assistant message is appended as a durable event. The run finalizes: it rolls child usage up, settles [plan](./plan.md) steps whose children all succeeded, and records any obligation it ended without meeting. <!-- id:ZwcfQgzb -->
 21. Session status re-derives to `idle`, or to `error` when the latest run failed. <!-- id:2lxTmx1B -->
@@ -140,7 +140,7 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 - Anthropic and Google are mapped through Pi but have no real-provider smoke coverage yet, so they are not production-complete. <!-- id:YsLNlO21 -->
 - Signed-action timestamps reject requests more than five minutes from server time. There is no nonce cache, so a captured request can be replayed inside that window. See [security](./security.md). <!-- id:qZUKtz61 -->
 - No production KMS or OS-keychain storage for the secret key. <!-- id:3g510zpO -->
-- Grants stop at the callable set plus a single `publish` grant. There is no per-address or per-destination policy engine, and memory writes are ungated by design. <!-- id:nJ6r4hkB -->
+- Grants stop at the callable set, a single `publish` grant, and the list of enabled MCP servers. There is no per-address or per-destination policy engine, and memory writes are ungated by design. <!-- id:nJ6r4hkB -->
 - Providers can be deleted (`DeleteModelProvider`, which also removes the API-key secret), but there is no general secret-deletion action. <!-- id:iDJldMWp -->
 - [Triggers](./triggers.md) and plans are still SQLite rows, not documents in the Space. The event-bus milestone that moves them is only partly built. <!-- id:OoUMhsD3 -->
 - No full WebSocket heartbeat, backpressure, or subscription-limit protocol. <!-- id:RfSHih36 -->

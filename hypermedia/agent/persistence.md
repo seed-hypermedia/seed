@@ -25,7 +25,7 @@ On startup, `sqlite.open()` either: <!-- id:2_LU9c3d -->
 
 The service never runs against an unknown schema state. On rejection, `main.ts` serves a 500 on every route and logs both versions. <!-- id:Cxj6ftns -->
 
-Migrations live in the `migrations` array in `sqlite.ts` and are **prepend-only**: new entries go at the top of the literal and the array is `.reverse()`d. Index order then equals apply order, and `desiredVersion` is `migrations.length`. Each migration applies inside its own savepoint within one transaction, and a failure rolls the whole batch back. `sqlite-schema.sql` is the fresh-install baseline and must stay equivalent to baseline + every migration. <!-- id:hd8VJE3g -->
+Migrations live in the `migrations` array in `sqlite.ts` and are **prepend-only**: new entries go at the top of the literal and the array is `.reverse()`d. Index order then equals apply order, and `desiredVersion` is `migrations.length`. Each migration applies inside its own savepoint within one transaction, and a failure rolls the whole batch back. The schema version is 29 as of October 2026. `sqlite-schema.sql` is the fresh-install baseline and must stay equivalent to baseline + every migration. <!-- id:hd8VJE3g -->
 
 # Tables <!-- id:6sX7nWzL -->
 
@@ -48,11 +48,11 @@ Rows are created or updated as account-owned resources are written. An account i
 
 Stores local delegated signers for an account. <!-- id:DMxxBN5j -->
 
-Accepted roles: <!-- id:AUhcLlli -->
+Columns: `account_id`, `signer_id`, `role`, and for delegations proven by a [capability](../capability.md) blob, `capability` and `capability_cid`. Accepted roles: <!-- id:AUhcLlli -->
   - `OWNER` <!-- id:istckNfK -->
   - `AGENT` <!-- id:7Sxpm7Vh -->
 
-Used by `auth.isAuthorizedSigner()` and tests. The production UX for delegation and [capabilities](../protocol/permissions.md) is still incomplete. <!-- id:8DmCCEfl -->
+Used by `auth.isAuthorizedSigner()`. A row with role `AGENT` is written when an envelope's capability delegation verifies (see the [signed API](./signed-api.md)), which is how a web or device key acts for a vault account. <!-- id:8DmCCEfl -->
 
 ## `model_providers` <!-- id:VXoNLYPE -->
 
@@ -97,6 +97,7 @@ Important columns: <!-- id:OppHXSY2 -->
   - `account_id` <!-- id:oebAwFfP -->
   - `definition_cbor` <!-- id:t9NAtsIu -->
   - `state_dir` <!-- id:SuxIz7up -->
+  - `public_read`, `public_chat`: whether any signed account may read, or chat with, the agent
   - `status` <!-- id:8euzUug0 -->
 
 `definition_cbor` encodes `AgentDefinition`. <!-- id:HGpQYrDd -->
@@ -125,7 +126,7 @@ Important columns: <!-- id:UGC0f3j9 -->
 
 ## `agent_triggers` <!-- id:qcPEzEQt -->
 
-Stores saved agent-scoped [trigger](./triggers.md) definitions for HM activity triggers and schedule triggers. <!-- id:Lcnhvxo7 -->
+Stores saved agent-scoped [trigger](./triggers.md) definitions: activity triggers, schedule triggers, webhook triggers, and run-completed triggers. <!-- id:Lcnhvxo7 -->
 
 Important columns: <!-- id:SZNhzQWh -->
   - `account_id` <!-- id:Hjoch3-2 -->
@@ -147,7 +148,7 @@ Important columns: <!-- id:SZNhzQWh -->
 
 New activity firings store `context_cbor` with the name, prompt, and matched conditions observed at admission. Session attribution reads that snapshot instead of the current configuration. Legacy firings retain their existing fallback; combination captures their current view before changing the surviving configuration, without claiming historical condition-match information that was never recorded. <!-- id:SmDlQ-n4 -->
 
-`continuation_cbor` encodes what a firing does: `{kind: 'newThread'}` or `{kind: 'wake', signal, runId?, payload?}`. See [trigger continuations](./trigger-continuations.md). NULL means the only thing triggers used to do: start a new thread. The event-bus milestone moves this, and the rest of a trigger, into a Space document. Until then it lives in this column. <!-- id:k2ecZ612 -->
+`continuation_cbor` encodes what a firing does: `{kind: 'newThread', …}`, `{kind: 'wake', signal, runId?, payload?}`, `{kind: 'tool', tool, input?, onFailure?}`, or `{kind: 'script', script, input?, onFailure?}`. See [triggers](./triggers.md) and [trigger continuations](./trigger-continuations.md). NULL means the only thing triggers used to do: start a new thread. The event-bus milestone moves this, and the rest of a trigger, into a Space document. Until then it lives in this column. <!-- id:k2ecZ612 -->
 
 Rows are written by the signed CRUD actions and by the agent itself through `write ~/triggers/<name>` (`writeTriggerAddress`), which honors `enabled` as written. The agent manages its own triggers directly. See [security](./security.md). <!-- id:G0Ps3gr8 -->
 
@@ -170,7 +171,7 @@ Important columns: <!-- id:Ejf_lPGv -->
   - `description`: the live status the agent maintains with the `status` verb <!-- id:Shdo5e_p -->
   - `thoroughness`: the session's delegation preset override (`quick`, `normal`, or `deep`) <!-- id:Qf3K5gBg -->
 
-`title_source` protects a title the user typed. Rows start as `system`. `UpdateSession` writes `user`, and every automatic titling path refuses to overwrite a `user` row. Today the automatic path is `#ensureSessionTitled`, a small dedicated model call made when a turn parks or finalizes with the session still untitled (enabled by `SEED_AGENTS_SESSION_TITLE_GENERATION`). It leaves `title_source` at `system` on purpose, so the user can still rename. The third value, `agent`, is written only by `#setSessionTitleFromAgent`, and no code path calls it. The in-turn `set_session_title` tool it belonged to was deleted on purpose (`api-service.test.ts` asserts it never reappears in the tool list), and the function outlived it. <!-- id:3-r89YEl -->
+`title_source` protects a title the user typed. Rows start as `system`. `UpdateSession` writes `user`, and every automatic titling path refuses to overwrite a `user` row. `agent` is written when the agent names the session itself: the `status` verb, the automatic namer (`#ensureSessionTitled`, a small dedicated model call made when a turn parks or finalizes with the session still untitled, enabled by `SEED_AGENTS_SESSION_TITLE_GENERATION`, which flips `system` to `agent`), a `continue_session` successor, and a titled script or delegate child. <!-- id:3-r89YEl -->
 
 `plan_cbor` carries `RunPlan`: `{title?, steps: [{id, label, status, resolvedBy?}], settledAt?}`. Two fields come from the runtime and never from the model, and `normalizeRunPlan` accepts neither from model input. `resolvedBy: 'runtime'` marks a step the runtime closed because every child attached to it came back succeeded. Only success is ever derived this way. `settledAt` stamps the moment every step became terminal (done, failed, or skipped), so a client watching only the snapshot knows when the checklist finished. A later edit that reopens a step clears it. <!-- id:GhYFW3mf -->
 
@@ -196,14 +197,14 @@ Important columns: <!-- id:KBSutS-f -->
   - `continued_from_run_id`: the run this one continues. [`ctx.continueAsNew`](./continue-as-new.md) ends a run and starts a successor that carries only the state it declared, so a day-scale loop never grows an unbounded journal. The two rows are one piece of work. <!-- id:TYylRUY4 -->
   - `kind`: `agent` (a model turn, with a transcript session) or `workflow` (a [script](./script.md) child in the QuickJS engine) <!-- id:JqfAKDTg -->
   - `agent_id`, `session_id` (transcript session for agent runs; NULL for script runs), `trigger_firing_id` <!-- id:EklbAJZc -->
-  - `origin`: `user`, `trigger`, `agent`, `workflow`, or `system` <!-- id:zvRVgNFS -->
+  - `origin`: `user`, `trigger`, `agent`, or `workflow` (`system` is in the type but nothing enqueues it) <!-- id:zvRVgNFS -->
   - `title`, `model` <!-- id:hsCyN0Ht -->
   - `source_cid`, `source_text`: for script runs, the JS module and its `sha256:` digest <!-- id:KJdGZTeX -->
-  - `input_cbor`, `output_cbor`, `error_cbor` (`{code, message, retryable?, httpStatus?}`) <!-- id:2ap3z4qw -->
+  - `input_cbor`, `output_cbor`, `error_cbor` (`{code, message, retryable?, httpStatus?, stack?, tool?, callSeq?, detail?, unmetObligations?}`; `tool` and `callSeq` join a script's failure to the journaled call, and `stack` frames of `workflow.js:LINE` index into `source_text`) <!-- id:2ap3z4qw -->
   - `status`: `queued`, `claimed`, `running`, `waiting`, `succeeded`, `failed`, `canceled` <!-- id:-cdheKz4 -->
-  - `wait_cbor`: why a run is parked, one of four reasons: `children` (spawned children, with `toolCallIds`), `timer` (`wakeAt`), `event` (`ctx.waitForEvent`), `budget-pause` (it stopped before spending more). See [park](./park.md) and [wake source](./wake-source.md). `RunWaitInfo.answerWith` names the signal that would answer the wait by hand, when one can. <!-- id:FE_KLF0y -->
+  - `wait_cbor`: why a run is parked, one of four reasons: `children` (spawned children, with `toolCallIds`), `timer` (`wakeAt`), `event` (`ctx.waitForEvent`, with `timeoutAt`), `budget-pause` (it stopped before spending more, with a `note`). See [park](./park.md) and [wake source](./wake-source.md). The wire shape `RunWaitInfo` differs a little: it carries `pendingChildren` (a count) instead of the ids, maps an event wait's `timeoutAt` to `wakeAt` and a budget pause's `note` to `label`, and `answerWith` names the signal that would answer the wait by hand, when one can. <!-- id:FE_KLF0y -->
   - `attempt`, `max_attempts`, `not_before` (backoff or timer wake), `queue` (`interactive` or `background`) <!-- id:rbRG2Dva -->
-  - `lease_owner`, `lease_expires_at`: crash recovery. The boot sweep requeues rows a dead process left claimed or running <!-- id:SEprW4Bh -->
+  - `lease_owner`, `lease_expires_at`: written on claim (the queue instance, and sixty seconds out) and cleared on park or requeue. The expiry is recorded but never read: with one service process, the boot sweep simply requeues every row the previous process left claimed or running <!-- id:SEprW4Bh -->
   - `budget_cbor`, `usage_cbor` (persisted per turn boundary, child usage rolled up into the parent on finalize) <!-- id:H9i6CZmm -->
   - `plan_cbor`: a workflow's own `ctx.step` and `ctx.plan` snapshot, or the immutable copy of a session plan written onto its owning agent run when that plan settles. The copy keeps completed checklist history after the session starts a new mutable plan <!-- id:SszS3VLK -->
 
@@ -237,7 +238,7 @@ Hypermedia write [drafts](../protocol/documents.md) (`write hm://…` with `opti
 
 ## `run_journal` <!-- id:5paw7ekv -->
 
-Append-only [journal](./journal.md) for script (workflow) runs. It makes replay-from-top resume safe. Rows are `(run_id, seq, entry_cbor, created_at)` with `seq` monotonic per run. Each entry carries a `callSeq` that ties together the entries of one `ctx` call (`call` and `result`, `timer` and `fired`; the `(run_id, seq)` primary key cannot repeat). Each entry also carries a `key`: the effect's **deterministic content key** (`tool|name|inputJSON`, `agent|specJSON`, `sleep|ms`, …). Replay matches by key, consuming each key's group FIFO. It does not match by arrival order, because continuation ordering after `ctx.parallel` depends on real completion timing, and order-based matching misfiles results on resume. A live effect with no journaled group executes fresh (the run's source is pinned via `source_cid` and `source_text`). Groups left unconsumed at success log a warning. Entry kinds: `call`, `result`, `timer`, `fired`, `wait`, `event`, `now`, `log`, `step`, `plan` (see `WorkflowJournalEntry` in `agents/src/workflow-host.ts`). `wait` and `event` are the two halves of a `ctx.waitForEvent`: the registration and its resolution (a delivered payload, or nothing at all on timeout). A call entry may carry a `description`, the human-readable narration a script attaches to an effect. It is display metadata and stays out of the replay key. Caps: 5,000 entries or 8 MiB per run, after which the run fails `journal-cap`. Entries are streamed to `runs/<rootRunId>` subscribers as `append` events and replayed on subscribe. <!-- id:v46sJNRU -->
+Append-only [journal](./journal.md) for script (workflow) runs. It makes replay-from-top resume safe. Rows are `(run_id, seq, entry_cbor, created_at)` with `seq` monotonic per run (the count of the run's entries plus one at append). Each entry carries a `callSeq` that ties together the entries of one `ctx` call (`call` and `result`, `timer` and `fired`, `wait` and `event`; the `(run_id, seq)` primary key cannot repeat). The first entry of each group also carries a `key`, the effect's **deterministic content key** (`tool|name|inputJSON`, `agent|specJSON`, `sleep|ms`, …). Replay matches by key, consuming each key's group FIFO. It does not match by arrival order, because continuation ordering after `ctx.parallel` depends on real completion timing, and order-based matching misfiles results on resume. A live effect with no journaled group executes fresh (the run's source is pinned via `source_cid` and `source_text`). Groups left unconsumed at success log a warning. Entry kinds: `call`, `result`, `timer`, `fired`, `wait`, `event`, `now`, `log`, `step`, `plan` (see `WorkflowJournalEntry` in `agents/src/workflow-host.ts`). `wait` and `event` are the two halves of a `ctx.waitForEvent`: the registration and its resolution (a delivered payload, or nothing at all on timeout). A call entry may carry a `description`, the human-readable narration a script attaches to an effect. It is display metadata and stays out of the replay key. Caps: 5,000 entries or 8 MiB per run, after which the run fails `journal-cap`. Entries are streamed to `runs/<rootRunId>` subscribers as `append` events and replayed on subscribe. <!-- id:v46sJNRU -->
 
 ## `session_continuations` <!-- id:9Xgpa9dY -->
 
@@ -257,11 +258,14 @@ Important columns: <!-- id:ANfEJZZZ -->
   - `trigger_id` <!-- id:UqkJ_5oc -->
   - `activity_key` <!-- id:r89Qat-g -->
   - `session_id` <!-- id:xrmU1MzV -->
+  - `run_id`: the headless run a `tool` or `script` continuation started
   - `activity_cbor` <!-- id:k7sPpiN5 -->
+  - `context_cbor`: the snapshot of the trigger's name, prompt, and matched conditions at admission
+  - `body_digest`: a webhook body's digest, so a reused `Idempotency-Key` with a different body is refused
   - `status` <!-- id:s90Evv96 -->
   - `error` <!-- id:bR4PVqOd -->
 
-`(account_id, trigger_id, activity_key)` is unique so feed retries or schedule monitor retries cannot create duplicate firings for the same trigger. Schedule triggers use stable keys in the form `schedule:<triggerId>:<scheduledAt>`. <!-- id:7nrxtaqU -->
+`(account_id, trigger_id, activity_key)` is unique so feed retries or schedule monitor retries cannot create duplicate firings for the same trigger. Activity firings are admitted through `trigger_event_claims` first (see `agent_triggers` above); schedule, webhook, and run-completed firings dedupe on this row alone. Schedule triggers use stable keys in the form `schedule:<triggerId>:<scheduledAt>`, webhooks `webhook:<Idempotency-Key>` (or a random key when the sender sends none). <!-- id:7nrxtaqU -->
 
 ## `activity_watermarks` <!-- id:02j3J54F -->
 
@@ -287,7 +291,7 @@ Important columns: <!-- id:bbrswilN -->
 
 `seq` is monotonic per session. Events are returned by `GetSession` and replayed on session WebSocket subscriptions. <!-- id:Z2L22h8_ -->
 
-This is the [Log](./log.md), a shared workspace log. Every entry carries an [`actor`](./actor.md) that says who did it, because the user holds the same verbs the agent does. A verb run through `InvokeSessionTool` appends its `tool_call` and `tool_result` here stamped `actor: 'user'`, and the agent reads them on its next turn exactly as it reads its own. <!-- id:hEKK4O4C -->
+This is the [Log](./log.md), a shared workspace log. Every entry has an [`actor`](./actor.md) that says who did it, because the user holds the same verbs the agent does. Only `user` and `system` are ever stamped on the row; the agent's own messages and tool calls carry no `actor` and derive `agent` from their shape, and a message a trigger started is a `user` message. A verb run through `InvokeSessionTool` appends its `tool_call` and `tool_result` here stamped `actor: 'user'`, and the agent reads them on its next turn exactly as it reads its own. <!-- id:hEKK4O4C -->
 
 Current event payloads: <!-- id:lAZ-9Wuw -->
 
@@ -301,6 +305,7 @@ type SessionEventMeta = {
   provider?: string // provider it ran on
   usage?: AgentRunUsage // this turn's tokens, not the run's cumulative total
   durationMs?: number // wall time for this message or tool call
+  reasoningLevel?: ReasoningLevel | 'off' | 'default'
 }
 
 type SessionEventPayload =
@@ -341,7 +346,7 @@ type SessionEventPayload =
 
 `delegate` appends `tool_spawn` the moment its child exists, before the child has run a step. It names the child run, and the session for a model child. The call stays parked without a `tool_result` until the child finishes, so this event lets a transcript open the child while it works. It is not replayed to the model, and it never stands in for the result, which the child's finalizer appends later. <!-- id:7F49NC1k -->
 
-`actor` and `meta` are both optional because events predating them exist. Never treat either as required structure. `sessionEventActor()` in the protocol package derives the actor of an older event from its shape (a user-role message is `user`, an error is `system`, everything else is `agent`). `meta` is display detail, absent on older rows. New signed user messages always stamp both the acting Seed `accountId` and the exact `signerId`. They may differ when the account uses an authorized device or delegate signer. Model replay keeps that distinction by prefixing signed human messages with their authoritative `accountId`. For shared agents the system prompt also carries the accepted member roster, roles, and best-effort profile display names. <!-- id:j6h3LrFf -->
+`actor` and `meta` are both optional because events predating them exist, and because the agent's own events are never stamped. Never treat either as required structure. `sessionEventActor()` in the protocol package derives the actor of an unstamped event from its shape (a user-role message is `user`, an error is `system`, everything else is `agent`). `trigger` is declared in the type and never written. `meta` is display detail, absent on older rows. New signed user messages always stamp both the acting Seed `accountId` and the exact `signerId`. They may differ when the account uses an authorized device or delegate signer. Model replay keeps that distinction by prefixing signed human messages with their authoritative `accountId`. For shared agents the system prompt also carries the accepted member roster, roles, and best-effort profile display names. <!-- id:j6h3LrFf -->
 
 Plan updates are **not** durable events. The `plan` verb writes `sessions.plan_cbor` in place, so the plan snapshot carries its own `settledAt` timestamp. <!-- id:8BUVq0H3 -->
 
@@ -360,6 +365,10 @@ Used by: <!-- id:1-pLN2bq -->
 
 Same client ID with identical request bytes replays the response. Same client ID with different request bytes returns `409`. <!-- id:xDb-SvJk -->
 
+# Open settings and planner statistics
+
+`openWithDatabase` sets `journal_mode=WAL`, a 64 MB `cache_size`, a 512 MB `mmap_size`, and `temp_store=MEMORY`, then runs `ANALYZE` on the small planner tables (`PLANNER_STATISTICS_TABLES`: runs, sessions, agents, collaborators, firings, continuations, and friends) at every open, deliberately leaving out `session_events` and `run_journal`. Without statistics the planner chose the account-wide index for per-session run lookups and pinned the server (2026-09-23); the hot queries also pin their index with `INDEXED BY`. Nothing runs `VACUUM`. See [operations](./operations.md).
+
 # Secret encryption <!-- id:Mm3c29X6 -->
 
 Implementation: `encryptSecret()` and `decryptSecret()` in `api-service.ts`. <!-- id:dxI-WpyJ -->
@@ -368,7 +377,7 @@ Current scheme: <!-- id:YUGhL6E1 -->
   - AES-GCM; <!-- id:XUp42Aad -->
   - 32-byte server-local key; <!-- id:Cux_dY-p -->
   - 12-byte random nonce per write; <!-- id:HEJUY1cA -->
-  - stored ciphertext is `nonce || encryptedBytes`. <!-- id:JHUEh3sA -->
+  - stored ciphertext is `nonce || encryptedBytes || tag`, with the 16-byte GCM authentication tag last (`aes-256-gcm`). <!-- id:JHUEh3sA -->
 
 # Durable replay <!-- id:lQynYlVv -->
 

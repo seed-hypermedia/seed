@@ -1,10 +1,16 @@
+---
+name: Trigger Conditions Research
+summary: A September 2026 investigation into letting one trigger carry several alternative conditions, recorded as a historical design note beside the triggers reference that now describes what shipped.
+---
+Status: historical record, written 17 September 2026. The activity-condition model it recommends is implemented; the live description is on [triggers](../triggers.md) and [persistence](../persistence.md). Nothing here is updated; it is kept so the alternatives that were weighed stay visible.
+
 Research into trigger conditions, migration, and UX — September 17, 2026.
 
 Implementation follow-up: the activity-only approach below is now implemented in this working tree. It stores stable
 conditions inside an `activity` source in the existing CBOR column, adds durable event claims and firing-context
 snapshots, and provides explicit combination with preserved history. Schedules, webhooks, and completed-run sources
-remain standalone. See [the signed API](../agents/docs/signed-api.md) and
-[persistence documentation](../agents/docs/persistence.md) for the implemented contract. The remaining text records the
+remain standalone. See [the signed API](../signed-api.md) and
+[persistence documentation](../persistence.md) for the implemented contract. The remaining text records the
 original investigation and alternatives; production configuration has not been changed.
 
 The recommended model is one trigger with a nonempty list of alternative conditions and one shared action. A matching
@@ -19,7 +25,7 @@ records.
 The investigation used current source, including existing uncommitted frontend changes, rather than treating older
 design documents as authoritative. No existing working-tree changes were modified.
 
-The current system has six source types and four action types. [The protocol](../agents/protocol/src/index.ts) calls the
+The current system has six source types and four action types. [The protocol](https://github.com/seed-hypermedia/seed/blob/main/agents/protocol/src/index.ts) calls the
 action a `continuation`; its prompt is stored separately.
 
 | Source            | How it fires                | Current identity/state                                                           |
@@ -35,13 +41,13 @@ The actions are start a thread, call a tool, run a script, and wake a waiting ru
 recovery thread on failure. A condition-list change should preserve all of these rather than assume every firing creates
 a chat.
 
-[Storage](../agents/src/sqlite-schema.sql) currently separates `agent_triggers`, `trigger_firings`,
+[Storage](https://github.com/seed-hypermedia/seed/blob/main/agents/src/sqlite-schema.sql) currently separates `agent_triggers`, `trigger_firings`,
 `webhook_trigger_credentials`, and account/server `activity_watermarks`. A trigger stores one CBOR `source`, one prompt,
 an optional CBOR continuation, and aggregate timestamps. Firings retain the event, status, and links to a session or
 headless run. The unique constraint is `(account_id, trigger_id, activity_key)`.
 
-[Activity processing](../agents/src/api-service.ts) loops through enabled triggers, matches each source, and inserts a
-firing before dispatch. [The monitor](../agents/src/activity-monitor.ts) polls by observation order, tracks raw feed
+[Activity processing](https://github.com/seed-hypermedia/seed/blob/main/agents/src/api-service.ts) loops through enabled triggers, matches each source, and inserts a
+firing before dispatch. [The monitor](https://github.com/seed-hypermedia/seed/blob/main/agents/src/activity-monitor.ts) polls by observation order, tracks raw feed
 keys, and advances its watermark after each processed event. Its cold-start cutoff uses the earliest enabled
 activity-trigger creation time for the account. The delivery cursor and the deduplication key serve different purposes
 and must remain separate.
@@ -202,7 +208,7 @@ distinct from ordinary disabled: generic enable APIs and stale clients must not 
 the survivor. Deleting an archived predecessor must not discard the survivor's imported deduplication claims. Claim
 retention is consequently part of the merge design.
 
-Client compatibility is a separate rollout constraint. [Protocol versioning](../agents/protocol/PROTOCOL.md) explicitly
+Client compatibility is a separate rollout constraint. [Protocol versioning](https://github.com/seed-hypermedia/seed/blob/main/agents/protocol/PROTOCOL.md) explicitly
 accounts for servers deploying before desktops. The repository currently speaks version 2 and serves versions 1 and 2.
 Replacing `source`, or adding a compound member to a returned source union, is breaking. Current UI code assumes
 unrecognized sources are schedules in some branches; returning an unfamiliar compound source can crash it.
@@ -302,14 +308,14 @@ isolation, one-time completion without disabling other conditions, webhook retri
 Compatibility tests must use old protocol requests and session context, not only new shared TypeScript types. Frontend
 tests should exercise incomplete condition drafts, conflicts, read-only views, and accurate historical attribution.
 
-Implementation centers on [protocol types](../agents/protocol/src/index.ts),
-[API service and verb paths](../agents/src/api-service.ts), [activity matching](../agents/src/activity-triggers.ts),
-[activity polling](../agents/src/activity-monitor.ts),
-[schedule occurrence calculation](../agents/src/schedule-triggers.ts), [SQLite migrations](../agents/src/sqlite.ts),
-[protocol compatibility](../agents/src/protocol-compat.ts),
-[shared trigger fields](../frontend/packages/ui/src/agents/trigger-types.tsx),
-[trigger list/detail/create UI](../frontend/packages/ui/src/agents/detail.tsx),
-[client mutations](../frontend/packages/ui/src/agents/models.ts), and
-[agent moves](../frontend/packages/ui/src/agents/move-agent.ts). Update the agent-visible contract and persistence/API
+Implementation centers on [protocol types](https://github.com/seed-hypermedia/seed/blob/main/agents/protocol/src/index.ts),
+[API service and verb paths](https://github.com/seed-hypermedia/seed/blob/main/agents/src/api-service.ts), [activity matching](https://github.com/seed-hypermedia/seed/blob/main/agents/src/activity-triggers.ts),
+[activity polling](https://github.com/seed-hypermedia/seed/blob/main/agents/src/activity-monitor.ts),
+[schedule occurrence calculation](https://github.com/seed-hypermedia/seed/blob/main/agents/src/schedule-triggers.ts), [SQLite migrations](https://github.com/seed-hypermedia/seed/blob/main/agents/src/sqlite.ts),
+[protocol compatibility](https://github.com/seed-hypermedia/seed/blob/main/agents/src/protocol-compat.ts),
+[shared trigger fields](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/agents/trigger-types.tsx),
+[trigger list/detail/create UI](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/agents/detail.tsx),
+[client mutations](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/agents/models.ts), and
+[agent moves](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/agents/move-agent.ts). Update the agent-visible contract and persistence/API
 docs with the same model. The older proposal to turn triggers into content-addressed Space documents can remain
 independent; neither it nor a generalized event bus is required for this change.

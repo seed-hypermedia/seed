@@ -1,4 +1,9 @@
-# Agent Unification Plan
+---
+name: Agent Unification Plan
+summary: The July 2026 plan that replaced the desktop app's separate assistant with the Agents service running as a local subprocess, kept as a historical record of the decisions and their reasons.
+---
+Status: historical record, July 2026. The unification it describes shipped: the desktop app embeds the agents server and there is one agent runtime, one protocol and one UI. Read the [system overview](../system-overview.md) and [desktop and web UI](../desktop-ui.md) for how things are today; the [roadmap](../roadmap.md) is the only live forward-looking page.
+
 
 Replace the desktop's bespoke assistant stack with the Agents service, running locally as a subprocess of the desktop
 app. One agent runtime, one protocol, one UI — everywhere.
@@ -36,7 +41,7 @@ These are the findings that make this tractable — each was verified against th
 **F1 — The desktop already exposes the exact HTTP API the agent service consumes.**
 `frontend/apps/desktop/src/app-http-server.ts` serves `@shm/shared/api-server`'s `handleApiRequest`/`handleApiAction`
 on `localhost:56004` (`API_HTTP_PORT`), backed by the local daemon via `grpcClient`. That is the same `/api/<Key>`
-protocol `createSeedClient(baseUrl)` speaks (`frontend/packages/client/src/client.ts:155`), including `Search`,
+protocol `createSeedClient(baseUrl)` speaks (`frontend/packages/client/src/client.ts`), including `Search`,
 `ListEvents`, `Resource`, `PublishBlobs`, and `PrepareDocumentChange`. **A local agent server pointed at
 `--hm-server-url=http://localhost:56004` gets full read *and* write access to the user's own node with zero new
 plumbing.** This is the single biggest unlock.
@@ -103,7 +108,7 @@ from the Agents page — it is a normal agent, not a special case in the data mo
 ### D3 — Carry window context as a typed message part
 
 The current assistant injects "## Current window" into the system prompt per message
-(`app-chat.ts:811-844`). `MessageSessionContentPart` is currently `{type: 'text', text, blocks?}`. Add
+(`app-chat.ts`). `MessageSessionContentPart` is currently `{type: 'text', text, blocks?}`. Add
 `{type: 'context', lines: string[]}`: the service appends it to that turn's system prompt, and the UI hides it from the
 transcript. Small, additive protocol change; keeps context out of the visible conversation.
 
@@ -141,7 +146,7 @@ gets *for free* on day one: triggers, usage/cost display, multi-agent, `web_sear
 ## 6. Parity gaps to close
 
 1. **ChatGPT OAuth login.** ~~The one genuine feature gap.~~ **Downgraded after research — see
-   [pi-chatgpt-oauth.md](./pi-chatgpt-oauth.md).** Pi already ships `openaiCodexOAuthProvider` (login, refresh,
+   [pi-chatgpt-oauth.md](https://github.com/seed-hypermedia/seed/blob/main/docs/plans/pi-chatgpt-oauth.md).** Pi already ships `openaiCodexOAuthProvider` (login, refresh,
    `chatgpt-account-id` header, `instructions`/`store:false` Responses semantics — everything
    `chat-provider-options.ts` hand-rolls). The agents service simply never wires pi's OAuth layer to its provider
    model: ~1 provider type + 3 protocol actions. Pi's login is loopback-only (`localhost:1455`), which is fine for the
@@ -261,14 +266,14 @@ agents:
 
 `bun --hot` re-evaluates on save and `watch-file-deps.ts` re-syncs the `file:` deps (`frontend/packages/*`) so they
 never go stale. Sessions live in SQLite so they survive a reload, and the desktop's WebSocket client already has
-exponential-backoff reconnect (`models/agents.ts:1024`).
+exponential-backoff reconnect (`models/agents.ts`).
 
 So the rule is: **dev attaches, packaged spawns.**
 
 - `./dev up` — desktop does *not* spawn the binary; it attaches to the mprocs-run server on :3050. Hot reload intact.
 - Packaged — desktop spawns the compiled binary from `resourcesPath`.
 
-There is already a precedent for exactly this toggle: `SEED_NO_DAEMON_SPAWN` (`daemon.ts:245`) makes the desktop skip
+There is already a precedent for exactly this toggle: `SEED_NO_DAEMON_SPAWN` (`daemon.ts`) makes the desktop skip
 spawning the Go daemon and use externally-provided ports. Add `SEED_NO_AGENTS_SPAWN` the same way, defaulted on in the
 mprocs `desktop` pane. Better still, make it automatic: probe `/agents/api/health` on the configured port first and
 attach if something healthy answers, spawn otherwise — that removes a whole class of "two servers fighting over :3050"
