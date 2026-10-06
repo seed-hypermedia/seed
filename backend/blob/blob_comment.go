@@ -132,53 +132,55 @@ type CommentBlock struct {
 	Children []CommentBlock `mapstructure:"children,omitempty"`
 }
 
+var commentTypeMatcher = makeCBORTypeMatch(TypeComment)
+
 func init() {
-	matcher := makeCBORTypeMatch(TypeComment)
+	registerIndexer(TypeComment, decodeComment, indexComment)
+}
 
-	registerIndexer(TypeComment,
-		func(c cid.Cid, data []byte) (eb Encoded[*Comment], err error) {
-			codec, _ := ipfs.DecodeCID(c)
-			if codec != multicodec.DagCbor || !bytes.Contains(data, matcher) {
-				return eb, errSkipIndexing
-			}
+// decodeComment parses raw blob bytes as a Comment, returning errSkipIndexing for
+// anything else. Shared by the indexer registration and by the re-settlement
+// paths that revisit an already indexed comment (see settleComment).
+func decodeComment(c cid.Cid, data []byte) (eb Encoded[*Comment], err error) {
+	codec, _ := ipfs.DecodeCID(c)
+	if codec != multicodec.DagCbor || !bytes.Contains(data, commentTypeMatcher) {
+		return eb, errSkipIndexing
+	}
 
-			// We validate the comment signature as an opaque map first,
-			// because we messed up the encoding of comments previously.
-			{
-				var v map[string]any
-				if err := cbornode.DecodeInto(data, &v); err != nil {
-					return eb, err
-				}
+	// We validate the comment signature as an opaque map first,
+	// because we messed up the encoding of comments previously.
+	{
+		var v map[string]any
+		if err := cbornode.DecodeInto(data, &v); err != nil {
+			return eb, err
+		}
 
-				signerBytes, ok := v["signer"].([]byte)
-				if !ok {
-					return eb, fmt.Errorf("signer field must be bytes, but got %T", v["signer"])
-				}
+		signerBytes, ok := v["signer"].([]byte)
+		if !ok {
+			return eb, fmt.Errorf("signer field must be bytes, but got %T", v["signer"])
+		}
 
-				signatureBytes, ok := v["sig"].([]byte)
-				if !ok {
-					return eb, fmt.Errorf("sig field must be bytes, but got %T", v["sig"])
-				}
+		signatureBytes, ok := v["sig"].([]byte)
+		if !ok {
+			return eb, fmt.Errorf("sig field must be bytes, but got %T", v["sig"])
+		}
 
-				if err := Verify(core.Principal(signerBytes), v, signatureBytes); err != nil {
-					return eb, err
-				}
-			}
+		if err := Verify(core.Principal(signerBytes), v, signatureBytes); err != nil {
+			return eb, err
+		}
+	}
 
-			// Now we decode the CBOR again into a proper struct.
+	// Now we decode the CBOR again into a proper struct.
 
-			v := &Comment{}
-			if err := cbornode.DecodeInto(data, v); err != nil {
-				return eb, err
-			}
+	v := &Comment{}
+	if err := cbornode.DecodeInto(data, v); err != nil {
+		return eb, err
+	}
 
-			eb.CID = c
-			eb.Data = data
-			eb.Decoded = v
-			return eb, nil
-		},
-		indexComment,
-	)
+	eb.CID = c
+	eb.Data = data
+	eb.Decoded = v
+	return eb, nil
 }
 
 func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
@@ -335,46 +337,84 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		panic("BUG: missing resource for comment target")
 	}
 
+	// Settle the comment's activity. When its target isn't indexed yet this comes
+	// back as pending, and what happens next depends on why (see settleComment).
+	pending, err := settleComment(ictx, id, eb, resourceID)
+	if err != nil {
+		return err
+	}
+	if pending != nil {
+		return stashError{
+			Reason: stashReasonFailedPrecondition,
+			Metadata: stashMetadata{
+				MissingBlobs: pending,
+			},
+		}
+	}
+
+	return nil
+}
+
+// settleComment settles a comment's live version, its document's activity and
+// its space's totals, once the document it belongs to can be identified.
+//
+// The document is identified by the genesis of its changes, which is what makes
+// comment activity survive a move: the path can change, the genesis can't. That
+// needs the target's changes indexed, and when they aren't there are three
+// situations, which is why this doesn't simply give up on all of them:
+//
+//   - We have the change but haven't indexed it yet. That's routine -- blobs
+//     sync out of order, and a reindex replays them in blob-id order. The missing
+//     changes are returned as pending so indexComment can stash the comment and
+//     retry it when the change is indexed (see reindexStashedBlobs). Skipping
+//     instead loses the comment permanently: on a 6.2 GB production database,
+//     reindexing without this attributed only 6602 of 12659 comments, even though
+//     every one of their targets was present by the end.
+//
+//   - We don't have the change at all (BlobsSize < 0 means we know the hash and
+//     nothing else). Stashing on a blob that may never arrive would hide the
+//     comment indefinitely, so the comment stays indexed and unsettled, and
+//     indexChange re-settles it the moment the change lands
+//     (resettleCommentsTargetingChange). Before that repair existed the comment
+//     was lost for good: a dev daemon that received a document and its comments
+//     in one batch, comment first, listed the replies but never their root
+//     (seed-hypermedia/seed#1200).
+//
+//   - The comment pins no version and the path has no generation yet. Same
+//     treatment, re-settled by the Ref that creates the generation
+//     (resettleCommentsOnResource).
+//
+// Settlement is idempotent, so revisiting an already settled comment is harmless.
+func settleComment(ictx *indexingCtx, id int64, eb Encoded[*Comment], resourceID int64) (pending []cid.Cid, err error) {
+	c, v := eb.CID, eb.Decoded
+
+	iri, err := NewIRI(v.Space(), v.Path)
+	if err != nil {
+		return nil, fmt.Errorf("invalid comment target: %v", err)
+	}
+
+	isTombstone := len(v.Body) == 0
 	spaceID := v.Space().String()
 
-	// Resolve the document this comment belongs to.
-	//
-	// The document is identified by the genesis of its changes, which is what makes
-	// comment activity survive a move: the path can change, the genesis can't.
-	//
-	// That needs the target's changes indexed, and when they aren't there are two
-	// different situations, which is why this doesn't simply give up on both:
-	//
-	//   - We have the change but haven't indexed it yet. That's routine -- blobs
-	//     sync out of order, and a reindex replays them in blob-id order. Stash the
-	//     comment so it retries when the change is indexed (see reindexStashedBlobs).
-	//     Skipping instead loses the comment permanently: on a 6.2 GB production
-	//     database, reindexing without this attributed only 6602 of 12659 comments,
-	//     even though every one of their targets was present by the end.
-	//
-	//   - We don't have the change at all (BlobsSize < 0 means we know the hash and
-	//     nothing else). Stashing on a blob that may never arrive would hide the
-	//     comment indefinitely, so index it and leave it out of the counts, which
-	//     is what the old code did for both cases.
 	var (
 		changeIDs      = make([]int64, len(v.Version))
 		genesisBlobID  int64
 		pendingChanges []cid.Cid
 	)
 	for i, ver := range v.Version {
-		changeID, ok := ictx.blobs[ver]
-		if !ok {
-			return fmt.Errorf("BUG: missing change for version %v when indexing comment target", ver)
+		if _, err := ictx.ensureBlob(ver); err != nil {
+			return nil, err
 		}
+		changeID := ictx.blobs[ver]
 
 		var cm changeMetadata
 		if err := cm.load(ictx.conn, changeID.BlobsID); err != nil {
-			return err
+			return nil, err
 		}
 
 		if cm.ID == 0 {
 			if changeID.BlobsSize < 0 {
-				return nil
+				return nil, nil
 			}
 			pendingChanges = append(pendingChanges, ver)
 			continue
@@ -385,12 +425,7 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 	}
 
 	if pendingChanges != nil {
-		return stashError{
-			Reason: stashReasonFailedPrecondition,
-			Metadata: stashMetadata{
-				MissingBlobs: pendingChanges,
-			},
-		}
+		return pendingChanges, nil
 	}
 
 	// A comment that pins no target version means "the document at this path", so
@@ -402,28 +437,28 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		genesis, err = lookupResourceGenesis(ictx.conn, resourceID)
 	}
 	if err != nil {
-		return fmt.Errorf("failed to resolve target genesis for comment %s: %w", c, err)
+		return nil, fmt.Errorf("failed to resolve target genesis for comment %s: %w", c, err)
 	}
 
 	// No generation at that path yet, so there is no document to attribute this to.
-	// The same repair applies as for unindexed target changes above.
+	// The Ref that creates one re-settles the comment.
 	if genesis == "" {
-		return nil
+		return nil, nil
 	}
 
 	// Settle this comment's live version, its document's activity, and the space
 	// total. None of these need a document generation, so they're settled the
 	// moment the blob lands rather than waiting for a Ref.
 	if err := updateCommentLive(ictx.conn, eb.TSID(), genesis); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := updateDocumentCommentStats(ictx.conn, genesis); err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := updateSpaceCommentStats(ictx.conn, spaceID); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Update document generation comment stats.
@@ -434,12 +469,12 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 		// existed; out-of-order arrivals (non-tombstone after tombstone) re-activate.
 		delta, err := commentCountDelta(ictx.conn, id, eb.TSID(), isTombstone)
 		if err != nil {
-			return fmt.Errorf("failed to compute comment count delta for %s: %w", c, err)
+			return nil, fmt.Errorf("failed to compute comment count delta for %s: %w", c, err)
 		}
 
 		generations, err := documentGeneration{}.loadAllByResource(ictx.conn, resourceID)
 		if err != nil {
-			return fmt.Errorf("failed to load generations for comment %s: %w", c, err)
+			return nil, fmt.Errorf("failed to load generations for comment %s: %w", c, err)
 		}
 
 		for _, dg := range generations {
@@ -461,18 +496,18 @@ func indexComment(ictx *indexingCtx, id int64, eb Encoded[*Comment]) error {
 			}
 
 			if err := dg.save(ictx.conn); err != nil {
-				return err
+				return nil, err
 			}
 		}
 
 		if ictx.mustTrackUnreads {
 			if err := ensureUnread(ictx.conn, iri); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 
-	return nil
+	return nil, nil
 }
 
 // commentCountDelta returns the change to apply to comment counts when indexing
@@ -523,3 +558,96 @@ var qCommentTSIDPriorVersions = dqb.Str(`
 	  AND extra_attrs->>'tsid' = ?1
 	  AND id != ?2;
 `)
+
+// resettleCommentsTargetingChange settles the comments pinned to a change that
+// arrived after them. They were indexed when the change was still unknown
+// (settleComment's second case) and have been sitting without a comment_live
+// row, so the document listed and counted none of them. Cost is bounded by the
+// comments that target this exact change and are still unsettled.
+func resettleCommentsTargetingChange(ictx *indexingCtx, changeID int64) error {
+	return resettleComments(ictx, qPendingCommentsTargetingChange(), changeID)
+}
+
+// resettleCommentsOnResource settles the comments on a path that had no document
+// generation when they were indexed (settleComment's third case).
+func resettleCommentsOnResource(ictx *indexingCtx, resourceID int64) error {
+	return resettleComments(ictx, qPendingCommentsOnResource(), resourceID)
+}
+
+func resettleComments(ictx *indexingCtx, query string, arg int64) (err error) {
+	type pendingComment struct {
+		id       int64
+		resource int64
+		c        cid.Cid
+		data     []byte
+	}
+
+	// Collected first: settling writes to tables this query reads.
+	var found []pendingComment
+	rows, discard, check := sqlitex.Query(ictx.conn, query, arg).All()
+	defer discard(&err)
+	for row := range rows {
+		inc := sqlite.NewIncrementor(0)
+		var (
+			id       = row.ColumnInt64(inc())
+			resource = row.ColumnInt64(inc())
+			codec    = row.ColumnInt64(inc())
+			hash     = row.ColumnBytes(inc())
+			rawData  = row.ColumnBytesUnsafe(inc())
+			size     = row.ColumnInt64(inc())
+		)
+
+		data, err := ictx.blockStore.decompress(rawData, int(size))
+		if err != nil {
+			return err
+		}
+
+		found = append(found, pendingComment{
+			id:       id,
+			resource: resource,
+			c:        cid.NewCidV1(uint64(codec), hash),
+			data:     data,
+		})
+	}
+	if err := check(); err != nil {
+		return err
+	}
+
+	for _, pc := range found {
+		eb, err := decodeComment(pc.c, pc.data)
+		if err != nil {
+			return fmt.Errorf("failed to decode pending comment %s: %w", pc.c, err)
+		}
+
+		// Still pending (another target change is missing, or still no generation):
+		// a later arrival will get it. Nothing to stash from here -- a stash error
+		// would roll back the blob that triggered this re-settlement.
+		if _, err := settleComment(ictx, pc.id, eb, pc.resource); err != nil {
+			return fmt.Errorf("failed to settle pending comment %s: %w", pc.c, err)
+		}
+	}
+
+	return nil
+}
+
+// Unsettled means no comment_live row for the TSID at all. Tombstones are left
+// out: a deleted comment with no live row is already counted correctly.
+const pendingCommentColumns = `
+	SELECT sb.id, sb.resource, b.codec, b.multihash, b.data, b.size
+	FROM structural_blobs sb
+	JOIN blobs b ON b.id = sb.id
+`
+
+const pendingCommentFilter = `
+	AND sb.type = 'Comment'
+	AND sb.extra_attrs->>'deleted' IS NULL
+	AND NOT EXISTS (SELECT 1 FROM comment_live l WHERE l.tsid = sb.extra_attrs->>'tsid')
+`
+
+var qPendingCommentsTargetingChange = dqb.Str(pendingCommentColumns + `
+	WHERE sb.id IN (SELECT bl.source FROM blob_links bl WHERE bl.target = ?1 AND bl.type = 'comment/target')
+` + pendingCommentFilter)
+
+var qPendingCommentsOnResource = dqb.Str(pendingCommentColumns + `
+	WHERE sb.resource = ?1
+` + pendingCommentFilter)

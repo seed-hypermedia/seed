@@ -52,6 +52,20 @@ func TestCommentStatsQueriesSeek(t *testing.T) {
 			"the space scope must seek the resources.iri index, not scan it\nplan:\n%s", got)
 	})
 
+	t.Run("pending comments by target change seek the backlinks index", func(t *testing.T) {
+		got := plan(t, qPendingCommentsTargetingChange(), 0)
+		require.Contains(t, got, "blob_backlinks",
+			"finding the comments pinned to a change must seek blob_links by target\nplan:\n%s", got)
+		require.NotContains(t, got, "SCAN structural_blobs",
+			"a structural_blobs scan on every indexed change puts the whole database on the write path\nplan:\n%s", got)
+	})
+
+	t.Run("pending comments by resource seek structural_blobs by resource", func(t *testing.T) {
+		got := plan(t, qPendingCommentsOnResource(), 0)
+		require.Contains(t, got, "structural_blobs_by_resource",
+			"finding a path's unsettled comments must seek by resource\nplan:\n%s", got)
+	})
+
 	t.Run("live comment lookup seeks by tsid", func(t *testing.T) {
 		got := plan(t, qInsertCommentLive(), "", "")
 		require.Contains(t, got, "structural_blobs_by_tsid",
