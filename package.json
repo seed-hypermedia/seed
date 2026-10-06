@@ -241,14 +241,13 @@
       "js-yaml@>=5.0.0 <=5.2.1": "5.2.2",
       "sharp": "0.35.4",
       "svgo@>=4.0.0 <4.1.0": "4.1.0",
-      "proxy-addr@2": ">=2.0.8",
-      "fast-uri@3": ">=3.1.7",
-      "brace-expansion@1": ">=1.1.20",
-      "brace-expansion@2": ">=2.1.6",
-      "source-map-js@1": ">=1.2.2",
-      "compression@1": ">=1.8.2",
-      "glob>brace-expansion": ">=5.0.11",
-      "minimatch>brace-expansion": ">=5.0.11"
+      "proxy-addr@2": "^2.0.8",
+      "fast-uri@3": "^3.1.7",
+      "brace-expansion@1": "^1.1.20",
+      "brace-expansion@2": "^2.1.6",
+      "source-map-js@1": "^1.2.2",
+      "compression@1": "^1.8.2",
+      "brace-expansion@5": "^5.0.11"
     },
     "patchedDependencies": {
       "electron-installer-redhat": "patches/electron-installer-redhat.patch",
