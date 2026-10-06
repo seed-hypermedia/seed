@@ -9,11 +9,21 @@ vi.mock('@shm/shared/models/interaction-summary', () => ({
   useInteractionSummaries: () => [{data: {citations: 2}}, {data: {citations: 8}}],
 }))
 
+const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@shm/shared/utils/navigation', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigate,
 }))
 
-import {QueryBlockContent} from '../query-block-content'
+import {QueryBlockContent as QueryBlockContentImpl, type QueryBlockContentProps} from '../query-block-content'
+import {TooltipProvider} from '../tooltip'
+
+function QueryBlockContent(props: QueryBlockContentProps) {
+  return (
+    <TooltipProvider>
+      <QueryBlockContentImpl {...props} />
+    </TooltipProvider>
+  )
+}
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -40,6 +50,7 @@ class MockIntersectionObserver {
 
 beforeEach(() => {
   observers = []
+  navigate.mockClear()
   ;(globalThis as typeof globalThis & {IntersectionObserver?: typeof IntersectionObserver}).IntersectionObserver =
     MockIntersectionObserver as unknown as typeof IntersectionObserver
   container = document.createElement('div')
@@ -63,6 +74,7 @@ function renderQueryBlock(style: 'Card' | 'List' | 'Table') {
 function makeItems(count: number) {
   return Array.from({length: count}, (_, index) => ({
     id: {id: `hm://doc-${index}`, uid: 'alice', path: ['docs', String(index)]},
+    path: ['docs', String(index)],
     metadata: {name: `Item ${index}`},
     authors: [],
   })) as any
@@ -92,17 +104,6 @@ describe('QueryBlockContent loading state', () => {
 })
 
 describe('QueryBlockContent table view', () => {
-  it('keeps the collection body white while the filters toolbar is gray', () => {
-    act(() => {
-      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
-    })
-
-    expect(container.firstElementChild?.className).toContain('bg-background')
-    expect(
-      container.querySelector('[aria-label="Search documents"]')?.parentElement?.parentElement?.className,
-    ).toContain('bg-muted/30')
-  })
-
   it('sorts authors alphabetically by their displayed names', () => {
     const items = makeItems(2)
     items[0].metadata.name = 'Zed document'
@@ -133,14 +134,14 @@ describe('QueryBlockContent table view', () => {
     expect(authorsHeading?.className).toContain('inset-0')
     act(() => authorsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
 
-    expect(Array.from(container.querySelectorAll('tbody tr td a.block')).map((link) => link.textContent)).toEqual([
+    expect(Array.from(container.querySelectorAll('tbody tr td a[title]')).map((link) => link.textContent)).toEqual([
       'Alpha document',
       'Zed document',
     ])
 
     act(() => authorsHeading?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
 
-    expect(Array.from(container.querySelectorAll('tbody tr td a.block')).map((link) => link.textContent)).toEqual([
+    expect(Array.from(container.querySelectorAll('tbody tr td a[title]')).map((link) => link.textContent)).toEqual([
       'Zed document',
       'Alpha document',
     ])
@@ -261,91 +262,90 @@ describe('QueryBlockContent table view', () => {
 })
 
 describe('QueryBlockContent toolbar', () => {
-  it('shows the attribute selector in every collection view', () => {
+  it('focuses expanded search and preserves its value and results after blur', () => {
+    act(() => root.render(<QueryBlockContent items={makeItems(2)} style="List" accountsMetadata={{}} />))
+    const searchButton = container.querySelector('button[aria-label="Search documents"]') as HTMLButtonElement
+    expect(searchButton).toBeTruthy()
+    act(() => searchButton.click())
+    const input = container.querySelector('input[aria-label="Search documents"]') as HTMLInputElement
+    expect(document.activeElement).toBe(input)
     act(() => {
-      root.render(<QueryBlockContent items={makeItems(1)} style="List" accountsMetadata={{}} />)
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, 'Item 1')
+      input.dispatchEvent(new Event('input', {bubbles: true}))
     })
-
-    expect(container.textContent).toContain('Attributes')
-
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(1)
+    act(() => input.blur())
+    expect(container.querySelector('input[aria-label="Search documents"]')).toBeNull()
+    expect(container.querySelector('button[aria-label="Search documents"]')?.textContent).toBe('Item 1')
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(1)
+    act(() => (container.querySelector('button[aria-label="Search documents"]') as HTMLButtonElement).click())
+    const reopened = container.querySelector('input[aria-label="Search documents"]') as HTMLInputElement
+    expect(reopened.value).toBe('Item 1')
+    expect(document.activeElement).toBe(reopened)
     act(() => {
-      root.render(<QueryBlockContent items={makeItems(1)} style="Card" accountsMetadata={{}} />)
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(reopened, '')
+      reopened.dispatchEvent(new Event('input', {bubbles: true}))
     })
-
-    expect(container.textContent).toContain('Attributes')
+    act(() => reopened.blur())
+    expect(container.querySelector('button[aria-label="Search documents"]')?.textContent).toBe('Search')
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(2)
   })
 
-  it('opens the shared filter trigger as a popover control', () => {
-    act(() => {
-      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
-    })
-
-    const filterButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent?.startsWith('Filter'),
-    )
-    act(() => filterButton?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
-
-    expect(document.body.textContent).toContain('Add filter')
-  })
-
-  it('uses the same trigger shape for filter and sort', () => {
-    act(() => {
-      root.render(<QueryBlockContent items={makeItems(1)} style="Table" accountsMetadata={{}} />)
-    })
-
-    const buttons = Array.from(container.querySelectorAll('button'))
-    const filter = buttons.find((button) => button.textContent?.startsWith('Filter'))
-    const sort = buttons.find((button) => button.textContent?.startsWith('Sort'))
-
-    expect(filter?.className).toContain('rounded-full')
-    expect(sort?.className).toContain('rounded-full')
-  })
-
-  it('shows controlled viewer filters as removable chips with an accurate result summary', () => {
-    const onViewerFiltersChange = vi.fn()
-    act(() => {
-      root.render(
+  it('counts only applied filters and clears them without clearing search', () => {
+    function Collection() {
+      const [filters, setFilters] = React.useState<NonNullable<QueryBlockContentProps['viewerFilters']>>([
+        {columnId: 'title', operator: 'contains', value: '0'},
+        {columnId: 'title', operator: 'contains', value: '   '},
+      ])
+      return (
         <QueryBlockContent
-          items={makeItems(1)}
-          style="Table"
+          items={makeItems(2)}
+          style="List"
           accountsMetadata={{}}
-          viewerFilters={[{columnId: 'metadata:status', operator: 'equals', value: 'Ready'}]}
-          onViewerFiltersChange={onViewerFiltersChange}
-          totalMatches={47}
-        />,
+          viewerSearch="Item"
+          viewerFilters={filters}
+          onViewerFiltersChange={setFilters}
+          viewerQueryApplied={false}
+        />
       )
-    })
-
-    expect(container.textContent).toContain('Status equals Ready')
-    expect(container.textContent).toContain('Showing 1 of 47 matches')
-
-    const remove = container.querySelector('button[aria-label="Remove filter: Status equals Ready"]')
-    act(() => remove?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
-    expect(onViewerFiltersChange).toHaveBeenCalledWith([])
+    }
+    act(() => root.render(<Collection />))
+    const filterButton = container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement
+    expect(filterButton).toBeTruthy()
+    act(() => filterButton.click())
+    const clear = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Clear filters',
+    )
+    expect(clear).toBeTruthy()
+    act(() => clear?.click())
+    expect(container.querySelector('button[aria-label="Filter"]')).toBeTruthy()
+    expect(container.querySelector('button[aria-label="Search documents"]')?.textContent).toBe('Item')
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(2)
   })
 
-  it('places active filter chips in the same toolbar row as Filter and Sort', () => {
-    act(() => {
-      root.render(
+  it('removes an applied filter from its summary inside the popover', () => {
+    function Collection() {
+      const [filters, setFilters] = React.useState<NonNullable<QueryBlockContentProps['viewerFilters']>>([
+        {columnId: 'title', operator: 'contains', value: '0'},
+      ])
+      return (
         <QueryBlockContent
-          items={makeItems(1)}
-          style="Table"
+          items={makeItems(2)}
+          style="List"
           accountsMetadata={{}}
-          viewerFilters={[{columnId: 'title', operator: 'contains', value: 'dream'}]}
-          onViewerFiltersChange={vi.fn()}
-        />,
+          viewerFilters={filters}
+          onViewerFiltersChange={setFilters}
+          viewerQueryApplied={false}
+        />
       )
-    })
-
-    const toolbar = container.querySelector('[data-query-block-toolbar]')
-    const filterButton = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent?.startsWith('Filter'),
-    )
-    const chip = container.querySelector('button[aria-label="Remove filter: Name contains dream"]')
-
-    expect(toolbar).toBeTruthy()
-    expect(toolbar?.contains(filterButton ?? null)).toBe(true)
-    expect(toolbar?.contains(chip)).toBe(true)
+    }
+    act(() => root.render(<Collection />))
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(1)
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+    const remove = document.querySelector('button[aria-label="Remove filter: Name contains 0"]') as HTMLButtonElement
+    expect(remove).toBeTruthy()
+    act(() => remove.click())
+    expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(2)
   })
 
   it('reports controlled viewer search changes without filtering the current result page locally', () => {
@@ -364,7 +364,8 @@ describe('QueryBlockContent toolbar', () => {
 
     expect(container.textContent).toContain('Item 0')
     expect(container.textContent).toContain('Item 1')
-    const input = container.querySelector('[aria-label="Search documents"]') as HTMLInputElement
+    act(() => (container.querySelector('button[aria-label="Search documents"]') as HTMLButtonElement).click())
+    const input = container.querySelector('input[aria-label="Search documents"]') as HTMLInputElement
     expect(input.value).toBe('outside current page')
     act(() => {
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
@@ -405,18 +406,20 @@ describe.each(['List', 'Card'] as const)('QueryBlockContent %s selected attribut
 
     act(() => {
       root.render(
-        <QueryBlockContent
-          items={items}
-          style={style}
-          accountsMetadata={{}}
-          tableConfig={{
-            columns: [
-              {id: 'title', visible: true},
-              {id: 'metadata:status', visible: true},
-              {id: 'metadata:priority', visible: false},
-            ],
-          }}
-        />,
+        <TooltipProvider>
+          <QueryBlockContent
+            items={items}
+            style={style}
+            accountsMetadata={{}}
+            tableConfig={{
+              columns: [
+                {id: 'title', visible: true},
+                {id: 'metadata:status', visible: true},
+                {id: 'metadata:priority', visible: false},
+              ],
+            }}
+          />
+        </TooltipProvider>,
       )
     })
 
@@ -433,18 +436,20 @@ describe('QueryBlockContent Card attribute layout', () => {
 
     act(() => {
       root.render(
-        <QueryBlockContent
-          items={items}
-          style="Card"
-          accountsMetadata={{}}
-          tableConfig={{
-            columns: [
-              {id: 'title', visible: true},
-              {id: 'metadata:status', visible: true},
-              {id: 'children', visible: true},
-            ],
-          }}
-        />,
+        <TooltipProvider>
+          <QueryBlockContent
+            items={items}
+            style="Card"
+            accountsMetadata={{}}
+            tableConfig={{
+              columns: [
+                {id: 'title', visible: true},
+                {id: 'metadata:status', visible: true},
+                {id: 'children', visible: true},
+              ],
+            }}
+          />
+        </TooltipProvider>,
       )
     })
 
@@ -470,6 +475,61 @@ describe('QueryBlockContent list view with prepended draft items', () => {
     expect(container.querySelector('[data-testid="draft-slot"]')).toBeTruthy()
     expect(container.textContent).not.toContain('No documents found.')
     expect(container.textContent).not.toContain('No documents match the current search and filters.')
+  })
+})
+
+describe('QueryBlockContent selected card comments', () => {
+  it.each([0, 7])('shows one selected comment count (%i) and suppresses card navigation', (comments) => {
+    const items = makeItems(1)
+    let parentClicks = 0
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <div onClick={() => parentClicks++}>
+            <QueryBlockContent
+              items={items}
+              style="Card"
+              accountsMetadata={{}}
+              interactionSummaries={{[items[0].id.id]: {comments, children: 0, authors: []}} as any}
+              tableConfig={{columns: [{id: 'comments', visible: true}]}}
+            />
+          </div>
+        </TooltipProvider>,
+      )
+    })
+
+    const counts = container.querySelectorAll('[title="Comments"]')
+    expect(counts).toHaveLength(1)
+    expect(counts[0]?.textContent).toBe(String(comments))
+    expect(
+      Array.from(container.querySelectorAll('button')).filter((button) => button.textContent === String(comments)),
+    ).toHaveLength(1)
+    const selectedCount = container.querySelector('[data-testid="selected-attribute-counts"] button')
+    expect(selectedCount).toBeTruthy()
+    const click = new MouseEvent('click', {bubbles: true, cancelable: true})
+    act(() => selectedCount!.dispatchEvent(click))
+    expect(click.defaultPrevented).toBe(true)
+    expect(parentClicks).toBe(0)
+    expect(navigate).toHaveBeenCalledExactlyOnceWith({key: 'comments', id: items[0].id})
+  })
+
+  it('hides comments when the selected attribute is disabled, even with existing comments', () => {
+    const items = makeItems(1)
+    act(() => {
+      root.render(
+        <TooltipProvider>
+          <QueryBlockContent
+            items={items}
+            style="Card"
+            accountsMetadata={{}}
+            interactionSummaries={{[items[0].id.id]: {comments: 7, children: 0, authors: []}} as any}
+            tableConfig={{columns: [{id: 'comments', visible: false}]}}
+          />
+        </TooltipProvider>,
+      )
+    })
+    expect(container.querySelector('[title="Comments"]')).toBeNull()
+    expect(container.textContent).not.toContain('7')
   })
 })
 
