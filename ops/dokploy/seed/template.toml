@@ -6,7 +6,7 @@ update_scope = "${hash:16}"
 [config]
 env = [
   "SEED_DOMAIN=${main_domain}",
-  "SEED_BASE_URL=http://${main_domain}",
+  "SEED_BASE_URL=https://${main_domain}",
   "SEED_LINK_SECRET=${link_secret}",
   "SEED_UPDATE_SCOPE=seed-${update_scope}",
   "SEED_P2P_PORT=56000",
@@ -20,9 +20,11 @@ mounts = []
 serviceName = "seed-web"
 port = 3000
 host = "${main_domain}"
+https = true
 
 [[config.domains]]
 serviceName = "seed-daemon"
 port = 56001
 host = "${main_domain}"
 path = "/ipfs"
+https = true

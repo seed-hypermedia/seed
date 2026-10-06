@@ -12,11 +12,12 @@ the daemon; no Caddy proxy is needed.
    ```sh
    python3 -c 'import base64,json,pathlib; p=pathlib.Path("ops/dokploy/seed"); print(base64.b64encode(json.dumps({"compose":(p/"docker-compose.yml").read_text(),"config":(p/"template.toml").read_text()},indent=2,ensure_ascii=False).encode()).decode())'
    ```
-2. Set the site domain in the template's domain field, then deploy. When enabling HTTPS, update `SEED_BASE_URL` in the
-   Compose service environment from `http://` to `https://` and redeploy.
+2. HTTPS (Let's Encrypt) is enabled by default. Before the first deploy, point an A/AAAA record for your own domain at
+   the Dokploy server. Replace the generated `*.traefik.me` domain with your domain everywhere it appears: both domain
+   entries, `SEED_DOMAIN`, and `SEED_BASE_URL`.
 3. Open `SEED_P2P_PORT` (default `56000`) on the host firewall for both TCP and UDP. Use a unique P2P port for every
    Seed site on the same server.
-4. Link the site from Seed desktop with `<base url>/hm/register?secret=<SEED_LINK_SECRET>`. `seed-init` writes the
+4. Link the site from Seed desktop with `https://<domain>/hm/register?secret=<SEED_LINK_SECRET>`. `seed-init` writes the
    generated secret to `config.json` only on the first start; preserve the web data volume after registration.
 
 ## Environment
@@ -24,7 +25,7 @@ the daemon; no Caddy proxy is needed.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SEED_DOMAIN` | Generated Dokploy domain | Public site hostname, also used in daemon announce addresses. |
-| `SEED_BASE_URL` | `http://${SEED_DOMAIN}` | Public web URL; change to `https://` when enabling TLS. |
+| `SEED_BASE_URL` | `https://${SEED_DOMAIN}` | Public web URL; HTTPS is enabled by default. |
 | `SEED_LINK_SECRET` | Generated 32-character secret | Registration secret written on first start. |
 | `SEED_UPDATE_SCOPE` | Generated `seed-<hash>` | Isolates this stack's Watchtower updates from other stacks. |
 | `SEED_P2P_PORT` | `56000` | Published libp2p TCP and QUIC/UDP host port. |
