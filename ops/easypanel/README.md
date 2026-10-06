@@ -21,9 +21,9 @@ default.
    and register from Seed with
    `https://<domain>/hm/register?secret=<SEED_LINK_SECRET>`.
 
-The template routes `/` to the web service and `/ipfs` to the daemon on the same
-domain. `SEED_ASSET_HOST` is set to the site's `https://<domain>` base URL, so
-browser-facing file and image URLs use the public site domain.
+The template routes `/` to the web service and `/ipfs/` to the daemon on the
+same domain. `SEED_ASSET_HOST` is set to the site's `https://<domain>` base URL,
+so browser-facing file and image URLs use the public site domain.
 
 ## Updates and backups
 

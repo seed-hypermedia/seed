@@ -7,11 +7,10 @@ export function generate(input: Input): Output {
   const daemonServiceName = input.daemonServiceName ?? "daemon";
   const webServiceName = input.webServiceName ?? "web";
   const updaterServiceName = input.updaterServiceName ?? "updater";
-  const p2pPort = input.p2pPort ?? "56000";
+  const p2pPort = input.p2pPort ?? 56000;
   const siteImage = input.siteImage ?? "seedhypermedia/site:latest";
   const webImage = input.webImage ?? "seedhypermedia/web:latest";
   const updateInterval = input.updateInterval ?? 600;
-  const publishedP2pPort = parseInt(p2pPort, 10);
   const daemonCommand = `seed-daemon -data-dir=/data -keystore-dir=/data/keys -lndhub.mainnet -p2p.port=56000 -http.port=56001 -grpc.port=56002 -p2p.no-relay=true -p2p.force-reachability-public=true -syncing.smart=true -syncing.no-sync-back=true -p2p.announce-addrs=/dns4/${input.domain}/tcp/${p2pPort},/dns4/${input.domain}/udp/${p2pPort}/quic-v1`;
   const webCommand = String.raw`sh -c 'if [ -z "$SEED_LINK_SECRET" ] || [ "$SEED_LINK_SECRET" = "REPLACE_WITH_SECRET" ]; then echo "SEED_LINK_SECRET must be set to a unique secret before starting Seed web." >&2; exit 1; fi; if [ ! -f /data/config.json ]; then printf "{\"availableRegistrationSecret\":\"%s\"}\n" "$SEED_LINK_SECRET" > /data/config.json; fi; exec npm run start:prod'`;
 
@@ -28,11 +27,11 @@ export function generate(input: Input): Output {
         ].join("\n"),
         deploy: { command: daemonCommand },
         ports: [
-          { published: publishedP2pPort, target: 56000, protocol: "tcp" },
-          { published: publishedP2pPort, target: 56000, protocol: "udp" },
+          { published: p2pPort, target: 56000, protocol: "tcp" },
+          { published: p2pPort, target: 56000, protocol: "udp" },
         ],
         mounts: [{ type: "volume", name: "data", mountPath: "/data" }],
-        domains: [{ host: input.domain, port: 56001, path: "/ipfs" }],
+        domains: [{ host: input.domain, port: 56001, path: "/ipfs/" }],
       },
     },
     {

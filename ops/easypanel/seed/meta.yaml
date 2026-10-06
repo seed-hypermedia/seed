@@ -43,15 +43,18 @@ schema:
       type: string
       title: Domain (DNS must already point to this server)
       description:
-        Use the hostname only; DNS must resolve to this Easypanel server before
-        deployment.
+        Use a lowercase hostname only, with no scheme, port, or path. DNS must
+        resolve to this Easypanel server before deployment.
+      pattern: "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"
     p2pPort:
-      type: string
+      type: integer
       title: Public P2P port (TCP and UDP)
       description:
         Open this host port for both TCP and UDP, and use a unique port for each
         Seed site.
-      default: "56000"
+      minimum: 1
+      maximum: 65535
+      default: 56000
     siteImage:
       type: string
       title: Seed daemon image
