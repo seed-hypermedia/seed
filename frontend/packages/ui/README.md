@@ -55,9 +55,36 @@ direnv exec . pnpm --filter @shm/ui publish:public
 
 The build compiles the actual shared component sources to native ESM and declarations, generates CSS for that surface,
 and creates a standalone manifest in `dist`. It rejects private workspace dependencies. `test:package` checks the packed
-artifact in an isolated consumer, including runtime rendering and TypeScript resolution. Bump this package's version
-before publishing a new release; npm versions cannot be overwritten.
+artifact in an isolated consumer, including runtime rendering and TypeScript resolution. The offline check reuses
+installed third-party dependencies; `test:package:install` instead performs a clean npm install of the tarball and its
+dependencies, and is the release check in CI. Bump this package's version before publishing a new release; npm versions
+cannot be overwritten.
 
 The source package remains private and keeps its existing workspace exports. Always publish the generated `dist`
 package, never the source manifest: it also contains Seed application-specific dependencies that are not part of the
 public contract.
+
+## GitHub release workflow
+
+[Publish UI package](../../../.github/workflows/publish-ui.yml) validates changes on pull requests and pushes to `main`.
+It checks formatting and types, runs the UI tests, builds the public package, and installs its tarball into a clean
+consumer before testing its exports, rendering, declarations and CSS. The resulting artifact contains the exact package
+that can be released. Merging runs validation; it does not publish to npm.
+
+Before the first release, an owner of the `@shm` npm scope must grant the publishing account permission to create
+`@shm/ui` and configure the Seed GitHub repository secret `UI_NPM_TOKEN`. Use a granular npm token with write access to
+the scope/package and permission to bypass 2FA for non-interactive publishing. Keep its permissions narrow and its
+expiry short. This workflow does not assume npm trusted-publisher configuration already exists. It uses the token for
+publication and GitHub's OIDC permission only for the provenance statement. See npm's
+[CI authentication](https://docs.npmjs.com/using-private-packages-in-a-ci-cd-workflow/) and
+[provenance](https://docs.npmjs.com/generating-provenance-statements/) documentation.
+
+After merging the release commit, run **Actions → Publish UI package → Run workflow** on `main`, set `publish` to
+`true`, and enter the exact checked-in `expected_version` (`0.1.0` for the first release). The workflow rejects a
+version mismatch or publication from another branch, and publishes the validated tarball with public access and
+provenance. It never increments versions automatically. A version already present on npm requires an explicit new
+version in the source manifest.
+
+Once `npm view @shm/ui@0.1.0 version` succeeds, update SeedHost's npm and Yarn lockfiles, verify a clean install and
+production build, and only then enable its Render deployment. A local tarball test does not establish that the npm
+package is available to Render.

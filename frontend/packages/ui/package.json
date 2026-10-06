@@ -39,7 +39,8 @@
     "build": "node scripts/build-public.mjs",
     "pack:public": "pnpm build && npm pack ./dist --pack-destination .",
     "publish:public": "pnpm build && npm publish ./dist --access public",
-    "test:package": "pnpm build && node scripts/test-package.mjs"
+    "test:package": "pnpm build && node scripts/test-package.mjs",
+    "test:package:install": "pnpm build && node scripts/test-package.mjs --install"
   },
   "dependencies": {
     "@ariakit/react": "0.3.5",
