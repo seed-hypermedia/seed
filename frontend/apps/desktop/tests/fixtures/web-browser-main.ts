@@ -10,7 +10,8 @@ void app.whenReady().then(async () => {
     width: 1000,
     height: 700,
     show: !hidden,
-    webPreferences: {preload: process.argv[4], contextIsolation: true, sandbox: true, paintWhenInitiallyHidden: true},
+    paintWhenInitiallyHidden: true,
+    webPreferences: {preload: process.argv[4], contextIsolation: true, sandbox: true},
   })
   setupWebBrowser(
     window,
