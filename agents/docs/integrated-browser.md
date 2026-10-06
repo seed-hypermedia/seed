@@ -65,6 +65,34 @@ Browser results stay with the owner:
 - Favicons and archived images are read with a size cap and must be images.
 - Settings has **Clear browsing data** for the browser's own session.
 
+## Known-bad websites (Phase 2.1)
+
+The browser partition blocks main-frame navigation to listed hosts and their subdomains. Typed addresses, restored
+history, page links and redirects are checked; agent navigation to listed hosts is refused before loading the page. The
+Seed warning names the host and the list that flagged it. It offers **Go back** and **Open in default browser**, with no
+option to continue inside the pane. This policy does not install request handlers on the app's own session.
+
+A small bundled **Seed test sites** list includes `malware.testing.google.test`, `phishing.testing.google.test` and
+`phishing.seed.test`. These are test entries, not a complete offline threat database. The live source is the
+[OpenPhish community URL feed](https://openphish.com/feed.txt); URLhaus and Phishing.Database are not enabled.
+
+The browser loads its last valid cache from `browser/blocklist.json` under Electron's `userData` before creating a
+guest. It attempts a background refresh at startup and on a daily timer, with at least 24 hours between attempts,
+including failed attempts and restarts. Requests send `If-None-Match` when an ETag is available, time out after 30
+seconds, and reject feeds larger than 1 MiB of decoded response bytes. A `304` keeps the existing rules. Failed,
+oversized or empty updates preserve the last valid list and the bundled test entries.
+
+## Tracker and content blocking (Phase 2.2, pending)
+
+Phase 2.2 is not implemented yet. Its intended sources are **EasyList** and **EasyPrivacy**, evaluated with Ghostery's
+blocking engine. It requires a bundled engine or bundled list snapshot so the first page is protected without a network
+fetch, followed by size-capped background refreshes at most once per day and a cache in `userData`.
+
+The planned shield control shows the number of requests blocked on the current page and a persisted, per-origin **Allow
+trackers on <host>** switch. Blocking must apply only to the browser partition, with the app session and configured
+daemon and agent-server origins excluded. Main-process `browser-blocked-count` events will report each guest's count and
+setting. The dependency and offline snapshot must be available before this feature can be enabled.
+
 ## Transport and verification
 
 Desktop long-polls the existing signed Agents API, so local and remote agent servers use the same path. Connections are
