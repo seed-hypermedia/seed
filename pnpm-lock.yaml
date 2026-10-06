@@ -15,7 +15,7 @@ overrides:
   prosemirror-model: 1.25.4
   prosemirror-state: 1.4.4
   prosemirror-transform: 1.10.4
-  prosemirror-view: 1.41.3
+  prosemirror-view: 1.42.3
   backslash: <=0.2.0
   chalk: 4.1.2
   chalk-template: <=1.1.0
@@ -69,10 +69,10 @@ overrides:
   '@remix-run/router': 1.23.3
   '@trpc/server': 10.45.4
   rfc6902: 5.2.0
-  nodemailer: 9.1.0
+  nodemailer: 10.0.10
   happy-dom: 20.8.9
   flatted: 3.4.2
-  undici: 6.28.0
+  undici: 6.28.1
   handlebars: 4.7.9
   node-forge: 1.4.0
   path-to-regexp@<0.1.13: 0.1.13
@@ -97,15 +97,10 @@ overrides:
   ajv@<6.14.0: 6.14.0
   ajv@>=7.0.0-alpha.0 <8.18.0: 8.18.0
   file-type@>=13.0.0 <21.3.1: 21.3.2
-  nodemailer@<8.0.4: 8.0.4
-  brace-expansion@<1.1.13: 1.1.18
-  brace-expansion@>=2.0.0 <2.0.3: 2.1.4
-  brace-expansion@>=4.0.0 <5.0.5: 5.0.9
   yaml@>=1.0.0 <1.10.3: 1.10.3
   yaml@>=2.0.0 <2.8.3: 2.8.3
   vite@<=6.4.1: 6.4.2
   hono@<4.12.12: 4.12.34
-  nodemailer@<=8.0.4: 8.0.5
   hono@>=4.0.0 <=4.12.11: 4.12.34
   '@hono/node-server@<1.19.13': 2.0.10
   fast-xml-parser@>=5.0.0 <5.5.7: 5.5.7
@@ -125,7 +120,6 @@ overrides:
   qs@>=6.11.1 <=6.15.1: 6.15.2
   hono@<4.12.21: 4.12.34
   mermaid@>=11.0.0-alpha.1 <11.16.1: 11.16.1
-  brace-expansion@>=5.0.0 <5.0.6: 5.0.9
   joi@<17.13.4: 17.13.4
   ws@>=8.0.0 <8.21.0: 8.21.0
   ws@>=7.0.0 <7.5.11: 7.5.11
@@ -134,8 +128,6 @@ overrides:
   tar@<=7.5.20: 7.5.21
   vite@<=6.4.2: 6.4.3
   '@babel/core@<=7.29.0': 7.29.6
-  nodemailer@<=8.0.8: 8.0.9
-  nodemailer@<=8.0.7: 8.0.8
   dompurify@<3.4.7: 3.4.13
   dompurify@<=3.4.5: 3.4.13
   dompurify@<3.4.9: 3.4.13
@@ -145,9 +137,7 @@ overrides:
   '@opentelemetry/core@<2.8.0': 2.8.0
   '@opentelemetry/sdk-trace-base@<2.7.0': 2.7.0
   hono@<4.12.34: 4.12.34
-  nodemailer@<=9.0.0: 9.1.0
   dompurify@<=3.4.10: 3.4.13
-  undici@<6.28.0: 6.28.0
   nanoid@<3.3.18: 3.3.18
   nanoid@>=4.0.0 <5.1.16: 5.1.16
   hono@<4.12.14: 4.12.34
@@ -160,26 +150,23 @@ overrides:
   esbuild: 0.27.2
   fast-xml-parser: 5.7.2
   file-type@>=20.0.0 <=21.3.1: 21.3.2
-  brace-expansion@<1.1.16: 1.1.18
-  brace-expansion@>=2.0.0 <2.1.2: 2.1.4
-  brace-expansion@>=5.0.0 <5.0.7: 5.0.9
   morgan: 1.11.0
   body-parser@<1.20.6: 1.20.6
   body-parser@>=2.0.0 <2.3.0: 2.3.0
   ip-address@<=10.3.0: 10.3.1
   postcss@<=8.5.17: 8.5.23
-  brace-expansion@<1.1.17: 1.1.18
-  brace-expansion@<1.1.18: 1.1.18
-  brace-expansion@>=2.0.0 <2.1.3: 2.1.4
-  brace-expansion@>=2.0.0 <2.1.4: 2.1.4
-  brace-expansion@>=4.0.0 <5.0.8: 5.0.9
-  brace-expansion@>=4.0.0 <5.0.9: 5.0.9
-  brace-expansion@>=5.0.0 <5.0.8: 5.0.9
-  brace-expansion@>=5.0.0 <5.0.9: 5.0.9
   js-yaml@<3.15.1: 3.15.2
   js-yaml@>=5.0.0 <=5.2.1: 5.2.2
   sharp: 0.35.4
   svgo@>=4.0.0 <4.1.0: 4.1.0
+  proxy-addr@2: '>=2.0.8'
+  fast-uri@3: '>=3.1.7'
+  brace-expansion@1: '>=1.1.20'
+  brace-expansion@2: '>=2.1.6'
+  source-map-js@1: '>=1.2.2'
+  compression@1: '>=1.8.2'
+  glob>brace-expansion: '>=5.0.11'
+  minimatch>brace-expansion: '>=5.0.11'
 
 patchedDependencies:
   electron-installer-redhat:
@@ -250,7 +237,7 @@ importers:
         version: 10.9.1(@types/node@22.19.7)(typescript@5.8.3)
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
 
   agents/protocol: {}
 
@@ -409,10 +396,10 @@ importers:
         version: 2.0.3(@tiptap/core@2.0.3)
       '@tiptap/extension-collaboration':
         specifier: 2.0.3
-        version: 2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4))
+        version: 2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4))
       '@tiptap/extension-collaboration-cursor':
         specifier: 2.0.3
-        version: 2.0.3(@tiptap/core@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4))
+        version: 2.0.3(@tiptap/core@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4))
       '@tiptap/extension-dropcursor':
         specifier: 2.0.3
         version: 2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)
@@ -619,7 +606,7 @@ importers:
         version: 5.19.2
       y-prosemirror:
         specifier: 1.2.1
-        version: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4)
+        version: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4)
       y-protocols:
         specifier: 1.0.5
         version: 1.0.5
@@ -719,7 +706,7 @@ importers:
         version: 5.1.4(typescript@5.8.3)(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@22.1.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@22.1.0)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
       xvfb-maybe:
         specifier: 0.2.1
         version: 0.2.1
@@ -967,8 +954,8 @@ importers:
         specifier: ^13.3.2
         version: 13.4.2
       nodemailer:
-        specifier: 9.1.0
-        version: 9.1.0
+        specifier: 10.0.10
+        version: 10.0.10
       react:
         specifier: 18.2.0
         version: 18.2.0
@@ -1038,7 +1025,7 @@ importers:
         version: 5.1.4(typescript@5.8.3)(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
 
   frontend/apps/perf-web:
     dependencies:
@@ -1277,10 +1264,10 @@ importers:
         version: 2.0.3(@tiptap/core@2.0.3)
       '@tiptap/extension-collaboration':
         specifier: 2.0.3
-        version: 2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4))
+        version: 2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4))
       '@tiptap/extension-collaboration-cursor':
         specifier: 2.0.3
-        version: 2.0.3(@tiptap/core@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4))
+        version: 2.0.3(@tiptap/core@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4))
       '@tiptap/extension-dropcursor':
         specifier: 2.0.3
         version: 2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)
@@ -1342,8 +1329,8 @@ importers:
         specifier: ^13.3.2
         version: 13.4.2
       nodemailer:
-        specifier: 9.1.0
-        version: 9.1.0
+        specifier: 10.0.10
+        version: 10.0.10
       prosemirror-state:
         specifier: 1.4.4
         version: 1.4.4
@@ -1385,7 +1372,7 @@ importers:
         version: 1.1.3(react@18.2.0)
       y-prosemirror:
         specifier: 1.2.1
-        version: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4)
+        version: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4)
       y-protocols:
         specifier: 1.0.5
         version: 1.0.5
@@ -1449,7 +1436,7 @@ importers:
         version: 5.1.4(typescript@5.8.3)(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
 
   frontend/packages/client:
     dependencies:
@@ -1501,7 +1488,7 @@ importers:
         version: 5.8.3
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
       zod:
         specifier: 3.25.76
         version: 3.25.76
@@ -1552,10 +1539,10 @@ importers:
         version: 2.0.3(@tiptap/core@2.0.3)
       '@tiptap/extension-collaboration':
         specifier: 2.0.3
-        version: 2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4))
+        version: 2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4))
       '@tiptap/extension-collaboration-cursor':
         specifier: 2.0.3
-        version: 2.0.3(@tiptap/core@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4))
+        version: 2.0.3(@tiptap/core@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4))
       '@tiptap/extension-dropcursor':
         specifier: 2.0.3
         version: 2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)
@@ -1681,7 +1668,7 @@ importers:
         version: 5.19.2
       y-prosemirror:
         specifier: 1.2.1
-        version: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4)
+        version: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4)
       y-protocols:
         specifier: 1.0.5
         version: 1.0.5
@@ -1736,7 +1723,7 @@ importers:
         version: 4.3.2(typescript@5.8.3)(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
 
   frontend/packages/shared:
     dependencies:
@@ -1800,7 +1787,7 @@ importers:
         version: 5.8.3
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
 
   frontend/packages/ui:
     dependencies:
@@ -1963,7 +1950,7 @@ importers:
         version: 6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
 
   frontend/scripts:
     devDependencies:
@@ -2006,7 +1993,7 @@ importers:
         version: 1.57.0
       vitest:
         specifier: 4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
 
 packages:
 
@@ -7292,9 +7279,6 @@ packages:
   bail@2.0.2:
     resolution: {integrity: sha512-0xO6mYd7JB2YesxDKplafRpsiOzPt9V02ddPCLbY1xYGPOX24NTyN50qnUxgCPcSoYMhKpAuBTjQoRZCAkUDRw==}
 
-  balanced-match@1.0.2:
-    resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
-
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
@@ -7387,14 +7371,8 @@ packages:
   bplist-creator@0.0.8:
     resolution: {integrity: sha512-Za9JKzD6fjLC16oX2wsXfc+qBEhJBJB1YPInoAQpMLhDuj5aVOv1baGeIQSq1Fr3OCqzvsoQcSBSwGId/Ja2PA==}
 
-  brace-expansion@1.1.18:
-    resolution: {integrity: sha512-Edep/X9fGqVNmzKBVsDYIOtD+z1tuezV70LBjdCst9Tqu76lsnvRiZ6oTic1n+/BIwX6QDGAO94PN4N2SADvtw==}
-
-  brace-expansion@2.1.4:
-    resolution: {integrity: sha512-hGfVzPxthbf3+2yjg/RBs60cB0FhqBS/zvdV/4wn4/BmN0bNMMHPc4V/BbFieqf1TKAGGAHnY4eSjajCl0f2Xg==}
-
-  brace-expansion@5.0.9:
-    resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
+  brace-expansion@5.0.12:
+    resolution: {integrity: sha512-YovQ3rzhaLMIrDjNDMkNS01tea93qhEhG5xy8f6+R0l+dw3Ki+5sCoIoI942iuLZTHWogWktgwVDhU09iNEimQ==}
     engines: {node: 20 || >=22}
 
   braces@3.0.3:
@@ -7767,12 +7745,9 @@ packages:
     resolution: {integrity: sha512-AF3r7P5dWxL8MxyITRMlORQNaOA2IkAFaTr4k7BUumjPtRpGDTZpl0Pb1XCO6JeDCBdp126Cgs9sMxqSjgYyRg==}
     engines: {node: '>= 0.6'}
 
-  compression@1.8.1:
-    resolution: {integrity: sha512-9mAqGPHLakhCLeNyxPkK4xVo746zQ/czLH1Ky+vkitMnWfWZps8r0qXuwhwizagCRttsL4lfG4pIOvaWLpAP0w==}
+  compression@1.8.2:
+    resolution: {integrity: sha512-o8vI5RE5A6EVVOd9o41jKp41aJom+QTEO/Bx8MYNjexMo/Bv2WOjUfZr+aL0WnYSgymUy6zeguqLTsIhV0gMvQ==}
     engines: {node: '>= 0.8.0'}
-
-  concat-map@0.0.1:
-    resolution: {integrity: sha512-/Srv4dswyQNBfohGpz9o6Yb3Gz3SrUDqBH5rTuhGR7ahtlbYKnVxw2bCFMRljaA7EXHaXZ8wsHdodFvbkhKmqg==}
 
   concat-stream@1.6.2:
     resolution: {integrity: sha512-27HBghJxjiZtIk3Ycvn/4kbJk/1uZuJFfuPEns6LaEvpvG1f0hTea8lilrouyo9mVc2GWdcEZ8OLoGmSADlrCw==}
@@ -8869,8 +8844,8 @@ packages:
   fast-levenshtein@2.0.6:
     resolution: {integrity: sha512-DCXu6Ifhqcks7TZKY3Hxp3y6qphY5SJZmrWMDrKcERSOXWQdMhU9Ig/PYrzyw/ul9jOIyh0N4M0tbC5hodg8dw==}
 
-  fast-uri@3.1.6:
-    resolution: {integrity: sha512-7Ical1vFEMr0onbVzEDIreM22I4khW+fzyQPwvAFWBp1iwdshSZRsL4jjRvPG9JP1uiqMHRto+YU6R2/CzDz5Q==}
+  fast-uri@4.2.1:
+    resolution: {integrity: sha512-TmHQgewjHtMq1E5QKA0tOE0yeYGQs25KZC/ziJpubRtWI15W92e6vPFydWOeZBVROSHBYw/QhD9d5OefdD6LDg==}
 
   fast-xml-builder@1.1.7:
     resolution: {integrity: sha512-Yh7/7rQuMXICNr0oMYDR2yHP6oUvmQsTToFeOWj/kIDhAwQ+c4Ol/lbcwOmEM5OHYQmh6S6EQSQ1sljCKP36bQ==}
@@ -9484,6 +9459,9 @@ packages:
 
   http-cache-semantics@4.2.0:
     resolution: {integrity: sha512-dTxcvPXqPvXBQpq5dUr6mEMJX4oIEFv6bwom3FDwKRDsuIjjJGANqhBuoAn9c1RQJIdAKav33ED65E2ys+87QQ==}
+
+  http-cache-semantics@4.3.0:
+    resolution: {integrity: sha512-M5t5LlJpS1UHMjvwRQVdFHvPISGeLAxNcrWuJkeGh0KxsqCHZ1O3NXZU/8x7cD0BDcGW8kapxMKTvwlqrNkHkA==}
 
   http-errors@2.0.1:
     resolution: {integrity: sha512-4FbRdAX+bSdmo4AUFuS0WNiPz8NgFt+r8ThgNWmlrjQjt1Q7ZR9+zTlce2859x4KSXrwIsaeTqDoKQmtP8pLmQ==}
@@ -11358,9 +11336,9 @@ packages:
     resolution: {integrity: sha512-YHs7BmmcsdAI5Ozuf8JZo6PT0mv2GIWC9vMfvUC3dp65M8hn7Ux8CPL+2oBI7juNuj9d0ndhTcznq2ODBps9cQ==}
     engines: {node: '>=18'}
 
-  nodemailer@9.1.0:
-    resolution: {integrity: sha512-xj1Ri5Sau3qpPffHJwi2bY0oWVVWYq62Ph17l+2v1xXpxjqTls3YPc3L8dub9mcJpxj+1ucNnuYVqLlgh4pmDA==}
-    engines: {node: '>=6.0.0'}
+  nodemailer@10.0.10:
+    resolution: {integrity: sha512-He9XskOFms62SyAKkLu8CcGcYHAo+BSHSsORI8s4PJH8qZgZY4L4lDfvyN0twvmbpyG+eGrxpyBlskj9d9rJ8A==}
+    engines: {node: '>=20.0.0'}
 
   nopt@6.0.0:
     resolution: {integrity: sha512-ZwLpbTgdhuZUnZzjd7nb1ZV+4DoiC6/sfiVKok72ym/4Tlf+DFdlHYmT2JPmcNNWV6Pi3SDf1kT+A4r9RTuT9g==}
@@ -12319,13 +12297,13 @@ packages:
     peerDependencies:
       prosemirror-model: 1.25.4
       prosemirror-state: 1.4.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
 
   prosemirror-transform@1.10.4:
     resolution: {integrity: sha512-pwDy22nAnGqNR1feOQKHxoFkkUtepoFAd3r2hbEDsnf4wp57kKA36hXsB3njA9FtONBEwSDnDeCiJe+ItD+ykw==}
 
-  prosemirror-view@1.41.3:
-    resolution: {integrity: sha512-SqMiYMUQNNBP9kfPhLO8WXEk/fon47vc52FQsUiJzTBuyjKgEcoAwMyF04eQ4WZ2ArMn7+ReypYL60aKngbACQ==}
+  prosemirror-view@1.42.3:
+    resolution: {integrity: sha512-oTN7EtH+CpwxU9NrwEYWd0UZ4JUx7l048l5A2Xppm4p/60isZYLnth9QVQmC3VRIvdrIWCxwZSd+Uz791G31/w==}
 
   proto-list@1.2.4:
     resolution: {integrity: sha512-vtK/94akxsTMhe0/cbfpR+syPuszcuwhqVjJq26CuNDgFGj682oRBXOP5MJpv2r7JtE8MsiepGIqvvOTBwn2vA==}
@@ -12333,8 +12311,8 @@ packages:
   protons-runtime@5.6.0:
     resolution: {integrity: sha512-/Kde+sB9DsMFrddJT/UZWe6XqvL7SL5dbag/DBCElFKhkwDj7XKt53S+mzLyaDP5OqS0wXjV5SA572uWDaT0Hg==}
 
-  proxy-addr@2.0.7:
-    resolution: {integrity: sha512-llQsMLSUDUPT44jdrU/O37qlnifitDP+ZwrmmZcoSKyLKvtZxpyV0n2/bD/N4tBAAZ/gJEdZU7KMraoK1+XYAg==}
+  proxy-addr@2.0.8:
+    resolution: {integrity: sha512-5nnx0yGyVUcY6t9RnWcARWtwT9F1D8O9rt08htPvnd49W1IgZtmLkhu9WfMzQj1cFxjHIO6connUNVW5k7AVyQ==}
     engines: {node: '>= 0.10'}
 
   proxy-from-env@1.1.0:
@@ -13056,8 +13034,8 @@ packages:
     resolution: {integrity: sha512-Fgl0YPZ902wEsAyiQ+idGd1A7rSFx/ayC1CQVMw5P+EQx2V0SgpGtf6OKFhVjPflPUl9YMmEOnmfjCdMUsygww==}
     engines: {node: '>= 10'}
 
-  socks@2.8.9:
-    resolution: {integrity: sha512-LJhUYUvItdQ0LkJTmPeaEObWXAqFyfmP85x0tch/ez9cahmhlBBLbIqDFnvBnUJGagb0JbIQrkBs1wJ+yRYpEw==}
+  socks@2.8.10:
+    resolution: {integrity: sha512-e0VyvkVTwVYViNovRkZ9aodhxVlyoMn7eJhVUPxZ+eK9P/7CBkxvvsBOHqFPEH416726W8tLXXXjKwqgTErrCQ==}
     engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
 
   sonner@2.0.7:
@@ -13074,8 +13052,8 @@ packages:
     resolution: {integrity: sha512-vzn8aSqKgytVik0iwdBEi+zevbTYZogewTUM6dtpmGwEcdzbub/TX4bCzRhebDCRC3QzXgJsLRKB2V/Oof7HXg==}
     engines: {node: '>=0.10.0'}
 
-  source-map-js@1.2.1:
-    resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
+  source-map-js@1.2.2:
+    resolution: {integrity: sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw==}
     engines: {node: '>=0.10.0'}
 
   source-map-support@0.5.13:
@@ -13806,8 +13784,8 @@ packages:
   undici-types@6.21.0:
     resolution: {integrity: sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==}
 
-  undici@6.28.0:
-    resolution: {integrity: sha512-LIY910g9TI13YS95lrMFrs8Rm/u/irgHeTWoKCoteeJ04CUJ92eEfj0rVn+7VKMPBpUPiUoBKfhNyLI23EE/KA==}
+  undici@6.28.1:
+    resolution: {integrity: sha512-zWpdTVD54H48CIybL0rWQ3ukpb9d23wM7eH5RtfdmeP70cWHNjtfo7P4vZX+5CoDcO53J4Pu5uXp7lNfjc6DRA==}
     engines: {node: '>=18.17'}
 
   unicode-emoji-modifier-base@1.0.0:
@@ -14158,6 +14136,7 @@ packages:
       '@vitest/ui': 4.1.8
       happy-dom: 20.8.9
       jsdom: '*'
+      vite: 6.4.3
     peerDependenciesMeta:
       '@edge-runtime/vm':
         optional: true
@@ -14407,7 +14386,7 @@ packages:
     peerDependencies:
       prosemirror-model: 1.25.4
       prosemirror-state: 1.4.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
       y-protocols: ^1.0.1
       yjs: ^13.5.38
 
@@ -15553,7 +15532,7 @@ snapshots:
     dependencies:
       '@bufbuild/protobuf': 1.10.0
       '@connectrpc/connect': 1.4.0(@bufbuild/protobuf@1.10.0)
-      undici: 6.28.0
+      undici: 6.28.1
 
   '@connectrpc/connect-web@1.4.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.4.0(@bufbuild/protobuf@1.10.0))':
     dependencies:
@@ -17091,7 +17070,7 @@ snapshots:
       prosemirror-schema-list: 1.5.1
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.10.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
       rfc6902: 5.2.0
 
   '@mdx-js/mdx@2.3.0':
@@ -18979,7 +18958,7 @@ snapshots:
       cookie-signature: 1.2.2
       source-map-support: 0.5.21
       stream-slice: 0.1.2
-      undici: 6.28.0
+      undici: 6.28.1
     optionalDependencies:
       typescript: 5.8.3
 
@@ -19002,7 +18981,7 @@ snapshots:
       '@remix-run/express': 2.17.5(express@4.22.1)(typescript@5.8.3)
       '@remix-run/node': 2.17.5(typescript@5.8.3)
       chokidar: 3.6.0
-      compression: 1.8.1
+      compression: 1.8.2
       express: 4.22.1
       get-port: 5.1.1
       morgan: 1.11.0
@@ -19972,7 +19951,7 @@ snapshots:
       jiti: 2.6.1
       lightningcss: 1.30.2
       magic-string: 0.30.21
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
       tailwindcss: 4.1.18
 
   '@tailwindcss/oxide-android-arm64@4.1.18':
@@ -20093,16 +20072,16 @@ snapshots:
     dependencies:
       '@tiptap/core': 2.0.3(@tiptap/pm@2.0.3)
 
-  '@tiptap/extension-collaboration-cursor@2.0.3(@tiptap/core@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4))':
+  '@tiptap/extension-collaboration-cursor@2.0.3(@tiptap/core@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4))':
     dependencies:
       '@tiptap/core': 2.0.3(@tiptap/pm@2.0.3)
-      y-prosemirror: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4)
+      y-prosemirror: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4)
 
-  '@tiptap/extension-collaboration@2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4))':
+  '@tiptap/extension-collaboration@2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)(y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4))':
     dependencies:
       '@tiptap/core': 2.0.3(@tiptap/pm@2.0.3)
       '@tiptap/pm': 2.0.3(@tiptap/core@2.0.3)
-      y-prosemirror: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4)
+      y-prosemirror: 1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4)
 
   '@tiptap/extension-dropcursor@2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)':
     dependencies:
@@ -20180,9 +20159,9 @@ snapshots:
       prosemirror-schema-list: 1.5.1
       prosemirror-state: 1.4.4
       prosemirror-tables: 1.8.5
-      prosemirror-trailing-node: 2.0.9(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)
+      prosemirror-trailing-node: 2.0.9(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)
       prosemirror-transform: 1.10.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
 
   '@tiptap/react@2.0.3(@tiptap/core@2.0.3)(@tiptap/pm@2.0.3)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)':
     dependencies:
@@ -20594,7 +20573,7 @@ snapshots:
 
   '@types/prosemirror-dev-tools@3.0.3':
     dependencies:
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
 
   '@types/prosemirror-model@1.17.0':
     dependencies:
@@ -21300,7 +21279,7 @@ snapshots:
   ajv@8.18.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.6
+      fast-uri: 4.2.1
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -21498,8 +21477,6 @@ snapshots:
 
   bail@2.0.2: {}
 
-  balanced-match@1.0.2: {}
-
   balanced-match@4.0.4: {}
 
   barcode-detector@3.0.8:
@@ -21622,16 +21599,7 @@ snapshots:
       stream-buffers: 2.2.0
     optional: true
 
-  brace-expansion@1.1.18:
-    dependencies:
-      balanced-match: 1.0.2
-      concat-map: 0.0.1
-
-  brace-expansion@2.1.4:
-    dependencies:
-      balanced-match: 1.0.2
-
-  brace-expansion@5.0.9:
+  brace-expansion@5.0.12:
     dependencies:
       balanced-match: 4.0.4
 
@@ -21832,7 +21800,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 6.28.0
+      undici: 6.28.1
       whatwg-mimetype: 4.0.0
 
   cheerio@1.2.0:
@@ -21846,7 +21814,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 6.28.0
+      undici: 6.28.1
       whatwg-mimetype: 4.0.0
 
   chokidar@3.6.0:
@@ -22033,19 +22001,18 @@ snapshots:
     dependencies:
       mime-db: 1.54.0
 
-  compression@1.8.1:
+  compression@1.8.2:
     dependencies:
       bytes: 3.1.2
       compressible: 2.0.18
       debug: 4.4.1
+      destroy: 1.2.0
       negotiator: 0.6.4
       on-headers: 1.1.0
       safe-buffer: 5.2.1
       vary: 1.1.2
     transitivePeerDependencies:
       - supports-color
-
-  concat-map@0.0.1: {}
 
   concat-stream@1.6.2:
     dependencies:
@@ -22256,12 +22223,12 @@ snapshots:
   css-tree@2.2.1:
     dependencies:
       mdn-data: 2.0.28
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   css-tree@3.2.1:
     dependencies:
       mdn-data: 2.27.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   css-what@6.2.2: {}
 
@@ -23304,7 +23271,7 @@ snapshots:
       on-finished: 2.4.1
       parseurl: 1.3.3
       path-to-regexp: 0.1.13
-      proxy-addr: 2.0.7
+      proxy-addr: 2.0.8
       qs: 6.15.2
       range-parser: 1.2.1
       safe-buffer: 5.2.1
@@ -23339,7 +23306,7 @@ snapshots:
       on-finished: 2.4.1
       once: 1.4.0
       parseurl: 1.3.3
-      proxy-addr: 2.0.7
+      proxy-addr: 2.0.8
       qs: 6.15.2
       range-parser: 1.2.1
       router: 2.2.0
@@ -23400,7 +23367,7 @@ snapshots:
 
   fast-levenshtein@2.0.6: {}
 
-  fast-uri@3.1.6: {}
+  fast-uri@4.2.1: {}
 
   fast-xml-builder@1.1.7:
     dependencies:
@@ -24201,6 +24168,8 @@ snapshots:
       entities: 4.5.0
 
   http-cache-semantics@4.2.0: {}
+
+  http-cache-semantics@4.3.0: {}
 
   http-errors@2.0.1:
     dependencies:
@@ -25498,7 +25467,7 @@ snapshots:
     dependencies:
       agentkeepalive: 4.6.0
       cacache: 16.1.3
-      http-cache-semantics: 4.2.0
+      http-cache-semantics: 4.3.0
       http-proxy-agent: 5.0.0
       https-proxy-agent: 5.0.1
       is-lambda: 1.0.1
@@ -26430,27 +26399,27 @@ snapshots:
 
   minimatch@10.2.4:
     dependencies:
-      brace-expansion: 5.0.9
+      brace-expansion: 5.0.12
 
   minimatch@3.1.4:
     dependencies:
-      brace-expansion: 1.1.18
+      brace-expansion: 5.0.12
 
   minimatch@5.1.8:
     dependencies:
-      brace-expansion: 2.1.4
+      brace-expansion: 5.0.12
 
   minimatch@7.4.8:
     dependencies:
-      brace-expansion: 2.1.4
+      brace-expansion: 5.0.12
 
   minimatch@8.0.7:
     dependencies:
-      brace-expansion: 2.1.4
+      brace-expansion: 5.0.12
 
   minimatch@9.0.7:
     dependencies:
-      brace-expansion: 5.0.9
+      brace-expansion: 5.0.12
 
   minimist@1.2.8: {}
 
@@ -27109,7 +27078,7 @@ snapshots:
 
   node-releases@2.0.54: {}
 
-  nodemailer@9.1.0: {}
+  nodemailer@10.0.10: {}
 
   nopt@6.0.0:
     dependencies:
@@ -27811,7 +27780,7 @@ snapshots:
     dependencies:
       nanoid: 3.3.18
       picocolors: 1.1.1
-      source-map-js: 1.2.1
+      source-map-js: 1.2.2
 
   postgres-array@2.0.0: {}
 
@@ -27960,7 +27929,7 @@ snapshots:
     dependencies:
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.10.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
 
   prosemirror-example-setup@1.2.3:
     dependencies:
@@ -27979,13 +27948,13 @@ snapshots:
       prosemirror-keymap: 1.2.3
       prosemirror-model: 1.25.4
       prosemirror-state: 1.4.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
 
   prosemirror-history@1.5.0:
     dependencies:
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.10.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
       rope-sequence: 1.3.4
 
   prosemirror-inputrules@1.5.1:
@@ -28029,7 +27998,7 @@ snapshots:
     dependencies:
       prosemirror-model: 1.25.4
       prosemirror-transform: 1.10.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
 
   prosemirror-tables@1.8.5:
     dependencies:
@@ -28037,21 +28006,21 @@ snapshots:
       prosemirror-model: 1.25.4
       prosemirror-state: 1.4.4
       prosemirror-transform: 1.10.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
 
-  prosemirror-trailing-node@2.0.9(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3):
+  prosemirror-trailing-node@2.0.9(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3):
     dependencies:
       '@remirror/core-constants': 2.0.2
       escape-string-regexp: 4.0.0
       prosemirror-model: 1.25.4
       prosemirror-state: 1.4.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
 
   prosemirror-transform@1.10.4:
     dependencies:
       prosemirror-model: 1.25.4
 
-  prosemirror-view@1.41.3:
+  prosemirror-view@1.42.3:
     dependencies:
       prosemirror-model: 1.25.4
       prosemirror-state: 1.4.4
@@ -28065,7 +28034,7 @@ snapshots:
       uint8arraylist: 2.4.8
       uint8arrays: 5.1.0
 
-  proxy-addr@2.0.7:
+  proxy-addr@2.0.8:
     dependencies:
       forwarded: 0.2.0
       ipaddr.js: 1.9.1
@@ -29043,11 +29012,11 @@ snapshots:
     dependencies:
       agent-base: 6.0.2
       debug: 4.4.1
-      socks: 2.8.9
+      socks: 2.8.10
     transitivePeerDependencies:
       - supports-color
 
-  socks@2.8.9:
+  socks@2.8.10:
     dependencies:
       ip-address: 10.3.1
       smart-buffer: 4.2.0
@@ -29065,7 +29034,7 @@ snapshots:
     dependencies:
       is-plain-obj: 1.1.0
 
-  source-map-js@1.2.1: {}
+  source-map-js@1.2.2: {}
 
   source-map-support@0.5.13:
     dependencies:
@@ -29795,7 +29764,7 @@ snapshots:
 
   undici-types@6.21.0: {}
 
-  undici@6.28.0: {}
+  undici@6.28.1: {}
 
   unicode-emoji-modifier-base@1.0.0: {}
 
@@ -30191,7 +30160,7 @@ snapshots:
       tsx: 4.21.0
       yaml: 2.8.3
 
-  vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@22.1.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3):
+  vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@22.1.0)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.8
       '@vitest/mocker': 4.1.8(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
@@ -30219,19 +30188,9 @@ snapshots:
       happy-dom: 20.8.9
       jsdom: 22.1.0
     transitivePeerDependencies:
-      - jiti
-      - less
-      - lightningcss
       - msw
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - yaml
 
-  vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jiti@2.6.1)(jsdom@24.1.3)(lightningcss@1.30.2)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3):
+  vitest@4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.7)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.8
       '@vitest/mocker': 4.1.8(msw@2.12.7(@types/node@22.19.7)(typescript@5.8.3))(vite@6.4.3(@types/node@22.19.7)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
@@ -30259,17 +30218,7 @@ snapshots:
       happy-dom: 20.8.9
       jsdom: 24.1.3
     transitivePeerDependencies:
-      - jiti
-      - less
-      - lightningcss
       - msw
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - yaml
 
   w3c-keyname@2.2.8: {}
 
@@ -30515,12 +30464,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.41.3)(y-protocols@1.0.5)(yjs@13.6.4):
+  y-prosemirror@1.2.1(prosemirror-model@1.25.4)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(y-protocols@1.0.5)(yjs@13.6.4):
     dependencies:
       lib0: 0.2.117
       prosemirror-model: 1.25.4
       prosemirror-state: 1.4.4
-      prosemirror-view: 1.41.3
+      prosemirror-view: 1.42.3
       y-protocols: 1.0.5
       yjs: 13.6.4
 
