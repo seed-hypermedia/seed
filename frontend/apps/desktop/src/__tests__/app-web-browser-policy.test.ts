@@ -4,9 +4,11 @@ import {beforeEach, expect, it, vi} from 'vitest'
 import type {BrowserWindow, WebContents} from 'electron'
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
+  external: vi.fn().mockResolvedValue(undefined),
   publicUrl: vi.fn(),
   networkCallbacks: {} as Record<string, Function>,
   currentGuest: undefined as unknown,
+  browserSession: undefined as unknown,
 }))
 vi.mock('../app-browser-agent', () => ({executeBrowserCommand: mocks.execute}))
 vi.mock('../app-browser-favicon', () => ({readBrowserFavicons: async () => [], loadBrowserFavicon: async () => null}))
@@ -14,6 +16,14 @@ vi.mock('../browser-url-policy', async () => ({
   ...(await vi.importActual<typeof import('../browser-url-policy')>('../browser-url-policy')),
   assertPublicWebUrl: mocks.publicUrl,
 }))
+vi.mock('../app-store.mts', () => ({appStore: {get: vi.fn(), set: vi.fn()}}))
+vi.mock('../agents-server-process', () => ({getLocalAgentsServerUrl: () => null}))
+vi.mock('../browser-blocklist', async () => {
+  const actual = await vi.importActual<typeof import('../browser-blocklist')>('../browser-blocklist')
+  actual.browserBlocklist.load = vi.fn()
+  actual.browserBlocklist.refresh = vi.fn().mockResolvedValue(undefined)
+  return actual
+})
 vi.mock('electron', async () => {
   const {EventEmitter} = await import('node:events')
   const session = Object.assign(new EventEmitter(), {
@@ -28,14 +38,16 @@ vi.mock('electron', async () => {
     setPermissionRequestHandler: vi.fn(),
     setPermissionCheckHandler: vi.fn(),
   })
+  mocks.browserSession = session
   class WebContentsView {
     webContents = mocks.currentGuest
     setBounds = vi.fn()
     setVisible = vi.fn()
   }
   return {
-    app: new EventEmitter(),
+    app: Object.assign(new EventEmitter(), {getPath: () => '/unused'}),
     nativeTheme: new EventEmitter(),
+    shell: {openExternal: mocks.external},
     session: {fromPartition: () => session},
     WebContentsView,
   }
@@ -48,6 +60,8 @@ function fixture() {
   const host = Object.assign(new EventEmitter(), {ipc, mainFrame: {}, isDestroyed: () => false, send: vi.fn()})
   const guest = Object.assign(new EventEmitter(), {
     id: 42,
+    session: mocks.browserSession,
+    reload: vi.fn(),
     isDestroyed: () => false,
     getURL: () => 'https://example.com',
     getTitle: () => 'Example',
@@ -187,4 +201,60 @@ it('keeps public pages off the local network, while local pages may link locally
   event.preventDefault.mockClear()
   guest.emit('will-navigate', event, 'http://localhost:3000/next')
   expect(event.preventDefault).not.toHaveBeenCalled()
+})
+
+it('replaces listed page navigations with the Seed interstitial', () => {
+  const {guest} = fixture()
+  const event = {preventDefault: vi.fn()}
+  guest.emit('will-navigate', event, 'https://malware.testing.google.test/')
+  expect(event.preventDefault).toHaveBeenCalledOnce()
+  expect(decodeURIComponent(guest.loadURL.mock.calls[0]![0])).toContain('Website blocked')
+  expect(guest.loadURL).not.toHaveBeenCalledWith('https://malware.testing.google.test/')
+})
+
+it('checks typed addresses and cached history before loading a listed host', () => {
+  const {guest, host, event} = fixture()
+  host.ipc.emit('web-browser-navigate', event, {
+    browserId: 42,
+    requestId: 2,
+    url: 'https://malware.testing.google.test/',
+    historyIndex: 0,
+  })
+  expect(guest.loadURL).toHaveBeenCalledOnce()
+  expect(decodeURIComponent(guest.loadURL.mock.calls[0]![0])).toContain('Website blocked')
+})
+
+it('allows warning actions only from the Seed page after physical input', () => {
+  const {guest, host} = fixture()
+  const event = {preventDefault: vi.fn()}
+  guest.emit('will-navigate', event, 'seed-browser://external')
+  expect(mocks.external).not.toHaveBeenCalled()
+  guest.emit('will-navigate', event, 'https://malware.testing.google.test/path')
+  const warning = guest.loadURL.mock.calls[0]![0]
+  ;(guest as {getURL: () => string}).getURL = () => warning
+  guest.emit('will-navigate', event, 'seed-browser://external')
+  expect(mocks.external).not.toHaveBeenCalled()
+  guest.emit('input-event', {}, {type: 'mouseDown'})
+  guest.emit('will-navigate', event, 'seed-browser://external')
+  expect(mocks.external).toHaveBeenCalledWith('https://malware.testing.google.test/path')
+  guest.emit('input-event', {}, {type: 'mouseDown'})
+  guest.emit('will-navigate', event, 'seed-browser://back')
+  expect(host.send).toHaveBeenCalledWith('appWindowEvent', {type: 'back', browserId: 42})
+})
+
+it('accepts tracker settings only from the owning app main frame for the current origin', () => {
+  const {guest, host, handlers, event} = fixture()
+  const update = handlers.get('web-browser-trackers')!
+  const input = {browserId: 42, origin: 'https://example.com', allowed: true}
+  expect(() => update({sender: host, senderFrame: {}}, input)).toThrow('Invalid browser host')
+  expect(() => update(event, {...input, browserId: 99})).toThrow('closed')
+  expect(() => update(event, {...input, origin: 'https://other.example'})).toThrow('changed')
+  update(event, input)
+  expect(guest.reload).toHaveBeenCalledOnce()
+  expect(host.send).toHaveBeenCalledWith(
+    'appWindowEvent',
+    expect.objectContaining({type: 'browser-blocked-count', browserId: 42, allowed: true}),
+  )
+  // Reset the persisted exception so later fixtures keep default protection.
+  update(event, {...input, allowed: false})
 })

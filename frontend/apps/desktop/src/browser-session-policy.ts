@@ -1,6 +1,12 @@
 import {app, BrowserWindow, dialog, session, webContents} from 'electron'
 import type {WebContents, WebPreferences} from 'electron'
 import {basename} from 'node:path'
+import {API_HTTP_URL, DAEMON_HTTP_URL, DAEMON_FILE_URL, DEFAULT_DESKTOP_AGENTS_URL} from '@shm/shared/constants'
+import {appStore} from './app-store.mts'
+import {DEFAULT_AGENT_SERVER_URL} from './agents-defaults'
+import {getLocalAgentsServerUrl} from './agents-server-process'
+import {browserContentBlocker} from './browser-content-blocker'
+import {browserBlocklist, browserListRefreshInterval} from './browser-blocklist'
 import {setupBrowserNetworkPolicy} from './browser-network-policy'
 
 /** Dedicated persistent session for untrusted integrated websites. */
@@ -114,6 +120,34 @@ export function setupBrowserSessionPolicy() {
   if (installed) return
   installed = true
   const browserSession = session.fromPartition(browserPartition)
+  browserBlocklist.load(app.getPath('userData'))
+  browserContentBlocker.initialize(browserSession, app.getPath('userData'), appStore, () => {
+    const configured = appStore.get('Settings-v001')?.['agent-server-urls']
+    const urls = [
+      API_HTTP_URL,
+      DAEMON_HTTP_URL,
+      DAEMON_FILE_URL,
+      DEFAULT_DESKTOP_AGENTS_URL,
+      DEFAULT_AGENT_SERVER_URL,
+      getLocalAgentsServerUrl(),
+      ...(Array.isArray(configured) ? configured : []),
+    ]
+    return urls.flatMap((url) => {
+      try {
+        return [new URL(url).origin]
+      } catch {
+        return []
+      }
+    })
+  })
+  void browserBlocklist.refresh()
+  void browserContentBlocker.refresh()
+  const refresh = setInterval(() => {
+    void browserBlocklist.refresh()
+    void browserContentBlocker.refresh()
+  }, browserListRefreshInterval)
+  refresh.unref()
+  app.once('will-quit', () => clearInterval(refresh))
   setupBrowserNetworkPolicy(browserSession)
   browserSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
   browserSession.setPermissionCheckHandler(() => false)

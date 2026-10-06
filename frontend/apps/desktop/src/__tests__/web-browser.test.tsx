@@ -44,6 +44,8 @@ describe('browser page lifecycle', () => {
     mocks.invoke.mockReset().mockResolvedValue({browserId: 42})
     ;(window as any).webBrowser = {
       create: mocks.invoke,
+      blockingState: (input: unknown) => mocks.send('web-browser-blocking-state', input),
+      allowTrackers: (input: unknown) => mocks.invoke('web-browser-trackers', input),
       setBounds: (input: unknown) => mocks.send('web-browser-bounds', input),
       control: (input: unknown) => mocks.send('web-browser-control', input),
       navigate: (input: unknown) => mocks.send('web-browser-navigate', input),
@@ -151,6 +153,35 @@ describe('browser page lifecycle', () => {
     expect(container.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,second')
     act(() => dispatch({type: 'push', route: {key: 'web', url: 'https://other.example'}}))
     expect(container.querySelector('img')).toBeNull()
+  })
+
+  it('shows the guest count and saves a per-origin tracker exception from the shield', async () => {
+    await attachAndCommit()
+    act(() =>
+      emit({type: 'browser-blocked-count', browserId: 99, url: 'https://example.com/a', count: 99, allowed: false}),
+    )
+    expect(container.querySelector('[data-testid="browser-blocked-count"]')?.textContent).toBe('0')
+    act(() =>
+      emit({type: 'browser-blocked-count', browserId: 42, url: 'https://example.com/a', count: 3, allowed: false}),
+    )
+    expect(container.querySelector('[data-testid="browser-blocked-count"]')?.textContent).toBe('3')
+    act(() =>
+      (container.querySelector('[aria-label="Tracking protection: 3 requests blocked"]') as HTMLButtonElement).click(),
+    )
+    const toggle = document.querySelector('[role="switch"]') as HTMLButtonElement
+    expect(toggle.getAttribute('aria-label')).toBe('Allow trackers on example.com')
+    await act(async () => toggle.click())
+    expect(mocks.invoke).toHaveBeenCalledWith('web-browser-trackers', {
+      browserId: 42,
+      origin: 'https://example.com',
+      allowed: true,
+    })
+    act(() =>
+      emit({type: 'browser-blocked-count', browserId: 42, url: 'https://example.com/a', count: 3, allowed: true}),
+    )
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    act(() => dispatch({type: 'push', route: {key: 'web', url: 'https://other.example/'}}))
+    expect(container.querySelector('[data-testid="browser-blocked-count"]')?.textContent).toBe('0')
   })
 
   it('resolves custom-domain Seed pages after a committed website navigation', async () => {

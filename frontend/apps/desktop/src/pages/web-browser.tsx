@@ -7,7 +7,10 @@ import {useListenAppEvent} from '@/utils/window-events'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {Button} from '@shm/ui/button'
-import {ExternalLink, Globe, Lock, LockOpen, RotateCw, X} from 'lucide-react'
+import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {Switch} from '@shm/ui/components/switch'
+import type {BrowserBlockedCount} from '../browser-content-blocker'
+import {ExternalLink, Globe, Lock, LockOpen, RotateCw, Shield, ShieldOff, X} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 
 let nextRequestId = 0
@@ -56,6 +59,9 @@ export function WebBrowser() {
   const container = useRef<HTMLDivElement>(null)
   const [browserId, setBrowserId] = useState<number>()
   const [loading, setLoading] = useState(false)
+  const [blocking, setBlocking] = useState<BrowserBlockedCount>()
+  const [savingTrackers, setSavingTrackers] = useState(false)
+  const [trackerError, setTrackerError] = useState<string>()
   const [error, setError] = useState<string | null>(null)
   const [favicons, setFavicons] = useState<{url: string; icons: string[]}>({url: '', icons: []})
   const pending = useRef<number>()
@@ -160,6 +166,12 @@ export function WebBrowser() {
       if (nativeRoute && generation === resolution.current) resolveBrowserRoute(event.url, nativeRoute)
     })
   })
+  useListenAppEvent('browser-blocked-count', (event) => {
+    if (event.browserId === browserId) setBlocking(event)
+  })
+  useEffect(() => {
+    if (browserId !== undefined) window.webBrowser.blockingState({browserId})
+  }, [browserId])
   useListenAppEvent('browser-loading', (event) => {
     if (event.browserId !== browserId) return
     setLoading(event.loading)
@@ -225,6 +237,55 @@ export function WebBrowser() {
           <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs" role="status">
             {loading ? 'Loading…' : route.title || route.url}
           </span>
+          <Popover onOpenChange={() => setTrackerError(undefined)}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!enabled || browserId === undefined}
+                aria-label={`Tracking protection: ${blocking?.url === route.url ? blocking.count : 0} requests blocked`}
+              >
+                {blocking?.url === route.url && blocking.allowed ? (
+                  <ShieldOff className="size-4" />
+                ) : (
+                  <Shield className="size-4" />
+                )}
+                <span className="tabular-nums" data-testid="browser-blocked-count">
+                  {blocking?.url === route.url ? blocking.count : 0}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="flex flex-col gap-3">
+              <p className="text-sm">
+                {blocking?.url === route.url ? blocking.count : 0} requests blocked on this page
+              </p>
+              <label className="flex items-center justify-between gap-3 text-sm">
+                <span>Allow trackers on {displayedOrigin(route.url)?.host}</span>
+                <Switch
+                  aria-label={`Allow trackers on ${displayedOrigin(route.url)?.host}`}
+                  checked={blocking?.url === route.url && blocking.allowed}
+                  disabled={savingTrackers || browserId === undefined || blocking?.url !== route.url}
+                  onCheckedChange={async (allowed) => {
+                    if (browserId === undefined) return
+                    setSavingTrackers(true)
+                    setTrackerError(undefined)
+                    try {
+                      await window.webBrowser.allowTrackers({browserId, origin: new URL(route.url).origin, allowed})
+                    } catch {
+                      setTrackerError('Could not save the setting. Try again.')
+                    } finally {
+                      setSavingTrackers(false)
+                    }
+                  }}
+                />
+              </label>
+              {trackerError && (
+                <p role="alert" className="text-destructive text-sm">
+                  {trackerError}
+                </p>
+              )}
+            </PopoverContent>
+          </Popover>
           <Button
             size="icon"
             variant="ghost"

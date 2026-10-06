@@ -4,6 +4,7 @@ const events: unknown[] = []
 ipcRenderer.on('appWindowEvent', (_event, value) => events.push(value))
 contextBridge.exposeInMainWorld('browserTest', {
   events: () => events,
+  allowTrackers: (input: unknown) => ipcRenderer.invoke('web-browser-trackers', input),
   create: () => ipcRenderer.invoke('web-browser-create', {}),
   bounds: (input: unknown) => ipcRenderer.send('web-browser-bounds', input),
   navigate: (input: unknown) => ipcRenderer.send('web-browser-navigate', input),

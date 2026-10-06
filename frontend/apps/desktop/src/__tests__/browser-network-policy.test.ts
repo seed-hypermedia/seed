@@ -154,3 +154,21 @@ it('retains known private peer provenance when a cached reload omits the IP', ()
   commit(url, 1)
   expect(isGuestOnPrivateNetwork(guest.id)).toBe(true)
 })
+
+it('cancels listed main frames but leaves subresources to the content policy', () => {
+  const {handlers, response} = fixture()
+  const callback = vi.fn()
+  handlers.onBeforeRequest!(response(1, 'https://malware.testing.google.test/'), callback)
+  expect(callback).toHaveBeenCalledWith({cancel: true})
+  callback.mockClear()
+  handlers.onBeforeRequest!(response(2, 'https://malware.testing.google.test/', undefined, 'image'), callback)
+  expect(callback).toHaveBeenCalledWith({})
+})
+it('refuses agent navigation to a listed host before DNS or loadURL', async () => {
+  const {guest} = fixture()
+  await expect(navigatePublicBrowser(guest, 'https://malware.testing.google.test/', () => {})).rejects.toThrow(
+    'Website blocked',
+  )
+  expect(lookup).not.toHaveBeenCalled()
+  expect(guest.loadURL).not.toHaveBeenCalled()
+})
