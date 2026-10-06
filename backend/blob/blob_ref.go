@@ -520,7 +520,7 @@ func crossLinkRefMaybe(ictx *indexingCtx, v *Ref) error {
 	// Comments on this path that pin no version are attributed to whatever
 	// generation the path resolves to. Ones that arrived before any generation
 	// existed are still waiting for one.
-	if err := resettleCommentsOnResource(ictx, resourceID); err != nil {
+	if err := resettleComments(ictx, qPendingCommentsOnResource(), resourceID); err != nil {
 		return err
 	}
 

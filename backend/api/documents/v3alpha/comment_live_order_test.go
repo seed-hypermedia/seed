@@ -1,7 +1,6 @@
 package documents
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -14,19 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestCommentListedWhenSyncedBeforeItsTargetChange pins that a comment is listed
-// and counted on its document no matter in which order the blobs reach a node.
-//
-// Blobs sync out of order. Seen on a dev daemon on 2026-10-06
-// (seed-hypermedia/seed#1200): a document's genesis change, its refs and a root
-// comment arrived in one batch, the comment got indexed first, and it never made
-// it into comment_live. The document then counted the two replies while
-// ListComments returned replies whose root was missing, so every client rendered
-// "No comments here, yet!".
+// TestCommentListedWhenSyncedBeforeItsTargetChange guards #1200: comments stored
+// before their target document must become listed and counted when it arrives.
 func TestCommentListedWhenSyncedBeforeItsTargetChange(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	alice := newTestDocsAPI(t, "alice")
 	space := alice.me.Account.PublicKey.String()
 	const path = "/notes/doc"
