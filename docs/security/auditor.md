@@ -146,10 +146,13 @@ The two gates disagree by design: the blockstore fails **closed** on unknown vis
 new check must state its default.
 
 **Prior art, read in P0:** `backend/api/documents/v3alpha/private_docs_test.go` (VULN-1..7 — **a vulnerability
-documented only by a `t.Log` is OPEN**; VULN-5 is exactly that); `docs/daemon-saturation-incident.md` (§3 request path
-and read-pool arithmetic, §7 open follow-ups, §11 recipes); `docs/discovery-scanner-mitigation-report.html` (§7.4, §8);
-`docs/comment-request-spam-investigation.md`; `docs/embed-rerender-postmortem.md`. Treat their open items as known, not
-new. Skip `ci-optimization-log.md` — CI timing, no runtime security content.
+documented only by a `t.Log` is OPEN**; VULN-5 is exactly that); the incident records, which were removed from the tree
+and live at `https://github.com/seed-hypermedia/seed/tree/4af3478e9599cdd7f8f32536b2f701d2effbdf5b/docs`:
+`daemon-saturation-incident.md` (§3 request path and read-pool arithmetic, §7 open follow-ups, §11 recipes; the
+read-pool facts now live in `hypermedia/apps/daemon.md`), `comment-request-spam-investigation.md` and
+`embed-rerender-postmortem.md`; plus the discovery scanner mitigation report (§7.4, §8), since removed
+([archived](https://github.com/seed-hypermedia/seed/blob/4af3478e9599cdd7f8f32536b2f701d2effbdf5b/docs/discovery-scanner-mitigation-report.html)).
+Treat their open items as known, not new.
 
 ---
 
@@ -269,9 +272,9 @@ grep -rn "pageSize\|page_size" frontend/packages/shared/src frontend/apps/web/ap
 grep -rn "discoverDocument\|discoverMedia\|DiscoveryStatus\|discoverEntity" frontend backend
 ```
 
-Read `docs/daemon-saturation-incident.md` §3 before reasoning about the read pool. Reuse the route-class list in
-`scripts/crawler-load-test.py`'s `VIEW_TERMS` if present; if absent, derive it from
-`frontend/apps/web/app/routes/$.tsx`.
+Read "Load and the read pool" in `hypermedia/apps/daemon.md` (and §3 of the archived `daemon-saturation-incident.md`,
+linked above) before reasoning about the read pool. Reuse the route-class list in `scripts/crawler-load-test.py`'s
+`VIEW_TERMS` if present; if absent, derive it from `frontend/apps/web/app/routes/$.tsx`.
 
 **P5 — Secrets, keys, identity.** `backend/storage/`, `backend/wallet/`, `vault/`, `agents/`, the desktop main process
 including its local API on 58004, and env plumbing. The Remix footgun: a secret read from a module that is not

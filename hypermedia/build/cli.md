@@ -101,7 +101,7 @@ Any command that takes an id accepts `hm://<uid>/<path>`, a bare `<uid>`, or an 
 <!-- id:W7tZJSXJ -->
 | Command <!-- col:pMDjmRn_ --> | What it does <!-- col:FXido-VO --> <!-- id:M4znTrdE --> |
 | --- | --- |
-| `key generate [-n main] [-w 12\|24] [--passphrase] [--show-mnemonic]` | a new key in the OS keyring <!-- id:bYAhe-_6 --> |
+| `key generate [-n main] [-w 12\|24] [--passphrase] [--show-mnemonic]` | a new key in the OS keyring; a name may use letters, digits, hyphens and underscores only <!-- id:bYAhe-_6 --> |
 | `key import <mnemonic> [-n imported]` | a key from a BIP-39 phrase <!-- id:XB8D-uWf --> |
 | `key list` | every key in the vault and the keyring, with its source <!-- id:RUNgqs1Z --> |
 | `key show [nameOrId]`, `key default [nameOrId]`, `key rename <old> <new>`, `key remove <nameOrId> [-f]` | keyring keys only for rename and remove; the CLI never modifies a vault <!-- id:zczDJnZ8 --> |
@@ -110,7 +110,7 @@ Any command that takes an id accepts `hm://<uid>/<path>`, a bare `<uid>`, or an 
 
 # draft <!-- id:s6g4Q_0z -->
 
-[Drafts](../protocol/documents.md) are local files the [desktop app](../apps/desktop.md) also sees. `draft create -f <file>` parses and validates input and saves it under the app's drafts directory (`SEED_CLI_DRAFTS_DIR` overrides), with an entry in the app's draft index. `--edit <hm-url>` marks it as an edit of an existing document, `--location <hm-url>` as a new child, and `--visibility PUBLIC|PRIVATE` sets its [visibility](../protocol/privacy.md). `draft get <slug>`, `draft list` and `draft rm [<slug>] [--all] [--force]` complete the set. An agent that writes drafts instead of publishing lets a person review in the app. See [Using Seed from your own agent](./agents.md). <!-- id:1AfMtS9j -->
+[Drafts](../protocol/documents.md) are local files the [desktop app](../apps/desktop.md) also sees. `draft create -f <file>` parses and validates input and saves it as `<slug>_<id>.md` in the `drafts/` folder of the [desktop app](../apps/desktop.md)'s user data directory (`Seed-local` with `--dev`; `SEED_CLI_DRAFTS_DIR` overrides), with an entry in the app's `index.json` draft index. `--edit <hm-url>` marks it as an edit of an existing document, `--location <hm-url>` as a new child, and `--visibility PUBLIC|PRIVATE` sets its [visibility](../protocol/privacy.md). `draft get <slug>`, `draft list` and `draft rm [<slug>] [--all] [--force]` complete the set. An agent that writes drafts instead of publishing lets a person review in the app. See [Using Seed from your own agent](./agents.md). <!-- id:1AfMtS9j -->
 
 # space <!-- id:VYbYjx_0 -->
 

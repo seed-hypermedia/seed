@@ -602,7 +602,7 @@ export const HMDocumentMetadataSchema = z
     // Import taxonomy fields (comma-separated values from external sources like WordPress)
     importCategories: z.string().optional(),
     importTags: z.string().optional(),
-    // JSON-stringified schema definition; present iff this document describes a schema (see notes/schema-as-document.md).
+    // `ipfs://<cid>` of the schema blob this document defines; present iff this document is a schema's home page (see hypermedia/schema/typed-documents.md).
     schemaDefinition: z.string().optional(),
   })
   // Metadata is an open/extensible attribute map: the document data model
