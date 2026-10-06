@@ -56,6 +56,7 @@ services:
             - $$cap_appname-web-data:/data
         environment:
             SEED_BASE_URL: https://$$cap_seed_domain
+            SEED_ASSET_HOST: https://$$cap_seed_domain
             DAEMON_HTTP_URL: http://srv-captain--$$cap_appname-daemon:56001
             NOTIFY_SERVICE_HOST: https://notify.seed.hyper.media
             SEED_IS_GATEWAY: 'false'

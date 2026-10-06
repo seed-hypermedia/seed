@@ -1,7 +1,7 @@
 # Seed site on CapRover
 
-This one-click app deploys one Seed site with a daemon, web app, Caddy routing for `/ipfs` requests, persistent data, and
-Shepherd updates.
+This one-click app deploys one Seed site with a daemon, web app, Caddy routing for `/ipfs` requests, persistent data,
+and Shepherd updates.
 
 ## Deploy
 
@@ -14,14 +14,15 @@ Shepherd updates.
 
 ## Variables
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| Site domain | `<app-name>.<CapRover-root-domain>` | Public URL and daemon announce hostname. Must match the app's custom domain, if set. |
-| P2P host port | `56000` | Published libp2p TCP and QUIC/UDP port; use a unique port per site. |
-| Registration link secret | Generated 32-character hex value | Secret included in the Seed desktop registration URL. |
-| Seed web image | `seedhypermedia/web:latest` | Set to `ghcr.io/horacioh/seed-web:main` to use this fork's web image. |
-| Seed daemon image | `seedhypermedia/site:latest` | Set to `ghcr.io/horacioh/seed-site:main` to use this fork's daemon image. |
-| Update interval | `10m` | How often Shepherd checks the daemon and web images. |
+| Variable                 | Default                             | Purpose                                                                              |
+| ------------------------ | ----------------------------------- | ------------------------------------------------------------------------------------ |
+| Site domain              | `<app-name>.<CapRover-root-domain>` | Public URL and daemon announce hostname. Must match the app's custom domain, if set. |
+| Asset URLs               | Site domain                         | File and image URLs use the public site domain.                                      |
+| P2P host port            | `56000`                             | Published libp2p TCP and QUIC/UDP port; use a unique port per site.                  |
+| Registration link secret | Generated 32-character hex value    | Secret included in the Seed desktop registration URL.                                |
+| Seed web image           | `seedhypermedia/web:latest`         | Set to `ghcr.io/horacioh/seed-web:main` to use this fork's web image.                |
+| Seed daemon image        | `seedhypermedia/site:latest`        | Set to `ghcr.io/horacioh/seed-site:main` to use this fork's daemon image.            |
+| Update interval          | `10m`                               | How often Shepherd checks the daemon and web images.                                 |
 
 ## Updates and backups
 
