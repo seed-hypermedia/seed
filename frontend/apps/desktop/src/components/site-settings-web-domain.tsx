@@ -1,11 +1,10 @@
+import {HostedSiteSettings} from '@/components/hosted-site-settings'
 import {usePublishSite, useRemoveSiteDialog} from '@/components/publish-site'
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
-import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHostSession} from '@/models/host'
 import {useOpenUrl} from '@/open-url'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hostnameStripProtocol} from '@shm/shared'
-import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {CloudOff, UploadCloud} from '@shm/ui/icons'
@@ -18,8 +17,8 @@ export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
   const resource = useResource(siteId, {subscribed: true})
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
   const capability = useSelectedAccountCapability(siteId)
-  const gwUrl = useGatewayUrl().data || DEFAULT_GATEWAY_URL
-  const pendingDomain = useHostSession().pendingDomains?.find((pending) => pending.siteUid === siteId.uid)
+  const host = useHostSession({includeSites: true})
+  const pendingDomain = host.pendingDomains?.find((pending) => pending.siteUid === siteId.uid)
   const publishSite = usePublishSite()
   const removeSiteDialog = useRemoveSiteDialog()
   const openUrl = useOpenUrl()
@@ -67,7 +66,10 @@ export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
   }
 
   // A custom domain can replace the free subdomain of the hosting service.
-  const canPublishCustomDomain = hostnameStripProtocol(siteUrl).endsWith(hostnameStripProtocol(gwUrl)) && !pendingDomain
+  const canPublishCustomDomain =
+    host.loggedIn &&
+    host.sites.data?.some((site) => site.activeConfig?.registeredAccountUid === siteId.uid && site.url === siteUrl) &&
+    !pendingDomain
   return (
     <>
       {heading}
@@ -83,6 +85,7 @@ export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
           </SizableText>
         ) : null}
       </div>
+      <HostedSiteSettings siteId={siteId} siteUrl={siteUrl} />
       {canPublishCustomDomain ? (
         <div className="flex flex-col gap-2">
           <SizableText weight="medium">Custom domain</SizableText>

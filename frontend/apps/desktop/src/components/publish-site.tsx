@@ -299,7 +299,8 @@ const LoginSchema = z.object({
   email: z.string().email('Enter a valid email address'),
 })
 type LoginFields = z.infer<typeof LoginSchema>
-function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; onBack: () => void}) {
+/** Shared email-code login for publishing and managing hosted sites. */
+export function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; onBack: () => void}) {
   const {startEmailCode, verifyEmailCode} = useHostSession({onAuthenticated})
   const [pending, setPending] = useState<CodeStartResponse | null>(null)
   const [code, setCode] = useState('')
@@ -320,7 +321,7 @@ function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; 
     sendCode(data.email).catch(() => {})
   }
   function verify(fullCode: string) {
-    if (!pending || verifyEmailCode.isLoading) return
+    if (!pending || verifyEmailCode.isLoading || !/^\d{4}$/.test(fullCode)) return
     verifyEmailCode.mutate({email: pending.email, binding: pending.binding, code: fullCode})
   }
   const error = (startEmailCode.error || verifyEmailCode.error) as Error | null
@@ -342,7 +343,7 @@ function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; 
           }}
           className="flex flex-col gap-4"
         >
-          <CodeInput value={code} onChange={setCode} onComplete={verify} />
+          <CodeInput length={4} value={code} onChange={setCode} onComplete={verify} />
           <ExpiryHint expireTimeMs={pending.expireTime} />
           <ErrorBox error={error?.message ?? null} />
           <DialogFooter>

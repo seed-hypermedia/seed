@@ -4,3 +4,5 @@ THUMBS_DB
 node_modules/
 src/themes-generated.ts
 types/
+
+*.tgz

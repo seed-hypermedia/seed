@@ -328,6 +328,7 @@ describe.skipIf(!findHostDir())('Hosting login with vault email prevalidation e2
       const pending = (await start.json()) as {status: string; binding: string; expireTime: number}
       expect(pending.status).toBe('code-sent')
       const code = await host.waitForLoginCode(codeEmail)
+      expect(code).toMatch(/^\d{4}$/)
 
       const verifyWith = async (attempt: {code: string; binding: string}) => {
         const response = await fetch(`${host.baseUrl}/api/auth/code/verify`, {

@@ -27,11 +27,16 @@ export const action: ActionFunction = async ({request}) => {
       throw {message: 'Invalid registration secret'}
     }
     console.log('REGISTERING SITE', JSON.stringify(input, null, 2))
-    const addrs = input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`)
-    console.log('networking.connect', addrs)
-    await grpcClient.networking.connect({
-      addrs,
-    })
+    const daemonInfo = await grpcClient.daemon.getInfo({})
+    // Local hosting can share the publishing daemon; libp2p cannot dial itself.
+    const isSameDaemon = !!input.peerId && input.peerId === daemonInfo.peerId
+    if (!isSameDaemon) {
+      const addrs = input.addrs.map((addr) => `${addr}/p2p/${input.peerId}`)
+      console.log('networking.connect', addrs)
+      await grpcClient.networking.connect({
+        addrs,
+      })
+    }
     console.log('writing config for', url.hostname)
     await writeConfig(url.hostname, {
       registeredAccountUid: input.accountUid,

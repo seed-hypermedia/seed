@@ -26,8 +26,14 @@ vi.mock('@/models/gateway-settings', () => ({
   useGatewayUrl: () => ({data: 'https://hyper.media'}),
 }))
 
+vi.mock('@/components/hosted-site-settings', () => ({HostedSiteSettings: () => null}))
+
 vi.mock('@/models/host', () => ({
-  useHostSession: () => ({pendingDomains: mockState.pendingDomains}),
+  useHostSession: () => ({
+    loggedIn: true,
+    pendingDomains: mockState.pendingDomains,
+    sites: {data: [{url: 'https://myspace.hyper.media', activeConfig: {registeredAccountUid: 'z6MkTestAccount'}}]},
+  }),
 }))
 
 vi.mock('@/open-url', () => ({

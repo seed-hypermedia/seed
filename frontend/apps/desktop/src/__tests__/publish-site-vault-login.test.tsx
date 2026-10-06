@@ -214,12 +214,17 @@ describe('publishing to Seed hosting while connected to a remote vault', () => {
     })
     expect(mockState.startEmailCode).toHaveBeenCalledWith('alice@example.com')
     expect(container.textContent).toContain('Check Your Inbox')
+    expect(container.textContent).toContain('4-digit code')
     expect(container.textContent).toContain('alice@example.com')
 
     const digits = Array.from(container.querySelectorAll('input[inputmode="numeric"]')) as HTMLInputElement[]
     expect(digits).toHaveLength(4)
     await act(async () => {
-      '4821'.split('').forEach((digit, i) => fireInput(digits[i]!, digit))
+      '482'.split('').forEach((digit, i) => fireInput(digits[i]!, digit))
+    })
+    expect(mockState.verifyEmailCode).not.toHaveBeenCalled()
+    await act(async () => {
+      fireInput(digits[3]!, '1')
     })
     expect(mockState.verifyEmailCode).toHaveBeenCalledWith({
       email: 'alice@example.com',
