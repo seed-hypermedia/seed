@@ -1,7 +1,6 @@
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {HMBlockEmbed, HMEmbedViewSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRouteLink} from '@shm/shared'
-import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {useResource} from '@shm/shared/models/entity'
 import {useRecents} from '@shm/shared/models/recents'
@@ -28,7 +27,6 @@ import {cn} from '@shm/ui/utils'
 import {Fragment} from '@tiptap/pm/model'
 import {
   BetweenHorizontalStart,
-  Bookmark,
   CreditCard,
   ExternalLink as ExternalLinkIcon,
   Link2,
@@ -458,9 +456,7 @@ function SubdocumentMenu({
   const docResource = useResource(docId)
   const doc = docResource.data?.type === 'document' ? docResource.data.document : null
   const baseItems = useDocumentCardMenuItems(docId, doc)
-  const actions = useDocumentActions()
   const openLink = useRouteLink({key: 'document', id: docId} as any)
-  const bookmarked = actions.isBookmarked?.(docId) ?? false
   const currentView = (block.props.view as string) || 'Content'
   const url = block.props.url as string
 
@@ -521,18 +517,6 @@ function SubdocumentMenu({
       },
     ],
   })
-
-  if (actions.onBookmarkToggle) {
-    prependedItems.push({
-      key: 'bookmark',
-      label: bookmarked ? 'Remove Bookmark' : 'Bookmark',
-      icon: <Bookmark className={cn('size-4', bookmarked && 'fill-current')} />,
-      onClick: (e) => {
-        e?.stopPropagation()
-        actions.onBookmarkToggle!(docId)
-      },
-    })
-  }
 
   // On delete document also remove the block.
   const enhancedBaseItems = baseItems.map((item) =>
