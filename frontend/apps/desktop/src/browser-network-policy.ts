@@ -1,12 +1,14 @@
 import type {Session, WebContents} from 'electron'
+import {isIP} from 'node:net'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {assertPublicWebUrl, isPrivateHost} from './browser-url-policy'
-import {isPublicIPAddress} from './remote-file-security'
+import {isPublicIPAddress, normalizeIPHostname} from './remote-file-security'
 
 type MainResponse = {id: number; url: string; ip?: string; privateNetwork: boolean}
 const guests = new Map<
   number,
   {
+    guest: WebContents
     current?: MainResponse
     pending?: MainResponse
     requestId?: number
@@ -22,7 +24,7 @@ export function isGuestOnPrivateNetwork(guestId: number): boolean {
 
 /** Keeps response provenance bound to the guest document, including history restoration. */
 export function trackBrowserNetwork(guest: WebContents) {
-  const state = {history: new Map<number, MainResponse>()} as NonNullable<ReturnType<typeof guests.get>>
+  const state = {guest, history: new Map<number, MainResponse>()} as NonNullable<ReturnType<typeof guests.get>>
   guests.set(guest.id, state)
   guest.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
     if (mainFrame && !inPlace) {
@@ -40,8 +42,68 @@ export function trackBrowserNetwork(guest: WebContents) {
   guest.once('destroyed', () => guests.delete(guest.id))
 }
 
-/** Observes the actual main-frame peer IP, never subresource or other-session responses. */
+// A small, bundled approximation, not a PSL. Common ccTLD categories and shared hosting
+// suffixes need one more label; uncommon suffixes and PSL exceptions remain unsupported.
+const sharedSuffixes = new Set([
+  'github.io',
+  'gitlab.io',
+  'pages.dev',
+  'vercel.app',
+  'netlify.app',
+  'appspot.com',
+  'blogspot.com',
+])
+function cookieSite(url: string): string | undefined {
+  try {
+    const parsed = new URL(url)
+    if (!['http:', 'https:'].includes(parsed.protocol)) return
+    const host = normalizeIPHostname(parsed.hostname).replace(/\.$/, '')
+    if (isIP(host) || !host.includes('.')) return host
+    const labels = host.split('.')
+    const suffix = labels.slice(-2).join('.')
+    const extraLabel =
+      sharedSuffixes.has(suffix) ||
+      (labels.at(-1)!.length === 2 && /^(ac|co|com|edu|gov|net|org)$/.test(labels.at(-2)!))
+    return labels.slice(extraLabel ? -3 : -2).join('.')
+  } catch {
+    return
+  }
+}
+
+function isThirdParty(
+  details: Electron.OnBeforeSendHeadersListenerDetails | Electron.OnHeadersReceivedListenerDetails,
+) {
+  // Top-level sign-in and OAuth redirects must retain cookies on every hop.
+  if (details.resourceType === 'mainFrame') return false
+  const guest = details.webContentsId === undefined ? undefined : guests.get(details.webContentsId)?.guest
+  const topUrl = details.frame?.top?.url || guest?.getURL() || details.frame?.url
+  // Main-process image fetches and some workers have no document attribution. Leave
+  // those alone: in particular, authenticated same-site favicons use session.fetch.
+  const topSite = topUrl && cookieSite(topUrl)
+  return !!topSite && cookieSite(details.url) !== topSite
+}
+
+/** Filters third-party cookie headers and observes the main-frame peer IP in the browser session. */
 export function setupBrowserNetworkPolicy(browserSession: Session) {
+  // Electron keeps only the last listener for each webRequest hook; GPC belongs here too.
+  browserSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    const requestHeaders: Record<string, string> = {...details.requestHeaders, 'Sec-GPC': '1'}
+    if (isThirdParty(details)) {
+      for (const name of Object.keys(requestHeaders)) {
+        if (name.toLowerCase() === 'cookie') delete requestHeaders[name]
+      }
+    }
+    callback({requestHeaders})
+  })
+  browserSession.webRequest.onHeadersReceived((details, callback) => {
+    const responseHeaders = {...details.responseHeaders}
+    if (isThirdParty(details)) {
+      for (const name of Object.keys(responseHeaders)) {
+        if (name.toLowerCase() === 'set-cookie') delete responseHeaders[name]
+      }
+    }
+    callback({responseHeaders})
+  })
   browserSession.webRequest.onBeforeRequest((details, callback) => {
     // Public pages get no sub-requests into localhost or the local network, not even for images.
     // Main-frame navigations are judged in will-navigate, so typed addresses keep working.

@@ -6,6 +6,9 @@ import {setupBrowserNetworkPolicy} from './browser-network-policy'
 /** Dedicated persistent session for untrusted integrated websites. */
 export const browserPartition = 'persist:seed-web-browser'
 
+/** Memory-only session for private pages; never uses Chromium's persistent profile. */
+export const privateBrowserPartition = 'seed-web-private'
+
 /** A short-lived user gesture that agent execution cannot create or inherit. */
 export class BrowserUserGesture {
   private lastInput = -Infinity
@@ -52,10 +55,10 @@ export function browserUserGesture(guest: WebContents): BrowserUserGesture {
 }
 
 /** Replaces all renderer-supplied preferences with the browser's explicit allowlist. */
-export function hardenBrowserPreferences(preferences: WebPreferences) {
+export function hardenBrowserPreferences(preferences: WebPreferences, privatePage = false) {
   for (const key of Object.keys(preferences)) delete (preferences as Record<string, unknown>)[key]
   Object.assign(preferences, {
-    partition: browserPartition,
+    partition: privatePage ? privateBrowserPartition : browserPartition,
     nodeIntegration: false,
     nodeIntegrationInSubFrames: false,
     nodeIntegrationInWorker: false,
@@ -65,6 +68,8 @@ export function hardenBrowserPreferences(preferences: WebPreferences) {
     allowRunningInsecureContent: false,
     webviewTag: false,
     safeDialogs: true,
+    safeDialogsMessage: 'Prevent this page from showing more dialogs',
+    disableHtmlFullscreenWindowResize: true,
   } satisfies WebPreferences)
 }
 
@@ -103,19 +108,58 @@ const DANGEROUS_EXTENSIONS = new Set([
   'url',
   'desktop',
 ])
+/** Whether a downloaded file can execute programs when opened. */
 export function isDangerousDownload(filename: string): boolean {
   const extension = filename.toLowerCase().split('.').pop() ?? ''
   return DANGEROUS_EXTENSIONS.has(extension)
 }
 
-let installed = false
+const installed = new Set<string>()
+let checkedSiteIsolation = false
 /** Installs partition-scoped permission, certificate and download rules once per process. */
-export function setupBrowserSessionPolicy() {
-  if (installed) return
-  installed = true
-  const browserSession = session.fromPartition(browserPartition)
+export function setupBrowserSessionPolicy(partition = browserPartition) {
+  if (!checkedSiteIsolation) {
+    checkedSiteIsolation = true
+    if (app.commandLine.hasSwitch('disable-site-isolation-trials')) {
+      console.warn(
+        'Browser site isolation is disabled by --disable-site-isolation-trials. Remove this switch to isolate websites.',
+      )
+    }
+  }
+  if (installed.has(partition)) return
+  installed.add(partition)
+  const browserSession = session.fromPartition(partition)
   setupBrowserNetworkPolicy(browserSession)
-  browserSession.setPermissionRequestHandler((_contents, _permission, callback) => callback(false))
+  browserSession.setPermissionRequestHandler((contents, permission, callback, details) => {
+    // A WebContentsView must never fullscreen: Seed's origin and navigation controls
+    // must stay visible. All other permissions also default to deny.
+    if (permission !== 'clipboard-sanitized-write' || !contents || !gestures.get(contents)?.consume()) {
+      callback(false)
+      return
+    }
+    let origin: string
+    try {
+      const url = new URL(details.requestingUrl)
+      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Not a website')
+      origin = url.origin
+    } catch {
+      callback(false)
+      return
+    }
+    const documentUrl = contents.getURL()
+    const options: Electron.MessageBoxSyncOptions = {
+      type: 'question',
+      buttons: ['Deny', 'Allow'],
+      defaultId: 0,
+      cancelId: 0,
+      title: 'Copy to clipboard?',
+      message: `Allow ${origin} to copy to your clipboard?`,
+    }
+    const owner = BrowserWindow.fromWebContents(contents)
+    const answer = owner ? dialog.showMessageBoxSync(owner, options) : dialog.showMessageBoxSync(options)
+    callback(answer === 1 && !contents.isDestroyed() && contents.getURL() === documentUrl)
+  })
+  // Do not cache clipboard grants: every write must pass the gesture gate and prompt.
   browserSession.setPermissionCheckHandler(() => false)
   app.on('select-client-certificate', (event, contents, _url, _certificates, callback) => {
     if (!contents || contents.session !== browserSession) return
@@ -128,10 +172,6 @@ export function setupBrowserSessionPolicy() {
     if (!contents || contents.session !== browserSession) return
     event.preventDefault()
     callback(false)
-  })
-  // Global Privacy Control on every request from the pane, so sites that honor it do not sell data.
-  browserSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    callback({requestHeaders: {...details.requestHeaders, 'Sec-GPC': '1'}})
   })
   // Encrypted DNS when the resolver supports it; the whole app shares Chromium's resolver.
   try {
