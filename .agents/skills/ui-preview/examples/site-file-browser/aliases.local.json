@@ -1,0 +1,3 @@
+{
+  "@shm/shared/models/entity": "./fixture-entity.local.ts"
+}

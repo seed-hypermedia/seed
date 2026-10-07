@@ -18,25 +18,27 @@
   - For draggable UI, use real interaction behavior: momentum, soft boundaries, and snap points where meaningful.
   - For expand/collapse, animate to real content size with layout-aware techniques; avoid fake `max-height: 9999px`
     tricks. Use FLIP-style measurement for elements moving between containers when needed.
-  - Respect accessibility and performance as part of polish: honor reduced motion, preserve keyboard/focus behavior,
-    and avoid expensive animations across long lists or large surfaces.
-  - When handing off from Figma or another design source, explicitly match tokens, padding, gaps, colors, radius,
-    type sizes, type weights, and known variants. Do not assume the handoff is pixel-perfect without checking.
+  - Respect accessibility and performance as part of polish: honor reduced motion, preserve keyboard/focus behavior, and
+    avoid expensive animations across long lists or large surfaces.
+  - When handing off from Figma or another design source, explicitly match tokens, padding, gaps, colors, radius, type
+    sizes, type weights, and known variants. Do not assume the handoff is pixel-perfect without checking.
 - After finishing frontend work:
   - if you can add tests to the current feature/fix worked, please do.
   - make sure `pnpm typecheck` pass.
   - make sure all tests pass (`pnpm test`).
   - make sure `pnpm audit` pass.
+  - for visual changes, show the result: screenshot the real component in light and dark mode with the `ui-preview`
+    skill (`.agents/skills/ui-preview`) and share it.
   - Formatting (the CI `Lint` job runs `prettier --check` per package and fails on ANY unformatted file):
-    - Run `pnpm -r format:write` across the WHOLE workspace, then confirm with `pnpm -r format:check`.
-      Do NOT run prettier on only the files a CI log happens to name — turbo interleaves parallel package
-      output and `head`/grep truncation hides other offenders, so a per-file fix passes locally but CI still
-      fails on the files you missed. Always fix and re-check the whole workspace.
+    - Run `pnpm -r format:write` across the WHOLE workspace, then confirm with `pnpm -r format:check`. Do NOT run
+      prettier on only the files a CI log happens to name — turbo interleaves parallel package output and `head`/grep
+      truncation hides other offenders, so a per-file fix passes locally but CI still fails on the files you missed.
+      Always fix and re-check the whole workspace.
     - Local `format:check` may flag gitignored build artifacts (e.g. `packages/editor/e2e/playwright-report/**`,
-      `test-results/**`) that do not exist on CI. Confirm with `git check-ignore <file>`; ignore those, but never
-      assume a warning is an artifact without checking — tracked source files must be formatted.
+      `test-results/**`) that do not exist on CI. Confirm with `git check-ignore <file>`; ignore those, but never assume
+      a warning is an artifact without checking — tracked source files must be formatted.
 - For full CI parity before pushing, validate locally via agent-ci:
-  `npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token`.
-  See `docs/local-ci-with-agent-ci.md` for setup, the fix-and-retry loop, and what to skip.
-- When developing new UI, avoid putting in extra text that clutters the UI. including unnecessary metadata, and 
-  never show opaque IDs in the UI
+  `npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token`. See
+  `docs/local-ci-with-agent-ci.md` for setup, the fix-and-retry loop, and what to skip.
+- When developing new UI, avoid putting in extra text that clutters the UI. including unnecessary metadata, and never
+  show opaque IDs in the UI

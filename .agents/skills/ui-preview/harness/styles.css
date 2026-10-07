@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+@import '../../../../frontend/packages/ui/src/theme.css';
+@import '../../../../frontend/packages/ui/src/base.css';
+
+@source '../../../../frontend/packages/ui/src';
+@source '.';
