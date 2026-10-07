@@ -1,8 +1,9 @@
 import {Download, X} from 'lucide-react'
-import {ChangeEvent, useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Button} from './button'
 import {useImageUrl} from './get-file-url'
+import {ImagePickerPopover} from './image-picker'
 import {cn} from './utils'
 
 interface DocumentCoverProps {
@@ -14,9 +15,8 @@ interface DocumentCoverProps {
 
 export function DocumentCover({cover, className, onRemove, onChangeCover}: DocumentCoverProps) {
   const imageUrl = useImageUrl()
-  const replacementInputRef = useRef<HTMLInputElement | null>(null)
   const [modalState, setModalState] = useState<'closed' | 'opening' | 'open'>('closed')
-  const [isChangingCover, setIsChangingCover] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   const handleDoubleClick = useCallback(() => {
     setModalState('opening')
@@ -40,25 +40,6 @@ export function DocumentCover({cover, className, onRemove, onChangeCover}: Docum
       setModalState('open')
     }
   }, [modalState])
-
-  const handleReplacementChange = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0]
-      if (!file || !onChangeCover) return
-
-      setIsChangingCover(true)
-      try {
-        await onChangeCover(file)
-      } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : String(error)
-        console.error(`Failed to change document cover image: ${message}`, error)
-      } finally {
-        setIsChangingCover(false)
-        event.target.value = ''
-      }
-    },
-    [onChangeCover],
-  )
 
   useEffect(() => {
     if (modalState !== 'closed') {
@@ -142,37 +123,33 @@ export function DocumentCover({cover, className, onRemove, onChangeCover}: Docum
         {hasCoverActions ? (
           <div
             data-document-cover-controls
-            className="absolute top-4 right-4 z-20 flex items-center gap-1 rounded-lg bg-black/45 p-1 text-white opacity-100 shadow-sm backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none md:pointer-events-none md:opacity-0 md:group-hover/cover:pointer-events-auto md:group-hover/cover:opacity-100 md:focus-within:pointer-events-auto md:focus-within:opacity-100"
+            className={cn(
+              'absolute top-4 right-4 z-20 flex items-center gap-1 rounded-lg bg-black/45 p-1 text-white opacity-100 shadow-sm backdrop-blur-sm transition-opacity duration-200 motion-reduce:transition-none md:pointer-events-none md:opacity-0 md:group-hover/cover:pointer-events-auto md:group-hover/cover:opacity-100 md:focus-within:pointer-events-auto md:focus-within:opacity-100',
+              pickerOpen && 'md:pointer-events-auto md:opacity-100',
+            )}
             onClick={(event) => {
               event.stopPropagation()
             }}
           >
             {onChangeCover ? (
-              <>
-                <input
-                  ref={replacementInputRef}
-                  type="file"
-                  accept="image/*"
-                  aria-label="Choose replacement cover image"
-                  className="sr-only"
-                  tabIndex={-1}
-                  onChange={(event) => void handleReplacementChange(event)}
-                />
+              <ImagePickerPopover
+                kind="cover"
+                align="end"
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
+                onFile={onChangeCover}
+                onRemove={onRemove}
+              >
                 <Button
                   type="button"
                   variant="ghost"
                   size="xs"
                   aria-label="Change document cover image"
-                  loading={isChangingCover}
                   className="h-7 rounded-md px-2 text-xs text-white hover:bg-white/15 hover:text-white active:bg-white/20"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    replacementInputRef.current?.click()
-                  }}
                 >
                   Change
                 </Button>
-              </>
+              </ImagePickerPopover>
             ) : null}
             {coverUrl ? (
               <Button

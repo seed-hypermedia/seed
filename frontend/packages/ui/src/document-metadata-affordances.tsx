@@ -1,7 +1,8 @@
 import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {FileText, ImagePlus, Plus, Smile} from 'lucide-react'
-import {ChangeEvent, useCallback, useEffect, useRef, useState} from 'react'
+import {forwardRef, useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
+import {ImagePickerPopover} from './image-picker'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {cn} from './utils'
 
@@ -66,10 +67,9 @@ export function DocumentMetadataAffordanceButtons({
   alwaysVisibleOnMobile = false,
   mobileOnly = false,
 }: DocumentMetadataAffordanceButtonsProps) {
-  const iconInputRef = useRef<HTMLInputElement>(null)
-  const coverInputRef = useRef<HTMLInputElement>(null)
   const summaryMenuRequestedRef = useRef(false)
-  const [uploading, setUploading] = useState<MetadataAffordanceKey | null>(null)
+  const menuPickerRequestRef = useRef<MetadataAffordanceKey | null>(null)
+  const [picker, setPicker] = useState<MetadataAffordanceKey | null>(null)
   const hasIcon = !!metadata?.icon
   const hasCover = !!metadata?.cover
   const hasSummary = !!metadata?.summary
@@ -82,23 +82,24 @@ export function DocumentMetadataAffordanceButtons({
   const rowIsAccessible = visible || alwaysVisibleOnMobile
   const tabIndex = rowIsAccessible ? undefined : -1
 
-  async function handleFileChange(field: MetadataAffordanceKey, event: ChangeEvent<HTMLInputElement>) {
-    event.stopPropagation()
-    const file = event.target.files?.[0]
-    if (!file || !fileUpload) return
+  async function handlePickedFile(field: MetadataAffordanceKey, file: File) {
+    if (!fileUpload) return
+    const cid = await fileUpload(file)
+    onBeforeMetadataChange?.()
+    onMetadata({[field]: toIpfsUrl(cid)} as Partial<HMMetadata>)
+  }
 
-    setUploading(field)
-    try {
-      const cid = await fileUpload(file)
-      onBeforeMetadataChange?.()
-      onMetadata({[field]: toIpfsUrl(cid)} as Partial<HMMetadata>)
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      console.error(`Failed to upload document ${field}: ${message}`, error)
-    } finally {
-      setUploading(null)
-      event.target.value = ''
-    }
+  function renderPicker(field: MetadataAffordanceKey, trigger: React.ReactNode) {
+    return (
+      <ImagePickerPopover
+        kind={field}
+        open={picker === field}
+        onOpenChange={(open) => setPicker(open ? field : null)}
+        onFile={(file) => handlePickedFile(field, file)}
+      >
+        {trigger}
+      </ImagePickerPopover>
+    )
   }
 
   if (!showIconButton && !showSummaryButton && !showCoverButton) {
@@ -112,7 +113,9 @@ export function DocumentMetadataAffordanceButtons({
             key: 'icon',
             label: 'Add icon',
             icon: <Smile className="size-3.5" />,
-            onClick: () => iconInputRef.current?.click(),
+            onClick: () => {
+              menuPickerRequestRef.current = 'icon'
+            },
           }
         : null,
       showSummaryButton
@@ -131,35 +134,22 @@ export function DocumentMetadataAffordanceButtons({
             key: 'cover',
             label: 'Add cover image',
             icon: <ImagePlus className="size-3.5" />,
-            onClick: () => coverInputRef.current?.click(),
+            onClick: () => {
+              menuPickerRequestRef.current = 'cover'
+            },
           }
         : null,
     ]
 
     return (
-      <div className="md:hidden">
-        {showIconButton ? (
-          <input
-            ref={iconInputRef}
-            type="file"
-            accept="image/*"
-            aria-label="Choose document icon"
-            className="sr-only"
-            tabIndex={-1}
-            onChange={(event) => void handleFileChange('icon', event)}
-          />
-        ) : null}
-        {showCoverButton ? (
-          <input
-            ref={coverInputRef}
-            type="file"
-            accept="image/*"
-            aria-label="Choose document cover image"
-            className="sr-only"
-            tabIndex={-1}
-            onChange={(event) => void handleFileChange('cover', event)}
-          />
-        ) : null}
+      <div className="relative md:hidden">
+        {/* The pickers open after the menu closes, anchored where the menu was. */}
+        {showIconButton
+          ? renderPicker('icon', <span aria-hidden className="absolute right-0 bottom-0 size-0" />)
+          : null}
+        {showCoverButton
+          ? renderPicker('cover', <span aria-hidden className="absolute right-0 bottom-0 size-0" />)
+          : null}
         <OptionsDropdown
           menuItems={menuItems}
           align="end"
@@ -181,7 +171,12 @@ export function DocumentMetadataAffordanceButtons({
               event.preventDefault()
               onRequestSummary()
             }
+            if (menuPickerRequestRef.current) {
+              event.preventDefault()
+              setPicker(menuPickerRequestRef.current)
+            }
             summaryMenuRequestedRef.current = false
+            menuPickerRequestRef.current = null
           }}
         />
       </div>
@@ -193,33 +188,23 @@ export function DocumentMetadataAffordanceButtons({
       data-document-metadata-affordances
       className={cn(
         'flex flex-wrap items-center gap-1.5 transition-opacity duration-200 motion-reduce:transition-none',
-        visible ? 'opacity-100' : hiddenClass,
+        visible || picker ? 'opacity-100' : hiddenClass,
         className,
       )}
       aria-hidden={!rowIsAccessible}
     >
-      {showIconButton ? (
-        <>
-          <input
-            ref={iconInputRef}
-            type="file"
-            accept="image/*"
-            aria-label="Choose document icon"
-            className="sr-only"
-            tabIndex={-1}
-            onChange={(event) => void handleFileChange('icon', event)}
-          />
-          <MetadataHintButton
-            aria-label="Add document icon"
-            icon={<Smile className="size-3.5" />}
-            loading={uploading === 'icon'}
-            tabIndex={tabIndex}
-            onClick={() => iconInputRef.current?.click()}
-          >
-            Add icon
-          </MetadataHintButton>
-        </>
-      ) : null}
+      {showIconButton
+        ? renderPicker(
+            'icon',
+            <MetadataHintButton
+              aria-label="Add document icon"
+              icon={<Smile className="size-3.5" />}
+              tabIndex={tabIndex}
+            >
+              Add icon
+            </MetadataHintButton>,
+          )
+        : null}
       {showSummaryButton ? (
         <MetadataHintButton
           aria-label="Add document summary"
@@ -233,28 +218,18 @@ export function DocumentMetadataAffordanceButtons({
           Add Summary
         </MetadataHintButton>
       ) : null}
-      {showCoverButton ? (
-        <>
-          <input
-            ref={coverInputRef}
-            type="file"
-            accept="image/*"
-            aria-label="Choose document cover image"
-            className="sr-only"
-            tabIndex={-1}
-            onChange={(event) => void handleFileChange('cover', event)}
-          />
-          <MetadataHintButton
-            aria-label="Add document cover image"
-            icon={<ImagePlus className="size-3.5" />}
-            loading={uploading === 'cover'}
-            tabIndex={tabIndex}
-            onClick={() => coverInputRef.current?.click()}
-          >
-            Add cover image
-          </MetadataHintButton>
-        </>
-      ) : null}
+      {showCoverButton
+        ? renderPicker(
+            'cover',
+            <MetadataHintButton
+              aria-label="Add document cover image"
+              icon={<ImagePlus className="size-3.5" />}
+              tabIndex={tabIndex}
+            >
+              Add cover image
+            </MetadataHintButton>,
+          )
+        : null}
     </div>
   )
 }
@@ -459,13 +434,13 @@ export function HomeDocumentMetadataAffordanceBar({
   )
 }
 
-function MetadataHintButton({
-  children,
-  icon,
-  ...props
-}: React.ComponentProps<'button'> & {icon: React.ReactNode; loading?: boolean}) {
+const MetadataHintButton = forwardRef<
+  HTMLButtonElement,
+  React.ComponentProps<'button'> & {icon: React.ReactNode; loading?: boolean}
+>(function MetadataHintButton({children, icon, ...props}, ref) {
   return (
     <Button
+      ref={ref}
       type="button"
       variant="ghost"
       size="xs"
@@ -476,7 +451,7 @@ function MetadataHintButton({
       <span>{children}</span>
     </Button>
   )
-}
+})
 
 function resizeTextarea(el: HTMLTextAreaElement) {
   el.style.height = 'auto'
