@@ -117,6 +117,7 @@ import {
   FilePen,
   FileText,
   Grid3X3,
+  LayoutGrid,
   List as ListIcon,
   MoreHorizontal,
   Pencil,
@@ -4177,7 +4178,7 @@ function DocumentCollection({
                   List
                 </TabsTrigger>
                 <TabsTrigger value="Card">
-                  <Grid3X3 />
+                  <LayoutGrid />
                   Cards
                 </TabsTrigger>
               </TabsList>
