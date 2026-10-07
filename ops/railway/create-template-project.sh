@@ -12,6 +12,10 @@ region=${REGION:-us-west2}
 graphql_url=https://backboard.railway.com/graphql/v2
 
 [[ -n "$project_name" && -n "$workspace_id" && -n "${RAILWAY_API_TOKEN:-}" ]] || usage
+if [[ ! "$RAILWAY_API_TOKEN" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  printf 'RAILWAY_API_TOKEN may contain only letters, numbers, underscores, and hyphens.\n' >&2
+  exit 2
+fi
 if [[ ! "$project_name" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]]; then
   printf 'Project name must use lowercase letters, numbers, and single hyphens.\n' >&2
   exit 2
@@ -316,8 +320,8 @@ domains_request=$(jq -nc --arg project "$project_id" '{
   variables: {id: $project}
 }')
 domains_response=$(graphql "$domains_request")
-public_domain=$(jq -r --arg service "$web_service_id" \
-  '[.data.project.environments.edges[].node.serviceInstances.edges[].node | select(.serviceId == $service) | .domains.serviceDomains[] | select(.targetPort == 3000) | .domain] | first // empty' \
+public_domain=$(jq -r --arg service "$web_service_id" --arg environment "$environment_id" \
+  '[.data.project.environments.edges[].node | select(.id == $environment) | .serviceInstances.edges[].node | select(.serviceId == $service) | .domains.serviceDomains[] | select(.targetPort == 3000) | .domain] | first // empty' \
   <<<"$domains_response")
 if [[ -z "$public_domain" ]]; then
   domain_request=$(jq -nc --arg service "$web_service_id" --arg environment "$environment_id" '{
