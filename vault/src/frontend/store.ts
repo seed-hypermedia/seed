@@ -7,6 +7,7 @@ import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import * as hmauth from '@shm/shared/hmauth'
 import * as joinedSite from '@shm/shared/publish-default-joined-site'
+import * as sharedPassword from '@shm/ui/components/password-input'
 import * as webauthn from '@simplewebauthn/browser'
 import {CID} from 'multiformats/cid'
 import {code as rawCodec} from 'multiformats/codecs/raw'
@@ -28,6 +29,7 @@ export interface SessionInfo {
   credentials?: {
     password?: true
     passkey?: true
+    recoveryWords?: true
   }
 }
 
@@ -84,6 +86,10 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBa
     vaultLoaded: false,
     selectedAccountIndex: -1,
     creatingAccount: false,
+    /** Recovery words shown during password sign-up, until the recovery credential is saved. */
+    recoveryWords: [] as string[],
+    /** Wrong passwords or recovery words entered since the last successful sign-in. */
+    failedSignInAttempts: 0,
     newEmail: '', // For email change flow.
     sessionChecked: false,
     /** Active delegation request parsed from URL params. Null when not in delegation flow. */
@@ -298,6 +304,17 @@ async function encryptVaultConnectPayload(
   return base64.encode(await localCrypto.encrypt(encodedPayload, decodedSecret))
 }
 
+/** sessionStorage key for recovery words that were shown but not yet saved as a credential. */
+const RECOVERY_WORDS_STORAGE_KEY = 'vault-pending-recovery-words'
+
+function clearStoredRecoveryWords() {
+  try {
+    sessionStorage.removeItem(RECOVERY_WORDS_STORAGE_KEY)
+  } catch {
+    // Storage unavailable: nothing was stored.
+  }
+}
+
 function clearCurrentURLFragment() {
   if (typeof window === 'undefined' || !window.location.hash || typeof window.history?.replaceState !== 'function') {
     return
@@ -382,6 +399,15 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       description: profile.description,
     }
     delete state.profileLoadStates[principal]
+  }
+
+  /** Count a wrong password or recovery phrase. 5 failed
+   * attempts sends the user to the no-recovery options. */
+  function recordFailedSignIn() {
+    state.failedSignInAttempts++
+    if (state.failedSignInAttempts >= 5) {
+      navigator.go('/login/no-recovery')
+    }
   }
 
   async function uploadAvatar(avatarFile: File): Promise<string> {
@@ -520,8 +546,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       Object.assign(state, initialState(state.backendHttpBaseUrl, state.notificationServerUrl, state.webBaseUrl))
     },
 
+    /** Set the email being signed in with. Anything typed or shown for the previous email is cleared. */
     setEmail(email: string) {
       state.email = email
+      state.password = ''
+      state.error = ''
+      state.failedSignInAttempts = 0
     },
 
     setReturnToPath(path: string) {
@@ -682,8 +712,13 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         return
       }
 
-      if (localCrypto.checkPasswordStrength(state.password) === 0) {
-        state.error = 'Password is too weak. Use at least 8 characters with mixed case, numbers, and symbols.'
+      if (localCrypto.getPasswordRules(state.password).some((rule) => !rule.met)) {
+        state.error =
+          'Password is too weak. Use at least 8 characters, one uppercase letter, and one number or special character.'
+        return
+      }
+      if (sharedPassword.checkPasswordStrength(state.password) === 0) {
+        state.error = 'Password is too weak. Add a lowercase letter, or make it at least 12 characters.'
         return
       }
 
@@ -704,11 +739,74 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         state.passwordSalt = salt
         state.decryptedDEK = dek
         await actions.loadVaultData()
-        navigator.go('/profile/create')
+        navigator.go('/recovery')
         await actions.checkSession()
       } catch (e) {
         console.error('Registration error:', e)
         state.error = (e as Error).message || 'Registration failed. Please try again.'
+      } finally {
+        state.loading = false
+      }
+    },
+
+    /**
+     * Load the current user's recovery words, generating them on first visit. They stay in
+     * sessionStorage until the recovery credential is saved, so a refresh shows the same words.
+     */
+    prepareRecoveryWords() {
+      if (state.recoveryWords.length > 0) return
+      const userId = state.session?.userId ?? ''
+      try {
+        const stored = JSON.parse(sessionStorage.getItem(RECOVERY_WORDS_STORAGE_KEY) ?? 'null') as {
+          userId: string
+          words: string[]
+        } | null
+        if (stored?.userId === userId && localCrypto.isValidRecoveryPhrase(stored.words)) {
+          state.recoveryWords = stored.words
+          return
+        }
+      } catch {
+        // Storage unavailable or corrupt: fall through and generate fresh words.
+      }
+      const words = localCrypto.generateRecoveryWords()
+      try {
+        sessionStorage.setItem(RECOVERY_WORDS_STORAGE_KEY, JSON.stringify({userId, words}))
+      } catch {
+        // Without storage a refresh shows new words, which is still safe as none are saved yet.
+      }
+      state.recoveryWords = words
+    },
+
+    /**
+     * Seal the vault with the recovery words by registering the secret credential they derive, so
+     * the words can unlock the vault later. Runs once the user confirms they saved the words.
+     */
+    async saveRecoveryCredential() {
+      if (!state.decryptedDEK) {
+        state.error = 'Your vault is locked. Unlock it and try again.'
+        return
+      }
+      state.error = ''
+      state.loading = true
+      try {
+        const secret = await localCrypto.deriveRecoverySecret(state.recoveryWords)
+        const [authKey, wrappedDEK] = await Promise.all([
+          localCrypto.deriveSecretCredentialAuthKey(secret),
+          localCrypto.encrypt(state.decryptedDEK, secret),
+        ])
+        await client.addSecretCredential({
+          authKey: base64.encode(authKey),
+          wrappedDEK: base64.encode(wrappedDEK),
+          purpose: 'recovery',
+        })
+        // Keep the session in step, so resuming sign-up doesn't send the user back here.
+        if (state.session?.credentials) state.session.credentials.recoveryWords = true
+        navigator.go('/identity-secured')
+        clearStoredRecoveryWords()
+        state.recoveryWords = []
+      } catch (e) {
+        console.error('Failed to save recovery credential:', e)
+        state.error = "We couldn't save your recovery words. Check your connection and try again."
       } finally {
         state.loading = false
       }
@@ -823,13 +921,71 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
         const dek = await localCrypto.decrypt(base64.decode(passwordCredential.wrappedDEK), encryptionKey)
         state.passwordSalt = passwordCredential.salt
+        state.failedSignInAttempts = 0
         state.decryptedDEK = dek
         await actions.loadVaultData(vaultData)
 
         await actions.checkSession()
       } catch (e) {
         console.error('Login error:', e)
-        state.error = (e as Error).message || 'Sign in failed. Check your password and try again.'
+        if (e instanceof APIError && e.statusCode === 401) {
+          state.error = 'Incorrect password, please try again.'
+          recordFailedSignIn()
+        } else {
+          state.error = (e as Error).message || 'Sign in failed. Check your password and try again.'
+        }
+      } finally {
+        state.loading = false
+      }
+    },
+
+    /**
+     * Sign in with recovery words after forgetting the password.
+     */
+    async handleRecoveryLogin(words: string[]) {
+      state.error = ''
+      if (!localCrypto.isValidRecoveryPhrase(words)) {
+        state.error = "These words don't form a recovery phrase. Check each word and their order."
+        recordFailedSignIn()
+        return
+      }
+
+      state.loading = true
+      try {
+        const secret = await localCrypto.deriveRecoverySecret(words)
+        const authKey = await localCrypto.deriveSecretCredentialAuthKey(secret)
+        const {credentialId} = await client.loginRecovery({email: state.email, authKey: base64.encode(authKey)})
+
+        const vaultData = await client.getVault({})
+        if (!isVaultDataResponse(vaultData)) {
+          throw new Error('Vault data was not returned.')
+        }
+        const credential = vaultData.credentials.find(
+          (candidate) => candidate.kind === 'secret' && candidate.credentialId === credentialId,
+        )
+        if (!credential) {
+          throw new Error('No recovery credential found for this account.')
+        }
+
+        const dek = await localCrypto.decrypt(base64.decode(credential.wrappedDEK), secret)
+        state.failedSignInAttempts = 0
+        // Once unlocked, show the account picker next, unless another flow is pending, which
+        // takes priority. The picker continues to where the user was headed before signing in.
+        const next = state.returnToPath
+        state.returnToPath =
+          next && next !== '/' ? `/login/recovered?next=${encodeURIComponent(next)}` : '/login/recovered'
+        state.decryptedDEK = dek
+        await actions.loadVaultData(vaultData)
+
+        await actions.checkSession()
+      } catch (e) {
+        console.error('Recovery login error:', e)
+        if (e instanceof APIError && e.statusCode === 401) {
+          state.error = "These recovery words don't match this account. Check each word and their order."
+          recordFailedSignIn()
+        } else {
+          state.error = (e as Error).message || 'Recovery failed. Please try again.'
+        }
       } finally {
         state.loading = false
       }
@@ -1987,6 +2143,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.vaultLoaded = false
       state.selectedAccountIndex = -1
       state.email = ''
+      state.recoveryWords = []
+      state.failedSignInAttempts = 0
+      clearStoredRecoveryWords()
       navigator.go('/')
     },
   }

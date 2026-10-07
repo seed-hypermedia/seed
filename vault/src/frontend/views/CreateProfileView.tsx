@@ -1,7 +1,7 @@
 import {useState} from 'react'
 import * as navigation from '@/frontend/navigation'
 import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
-import {StepIndicator} from '@/frontend/components/StepIndicator'
+import {FlowHeader} from '@/frontend/components/FlowHeader'
 import {getPendingFlowPath, useActions, useAppState} from '@/frontend/store'
 import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
 
@@ -54,15 +54,15 @@ export function CreateProfileView() {
   return (
     <Card>
       <CardHeader>
-        <StepIndicator currentStep={4} />
+        <FlowHeader step={4} />
         <CardTitle className="text-left text-xl">Create your profile</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground mb-6 text-sm">Add a name and photo so people recognize you.</p>
+        <p className="text-muted-foreground mb-6 text-sm">We are almost there. Add a name and a photo.</p>
 
         <AccountProfileForm
           showDescription={false}
-          submitLabel="Start participating"
+          submitLabel="Create profile"
           loading={loading || vaultConnectionInProgress}
           error={error}
           notificationOption={{

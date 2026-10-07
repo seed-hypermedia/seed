@@ -145,12 +145,16 @@ describe('desktop deep link to /settings', () => {
       expect(window.location.pathname).toBe('/vault/login')
     })
 
+    const passwordOption = await rtl.screen.findByText('Sign in with password')
+    await rtl.act(async () => {
+      rtl.fireEvent.click(passwordOption)
+    })
     const passwordInput = await rtl.screen.findByLabelText('Password')
     await rtl.act(async () => {
       rtl.fireEvent.change(passwordInput, {target: {value: password}})
     })
     await rtl.act(async () => {
-      rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Sign in'}))
+      rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Continue'}))
     })
 
     await rtl.waitFor(() => {

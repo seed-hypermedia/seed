@@ -1,8 +1,8 @@
 ---
 name: The identity vault
-summary: The Bun service at hyper.media/vault that stores a person's account keys end-to-end encrypted, signs them in with a passkey or password, lets websites act for them through delegated session keys, and syncs keys to the desktop and mobile apps.
+summary: The Bun service at hyper.media/vault that stores a person's account keys end-to-end encrypted, signs them in with a passkey or a password (with recovery words as a fallback), lets websites act for them through delegated session keys, and syncs keys to the desktop and mobile apps.
 ---
-The vault is where a person's Hypermedia [account](../protocol/identity.md) keys live when they do not want to manage a recovery phrase. It works like a password manager: the keys are encrypted in the browser with a key only the person can derive, and the server stores ciphertext it cannot read. [Keys](../build/keys.md) covers the other ways to hold a key. From the vault a person creates an account, signs in with a passkey or a password, approves websites that want to [act for them](../build/sign-in.md), and connects the desktop and mobile apps so the same accounts appear there. The hosted vault is `https://hyper.media/vault`, and in the interface it is called "Identity". <!-- id:CVIMFwRf -->
+The vault is where a person's Hypermedia [account](../protocol/identity.md) keys live when they do not want to manage a recovery phrase. It works like a password manager: the keys are encrypted in the browser with a key only the person can derive, and the server stores ciphertext it cannot read. [Keys](../build/keys.md) covers the other ways to hold a key. From the vault a person creates an account, signs in with a passkey or a password, recovers a forgotten password with recovery words, approves websites that want to [act for them](../build/sign-in.md), and connects the desktop and mobile apps so the same accounts appear there. The hosted vault is `https://hyper.media/vault`, and in the interface it is called "Identity". <!-- id:CVIMFwRf -->
 
 # Where the code is <!-- id:F28qoZtC -->
 
@@ -17,7 +17,7 @@ The vault is where a person's Hypermedia [account](../protocol/identity.md) keys
 | `src/api-service.ts` | The handlers. <!-- id:bqUk9SEK --> |
 | `src/sqlite-schema.sql`, `src/sqlite.ts` | The schema and its version check. <!-- id:HnUJogGP --> |
 | `src/frontend/store.ts` | The app's logic: login, vault decryption, [profile](../protocol/identity.md) publishing, [delegation](../protocol/permissions.md), vault connect. <!-- id:7woqPrGI --> |
-| `src/frontend/crypto.ts`, `src/frontend/views/` | Browser crypto helpers (WebAuthn, PRF) and the screens. <!-- id:8vG4Eds9 --> |
+| `src/frontend/crypto.ts`, `src/frontend/views/` | Browser crypto helpers (WebAuthn, PRF, recovery words) and the screens. <!-- id:8vG4Eds9 --> |
 
 The cryptography itself, key derivation and encryption, is in the [SDK](../build/sdk.md) (`@seed-hypermedia/client/vault` and `/encryption`), so the browser and the [mobile app](./mobile.md) share one implementation. The [daemon](./daemon.md), which holds the [desktop app](./desktop.md)'s side of a connected vault, has its own Go implementation. <!-- id:prJkVv5H -->
 
@@ -33,8 +33,11 @@ Each way of signing in is a credential that wraps the DEK with its own key, and 
 | Passkey | The [WebAuthn PRF extension](https://w3c.github.io/webauthn/#prf-extension) yields a secret the authenticator reproduces on every login. | Attestation data and the wrapped DEK. <!-- id:6Ua8C5a_ --> |
 | Password | [Argon2id](https://datatracker.ietf.org/doc/html/rfc9106) in the browser, with the email as salt. | An Argon2id hash of the authentication half and the wrapped DEK. <!-- id:TFBLQ015 --> |
 | Secret | A full-entropy random secret, used by the [desktop app](./desktop.md) after vault connect; no Argon2id needed. | A SHA-256 hash of the authentication half and the wrapped DEK. <!-- id:fiTlMH9k --> |
+| Recovery words | 12 [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) words chosen at password sign-up encode 128 bits, which HKDF turns into the secret of a secret credential tagged `purpose: 'recovery'`; no Argon2id needed. | The same as a secret. A person has at most one: saving new words deletes the old credential. |
 
 The derivation splits into two halves. The authentication key goes to the server and proves who you are; the encryption key never leaves the client and is the only thing that unwraps the DEK. Encryption is [XChaCha20-Poly1305](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha). <!-- id:Pw1-vmAW -->
+
+A person who signs up with a password also saves recovery words. The vault shows them once, and the person copies them, downloads them as a text file, or writes them down. If the password is forgotten, the words, typed in or uploaded as that file, sign in through `/vault/api/login/recovery` and unwrap the DEK through their own credential. Signing in this way does not reset the password; the person can change it in settings afterwards. These words unlock the vault only. They are not the [recovery phrase](../protocol/identity.md) of an account key.
 
 If you lose every credential and have no exported key or recovery phrase, nobody can recover your accounts. Email proves you own an address, with a 4-digit code and three attempts, but it cannot decrypt anything. The design also trusts the vault's origin to serve honest JavaScript, which is why the hosted vault lives on hyper.media and other [sites](../protocol/sites.md) redirect people there to sign in. <!-- id:rE2xi8WD -->
 
@@ -63,9 +66,9 @@ The server only ever sees the encrypted payload. The token travels in the URL fr
 <!-- id:ZpqHLlkc -->
 | Route <!-- col:H1FpMbDk --> | Purpose <!-- col:CGY2OlRR --> <!-- id:eXKYzCXi --> |
 | --- | --- |
-| `/vault`, `/vault/*` | The app: login, choose credential, verify email, create [profile](../protocol/identity.md), delegate, connect, settings. <!-- id:tEXyrgeg --> |
+| `/vault`, `/vault/*` | The app: login, choose credential, verify email, recovery words, create [profile](../protocol/identity.md), delegate, connect, settings. <!-- id:tEXyrgeg --> |
 | `/vault/api/config` | Public config: backend URL, notify server, web base URL. <!-- id:Orj54V7z --> |
-| `/vault/api/pre-login`, `/login`, `/login/passkey/*`, `/register/*`, `/logout`, `/session` | Authentication, with an HTTP-only session cookie. <!-- id:2R0qLu9z --> |
+| `/vault/api/pre-login`, `/login`, `/login/recovery`, `/login/passkey/*`, `/register/*`, `/logout`, `/session` | Authentication, with an HTTP-only session cookie. <!-- id:2R0qLu9z --> |
 | `/vault/api/vault` | Read and save the encrypted vault. <!-- id:4afqtp5d --> |
 | `/vault/api/credentials/*`, `/vault/api/email-change/*`, `/vault/api/vault-email` | Manage passkeys, passwords, device secrets and the email address. <!-- id:QqIIN__G --> |
 | `/vault/api/vault-connect`, `/vault/api/vault-connect/:id` | The connect mailbox. <!-- id:uhkZRkdi --> |

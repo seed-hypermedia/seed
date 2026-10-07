@@ -38,6 +38,7 @@
     "@noble/hashes": "^2.0.1",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-slot": "^1.2.4",
+    "@scure/bip39": "^2.4.0",
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "@shm/shared": "file:../frontend/packages/shared",
     "@shm/ui": "file:../frontend/packages/ui",
