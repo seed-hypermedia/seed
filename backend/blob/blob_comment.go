@@ -590,16 +590,17 @@ func resettleComments(ictx *indexingCtx, query string, arg int64) (err error) {
 // as comment_live. A deleted winner must exclude all of its historical versions.
 const pendingCommentColumns = `
 	SELECT sb.resource, b.codec, b.multihash, b.data, b.size
-	FROM structural_blobs sb
-	JOIN blobs b ON b.id = sb.id
 `
 
+// Pin the inner lookup to TSID: SQLite otherwise prefers the type/time index
+// for ORDER BY ... LIMIT 1 and scans unrelated comments for every candidate.
 const pendingCommentFilter = `
 	AND sb.type = 'Comment'
 	AND sb.extra_attrs->>'deleted' IS NULL
 	AND sb.id = (
-		SELECT latest.id FROM structural_blobs latest
+		SELECT latest.id FROM structural_blobs latest INDEXED BY structural_blobs_by_tsid
 		WHERE latest.type = 'Comment'
+		AND latest.extra_attrs->>'tsid' IS NOT NULL
 		AND latest.extra_attrs->>'tsid' = sb.extra_attrs->>'tsid'
 		ORDER BY latest.ts DESC, latest.id DESC
 		LIMIT 1
@@ -607,10 +608,17 @@ const pendingCommentFilter = `
 	AND NOT EXISTS (SELECT 1 FROM comment_live l WHERE l.tsid = sb.extra_attrs->>'tsid')
 `
 
+// Start with backlinks so SQLite seeks each source by its primary key instead
+// of scanning all Comment rows and filtering them against the backlink IDs.
 var qPendingCommentsTargetingChange = dqb.Str(pendingCommentColumns + `
-	WHERE sb.id IN (SELECT bl.source FROM blob_links bl WHERE bl.target = ?1 AND bl.type = 'comment/target')
+	FROM blob_links bl
+	CROSS JOIN structural_blobs sb ON sb.id = bl.source
+	JOIN blobs b ON b.id = sb.id
+	WHERE bl.target = ?1 AND bl.type = 'comment/target'
 ` + pendingCommentFilter)
 
 var qPendingCommentsOnResource = dqb.Str(pendingCommentColumns + `
+	FROM structural_blobs sb
+	JOIN blobs b ON b.id = sb.id
 	WHERE sb.resource = ?1
 ` + pendingCommentFilter)
