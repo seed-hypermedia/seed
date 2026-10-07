@@ -1,0 +1,125 @@
+name: seed
+
+services:
+  seed-init:
+    image: busybox:1.37
+    restart: 'no'
+    user: '0:0'
+    volumes:
+      - type: bind
+        source: /DATA/AppData/$AppID/web
+        target: /web
+    command:
+      - sh
+      - -c
+      - chown -R 1001:1001 /web
+
+  seed-daemon:
+    image: seedhypermedia/site:latest
+    restart: unless-stopped
+    expose:
+      - '56001'
+    ports:
+      - target: 56000
+        published: '56000'
+        protocol: tcp
+      - target: 56000
+        published: '56000'
+        protocol: udp
+    environment:
+      LIGHTNING_API_URL: https://ln.seed.hyper.media
+      SENTRY_DSN: https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896
+      SEED_LOG_LEVEL: info
+      SEED_P2P_TESTNET_NAME: ''
+    volumes:
+      - type: bind
+        source: /DATA/AppData/$AppID/daemon
+        target: /data
+    command:
+      - /usr/local/bin/seed-daemon
+      - -data-dir=/data
+      - -keystore-dir=/data/keys
+      - -lndhub.mainnet
+      - -p2p.port=56000
+      - -http.port=56001
+      - -grpc.port=56002
+      - -syncing.smart=true
+      - -syncing.no-sync-back=true
+      - -syncing.no-pull=false
+
+  seed-web:
+    image: seedhypermedia/web:latest
+    restart: unless-stopped
+    user: '1001:1001'
+    depends_on:
+      seed-init:
+        condition: service_completed_successfully
+      seed-daemon:
+        condition: service_started
+    ports:
+      - target: 3000
+        published: '3567'
+        protocol: tcp
+    environment:
+      DAEMON_HTTP_URL: http://seed-daemon:56001
+      # CasaOS strips ${VAR:-default} and $$ fallbacks, so keep these URL values literal.
+      SEED_BASE_URL: http://casaos.local:3567
+      SEED_ASSET_HOST: http://casaos.local:3567
+      DATA_DIR: /data
+      NOTIFY_SERVICE_HOST: https://notify.seed.hyper.media
+      SEED_IS_GATEWAY: 'false'
+      SEED_ENABLE_STATISTICS: 'false'
+      SEED_LINK_SECRET: ${SEED_LINK_SECRET:-}
+    volumes:
+      - type: bind
+        source: /DATA/AppData/$AppID/web
+        target: /data
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        node -e '
+          const fs = require("node:fs");
+          const crypto = require("node:crypto");
+          const path = "/data/config.json";
+          if (!fs.existsSync(path)) {
+            const secret = process.env.SEED_LINK_SECRET || crypto.randomBytes(24).toString("hex");
+            fs.writeFileSync(path, JSON.stringify({ availableRegistrationSecret: secret }) + "\n");
+            console.log("Seed registration link: " + process.env.SEED_BASE_URL + "/hm/register?secret=" + secret);
+          }
+        '
+        exec docker-entrypoint.sh npm run start:prod
+
+x-casaos:
+  id: media.hyper.seed
+  main: seed-web
+  # CasaOS 0.4.15 dynamic mode duplicates expose entries for TCP/UDP 56000; installs fail.
+  webui_port: 3000
+  index: /
+  port_map: '3567'
+  scheme: http
+  icon: https://cdn.jsdelivr.net/gh/horacioh/seed@custom-images/ops/casaos/Apps/Seed/icon.png
+  title:
+    en_US: Seed Hypermedia
+  tagline:
+    en_US: A peer-to-peer site for hypermedia.
+  description:
+    en_US: >-
+      Run your own Seed Hypermedia site. Register it from Seed desktop using the one-time link in the seed-web logs. The
+      web app is the only public HTTP entrypoint; the daemon uses relay fallback for home networks.
+  author: Seed Hypermedia
+  developer: Seed Hypermedia
+  category: Social
+  architectures:
+    - amd64
+  version: '2026.10.2'
+  update_at: '2026-10-07'
+  tips:
+    before_install:
+      en_US: >-
+        Set SEED_BASE_URL and SEED_ASSET_HOST to the same public URL before registering; CasaOS requires both values to
+        be changed together. The registration link appears in seed-web logs. This app currently supports amd64 only.
+  website: https://seed.hyper.media
+  repo: https://github.com/seed-hypermedia/seed
+  support: https://github.com/seed-hypermedia/seed/issues
