@@ -1,7 +1,7 @@
 app = "seed-web"
 
 [build]
-  image = "seedhypermedia/web:latest"
+  dockerfile = "Dockerfile"
 
 [env]
   DATA_DIR = "/data"

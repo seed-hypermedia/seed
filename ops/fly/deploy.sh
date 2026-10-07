@@ -135,6 +135,7 @@ fi
 "$flyctl" deploy \
   --config "$web_config" \
   --app "$web_app" \
+  --no-cache \
   --ha=false \
   --primary-region "$region" \
   --vm-size shared-cpu-1x \

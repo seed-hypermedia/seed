@@ -5,7 +5,8 @@ HTTP entrypoint. It proxies `GET /ipfs/*` to its own daemon over Fly's private n
 do not require the daemon's HTTP listener to be public. The daemon exposes only its P2P TCP and UDP listeners.
 
 Each app has one Fly Machine and one persistent volume in the same region. The web app uses HTTPS on its `fly.dev`
-hostname by default. The daemon uses a dedicated IPv4 address for public P2P traffic.
+hostname by default. It builds from `seedhypermedia/web:latest` with a minimal Dockerfile that runs as root, so it can
+write to Fly's root-owned `/data` volume. The daemon uses a dedicated IPv4 address for public P2P traffic.
 
 ## Prerequisites
 
@@ -24,7 +25,8 @@ SITE=my-seed-site REGION=iad ./ops/fly/deploy.sh
 The default web URL is `https://my-seed-site-web.fly.dev`; the daemon P2P hostname is `my-seed-site-daemon.fly.dev`. The
 script creates missing apps, one 1 GB volume per app, a dedicated daemon IPv4 address, and a `SEED_LINK_SECRET` only
 when one is not already stored in Fly secrets. Re-running the script is the update path; it preserves the app volumes
-and existing registration secret and redeploys the image tags.
+and existing registration secret, redeploys the daemon image, and rebuilds the web image from its `latest` base without
+build cache.
 
 Both Machines start as `shared-cpu-1x` with 1 GB of memory. Each app is intentionally limited to one Machine;
 autoscaling and redundant Machines are not configured.
