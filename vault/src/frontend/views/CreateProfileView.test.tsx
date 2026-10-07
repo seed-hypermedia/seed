@@ -61,7 +61,7 @@ describe('CreateProfileView', () => {
     expect(checkbox.checked).toBe(true)
 
     fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'Alice'}})
-    fireEvent.click(screen.getByRole('button', {name: 'Start participating'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Create profile'}))
 
     await waitFor(() => {
       expect(createAccount).toHaveBeenCalledWith('Alice', undefined, undefined, {
@@ -81,7 +81,7 @@ describe('CreateProfileView', () => {
     const {createAccount, completeDelegation} = renderCreateProfileView({withDelegationRequest: true})
 
     fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'Alice'}})
-    fireEvent.click(screen.getByRole('button', {name: 'Start participating'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Create profile'}))
 
     await waitFor(() => {
       expect(createAccount).toHaveBeenCalled()
@@ -94,7 +94,7 @@ describe('CreateProfileView', () => {
 
     fireEvent.click(screen.getByLabelText('Get email notifications about mentions and replies activity.'))
     fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'Alice'}})
-    fireEvent.click(screen.getByRole('button', {name: 'Start participating'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Create profile'}))
 
     await waitFor(() => {
       expect(createAccount).toHaveBeenCalledWith('Alice', undefined, undefined, {

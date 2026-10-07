@@ -587,6 +587,102 @@ describe('vault auth service', () => {
     expect(encryptedDEKByID.get(second.credentialId)).toBe(updated.wrappedDEK)
   })
 
+  test('a new recovery credential replaces the previous one but keeps other secret credentials', async () => {
+    const svc = createService()
+    const userId = createUser('recovery-replace@test.com')
+    const sessionId = createSession(userId)
+    const password = await derivePasswordCredential('RecoveryReplacePassword123!')
+
+    const device = await svc.addSecretCredential(
+      {authKey: await deriveSecretCredentialAuthKey(generateSecret()), wrappedDEK: password.wrappedDEK},
+      createContext(sessionId),
+    )
+    // A device secret alone doesn't count as saved recovery words.
+    expect((await svc.getSession(createContext(sessionId))).credentials?.recoveryWords).toBeUndefined()
+
+    const firstRecovery = await svc.addSecretCredential(
+      {
+        authKey: await deriveSecretCredentialAuthKey(generateSecret()),
+        wrappedDEK: password.wrappedDEK,
+        purpose: 'recovery',
+      },
+      createContext(sessionId),
+    )
+    const secondRecovery = await svc.addSecretCredential(
+      {
+        authKey: await deriveSecretCredentialAuthKey(generateSecret()),
+        wrappedDEK: password.wrappedDEK,
+        purpose: 'recovery',
+      },
+      createContext(sessionId),
+    )
+
+    const rows = db
+      .query<{id: string; metadata: string}, [string]>(
+        `SELECT id, metadata FROM credentials WHERE user_id = ? AND type = 'secret'`,
+      )
+      .all(userId)
+    const purposeByID = new Map(rows.map((row) => [row.id, (JSON.parse(row.metadata) as {purpose?: string}).purpose]))
+
+    expect(purposeByID.size).toBe(2)
+    expect(purposeByID.has(firstRecovery.credentialId)).toBe(false)
+    expect(purposeByID.get(secondRecovery.credentialId)).toBe('recovery')
+    expect(purposeByID.get(device.credentialId)).toBeUndefined()
+    expect((await svc.getSession(createContext(sessionId))).credentials?.recoveryWords).toBe(true)
+  })
+
+  test('addSecretCredential rejects an unknown purpose', async () => {
+    const svc = createService()
+    const userId = createUser('recovery-bad-purpose@test.com')
+    const sessionId = createSession(userId)
+    const password = await derivePasswordCredential('RecoveryBadPurposePassword123!')
+
+    await expect(
+      svc.addSecretCredential(
+        {
+          authKey: await deriveSecretCredentialAuthKey(generateSecret()),
+          wrappedDEK: password.wrappedDEK,
+          purpose: 'device' as 'recovery',
+        },
+        createContext(sessionId),
+      ),
+    ).rejects.toMatchObject({statusCode: 400})
+  })
+
+  test('loginRecovery signs in only with the recovery credential', async () => {
+    const svc = createService()
+    const email = 'recovery-login@test.com'
+    const userId = createUser(email)
+    const sessionId = createSession(userId)
+    const password = await derivePasswordCredential('RecoveryLoginPassword123!')
+    const recoveryAuthKey = await deriveSecretCredentialAuthKey(generateSecret())
+    const deviceAuthKey = await deriveSecretCredentialAuthKey(generateSecret())
+
+    const recovery = await svc.addSecretCredential(
+      {authKey: recoveryAuthKey, wrappedDEK: password.wrappedDEK, purpose: 'recovery'},
+      createContext(sessionId),
+    )
+    await svc.addSecretCredential({authKey: deviceAuthKey, wrappedDEK: password.wrappedDEK}, createContext(sessionId))
+
+    const loginCtx = createContext()
+    await expect(
+      svc.loginRecovery({email: 'Recovery-Login@test.com', authKey: recoveryAuthKey}, loginCtx),
+    ).resolves.toEqual({success: true, userId, credentialId: recovery.credentialId})
+    expect(loginCtx.sessionCookie).toBeString()
+
+    // A desktop/device secret credential is not a recovery credential.
+    const deviceCtx = createContext()
+    await expect(svc.loginRecovery({email, authKey: deviceAuthKey}, deviceCtx)).rejects.toMatchObject({statusCode: 401})
+    expect(deviceCtx.sessionCookie).toBeUndefined()
+
+    await expect(
+      svc.loginRecovery({email, authKey: await deriveSecretCredentialAuthKey(generateSecret())}, createContext()),
+    ).rejects.toMatchObject({statusCode: 401})
+    await expect(
+      svc.loginRecovery({email: 'nobody@test.com', authKey: recoveryAuthKey}, createContext()),
+    ).rejects.toMatchObject({statusCode: 401})
+  })
+
   test('shared vault routes accept cookie auth and direct secret bearer auth', async () => {
     const svc = createService()
     const email = 'daemon-bearer-only@test.com'

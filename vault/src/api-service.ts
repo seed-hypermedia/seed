@@ -53,6 +53,7 @@ interface PasswordMetadata {
 
 interface SecretMetadata {
   authHash: string
+  purpose?: 'recovery'
 }
 
 interface Challenge {
@@ -699,6 +700,9 @@ export class Service implements api.ServerInterface {
     if (!req.authKey || !req.wrappedDEK) {
       throw new APIError('Missing required fields', 400)
     }
+    if (req.purpose !== undefined && req.purpose !== 'recovery') {
+      throw new APIError('Invalid credential purpose', 400)
+    }
 
     const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE id = ?`).get(session.user_id)
     if (!user) {
@@ -709,6 +713,15 @@ export class Service implements api.ServerInterface {
     const wrappedDEK = decodeBase64UrlOrThrow(req.wrappedDEK, 'wrappedDEK')
     const metadata: SecretMetadata = {
       authHash: hashSecretAuthKey(authKey),
+      ...(req.purpose ? {purpose: req.purpose} : {}),
+    }
+
+    if (req.purpose === 'recovery') {
+      // New recovery words supersede the old ones, which must stop working.
+      this.db.run(
+        `DELETE FROM credentials WHERE user_id = ? AND type = 'secret' AND json_extract(metadata, '$.purpose') = 'recovery'`,
+        [session.user_id],
+      )
     }
 
     const credentialId = sess.randomId()
@@ -835,6 +848,42 @@ export class Service implements api.ServerInterface {
     }
   }
 
+  async loginRecovery(req: api.LoginRecoveryRequest, ctx: api.ServerContext): Promise<api.LoginRecoveryResponse> {
+    if (!req.email || !req.authKey) {
+      throw new APIError('Email and authKey required', 400)
+    }
+
+    const user = this.db.query<User, [string]>(`SELECT * FROM users WHERE email = ?`).get(req.email.toLowerCase())
+    if (!user) {
+      throw new APIError('Invalid credentials', 401)
+    }
+
+    const providedHash = sha256Hash(decodeBase64UrlOrThrow(req.authKey, 'authKey'))
+    const candidates = this.db
+      .query<Credential, [string]>(
+        `SELECT * FROM credentials WHERE user_id = ? AND type = 'secret' AND json_extract(metadata, '$.purpose') = 'recovery'`,
+      )
+      .all(user.id)
+
+    const credential = candidates.find((candidate) => {
+      if (!candidate.metadata) return false
+      const metadata = JSON.parse(candidate.metadata) as SecretMetadata
+      return timingSafeEqual(providedHash, base64.decode(metadata.authHash))
+    })
+    if (!credential) {
+      throw new APIError('Invalid credentials', 401)
+    }
+
+    const session = this.sessions.createSession(user.id)
+    ctx.sessionCookie = sess.createCookie(session)
+
+    return {
+      success: true,
+      userId: user.id,
+      credentialId: credential.id,
+    }
+  }
+
   async getVault(req: api.GetVaultRequest, ctx: api.ServerContext): Promise<api.GetVaultResponse> {
     const knownVersion = req.knownVersion
     if (knownVersion !== undefined && (!Number.isInteger(knownVersion) || knownVersion < 0)) {
@@ -933,6 +982,12 @@ export class Service implements api.ServerInterface {
       .query<{id: string}, [string, string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = ?`)
       .get(user.id, 'passkey')
 
+    const recoveryCredential = this.db
+      .query<{id: string}, [string]>(
+        `SELECT id FROM credentials WHERE user_id = ? AND type = 'secret' AND json_extract(metadata, '$.purpose') = 'recovery'`,
+      )
+      .get(user.id)
+
     return {
       authenticated: true,
       relyingPartyOrigin: this.rp.origin,
@@ -941,6 +996,7 @@ export class Service implements api.ServerInterface {
       credentials: {
         ...(passwordCredential ? {password: true} : {}),
         ...(passkeyCredential ? {passkey: true} : {}),
+        ...(recoveryCredential ? {recoveryWords: true} : {}),
       },
     }
   }
