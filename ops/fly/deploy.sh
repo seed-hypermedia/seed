@@ -121,7 +121,7 @@ else
     "$site_url" "$generated_secret"
 fi
 
-"$flyctl" deploy \
+"$flyctl" deploy "$(dirname "$daemon_config")" \
   --config "$daemon_config" \
   --app "$daemon_app" \
   --ha=false \
@@ -132,7 +132,7 @@ fi
   --yes \
   --env "SEED_P2P_HOST=${daemon_app}.fly.dev"
 
-"$flyctl" deploy \
+"$flyctl" deploy "$(dirname "$web_config")" \
   --config "$web_config" \
   --app "$web_app" \
   --no-cache \

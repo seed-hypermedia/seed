@@ -1,10 +1,10 @@
 # dokploy: allow-host-ports — Seed's P2P protocol (libp2p over TCP and QUIC/UDP) is not HTTP, so Traefik cannot route it.
-version: "3.8"
+version: '3.8'
 
 services:
   seed-init:
     image: busybox:1.37
-    restart: "no"
+    restart: 'no'
     environment:
       - SEED_LINK_SECRET=${SEED_LINK_SECRET}
     volumes:
@@ -12,7 +12,8 @@ services:
     command:
       - sh
       - -c
-      - '[ -f /web/config.json ] || printf ''{"availableRegistrationSecret":"%s"}\n'' "$$SEED_LINK_SECRET" > /web/config.json; chown -R 1001:1001 /web'
+      - '[ -f /web/config.json ] || printf ''{"availableRegistrationSecret":"%s"}\n'' "$$SEED_LINK_SECRET" >
+        /web/config.json; chown -R 1001:1001 /web'
 
   seed-daemon:
     image: ${SEED_SITE_IMAGE:-seedhypermedia/site:latest}
@@ -21,8 +22,8 @@ services:
       - com.centurylinklabs.watchtower.enable=true
       - com.centurylinklabs.watchtower.scope=${SEED_UPDATE_SCOPE}
     ports:
-      - "${SEED_P2P_PORT:-56000}:56000"
-      - "${SEED_P2P_PORT:-56000}:56000/udp"
+      - '${SEED_P2P_PORT:-56000}:56000'
+      - '${SEED_P2P_PORT:-56000}:56000/udp'
     expose: [56001]
     environment:
       - SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME:-}
@@ -60,7 +61,7 @@ services:
     expose: [3000]
     environment:
       - SEED_BASE_URL=${SEED_BASE_URL}
-      - SEED_ASSET_HOST=${SEED_BASE_URL}
+      - SEED_ASSET_HOST=${SEED_ASSET_HOST:-${SEED_BASE_URL}}
       # Project-qualified name: without isolated deployments, every Seed stack's `seed-daemon` shares one network alias.
       - DAEMON_HTTP_URL=http://${COMPOSE_PROJECT_NAME}-seed-daemon-1:56001
       - NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}
