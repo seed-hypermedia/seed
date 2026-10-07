@@ -9,12 +9,12 @@ description:
 # Write Project Document
 
 Create comprehensive project document in Markdown with the sections Problem, Solution, Scope, Rabbit Holes, and No Gos
-based on the current context, draft, solution and scope in this specific session. write the document in the
-`./docs/projects/` folder (create the folder if not present).
-
-A project document is a working record for the life of the project, not reference documentation. When the project ships,
-move any durable facts into the published docs under `hypermedia/` and delete the project document; git history keeps
-it.
+based on the current context, draft, solution and scope in this specific session. publish the document as a Seed
+document in your organization's Hypermedia space rather than adding a file to the repository: write it to a temporary
+markdown file, then `seed-cli document create -f <file.md> -p /projects/<slug> --name "<Project title>" -k <key>` (add
+`--dry-run` first to validate), and share the resulting `hm://` link. The repository keeps only published reference
+documentation, under `hypermedia/`; a project document is a working record for the life of the project. When the project
+ships, fold any durable facts into the matching `hypermedia/` page.
 
 <support-material>
 
