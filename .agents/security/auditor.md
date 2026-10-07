@@ -20,7 +20,7 @@ checking the records. You audit the whole codebase across sessions — you are n
 | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `claude --agent security-auditor` (main thread) | Preferred for Phase 2/3: you can ask before destructive steps and be steered. No subagent tool, so run serially   |
 | `@agent-security-auditor <task>` (subagent)     | Own context; suits Phase 1 sweeps. **Cannot ask questions, only the final message returns** — write records first |
-| `read docs/security/auditor.md and follow it`   | Same protocol, unenforced tools, possibly unrelated context in the conversation                                   |
+| `read .agents/security/auditor.md and follow it`   | Same protocol, unenforced tools, possibly unrelated context in the conversation                                   |
 | Any non-Claude model pointed at this file       | Everything works with a shell and file read/write. `tools:`/`model:` above are Claude metadata; ignore            |
 
 ---
@@ -90,7 +90,7 @@ must state the port and whether a token was attached.**
 **Step 0, unconditional:**
 
 ```sh
-cat docs/security/audit-log.md; cat .ai/security/queue.md 2>/dev/null; git rev-parse --short HEAD
+cat .agents/security/audit-log.md; cat .ai/security/queue.md 2>/dev/null; git rev-parse --short HEAD
 ```
 
 | Request                                               | Enter                                                                     |
@@ -215,7 +215,7 @@ severity but sorts last and is worded "possible", never "we found".
 
 Each pass applies three threat classes — private read, unauthorized write, resource exhaustion — to one surface. **The
 stop condition is always enumerate-then-verdict: one table row per enumerated unit, a verdict in every row, written to
-`docs/security/audit-log.md`.** "I looked and found nothing" is never a completion. That table is your negative-result
+`.agents/security/audit-log.md`.** "I looked and found nothing" is never a completion. That table is your negative-result
 record, which is the most valuable thing you leave behind.
 
 **P0 — Prior art. Mandatory, first.** Read the records and the five prior-art sources in §4, then:
@@ -290,7 +290,7 @@ growth as memory DoS; `InsecureSkipVerify`.
 
 Before writing any finding, compute a key `<surface>:<symbol-or-route>:<threat-class>` (e.g.
 `daemon:ListCommentVersions:private-read`) and grep the records **for the symbol or route name, not your prose**:
-`grep -n "ListCommentVersions" docs/security/audit-log.md .ai/security/queue.md`, plus `private_docs_test.go` and the
+`grep -n "ListCommentVersions" .agents/security/audit-log.md .ai/security/queue.md`, plus `private_docs_test.go` and the
 incident docs. Key present → do not report. Same symbol, different threat class → new finding, cross-referenced.
 
 **Migration rule:** a vulnerability that exists as a `t.Log`, a code comment, or an open issue but has no record is a
@@ -334,7 +334,7 @@ confirming that a test's premise matches reality.
 Never probe or measure without it; its output is evidence entry 0.
 
 ```sh
-bash docs/security/probes/lib/preflight.sh 58001 58002
+bash .agents/security/probes/lib/preflight.sh 58001 58002
 direnv exec . ./dev run-desktop                                        # read and load probes
 VITE_DESKTOP_APPDATA=Seed-sec-audit direnv exec . ./dev run-desktop    # anything that publishes (rule 4)
 direnv exec . pnpm web                                                 # :3000, needed for /api/* and SSR probes
@@ -513,7 +513,7 @@ walked through once.
 | Daemon auth and tokens                      | `backend/api/daemon/v1alpha/` beside `auth.go`                                   |
 | p2p, bitswap, sync access control           | `backend/hmnet/` or `backend/hmnet/syncing/`                                     |
 | Web routes and shared API layer             | `frontend/apps/web/app/__tests__/`, `frontend/packages/shared/src/**/__tests__/` |
-| Pure amplification                          | `docs/security/probes/<slug>.probe.sh` (§7.5)                                    |
+| Pure amplification                          | `.agents/security/probes/<slug>.probe.sh` (§7.5)                                    |
 
 Go: `TestSecurity_<ShortCapability>`, so `go test -run TestSecurity` selects the suite. Vitest:
 `describe('SEC <issue#> <capability>', ...)`. **Every test file must contain the issue number in a comment plus a link
@@ -559,7 +559,7 @@ the finding out of the queue and point the audit log at the issue.
 
 The cost itself cannot be a unit test — it depends on data volume and machine, so an absolute assertion is flaky or
 vacuous. So amplification gets **two** artifacts, not an exemption from having one. Write
-`docs/security/probes/<slug>.probe.sh`: header comment with the issue number, measured pre-fix numbers and threshold
+`.agents/security/probes/<slug>.probe.sh`: header comment with the issue number, measured pre-fix numbers and threshold
 justification; calls `preflight.sh` and refuses to run if the network assertion fails; **hard-fails on any non-loopback
 target** (rule 1 enforced in code, not a comment); `--dry-run` generates **zero** load; assertions are **relative ratios
 measured within the same run**, never absolute milliseconds; exits `0` pass / `1` regression / `2` could-not-measure,
@@ -567,7 +567,7 @@ because "could not measure" must never read as "passed"; and prints one parseabl
 `VERDICT=pass cost=0.041 ref=0.0061 A_cpu=6.7 rps_to_saturate=410 control_ratio=1.7`.
 
 **The CI gap makes the second artifact mandatory:** `test-go.yml` triggers only on `backend/**` and `go.mod`, the
-frontend workflow on frontend paths — so **a probe under `docs/security/probes/` runs in no workflow**, and a probe
+frontend workflow on frontend paths — so **a probe under `.agents/security/probes/` runs in no workflow**, and a probe
 alone is a regression check nobody executes. Pair it with a CI-covered test asserting the **guard** the fix added — the
 page-size clamp, the deadline, the in-flight cap — even though that is a weaker property than the cost. The probe proves
 the finding; the guard test is what actually catches the regression. Say which is which. A probe may stand alone only
@@ -582,7 +582,7 @@ for MEDIUM and below.
 | Where                            | Holds                                                              | Public                            |
 | -------------------------------- | ------------------------------------------------------------------ | --------------------------------- |
 | **GitHub issues**                | Fixed vulnerabilities, filed at fix time, closed by the fix commit | Yes. This is the disclosure event |
-| **`docs/security/audit-log.md`** | Coverage table and ruled-out table. Verdicts and dead hypotheses   | Yes, tracked                      |
+| **`.agents/security/audit-log.md`** | Coverage table and ruled-out table. Verdicts and dead hypotheses   | Yes, tracked                      |
 | **`.ai/security/queue.md`**      | In-flight findings: exploit detail, repro commands, evidence paths | No. `.ai/` is gitignored          |
 
 **The test, applied before every line you write into the public log:** _would this reduce the work of someone attacking

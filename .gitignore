@@ -128,7 +128,7 @@ ops/dist/*
 seed-pprof-*
 
 # Security probe output. Probe scripts are tracked; their measurements never are.
-docs/security/probes/**/out/
+.agents/security/probes/**/out/
 
 # Local load-testing script, deliberately untracked: it defaults to ramping real traffic and its
 # own examples point at production hosts. Keep it local rather than shipping a DoS tool in the repo.

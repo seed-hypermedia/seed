@@ -1,6 +1,8 @@
-# Releasing
-
-How to cut a production release. Each step depends on the previous one — do them in order.
+---
+name: Releasing
+summary: "How a maintainer cuts a production release of Seed, in order: pick the version number, tag it, wait for the build workflows, write the release notes, and publish latest.json for desktop auto-update."
+---
+How to cut a production release. Each step depends on the previous one, so do them in order.
 
 ## 1. Determine the release number
 
@@ -53,7 +55,7 @@ bodies of the last few releases (`gh release view <tag>`) to stay consistent in 
 - Be very short when describing new features. A feature may span 10 commits but is worth only one
   entry. Group related commits into a single user-facing line.
 - Do not write notes for fixes to regressions that were introduced and fixed within the same
-  release cycle — the bug was never in a released version, so users never saw it. When in doubt,
+  release cycle, the bug was never in a released version, so users never saw it. When in doubt,
   check whether the buggy commit is reachable from the previous release tag.
 - Write for users, not developers: describe the visible behavior, not the implementation.
   Internal-only changes (refactors, CI, tests) are usually not worth an entry.

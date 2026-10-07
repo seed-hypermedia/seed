@@ -1,5 +1,7 @@
-# Sentry Dashboard Setup — Required Configuration
-
+---
+name: Sentry Setup
+summary: "Everything that must be configured inside the Sentry web UI for Seed error reporting to work end to end: projects, the auth token, the GitHub integration, environments, release health, alerts, filters, scrubbing, spend caps and sampling."
+---
 This document covers everything that must be configured **inside the Sentry web UI** for our codebase setup to work end-to-end. The code-side setup (SDK init, source-map upload, release lifecycle in CI) is already done; this is the human checklist that complements it.
 
 Org: `mintter` (URL: `https://mintter.sentry.io`)
@@ -8,15 +10,15 @@ Org: `mintter` (URL: `https://mintter.sentry.io`)
 
 ## 1. Projects to create
 
-Create one Sentry project per runtime. The "platform" you pick during project creation only affects defaults (suggested integrations, onboarding text) — it does **not** change what the SDK can send. Pick the closest match.
+Create one Sentry project per runtime. The "platform" you pick during project creation only affects defaults (suggested integrations, onboarding text), it does **not** change what the SDK can send. Pick the closest match.
 
 | Project slug | What sends events | Sentry "platform" to pick | Notes |
 | --- | --- | --- | --- |
-| `seed-site` | Remix web app (`@shm/web`) — both server and browser via `@sentry/remix` | **JavaScript → Remix** | Single project for SSR + client. Sentry's Remix tile covers both. |
+| `seed-site` | Remix web app (`@shm/web`), both server and browser via `@sentry/remix` | **JavaScript → Remix** | Single project for SSR + client. Sentry's Remix tile covers both. |
 | `seed-notify` | Remix notify app (`@shm/notify`) | **JavaScript → Remix** | Same as above. |
-| `seed-electron` | Desktop app — main process, all renderers, preload, native crashes, daemon symbols | **JavaScript → Electron** | One project, three SDKs (`@sentry/electron/main`, `/renderer`, `/preload`) all post here. Native daemon debug files also upload here so crash dumps symbolicate. |
+| `seed-electron` | Desktop app, main process, all renderers, preload, native crashes, daemon symbols | **JavaScript → Electron** | One project, three SDKs (`@sentry/electron/main`, `/renderer`, `/preload`) all post here. Native daemon debug files also upload here so crash dumps symbolicate. |
 
-If `seed-site`, `seed-notify`, or `seed-electron` already exist with a different platform value (e.g. "Browser" or "Node"), don't recreate — the platform is mostly cosmetic. Just verify the slug matches what the code sends to (`vite.config.mts`, `vite.main.config.mts`, etc. all hard-code these slugs).
+If `seed-site`, `seed-notify`, or `seed-electron` already exist with a different platform value (e.g. "Browser" or "Node"), don't recreate, the platform is mostly cosmetic. Just verify the slug matches what the code sends to (`vite.config.mts`, `vite.main.config.mts`, etc. all hard-code these slugs).
 
 > **No separate project for the Go daemon.** Native (Electron + Go) crashes route through `seed-electron` because that's where the Electron main process is initialised and where `sentry-cli debug-files upload` pushes daemon symbols. If we ever ship a standalone server-side Go service that should report independently, create a `seed-daemon` project with platform **Go** at that point.
 
@@ -40,13 +42,13 @@ Our CI uploads sourcemaps and creates releases via `sentry-cli` and `@sentry/vit
   - `project:read`
   - `project:releases`
   - `org:read`
-  - `project:write` (only if you want CI to be able to mutate project settings — usually skip)
+  - `project:write` (only if you want CI to be able to mutate project settings, usually skip)
 - **Name:** `ci-mintter-seed` (or similar so it's identifiable later).
-- Copy the value once — it's not shown again.
+- Copy the value once, it's not shown again.
 
 Save the token to GitHub repo secrets as `SENTRY_AUTH_TOKEN` (likely already done; verify under `Settings → Secrets and variables → Actions`).
 
-> **Rotate every 6 months.** Old tokens stop working silently — releases keep getting created locally but sourcemaps fail to upload. Add a calendar reminder.
+> **Rotate every 6 months.** Old tokens stop working silently, releases keep getting created locally but sourcemaps fail to upload. Add a calendar reminder.
 
 ---
 
@@ -126,7 +128,7 @@ Toggle on:
 - ✅ **Localhost** (skip on `seed-electron`, since the renderer reports `localhost` URLs in normal use)
 - ✅ **Filter out errors known to be caused by old browsers** (for `seed-site`)
 
-You can also add custom URL filters — e.g. to ignore errors from preview/staging hostnames.
+You can also add custom URL filters, e.g. to ignore errors from preview/staging hostnames.
 
 ---
 
@@ -139,7 +141,7 @@ You can also add custom URL filters — e.g. to ignore errors from preview/stagi
   - `Authorization` (header)
   - any cookie names used for auth in the web app
   - `dsn`, `apiKey` (if either ever ends up in extras)
-- ✅ "Prevent storing of IP addresses" — leave off only if you actually need GeoIP per event. Our SDKs send `sendDefaultPii: false`, so IPs already aren't sent.
+- ✅ "Prevent storing of IP addresses", leave off only if you actually need GeoIP per event. Our SDKs send `sendDefaultPii: false`, so IPs already aren't sent.
 
 ---
 
@@ -150,10 +152,10 @@ Profiling + replays + tracing-at-100% can spike costs surprisingly fast. Set cap
 `Settings → Subscription → Spend Allocation`
 
 - Set a monthly cap on:
-  - **Transactions** (tracing) — start low, watch a week, raise.
-  - **Profiles** — usually correlated with transactions; cap at the same ratio.
-  - **Replays** — replay-on-error is 100% sample, so spikes during incidents.
-  - **Attachments** — only matters if minidumps get large.
+  - **Transactions** (tracing), start low, watch a week, raise.
+  - **Profiles**, usually correlated with transactions; cap at the same ratio.
+  - **Replays**, replay-on-error is 100% sample, so spikes during incidents.
+  - **Attachments**, only matters if minidumps get large.
 
 Recommended starting allocation (rough; tune after week 1):
 - `seed-electron`: 50% of transaction budget, 80% of profile budget, 60% of replay budget.
@@ -175,13 +177,13 @@ Without it, our 0.1–0.2 client sample rates can produce a flat distribution; w
 
 ---
 
-## 11. Source maps & debug files — verification steps
+## 11. Source maps & debug files, verification steps
 
 After the first production deploy with the new setup, confirm the pipeline actually works:
 
 ### Source maps (web + electron renderer/main/preload)
 
-1. `Releases → <release sha or version>` — should list "Artifacts" with files like `app/entry.client-XXX.js` and matching `.map`.
+1. `Releases → <release sha or version>`, should list "Artifacts" with files like `app/entry.client-XXX.js` and matching `.map`.
 2. Open any issue in `seed-site` or `seed-electron`. Click **View Source** on a frame. You should see original TypeScript. If you see minified JS, the release name in the SDK init doesn't match the release name in the upload.
 3. If broken: check that `release` in the SDK init equals `release.name` in `sentryVitePlugin`. They both come from the same env var (`SITE_SENTRY_RELEASE` for web → commit SHA; `VITE_VERSION` for desktop → git tag). Confirm both are set in the failing CI run's logs.
 
@@ -199,17 +201,17 @@ After the first production deploy with the new setup, confirm the pipeline actua
 
 - ✅ Confirm replay capture is enabled.
 - Set "Block media" + "Mask all text" defaults (we already pass these in code; this is a belt-and-suspenders).
-- Privacy: confirm sampling won't capture PII inputs — our `replayIntegration({ maskAllText: true, blockAllMedia: true })` covers the common cases, but verify by watching one captured replay.
+- Privacy: confirm sampling won't capture PII inputs, our `replayIntegration({ maskAllText: true, blockAllMedia: true })` covers the common cases, but verify by watching one captured replay.
 
 ---
 
 ## 13. Web Vitals (seed-site only)
 
-`Insights → Web Vitals` — this auto-populates with `browserTracingIntegration` from v8. After 24h of prod traffic, you should see LCP/FCP/CLS/INP per route. No config needed; just confirm it's filling.
+`Insights → Web Vitals`, this auto-populates with `browserTracingIntegration` from v8. After 24h of prod traffic, you should see LCP/FCP/CLS/INP per route. No config needed; just confirm it's filling.
 
 If empty after a day:
 - Check that the SDK is initialised (open prod site → DevTools → Network → filter for `ingest.sentry.io` → should see `/envelope/` POSTs).
-- Check that you're not in `dev` env — Web Vitals filter defaults to `production`.
+- Check that you're not in `dev` env, Web Vitals filter defaults to `production`.
 
 ---
 
@@ -258,7 +260,7 @@ So you know what to change in code if a Sentry-side change requires a code chang
 | --- | --- |
 | Project slug | `frontend/apps/web/vite.config.mts` (`project: 'seed-site'`); `frontend/apps/notify/vite.config.ts` (`project: 'seed-notify'`); `frontend/apps/desktop/vite.{main,renderer,preload,renderer.find-in-page}.config.mts` (`project: 'seed-electron'`); `scripts/upload-daemon-symbols.mjs` (`SENTRY_PROJECT` default). |
 | Org slug | Same files (`org: 'mintter'`). |
-| Release name (web) | `process.env.SITE_SENTRY_RELEASE` — set from `COMMIT_HASH` build arg in `frontend/apps/web/Dockerfile`. |
+| Release name (web) | `process.env.SITE_SENTRY_RELEASE`, set from `COMMIT_HASH` build arg in `frontend/apps/web/Dockerfile`. |
 | Release name (desktop) | `VERSION` constant from `@shm/shared/constants` → `VITE_VERSION` env var → CI sets it from git tag (`needs.build-info.outputs.version`). |
 | Environment | `SITE_SENTRY_ENVIRONMENT` (web) / `SENTRY_ENVIRONMENT` (desktop). |
 | Sampling rates | `frontend/apps/web/app/entry.client.tsx`, `frontend/apps/web/instrumentation.server.mjs`, `frontend/apps/desktop/src/main.ts`, `frontend/apps/desktop/src/renderer.ts`. |

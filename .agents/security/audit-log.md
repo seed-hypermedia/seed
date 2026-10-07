@@ -1,7 +1,7 @@
 # Security audit log
 
 Durable, public-safe record of security audit work. Maintained by the security auditor agent
-(`docs/security/auditor.md`), which reads this file before every run.
+(`.agents/security/auditor.md`), which reads this file before every run.
 
 ## What lives where, and why
 
