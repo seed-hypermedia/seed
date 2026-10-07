@@ -1,5 +1,7 @@
 # Seed Hypermedia on Easypanel
 
+New to Easypanel? Follow the step-by-step [tutorial](TUTORIAL.md).
+
 This template deploys one Seed site in an Easypanel project with a daemon, web
 app, and Shepherd updater. Easypanel enables HTTPS for the site's domain by
 default.

@@ -1,5 +1,7 @@
 # Seed site on CapRover
 
+New to CapRover? Follow the step-by-step [tutorial](TUTORIAL.md).
+
 This one-click app deploys one Seed site with a daemon, web app, Caddy routing for `/ipfs` requests, persistent data,
 and Shepherd updates.
 

@@ -1,5 +1,7 @@
 # Seed site on Coolify
 
+New to Coolify? Follow the step-by-step [tutorial](TUTORIAL.md).
+
 `seed-site.yaml` is a Coolify v4 docker-compose service template for one Seed site: `seed-daemon`, `seed-web`, an
 internal Caddy (`seed-proxy`) that keeps the `/ipfs/*` → daemon routing of the standard deployment. Coolify's own proxy
 terminates TLS for the domain. `seed-updater.yaml` is a separate stack, deployed once per server, that keeps every Seed
@@ -7,7 +9,7 @@ site on that server up to date.
 
 ## Deploy
 
-1. In Coolify: **Project → New Resource → Docker Compose Empty**, paste `seed-site.yaml`.
+1. In Coolify: **Project → New Resource → Docker Compose**, paste `seed-site.yaml`.
 2. On the `seed-proxy` service set the domain, e.g. `https://site.example.com` (one domain, no path).
 3. Optional environment variables (defaults in brackets):
    - `SEED_WEB_IMAGE` / `SEED_SITE_IMAGE` [`seedhypermedia/web:latest` / `seedhypermedia/site:latest`]. Use

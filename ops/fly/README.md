@@ -1,5 +1,7 @@
 # Seed site on Fly.io
 
+New to Fly.io? Follow the step-by-step [tutorial](TUTORIAL.md).
+
 This template deploys one Seed site as two Fly apps: a public web app and a private daemon app. The web app is the only
 HTTP entrypoint. It proxies `GET /ipfs/*` to its own daemon over Fly's private network; uploads use the Seed client and
 do not require the daemon's HTTP listener to be public. The daemon exposes only its P2P TCP and UDP listeners.

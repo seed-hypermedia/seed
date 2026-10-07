@@ -1,5 +1,7 @@
 # Seed on Railway
 
+New to Railway? Follow the step-by-step [tutorial](TUTORIAL.md).
+
 This template deploys one Seed site as two Railway services: **Seed Daemon** and **Seed Web**. Each service has one
 volume mounted at `/data` and one replica. The web service is the only HTTP entrypoint; it proxies `GET /ipfs/*` to its
 own daemon over Railway private networking. Uploads use the Seed client and do not require a public daemon HTTP
