@@ -286,6 +286,8 @@ export async function sendAgentAction(input: {
   serverUrl: string
   accountUid: string
   action: AgentAction
+  /** Cancels a window-scoped request, such as a browser long-poll when its panel closes. */
+  signal?: AbortSignal
 }): Promise<AgentsResponse> {
   const baseUrl = normalizeAgentServerUrl(input.serverUrl)
   const envelope = await signAgentAction({accountUid: input.accountUid, action: input.action})
@@ -294,6 +296,7 @@ export async function sendAgentAction(input: {
     method: 'POST',
     headers: {'Content-Type': 'application/cbor', Accept: 'application/cbor'},
     body: cbor.encode(envelope) as BodyInit,
+    signal: input.signal,
   })
   const decoded = cbor.decode<AgentsResponse>(new Uint8Array(await res.arrayBuffer()))
   if (!res.ok || decoded._ === 'Error') {

@@ -3,6 +3,8 @@ import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
+vi.mock('@shm/ui/agents/platform', () => ({getAgentsPlatform: () => ({})}))
+
 /**
  * The sidebar mirrors the Agents page: the dropdown at the top filters the chat list to one agent
  * or to all of them, the list has a composer below it, and an open chat has a back button to the

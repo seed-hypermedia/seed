@@ -98,6 +98,7 @@ const STATIC_WINDOW_TITLES: Partial<Record<NavRoute['key'], string>> = {
 
 /** Returns the native window title for the active navigation route. */
 export function getWindowTitle(route: NavRoute, activeName?: string): string {
+  if (route.key === 'web') return route.title || route.url
   const staticTitle = STATIC_WINDOW_TITLES[route.key]
   if (staticTitle) return staticTitle
   if (!activeName) return 'Seed'

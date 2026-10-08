@@ -27,6 +27,7 @@ export const appExperimentsSchema = z
   .object({
     hosting: z.boolean().optional(),
     webImporting: z.boolean().optional(),
+    webBrowser: z.boolean().optional(),
     nostr: z.boolean().optional(),
     developerTools: z.boolean().optional(),
     /** Dev tools sub-toggle: the block-hover prediction cone overlay in editors. */

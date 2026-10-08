@@ -1,3 +1,4 @@
+import {createRendererIPC} from './preload-ipc'
 import {AppWindowEvent} from '@/utils/window-events'
 import '@sentry/electron/preload'
 import {contextBridge, ipcRenderer} from 'electron'
@@ -7,11 +8,32 @@ import {eventStream, writeableStateStream} from '@shm/shared/utils/stream'
 import type {OnboardingFormData, OnboardingState, OnboardingStep} from './app-onboarding'
 import {GoDaemonState} from './daemon'
 import {UpdateStatus} from './types/updater-types'
+import type {BrowserCommand} from '@seed-hypermedia/agents-protocol'
 
 // Declare global window extension for TypeScript
 declare global {
   interface Window {
     isWindowMaximized?: boolean
+    webBrowser: {
+      create: () => Promise<{browserId: number}>
+      setBounds: (input: {
+        browserId: number
+        visible: boolean
+        bounds?: {x: number; y: number; width: number; height: number}
+      }) => void
+      control: (input: {browserId: number; action: 'reload' | 'stop'}) => void
+      navigate: (input: {browserId: number; requestId: number; url: string; historyIndex?: number}) => void
+    }
+    browserAgent: {
+      access: (input: {
+        connectionId: string
+        browserId: number
+        accountUid: string
+        enabled: boolean
+        origins?: string[]
+      }) => Promise<void>
+      execute: (connectionId: string, command: BrowserCommand) => Promise<Record<string, unknown>>
+    }
   }
 }
 
@@ -36,6 +58,20 @@ export type AppInfoType = typeof AppInfo
 contextBridge.exposeInMainWorld('appInfo', AppInfo)
 
 const windowInfo = ipcRenderer.sendSync('initWindow')
+// The web pane: the renderer never holds a web view, it asks the main process for one.
+contextBridge.exposeInMainWorld('webBrowser', {
+  create: () => ipcRenderer.invoke('web-browser-create', {}),
+  setBounds: (input: unknown) => ipcRenderer.send('web-browser-bounds', input),
+  control: (input: unknown) => ipcRenderer.send('web-browser-control', input),
+  navigate: (input: unknown) => ipcRenderer.send('web-browser-navigate', input),
+})
+contextBridge.exposeInMainWorld('browserAgent', {
+  access: (input: unknown) => ipcRenderer.invoke('browser-agent-access', input),
+  execute: (connectionId: string, command: BrowserCommand) =>
+    ipcRenderer.invoke('browser-agent-execute', {connectionId, command}),
+})
+
+contextBridge.exposeInMainWorld('daemonAppSecret', windowInfo.daemonAppSecret)
 
 contextBridge.exposeInMainWorld('windowId', windowInfo.windowId)
 contextBridge.exposeInMainWorld('windowType', windowInfo.windowType)
@@ -215,21 +251,7 @@ ipcRenderer.addListener('window-state-change', (info, state: {isMaximized: boole
 })
 
 contextBridge.exposeInMainWorld('ipc', {
-  send: (cmd: string, args: any) => {
-    ipcRenderer.send(cmd, args)
-  },
-  listen: async (cmd: string, handler: (event: any) => void) => {
-    const innerHandler = (info: any, payload: any) => {
-      handler({info, payload})
-    }
-    ipcRenderer.addListener(cmd, innerHandler)
-    return () => {
-      ipcRenderer.removeListener(cmd, innerHandler)
-    }
-  },
-  versions: () => {
-    return process.versions
-  },
+  ...createRendererIPC(ipcRenderer),
   broadcast: (event: any) => {
     ipcRenderer.send('broadcastWindowEvent', event)
   },

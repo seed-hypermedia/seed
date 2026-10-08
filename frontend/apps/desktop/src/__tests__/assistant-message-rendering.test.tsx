@@ -198,6 +198,25 @@ describe('assistant message rendering', () => {
     cleanupRendered(root, container)
   })
 
+  it('identifies browser context and discloses the page and access state', () => {
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const contextLines = [
+      '## Current window',
+      'URL: https://example.com/article',
+      'View: web',
+      'Browser access: paused',
+    ]
+    act(() => root.render(<ChatMessageBubble message={{role: 'user', content: 'Archive this page', contextLines}} />))
+    const chip = findButton(container, (element) => element.textContent?.includes('Browser context') ?? false)
+    expect(chip).toBeTruthy()
+    click(chip)
+    expect(document.body.textContent).toContain('https://example.com/article')
+    expect(document.body.textContent).toContain('Browser access: paused')
+    cleanupRendered(root, container)
+  })
+
   it('shows the originator icon and exact account and signer metadata on user messages', () => {
     const container = document.createElement('div')
     document.body.appendChild(container)

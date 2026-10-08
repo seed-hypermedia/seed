@@ -1,4 +1,12 @@
 export * from './tool-registry'
+export * from './browser'
+import type {
+  ConnectSessionBrowser,
+  PollSessionBrowser,
+  ResolveSessionBrowser,
+  DisconnectSessionBrowser,
+  SessionBrowserResponse,
+} from './browser'
 import type {JsonSchema} from './tool-registry'
 export * from './reasoning'
 export * from './delegation'
@@ -233,6 +241,10 @@ export type UnsignedAgentAction =
   | GetSession
   | GetSessionEvent
   | MessageSession
+  | ConnectSessionBrowser
+  | PollSessionBrowser
+  | ResolveSessionBrowser
+  | DisconnectSessionBrowser
   | InvokeSessionTool
   | UploadSessionAttachment
   | ReadSessionAttachment
@@ -2483,6 +2495,7 @@ export type AgentResponse =
   | GetSessionResponse
   | GetSessionEventResponse
   | MessageSessionResponse
+  | SessionBrowserResponse
   | InvokeSessionToolResponse
   | UploadSessionAttachmentResponse
   | ReadSessionAttachmentResponse

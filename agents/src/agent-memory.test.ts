@@ -14,6 +14,9 @@ import {
   summarizeMemoryTopLevel,
   summarizeMemoryTopLevelAsync,
   writeMemoryFile,
+  withOwnerAccess,
+  listMemoryAsync,
+  migratePrivateMemory,
 } from '@/agent-memory'
 
 function withStateDir(run: (stateDir: string) => void | Promise<void>): void | Promise<void> {
@@ -36,6 +39,71 @@ afterEach(() => {
 })
 
 describe('agent memory', () => {
+  test('upgrades legacy private files and browser archives out of the sandbox mount', async () => {
+    await withStateDir((stateDir) => {
+      const root = memoryRootPath(stateDir)
+      fs.mkdirSync(path.join(root, 'private'), {recursive: true})
+      fs.mkdirSync(path.join(root, 'browser'), {recursive: true})
+      fs.writeFileSync(path.join(root, 'private', 'old.txt'), 'private before upgrade')
+      fs.writeFileSync(path.join(root, 'browser', 'archive-old.md'), 'legacy browser secret')
+      fs.writeFileSync(path.join(root, 'browser', 'notes.md'), 'shared notes')
+      migratePrivateMemory(stateDir)
+      migratePrivateMemory(stateDir)
+      expect(fs.existsSync(path.join(root, 'private'))).toBe(false)
+      expect(fs.existsSync(path.join(root, 'browser', 'archive-old.md'))).toBe(false)
+      expect(readMemoryFile(stateDir, 'private/old.txt').content).toBe('private before upgrade')
+      expect(readMemoryFile(stateDir, 'private/browser/archive-old.md').content).toBe('legacy browser secret')
+      expect(readMemoryFile(stateDir, 'browser/notes.md').content).toBe('shared notes')
+      withOwnerAccess(false, () =>
+        expect(listMemory(stateDir).entries.map((entry) => entry.path)).toEqual(['browser', 'browser/notes.md']),
+      )
+    })
+  })
+
+  test('legacy private symlinks never become the owner storage root', async () => {
+    await withStateDir((stateDir) => {
+      const root = memoryRootPath(stateDir)
+      const outside = path.join(stateDir, 'outside')
+      fs.mkdirSync(path.join(root, 'browser'), {recursive: true})
+      fs.mkdirSync(outside)
+      fs.symlinkSync(outside, path.join(root, 'private'))
+      fs.writeFileSync(path.join(root, 'browser', 'archive-old.md'), 'secret')
+      migratePrivateMemory(stateDir)
+      expect(fs.readdirSync(outside)).toEqual([])
+      expect(readMemoryFile(stateDir, 'private/browser/archive-old.md').content).toBe('secret')
+    })
+  })
+
+  test('private paths are hidden consistently across synchronous and asynchronous memory views', async () => {
+    await withStateDir(async (stateDir) => {
+      writeMemoryFile(stateDir, 'private/browser/archive.md', 'secret')
+      writeMemoryFile(stateDir, 'shared.txt', 'public')
+      expect(fs.existsSync(path.join(memoryRootPath(stateDir), 'private'))).toBe(false)
+      await withOwnerAccess(false, async () => {
+        for (const privatePath of [
+          'private',
+          'private/browser/archive.md',
+          '/./private/browser/archive.md',
+          'private\\browser\\archive.md',
+        ]) {
+          expect(() => resolveMemoryPath(stateDir, privatePath)).toThrow('Only the agent owner')
+          expect(() => deleteMemoryPath(stateDir, privatePath)).toThrow('Only the agent owner')
+        }
+        expect(listMemory(stateDir).entries.map((entry) => entry.path)).toEqual(['shared.txt'])
+        expect((await listMemoryAsync(stateDir)).entries.map((entry) => entry.path)).toEqual(['shared.txt'])
+        expect(listMemoryDir(stateDir).entries.map((entry) => entry.path)).toEqual(['shared.txt'])
+        expect(summarizeMemoryTopLevel(stateDir)).toMatchObject({totalFiles: 1, totalBytes: 6})
+        expect(await summarizeMemoryTopLevelAsync(stateDir)).toMatchObject({totalFiles: 1, totalBytes: 6})
+        expect(() => readMemoryFile(stateDir, 'private/browser/archive.md')).toThrow('Only the agent owner')
+        expect(() => writeMemoryFile(stateDir, 'private/new.md', 'bad')).toThrow('Only the agent owner')
+        await expect(downloadToMemory(stateDir, 'https://example.invalid/file', 'private/download')).rejects.toThrow(
+          'Only the agent owner',
+        )
+      })
+      expect(readMemoryFile(stateDir, 'private/browser/archive.md').content).toBe('secret')
+    })
+  })
+
   test('writes, lists, reads, and deletes files', () => {
     withStateDir((stateDir) => {
       const written = writeMemoryFile(stateDir, 'notes/todo.md', '# Todo\n\n- remember this\n')
