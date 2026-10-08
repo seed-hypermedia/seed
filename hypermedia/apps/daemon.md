@@ -19,7 +19,7 @@ Other binaries beside the daemon: `monitord` (health checks of sites), `relayd` 
 | HTTP | `-http.port` | 55001 | gRPC-web for every service, `/ipfs/*`, `/hm/api/config`, `/debug/*` <!-- id:G7uKQa9- --> |
 | gRPC | `-grpc.port` | 55002 | the same services over plain gRPC <!-- id:H9V6rMI- --> |
 
-Both gRPC and HTTP bind all interfaces, so other machines can reach them unless a firewall blocks them. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
+HTTP binds `127.0.0.1` by default, and a daemon on loopback only answers a browser page that presents the desktop app secret or a bearer token. Server and container deployments must pass `-http.listen-all` (or `SEED_HTTP_LISTEN_ALL=true`): it binds all interfaces and keeps the open web policy, since the hosted web app uploads to the gateway straight from the browser. `-public-only` keeps the open policy too. Plain gRPC still binds all interfaces and needs a firewall. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
 
 # Flags that matter to operators <!-- id:qKo2ROZg -->
 
@@ -27,6 +27,8 @@ Both gRPC and HTTP bind all interfaces, so other machines can reach them unless 
 | Flag <!-- col:9aAQ-i5K --> | Default <!-- col:k2MWOcv4 --> | Meaning <!-- col:WdP1mgRz --> <!-- id:oDc0TVDL --> |
 | --- | --- | --- |
 | `-data-dir` | `~/.mtt` | Where everything is stored. The desktop app passes its own data directory. <!-- id:ypeA1_vg --> |
+| `-http.listen-all` | false | Server mode: bind HTTP to all interfaces and answer any web origin. Required for hosted containers, including external SeedInfra deployments. |
+| `-http.app-origins` | empty | Additional comma-separated trusted app origins. The desktop supplies its Vite dev origin or custom local-server port range; production server deployments normally leave this empty. |
 | `-public-only` | false | Serve only public data in the APIs and over HTTP. Hosted sites and [gateways](../protocol/sites.md) use this mode. <!-- id:3vWzc_PR --> |
 | `-keystore-dir` | empty | Use a file-based keystore in place of the OS keychain or vault. It is marked insecure. Sites use it inside their container. <!-- id:7a5pl9E4 --> |
 | `-p2p.testnet-name` | empty | Joins a named testnet in place of mainnet by adding a suffix to the protocol id. <!-- id:7Km4dzez --> |
@@ -50,13 +52,28 @@ The schema in `backend/storage/schema.sql` is the source of truth, and migration
 # The HTTP surface <!-- id:6a_7IwIy -->
 
 Besides gRPC-web, the HTTP port serves the [file](../protocol/files.md) gateway and a few utility routes. <!-- id:jRtCZj9l -->
-  - `GET /ipfs/<cid>` returns a file or block. If the node does not have it, the daemon searches the network for up to a minute. `GET /ipfs/<cid>.dagjson` decodes a DAG-CBOR [blob](../protocol/blobs.md) and pretty-prints it. It is the quickest way to inspect a [change](../change.md), [ref](../ref.md) or [comment](../comment.md). `POST /ipfs/file-upload` chunks a file into UnixFS and returns its [CID](../protocol/blobs.md). `POST /ipfs/<cid>` stores one raw block. Both uploads accept up to 150 MiB and require no authentication. See [Files](../protocol/files.md). <!-- id:Uv2WP0An -->
+  - `GET /ipfs/<cid>` returns a file or block. If the node does not have it, the daemon searches the network for up to a minute. `GET /ipfs/<cid>.dagjson` decodes a DAG-CBOR [blob](../protocol/blobs.md) and pretty-prints it. It is the quickest way to inspect a [change](../change.md), [ref](../ref.md) or [comment](../comment.md). `POST /ipfs/file-upload` chunks a file into UnixFS and returns its [CID](../protocol/blobs.md). `POST /ipfs/<cid>` stores one raw block. Both uploads accept up to 150 MiB and require a credential for cross-origin browser requests. See [Files](../protocol/files.md). <!-- id:Uv2WP0An -->
   - `GET /hm/api/config` on the daemon returns its peer id, addresses and protocol id. The [web app](./web.md)'s version of the same route adds the registered account. <!-- id:sVOzWC8O -->
   - `GET /debug/version` reports the build. The other `/debug/*` pages answer only to loopback callers that send no cross-site fetch header. They cover metrics, pprof, the p2p and network reports, the SQLite pool and an embedded grpcui. <!-- id:5j98RxA2 -->
 
 # Authentication, plainly <!-- id:-A2Y41QE -->
 
-The local gRPC and HTTP API has no authentication. Whoever can reach the port can read everything the node holds and can write as any key the node keeps, because signing happens inside the daemon. Bearer tokens exist, but they only widen reads on a public-only node. They never gate writes. The mitigations are deliberate and simple. Keep the ports on localhost or behind a firewall. Run any daemon that faces the internet with `-public-only` behind the [web app](./web.md). Sites are deployed this way. [Integrity](../protocol/integrity.md) spells out what is verified and what is trusted. <!-- id:2ImcyxRS -->
+The HTTP API rejects browser requests carrying cross-site or same-site fetch metadata, or an untrusted `Origin`, unless they provide a valid `Authorization: Bearer` token or `X-Seed-App-Secret`. Rejections are 403 without CORS allow headers. Non-browser clients without those browser headers continue to work without credentials. This browser gate does not authenticate arbitrary network clients: keep the ports on localhost or behind a firewall. Run internet-facing deployments with `-public-only` behind the [web app](./web.md); the web app calls the daemon server-side. [Integrity](../protocol/integrity.md) spells out what is verified and what is trusted. <!-- id:2ImcyxRS -->
+
+CORS allows `http://localhost:17654` through `http://localhost:17664` and explicitly configured app origins, echoes the origin with `Vary: Origin`, and acknowledges Private Network Access preflights only for these origins. Actual cross-origin browser requests still need a credential. Public `GET /ipfs/<cid>`, `GET /hm/api/config`, and `GET /debug/version` remain exempt from the browser gate. Existing `-public-only` visibility filtering still applies.
+
+The desktop generates a random 32-byte secret once per app launch, passes it to its child daemon as the hex-encoded `SEED_APP_SECRET` environment variable, and supplies it to its own top-level renderer through preload. RPCs, uploads, and direct daemon reads attach the header. The secret stays in memory, survives child-daemon restarts within that app launch, and never goes in a URL or file. A standalone daemon generates its own secret if the environment variable is absent. For `SEED_NO_DAEMON_SPAWN` development, supply the same freshly generated `SEED_APP_SECRET` to both processes and configure the Vite origin with `-http.app-origins`.
+
+Regression commands from the repository root:
+
+```sh
+direnv exec . go build ./backend/daemon/...
+direnv exec . go test ./backend/daemon -run 'HTTP|Loopback|Gate|CORS'
+direnv exec . pnpm --filter @shm/desktop test:unit src/__tests__/daemon-http.test.ts
+direnv exec . pnpm --filter @shm/desktop exec playwright test --project=e2e tests/daemon-auth.e2e.ts
+```
+
+The Electron regression compiles an opt-in Go test fixture that starts the full daemon with temporary storage and real HTTP/gRPC-web handlers. It does not need a packaged desktop app or a stub daemon. It requires the normal Go/llama build prerequisites and Electron dependencies.
 
 # Working with it <!-- id:C41oDiC6 -->
 

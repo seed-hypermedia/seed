@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('appInfo', AppInfo)
 
 const windowInfo = ipcRenderer.sendSync('initWindow')
 
+contextBridge.exposeInMainWorld('daemonAppSecret', windowInfo.daemonAppSecret)
+
 contextBridge.exposeInMainWorld('windowId', windowInfo.windowId)
 contextBridge.exposeInMainWorld('windowType', windowInfo.windowType)
 contextBridge.exposeInMainWorld('initNavState', windowInfo.navState)
