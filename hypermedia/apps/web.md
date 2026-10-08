@@ -14,6 +14,8 @@ The server holds one gRPC-web client to `DAEMON_HTTP_URL`, the [daemon](./daemon
 
 A bearer token the daemon rejects fails the request with a 401, even for public content. The page loader shows that as a server error. Clear the cookie if a site refuses to load after a key change. <!-- id:Ka-txL8V -->
 
+Server-side rendering caches the responses of `Query`, `QueryBlock`, `InteractionSummary` and `ListCitations` for 30 seconds, 500 entries at most, in [server-universal-client.ts](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/web/app/server-universal-client.ts). An entry holds the in-flight promise, so concurrent renders of one page share a single gRPC call. That client is never authenticated, so the cache only ever holds the public view. API responses to browsers carry `Cache-Control: private, no-store`, and there is no HTTP cache in front of the app. Citation lists and the counts in interaction summaries fetch one page of 500 citations and never more (`listAllPages` with `maxPages` in `@shm/shared`), because enumerating every citation of a heavily cited document held the [daemon](./daemon.md)'s read pool and took hyper.media down in August 2026. A document with more than 500 citations shows a truncated count until the daemon can report a count without enumerating.
+
 # Site identity and registration <!-- id:IJs8U8LH -->
 
 A [site](../protocol/sites.md) is a daemon plus this app plus a JSON file. `config.json` in the data directory holds `availableRegistrationSecret`, and after registration also `registeredAccountUid` and `sourcePeerId`. The owner opens `https://site/hm/register?secret=…` and pastes the link into the [desktop app](./desktop.md)'s publish dialog. The desktop app posts to `/hm/api/register`. The site then connects to the desktop's [peer](../protocol/network.md) and records the [account](../protocol/identity.md). A `service-config.json` variant serves several sites from one deployment with custom domains. Until registration, the site shows a "not registered" page. [Sites](../protocol/sites.md) explains the model, and [Self-hosting](../build/self-hosting.md) walks through it. <!-- id:Wer3bjtI -->
@@ -33,6 +35,14 @@ Set `SEED_IS_GATEWAY=true` and the site becomes a [gateway](../protocol/sites.md
 
 [URLs](../protocol/urls.md) explains versions, block fragments and view terms. <!-- id:1nw003En -->
 
+# How a page is rendered
+
+The loaders in [`app/loaders.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/web/app/loaders.ts) resolve the URL to a document or comment, following [redirects](../protocol/documents.md), then fill a React Query cache that the browser takes over without refetching. Each request gets its own `QueryClient` (`app/queries.server.ts`, `staleTime: Infinity`). The query definitions are shared with the apps in `@shm/shared` (`models/queries.ts`): `queryResource`, `queryDirectory`, `queryAccount`, `queryQueryBlock`, `queryDocumentCollaborators` and the rest each return a `{queryKey, queryFn}` that works for both `prefetchQuery` on the server and `useQuery` in a component. So the rule is simple: the server prefetches exactly the queries the components will ask for.
+
+Prefetching runs in two waves of parallel `Promise.allSettled` calls, so one failure never breaks a page: first the document, the site home, both directories, the collaborators of the document and the home, and the breadcrumb documents; then, from the document's content, the payload of every query block, every embedded document and every author account. The cache is dehydrated into the loader data and restored in a `HydrationBoundary`. Anything missing is fetched by the browser on demand. Interaction summaries (comment and citation counts) are deliberately not prefetched: computing one enumerates every citation of the target, and prefetching thirty per page took hyper.media down on 2026-08-11. The browser fetches them for the cards on screen.
+
+The document body itself is server-rendered as real editor markup by `renderDocumentToHTML` in [`@shm/editor/ssr-render`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/editor/src/ssr-render.tsx). It converts the blocks exactly as the editor does at mount, serializes the ProseMirror document with the schema's own `renderHTML` through `DOMSerializer` in a happy-dom window, and renders the React node views (images, embeds, query blocks) with `react-dom/server` from the same prefetched cache. The result is cached per origin, document version and data fingerprint and injected with `dangerouslySetInnerHTML`. The page keeps that placeholder until the editor has mounted over it, then `DocumentContentHandoff` in `@shm/ui` lifts it two frames later, so the swap does not paint a blank frame. Because the markup is identical, read-only and editable views share one editor instance and switch without a remount.
+
 # Signing in the browser <!-- id:5yqQPr5T -->
 
 Browser identities are Ed25519 keys generated with WebCrypto as non-extractable key pairs and stored in IndexedDB. A database migration dropped the older P-256 identities. A browser key does not own a space. It acts for an [account](../protocol/identity.md) held in the [vault](./vault.md), through a delegated `AGENT` [capability](../protocol/permissions.md) and a profile alias. This is the flow described in [Sign in with Seed](../build/sign-in.md). Comments and document edits are built and signed in the browser with the [SDK](../build/sdk.md) and posted through the `PublishBlobs` action. For private content the app also calls the daemon's authenticate RPC and keeps the resulting bearer token in an HTTP-only cookie. <!-- id:0ZM3UtBB -->
@@ -50,6 +60,8 @@ Browser identities are Ed25519 keys generated with WebCrypto as non-extractable 
 | `DATA_DIR` | Where `config.json` lives. <!-- id:Yog9fhT0 --> |
 | `SERVICE_ADMIN_SECRET` | Admin secret for the multi-site service mode. <!-- id:7hphqAYs --> |
 | `VITE_NOTIFY_SERVICE_HOST` | The [notify](./notify.md) service to use. <!-- id:qjnnUf-X --> |
+
+The `/hm/notifications` page signs its requests in the browser with the session key and talks to the notify host that the vault callback named at sign-in, not to `NOTIFY_SERVICE_HOST`. [Notify](./notify.md) describes both the signed inbox and the older unsigned email subscribe form.
 
 # Working with it <!-- id:pl0RnALo -->
 

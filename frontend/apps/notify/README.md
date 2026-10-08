@@ -9,14 +9,8 @@ This directory is the operational center of Seed's notification system, but the 
 - the desktop client in [`../desktop/src`](../desktop/src)
 - the email renderer/templates in [`../emails`](../emails)
 
-If you only read one file first, read
-[`./app/NOTIFICATIONS_SERVICE_ARCHITECTURE.md`](./app/NOTIFICATIONS_SERVICE_ARCHITECTURE.md). That is the canonical
-service-side map. The client-specific docs are:
-
-- review + restructuring memo: [`./NOTIFICATIONS_REVIEW.md`](./NOTIFICATIONS_REVIEW.md)
-- web: [`../web/app/NOTIFICATIONS_WEB_ARCHITECTURE.md`](../web/app/NOTIFICATIONS_WEB_ARCHITECTURE.md)
-- desktop:
-  [`../desktop/src/NOTIFICATIONS_DESKTOP_ARCHITECTURE.md`](../desktop/src/NOTIFICATIONS_DESKTOP_ARCHITECTURE.md)
+The published description of how the service, the clients and the read-state rules fit together is
+[`hypermedia/apps/notify.md`](../../../hypermedia/apps/notify.md). This README is the file-by-file map.
 
 ## Current Mental Model
 
@@ -159,7 +153,5 @@ These are worth treating carefully before relying on them as active design:
   TODO in [`./app/email-notifier.ts`](./app/email-notifier.ts), so document-update delivery is not wired end to end.
 - The `inbox_registration` table and helper functions in [`./app/db.ts`](./app/db.ts) are active runtime state. They are
   used by unified snapshot reads, vault registration, and inbox-only subscription resolution in the notifier.
-- [`email-notification-signing-notes.md`](../../../email-notification-signing-notes.md) is historical and no longer
-  matches the current unified API shape.
 - [`../emails/notifier.tsx`](../emails/notifier.tsx) exports `createDesktopNotificationsEmail(...)`, but there are no
   production call sites in this repo.

@@ -47,6 +47,10 @@ The data directory holds three things. <!-- id:sBs3fgUk -->
 
 The schema in `backend/storage/schema.sql` is the source of truth, and migrations only go forward. Reindexing rebuilds everything derived from the blobs and can take a long time on a large node. A debug flag forces a reindex with profiling. <!-- id:VHdZ4OXj -->
 
+# Load and the read pool
+
+Every read RPC takes a connection from the SQLite read pool before it runs. The pool has `max(NumCPU, 12)` connections, set in [storage.go](https://github.com/seed-hypermedia/seed/blob/main/backend/storage/storage.go). A query that holds a connection for seconds removes that share of the node's read capacity for every other caller, so a call that costs microseconds of CPU can wait many seconds for a connection. When a node is pinned, measure cost per call rather than request volume. A CPU profile from `/debug/pprof/profile?seconds=20` names the RPC that holds the connections, `/debug/sqlite` shows the pool, and counting calls by method over the same window gives the cost of one call. Clients must not enumerate every page of an expensive listing such as `ListCitations` for a heavily cited document. The [web app](./web.md) caps those at one page. A restart only drains the backlog for a few minutes. Treat a fix as verified only after a long window of real traffic, never from the quiet minutes after a restart. The saturation of hyper.media on 2026-08-11 is written up in [daemon-saturation-incident.md](https://github.com/seed-hypermedia/seed/blob/4af3478e9599cdd7f8f32536b2f701d2effbdf5b/docs/daemon-saturation-incident.md) in the repository history.
+
 # The HTTP surface <!-- id:6a_7IwIy -->
 
 Besides gRPC-web, the HTTP port serves the [file](../protocol/files.md) gateway and a few utility routes. <!-- id:jRtCZj9l -->

@@ -42,17 +42,17 @@ See `hypermedia/*` for the available docs, which you are responsible for helping
 
 ## Security audit
 
-- The vulnerability-hunting protocol is `docs/security/auditor.md`. It is plain markdown and self-contained: point any
+- The vulnerability-hunting protocol is `.agents/security/auditor.md`. It is plain markdown and self-contained: point any
   model at it, or symlink it into a provider's agent directory to launch it as a named agent (for Claude Code:
-  `ln -s ../../docs/security/auditor.md .claude/agents/security-auditor.md`).
-- Read `docs/security/audit-log.md` before any security review. It records which surfaces have been audited and which
+  `ln -s ../../.agents/security/auditor.md .claude/agents/security-auditor.md`).
+- Read `.agents/security/audit-log.md` before any security review. It records which surfaces have been audited and which
   hypotheses were ruled out, so sessions resume instead of rediscovering.
 - Fixed vulnerabilities are disclosed as GitHub issues closed by their fix commit. Detail for unfixed findings stays in
   `.ai/security/queue.md`, which is gitignored — this repo is public.
 
 ## Workflow
 
-- To cut a release, follow `docs/releasing.md` (interactive runbook: `.agents/skills/run-release`).
+- To cut a release, follow `hypermedia/build/releasing.md` (interactive runbook: `.agents/skills/run-release`).
 
 - Ask clarifying questions when ambiguity matters.
 - Use OS temp dir for scratch files. Clean up after you're done.
@@ -65,7 +65,7 @@ See `hypermedia/*` for the available docs, which you are responsible for helping
 
 ## Local CI
 
-- Validate changes with [agent-ci](https://agent-ci.dev) before pushing. Full guide: `docs/local-ci-with-agent-ci.md`.
+- Validate changes with [agent-ci](https://agent-ci.dev) before pushing. Full guide: `hypermedia/build/local-ci.md`.
 - Pick the workflow that matches what you touched (subtree `AGENTS.md` files list the canonical command for each area):
   - Frontend: `npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token`
   - Backend lint: `npx @redwoodjs/agent-ci run -w .github/workflows/lint-go.yml -p`

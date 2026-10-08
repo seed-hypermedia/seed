@@ -22,6 +22,8 @@ The app is four processes. The main process spawns the [daemon](./daemon.md) wit
 
 The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on 56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local agents server and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge refuses cross-site browser requests. <!-- id:0UKp_9Fm -->
 
+Two things run once per app in the main process rather than once per window. The sync service, [`src/app-sync.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-sync.ts), keeps a reference-counted list of the resources any window is showing, runs [discovery](../protocol/network.md) for each of them on a loop, polls the daemon's activity feed, and broadcasts React Query invalidations to every window. Its intervals stretch ten times when no window is focused. The notification store described on [Notify](./notify.md) lives there too. Windows also share hover state: pointing at a block or a resource broadcasts `hypermediaHoverIn` over IPC, and every window highlights the elements with the matching `data-blockid` or `data-resourceid`.
+
 # Where it keeps things <!-- id:rXZ_ZjIJ -->
 
 User data is Electron's per-platform application-data folder: `~/Library/Application Support/Seed` on macOS, `~/.config/Seed` on Linux, `%APPDATA%\Seed` on Windows. Inside it, `daemon/` is the daemon's data directory with the SQLite database, the device key and the encrypted vault. `drafts/` holds drafts as files. Drafts and navigation state belong to the app, and the daemon does not store them. So drafts do not sync between devices. Published [documents](../protocol/documents.md) and [private documents](../protocol/privacy.md) do sync. In development the folder is `Seed-local`, so a dev app and a production app can run side by side. <!-- id:0v4MONLN -->
@@ -35,6 +37,16 @@ Every [document](../protocol/documents.md) goes through the same four states: lo
   4. **Publishing.** The draft becomes a signed [change](../change.md) and [ref](../ref.md), published through the daemon. On success the draft is deleted. On failure you are back in editing with the draft intact. <!-- id:0ezsKOhO -->
 
 Switching to an [account](../protocol/identity.md) without [edit access](../protocol/permissions.md) saves the draft and leaves editing. If a newer [version](../protocol/documents.md) is published elsewhere while you edit, the app notes it and does not force it on you. The whole flow is one state machine in `@shm/shared`, shared with the [web app](./web.md). <!-- id:oPC5qmXB -->
+
+"New" on a document creates a child draft in place: a card with an editable title appears at the bottom of the parent, and opening it goes to the full editor. Every unpublished child draft of the document you are viewing shows as a card there. The parent is not changed until the child publishes, so there is nothing to discard on it. The write is built by `buildInlineDraftWrite` in `@shm/shared` and stored like any other draft.
+
+# The editor
+
+`@shm/editor` ([`frontend/packages/editor`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/editor)) is a TipTap 2 editor over ProseMirror, derived from BlockNote. Its ProseMirror schema is three layers: `blockChildren` (a list with a `listType` of `Group`, `Unordered`, `Ordered` or `Blockquote`) holds `blockNode`s, and each `blockNode` holds one content block (paragraph, heading, image, embed, query and so on) and an optional `blockChildren` of its own. The rendered DOM carries `data-node-type`, `data-content-type` and `data-id` so styles and tests can target blocks without depending on class names. The [block](../protocol/blocks.md) format on the wire is the SDK's `HMBlock`; the conversion both ways lives in the [SDK](../build/sdk.md) (`hmblock-to-editorblock`), and the editor never changes it.
+
+Pasted HTML arrives from ProseMirror's parser as a flat list, so `transformPasted` in `BlockChildren.ts` hands it to `normalizeFragment.ts`, which rebuilds the nested `blockNode` structure before insertion.
+
+Typography is one class. `.hm-prose`, defined in `@shm/ui` ([`src/hm-prose.css`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/hm-prose.css)) on top of `@tailwindcss/typography`, sets the font stacks, heading scale and block rhythm in relative units, keyed off the `data-node-type` and `data-content-type` attributes. The same class is applied to the draft editor, the read-only viewer, embeds, comment bodies (`.hm-prose.is-comment`) and the server-rendered HTML on the [web](./web.md), so a document looks the same in all of them. Size modifiers `.hm-prose-sm`, `-base`, `-lg` and `-xl` scale a whole surface.
 
 # Inspecting the raw data <!-- id:D8QcuKZ1 -->
 
@@ -61,6 +73,10 @@ The renderer publishes through `@seed-hypermedia/client`, the [SDK](../build/sdk
 ## Agents <!-- id:n3tPWtmN -->
 
 The desktop app starts a local [agents server](./agents.md) and shows the agents interface. You can configure hosted or self-hosted agent servers in its place. The chat, tools and [triggers](../agent/triggers.md) are described under [Seed Agents](../agent.md). <!-- id:OQnaBari -->
+
+## Notifications
+
+The inbox page reads a local copy of the account's notification state that the main process syncs with the [notify service](./notify.md), signing requests through the daemon. Marking things read works offline and syncs later. [Notify](./notify.md) describes the store and the read-state rules.
 
 # Development notes <!-- id:TUREvD9- -->
 

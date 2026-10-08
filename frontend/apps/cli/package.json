@@ -13,12 +13,6 @@
   },
   "files": [
     "dist",
-    "docs/KEYS.md",
-    "docs/SIGNING.md",
-    "docs/CLI-REFERENCE.md",
-    "docs/API.md",
-    "docs/TYPES.md",
-    "docs/document-change-creation.md",
     "man"
   ],
   "scripts": {

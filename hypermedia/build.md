@@ -76,6 +76,7 @@ The **peer protocol** is [libp2p](./protocol/network.md) with the protocol id `/
 
 - [Self-hosting](./build/self-hosting.md) runs your own Seed site on a server and domain you control. <!-- id:HWNYDw78 -->
 - [Contributing](./build/contributing.md) maps the repository, runs the development environment and tests, and explains how protocol changes land. <!-- id:LA51Kkao -->
+- [Local CI with agent-ci](./build/local-ci.md), [Releasing](./build/releasing.md) and [Sentry setup](./build/sentry.md) are the maintainers' runbooks: reproduce the GitHub checks locally, cut a release, and configure error reporting.
 
 # See also <!-- id:9kOzZp6w -->
 
