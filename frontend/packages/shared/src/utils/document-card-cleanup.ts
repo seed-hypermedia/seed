@@ -661,7 +661,7 @@ export async function verifyDocumentCleanupPrimary(
   }
 }
 
-/** Captures authored direct-child removals plus unresolved web destinations for asynchronous publish-time resolution. */
+/** Captures authored reference removals for asynchronous redirect-aware publish-time classification. */
 export function getRemovedChildReferenceTargets(
   parent: Pick<UnpackedHypermediaId, 'uid' | 'path'>,
   before: HMBlockNode[],
@@ -672,9 +672,7 @@ export function getRemovedChildReferenceTargets(
   return Array.from(
     new Set([
       ...getDirectChildrenLosingReferences(parent, before, after).map((id) => id.id),
-      ...getDocumentReferenceLinks(before).filter(
-        (link) => /^https?:\/\//.test(link) && !unpackHmId(link) && !remaining.has(link),
-      ),
+      ...getDocumentReferenceLinks(before).filter((link) => !remaining.has(link)),
     ]),
   )
 }

@@ -114,6 +114,10 @@ export function useDeleteEntities(opts: UseMutationOptions<void, unknown, Delete
     },
     onSuccess: (result: void, input: DeleteEntitiesInput, context) => {
       invalidateQueries([])
+      invalidateQueries([queryKeys.DOC_LIST_DIRECTORY], {refetchType: 'all'})
+      new Set(input.ids.map((id) => id.uid)).forEach((uid) => {
+        invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, uid], {refetchType: 'all'})
+      })
       input.ids.forEach((id) => {
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, id.id])
         getParentPaths(id.path).forEach((path) => {

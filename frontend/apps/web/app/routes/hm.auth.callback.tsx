@@ -174,6 +174,7 @@ export default function AuthCallbackRoute() {
         navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {replace: true})
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
+        console.error('[auth-callback] Sign-in failed', err)
         setError(message)
         authSession.clearSession(vaultUrl).catch(console.error)
         deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL).catch(console.error)
@@ -196,12 +197,13 @@ export default function AuthCallbackRoute() {
           <div className="flex size-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
             <XCircle className="size-6 text-red-600 dark:text-red-400" />
           </div>
-          <div className="space-y-2 text-center">
+          <div className="flex flex-col gap-2 text-center">
             <SizableText size="lg" weight="bold">
-              Authentication Failed
+              We couldn't sign you in
             </SizableText>
             <SizableText color="muted" size="sm">
-              {error}
+              Your sign-in may have expired or been started in a different browser or tab. Please try signing in again
+              from the site.
             </SizableText>
           </div>
           <div className="flex w-full flex-col gap-2">
@@ -216,7 +218,12 @@ export default function AuthCallbackRoute() {
       ) : (
         <div className="flex flex-col items-center gap-4 text-center">
           <Spinner />
-          <SizableText>Securing your identity session…</SizableText>
+          <div className="flex flex-col gap-1">
+            <SizableText weight="bold">Signing you in…</SizableText>
+            <SizableText color="muted" size="sm">
+              This only takes a moment. Please don't close this tab.
+            </SizableText>
+          </div>
         </div>
       )}
     </div>

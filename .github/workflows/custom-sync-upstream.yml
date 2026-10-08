@@ -1,0 +1,153 @@
+name: Custom - Sync Fork From Upstream
+
+# Manual fallback only. The daily sync runs as a Devin Automation, because GITHUB_TOKEN
+# cannot push commits that touch .github/workflows/* (upstream ships workflow changes).
+# For the fallback to handle those, add a SYNC_PAT repository secret (PAT with `repo`
+# and `workflow` scopes); it is used for the pushes when present.
+on:
+  workflow_dispatch:
+    inputs:
+      rebase_tag:
+        description: 'Release tag to rebase custom-images onto, even if it was already mirrored (e.g. 2026.7.1).'
+        required: false
+        type: string
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  sync-main:
+    name: Mirror upstream/main into main
+    runs-on: ubuntu-latest
+    if: github.repository == 'horacioh/seed'
+    outputs:
+      release_tag: ${{ steps.mirror-tags.outputs.release_tag }}
+    steps:
+      - name: Checkout custom-images
+        uses: actions/checkout@v4
+        with:
+          ref: custom-images
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Configure actions bot identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Add and fetch upstream
+        run: |
+          git remote add upstream https://github.com/seed-hypermedia/seed.git
+          git fetch --prune upstream main
+          git fetch upstream '+refs/tags/*:refs/tags/*'
+
+      - name: Mirror upstream/main into main
+        run: |
+          # main is a verbatim mirror of upstream: never carry fork commits, so a plain
+          # force push is enough and `git pull` on a fork clone always fast-forwards.
+          git push --force origin refs/remotes/upstream/main:refs/heads/main
+
+      - name: Mirror new upstream tags
+        id: mirror-tags
+        env:
+          FORCED_TAG: ${{ inputs.rebase_tag }}
+        run: |
+          # Compare local tags (the snapshot fetched from upstream) against origin, so every
+          # tag pushed below is guaranteed to exist locally even if upstream tags mid-run.
+          git tag --list | sort -u > /tmp/upstream-tags
+          git ls-remote --tags origin | awk '{print $2}' | sed 's#^refs/tags/##' | { grep -v '\^{}$' || true; } | sort -u > /tmp/origin-tags
+          new_tags=$(comm -23 /tmp/upstream-tags /tmp/origin-tags)
+          if [ -n "$new_tags" ]; then
+            echo "New upstream tags:"
+            echo "$new_tags"
+            # shellcheck disable=SC2046
+            git push origin $(echo "$new_tags" | sed 's#^#refs/tags/#')
+          else
+            echo 'No new upstream tags.'
+          fi
+          # custom-images tracks releases, not every upstream commit, so only a newly
+          # mirrored X.Y.Z tag (or one named on a manual run) triggers the rebase below.
+          release_tag=$(echo "$new_tags" | { grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' || true; } | sort -V | tail -1)
+          if [ -n "$FORCED_TAG" ]; then
+            release_tag=$FORCED_TAG
+          fi
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+  rebase-custom-images:
+    name: Rebase custom-images onto the new release
+    needs: sync-main
+    runs-on: ubuntu-latest
+    if: github.repository == 'horacioh/seed' && needs.sync-main.outputs.release_tag != ''
+    env:
+      RELEASE_TAG: ${{ needs.sync-main.outputs.release_tag }}
+    steps:
+      - name: Checkout custom-images
+        uses: actions/checkout@v4
+        with:
+          ref: custom-images
+          fetch-depth: 0
+          token: ${{ secrets.SYNC_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Configure actions bot identity
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Fetch the release tag
+        run: git fetch --prune origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+
+      - name: Record starting HEAD
+        id: before
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Rebase custom-images onto the release tag
+        run: git rebase "$RELEASE_TAG"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Verify shared tests before pushing
+        run: pnpm --filter @shm/shared test
+
+      - name: Record rebased HEAD
+        id: after
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Push rebased custom-images
+        if: steps.after.outputs.sha != steps.before.outputs.sha
+        run: git push --force-with-lease origin HEAD:custom-images
+
+      - name: Tag custom-images for the release
+        run: |
+          # A manual re-run of an already mirrored release has to move the tag onto the
+          # freshly rebased commit.
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG-custom" >/dev/null 2>&1; then
+            git push --delete origin "refs/tags/$RELEASE_TAG-custom"
+          fi
+          git tag -f -a "$RELEASE_TAG-custom" -m "custom-images rebased onto $RELEASE_TAG"
+          git push origin "refs/tags/$RELEASE_TAG-custom"
+
+      - name: Build the images for the tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Pushes made with GITHUB_TOKEN never trigger workflows, so the tag push above
+          # cannot start the image build on its own; dispatch it explicitly at the tag.
+          gh workflow run custom-ghcr-images.yml --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_TAG-custom"

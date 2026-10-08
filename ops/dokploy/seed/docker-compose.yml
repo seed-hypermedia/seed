@@ -1,0 +1,89 @@
+# dokploy: allow-host-ports — Seed's P2P protocol (libp2p over TCP and QUIC/UDP) is not HTTP, so Traefik cannot route it.
+version: '3.8'
+
+services:
+  seed-init:
+    image: busybox:1.37
+    restart: 'no'
+    environment:
+      - SEED_LINK_SECRET=${SEED_LINK_SECRET}
+    volumes:
+      - seed-web-data:/web
+    command:
+      - sh
+      - -c
+      - '[ -f /web/config.json ] || printf ''{"availableRegistrationSecret":"%s"}\n'' "$$SEED_LINK_SECRET" >
+        /web/config.json; chown -R 1001:1001 /web'
+
+  seed-daemon:
+    image: ${SEED_SITE_IMAGE:-seedhypermedia/site:latest}
+    restart: unless-stopped
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+      - com.centurylinklabs.watchtower.scope=${SEED_UPDATE_SCOPE}
+    ports:
+      - '${SEED_P2P_PORT:-56000}:56000'
+      - '${SEED_P2P_PORT:-56000}:56000/udp'
+    expose: [56001]
+    environment:
+      - SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME:-}
+      - SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}
+      - LIGHTNING_API_URL=${LIGHTNING_API_URL:-https://ln.seed.hyper.media}
+      - SENTRY_DSN=${SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}
+    volumes:
+      - seed-daemon-data:/data
+    command:
+      - seed-daemon
+      - -data-dir=/data
+      - -keystore-dir=/data/keys
+      - -lndhub.mainnet
+      - -p2p.port=56000
+      - -http.port=56001
+      - -grpc.port=56002
+      - -p2p.no-relay=true
+      - -p2p.force-reachability-public=true
+      - -syncing.smart=true
+      - -syncing.no-sync-back=true
+      - -syncing.no-pull=${SEED_NO_PULL:-false}
+      - -p2p.announce-addrs=/dns4/${SEED_DOMAIN}/tcp/${SEED_P2P_PORT:-56000},/dns4/${SEED_DOMAIN}/udp/${SEED_P2P_PORT:-56000}/quic-v1
+
+  seed-web:
+    image: ${SEED_WEB_IMAGE:-seedhypermedia/web:latest}
+    restart: unless-stopped
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+      - com.centurylinklabs.watchtower.scope=${SEED_UPDATE_SCOPE}
+    depends_on:
+      seed-init:
+        condition: service_completed_successfully
+      seed-daemon:
+        condition: service_started
+    expose: [3000]
+    environment:
+      - SEED_BASE_URL=${SEED_BASE_URL}
+      - SEED_ASSET_HOST=${SEED_ASSET_HOST:-${SEED_BASE_URL}}
+      # Project-qualified name: without isolated deployments, every Seed stack's `seed-daemon` shares one network alias.
+      - DAEMON_HTTP_URL=http://${COMPOSE_PROJECT_NAME}-seed-daemon-1:56001
+      - NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}
+      - SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}
+      - SEED_ENABLE_STATISTICS=${SEED_ENABLE_STATISTICS:-false}
+      - PORT=3000
+      - DATA_DIR=/data
+    volumes:
+      - seed-web-data:/data
+
+  seed-updater:
+    image: nickfedor/watchtower:1.22.3
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_SCOPE=${SEED_UPDATE_SCOPE}
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_POLL_INTERVAL=${SEED_UPDATE_INTERVAL:-600}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  seed-daemon-data:
+  seed-web-data:

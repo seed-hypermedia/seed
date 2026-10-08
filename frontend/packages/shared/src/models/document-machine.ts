@@ -2183,7 +2183,7 @@ export const documentMachine = setup({
                 !hasSelfQueryBlock(getChildDeletionContent(context), context.documentId.id) &&
                 (hasSelfQueryBlock(context.baseBlocks ?? context.document?.content ?? [], context.documentId.id) ||
                   getChildDeletionCandidates(context).length > 0 ||
-                  context.removedChildDocumentIds.some((target) => /^https?:\/\//.test(target)) ||
+                  context.removedChildDocumentIds.length > 0 ||
                   getRemovedChildReferenceTargets(
                     context.documentId,
                     context.baseBlocks ?? context.document?.content ?? [],
