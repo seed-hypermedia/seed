@@ -3,16 +3,18 @@ import {FlowHeader} from '@/frontend/components/FlowHeader'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import * as localCrypto from '@/frontend/crypto'
+import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
-import {Check, Copy, Download} from 'lucide-react'
+import {Check, Copy, Download, X} from 'lucide-react'
 import {useEffect, useState} from 'react'
 
 /**
  * Recovery words step of password sign-up.
  */
-export function SaveRecoveryWordsView() {
+export function SaveRecoveryWordsView({fromSettings = false}: {fromSettings?: boolean}) {
   const {recoveryWords, email, loading, error} = useAppState()
   const actions = useActions()
+  const navigate = navigation.useHashNavigate()
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -36,7 +38,8 @@ export function SaveRecoveryWordsView() {
     }
   }
 
-  function handleDownload() {
+  // Downloading counts as saving the words, so it also seals the vault with them.
+  async function handleDownload() {
     try {
       const contents = localCrypto.formatRecoveryDocument(recoveryWords, email)
       const url = URL.createObjectURL(new Blob([contents], {type: 'text/plain'}))
@@ -48,14 +51,28 @@ export function SaveRecoveryWordsView() {
     } catch (e) {
       console.error('Failed to download recovery words:', e)
       actions.setError("We couldn't download your recovery words. Please try again.")
+      return
     }
+    await actions.saveRecoveryCredential()
   }
 
   return (
     <Card>
       <CardHeader>
-        <FlowHeader step={3} />
-        <CardTitle className="text-left text-xl">Save your recovery words</CardTitle>
+        {fromSettings ? null : <FlowHeader step={3} />}
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-left text-xl">Save your recovery words</CardTitle>
+          {fromSettings ? (
+            <button
+              type="button"
+              aria-label="Close"
+              className="text-muted-foreground hover:text-foreground -mr-1 cursor-pointer transition-colors"
+              onClick={() => navigate('/')}
+            >
+              <X className="size-5" />
+            </button>
+          ) : null}
+        </div>
         <CardDescription className="text-left">
           If you ever forget your password, you can use these words to recover your account. Save them somewhere safe.
         </CardDescription>
@@ -101,7 +118,7 @@ export function SaveRecoveryWordsView() {
             className="w-full"
             loading={loading}
             disabled={!recoveryWords.length}
-            onClick={actions.saveRecoveryCredential}
+            onClick={() => actions.saveRecoveryCredential(fromSettings ? '/' : '/identity-secured')}
           >
             I've saved my words
           </Button>

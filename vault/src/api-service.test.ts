@@ -631,6 +631,48 @@ describe('vault auth service', () => {
     expect((await svc.getSession(createContext(sessionId))).credentials?.recoveryWords).toBe(true)
   })
 
+  test('a failed save of new recovery words keeps the previous ones', async () => {
+    const svc = createService()
+    const userId = createUser('recovery-rollback@test.com')
+    const sessionId = createSession(userId)
+    const password = await derivePasswordCredential('RecoveryRollbackPassword123!')
+    const first = await svc.addSecretCredential(
+      {
+        authKey: await deriveSecretCredentialAuthKey(generateSecret()),
+        wrappedDEK: password.wrappedDEK,
+        purpose: 'recovery',
+      },
+      createContext(sessionId),
+    )
+
+    // Fail only the insert of the new credential, after the old one was deleted.
+    const run = db.run.bind(db)
+    const failInsert = spyOn(db, 'run').mockImplementation(((sql: string, ...params: unknown[]) => {
+      if (sql.startsWith('INSERT INTO credentials')) throw new Error('disk full')
+      return run(sql, ...(params as []))
+    }) as typeof db.run)
+    try {
+      await expect(
+        svc.addSecretCredential(
+          {
+            authKey: await deriveSecretCredentialAuthKey(generateSecret()),
+            wrappedDEK: password.wrappedDEK,
+            purpose: 'recovery',
+          },
+          createContext(sessionId),
+        ),
+      ).rejects.toThrow('disk full')
+    } finally {
+      failInsert.mockRestore()
+    }
+
+    const ids = db
+      .query<{id: string}, [string]>(`SELECT id FROM credentials WHERE user_id = ? AND type = 'secret'`)
+      .all(userId)
+      .map((row) => row.id)
+    expect(ids).toEqual([first.credentialId])
+  })
+
   test('addSecretCredential rejects an unknown purpose', async () => {
     const svc = createService()
     const userId = createUser('recovery-bad-purpose@test.com')

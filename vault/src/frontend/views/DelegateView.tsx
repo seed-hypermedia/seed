@@ -1,9 +1,10 @@
 import {AccountSelectionItem} from '@/frontend/components/AccountSelectionItem'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
-import * as navigation from '@/frontend/navigation'
+import {RecoveryWordsReminder} from '@/frontend/components/RecoveryWordsReminder'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
+import * as navigation from '@/frontend/navigation'
 import {getProfileDisplayName} from '@/frontend/profile'
 import {useActions, useAppState} from '@/frontend/store'
 import * as blobs from '@shm/shared/blobs'
@@ -115,6 +116,9 @@ export function DelegateView() {
       </CardHeader>
       <CardContent className="space-y-6">
         {!creatingAccount && <ErrorMessage message={error} />}
+
+        {/* Reminder to save the recovery words. Shows only for password users who haven't saved recovery words. */}
+        <RecoveryWordsReminder />
 
         {/* Account reminder — always visible so the user can verify which identity they join with */}
         <div className="space-y-2">

@@ -1,3 +1,4 @@
+import type * as api from '@/api'
 import * as rtl from '@testing-library/react'
 import {afterEach, describe, expect, test} from 'bun:test'
 import * as ReactRouter from 'react-router-dom'
@@ -105,7 +106,7 @@ describe('choose auth options', () => {
   })
 })
 
-describe('leaving and resuming sign-up', () => {
+describe('leaving sign-up early', () => {
   afterEach(() => {
     rtl.cleanup()
     setWindowUrl('http://localhost/')
@@ -134,12 +135,53 @@ describe('leaving and resuming sign-up', () => {
     await rtl.screen.findByPlaceholderText('Enter your email')
   })
 
-  /** Signs in with the given credentials, then unlocks a vault that has no account yet. */
-  async function unlockUnfinishedSignUp(credentials: {password?: true; recoveryWords?: true}) {
+  test('after the password is set, X goes to the vault and keeps the user signed in', async () => {
+    let loggedOut = false
+    setWindowUrl('http://localhost/vault/recovery')
+    const store = createStore(
+      createMockClient({
+        getSession: async () => ({...(await registrationSession()), credentials: {password: true as const}}),
+        logout: async () => {
+          loggedOut = true
+          return {success: true}
+        },
+      }),
+      createMockBlockstore(),
+    )
+    store.state.decryptedDEK = new Uint8Array(32)
+    store.state.vaultData = vault.createEmpty()
+    store.state.vaultLoaded = true
+    const router = createRouter()
+    store.navigator.setNavigate((path) => router.navigate(navigation.withHash(path)))
+    await rtl.act(async () => {
+      rtl.render(
+        <StoreContext.Provider value={store}>
+          <ReactRouter.RouterProvider router={router} />
+        </StoreContext.Provider>,
+      )
+    })
+
+    await rtl.screen.findByText('Save your recovery words')
+    await rtl.act(async () => {
+      rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Close'}))
+    })
+
+    await rtl.screen.findByRole('button', {name: 'Save recovery words'})
+    expect(loggedOut).toBe(false)
+    // Signing in later must not drop the user back into the sign-up step.
+    expect(store.state.returnToPath).not.toBe('/recovery')
+  })
+
+  /** Unlocks a vault with no account yet, for a user with the given credentials. */
+  async function unlockWithoutAccounts(
+    credentials: {password?: true; recoveryWords?: true},
+    overrides: Partial<api.ClientInterface> = {},
+  ) {
     setWindowUrl('http://localhost/vault/')
     const store = await renderApp(
       createMockClient({
         getSession: async () => ({...(await registrationSession()), credentials}),
+        ...overrides,
       }),
     )
     await rtl.screen.findByText('Unlock your vault')
@@ -148,19 +190,45 @@ describe('leaving and resuming sign-up', () => {
       store.state.vaultData = vault.createEmpty()
       store.state.vaultLoaded = true
     })
+    return store
   }
 
-  test('a password user who never saved recovery words resumes at the recovery words', async () => {
-    await unlockUnfinishedSignUp({password: true})
-    await rtl.waitFor(() => {
-      expect(window.location.pathname).toBe('/vault/recovery')
-    })
+  test('a vault without accounts is not treated as an unfinished sign-up', async () => {
+    await unlockWithoutAccounts({password: true, recoveryWords: true})
+
+    await rtl.screen.findAllByText('Identity Settings')
+    expect(window.location.pathname).toBe('/vault/settings')
+    expect(rtl.screen.queryByText('Save your recovery words')).toBeNull()
   })
 
-  test('a user who saved recovery words but has no account resumes at the profile', async () => {
-    await unlockUnfinishedSignUp({password: true, recoveryWords: true})
-    await rtl.waitFor(() => {
-      expect(window.location.pathname).toBe('/vault/profile/create')
+  test('a password user without recovery words is reminded until they save them', async () => {
+    let request: api.AddSecretCredentialRequest | undefined
+    await unlockWithoutAccounts(
+      {password: true},
+      {
+        addSecretCredential: async (req) => {
+          request = req
+          return {success: true, credentialId: 'recovery'}
+        },
+      },
+    )
+
+    await rtl.act(async () => {
+      rtl.fireEvent.click(await rtl.screen.findByRole('button', {name: 'Save recovery words'}))
     })
+    await rtl.waitFor(() => {
+      expect(window.location.pathname).toBe('/vault/settings/recovery-words')
+    })
+    await rtl.waitFor(() => {
+      expect(rtl.screen.getAllByRole('listitem')).toHaveLength(12)
+    })
+    rtl.screen.getByRole('button', {name: 'Close'})
+
+    await rtl.act(async () => {
+      rtl.fireEvent.click(rtl.screen.getByRole('button', {name: "I've saved my words"}))
+    })
+    await rtl.screen.findAllByText('Identity Settings')
+    expect(request?.purpose).toBe('recovery')
+    expect(rtl.screen.queryByRole('button', {name: 'Save recovery words'})).toBeNull()
   })
 })

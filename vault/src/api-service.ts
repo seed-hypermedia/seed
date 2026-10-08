@@ -716,19 +716,21 @@ export class Service implements api.ServerInterface {
       ...(req.purpose ? {purpose: req.purpose} : {}),
     }
 
-    if (req.purpose === 'recovery') {
-      // New recovery words supersede the old ones, which must stop working.
-      this.db.run(
-        `DELETE FROM credentials WHERE user_id = ? AND type = 'secret' AND json_extract(metadata, '$.purpose') = 'recovery'`,
-        [session.user_id],
-      )
-    }
-
     const credentialId = sess.randomId()
-    this.db.run(
-      `INSERT INTO credentials (id, user_id, type, encrypted_dek, metadata, create_time) VALUES (?, ?, ?, ?, ?, ?)`,
-      [credentialId, session.user_id, 'secret', wrappedDEK, JSON.stringify(metadata), Date.now()],
-    )
+    // One transaction, so a failed insert can't leave the user without their old recovery words.
+    this.db.transaction(() => {
+      if (req.purpose === 'recovery') {
+        // New recovery words supersede the old ones, which must stop working.
+        this.db.run(
+          `DELETE FROM credentials WHERE user_id = ? AND type = 'secret' AND json_extract(metadata, '$.purpose') = 'recovery'`,
+          [session.user_id],
+        )
+      }
+      this.db.run(
+        `INSERT INTO credentials (id, user_id, type, encrypted_dek, metadata, create_time) VALUES (?, ?, ?, ?, ?, ?)`,
+        [credentialId, session.user_id, 'secret', wrappedDEK, JSON.stringify(metadata), Date.now()],
+      )
+    })()
 
     return {
       success: true,

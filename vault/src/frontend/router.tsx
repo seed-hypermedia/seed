@@ -274,16 +274,7 @@ export function RootLayout() {
 }
 
 function RootView() {
-  const {
-    session,
-    decryptedDEK,
-    delegationRequest,
-    sessionChecked,
-    vaultConnectionRequest,
-    returnToPath,
-    vaultLoaded,
-    vaultData,
-  } = useAppState()
+  const {session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest, returnToPath} = useAppState()
 
   if (!sessionChecked) {
     return null
@@ -301,13 +292,6 @@ function RootView() {
     const pendingFlowPath = getPendingFlowPath({delegationRequest, vaultConnectionRequest, returnToPath})
     if (pendingFlowPath !== '/') {
       return <navigation.HashNavigate to={pendingFlowPath} replace />
-    }
-
-    // If sign-up was left unfinished, pick up at the first step not done yet.
-    if (vaultLoaded && vaultData?.accounts.length === 0) {
-      const credentials = session.credentials
-      const nextStep = credentials?.password && !credentials.recoveryWords ? '/recovery' : '/profile/create'
-      return <navigation.HashNavigate to={nextStep} replace />
     }
 
     return (
@@ -421,6 +405,10 @@ export function createRouter() {
                   {
                     path: '/recovery',
                     element: <SaveRecoveryWordsView />,
+                  },
+                  {
+                    path: '/settings/recovery-words',
+                    element: <SaveRecoveryWordsView fromSettings />,
                   },
                   {
                     path: '/identity-secured',
