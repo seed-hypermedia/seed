@@ -36,9 +36,11 @@ import {
   takeOverHost,
   autoUpdates,
   clearSeedCron,
+  migrateLegacyCron,
   handleForeignStack,
   getRunningInstallDir,
   installWrapper,
+  resolveBunPath,
   getContainerImages,
   checkForNewImages,
   expectedServiceImages,
@@ -1020,6 +1022,53 @@ describe('containersMatchReleaseChannel', () => {
   test('false when docker is unavailable', () => {
     expect(containersMatchReleaseChannel(makeNoopShell(), makeTestConfig())).toBe(false)
   })
+
+  test('true when both configured image overrides match the running containers', () => {
+    const shell = makeMockShell({
+      "inspect seed-web --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-web:main',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-site:main',
+    })
+    expect(
+      containersMatchReleaseChannel(
+        shell,
+        makeTestConfig({
+          release_channel: 'main',
+          web_image: 'ghcr.io/horacioh/seed-web:main',
+          site_image: 'ghcr.io/horacioh/seed-site:main',
+        }),
+      ),
+    ).toBe(true)
+  })
+
+  test('false when the running containers use channel images instead of configured overrides', () => {
+    const shell = makeMockShell({
+      "inspect seed-web --format '{{.Config.Image}}'": 'seedhypermedia/web:main',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:main',
+    })
+    expect(
+      containersMatchReleaseChannel(
+        shell,
+        makeTestConfig({
+          release_channel: 'main',
+          web_image: 'ghcr.io/horacioh/seed-web:main',
+          site_image: 'ghcr.io/horacioh/seed-site:main',
+        }),
+      ),
+    ).toBe(false)
+  })
+
+  test('uses the release-channel image for a service without an override', () => {
+    const shell = makeMockShell({
+      "inspect seed-web --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-web:main',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'seedhypermedia/site:main',
+    })
+    expect(
+      containersMatchReleaseChannel(
+        shell,
+        makeTestConfig({release_channel: 'main', web_image: 'ghcr.io/horacioh/seed-web:main'}),
+      ),
+    ).toBe(true)
+  })
 })
 
 describe('detectForeignStack / assertNoForeignStack', () => {
@@ -1129,6 +1178,93 @@ describe('clearSeedCron', () => {
     const {shell, commands} = makeRecordingShell({'crontab -l': '0 0 * * * /backup.sh'})
     clearSeedCron(shell)
     expect(commands.find((c) => c.includes('| crontab -'))).toBeUndefined()
+  })
+})
+
+describe('resolveBunPath', () => {
+  test('uses the running bun executable when PATH lookup fails', () => {
+    expect(resolveBunPath(makeNoopShell())).toBe(process.execPath)
+  })
+})
+
+describe('migrateLegacyCron', () => {
+  const paths = makePaths('/opt/seed')
+  const legacyCrontab = [
+    '0 2 * * * /root/.bun/bin/bun "/opt/seed/deploy.js" upgrade >> "/opt/seed/deploy.log" 2>&1; /root/.bun/bin/bun "/opt/seed/deploy.js" deploy >> "/opt/seed/deploy.log" 2>&1 # seed-deploy',
+    '0 0,4,8,12,16,20 * * * docker image prune -a -f --filter "until=1h" # seed-cleanup',
+  ].join('\n')
+
+  test('replaces a legacy schedule and writes the fixed script wrapper', async () => {
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': legacyCrontab,
+      'command -v bun': '/root/.bun/bin/bun',
+      'test -f': 'ok',
+      'base64 -d': 'ok',
+      'crontab -': 'ok',
+    })
+
+    await migrateLegacyCron(paths, shell, '/opt/seed/deploy.js')
+
+    const cronWrite = commands.find((command) => command.includes('| crontab -'))!
+    const crontab = cronWrite.match(/echo '([\s\S]*)' \| crontab -/)?.[1] ?? ''
+    expect(crontab).toContain('*/10')
+    expect(crontab).toContain('/usr/local/lib/seed/deploy.js')
+    expect(crontab).toContain('--dir "/opt/seed"')
+    expect(crontab).toContain('/root/.bun/bin/bun')
+    expect(crontab).not.toContain('0 2 * * *')
+
+    const wrapperWrite = commands.find((command) => command.includes('base64 -d >'))!
+    const wrapperBase64 = wrapperWrite.match(/echo (\S+) \|/)![1]
+    expect(Buffer.from(wrapperBase64, 'base64').toString('utf-8')).toContain('/usr/local/lib/seed/deploy.js')
+  })
+
+  test('does not rewrite an already-current seed crontab', async () => {
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': buildCrontab('', paths, '/root/.bun/bin/bun'),
+      'command -v bun': '/root/.bun/bin/bun',
+    })
+
+    await migrateLegacyCron(paths, shell)
+
+    expect(commands.find((command) => command.includes('| crontab -'))).toBeUndefined()
+  })
+
+  test('does not write when no seed cron line exists', async () => {
+    const {shell, commands} = makeRecordingShell({'crontab -l': '0 0 * * * /backup.sh'})
+
+    await migrateLegacyCron(paths, shell)
+
+    expect(commands.find((command) => command.includes('| crontab -'))).toBeUndefined()
+  })
+
+  test('does not take over a seed cron line owned by another node', async () => {
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l':
+        '*/10 * * * * /usr/local/bin/bun /usr/local/lib/seed/deploy.js --dir "/opt/seed-other" deploy # seed-deploy',
+    })
+
+    await migrateLegacyCron(paths, shell)
+
+    expect(commands.find((command) => command.includes('| crontab -'))).toBeUndefined()
+  })
+
+  test('leaves the legacy cron untouched when the script cannot be installed', async () => {
+    const scriptDir = await mkdtemp(join(tmpdir(), 'seed-cron-migration-'))
+    const scriptPath = join(scriptDir, 'deploy.js')
+    await writeFile(scriptPath, 'legacy deploy script')
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': legacyCrontab,
+      'command -v bun': '/root/.bun/bin/bun',
+    })
+
+    try {
+      await migrateLegacyCron(paths, shell, scriptPath)
+      expect(commands.filter((command) => command.includes('cp '))).toHaveLength(2)
+      expect(commands.find((command) => command.includes('test -f'))).toBeDefined()
+      expect(commands.find((command) => command.includes('| crontab -'))).toBeUndefined()
+    } finally {
+      await rm(scriptDir, {recursive: true, force: true})
+    }
   })
 })
 
