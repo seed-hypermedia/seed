@@ -105,6 +105,8 @@ export type FollowedDocument = {
    * becomes a live document continuing the target's change history, and stops following the target.
    */
   redirect: {republish: boolean; target: UnpackedHypermediaId} | null
+  /** Every redirect followed from `id` to `targetId`, in order. */
+  redirects: RedirectHop[]
 }
 
 /** The full baseline needed to build a new Change at an address: {@link FollowedDocument} plus DAG state. */
@@ -209,6 +211,7 @@ export async function followToDocument(client: SeedClient, id: UnpackedHypermedi
     targetId: followed.targetId,
     document: followed.resource.document,
     redirect: first ? {republish: first.republish, target: first.to} : null,
+    redirects: followed.redirects,
   }
 }
 

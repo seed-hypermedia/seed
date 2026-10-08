@@ -14794,9 +14794,8 @@ async function writeDocumentUpdate(
   }
   const edit = normalizeBoundedString(editSource, 'Document edit target', 2048)
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
-  // A redirected address (including a republished one) is edited by building the Change on the
-  // redirect target's DAG and publishing a Version Ref at THIS address with a fresh generation,
-  // which supersedes the redirect: the path becomes a live document and stops following the target.
+  // Content changes follow redirects and publish at the final live document. The requested address
+  // remains a redirect; publishing there would revive an old path as an independent document.
   const base = await resolveEditableDocument(client, id).catch((error) => {
     throw new APIError(400, error instanceof Error ? error.message : String(error))
   })
@@ -14830,20 +14829,21 @@ async function writeDocumentUpdate(
   }
   const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
   if (ops.length === 0) throw new APIError(400, 'No document updates specified — provide content and/or metadata')
-  // The Ref lands at the requested address (id.uid's space), not the redirect target's, so
-  // authorization is checked against the address's space. Checked before the dry-run return so a
-  // dry run surfaces authorization failures instead of reporting a success that publish would
-  // silently lose.
-  const capability = await requireWriteCapability(client, id.uid, signer.publicKey)
-  const replacedRedirect = base.redirect
-    ? {target: packHmId(base.redirect.target), republish: base.redirect.republish}
-    : undefined
-  const typed = await documentSchemaReport(client, packHmId(id), {...resource.document.metadata, ...metadata})
+  const targetId = base.targetId
+  // Checked before the dry-run return so a dry run surfaces authorization failures instead of
+  // reporting a success that publish would silently lose.
+  const capability = await requireWriteCapability(client, targetId.uid, signer.publicKey)
+  const typed = await documentSchemaReport(client, packHmId(targetId), {...resource.document.metadata, ...metadata})
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: packHmId(id),
+      resolvedDocumentId: packHmId(targetId),
+      redirectHops: base.redirects.map((hop) => ({
+        from: packHmId(hop.from),
+        to: packHmId(hop.to),
+        republish: hop.republish,
+      })),
       ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
-      ...(replacedRedirect ? {replacedRedirect} : {}),
       ...typed,
       dryRun: true,
     })
@@ -14857,8 +14857,8 @@ async function writeDocumentUpdate(
   const changeBlock = await createChange(unsignedBytes, signer.signer)
   const refInput = await createVersionRef(
     {
-      space: id.uid,
-      path: hmIdPathToEntityQueryPath(id.path),
+      space: targetId.uid,
+      path: hmIdPathToEntityQueryPath(targetId.path),
       genesis: state.genesis,
       version: changeBlock.cid.toString(),
       generation: Number(ts),
@@ -14875,9 +14875,14 @@ async function writeDocumentUpdate(
   })
   return writeToolResult(request.command, signer, {
     id: packHmId(id),
+    resolvedDocumentId: packHmId(targetId),
+    redirectHops: base.redirects.map((hop) => ({
+      from: packHmId(hop.from),
+      to: packHmId(hop.to),
+      republish: hop.republish,
+    })),
     version: changeBlock.cid.toString(),
     cids: published.cids,
-    ...(replacedRedirect ? {replacedRedirect} : {}),
     ...typed,
   })
 }
