@@ -132,7 +132,7 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelector('[aria-label="Document"]')).toBeTruthy()
   })
 
-  it('colors collection, private and document icons with the shared file icon token', () => {
+  it('colors collection, private and document icons with the shared icon token', () => {
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [
         makeCollection(['collection'], 'Collection'),
@@ -148,7 +148,7 @@ describe('SiteFileBrowser', () => {
     })
 
     for (const label of ['Collection', 'Private document', 'Document']) {
-      expect(container.querySelector(`[aria-label="${label}"]`)?.getAttribute('class')).toContain('text-file-icon')
+      expect(container.querySelector(`[aria-label="${label}"]`)?.getAttribute('class')).toContain('text-icon')
     }
   })
 
