@@ -19,7 +19,7 @@
  * Run: `bun scripts/smoke-voice.ts` (wired as `bun run test:voice`).
  */
 import {mkdtemp, rm} from 'node:fs/promises'
-import {createServer as createNetServer} from 'node:net'
+import {connect as netConnect} from 'node:net'
 import {tmpdir} from 'node:os'
 import * as path from 'node:path'
 import process from 'node:process'
@@ -38,14 +38,42 @@ const apiBase = `http://127.0.0.1:${agentPort}`
 const account = blobs.generateNobleKeyPair()
 
 let livekit: Bun.Subprocess | undefined
+/** LiveKit env for the daemon under test: unset = its defaults (ws://localhost:7880, devkey/secret). */
+let livekitEnv: Record<string, string> = {}
 if (await isPortFree(LIVEKIT_PORT)) {
   const binary = Bun.which('livekit-server')
   if (!binary) throw new Error('livekit-server is not on PATH (brew install livekit)')
   livekit = Bun.spawn([binary, '--dev'], {stdout: 'ignore', stderr: 'ignore'})
   await waitFor(async () => (!(await isPortFree(LIVEKIT_PORT)) ? true : null), 15_000, 'LiveKit did not start')
   console.log(`[smoke] started livekit-server --dev (pid ${livekit.pid})`)
+} else if (process.env.SEED_AGENTS_LIVEKIT_API_KEY && process.env.SEED_AGENTS_LIVEKIT_API_SECRET) {
+  console.log(`[smoke] using the LiveKit server already on :${LIVEKIT_PORT} with the keys from the environment`)
 } else {
-  console.log(`[smoke] using the LiveKit server already on :${LIVEKIT_PORT}`)
+  // Something else owns :7880 (on yacht the launchd experiments LiveKit, with its own keys): a
+  // dev server on a free port keeps this smoke self-contained instead of failing the worker's
+  // websocket with "Expected 101".
+  const binary = Bun.which('livekit-server')
+  if (!binary) throw new Error('livekit-server is not on PATH (brew install livekit)')
+  const port = 17_880 + Math.floor(Math.random() * 1_000)
+  const config = [
+    `port: ${port}`,
+    'bind_addresses: ["127.0.0.1"]',
+    'rtc:',
+    `  tcp_port: ${port + 1}`,
+    `  udp_port: ${port + 2}`,
+    '  use_external_ip: false',
+    'keys:',
+    '  devkey: secret',
+  ].join('\n')
+  livekit = Bun.spawn([binary, '--dev', '--config-body', config], {stdout: 'ignore', stderr: 'ignore'})
+  await waitFor(async () => (!(await isPortFree(port)) ? true : null), 15_000, `LiveKit did not start on :${port}`)
+  livekitEnv = {
+    SEED_AGENTS_LIVEKIT_URL: `ws://127.0.0.1:${port}`,
+    SEED_AGENTS_LIVEKIT_PUBLIC_URL: `ws://127.0.0.1:${port}`,
+    SEED_AGENTS_LIVEKIT_API_KEY: 'devkey',
+    SEED_AGENTS_LIVEKIT_API_SECRET: 'secret',
+  }
+  console.log(`[smoke] :${LIVEKIT_PORT} is taken; started livekit-server --dev on :${port} (pid ${livekit.pid})`)
 }
 
 /** Everything the daemon and its worker child print, for the assertions below. */
@@ -69,6 +97,7 @@ const server = Bun.spawn(['bun', 'run', 'src/main.ts'], {
     SEED_AGENTS_VOICE_TURN_DETECTOR: '0',
     SEED_AGENTS_DEEPGRAM_API_KEY: 'your-deepgram-api-key',
     SEED_AGENTS_CARTESIA_API_KEY: 'your-cartesia-api-key',
+    ...livekitEnv,
   },
 })
 void pump(server.stdout, (chunk) => (daemonLog += chunk))
@@ -228,12 +257,24 @@ async function pump(stream: ReadableStream<Uint8Array>, onChunk: (text: string) 
   for await (const chunk of stream) onChunk(decoder.decode(chunk, {stream: true}))
 }
 
+/**
+ * Connect, do not bind: on macOS a 127.0.0.1 bind succeeds (SO_REUSEADDR) while another process
+ * already listens on 0.0.0.0:7880, so a listen probe reported the launchd LiveKit's port as free
+ * and the spawned `livekit-server --dev` died on EADDRINUSE behind the ignored stderr.
+ */
 function isPortFree(port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const probe = createNetServer()
-    probe.once('error', () => resolve(false))
-    probe.once('listening', () => probe.close(() => resolve(true)))
-    probe.listen(port, '127.0.0.1')
+    const probe = netConnect({port, host: '127.0.0.1'})
+    probe.setTimeout(1_000)
+    probe.once('connect', () => {
+      probe.destroy()
+      resolve(false)
+    })
+    probe.once('timeout', () => {
+      probe.destroy()
+      resolve(true)
+    })
+    probe.once('error', () => resolve(true))
   })
 }
 
