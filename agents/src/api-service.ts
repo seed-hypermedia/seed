@@ -12930,6 +12930,10 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
   }
 }
 
+/** `read thread:` content search reads the last N events of each of the newest M sessions. */
+const THREAD_SEARCH_SESSIONS = 60
+const THREAD_SEARCH_EVENTS_PER_SESSION = 25
+
 /**
  * Lists (and searches) THIS AGENT's conversations for `read thread:` with no id. Other agents'
  * threads are not listed — agents do not read each other's state, whatever account they share —
@@ -13011,30 +13015,36 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
   )
     .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
     .filter((row) => `${row.title ?? ''}\n${row.description ?? ''}`.toLowerCase().includes(query))
-  // Content matches: a bounded scan over the most recent message events, one snippet per thread.
+  // Content matches: the tail of each of the newest sessions, one snippet per thread. Each tail is
+  // an index-ordered read on (session_id, seq); a single `ORDER BY created_at` across all of the
+  // agent's events made SQLite load and sort EVERY event of the agent (hundreds of thousands of
+  // blobs on prod, 30–40 min on the event loop) to keep the newest few thousand.
   const snippets = new Map<string, string>()
-  const eventRows = stmt<{session_id: string; event_cbor: Uint8Array}, (string | number)[]>(
+  const recentSessions = stmt<{id: string}, [string, string, number]>(
     context.db,
-    `SELECT e.session_id, e.event_cbor FROM session_events e
-       JOIN sessions s ON s.id = e.session_id
-       WHERE s.account_id = ?${agentId ? ' AND s.agent_id = ?' : ''}
-       ORDER BY e.created_at DESC LIMIT 4000`,
-  ).all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
-  for (const eventRow of eventRows) {
-    if (snippets.has(eventRow.session_id)) continue
-    let event: {type?: string; content?: unknown}
-    try {
-      event = cbor.decode(eventRow.event_cbor)
-    } catch {
-      continue
+    `SELECT id FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC LIMIT ?`,
+  ).all(context.accountId, agentId, THREAD_SEARCH_SESSIONS)
+  const sessionTail = stmt<{event_cbor: Uint8Array}, [string, number]>(
+    context.db,
+    `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
+  )
+  for (const session of recentSessions) {
+    for (const eventRow of sessionTail.all(session.id, THREAD_SEARCH_EVENTS_PER_SESSION)) {
+      let event: {type?: string; content?: unknown}
+      try {
+        event = cbor.decode(eventRow.event_cbor)
+      } catch {
+        continue
+      }
+      if (event.type !== 'message') continue
+      const text = typeof event.content === 'string' ? event.content : safeJSONStringify(event.content)
+      const index = text.toLowerCase().indexOf(query)
+      if (index < 0) continue
+      const start = Math.max(0, index - 80)
+      const end = Math.min(text.length, index + query.length + 80)
+      snippets.set(session.id, `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`)
+      break
     }
-    if (event.type !== 'message') continue
-    const text = typeof event.content === 'string' ? event.content : safeJSONStringify(event.content)
-    const index = text.toLowerCase().indexOf(query)
-    if (index < 0) continue
-    const start = Math.max(0, index - 80)
-    const end = Math.min(text.length, index + query.length + 80)
-    snippets.set(eventRow.session_id, `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`)
   }
   const matchedIds = [...new Set([...titleMatches.map((row) => row.id), ...snippets.keys()])].slice(0, limit)
   const rows = loadThreads(matchedIds)
