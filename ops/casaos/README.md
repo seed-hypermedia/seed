@@ -5,13 +5,8 @@ entrypoint; the daemon's HTTP API stays on the private Compose network.
 
 ## Install
 
-CasaOS's **Custom Install → Import** imports only the first container, so install Seed from a third-party store. From
-the repository root, split this package into a standalone store and push it:
-
-```sh
-git subtree split --prefix=ops/casaos -b casaos-store
-git push <store-remote> casaos-store:main
-```
+CasaOS's **Custom Install → Import** imports only the first container, so install Seed from a third-party store. See the
+[home-server store publishing guide](../home-server-stores.md).
 
 In CasaOS, open **App Store**, then the **app source settings**, and choose **Add**. Enter
 `https://github.com/<owner>/<repo>/archive/refs/heads/main.zip`, then install **Seed Hypermedia**. A locally served ZIP

@@ -5,13 +5,7 @@ HTTP API is private to the Docker network, and its P2P TCP/UDP port is optional 
 
 ## Install
 
-Umbrel community stores require this directory at the repository root. Split it into a standalone store repository and
-push the resulting branch:
-
-```sh
-git subtree split --prefix=ops/umbrel -b umbrel-store
-git push <store-remote> umbrel-store:main
-```
+See the [home-server store publishing guide](../home-server-stores.md).
 
 In Umbrel, open **App Store → ⋯ → Community App Stores → Add URL**, enter the store repository URL, then install **Seed
 Site**.
