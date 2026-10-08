@@ -92,10 +92,10 @@ describe('recovery words step', () => {
     expect(sessionStorage.length).toBe(0)
   })
 
-  test('downloads a recovery document with the words and stays on the step', async () => {
-    let saved = false
-    const store = await renderRecoveryStep(async () => {
-      saved = true
+  test('downloading saves the words too, stays on the step, and keeps the same words', async () => {
+    const requests: api.AddSecretCredentialRequest[] = []
+    const store = await renderRecoveryStep(async (req) => {
+      requests.push(req)
       return {success: true, credentialId: 'recovery'}
     })
     const words = [...store.state.recoveryWords]
@@ -107,8 +107,26 @@ describe('recovery words step', () => {
     expect(HTMLAnchorElement.prototype.click).toHaveBeenCalled()
     const blob = (URL.createObjectURL as unknown as {mock: {calls: [Blob][]}}).mock.calls.at(-1)![0]
     expect(crypto.parseRecoveryDocument(await blob.text())).toEqual(words)
-    expect(saved).toBe(false)
+    await rtl.waitFor(() => {
+      expect(requests).toHaveLength(1)
+    })
+    const secret = await crypto.deriveRecoverySecret(words)
+    expect(requests[0]!.authKey).toBe(base64.encode(await crypto.deriveSecretCredentialAuthKey(secret)))
+    expect(store.state.session?.credentials?.recoveryWords).toBe(true)
+    // Still on the step with the downloaded words, which survive a refresh until the user moves on.
     expect(window.location.pathname).toBe('/vault/recovery')
+    expect(store.state.recoveryWords).toEqual(words)
+    expect(sessionStorage.length).toBe(1)
+
+    await rtl.act(async () => {
+      rtl.fireEvent.click(rtl.screen.getByText("I've saved my words"))
+    })
+    await rtl.waitFor(() => {
+      expect(window.location.pathname).toBe('/vault/identity-secured')
+    })
+    // Same words both times, so the second save just replaces the first with an identical one.
+    expect(requests[1]!.authKey).toBe(requests[0]!.authKey)
+    expect(sessionStorage.length).toBe(0)
   })
 
   test('copies the words as one phrase', async () => {

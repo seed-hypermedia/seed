@@ -10,12 +10,17 @@ function renderDelegateView({
   siteName,
   accountNames,
   emailPrevalidation,
+  credentials,
 }: {
   siteName?: string
   accountNames: string[]
   emailPrevalidation?: boolean
+  credentials?: {password?: true; recoveryWords?: true}
 }) {
   const store = createStore(createMockClient(), createMockBlockstore())
+  if (credentials) {
+    store.state.session = {authenticated: true, relyingPartyOrigin: 'https://vault.example.com', credentials}
+  }
 
   const accounts = accountNames.map((name, index) => {
     const kp = blobs.generateNobleKeyPair()
@@ -88,6 +93,15 @@ describe('DelegateView', () => {
     cleanup()
     renderDelegateView({accountNames: ['Bea']})
     expect(screen.queryByText(/Continuing shares your verified email/)).toBeNull()
+  })
+
+  test('reminds a password user to save recovery words before returning to the site', () => {
+    renderDelegateView({accountNames: ['Bea'], credentials: {password: true}})
+    expect(screen.getByRole('button', {name: 'Save recovery words'})).toBeDefined()
+
+    cleanup()
+    renderDelegateView({accountNames: ['Bea'], credentials: {password: true, recoveryWords: true}})
+    expect(screen.queryByRole('button', {name: 'Save recovery words'})).toBeNull()
   })
 
   test('falls back to the client hostname when no site name is provided', () => {

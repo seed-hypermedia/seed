@@ -779,9 +779,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     /**
      * Seal the vault with the recovery words by registering the secret credential they derive, so
-     * the words can unlock the vault later. Runs once the user confirms they saved the words.
+     * the words can unlock the vault later. Runs when the user downloads the words, or when they
+     * confirm they saved them.
      */
-    async saveRecoveryCredential() {
+    async saveRecoveryCredential(nextPath?: string) {
       if (!state.decryptedDEK) {
         state.error = 'Your vault is locked. Unlock it and try again.'
         return
@@ -799,11 +800,14 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           wrappedDEK: base64.encode(wrappedDEK),
           purpose: 'recovery',
         })
-        // Keep the session in step, so resuming sign-up doesn't send the user back here.
+        // Keep the session in step, so the reminder to save recovery words goes away.
         if (state.session?.credentials) state.session.credentials.recoveryWords = true
-        navigator.go('/identity-secured')
-        clearStoredRecoveryWords()
-        state.recoveryWords = []
+        // While the user stays on the step, keep the recovery words.
+        if (nextPath) {
+          navigator.go(nextPath)
+          clearStoredRecoveryWords()
+          state.recoveryWords = []
+        }
       } catch (e) {
         console.error('Failed to save recovery credential:', e)
         state.error = "We couldn't save your recovery words. Check your connection and try again."
