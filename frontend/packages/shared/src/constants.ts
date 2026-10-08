@@ -108,7 +108,13 @@ export const VITE_DESKTOP_SENTRY_DSN = IME.VITE_DESKTOP_SENTRY_DSN || process.en
 
 export const BIG_INT = 2 ** 25 // 2^31 was too big for grpc
 
-export const SEED_HOST_URL = process.env.VITE_SEED_HOST_URL || IME.VITE_SEED_HOST_URL || 'http://localhost:5555'
+/** Hosting service origin; web deployments inject their runtime setting before client bundles load. */
+export const SEED_HOST_URL =
+  WEB_ENV.SEED_HOST_URL ||
+  process.env.SEED_HOST_URL ||
+  process.env.VITE_SEED_HOST_URL ||
+  IME.VITE_SEED_HOST_URL ||
+  'http://localhost:5555'
 
 export const SEED_ASSET_HOST = WEB_ENV.SEED_ASSET_HOST || process.env.SEED_ASSET_HOST || IME.SEED_ASSET_HOST
 

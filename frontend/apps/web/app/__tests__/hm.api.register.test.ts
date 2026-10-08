@@ -15,7 +15,7 @@ vi.mock('@/client.server', () => ({
 }))
 vi.mock('@/site-config.server', () => ({getConfig: mocks.getConfig, writeConfig: mocks.writeConfig}))
 
-import {action} from '../routes/hm.api.register'
+import {action, loader} from '../routes/hm.api.register'
 
 function register(input: {peerId?: string; registrationSecret?: string} = {}) {
   return action({
@@ -49,6 +49,7 @@ describe('/hm/api/register action', () => {
     const response = await register()
 
     expect(response.status).toBe(200)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
     expect(await response.json()).toEqual({message: 'Success'})
     expect(mocks.getInfo).toHaveBeenCalledWith({})
     expect(mocks.connect).not.toHaveBeenCalled()
@@ -75,6 +76,7 @@ describe('/hm/api/register action', () => {
     const response = await register()
 
     expect(response.status).toBe(500)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
     expect(await response.json()).toEqual({message: 'peer unavailable'})
     expect(mocks.writeConfig).not.toHaveBeenCalled()
   })
@@ -105,6 +107,42 @@ describe('/hm/api/register action', () => {
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({message: 'daemon unavailable'})
     expect(mocks.connect).not.toHaveBeenCalled()
+    expect(mocks.writeConfig).not.toHaveBeenCalled()
+  })
+
+  it.each([action, loader])(
+    'allows a cross-origin browser preflight without reading or mutating config',
+    async (handler) => {
+      const response = (await handler({
+        request: new Request('https://myspace.hyper.media/hm/api/register', {
+          method: 'OPTIONS',
+          headers: {Origin: 'https://hyper.media', 'Access-Control-Request-Method': 'POST'},
+        }),
+        params: {},
+        context: {},
+      } as any)) as Response
+      expect(response.status).toBe(204)
+      expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+      expect(response.headers.get('Access-Control-Allow-Methods')).toBe('POST, OPTIONS')
+      expect(response.headers.get('Access-Control-Allow-Headers')).toBe('Content-Type')
+      expect(response.headers.has('Access-Control-Allow-Credentials')).toBe(false)
+      expect(mocks.getConfig).not.toHaveBeenCalled()
+      expect(mocks.getInfo).not.toHaveBeenCalled()
+      expect(mocks.connect).not.toHaveBeenCalled()
+      expect(mocks.writeConfig).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['GET', 'DELETE', 'PATCH'])('rejects %s before accessing registration state', async (method) => {
+    const handler = method === 'GET' ? loader : action
+    const response = (await handler({
+      request: new Request('https://myspace.hyper.media/hm/api/register', {method}),
+      params: {},
+      context: {},
+    } as any)) as Response
+    expect(response.status).toBe(405)
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*')
+    expect(mocks.getConfig).not.toHaveBeenCalled()
     expect(mocks.writeConfig).not.toHaveBeenCalled()
   })
 })

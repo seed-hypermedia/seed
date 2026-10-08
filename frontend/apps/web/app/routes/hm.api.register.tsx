@@ -12,7 +12,17 @@ const registerSchema = z.object({
   addrs: z.array(z.string()),
 })
 
+// A setup secret authorizes registration; browsers on another Seed origin must
+// be able to read both the result and errors without sharing identity cookies.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+}
+
 export const action: ActionFunction = async ({request}) => {
+  if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: corsHeaders})
+  if (request.method !== 'POST') return json({message: 'Method not allowed'}, {status: 405, headers: corsHeaders})
   const {url, hostname} = parseRequest(request)
   try {
     const data = await request.json()
@@ -43,13 +53,14 @@ export const action: ActionFunction = async ({request}) => {
       sourcePeerId: input.peerId,
     })
     console.log('Registration Done.')
-    return json({message: 'Success'})
+    return json({message: 'Success'}, {headers: corsHeaders})
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
-    return json({message}, {status: 500})
+    return json({message}, {status: 500, headers: corsHeaders})
   }
 }
 
 export const loader = async ({request}: {request: Request}) => {
-  return null
+  if (request.method === 'OPTIONS') return new Response(null, {status: 204, headers: corsHeaders})
+  return json({message: 'Method not allowed'}, {status: 405, headers: corsHeaders})
 }

@@ -7,6 +7,7 @@ import {
   LIGHTNING_API_URL,
   NOTIFY_SERVICE_HOST,
   SEED_AGENT_SERVER_URL,
+  SEED_HOST_URL,
   SEED_ASSET_HOST,
   SITE_BASE_URL,
   WEB_IDENTITY_ENABLED,
@@ -62,14 +63,18 @@ export async function loader({request}: LoaderFunctionArgs) {
   // Get siteHost for window.ENV injection
   const siteHost = url.hostname
 
-  const result = {isProd, enableStats, domain, siteHost}
+  const seedHostUrl =
+    process.env.SEED_HOST_URL ||
+    process.env.VITE_SEED_HOST_URL ||
+    (isProd ? 'https://host.seed.hyper.media' : SEED_HOST_URL)
+  const result = {isProd, enableStats, domain, siteHost, seedHostUrl}
 
   return json(result)
 }
 
 export function Layout({children}: {children: React.ReactNode}) {
   const data = useRouteLoaderData<typeof loader>('root')
-  const {isProd = false, enableStats = false, domain = '', siteHost = ''} = data || {}
+  const {isProd = false, enableStats = false, domain = '', siteHost = '', seedHostUrl = SEED_HOST_URL} = data || {}
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -96,6 +101,7 @@ export function Layout({children}: {children: React.ReactNode}) {
               SEED_ASSET_HOST,
               NOTIFY_SERVICE_HOST,
               SEED_AGENT_SERVER_URL,
+              SEED_HOST_URL: seedHostUrl,
             })}`,
           }}
         />

@@ -24,6 +24,7 @@ import {AssistantPanelProvider} from './assistant-panel-state'
 import {SiteContextPublisher} from './site-context-bridge'
 import {WebDocumentMaintenance} from './document-maintenance'
 import {WebAssistantHost} from './web-assistant-host'
+import {WebDomainHost} from './components/web-domain-host'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {writeableStateStream} from '@shm/shared/utils/stream'
@@ -177,6 +178,7 @@ export const Providers = (props: {children: any}) => {
           <AssistantPanelProvider>
             <WebAssistantHost>
               <WebDocumentMaintenance>{props.children}</WebDocumentMaintenance>
+              <WebDomainHost />
             </WebAssistantHost>
           </AssistantPanelProvider>
         </ReadOnlyViewerProvider>

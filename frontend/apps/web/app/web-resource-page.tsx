@@ -35,7 +35,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
-import {FileCode2, FileInput} from 'lucide-react'
+import {FileCode2, FileInput, Globe} from 'lucide-react'
 import {blobBuilderMenuItems} from '@shm/ui/schema/blob-menu-items'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
@@ -68,6 +68,7 @@ import {restoreWebDocumentVersion} from './document-edit/web-restore-document-ve
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
+import {openWebDomainSettings} from './models/domain-publishing'
 import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {WebDocumentPrefetch} from './web-document-prefetch'
@@ -670,8 +671,32 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
-    () => [...webMenuItems, moveMenuItem, deleteMenuItem, ...schemaBuilderMenuItems].filter(Boolean) as MenuItemType[],
-    [deleteMenuItem, moveMenuItem, webMenuItems, schemaBuilderMenuItems],
+    () =>
+      [
+        ...webMenuItems,
+        isHomeTarget && effectiveCanEdit && signingAccountId === docId.uid && !placeholderDraftId
+          ? {
+              key: 'web-domain',
+              label: 'Web Domain',
+              icon: <Globe className="size-4" />,
+              onClick: () => openWebDomainSettings(hmId(docId.uid), signingAccountId),
+            }
+          : null,
+        moveMenuItem,
+        deleteMenuItem,
+        ...schemaBuilderMenuItems,
+      ].filter(Boolean) as MenuItemType[],
+    [
+      deleteMenuItem,
+      moveMenuItem,
+      webMenuItems,
+      schemaBuilderMenuItems,
+      isHomeTarget,
+      effectiveCanEdit,
+      signingAccountId,
+      docId.uid,
+      placeholderDraftId,
+    ],
   )
 
   // Inline subscribe box for non-members

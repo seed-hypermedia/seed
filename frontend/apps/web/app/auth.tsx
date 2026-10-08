@@ -36,6 +36,8 @@ import {
   setPendingIntent,
 } from './local-db'
 import {reportError} from './report-error'
+import {logoutHosting} from './models/host'
+import {setWebDomainRequest} from './models/domain-publishing'
 import {getVaultAccountSettingsUrl} from './vault-links'
 
 const seedClient = createSeedClient('')
@@ -140,7 +142,9 @@ function updateKeyPair() {
 export function logout(): Promise<void> {
   const vaultUrl = keyPairStore.get()?.vaultUrl
   keyPairStore.set(null)
+  setWebDomainRequest(null)
   return Promise.all([
+    logoutHosting(),
     deleteLocalKeys(),
     setHasPromptedEmailNotifications(false),
     vaultUrl ? authSession.clearSession(vaultUrl) : Promise.resolve(),
