@@ -40,12 +40,16 @@ import {
   installWrapper,
   getContainerImages,
   checkForNewImages,
+  expectedServiceImages,
+  rollbackImageTargets,
+  rollbackTagRefs,
   checkGpuAcceleration,
   ensureSeedDir,
   environmentPresets,
   configWarnings,
   DEFAULT_RELEASE_CHANNEL,
   validateDockerImageTag,
+  validateDockerImageRef,
   buildCrontab,
   parseArgs,
   extractSeedCronLines,
@@ -322,6 +326,22 @@ describe('validateDockerImageTag', () => {
   })
 })
 
+describe('validateDockerImageRef', () => {
+  test('accepts full image refs with registries and tags', () => {
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-web:main')).toBeUndefined()
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-site:sha-abcdef123456')).toBeUndefined()
+    expect(validateDockerImageRef('registry.example.com:5000/ns/image:v1.2.3')).toBeUndefined()
+  })
+
+  test('rejects invalid full image refs', () => {
+    expect(validateDockerImageRef('')).toBeUndefined()
+    expect(validateDockerImageRef(' ghcr.io/horacioh/seed-web:main')).toContain('spaces')
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-web')).toContain('tag')
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-web:bad tag')).toContain('spaces')
+    expect(validateDockerImageRef('ghcr.io/horacioh/seed-web:-bad')).toContain('tag')
+  })
+})
+
 // ---------------------------------------------------------------------------
 // generateCaddyfile
 // ---------------------------------------------------------------------------
@@ -580,6 +600,25 @@ describe('buildComposeEnv', () => {
     )
   })
 
+  test('reflects configured full image references', () => {
+    const env = buildComposeEnv(
+      makeTestConfig({
+        web_image: 'ghcr.io/horacioh/seed-web:main',
+        site_image: 'ghcr.io/horacioh/seed-site:main',
+      }),
+      makePaths(),
+    )
+
+    expect(env).toContain('SEED_WEB_IMAGE="ghcr.io/horacioh/seed-web:main"')
+    expect(env).toContain('SEED_SITE_IMAGE="ghcr.io/horacioh/seed-site:main"')
+  })
+
+  test('omits full image references when official defaults are used', () => {
+    const env = buildComposeEnv(makeTestConfig(), makePaths())
+    expect(env).not.toContain('SEED_WEB_IMAGE=')
+    expect(env).not.toContain('SEED_SITE_IMAGE=')
+  })
+
   test('reflects log level', () => {
     expect(
       buildComposeEnv(
@@ -697,16 +736,26 @@ describe('config read/write/exists', () => {
   })
 
   test('config preserves all SeedConfig fields', async () => {
-    await writeConfig(makeTestConfig(), paths)
+    await writeConfig(
+      makeTestConfig({
+        deploy_url: 'https://raw.githubusercontent.com/horacioh/seed/custom-images/ops',
+        web_image: 'ghcr.io/horacioh/seed-web:main',
+        site_image: 'ghcr.io/horacioh/seed-site:main',
+      }),
+      paths,
+    )
     const loaded = await readConfig(paths)
     const expectedKeys: (keyof SeedConfig)[] = [
       'domain',
       'email',
+      'deploy_url',
       'compose_url',
       'compose_sha',
       'compose_envs',
       'environment',
       'release_channel',
+      'web_image',
+      'site_image',
       'testnet',
       'link_secret',
       'analytics',
@@ -716,6 +765,91 @@ describe('config read/write/exists', () => {
     for (const key of expectedKeys) {
       expect(loaded).toHaveProperty(key)
     }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// docker-compose image refs
+// ---------------------------------------------------------------------------
+
+describe('docker-compose image refs', () => {
+  test('web and site images can be overridden by full image refs while preserving defaults', async () => {
+    const compose = await readFile(join(import.meta.dir, 'docker-compose.yml'), 'utf-8')
+
+    expect(compose).toContain('image: ${SEED_WEB_IMAGE:-seedhypermedia/web:${SEED_SITE_TAG:-latest}}')
+    expect(compose).toContain('image: ${SEED_SITE_IMAGE:-seedhypermedia/site:${SEED_SITE_TAG:-latest}}')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// expectedServiceImages
+// ---------------------------------------------------------------------------
+
+describe('expectedServiceImages', () => {
+  test('uses official image refs for default channels', () => {
+    expect(expectedServiceImages(makeTestConfig({release_channel: 'dev'}))).toEqual([
+      {container: 'seed-web', expectedImage: 'seedhypermedia/web:dev'},
+      {container: 'seed-daemon', expectedImage: 'seedhypermedia/site:dev'},
+    ])
+  })
+
+  test('uses configured full image refs when present', () => {
+    expect(
+      expectedServiceImages(
+        makeTestConfig({
+          web_image: 'ghcr.io/horacioh/seed-web:main',
+          site_image: 'ghcr.io/horacioh/seed-site:main',
+        }),
+      ),
+    ).toEqual([
+      {container: 'seed-web', expectedImage: 'ghcr.io/horacioh/seed-web:main'},
+      {container: 'seed-daemon', expectedImage: 'ghcr.io/horacioh/seed-site:main'},
+    ])
+  })
+})
+
+describe('rollbackImageTargets', () => {
+  test('retags official rollback images to the configured release channel', () => {
+    expect(rollbackImageTargets(makeTestConfig({release_channel: 'dev'}))).toEqual([
+      {base: 'seedhypermedia/web', target: 'seedhypermedia/web:dev'},
+      {base: 'seedhypermedia/site', target: 'seedhypermedia/site:dev'},
+    ])
+  })
+
+  test('retags custom rollback images to the exact full image refs compose uses', () => {
+    expect(
+      rollbackImageTargets(
+        makeTestConfig({
+          web_image: 'ghcr.io/horacioh/seed-web:sha-abcdef123456',
+          site_image: 'ghcr.io/horacioh/seed-site:sha-abcdef123456',
+        }),
+      ),
+    ).toEqual([
+      {base: 'ghcr.io/horacioh/seed-web', target: 'ghcr.io/horacioh/seed-web:sha-abcdef123456'},
+      {base: 'ghcr.io/horacioh/seed-site', target: 'ghcr.io/horacioh/seed-site:sha-abcdef123456'},
+    ])
+  })
+})
+
+describe('rollbackTagRefs', () => {
+  test('tags current and configured image bases when migrating to custom refs', () => {
+    expect(
+      rollbackTagRefs(
+        'seed-web',
+        'seedhypermedia/web:latest',
+        makeTestConfig({web_image: 'ghcr.io/horacioh/seed-web:main'}),
+      ),
+    ).toEqual(['seedhypermedia/web:rollback', 'ghcr.io/horacioh/seed-web:rollback'])
+  })
+
+  test('dedupes rollback tags when image base is unchanged', () => {
+    expect(rollbackTagRefs('seed-web', 'seedhypermedia/web:dev', makeTestConfig({release_channel: 'dev'}))).toEqual([
+      'seedhypermedia/web:rollback',
+    ])
+  })
+
+  test('only tags current base for unmanaged containers', () => {
+    expect(rollbackTagRefs('seed-proxy', 'caddy:2', makeTestConfig())).toEqual(['caddy:rollback'])
   })
 })
 
@@ -838,18 +972,18 @@ describe('detectForeignStack / assertNoForeignStack', () => {
 
   test('null when the containers belong to our own project', () => {
     const shell = makeMockShell({
-      "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      'inspect seed-proxy --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
     })
     expect(detectForeignStack(shell, paths)).toBeNull()
   })
 
   test('returns the foreign project name when another install owns a container', () => {
     const shell = makeMockShell({
-      "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed-group-feed',
+      'inspect seed-proxy --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed-group-feed',
     })
     expect(detectForeignStack(shell, paths)).toBe('seed-group-feed')
   })
@@ -857,14 +991,14 @@ describe('detectForeignStack / assertNoForeignStack', () => {
   test('ignores legacy non-compose orphans (empty project label)', () => {
     // Empty label → not a foreign compose stack; freeConflictingPortBindings handles these.
     const shell = makeMockShell({
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": '',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': '',
     })
     expect(detectForeignStack(shell, paths)).toBeNull()
   })
 
   test('assertNoForeignStack throws with a clear message on collision', () => {
     const shell = makeMockShell({
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed-group-feed',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed-group-feed',
     })
     expect(() => assertNoForeignStack(shell, paths)).toThrow(/seed-group-feed/)
     expect(() => assertNoForeignStack(shell, paths)).toThrow(/can't share one host/)
@@ -872,9 +1006,9 @@ describe('detectForeignStack / assertNoForeignStack', () => {
 
   test('assertNoForeignStack is a no-op for our own stack', () => {
     const shell = makeMockShell({
-      "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+      'inspect seed-proxy --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
     })
     expect(() => assertNoForeignStack(shell, paths)).not.toThrow()
   })
@@ -910,8 +1044,8 @@ describe('stopStackByProject', () => {
 
   test('force-removes stragglers still carrying the project label', () => {
     const {shell, commands} = makeRecordingShell({
-      "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-      "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'other',
+      'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+      'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'other',
     })
     stopStackByProject(shell, 'seed')
     expect(commands).toContain('docker rm -f seed-daemon 2>/dev/null')
@@ -922,7 +1056,8 @@ describe('stopStackByProject', () => {
 describe('clearSeedCron', () => {
   test('strips seed-managed lines and keeps everything else', () => {
     const {shell, commands} = makeRecordingShell({
-      'crontab -l': '0 0 * * * /backup.sh\n*/10 * * * * bun deploy # seed-deploy\n0 * * * * docker image prune # seed-cleanup',
+      'crontab -l':
+        '0 0 * * * /backup.sh\n*/10 * * * * bun deploy # seed-deploy\n0 * * * * docker image prune # seed-cleanup',
     })
     clearSeedCron(shell)
     const install = commands.find((c) => c.includes('| crontab -'))!
@@ -957,9 +1092,9 @@ describe('takeOverHost', () => {
 describe('handleForeignStack', () => {
   const paths = makePaths('/opt/seed-group-feed') // composeProjectName → "seed-group-feed"
   const foreignLabels = {
-    "inspect seed-proxy --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-    "inspect seed-web --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
-    "inspect seed-daemon --format '{{index .Config.Labels \"com.docker.compose.project\"}}'": 'seed',
+    'inspect seed-proxy --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+    'inspect seed-web --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
+    'inspect seed-daemon --format \'{{index .Config.Labels "com.docker.compose.project"}}\'': 'seed',
   }
 
   test('no-op when no foreign stack exists', async () => {
@@ -1164,6 +1299,32 @@ describe('checkForNewImages', () => {
       "image inspect seedhypermedia/site:feature-branch --format '{{.Id}}'": 'sha256:ccc',
     })
     const result = await checkForNewImages({...config, release_channel: 'feature-branch'}, paths, shell)
+    expect(result).toBe(false)
+  })
+
+  test('uses configured full image refs when cron checks for updates', async () => {
+    const shell = makeMockShell({
+      "inspect seed-proxy --format '{{.Image}}'": 'sha256:aaa',
+      "inspect seed-web --format '{{.Image}}'": 'sha256:bbb',
+      "inspect seed-daemon --format '{{.Image}}'": 'sha256:ccc',
+      'docker compose': '',
+      "inspect seed-proxy --format '{{.Config.Image}}'": 'caddy:2',
+      "inspect seed-web --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-web:main',
+      "inspect seed-daemon --format '{{.Config.Image}}'": 'ghcr.io/horacioh/seed-site:main',
+      "image inspect caddy:2 --format '{{.Id}}'": 'sha256:aaa',
+      "image inspect ghcr.io/horacioh/seed-web:main --format '{{.Id}}'": 'sha256:bbb',
+      "image inspect ghcr.io/horacioh/seed-site:main --format '{{.Id}}'": 'sha256:ccc',
+    })
+
+    const result = await checkForNewImages(
+      {
+        ...config,
+        web_image: 'ghcr.io/horacioh/seed-web:main',
+        site_image: 'ghcr.io/horacioh/seed-site:main',
+      },
+      paths,
+      shell,
+    )
     expect(result).toBe(false)
   })
 })
@@ -1763,10 +1924,9 @@ describe('removeLegacyHostCronLines', () => {
   })
 
   test('strips lines marked with # website-deploy comment', () => {
-    const crontab = [
-      '*/10 * * * * /usr/local/bin/whatever # website-deploy',
-      '0 * * * * /usr/bin/other # my-job',
-    ].join('\n')
+    const crontab = ['*/10 * * * * /usr/local/bin/whatever # website-deploy', '0 * * * * /usr/bin/other # my-job'].join(
+      '\n',
+    )
     const result = removeLegacyHostCronLines(crontab)
     expect(result).toContain('my-job')
     expect(result).not.toContain('# website-deploy')
@@ -1839,12 +1999,12 @@ describe('removeLegacyHostCron', () => {
 describe('describeBindFailure', () => {
   test('extracts the offending port from a docker bind error', () => {
     const err =
-      "Error response from daemon: driver failed programming external connectivity on endpoint seed-daemon (...): Bind for 0.0.0.0:56000 failed: port is already allocated"
+      'Error response from daemon: driver failed programming external connectivity on endpoint seed-daemon (...): Bind for 0.0.0.0:56000 failed: port is already allocated'
     const msg = describeBindFailure(err)
     expect(msg).not.toBeNull()
     expect(msg!).toContain('Port 56000')
     expect(msg!).toContain('non-Docker process')
-    expect(msg!).toContain(":56000")
+    expect(msg!).toContain(':56000')
   })
 
   test('returns null when the error is not a bind failure', () => {
@@ -2058,15 +2218,28 @@ describe('getOpsBaseUrl', () => {
 // ---------------------------------------------------------------------------
 
 describe('getDeployScriptUrl', () => {
-  test('always returns the S3 main-branch URL, independent of image channel', () => {
-    // The script self-updates from main for every node; release_channel
-    // (dev/latest/custom) never changes where the script comes from.
+  test('returns the S3 main-branch URL without a custom deploy source', () => {
     const origDeploy = process.env.SEED_DEPLOY_URL
     const origRepo = process.env.SEED_REPO_URL
     delete process.env.SEED_DEPLOY_URL
     delete process.env.SEED_REPO_URL
     try {
       expect(getDeployScriptUrl()).toBe(DEV_DEPLOY_SCRIPT_URL)
+    } finally {
+      if (origDeploy !== undefined) process.env.SEED_DEPLOY_URL = origDeploy
+      if (origRepo !== undefined) process.env.SEED_REPO_URL = origRepo
+    }
+  })
+
+  test('uses the persisted deploy source for fork-managed nodes', () => {
+    const origDeploy = process.env.SEED_DEPLOY_URL
+    const origRepo = process.env.SEED_REPO_URL
+    delete process.env.SEED_DEPLOY_URL
+    delete process.env.SEED_REPO_URL
+    try {
+      expect(getDeployScriptUrl('https://raw.githubusercontent.com/horacioh/seed/custom-images/ops/')).toBe(
+        'https://raw.githubusercontent.com/horacioh/seed/custom-images/ops/dist/deploy.js',
+      )
     } finally {
       if (origDeploy !== undefined) process.env.SEED_DEPLOY_URL = origDeploy
       if (origRepo !== undefined) process.env.SEED_REPO_URL = origRepo

@@ -1,0 +1,26 @@
+app = "seed-web"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  DATA_DIR = "/data"
+  NOTIFY_SERVICE_HOST = "https://notify.seed.hyper.media"
+  PORT = "3000"
+  SEED_ENABLE_STATISTICS = "false"
+  SEED_IS_GATEWAY = "false"
+
+[http_service]
+  internal_port = 3000
+  processes = ["app"]
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[mounts]
+  source = "seed_web_data"
+  destination = "/data"
+
+[processes]
+app = """sh -c 'set -eu; if [ -z "${SEED_LINK_SECRET:-}" ] || [ "$SEED_LINK_SECRET" = "REPLACE_WITH_SECRET" ]; then echo "SEED_LINK_SECRET must be set to a unique secret before starting Seed web." >&2; exit 1; fi; if [ ! -f /data/config.json ]; then printf "{\\\"availableRegistrationSecret\\\":\\\"%s\\\"}\\n" "$SEED_LINK_SECRET" > /data/config.json; fi; exec npm run start:prod'"""

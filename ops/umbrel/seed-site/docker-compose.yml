@@ -1,0 +1,81 @@
+services:
+  # This is a public website; the desktop app must reach /hm/api/register without Umbrel proxy authentication.
+  app_proxy:
+    environment:
+      APP_HOST: seed-site_web_1
+      APP_PORT: 3000
+      PROXY_AUTH_ADD: 'false'
+
+  init:
+    image: busybox:1.37@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
+    restart: 'no'
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD}
+    volumes:
+      - ${APP_DATA_DIR}/data/web:/web
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -f /web/config.json ]; then
+          printf '{"availableRegistrationSecret":"%s"}\n' "$$APP_PASSWORD" > /web/config.json
+        fi
+        chown -R 1001:1001 /web
+
+  daemon:
+    image: seedhypermedia/site:latest@sha256:ffd624fd2a444acadcf646436a2486d182292cc3bd0ca3d76c83ff49acea0036
+    restart: on-failure
+    expose:
+      - '56001'
+    ports:
+      - target: 56000
+        published: '56000'
+        protocol: tcp
+      - target: 56000
+        published: '56000'
+        protocol: udp
+    environment:
+      LIGHTNING_API_URL: https://ln.seed.hyper.media
+      SENTRY_DSN: https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896
+      SEED_LOG_LEVEL: info
+      SEED_P2P_TESTNET_NAME: ''
+    volumes:
+      - ${APP_DATA_DIR}/data/daemon:/data
+    command:
+      - /usr/local/bin/seed-daemon
+      - -data-dir=/data
+      - -keystore-dir=/data/keys
+      - -lndhub.mainnet
+      - -p2p.port=56000
+      - -http.port=56001
+      - -grpc.port=56002
+      - -syncing.smart=true
+      - -syncing.no-sync-back=true
+      - -syncing.no-pull=false
+
+  web:
+    image: seedhypermedia/web:latest@sha256:75279174040da225b88029af1217a8fd1a5ddcee6a5300a8f479ef35a4dd6fd6
+    restart: on-failure
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      daemon:
+        condition: service_started
+    environment:
+      DAEMON_HTTP_URL: http://seed-site_daemon_1:56001
+      SEED_BASE_URL: ${SEED_BASE_URL:-http://${DEVICE_DOMAIN_NAME}:3567}
+      SEED_ASSET_HOST: ${SEED_ASSET_HOST:-}
+      PORT: '3000'
+      DATA_DIR: /data
+      NOTIFY_SERVICE_HOST: https://notify.seed.hyper.media
+      SEED_IS_GATEWAY: 'false'
+      SEED_ENABLE_STATISTICS: 'false'
+    volumes:
+      - ${APP_DATA_DIR}/data/web:/data
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        export SEED_ASSET_HOST="$${SEED_ASSET_HOST:-$${SEED_BASE_URL}}"
+        exec docker-entrypoint.sh npm run start:prod

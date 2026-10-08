@@ -1,0 +1,137 @@
+# documentation: https://seed.hyper.media
+# slogan: Seed Hypermedia site node (daemon + web) with automatic image updates.
+# category: cms
+# tags: seed, hypermedia, p2p, cms, publishing, website
+# logo: https://seed.hyper.media/favicon.ico
+# port: 80
+
+# One stack per site. Set the domain on the seed-proxy service in Coolify, deploy, then link
+# the site from the Seed desktop app with: <your domain>/hm/register?secret=<SERVICE_PASSWORD_SEEDLINK>
+# (the generated value is in the stack's Environment Variables).
+#
+# Images default to upstream stable. To run the horacioh/seed fork instead set
+#   SEED_WEB_IMAGE=ghcr.io/horacioh/seed-web:main
+#   SEED_SITE_IMAGE=ghcr.io/horacioh/seed-site:main
+#
+# Auto-update: deploy seed-updater.yaml once per server. It recreates seed-web and seed-daemon of
+# every Seed site on the server when their image tag points at a new digest (the static
+# watchtower labels below opt them in).
+#
+# Running more than one site on a server: give each stack its own SEED_P2P_PORT.
+
+services:
+  seed-proxy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - seed-web
+      - seed-daemon
+    environment:
+      - SERVICE_URL_SEED_80
+    volumes:
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+        content: |
+          {
+            admin off
+            auto_https off
+            servers {
+              trusted_proxies static private_ranges
+            }
+          }
+
+          :80 {
+            encode zstd gzip
+            reverse_proxy /ipfs/* seed-daemon:56001
+            reverse_proxy * seed-web:3000
+          }
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO /dev/null http://127.0.0.1:80/hm/api/config || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  seed-init:
+    image: busybox:1.37
+    restart: 'no'
+    exclude_from_hc: true
+    environment:
+      - SEED_LINK_SECRET=${SERVICE_PASSWORD_SEEDLINK}
+    volumes:
+      - seed-web-data:/web
+    command:
+      - sh
+      - -c
+      - '[ -f /web/config.json ] || printf ''{"availableRegistrationSecret":"%s"}\n'' "$$SEED_LINK_SECRET" >
+        /web/config.json; chown -R 1001:1001 /web'
+
+  seed-daemon:
+    image: ${SEED_SITE_IMAGE:-seedhypermedia/site:latest}
+    restart: unless-stopped
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+      - com.centurylinklabs.watchtower.scope=seed
+    ports:
+      - '${SEED_P2P_PORT:-56000}:56000'
+      - '${SEED_P2P_PORT:-56000}:56000/udp'
+    environment:
+      - SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME:-}
+      - SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}
+      - LIGHTNING_API_URL=${SEED_LIGHTNING_URL:-https://ln.seed.hyper.media}
+      - SENTRY_DSN=${SEED_SENTRY_DSN:-https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896}
+    volumes:
+      - seed-daemon-data:/data
+    command:
+      - seed-daemon
+      - -data-dir=/data
+      - -keystore-dir=/data/keys
+      - -lndhub.mainnet
+      - -p2p.port=56000
+      - -http.port=56001
+      - -grpc.port=56002
+      - -p2p.no-relay=true
+      - -p2p.force-reachability-public=true
+      - -syncing.smart=true
+      - -syncing.no-sync-back=true
+      - -syncing.no-pull=${SEED_NO_PULL:-false}
+      - -p2p.announce-addrs=/dns4/${SERVICE_FQDN_SEED}/tcp/${SEED_P2P_PORT:-56000},/dns4/${SERVICE_FQDN_SEED}/udp/${SEED_P2P_PORT:-56000}/quic-v1
+
+  seed-web:
+    image: ${SEED_WEB_IMAGE:-seedhypermedia/web:latest}
+    restart: unless-stopped
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+      - com.centurylinklabs.watchtower.scope=seed
+    depends_on:
+      seed-init:
+        condition: service_completed_successfully
+      seed-daemon:
+        condition: service_started
+    environment:
+      - SEED_BASE_URL=${SERVICE_URL_SEED}
+      - SEED_ASSET_HOST=${SERVICE_URL_SEED}
+      - DAEMON_HTTP_URL=http://seed-daemon:56001
+      - NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}
+      - SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}
+      - SEED_ENABLE_STATISTICS=${SEED_ENABLE_STATISTICS:-false}
+      - PORT=3000
+      - DATA_DIR=/data
+    volumes:
+      - seed-web-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/hm/api/version').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  seed-daemon-data:
+  seed-web-data:
