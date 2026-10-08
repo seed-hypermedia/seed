@@ -2,11 +2,15 @@ package blob
 
 import (
 	"context"
+	"crypto/rand"
+	"seed/backend/core"
 	"seed/backend/core/coretest"
 	"seed/backend/storage"
+	"seed/backend/util/cclock"
 	"testing"
 	"time"
 
+	blocks "github.com/ipfs/go-block-format"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 )
@@ -276,4 +280,42 @@ func TestCanPeerAccessSpace_DirectAuthentication(t *testing.T) {
 	canAccess, err = bobIndex.canPeerAccessSpace(ctx, bobPeerID, aliceAccount)
 	require.NoError(t, err, "Must not error checking unauthenticated space")
 	require.False(t, canAccess, "Bob must not be able to access Alice's space without authentication")
+}
+
+// TestGetSpacesByAccount checks that an account can reach its own space plus
+// the spaces that granted it a WRITER capability, and nothing else.
+func TestGetSpacesByAccount(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	bob := coretest.NewTester("bob").Account
+	carol := coretest.NewTester("carol").Account
+	unknown, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
+	require.NoError(t, err)
+
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	aliceToBob, err := NewCapability(alice, bob.Principal(), alice.Principal(), "", RoleWriter, "", clock.MustNow())
+	require.NoError(t, err)
+	// The same grant again for another path must not duplicate the space.
+	aliceToBobPath, err := NewCapability(alice, bob.Principal(), alice.Principal(), "/shared", RoleWriter, "", clock.MustNow())
+	require.NoError(t, err)
+	carolToBob, err := NewCapability(carol, bob.Principal(), carol.Principal(), "", RoleWriter, "", clock.MustNow())
+	require.NoError(t, err)
+	// Agent capabilities don't grant access to the issuer's private content here.
+	aliceToCarol, err := NewCapability(alice, carol.Principal(), alice.Principal(), "", RoleAgent, "", clock.MustNow())
+	require.NoError(t, err)
+
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{aliceToBob, aliceToBobPath, carolToBob, aliceToCarol}))
+
+	accounts := []core.Principal{alice.Principal(), bob.Principal(), carol.Principal(), unknown.Principal()}
+	got, err := idx.GetSpacesByAccount(t.Context(), accounts)
+	require.NoError(t, err)
+
+	require.Equal(t, []core.Principal{alice.Principal()}, got[alice.Principal().UnsafeString()])
+	require.ElementsMatch(t, []core.Principal{bob.Principal(), alice.Principal(), carol.Principal()}, got[bob.Principal().UnsafeString()])
+	require.Equal(t, []core.Principal{carol.Principal()}, got[carol.Principal().UnsafeString()])
+	require.Equal(t, []core.Principal{unknown.Principal()}, got[unknown.Principal().UnsafeString()])
+	require.Len(t, got, len(accounts))
 }
