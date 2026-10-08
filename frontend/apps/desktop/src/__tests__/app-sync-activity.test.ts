@@ -350,5 +350,25 @@ describe('activity event processing', () => {
       unsubscribeA()
       unsubscribeB()
     })
+
+    it('processes the first events that arrive after an empty feed', async () => {
+      vi.useFakeTimers()
+      const grpcClient = await getGrpcClientMock()
+      // A fresh database has no events on the first poll.
+      grpcClient.activityFeed.listEvents
+        .mockResolvedValueOnce({events: []})
+        .mockResolvedValue({events: [makeBlobEvent('Profile', 'hm://z6MkProfileUser')]})
+      grpcClient.entities.discoverEntity.mockReturnValue(new Promise(() => {}))
+
+      const {subscribe} = await loadModule()
+      const unsubscribe = subscribe({id: {id: 'hm://z6MkOwner/doc', uid: 'z6MkOwner', path: ['doc']}} as any)
+
+      await vi.advanceTimersByTimeAsync(1_100)
+
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACCOUNT])
+
+      unsubscribe()
+      vi.useRealTimers()
+    })
   })
 })
