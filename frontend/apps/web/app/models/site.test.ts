@@ -89,6 +89,30 @@ describe('browser site publication', () => {
     expect(mocks.publish).toHaveBeenCalledOnce()
   })
 
+  it('removes the publishing peer suffix from real gateway addresses before registration appends it', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response({peerId: 'destination-peer'}))
+      .mockResolvedValueOnce(
+        response({
+          peerId: 'source-peer',
+          addrs: [
+            '/dns4/dev.hyper.media/tcp/56001/p2p/source-peer',
+            '/dns4/dev.hyper.media/udp/56001/quic-v1/p2p/source-peer',
+            '/dns4/relay.test/tcp/4001/p2p/relay-peer/p2p-circuit/p2p/source-peer',
+            '/dns4/bare.test/tcp/4001',
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(response({message: 'Success'}))
+    await registerSite('alice', setupUrl)
+    expect(JSON.parse(fetchMock.mock.calls[2]![1].body).addrs).toEqual([
+      '/dns4/dev.hyper.media/tcp/56001',
+      '/dns4/dev.hyper.media/udp/56001/quic-v1',
+      '/dns4/relay.test/tcp/4001/p2p/relay-peer/p2p-circuit',
+      '/dns4/bare.test/tcp/4001',
+    ])
+  })
+
   it('recovers metadata publication after registration already succeeded without needing its consumed secret', async () => {
     fetchMock.mockResolvedValueOnce(response({registeredAccountUid: 'alice'}))
     await registerSite('alice', 'https://myspace.hyper.media')

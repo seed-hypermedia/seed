@@ -100,12 +100,18 @@ export async function registerSite(accountUid: string, setupUrl: string): Promis
     if (!source.peerId || !source.addrs || (!source.addrs.length && config.peerId !== source.peerId)) {
       throw new Error('The publishing gateway does not expose a reachable peer. Please try again.')
     }
+    // Public gateway config includes the peer suffix; registration adds it to
+    // each address itself, as it does for addresses from the desktop daemon.
+    const peerSuffix = `/p2p/${source.peerId}`
+    const addrs = source.addrs.map((address) =>
+      address.endsWith(peerSuffix) ? address.slice(0, -peerSuffix.length) : address,
+    )
     checkIdentity(identity)
     const response = await fetch(`${siteUrl}/hm/api/register`, {
       method: 'POST',
       credentials: 'omit',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({registrationSecret, accountUid, peerId: source.peerId, addrs: source.addrs}),
+      body: JSON.stringify({registrationSecret, accountUid, peerId: source.peerId, addrs}),
     })
     await siteResponse(response)
   }
