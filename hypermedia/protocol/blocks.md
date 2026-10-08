@@ -47,7 +47,7 @@ Two attributes exist on every block that can have children. <!-- id:1GIO2fft -->
 | `Range` | ranges only | a highlight, rendered as marked text <!-- id:8yCEreSK --> |
 | `TextColor`, `BackgroundColor`, `TextSize`, `TextFamily` | `value` | a style value such as a color or a font family <!-- id:813uEvcy --> |
 
-A mention is an inline embed. The block's `text` holds a single placeholder character, U+FEFF, at the position of the mention. An `Embed` annotation covering that one character carries the [`hm://` link](./urls.md). `mentionKind` is `account` for a person (the link is the [account](./identity.md) or its `/:profile`) or `document` for a page. Readers render the current name of the target in place of the placeholder, so a mention follows a title change. Text fragments and search skip the placeholder characters when they count offsets. <!-- id:Db5LYiXW -->
+A mention is an inline embed. The block's `text` holds a single placeholder character, U+FFFC (the object replacement character), at the position of the mention. An `Embed` annotation covering that one character carries the [`hm://` link](./urls.md). `mentionKind` is `account` for a person (the link is the [account](./identity.md) or its `/:profile`) or `document` for a page. Readers render the current name of the target in place of the placeholder, so a mention follows a title change. Text fragments and search skip the placeholder characters when they count offsets. In markdown, a mention is a link whose label is `@`: `[@](hm://ACCOUNT_UID/:profile)` for a person, `[@](hm://UID/path)` for a document (text after the `@` is ignored); `<hm://ACCOUNT_UID/:profile>` is equivalent. See [Comments](./comments.md). <!-- id:Db5LYiXW -->
 
 # Built-in block types <!-- id:Ab6ehaxJ -->
 
@@ -92,6 +92,20 @@ A `Query` block is a live listing. The author stores a [query](../query.md), and
 The block's own attributes choose the presentation. [style](../query/style.md) is `Card`, `List` or `Table`. `columnCount` is the number of card columns. `banner` shows the first result as a banner above the rest. [table config](../query/table-config.md) remembers which columns are visible in the table view and how wide they are. <!-- id:cxzenQBe -->
 
 The query object carries no filters today. Attribute filters such as "status is Done" live in the [Seed API](../build/web-api.md)'s `QueryDocuments` request and the Explore grammar, described in [the query grammar](../build/query-grammar.md). A query block resolves through the same daemon listing and returns each document's info and metadata. That is why a folder page is usually one query block over its own children. <!-- id:ndrQtVsj -->
+
+## Collections
+
+A **collection** is a document whose content is exactly one top-level `Query` block whose query lists the document's own children. The protocol has no collection concept, and no attribute declares one. The shape alone decides, and the same rule is implemented in the TypeScript document machine and in the Go indexer. A document is a collection when all three hold:
+
+  - it has exactly one top-level block;
+  - that block is a `Query` block;
+  - the query has no `includes`, an empty list, or exactly one inclusion that is either empty (no space and no path) or names the document's own space and normalized path.
+
+The style (`Card`, `List` or `Table`), the table config and any blocks nested under the query block do not matter. More than one top-level block, more than one inclusion, a partly filled inclusion, or an inclusion pointing elsewhere makes it an ordinary document. The older `type: Collection` metadata attribute, shipped in release 2026.8.9, is ignored and never migrated.
+
+The daemon derives the flag when it indexes a published document and serves it as `DocumentInfo.is_collection` (`isCollection` in the [SDK](../build/sdk.md)), so listings can show a collection icon without fetching the body. The value is optional: unset means the indexer has not reached that document yet, and readers treat it as an ordinary document. Existing documents are backfilled by a bounded background worker after startup rather than by a full reindex, so old rows can read as documents for a while. The derivation never blocks indexing.
+
+In the Seed app a collection renders as the shared table view, whatever style its query stores. **New Collection** starts a draft with one canonical query block (`Table`, an empty `Children` inclusion, sorted by `updated`), and publishing retargets that inclusion to the final space and path. **Convert to Collection** and **Convert to Document** sit in the document options menu. Each asks for confirmation, because one replaces all content with a query block and the other removes the query, and each changes only the local draft, so the normal Publish step applies it. Desktop and web drafts store the derived `isCollection` with each listed draft, and a matching draft overrides the published value in the file browser until it is published.
 
 # Tables <!-- id:0pXxkUBN -->
 

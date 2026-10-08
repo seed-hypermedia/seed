@@ -22,7 +22,7 @@ Notifications are centralized on purpose, for now. The desktop app no longer dis
 | `app/routes/` | Every HTTP route, listed below. <!-- id:-V5OkVr9 --> |
 | `frontend/packages/shared/src/models/notification-*.ts` | The client transport, payload shape, read-state logic and [comment](../protocol/comments.md) classifier shared with every client. <!-- id:uCp0ziWT --> |
 
-Read `frontend/apps/notify/README.md` first, then `app/NOTIFICATIONS_SERVICE_ARCHITECTURE.md` for the service. The client halves are in `frontend/apps/web/app/NOTIFICATIONS_WEB_ARCHITECTURE.md` and `frontend/apps/desktop/src/NOTIFICATIONS_DESKTOP_ARCHITECTURE.md`. `NOTIFICATIONS_REVIEW.md` is a restructuring memo, `docs/notifications/local-first-read-state-edge-cases.md` covers offline read state, and `email-notification-signing-notes.md` at the repository root is historical: it describes an earlier per-feature API that no longer matches the code. <!-- id:nTz1Cc8z -->
+[`frontend/apps/notify/README.md`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/notify/README.md) is the file-by-file map of the service and its clients. This page is the description of how the pieces work together. <!-- id:nTz1Cc8z -->
 
 # How it talks to the daemon <!-- id:wp9QUfoF -->
 
@@ -42,6 +42,8 @@ Each loop keeps a cursor in the `notifier_status` table. Event ids are derived f
 
 Some pieces exist only in name. `site-doc-update` exists in the payload schema and the `notifyOwnedDocChange` flag exists in the settings, but the notifier has a TODO where document-update delivery should be, so nobody gets document-change email today. Batch-only notifications are not clearly written to the inbox. <!-- id:f42bC6WP -->
 
+The immediate loop advances its cursor in a `finally` block, so a pass that throws part way still marks its events processed. A transient daemon or SMTP failure can therefore drop the notifications in that batch. Inbox rows are written before email is attempted, so an email failure alone loses only the email.
+
 # Storage <!-- id:5tYConwM -->
 
 One SQLite file, `web-db.sqlite`, in `DATA_DIR` or the working directory. The tables that matter: <!-- id:zD8DMQE2 -->
@@ -57,6 +59,16 @@ One SQLite file, `web-db.sqlite`, in `DATA_DIR` or the working directory. The ta
 | `notifier_status` | Loop cursors and the last batch send time. <!-- id:CRVAQhLn --> |
 
 The watermark design keeps "mark all as read" to one row and makes unread toggling reversible. <!-- id:Ly-Oh-wd -->
+
+## Read state rules
+
+Read state is `{markAllReadAtMs, readEvents}` per account, and the same pure functions in `@shm/shared` (`models/notification-read-logic.ts`) decide it on the server, in the desktop app and in the browser. The rules are chosen so that every device converges on the same answer whatever order the actions arrive in.
+  - An event is read when its time is at or below the watermark, or when it is listed in `readEvents`. An old event that arrives after "mark all as read" is therefore already read.
+  - Merging takes the higher watermark, unions the read events keyed by event id with the later time winning, and then drops every entry at or below the merged watermark. `readEvents` only grows with items read one by one since the last "mark all as read".
+  - Marking an event unread below the watermark lowers the watermark to just before that event and re-lists the loaded events between as explicit reads, so nothing else on screen flips to unread.
+  - Watermarks are wall-clock times from the device that set them. A device with a clock in the future marks more as read than intended. This is the accepted cost of a timestamp watermark.
+
+Event ids and times are the notifier's own (`feedEventId`, derived from the blob), so duplicate or reordered feed pages never split one notification into two.
 
 # The HTTP API <!-- id:pJLQwr0D -->
 
@@ -106,9 +118,15 @@ pnpm --filter @shm/notify test
 
 The [desktop app](./desktop.md) keeps a local optimistic notification store and syncs it with `/hm/api/notifications`, signing each request through the [daemon](./daemon.md)'s `SignData` RPC. The notify host comes from `VITE_NOTIFY_SERVICE_HOST`, `https://notify.seed.hyper.media` in release builds. Account settings can override it, and the override is saved in the synced [vault](./vault.md) state. <!-- id:Mip7OfDa -->
 
+The store lives in the main process, in [`frontend/apps/desktop/src/app-notifications.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-notifications.ts), persisted in Electron app storage under the key `NotificationsState-v001`. For every key in the daemon's keystore it holds the last snapshot (inbox, read state, email config), a queue of actions not yet acknowledged, and the time and error of the last sync. A change in the interface is reduced into the local snapshot first, queued, and then synced. A sync fetches the server's snapshot, replays the queue on top, sends `apply-notification-actions` if the queue is not empty, and drops the actions the server applied. The loop runs every 30 seconds while a window is focused and every 5 minutes otherwise, and on demand. The renderer reads the local store over tRPC and never calls the notify service itself. So the desktop app can show state the server has not confirmed yet, and stale state while the service is unreachable. The files `app-notification-config.ts`, `app-notification-inbox.ts` and `app-notification-read-state.ts` next to it are thin tRPC facades over the one store.
+
 ## Web API <!-- id:Pn8BiNdQ -->
 
 A [site](../protocol/sites.md) advertises its notify service as `notifyServiceHost` in `/hm/api/config` (see [The web API](../build/web-api.md)), set from `NOTIFY_SERVICE_HOST` on the [web app](./web.md). The web app's `/hm/notifications` page signs requests in the browser with the [session key](../build/sign-in.md) and stores the notify host it learned at sign-in. The [mobile app](./mobile.md) reads the same field and falls back to the hosted service. <!-- id:qiXEWgy5 -->
+
+In the browser the notify host follows the signed-in session, not the page. The [vault](./vault.md) callback carries `notifyServerUrl`, the web app stores it in IndexedDB next to the session key, and [`frontend/apps/web/app/web-notifications.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/web/app/web-notifications.ts) reads it from there. The browser signs the CBOR request with WebCrypto, adds `accountUid` because the session key is a delegate, fetches the snapshot into React Query, reduces each action into the cached snapshot before sending it, and refetches after the server answers. The browser never classifies feed events. It only renders the `NotificationPayload` rows the service persisted.
+
+The web app has a second, older way to turn on email: the unsigned subscribe form in `email-notifications.tsx`, also offered after commenting, which posts JSON to `/hm/api/public-subscribe` and creates a legacy [site](../protocol/sites.md) subscription for the address. It is a separate product path from the signed inbox, with its own token-based settings page.
 
 ## SDK <!-- id:yJl1ieUn -->
 
@@ -124,6 +142,7 @@ As of September 2026, the team plans three changes. None of them is built. <!-- 
   - Move subscriptions and read state out of this central server into private peer-to-peer [sync](../protocol/network.md) once [private documents](../protocol/privacy.md) mature. <!-- id:B4Mbt39y -->
   - Restore the link between an email and the [account](../protocol/identity.md) that subscribes. It was dropped in 2025 and later called a mistake. <!-- id:JyQPdkoX -->
   - Replace the legacy [site](../protocol/sites.md) subscriptions with per-site options for document changes, [discussions](../protocol/comments.md), comments and mentions. <!-- id:8985JUGG -->
+  - Email the recipient when someone grants them a writer [capability](../protocol/permissions.md), so "Add as writer" works as an invitation. The notifier does not look at `Capability` blobs today.
 
 # See also <!-- id:kO84rx1N -->
 

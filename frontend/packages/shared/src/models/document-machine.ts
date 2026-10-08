@@ -882,6 +882,7 @@ export const documentMachine = setup({
       },
     }),
     clearDraftState: assign({
+      documentType: ({context}) => deriveDocumentType(context.document?.content ?? [], context.documentId),
       draftId: null,
       draftCreated: false,
       hasChangedWhileSaving: false,
@@ -1243,6 +1244,10 @@ export const documentMachine = setup({
       // Provided via .provide() in the React layer (editor handlers ref)
     },
     updatePublishedVersion: assign({
+      documentType: ({context, event}) => {
+        const doc = (event as any).output as HMDocument
+        return deriveDocumentType(doc?.content ?? [], context.documentId)
+      },
       publishedVersion: ({event}) => {
         // After publish completes, the done event output is the new HMDocument
         // We extract the version from it

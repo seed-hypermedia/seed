@@ -106,6 +106,7 @@ describe('QueryBlock.getData', () => {
       mode: 'Children',
       results: [resultA],
       totalMatches: 2,
+      filterOptions: expect.objectContaining({title: {type: 'text', values: ['Doc A', 'Doc B']}}),
       interactionSummaries: {
         [docA.id]: {
           comments: 2,
@@ -168,6 +169,7 @@ describe('QueryBlock.getData', () => {
 
     expect(result?.results).toEqual([resultB])
     expect(result?.totalMatches).toBe(1)
+    expect(result?.filterOptions?.title?.values).toEqual(['Doc A', 'Doc B'])
     consoleInfoSpy.mockRestore()
   })
 
@@ -199,7 +201,45 @@ describe('QueryBlock.getData', () => {
 
     expect(result?.results).toEqual([resultB])
     expect(result?.totalMatches).toBe(1)
+    expect(result?.filterOptions?.title?.values).toEqual(['Doc A', 'Doc B'])
     consoleInfoSpy.mockRestore()
+  })
+
+  it.each(['Children', 'AllDescendants'] as const)('keeps option values within %s scope across pages', async (mode) => {
+    const nested = {
+      ...resultA,
+      id: hmId('alice', {path: ['projects', 'a', 'nested']}),
+      path: ['projects', 'a', 'nested'],
+      metadata: {name: 'Nested'},
+    }
+    const outside = {
+      ...resultA,
+      id: hmId('alice', {path: ['projects-other', 'outside']}),
+      path: ['projects-other', 'outside'],
+      metadata: {name: 'Outside'},
+    }
+    const target = {...resultA, id: queryTarget, path: ['projects'], metadata: {name: 'Target'}}
+    const grpcClient = {
+      documents: {
+        queryDocuments: vi
+          .fn()
+          .mockResolvedValueOnce({documents: [resultA, target, outside], nextPageToken: 'next'})
+          .mockResolvedValueOnce({documents: [resultB, nested], nextPageToken: ''}),
+        getDocumentInfo: vi.fn().mockResolvedValue({metadata: {toJson: () => ({name: 'Projects'})}}),
+      },
+    } as any
+    const result = await QueryBlock.getData(
+      grpcClient,
+      {
+        query: {includes: [{space: 'alice', path: '/projects', mode}], limit: 1},
+        viewer: {search: 'no matches'},
+      },
+      undefined as any,
+    )
+    expect(result?.results).toEqual([])
+    expect(result?.filterOptions?.title?.values).toEqual(
+      mode === 'Children' ? ['Doc A', 'Doc B'] : ['Doc A', 'Doc B', 'Nested'],
+    )
   })
 
   it('returns null when there is no resolvable target and still logs perf data', async () => {

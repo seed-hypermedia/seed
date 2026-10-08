@@ -137,8 +137,8 @@ type SubscriptionState = {
 }
 
 type SyncState = {
-  // Activity polling state
-  lastBlobId: bigint
+  // Activity polling state. lastBlobId is null until the first poll sets the watermark.
+  lastBlobId: bigint | null
   isPolling: boolean
   pendingInvalidations: Set<string>
   debounceTimer: ReturnType<typeof setTimeout> | null
@@ -163,7 +163,7 @@ type SyncState = {
 }
 
 const state: SyncState = {
-  lastBlobId: BigInt(0),
+  lastBlobId: null,
   isPolling: false,
   pendingInvalidations: new Set(),
   debounceTimer: null,
@@ -380,6 +380,9 @@ function processEventsInner(events: Event[]) {
   const capabilityData: {id: UnpackedHypermediaId; extraAttrs: string}[] = []
   const contactData: {author: string; extraAttrs: string}[] = []
   const refIds: UnpackedHypermediaId[] = []
+  // Tombstone Refs (deletes and moves) invalidate the search cache. Regular Refs do
+  // not — they arrive continuously during sync and hybrid search is expensive.
+  let hasTombstoneRef = false
 
   for (const event of events) {
     if (event.data.case !== 'newBlob') continue
@@ -418,6 +421,14 @@ function processEventsInner(events: Event[]) {
     if (blobType === 'ref' && resource) {
       const id = unpackHmId(resource)
       if (id) refIds.push(id)
+      if (!hasTombstoneRef) {
+        try {
+          const attrs = JSON.parse(event.data.value.extraAttrs) as {tombstone?: boolean}
+          if (attrs.tombstone === true) hasTombstoneRef = true
+        } catch {
+          // extraAttrs missing or unparseable
+        }
+      }
     }
 
     if (blobType === 'contact') {
@@ -578,6 +589,13 @@ function processEventsInner(events: Event[]) {
       appInvalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
       appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
     }
+
+    // A tombstone Ref removes a document from search results. The daemon already
+    // filters deleted documents in SearchEntities, so a plain refetch is enough.
+    // A move Ref (redirect without republish) is also a tombstone at the old path.
+    if (hasTombstoneRef) {
+      appInvalidateQueries([queryKeys.SEARCH])
+    }
   }
 
   // Citation invalidation: comments and refs can introduce new mentions/citations
@@ -604,17 +622,16 @@ function getBlobId(event: Event): bigint {
 }
 
 async function fetchNewEvents(): Promise<Event[]> {
-  if (state.lastBlobId === BigInt(0)) {
+  if (state.lastBlobId === null) {
     // First poll: set watermark so existing feed events are not replayed.
+    // An empty feed (fresh database) gets watermark 0 so the first events that arrive are processed.
     const response = await grpcClient.activityFeed.listEvents({
       pageSize: 1,
       filterEventType: ACTIVITY_BLOB_TYPES,
       order: FeedOrder.OBSERVED_TIME,
     })
     const firstEvent = response.events[0]
-    if (firstEvent) {
-      state.lastBlobId = getBlobId(firstEvent)
-    }
+    state.lastBlobId = firstEvent ? getBlobId(firstEvent) : BigInt(0)
     // console.log('[Sync] Activity monitor watermark initialized', {
     //   watermarkBlobId: state.lastBlobId.toString(),
     // })

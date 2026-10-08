@@ -117,6 +117,7 @@ import {
   FilePen,
   FileText,
   Grid3X3,
+  LayoutGrid,
   List as ListIcon,
   MoreHorizontal,
   Pencil,
@@ -4158,7 +4159,7 @@ function DocumentCollection({
   )
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
+    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
     return (
       <QueryBlockContent
         toolbarActions={
@@ -4177,7 +4178,7 @@ function DocumentCollection({
                   List
                 </TabsTrigger>
                 <TabsTrigger value="Card">
-                  <Grid3X3 />
+                  <LayoutGrid />
                   Cards
                 </TabsTrigger>
               </TabsList>
@@ -4202,6 +4203,7 @@ function DocumentCollection({
         banner={bannerContent ? false : banner}
         bannerContent={bannerContent}
         prependItems={prependItems}
+        tableDrafts={tableDrafts}
         onCreateDocument={slot?.onCreateDraft}
         accountsMetadata={query.data?.accountsMetadata ?? {}}
         interactionSummaries={query.data?.interactionSummaries ?? {}}
@@ -4216,6 +4218,7 @@ function DocumentCollection({
         viewerFilters={viewerFilters}
         onViewerFiltersChange={setViewerFilters}
         totalMatches={query.data?.totalMatches}
+        filterOptions={query.data?.filterOptions}
         isUpdating={query.isFetching && !query.isLoading}
         viewerQueryApplied={query.data?.totalMatches !== undefined}
       />

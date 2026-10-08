@@ -392,7 +392,7 @@ export function EditableDocumentMetadataFields({
           rows={1}
           aria-label="Document summary"
           className={cn(
-            'text-muted-foreground w-full resize-none border-none border-transparent bg-transparent font-serif text-xl font-normal shadow-none ring-0 ring-transparent outline-none focus:ring-0',
+            'text-muted-foreground w-full resize-none border-none border-transparent bg-transparent font-sans text-xl font-normal shadow-none ring-0 ring-transparent outline-none focus:ring-0',
             summaryClassName,
           )}
           value={summaryText}

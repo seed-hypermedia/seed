@@ -411,6 +411,7 @@ export type HMPublishableAnnotation =
       starts: number[]
       ends: number[]
       link: string
+      attributes?: {mentionKind?: 'account' | 'document'}
     }
   | {
       type: 'TextColor' | 'BackgroundColor' | 'TextSize' | 'TextFamily'
@@ -601,7 +602,7 @@ export const HMDocumentMetadataSchema = z
     // Import taxonomy fields (comma-separated values from external sources like WordPress)
     importCategories: z.string().optional(),
     importTags: z.string().optional(),
-    // JSON-stringified schema definition; present iff this document describes a schema (see notes/schema-as-document.md).
+    // `ipfs://<cid>` of the schema blob this document defines; present iff this document is a schema's home page (see hypermedia/schema/typed-documents.md).
     schemaDefinition: z.string().optional(),
   })
   // Metadata is an open/extensible attribute map: the document data model
@@ -1581,11 +1582,16 @@ export const HMDocumentFilterComparisonOperatorSchema = z.enum([
 ])
 export type HMDocumentFilterComparisonOperator = z.infer<typeof HMDocumentFilterComparisonOperatorSchema>
 
+/** A built-in document timestamp a timeRange filter can test. */
+export const HMDocumentTimeFieldSchema = z.enum(['CREATE_TIME', 'UPDATE_TIME'])
+export type HMDocumentTimeField = z.infer<typeof HMDocumentTimeFieldSchema>
+
 /**
  * A recursive predicate over document attributes and built-in fields (proto `DocumentFilter`):
  * exactly one of `and`, `or`, `not`, `comparison`, `exists`, `missing`, `stringMatch`, `urlMatch`,
- * `spaceMatch`, `pathMatch`. Attribute keys are dotted paths into the document's metadata
- * (`status`, `address.city`, `attributesSchema`).
+ * `spaceMatch`, `pathMatch`, `authorMatch`, `timeRange`. Attribute keys are dotted paths into the
+ * document's metadata (`status`, `address.city`, `attributesSchema`). `timeRange` bounds are
+ * RFC 3339 instants: `start` inclusive, `end` exclusive, either may be omitted.
  */
 export type HMDocumentFilter = {
   and?: {filters: HMDocumentFilter[]}
@@ -1598,6 +1604,8 @@ export type HMDocumentFilter = {
   urlMatch?: {url: string; prefix?: boolean}
   spaceMatch?: {space: string}
   pathMatch?: {path: string; prefix?: boolean}
+  authorMatch?: {author: string}
+  timeRange?: {field: HMDocumentTimeField; start?: string; end?: string}
 }
 export const HMDocumentFilterSchema: z.ZodType<HMDocumentFilter> = z.lazy(() =>
   z
@@ -1621,6 +1629,10 @@ export const HMDocumentFilterSchema: z.ZodType<HMDocumentFilter> = z.lazy(() =>
       urlMatch: z.object({url: z.string(), prefix: z.boolean().optional()}).optional(),
       spaceMatch: z.object({space: z.string()}).optional(),
       pathMatch: z.object({path: z.string(), prefix: z.boolean().optional()}).optional(),
+      authorMatch: z.object({author: z.string()}).optional(),
+      timeRange: z
+        .object({field: HMDocumentTimeFieldSchema, start: z.string().optional(), end: z.string().optional()})
+        .optional(),
     })
     .strict(),
 )
@@ -1807,7 +1819,7 @@ export const HMQueryBlockInputSchema = z.object({
         .array(
           z.object({
             columnId: z.string(),
-            operator: z.enum(['contains', 'equals', 'greaterThan', 'lessThan']),
+            operator: z.enum(['contains', 'equals', 'notEquals', 'greaterThan', 'lessThan']),
             value: z.string(),
           }),
         )
@@ -2159,11 +2171,23 @@ export const HMQueryBlockItemSummarySchema = z.object({
 })
 export type HMQueryBlockItemSummary = z.infer<typeof HMQueryBlockItemSummarySchema>
 
+/** Existing filter values and inferred column types from the full collection scope. */
+export const HMQueryBlockFilterOptionsSchema = z.record(
+  z.string(),
+  z.object({
+    values: z.array(z.string()),
+    type: z.enum(['text', 'number', 'boolean', 'date', 'list']),
+  }),
+)
+/** Filter choices available before viewer search, filters, and display limits. */
+export type HMQueryBlockFilterOptions = z.infer<typeof HMQueryBlockFilterOptionsSchema>
+
 export const HMQueryBlockPayloadSchema = z.object({
   queryTargetName: z.string(),
   in: unpackedHmIdSchema,
   results: z.array(HMDocumentInfoSchema),
   totalMatches: z.number().optional(),
+  filterOptions: HMQueryBlockFilterOptionsSchema.optional(),
   mode: z.union([z.literal('Children'), z.literal('AllDescendants')]).optional(),
   interactionSummaries: z.record(z.string(), HMQueryBlockItemSummarySchema),
   accountsMetadata: HMAccountsMetadataSchema,

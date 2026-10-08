@@ -106,6 +106,7 @@ import {
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
 import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
+import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
 import type {
   HMSigner,
@@ -12929,6 +12930,10 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
   }
 }
 
+/** `read thread:` content search reads the last N events of each of the newest M sessions. */
+const THREAD_SEARCH_SESSIONS = 60
+const THREAD_SEARCH_EVENTS_PER_SESSION = 25
+
 /**
  * Lists (and searches) THIS AGENT's conversations for `read thread:` with no id. Other agents'
  * threads are not listed — agents do not read each other's state, whatever account they share —
@@ -13010,30 +13015,36 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
   )
     .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
     .filter((row) => `${row.title ?? ''}\n${row.description ?? ''}`.toLowerCase().includes(query))
-  // Content matches: a bounded scan over the most recent message events, one snippet per thread.
+  // Content matches: the tail of each of the newest sessions, one snippet per thread. Each tail is
+  // an index-ordered read on (session_id, seq); a single `ORDER BY created_at` across all of the
+  // agent's events made SQLite load and sort EVERY event of the agent (hundreds of thousands of
+  // blobs on prod, 30–40 min on the event loop) to keep the newest few thousand.
   const snippets = new Map<string, string>()
-  const eventRows = stmt<{session_id: string; event_cbor: Uint8Array}, (string | number)[]>(
+  const recentSessions = stmt<{id: string}, [string, string, number]>(
     context.db,
-    `SELECT e.session_id, e.event_cbor FROM session_events e
-       JOIN sessions s ON s.id = e.session_id
-       WHERE s.account_id = ?${agentId ? ' AND s.agent_id = ?' : ''}
-       ORDER BY e.created_at DESC LIMIT 4000`,
-  ).all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
-  for (const eventRow of eventRows) {
-    if (snippets.has(eventRow.session_id)) continue
-    let event: {type?: string; content?: unknown}
-    try {
-      event = cbor.decode(eventRow.event_cbor)
-    } catch {
-      continue
+    `SELECT id FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC LIMIT ?`,
+  ).all(context.accountId, agentId, THREAD_SEARCH_SESSIONS)
+  const sessionTail = stmt<{event_cbor: Uint8Array}, [string, number]>(
+    context.db,
+    `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
+  )
+  for (const session of recentSessions) {
+    for (const eventRow of sessionTail.all(session.id, THREAD_SEARCH_EVENTS_PER_SESSION)) {
+      let event: {type?: string; content?: unknown}
+      try {
+        event = cbor.decode(eventRow.event_cbor)
+      } catch {
+        continue
+      }
+      if (event.type !== 'message') continue
+      const text = typeof event.content === 'string' ? event.content : safeJSONStringify(event.content)
+      const index = text.toLowerCase().indexOf(query)
+      if (index < 0) continue
+      const start = Math.max(0, index - 80)
+      const end = Math.min(text.length, index + query.length + 80)
+      snippets.set(session.id, `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`)
+      break
     }
-    if (event.type !== 'message') continue
-    const text = typeof event.content === 'string' ? event.content : safeJSONStringify(event.content)
-    const index = text.toLowerCase().indexOf(query)
-    if (index < 0) continue
-    const start = Math.max(0, index - 80)
-    const end = Math.min(text.length, index + query.length + 80)
-    snippets.set(eventRow.session_id, `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`)
   }
   const matchedIds = [...new Set([...titleMatches.map((row) => row.id), ...snippets.keys()])].slice(0, limit)
   const rows = loadThreads(matchedIds)
@@ -13265,7 +13276,7 @@ const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck']
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
   document: ['name', 'metadata'],
   update: ['name', 'metadata'],
-  comment: ['target', 'replyTo'],
+  comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
   delete: [],
@@ -13661,6 +13672,7 @@ export async function executeWriteVerb(
       input: {
         ...passthrough,
         ...(options.skipLinkCheck === true ? {skipLinkCheck: true} : {}),
+        ...(options.allowPlainMentions === true ? {allowPlainMentions: true} : {}),
         ...commandInput,
       },
     })
@@ -14536,8 +14548,9 @@ async function writeCommentCreate(
   const resourceId = {...id, blockRef: null}
   const resource = await client.request('Resource', resourceId)
   if (resource.type !== 'document') throw new APIError(400, `Comment target is ${resource.type}, not a document`)
-  const blocks = commentMarkdownToBlocks(body)
+  const {blocks, mentionedAccounts} = commentMarkdownToBlocks(body, request.input)
   await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
+  const mentions = mentionedAccounts.map((uid) => `hm://${uid}`)
   const replyCommentVersion = parentComment?.version || undefined
   const rootReplyCommentVersion = parentComment
     ? parentComment.threadRootVersion || parentComment.version || undefined
@@ -14549,6 +14562,7 @@ async function writeCommentCreate(
       target: packHmId(id),
       ...(parentComment ? {replyCommentId: parentComment.id} : {}),
       blockCount: blocks.length,
+      mentions,
       dryRun: true,
     })
   const publishInput = await createComment(
@@ -14579,6 +14593,7 @@ async function writeCommentCreate(
     authorUrl: `hm://${signer.publicKey}`,
     authorName: signer.profileName || signer.publicKey,
     markdown: body,
+    mentions,
     ...(parentComment ? {replyCommentId: parentComment.id} : {}),
     cids: published.cids,
   })
@@ -14592,9 +14607,10 @@ async function writeCommentUpdate(
   const commentId = normalizeCommentId(request.input.comment ?? request.input.commentId, 'Comment ID')
   const body = normalizeWriteContent(request.input.body ?? request.input.content ?? request.input.text, 'Comment body')
   const existing = await client.request('Comment', commentId)
-  const blocks = commentMarkdownToBlocks(body)
+  const {blocks, mentionedAccounts} = commentMarkdownToBlocks(body, request.input)
   await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
-  if (request.dryRun) return writeToolResult(request.command, signer, {commentId, dryRun: true})
+  const mentions = mentionedAccounts.map((uid) => `hm://${uid}`)
+  if (request.dryRun) return writeToolResult(request.command, signer, {commentId, mentions, dryRun: true})
   const published = await client.publish(
     await updateComment(
       {
@@ -14610,7 +14626,7 @@ async function writeCommentUpdate(
       signer.signer,
     ),
   )
-  return writeToolResult(request.command, signer, {commentId, cids: published.cids})
+  return writeToolResult(request.command, signer, {commentId, mentions, cids: published.cids})
 }
 
 async function writeCommentDelete(
@@ -16066,12 +16082,28 @@ function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId = ''): Document
   return ops
 }
 
-function commentMarkdownToBlocks(content: string): HMBlockNode[] {
+/**
+ * Comment markdown → blocks, with mentions normalized (see comment-mentions.ts). A body that still
+ * carries plain-text `@Name` tokens is refused unless the caller passed `allowPlainMentions`, because
+ * such a "mention" notifies nobody and activates no agent — the failure Eric caught on hyper.media
+ * when Ion wrote "@Artist" as a Link and Artist never woke up.
+ */
+function commentMarkdownToBlocks(
+  content: string,
+  input: Record<string, unknown> = {},
+): {blocks: HMBlockNode[]; mentionedAccounts: string[]} {
   if (!content.trim())
-    return [
-      {block: {id: crypto.randomUUID(), type: 'Paragraph', text: '', attributes: {}, annotations: []}, children: []},
-    ]
-  return markdownBlockNodesToHMBlockNodes(parseMarkdown(content).tree)
+    return {
+      blocks: [
+        {block: {id: crypto.randomUUID(), type: 'Paragraph', text: '', attributes: {}, annotations: []}, children: []},
+      ],
+      mentionedAccounts: [],
+    }
+  const prepared = prepareCommentMentions(markdownBlockNodesToHMBlockNodes(parseMarkdown(content).tree))
+  if (prepared.plainMentions.length && input.allowPlainMentions !== true) {
+    throw new APIError(400, plainMentionsError(prepared.plainMentions))
+  }
+  return {blocks: prepared.blocks, mentionedAccounts: prepared.mentionedAccounts}
 }
 
 function detectWriteContentFormat(content: string): 'markdown' | 'json' {
@@ -16765,6 +16797,8 @@ type CommentThreadEntry = {
   id: string
   author: string
   authorName?: string
+  /** The markdown that mentions this comment's author: `[@](hm://uid/:profile)`. */
+  mention: string
   createTime?: string
   replyParent?: string
   markdown: string
@@ -16800,6 +16834,7 @@ async function commentThreadEntries(
           id: entry.id,
           author: entry.author,
           authorName: authors[entry.author]?.metadata?.name || undefined,
+          mention: mentionMarkdown(entry.author),
           createTime: hmTimestampToIso(entry.createTime),
           replyParent: entry.replyParent || undefined,
           markdown: await commentToResolvedMarkdown(entry, {client, maxDepth: 1}).catch(
@@ -16856,7 +16891,7 @@ function commentEntryHeading(
   const relation = entry.replyParent ? `replying to \`${entry.replyParent}\`` : 'thread root'
   return [
     `### ${index + 1}. ${who}${when}${mark}`,
-    `Comment id: \`${entry.id}\` · ${relation}`,
+    `Comment id: \`${entry.id}\` · ${relation} · mention the author with \`${entry.mention}\``,
     '',
     entry.markdown || '_(empty)_',
   ]
@@ -16925,6 +16960,8 @@ async function commentReadResult(input: {
   }
   const authorName = thread?.comments.find((entry) => entry.id === comment.id)?.authorName
   if (authorName) (result.comment as Record<string, unknown>).authorName = authorName
+  const authorMention = mentionMarkdown(comment.author)
+  ;(result.comment as Record<string, unknown>).authorMention = authorMention
   if (format === 'json') {
     result.resource = resource
     if (thread) result.thread = thread
@@ -16938,6 +16975,9 @@ async function commentReadResult(input: {
       comment.replyParent ? ` · replying to \`${comment.replyParent}\`` : ' · thread root'
     }${comment.createTime ? ` · ${hmTimestampToIso(comment.createTime)}` : ''}`,
     `Reply with: write {address: "${target}", content: "…", options: {action: "comment", replyTo: "${comment.id}"}}`,
+    `Mention the author with: \`${authorMention}\` (a mention is this inline form only; plain @${
+      authorName || 'Name'
+    } text notifies nobody)`,
     '',
     own || '_(empty)_',
   ]

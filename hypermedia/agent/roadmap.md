@@ -69,7 +69,7 @@ A [plan](./plan.md) [step](./step.md) closes when the model says so, or when eve
 - **WebSocket protocol v2.** Heartbeat, explicit unsubscribe, CBOR server events, subscription limits, backpressure, reconnect cursors, metrics. Agent-run text partials remain ephemeral across a disconnect. <!-- id:CeAzSzD2 -->
 - **Provider and secret lifecycle.** Providers can be deleted. Secret rotation and a general secret-deletion action do not exist. <!-- id:hKIB9nP3 -->
 - **Streaming subscription regression tests** for the `omitUndefined` signing fix and CRLF SSE parsing. <!-- id:Wyvsdbd1 -->
-- **Desktop packaging coverage.** The smoke workflow runs on macOS only. Linux and Windows binaries are compiled but never executed in CI. <!-- id:BDc7l7DR -->
+- **Desktop packaging coverage.** The compiled binary now runs a smoke check on the full matrix (macOS, Linux, Windows) in `dev-desktop.yml`; what is still missing is an end-to-end test of the packaged app talking to its bundled server. <!-- id:BDc7l7DR -->
 - **Rich tool results.** Document previews rendered as documents, and the requested URL beside the resolved one. <!-- id:jOpOPWUp -->
 
 # Security hardening <!-- id:AVYp8ESV -->

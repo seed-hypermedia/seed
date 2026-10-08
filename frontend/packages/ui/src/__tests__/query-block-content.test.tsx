@@ -251,7 +251,6 @@ describe('QueryBlockContent table view', () => {
 
     expect(Array.from(container.querySelectorAll('th')).map((cell) => cell.textContent)).toEqual([
       'Name',
-      'Tags',
       'Last Modified',
       'Subdocuments',
       'Comments',
@@ -321,6 +320,31 @@ describe('QueryBlockContent toolbar', () => {
     expect(container.querySelector('button[aria-label="Filter"]')).toBeTruthy()
     expect(container.querySelector('button[aria-label="Search documents"]')?.textContent).toBe('Item')
     expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(2)
+  })
+
+  it('shows equality filters with readable labels and removes them from the popover summary', () => {
+    const onViewerFiltersChange = vi.fn()
+    const items = makeItems(1)
+    items[0].metadata.status = 'Ready'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:status', operator: 'equals', value: 'Ready'}]}
+          onViewerFiltersChange={onViewerFiltersChange}
+        />,
+      )
+    })
+
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+    expect(document.body.textContent).toContain('Status IS Ready')
+
+    const remove = document.querySelector('button[aria-label="Remove filter: Status IS Ready"]')
+    act(() => remove?.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+    expect(onViewerFiltersChange).toHaveBeenCalledWith([])
   })
 
   it('removes an applied filter from its summary inside the popover', () => {

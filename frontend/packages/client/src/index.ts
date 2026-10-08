@@ -75,6 +75,7 @@ export {
   parseInlineFormatting,
   parseFrontmatter,
   markdownBlockNodesToHMBlockNodes,
+  hmAccountMentionUid,
 } from './markdown-to-blocks'
 export type {BlockNode, SeedBlock, Annotation} from './markdown-to-blocks'
 export {

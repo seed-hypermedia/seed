@@ -2,10 +2,13 @@ import {
   BUILTIN_METADATA_KEYS,
   type HMAccountsMetadata,
   type HMDocumentInfo,
+  type HMQueryBlockFilterOptions,
+  type HMQueryBlockInput,
   type HMQueryBlockItemSummary,
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, normalizeDate, unpackHmId, type AnyTimestamp} from '@shm/shared'
+import {matchesQueryFilterEquality} from '@shm/shared/models/query-block-filter'
 
 /** Primitive presentation types inferred for custom Query table attributes. */
 export type QueryTableAttributeType = 'text' | 'number' | 'boolean' | 'date' | 'list'
@@ -19,11 +22,7 @@ export type QueryTableColumn = {
 }
 
 /** One ephemeral client-side Query table filter. */
-export type QueryTableFilter = {
-  columnId: string
-  operator: 'contains' | 'equals' | 'greaterThan' | 'lessThan'
-  value: string
-}
+export type QueryTableFilter = NonNullable<NonNullable<HMQueryBlockInput['viewer']>['filters']>[number]
 
 /** Contextual data used to resolve column values that depend on derived data. */
 export type QueryTableValueContext = {
@@ -65,11 +64,13 @@ export function inferAttributeType(values: unknown[]): QueryTableAttributeType {
 }
 
 /** Builds the stable core columns and discovered metadata columns for Query table rows. */
-export function buildQueryTableColumns(items: HMDocumentInfo[] = []): QueryTableColumn[] {
+export function buildQueryTableColumns(
+  items: HMDocumentInfo[] = [],
+  filterOptions?: HMQueryBlockFilterOptions,
+): QueryTableColumn[] {
   const coreColumns: QueryTableColumn[] = [
     {id: 'title', label: 'Name', type: 'text', defaultVisible: true},
     {id: 'space', label: 'Space', type: 'text', defaultVisible: false},
-    {id: 'tags', label: 'Tags', type: 'list', defaultVisible: true},
     {id: 'updated', label: 'Last Modified', type: 'date', defaultVisible: true},
     {id: 'children', label: 'Subdocuments', type: 'number', defaultVisible: true},
     {id: 'comments', label: 'Comments', type: 'number', defaultVisible: true},
@@ -79,7 +80,12 @@ export function buildQueryTableColumns(items: HMDocumentInfo[] = []): QueryTable
     {id: 'path', label: 'Path', type: 'text', defaultVisible: false},
   ]
   const metadataKeys = Array.from(
-    new Set(items.flatMap((item) => Object.keys(item.metadata).filter((key) => !RESERVED_METADATA_KEYS.has(key)))),
+    new Set([
+      ...items.flatMap((item) => Object.keys(item.metadata).filter((key) => !RESERVED_METADATA_KEYS.has(key))),
+      ...Object.keys(filterOptions ?? {})
+        .filter((id) => id.startsWith('metadata:'))
+        .map((id) => id.slice('metadata:'.length)),
+    ]),
   ).sort()
 
   return coreColumns.concat(
@@ -89,7 +95,7 @@ export function buildQueryTableColumns(items: HMDocumentInfo[] = []): QueryTable
         .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
         .replace(/[_-]+/g, ' ')
         .replace(/^./, (character) => character.toUpperCase()),
-      type: inferAttributeType(items.map((item) => item.metadata[key])),
+      type: filterOptions?.[`metadata:${key}`]?.type ?? inferAttributeType(items.map((item) => item.metadata[key])),
       defaultVisible: false,
     })),
   )
@@ -252,10 +258,25 @@ export function filterQueryTableItems(
   return items.filter((item) =>
     filters.every((filter) => {
       const value = getQueryTableValue(item, filter.columnId, context)
+      if (!filter.value.trim()) return true
+      if (filter.operator === 'equals' || filter.operator === 'notEquals') {
+        const rawValue = filter.columnId === 'tags' ? item.metadata.tags ?? item.metadata.importTags : value
+        const comparable =
+          filter.columnId === 'created' || filter.columnId === 'updated'
+            ? normalizeDate(rawValue as AnyTimestamp)?.toISOString()
+            : filter.columnId === 'tags' && typeof rawValue === 'string'
+              ? rawValue
+                  .split(',')
+                  .map((tag) => tag.trim())
+                  .filter(Boolean)
+              : rawValue
+        const matches = matchesQueryFilterEquality(comparable, filter.value)
+        return filter.operator === 'equals' ? matches : !matches
+      }
       const needle = filter.value.toLocaleLowerCase()
-      if (filter.operator === 'contains' || filter.operator === 'equals') {
+      if (filter.operator === 'contains') {
         const text = queryTableValueToString(value).toLocaleLowerCase()
-        return filter.operator === 'contains' ? text.includes(needle) : text === needle
+        return text.includes(needle)
       }
       const descriptor = descriptors?.find((d) => d.id === filter.columnId)
       const type = getQueryTableColumnType(filter.columnId, value, descriptor)
