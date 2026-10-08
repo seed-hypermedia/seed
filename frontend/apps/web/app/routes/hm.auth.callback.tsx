@@ -1,4 +1,4 @@
-import {keyPairStore, redirectToVaultSignIn, useSiteName} from '@/auth'
+import {keyPairStore} from '@/auth'
 import * as authSession from '@/auth-session'
 import {
   AUTH_STATE_DELEGATION_RETURN_URL,
@@ -24,46 +24,10 @@ import {useEffect, useState} from 'react'
 const inFlightAuthCallbacks = new Map<string, Promise<void>>()
 const completedAuthCallbacks = new Set<string>()
 
-type AuthCallbackFailure = {
-  title: string
-  description: string
-  /** Raw error message, shown collapsed for support/debugging. */
-  details: string
-  vaultUrl: string
-  returnUrl: string
-}
-
-function describeAuthError(err: unknown): Pick<AuthCallbackFailure, 'title' | 'description' | 'details'> {
-  const details = err instanceof Error ? err.message : String(err)
-  if (err instanceof authSession.AuthCallbackError && err.reason === 'denied') {
-    return {
-      title: 'Sign-in was cancelled',
-      description: "You didn't approve access to your account. You can try again whenever you're ready.",
-      details,
-    }
-  }
-  if (err instanceof authSession.AuthCallbackError && err.reason === 'stale-session') {
-    return {
-      title: 'This sign-in link is no longer valid',
-      description:
-        'It may have already been used, or sign-in was started in a different browser or tab. Start a new sign-in from here to continue.',
-      details,
-    }
-  }
-  return {
-    title: "We couldn't sign you in",
-    description:
-      'Something went wrong while connecting to your account. Please try again. If the problem continues, share the technical details below with us.',
-    details,
-  }
-}
-
 export default function AuthCallbackRoute() {
-  const [error, setError] = useState<AuthCallbackFailure | null>(null)
-  const [isRetrying, setIsRetrying] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const {origin, originHomeId} = useUniversalAppContext()
-  const siteName = useSiteName()
 
   useEffect(() => {
     const callbackKey = window.location.href
@@ -73,22 +37,13 @@ export default function AuthCallbackRoute() {
     }
 
     async function handleAuth() {
-      // Fall back to the same default vault as the sign-in dialog, so "Sign in again" works even when the
-      // stored state is gone (e.g. the callback was opened in a different browser).
-      const vaultUrl =
-        (await getAuthState(AUTH_STATE_DELEGATION_VAULT_URL)) || `${WEB_IDENTITY_ORIGIN || origin}/vault/delegate`
+      const vaultUrl = (await getAuthState(AUTH_STATE_DELEGATION_VAULT_URL)) || `${origin}/vault/delegate`
       const returnUrl = (await getAuthState(AUTH_STATE_DELEGATION_RETURN_URL)) || '/'
 
       try {
         const result = await authSession.handleCallback({vaultUrl})
         if (!result) {
-          setError({
-            title: "We couldn't sign you in",
-            description: "We didn't receive any sign-in information. Please start a new sign-in to continue.",
-            details: 'No authentication data received.',
-            vaultUrl,
-            returnUrl,
-          })
+          setError('No authentication data received.')
           return
         }
 
@@ -218,8 +173,8 @@ export default function AuthCallbackRoute() {
         if (existingSpaceDraftId) nextUrl.searchParams.set('vault_draft_id', existingSpaceDraftId)
         navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {replace: true})
       } catch (err) {
-        console.error('[auth-callback] Sign-in failed', err)
-        setError({...describeAuthError(err), vaultUrl, returnUrl})
+        const message = err instanceof Error ? err.message : String(err)
+        setError(message)
         authSession.clearSession(vaultUrl).catch(console.error)
         deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL).catch(console.error)
         deleteAuthState(AUTH_STATE_DELEGATION_RETURN_URL).catch(console.error)
@@ -234,24 +189,8 @@ export default function AuthCallbackRoute() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [origin, navigate])
 
-  async function signInAgain(failure: AuthCallbackFailure) {
-    setIsRetrying(true)
-    try {
-      await redirectToVaultSignIn({
-        origin: origin || window.location.origin,
-        siteName,
-        vaultUrl: failure.vaultUrl,
-        returnUrl: failure.returnUrl,
-      })
-    } catch (err) {
-      console.error('[auth-callback] Failed to restart sign-in', err)
-      setError({...describeAuthError(err), vaultUrl: failure.vaultUrl, returnUrl: failure.returnUrl})
-      setIsRetrying(false)
-    }
-  }
-
   return (
-    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-4">
+    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">
       {error ? (
         <div className="bg-card text-card-foreground flex w-full max-w-sm flex-col items-center gap-6 rounded-xl border p-8 shadow-sm">
           <div className="flex size-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
@@ -259,24 +198,24 @@ export default function AuthCallbackRoute() {
           </div>
           <div className="flex flex-col gap-2 text-center">
             <SizableText size="lg" weight="bold">
-              {error.title}
+              We couldn't sign you in
             </SizableText>
             <SizableText color="muted" size="sm">
-              {error.description}
+              Your sign-in may have expired or been started in a different browser or tab. Please try signing in again
+              from the site.
             </SizableText>
           </div>
           <div className="flex w-full flex-col gap-2">
-            <Button onClick={() => signInAgain(error)} disabled={isRetrying} className="w-full">
-              {isRetrying ? <Spinner /> : null}
-              Sign in again
+            <Button onClick={() => navigate('/', {replace: true})} className="w-full">
+              Return Home
             </Button>
-            <Button variant="outline" onClick={() => navigate(error.returnUrl, {replace: true})} className="w-full">
-              Go back
+            <Button variant="outline" onClick={() => window.location.reload()} className="w-full">
+              Try Again
             </Button>
           </div>
           <details className="text-muted-foreground w-full text-xs">
             <summary className="cursor-pointer text-center">Technical details</summary>
-            <pre className="bg-muted mt-2 rounded-md p-2 break-words whitespace-pre-wrap">{error.details}</pre>
+            <pre className="bg-muted mt-2 rounded-md p-2 break-words whitespace-pre-wrap">{error}</pre>
           </details>
         </div>
       ) : (
