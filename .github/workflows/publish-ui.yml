@@ -1,0 +1,130 @@
+name: Publish UI package
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/packages/ui/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'mise.toml'
+      - '.github/workflows/publish-ui.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/packages/ui/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'mise.toml'
+      - '.github/workflows/publish-ui.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the validated package to npm (main only)'
+        type: boolean
+        default: false
+      expected_version:
+        description: 'Exact package version to validate or publish'
+        type: string
+        required: true
+        default: '0.1.0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-ui-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # Keep versions aligned with mise.toml and package.json#packageManager.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.32.0'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: pnpm
+
+      - name: Validate release request
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          PUBLISH_REQUESTED: ${{ inputs.publish }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import {readFileSync} from 'node:fs'
+          const {version} = JSON.parse(readFileSync('frontend/packages/ui/package.json', 'utf8'))
+          assert.equal(version, process.env.EXPECTED_VERSION, 'Requested version must match the checked-in UI package')
+          if (process.env.PUBLISH_REQUESTED === 'true') {
+            assert.equal(process.env.GITHUB_REF, 'refs/heads/main', 'Publish only from main')
+            assert.equal(process.env.GITHUB_REPOSITORY, 'seed-hypermedia/seed', 'Publish only from the Seed repository')
+          }
+          NODE
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Check UI formatting and types
+        run: |
+          pnpm --filter @shm/ui format:check
+          pnpm --filter @shm/ui typecheck
+
+      - name: Test UI components
+        run: pnpm --filter @shm/ui test
+
+      - name: Build and validate the exact release tarball in a clean npm consumer
+        env:
+          UI_PACKAGE_ARTIFACT_DIR: ${{ runner.temp }}/ui-package
+        run: pnpm --filter @shm/ui test:package:install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shm-ui-${{ github.sha }}
+          path: ${{ runner.temp }}/ui-package/*.tgz
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: validate
+    if:
+      github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main' && github.repository
+      == 'seed-hypermedia/seed'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          registry-url: https://registry.npmjs.org
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: shm-ui-${{ github.sha }}
+          path: ui-package
+
+      - name: Publish validated public tarball with provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.UI_NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo 'Configure the UI_NPM_TOKEN repository secret with publish access to @shm before releasing.' >&2
+            exit 1
+          fi
+          packages=(ui-package/*.tgz)
+          if [ "${#packages[@]}" -ne 1 ] || [ ! -f "${packages[0]}" ]; then
+            echo 'Expected exactly one validated UI package tarball.' >&2
+            exit 1
+          fi
+          npm publish "${packages[0]}" --access public --provenance --ignore-scripts

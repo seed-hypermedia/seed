@@ -4,7 +4,7 @@
  */
 
 import {execSync} from 'child_process'
-import {mkdtempSync, rmSync} from 'fs'
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'fs'
 import {tmpdir} from 'os'
 import path from 'path'
 import {seedTestFixtures, writeFixtureWebConfig} from '../../frontend/apps/cli/src/test/fixture-seed'
@@ -48,6 +48,11 @@ export type TestEnvConfig = {
   skipBuild?: boolean
   // Announced by the web server via /hm/api/config notifyServiceHost
   notifyServiceHost?: string
+  /**
+   * Run the web server as a gateway that hosts many sites under subdomains of localhost,
+   * with its admin API (/hm/api/admin) open to this secret. The fixture site stays the root site.
+   */
+  gatewayAdminSecret?: string
 }
 
 export type TestEnv = {
@@ -71,6 +76,13 @@ export async function setupTestEnv(config: TestEnvConfig = {}): Promise<TestEnv>
   const daemonDataDir = mkdtempSync(path.join(tmpdir(), 'seed-integration-daemon-'))
   const webDataDir = mkdtempSync(path.join(tmpdir(), 'seed-integration-web-'))
   writeFixtureWebConfig(webDataDir)
+  if (config.gatewayAdminSecret) {
+    const rootConfig = JSON.parse(readFileSync(path.join(webDataDir, 'config.json'), 'utf-8'))
+    writeFileSync(
+      path.join(webDataDir, 'service-config.json'),
+      JSON.stringify({rootHostname: 'localhost', rootConfig, namedServices: {}}),
+    )
+  }
 
   console.log('=== Setting up test environment ===')
   console.log(`Web port: ${webPort}`)
@@ -115,6 +127,7 @@ export async function setupTestEnv(config: TestEnvConfig = {}): Promise<TestEnv>
     daemonHttpPort,
     dataDir: webDataDir,
     ...(config.notifyServiceHost ? {notifyServiceHost: config.notifyServiceHost} : {}),
+    ...(config.gatewayAdminSecret ? {serviceAdminSecret: config.gatewayAdminSecret} : {}),
   }
   let web: WebServerInstance
   try {

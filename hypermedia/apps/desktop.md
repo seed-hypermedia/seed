@@ -86,5 +86,14 @@ The inbox page reads a local copy of the account's notification state that the m
 
 # See also <!-- id:CVQjdOA9 -->
 
+<!-- id:PHFBxAlV -->
 - [The daemon](./daemon.md), [The agents service](./agents.md), [The CLI](./cli.md), [The web app](./web.md) <!-- id:IOPgXQO6 -->
 - [Documents](../protocol/documents.md), [Identity](../protocol/identity.md), [Publish a folder](../build/publish-a-folder.md) <!-- id:xg6Cx51h -->
+
+## Seed Hosting <!-- id:mW_AKbPg -->
+
+After the first public publication of a new space, an invitation offers **Publish to a Domain**, opening the hosting workflow to choose a free Seed address or a custom domain. **Not now** dismisses the invitation. Space settings has a **Web Domain** page for publishing and removing a web domain. Seed Hosting sign-in uses a four-digit emailed code, or trusted vault verification for eligible new hosting accounts. Logging out of the desktop app also clears its hosting credentials and cached sites, and revokes the hosting session when the service is reachable. <!-- id:zuSNGAlu -->
+
+**Change Site Address** and **Transfer Hosting** are available only when the signed-in hosting account owns a site registered to this space and its published URL matches that site's address or custom domain. Self-hosted sites do not expose these controls. A hosting transfer moves management to an existing hosting account; it does not transfer the Seed identity or content permissions. Active paid services must stop before a transfer, and dedicated hosting must stop before a rename. <!-- id:SzMElbvx -->
+
+Renaming preserves the site identity and custom domains. The desktop updates the space's published URL when it points to the old hosting address; a custom primary domain stays unchanged. Pending publication updates are retained so an interrupted move can be completed without moving the hosting address again. <!-- id:D3mM5LLF -->

@@ -1,0 +1,135 @@
+diff --git a/lib/constants.js b/lib/constants.js
+--- a/lib/constants.js
++++ b/lib/constants.js
+@@ -2,6 +2,7 @@
+ 
+ module.exports = {
+   MAX_LENGTH: 10000,
++  MAX_DEPTH: 100,
+ 
+   // Digits
+   CHAR_0: '0', /* 0 */
+diff --git a/lib/parse.js b/lib/parse.js
+--- a/lib/parse.js
++++ b/lib/parse.js
+@@ -8,6 +8,7 @@
+ 
+ const {
+   MAX_LENGTH,
++  MAX_DEPTH,
+   CHAR_BACKSLASH, /* \ */
+   CHAR_BACKTICK, /* ` */
+   CHAR_COMMA, /* , */
+@@ -143,6 +144,11 @@
+      */
+ 
+     if (value === CHAR_LEFT_PARENTHESES) {
++      // Count all AST containers, including mixed braces and parentheses.
++      if (stack.length > MAX_DEPTH) {
++        throw new SyntaxError(`Input nesting exceeds maximum depth (${MAX_DEPTH})`);
++      }
++
+       block = push({ type: 'paren', nodes: [] });
+       stack.push(block);
+       push({ type: 'text', value });
+@@ -195,6 +201,11 @@
+      */
+ 
+     if (value === CHAR_LEFT_CURLY_BRACE) {
++      // Count all AST containers, including mixed braces and parentheses.
++      if (stack.length > MAX_DEPTH) {
++        throw new SyntaxError(`Input nesting exceeds maximum depth (${MAX_DEPTH})`);
++      }
++
+       depth++;
+ 
+       const dollar = prev.value && prev.value.slice(-1) === '$' || block.dollar === true;
+diff --git a/lib/compile.js b/lib/compile.js
+--- a/lib/compile.js
++++ b/lib/compile.js
+@@ -2,9 +2,14 @@
+ 
+ const fill = require('fill-range');
+ const utils = require('./utils');
++const { MAX_DEPTH } = require('./constants');
+ 
+ const compile = (ast, options = {}) => {
+-  const walk = (node, parent = {}) => {
++  const walk = (node, parent = {}, depth = 0) => {
++    // Guard AST inputs too; allow the root and terminal leaf around 100 containers.
++    if (depth > MAX_DEPTH + 1) {
++      throw new SyntaxError(`Input nesting exceeds maximum depth (${MAX_DEPTH})`);
++    }
+     const invalidBlock = utils.isInvalidBrace(parent);
+     const invalidNode = node.invalid === true && options.escapeInvalid === true;
+     const invalid = invalidBlock === true || invalidNode === true;
+@@ -47,7 +52,7 @@
+ 
+     if (node.nodes) {
+       for (const child of node.nodes) {
+-        output += walk(child, node);
++        output += walk(child, node, depth + 1);
+       }
+     }
+ 
+diff --git a/lib/expand.js b/lib/expand.js
+--- a/lib/expand.js
++++ b/lib/expand.js
+@@ -3,6 +3,7 @@
+ const fill = require('fill-range');
+ const stringify = require('./stringify');
+ const utils = require('./utils');
++const { MAX_DEPTH } = require('./constants');
+ 
+ const append = (queue = '', stash = '', enclose = false) => {
+   const result = [];
+@@ -33,7 +34,11 @@
+ const expand = (ast, options = {}) => {
+   const rangeLimit = options.rangeLimit === undefined ? 1000 : options.rangeLimit;
+ 
+-  const walk = (node, parent = {}) => {
++  const walk = (node, parent = {}, depth = 0) => {
++    // Guard AST inputs too; allow the root and terminal leaf around 100 containers.
++    if (depth > MAX_DEPTH + 1) {
++      throw new SyntaxError(`Input nesting exceeds maximum depth (${MAX_DEPTH})`);
++    }
+     node.queue = [];
+ 
+     let p = parent;
+@@ -100,7 +105,7 @@
+       }
+ 
+       if (child.nodes) {
+-        walk(child, node);
++        walk(child, node, depth + 1);
+       }
+     }
+ 
+diff --git a/lib/stringify.js b/lib/stringify.js
+--- a/lib/stringify.js
++++ b/lib/stringify.js
+@@ -1,9 +1,14 @@
+ 'use strict';
+ 
+ const utils = require('./utils');
++const { MAX_DEPTH } = require('./constants');
+ 
+ module.exports = (ast, options = {}) => {
+-  const stringify = (node, parent = {}) => {
++  const stringify = (node, parent = {}, depth = 0) => {
++    // Guard AST inputs too; allow the root and terminal leaf around 100 containers.
++    if (depth > MAX_DEPTH + 1) {
++      throw new SyntaxError(`Input nesting exceeds maximum depth (${MAX_DEPTH})`);
++    }
+     const invalidBlock = options.escapeInvalid && utils.isInvalidBrace(parent);
+     const invalidNode = node.invalid === true && options.escapeInvalid === true;
+     let output = '';
+@@ -21,7 +26,7 @@
+ 
+     if (node.nodes) {
+       for (const child of node.nodes) {
+-        output += stringify(child);
++        output += stringify(child, {}, depth + 1);
+       }
+     }
+     return output;

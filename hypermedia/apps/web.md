@@ -18,9 +18,17 @@ Server-side rendering caches the responses of `Query`, `QueryBlock`, `Interactio
 
 # Site identity and registration <!-- id:IJs8U8LH -->
 
-A [site](../protocol/sites.md) is a daemon plus this app plus a JSON file. `config.json` in the data directory holds `availableRegistrationSecret`, and after registration also `registeredAccountUid` and `sourcePeerId`. The owner opens `https://site/hm/register?secret=…` and pastes the link into the [desktop app](./desktop.md)'s publish dialog. The desktop app posts to `/hm/api/register`. The site then connects to the desktop's [peer](../protocol/network.md) and records the [account](../protocol/identity.md). A `service-config.json` variant serves several sites from one deployment with custom domains. Until registration, the site shows a "not registered" page. [Sites](../protocol/sites.md) explains the model, and [Self-hosting](../build/self-hosting.md) walks through it. <!-- id:Wer3bjtI -->
+A [site](../protocol/sites.md) is a daemon plus this app plus a JSON file. `config.json` in the data directory holds `availableRegistrationSecret`, and after registration also `registeredAccountUid` and `sourcePeerId`. The owner opens `https://site/hm/register?secret=…` and pastes the link into the [desktop app](./desktop.md)'s publish dialog. The desktop app posts to `/hm/api/register`. The site then connects to the desktop's [peer](../protocol/network.md) and records the [account](../protocol/identity.md). When the site and desktop share a daemon, as in local development, matching peer IDs skip the connection and resource push because the content is already local. A `service-config.json` variant serves several sites from one deployment with custom domains. Until registration, the site shows a "not registered" page. [Sites](../protocol/sites.md) explains the model, and [Self-hosting](../build/self-hosting.md) walks through it. <!-- id:Wer3bjtI -->
 
 Set `SEED_IS_GATEWAY=true` and the site becomes a [gateway](../protocol/sites.md). A gateway serves canonical `/hm/<account>/<path>` URLs for any account. A normal site serves one registered space. hyper.media runs as a gateway. <!-- id:Rw8CXrUL -->
+
+## Publishing a space to a domain <!-- id:webDomainFlow -->
+
+The first successful publication of a public space home opens an invitation to give it a web address. The owner can continue directly into Seed Hosting or reopen **Web Domain** from the home document's options menu later. The dialog stays open across navigation, including publication resumed after signing in through the vault. Private spaces, child documents, and updates to existing homes do not trigger the invitation. <!-- id:webDomainInvite -->
+
+In the browser, sign in to Seed Hosting with a four-digit email code, choose a free Seed address, or connect an existing site owned by the hosting account. An interrupted connection can resume without reserving another address. Custom domains include DNS instructions and status checks; address changes and hosting ownership transfers appear only for sites owned by the signed-in hosting account and registered to the current space. A hosting transfer does not transfer the Seed identity. Logging out of the web app also clears its hosting credentials and attempts to revoke the hosting session. Browser delegation does not currently carry the vault's email prevalidation proof, so browser hosting uses email codes even when vault sign-in is active. <!-- id:webDomainManage -->
+
+Browser registration reads the current gateway's peer information from `/hm/api/config` and sends the registration secret directly to the hosted site's `/hm/api/register`. That endpoint supports cross-origin POST and OPTIONS without browser credentials; the secret still authorizes registration. The gateway is the source peer because browsers have no local daemon. Browser setup offers managed Seed Hosting; use the desktop app for self-hosted setup links. Deploy the updated registration endpoint before enabling the browser workflow on a gateway. <!-- id:webDomainRegister -->
 
 # Routes <!-- id:g-s8UcQL -->
 
@@ -55,6 +63,7 @@ Browser identities are Ed25519 keys generated with WebCrypto as non-extractable 
 | `DAEMON_HTTP_URL`, `DAEMON_HTTP_PORT` | The daemon's HTTP port. <!-- id:siDei7nQ --> |
 | `DAEMON_FILE_URL` | Where `/ipfs` files are fetched from, defaulting to the daemon. <!-- id:tR9GjEme --> |
 | `SEED_BASE_URL` | The site's public origin. <!-- id:VqskbSlA --> |
+| `SEED_HOST_URL` | Hosting API origin, injected into the browser at runtime. Defaults to `https://host.seed.hyper.media` in production and local hosting during development; set it explicitly for staging. `VITE_SEED_HOST_URL` is a fallback. <!-- id:webHostOrigin --> |
 | `SEED_IS_GATEWAY` | Gateway mode. <!-- id:2qTla-90 --> |
 | `SEED_SIGNING_ENABLED`, `SEED_IDENTITY_ENABLED`, `SEED_IDENTITY_DEFAULT_ORIGIN` | Web signing and the vault origin used for sign-in. <!-- id:GbCyB_Df --> |
 | `DATA_DIR` | Where `config.json` lives. <!-- id:Yog9fhT0 --> |

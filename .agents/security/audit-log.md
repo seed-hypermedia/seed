@@ -146,3 +146,29 @@ given a verdict, using the single question: **missing guard, or unbounded cost?*
 Not triaged, with reason: the remaining open issues are editor, layout, mobile, and styling reports that matched none of
 the 16 search terms and make no claim about access, cost, or identity. They are the residual for a later pass; nothing
 in this table should be read as covering them.
+
+## Dependency patch verification — 2026-10-08
+
+Scope: two public dependency advisories blocking release CI; no production probes or claim of a reproduced Seed
+cross-user exploit. Review started at `9841c1517`.
+
+- `http-cache-semantics@4.3.0`: backported the `index.js` change from
+  [upstream PR #63](https://github.com/kornelski/http-cache-semantics/pull/63) at
+  `609bbde04df50f40d31ec5f84800774bc3f963fb`. This is an open upstream change, not an upstream release containing the
+  fix. It enforces origin revalidation directives across stale-response reuse and checks request identity before error
+  fallback, preserving permitted fresh/private cache behavior and valid 304 reuse. The maintainer disputes the
+  cookie-sharing interpretation of [GHSA-ch52-4w7c-c8xp](https://github.com/advisories/GHSA-ch52-4w7c-c8xp); this patch
+  also addresses the narrower RFC-grounded directive defect. The official 4.3.0 release alone still fails 14 of the 18
+  regression tests; all 18 pass with the patch. Artifacts: `patches/http-cache-semantics@4.3.0.patch` and
+  `scripts/security/http-cache-semantics.test.cjs`.
+- `braces@3.0.3`: reviewed the nesting bounds for
+  [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm). Parser limits apply to braces and
+  parentheses together, including unfinished input; recursive AST consumers also enforce the bound. All 12 regressions
+  pass with the patch. Independent comparisons across 200 bounded ordinary patterns (600 compile/expand/stringify
+  operations) matched the original package. More than 100 nesting levels intentionally fail with a controlled error.
+  This is a nesting fix, not a general bound on every possible expansion size. Artifacts: `patches/braces@3.0.3.patch`
+  and `scripts/security/braces-depth.test.cjs`.
+
+Run `node --test scripts/security/*.test.cjs` after the frozen dependency install so regressions exercise the installed,
+patched packages. An audit exception, if needed because a scanner cannot recognize a source patch, must remain specific
+to its verified advisory and cannot substitute for these tests.

@@ -20,6 +20,8 @@ import {
 import {_resetWebDocDraftDBForTesting, getWebDocDraft, listWebDocDraftsForDoc, putWebDocDraft} from './web-draft-db'
 
 const enqueueWebDocumentCardCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true})))
+const inviteDomainMock = vi.hoisted(() => vi.fn())
+vi.mock('../models/domain-publishing', () => ({inviteWebDomainPublication: inviteDomainMock}))
 
 vi.mock('./web-document-card-cleanup', () => ({
   releaseWebDocumentCardCleanup: vi.fn(async () => {}),
@@ -240,6 +242,7 @@ const baseInput: PublishInput = {
 
 describe('publishWebDocument', () => {
   beforeEach(async () => {
+    inviteDomainMock.mockClear()
     enqueueWebDocumentCardCleanupMock.mockClear()
     _resetWebDocDraftDBForTesting()
     await dropDB()
@@ -253,6 +256,161 @@ describe('publishWebDocument', () => {
   it('throws when draft missing', async () => {
     const deps = makeDeps({})
     await expect(publishWebDocument(baseInput, deps)).rejects.toThrow(/draft.*not found/)
+  })
+
+  it.each([
+    {
+      label: 'new public home',
+      path: [],
+      initial: 'not-found',
+      visibility: 'PUBLIC',
+      deps: [],
+      siteUrl: undefined,
+      invited: true,
+    },
+    {
+      label: 'new home from placeholder',
+      path: [`-${draftId}`],
+      initial: 'not-found',
+      visibility: 'PUBLIC',
+      deps: [],
+      siteUrl: undefined,
+      invited: true,
+    },
+    {
+      label: 'existing home',
+      path: [],
+      initial: 'document',
+      visibility: 'PUBLIC',
+      deps: [],
+      siteUrl: undefined,
+      invited: false,
+    },
+    {
+      label: 'private home',
+      path: [],
+      initial: 'not-found',
+      visibility: 'PRIVATE',
+      deps: [],
+      siteUrl: undefined,
+      invited: false,
+    },
+    {
+      label: 'previous publication baseline',
+      path: [],
+      initial: 'not-found',
+      visibility: 'PUBLIC',
+      deps: ['older-head'],
+      siteUrl: undefined,
+      invited: false,
+    },
+    {
+      label: 'already chosen domain',
+      path: [],
+      initial: 'not-found',
+      visibility: 'PUBLIC',
+      deps: [],
+      siteUrl: 'https://existing.example',
+      invited: false,
+    },
+  ])('offers a web domain only for a first public home: $label', async (scenario) => {
+    const docId = makeDocId(OWNER, scenario.path)
+    await putWebDocDraft({
+      draftId,
+      docId: docId.id,
+      signingAccountId: OWNER,
+      content: [],
+      metadata: {name: 'New space', ...(scenario.siteUrl ? {siteUrl: scenario.siteUrl} : {})},
+      deps: scenario.deps,
+      visibility: scenario.visibility as 'PUBLIC' | 'PRIVATE',
+      navigation: null,
+      locationUid: OWNER,
+      locationPath: [],
+      editUid: OWNER,
+      editPath: scenario.path,
+      cursorPosition: null,
+    })
+    const request = vi.fn(async (key: string, input: any) => {
+      if (key === 'PrepareDocumentChange') return {unsignedChange: createTestUnsignedChangeBytes()}
+      if (key === 'Resource') {
+        if (input.version)
+          return {
+            type: 'document',
+            document: makeBaselineDoc([], {
+              metadata: {siteUrl: scenario.siteUrl},
+              visibility: scenario.visibility as any,
+            }),
+          }
+        return scenario.initial === 'document' ? {type: 'document', document: makeBaselineDoc()} : {type: 'not-found'}
+      }
+      throw new Error(`unexpected request: ${key}`)
+    }) as AnyMock
+    const deps = makeDeps({docId, request})
+    await publishWebDocument({...baseInput, documentId: docId, pathOverride: [], deps: scenario.deps}, deps)
+    if (scenario.invited)
+      expect(inviteDomainMock).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({uid: OWNER, path: [], version: null}),
+        OWNER,
+      )
+    else expect(inviteDomainMock).not.toHaveBeenCalled()
+  })
+
+  it('does not invite or overwrite a home published while its placeholder draft was open', async () => {
+    const docId = makeDocId(OWNER, [`-${draftId}`])
+    await putWebDocDraft({
+      draftId,
+      docId: docId.id,
+      signingAccountId: OWNER,
+      content: [],
+      metadata: {name: 'Draft'},
+      deps: [],
+      visibility: 'PUBLIC',
+      navigation: null,
+      locationUid: OWNER,
+      locationPath: [],
+      editUid: OWNER,
+      editPath: docId.path!,
+      cursorPosition: null,
+    })
+    const deps = makeDeps({
+      docId,
+      request: vi.fn(async (_key: string, input: any) =>
+        input.path.length ? {type: 'not-found'} : {type: 'document', document: makeBaselineDoc()},
+      ) as AnyMock,
+    })
+    await expect(publishWebDocument({...baseInput, documentId: docId, pathOverride: []}, deps)).rejects.toThrow(
+      'already has a home',
+    )
+    expect(deps.client.publish).not.toHaveBeenCalled()
+    expect(inviteDomainMock).not.toHaveBeenCalled()
+  })
+
+  it('does not invite when the content publication fails after creating the home genesis', async () => {
+    const docId = makeDocId(OWNER)
+    await putWebDocDraft({
+      draftId,
+      docId: docId.id,
+      signingAccountId: OWNER,
+      content: [],
+      metadata: {},
+      deps: [],
+      visibility: 'PUBLIC',
+      navigation: null,
+      locationUid: OWNER,
+      locationPath: [],
+      editUid: OWNER,
+      editPath: [],
+      cursorPosition: null,
+    })
+    const deps = makeDeps({
+      request: vi.fn(async (key: string) =>
+        key === 'Resource' ? {type: 'not-found'} : {unsignedChange: createTestUnsignedChangeBytes()},
+      ) as AnyMock,
+    })
+    ;(deps.client.publish as AnyMock).mockResolvedValueOnce({}).mockRejectedValueOnce(new Error('offline'))
+    await expect(publishWebDocument({...baseInput, deps: []}, deps)).rejects.toThrow('offline')
+    expect(inviteDomainMock).not.toHaveBeenCalled()
+    expect(await getWebDocDraft(draftId)).not.toBeNull()
   })
 
   it('resolves (does not throw) when the daemon has not yet indexed the new version after publish', async () => {
