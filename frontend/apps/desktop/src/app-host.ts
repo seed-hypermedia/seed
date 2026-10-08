@@ -3,7 +3,6 @@ import {SEED_HOST_URL} from '@shm/shared/constants'
 import z from 'zod'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
-// @ts-expect-error ignore import
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 import {seedClient, getSigner} from './app-client'

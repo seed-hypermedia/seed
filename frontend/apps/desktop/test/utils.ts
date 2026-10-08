@@ -1,5 +1,6 @@
 // Helpers copied from https://github.com/kubeshop/monokle/blob/main/tests/electronHelpers.ts
-import {Page, _electron as electron} from '@playwright/test'
+import {Page} from '@playwright/test'
+import {launchPackagedApp} from './launch-packaged-app'
 import * as ASAR from 'asar'
 import * as fs from 'fs'
 import log from 'loglevel'
@@ -17,7 +18,7 @@ export async function startApp() {
   const appInfo = parseElectronApp(latestBuild)
 
   //   deleteApplicationConfig(appInfo.platform);
-  const electronApp = await electron.launch({
+  const electronApp = await launchPackagedApp({
     args: [appInfo.main],
     executablePath: appInfo.executable,
   })
@@ -139,7 +140,7 @@ export function parseElectronApp(buildDir: string): ElectronAppInfo {
 
   let arch: ReturnType<typeof os.arch>
   if (baseName.includes('x32') || baseName.includes('i386')) {
-    arch = 'x32'
+    arch = 'ia32'
   }
   if (baseName.includes('x64')) {
     arch = 'x64'

@@ -2,7 +2,6 @@
  * Persistent store for WXR import progress tracking.
  * Uses electron-store for persistence across app restarts.
  */
-// @ts-expect-error - mts import
 import {appStore} from './app-store.mts'
 import {SeedImportData, SeedImportFileV1} from './wxr-crypto'
 import type {ImportResults} from './wxr-import'
