@@ -71,7 +71,7 @@ import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 import {
   createRepublishRefOperation,
   getDocumentCardReconciliationInputForRepublish,
-  getDocumentCardReconciliationInputsForMove,
+  getDocumentCardReconciliationInputsForMoves,
   getDocumentMoveRefOperations,
   getMovedChildPath,
   isChildDocumentPath,
@@ -1608,9 +1608,8 @@ export function useMoveDocument() {
       //   count: moveRefBundles.length,
       //   moveRefBundles,
       // })
-      const reconciliationInputs = getDocumentCardReconciliationInputsForMove({
-        from,
-        to,
+      const reconciliationInputs = getDocumentCardReconciliationInputsForMoves({
+        moves: moveResources,
         signingAccountUid: signingAccountId,
         sourceCapabilityId,
         targetCapabilityId,
@@ -1625,14 +1624,15 @@ export function useMoveDocument() {
         } as any)
       const pendingJobs: string[] = []
       for (const reconciliationInput of reconciliationInputs) {
+        const movedDocument = moveResources.find((move) => move.from.id === reconciliationInput.sourceDocumentId)
         const queued = await client.documentCardCleanup.enqueue
           .mutate({
             ...reconciliationInput,
             awaitingPrimary: {
-              documentId: from.id,
+              documentId: movedDocument?.from.id || from.id,
               expectedType: 'redirect',
-              targetDocumentId: to.id,
-              expectedGenesis: moveResources[0]?.doc.genesis,
+              targetDocumentId: movedDocument?.to.id || to.id,
+              expectedGenesis: movedDocument?.doc.genesis || moveResources[0]?.doc.genesis,
             },
           } as any)
           .catch((error) => {
@@ -1695,6 +1695,12 @@ export function useMoveDocument() {
     },
     onSuccess: (moves, {from, to}) => {
       const idsToInvalidate = moves || [{from, to}]
+      invalidateQueries([queryKeys.DOC_LIST_DIRECTORY], {refetchType: 'all'})
+      new Set(idsToInvalidate.flatMap(({from: sourceId, to: targetId}) => [sourceId.uid, targetId.uid])).forEach(
+        (uid) => {
+          invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, uid], {refetchType: 'all'})
+        },
+      )
       idsToInvalidate.forEach(({from: sourceId, to: targetId}) => {
         invalidateQueries([queryKeys.ENTITY, sourceId.id])
         invalidateQueries([queryKeys.ENTITY, targetId.id])

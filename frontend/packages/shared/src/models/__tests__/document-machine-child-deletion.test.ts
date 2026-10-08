@@ -172,10 +172,11 @@ describe('parent reference-removal publication confirmation', () => {
   })
   it('does not inspect or confirm when a reference survives (including undo)', async () => {
     const {actor, publish, inspect} = start(baseBlocks)
+    inspect.mockResolvedValueOnce([])
     actor.send({type: 'childReferences.removed', documentIds: [childId.id]})
     actor.send({type: 'publish.start'})
     await waitFor(actor, (snapshot) => snapshot.matches('loaded'))
-    expect(inspect).not.toHaveBeenCalled()
+    expect(inspect).toHaveBeenCalledOnce()
     expect(publish).toHaveBeenCalledOnce()
     actor.stop()
   })

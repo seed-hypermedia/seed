@@ -45,7 +45,7 @@ setAgentsPlatform({
 })
 
 import {sendAgentAction} from '@shm/ui/agents/client'
-import {useAllAgentSessions} from '@shm/ui/agents/models'
+import {useAgentWebSocketSubscription, useAllAgentSessions} from '@shm/ui/agents/models'
 import {queryClient} from '@shm/shared/models/query-client'
 import {QueryClientProvider} from '@tanstack/react-query'
 
@@ -68,6 +68,7 @@ const usage = {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2}
 
 /** The sidebar's title expression, driven by the real hook against the real server. */
 function SidebarTitlesInner() {
+  useAgentWebSocketSubscription(SERVER_URL, accountUid, `account/${accountUid}`)
   const sessions = useAllAgentSessions([SERVER_URL], accountUid)
   return (
     <ul>
@@ -108,7 +109,10 @@ describe.skipIf(!agentsServerAvailable)('agents live integration: session titlin
           providerLog.push('titling-request')
           res.end(
             sse([
-              {id: 't', choices: [{delta: {content: 'Wellness Check-In'}}]},
+              {
+                id: 't',
+                choices: [{delta: {content: 'Wellness Check-In\nA brief conversation about the user’s wellbeing.'}}],
+              },
               {id: 't', choices: [{delta: {}, finish_reason: 'stop'}], usage},
             ]),
           )
@@ -136,6 +140,7 @@ describe.skipIf(!agentsServerAvailable)('agents live integration: session titlin
         SEED_AGENTS_DB_PATH: path.join(dataDir, 'agents.sqlite'),
         SEED_AGENTS_DATA_DIR: dataDir,
         SEED_AGENTS_EXEC_BACKEND: 'off',
+        SEED_AGENTS_SESSION_TITLE_GENERATION: 'true',
       },
       stdio: 'ignore',
     })

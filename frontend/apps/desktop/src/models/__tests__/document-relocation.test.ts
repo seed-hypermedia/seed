@@ -3,6 +3,7 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   createRepublishRefOperation,
   getDocumentCardReconciliationInputsForMove,
+  getDocumentCardReconciliationInputsForMoves,
   getDocumentCardReconciliationInputForRepublish,
   getDocumentMoveRefOperations,
   getMovedChildPath,
@@ -174,6 +175,29 @@ describe('document card reconciliation inputs', () => {
         signingAccountUid: 'site',
       },
     ])
+  })
+
+  it('rewrites child cards inside the moved parent for every recursive child move', () => {
+    const parentFrom = hmId('site', {path: ['old-parent']})
+    const parentTo = hmId('site', {path: ['new-parent']})
+    const childFrom = hmId('site', {path: ['old-parent', 'child']})
+    const childTo = hmId('site', {path: ['new-parent', 'child']})
+
+    expect(
+      getDocumentCardReconciliationInputsForMoves({
+        moves: [
+          {from: parentFrom, to: parentTo, isSubdocumentMove: false},
+          {from: childFrom, to: childTo, isSubdocumentMove: true},
+        ],
+        signingAccountUid: 'site',
+      }),
+    ).toContainEqual({
+      operation: 'rewrite',
+      parentDocumentId: parentTo.id,
+      sourceDocumentId: childFrom.id,
+      targetDocumentId: childTo.id,
+      signingAccountUid: 'site',
+    })
   })
 
   it('plans an add job for a republish destination parent', () => {
