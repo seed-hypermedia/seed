@@ -2935,7 +2935,7 @@ export async function setupCron(paths: DeployPaths, shell: ShellRunner): Promise
 }
 
 /**
- * Migrate legacy seed cron lines after a headless deploy. setupCron only runs
+ * Migrate legacy seed cron lines during a headless deploy. setupCron only runs
  * from the wizard or `seed-deploy cron`, so legacy installs otherwise keep
  * their old schedule and script path forever.
  */
