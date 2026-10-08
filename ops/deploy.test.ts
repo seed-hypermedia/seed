@@ -1255,6 +1255,7 @@ describe('migrateLegacyCron', () => {
     const {shell, commands} = makeRecordingShell({
       'crontab -l': legacyCrontab,
       'command -v bun': '/root/.bun/bin/bun',
+      'test -f': 'ok',
     })
 
     try {
@@ -1262,6 +1263,30 @@ describe('migrateLegacyCron', () => {
       expect(commands.filter((command) => command.includes('cp '))).toHaveLength(2)
       expect(commands.find((command) => command.includes('test -f'))).toBeDefined()
       expect(commands.find((command) => command.includes('| crontab -'))).toBeUndefined()
+      expect(commands.find((command) => command.includes('base64 -d >'))).toBeUndefined()
+    } finally {
+      await rm(scriptDir, {recursive: true, force: true})
+    }
+  })
+
+  test('uses sudo to copy the script and gives the cron user ownership', async () => {
+    const scriptDir = await mkdtemp(join(tmpdir(), 'seed-cron-migration-'))
+    const scriptPath = join(scriptDir, 'deploy.js')
+    await writeFile(scriptPath, 'legacy deploy script')
+    const {shell, commands} = makeRecordingShell({
+      'crontab -l': legacyCrontab,
+      'command -v bun': '/root/.bun/bin/bun',
+      'sudo mkdir': 'ok',
+      'test -f': 'ok',
+      'base64 -d': 'ok',
+      'crontab -': 'ok',
+    })
+
+    try {
+      await migrateLegacyCron(paths, shell, scriptPath)
+      const sudoCopy = commands.find((command) => command.includes('sudo mkdir'))!
+      expect(sudoCopy).toContain('sudo chown "$(id -u):$(id -g)"')
+      expect(commands.find((command) => command.includes('| crontab -'))).toBeDefined()
     } finally {
       await rm(scriptDir, {recursive: true, force: true})
     }

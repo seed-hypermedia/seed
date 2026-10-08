@@ -2960,6 +2960,8 @@ export async function migrateLegacyCron(
   const updated = buildCrontab(existing, paths, bunPath)
   if (JSON.stringify(extractSeedCronLines(existing)) === JSON.stringify(extractSeedCronLines(updated))) return
 
+  let copyNeeded = false
+  let copySucceeded = false
   if (scriptPath !== DEPLOY_SCRIPT_PATH) {
     let source: string | undefined
     if (scriptPath.endsWith('deploy.js')) {
@@ -2977,15 +2979,22 @@ export async function migrateLegacyCron(
         // Missing or unreadable target scripts are replaced from the running copy.
       }
       if (!targetMatches) {
+        copyNeeded = true
         const dir = dirname(DEPLOY_SCRIPT_PATH)
-        if (shell.runSafe(`mkdir -p "${dir}" && cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && echo ok`) !== 'ok') {
-          shell.runSafe(`sudo mkdir -p "${dir}" && sudo cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && echo ok`)
+        copySucceeded =
+          shell.runSafe(`mkdir -p "${dir}" && cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && echo ok`) === 'ok'
+        if (!copySucceeded) {
+          copySucceeded =
+            shell.runSafe(
+              `sudo mkdir -p "${dir}" && sudo cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && sudo chown "$(id -u):$(id -g)" "${dir}" "${DEPLOY_SCRIPT_PATH}" && echo ok`,
+            ) === 'ok'
         }
       }
     }
   }
 
-  if (shell.runSafe(`test -f "${DEPLOY_SCRIPT_PATH}" && echo ok`) !== 'ok') {
+  const scriptExists = shell.runSafe(`test -f "${DEPLOY_SCRIPT_PATH}" && echo ok`) === 'ok'
+  if ((copyNeeded && !copySucceeded) || !scriptExists) {
     log(`WARNING: could not install deploy.js at ${DEPLOY_SCRIPT_PATH} — leaving the legacy cron untouched.`)
     return
   }
