@@ -1,10 +1,11 @@
-import {MjmlButton, MjmlColumn, MjmlImage, MjmlRaw, MjmlSection, MjmlText} from '@faire/mjml-react'
+import {MjmlButton, MjmlColumn, MjmlImage, MjmlSection, MjmlText} from '@faire/mjml-react'
 import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {createWebHMUrl, unpackHmId} from '@shm/shared'
 import {DAEMON_FILE_URL} from '@shm/shared/constants'
 import {formattedDateShort} from '@shm/shared/utils/date'
 import React from 'react'
 import {Notification} from '../notifier'
+import {emailTheme} from './EmailLayout'
 
 export function getDaemonFileUrl(ipfsUrl?: string) {
   if (ipfsUrl) {
@@ -19,64 +20,45 @@ export function extractIpfsUrlCid(cidOrIPFSUrl: string): string {
   return match ? match[1]! : cidOrIPFSUrl
 }
 
+/** One notification inside a digest email: author row followed by the quoted content. */
 export function EmailContent({notification}: {notification: Notification}) {
   const {authorName, authorAvatar, fallbackLetter, createdAt} = getNotificationMeta(notification)
+  const avatarStyle: React.CSSProperties = {
+    display: 'inline-block',
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    verticalAlign: 'middle',
+    marginRight: '8px',
+  }
 
   return (
     <>
-      <MjmlSection backgroundColor="#f9f9f9" borderRadius="6px">
-        <MjmlColumn width="10%" verticalAlign="top">
-          {authorAvatar.length ? (
-            // <MjmlImage
-            //   src={authorAvatar}
-            //   alt="Sender Avatar"
-            //   width="28px"
-            //   height="28px"
-            //   borderRadius="50%"
-            //   paddingBottom="4px"
-            // />
-            <MjmlRaw>
-              <img
-                src={authorAvatar}
-                alt="Sender Avatar"
+      <MjmlSection padding={`8px ${emailTheme.gutter} 0`}>
+        <MjmlColumn>
+          <MjmlText fontSize="14px" lineHeight="24px" color={emailTheme.heading} padding="0">
+            {authorAvatar ? (
+              <img src={authorAvatar} alt="" width={24} height={24} style={avatarStyle} />
+            ) : (
+              <span
                 style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  marginLeft: '23px',
-                }}
-              />
-            </MjmlRaw>
-          ) : (
-            <MjmlRaw>
-              <div
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  backgroundColor: '#ccc',
-                  textAlign: 'center',
-                  lineHeight: '28px',
-                  fontWeight: 'bold',
-                  fontSize: '14px',
+                  ...avatarStyle,
+                  backgroundColor: emailTheme.primary,
                   color: '#ffffff',
-                  fontFamily: 'sans-serif',
-                  marginLeft: '23px',
+                  textAlign: 'center',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
                 }}
               >
                 {fallbackLetter}
-              </div>
-            </MjmlRaw>
-          )}
-        </MjmlColumn>
-        <MjmlColumn width="90%" verticalAlign="middle">
-          <MjmlText fontSize="12px" fontWeight="bold" paddingBottom="4px" paddingRight="10px">
-            {authorName}
-            {createdAt && <span style={{color: '#888', fontWeight: 'normal', fontSize: '12px'}}> {createdAt}</span>}
+              </span>
+            )}
+            <strong>{authorName}</strong>
+            {createdAt ? <span style={{color: emailTheme.muted}}> · {createdAt}</span> : null}
           </MjmlText>
         </MjmlColumn>
-        <NotificationContent notification={notification} />
       </MjmlSection>
+      <NotificationContent notification={notification} />
     </>
   )
 }
@@ -88,267 +70,76 @@ function assertNever(value: never): never {
 function NotificationContent({notification}: {notification: Notification}) {
   switch (notification.reason) {
     case 'site-doc-update':
-      return <SiteDocUpdateContent notification={notification} />
+      return (
+        <NoteText>
+          {notification.isNewDocument ? 'Created a new document' : 'Made a new change to the document'}
+        </NoteText>
+      )
     case 'mention':
-      return <MentionContent notification={notification} />
+      return notification.comment ? (
+        <QuotedContent
+          blocks={notification.comment.content}
+          notifUrl={notification.url}
+          resolvedNames={notification.resolvedNames}
+        />
+      ) : (
+        <NoteText>Mentioned {notification.subjectAccountMeta?.name ?? 'you'} in the document</NoteText>
+      )
     case 'reply':
-      return <ReplyContent notification={notification} />
     case 'site-new-discussion':
-      return <NewDiscussionContent notification={notification} />
     case 'discussion':
-      return <DiscussionContent notification={notification} />
     case 'user-comment':
-      return <UserCommentContent notification={notification} />
+      return (
+        <QuotedContent
+          blocks={notification.comment.content}
+          notifUrl={notification.url}
+          resolvedNames={notification.resolvedNames}
+        />
+      )
     default:
       return assertNever(notification)
   }
 }
 
-function SiteDocUpdateContent({notification}: {notification: Extract<Notification, {reason: 'site-doc-update'}>}) {
-  return renderChange({
-    targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
-    isNewDocument: notification.isNewDocument,
-  })
-}
-
-function MentionContent({notification}: {notification: Extract<Notification, {reason: 'mention'}>}) {
+function NoteText({children}: {children: React.ReactNode}) {
   return (
-    <MjmlColumn width="100%" verticalAlign="middle">
-      {notification.comment ? (
-        renderMention({
-          blocks: notification.comment.content,
-          targetDocName: notification.targetMeta?.name ?? 'Untitled Document',
-          resolvedNames: notification.resolvedNames,
-        })
-      ) : (
-        // Document mention
-        <MjmlText fontSize="14px" padding="12px 25px">
-          mentioned {notification.subjectAccountMeta?.name ?? 'you'} in{' '}
-          <span
-            style={{
-              backgroundColor: '#eee',
-              borderRadius: '4px',
-              padding: '4px 8px',
-              display: 'inline-block',
-            }}
-          >
-            {notification.targetMeta?.name ?? 'Untitled Document'}
-          </span>
+    <MjmlSection padding={`8px ${emailTheme.gutter} 16px`}>
+      <MjmlColumn>
+        <MjmlText fontSize="16px" lineHeight="1.5" color={emailTheme.body} padding="0">
+          {children}
         </MjmlText>
-      )}
-    </MjmlColumn>
-  )
-}
-
-function ReplyContent({notification}: {notification: Extract<Notification, {reason: 'reply'}>}) {
-  return (
-    <MjmlColumn width="100%" verticalAlign="middle">
-      <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
-        New reply:
-      </MjmlText>
-      <MjmlSection padding="0 0 8px 23px">
-        <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(notification.comment.content, notification.url, notification.resolvedNames)}
-        </MjmlColumn>
-      </MjmlSection>
-    </MjmlColumn>
-  )
-}
-
-function NewDiscussionContent({notification}: {notification: Extract<Notification, {reason: 'site-new-discussion'}>}) {
-  return (
-    <MjmlColumn width="100%" verticalAlign="middle">
-      <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
-        Started a discussion:
-      </MjmlText>
-      <MjmlSection padding="0 0 8px 23px">
-        <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(notification.comment.content, notification.url, notification.resolvedNames)}
-        </MjmlColumn>
-      </MjmlSection>
-      <MjmlSection padding="0 0 16px 0">
-        <MjmlColumn>
-          <MjmlText fontSize="14px" color="#888">
-            on:{' '}
-            <span
-              style={{
-                backgroundColor: '#eee',
-                borderRadius: '4px',
-                padding: '2px 6px',
-                display: 'inline-block',
-              }}
-            >
-              {notification.targetMeta?.name ?? 'Untitled Document'}
-            </span>
-          </MjmlText>
-        </MjmlColumn>
-      </MjmlSection>
-    </MjmlColumn>
-  )
-}
-
-function DiscussionContent({notification}: {notification: Extract<Notification, {reason: 'discussion'}>}) {
-  return (
-    <MjmlColumn width="100%" verticalAlign="middle">
-      <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
-        Started a discussion:
-      </MjmlText>
-      <MjmlSection padding="0 0 8px 23px">
-        <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(notification.comment.content, notification.url, notification.resolvedNames)}
-        </MjmlColumn>
-      </MjmlSection>
-      <MjmlSection padding="0 0 16px 0">
-        <MjmlColumn>
-          <MjmlText fontSize="14px" color="#888">
-            on:{' '}
-            <span
-              style={{
-                backgroundColor: '#eee',
-                borderRadius: '4px',
-                padding: '2px 6px',
-                display: 'inline-block',
-              }}
-            >
-              {notification.targetMeta?.name ?? 'Untitled Document'}
-            </span>
-          </MjmlText>
-        </MjmlColumn>
-      </MjmlSection>
-    </MjmlColumn>
-  )
-}
-
-function UserCommentContent({notification}: {notification: Extract<Notification, {reason: 'user-comment'}>}) {
-  return (
-    <MjmlColumn width="100%" verticalAlign="middle">
-      <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
-        Commented:
-      </MjmlText>
-      <MjmlSection padding="0 0 8px 23px">
-        <MjmlColumn border-left="1px solid #20C997">
-          {renderBlocks(notification.comment.content, notification.url, notification.resolvedNames)}
-        </MjmlColumn>
-      </MjmlSection>
-      <MjmlSection padding="0 0 16px 0">
-        <MjmlColumn>
-          <MjmlText fontSize="14px" color="#888">
-            on:{' '}
-            <span
-              style={{
-                backgroundColor: '#eee',
-                borderRadius: '4px',
-                padding: '2px 6px',
-                display: 'inline-block',
-              }}
-            >
-              {notification.targetMeta?.name ?? 'Untitled Document'}
-            </span>
-          </MjmlText>
-        </MjmlColumn>
-      </MjmlSection>
-    </MjmlColumn>
-  )
-}
-
-export function renderMention({
-  blocks,
-  targetDocName,
-  resolvedNames,
-}: {
-  blocks: HMBlockNode[]
-  targetDocName: string
-  resolvedNames?: Record<string, string>
-}) {
-  return (
-    <>
-      <MjmlSection padding="0">
-        <MjmlColumn>
-          {/* "Mentioned:" label */}
-          <MjmlText fontSize="14px" color="#666" paddingBottom="8px">
-            Mentioned:
-          </MjmlText>
-        </MjmlColumn>
-      </MjmlSection>
-
-      {/* Comment block with green border on the left */}
-      <MjmlSection padding="0 0 8px 23px">
-        <MjmlColumn border-left="1px solid #20C997">{renderBlocks(blocks, '', resolvedNames)}</MjmlColumn>
-      </MjmlSection>
-
-      {/* Target document */}
-      <MjmlSection padding="0 0 16px 0">
-        <MjmlColumn>
-          <MjmlText fontSize="14px" color="#888">
-            on:{' '}
-            <span
-              style={{
-                backgroundColor: '#eee',
-                borderRadius: '4px',
-                padding: '2px 6px',
-                display: 'inline-block',
-              }}
-            >
-              {targetDocName}
-            </span>
-          </MjmlText>
-        </MjmlColumn>
-      </MjmlSection>
-    </>
-  )
-}
-
-function renderChange({targetDocName, isNewDocument}: {targetDocName: string; isNewDocument: boolean}) {
-  return (
-    <>
-      <MjmlSection padding="0" textAlign="left">
-        <MjmlColumn>
-          <MjmlText fontSize="16px" padding="12px 25px">
-            {isNewDocument ? 'has created a new document:' : 'has made a new change to document:'}
-          </MjmlText>
-          <MjmlText fontSize="14px">
-            <span
-              style={{
-                backgroundColor: '#eee',
-                borderRadius: '4px',
-                padding: '4px 8px',
-                display: 'inline-block',
-              }}
-            >
-              {targetDocName}
-            </span>
-          </MjmlText>
-        </MjmlColumn>
-      </MjmlSection>
-    </>
+      </MjmlColumn>
+    </MjmlSection>
   )
 }
 
 /** Wrapper for quoted comment/discussion content in the new email templates. */
 export function QuotedContent({
   blocks,
+  notifUrl = '',
   resolvedNames,
   variant = 'box',
 }: {
   blocks: HMBlockNode[]
+  notifUrl?: string
   resolvedNames?: Record<string, string>
   /** 'box' = gray background (comments/discussions), 'border' = left green border (mentions). */
   variant?: 'box' | 'border'
 }) {
   if (variant === 'border') {
     return (
-      <MjmlSection padding="8px 24px 16px">
-        <MjmlColumn borderLeft="3px solid #068f7b" paddingLeft="16px">
-          {renderBlocks(blocks, '', resolvedNames)}
+      <MjmlSection padding={`8px ${emailTheme.gutter} 16px`}>
+        <MjmlColumn borderLeft={`3px solid ${emailTheme.primary}`} paddingLeft="16px">
+          {renderBlocks(blocks, notifUrl, resolvedNames)}
         </MjmlColumn>
       </MjmlSection>
     )
   }
 
   return (
-    <MjmlSection padding="0 24px 16px">
-      <MjmlColumn backgroundColor="#f3f4f6" borderRadius="8px" padding="12px 16px">
-        {renderBlocks(blocks, '', resolvedNames)}
+    <MjmlSection padding={`8px ${emailTheme.gutter} 16px`}>
+      <MjmlColumn backgroundColor={emailTheme.quoteBackground} padding="8px 0">
+        {renderBlocks(blocks, notifUrl, resolvedNames)}
       </MjmlColumn>
     </MjmlSection>
   )
@@ -378,7 +169,7 @@ export function renderBlock(blockNode: HMBlockNode, notifUrl: string, resolvedNa
 
   if (type === 'Paragraph') {
     return (
-      <MjmlText align="left" paddingBottom="8px" fontSize="14px">
+      <MjmlText align="left" paddingBottom="8px" fontSize="16px" lineHeight="1.5" color={emailTheme.heading}>
         <span dangerouslySetInnerHTML={{__html: innerHtml}} />
       </MjmlText>
     )
@@ -416,40 +207,31 @@ export function renderBlock(blockNode: HMBlockNode, notifUrl: string, resolvedNa
 
   if (type === 'Video') {
     if (link?.includes('youtube.com') || link?.includes('youtu.be')) {
-      return (
-        <MjmlButton href={link} backgroundColor="#FF0000" fontSize="14px" align="left">
-          Watch Video on YouTube
-        </MjmlButton>
-      )
+      return <BlockLink href={link}>Watch Video on YouTube</BlockLink>
     } else {
-      return (
-        <MjmlButton href={notifUrl} backgroundColor="#068f7b" fontSize="14px" align="left">
-          Watch Video in the Comment
-        </MjmlButton>
-      )
+      return <BlockLink href={notifUrl}>Watch Video in the Comment</BlockLink>
     }
   }
 
   if (type === 'WebEmbed') {
     if (link?.includes('instagram.com')) {
-      return (
-        <MjmlButton href={link} backgroundColor="#346DB7" fontSize="14px" align="left">
-          Open in Instagram
-        </MjmlButton>
-      )
+      return <BlockLink href={link}>Open in Instagram</BlockLink>
     } else if (link?.includes('x.com')) {
-      return (
-        <MjmlButton href={link} backgroundColor="#346DB7" fontSize="14px" align="left">
-          Open in X.com
-        </MjmlButton>
-      )
+      return <BlockLink href={link}>Open in X.com</BlockLink>
     }
   }
 
   if (type === 'Button') {
     const buttonAttrs = attributes as {fields?: {name?: {kind?: {value?: string}}}}
     return (
-      <MjmlButton href={link} backgroundColor="#068f7b" fontSize="14px" align="left">
+      <MjmlButton
+        href={link}
+        backgroundColor={emailTheme.primary}
+        borderRadius="8px"
+        fontSize="14px"
+        innerPadding="10px 16px"
+        align="left"
+      >
         {buttonAttrs.fields?.name?.kind?.value || link}
       </MjmlButton>
     )
@@ -481,14 +263,26 @@ export function renderBlock(blockNode: HMBlockNode, notifUrl: string, resolvedNa
   }
 
   if (type === 'Embed') {
-    return (
-      <MjmlButton href={link} backgroundColor="#346DB7" fontSize="14px" align="left">
-        Open Embed
-      </MjmlButton>
-    )
+    return <BlockLink href={link?.startsWith('hm://') ? hmToWebUrl(link) : link}>Open embedded content</BlockLink>
   }
 
   return null
+}
+
+/** Link rendered in place of a block that cannot be shown inline in an email (embeds, videos, social posts). */
+function BlockLink({href, children}: {href?: string; children: React.ReactNode}) {
+  return (
+    <MjmlText align="left" paddingBottom="8px" fontSize="16px" lineHeight="1.5">
+      <a href={href} style={{color: emailTheme.primaryText, textDecoration: 'underline'}}>
+        {children}
+      </a>
+    </MjmlText>
+  )
+}
+
+function hmToWebUrl(href: string) {
+  const unpacked = unpackHmId(href)
+  return unpacked ? createWebHMUrl(unpacked.uid, {path: unpacked.path, hostname: unpacked.hostname ?? null}) : href
 }
 
 /** Render inline text with bold/italic/link/embed annotations to HTML string. */
@@ -521,31 +315,15 @@ export function renderInlineTextWithAnnotations(
       annotatedText = `<code>${annotatedText}</code>`
     } else if (annotation.type === 'Link') {
       let href = annotation.link as string | undefined
-      if (href?.startsWith('hm://')) {
-        const unpacked = unpackHmId(href)
-        if (unpacked) {
-          href = createWebHMUrl(unpacked.uid, {
-            path: unpacked.path,
-            hostname: unpacked.hostname ?? null,
-          })
-        }
-      }
-      annotatedText = `<a href="${href}" style="color: #346DB7;">${annotatedText}</a>`
+      if (href?.startsWith('hm://')) href = hmToWebUrl(href)
+      annotatedText = `<a href="${href}" style="color: ${emailTheme.primaryText};">${annotatedText}</a>`
     } else if (annotation.type === 'Embed') {
       const annotationLink = annotation.link as string | undefined
       const resolved = resolvedNames?.[annotationLink || ''] || annotationLink
 
       let href = annotationLink
-      if (href?.startsWith('hm://')) {
-        const unpacked = unpackHmId(href)
-        if (unpacked) {
-          href = createWebHMUrl(unpacked.uid, {
-            path: unpacked.path,
-            hostname: unpacked.hostname ?? null,
-          })
-        }
-      }
-      annotatedText = `<a href="${href}" style="color: #008060;">${resolved}</a>`
+      if (href?.startsWith('hm://')) href = hmToWebUrl(href)
+      annotatedText = `<a href="${href}" style="color: ${emailTheme.primaryText};">${resolved}</a>`
     }
 
     result.push(annotatedText)
@@ -567,8 +345,8 @@ function getNotificationMeta(notification: Notification) {
     ('comment' in notification && notification.comment
       ? notification.comment.author
       : 'authorAccountId' in notification
-      ? notification.authorAccountId
-      : 'Unknown')
+        ? notification.authorAccountId
+        : 'Unknown')
 
   const authorAvatar = authorMeta?.icon ? getDaemonFileUrl(authorMeta.icon) : ''
 
