@@ -174,6 +174,7 @@ export default function AuthCallbackRoute() {
         navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {replace: true})
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
+        console.error('[auth-callback] Sign-in failed', err)
         setError(message)
         authSession.clearSession(vaultUrl).catch(console.error)
         deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL).catch(console.error)
@@ -213,10 +214,6 @@ export default function AuthCallbackRoute() {
               Try Again
             </Button>
           </div>
-          <details className="text-muted-foreground w-full text-xs">
-            <summary className="cursor-pointer text-center">Technical details</summary>
-            <pre className="bg-muted mt-2 rounded-md p-2 break-words whitespace-pre-wrap">{error}</pre>
-          </details>
         </div>
       ) : (
         <div className="flex flex-col items-center gap-4 text-center">
