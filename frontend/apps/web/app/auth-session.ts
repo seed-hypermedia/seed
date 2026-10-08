@@ -28,6 +28,21 @@ import {type DBSessionRecord, deleteAuthSession, getAuthSession, putAuthSession}
 
 const AUTH_STATE_BYTES = 16
 
+/**
+ * Error thrown by {@link handleCallback} for failures the user can understand and recover from.
+ * - `stale-session`: no matching pending sign-in in this browser (started elsewhere, already used, or storage cleared).
+ * - `denied`: the user declined the delegation request in the vault.
+ */
+export class AuthCallbackError extends Error {
+  constructor(
+    readonly reason: 'stale-session' | 'denied',
+    message: string,
+  ) {
+    super(message)
+    this.name = 'AuthCallbackError'
+  }
+}
+
 function generateAuthState(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(AUTH_STATE_BYTES))
   return base64.encode(bytes)
@@ -164,13 +179,19 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
 
   const record = await getAuthSession(vaultUrl)
   if (!record) {
-    throw new Error('No stored session found for this vault. Was startAuth() called first?')
+    throw new AuthCallbackError(
+      'stale-session',
+      'No stored session found for this vault. Was startAuth() called first?',
+    )
   }
   if (!record.authState) {
-    throw new Error('No pending auth state found for this vault. Was startAuth() called first?')
+    throw new AuthCallbackError(
+      'stale-session',
+      'No pending auth state found for this vault. Was startAuth() called first?',
+    )
   }
   if (record.authState !== stateParam) {
-    throw new Error('Invalid callback state')
+    throw new AuthCallbackError('stale-session', 'Invalid callback state')
   }
 
   if (error) {
@@ -179,6 +200,7 @@ export async function handleCallback(config?: Partial<HypermediaAuthConfig>): Pr
       authState: null,
       authStartTime: null,
     })
+    if (error === 'access_denied') throw new AuthCallbackError('denied', `Delegation error: ${error}`)
     throw new Error(`Delegation error: ${error}`)
   }
   if (!dataParam) {

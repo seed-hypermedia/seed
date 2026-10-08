@@ -159,15 +159,16 @@ export function logout(): Promise<void> {
     })
 }
 
-// Store the return URL, then redirect the browser to the vault to sign in.
+// Store the return URL (defaults to the current page), then redirect the browser to the vault to sign in.
 export async function redirectToVaultSignIn(opts: {
   origin: string
   siteName?: string
   vaultUrl: string
+  returnUrl?: string
 }): Promise<void> {
   await setAuthState(
     AUTH_STATE_DELEGATION_RETURN_URL,
-    `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    opts.returnUrl ?? `${window.location.pathname}${window.location.search}${window.location.hash}`,
   )
   await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, opts.vaultUrl)
   const authUrl = await authSession.startAuth({
@@ -301,7 +302,8 @@ function useIsMobileKeyboardOpen() {
 }
 
 /** Display name of the current site from its home document, falling back to the hostname. */
-function useSiteName() {
+/** Display name of the current site: the home document's name, falling back to the hostname. */
+export function useSiteName() {
   const {origin, originHomeId} = useUniversalAppContext()
   const homeResource = useResource(originHomeId)
   const homeDocument = homeResource.data?.type === 'document' ? homeResource.data.document : null
