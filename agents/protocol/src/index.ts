@@ -240,6 +240,8 @@ export type UnsignedAgentAction =
   | AppendFileUploadChunk
   | CommitFileUpload
   | AbortFileUpload
+  | ConvertDocument
+  | GetConversion
   | StopSession
   | RetrySession
   | GetRun
@@ -1071,6 +1073,36 @@ export type CommitFileUpload = {
 export type AbortFileUpload = {
   _: 'AbortFileUpload'
   uploadId: string
+}
+
+/**
+ * Starts a document → markdown conversion on this server with Datalab, using the account's own
+ * `datalab-api-key` secret or the server's shared key. The signer must be the account itself: a
+ * delegated key may not spend an owner's allowance, so envelopes signed by a delegate are refused.
+ * The document rides inline like `UploadSessionAttachment` (100 MiB cap). Poll with `GetConversion`.
+ * This is what a keyless agents server (the one inside the desktop app, a self-hosted one) calls
+ * on the hosted server so its agents' `convert` tool works without a key of their own.
+ */
+export type ConvertDocument = {
+  _: 'ConvertDocument'
+  /** The document bytes. The extension of `fileName` decides the type. */
+  content: Uint8Array
+  /** Display name with a supported extension; path components are stripped. */
+  fileName: string
+  /** Datalab mode; on the shared key a mode more expensive than the server's is lowered to it. */
+  mode?: 'fast' | 'balanced' | 'accurate'
+  /** Upper bound on pages converted and billed; the server applies its own cap as well. */
+  maxPages?: number
+  /** Zero-indexed Datalab page range, such as `0-5,10`. */
+  pageRange?: string
+  /** Re-sending the same id while the job exists returns the same job instead of starting another. */
+  clientRequestId?: string
+}
+
+/** Polls a conversion started with `ConvertDocument`. Only the account that started it may read it. */
+export type GetConversion = {
+  _: 'GetConversion'
+  jobId: string
 }
 
 /** Stops an in-flight agent response for a session. */
@@ -2408,6 +2440,41 @@ export type AbortFileUploadResponse = {
   uploadId: string
 }
 
+/** Successful response for `ConvertDocument`: the job to poll, and the pages set aside for it. */
+export type ConvertDocumentResponse = {
+  _: 'ConvertDocumentResponse'
+  jobId: string
+  /** Pages reserved against the account's allowance; settled to the real count when the job completes. */
+  reservedPages: number
+}
+
+/** One image extracted by a conversion, named as the markdown references it. */
+export type ConversionImage = {
+  name: string
+  content: Uint8Array
+}
+
+/**
+ * Successful response for `GetConversion`. A `complete` job carries its result inline on every poll
+ * until the server drops it, a few minutes after completion, so one lost response does not lose a
+ * paid conversion.
+ */
+export type GetConversionResponse = {
+  _: 'GetConversionResponse'
+  jobId: string
+  status: 'processing' | 'complete' | 'failed'
+  /** Present when `complete`. */
+  markdown?: string
+  images?: ConversionImage[]
+  pageCount?: number
+  parseQualityScore?: number
+  costCents?: number
+  /** Images left out to keep the response under the server's size bound; the markdown still references them. */
+  droppedImages?: string[]
+  /** Present when `failed`. */
+  error?: string
+}
+
 /** Successful response for `StopSession`. */
 export type StopSessionResponse = {
   _: 'StopSessionResponse'
@@ -2490,6 +2557,8 @@ export type AgentResponse =
   | AppendFileUploadChunkResponse
   | CommitFileUploadResponse
   | AbortFileUploadResponse
+  | ConvertDocumentResponse
+  | GetConversionResponse
   | StopSessionResponse
   | ErrorResponse
 

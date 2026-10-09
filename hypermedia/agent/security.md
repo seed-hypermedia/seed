@@ -30,6 +30,8 @@ A signer is authorized when: <!-- id:vI4I2YXO -->
   - the envelope carries `capability` (and usually `capabilityBlob`): a [Capability](../capability.md) issued by `account`, delegating to `signer`, role `AGENT` or `WRITER`, not self-issued, under 64 KiB; a verified delegation is recorded as an `AGENT` authorization; or <!-- id:MFXBbOw6 -->
   - `account_authorizations` has role `OWNER` or `AGENT` for `(account, signer)`. <!-- id:nwMz9Fv- -->
 
+`ConvertDocument` and `GetConversion` additionally require `signer === account` and answer 403 otherwise: they spend the account's conversion allowance, and a delegated key, however it was authorized, must not spend an owner's money.
+
 # WebSocket authentication <!-- id:bARrb-Xh -->
 
 The socket receives no private data until it sends a signed `Subscribe` action. The server checks that the subscription key belongs to the signed account. See [WebSocket subscriptions](./websocket-subscriptions.md). <!-- id:1j5E6yTg -->
@@ -120,7 +122,7 @@ Events written by a user's own verb calls carry `actor: 'user'` and are explicit
 # Grants <!-- id:u27bF0_B -->
 
 Two things are [granted](./grants.md) per agent, both stored in `definition.tools`. The verbs themselves are never grants. <!-- id:c2iQDOLW -->
-  - **The callable set**: which of `search`, `query`, `attributes`, `web_search`, `execute` the agent may dispatch. `execute` also drops out when the host cannot run sandboxes. <!-- id:svPa8AfP -->
+  - **The callable set**: which of `search`, `query`, `attributes`, `web_search`, `execute`, `convert` the agent may dispatch. `execute` also drops out when the host cannot run sandboxes, and `convert` when nothing on the server or the account can pay for a conversion. <!-- id:svPa8AfP -->
   - **Publish**: the pseudo-tool `publish` (legacy write-group names still count). Without it, `write` to `hm://` or `ipfs://` returns 403 (`api-service.ts`, `api-service.ts`). Memory writes are never gated. That is the intended line: private files are the agent's workspace, and signed public content is a disclosure. <!-- id:N5F17hzw -->
 
 A [delegate](./delegate.md) child's `tools` narrowing intersects against the parent's full callable set, so delegation can only reduce authority (`narrowDefinitionTools`). The two translations it makes never add authority: a child keeps `publish` only when its `tools` ask for `write` or `publish`, and an authored lambda named in `tools` is kept, without the general `execute`, only when the parent holds `execute`. <!-- id:6GNsOBus -->
@@ -205,6 +207,7 @@ Mitigations present: <!-- id:bz47yFmI -->
   - raw mode refuses non-text content types; <!-- id:fsh-KI62 -->
   - the Crawl4AI shared token (`SEED_AGENTS_CRAWLER_TOKEN`) gates the crawler so only the agents service can use it; <!-- id:GHxiL2lw -->
   - `web_search` is a granted callable (it is not an always-on verb) and throws a clean error when no SearXNG backend is configured; <!-- id:rIwi_Gnj -->
+  - `convert` is the one tool that carries a third-party key, and the key never leaves the server: the shared key lives in the server's environment, an account's own key in the encrypted secrets table, and both are read only for the duration of the call (`executeConvert`, `api-service.ts`). The model sees the result files, never the request. Spend on the shared key is bounded before each call by the ledger reservation sent to Datalab as `max_pages`, so a runaway document cannot run up the bill. Error messages never echo a key;
   - failures degrade to `tool_result.error` (or a `partial` flag for incomplete search coverage). Nothing is silently made up. <!-- id:i1gzDqSt -->
 
 # Agent memory safety <!-- id:lSwfN2YZ -->
