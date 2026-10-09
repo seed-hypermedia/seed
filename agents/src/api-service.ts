@@ -64,7 +64,12 @@ import {
   type WorkflowJournalEntry,
 } from '@/workflow-host'
 import {runWorkflowInWorker} from '@/workflow-worker-host'
-import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
+import {executeWebRead, executeWebSearch, withFetchDeadline, type WebToolsConfig} from '@/web-tools'
+import {CONVERT_DEFAULTS, type ConvertConfig} from '@/config'
+import * as datalab from '@/datalab'
+import * as conversionLedger from '@/conversion-ledger'
+import * as convertRelay from '@/convert-relay'
+import {createSignedEnvelope} from '@/envelope'
 import * as blobs from '@shm/shared/blobs'
 import {
   blocksToMarkdown,
@@ -280,6 +285,53 @@ const MAX_ACTIVE_UPLOADS_PER_ACCOUNT = 8
  * `attachment_to_memory` + `execute_code` (e.g. to downscale) instead.
  */
 const MAX_INLINE_IMAGE_BYTES = 4_500_000
+
+/** Convert settings as the service holds them, plus test-only knobs: a fake Datalab URL and a short poll interval. */
+export type ConvertToolsConfig = ConvertConfig & {datalabBaseUrl?: string; pollIntervalMs?: number}
+
+/** What `/api/health` and the tool grant logic say about document conversion on this server. */
+export type ConvertCapabilities = {available: boolean; source: 'key' | 'relay' | 'none'}
+
+/** Name of the per-account secret holding the account's own Datalab key; set with `SetSecret`. */
+export const DATALAB_SECRET_NAME = 'datalab-api-key'
+
+/** Largest document `convert` and `ConvertDocument` accept. */
+export const MAX_CONVERT_FILE_BYTES = 100 * 1024 * 1024
+/** Documents one `convert` call may take, across files and expanded folders. */
+export const MAX_CONVERT_FILES_PER_CALL = 50
+/** Deadline for one document's conversion, submit to result. */
+const CONVERT_TIMEOUT_MS = 10 * 60 * 1000
+/** Where `convert` writes when the caller gives no `output_dir`. */
+const CONVERT_DEFAULT_OUTPUT_DIR = 'datalab-imports'
+/** A relayed conversion job, processing or finished, lives at most this long on the hosted server. */
+const CONVERSION_JOB_TTL_MS = 30 * 60 * 1000
+/** A finished result stays fetchable this long so one lost poll response does not lose a paid conversion. */
+const CONVERSION_RESULT_RETENTION_MS = 10 * 60 * 1000
+/** Relayed conversions one account may have in flight; matches the relay client's worker pool. */
+const MAX_ACTIVE_CONVERSIONS_PER_ACCOUNT = 4
+/** Relayed conversions in flight across all accounts. */
+const MAX_ACTIVE_CONVERSIONS = 64
+/** Bounds on one GetConversion response so a relay poll never carries an unbounded payload. */
+const MAX_CONVERSION_MARKDOWN_BYTES = 16 * 1024 * 1024
+const MAX_CONVERSION_IMAGES_BYTES = 48 * 1024 * 1024
+
+/** One relayed conversion on the hosted server. The PDF bytes are not kept; the result is spooled to disk. */
+type ConversionJob = {
+  accountId: string
+  fileName: string
+  status: 'processing' | 'complete' | 'failed'
+  createdAt: number
+  completedAt?: number
+  /** Ledger reservation to settle or release; absent when the account's own key paid (unmetered). */
+  reservationId?: string
+  reservedPages: number
+  /** Stops the Datalab poll when the job is swept. */
+  abort: AbortController
+  /** CBOR-encoded GetConversion payload once complete. */
+  resultPath?: string
+  error?: string
+  clientRequestKey?: string
+}
 
 /** One chunked upload staged on disk until commit. */
 type StagedFileUpload = {
@@ -573,12 +625,21 @@ export function narrowDefinitionTools(base: string[], specTools: string[], lambd
   ]
 }
 
-function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
+function enabledCallableTools(
+  definition: api.AgentDefinition,
+  codeExecAvailable: boolean,
+  convertAvailable: boolean,
+): string[] {
   const serviceCallables = serviceCallableNames()
   const requested = definition.tools?.map(normalizeSeedToolName)
   const enabled =
     requested === undefined ? serviceCallables : serviceCallables.filter((name) => requested.includes(name))
-  return enabled.filter((name) => name !== callableToolRegistry.execute.name || codeExecAvailable)
+  // A tool this server cannot run is not offered at all, so the model never sees it in <space>.
+  return enabled.filter(
+    (name) =>
+      (name !== callableToolRegistry.execute.name || codeExecAvailable) &&
+      (name !== callableToolRegistry.convert.name || convertAvailable),
+  )
 }
 
 /** Validates sub_session/ctx.agent input into the stored spec shape (shared by chat and workflows). */
@@ -926,6 +987,7 @@ export class Service {
   readonly #ipfsServerUrl: string
   readonly #fetchCapability: auth.CapabilityFetcher
   readonly #web: WebToolsConfig
+  readonly #convert: ConvertToolsConfig
   readonly #codeExec: CodeExecutor
   readonly #runningSessions = new Map<string, RunningSession>()
   /** Async idempotent actions keyed while their external preparation is in flight. */
@@ -977,6 +1039,9 @@ export class Service {
   >()
   /** Chunked uploads staged on disk, keyed by upload id. Abandoned uploads expire after a TTL. */
   readonly #uploads = new Map<string, StagedFileUpload>()
+  readonly #conversions = new Map<string, ConversionJob>()
+  /** `${accountId}\n${clientRequestId}` → jobId, so a retried ConvertDocument reuses its job. */
+  readonly #conversionsByClientRequest = new Map<string, string>()
   /** Pending provider OAuth sign-ins (StartProviderOAuth … GetProviderOAuthStatus). */
   readonly #providerOAuth: ProviderOAuthManager
   /**
@@ -998,6 +1063,8 @@ export class Service {
       /** Resolves a delegation Capability blob by CID; defaults to the IPFS endpoint above. */
       fetchCapability?: auth.CapabilityFetcher
       web?: WebToolsConfig
+      /** Datalab conversion settings; `datalabBaseUrl` lets tests point the client at a fake. */
+      convert?: ConvertToolsConfig
       exec?: CodeExecConfig
       codeExecutor?: CodeExecutor
       providerOAuth?: ProviderOAuthManager
@@ -1017,6 +1084,9 @@ export class Service {
     this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
     this.#fetchCapability = options.fetchCapability ?? ((cid) => fetchBlobFromGateway(this.#ipfsServerUrl, cid))
     this.#web = options.web ?? {}
+    this.#convert = {...CONVERT_DEFAULTS, ...options.convert}
+    // Relayed conversion jobs live in memory, so spooled results from a previous process are orphans.
+    fs.rmSync(path.join(dataDir, 'conversions'), {recursive: true, force: true})
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
     this.#titleGenerationEnabled = options.titleGeneration ?? false
@@ -1096,6 +1166,24 @@ export class Service {
   /** Reports which optional web-tool backends this server has configured, for client capability display. */
   webToolCapabilities(): {search: boolean; readBrowser: boolean} {
     return {search: Boolean(this.#web.searxngUrl), readBrowser: Boolean(this.#web.crawlerUrl)}
+  }
+
+  /** Whether this server can convert documents, and with what: its own Datalab key or a relay to a server that has one. */
+  convertCapabilities(): ConvertCapabilities {
+    if (this.#convert.datalabApiKey) return {available: true, source: 'key'}
+    if (this.#convert.relayUrl) return {available: true, source: 'relay'}
+    return {available: false, source: 'none'}
+  }
+
+  /** `convert` is offered when the server can run it, or when the account brought its own Datalab key. */
+  #convertAvailableFor(accountId: string): boolean {
+    if (this.convertCapabilities().available) return true
+    return Boolean(
+      stmt<{name: string}, [string, string]>(
+        this.#db,
+        `SELECT name FROM secrets WHERE account_id = ? AND name = ?`,
+      ).get(accountId, DATALAB_SECRET_NAME),
+    )
   }
 
   /** Whether this server offers sandboxed code execution, for client capability display. */
@@ -1398,6 +1486,10 @@ export class Service {
         return this.#commitFileUpload(accountId, envelope.action.uploadId)
       case 'AbortFileUpload':
         return this.#abortFileUpload(accountId, envelope.action.uploadId)
+      case 'ConvertDocument':
+        return this.#convertDocument(verified, envelope.action)
+      case 'GetConversion':
+        return this.#getConversion(verified, envelope.action.jobId)
       case 'StopSession':
         return this.#stopSession(accountId, envelope.action.sessionId)
       case 'RetrySession':
@@ -3271,7 +3363,7 @@ export class Service {
     const agent = this.#getAgentInfo(accountId, agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
     const codeExecAvailable = (await this.#codeExec.availability()).available
-    const callables = enabledCallableTools(agent.definition, codeExecAvailable)
+    const callables = enabledCallableTools(agent.definition, codeExecAvailable, this.#convertAvailableFor(accountId))
     toolDocs.ensureBuiltinToolDocuments(this.#db, accountId, agentId)
     this.#syncAgentMcpTools(accountId, agentId, agent.definition)
     const tools = toolDocs.listToolDocuments(this.#db, accountId, agentId).map(
@@ -3911,6 +4003,194 @@ export class Service {
   // Large files upload in bounded chunks so each signed action stays small: the client never
   // hashes hundreds of megabytes in one blocking call, and can report progress per chunk. Bytes
   // stage under <dataDir>/uploads until commit materializes them at the validated target.
+
+  // ─── Relayed document conversion ───────────────────────────────────────────
+  // A server without a Datalab key (the desktop app's local server, a self-hosted one) sends the
+  // document here, signed by the agent's own identity, and polls for the result. The ledger bills
+  // that identity's account. Jobs live in memory; results spool to disk until they are collected.
+
+  /** Spending an allowance is the account's own act: a delegated key, however it was authorized, is refused. */
+  #requireSelfSigned(verified: auth.VerifiedEnvelope, what: string): string {
+    if (verified.signerId !== verified.accountId) {
+      throw new APIError(403, `${what} must be signed by the account itself, not by a delegated key`)
+    }
+    return verified.accountId
+  }
+
+  async #convertDocument(
+    verified: auth.VerifiedEnvelope,
+    action: api.ConvertDocument,
+  ): Promise<api.ConvertDocumentResponse> {
+    this.sweepConversionJobs()
+    const accountId = this.#requireSelfSigned(verified, 'ConvertDocument')
+    const input = validateConvertDocument(action)
+    const clientRequestKey =
+      action.clientRequestId === undefined
+        ? undefined
+        : `${accountId}\n${normalizeBoundedString(action.clientRequestId, 'Client request ID', MAX_NAME_BYTES)}`
+    if (clientRequestKey) {
+      const existingId = this.#conversionsByClientRequest.get(clientRequestKey)
+      const existing = existingId ? this.#conversions.get(existingId) : undefined
+      if (existingId && existing) {
+        return {_: 'ConvertDocumentResponse', jobId: existingId, reservedPages: existing.reservedPages}
+      }
+    }
+    const key = resolveConvertKey(this.#db, accountId, this.#convert)
+    if (!key) throw new APIError(503, 'This server cannot convert documents: no Datalab key is configured')
+    let activeForAccount = 0
+    let activeTotal = 0
+    for (const job of this.#conversions.values()) {
+      if (job.status !== 'processing') continue
+      activeTotal++
+      if (job.accountId === accountId) activeForAccount++
+    }
+    if (activeForAccount >= MAX_ACTIVE_CONVERSIONS_PER_ACCOUNT) {
+      throw new APIError(429, 'Too many conversions in progress for this account; wait for one to finish')
+    }
+    if (activeTotal >= MAX_ACTIVE_CONVERSIONS)
+      throw new APIError(503, 'The conversion service is busy; try again in a minute')
+    const now = Date.now()
+    this.#ensureAccount(accountId, now)
+    const mode = key.metered
+      ? datalab.cheaperDatalabMode(input.mode ?? this.#convert.mode, this.#convert.mode)
+      : input.mode ?? this.#convert.mode
+    let reservationId: string | undefined
+    let reservedPages = Math.min(
+      input.maxPages ?? conversionLedger.CONVERT_PAGES_PER_CALL_CAP,
+      conversionLedger.CONVERT_PAGES_PER_CALL_CAP,
+    )
+    if (key.metered) {
+      try {
+        const reservation = conversionLedger.reservePages(this.#db, {
+          accountId,
+          sourceName: input.fileName,
+          requested: input.maxPages,
+          accountAllowance: this.#convert.allowancePagesPerMonth,
+          globalCeiling: this.#convert.globalCeilingPagesPerMonth,
+          now,
+        })
+        reservationId = reservation.id
+        reservedPages = reservation.pages
+      } catch (error) {
+        if (error instanceof conversionLedger.ConversionQuotaError) throw new APIError(429, quotaMessage(error))
+        throw error
+      }
+    }
+    const jobId = crypto.randomUUID()
+    const job: ConversionJob = {
+      accountId,
+      fileName: input.fileName,
+      status: 'processing',
+      createdAt: now,
+      reservationId,
+      reservedPages,
+      abort: new AbortController(),
+      clientRequestKey,
+    }
+    this.#conversions.set(jobId, job)
+    if (clientRequestKey) this.#conversionsByClientRequest.set(clientRequestKey, jobId)
+    void this.#runConversionJob(jobId, job, {
+      bytes: input.content,
+      fileName: input.fileName,
+      mimeType: input.type.mimeType,
+      apiKey: key.apiKey,
+      mode,
+      extras: this.#convert.extras,
+      maxPages: reservedPages,
+      pageRange: input.pageRange,
+      baseUrl: this.#convert.datalabBaseUrl,
+      pollIntervalMs: this.#convert.pollIntervalMs,
+      timeoutMs: CONVERT_TIMEOUT_MS,
+      signal: job.abort.signal,
+    })
+    return {_: 'ConvertDocumentResponse', jobId, reservedPages}
+  }
+
+  async #runConversionJob(jobId: string, job: ConversionJob, input: datalab.ConvertDocumentInput): Promise<void> {
+    try {
+      const result = await datalab.convertDocument(input)
+      const bounded = datalab.boundConversionResult(result, {
+        maxMarkdownBytes: MAX_CONVERSION_MARKDOWN_BYTES,
+        maxImagesBytes: MAX_CONVERSION_IMAGES_BYTES,
+      })
+      const payload: Omit<api.GetConversionResponse, '_' | 'jobId'> = {
+        status: 'complete',
+        markdown: bounded.markdown,
+        images: [...bounded.images.entries()].map(([name, content]) => ({name, content})),
+        pageCount: result.pageCount,
+        ...(result.parseQualityScore !== null ? {parseQualityScore: result.parseQualityScore} : {}),
+        ...(result.costCents !== null ? {costCents: result.costCents} : {}),
+        ...(bounded.droppedImages.length ? {droppedImages: bounded.droppedImages} : {}),
+      }
+      const resultPath = path.join(this.#dataDir, 'conversions', `${jobId}.cbor`)
+      fs.mkdirSync(path.dirname(resultPath), {recursive: true})
+      fs.writeFileSync(resultPath, cbor.encode(payload))
+      if (job.reservationId) {
+        conversionLedger.settleReservation(this.#db, job.reservationId, {
+          pageCount: result.pageCount,
+          requestId: result.requestId,
+          now: Date.now(),
+        })
+      }
+      job.resultPath = resultPath
+      job.status = 'complete'
+    } catch (error) {
+      if (job.reservationId) conversionLedger.releaseReservation(this.#db, job.reservationId, Date.now())
+      job.error = errorMessage(error)
+      job.status = 'failed'
+    }
+    job.completedAt = Date.now()
+    console.info('[agents/convert] relayed conversion finished', {
+      jobId,
+      accountId: job.accountId,
+      status: job.status,
+      reservedPages: job.reservedPages,
+    })
+  }
+
+  #getConversion(verified: auth.VerifiedEnvelope, rawJobId: unknown): api.GetConversionResponse {
+    this.sweepConversionJobs()
+    const accountId = this.#requireSelfSigned(verified, 'GetConversion')
+    if (typeof rawJobId !== 'string' || !rawJobId) throw new APIError(400, 'Job id is required')
+    const job = this.#conversions.get(rawJobId)
+    // Another account's job and an unknown one get the same answer: no existence leak.
+    if (!job || job.accountId !== accountId) throw new APIError(404, 'Conversion not found')
+    if (job.status === 'processing') return {_: 'GetConversionResponse', jobId: rawJobId, status: 'processing'}
+    if (job.status === 'failed' || !job.resultPath) {
+      return {
+        _: 'GetConversionResponse',
+        jobId: rawJobId,
+        status: 'failed',
+        error: job.error ?? 'The conversion failed',
+      }
+    }
+    const payload = cbor.decode<Omit<api.GetConversionResponse, '_' | 'jobId'>>(
+      new Uint8Array(fs.readFileSync(job.resultPath)),
+    )
+    return {_: 'GetConversionResponse', jobId: rawJobId, ...payload}
+  }
+
+  /**
+   * Drops expired relayed conversions: a job still processing past the TTL is aborted and its
+   * reservation released; a finished one past the retention window loses its spooled result.
+   * Lazy, run on every conversion action; public so tests can advance the clock.
+   */
+  sweepConversionJobs(now = Date.now()): void {
+    for (const [jobId, job] of this.#conversions) {
+      const expired =
+        now - job.createdAt > CONVERSION_JOB_TTL_MS ||
+        (job.completedAt !== undefined && now - job.completedAt > CONVERSION_RESULT_RETENTION_MS)
+      if (!expired) continue
+      if (job.status === 'processing') {
+        job.abort.abort()
+        if (job.reservationId) conversionLedger.releaseReservation(this.#db, job.reservationId, now)
+        job.status = 'failed'
+      }
+      if (job.resultPath) fs.rmSync(job.resultPath, {force: true})
+      if (job.clientRequestKey) this.#conversionsByClientRequest.delete(job.clientRequestKey)
+      this.#conversions.delete(jobId)
+    }
+  }
 
   #cleanupExpiredUploads(): void {
     const now = Date.now()
@@ -4724,6 +5004,7 @@ export class Service {
       hmServerUrl: this.#hmServerUrl,
       ipfsServerUrl: this.#ipfsServerUrl,
       web: this.#web,
+      convert: this.#convert,
       stateDir: this.#agentMemoryStateDir(accountId, session.agentId),
       sessionId,
       modelAcceptsImages: false,
@@ -4737,7 +5018,7 @@ export class Service {
       },
       onToolProgress: () => {},
       codeExec: this.#codeExec,
-      callableTools: enabledCallableTools(definition, codeExecAvailable),
+      callableTools: enabledCallableTools(definition, codeExecAvailable, this.#convertAvailableFor(accountId)),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
       startSession: () => {
@@ -6543,7 +6824,7 @@ export class Service {
     const allowedTools = new Set([
       seedVerbRegistry.read.name,
       seedVerbRegistry.write.name,
-      ...enabledCallableTools(definition, codeExecAvailable),
+      ...enabledCallableTools(definition, codeExecAvailable, this.#convertAvailableFor(run.accountId)),
       ...documentTools,
     ])
     const mcpPool = this.#createMcpPool(run.accountId)
@@ -6570,6 +6851,7 @@ export class Service {
       hmServerUrl: this.#hmServerUrl,
       ipfsServerUrl: this.#ipfsServerUrl,
       web: this.#web,
+      convert: this.#convert,
       stateDir,
       sessionId: '',
       modelAcceptsImages: false,
@@ -6602,7 +6884,7 @@ export class Service {
             outputTail: progress.outputTail,
           },
         }),
-      callableTools: enabledCallableTools(definition, codeExecAvailable),
+      callableTools: enabledCallableTools(definition, codeExecAvailable, this.#convertAvailableFor(run.accountId)),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
       startSession: () => {
@@ -7052,7 +7334,7 @@ export class Service {
     const memoryPrompt =
       '\n\nYou have a private persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
     const codeExecAvailable = (await this.#codeExec.availability()).available
-    const callables = enabledCallableTools(definition, codeExecAvailable)
+    const callables = enabledCallableTools(definition, codeExecAvailable, this.#convertAvailableFor(accountId))
     const spaceIndex = stateDir
       ? `\n\n${buildSpaceIndex({db: this.#db, accountId, agentId, stateDir, callableTools: callables})}`
       : ''
@@ -7241,7 +7523,7 @@ export class Service {
     // Touch-expand is durable: any transcript read of ~/tools/<name> (or a call-miss that returned
     // the contract) promotes that callable to a first-class provider tool for the rest of the
     // thread — resume, park, and restart reconstruct the same set from the same events.
-    const enabledCallables = enabledCallableTools(definition, codeExecAvailable)
+    const enabledCallables = enabledCallableTools(definition, codeExecAvailable, this.#convertAvailableFor(accountId))
     // The agent's own documents — authored lambdas and the tools of its enabled MCP servers — are
     // promotable too; the projection is re-derived here so it matches the definition being run.
     const endToolSyncSpan = startPerfSpan('prep.tool_sync')
@@ -7279,6 +7561,7 @@ export class Service {
         hmServerUrl: this.#hmServerUrl,
         ipfsServerUrl: this.#ipfsServerUrl,
         web: this.#web,
+        convert: this.#convert,
         stateDir: agentStateDir,
         sessionId,
         modelAcceptsImages: model.input.includes('image'),
@@ -11566,6 +11849,7 @@ type WriteToolContext = {
 
 export type AgentServicePiToolContext = WriteToolContext & {
   web: WebToolsConfig
+  convert: ConvertToolsConfig
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
   /** Agent state directory holding the private memory filesystem. */
@@ -14053,6 +14337,423 @@ export function firstShortStringArgument(input: Record<string, unknown>): string
  * the model's optional one-line intent for the user; it is read by the chat row from the durable
  * call event and never reaches the tool.
  */
+/** Which Datalab key a conversion runs on, and whether the ledger counts its pages. */
+type ConvertKey = {source: 'own' | 'server'; apiKey: string; metered: boolean}
+
+/** The account's own key beats the shared one: it is theirs to spend, so it is not metered. */
+function resolveConvertKey(db: Database, accountId: string, config: ConvertToolsConfig): ConvertKey | undefined {
+  const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
+    db,
+    `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
+  ).get(accountId, DATALAB_SECRET_NAME)
+  const own = row ? new TextDecoder().decode(decryptSecret(db, row.ciphertext)).trim() : ''
+  if (own) return {source: 'own', apiKey: own, metered: false}
+  if (config.datalabApiKey) return {source: 'server', apiKey: config.datalabApiKey, metered: true}
+  return undefined
+}
+
+function quotaMessage(error: conversionLedger.ConversionQuotaError): string {
+  return `${error.message}. Add your own Datalab key as the secret \`${DATALAB_SECRET_NAME}\` to keep converting, or wait for next month.`
+}
+
+/** Input of `ConvertDocument` after validation; also used by `convert` for each file. */
+type ValidatedConvertDocument = {
+  content: Uint8Array
+  fileName: string
+  type: {ext: string; mimeType: string}
+  mode?: datalab.DatalabMode
+  maxPages?: number
+  pageRange?: string
+}
+
+/** Checks a `ConvertDocument` action at the boundary: bytes, name, type, and the optional knobs. */
+export function validateConvertDocument(
+  action: Record<string, unknown>,
+  maxBytes = MAX_CONVERT_FILE_BYTES,
+): ValidatedConvertDocument {
+  const content = action.content
+  if (!(content instanceof Uint8Array) || content.byteLength === 0)
+    throw new APIError(400, 'Document content is required')
+  if (content.byteLength > maxBytes) {
+    throw new APIError(413, `Documents larger than ${Math.round(maxBytes / (1024 * 1024))} MiB cannot be converted`)
+  }
+  const rawName = normalizeBoundedString(action.fileName, 'File name', MAX_NAME_BYTES)
+  const fileName =
+    rawName
+      .split(/[\\/]/)
+      .pop()
+      ?.replace(/[\u0000-\u001f\u007f]/g, '')
+      .trim() ?? ''
+  const type = fileName ? datalab.supportedDocumentType(fileName) : undefined
+  if (!type) {
+    throw new APIError(400, `Unsupported document type; supported: ${datalab.CONVERT_SUPPORTED_EXTENSION_LIST}`)
+  }
+  if (type.ext === 'pdf' && !datalab.looksLikePdf(content)) throw new APIError(400, 'The file is not a PDF')
+  const mode = action.mode === undefined ? undefined : datalab.parseDatalabMode(action.mode)
+  if (action.mode !== undefined && !mode) {
+    throw new APIError(400, `Invalid mode; expected ${datalab.DATALAB_MODES.join(', ')}`)
+  }
+  const maxPages = action.maxPages
+  if (maxPages !== undefined && (!Number.isInteger(maxPages) || (maxPages as number) <= 0)) {
+    throw new APIError(400, 'maxPages must be a positive integer')
+  }
+  const pageRange = action.pageRange
+  if (
+    pageRange !== undefined &&
+    (typeof pageRange !== 'string' || pageRange.length > 256 || !datalab.validatePageRange(pageRange))
+  ) {
+    throw new APIError(400, 'pageRange must look like "0-5,10" (zero-indexed)')
+  }
+  return {
+    content,
+    fileName,
+    type,
+    ...(mode ? {mode} : {}),
+    ...(maxPages !== undefined ? {maxPages: maxPages as number} : {}),
+    ...(typeof pageRange === 'string' ? {pageRange} : {}),
+  }
+}
+
+/** One document `convert` is about to send, after the preflight checks and the reservation. */
+type ConvertFileJob = {
+  source: string
+  fileName: string
+  type: {ext: string; mimeType: string}
+  bytes: Uint8Array
+  outDir: string
+  reservation?: conversionLedger.Reservation
+  maxPagesApplied: number
+  truncationReason: string
+}
+
+/** Every supported document under a memory folder, deepest paths included, in path order. */
+function listConvertibleFiles(stateDir: string, relDir: string): {files: string[]; skipped: number} {
+  const files: string[] = []
+  let skipped = 0
+  const walk = (rel: string) => {
+    const {absPath} = agentMemory.resolveMemoryPath(stateDir, rel)
+    for (const entry of fs.readdirSync(absPath, {withFileTypes: true}).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name
+      if (entry.isDirectory()) walk(childRel)
+      else if (entry.isFile()) {
+        if (datalab.supportedDocumentType(entry.name)) files.push(childRel)
+        else skipped++
+      }
+    }
+  }
+  walk(relDir)
+  return {files, skipped}
+}
+
+/**
+ * The `convert` callable: documents in memory go to Datalab (directly with a key, or through the
+ * hosted relay) and come back as `raw.md`, `seed.md`, `assets/` and `manifest.json` per document.
+ * Bad input is thrown; a document that could not be converted lands in `failures` so the rest of
+ * the batch still completes.
+ */
+async function executeConvert(
+  context: AgentServicePiToolContext,
+  toolInput: Record<string, unknown>,
+  toolCallId: string | undefined,
+): Promise<Record<string, unknown>> {
+  const requested = Array.isArray(toolInput.files)
+    ? toolInput.files.filter((f): f is string => typeof f === 'string')
+    : []
+  const outputDir =
+    typeof toolInput.output_dir === 'string' && toolInput.output_dir.trim()
+      ? withMemoryErrors(() => agentMemory.resolveMemoryPath(context.stateDir, toolInput.output_dir)).relPath
+      : CONVERT_DEFAULT_OUTPUT_DIR
+  if (!outputDir) throw new APIError(400, 'output_dir cannot be the memory root')
+  const pageRange = typeof toolInput.page_range === 'string' ? toolInput.page_range.trim() : undefined
+  if (pageRange && !datalab.validatePageRange(pageRange)) {
+    throw new APIError(400, 'page_range must look like "0-5,10" (zero-indexed)')
+  }
+  const maxPagesRequested = typeof toolInput.max_pages === 'number' ? toolInput.max_pages : undefined
+  const requestedMode = toolInput.mode === undefined ? undefined : datalab.parseDatalabMode(toolInput.mode)
+  const overwrite = toolInput.overwrite === true
+
+  // Expand folders and check every path before anything is sent: a bad path is the caller's
+  // mistake, answered up front, not a failure buried in the batch.
+  const failures: {source: string; error: string}[] = []
+  const sources: string[] = []
+  let skippedUnsupported = 0
+  for (const entry of requested) {
+    if (/[*?[]/.test(entry))
+      throw new APIError(400, `Globs are not expanded (${entry}); list the files or give a folder`)
+    const {relPath, absPath} = withMemoryErrors(() => agentMemory.resolveMemoryPath(context.stateDir, entry))
+    const stat = fs.statSync(absPath, {throwIfNoEntry: false})
+    if (!stat) {
+      failures.push({source: relPath || entry, error: 'Not found in memory'})
+      continue
+    }
+    if (stat.isDirectory()) {
+      const listed = listConvertibleFiles(context.stateDir, relPath)
+      sources.push(...listed.files)
+      skippedUnsupported += listed.skipped
+    } else sources.push(relPath)
+  }
+  const files = [...new Set(sources)]
+  if (files.length > MAX_CONVERT_FILES_PER_CALL) {
+    throw new APIError(
+      400,
+      `${files.length} documents is more than the ${MAX_CONVERT_FILES_PER_CALL} one call can take; convert a subfolder at a time`,
+    )
+  }
+
+  const key = resolveConvertKey(context.db, context.accountId, context.convert)
+  const relayUrl = key ? undefined : context.convert.relayUrl
+  const relaySigner = relayUrl ? await resolveRelaySigner(context) : undefined
+  if (!key && !relayUrl) {
+    throw new APIError(
+      400,
+      `Document conversion is not available on this server: no Datalab key is configured. The account can add its own key as the secret \`${DATALAB_SECRET_NAME}\` (SetSecret with metadata {kind: "datalab-api-key"}); after that convert works for it.`,
+    )
+  }
+  const metered = key?.metered ?? false
+  const mode = metered
+    ? datalab.cheaperDatalabMode(requestedMode ?? context.convert.mode, context.convert.mode)
+    : requestedMode ?? context.convert.mode
+  const modeDowngraded = requestedMode !== undefined && mode !== requestedMode
+
+  // Preflight in list order so slugs and ledger rows are deterministic; the network work runs in the pool below.
+  const slugs = new Set<string>()
+  const jobs: ConvertFileJob[] = []
+  for (const source of files) {
+    const fileName = source.slice(source.lastIndexOf('/') + 1)
+    const type = datalab.supportedDocumentType(fileName)
+    if (!type) {
+      failures.push({
+        source,
+        error: `Unsupported document type; supported: ${datalab.CONVERT_SUPPORTED_EXTENSION_LIST}`,
+      })
+      continue
+    }
+    let bytes: Uint8Array
+    try {
+      const file = withMemoryErrors(() => agentMemory.readMemoryFile(context.stateDir, source))
+      bytes = file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
+    } catch (error) {
+      failures.push({source, error: boundedFailure(errorMessage(error))})
+      continue
+    }
+    if (bytes.byteLength > MAX_CONVERT_FILE_BYTES) {
+      failures.push({source, error: `Larger than ${Math.round(MAX_CONVERT_FILE_BYTES / (1024 * 1024))} MiB`})
+      continue
+    }
+    if (type.ext === 'pdf' && !datalab.looksLikePdf(bytes)) {
+      failures.push({source, error: 'Not a PDF (no %PDF- header)'})
+      continue
+    }
+    const outDir = `${outputDir}/${datalab.uniqueName(datalab.slugForFileName(fileName), slugs)}`
+    const seedPath = withMemoryErrors(() =>
+      agentMemory.resolveMemoryPath(context.stateDir, `${outDir}/seed.md`),
+    ).absPath
+    if (!overwrite && fs.existsSync(seedPath)) {
+      failures.push({source, error: `Output ${outDir}/ already exists; pass overwrite: true to replace it`})
+      continue
+    }
+    let reservation: conversionLedger.Reservation | undefined
+    if (metered) {
+      try {
+        reservation = conversionLedger.reservePages(context.db, {
+          accountId: context.accountId,
+          agentId: context.agentId,
+          sourceName: fileName,
+          requested: maxPagesRequested,
+          accountAllowance: context.convert.allowancePagesPerMonth,
+          globalCeiling: context.convert.globalCeilingPagesPerMonth,
+          now: Date.now(),
+        })
+      } catch (error) {
+        if (!(error instanceof conversionLedger.ConversionQuotaError)) throw error
+        // Nothing converted yet: the whole call is refused. Otherwise the earlier documents still count.
+        if (jobs.length === 0) throw new APIError(429, quotaMessage(error))
+        failures.push({source, error: quotaMessage(error)})
+        continue
+      }
+    }
+    const cap = conversionLedger.CONVERT_PAGES_PER_CALL_CAP
+    const maxPagesApplied = reservation ? reservation.pages : Math.min(maxPagesRequested ?? cap, cap)
+    const truncationReason = reservation
+      ? {
+          requested: 'max_pages input',
+          call_cap: `per-call cap (${cap} pages)`,
+          account_allowance: 'account allowance remaining this month',
+          server_ceiling: 'server ceiling remaining this month',
+        }[reservation.boundBy]
+      : maxPagesRequested !== undefined && maxPagesRequested <= cap
+        ? 'max_pages input'
+        : `per-call cap (${cap} pages)`
+    jobs.push({source, fileName, type, bytes, outDir, reservation, maxPagesApplied, truncationReason})
+  }
+
+  const progress = (detail: string) => context.onToolProgress(seedVerbRegistry.call.name, {toolCallId, detail})
+  const documents: Record<string, unknown>[] = []
+  let started = 0
+  let fatal: APIError | undefined
+  let wrote = false
+  let pagesCharged = 0
+  await datalab.runWithConcurrency(jobs, context.convert.concurrency, async (job) => {
+    if (fatal) {
+      if (job.reservation) conversionLedger.releaseReservation(context.db, job.reservation.id, Date.now())
+      return
+    }
+    const label = `${job.fileName} (${++started}/${jobs.length})`
+    progress(`Converting ${label}`)
+    let result: datalab.ConvertDocumentResult & {droppedImages?: string[]}
+    try {
+      result = key
+        ? await datalab.convertDocument({
+            bytes: job.bytes,
+            fileName: job.fileName,
+            mimeType: job.type.mimeType,
+            apiKey: key.apiKey,
+            mode,
+            extras: context.convert.extras,
+            maxPages: job.maxPagesApplied,
+            pageRange,
+            baseUrl: context.convert.datalabBaseUrl,
+            pollIntervalMs: context.convert.pollIntervalMs,
+            timeoutMs: CONVERT_TIMEOUT_MS,
+            onProgress: (p) => progress(`Converting ${label}: ${p.stage} ${Math.round(p.elapsedMs / 1000)}s`),
+          })
+        : await convertRelay.convertDocumentViaRelay({
+            relayUrl: relayUrl!,
+            signer: relaySigner!,
+            bytes: job.bytes,
+            fileName: job.fileName,
+            mode,
+            maxPages: job.maxPagesApplied,
+            pageRange,
+            pollIntervalMs: context.convert.pollIntervalMs,
+            onProgress: (detail) => progress(`${label}: ${detail}`),
+          })
+    } catch (error) {
+      if (job.reservation) conversionLedger.releaseReservation(context.db, job.reservation.id, Date.now())
+      if (error instanceof datalab.DatalabError && error.kind === 'auth') {
+        // Every later document would fail the same way: this is configuration, not this file.
+        fatal = new APIError(
+          key?.source === 'server' ? 502 : 400,
+          key?.source === 'server'
+            ? 'Datalab rejected this server’s key; tell the operator'
+            : `Datalab rejected the account secret \`${DATALAB_SECRET_NAME}\``,
+        )
+        return
+      }
+      failures.push({source: job.source, error: boundedFailure(errorMessage(error))})
+      return
+    }
+    try {
+      if (overwrite) withMemoryErrors(() => agentMemory.deleteMemoryPath(context.stateDir, job.outDir))
+      const assetNames = datalab.assetFileNames(result.images.keys())
+      const rewritten = datalab.rewriteImageReferences(result.markdown, (ref) => {
+        const safe = assetNames.get(ref) ?? assetNames.get(ref.slice(ref.lastIndexOf('/') + 1))
+        return safe ? `assets/${safe}` : undefined
+      })
+      withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/raw.md`, result.markdown))
+      for (const [original, safe] of assetNames) {
+        const bytes = result.images.get(original)
+        if (bytes)
+          withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/assets/${safe}`, bytes))
+      }
+      withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/seed.md`, rewritten.markdown))
+      const truncated = result.pageCount >= job.maxPagesApplied
+      const manifest = {
+        source: job.source,
+        fileName: job.fileName,
+        bytes: job.bytes.byteLength,
+        convertedAt: new Date().toISOString(),
+        requestId: result.requestId,
+        keySource: key?.source ?? 'relay',
+        mode,
+        ...(modeDowngraded ? {modeDowngraded: true, modeRequested: requestedMode} : {}),
+        pageRange: pageRange ?? null,
+        maxPagesRequested: maxPagesRequested ?? null,
+        maxPagesApplied: job.maxPagesApplied,
+        pageCount: result.pageCount,
+        truncated,
+        truncationReason: truncated ? job.truncationReason : null,
+        parseQualityScore: result.parseQualityScore,
+        costCents: result.costCents,
+        images: [...assetNames].map(([original, file]) => ({
+          file,
+          originalName: original,
+          bytes: result.images.get(original)?.byteLength ?? 0,
+        })),
+        imagesRewritten: rewritten.rewritten,
+        imagesUnresolved: rewritten.unresolved,
+        droppedImages: result.droppedImages ?? [],
+      }
+      withMemoryErrors(() =>
+        agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/manifest.json`, JSON.stringify(manifest, null, 2)),
+      )
+      wrote = true
+      if (job.reservation) {
+        conversionLedger.settleReservation(context.db, job.reservation.id, {
+          pageCount: result.pageCount,
+          requestId: result.requestId,
+          now: Date.now(),
+        })
+        pagesCharged += Math.min(result.pageCount, job.reservation.pages)
+      }
+      documents.push({
+        source: job.source,
+        outputDir: job.outDir,
+        markdownPath: `${job.outDir}/seed.md`,
+        pages: result.pageCount,
+        images: assetNames.size,
+        truncated,
+      })
+    } catch (error) {
+      if (job.reservation) conversionLedger.releaseReservation(context.db, job.reservation.id, Date.now())
+      failures.push({source: job.source, error: boundedFailure(errorMessage(error))})
+    }
+  })
+  if (wrote) context.onMemoryChange()
+  if (fatal) throw fatal
+
+  documents.sort((a, b) => files.indexOf(a.source as string) - files.indexOf(b.source as string))
+  const pages = documents.reduce((sum, doc) => sum + (doc.pages as number), 0)
+  const images = documents.reduce((sum, doc) => sum + (doc.images as number), 0)
+  const cut = documents.filter((doc) => doc.truncated).length
+  const notes = [
+    ...(failures.length ? [`${failures.length} failed`] : []),
+    ...(cut ? [`${cut} cut at the page cap`] : []),
+    ...(skippedUnsupported
+      ? [`${skippedUnsupported} unsupported file${skippedUnsupported === 1 ? '' : 's'} skipped`]
+      : []),
+    ...(modeDowngraded ? [`mode lowered to ${mode} on the shared key`] : []),
+  ]
+  const lead = documents.length
+    ? `Converted ${documents.length} document${documents.length === 1 ? '' : 's'} into ${outputDir}/ (${pages} page${
+        pages === 1 ? '' : 's'
+      }, ${images} figure${images === 1 ? '' : 's'}). Review and publish each seed.md with write ... fromPath.`
+    : 'Converted nothing.'
+  const pagesRemaining =
+    metered && jobs.length
+      ? conversionLedger.pagesUsed(context.db, {
+          accountId: context.accountId,
+          period: conversionLedger.periodOf(Date.now()),
+        })
+      : undefined
+  return {
+    summary: notes.length ? `${lead} ${notes.join(', ')}.` : lead,
+    documents,
+    failures,
+    keySource: key?.source ?? 'relay',
+    ...(metered
+      ? {
+          pagesChargedThisCall: pagesCharged,
+          pagesRemainingThisMonth: Math.max(0, context.convert.allowancePagesPerMonth - (pagesRemaining ?? 0)),
+        }
+      : {}),
+  }
+}
+
+function boundedFailure(message: string): string {
+  return message.length > 300 ? `${message.slice(0, 297)}...` : message
+}
+
 export async function executeCallVerb(
   context: AgentServicePiToolContext,
   raw: unknown,
@@ -14101,6 +14802,8 @@ export async function executeCallVerb(
       return executeAgentServiceAttributes(context, toolInput)
     case 'web_search':
       return executeWebSearch(context.web, toolInput)
+    case 'convert':
+      return executeConvert(context, toolInput, toolCallId)
     case 'execute': {
       const runtime = typeof toolInput.runtime === 'string' ? toolInput.runtime : 'code'
       // The agent's one-line account of the run is what the user reads in the row; the schema
@@ -14379,12 +15082,7 @@ async function resolveWriteSigner(
 
   const selected = matches[0]
   if (!selected) throw new APIError(400, 'Signing identity not found')
-  const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
-    context.db,
-    `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
-  ).get(context.accountId, selected.secretName)
-  if (!row) throw new APIError(400, 'Signing identity secret not found')
-  const keyPair = blobs.nobleKeyPairFromSeed(decryptSecret(context.db, row.ciphertext))
+  const keyPair = loadSigningKeyPair(context.db, context.accountId, selected.secretName)
   return {
     ...selected,
     keyPair,
@@ -14393,6 +15091,34 @@ async function resolveWriteSigner(
       sign: (data) => keyPair.sign(data),
     },
   }
+}
+
+/** Decrypts a stored identity seed into its key pair. */
+function loadSigningKeyPair(db: Database, accountId: string, secretName: string): blobs.NobleKeyPair {
+  const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
+    db,
+    `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
+  ).get(accountId, secretName)
+  if (!row) throw new APIError(400, 'Signing identity secret not found')
+  return blobs.nobleKeyPairFromSeed(decryptSecret(db, row.ciphertext))
+}
+
+/**
+ * The identity a relayed conversion is signed with: the agent's own key, which the hosted server
+ * bills. The desktop creates one per agent and sets `signingKey`; with several enabled the first
+ * is used, since billing has no reason to choose.
+ */
+async function resolveRelaySigner(context: WriteToolContext): Promise<blobs.NobleKeyPair> {
+  const allowed = context.definition.signingKey ? [context.definition.signingKey] : context.definition.signingKeys ?? []
+  const identities = await listWriteSigningIdentities(context.db, context.accountId, allowed)
+  const selected = identities[0]
+  if (!selected) {
+    throw new APIError(
+      400,
+      'convert needs a signing identity for this agent so the conversion service can bill its account; create one in the agent settings',
+    )
+  }
+  return loadSigningKeyPair(context.db, context.accountId, selected.secretName)
 }
 
 async function listWriteSigningIdentities(
@@ -17346,33 +18072,6 @@ function normalizeBoundedString(value: unknown, label: string, maxBytes: number)
   return normalized
 }
 
-/** Creates a signed envelope for tests and future local clients. */
-export async function createSignedEnvelope(
-  signer: blobs.Signer,
-  input: {
-    account?: blobs.Principal
-    /** CID of the Capability by which `account` delegated to the signer (see the envelope type). */
-    capability?: string
-    capabilityBlob?: Uint8Array
-    action: api.UnsignedAgentAction
-    ts?: number
-    /**
-     * Protocol version to declare; defaults to this build's. `null` declares none, as clients from
-     * before protocol 2 do (servers read that as protocol 1).
-     */
-    protocol?: number | null
-  },
-): Promise<api.SignedActionEnvelope> {
-  const protocol = input.protocol === undefined ? AGENTS_PROTOCOL_VERSION : input.protocol
-  const envelope: api.SignedActionEnvelope = {
-    type: 'AgentsAction',
-    signer: signer.principal,
-    sig: new Uint8Array(blobs.ED25519_SIGNATURE_SIZE),
-    account: input.account ?? signer.principal,
-    ...(input.capability !== undefined ? {capability: input.capability} : {}),
-    ...(input.capabilityBlob !== undefined ? {capabilityBlob: input.capabilityBlob} : {}),
-    ...(protocol !== null ? {protocol} : {}),
-    action: {...input.action, ts: input.ts ?? Date.now()} as api.AgentAction,
-  }
-  return (await blobs.sign(signer, envelope as unknown as blobs.Blob)) as unknown as api.SignedActionEnvelope
-}
+// Tests and tooling sign envelopes through this module; the implementation moved to envelope.ts
+// so the convert relay can sign without importing the whole service.
+export {createSignedEnvelope}

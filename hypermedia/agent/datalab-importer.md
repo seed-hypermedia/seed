@@ -1,79 +1,58 @@
 ---
-name: Datalab PDF Importer Reference
-summary: The Datalab PDF importer reference covers the invocation, outputs, structured extraction, and fidelity behavior of the optional Datalab importer.
+name: Document import with convert
+summary: The convert tool turns PDFs, office documents, EPUBs and images from agent memory into reviewable markdown with the Datalab document parser, on the server, without the agent ever holding an API key.
 ---
-The callable `datalab_pdf_importer` is an optional high-fidelity conversion route. Its two operations are `convert` (default) and `postprocess_seed`. The tool prepares files; the agent remains responsible for signed Seed writes and final verification.
+`convert` is a built-in callable. It sends a document from `~/memory/` to the Datalab document parser and writes the markdown and the extracted figures back into memory, next to the source. The agent reviews the markdown, adds metadata, and publishes it with `write ... fromPath`, like any other memory file. The agent never talks to Datalab and never sees a key.
 
-# Credential boundary
+# Supported documents
 
-Conversion requires the requester's Datalab API key in a caller-provided **private memory file**, supplied as `api_key_file`. Do not expose or publish the key. `postprocess_seed` does not call Datalab and does not need a key. When a requester selects local/simple recognition, do not request a Datalab key.
+PDF (`.pdf`); Word (`.doc`, `.docx`, `.odt`); spreadsheets (`.xls`, `.xlsx`, `.xlsm`, `.xltx`, `.csv`, `.ods`); presentations (`.ppt`, `.pptx`, `.odp`); web and ebooks (`.html`, `.epub`); images (`.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.tiff`). Each file may be up to 100 MiB. An image counts as one page. Markdown and plain text are not documents to convert: read them directly.
 
-# Convert invocation
+# Calling it
 
 ```json
-{
-  "operation": "convert",
-  "pdfs": ["incoming/paper.pdf"],
-  "api_key_file": "private/datalab-api-key",
-  "output_dir": "datalab-imports",
-  "prepare_seed": true,
-  "render_complete_figures": true,
-  "append_unreferenced_images": false,
-  "max_concurrency": 2
-}
+{"files": ["incoming/paper.pdf"]}
 ```
 
-PDF paths are relative to persistent memory. The importer accepts a file list or glob patterns; it can also discover PDFs when `pdfs` is omitted. Other controls include `max_pages`, zero-indexed `page_range` (for example `0-5,10`), `skip_cache`, `overwrite`, `poll_interval_seconds`, and `timeout_seconds`.
+A folder converts every supported file under it, so a batch of papers is one call:
 
-The conversion route calls Datalab's PDF conversion endpoint for Markdown with link and infographic extras, image extraction, authenticated polling, and a balanced conversion mode. The working result includes a nullable `parse_quality_score` (0–5) and `total_cost` in cents exactly as returned; never invent either value.
+```json
+{"files": ["papers"], "output_dir": "imports/papers"}
+```
 
-# Conversion output
+Other inputs: `page_range` (zero-indexed, `0-5,10`) and `max_pages` convert only part of each document; `mode` picks the Datalab mode (`fast`, `balanced`, `accurate`); `overwrite: true` replaces an output folder from an earlier run. Paths are relative to `~/memory/`; globs are not expanded. One call takes at most 50 documents.
+
+The call runs as long as the conversions take (several documents are converted at once), and the chat shows which file is in progress. The result is small: one line per document with where its markdown is, plus a `failures` list for documents that could not be converted. A failed document never stops the others.
+
+# What it writes
 
 ```text
-datalab-imports/<stable-document-slug>/
-  raw.md                       # raw converter Markdown
-  document.md                  # rewritten working Markdown
-  seed.md                      # first-pass Seed Markdown
-  seed-postprocess.json        # citation/verification plan
-  manifest.json                # assets, warnings, quality/cost data
-  assets/                      # local extracted and rendered assets
-  structured-extraction.json   # only when structured extraction was requested
+datalab-imports/<slug>/
+  raw.md          # the converter output as received
+  seed.md         # the same markdown with every figure on its own line, ready to publish
+  assets/         # the extracted images
+  manifest.json   # pages, quality score, cost, mode, truncation, image mapping
 ```
 
-Default normalization creates a single-column reading order; preserves external links; removes PDF-local block links; expands one-line math into display blocks; renders complete vector/composite figures; places figures in source position; uses native image captions; and does not append an end-of-document fragment gallery. It must still be reviewed.
+`seed.md` differs from `raw.md` in one way: every image reference is a paragraph of its own, `![alt](assets/<file>)`. The markdown parser keeps only standalone image lines as image blocks, and `write ... fromPath` uploads exactly those files, so publishing `seed.md` carries the figures along. Review `seed.md` before publishing: headings, tables, where figures landed, and the metadata from the [Agent Guide](./guide.md) (`name`, `summary`, `displayAuthor`, `displayPublishTime`). Charts come back as data tables with a description; links in the source are kept.
 
-# Opt-in structured extraction
+# Pages, cost and the page cap
 
-Structured extraction is never implied by conversion. Supply exactly one of:
+Datalab bills per page. Every conversion has a page cap: the smaller of `max_pages`, the per-call cap (200 pages), and what the account and the server still have this month on the shared key. The cap is what Datalab is told, so a call can never cost more than was set aside for it. A document longer than its cap is converted up to the cap and reported with `truncated: true`; `manifest.json` names the limit that cut it. Convert long documents in parts with `page_range`.
 
-- `structured_fields`: field names for which the importer builds a descriptive JSON Schema;
-- `structured_schema`: an explicit JSON Schema object with `type: "object"` and `properties`;
-- `structured_schema_id`, optionally with `structured_schema_version`, for a saved Datalab schema.
+# Keys
 
-Example:
+The server picks the key, in this order:
 
-```json
-{
-  "pdfs": ["incoming/paper.pdf"],
-  "api_key_file": "private/datalab-api-key",
-  "structured_fields": ["title", "authors", "publication_year"],
-  "extraction_mode": "accurate"
-}
-```
+1. The account's own Datalab key, saved as the secret `datalab-api-key` (`SetSecret`, metadata `{kind: "datalab-api-key"}`). Pages on it are not counted against anything, and any `mode` goes through.
+2. The server's shared key, metered per account per UTC month with a server-wide ceiling. A `mode` more expensive than the server's is lowered to it, and the result says so.
+3. A relay: a server without a key (the one inside the desktop app, a self-hosted one) sends the document to the hosted server as a signed `ConvertDocument` action and polls `GetConversion`. The request is signed with the agent's own identity key, so the hosted server bills that identity's account. An agent without a signing identity cannot relay and gets told so.
 
-The tool requests a conversion checkpoint only when extraction is asked for, then sends that checkpoint, not the Markdown, to Datalab extraction. Modes are `fast`, `balanced` (default), and `accurate`. Returned fields, citations, verification metadata, schema data, and scores are persisted in `structured-extraction.json` and returned by the tool. Describe desired fields precisely and source-orientedly; do not fabricate extracted values from `seed.md`.
+When none of these applies the tool is not offered at all, so the model never sees a tool that can only fail. An exhausted allowance answers with how much was used and how to add an own key.
 
-# Postprocess invocation
+# See also
 
-When the first published version has a bibliography and citation candidates, run:
-
-```json
-{
-  "operation": "postprocess_seed",
-  "published_seed_url": "hm://ACCOUNT/document-path",
-  "published_seed_version": "EXACT_PUBLISHED_CID",
-  "postprocess_output_dir": "datalab-imports/document-slug"
-}
-```
-
-The tool obtains the exact published state, maps bibliography blocks, and produces `seed-update.md` and `seed-postprocess-audit.json`. It conservatively handles numeric groups/ranges and unique author–year matches, including citations in captions and tables. It fails rather than silently dropping unsupported Seed content. Inspect the audit before updating; unresolved or ambiguous matches require manual review, never guessing.
+- [Agent Guide](./guide.md)
+- [Tools](./tools.md)
+- [Signed API](./signed-api.md) for `ConvertDocument` and `GetConversion`
+- [Operations](./operations.md) for the server settings

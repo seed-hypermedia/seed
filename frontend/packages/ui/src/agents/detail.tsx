@@ -103,6 +103,7 @@ import {SigningIdentityIcon} from './signing-identity-icon'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {activityConditions, getSeedTool} from '@seed-hypermedia/agents-protocol'
 import {
+  AGENT_CONVERT_TOOL,
   AGENT_EXECUTE_TOOL,
   AGENT_PUBLISH_GRANT,
   AGENT_SEARCH_TOOL,
@@ -661,6 +662,7 @@ function AgentDetailPage({
                           codeExec: serverHealth.data.codeExec,
                           codeExecReason: serverHealth.data.codeExecReason,
                           codeExecReasonCode: serverHealth.data.codeExecReasonCode,
+                          convert: serverHealth.data.convert,
                           local: isLocalAgentServer(serverUrl, localServerUrl.data),
                         }
                       : undefined
@@ -1509,6 +1511,7 @@ const AGENT_TOOL_OPTIONS: {names: string[]; title: string; infoTool?: string}[] 
   {names: [AGENT_SEARCH_TOOL], title: 'Search Seed content'},
   {names: [AGENT_WEB_SEARCH_TOOL], title: 'Search the web'},
   {names: [AGENT_EXECUTE_TOOL], title: 'Execute code'},
+  {names: [AGENT_CONVERT_TOOL], title: 'Import documents'},
   // The publish grant is not a registry tool — publishing runs through the always-on `write`
   // verb, so its info dialog shows the write verb's model-facing contract.
   {names: [AGENT_PUBLISH_GRANT], title: 'Publish Seed content', infoTool: 'write'},

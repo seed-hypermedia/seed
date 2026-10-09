@@ -131,6 +131,13 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_SEARXNG_URL` | _(unset)_ | Self-hosted SearXNG base URL. Enables the `web_search` tool. <!-- id:r7A0bkD3 --> |
 | `SEED_AGENTS_CRAWLER_URL` | _(unset)_ | Self-hosted Crawl4AI base URL. Enables browser-render escalation for web reads. <!-- id:0R7M1OGu --> |
 | `SEED_AGENTS_CRAWLER_TOKEN` | _(unset)_ | Bearer token for Crawl4AI (required by Crawl4AI >= 0.9). <!-- id:ABE0a0Tv --> |
+| `SEED_AGENTS_DATALAB_API_KEY` | _(unset)_ | Shared Datalab key for the `convert` tool, metered per account against the allowances below. Set it on the hosted server only. |
+| `SEED_AGENTS_CONVERT_RELAY_URL` | _(unset)_ | Hosted agents server that converts for this one when it has no key; the agent's own identity account is billed there. The desktop app sets it for its local server; self-hosters set it to the hosted server. |
+| `SEED_AGENTS_DATALAB_MODE` | `accurate` | Datalab mode: `fast`, `balanced` or `accurate`. Also the most expensive mode a shared-key call may ask for. |
+| `SEED_AGENTS_DATALAB_EXTRAS` | `extract_links,chart_understanding,infographic` | Comma-separated Datalab extras sent with every conversion. |
+| `SEED_AGENTS_DATALAB_CONCURRENCY` | `4` | Documents converted at once within one `convert` call. |
+| `SEED_AGENTS_DATALAB_ALLOWANCE_PAGES_PER_MONTH` | `1000` | Pages each account may convert on the shared key per UTC month. |
+| `SEED_AGENTS_DATALAB_GLOBAL_CEILING_PAGES_PER_MONTH` | `20000` | Pages the whole server may convert on the shared key per UTC month. |
 | `SEED_AGENTS_SUBSCRIPTION_AUTH` | _(off)_ | Offer provider OAuth sign-in ("Sign in with ChatGPT"). Only `1`/`true`/`yes`/`on` enables it. <!-- id:Sv4pKPqe --> |
 | `SEED_AGENTS_SESSION_TITLE_GENERATION` | `true` | Name untitled sessions with a dedicated model call. Set exactly `false` to disable. <!-- id:ED7y2rAF --> |
 | `SEED_AGENTS_EXEC_BACKEND` | `microsandbox` | Code-execution backend for `execute` and authored lambda tools. Set empty/`off`/`none` to disable. <!-- id:81BYtsXO --> |
@@ -217,7 +224,10 @@ environment:
   SEED_AGENTS_SEARXNG_URL: http://searxng:8080
   SEED_AGENTS_CRAWLER_URL: http://crawl4ai:11235
   SEED_AGENTS_CRAWLER_TOKEN: ${CRAWL4AI_API_TOKEN}
+  SEED_AGENTS_DATALAB_API_KEY: ${DATALAB_API_KEY}
 ```
+
+A server without a Datalab key can still offer `convert` by relaying to one that has it: set `SEED_AGENTS_CONVERT_RELAY_URL` to the hosted server instead of the key. The startup log prints `Convert (Datalab): server key, mode=accurate`, `relay → <url>`, or `off`.
 
 Capacity note: Crawl4AI runs a headless Chromium and documents a >=4 GB RAM minimum plus 1 GB shared memory. Size the host accordingly. The SearXNG and in-process static reader path is lightweight. Crawl4AI is the heavy escalation tier. <!-- id:U9QXiKwN -->
 
@@ -234,6 +244,7 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
   "defaultPromptUrl": "hm://hyper.media/agent/guide",
   "ipfsServerUrl": "https://hyper.media",
   "webTools": {"search": true, "readBrowser": true},
+  "convert": {"available": true, "source": "key"},
   "subscriptionAuth": false,
   "codeExec": true,
   "codeExecReason": "…",
@@ -242,7 +253,7 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
 }
 ```
 
-`ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS publication itself chunks [UnixFS](../protocol/files.md) blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from `SEED_AGENTS_SEARXNG_URL` and `SEED_AGENTS_CRAWLER_URL`. `codeExec` derives from the exec backend probe, and `codeExecReason` and `codeExecReasonCode` explain an unavailable sandbox. `codeExecRuntimes` says which runtimes this host offers. `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here. Clients read these fields to grey out what the server cannot run. <!-- id:5FIU-ofh -->
+`ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS publication itself chunks [UnixFS](../protocol/files.md) blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from `SEED_AGENTS_SEARXNG_URL` and `SEED_AGENTS_CRAWLER_URL`. `codeExec` derives from the exec backend probe, and `codeExecReason` and `codeExecReasonCode` explain an unavailable sandbox. `codeExecRuntimes` says which runtimes this host offers. `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here. `convert` says whether the server converts documents and how: `key` (its own Datalab key), `relay` (through the hosted server) or `none`; it comes from configuration alone and does not probe the relay. Clients read these fields to grey out what the server cannot run. <!-- id:5FIU-ofh -->
 
 # Code execution backend <!-- id:VLdUUR8z -->
 

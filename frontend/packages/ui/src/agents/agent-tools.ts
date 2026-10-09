@@ -8,15 +8,22 @@ import {callableToolRegistry} from '@seed-hypermedia/agents-protocol'
 export const AGENT_SEARCH_TOOL = callableToolRegistry.search.name
 export const AGENT_WEB_SEARCH_TOOL = callableToolRegistry.web_search.name
 export const AGENT_EXECUTE_TOOL = callableToolRegistry.execute.name
+export const AGENT_CONVERT_TOOL = callableToolRegistry.convert.name
 /** Pseudo-grant: signed public publishing (hm:// documents/comments, IPFS uploads). */
 export const AGENT_PUBLISH_GRANT = 'publish'
 
 /**
- * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution, and
- * publishing. Reading, memory, delegation, and planning are verbs — always available. The server
- * silently drops execute from sessions when the host cannot run sandboxes.
+ * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution,
+ * document import, and publishing. Reading, memory, delegation, and planning are verbs — always
+ * available. The server silently drops execute and convert from sessions when it cannot run them.
  */
-export const DEFAULT_AGENT_TOOLS = [AGENT_SEARCH_TOOL, AGENT_WEB_SEARCH_TOOL, AGENT_EXECUTE_TOOL, AGENT_PUBLISH_GRANT]
+export const DEFAULT_AGENT_TOOLS = [
+  AGENT_SEARCH_TOOL,
+  AGENT_WEB_SEARCH_TOOL,
+  AGENT_EXECUTE_TOOL,
+  AGENT_CONVERT_TOOL,
+  AGENT_PUBLISH_GRANT,
+]
 
 /** Legacy stored tool names that meant "this agent may publish signed public content". */
 const LEGACY_PUBLISH_TOOL_NAMES = ['write', 'memory_publish_document', 'ipfs_write', 'attachment_to_ipfs']
@@ -32,7 +39,8 @@ export function normalizeStoredAgentTools(tools: string[]): string[] {
     if (tool === 'execute_code' || tool === AGENT_EXECUTE_TOOL) normalized.add(AGENT_EXECUTE_TOOL)
     else if (tool === AGENT_PUBLISH_GRANT || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
       normalized.add(AGENT_PUBLISH_GRANT)
-    else if (tool === AGENT_SEARCH_TOOL || tool === AGENT_WEB_SEARCH_TOOL) normalized.add(tool)
+    else if (tool === AGENT_SEARCH_TOOL || tool === AGENT_WEB_SEARCH_TOOL || tool === AGENT_CONVERT_TOOL)
+      normalized.add(tool)
     // Everything else was absorbed into the always-on verbs and is inert.
   }
   return Array.from(normalized)
@@ -54,6 +62,8 @@ export type AgentServerWebCapabilities = {
   codeExecReason?: string
   /** Machine-readable cause when codeExec is false, for targeted help UI. */
   codeExecReasonCode?: string
+  /** Document conversion (Datalab): with the server's own key, through a relay, or not at all. Undefined on older servers. */
+  convert?: {available: boolean; source: 'key' | 'relay' | 'none'}
   /**
    * Whether this server runs on the user's own machine. Setup help (enable a Windows feature,
    * join the kvm group) only makes sense locally; remote servers get a plain unsupported message.
@@ -91,6 +101,12 @@ export function getToolAvailability(
     return {
       available: false,
       note: caps.codeExecReason ?? 'Sandboxed code execution is not available on this computer.',
+    }
+  }
+  if (toolName === AGENT_CONVERT_TOOL && caps?.convert && !caps.convert.available) {
+    return {
+      available: false,
+      note: 'Document conversion (Datalab) is not configured on this server: it has no key and no relay.',
     }
   }
   return {available: true}

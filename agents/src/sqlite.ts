@@ -14,6 +14,24 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Metered use of the server's shared Datalab key by the convert tool: a row is reserved before
+  // the call (the reservation is what Datalab is told as max_pages, so spend is bounded up front),
+  // settled to the real page count on success, and released on failure.
+  `CREATE TABLE conversion_usage (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      agent_id TEXT,
+      period TEXT NOT NULL,
+      pages_reserved INTEGER NOT NULL,
+      pages_charged INTEGER NOT NULL DEFAULT 0,
+      state TEXT NOT NULL,
+      request_id TEXT,
+      source_name TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+  CREATE INDEX conversion_usage_by_account ON conversion_usage (account_id, period, state);
+  CREATE INDEX conversion_usage_by_period ON conversion_usage (period, state);`,
   // Top-level session listings (per agent, and account-wide) walked the whole NULL-parent bucket of
   // sessions_by_parent and temp-b-tree-sorted it (35–90 ms per page on production): the stat1 row
   // averages 6 rows per parent, but NULL holds every top-level session on the server. These serve

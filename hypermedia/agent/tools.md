@@ -8,12 +8,12 @@ An agent's whole model-facing tool surface is **five verbs**, [`read`](./read.md
 
 The canonical registry is `agents/protocol/src/tool-registry.ts`. The Agents service executes from it and the desktop renders from it, so a tool's prompt text, schemas, chat bubble, and HM-reference extraction cannot drift apart. It exports three tables: <!-- id:5JGudaAa -->
   - `seedVerbRegistry`: the five verbs, `status`, `continue_session`, and the hidden `return_result` mechanism. This is the **only** provider-facing toolset. A leaf run gets no `delegate`, a delegated child gets no `continue_session`, and only a typed child gets `return_result`. <!-- id:cpDWf5e4 -->
-  - `callableToolRegistry`: `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`. By default these are never handed to the provider as tools. `call` dispatches them (`callableToolRegistry`). <!-- id:Z3ye-2G4 -->
+  - `callableToolRegistry`: `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`, `convert`. By default these are never handed to the provider as tools. `call` dispatches them (`callableToolRegistry`). <!-- id:Z3ye-2G4 -->
   - `seedToolRegistry`: both, merged, for renderers and validation lookups (`seedToolRegistry`). <!-- id:lnALDCIy -->
 
 Each entry owns the model-facing name, label, prompt description, JSON input schema, optional output schema, runtime availability (`assistant` or `agent-service`), rendering metadata, and an optional `getReferencedUrls` extractor. The extractor lists the `hm://` resources a call touched so they can [sync](../protocol/network.md). Write results include [document](../protocol/documents.md) versions and [comment](../protocol/comments.md) and target URLs in this extraction. An open desktop session can then keep newly published content subscribed on its local node before the user follows the result link. Server runtimes only add execution functions around registry entries. Chat UIs pick their bubble renderer from the same metadata. <!-- id:Io_jNF7p -->
 
-`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it. `serviceCallableNames()` (in `agents/src/api-service.ts`) filters on `runtimes.includes('agent-service')`, which leaves the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`. Nothing on this branch runs the `assistant` runtime, so `navigate` does nothing today. It stays as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
+`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it. `serviceCallableNames()` (in `agents/src/api-service.ts`) filters on `runtimes.includes('agent-service')`, which leaves the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`, `convert`. Nothing on this branch runs the `assistant` runtime, so `navigate` does nothing today. It stays as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
 
 ## Legacy names <!-- id:xGuoC4hF -->
 
@@ -76,7 +76,7 @@ This filter is a security control. A hallucinated `call {tool: 'bash'}` durably 
 # Grants <!-- id:tPg5Z6sN -->
 
 Verbs are never [grants](./grants.md). They are always on. Two things are granted per agent, both through `definition.tools`: <!-- id:dEtv6vHA -->
-  - **The callable set.** `enabledCallableTools()` (`api-service.ts`) intersects the service callables with `definition.tools` (normalized, unknown names ignored). An undefined `tools` array grants all of them. `execute` drops out silently when the host cannot run sandboxes, so the model never sees a tool that can only fail. <!-- id:22xP_Z0w -->
+  - **The callable set.** `enabledCallableTools()` (`api-service.ts`) intersects the service callables with `definition.tools` (normalized, unknown names ignored). An undefined `tools` array grants all of them. `execute` drops out silently when the host cannot run sandboxes, and `convert` when the server has no Datalab key, no relay, and the account no key of its own, so the model never sees a tool that can only fail. <!-- id:22xP_Z0w -->
   - **Publish.** `publishGrantEnabled()` (`api-service.ts`) checks for the pseudo-tool name `publish` in `definition.tools`. Legacy write-group names (`write`, `memory_publish_document`, `ipfs_write`, `attachment_to_ipfs`) still count, so a pre-verbs agent keeps exactly the publishing posture its owner configured. An undefined `tools` array publishes. Without the grant, `write` to `hm://` or `ipfs://` returns 403 (`api-service.ts`, `api-service.ts`). Memory writes are never gated. <!-- id:27po_PK5 -->
 
 Definition limits: at most 32 tool names, 128 bytes each, 4 KiB total (`api-service.ts`). <!-- id:H43msgHh -->
@@ -204,7 +204,7 @@ Dispatch order in `executeCallVerb` (`api-service.ts`): <!-- id:iTHt2YHO -->
   2. If it is not a granted builtin, look for an enabled document of that name. A **lambda** runs in the sandbox (`executeLambdaTool`). An **MCP projection** is proxied to its server (`executeMcpTool`, see [`mcp.md`](./mcp.md)). <!-- id:SWV7WM4u -->
   3. Otherwise return the `~/tools` listing with a "no callable tool named …" summary. <!-- id:WixN3gx_ -->
   4. Validate `input` against the tool's schema. On failure, return the contract (touch-expand). <!-- id:euze5A7r -->
-  5. Execute: `search` goes to `executeAgentServiceSearch`, `query` to `executeAgentServiceQuery`, `attributes` to `executeAgentServiceAttributes`, `web_search` to `executeWebSearch`, and `execute` to the sandbox. <!-- id:dlSy993f -->
+  5. Execute: `search` goes to `executeAgentServiceSearch`, `query` to `executeAgentServiceQuery`, `attributes` to `executeAgentServiceAttributes`, `web_search` to `executeWebSearch`, `convert` to `executeConvert`, and `execute` to the sandbox. <!-- id:dlSy993f -->
 
 Promoted callables are exposed as real provider tools that route back through the same function (`createAgentServicePiTools`, `api-service.ts`). A promoted tool and a `call` of it behave identically: same validation, same narrowing, same executor. <!-- id:NFz3qyK1 -->
 
@@ -247,6 +247,18 @@ type ExecuteInput = {
 - Networking is **on by default**, with explicit DNS resolvers and a non-local egress policy (`NetworkPolicy.fromProfiles(['public'])`, falling back to `nonLocal()` for older staged SDKs, `code-exec.ts`). <!-- id:V5Dky7AY -->
 - Output: `{summary, exitCode, success, stdout, stderr, truncated, durationMs, changedFiles}`. stdout and stderr are bounded at 64 KiB each. `changedFiles` is a before/after listing diff of memory. Live progress streams a \~2000-char output tail at most every 250 ms. <!-- id:Zr_CQ4Uz -->
 - The SDK loads lazily and `availability()` is memoized. Hosts without virtualization run normally, and the tool is absent there instead of failing (`code-exec.ts`, with codes `config-disabled`, `unsupported-platform`, `whp-disabled`, `kvm-missing`, `kvm-forbidden`, `runtime-error`). <!-- id:nzXZhUiw -->
+
+## `convert`
+
+Converts documents in memory (PDF, office formats, EPUB, images) to markdown with the Datalab document parser, on the server (`executeConvert`, `api-service.ts`; the HTTP client is `agents/src/datalab.ts`). The model-facing side is in [Document import](./datalab-importer.md). What the server does:
+
+- **Input** is a list of memory paths; a folder expands to every supported file under it, up to 50 documents per call. Each document is read, size-capped (100 MiB), checked by extension (and `%PDF-` for PDFs), and given an output folder `<output_dir>/<slug>/`. An existing folder is a failure unless `overwrite` is set.
+- **Key chooser**: the account's own `datalab-api-key` secret (unmetered), else the server key `SEED_AGENTS_DATALAB_API_KEY` (metered), else the relay `SEED_AGENTS_CONVERT_RELAY_URL` (signed `ConvertDocument` to the hosted server as the agent's identity, see [Signed API](./signed-api.md)), else the tool is withheld.
+- **Ledger** (`agents/src/conversion-ledger.ts`, table `conversion_usage`): on the shared key, pages are reserved before the call as `min(max_pages, per-call cap, account allowance remaining, server ceiling remaining)` in one transaction, sent to Datalab as `max_pages`, settled to the reported page count on success and released on failure. Reserved rows count as used, so concurrent calls cannot overshoot together. A reservation older than 30 minutes is released by the next one.
+- **Mode**: `SEED_AGENTS_DATALAB_MODE` is both the default and the ceiling on the shared key; a requested mode more expensive than it is lowered. `SEED_AGENTS_DATALAB_EXTRAS` goes with every call; synthetic image captions are off.
+- **Concurrency**: documents in one call run through a pool of `SEED_AGENTS_DATALAB_CONCURRENCY` workers; the preflight (reading, checks, reservations) runs in list order first so slugs and ledger rows are deterministic. Datalab's rate limits (HTTP 429, and a completed job reporting its page-concurrency limit) are retried with backoff.
+- **Output** per document: `raw.md`, `seed.md` (image references rewritten to standalone `![alt](assets/<file>)` paragraphs, because the markdown parser drops inline images and the memory publish path uploads only standalone image blocks), `assets/`, `manifest.json`. One `agent-memory-changed` event per call.
+- **Result**: `{summary, documents[], failures[], keySource, pagesChargedThisCall?, pagesRemainingThisMonth?}`, paths and counts only. A document that failed to convert is a `failures` entry; a rejected key, bad input paths or an exhausted allowance before the first document throw.
 
 ## Authored (lambda) tools <!-- id:tzwll2x7 -->
 
@@ -388,7 +400,7 @@ Durable session events and the desktop UI keep the tool's full output. Only the 
 - [Grants](./grants.md) <!-- id:rK4BKGX7 -->
 - [Tool document](./tool-document.md) <!-- id:lG_ea_kJ -->
 - [MCP servers](./mcp.md) <!-- id:4D2TubeN -->
-- [Datalab PDF importer](./datalab-importer.md)
+- [Document import](./datalab-importer.md)
 - [Triggers](./triggers.md) <!-- id:F1npZzOs -->
 - [Security](./security.md) <!-- id:1gpCge_Z -->
 - [Session continuation](./session-continuation.md) <!-- id:5SxLzsxa -->
