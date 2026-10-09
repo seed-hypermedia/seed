@@ -229,7 +229,12 @@ describe('convert builtin', () => {
       ].join('\n'),
     )
     const manifest = JSON.parse(t.read('datalab-imports/paper/manifest.json')) as Record<string, unknown>
-    expect(manifest).toMatchObject({captionsFolded: 1, referenceEntries: 2, citationsLinked: 2, citationsUnlinked: [3]})
+    expect(manifest).toMatchObject({
+      captionsFolded: 1,
+      referenceEntries: 2,
+      citationsLinked: 2,
+      citationsUnlinked: ['3'],
+    })
   })
 
   test('a folder converts every supported file in parallel, skips the rest, and keeps going past one failure', async () => {

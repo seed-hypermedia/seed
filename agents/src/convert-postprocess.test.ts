@@ -63,7 +63,43 @@ describe('postprocessConvertedMarkdown', () => {
     expect(out.markdown).toContain('See also [[4](#ref-4), [5](#ref-5), [6](#ref-6)], [[9](#ref-9)] and [12].')
     expect(out.markdown).toContain('cites [[2](#ref-2)] here')
     expect(out.citationsLinked).toBe(8)
-    expect(out.citationsUnlinked).toEqual([12, 99])
+    expect(out.citationsUnlinked).toEqual(['12', '99'])
+  })
+
+  // Shapes from a real conversion of the Sherman et al. ATK paper: `[Author year]` labels on
+  // both the entries and the citations, emphasis inside a label, a comma-separated pair.
+  test('links labelled author-year citations to entries carrying the same label', () => {
+    const src = [
+      'Links for hypertext [Meyrowitz 1989]. Built atop ATK [Borenstein *et al.* 1988] had no plan.',
+      'The Help system [Langston 1988, Ogura & Robertson 1989] provides help; see [Olivetti undated].',
+      'Not cited: [Meyrowitz 1999], [sic] and [Figure 2].',
+      '',
+      '## References',
+      '',
+      '- [Atkinson 1987] Atkinson, B., *HyperCard*, Apple Computer, 1987.',
+      '- [Borenstein *et al.* 1988] Borenstein, Nathaniel, "A Multi-media Message System for Andrew", 1988.',
+      '- [Langston 1988] Langston, Diane, "Background and Initial Problems for the Andrew Help System," 1988.',
+      '- [Meyrowitz 1989] Meyrowitz, N., "Hypertext—Does it Reduce Cholesterol, too?", 1989.',
+      '- [Ogura & Robertson 1989] Ogura, Ayami, Jennifer Robertson, "Designing Hypermedia Help Systems", 1989.',
+      '- [Olivetti undated] "Hypermedia Help System", Olivetti Internal Memo, undated.',
+      '',
+    ].join('\n')
+    const out = postprocessConvertedMarkdown(src)
+    expect(out.referenceEntries).toBe(6)
+    expect(out.markdown).toContain(
+      '- [Atkinson 1987] Atkinson, B., *HyperCard*, Apple Computer, 1987. <!-- id:ref-atkinson-1987 -->',
+    )
+    expect(out.markdown).toContain('1988. <!-- id:ref-borenstein-et-al-1988 -->')
+    expect(out.markdown).toContain('1989. <!-- id:ref-ogura-robertson-1989 -->')
+    expect(out.markdown).toContain(
+      'Links for hypertext [[Meyrowitz 1989](#ref-meyrowitz-1989)]. Built atop ATK [[Borenstein *et al.* 1988](#ref-borenstein-et-al-1988)] had no plan.',
+    )
+    expect(out.markdown).toContain(
+      'The Help system [[Langston 1988](#ref-langston-1988), [Ogura & Robertson 1989](#ref-ogura-robertson-1989)] provides help; see [[Olivetti undated](#ref-olivetti-undated)].',
+    )
+    expect(out.markdown).toContain('Not cited: [Meyrowitz 1999], [sic] and [Figure 2].')
+    expect(out.citationsLinked).toBe(5)
+    expect(out.citationsUnlinked).toEqual(['meyrowitz 1999'])
   })
 
   test('leaves link labels, reference-style links, code and the bibliography itself alone', () => {

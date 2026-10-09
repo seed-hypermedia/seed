@@ -31,7 +31,7 @@ Start from these pages: <!-- id:TQBa8FA_ -->
 1. Understand the structure of the source first. For a web page, read it and save the markdown under `~/memory/` before you publish anything. For a PDF, Word, spreadsheet, presentation, EPUB or image file in memory, call `convert`: it writes a reviewable `seed.md` next to the extracted figures. See [Document import](./datalab-importer.md). <!-- id:o4ZTyWRn -->
 2. Put the source's facts into [metadata](../metadata.md): `name`, `summary`, `displayAuthor`, `displayPublishTime`, and `cover` or `icon` when the source has them. Don't invent values. When you publish a memory file with `write ... fromPath`, that metadata goes in the file's YAML frontmatter; `fromPath` takes no `name` or `metadata` options. <!-- id:Qtllnlo4 -->
 3. Upload images and files to IPFS and link them from the document. A file's bytes say what type it is, so don't add file name or type attributes to blocks. <!-- id:2mwmttFq -->
-4. Publish from the memory file, then read the result once and check it against the source: every figure has its caption, citations link to their reference entries, the ending is intact. `convert` does the captions and the numeric citations itself; fix only what its result says it could not link. <!-- id:MoZxcmAi -->
+4. Publish from the memory file, then read the result once and check it against the source: every figure has its caption, citations link to their reference entries, the ending is intact. `convert` does the captions and the bracketed citations itself; fix only what its result says it could not link. <!-- id:MoZxcmAi -->
 
 # Memory, code and tools <!-- id:7arS60MY -->
 
