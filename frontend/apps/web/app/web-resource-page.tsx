@@ -69,7 +69,7 @@ import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {openWebDomainSettings} from './models/domain-publishing'
-import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
+import {useCreateSpaceDialog, useHasExistingSpace, usePublishSpaceDraft} from './web-create-space-dialog'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {WebDocumentPrefetch} from './web-document-prefetch'
 import {useWebDocumentDestinationDialog} from './web-move-document-dialog'
@@ -181,6 +181,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const {origin, originHomeId, experiments} = useUniversalAppContext()
   const route = useNavRoute()
   const navigate = useNavigate()
+  const publishSpaceDraft = usePublishSpaceDraft()
   const replaceRoute = useNavigate('replace')
   const userKeyPair = useLocalKeyPair()
   const editProfileDialog = useAppDialog(EditProfileDialog)
@@ -488,15 +489,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       onPublishIntercept: () => {
         const isSpaceDraft = isSpaceHomeDraft || isPendingSpace
         if (!isSpaceDraft || !placeholderDraftId) return false
-        void setPendingIntent({type: 'publish-draft', draftId: placeholderDraftId}).then(() => {
-          if (userKeyPair) {
-            void processPendingIntent(originHomeId ?? undefined).then((result) => {
-              if (result.type === 'publish-draft') window.location.assign(result.spaceUrl)
-            })
-          } else {
+        if (userKeyPair) void publishSpaceDraft(placeholderDraftId)
+        else {
+          void setPendingIntent({type: 'publish-draft', draftId: placeholderDraftId}).then(() => {
             createAccount({source: 'join'})
-          }
-        })
+          })
+        }
         return true
       },
     }),
@@ -504,6 +502,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       origin,
       originHomeId,
       navigate,
+      publishSpaceDraft,
       replaceRoute,
       docId,
       route,

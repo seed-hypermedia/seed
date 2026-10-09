@@ -129,18 +129,30 @@ export function useSiteRegistration(accountUid: string) {
   return useMutation({mutationFn: ({url}: {url: string}) => registerSite(accountUid, url)})
 }
 
+type HomeDocumentUpdate = {
+  metadata?: HMMetadata
+  /** Merge edited fields with the latest published metadata to preserve concurrent changes. */
+  updateMetadata?: (current: HMMetadata) => HMMetadata
+  navigation?: HMNavigationItem[]
+}
+
+/** Publish only requested home metadata/navigation edits using its latest version and owner delegation. */
+export async function updateHomeDocument(
+  accountUid: string,
+  {metadata, updateMetadata, navigation}: HomeDocumentUpdate,
+) {
+  const identity = requireSiteOwner(accountUid)
+  const document = await loadHome(accountUid)
+  const nextMetadata = updateMetadata ? updateMetadata(document.metadata) : metadata
+  await publishHomeChanges(accountUid, identity, document, [
+    ...(nextMetadata ? getDocAttributeChanges(nextMetadata, document.metadata) : []),
+    ...(navigation ? getNavigationChanges(navigation, document.detachedBlocks?.navigation) : []),
+  ])
+}
+
 /** Update a space's home metadata or navigation with its current version and delegated owner signature. */
 export function useUpdateHomeDocument(accountUid: string) {
-  return useMutation({
-    mutationFn: async ({metadata, navigation}: {metadata?: HMMetadata; navigation?: HMNavigationItem[]}) => {
-      const identity = requireSiteOwner(accountUid)
-      const document = await loadHome(accountUid)
-      await publishHomeChanges(accountUid, identity, document, [
-        ...(metadata ? getDocAttributeChanges(metadata, document.metadata) : []),
-        ...(navigation ? getNavigationChanges(navigation, document.detachedBlocks?.navigation) : []),
-      ])
-    },
-  })
+  return useMutation({mutationFn: (input: HomeDocumentUpdate) => updateHomeDocument(accountUid, input)})
 }
 
 /** Clear a publication address without deleting the hosted site or its content. */

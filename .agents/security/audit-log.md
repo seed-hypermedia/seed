@@ -172,3 +172,17 @@ cross-user exploit. Review started at `9841c1517`.
 Run `node --test scripts/security/*.test.cjs` after the frozen dependency install so regressions exercise the installed,
 patched packages. An audit exception, if needed because a scanner cannot recognize a source patch, must remain specific
 to its verified advisory and cannot substitute for these tests.
+
+## Dependency release update — 2026-10-09
+
+Scope: existing dependency-audit failures at `40c39c56`, not a new application security review. Isolated main and
+follow-up branch lockfile audits had identical advisories; the added Remix test helper introduced none.
+
+Updated the existing Handlebars override from 4.7.9 to the published
+[4.7.10 release](https://github.com/handlebars-lang/handlebars.js/releases/tag/v4.7.10), which fixes
+[GHSA-8r5x-fm3f-whwj](https://github.com/advisories/GHSA-8r5x-fm3f-whwj) and
+[GHSA-p8wg-vrv2-v86f](https://github.com/advisories/GHSA-p8wg-vrv2-v86f). No audit exceptions were added. Frozen
+installation and `pnpm audit --audit-level=high --ignore-registry-errors` pass; lower-severity findings and previous
+exceptions remain. All 30 existing installed-package security regressions pass; no Handlebars-specific patch tests exist
+in this repository. Confirmed the installed version and ordinary template compilation. No production probes or
+vulnerability reproduction were performed.

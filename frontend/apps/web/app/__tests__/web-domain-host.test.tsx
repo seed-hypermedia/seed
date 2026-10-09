@@ -4,9 +4,13 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {Outlet} from '@remix-run/react'
+import {createRemixStub} from '@remix-run/testing'
 
 const state = vi.hoisted(() => ({identity: {id: 'session', delegatedAccountUid: 'owner'} as any}))
 vi.mock('@/auth', () => ({useLocalKeyPair: () => state.identity}))
+vi.mock('../local-db', () => ({setPendingIntent: vi.fn()}))
+vi.mock('../pending-intent', () => ({processPendingIntent: vi.fn()}))
 vi.mock('@/site-context-bridge', () => ({useSiteContextSnapshot: () => ({universal: {}, navigation: {}})}))
 vi.mock('../components/web-hosting', () => ({
   WebHostingDialog: ({onClose}: {onClose: () => void}) => {
@@ -23,6 +27,9 @@ vi.mock('../components/web-hosting', () => ({
 }))
 
 import {WebDomainHost} from '../components/web-domain-host'
+import {usePublishSpaceDraft} from '../web-create-space-dialog'
+import {setPendingIntent} from '../local-db'
+import {processPendingIntent} from '../pending-intent'
 import {
   inviteWebDomainPublication,
   openWebDomainSettings,
@@ -33,6 +40,7 @@ import {
 let root: Root
 let container: HTMLDivElement
 beforeEach(() => {
+  vi.clearAllMocks()
   state.identity = {id: 'session', delegatedAccountUid: 'owner'}
   setWebDomainRequest(null)
   container = document.createElement('div')
@@ -52,6 +60,47 @@ function button(text: string) {
 }
 
 describe('persistent browser domain flow', () => {
+  it('keeps the invitation mounted when first publication navigates away from its draft', async () => {
+    let finishPublication: () => void = () => {}
+    vi.mocked(processPendingIntent).mockImplementation(async () => {
+      inviteWebDomainPublication(hmId('navigated-space'), 'owner')
+      // Publication opens the invitation before the remaining draft cleanup finishes.
+      await new Promise<void>((resolve) => {
+        finishPublication = resolve
+      })
+      return {type: 'publish-draft', spaceUrl: '/hm/navigated-space'}
+    })
+    function Draft() {
+      const publish = usePublishSpaceDraft()
+      return <button onClick={() => void publish('home-draft')}>Publish draft</button>
+    }
+    const App = createRemixStub([
+      {
+        Component: () => (
+          <>
+            <Outlet />
+            <WebDomainHost />
+          </>
+        ),
+        children: [
+          {path: '/draft', Component: Draft},
+          {path: '/hm/navigated-space', Component: () => <p>Published space home</p>},
+        ],
+      },
+    ])
+    await act(async () => root.render(<App initialEntries={['/draft']} />))
+    await act(async () => button('Publish draft').click())
+    expect(setPendingIntent).toHaveBeenCalledWith({type: 'publish-draft', draftId: 'home-draft'})
+    const invitation = document.querySelector('[role="dialog"]')
+    expect(invitation?.textContent).toContain('Your space is published')
+    await act(async () => finishPublication())
+    expect(container.textContent).toContain('Published space home')
+    expect(container.textContent).not.toContain('Publish draft')
+    expect(document.querySelector('[role="dialog"]')).toBe(invitation)
+    await act(async () => button('Publish to a Domain').click())
+    expect(document.body.textContent).toContain('Continue hosting')
+  })
+
   it('opens from first publication and retains the hosting step across page renders', async () => {
     await act(async () => {
       root.render(<WebDomainHost />)
