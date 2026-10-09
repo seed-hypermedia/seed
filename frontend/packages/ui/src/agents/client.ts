@@ -146,6 +146,8 @@ export type AgentServerHealth = {
   codeExecReason?: string
   /** Machine-readable cause when codeExec is false (e.g. 'whp-disabled'), for targeted help UI. */
   codeExecReasonCode?: string
+  /** Whether the server converts documents (Datalab), with its own key or through a relay. Absent on older servers. */
+  convert?: {available: boolean; source: 'key' | 'relay' | 'none'}
   /** Wire protocol the server speaks; absent on servers from before protocol 2 (see agents/protocol/PROTOCOL.md). */
   protocol?: number
   /** Oldest client protocol the server still answers. Absent on servers from before protocol 2. */
