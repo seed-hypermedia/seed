@@ -74,6 +74,7 @@ import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
 import {listWebDocChildDrafts} from './document-edit/web-draft-db'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
+import {useWebSpaceSettingsDialog, WebSpaceSettingsMenuItem} from './components/web-space-settings-menu'
 import {getVaultAccountSettingsUrl} from './vault-links'
 import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
@@ -494,6 +495,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const maintenance = useDocumentMaintenance()
   const accountMenuTriggerRef = useRef<HTMLButtonElement>(null)
   const openMaintenanceOnMenuClose = useRef(false)
+  const openSpaceSettingsOnMenuClose = useRef(false)
+  const spaceSettingsDialog = useWebSpaceSettingsDialog()
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
   const {content: createAccountContent, createAccount} = useCreateAccount({})
@@ -609,6 +612,14 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
       </button>
+      <WebSpaceSettingsMenuItem
+        siteUid={siteUid}
+        mobile
+        onSelect={() => {
+          setMobileMenuOpen(false)
+          spaceSettingsDialog.open({siteUid})
+        }}
+      />
       {maintenance ? (
         <button
           className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
@@ -702,6 +713,12 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
               align="end"
               className="min-w-[200px]"
               onCloseAutoFocus={(event) => {
+                if (openSpaceSettingsOnMenuClose.current) {
+                  openSpaceSettingsOnMenuClose.current = false
+                  event.preventDefault()
+                  spaceSettingsDialog.open({siteUid})
+                  return
+                }
                 if (!openMaintenanceOnMenuClose.current) return
                 openMaintenanceOnMenuClose.current = false
                 if (maintenance && accountMenuTriggerRef.current) {
@@ -742,6 +759,12 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 <UserCog className="size-4" />
                 Manage account
               </DropdownMenuItem>
+              <WebSpaceSettingsMenuItem
+                siteUid={siteUid}
+                onSelect={() => {
+                  openSpaceSettingsOnMenuClose.current = true
+                }}
+              />
               {maintenance ? (
                 <DropdownMenuItem
                   aria-haspopup="dialog"
@@ -785,6 +808,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
       {logoutDialog.content}
       {createAccountContent}
       {createSpaceDialogContent}
+      {spaceSettingsDialog.content}
     </>
   )
 }

@@ -155,7 +155,7 @@
       "happy-dom": "20.8.9",
       "flatted": "3.4.2",
       "undici": "6.28.1",
-      "handlebars": "4.7.9",
+      "handlebars": "4.7.10",
       "node-forge": "1.4.0",
       "path-to-regexp@<0.1.13": "0.1.13",
       "path-to-regexp@>=8.0.0 <8.4.0": "8.4.0",

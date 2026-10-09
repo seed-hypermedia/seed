@@ -9,7 +9,7 @@ vi.mock('@/universal-client', () => ({
 }))
 vi.mock('@shm/shared/models/query-client', () => ({invalidateQueries: mocks.invalidate}))
 
-import {registerSite, removeSite, updateMovedSitePublication} from './site'
+import {registerSite, removeSite, updateHomeDocument, updateMovedSitePublication} from './site'
 
 const identity = {id: 'session-key', delegatedAccountUid: 'alice', capabilityCid: 'owner-session-capability'}
 const setupUrl = 'https://myspace.hyper.media/hm/register?secret=setup-secret'
@@ -44,6 +44,50 @@ describe('browser site publication', () => {
     vi.stubGlobal('window', {location: {origin: 'https://hyper.media'}})
   })
   afterEach(() => vi.unstubAllGlobals())
+
+  it('merges identity edits with latest metadata and leaves root content/navigation unchanged', async () => {
+    const latest = {
+      ...document('https://concurrent.example'),
+      metadata: {
+        name: 'My Space',
+        siteUrl: 'https://concurrent.example',
+        customField: 'concurrent value',
+        theme: {headerLayout: 'Center'},
+      },
+      content: [{block: {id: 'body', text: 'Existing home content'}}],
+      detachedBlocks: {navigation: {children: [{block: {id: 'nav', type: 'Link', link: 'https://example.com'}}]}},
+    }
+    mocks.request.mockResolvedValue({type: 'document', document: latest})
+    await updateHomeDocument('alice', {updateMetadata: (current) => ({...current, name: 'Updated name'})})
+    const publication = mocks.publish.mock.calls[0]![0]
+    expect(publication).toMatchObject({baseVersion: 'latest-version', capability: 'owner-session-capability'})
+    expect(publication.changes).toHaveLength(1)
+    expect(publication.changes[0].op).toMatchObject({
+      case: 'setAttribute',
+      value: {blockId: '', key: ['name'], value: {case: 'stringValue', value: 'Updated name'}},
+    })
+  })
+
+  it('preserves the current identity and links when only changing content width', async () => {
+    await updateHomeDocument('alice', {updateMetadata: (current) => ({...current, contentWidth: 'M'})})
+    const changes = mocks.publish.mock.calls[0]![0].changes
+    expect(changes).toHaveLength(1)
+    expect(changes[0].op).toMatchObject({
+      case: 'setAttribute',
+      value: {key: ['contentWidth'], value: {case: 'stringValue', value: 'M'}},
+    })
+  })
+
+  it('rejects settings edits if the account changes during the latest-home request', async () => {
+    mocks.request.mockImplementation(async () => {
+      mocks.identity.mockReturnValue({...identity, delegatedAccountUid: 'bob'})
+      return {type: 'document', document: document()}
+    })
+    await expect(
+      updateHomeDocument('alice', {updateMetadata: (current) => ({...current, name: 'New'})}),
+    ).rejects.toThrow('Your account changed')
+    expect(mocks.publish).not.toHaveBeenCalled()
+  })
 
   it('registers from the current gateway peer and signs the latest home update with the owner delegation', async () => {
     fetchMock
