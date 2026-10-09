@@ -6,7 +6,15 @@ import {StoreContext, createStore} from '@/frontend/store'
 import {createMockBlockstore, createMockClient} from '@/frontend/test-utils'
 import {DelegateView} from './DelegateView'
 
-function renderDelegateView({siteName, accountNames}: {siteName?: string; accountNames: string[]}) {
+function renderDelegateView({
+  siteName,
+  accountNames,
+  emailPrevalidation,
+}: {
+  siteName?: string
+  accountNames: string[]
+  emailPrevalidation?: boolean
+}) {
   const store = createStore(createMockClient(), createMockBlockstore())
 
   const accounts = accountNames.map((name, index) => {
@@ -21,6 +29,7 @@ function renderDelegateView({siteName, accountNames}: {siteName?: string; accoun
   store.state.selectedAccountIndex = 0
   store.state.delegationRequest = {
     originalUrl: 'https://vault.example.com/delegate',
+    emailPrevalidation,
     clientId: 'https://site.example.com',
     redirectUri: 'https://site.example.com/callback',
     sessionKeyPrincipal: blobs.principalToString(blobs.generateNobleKeyPair().principal),
@@ -71,6 +80,14 @@ describe('DelegateView', () => {
 
     expect(screen.getByText('Ethosfera')).toBeDefined()
     expect(screen.getByText('site.example.com')).toBeDefined()
+  })
+
+  test('discloses verified email sharing only when the client requests it', () => {
+    renderDelegateView({accountNames: ['Bea'], emailPrevalidation: true})
+    expect(screen.getByText('Continuing shares your verified email with site.example.com.')).toBeDefined()
+    cleanup()
+    renderDelegateView({accountNames: ['Bea']})
+    expect(screen.queryByText(/Continuing shares your verified email/)).toBeNull()
   })
 
   test('falls back to the client hostname when no site name is provided', () => {

@@ -6,12 +6,18 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const state = vi.hoisted(() => ({
   identity: {} as any,
+  identityLoaded: true,
   access: {} as any,
   resource: {} as any,
   update: vi.fn(),
   upload: vi.fn(),
+  navigate: vi.fn(),
 }))
-vi.mock('@/auth', () => ({useLocalKeyPair: () => state.identity}))
+vi.mock('@shm/shared/utils/navigation', () => ({useNavigate: () => state.navigate}))
+vi.mock('@/auth', () => ({
+  useLocalKeyPair: () => state.identity,
+  useLocalKeyPairLoaded: () => state.identityLoaded,
+}))
 vi.mock('@/document-edit/use-web-can-edit', () => ({useWebCanEdit: () => state.access}))
 vi.mock('@/models/site', () => ({
   useUpdateHomeDocument: () => ({
@@ -49,12 +55,13 @@ vi.mock('@shm/ui/image-form', () => ({
   ),
 }))
 vi.mock('./web-hosting', () => ({WebDomainSettings: ({siteId}: any) => <div>Hosting controls for {siteId.uid}</div>}))
-import {WebSpaceSettingsDialog} from './web-space-settings'
+import {WebSpaceSettingsPage} from './web-space-settings'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 let root: Root
 let container: HTMLDivElement
+let section: 'identity' | 'navigation' | 'web-domain' | undefined
 function render() {
-  act(() => root.render(<WebSpaceSettingsDialog input={{siteUid: 'owner'}} onClose={() => {}} />))
+  act(() => root.render(<WebSpaceSettingsPage siteUid="owner" section={section} />))
 }
 async function click(label: string) {
   const button = [...container.querySelectorAll('button')].find(
@@ -67,12 +74,12 @@ async function click(label: string) {
   })
 }
 async function tab(name: string) {
-  const element = [...container.querySelectorAll('[role="tab"]')].find((element) => element.textContent === name)!
-  await act(async () => {
-    element.dispatchEvent(new MouseEvent('mousedown', {bubbles: true, button: 0}))
-    ;(element as HTMLElement).focus()
-    ;(element as HTMLElement).click()
-  })
+  const element = [...container.querySelectorAll('nav button')].find((element) => element.textContent === name)!
+  await act(async () => (element as HTMLElement).click())
+  const route = state.navigate.mock.lastCall![0]
+  expect(route).toMatchObject({key: 'site-settings', id: {uid: 'owner'}})
+  section = route.tab
+  render()
 }
 async function input(id: string, value: string) {
   const element = container.querySelector(`#${id}`)!
@@ -83,8 +90,11 @@ async function input(id: string, value: string) {
 }
 beforeEach(() => {
   vi.clearAllMocks()
+  state.identityLoaded = true
+  section = undefined
   state.identity = {id: 'device-key', delegatedAccountUid: 'owner', capabilityCid: 'delegation'}
-  state.access = {canEdit: true, signingAccountId: 'owner'}
+  // An owner can manage their space even when the current site's editor scope excludes it.
+  state.access = {canEdit: false, signingAccountId: 'owner'}
   state.resource = {
     data: {
       type: 'document',
@@ -184,7 +194,9 @@ describe('web space settings', () => {
     await tab('Navigation')
     await input('nav-url-first', 'javascript:alert(1)')
     expect(
-      [...container.querySelectorAll('button')].find((button) => button.textContent === 'Save navigation')?.disabled,
+      [...container.querySelectorAll('button')].find(
+        (button) => button.getAttribute('aria-label') === 'Save navigation',
+      )?.disabled,
     ).toBe(true)
     await click('Remove link 1')
     await click('Remove link 1')
@@ -197,19 +209,31 @@ describe('web space settings', () => {
     expect(container.textContent).toContain('Hosting controls for owner')
   })
   it.each([
-    [
-      {canEdit: true, signingAccountId: 'writer'},
-      {id: 'key', capabilityCid: 'writer-cap'},
-    ],
-    [{canEdit: false, signingAccountId: null}, null],
-    [{canEdit: true, signingAccountId: 'owner'}, {id: 'key'}],
-  ])('does not expose controls without an owner delegation', (access, identity) => {
-    state.access = access
+    {id: 'key', delegatedAccountUid: 'writer', capabilityCid: 'writer-cap'},
+    null,
+    {id: 'owner'},
+    {id: 'key', delegatedAccountUid: 'owner'},
+  ])('does not expose controls without an owner delegation: %j', (identity) => {
     state.identity = identity
     render()
     expect(container.textContent).toContain('Sign in as the space owner')
     expect(container.querySelector('input')).toBeNull()
     expect(container.querySelector('[role="tab"]')).toBeNull()
+  })
+  it('waits for the browser identity before deciding ownership', () => {
+    state.identity = null
+    state.identityLoaded = false
+    render()
+    expect(container.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe('Loading account')
+    expect(container.textContent).not.toContain('Sign in as the space owner')
+  })
+  it('removes the owner controls when the account changes', () => {
+    render()
+    expect(container.querySelector('input')).not.toBeNull()
+    state.identity = {id: 'other-key', delegatedAccountUid: 'other', capabilityCid: 'other-cap'}
+    render()
+    expect(container.textContent).toContain('Sign in as the space owner')
+    expect(container.querySelector('input')).toBeNull()
   })
   it('clears unsaved edits when the active delegation changes', async () => {
     render()

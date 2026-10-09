@@ -1,3 +1,4 @@
+import type {EmailPrevalidation} from '@shm/shared/hmauth'
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {HMDocument, HMPrepareDocumentChangeInput, HMSigner} from '@seed-hypermedia/client/hm-types'
@@ -37,7 +38,7 @@ import {
 } from './local-db'
 import {reportError} from './report-error'
 import {logoutHosting} from './models/host'
-import {setWebDomainRequest} from './models/domain-publishing'
+import {saveWebDomainReturn, setWebDomainRequest, type WebDomainRequest} from './models/domain-publishing'
 import {getVaultAccountSettingsUrl} from './vault-links'
 
 const seedClient = createSeedClient('')
@@ -63,6 +64,7 @@ export type LocalWebIdentity = CryptoKeyPair & {
   capabilityCid?: string
   vaultUrl?: string
   notifyServerUrl?: string
+  emailPrevalidation?: EmailPrevalidation
 }
 let keyPair: LocalWebIdentity | null = null
 // Whether the first attempt to load the local identity from IndexedDB has
@@ -102,6 +104,7 @@ async function loadLocalWebIdentity(): Promise<LocalWebIdentity | null> {
     capabilityCid: stored.capabilityCid,
     vaultUrl: stored.vaultUrl,
     notifyServerUrl: stored.notifyServerUrl,
+    emailPrevalidation: stored.emailPrevalidation,
   }
 }
 
@@ -112,7 +115,11 @@ function syncKeyPair(newKeyPair: LocalWebIdentity | null) {
     newKeyPair?.delegatedAccountUid !== keyPair?.delegatedAccountUid ||
     newKeyPair?.capabilityCid !== keyPair?.capabilityCid ||
     newKeyPair?.vaultUrl !== keyPair?.vaultUrl ||
-    newKeyPair?.notifyServerUrl !== keyPair?.notifyServerUrl
+    newKeyPair?.notifyServerUrl !== keyPair?.notifyServerUrl ||
+    newKeyPair?.emailPrevalidation?.email !== keyPair?.emailPrevalidation?.email ||
+    newKeyPair?.emailPrevalidation?.host !== keyPair?.emailPrevalidation?.host ||
+    newKeyPair?.emailPrevalidation?.signer !== keyPair?.emailPrevalidation?.signer ||
+    newKeyPair?.emailPrevalidation?.sig !== keyPair?.emailPrevalidation?.sig
   ) {
     keyPairStore.set(newKeyPair)
   }
@@ -168,19 +175,26 @@ export async function redirectToVaultSignIn(opts: {
   origin: string
   siteName?: string
   vaultUrl: string
+  hostingRequest?: WebDomainRequest
 }): Promise<void> {
-  await setAuthState(
-    AUTH_STATE_DELEGATION_RETURN_URL,
-    `${window.location.pathname}${window.location.search}${window.location.hash}`,
-  )
-  await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, opts.vaultUrl)
-  const authUrl = await authSession.startAuth({
-    vaultUrl: opts.vaultUrl,
-    clientId: opts.origin || window.location.origin,
-    redirectUri: `${opts.origin || window.location.origin}/hm/auth/callback`,
-    siteName: opts.siteName || hostnameStripProtocol(opts.origin) || 'this space',
-  })
-  window.location.href = authUrl
+  try {
+    await saveWebDomainReturn(opts.hostingRequest)
+    await setAuthState(
+      AUTH_STATE_DELEGATION_RETURN_URL,
+      `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    )
+    await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, opts.vaultUrl)
+    const authUrl = await authSession.startAuth({
+      vaultUrl: opts.vaultUrl,
+      clientId: opts.origin || window.location.origin,
+      redirectUri: `${opts.origin || window.location.origin}/hm/auth/callback`,
+      siteName: opts.siteName || hostnameStripProtocol(opts.origin) || 'this space',
+    })
+    window.location.href = authUrl
+  } catch (error) {
+    await saveWebDomainReturn()
+    throw error
+  }
 }
 
 export function useLocalKeyPair() {

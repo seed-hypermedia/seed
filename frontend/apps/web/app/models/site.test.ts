@@ -89,40 +89,47 @@ describe('browser site publication', () => {
     expect(mocks.publish).not.toHaveBeenCalled()
   })
 
-  it('registers from the current gateway peer and signs the latest home update with the owner delegation', async () => {
-    fetchMock
-      .mockResolvedValueOnce(response({peerId: 'destination-peer'}))
-      .mockResolvedValueOnce(response({peerId: 'source-peer', addrs: ['/dns4/source.test/tcp/4001']}))
-      .mockResolvedValueOnce(response({message: 'Success'}))
-    mocks.request
-      .mockResolvedValueOnce({type: 'document', document: {...document(), version: 'before-registration'}})
-      .mockResolvedValueOnce({type: 'document', document: document()})
+  it.each(['https://myspace.hyper.media', 'https://my-own-server.example:8443'])(
+    'registers %s from the current gateway peer and signs with the owner delegation',
+    async (origin) => {
+      fetchMock
+        .mockResolvedValueOnce(response({peerId: 'destination-peer'}))
+        .mockResolvedValueOnce(response({peerId: 'source-peer', addrs: ['/dns4/source.test/tcp/4001']}))
+        .mockResolvedValueOnce(response({message: 'Success'}))
+      mocks.request
+        .mockResolvedValueOnce({type: 'document', document: {...document(), version: 'before-registration'}})
+        .mockResolvedValueOnce({type: 'document', document: document()})
 
-    expect(await registerSite('alice', setupUrl)).toBe('https://myspace.hyper.media')
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      'https://myspace.hyper.media/hm/api/config',
-      'https://hyper.media/hm/api/config',
-      'https://myspace.hyper.media/hm/api/register',
-    ])
-    const options = fetchMock.mock.calls[2]![1]
-    expect(options).toMatchObject({method: 'POST', credentials: 'omit', headers: {'Content-Type': 'application/json'}})
-    expect(JSON.parse(options.body)).toEqual({
-      registrationSecret: 'setup-secret',
-      accountUid: 'alice',
-      peerId: 'source-peer',
-      addrs: ['/dns4/source.test/tcp/4001'],
-    })
-    expect(mocks.publish).toHaveBeenCalledWith({
-      account: 'alice',
-      signerAccountUid: 'alice',
-      capability: 'owner-session-capability',
-      baseVersion: 'latest-version',
-      genesis: 'home-genesis',
-      generation: 12n,
-      changes: [{op: {case: 'setMetadata', value: {key: 'siteUrl', value: 'https://myspace.hyper.media'}}}],
-    })
-    expect(mocks.invalidate).toHaveBeenCalledTimes(3)
-  })
+      expect(await registerSite('alice', `${origin}/hm/register?secret=setup-secret`)).toBe(origin)
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        `${origin}/hm/api/config`,
+        'https://hyper.media/hm/api/config',
+        `${origin}/hm/api/register`,
+      ])
+      const options = fetchMock.mock.calls[2]![1]
+      expect(options).toMatchObject({
+        method: 'POST',
+        credentials: 'omit',
+        headers: {'Content-Type': 'application/json'},
+      })
+      expect(JSON.parse(options.body)).toEqual({
+        registrationSecret: 'setup-secret',
+        accountUid: 'alice',
+        peerId: 'source-peer',
+        addrs: ['/dns4/source.test/tcp/4001'],
+      })
+      expect(mocks.publish).toHaveBeenCalledWith({
+        account: 'alice',
+        signerAccountUid: 'alice',
+        capability: 'owner-session-capability',
+        baseVersion: 'latest-version',
+        genesis: 'home-genesis',
+        generation: 12n,
+        changes: [{op: {case: 'setMetadata', value: {key: 'siteUrl', value: origin}}}],
+      })
+      expect(mocks.invalidate).toHaveBeenCalledTimes(3)
+    },
+  )
 
   it('allows same-peer registration without reachable addresses for a local shared daemon', async () => {
     fetchMock
@@ -164,9 +171,34 @@ describe('browser site publication', () => {
     expect(mocks.publish).toHaveBeenCalledOnce()
   })
 
+  it('retries self-host publication after registration succeeds without consuming the secret again', async () => {
+    const origin = 'https://self-host.example'
+    fetchMock
+      .mockResolvedValueOnce(response({peerId: 'destination'}))
+      .mockResolvedValueOnce(response({peerId: 'source', addrs: ['/dns4/gateway.example/tcp/4001']}))
+      .mockResolvedValueOnce(response({message: 'Success'}))
+      .mockResolvedValueOnce(response({registeredAccountUid: 'alice'}))
+    mocks.publish.mockRejectedValueOnce(new Error('Publication temporarily failed'))
+    await expect(registerSite('alice', `${origin}/hm/register?secret=one-use-secret`)).rejects.toThrow(
+      'Publication temporarily failed',
+    )
+    mocks.request.mockResolvedValue({type: 'document', document: {...document(), version: 'retry-version'}})
+    await expect(registerSite('alice', origin)).resolves.toBe(origin)
+    expect(fetchMock.mock.calls.filter(([, options]) => options.method === 'POST')).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(mocks.publish).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        capability: 'owner-session-capability',
+        baseVersion: 'retry-version',
+      }),
+    )
+  })
+
   it('rejects a site registered to another space without changing metadata', async () => {
     fetchMock.mockResolvedValueOnce(response({registeredAccountUid: 'bob'}))
-    await expect(registerSite('alice', setupUrl)).rejects.toThrow('another space')
+    await expect(registerSite('alice', setupUrl)).rejects.toThrow(
+      'https://myspace.hyper.media is already registered to another space.',
+    )
     expect(fetchMock).toHaveBeenCalledOnce()
     expect(mocks.publish).not.toHaveBeenCalled()
   })
@@ -239,11 +271,60 @@ describe('browser site publication', () => {
     expect(mocks.publish).not.toHaveBeenCalled()
   })
 
-  it.each(['javascript:alert(1)', 'https://user:password@myspace.hyper.media'])(
-    'rejects invalid setup origin %s',
-    async (url) => {
-      await expect(registerSite('alice', url)).rejects.toThrow('web address')
+  it.each([
+    'not a URL?secret=hidden',
+    'javascript:alert(1)',
+    'file:///tmp/site?secret=hidden',
+    'ftp://hosting.example',
+    'https://user:password@myspace.hyper.media',
+  ])('rejects invalid setup origin %s', async (url) => {
+    await expect(registerSite('alice', url)).rejects.toThrow('web address')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it.each(['http://hosting.example', 'http://192.168.1.20:3000', 'http://localhost.example:3000'])(
+    'explains HTTPS mixed-content failure before contacting %s',
+    async (origin) => {
+      await expect(registerSite('alice', `${origin}/hm/register?secret=hidden`)).rejects.toThrow('Enable HTTPS')
       expect(fetchMock).not.toHaveBeenCalled()
+      expect(mocks.request).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each(['http://localhost:3000', 'http://site.localhost:3000', 'http://127.0.0.1:3000', 'http://[::1]:3000'])(
+    'allows loopback HTTP development from an HTTPS page: %s',
+    async (origin) => {
+      fetchMock.mockResolvedValueOnce(response({registeredAccountUid: 'alice'}))
+      await expect(registerSite('alice', origin)).resolves.toBe(origin)
+      expect(fetchMock).toHaveBeenCalledWith(`${origin}/hm/api/config`, {credentials: 'omit'})
+      expect(mocks.publish).toHaveBeenCalledOnce()
+    },
+  )
+
+  it('allows HTTP hosting from an HTTP development page', async () => {
+    vi.stubGlobal('window', {location: {origin: 'http://localhost:3000'}})
+    fetchMock.mockResolvedValueOnce(response({registeredAccountUid: 'alice'}))
+    await expect(registerSite('alice', 'http://192.168.1.20:3000')).resolves.toBe('http://192.168.1.20:3000')
+  })
+
+  it.each(['destination config', 'source config', 'registration'])(
+    'explains an unreachable %s without exposing the setup secret',
+    async (failureAt) => {
+      if (failureAt !== 'destination config') fetchMock.mockResolvedValueOnce(response({peerId: 'destination'}))
+      if (failureAt === 'registration') {
+        fetchMock.mockResolvedValueOnce(response({peerId: 'source', addrs: ['/dns4/gateway.example/tcp/4001']}))
+      }
+      fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch https://self-host.example?secret=hidden'))
+      const error = await registerSite('alice', 'https://self-host.example/hm/register?secret=hidden').catch(
+        (error: unknown) => error,
+      )
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).message).toContain('Could not connect to')
+      expect((error as Error).message).toContain('CORS')
+      expect((error as Error).message).not.toContain('hidden')
+      expect((error as Error).message).not.toContain('secret=')
+      expect(mocks.publish).not.toHaveBeenCalled()
     },
   )
 

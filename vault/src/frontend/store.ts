@@ -1946,6 +1946,16 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })()
         callbackUrl.searchParams.set(hmauth.PARAM_DATA, base64.encode(compressedCallbackData))
         callbackUrl.searchParams.set(hmauth.PARAM_STATE, state.delegationRequest.state)
+        // This reusable proof must never reach HTTP requests, server logs, or referrers.
+        // Only clients signing the opt-in can consume and immediately clear the fragment.
+        if (state.delegationRequest.emailPrevalidation) {
+          const emailProof = hmauth.parseEmailPrevalidation(state.emailPrevalidation, configuredVaultOrigin)
+          if (emailProof) {
+            callbackUrl.hash = new URLSearchParams({
+              [hmauth.PARAM_EMAIL_PREVALIDATION]: base64.encode(new Uint8Array(cbor.encode(emailProof))),
+            }).toString()
+          }
+        }
 
         state.delegationRequest = null
         state.delegationConsented = false

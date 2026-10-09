@@ -1750,6 +1750,7 @@ describe('delegation flow', () => {
     clientId = 'https://example.com',
     redirectUri = 'https://example.com/callback',
     vaultOrigin = 'https://example.com',
+    emailPrevalidation = false,
   ) {
     const keyPair = (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, false, [
       'sign',
@@ -1765,6 +1766,7 @@ describe('delegation flow', () => {
     unsignedUrl.searchParams.set('session_key', sessionKeyPrincipal)
     unsignedUrl.searchParams.set('state', state)
     unsignedUrl.searchParams.set('ts', String(ts))
+    if (emailPrevalidation) unsignedUrl.searchParams.set('email_prevalidation', '1')
     const payload = new TextEncoder().encode(unsignedUrl.toString())
     const proof = new Uint8Array(
       await crypto.subtle.sign(
@@ -1864,6 +1866,57 @@ describe('delegation flow', () => {
     expect(store.state.delegationRequest).toBeNull()
     expect(store.state.delegationConsented).toBe(false)
     expect(store.state.error).toBe('')
+  })
+
+  test('sends signed email proof only to opted-in clients and only in the callback fragment', async () => {
+    const signer = blobs.generateNobleKeyPair()
+    const emailProof = {
+      email: 'owner@example.com',
+      host: 'https://example.com',
+      signer: base64.encode(signer.principal),
+      sig: base64.encode(new Uint8Array(64)),
+    }
+    for (const optIn of [false, true]) {
+      const bs = createMockBlockstore()
+      const store = createStore(createMockClient({saveVault: async () => ({success: true})}), bs)
+      const request = await makeSignedDelegationUrl(
+        'https://example.com',
+        'https://example.com/callback',
+        'https://example.com',
+        optIn,
+      )
+      await setupDelegationState(store, request.url, bs)
+      store.state.emailPrevalidation = emailProof
+      expect(await store.actions.completeDelegation()).toBe(true)
+      const callback = new URL(window.location.href)
+      const publicData = cbor.decode<any>(await decompress(base64.decode(callback.searchParams.get('data')!)))
+      expect(publicData.emailPrevalidation).toBeUndefined()
+      expect(callback.searchParams.has('email_prevalidation')).toBe(false)
+      const encoded = new URLSearchParams(callback.hash.slice(1)).get('email_prevalidation')
+      if (optIn) expect(cbor.decode<typeof emailProof>(base64.decode(encoded!))).toEqual(emailProof)
+      else expect(encoded).toBeNull()
+    }
+  })
+
+  test('omits email proof from a different Vault without blocking delegation', async () => {
+    const bs = createMockBlockstore()
+    const store = createStore(createMockClient({saveVault: async () => ({success: true})}), bs)
+    const request = await makeSignedDelegationUrl(
+      'https://example.com',
+      'https://example.com/callback',
+      'https://example.com',
+      true,
+    )
+    await setupDelegationState(store, request.url, bs)
+    const signer = blobs.generateNobleKeyPair()
+    store.state.emailPrevalidation = {
+      email: 'owner@example.com',
+      host: 'https://other-vault.example.com',
+      signer: base64.encode(signer.principal),
+      sig: base64.encode(new Uint8Array(64)),
+    }
+    expect(await store.actions.completeDelegation()).toBe(true)
+    expect(new URL(window.location.href).hash).toBe('')
   })
 
   test('uses the vault notification server URL override during delegation completion', async () => {

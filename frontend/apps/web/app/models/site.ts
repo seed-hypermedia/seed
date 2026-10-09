@@ -61,12 +61,33 @@ async function publishHomeChanges(
   invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
 }
 
-function publicSiteOrigin(value: string): string {
-  const url = new URL(value)
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
-    throw new Error('Use a web address starting with https:// or http://.')
+function parseSiteUrl(value: string): URL {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error('Use a complete web address starting with https:// or http://.')
   }
-  return url.origin
+  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
+    throw new Error('Use a web address starting with https:// or http://, without a username or password.')
+  }
+  return url
+}
+
+function publicSiteOrigin(value: string): string {
+  return parseSiteUrl(value).origin
+}
+
+async function fetchSite(origin: string, path: string, options?: RequestInit) {
+  try {
+    return await fetch(`${origin}${path}`, {credentials: 'omit', ...options})
+  } catch {
+    // Browser network/CORS errors cannot be distinguished reliably. Never echo
+    // the setup URL or a fetch error that could contain its registration secret.
+    throw new Error(
+      `Could not connect to ${origin}. Check that the server is running and allows browser requests from this site (CORS). For HTTPS, also check its certificate, then try again.`,
+    )
+  }
 }
 
 async function siteResponse(response: Response) {
@@ -78,22 +99,33 @@ async function siteResponse(response: Response) {
 }
 
 async function readSiteConfig(origin: string) {
-  const response = await fetch(`${origin}/hm/api/config`, {credentials: 'omit'})
+  const response = await fetchSite(origin, '/hm/api/config')
   return siteConfigSchema.parse(await siteResponse(response))
 }
 
 /** Connect a hosting setup URL to the owner's space, then publish its web address using the browser delegation. */
 export async function registerSite(accountUid: string, setupUrl: string): Promise<string> {
   const identity = requireSiteOwner(accountUid)
+  const setup = parseSiteUrl(setupUrl)
+  const isLoopback =
+    setup.hostname === 'localhost' ||
+    setup.hostname.endsWith('.localhost') ||
+    setup.hostname === '[::1]' ||
+    /^127(?:\.\d{1,3}){3}$/.test(setup.hostname)
+  if (new URL(window.location.origin).protocol === 'https:' && setup.protocol === 'http:' && !isLoopback) {
+    throw new Error(
+      'This page uses HTTPS, so your browser cannot connect to an HTTP hosting server. Enable HTTPS on that server and use its HTTPS setup URL. Localhost HTTP is allowed for development.',
+    )
+  }
   // Verify publication rights and existence before consuming a registration secret.
   await loadHome(accountUid)
-  const siteUrl = publicSiteOrigin(setupUrl)
+  const siteUrl = setup.origin
   const config = await readSiteConfig(siteUrl)
   if (config.registeredAccountUid && config.registeredAccountUid !== accountUid) {
-    throw new Error('This site is already registered to another space.')
+    throw new Error(`${siteUrl} is already registered to another space.`)
   }
   if (!config.registeredAccountUid) {
-    const registrationSecret = new URL(setupUrl).searchParams.get('secret')
+    const registrationSecret = setup.searchParams.get('secret')
     if (!registrationSecret) throw new Error('The setup URL is missing its registration secret.')
     // The browser publishes to its current web gateway; it has no local libp2p daemon.
     const source = await readSiteConfig(window.location.origin)
@@ -107,9 +139,8 @@ export async function registerSite(accountUid: string, setupUrl: string): Promis
       address.endsWith(peerSuffix) ? address.slice(0, -peerSuffix.length) : address,
     )
     checkIdentity(identity)
-    const response = await fetch(`${siteUrl}/hm/api/register`, {
+    const response = await fetchSite(siteUrl, '/hm/api/register', {
       method: 'POST',
-      credentials: 'omit',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({registrationSecret, accountUid, peerId: source.peerId, addrs}),
     })

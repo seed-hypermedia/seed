@@ -1,8 +1,12 @@
-import {useWebCanEdit} from '@/document-edit/use-web-can-edit'
+import {useLocalKeyPair, useLocalKeyPairLoaded} from '@/auth'
 import {useHostSession, type HostedSite, type PendingSiteMove, type CodeStartResponse} from '@/models/host'
 import {useSiteRegistration, useRemoveSite, updateMovedSitePublication} from '@/models/site'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useResource} from '@shm/shared/models/entity'
+import {SEED_HOST_URL} from '@shm/shared/constants'
+import {hostnameStripProtocol} from '@shm/shared/site-hostname'
+import {getDocumentTitle} from '@shm/shared/content'
+import {useUniversalAppContext} from '@shm/shared'
 import {validateDomain} from '@shm/shared/utils/path'
 import {Button} from '@shm/ui/button'
 import {CodeInput} from '@shm/ui/components/code-input'
@@ -16,8 +20,18 @@ import {
 } from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {SizableText} from '@shm/ui/text'
+import {
+  PublishSiteFlow,
+  setupGuideRoute,
+  PublishSiteSuccess,
+  PublishStep,
+  PublishError,
+  publishDialogClassName,
+} from '@shm/ui/publish-site'
+import {PathInput} from '@shm/ui/path-input'
+import {UploadCloud} from '@shm/ui/icons'
 import {toast} from '@shm/ui/toast'
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 
 /** Hosting management appears only for sites returned by the signed-in owner's hosting account. */
 function HostedSiteSettings({siteId, siteUrl}: {siteId: UnpackedHypermediaId; siteUrl: string}) {
@@ -330,16 +344,29 @@ function matchesPublishedSite(site: HostedSite, uid: string, siteUrl: string | u
 }
 
 function ErrorMessage({error}: {error: unknown}) {
-  return error ? (
-    <p role="alert" className="text-destructive text-sm">
-      {error instanceof Error ? error.message : String(error)}
-    </p>
-  ) : null
+  return <PublishError error={error ? (error instanceof Error ? error.message : String(error)) : null} />
 }
 
-function HostingLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; onBack: () => void}) {
+function HostingLogin({
+  onAuthenticated,
+  onBack,
+  skipVaultLogin = false,
+}: {
+  onAuthenticated: () => void
+  onBack: () => void
+  skipVaultLogin?: boolean
+}) {
   const host = useHostSession({onAuthenticated})
-  const [email, setEmail] = useState('')
+  const [email, setEmail] = useState(skipVaultLogin ? '' : host.vaultEmail || '')
+  const [vaultPending, setVaultPending] = useState(!skipVaultLogin && host.canLoginWithVault)
+  const vaultAttempted = useRef(false)
+  useEffect(() => {
+    if (skipVaultLogin || !host.isSessionLoaded || !host.canLoginWithVault || vaultAttempted.current || host.loggedIn)
+      return
+    vaultAttempted.current = true
+    setVaultPending(true)
+    host.loginWithVault(undefined, {onSettled: () => setVaultPending(false)})
+  }, [skipVaultLogin, host.isSessionLoaded, host.canLoginWithVault, host.loggedIn, host.loginWithVault])
   const [pending, setPending] = useState<CodeStartResponse | null>(null)
   const [code, setCode] = useState('')
   const [now, setNow] = useState(Date.now())
@@ -360,15 +387,33 @@ function HostingLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; o
     if (!pending || host.verifyEmailCode.isLoading || !/^\d{4}$/.test(value)) return
     host.verifyEmailCode.mutate({email: pending.email, binding: pending.binding, code: value})
   }
+  if (vaultPending) {
+    return (
+      <PublishStep title="Hosting by Seed Hypermedia" onBack={onBack}>
+        <SizableText>Signing in…</SizableText>
+      </PublishStep>
+    )
+  }
   const resendWait = pending ? Math.max(0, Math.ceil((pending.resendAllowedTime - now) / 1000)) : 0
   return (
-    <div className="flex flex-col gap-4">
-      <DialogHeader>
-        <DialogTitle>{pending ? 'Check Your Inbox' : 'Log in to Seed Hosting'}</DialogTitle>
-        <DialogDescription>
-          {pending ? `We sent a 4-digit code to ${pending.email}.` : 'We will email you a code to log in.'}
-        </DialogDescription>
-      </DialogHeader>
+    <PublishStep
+      title={pending ? 'Check Your Inbox' : 'Log in to Seed Hosting'}
+      description={
+        pending ? (
+          <>
+            We sent a 4-digit code to <strong>{pending.email}</strong>.
+          </>
+        ) : (
+          'We will email you a code to log in.'
+        )
+      }
+      onBack={() => {
+        host.verifyEmailCode.reset()
+        setCode('')
+        if (pending) setPending(null)
+        else onBack()
+      }}
+    >
       <form
         className="flex flex-col gap-4"
         onSubmit={(event) => {
@@ -397,6 +442,7 @@ function HostingLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; o
             Email Address
             <Input
               type="email"
+              placeholder="me@email.com"
               autoComplete="email"
               required
               value={email}
@@ -407,18 +453,6 @@ function HostingLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; o
         )}
         <ErrorMessage error={host.startEmailCode.error || host.verifyEmailCode.error} />
         <DialogFooter>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              host.verifyEmailCode.reset()
-              setCode('')
-              if (pending) setPending(null)
-              else onBack()
-            }}
-          >
-            Back
-          </Button>
           {pending ? (
             <Button
               type="button"
@@ -438,13 +472,13 @@ function HostingLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; o
           </Button>
         </DialogFooter>
       </form>
-    </div>
+    </PublishStep>
   )
 }
 
 type CloseProtection = {preventClose: boolean; showCloseButton: boolean}
 
-type HostingStep = 'choose' | 'free' | 'custom' | 'existing'
+type HostingStep = 'free' | 'custom'
 
 type HostingInput = {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain' | 'seed-host-subdomain'}
 
@@ -465,10 +499,7 @@ export function useWebHostingDialog() {
           if (!open) close()
         }}
       >
-        <DialogContent
-          className="max-h-[calc(100dvh-4rem)] w-full max-w-lg"
-          showCloseButton={protection.showCloseButton}
-        >
+        <DialogContent className={publishDialogClassName} showCloseButton={protection.showCloseButton}>
           {input ? <WebHostingDialog input={input} onClose={close} setDialogCloseProtection={setProtection} /> : null}
         </DialogContent>
       </Dialog>
@@ -476,44 +507,114 @@ export function useWebHostingDialog() {
   }
 }
 
-/** Publishes a public space to Seed Hosting, then optionally configures its custom domain. */
-export function WebHostingDialog(props: {
+/** Publishes an owned public space using the same hosting and self-hosting workflow as desktop. */
+export function WebHostingDialog({
+  input: {id, step},
+  onClose,
+  setDialogCloseProtection,
+}: {
   input: HostingInput
   onClose: () => void
   setDialogCloseProtection?: (value: CloseProtection) => void
 }) {
+  const identity = useLocalKeyPair()
+  const identityLoaded = useLocalKeyPairLoaded()
+  const resource = useResource({...id, version: null, latest: true}, {subscribed: true})
+  const document = resource.data?.type === 'document' ? resource.data.document : undefined
   const host = useHostSession()
-  const [step, setStep] = useState<HostingStep>(
-    props.input.step === 'seed-host-custom-domain' ? 'custom' : props.input.step ? 'free' : 'choose',
+  const register = useSiteRegistration(id.uid)
+  const {openUrl} = useUniversalAppContext()
+  if (!identityLoaded || resource.isInitialLoading)
+    return (
+      <PublishStep title="Web Domain">
+        <p role="status">Loading hosting settings…</p>
+      </PublishStep>
+    )
+  if (!identity?.capabilityCid || identity.delegatedAccountUid !== id.uid)
+    return (
+      <PublishStep title="Web Domain">
+        <p>Sign in as the space owner to change its web domain.</p>
+      </PublishStep>
+    )
+  if (!document || document.visibility === 'PRIVATE')
+    return (
+      <PublishStep title="Publish Your Space First">
+        <p>A public space is required before setting up its web domain.</p>
+      </PublishStep>
+    )
+  return (
+    <PublishSiteFlow
+      key={`${id.uid}:${step ?? 'choose'}:${identity.id}:${identity.capabilityCid}`}
+      hostDomain={host.hostInfo.data?.hostDomain || 'hyper.media'}
+      documentTitle={getDocumentTitle(document)}
+      initialStep={step}
+      onClose={onClose}
+      onOpenSetupGuide={() => openUrl(setupGuideRoute.id.id, true)}
+      onRegister={(url) => register.mutateAsync({url})}
+      setDialogCloseProtection={setDialogCloseProtection}
+      renderHosting={({customDomain, onBack, onClose}) => (
+        <WebHostedPublishing
+          id={id}
+          initialStep={customDomain && document.metadata.siteUrl ? 'custom' : 'free'}
+          onBack={onBack}
+          onClose={onClose}
+          setDialogCloseProtection={setDialogCloseProtection}
+        />
+      )}
+    />
   )
-  useEffect(() => {
-    setStep(props.input.step === 'seed-host-custom-domain' ? 'custom' : props.input.step ? 'free' : 'choose')
-  }, [props.input.id.uid, props.input.step])
-  // Keep navigation through login, while account changes discard form values and registration secrets.
+}
+
+function WebHostedPublishing(props: {
+  id: UnpackedHypermediaId
+  initialStep: HostingStep
+  onBack: () => void
+  onClose: () => void
+  setDialogCloseProtection?: (value: CloseProtection) => void
+}) {
+  const host = useHostSession()
+  const [step, setStep] = useState<HostingStep>(props.initialStep)
+  const [manualLogin, setManualLogin] = useState(false)
+  // Keep the selected step through login; account changes discard values and registration secrets.
   return (
     <HostingDialogContent
-      key={`${props.input.id.uid}:${host.loggedIn ? host.email : 'signed-out'}`}
-      {...props}
+      key={`${props.id.uid}:${host.loggedIn ? host.email : 'signed-out'}`}
+      input={{id: props.id}}
+      onBack={props.onBack}
+      onClose={props.onClose}
+      setDialogCloseProtection={props.setDialogCloseProtection}
       step={step}
       setStep={setStep}
+      skipVaultLogin={manualLogin}
+      onSwitchAccount={() => {
+        setManualLogin(true)
+        host.logout()
+      }}
     />
   )
 }
 
 function HostingDialogContent({
   input: {id},
+  onBack,
   onClose,
   setDialogCloseProtection,
   step,
   setStep,
+  skipVaultLogin,
+  onSwitchAccount,
 }: {
   input: HostingInput
+  onBack: () => void
   onClose: () => void
   setDialogCloseProtection?: (value: CloseProtection) => void
   step: HostingStep
   setStep: (step: HostingStep) => void
+  skipVaultLogin: boolean
+  onSwitchAccount: () => void
 }) {
-  const permission = useWebCanEdit(id)
+  const identity = useLocalKeyPair()
+  const identityLoaded = useLocalKeyPairLoaded()
   const host = useHostSession({includeSites: true})
   const resource = useResource({...id, version: null, latest: true}, {subscribed: true})
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
@@ -545,25 +646,24 @@ function HostingDialogContent({
     setBusy(true)
     setError(null)
     try {
-      const target = setupUrl || (await host.createSite.mutateAsync({subdomain})).setupUrl
+      // A reload may interrupt registration after the hosting address was reserved.
+      // Resume only an unregistered reservation owned by this hosting account.
+      const reservation = host.sites.data?.find(
+        (site) =>
+          site.name === subdomain &&
+          !site.activeConfig?.registeredAccountUid &&
+          site.activeConfig?.availableRegistrationSecret,
+      )
+      let target = setupUrl
+      if (!target && reservation?.activeConfig?.availableRegistrationSecret) {
+        const resumeUrl = new URL('/hm/register', reservation.url)
+        resumeUrl.searchParams.set('secret', reservation.activeConfig.availableRegistrationSecret)
+        target = resumeUrl.toString()
+      }
+      target ||= (await host.createSite.mutateAsync({subdomain})).setupUrl
       setSetupUrl(target)
       const url = await register.mutateAsync({url: target})
       setPublishedUrl(url)
-    } catch (cause) {
-      setError(cause)
-    } finally {
-      setBusy(false)
-    }
-  }
-  async function connectExisting(site: HostedSite) {
-    if (busy) return
-    setBusy(true)
-    setError(null)
-    try {
-      const url = new URL('/hm/register', site.url)
-      const secret = site.activeConfig?.availableRegistrationSecret
-      if (secret) url.searchParams.set('secret', secret)
-      setPublishedUrl(await register.mutateAsync({url: url.toString()}))
     } catch (cause) {
       setError(cause)
     } finally {
@@ -593,14 +693,14 @@ function HostingDialogContent({
       setBusy(false)
     }
   }
-  if (permission.capabilitiesLoading || resource.isInitialLoading || !host.isSessionLoaded)
+  if (!identityLoaded || resource.isInitialLoading || !host.isSessionLoaded)
     return (
       <>
         <DialogTitle>Web Domain</DialogTitle>
         <p role="status">Loading hosting settings…</p>
       </>
     )
-  if (!permission.canEdit || permission.signingAccountId !== id.uid)
+  if (!identity?.capabilityCid || identity.delegatedAccountUid !== id.uid)
     return (
       <>
         <DialogTitle>Web Domain</DialogTitle>
@@ -614,109 +714,48 @@ function HostingDialogContent({
         <p>A public space is required before setting up its web domain.</p>
       </>
     )
-  if (!host.loggedIn && step !== 'choose')
-    return <HostingLogin onAuthenticated={() => {}} onBack={() => setStep('choose')} />
+  if (!host.loggedIn) return <HostingLogin onAuthenticated={() => {}} onBack={onBack} skipVaultLogin={skipVaultLogin} />
   if (publishedUrl)
     return (
-      <div className="flex flex-col gap-4">
-        <DialogHeader>
-          <DialogTitle>Your Space Is Published</DialogTitle>
-          <DialogDescription>Anyone can visit your space at this address.</DialogDescription>
-        </DialogHeader>
-        <a href={publishedUrl} target="_blank" rel="noreferrer" className="text-primary break-all underline">
-          {publishedUrl}
-        </a>
-        <DialogFooter>
-          {!requestedDomain ? (
-            <Button
-              variant="outline"
-              onClick={() => {
+      <PublishSiteSuccess
+        url={publishedUrl}
+        onClose={onClose}
+        onCustomDomain={
+          !requestedDomain
+            ? () => {
                 setPublishedUrl(null)
                 setStep('custom')
-              }}
-            >
-              Set Up Custom Domain
-            </Button>
-          ) : null}
-          <Button onClick={onClose}>Done</Button>
-        </DialogFooter>
-      </div>
+              }
+            : undefined
+        }
+      />
     )
   return (
-    <div className="flex flex-col gap-4">
-      <DialogHeader>
-        <DialogTitle>
-          {step === 'choose'
-            ? 'Publish to Web Domain'
-            : step === 'free'
-              ? 'Choose Your Subdomain'
-              : step === 'existing'
-                ? 'Connect an Existing Site'
-                : 'Set Up Custom Domain'}
-        </DialogTitle>
-        <DialogDescription>
-          {step === 'choose'
-            ? 'Give your space a web address with Seed Hosting.'
-            : step === 'free'
-              ? `Your space will be available at your-name.${host.hostInfo.data?.hostDomain || 'seed.host'}.`
-              : step === 'existing'
-                ? 'Choose a site from your Seed Hosting account.'
-                : 'Publish your space to a domain that you own.'}
-        </DialogDescription>
-      </DialogHeader>
+    <PublishStep
+      title={step === 'free' ? 'Choose Your Subdomain' : 'Set Up Custom Domain'}
+      description={
+        step === 'free'
+          ? `The space will be available at your-name.${host.hostInfo.data?.hostDomain || 'hyper.media'}.`
+          : 'Publish the space to a domain that you own. On the next step you will be asked to point its DNS to Seed hosting.'
+      }
+      onBack={
+        busy
+          ? undefined
+          : () => {
+              onBack()
+              setError(null)
+            }
+      }
+      footer={
+        <SizableText size="xs" color="muted" className="mr-auto">
+          Logged in to {hostnameStripProtocol(SEED_HOST_URL)} as {host.email}.{' '}
+          <Button variant="link" size="xs" className="h-auto p-0 text-xs" disabled={busy} onClick={onSwitchAccount}>
+            Switch account
+          </Button>
+        </SizableText>
+      }
+    >
       {host.hostInfo.data?.serviceErrorMessage ? <ErrorMessage error={host.hostInfo.data.serviceErrorMessage} /> : null}
-      {step === 'choose' ? (
-        <div className="flex flex-col gap-3">
-          <Button onClick={() => setStep('free')}>Use a Free Seed Domain</Button>
-          <Button variant="outline" onClick={() => setStep(siteUrl ? 'custom' : 'free')}>
-            Use Your Own Domain
-          </Button>
-          <p className="text-muted-foreground text-sm">
-            Custom domains start with a free Seed address, then connect your DNS.
-          </p>
-          <Button variant="outline" onClick={() => setStep('existing')}>
-            Connect an Existing Site
-          </Button>
-        </div>
-      ) : null}
-      {step === 'existing' ? (
-        <div className="flex flex-col gap-3">
-          {host.sites.isInitialLoading ? <p role="status">Loading your sites…</p> : null}
-          {host.sites.isError ? (
-            <>
-              <p role="alert">Unable to load your sites.</p>
-              <Button variant="outline" onClick={() => host.sites.refetch()}>
-                Retry
-              </Button>
-            </>
-          ) : null}
-          {siteUrl ? (
-            <p className="text-muted-foreground text-sm">
-              Connecting a site replaces your current published address, {siteUrl}.
-            </p>
-          ) : null}
-          {host.sites.data
-            ?.filter(
-              (site) =>
-                site.activeConfig?.registeredAccountUid === id.uid ||
-                (!site.activeConfig?.registeredAccountUid && site.activeConfig?.availableRegistrationSecret),
-            )
-            .map((site) => (
-              <Button key={site.id} variant="outline" disabled={busy} onClick={() => void connectExisting(site)}>
-                Connect {site.name}
-              </Button>
-            ))}
-          {!host.sites.isInitialLoading &&
-          !host.sites.isError &&
-          !host.sites.data?.some(
-            (site) =>
-              site.activeConfig?.registeredAccountUid === id.uid ||
-              (!site.activeConfig?.registeredAccountUid && site.activeConfig?.availableRegistrationSecret),
-          ) ? (
-            <p>No available sites in this hosting account. Create a free Seed address to get started.</p>
-          ) : null}
-        </div>
-      ) : null}
       {step === 'free' ? (
         <form
           className="flex flex-col gap-4"
@@ -727,9 +766,11 @@ function HostingDialogContent({
         >
           <label className="flex flex-col gap-2 text-sm font-medium">
             Subdomain
-            <Input
+            <PathInput
+              kind="subdomain"
+              placeholder="my-space-name"
               value={subdomain}
-              onChangeText={setSubdomain}
+              onValueChange={setSubdomain}
               minLength={4}
               maxLength={63}
               pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?"
@@ -743,9 +784,12 @@ function HostingDialogContent({
           {setupUrl && error ? (
             <p className="text-sm">Your hosting address is reserved. Retry to finish publishing your space.</p>
           ) : null}
-          <Button type="submit" loading={busy}>
-            {setupUrl ? 'Finish Publishing' : 'Publish Space'}
-          </Button>
+          <DialogFooter>
+            <Button type="submit" loading={busy}>
+              <UploadCloud className="size-4" />
+              {setupUrl ? 'Finish Publishing' : 'Publish Space'}
+            </Button>
+          </DialogFooter>
         </form>
       ) : null}
       {step === 'custom' ? (
@@ -761,10 +805,11 @@ function HostingDialogContent({
           >
             <label className="flex flex-col gap-2 text-sm font-medium">
               Domain Name
-              <Input
+              <PathInput
+                kind="domain"
                 value={hostname}
-                onChangeText={setHostname}
-                placeholder="example.com"
+                onValueChange={setHostname}
+                placeholder="mydomain.com"
                 required
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -772,9 +817,12 @@ function HostingDialogContent({
                 disabled={busy}
               />
             </label>
-            <Button type="submit" loading={busy}>
-              Publish to Domain
-            </Button>
+            <DialogFooter>
+              <Button type="submit" loading={busy}>
+                Publish to Domain
+                <UploadCloud className="size-4" />
+              </Button>
+            </DialogFooter>
           </form>
         ) : (
           <div className="flex flex-col gap-3">
@@ -790,37 +838,7 @@ function HostingDialogContent({
         )
       ) : null}
       <ErrorMessage error={error} />
-      <DialogFooter>
-        <Button
-          variant="ghost"
-          disabled={busy}
-          onClick={
-            step === 'choose'
-              ? onClose
-              : () => {
-                  setStep('choose')
-                  setError(null)
-                }
-          }
-        >
-          {step === 'choose' ? 'Cancel' : 'Back'}
-        </Button>
-        {host.loggedIn ? (
-          <Button
-            variant="ghost"
-            disabled={busy}
-            onClick={() => {
-              void host.logout()
-            }}
-          >
-            Log out of Hosting
-          </Button>
-        ) : null}
-      </DialogFooter>
-      {host.loggedIn ? (
-        <p className="text-muted-foreground text-xs">Signed in to Seed Hosting as {host.email}.</p>
-      ) : null}
-    </div>
+    </PublishStep>
   )
 }
 
@@ -887,9 +905,11 @@ function PendingDomainStatus({id, siteUrl}: {id: UnpackedHypermediaId; siteUrl: 
 }
 
 /** Browser settings for publication and management of an owned Seed-hosted space. */
-export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
+export function WebDomainSettings({siteId, page = false}: {siteId: UnpackedHypermediaId; page?: boolean}) {
+  const title = page ? <h2 className="text-2xl font-bold">Web Domain</h2> : <DialogTitle>Web Domain</DialogTitle>
   const resource = useResource(siteId, {subscribed: true})
-  const permission = useWebCanEdit(siteId)
+  const identity = useLocalKeyPair()
+  const identityLoaded = useLocalKeyPairLoaded()
   const host = useHostSession({includeSites: true})
   const publish = useWebHostingDialog()
   const remove = useRemoveSite(siteId)
@@ -897,24 +917,24 @@ export function WebDomainSettings({siteId}: {siteId: UnpackedHypermediaId}) {
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
   const siteUrl = document?.metadata.siteUrl
   const pending = host.pendingDomains?.find((domain) => domain.siteUid === siteId.uid)
-  if (resource.isInitialLoading || permission.capabilitiesLoading)
+  if (!identityLoaded || resource.isInitialLoading)
     return (
       <>
-        <DialogTitle>Web Domain</DialogTitle>
+        {title}
         <p role="status">Loading web domain…</p>
       </>
     )
   if (!document) return <p>This account doesn't have a space yet.</p>
-  if (!permission.canEdit || permission.signingAccountId !== siteId.uid)
+  if (!identity?.capabilityCid || identity.delegatedAccountUid !== siteId.uid)
     return (
       <>
-        <DialogTitle>Web Domain</DialogTitle>
+        {title}
         <p>Sign in as the space owner to change its web domain.</p>
       </>
     )
   return (
     <div className="flex flex-col gap-4">
-      <DialogTitle>Web Domain</DialogTitle>
+      {title}
       {siteUrl ? (
         <>
           <p className="text-sm">Published at</p>
