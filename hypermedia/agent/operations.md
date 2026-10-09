@@ -134,7 +134,7 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_DATALAB_API_KEY` | _(unset)_ | Shared Datalab key for the `convert` tool, metered per account against the allowances below. Set it on the hosted server only. |
 | `SEED_AGENTS_CONVERT_RELAY_URL` | _(unset)_ | Hosted agents server that converts for this one when it has no key; the agent's own identity account is billed there. The desktop app sets it for its local server; self-hosters set it to the hosted server. |
 | `SEED_AGENTS_DATALAB_MODE` | `accurate` | Datalab mode: `fast`, `balanced` or `accurate`. Also the most expensive mode a shared-key call may ask for. |
-| `SEED_AGENTS_DATALAB_EXTRAS` | `extract_links,chart_understanding,infographic` | Comma-separated Datalab extras sent with every conversion. |
+| `SEED_AGENTS_DATALAB_EXTRAS` | `extract_links,chart_understanding` | Comma-separated Datalab extras sent with every conversion. Do not add `infographic` for ordinary documents: it replaces every figure with its textual reading and returns no images. |
 | `SEED_AGENTS_DATALAB_CONCURRENCY` | `4` | Documents converted at once within one `convert` call. |
 | `SEED_AGENTS_DATALAB_ALLOWANCE_PAGES_PER_MONTH` | `1000` | Pages each account may convert on the shared key per UTC month. |
 | `SEED_AGENTS_DATALAB_GLOBAL_CEILING_PAGES_PER_MONTH` | `20000` | Pages the whole server may convert on the shared key per UTC month. |

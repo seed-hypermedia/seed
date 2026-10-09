@@ -43,7 +43,7 @@ describe('config', () => {
       datalabApiKey: undefined,
       relayUrl: undefined,
       mode: 'accurate',
-      extras: 'extract_links,chart_understanding,infographic',
+      extras: 'extract_links,chart_understanding',
       concurrency: 4,
       allowancePagesPerMonth: 1000,
       globalCeilingPagesPerMonth: 20000,

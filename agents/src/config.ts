@@ -116,7 +116,9 @@ export type ConvertConfig = {
 /** Convert settings a server starts from when nothing is configured: how Datalab is called, and what is given away. */
 export const CONVERT_DEFAULTS: Omit<ConvertConfig, 'datalabApiKey' | 'relayUrl'> = {
   mode: 'accurate',
-  extras: 'extract_links,chart_understanding,infographic',
+  // Not `infographic`: measured on a figure-heavy paper, that extra replaces every figure with its
+  // textual reading and returns no images at all, in every mode.
+  extras: 'extract_links,chart_understanding',
   concurrency: 4,
   allowancePagesPerMonth: 1000,
   globalCeilingPagesPerMonth: 20000,

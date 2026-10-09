@@ -69,6 +69,7 @@ import {CONVERT_DEFAULTS, type ConvertConfig} from '@/config'
 import * as datalab from '@/datalab'
 import * as conversionLedger from '@/conversion-ledger'
 import * as convertRelay from '@/convert-relay'
+import * as convertPostprocess from '@/convert-postprocess'
 import {createSignedEnvelope} from '@/envelope'
 import * as blobs from '@shm/shared/blobs'
 import {
@@ -14650,13 +14651,14 @@ async function executeConvert(
         const safe = assetNames.get(ref) ?? assetNames.get(ref.slice(ref.lastIndexOf('/') + 1))
         return safe ? `assets/${safe}` : undefined
       })
+      const polished = convertPostprocess.postprocessConvertedMarkdown(rewritten.markdown)
       withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/raw.md`, result.markdown))
       for (const [original, safe] of assetNames) {
         const bytes = result.images.get(original)
         if (bytes)
           withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/assets/${safe}`, bytes))
       }
-      withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/seed.md`, rewritten.markdown))
+      withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/seed.md`, polished.markdown))
       const truncated = result.pageCount >= job.maxPagesApplied
       const manifest = {
         source: job.source,
@@ -14683,6 +14685,10 @@ async function executeConvert(
         imagesRewritten: rewritten.rewritten,
         imagesUnresolved: rewritten.unresolved,
         droppedImages: result.droppedImages ?? [],
+        captionsFolded: polished.captionsFolded,
+        referenceEntries: polished.referenceEntries,
+        citationsLinked: polished.citationsLinked,
+        citationsUnlinked: polished.citationsUnlinked,
       }
       withMemoryErrors(() =>
         agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/manifest.json`, JSON.stringify(manifest, null, 2)),
@@ -14703,6 +14709,9 @@ async function executeConvert(
         pages: result.pageCount,
         images: assetNames.size,
         truncated,
+        captions: polished.captionsFolded,
+        citationsLinked: polished.citationsLinked,
+        citationsUnlinked: polished.citationsUnlinked.length,
       })
     } catch (error) {
       if (job.reservation) conversionLedger.releaseReservation(context.db, job.reservation.id, Date.now())
@@ -14716,7 +14725,13 @@ async function executeConvert(
   const pages = documents.reduce((sum, doc) => sum + (doc.pages as number), 0)
   const images = documents.reduce((sum, doc) => sum + (doc.images as number), 0)
   const cut = documents.filter((doc) => doc.truncated).length
+  const captions = documents.reduce((sum, doc) => sum + (doc.captions as number), 0)
+  const citations = documents.reduce((sum, doc) => sum + (doc.citationsLinked as number), 0)
+  const unlinked = documents.reduce((sum, doc) => sum + (doc.citationsUnlinked as number), 0)
   const notes = [
+    ...(captions ? [`${captions} caption${captions === 1 ? '' : 's'} attached to figures`] : []),
+    ...(citations ? [`${citations} citation${citations === 1 ? '' : 's'} linked to the references`] : []),
+    ...(unlinked ? [`${unlinked} citation${unlinked === 1 ? '' : 's'} without a reference entry left as text`] : []),
     ...(failures.length ? [`${failures.length} failed`] : []),
     ...(cut ? [`${cut} cut at the page cap`] : []),
     ...(skippedUnsupported
@@ -16154,6 +16169,9 @@ async function publishMemoryDocument(
   const title = nameOverride || frontmatter.name || titleFromMemoryPath(file.path)
   const docPath = normalizeDocumentPath(input.documentPath, title)
   const target = `hm://${account}${docPath}`
+  // `#blockId` links written before publishing (the convert post-processor's citation links) point
+  // into this very document, whose address is only known now.
+  const content = resolveFragmentLinks(nodes, target)
 
   const client = createSeedClient(context.hmServerUrl)
   const {id: targetId} = await resolveIdWithClient(target, {serverUrl: client.baseUrl})
@@ -16169,7 +16187,7 @@ async function publishMemoryDocument(
     input: existing
       ? {
           edit: target,
-          content: nodes,
+          content,
           format: 'json',
           metadata: frontmatter,
           ...(nameOverride ? {name: nameOverride} : {}),
@@ -16177,7 +16195,7 @@ async function publishMemoryDocument(
       : {
           account,
           path: docPath || '/',
-          content: nodes,
+          content,
           format: 'json',
           metadata: frontmatter,
           name: title,
@@ -16198,6 +16216,40 @@ async function publishMemoryDocument(
     url: `${context.hmServerUrl.replace(/\/+$/, '')}/hm/${account}${docPath}`,
     ...(imagesUploaded ? {imagesUploaded} : {}),
   }
+}
+
+/**
+ * Rewrites fragment-only links (`#blockId`) in blocks and their inline annotations to full
+ * `hm://…#blockId` links into `target`, the document being published.
+ */
+export function resolveFragmentLinks(nodes: HMBlockNode[], target: string): HMBlockNode[] {
+  const resolve = (link: unknown) =>
+    typeof link === 'string' && /^#[A-Za-z0-9_-]+$/.test(link) ? `${target}${link}` : undefined
+  return nodes.map((node) => {
+    const block = node.block as Record<string, unknown>
+    const blockLink = resolve(block.link)
+    const original: unknown[] | undefined = Array.isArray(block.annotations) ? block.annotations : undefined
+    const annotations = original?.map((annotation) => {
+      if (!isRecord(annotation)) return annotation
+      const link = resolve(annotation.link)
+      return link ? {...annotation, link} : annotation
+    })
+    const changed =
+      blockLink !== undefined || (annotations !== undefined && annotations.some((a, i) => a !== original![i]))
+    return {
+      ...node,
+      ...(changed
+        ? {
+            block: {
+              ...block,
+              ...(blockLink ? {link: blockLink} : {}),
+              ...(annotations ? {annotations} : {}),
+            } as HMBlockNode['block'],
+          }
+        : {}),
+      ...(node.children?.length ? {children: resolveFragmentLinks(node.children, target)} : {}),
+    }
+  })
 }
 
 /** Counts blocks whose link points at a local file, for reporting how many images get uploaded. */
