@@ -134,6 +134,9 @@ describe('convert builtin', () => {
         pages: 3,
         images: 2,
         truncated: false,
+        captions: 0,
+        citationsLinked: 0,
+        citationsUnlinked: 0,
       },
     ])
     expect(output.failures).toEqual([])
@@ -164,7 +167,7 @@ describe('convert builtin', () => {
     expect(submission.fileName).toBe('My Paper.pdf')
     expect(submission.fields).toMatchObject({
       mode: 'accurate',
-      extras: 'extract_links,chart_understanding,infographic',
+      extras: 'extract_links,chart_understanding',
       disable_image_captions: 'true',
       max_pages: String(conversionLedger.CONVERT_PAGES_PER_CALL_CAP),
     })
@@ -176,6 +179,57 @@ describe('convert builtin', () => {
         (e) => e.type === 'account-change' && e.reason === 'agent-memory-changed' && e.agentId === t.agentId,
       ),
     ).toBe(true)
+  })
+
+  test('captions are attached to their figures and numeric citations linked to the references', async () => {
+    const fake = startFakeDatalab({
+      completions: [
+        {
+          ...FAKE_DATALAB_COMPLETION,
+          markdown: [
+            '# Paper',
+            '',
+            'Arcs were studied in [1, 2]. See [3].',
+            '',
+            '![](fig1.png)',
+            '',
+            'Figure 1: Regular and irregular structures',
+            '',
+            '#### 5. REFERENCES',
+            '',
+            '- [1] First, 2004.',
+            '- [2] Second, 2004.',
+            '',
+          ].join('\n'),
+          images: {'fig1.png': Buffer.from('PNG').toString('base64')},
+        },
+      ],
+    })
+    const t = await setup({fake})
+    track(fake, t)
+    t.write('paper.pdf', PDF)
+    const output = (await t.convert({files: ['paper.pdf']})).output as Record<string, unknown>
+    expect(output.summary).toContain(
+      '1 caption attached to figures, 2 citations linked to the references, 1 citation without a reference entry left as text',
+    )
+    expect(output.documents).toEqual([expect.objectContaining({captions: 1, citationsLinked: 2, citationsUnlinked: 1})])
+    expect(t.read('datalab-imports/paper/seed.md')).toBe(
+      [
+        '# Paper',
+        '',
+        'Arcs were studied in [[1](#ref-1), [2](#ref-2)]. See [3].',
+        '',
+        '![Figure 1: Regular and irregular structures](assets/fig1.png)',
+        '',
+        '#### 5. REFERENCES',
+        '',
+        '- [1] First, 2004. <!-- id:ref-1 -->',
+        '- [2] Second, 2004. <!-- id:ref-2 -->',
+        '',
+      ].join('\n'),
+    )
+    const manifest = JSON.parse(t.read('datalab-imports/paper/manifest.json')) as Record<string, unknown>
+    expect(manifest).toMatchObject({captionsFolded: 1, referenceEntries: 2, citationsLinked: 2, citationsUnlinked: [3]})
   })
 
   test('a folder converts every supported file in parallel, skips the rest, and keeps going past one failure', async () => {

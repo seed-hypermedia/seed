@@ -34,7 +34,13 @@ datalab-imports/<slug>/
   manifest.json   # pages, quality score, cost, mode, truncation, image mapping
 ```
 
-`seed.md` differs from `raw.md` in one way: every image reference is a paragraph of its own, `![alt](assets/<file>)`. The markdown parser keeps only standalone image lines as image blocks, and `write ... fromPath` uploads exactly those files, so publishing `seed.md` carries the figures along. Review `seed.md` before publishing: headings, tables, where figures landed. Then put the document's metadata from the [Agent Guide](./guide.md) as YAML frontmatter at the top of `seed.md` and publish with `write hm://<account>/<path> {fromPath: "~/memory/datalab-imports/<slug>/seed.md"}`. `fromPath` reads `name`, `summary`, `displayAuthor` and `displayPublishTime` from that frontmatter and accepts no `name` or `metadata` options of its own. Charts come back as data tables with a description; links in the source are kept.
+`seed.md` is `raw.md` after the server's post-processing, which does the mechanical part of a good import so the review does not have to:
+
+- Every image reference is a paragraph of its own, `![alt](assets/<file>)`. The markdown parser keeps only standalone image lines as image blocks, and `write ... fromPath` uploads exactly those files, so publishing `seed.md` carries the figures along.
+- A `Figure N: …` (or `Fig.`, `Table`) paragraph next to a figure becomes the figure's caption, the alt text of the image line, and the loose paragraph is gone. A figure has exactly one caption, in the image itself.
+- Entries of the references section get block ids (`<!-- id:ref-N -->`), and numeric citations in the text, `[3]`, `[1, 2]`, `[4-6]`, become links to them written as `[[3](#ref-3)]`. Publishing resolves those `#ref-N` links to the document's own address, so readers jump from a citation to its entry. Author-year citations and numbers without an entry are left as text and counted in the result (`citationsUnlinked`); link those by hand only when the entry is unambiguous.
+
+Review `seed.md` before publishing: headings, tables, where figures landed, and the citations the result says it could not link. Do not render pages, re-extract figures or verify metadata on the web: the figures are already in `assets/`, and the metadata comes from the document itself. Then put the document's metadata from the [Agent Guide](./guide.md) as YAML frontmatter at the top of `seed.md` and publish with `write hm://<account>/<path> {fromPath: "~/memory/datalab-imports/<slug>/seed.md"}`. `fromPath` reads `name`, `summary`, `displayAuthor` and `displayPublishTime` from that frontmatter and accepts no `name` or `metadata` options of its own. Charts come back as data tables with a description; links in the source are kept.
 
 ```markdown
 ---
