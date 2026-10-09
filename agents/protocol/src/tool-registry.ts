@@ -966,7 +966,7 @@ const convertTool = {
         type: 'string',
         enum: ['fast', 'balanced', 'accurate'],
         description:
-          'Datalab mode. Defaults to the server setting; on the shared key a more expensive mode than the server allows is lowered to it.',
+          'Datalab mode. Leave unset unless the user asks for a specific one: the server default is already the best it offers, and on the shared key a more expensive mode is lowered to the server setting anyway.',
       },
       overwrite: {
         type: 'boolean',
