@@ -138,6 +138,9 @@ describe('convert relay', () => {
         pages: 3,
         images: 2,
         truncated: false,
+        captions: 0,
+        citationsLinked: 0,
+        citationsUnlinked: 0,
       },
     ])
     const seed = agentMemory.readMemoryFile(agent.stateDir, 'datalab-imports/paper/seed.md')
