@@ -34,7 +34,18 @@ datalab-imports/<slug>/
   manifest.json   # pages, quality score, cost, mode, truncation, image mapping
 ```
 
-`seed.md` differs from `raw.md` in one way: every image reference is a paragraph of its own, `![alt](assets/<file>)`. The markdown parser keeps only standalone image lines as image blocks, and `write ... fromPath` uploads exactly those files, so publishing `seed.md` carries the figures along. Review `seed.md` before publishing: headings, tables, where figures landed, and the metadata from the [Agent Guide](./guide.md) (`name`, `summary`, `displayAuthor`, `displayPublishTime`). Charts come back as data tables with a description; links in the source are kept.
+`seed.md` differs from `raw.md` in one way: every image reference is a paragraph of its own, `![alt](assets/<file>)`. The markdown parser keeps only standalone image lines as image blocks, and `write ... fromPath` uploads exactly those files, so publishing `seed.md` carries the figures along. Review `seed.md` before publishing: headings, tables, where figures landed. Then put the document's metadata from the [Agent Guide](./guide.md) as YAML frontmatter at the top of `seed.md` and publish with `write hm://<account>/<path> {fromPath: "~/memory/datalab-imports/<slug>/seed.md"}`. `fromPath` reads `name`, `summary`, `displayAuthor` and `displayPublishTime` from that frontmatter and accepts no `name` or `metadata` options of its own. Charts come back as data tables with a description; links in the source are kept.
+
+```markdown
+---
+name: Credit Suisse EUR 1.25bn 0.250% Senior Notes due 2028
+summary: Final terms dated 27 August 2021 for the EUR 1,250,000,000 0.250% fixed-rate senior notes.
+displayAuthor: Credit Suisse AG
+displayPublishTime: 2021-08-27
+---
+
+## FINAL TERMS
+```
 
 # Pages, cost and the page cap
 
