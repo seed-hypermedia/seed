@@ -124,6 +124,7 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
         hmServerUrl: svc.hmServerUrl,
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
+        convert: svc.convertCapabilities(),
         subscriptionAuth: svc.subscriptionAuthEnabled,
         defaultPromptUrl,
         codeExec: codeExec.available,
@@ -450,6 +451,7 @@ async function main(): Promise<void> {
     hmServerUrl: cfg.activity.hmServerUrl,
     ipfsServerUrl: cfg.activity.ipfsServerUrl,
     web: cfg.web,
+    convert: cfg.convert,
     exec: cfg.exec,
     subscriptionAuth: cfg.subscriptionAuth,
     titleGeneration: cfg.titleGeneration,
@@ -586,6 +588,17 @@ async function main(): Promise<void> {
   console.log(
     `  Web tools: search=${cfg.web.searxngUrl ? 'on' : 'off'} reader=${
       cfg.web.crawlerUrl ? 'static+crawl4ai' : 'static-only'
+    }`,
+  )
+  // The key itself is never printed; only where conversions go.
+  const convert = svc.convertCapabilities()
+  console.log(
+    `  Convert (Datalab): ${
+      convert.source === 'key'
+        ? `server key, mode=${cfg.convert.mode}`
+        : convert.source === 'relay'
+          ? `relay → ${cfg.convert.relayUrl}`
+          : 'off'
     }`,
   )
 }

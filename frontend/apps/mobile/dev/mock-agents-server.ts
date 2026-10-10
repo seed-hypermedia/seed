@@ -57,7 +57,7 @@ function agentFor(account: string): AgentInfo {
       systemPrompt: 'A scripted agent used to demo the mobile UI without spending a model call.',
       modelProvider: 'Mock provider',
       model: 'mock-1',
-      tools: ['search', 'web_search', 'execute', 'publish'],
+      tools: ['search', 'web_search', 'execute', 'convert', 'publish'],
     },
     stateDir: '/tmp/mock-agent',
     status: 'idle',
@@ -207,7 +207,11 @@ async function runTurn(session: MockSession, userText: string, account: string):
         id: `${runId}-call-1`,
         name: 'read',
         input: {address: 'hm://hyper.media'},
-        output: {title: 'Hypermedia Schemas', type: 'hypermedia_document', markdown: '# Hypermedia Schemas\n\nA self-describing type system.'},
+        output: {
+          title: 'Hypermedia Schemas',
+          type: 'hypermedia_document',
+          markdown: '# Hypermedia Schemas\n\nA self-describing type system.',
+        },
       })
       await streamAssistant(
         session,
@@ -474,6 +478,7 @@ const server = Bun.serve({
           webTools: {search: true, readBrowser: true},
           codeExec: false,
           codeExecReason: 'The mock server does not run sandboxes.',
+          convert: {available: false, source: 'none'},
         },
         {headers: CORS_HEADERS},
       )

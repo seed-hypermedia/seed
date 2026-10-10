@@ -327,6 +327,27 @@ CREATE TABLE tool_documents (
 
 CREATE INDEX tool_documents_by_agent ON tool_documents (account_id, agent_id, updated_at DESC);
 
+-- Pages converted on the server's shared Datalab key, per account and UTC month. A row is
+-- reserved before the Datalab call (and sent as its max_pages), settled to the real page count on
+-- success, released on failure. Own-key conversions are not recorded.
+CREATE TABLE conversion_usage (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT,
+    period TEXT NOT NULL,
+    pages_reserved INTEGER NOT NULL,
+    pages_charged INTEGER NOT NULL DEFAULT 0,
+    state TEXT NOT NULL,
+    request_id TEXT,
+    source_name TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX conversion_usage_by_account ON conversion_usage (account_id, period, state);
+
+CREATE INDEX conversion_usage_by_period ON conversion_usage (period, state);
+
 CREATE TABLE server_config (
     key TEXT PRIMARY KEY,
     value BLOB NOT NULL

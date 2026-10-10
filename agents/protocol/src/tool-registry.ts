@@ -932,6 +932,95 @@ const attributesTool = {
   userConfigurable: true,
 } satisfies SeedToolMetadata
 
+const convertTool = {
+  name: 'convert',
+  label: 'Import documents',
+  description:
+    'Convert documents from memory (PDF, Word, spreadsheets, presentations, HTML, EPUB, images) into markdown with the Datalab document parser, which keeps layout, tables, equations and figures. Give memory paths of files or folders; a folder means every supported file under it. For each document the tool writes <output_dir>/<slug>/raw.md (the converter output as received), seed.md (the same markdown with every figure on its own line as ![alt](assets/<file>), ready to publish with `write ... fromPath`), assets/ (the extracted images) and manifest.json (pages, quality score, cost). Review seed.md before publishing: headings, tables, figure placement. Put the document metadata (name, summary, displayAuthor, displayPublishTime) as YAML frontmatter at the top of seed.md: `write ... fromPath` reads it from there and accepts no name or metadata options. Conversion is billed per page and long documents are cut at the page cap (the result says so), so pass page_range or max_pages when you only need part of a document. If this server has no Datalab key, the account can add its own as the secret `datalab-api-key`.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      files: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 50,
+        items: {type: 'string', minLength: 1},
+        description:
+          'Memory paths relative to ~/memory, such as "incoming/paper.pdf" or "papers" for a whole folder. Explicit paths only; globs are not expanded.',
+      },
+      output_dir: {
+        type: 'string',
+        description: 'Memory folder that receives one subfolder per document. Default "datalab-imports".',
+      },
+      page_range: {
+        type: 'string',
+        description: 'Zero-indexed pages to convert, such as "0-5,10". Applies to every document in the call.',
+      },
+      max_pages: {
+        type: 'integer',
+        minimum: 1,
+        description: 'Convert at most this many pages per document. The server applies its own cap as well.',
+      },
+      mode: {
+        type: 'string',
+        enum: ['fast', 'balanced', 'accurate'],
+        description:
+          'Datalab mode. Leave unset unless the user asks for a specific one: the server default is already the best it offers, and on the shared key a more expensive mode is lowered to the server setting anyway.',
+      },
+      overwrite: {
+        type: 'boolean',
+        description:
+          'Replace an existing output folder for the same document. Default false: an existing folder is reported as a failure and no pages are spent.',
+      },
+    },
+    required: ['files'],
+  },
+  outputSchema: {
+    type: 'object',
+    properties: {
+      summary: {type: 'string', description: 'One-line account of what was converted.'},
+      documents: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            source: {type: 'string', description: 'Memory path of the converted document.'},
+            outputDir: {
+              type: 'string',
+              description: 'Memory folder holding raw.md, seed.md, assets/ and manifest.json.',
+            },
+            markdownPath: {type: 'string', description: 'Memory path of seed.md, the file to review and publish.'},
+            pages: {type: 'integer'},
+            images: {type: 'integer'},
+            truncated: {
+              type: 'boolean',
+              description: 'True when the document had more pages than were converted; manifest.json says why.',
+            },
+          },
+        },
+      },
+      failures: {
+        type: 'array',
+        items: {type: 'object', properties: {source: {type: 'string'}, error: {type: 'string'}}},
+      },
+    },
+  },
+  render: {
+    kind: 'write',
+    label: 'Import documents',
+    color: 'amber',
+    summaryOutputPath: 'summary',
+    details: [
+      {label: 'Documents', source: 'output', path: 'documents'},
+      {label: 'Failures', source: 'output', path: 'failures'},
+      {label: 'Input', source: 'input'},
+    ],
+  },
+  runtimes: ['agent-service'],
+  userConfigurable: true,
+} satisfies SeedToolMetadata
+
 /** Tools reachable through the `call` verb (and scripts' ctx.call), keyed by name. */
 export const callableToolRegistry = {
   search: searchTool,
@@ -940,6 +1029,7 @@ export const callableToolRegistry = {
   web_search: webSearchTool,
   navigate: navigateTool,
   execute: executeTool,
+  convert: convertTool,
 } as const
 
 export type CallableToolName = keyof typeof callableToolRegistry

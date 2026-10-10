@@ -131,6 +131,8 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `AppendFileUploadChunk` <!-- id:1PMeyTgJ -->
   - `CommitFileUpload` <!-- id:iyG3O11o -->
   - `AbortFileUpload` <!-- id:s1aiqGA3 -->
+  - `ConvertDocument`
+  - `GetConversion`
   - `StopSession` <!-- id:7YJCyIiT -->
   - `RetrySession` <!-- id:M85Z0OM4 -->
   - `GetRun` <!-- id:I2ze8Rjh -->
@@ -812,6 +814,15 @@ Large files upload in bounded chunks, so each signed action stays small and clie
   - `AppendFileUploadChunk {uploadId, offset, content}` → `{_: 'AppendFileUploadChunkResponse'; uploadId; received}`. Chunks must arrive in order: `offset` must equal the bytes already staged. Oversized chunks return `413`. <!-- id:ta2EIYUV -->
   - `CommitFileUpload {uploadId}` → `{_: 'CommitFileUploadResponse'; entry?; attachment?}`: `entry` for a memory target, `attachment` for a session attachment. The staged byte count must equal the declared `size`. <!-- id:xRZdKHtN -->
   - `AbortFileUpload {uploadId}` → `{_: 'AbortFileUploadResponse'; uploadId}`. Staged uploads also expire after an hour. <!-- id:rBJMxIwS -->
+
+## Relayed document conversion
+
+A server without a Datalab key (the one inside the desktop app, a self-hosted one) gives its agents the `convert` tool by asking a hosted server to convert for it. The local server signs these two actions with the agent's own identity key, and the hosted server bills that identity's account; see [Document import](./datalab-importer.md) and [Tools](./tools.md).
+
+- `ConvertDocument {content, fileName, mode?, maxPages?, pageRange?, clientRequestId?}` → `{_: 'ConvertDocumentResponse'; jobId; reservedPages}`. `content` rides inline (100 MiB cap, 413 over); the extension of `fileName` decides the type, from the list in [Document import](./datalab-importer.md), and a `.pdf` must carry the `%PDF-` header. `reservedPages` is what was set aside on the hosted ledger and what Datalab is told as `max_pages`. Re-sending the same `clientRequestId` while the job lives returns the same `jobId` without a second reservation. Caps: 4 jobs in flight per account (429), 64 server-wide (503); no key on the hosted server is 503, never a further relay.
+- `GetConversion {jobId}` → `{_: 'GetConversionResponse'; jobId; status: 'processing' | 'complete' | 'failed'; markdown?; images?: {name, content}[]; pageCount?; parseQualityScore?; costCents?; droppedImages?; error?}`. Poll every couple of seconds. A `complete` job returns its result inline on every poll for ten minutes after completion, so one lost response does not lose a paid conversion; markdown is bounded at 16 MiB and images at 48 MiB in total (the largest are left out and named in `droppedImages`). A job still processing after 30 minutes is aborted and its reservation released. An unknown job and another account's job both answer 404.
+
+Both actions require `signer === account` and answer 403 to a delegated signer, since they spend the account's allowance.
 
 ## `StopSession` <!-- id:bdR9aKBf -->
 
