@@ -41,3 +41,10 @@ The stylesheet holds compiled utilities for the bundled components, Seed's palet
 [Cyberdeck](https://github.com/ericvicenti/cyberdeck), a dashboard for a fleet of machines, embeds the package. Its daemon keeps the account key and signs only agents actions for the page. It serves the agents server and the Seed API behind same-origin proxies, opened by an HttpOnly cookie. The page passes those URLs and a signer that calls the daemon.
 
 The package's [README](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/agents-ui/README.md) is the reference for every option, and its source is in [frontend/packages/agents-ui](https://github.com/seed-hypermedia/seed/tree/main/frontend/packages/agents-ui).
+
+
+# Publishing updates
+
+The `Agents UI package` GitHub Actions workflow validates pull requests and automatically publishes `@seed-hypermedia/agents-ui` when relevant changes land on `main`. It watches the package and its bundled UI, shared code, client, editor and protocol dependencies. Like the client and CLI releases, it uses the checked-in version when that is newer than npm; otherwise it increments the latest published patch version. The version is selected before building, and publishing uses the exact tarball tested in a clean npm consumer. A manual run on `main` uses the same release process.
+
+Publishing uses npm trusted publishing (OIDC). An npm scope owner must bootstrap the new package and configure `seed-hypermedia/seed` with workflow `agents-ui.yml` as its trusted publisher once. Subsequent releases need no manual publish step or npm token in GitHub.
