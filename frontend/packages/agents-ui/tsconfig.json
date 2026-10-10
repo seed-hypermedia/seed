@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "paths": {
+      "@shm/ui/*": ["../ui/src/*"],
+      "@shm/editor/*": ["../editor/src/*"],
+      "@shm/shared": ["../shared/src/index.ts"],
+      "@shm/shared/*": ["../shared/src/*"],
+      "@seed-hypermedia/client": ["../client/src/index.ts"],
+      "@seed-hypermedia/client/*": ["../client/src/*"],
+      "@seed-hypermedia/agents-protocol": ["../../../agents/protocol/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

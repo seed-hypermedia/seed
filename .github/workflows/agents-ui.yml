@@ -1,0 +1,133 @@
+name: Agents UI package
+
+# @seed-hypermedia/agents-ui bundles the agents UI (frontend/packages/ui/src/agents), the agents
+# protocol and Seed's editor for apps outside this repository. Every change to them is validated
+# against the packed package; publishing is a manual run on main.
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/packages/agents-ui/**'
+      - 'frontend/packages/ui/src/agents/**'
+      - 'frontend/packages/editor/src/**'
+      - 'agents/protocol/src/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/agents-ui.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/packages/agents-ui/**'
+      - 'frontend/packages/ui/src/agents/**'
+      - 'frontend/packages/editor/src/**'
+      - 'agents/protocol/src/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/agents-ui.yml'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the validated package to npm (main only)'
+        type: boolean
+        default: false
+      expected_version:
+        description: 'Exact package version to validate or publish'
+        type: string
+        required: true
+        default: '0.1.0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agents-ui-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      # Keep versions aligned with mise.toml and package.json#packageManager.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10.32.0'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.22.0'
+          cache: pnpm
+
+      - name: Validate release request
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+          PUBLISH_REQUESTED: ${{ inputs.publish }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict'
+          import {readFileSync} from 'node:fs'
+          const {version} = JSON.parse(readFileSync('frontend/packages/agents-ui/package.json', 'utf8'))
+          assert.equal(version, process.env.EXPECTED_VERSION, 'Requested version must match the checked-in package')
+          if (process.env.PUBLISH_REQUESTED === 'true') {
+            assert.equal(process.env.GITHUB_REF, 'refs/heads/main', 'Publish only from main')
+            assert.equal(process.env.GITHUB_REPOSITORY, 'seed-hypermedia/seed', 'Publish only from the Seed repository')
+          }
+          NODE
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Check formatting and types
+        run: |
+          pnpm --filter @seed-hypermedia/agents-ui format:check
+          pnpm --filter @seed-hypermedia/agents-ui typecheck
+
+      - name: Test
+        run: pnpm --filter @seed-hypermedia/agents-ui test
+
+      - name: Build and check the packed package in a clean npm consumer
+        env:
+          AGENTS_UI_PACKAGE_ARTIFACT_DIR: ${{ runner.temp }}/agents-ui-package
+        run: pnpm --filter @seed-hypermedia/agents-ui test:package:install
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agents-ui-${{ github.sha }}
+          path: ${{ runner.temp }}/agents-ui-package/*.tgz
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: validate
+    if:
+      github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main' && github.repository
+      == 'seed-hypermedia/seed'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: https://registry.npmjs.org
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: agents-ui-${{ github.sha }}
+          path: agents-ui-package
+
+      # Trusted publishing (OIDC), like @seed-hypermedia/client. npm only lets an owner of the
+      # @seed-hypermedia scope add this repository as the package's trusted publisher once the
+      # package exists, so the first release is published by hand from the artifact above.
+      - name: Publish the validated tarball
+        run: |
+          set -euo pipefail
+          packages=(agents-ui-package/*.tgz)
+          if [ "${#packages[@]}" -ne 1 ] || [ ! -f "${packages[0]}" ]; then
+            echo 'Expected exactly one validated package tarball.' >&2
+            exit 1
+          fi
+          npm publish "${packages[0]}" --access public --provenance --ignore-scripts
