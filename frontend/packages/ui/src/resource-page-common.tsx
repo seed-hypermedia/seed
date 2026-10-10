@@ -3266,6 +3266,15 @@ function EditableDocumentHeader({
             }
           : undefined
       }
+      onChangeIcon={
+        fileUpload
+          ? async (file) => {
+              const cid = await fileUpload(file)
+              if (!isEditing) send({type: 'edit.start'})
+              send({type: 'change', metadata: {icon: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
+            }
+          : undefined
+      }
     >
       <EditableDocumentMetadataFields
         name={name}

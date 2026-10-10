@@ -11,12 +11,13 @@ import type {NavRoute} from '@shm/shared/routes'
 import {useTx} from '@shm/shared/translation'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {X} from 'lucide-react'
-import {useMemo} from 'react'
+import {useMemo, useState} from 'react'
 import {Button} from './button'
 import {Container} from './container'
 import {DocumentDate} from './document-date'
 import {useHighlighter} from './highlight-context'
 import {HMIcon} from './hm-icon'
+import {ImagePickerPopover} from './image-picker'
 import {AccountAvatar} from './account-avatar'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from './hover-card'
 import {Home} from './icons'
@@ -57,6 +58,7 @@ export function DocumentHeader({
   showTitle = true,
   children,
   onRemoveIcon,
+  onChangeIcon,
   mobileBylineAction,
   titleAccessory,
   flushByline = false,
@@ -72,6 +74,8 @@ export function DocumentHeader({
   showTitle?: boolean
   children?: React.ReactNode
   onRemoveIcon?: () => void
+  /** Replaces the document icon with an image chosen in the icon picker. */
+  onChangeIcon?: (file: File) => Promise<void>
   mobileBylineAction?: React.ReactNode
   /** Small affordance rendered to the right of the document name (e.g. the Schema button). */
   titleAccessory?: React.ReactNode
@@ -80,6 +84,7 @@ export function DocumentHeader({
 }) {
   const hasCover = useMemo(() => !!docMetadata?.cover, [docMetadata])
   const hasIcon = useMemo(() => !!docMetadata?.icon, [docMetadata])
+  const [iconPickerOpen, setIconPickerOpen] = useState(false)
   const isHomeDoc = !docId?.path?.length
   const highlighter = useHighlighter()
   const displayAuthors = useMemo(() => {
@@ -108,7 +113,25 @@ export function DocumentHeader({
               marginTop: hasCover ? -DOCUMENT_ICON_HEADER_OVERLAP : 0,
             }}
           >
-            <HMIcon size={100} id={docId} name={docMetadata?.name} icon={docMetadata?.icon} />
+            {onChangeIcon ? (
+              <ImagePickerPopover
+                kind="icon"
+                open={iconPickerOpen}
+                onOpenChange={setIconPickerOpen}
+                onFile={onChangeIcon}
+                onRemove={onRemoveIcon}
+              >
+                <button
+                  type="button"
+                  aria-label="Change document icon"
+                  className="focus-visible:ring-ring/50 rounded-full outline-none focus-visible:ring-[3px] active:scale-[0.98]"
+                >
+                  <HMIcon size={100} id={docId} name={docMetadata?.name} icon={docMetadata?.icon} />
+                </button>
+              </ImagePickerPopover>
+            ) : (
+              <HMIcon size={100} id={docId} name={docMetadata?.name} icon={docMetadata?.icon} />
+            )}
             {onRemoveIcon ? (
               <Button
                 type="button"

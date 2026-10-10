@@ -61,40 +61,33 @@ describe('DocumentCover', () => {
     expect(onRemove).toHaveBeenCalledOnce()
   })
 
-  it('lets editors choose a replacement cover image', () => {
+  it('lets editors choose a replacement cover image from the cover picker', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({photos: []}))),
+    )
     const onChangeCover = vi.fn()
     renderCover(<DocumentCover cover="ipfs://cover-cid" onChangeCover={onChangeCover} />)
 
-    const input = container.querySelector<HTMLInputElement>('input[aria-label="Choose replacement cover image"]')
-    const file = new File(['cover'], 'cover.png', {type: 'image/png'})
-    expect(input).not.toBeNull()
-
-    Object.defineProperty(input, 'files', {
-      value: [file],
-      configurable: true,
-    })
-
     act(() => {
-      input?.dispatchEvent(new Event('change', {bubbles: true}))
+      container
+        .querySelector('button[aria-label="Change document cover image"]')
+        ?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+    })
+    act(() => {
+      Array.from(document.body.querySelectorAll('[role="tab"]'))
+        .find((tab) => tab.textContent === 'Upload')
+        ?.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true}))
+    })
+    const input = document.body.querySelector<HTMLInputElement>('input[aria-label="Choose document cover image"]')!
+    const file = new File(['cover'], 'cover.png', {type: 'image/png'})
+    await act(async () => {
+      Object.defineProperty(input, 'files', {value: [file], configurable: true})
+      input.dispatchEvent(new Event('change', {bubbles: true}))
     })
 
     expect(onChangeCover).toHaveBeenCalledWith(file)
-  })
-
-  it('opens the file picker from the change cover button without canceling the click', () => {
-    renderCover(<DocumentCover cover="ipfs://cover-cid" onChangeCover={vi.fn()} />)
-
-    const changeButton = container.querySelector<HTMLButtonElement>('button[aria-label="Change document cover image"]')
-    const input = container.querySelector<HTMLInputElement>('input[aria-label="Choose replacement cover image"]')
-    const inputClick = vi.spyOn(input!, 'click').mockImplementation(() => {})
-    const clickEvent = new MouseEvent('click', {bubbles: true, cancelable: true})
-
-    act(() => {
-      changeButton?.dispatchEvent(clickEvent)
-    })
-
-    expect(inputClick).toHaveBeenCalledOnce()
-    expect(clickEvent.defaultPrevented).toBe(false)
+    vi.unstubAllGlobals()
   })
 
   it('keeps cover actions visible on mobile and hover-gated on desktop', () => {

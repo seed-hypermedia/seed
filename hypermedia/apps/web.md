@@ -71,6 +71,7 @@ Browser identities are Ed25519 keys generated with WebCrypto as non-extractable 
 | `DATA_DIR` | Where `config.json` lives. <!-- id:Yog9fhT0 --> |
 | `SERVICE_ADMIN_SECRET` | Admin secret for the multi-site service mode. <!-- id:7hphqAYs --> |
 | `VITE_NOTIFY_SERVICE_HOST` | The [notify](./notify.md) service to use. <!-- id:qjnnUf-X --> |
+| `PEXELS_API_KEY` | Pexels API key for the stock photo search in the cover image picker, served at `/hm/api/stock-photos`. Only the hyper.media gateway needs it: the desktop app and self-hosted sites search through the gateway. |
 
 The `/hm/notifications` page signs its requests in the browser with the session key and talks to the notify host that the vault callback named at sign-in, not to `NOTIFY_SERVICE_HOST`. [Notify](./notify.md) describes both the signed inbox and the older unsigned email subscribe form.
 
