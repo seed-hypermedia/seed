@@ -6,7 +6,7 @@ import {
 } from '@seed-hypermedia/agents-protocol'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
-import {getAgentsPlatform} from './platform'
+import {getAgentsPlatform, type AgentsSignerDelegation} from './platform'
 
 /** Definition used when creating a server-hosted Seed agent. */
 export type AgentDefinition = AgentsProtocol.AgentDefinition
@@ -188,11 +188,11 @@ export async function getAgentServerHealth(serverUrl: string): Promise<AgentServ
   return res.json()
 }
 
-/** Sends a signed CBOR action to the agents service. */
+/** The agents service's live-update WebSocket URL. Keeps a path prefix (a server behind a reverse proxy). */
 export function getAgentWebSocketUrl(serverUrl: string): string {
   const baseUrl = new URL(normalizeAgentServerUrl(serverUrl))
   baseUrl.protocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-  baseUrl.pathname = '/agents/ws'
+  baseUrl.pathname = `${baseUrl.pathname.replace(/\/+$/, '')}/agents/ws`
   baseUrl.search = ''
   baseUrl.hash = ''
   return baseUrl.toString()
@@ -206,7 +206,21 @@ export async function signAgentAction(input: {accountUid: string; action: AgentA
   // Capability so the server can verify the delegation itself (see the platform's getDelegation).
   const delegated = blobs.principalToString(signer.principal) !== input.accountUid
   const delegation = delegated ? await platform.getDelegation?.(input.accountUid) : null
-  if (delegated && !delegation) {
+  return signAgentActionWith({signer, delegation: delegation ?? null, ...input})
+}
+
+/**
+ * Signs an agent action with an explicit signer, outside any registered platform (hosts that
+ * call the agents service directly). `delegation` is required when the signer is not the account.
+ */
+export async function signAgentActionWith(input: {
+  signer: blobs.Signer
+  delegation: AgentsSignerDelegation | null
+  accountUid: string
+  action: AgentAction
+}) {
+  const {signer, delegation} = input
+  if (blobs.principalToString(signer.principal) !== input.accountUid && !delegation) {
     throw new Error('The local key holds no delegation for this account')
   }
   return blobs.sign(signer, {
@@ -287,9 +301,13 @@ export async function sendAgentAction(input: {
   accountUid: string
   action: AgentAction
 }): Promise<AgentsResponse> {
-  const baseUrl = normalizeAgentServerUrl(input.serverUrl)
   const envelope = await signAgentAction({accountUid: input.accountUid, action: input.action})
+  return postSignedAgentAction(input.serverUrl, envelope)
+}
 
+/** Posts an already signed action envelope and decodes the reply, throwing on server errors. */
+export async function postSignedAgentAction(serverUrl: string, envelope: unknown): Promise<AgentsResponse> {
+  const baseUrl = normalizeAgentServerUrl(serverUrl)
   const res = await fetch(`${baseUrl}/api/message`, {
     method: 'POST',
     headers: {'Content-Type': 'application/cbor', Accept: 'application/cbor'},

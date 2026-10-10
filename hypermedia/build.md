@@ -71,6 +71,7 @@ The **peer protocol** is [libp2p](./protocol/network.md) with the protocol id `/
 ## Build for other people <!-- id:MErBNcr1 -->
 
 - [Sign in with Seed](./build/sign-in.md) lets a third-party website act as a visitor's [account](./protocol/identity.md) without ever holding their key. <!-- id:dMzYGzZR -->
+- [Embedding the agents UI](./build/agents-ui.md) shows [Seed Agents](./agent.md) inside another web app with the Seed apps' own interface, signing with a key the app controls.
 
 ## Run and contribute <!-- id:agwd8rC- -->
 

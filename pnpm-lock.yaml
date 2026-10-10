@@ -1471,6 +1471,49 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@24.19.1)(typescript@5.8.3))(vite@6.4.3(@types/node@24.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
 
+  frontend/packages/agents-ui:
+    dependencies:
+      '@seed-hypermedia/agents-protocol':
+        specifier: workspace:*
+        version: link:../../../agents/protocol
+      '@seed-hypermedia/client':
+        specifier: workspace:*
+        version: link:../client
+      '@shm/editor':
+        specifier: workspace:*
+        version: link:../editor
+      '@shm/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@shm/ui':
+        specifier: workspace:*
+        version: link:../ui
+      '@tanstack/react-query':
+        specifier: ^4.36.1
+        version: 4.43.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+    devDependencies:
+      '@tailwindcss/node':
+        specifier: 4.1.18
+        version: 4.1.18
+      '@tailwindcss/oxide':
+        specifier: 4.1.18
+        version: 4.1.18
+      '@vitejs/plugin-react':
+        specifier: ^4.3.4
+        version: 4.7.0(vite@6.4.3(@types/node@24.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
+      jsdom:
+        specifier: ^24.1.3
+        version: 24.1.3
+      typescript:
+        specifier: 5.8.3
+        version: 5.8.3
+      vite:
+        specifier: 6.4.3
+        version: 6.4.3(@types/node@24.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3)
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(happy-dom@20.8.9)(jsdom@24.1.3)(msw@2.12.7(@types/node@24.19.1)(typescript@5.8.3))(vite@6.4.3(@types/node@24.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
+
   frontend/packages/client:
     dependencies:
       '@ipld/dag-cbor':
