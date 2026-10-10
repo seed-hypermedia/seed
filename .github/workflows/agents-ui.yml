@@ -139,7 +139,7 @@ jobs:
       - name: Publish the validated tarball
         run: |
           set -euo pipefail
-          packages=(agents-ui-package/*.tgz)
+          packages=(./agents-ui-package/*.tgz)
           if [ "${#packages[@]}" -ne 1 ] || [ ! -f "${packages[0]}" ]; then
             echo 'Expected exactly one validated package tarball.' >&2
             exit 1
