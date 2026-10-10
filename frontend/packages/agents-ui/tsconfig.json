@@ -15,8 +15,6 @@
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
     "noFallthroughCasesInSwitch": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
     "paths": {
       "@shm/ui/*": ["../ui/src/*"],
       "@shm/editor/*": ["../editor/src/*"],
