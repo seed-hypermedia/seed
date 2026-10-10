@@ -447,17 +447,10 @@ async function main(): Promise<void> {
     }
   }
   configureDocsSpace(cfg.docs)
-  // Voice: the turn route follows a session's streaming deltas through the voice hub, so it sees
-  // every service event the WebSocket publisher sees.
+  // Service feeds voice before collaborator fan-out; publish receives the per-account copies.
   const voice = cfg.voice.enabled ? new voicesvc.VoiceService(cfg.voice) : undefined
-  const onEvent = voice
-    ? (event: apisvc.ServiceEvent) => {
-        voice.onServiceEvent(event)
-        publish(event)
-      }
-    : publish
   const svc = new apisvc.Service(db, cfg.dataDir, {
-    onEvent,
+    onEvent: publish,
     hmServerUrl: cfg.activity.hmServerUrl,
     ipfsServerUrl: cfg.activity.ipfsServerUrl,
     web: cfg.web,
@@ -475,6 +468,8 @@ async function main(): Promise<void> {
   const server = serve({
     port: cfg.http.port,
     hostname: cfg.http.hostname,
+    // Signed model requests and voice streams may be quiet during long host tools.
+    idleTimeout: 0,
     // Agent memory accepts files of any size, so uploads must not hit Bun's 128MB default cap.
     maxRequestBodySize: Number.MAX_SAFE_INTEGER,
     error: handleError,

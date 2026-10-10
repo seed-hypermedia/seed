@@ -29,11 +29,20 @@ export type VoiceRoomConfig = {
   deepgramModel: string
   cartesiaModel: string
   cartesiaVoice: string
+  cartesiaSpeed?: number
   language: string
   turnDetector: boolean
 }
 
-export type VoiceTurnLine = {delta?: string; done?: boolean; text?: string; error?: string}
+export type VoiceTurnLine = {
+  delta?: string
+  /** Speech-only tool acknowledgment, not part of the persisted assistant reply. */
+  progress?: string
+  done?: boolean
+  text?: string
+  error?: string
+  voice?: {voice: string; speed: number}
+}
 
 /** HTTP client for the agents server's internal voice routes (bearer-token guarded). */
 export class VoiceServerClient {
@@ -75,19 +84,25 @@ export class VoiceServerClient {
       deepgramModel: json.deepgramModel ?? 'nova-3',
       cartesiaModel: json.cartesiaModel ?? 'sonic-3',
       cartesiaVoice: json.cartesiaVoice ?? '',
+      ...(json.cartesiaSpeed === undefined ? {} : {cartesiaSpeed: json.cartesiaSpeed}),
       language: json.language ?? 'en',
       turnDetector: json.turnDetector === true,
     }
   }
 
   /** Sends one user turn into the session; the response body streams NDJSON reply lines. */
-  async turn(room: string, text: string, signal: AbortSignal): Promise<Response> {
-    return this.#post('turn', {room, text}, signal)
+  async turn(room: string, text: string, signal: AbortSignal, messageId?: string): Promise<Response> {
+    return this.#post('turn', {room, text, messageId}, signal)
   }
 
   /** Tells the server the worker left the room so it can forget the room record. */
   async leave(room: string): Promise<void> {
     await this.#post('leave', {room})
+  }
+
+  /** Reports content-free worker state and timings for operator introspection. */
+  async telemetry(room: string, observation: {state?: string; metrics?: Record<string, unknown>}): Promise<void> {
+    await this.#post('telemetry', {room, pid: process.pid, ...observation})
   }
 }
 
@@ -137,6 +152,8 @@ export type SeedSessionLLMOptions = {
   room: string
   /** Called with each spoken delta and the final reply text, for logging. */
   onLog?: (line: string) => void
+  /** Updates synthesis preferences; existing audio finishes in its original voice. */
+  onVoice?: (profile: {voice: string; speed: number}) => void
 }
 
 export class SeedSessionLLM extends llm.LLM {
@@ -183,6 +200,8 @@ class SeedSessionLLMStream extends llm.LLMStream {
   protected async run(): Promise<void> {
     const text = lastUserText(this.chatCtx)
     if (!text) return
+    const message = [...this.chatCtx.items].reverse().find((item) => item.type === 'message' && item.role === 'user')
+    const messageId = message?.id ?? crypto.randomUUID()
     const signal = this.abortController.signal
     const id = `seed-turn-${crypto.randomUUID()}`
     const speech = new SpeechTextStream()
@@ -193,7 +212,7 @@ class SeedSessionLLMStream extends llm.LLMStream {
     }
     let res: Response
     try {
-      res = await this.#options.client.turn(this.#options.room, text, signal)
+      res = await this.#options.client.turn(this.#options.room, text, signal, messageId)
     } catch (err) {
       if (signal.aborted) return
       throw err
@@ -202,7 +221,18 @@ class SeedSessionLLMStream extends llm.LLMStream {
     let finalText: string | undefined
     try {
       for await (const line of readNdjson(res.body, signal)) {
-        if (typeof line.error === 'string') throw new Error(`voice turn: ${line.error}`)
+        if (typeof line.error === 'string') {
+          // A tool/provider failure belongs to this turn, not the entire audio call.
+          emit(speech.push(` I couldn't finish that request. ${line.error}`))
+          finalText = line.error
+          break
+        }
+        if (line.voice) this.#options.onVoice?.(line.voice)
+        if (typeof line.progress === 'string' && line.progress) {
+          // Finish an earlier fragment before the independent acknowledgment sentence.
+          emit(speech.flush())
+          emit(` ${line.progress} `)
+        }
         if (typeof line.delta === 'string' && line.delta.length > 0) emit(speech.push(line.delta))
         if (line.done) {
           finalText = line.text ?? ''

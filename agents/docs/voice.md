@@ -8,6 +8,11 @@ session's log like any typed turn.
 Voice is off by default. Servers without it answer `CreateVoiceSession` with HTTP 501 and report `voice: false` on
 `/api/health`; the desktop hides the button.
 
+During a turn, tool activity is forwarded separately from the persisted assistant reply. If a tool is still running
+after 1.5 seconds, the worker says “I’m checking that now.” once; quick tools stay quiet. The acknowledgment is
+speech-only and is canceled if the tool finishes or the turn ends first. An interrupted call does not cancel or
+duplicate the underlying durable session run.
+
 ## How it works
 
 ```
@@ -16,7 +21,7 @@ Browser mic ──WebRTC──▶ LiveKit server ◀──WebRTC── voice wor
      │ CreateVoiceSession    │ AgentDispatch          ├ Deepgram streaming STT
      │ (signed CBOR)         │ (explicit, "seed-voice")├ optional LiveKit turn detector (ONNX)
      ▼                       │                        ├ "LLM" = POST /agents/api/voice/turn ─┐
-Agents server ───────────────┘                        └ Cartesia streaming TTS ◀────────────┘
+Agents server ───────────────┘                        └ Cartesia sentence TTS ◀────────────┘
   ├ mints the room token (livekit-server-sdk AccessToken, 1h)     NDJSON reply deltas
   ├ keeps an in-memory room record → session, speaker, speech keys
   ├ appends the utterance as the speaker's user message and runs the turn (voiceMessage)
@@ -51,32 +56,33 @@ unknown or expired rooms are 403 `{"error": "Unknown room"}`.
 | `POST …/room-config` | `{room}`       | `{sessionId, deepgramApiKey, cartesiaApiKey, deepgramModel, cartesiaModel, cartesiaVoice, language, turnDetector}`                    |
 | `POST …/voice/leave` | `{room}`       | `{ok: true}` (idempotent)                                                                                                             |
 
-A turn stream ends on the assistant's durable message, on the session going back to idle/stopped/error after the run
-started, a second after the run's request settles (a silent, tools-only turn yields `"text": ""`), or after five
-minutes. A worker that disconnects mid-turn is unsubscribed; the run itself continues.
+A turn stream ends when the session returns to idle/stopped/error or its completed request settles, or after five
+minutes. An assistant prelude before tools does not end the stream. Queued and parked work stays subscribed.
+Continuation events move the room pointer and stream subscription to the successor session without reconnecting audio. A
+worker that disconnects mid-turn is unsubscribed; the run itself continues.
 
 ## Configuration
 
 Every setting is an environment variable with a matching `--flag`; the worker process reads the same names (in `child`
 mode the server passes its resolved values down, so flags apply to both).
 
-| Variable                           | Flag                     | Default                                | Purpose                                                                     |
-| ---------------------------------- | ------------------------ | -------------------------------------- | --------------------------------------------------------------------------- |
-| `SEED_AGENTS_VOICE_ENABLED`        | `--voice-enabled`        | off                                    | Serve `CreateVoiceSession` and the worker routes                            |
-| `SEED_AGENTS_LIVEKIT_URL`          | `--livekit-url`          | `ws://localhost:7880`                  | LiveKit URL for the worker and the dispatch API (inside the deployment)     |
-| `SEED_AGENTS_LIVEKIT_PUBLIC_URL`   | `--livekit-public-url`   | = `SEED_AGENTS_LIVEKIT_URL`            | LiveKit URL handed to browsers                                              |
-| `SEED_AGENTS_LIVEKIT_API_KEY`      | `--livekit-api-key`      | `devkey`                               | LiveKit API key (`livekit-server --dev` credentials)                        |
-| `SEED_AGENTS_LIVEKIT_API_SECRET`   | `--livekit-api-secret`   | `secret`                               | LiveKit API secret                                                          |
-| `SEED_AGENTS_DEEPGRAM_API_KEY`     | `--deepgram-api-key`     | `your-deepgram-api-key`                | Server-wide Deepgram key (placeholder = not configured)                     |
-| `SEED_AGENTS_CARTESIA_API_KEY`     | `--cartesia-api-key`     | `your-cartesia-api-key`                | Server-wide Cartesia key (placeholder = not configured)                     |
-| `SEED_AGENTS_DEEPGRAM_MODEL`       | `--deepgram-model`       | `nova-3`                               | Deepgram STT model                                                          |
-| `SEED_AGENTS_CARTESIA_MODEL`       | `--cartesia-model`       | `sonic-3`                              | Cartesia TTS model                                                          |
-| `SEED_AGENTS_CARTESIA_VOICE`       | `--cartesia-voice`       | `6c9e08ad-6629-4ba3-a640-a0bae916dfff` | Cartesia voice id                                                           |
-| `SEED_AGENTS_VOICE_LANGUAGE`       | `--voice-language`       | `en`                                   | STT/TTS language                                                            |
-| `SEED_AGENTS_VOICE_TURN_DETECTOR`  | `--voice-turn-detector`  | off                                    | Load the LiveKit end-of-utterance model (a ~460 MB download) instead of VAD |
-| `SEED_AGENTS_VOICE_WORKER`         | `--voice-worker`         | `child` when enabled                   | `child` (server spawns it), `external` (dev pane), `off`                    |
-| `SEED_AGENTS_VOICE_INTERNAL_TOKEN` | `--voice-internal-token` | random per boot                        | Shared secret for the worker routes; set it when the worker is `external`   |
-| `SEED_AGENTS_VOICE_SERVER_URL`     | (worker only)            | `http://127.0.0.1:<port>`              | Where the worker reaches this server                                        |
+| Variable                           | Flag                     | Default                                | Purpose                                                                                        |
+| ---------------------------------- | ------------------------ | -------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `SEED_AGENTS_VOICE_ENABLED`        | `--voice-enabled`        | off                                    | Serve `CreateVoiceSession` and the worker routes                                               |
+| `SEED_AGENTS_LIVEKIT_URL`          | `--livekit-url`          | `ws://localhost:7880`                  | LiveKit URL for the worker and the dispatch API (inside the deployment)                        |
+| `SEED_AGENTS_LIVEKIT_PUBLIC_URL`   | `--livekit-public-url`   | = `SEED_AGENTS_LIVEKIT_URL`            | LiveKit URL handed to browsers                                                                 |
+| `SEED_AGENTS_LIVEKIT_API_KEY`      | `--livekit-api-key`      | `devkey`                               | LiveKit API key (`livekit-server --dev` credentials)                                           |
+| `SEED_AGENTS_LIVEKIT_API_SECRET`   | `--livekit-api-secret`   | `secret`                               | LiveKit API secret                                                                             |
+| `SEED_AGENTS_DEEPGRAM_API_KEY`     | `--deepgram-api-key`     | `your-deepgram-api-key`                | Server-wide Deepgram key (placeholder = not configured)                                        |
+| `SEED_AGENTS_CARTESIA_API_KEY`     | `--cartesia-api-key`     | `your-cartesia-api-key`                | Server-wide Cartesia key (placeholder = not configured)                                        |
+| `SEED_AGENTS_DEEPGRAM_MODEL`       | `--deepgram-model`       | `nova-3`                               | Deepgram STT model                                                                             |
+| `SEED_AGENTS_CARTESIA_MODEL`       | `--cartesia-model`       | `sonic-3`                              | Cartesia TTS model                                                                             |
+| `SEED_AGENTS_CARTESIA_VOICE`       | `--cartesia-voice`       | `6c9e08ad-6629-4ba3-a640-a0bae916dfff` | Cartesia voice id                                                                              |
+| `SEED_AGENTS_VOICE_LANGUAGE`       | `--voice-language`       | `en`                                   | Fixed STT/TTS language; `multi` enables multilingual recognition and automatic speech language |
+| `SEED_AGENTS_VOICE_TURN_DETECTOR`  | `--voice-turn-detector`  | off                                    | Load the LiveKit end-of-utterance model (a ~460 MB download) instead of VAD                    |
+| `SEED_AGENTS_VOICE_WORKER`         | `--voice-worker`         | `child` when enabled                   | `child` (server spawns it), `external` (dev pane), `off`                                       |
+| `SEED_AGENTS_VOICE_INTERNAL_TOKEN` | `--voice-internal-token` | random per boot                        | Shared secret for the worker routes; set it when the worker is `external`                      |
+| `SEED_AGENTS_VOICE_SERVER_URL`     | (worker only)            | `http://127.0.0.1:<port>`              | Where the worker reaches this server                                                           |
 
 The dispatch agent name is fixed: `seed-voice`.
 
@@ -170,3 +176,34 @@ the worker child join the room, fail its STT handshake on the placeholder key, a
   image with `bun run download-voice-models` or leave it off (VAD-only endpointing works well for short exchanges).
 - The Docker image stages `@livekit/*`, `livekit-server-sdk` and the `onnxruntime` packages next to `dist/` (native
   bindings cannot be bundled); `main.js --exec-selfcheck` still has to pass.
+
+### Speech across tool pauses
+
+The worker wraps Cartesia in `SentenceTTS` (LiveKit's sentence stream adapter), using independent `/tts/bytes` synthesis
+requests rather than one WebSocket context for the entire agent turn. The WebSocket plugin's five-second audio-chunk
+timeout can expire between a spoken prelude and a tool result, cutting off the rest of the answer. Sentence requests
+complete before that gap; later text starts another request, preserving audio order and interruption cancellation.
+
+Regression coverage in `src/voice-tts.test.ts` checks that no provider stream stays open during a tool pause, later
+sentences are synthesized once, and an interruption aborts the request signal without speaking buffered text. These
+local tests do not replace an on-device speech check after the worker is reloaded. Existing calls retain their loaded
+code; do not restart a live worker without warning that the call will drop.
+
+### Experimental Casework visible-screen context
+
+The experimental host bridge accepts `POST http://127.0.0.1:3052/voice/context` with
+`Authorization: Bearer <Casework bridge-token>` and JSON
+`{"room":"seed-voice-…","context":"Visible, non-sensitive screen summary","capturedAt":<Unix milliseconds>}`. The bridge
+checks that the iPad's joined room is active and forwards to the internal agent route
+`POST http://127.0.0.1:3053/api/voice/context` using its own private voice bearer; **never put that internal token in
+the iPad client**. The internal route requires `{"room":"seed-voice-…","context":"…","capturedAt":<Unix milliseconds>}`
+and the `SEED_AGENTS_VOICE_INTERNAL_TOKEN` bearer. The bridge replies with `{"accepted":true,"expiresInMs":10000}`. Both
+routes reject unknown rooms, stale captures (older than 10 seconds), future captures (over 1 second), empty context, and
+more than 2048 UTF-8 bytes. Send only a deliberate, redacted summary of the currently visible view, not a screenshot or
+background screen scrape. Do not include passwords, tokens, private fields, or hidden UI.
+
+The next **new** utterance in that room consumes the hint once; replays of the same message never consume it, and an
+unused hint expires in 10 seconds. It becomes a run-scoped prompt for that utterance only, labeled untrusted screen data
+rather than instructions; it is not a session message. Posting after the utterance has begun cannot change its already
+prepared prompt. To describe that utterance, post just before its turn begins; an active app may refresh its bounded
+hint every few seconds. An idle room or a delayed turn cannot guarantee a hint will be applied.

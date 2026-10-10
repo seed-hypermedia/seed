@@ -93,6 +93,19 @@ describe('lastUserText', () => {
 })
 
 describe('SeedSessionLLM', () => {
+  test('repeated generation for one utterance uses the same id; a new utterance gets its own id', async () => {
+    requests.length = 0
+    onTurn = () => ndjson([{done: true, text: ''}])
+    const model = new SeedSessionLLM({client: client(), room: 'same-room'})
+    const ctx = chatCtxWith({role: 'user', text: 'same words'})
+    await model.chat({chatCtx: ctx}).collect()
+    await model.chat({chatCtx: ctx}).collect()
+    await model.chat({chatCtx: chatCtxWith({role: 'user', text: 'same words'})}).collect()
+    const ids = requests.map((item) => (item.body as any).messageId)
+    expect(ids[0]).toBeTruthy()
+    expect(ids[1]).toBe(ids[0])
+    expect(ids[2]).not.toBe(ids[0])
+  })
   test('posts the last user message and streams the reply deltas as speech text', async () => {
     requests.length = 0
     onTurn = () =>
@@ -115,6 +128,20 @@ describe('SeedSessionLLM', () => {
     expect(requests[0]).toMatchObject({route: 'turn', body: {room: 'room-c', text: 'What now?'}})
   })
 
+  test('speaks tool progress between reply fragments without treating it as final text', async () => {
+    onTurn = () =>
+      ndjson([
+        {delta: 'First sentence. '},
+        {progress: 'I’m checking that now.'},
+        {delta: 'Final answer.'},
+        {done: true, text: 'First sentence. Final answer.'},
+      ])
+    const stream = new SeedSessionLLM({client: client(), room: 'room-c'}).chat({
+      chatCtx: chatCtxWith({role: 'user', text: 'look it up'}),
+    })
+    expect((await stream.collect()).text).toBe('First sentence.  I’m checking that now. Final answer.')
+  })
+
   test('yields nothing for a tools-only turn with empty text', async () => {
     onTurn = () => ndjson([{done: true, text: ''}])
     const stream = new SeedSessionLLM({client: client(), room: 'room-c'}).chat({
@@ -123,19 +150,15 @@ describe('SeedSessionLLM', () => {
     expect((await stream.collect()).text).toBe('')
   })
 
-  test('reports an error line through the error event, keeps the partial text, never retries', async () => {
+  test('speaks turn failures without killing the call or retrying the request', async () => {
     requests.length = 0
     const errors: {recoverable: boolean; error: Error}[] = []
     onTurn = () => ndjson([{delta: 'partial '}, {error: 'session stopped'}])
     const model = new SeedSessionLLM({client: client(), room: 'room-c'})
     model.on('error', (err) => errors.push(err))
     const stream = model.chat({chatCtx: chatCtxWith({role: 'user', text: 'hi'})})
-    // The framework swallows run() failures and surfaces them as an LLM error event; the
-    // pipeline then counts it against the session's unrecoverable-error budget.
-    expect((await stream.collect()).text.trim()).toBe('partial')
-    expect(errors).toHaveLength(1)
-    expect(errors[0]?.recoverable).toBe(false)
-    expect(errors[0]?.error.message).toContain('session stopped')
+    expect((await stream.collect()).text).toContain("I couldn't finish that request. session stopped")
+    expect(errors).toHaveLength(0)
     expect(requests).toHaveLength(1)
   })
 

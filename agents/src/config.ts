@@ -108,6 +108,7 @@ export type Config = {
     deepgramModel: string
     cartesiaModel: string
     cartesiaVoice: string
+    /** A fixed speech language, or `multi` for multilingual STT and automatic TTS language. */
     language: string
     /** Load the LiveKit end-of-utterance model (a large ONNX download) instead of VAD-only endpointing. */
     turnDetector: boolean

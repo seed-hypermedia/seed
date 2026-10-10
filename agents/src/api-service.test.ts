@@ -4139,6 +4139,70 @@ describe('api service', () => {
     }
   })
 
+  test('message delivery is deduplicated while the model runs and after an accepted turn fails', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir)
+    let release!: () => void
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const sessionId = await seedAgentSession(svc, account, 'Answer briefly.')
+      let entered!: () => void
+      const started = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let calls = 0
+      globalThis.fetch = (async () => {
+        calls++
+        entered()
+        await gate
+        return new Response(JSON.stringify({error: {message: 'deliberate provider failure'}}), {
+          status: 400,
+          headers: {'Content-Type': 'application/json'},
+        })
+      }) as unknown as typeof fetch
+      const input = {
+        _: 'MessageSession' as const,
+        sessionId,
+        content: [{type: 'text' as const, text: 'Only once', clientMessageId: 'dedup-test'}],
+        clientMessageId: 'dedup-test',
+      }
+      const send = () => apisvc.createSignedEnvelope(account, {action: input}).then((envelope) => svc.message(envelope))
+      const first = send().catch((error) => error)
+      await started
+      const duplicate = await send()
+      expect(duplicate._).toBe('MessageSessionResponse')
+      release()
+      await first
+      await send()
+      await svc.awaitQueueIdle()
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(account, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+      expect(session.events.filter((item) => item.event.type === 'message' && item.event.role === 'user')).toHaveLength(
+        1,
+      )
+      expect(calls).toBe(1)
+      await expect(
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {...input, content: [{type: 'text', text: 'collision'}]},
+          }),
+        ),
+      ).rejects.toThrow('payload mismatch')
+    } finally {
+      release?.()
+      await svc.awaitQueueIdle()
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('updates agent definition and messages a session through Pi-backed OpenAI', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

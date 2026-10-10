@@ -32,6 +32,8 @@ import * as os from 'node:os'
 import process from 'node:process'
 import {SeedSessionLLM, VoiceServerClient, type VoiceRoomConfig} from './voice-session-llm'
 
+import {SentenceTTS} from './voice-tts'
+
 const AGENT_NAME = 'seed-voice'
 
 /** The LiveKit Agent needs instructions, but SeedSessionLLM ignores them: the session has its own. */
@@ -180,16 +182,25 @@ async function runJob(ctx: JobContext<{vad?: VAD}>): Promise<void> {
     )
   }
 
+  const speech = new cartesia.TTS({
+    model: config.cartesiaModel,
+    voice: config.cartesiaVoice || undefined,
+    speed: config.cartesiaSpeed,
+    // Deepgram's `multi` is not a Cartesia language code. The Cartesia plugin preserves an
+    // empty language, which lets Sonic infer it from each sentence (including code-switching).
+    language: config.language === 'multi' ? '' : config.language,
+    apiKey: config.cartesiaApiKey,
+  })
   const session = new voice.AgentSession({
     vad,
     stt: new deepgram.STT({model: config.deepgramModel, language: config.language, apiKey: config.deepgramApiKey}),
-    llm: new SeedSessionLLM({client, room, onLog: (line) => console.log(`[${ts()}] ${line}`)}),
-    tts: new cartesia.TTS({
-      model: config.cartesiaModel,
-      voice: config.cartesiaVoice || undefined,
-      language: config.language,
-      apiKey: config.cartesiaApiKey,
+    llm: new SeedSessionLLM({
+      client,
+      room,
+      onVoice: (profile) => speech.updateOptions(profile),
+      onLog: (line) => console.log(`[${ts()}] ${line}`),
     }),
+    tts: new SentenceTTS(speech),
     turnHandling: {
       // Without a local model the session would build a LiveKit Cloud inference detector, which a
       // self-hosted server cannot serve; VAD end-of-speech + endpointing delay is the fallback.
@@ -204,6 +215,7 @@ async function runJob(ctx: JobContext<{vad?: VAD}>): Promise<void> {
   })
 
   session.on(Events.MetricsCollected, (ev) => {
+    void client.telemetry(room, {metrics: ev.metrics as unknown as Record<string, unknown>}).catch(() => {})
     const m = ev.metrics
     if (m.type === 'stt_metrics') {
       logLine('stt', `audio: ${fmtMs(m.audioDurationMs)}, duration: ${fmtMs(m.durationMs)}, streamed: ${m.streamed}`)
@@ -228,15 +240,18 @@ async function runJob(ctx: JobContext<{vad?: VAD}>): Promise<void> {
       )
     }
   })
-  session.on(Events.AgentStateChanged, (ev) => logLine('agent', `${ev.oldState} → ${ev.newState}`))
+  session.on(Events.AgentStateChanged, (ev) => {
+    logLine('agent', `${ev.oldState} → ${ev.newState}`)
+    void client.telemetry(room, {state: ev.newState}).catch(() => {})
+  })
   session.on(Events.UserStateChanged, (ev) => logLine('user', `${ev.oldState} → ${ev.newState}`))
   session.on(Events.UserInputTranscribed, (ev) => {
-    logLine(ev.isFinal ? 'stt:final' : 'stt:interim', `"${ev.transcript}"`)
+    logLine(ev.isFinal ? 'stt:final' : 'stt:interim', `${ev.transcript.length} characters`)
   })
   session.on(Events.ConversationItemAdded, (ev) => {
     const text = ev.item.type === 'message' ? ev.item.textContent ?? '' : ''
     const role = ev.item.type === 'message' ? ev.item.role : ev.item.type
-    logLine('chat', `${role}: "${text.slice(0, 120)}${text.length > 120 ? '...' : ''}"`)
+    logLine('chat', `${role}: ${text.length} characters`)
   })
   session.on(Events.SpeechCreated, (ev) => {
     logLine(
@@ -245,7 +260,8 @@ async function runJob(ctx: JobContext<{vad?: VAD}>): Promise<void> {
     )
   })
   session.on(Events.Error, (ev) => {
-    logError('error', `source: ${JSON.stringify(ev.source)}, error:`, ev.error)
+    logError('error', 'speech pipeline error:', ev.error)
+    void client.telemetry(room, {state: 'error'}).catch(() => {})
   })
   session.on(Events.Close, (ev) => {
     logLine('session', `closed: ${ev.reason}`)

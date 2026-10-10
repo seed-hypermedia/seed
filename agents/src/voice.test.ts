@@ -14,6 +14,322 @@ import * as path from 'node:path'
 const TOKEN = 'test-internal-token'
 
 describe('voice service', () => {
+  test('shared agent streams each spoken fragment once while every collaborator still receives it', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch(), turnTimeoutMs: 1000})
+    const delivered: apisvc.ServiceEvent[] = []
+    const svc = new apisvc.Service(db, dataDir, {voice, onEvent: (event) => delivered.push(event)})
+    try {
+      const owner = blobs.generateNobleKeyPair(),
+        writer = blobs.generateNobleKeyPair()
+      const ownerId = blobs.principalToString(owner.principal),
+        writerId = blobs.principalToString(writer.principal)
+      const sessionId = await seedSession(svc, owner)
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw Error('unexpected response')
+      const agentId = session.session.agentId
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'InviteAgentCollaborator', agentId, accountId: writerId, role: 'writer'},
+        }),
+      )
+      await svc.message(await apisvc.createSignedEnvelope(writer, {action: {_: 'AcceptAgentInvite', agentId}}))
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'SetSecret', name: 'test-key', value: new TextEncoder().encode('test')},
+        }),
+      )
+      await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'SetModelProvider', name: 'openai', provider: {type: 'openai', secretRefs: {apiKey: 'test-key'}}},
+        }),
+      )
+      // A real Service run and real collaborator fan-out; only the remote model is substituted.
+      globalThis.fetch = (async () =>
+        new Response(
+          [
+            {id: 'response', choices: [{delta: {role: 'assistant', content: 'Yes, I’m receiving you. '}}]},
+            {id: 'response', choices: [{delta: {content: 'Can you hear this reply clearly?'}}]},
+            {
+              id: 'response',
+              choices: [{delta: {}, finish_reason: 'stop'}],
+              usage: {prompt_tokens: 10, completion_tokens: 10, total_tokens: 20},
+            },
+          ]
+            .map((chunk) => `data: ${JSON.stringify(chunk)}\n\n`)
+            .join('') + 'data: [DONE]\n\n',
+          {headers: {'Content-Type': 'text/event-stream'}},
+        )) as unknown as typeof fetch
+      const room = await voice.createVoiceSession({
+        sessionId,
+        storageAccountId: ownerId,
+        userOrigin: {accountId: writerId, signerId: writerId},
+        keys: {deepgramApiKey: 'test', cartesiaApiKey: 'test'},
+      })
+      const response = await getPostHandler(
+        voice.routes(svc),
+        '/api/voice/turn',
+      )(post('/api/voice/turn', {room: room.room, text: 'Can you hear me?', messageId: 'shared-utterance'}, TOKEN))
+      const lines = (await readNdjson(response)) as Array<{delta?: string; done?: boolean; text?: string}>
+      const expected = 'Yes, I’m receiving you. Can you hear this reply clearly?'
+      expect(lines.map((line) => line.delta || '').join('')).toBe(expected)
+      expect(lines.at(-1)).toEqual({done: true, text: expected})
+      for (const accountId of [ownerId, writerId]) {
+        expect(
+          delivered
+            .filter((event) => event.accountId === accountId && event.type === 'session-partial')
+            .map((event) => (event.type === 'session-partial' ? event.textDelta || '' : ''))
+            .join(''),
+        ).toBe(expected)
+      }
+      const runtime = await getPostHandler(
+        voice.routes(svc),
+        '/api/voice/runtime',
+      )(post('/api/voice/runtime', {}, TOKEN))
+      expect(((await runtime.json()) as any).activity.find((item: any) => item.sessionId === sessionId).text).toBe(
+        expected,
+      )
+    } finally {
+      await svc.awaitQueueIdle()
+      svc.stopRunQueue()
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('duplicate turn subscriptions replay once even after the first listener disconnects', async () => {
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
+    const room = await voice.createVoiceSession({
+      sessionId: 's',
+      storageAccountId: 'owner',
+      userOrigin: {accountId: 'speaker', signerId: 'key'},
+      keys: {deepgramApiKey: 'dg', cartesiaApiKey: 'ca'},
+    })
+    let calls = 0
+    let complete!: () => void
+    const gate = new Promise<void>((resolve) => {
+      complete = resolve
+    })
+    const host: voicesvc.VoiceHost = {
+      async voiceMessage(_owner, sessionId, _text, _origin, request) {
+        calls++
+        expect(request?.messageId).toBe('utterance-1')
+        voice.onServiceEvent(partial(sessionId, 'Hello '))
+        await gate
+        voice.onServiceEvent(partial(sessionId, 'again'))
+        return {_: 'MessageSessionResponse', sessionId, assistantEventId: 'answer'}
+      },
+    }
+    const handler = getPostHandler(voice.routes(host), '/api/voice/turn')
+    const body = {room: room.room, text: 'hello', messageId: 'utterance-1'}
+    const first = await handler(post('/api/voice/turn', body, TOKEN))
+    const reader = first.body!.getReader()
+    await reader.read()
+    await reader.cancel()
+    const second = await handler(post('/api/voice/turn', body, TOKEN))
+    const collision = await handler(post('/api/voice/turn', {...body, text: 'different'}, TOKEN))
+    expect(collision.status).toBe(409)
+    complete()
+    const lines = await readNdjson(second)
+    expect(lines).toEqual([{delta: 'Hello '}, {delta: 'again'}, {done: true, text: 'Hello again'}])
+    expect(await readNdjson(await handler(post('/api/voice/turn', body, TOKEN)))).toEqual(lines)
+    expect(calls).toBe(1)
+  })
+
+  test('acknowledges a slow tool once, without adding the speech to the stored reply', async () => {
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
+    const room = await voice.createVoiceSession({
+      sessionId: 'slow-tool',
+      storageAccountId: 'owner',
+      userOrigin: {accountId: 'speaker', signerId: 'key'},
+      keys: {deepgramApiKey: 'dg', cartesiaApiKey: 'ca'},
+    })
+    const host: voicesvc.VoiceHost = {
+      async voiceMessage(_owner, sessionId) {
+        voice.onServiceEvent({
+          ...partial(sessionId, undefined),
+          activity: {phase: 'tool', toolName: 'search', toolCallId: 'call-1'},
+        })
+        // Progress updates for the same tool must not perpetually reset the delay.
+        await Bun.sleep(100)
+        voice.onServiceEvent({
+          ...partial(sessionId, undefined),
+          activity: {phase: 'tool', toolName: 'search', toolCallId: 'call-1'},
+        })
+        await Bun.sleep(1500)
+        voice.onServiceEvent(partial(sessionId, 'Here is the answer.'))
+        return {_: 'MessageSessionResponse', sessionId, assistantEventId: 'answer'}
+      },
+    }
+    const handler = getPostHandler(voice.routes(host), '/api/voice/turn')
+    const body = {room: room.room, text: 'find it', messageId: 'slow-tool-1'}
+    const lines = await readNdjson(await handler(post('/api/voice/turn', body, TOKEN)))
+    expect(lines).toEqual([
+      {progress: 'I’m checking that now.'},
+      {delta: 'Here is the answer.'},
+      {done: true, text: 'Here is the answer.'},
+    ])
+    expect(await readNdjson(await handler(post('/api/voice/turn', body, TOKEN)))).toEqual(lines)
+  })
+
+  test('does not interrupt a quick tool with an acknowledgment', async () => {
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
+    const room = await voice.createVoiceSession({
+      sessionId: 'fast-tool',
+      storageAccountId: 'owner',
+      userOrigin: {accountId: 'speaker', signerId: 'key'},
+      keys: {deepgramApiKey: 'dg', cartesiaApiKey: 'ca'},
+    })
+    const host: voicesvc.VoiceHost = {
+      async voiceMessage(_owner, sessionId) {
+        voice.onServiceEvent({...partial(sessionId, undefined), activity: {phase: 'tool', toolName: 'read'}})
+        await Bun.sleep(25)
+        voice.onServiceEvent(partial(sessionId, 'Done.'))
+        return {_: 'MessageSessionResponse', sessionId, assistantEventId: 'answer'}
+      },
+    }
+    const handler = getPostHandler(voice.routes(host), '/api/voice/turn')
+    expect(await readNdjson(await handler(post('/api/voice/turn', {room: room.room, text: 'read'}, TOKEN)))).toEqual([
+      {delta: 'Done.'},
+      {done: true, text: 'Done.'},
+    ])
+  })
+
+  test('queued voice waits for its own run and ignores an earlier turn completing', async () => {
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
+    const room = await voice.createVoiceSession({
+      sessionId: 's',
+      storageAccountId: 'owner',
+      userOrigin: {accountId: 'speaker', signerId: 'key'},
+      keys: {deepgramApiKey: 'dg', cartesiaApiKey: 'ca'},
+    })
+    const run = (id: string, status: api.RunInfo['status']) =>
+      voice.onServiceEvent({
+        type: 'run-change',
+        accountId: 'owner',
+        run: {id, sessionId: 's', agentId: 'agent', status} as api.RunInfo,
+      })
+    const host: voicesvc.VoiceHost = {
+      async voiceMessage(_owner, sessionId, _text, _origin, request) {
+        request!.onRun('new-run')
+        voice.onServiceEvent({...partial(sessionId, 'WRONG'), runId: 'old-run'})
+        run('old-run', 'succeeded')
+        voice.onServiceEvent(sessionChange(sessionId, 'idle'))
+        voice.onServiceEvent({...partial(sessionId, 'Correct reply'), runId: 'new-run'})
+        run('new-run', 'succeeded')
+        return {_: 'MessageSessionResponse', sessionId, assistantEventId: ''}
+      },
+    }
+    const response = await getPostHandler(
+      voice.routes(host),
+      '/api/voice/turn',
+    )(post('/api/voice/turn', {room: room.room, text: 'queued'}, TOKEN))
+    const lines = await readNdjson(response)
+    expect(lines).toEqual([
+      {delta: 'Correct reply'},
+      {status: 'succeeded', runId: 'new-run'},
+      {done: true, text: 'Correct reply'},
+    ])
+  })
+
+  test('speech continues after a tool prelude and waits for the actual final reply', async () => {
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
+    const issued = await voice.createVoiceSession({
+      sessionId: 'tools',
+      storageAccountId: 'owner',
+      userOrigin: {accountId: 'speaker', signerId: 'key'},
+      keys: {deepgramApiKey: 'dg', cartesiaApiKey: 'ca'},
+    })
+    const host: voicesvc.VoiceHost = {
+      async voiceMessage(_owner, sessionId) {
+        voice.onServiceEvent(partial(sessionId, 'Checking. '))
+        voice.onServiceEvent(sessionEvent(sessionId, {type: 'message', role: 'assistant', content: 'Checking.'}))
+        await Promise.resolve()
+        voice.onServiceEvent(partial(sessionId, 'It worked.'))
+        voice.onServiceEvent(sessionEvent(sessionId, {type: 'message', role: 'assistant', content: 'It worked.'}))
+        voice.onServiceEvent(sessionChange(sessionId, 'idle'))
+        return {_: 'MessageSessionResponse', sessionId, assistantEventId: 'last'}
+      },
+    }
+    const response = await getPostHandler(
+      voice.routes(host),
+      '/api/voice/turn',
+    )(post('/api/voice/turn', {room: issued.room, text: 'Check it'}, TOKEN))
+    expect(await readNdjson(response)).toEqual([
+      {delta: 'Checking. '},
+      {delta: 'It worked.'},
+      {done: true, text: 'It worked.'},
+    ])
+  })
+
+  test('a call follows continuation events and sends the next utterance to the successor', async () => {
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
+    const issued = await voice.createVoiceSession({
+      sessionId: 'first',
+      storageAccountId: 'owner',
+      userOrigin: {accountId: 'speaker', signerId: 'key'},
+      keys: {deepgramApiKey: 'dg', cartesiaApiKey: 'ca'},
+    })
+    const sessions: string[] = []
+    const host: voicesvc.VoiceHost = {
+      async voiceMessage(_owner, id) {
+        sessions.push(id)
+        if (id === 'first') {
+          const change = sessionChange('first', 'streaming')
+          if (change.type === 'session-change')
+            change.session.continuedTo = {
+              sessionId: 'second',
+              continuationId: 'edge',
+              reason: 'user_request',
+              createdAt: Date.now(),
+            }
+          voice.onServiceEvent(change)
+          voice.onServiceEvent(sessionChange('first', 'idle'))
+        }
+        voice.onServiceEvent(partial('second', 'Still here'))
+        voice.onServiceEvent(sessionEvent('second', {type: 'message', role: 'assistant', content: 'Still here'}))
+        voice.onServiceEvent(sessionChange('second', 'idle'))
+        return {_: 'MessageSessionResponse', sessionId: id, assistantEventId: 'answer'}
+      },
+    }
+    const turn = getPostHandler(voice.routes(host), '/api/voice/turn')
+    for (let i = 0; i < 2; i++) {
+      const result = await turn(post('/api/voice/turn', {room: issued.room, text: 'hello'}, TOKEN))
+      expect(await readNdjson(result)).toEqual([{delta: 'Still here'}, {done: true, text: 'Still here'}])
+    }
+    expect(sessions).toEqual(['first', 'second'])
+    expect(voice.hub.listenerCount('first')).toBe(0)
+    expect(voice.hub.listenerCount('second')).toBe(0)
+  })
+
+  test('runtime controls require authentication, validate profiles, and omit speech secrets', async () => {
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
+    const issued = await voice.createVoiceSession({
+      sessionId: 'first',
+      storageAccountId: 'owner',
+      userOrigin: {accountId: 'speaker', signerId: 'key'},
+      keys: {deepgramApiKey: 'SECRET-DG', cartesiaApiKey: 'SECRET-CA'},
+    })
+    const control = getPostHandler(voice.routes(silentHost()), '/api/voice/runtime')
+    expect((await control(post('/api/voice/runtime', {}))).status).toBe(401)
+    expect((await control(post('/api/voice/runtime', {profile: {voice: 'id', speed: 100}}, TOKEN))).status).toBe(400)
+    const result = await control(
+      post(
+        '/api/voice/runtime',
+        {room: issued.room, profile: {voice: 'new-voice', speed: 0.9}, sessionId: 'resumed'},
+        TOKEN,
+      ),
+    )
+    const body = await result.text()
+    expect(body).not.toContain('SECRET')
+    expect(voice.room(issued.room)?.sessionId).toBe('resumed')
+    expect(voice.roomConfig(issued.room)?.cartesiaVoice).toBe('new-voice')
+  })
+
   test('mints a room-scoped participant token and dispatches the worker', async () => {
     const dispatch = new FakeDispatch()
     const now = 1_700_000_000_000
@@ -242,7 +558,9 @@ describe('voice service', () => {
       voice.routes(hanging),
       '/api/voice/turn',
     )(post('/api/voice/turn', {room: 'seed-voice-sess-1', text: 'hello?'}, TOKEN))
-    expect(await readNdjson(timedOut)).toEqual([{done: true, text: ''}])
+    expect(await readNdjson(timedOut)).toEqual([
+      {error: 'The agent is still working. Check its run in the app; your message has not been resent.'},
+    ])
     expect(voice.hub.listenerCount('sess-1')).toBe(0)
 
     const failing: voicesvc.VoiceHost = {
@@ -430,7 +748,10 @@ async function readNdjson(res: Response): Promise<unknown[]> {
     .map((line) => JSON.parse(line) as unknown)
 }
 
-function partial(sessionId: string, textDelta: string | undefined): apisvc.ServiceEvent {
+function partial(
+  sessionId: string,
+  textDelta: string | undefined,
+): Extract<apisvc.ServiceEvent, {type: 'session-partial'}> {
   return {type: 'session-partial', accountId: 'owner', agentId: 'agent', sessionId, partialId: 'p1', textDelta}
 }
 
@@ -496,3 +817,54 @@ function getGetHandler(routes: Bun.Serve.Routes<undefined, string>, route: strin
   if (!entry?.GET) throw new Error(`missing route ${route}`)
   return entry.GET
 }
+
+describe('voice visible-screen context', () => {
+  test('requires auth, bounded fresh data, consumes once and does not reuse on replay', async () => {
+    let now = 1_000_000
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch(), now: () => now})
+    const issued = await voice.createVoiceSession({
+      sessionId: 's',
+      storageAccountId: 'owner',
+      userOrigin: {accountId: 'speaker', signerId: 'key'},
+      keys: {deepgramApiKey: 'dg', cartesiaApiKey: 'ca'},
+    })
+    const route = getPostHandler(
+      voice.routes({
+        async voiceMessage(_a, sessionId) {
+          return {_: 'MessageSessionResponse', sessionId, assistantEventId: 'done'}
+        },
+      }),
+      '/api/voice/context',
+    )
+    expect(
+      (await route(post('/api/voice/context', {room: issued.room, context: 'Notes', capturedAt: now}, 'wrong'))).status,
+    ).toBe(401)
+    expect(
+      (await route(post('/api/voice/context', {room: issued.room, context: 'x'.repeat(2049), capturedAt: now}, TOKEN)))
+        .status,
+    ).toBe(400)
+    expect(
+      (await route(post('/api/voice/context', {room: issued.room, context: 'Notes', capturedAt: now - 11000}, TOKEN)))
+        .status,
+    ).toBe(400)
+    const received: Array<string | undefined> = []
+    const host: voicesvc.VoiceHost = {
+      async voiceMessage(_a, sessionId, _t, _o, request) {
+        received.push(request?.screenContext)
+        return {_: 'MessageSessionResponse', sessionId, assistantEventId: 'done'}
+      },
+    }
+    expect(
+      (await route(post('/api/voice/context', {room: issued.room, context: 'Notes', capturedAt: now}, TOKEN))).status,
+    ).toBe(200)
+    const turn = getPostHandler(voice.routes(host), '/api/voice/turn')
+    await readNdjson(await turn(post('/api/voice/turn', {room: issued.room, text: 'first', messageId: 'one'}, TOKEN)))
+    await readNdjson(await turn(post('/api/voice/turn', {room: issued.room, text: 'first', messageId: 'one'}, TOKEN)))
+    await readNdjson(await turn(post('/api/voice/turn', {room: issued.room, text: 'second', messageId: 'two'}, TOKEN)))
+    expect(received).toEqual(['Notes', undefined])
+    await route(post('/api/voice/context', {room: issued.room, context: 'Old', capturedAt: now}, TOKEN))
+    now += 10001
+    await readNdjson(await turn(post('/api/voice/turn', {room: issued.room, text: 'third', messageId: 'three'}, TOKEN)))
+    expect(received.at(-1)).toBeUndefined()
+  })
+})

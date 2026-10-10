@@ -34,6 +34,9 @@ export type VoiceKeys = {deepgramApiKey: string; cartesiaApiKey: string}
 /** The signed account and signer behind the voice participant; stamped on the user messages. */
 export type VoiceUserOrigin = {accountId: string; signerId: string}
 
+/** Stable utterance identity and the durable run that owns its response. */
+export type VoiceRequestContext = {messageId: string; onRun: (runId: string) => void; screenContext?: string}
+
 /** One issued voice room, kept in memory until `leave` or expiry. */
 export type VoiceRoom = {
   room: string
@@ -43,7 +46,12 @@ export type VoiceRoom = {
   userOrigin: VoiceUserOrigin
   keys: VoiceKeys
   createdAt: number
+  profile?: VoiceProfile
+  worker?: {pid: number; state: string; updatedAt: number; metrics?: Record<string, number>}
 }
+
+/** Speech preferences that may change without replacing the call. */
+export type VoiceProfile = {voice: string; speed: number}
 
 /** What the worker needs to build its pipeline for a room (answer of `room-config`). */
 export type VoiceRoomConfig = {
@@ -53,6 +61,7 @@ export type VoiceRoomConfig = {
   deepgramModel: string
   cartesiaModel: string
   cartesiaVoice: string
+  cartesiaSpeed?: number
   language: string
   turnDetector: boolean
 }
@@ -69,6 +78,7 @@ export type VoiceHost = {
     sessionId: string,
     text: string,
     userOrigin: VoiceUserOrigin,
+    request?: VoiceRequestContext,
   ): Promise<api.MessageSessionResponse>
 }
 
@@ -78,8 +88,6 @@ export const VOICE_TOKEN_TTL_MS = 60 * 60 * 1000
 export const VOICE_ROOM_TTL_MS = 2 * 60 * 60 * 1000
 /** A turn stream ends with whatever it collected after this long (tool-heavy turns can be slow). */
 export const VOICE_TURN_TIMEOUT_MS = 5 * 60 * 1000
-/** After the run's request settles, trailing events get this long to arrive before `done`. */
-const VOICE_TURN_GRACE_MS = 1_000
 
 /** Room name for a session; one room per session so re-joins land in the same place. */
 export function voiceRoomName(sessionId: string): string {
@@ -137,12 +145,23 @@ function eventSessionId(event: apisvc.ServiceEvent): string | undefined {
       return event.event.sessionId
     case 'session-change':
       return event.session.id
+    case 'run-change':
+      return event.run.sessionId
     default:
       return undefined
   }
 }
 
 export class VoiceService {
+  readonly #activity = new Map<
+    string,
+    {sessionId: string; partialId: string; text: string; activity?: api.AgentRunActivity; updatedAt: number}
+  >()
+  readonly #turns = new Map<
+    string,
+    {text: string; chunks: Uint8Array[]; listeners: Set<ReadableStreamDefaultController<Uint8Array>>; done: boolean}
+  >()
+  readonly #screenContexts = new Map<string, {text: string; receivedAt: number}>()
   readonly hub = new VoiceEventHub()
   /** Bearer token the worker presents on the internal routes. */
   readonly internalToken: string
@@ -151,6 +170,7 @@ export class VoiceService {
   readonly #rooms = new Map<string, VoiceRoom>()
   readonly #now: () => number
   readonly #turnTimeoutMs: number
+  readonly #recentTurns: {sessionId: string; startedAt: number; elapsedMs: number; outcome: string}[] = []
 
   constructor(
     cfg: VoiceConfig,
@@ -180,7 +200,25 @@ export class VoiceService {
 
   /** Feed every service event here (from the `onEvent` callback) so turn streams can follow sessions. */
   onServiceEvent(event: apisvc.ServiceEvent): void {
+    if (event.type === 'session-partial') {
+      const previous = this.#activity.get(event.sessionId)
+      this.#activity.set(event.sessionId, {
+        sessionId: event.sessionId,
+        partialId: event.partialId,
+        text: ((previous?.partialId === event.partialId ? previous.text : '') + (event.textDelta ?? '')).slice(-16000),
+        activity: event.activity ?? previous?.activity,
+        updatedAt: this.#now(),
+      })
+      if (this.#activity.size > 100) this.#activity.delete(this.#activity.keys().next().value!)
+    }
     this.hub.emit(event)
+    if (event.type === 'session-change' && event.session.continuedTo) {
+      for (const record of this.#rooms.values()) {
+        if (record.storageAccountId === event.accountId && record.sessionId === event.session.id) {
+          record.sessionId = event.session.continuedTo.sessionId
+        }
+      }
+    }
   }
 
   /**
@@ -203,6 +241,7 @@ export class VoiceService {
     })
     accessToken.addGrant({roomJoin: true, room, canPublish: true, canSubscribe: true})
     const token = await accessToken.toJwt()
+    this.#screenContexts.delete(room)
     this.#rooms.set(room, {
       room,
       sessionId: input.sessionId,
@@ -245,6 +284,7 @@ export class VoiceService {
 
   /** Forgets a room (the worker calls `leave` when its job ends). */
   forgetRoom(name: string): boolean {
+    this.#screenContexts.delete(name)
     return this.#rooms.delete(name)
   }
 
@@ -257,7 +297,8 @@ export class VoiceService {
       cartesiaApiKey: record.keys.cartesiaApiKey,
       deepgramModel: this.#cfg.deepgramModel,
       cartesiaModel: this.#cfg.cartesiaModel,
-      cartesiaVoice: this.#cfg.cartesiaVoice,
+      cartesiaVoice: record.profile?.voice ?? this.#cfg.cartesiaVoice,
+      ...(record.profile ? {cartesiaSpeed: record.profile.speed} : {}),
       language: this.#cfg.language,
       turnDetector: this.#cfg.turnDetector,
     }
@@ -272,19 +313,98 @@ export class VoiceService {
     const roomConfig = (req: Request) => this.#handleRoomConfig(req)
     const leave = (req: Request) => this.#handleLeave(req)
     return {
+      '/api/voice/context': {POST: (req: Request) => this.#handleContext(req)},
+      '/agents/api/voice/context': {POST: (req: Request) => this.#handleContext(req)},
       '/api/voice/turn': {POST: turn},
       '/agents/api/voice/turn': {POST: turn},
       '/api/voice/room-config': {POST: roomConfig},
       '/agents/api/voice/room-config': {POST: roomConfig},
       '/api/voice/leave': {POST: leave},
       '/agents/api/voice/leave': {POST: leave},
+      '/api/voice/runtime': {POST: (req: Request) => this.#handleRuntime(req)},
+      '/api/voice/telemetry': {POST: (req: Request) => this.#handleTelemetry(req)},
+      '/agents/api/voice/telemetry': {POST: (req: Request) => this.#handleTelemetry(req)},
     }
+  }
+
+  /** Receives bounded, content-free observations from worker processes. */
+  async #handleTelemetry(req: Request): Promise<Response> {
+    const denied = this.#authorize(req)
+    if (denied) return denied
+    const body = await readJsonBody(req)
+    const record = this.room(typeof body?.room === 'string' ? body.room : '')
+    if (!record) return Response.json({error: 'Unknown room'}, {status: 403})
+    const metrics: Record<string, number> = {}
+    if (body?.metrics && typeof body.metrics === 'object') {
+      for (const key of [
+        'ttftMs',
+        'ttfbMs',
+        'durationMs',
+        'audioDurationMs',
+        'charactersCount',
+        'endOfUtteranceDelayMs',
+      ]) {
+        const value = (body.metrics as Record<string, unknown>)[key]
+        if (typeof value === 'number' && Number.isFinite(value)) metrics[key] = value
+      }
+    }
+    record.createdAt = this.#now()
+    record.worker = {
+      pid: typeof body?.pid === 'number' ? body.pid : 0,
+      state: typeof body?.state === 'string' ? body.state.slice(0, 50) : record.worker?.state ?? 'running',
+      updatedAt: this.#now(),
+      metrics: {...record.worker?.metrics, ...metrics},
+    }
+    return Response.json({ok: true})
+  }
+
+  /** Operator-only control and redacted diagnostics; never returns speech credentials. */
+  async #handleRuntime(req: Request): Promise<Response> {
+    const denied = this.#authorize(req)
+    if (denied) return denied
+    const body = await readJsonBody(req)
+    if (!body) return Response.json({error: 'JSON object required'}, {status: 400})
+    const profile = body.profile as Partial<VoiceProfile> | undefined
+    if (
+      profile &&
+      (typeof profile.voice !== 'string' ||
+        !/^[a-zA-Z0-9-]{1,100}$/.test(profile.voice) ||
+        typeof profile.speed !== 'number' ||
+        profile.speed < 0.6 ||
+        profile.speed > 2)
+    ) {
+      return Response.json({error: 'Invalid voice profile'}, {status: 400})
+    }
+    for (const record of this.#rooms.values()) {
+      if (body.room && body.room !== record.room) continue
+      if (profile) record.profile = profile as VoiceProfile
+      // The authenticated operator validates session access before requesting a switch.
+      if (typeof body.sessionId === 'string') record.sessionId = body.sessionId
+    }
+    this.#sweepExpiredRooms()
+    return Response.json({
+      pid: process.pid,
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      rooms: [...this.#rooms.values()].map(({room, sessionId, createdAt, profile, worker}) => ({
+        room,
+        sessionId,
+        createdAt,
+        profile,
+        worker,
+      })),
+      recentTurns: this.#recentTurns,
+      activity: [...this.#activity.values()],
+    })
   }
 
   #sweepExpiredRooms(): void {
     const now = this.#now()
     for (const [name, record] of this.#rooms) {
-      if (now - record.createdAt > VOICE_ROOM_TTL_MS) this.#rooms.delete(name)
+      if (now - record.createdAt > VOICE_ROOM_TTL_MS) {
+        this.#rooms.delete(name)
+        this.#screenContexts.delete(name)
+      }
     }
   }
 
@@ -295,6 +415,28 @@ export class VoiceService {
       return Response.json({error: 'Unauthorized'}, {status: 401})
     }
     return undefined
+  }
+
+  /** One-use, short-lived visible-screen hint. Never log or persist the contents. */
+  async #handleContext(req: Request): Promise<Response> {
+    const denied = this.#authorize(req)
+    if (denied) return denied
+    const body = await readJsonBody(req)
+    const room = typeof body?.room === 'string' ? body.room : ''
+    if (!this.room(room)) return Response.json({error: 'Unknown room'}, {status: 403})
+    const text = body?.context
+    if (typeof text !== 'string' || !text.trim() || Buffer.byteLength(text, 'utf8') > 2048)
+      return Response.json({error: 'context must be 1–2048 UTF-8 bytes'}, {status: 400})
+    const capturedAt = body?.capturedAt
+    if (
+      typeof capturedAt !== 'number' ||
+      !Number.isFinite(capturedAt) ||
+      capturedAt > this.#now() + 1000 ||
+      this.#now() - capturedAt > 10_000
+    )
+      return Response.json({error: 'context must have a recent capturedAt timestamp'}, {status: 400})
+    this.#screenContexts.set(room, {text: text.trim(), receivedAt: this.#now()})
+    return Response.json({accepted: true, expiresInMs: 10_000}, {headers: {'Cache-Control': 'no-store'}})
   }
 
   /**
@@ -310,13 +452,86 @@ export class VoiceService {
     if (!roomName || !text) return Response.json({error: 'room and text are required'}, {status: 400})
     const record = this.room(roomName)
     if (!record) return Response.json({error: 'Unknown room'}, {status: 403})
+    // Active calls renew their lease instead of expiring after two hours of conversation.
+    record.createdAt = this.#now()
     log.info('[voice] turn', {room: roomName, sessionId: record.sessionId, textBytes: Buffer.byteLength(text)})
-    return new Response(this.#turnStream(record, text, host, req.signal), {
+    const messageId = typeof body?.messageId === 'string' ? body.messageId : undefined
+    if (messageId !== undefined && !/^[a-zA-Z0-9:_-]{1,200}$/.test(messageId))
+      return Response.json({error: 'Invalid messageId'}, {status: 400})
+    // Only a new utterance consumes the hint. Replays never consume another screen snapshot.
+    const key = messageId ? `${roomName}:${messageId}` : undefined
+    const isNewTurn = !key || !this.#turns.has(key)
+    const pendingContext = isNewTurn ? this.#screenContexts.get(roomName) : undefined
+    if (isNewTurn) this.#screenContexts.delete(roomName)
+    const screenContext =
+      pendingContext && this.#now() - pendingContext.receivedAt <= 10_000 ? pendingContext.text : undefined
+    let stream: ReadableStream<Uint8Array>
+    if (messageId) {
+      const key = `${roomName}:${messageId}`
+      let turn = this.#turns.get(key)
+      if (turn && turn.text !== text)
+        return Response.json({error: 'Utterance identity reused with different text'}, {status: 409})
+      if (!turn) {
+        for (const [id, entry] of this.#turns) if (entry.done && this.#turns.size >= 128) this.#turns.delete(id)
+        if (this.#turns.size >= 256) return Response.json({error: 'Too many active turns'}, {status: 429})
+        turn = {text, chunks: [], listeners: new Set(), done: false}
+        this.#turns.set(key, turn)
+        const journal = turn
+        // HTTP cancellation stops playback, not the durable Seed run. A replay reattaches to
+        // the same work instead of appending another user message or executing its tools twice.
+        const source = this.#turnStream(record, text, host, new AbortController().signal, messageId, screenContext)
+        void (async () => {
+          const reader = source.getReader()
+          let bytes = 0
+          const publish = (chunk: Uint8Array) => {
+            journal.chunks.push(chunk)
+            for (const listener of journal.listeners) listener.enqueue(chunk)
+          }
+          try {
+            for (;;) {
+              const item = await reader.read()
+              if (item.done) break
+              bytes += item.value.byteLength
+              if (bytes > 4_000_000) throw new Error('Voice reply exceeded replay buffer')
+              publish(item.value)
+            }
+          } catch (error) {
+            publish(new TextEncoder().encode(JSON.stringify({error: errorMessage(error)}) + '\n'))
+          } finally {
+            journal.done = true
+            for (const listener of journal.listeners) listener.close()
+            journal.listeners.clear()
+            await reader.cancel()
+          }
+        })()
+      }
+      const journal = turn
+      let subscriber: ReadableStreamDefaultController<Uint8Array>
+      stream = new ReadableStream({
+        start(controller) {
+          subscriber = controller
+          for (const chunk of journal.chunks) controller.enqueue(chunk)
+          if (journal.done) controller.close()
+          else journal.listeners.add(controller)
+        },
+        cancel() {
+          journal.listeners.delete(subscriber)
+        },
+      })
+    } else stream = this.#turnStream(record, text, host, req.signal, undefined, screenContext)
+    return new Response(stream, {
       headers: {'Content-Type': 'application/x-ndjson', 'Cache-Control': 'no-store'},
     })
   }
 
-  #turnStream(record: VoiceRoom, text: string, host: VoiceHost, signal: AbortSignal): ReadableStream<Uint8Array> {
+  #turnStream(
+    record: VoiceRoom,
+    text: string,
+    host: VoiceHost,
+    signal: AbortSignal,
+    messageId: string = crypto.randomUUID(),
+    screenContext?: string,
+  ): ReadableStream<Uint8Array> {
     const encoder = new TextEncoder()
     let finished = false
     let started = false
@@ -324,13 +539,20 @@ export class VoiceService {
     let finalText: string | undefined
     let unsubscribe: () => void = () => {}
     let timeout: ReturnType<typeof setTimeout> | undefined
-    let grace: ReturnType<typeof setTimeout> | undefined
+    let toolFeedbackTimer: ReturnType<typeof setTimeout> | undefined
+    let toolFeedbackSent = false
+    let pendingToolCallId: string | undefined
     let onAbort: () => void = () => {}
+    const startedAt = this.#now()
+    let followedContinuation = false
+    let sentProfile = ''
+    let runId: string | undefined
+    let tracksRuns = false
 
     const cleanup = () => {
       unsubscribe()
       if (timeout) clearTimeout(timeout)
-      if (grace) clearTimeout(grace)
+      if (toolFeedbackTimer) clearTimeout(toolFeedbackTimer)
       signal.removeEventListener('abort', onAbort)
     }
 
@@ -346,6 +568,13 @@ export class VoiceService {
         const finish = (line: Record<string, unknown>) => {
           if (finished) return
           finished = true
+          this.#recentTurns.push({
+            sessionId: record.sessionId,
+            startedAt,
+            elapsedMs: this.#now() - startedAt,
+            outcome: line.error ? 'error' : 'completed',
+          })
+          if (this.#recentTurns.length > 100) this.#recentTurns.shift()
           write(line)
           cleanup()
           try {
@@ -365,50 +594,102 @@ export class VoiceService {
 
         // Subscribe BEFORE the message is appended: the interactive run executes inline inside
         // `voiceMessage`, so every delta is emitted before that call returns.
-        unsubscribe = this.hub.subscribe(record.sessionId, (event) => {
+        const listener: VoiceSessionListener = (event) => {
+          if (event.type === 'run-change') {
+            if (tracksRuns && followedContinuation && !runId && !event.run.parentRunId) runId = event.run.id
+            if (event.run.id !== runId) return
+            write({status: event.run.status, runId})
+            if (event.run.status === 'failed') finish({error: event.run.error?.message ?? 'Agent run failed'})
+            else if (event.run.status === 'canceled') finish({error: 'Agent run stopped'})
+            else if (event.run.status === 'succeeded') done()
+            return
+          }
           if (event.type === 'session-partial') {
+            if (tracksRuns && event.runId !== runId) return
             started = true
+            // Only acknowledge actual tool work, not model thinking or a queued run. A short
+            // delay avoids talking over quick tools; this line is speech-only, not a session reply.
+            if (event.activity?.phase === 'tool' && !toolFeedbackSent && !finished) {
+              const toolCallId = event.activity.toolCallId
+              if (!toolFeedbackTimer || (toolCallId && toolCallId !== pendingToolCallId)) {
+                if (toolFeedbackTimer) clearTimeout(toolFeedbackTimer)
+                pendingToolCallId = toolCallId
+                toolFeedbackTimer = setTimeout(() => {
+                  toolFeedbackTimer = undefined
+                  if (finished) return
+                  toolFeedbackSent = true
+                  write({progress: 'I’m checking that now.'})
+                }, 1500)
+              }
+            } else if (event.activity || event.textDelta) {
+              if (toolFeedbackTimer) clearTimeout(toolFeedbackTimer)
+              toolFeedbackTimer = undefined
+            }
             if (event.textDelta) {
+              const profile = record.profile
+              if (profile && JSON.stringify(profile) !== sentProfile) {
+                sentProfile = JSON.stringify(profile)
+                write({voice: profile})
+              }
               collected += event.textDelta
               write({delta: event.textDelta})
             }
             return
           }
           if (event.type === 'session-event') {
+            if (tracksRuns) return
             const payload = event.event.event
             if (payload.type !== 'message') return
             if (payload.role === 'user') started = true
             else if (payload.role === 'assistant') {
               finalText = typeof payload.content === 'string' ? payload.content : collected
-              done()
+              // An assistant message can be a prelude before tool calls. Keep listening until
+              // the run is idle (or its completion promise settles), including the tool result.
             }
             return
           }
           if (event.type === 'session-change') {
+            if (event.session.continuedTo) {
+              followedContinuation = true
+              runId = undefined
+              record.sessionId = event.session.continuedTo.sessionId
+              unsubscribe()
+              unsubscribe = this.hub.subscribe(record.sessionId, listener)
+              return
+            }
             const status = event.session.status
             if (status === 'streaming') started = true
-            else if (started && (status === 'idle' || status === 'stopped' || status === 'error')) done()
+            else if (!tracksRuns && started && (status === 'idle' || status === 'stopped' || status === 'error')) done()
           }
-        })
+        }
+        unsubscribe = this.hub.subscribe(record.sessionId, listener)
         timeout = setTimeout(() => {
           log.warn('[voice] turn timed out', {sessionId: record.sessionId})
-          done()
+          finish({error: 'The agent is still working. Check its run in the app; your message has not been resent.'})
         }, this.#turnTimeoutMs)
 
-        host.voiceMessage(record.storageAccountId, record.sessionId, text, record.userOrigin).then(
-          () => {
-            // Normally the assistant event already ended the stream. A silent turn (tools, no
-            // text) or a turn queued behind another collaborator's run gets a short grace period.
-            if (!finished) grace = setTimeout(done, VOICE_TURN_GRACE_MS)
-          },
-          (error: unknown) => {
-            if (finished) return
-            const message = errorMessage(error)
-            log.warn('[voice] turn failed', {sessionId: record.sessionId, error: message})
-            if (collected) done()
-            else finish({error: message})
-          },
-        )
+        host
+          .voiceMessage(record.storageAccountId, record.sessionId, text, record.userOrigin, {
+            messageId,
+            screenContext,
+            onRun(id) {
+              runId = id
+              tracksRuns = true
+            },
+          })
+          .then(
+            (result) => {
+              // Empty ids denote queued/parked work: keep following real runtime events. In
+              // particular, a one-second grace timer would cut off any slow host tool or handoff.
+              if (!finished && !followedContinuation && result.assistantEventId) done()
+            },
+            (error: unknown) => {
+              if (finished) return
+              const message = errorMessage(error)
+              log.warn('[voice] turn failed', {sessionId: record.sessionId, error: message})
+              finish({error: message})
+            },
+          )
       },
       cancel: () => {
         onAbort()
