@@ -86,7 +86,7 @@ export function PasswordInput({
         </Button>
       </div>
       {showStrength && value ? (
-        <div className="bg-muted mt-1 h-1 overflow-hidden rounded-sm">
+        <div className="mt-1 h-1 overflow-hidden rounded-sm bg-black/10 dark:bg-white/10">
           <div className={`h-full transition-all duration-300 ${strengthConfig[strength]}`} />
         </div>
       ) : null}

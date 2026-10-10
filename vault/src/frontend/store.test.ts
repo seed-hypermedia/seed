@@ -9,6 +9,7 @@ import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
 import type {SaveVaultRequest} from '@/api'
 import * as joinedSite from '@shm/shared/publish-default-joined-site'
+import * as sharedPassword from '@shm/ui/components/password-input'
 import {APIError} from './api-client'
 import * as localCrypto from './crypto'
 import * as notificationApi from './notification-api'
@@ -631,6 +632,27 @@ describe('Store', () => {
       await actions.handleSetPassword()
 
       expect(state.error).toContain('too weak')
+    })
+
+    test('accepts a minimal password that meets the checklist', async () => {
+      const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+      state.password = 'Abcdefg1'
+      state.confirmPassword = 'Abcdefg1'
+      expect(sharedPassword.checkPasswordStrength(state.password)).toBe(1)
+
+      await actions.handleSetPassword()
+
+      expect(state.error).not.toContain('too weak')
+    })
+
+    test('explains what is missing when the checklist passes but the strength minimum does not', async () => {
+      const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+      state.password = 'ABCDEFG1'
+      state.confirmPassword = 'ABCDEFG1'
+
+      await actions.handleSetPassword()
+
+      expect(state.error).toBe('Password is too weak. Add a lowercase letter, or make it at least 12 characters.')
     })
   })
 

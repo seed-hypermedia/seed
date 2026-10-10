@@ -1,26 +1,17 @@
+import {AccountSelectionItem} from '@/frontend/components/AccountSelectionItem'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
-import * as navigation from '@/frontend/navigation'
+import {RecoveryWordsReminder} from '@/frontend/components/RecoveryWordsReminder'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
-import {
-  getProfileAvatarImageSrc,
-  getProfileDisplayName,
-  type AccountProfileSummary,
-  type ProfileLoadState,
-} from '@/frontend/profile'
+import * as navigation from '@/frontend/navigation'
+import {getProfileDisplayName} from '@/frontend/profile'
 import {useActions, useAppState} from '@/frontend/store'
 import * as blobs from '@shm/shared/blobs'
 import * as hmauth from '@shm/shared/hmauth'
-import {Check, Plus, User} from 'lucide-react'
+import {Plus, User} from 'lucide-react'
 import {useEffect} from 'react'
 import {useSearchParams} from 'react-router-dom'
-
-function getProfileStatusTextClass(profileLoadState?: ProfileLoadState) {
-  if (profileLoadState === 'not_found') return 'text-yellow-700 dark:text-yellow-400'
-  if (profileLoadState === 'unavailable') return 'text-destructive'
-  return ''
-}
 
 /**
  * Consent screen for delegating authority to a third-party site.
@@ -126,6 +117,9 @@ export function DelegateView() {
       <CardContent className="space-y-6">
         {!creatingAccount && <ErrorMessage message={error} />}
 
+        {/* Reminder to save the recovery words. Shows only for password users who haven't saved recovery words. */}
+        <RecoveryWordsReminder />
+
         {/* Account reminder — always visible so the user can verify which identity they join with */}
         <div className="space-y-2">
           {accounts.length > 1 && <p className="text-sm font-medium">Choose an account to use</p>}
@@ -164,46 +158,5 @@ export function DelegateView() {
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function AccountSelectionItem({
-  profile,
-  profileLoadState,
-  backendHttpBaseUrl,
-  isSelected,
-  onClick,
-}: {
-  profile?: AccountProfileSummary
-  profileLoadState?: ProfileLoadState
-  backendHttpBaseUrl: string
-  isSelected: boolean
-  onClick: () => void
-}) {
-  const name = getProfileDisplayName(profile, profileLoadState)
-  const statusTextClass = getProfileStatusTextClass(profileLoadState)
-
-  return (
-    <button
-      type="button"
-      className={`flex w-full cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors ${
-        isSelected ? 'border-primary bg-primary/5 ring-primary/20 ring-1' : 'hover:bg-muted/50 border-border'
-      }`}
-      onClick={onClick}
-    >
-      <div className="bg-primary/10 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
-        {profile?.avatar ? (
-          <img
-            src={getProfileAvatarImageSrc(backendHttpBaseUrl, profile.avatar)}
-            className="size-full object-cover"
-            alt=""
-          />
-        ) : (
-          <User className="text-primary size-4" />
-        )}
-      </div>
-      <div className={`flex-1 truncate text-sm font-medium ${statusTextClass}`}>{name}</div>
-      {isSelected && <Check className="text-primary size-4 shrink-0" />}
-    </button>
   )
 }

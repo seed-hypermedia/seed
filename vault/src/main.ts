@@ -189,6 +189,14 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
+    '/vault/api/login/recovery': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.loginRecovery(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
     '/vault/api/login/passkey/start': {
       POST: async (req) => {
         const body = await req.json()

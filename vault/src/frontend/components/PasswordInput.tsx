@@ -1,9 +1,9 @@
-import {Eye, EyeOff} from 'lucide-react'
-import {useState} from 'react'
 import {Button} from '@/frontend/components/ui/button'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
-import * as crypto from '@/frontend/crypto'
+import * as sharedPassword from '@shm/ui/components/password-input'
+import {Eye, EyeOff} from 'lucide-react'
+import {useState} from 'react'
 
 interface PasswordInputProps {
   id: string
@@ -13,6 +13,8 @@ interface PasswordInputProps {
   autoComplete: string
   autoFocus?: boolean
   showStrength?: boolean
+  placeholder?: string
+  error?: string
 }
 
 const strengthConfig: Record<number, string> = {
@@ -24,9 +26,19 @@ const strengthConfig: Record<number, string> = {
 /**
  * Password input with visibility toggle and optional strength meter.
  */
-export function PasswordInput({id, label, value, onChange, autoComplete, autoFocus, showStrength}: PasswordInputProps) {
+export function PasswordInput({
+  id,
+  label,
+  value,
+  onChange,
+  autoComplete,
+  autoFocus,
+  showStrength,
+  placeholder = 'Enter password',
+  error,
+}: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false)
-  const strength = showStrength ? crypto.checkPasswordStrength(value) : 0
+  const strength = showStrength ? sharedPassword.checkPasswordStrength(value) : 0
 
   return (
     <div className="mb-4 space-y-2">
@@ -37,7 +49,8 @@ export function PasswordInput({id, label, value, onChange, autoComplete, autoFoc
           name={autoComplete === 'new-password' ? 'new-password' : 'password'}
           type={showPassword ? 'text' : 'password'}
           className="pr-10"
-          placeholder="Enter password"
+          placeholder={placeholder}
+          aria-invalid={error ? true : undefined}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           required
@@ -60,11 +73,12 @@ export function PasswordInput({id, label, value, onChange, autoComplete, autoFoc
           )}
         </Button>
       </div>
-      {showStrength && (
-        <div className="bg-muted mt-2 h-1 overflow-hidden rounded-sm">
+      {error ? <p className="text-destructive text-sm">{error}</p> : null}
+      {showStrength && value ? (
+        <div className="mt-2 h-1 overflow-hidden rounded-sm bg-black/10 dark:bg-white/10">
           <div className={`h-full transition-all duration-300 ${strengthConfig[strength]}`} />
         </div>
-      )}
+      ) : null}
     </div>
   )
 }
