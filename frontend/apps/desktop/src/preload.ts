@@ -1,3 +1,4 @@
+import {createRendererIPC} from './preload-ipc'
 import {AppWindowEvent} from '@/utils/window-events'
 import '@sentry/electron/preload'
 import {contextBridge, ipcRenderer} from 'electron'
@@ -215,21 +216,7 @@ ipcRenderer.addListener('window-state-change', (info, state: {isMaximized: boole
 })
 
 contextBridge.exposeInMainWorld('ipc', {
-  send: (cmd: string, args: any) => {
-    ipcRenderer.send(cmd, args)
-  },
-  listen: async (cmd: string, handler: (event: any) => void) => {
-    const innerHandler = (info: any, payload: any) => {
-      handler({info, payload})
-    }
-    ipcRenderer.addListener(cmd, innerHandler)
-    return () => {
-      ipcRenderer.removeListener(cmd, innerHandler)
-    }
-  },
-  versions: () => {
-    return process.versions
-  },
+  ...createRendererIPC(ipcRenderer),
   broadcast: (event: any) => {
     ipcRenderer.send('broadcastWindowEvent', event)
   },
