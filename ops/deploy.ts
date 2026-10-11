@@ -75,8 +75,13 @@ function currentDeployUrl(): string {
   return getOpsBaseUrl().replace(/\/+$/, '')
 }
 
-function currentComposeUrl(): string {
-  return `${currentDeployUrl()}/docker-compose.yml`
+/** Compose template file name for a deploy profile. */
+export function composeFileName(profile: DeployProfile = 'site'): string {
+  return profile === 'enterprise' ? 'docker-compose.enterprise.yml' : 'docker-compose.yml'
+}
+
+function currentComposeUrl(profile: DeployProfile = 'site'): string {
+  return `${currentDeployUrl()}/${composeFileName(profile)}`
 }
 
 function configuredDeployUrl(existing?: SeedConfig): string {
@@ -85,11 +90,11 @@ function configuredDeployUrl(existing?: SeedConfig): string {
   return currentDeployUrl()
 }
 
-function configuredComposeUrl(existing?: SeedConfig): string {
-  if (process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL) return currentComposeUrl()
-  if (existing?.deploy_url) return `${existing.deploy_url.replace(/\/+$/, '')}/docker-compose.yml`
+function configuredComposeUrl(existing?: SeedConfig, profile: DeployProfile = 'site'): string {
+  if (process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL) return currentComposeUrl(profile)
+  if (existing?.deploy_url) return `${existing.deploy_url.replace(/\/+$/, '')}/${composeFileName(profile)}`
   if (existing?.compose_url) return existing.compose_url
-  return currentComposeUrl()
+  return currentComposeUrl(profile)
 }
 
 // deploy.js distribution URLs.
@@ -236,7 +241,33 @@ function checkDockerAccess(shell: ShellRunner): void {
   }
 }
 
+/**
+ * Deploy profiles.
+ *  - `site` (default): a public site on the Seed P2P network.
+ *  - `enterprise`: a single-tenant, web-only stack with no P2P connectivity,
+ *    an invite-only identity vault and a sign-in gate on every page.
+ */
+export type DeployProfile = 'site' | 'enterprise'
+
+export const DEPLOY_PROFILES: readonly DeployProfile[] = ['site', 'enterprise'] as const
+
+/** SMTP settings shared by the vault and the notify service (enterprise profile). */
+export interface SmtpConfig {
+  host: string
+  /**
+   * STARTTLS port for the vault's mailer (default 587). The notify service
+   * always uses implicit TLS on 465; the relay must offer both.
+   */
+  port?: number
+  user: string
+  password: string
+  /** Sender address, e.g. "Seed <seed@example.org>" */
+  sender: string
+}
+
 export interface SeedConfig {
+  /** Deploy profile; absent means `site`. */
+  profile?: DeployProfile
   /** Public hostname for this node, e.g. "https://node1.seed.run" */
   domain: string
   /** Contact email — used to reach the operator about security updates */
@@ -282,6 +313,59 @@ export interface SeedConfig {
   gateway: boolean
   /** ISO 8601 timestamp of the last successful deployment */
   last_script_run: string
+
+  // --- enterprise profile only ---
+
+  /** Bearer secret for the vault's admin API (`seed-deploy invite`). Random, 32+ chars. */
+  vault_admin_secret?: string
+  /** HMAC secret the web app signs its session cookie with. Random, 48+ chars. */
+  session_secret?: string
+  /** Run the notify (email) service at notify.<dns>. */
+  notify?: boolean
+  /** SMTP settings for the vault and notify; required when `notify` is on. */
+  smtp?: SmtpConfig
+  /** Run the agents service at agents.<dns>. */
+  agents?: boolean
+  /** Pass /dev/kvm to the agents container so sandboxed code execution works. */
+  agents_kvm?: boolean
+  /** Run the Prometheus + Grafana `metrics` compose profile. */
+  metrics?: boolean
+}
+
+/** Whether the config selects the enterprise profile. */
+export function isEnterprise(config: Pick<SeedConfig, 'profile'>): boolean {
+  return config.profile === 'enterprise'
+}
+
+/** Compose profiles to activate for a config (via COMPOSE_PROFILES). */
+export function composeProfiles(config: SeedConfig): string[] {
+  const profiles: string[] = []
+  if (isEnterprise(config)) {
+    if (config.notify) profiles.push('notify')
+    if (config.agents) profiles.push('agents')
+  }
+  if (config.metrics) profiles.push('metrics')
+  return profiles
+}
+
+/** Public URL of the notify service, or '' when it is not deployed. */
+export function notifyHost(config: SeedConfig): string {
+  if (!isEnterprise(config)) return NOTIFY_SERVICE_HOST
+  return config.notify ? `https://notify.${extractDns(config.domain)}` : ''
+}
+
+/** Public URL of the agents service, or '' when it is not deployed. */
+export function agentsHost(config: SeedConfig): string {
+  if (!isEnterprise(config) || !config.agents) return ''
+  return `https://agents.${extractDns(config.domain)}`
+}
+
+/**
+ * The private P2P network name for an enterprise node. Derived from the DNS
+ * name so two enterprise boxes can never accidentally share a testnet.
+ */
+export function enterpriseTestnetName(domain: string): string {
+  return `ent-${extractDns(domain).replace(/[^A-Za-z0-9-]+/g, '-')}`
 }
 
 /**
@@ -309,6 +393,16 @@ export function environmentPresets(env: SeedConfig['environment']): {
  */
 export function configWarnings(config: SeedConfig): string[] {
   const warnings: string[] = []
+  if (isEnterprise(config)) {
+    // No public network to be on by mistake; only the image channel matters.
+    if (config.release_channel !== 'latest') {
+      warnings.push(
+        `Tracking the '${config.release_channel}' image channel (bleeding-edge images). ` +
+          `Enterprise nodes update only when '${cmd('deploy')}' is run by hand.`,
+      )
+    }
+    return warnings
+  }
   if (config.testnet) {
     warnings.push(
       'This node is on the TESTNET (devnet) P2P network — it will NOT see or sync mainnet content. ' +
@@ -632,6 +726,9 @@ export const LEGACY_CONTAINER_NAMES = [
   'seed-daemon',
   'seed-web',
   'seed-proxy',
+  'seed-vault',
+  'seed-notify',
+  'seed-agents',
   'autoupdater',
   'prometheus',
   'grafana',
@@ -1188,6 +1285,302 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advance
 }
 
 // ---------------------------------------------------------------------------
+// Enterprise Wizard
+// ---------------------------------------------------------------------------
+
+/** Length of the generated vault admin secret (chars from generateSecret's alphabet, ~6 bits each). */
+export const VAULT_ADMIN_SECRET_LENGTH = 40
+/** Length of the generated web session-cookie HMAC secret. */
+export const SESSION_SECRET_LENGTH = 64
+
+/**
+ * Settings an unattended enterprise install reads instead of the wizard:
+ * flags for the public values, environment for the SMTP account (so the
+ * password never lands in a shell history).
+ */
+export interface HeadlessOptions {
+  hostname?: string
+  tag?: string
+  email?: string
+  logLevel?: string
+  agents?: boolean
+  notify?: boolean
+  yes?: boolean
+}
+
+export function smtpFromEnv(env: NodeJS.ProcessEnv = process.env): SmtpConfig | undefined {
+  if (!env.SEED_SMTP_HOST) return undefined
+  return {
+    host: env.SEED_SMTP_HOST,
+    port: env.SEED_SMTP_PORT && /^\d+$/.test(env.SEED_SMTP_PORT) ? Number(env.SEED_SMTP_PORT) : undefined,
+    user: env.SEED_SMTP_USER ?? '',
+    password: env.SEED_SMTP_PASSWORD ?? '',
+    sender: env.SEED_SMTP_SENDER ?? '',
+  }
+}
+
+/**
+ * Build an enterprise config without prompts, for installs over SSH without
+ * a TTY (`seed-deploy deploy --profile enterprise --hostname … --tag … --yes`).
+ * Throws with the missing piece named so the caller can print it.
+ */
+export function headlessEnterpriseConfig(
+  opts: HeadlessOptions,
+  existing?: SeedConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): SeedConfig {
+  const domain = opts.hostname ?? existing?.domain
+  if (!domain) throw new Error('--hostname https://… is required for a non-interactive enterprise install')
+  const urlError = validateUrl(domain)
+  if (urlError) throw new Error(`--hostname: ${urlError}`)
+  const tag = opts.tag ?? existing?.release_channel ?? DEFAULT_RELEASE_CHANNEL
+  const tagError = validateDockerImageTag(tag)
+  if (tagError) throw new Error(`--tag: ${tagError}`)
+  const logLevel = opts.logLevel ?? existing?.compose_envs.LOG_LEVEL ?? 'info'
+  if (!['debug', 'info', 'warn', 'error'].includes(logLevel)) {
+    throw new Error(`--log-level must be one of debug, info, warn, error (got '${logLevel}')`)
+  }
+  const notify = opts.notify ?? existing?.notify ?? false
+  const smtp = smtpFromEnv(env) ?? existing?.smtp
+  if (notify && !smtp) {
+    throw new Error(
+      '--notify needs SEED_SMTP_HOST, SEED_SMTP_USER, SEED_SMTP_PASSWORD and SEED_SMTP_SENDER in the environment',
+    )
+  }
+  return buildEnterpriseConfig(
+    {
+      domain,
+      release_channel: tag,
+      web_image: existing?.web_image,
+      site_image: existing?.site_image,
+      log_level: logLevel as SeedConfig['compose_envs']['LOG_LEVEL'],
+      agents: opts.agents ?? existing?.agents ?? false,
+      notify,
+      smtp,
+      email: opts.email ?? existing?.email ?? '',
+    },
+    existing,
+  )
+}
+
+function validateUrl(v: string): string | undefined {
+  if (!v) return 'Required'
+  if (!v.startsWith('https://') && !v.startsWith('http://')) return 'Must start with https:// or http://'
+}
+
+/**
+ * Build an enterprise config from wizard answers. Pure, so tests can cover the
+ * forced values (no gateway, no testnet, no analytics) and secret generation
+ * without driving the prompts.
+ */
+export function buildEnterpriseConfig(
+  answers: {
+    domain: string
+    release_channel: string
+    web_image?: string
+    site_image?: string
+    log_level: SeedConfig['compose_envs']['LOG_LEVEL']
+    agents: boolean
+    agents_kvm?: boolean
+    notify: boolean
+    smtp?: SmtpConfig
+    email: string
+  },
+  existing?: SeedConfig,
+): SeedConfig {
+  return {
+    profile: 'enterprise',
+    domain: answers.domain,
+    email: answers.email || '',
+    deploy_url: configuredDeployUrl(existing),
+    compose_url: configuredComposeUrl(existing, 'enterprise'),
+    compose_sha: existing?.compose_sha ?? '',
+    compose_env_sha: existing?.compose_env_sha ?? '',
+    compose_envs: {LOG_LEVEL: answers.log_level},
+    environment: 'prod',
+    release_channel: answers.release_channel,
+    web_image: answers.web_image || undefined,
+    site_image: answers.site_image || undefined,
+    // Forced: an enterprise node is never on a public network, never a
+    // gateway, never reports statistics.
+    testnet: false,
+    gateway: false,
+    analytics: false,
+    link_secret: existing?.link_secret ?? generateSecret(),
+    vault_admin_secret: existing?.vault_admin_secret ?? generateSecret(VAULT_ADMIN_SECRET_LENGTH),
+    session_secret: existing?.session_secret ?? generateSecret(SESSION_SECRET_LENGTH),
+    notify: answers.notify,
+    smtp: answers.notify ? answers.smtp : existing?.smtp ?? undefined,
+    agents: answers.agents,
+    agents_kvm: answers.agents ? answers.agents_kvm ?? existing?.agents_kvm ?? false : false,
+    metrics: existing?.metrics ?? false,
+    last_script_run: existing?.last_script_run ?? '',
+  }
+}
+
+async function runEnterpriseWizard(paths: DeployPaths, existing?: SeedConfig, advanced = false): Promise<SeedConfig> {
+  const isReconfig = !!existing
+  p.intro(isReconfig ? `Seed Enterprise Reconfiguration v${VERSION}` : `Seed Enterprise Setup v${VERSION}`)
+
+  if (!isReconfig) {
+    p.note(
+      [
+        'This wizard configures a private, single-tenant Seed stack:',
+        'web app, daemon (no peer-to-peer connectivity), identity vault (invite-only),',
+        'and optionally email notifications and agents. Every page requires sign-in.',
+        '',
+        `This node's install location is ${paths.seedDir}/ (config + data live here).`,
+        `Updates are manual: run '${cmd('deploy')}' when you want to update.`,
+      ].join('\n'),
+      'Enterprise Edition',
+    )
+  } else {
+    p.note(
+      [
+        'Editing your current configuration. Each prompt shows the current value — press Enter to keep it.',
+        '',
+        `Configuration: ${paths.configPath}`,
+      ].join('\n'),
+      'Reconfiguration',
+    )
+  }
+
+  const onCancel = () => {
+    p.cancel(isReconfig ? 'Reconfiguration cancelled.' : 'Setup cancelled.')
+    console.log(RESUME_HINT)
+    process.exit(0)
+  }
+
+  const answers = await p.group(
+    {
+      domain: () =>
+        p.text({
+          message: 'Public hostname (including https://)',
+          placeholder: existing?.domain || 'https://seed.example.org',
+          validate: validateUrl,
+        }),
+      release_channel: () =>
+        promptReleaseChannel({
+          initialTag: existing?.release_channel,
+          advanced,
+        }),
+      log_level: () =>
+        p.select({
+          message: 'Log level for Seed services',
+          initialValue: existing?.compose_envs?.LOG_LEVEL ?? 'info',
+          options: [
+            {value: 'debug', label: 'Debug', hint: 'very verbose, useful for troubleshooting'},
+            {value: 'info', label: 'Info', hint: 'standard operational logging — recommended'},
+            {value: 'warn', label: 'Warn', hint: 'only warnings and errors'},
+            {value: 'error', label: 'Error', hint: 'only critical errors'},
+          ],
+        }),
+      agents: () =>
+        p.confirm({
+          message: 'Run the agents service? (served at agents.<your domain>; calls model providers)',
+          initialValue: existing?.agents ?? false,
+        }),
+      notify: () =>
+        p.confirm({
+          message: 'Run the notify service for email notifications? (needs an SMTP account)',
+          initialValue: existing?.notify ?? false,
+        }),
+      smtp_host: ({results}) =>
+        results.notify
+          ? p.text({
+              message: 'SMTP host',
+              initialValue: existing?.smtp?.host,
+              placeholder: 'smtp.example.org',
+              validate: (v) => (v ? undefined : 'Required'),
+            })
+          : Promise.resolve(undefined),
+      smtp_user: ({results}) =>
+        results.notify
+          ? p.text({
+              message: 'SMTP user',
+              initialValue: existing?.smtp?.user,
+              validate: (v) => (v ? undefined : 'Required'),
+            })
+          : Promise.resolve(undefined),
+      smtp_password: ({results}) =>
+        results.notify
+          ? p.password({
+              message: existing?.smtp?.password
+                ? 'SMTP password (leave empty to keep the current one)'
+                : 'SMTP password',
+              validate: (v) => (v || existing?.smtp?.password ? undefined : 'Required'),
+            })
+          : Promise.resolve(undefined),
+      smtp_sender: ({results}) =>
+        results.notify
+          ? p.text({
+              message: 'Sender address for emails',
+              initialValue: existing?.smtp?.sender,
+              placeholder: 'Seed <seed@example.org>',
+              validate: (v) => (v && v.includes('@') ? undefined : 'Must contain an email address'),
+            })
+          : Promise.resolve(undefined),
+      email: () =>
+        p.text({
+          message: 'Contact email (optional) — lets us notify you about security updates. Not shared publicly.',
+          placeholder: existing ? existing.email || undefined : 'you@example.com',
+          validate: (v) => {
+            if (v && !v.includes('@')) return 'Must be a valid email'
+          },
+        }),
+    },
+    {onCancel},
+  )
+
+  const notify = answers.notify as boolean
+  const smtp: SmtpConfig | undefined = notify
+    ? {
+        host: answers.smtp_host as string,
+        port: existing?.smtp?.port,
+        user: answers.smtp_user as string,
+        password: (answers.smtp_password as string) || existing?.smtp?.password || '',
+        sender: answers.smtp_sender as string,
+      }
+    : undefined
+
+  const config = buildEnterpriseConfig(
+    {
+      domain: answers.domain as string,
+      release_channel: answers.release_channel as string,
+      web_image: existing?.web_image,
+      site_image: existing?.site_image,
+      log_level: answers.log_level as SeedConfig['compose_envs']['LOG_LEVEL'],
+      agents: answers.agents as boolean,
+      notify,
+      smtp,
+      email: (answers.email as string) || '',
+    },
+    existing,
+  )
+
+  const userFields: [string, string][] = [
+    ['domain', config.domain],
+    ['release_channel', config.release_channel],
+    ['log_level', config.compose_envs.LOG_LEVEL],
+    ['agents', String(config.agents)],
+    ['notify', config.notify ? `yes (${config.smtp?.host}, sender ${config.smtp?.sender})` : 'false'],
+    ['email', config.email],
+  ]
+  const summary = userFields.map(([k, v]) => `    ${k}: ${v}`).join('\n')
+  p.note(summary, 'Configuration summary')
+
+  const confirmed = await p.confirm({
+    message: isReconfig ? 'Save changes and redeploy?' : 'Write config and proceed with deployment?',
+  })
+  if (p.isCancel(confirmed) || !confirmed) onCancel()
+
+  await writeConfig(config, paths)
+  p.log.success(`Config written to ${paths.configPath}`)
+
+  return config
+}
+
+// ---------------------------------------------------------------------------
 // Deployment Engine
 // ---------------------------------------------------------------------------
 
@@ -1196,7 +1589,146 @@ export function extractDns(domain: string): string {
   return domain.replace(/^https?:\/\//, '').replace(/\/+$/, '')
 }
 
-export function generateCaddyfile(_config: SeedConfig): string {
+/**
+ * Web-app paths that must work without a session on an enterprise node: the
+ * sign-in flow itself, the endpoints the Seed app and `seed-deploy register`
+ * call, and the static files the shell is built from. Mirrors
+ * `isOpenPath` in frontend/apps/web/app/require-sign-in.ts; the `*` suffixes
+ * also cover Remix's `.data` variants of the open pages.
+ */
+export const ENTERPRISE_OPEN_PATHS = [
+  '/hm/sign-in*',
+  '/hm/auth/callback*',
+  '/hm/api/config',
+  '/hm/api/auth',
+  '/hm/api/auth/*',
+  '/hm/api/session',
+  '/hm/api/version',
+  '/hm/api/register',
+  '/hm/register*',
+  '/hm/create-site*',
+  '/healthz',
+  '/assets/*',
+  '/build/*',
+  '/favicon*',
+  '/robots.txt',
+  '/.well-known/*',
+  '/__manifest*',
+] as const
+
+/** The web-app route Caddy's forward_auth asks whether a request has a session. */
+export const SESSION_CHECK_URI = '/hm/api/session'
+
+/**
+ * Caddy upload cap for the enterprise profile. Caddy 2 ships `request_body`
+ * without plugins; rate limiting would need the caddy-ratelimit plugin, which
+ * the stock `caddy:2` image lacks, so it is not configured.
+ */
+export const ENTERPRISE_MAX_BODY = '512MB'
+
+/**
+ * Enterprise Caddyfile. Explicit site blocks (one per hostname) with a sign-in
+ * gate: every request to the main site that is not open is first sent to the
+ * web app's session check (`forward_auth`); 2xx lets it through, anything else
+ * (401, or a 302 to the sign-in page) is returned to the client as-is. The
+ * daemon's `/ipfs/*` reads sit behind the same gate. `handle` blocks with named
+ * matchers are evaluated in the order written, so the open blocks come first.
+ */
+function generateEnterpriseCaddyfile(config: SeedConfig): string {
+  const dns = extractDns(config.domain)
+  const blocks: string[] = []
+
+  blocks.push(`# Ask the web app whether the request carries a member session.
+(gate) {
+\tforward_auth seed-web:3000 {
+\t\turi ${SESSION_CHECK_URI}
+\t\tcopy_headers X-Forwarded-Uri
+\t}
+}
+
+${dns} {
+\tencode zstd gzip
+
+\trequest_body {
+\t\tmax_size ${ENTERPRISE_MAX_BODY}
+\t}
+
+\t# The vault serves itself under /vault; do not strip the prefix.
+\t@vault path /vault /vault/*
+\thandle @vault {
+\t\treverse_proxy seed-vault:3000
+\t}
+
+\t# The vault UI uploads profile blobs to the daemon before any session exists.
+\t@ipfs_upload {
+\t\tmethod POST
+\t\tpath /ipfs/*
+\t}
+\thandle @ipfs_upload {
+\t\treverse_proxy seed-daemon:56001
+\t}
+
+\t# The sign-in callback stores delegation blobs and looks the account up.
+\t@open_api_post {
+\t\tmethod POST
+\t\tpath /api/PublishBlobs
+\t}
+\t@open_api_get {
+\t\tmethod GET HEAD
+\t\tpath /api/Account
+\t}
+\t@open path ${ENTERPRISE_OPEN_PATHS.join(' ')}
+\thandle @open_api_post {
+\t\treverse_proxy seed-web:3000
+\t}
+\thandle @open_api_get {
+\t\treverse_proxy seed-web:3000
+\t}
+\thandle @open {
+\t\treverse_proxy seed-web:3000
+\t}
+
+\t# Everything below requires a session.
+\t@ipfs path /ipfs/*
+\thandle @ipfs {
+\t\timport gate
+\t\treverse_proxy seed-daemon:56001
+\t}
+
+\t@metrics path /.metrics*
+\thandle @metrics {
+\t\timport gate
+\t\treverse_proxy grafana:3001
+\t}
+
+\thandle {
+\t\timport gate
+\t\treverse_proxy seed-web:3000
+\t}
+}`)
+
+  if (config.notify) {
+    blocks.push(`notify.${dns} {
+\tencode zstd gzip
+\treverse_proxy seed-notify:3000
+}`)
+  }
+
+  if (config.agents) {
+    blocks.push(`agents.${dns} {
+\tencode zstd gzip
+\trequest_body {
+\t\tmax_size ${ENTERPRISE_MAX_BODY}
+\t}
+\treverse_proxy seed-agents:3050
+}`)
+  }
+
+  return blocks.join('\n\n') + '\n'
+}
+
+export function generateCaddyfile(config: SeedConfig): string {
+  if (isEnterprise(config)) return generateEnterpriseCaddyfile(config)
   return `{$SEED_SITE_HOSTNAME}
 
 encode zstd gzip
@@ -1217,8 +1749,19 @@ export function sha256(content: string): string {
   return createHash('sha256').update(content).digest('hex')
 }
 
-export async function checkContainersHealthy(shell: ShellRunner): Promise<boolean> {
-  const required = ['seed-proxy', 'seed-web', 'seed-daemon']
+/** Containers that must be running for the stack to count as healthy. */
+export function requiredContainers(config?: SeedConfig): string[] {
+  const names = ['seed-proxy', 'seed-web', 'seed-daemon']
+  if (config && isEnterprise(config)) {
+    names.push('seed-vault')
+    if (config.notify) names.push('seed-notify')
+    if (config.agents) names.push('seed-agents')
+  }
+  return names
+}
+
+export async function checkContainersHealthy(shell: ShellRunner, config?: SeedConfig): Promise<boolean> {
+  const required = requiredContainers(config)
   for (const name of required) {
     const running = shell.runSafe(`docker inspect ${name} --format '{{.State.Running}}' 2>/dev/null`)
     if (running !== 'true') return false
@@ -1237,13 +1780,9 @@ export async function checkContainersHealthy(shell: ShellRunner): Promise<boolea
  * running image tag with config.release_channel.
  */
 export function containersMatchReleaseChannel(shell: ShellRunner, config: SeedConfig): boolean {
-  const expected: Array<[string, string]> = [
-    ['seed-web', `seedhypermedia/web:${config.release_channel}`],
-    ['seed-daemon', `seedhypermedia/site:${config.release_channel}`],
-  ]
-  for (const [name, want] of expected) {
-    const got = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`)
-    if (got !== want) return false
+  for (const {container, expectedImage} of expectedServiceImages(config)) {
+    const got = shell.runSafe(`docker inspect ${container} --format '{{.Config.Image}}' 2>/dev/null`)
+    if (got !== expectedImage) return false
   }
   return true
 }
@@ -1380,9 +1919,9 @@ export async function handleForeignStack(
   assertNoForeignStack(shell, paths)
 }
 
-export async function getContainerImages(shell: ShellRunner): Promise<Map<string, string>> {
+export async function getContainerImages(shell: ShellRunner, config?: SeedConfig): Promise<Map<string, string>> {
   const images = new Map<string, string>()
-  const containers = ['seed-proxy', 'seed-web', 'seed-daemon']
+  const containers = requiredContainers(config)
   for (const name of containers) {
     const image = shell.runSafe(`docker inspect ${name} --format '{{.Image}}' 2>/dev/null`)
     if (image) images.set(name, image)
@@ -1393,10 +1932,16 @@ export async function getContainerImages(shell: ShellRunner): Promise<Map<string
 /** Return the expected Docker image refs for services managed by Seed compose. */
 export function expectedServiceImages(config: SeedConfig): Array<{container: string; expectedImage: string}> {
   const tag = config.release_channel || DEFAULT_RELEASE_CHANNEL
-  return [
+  const images = [
     {container: 'seed-web', expectedImage: config.web_image || `seedhypermedia/web:${tag}`},
     {container: 'seed-daemon', expectedImage: config.site_image || `seedhypermedia/site:${tag}`},
   ]
+  if (isEnterprise(config)) {
+    images.push({container: 'seed-vault', expectedImage: `seedhypermedia/vault:${tag}`})
+    if (config.notify) images.push({container: 'seed-notify', expectedImage: `seedhypermedia/notify:${tag}`})
+    if (config.agents) images.push({container: 'seed-agents', expectedImage: `seedhypermedia/agents:${tag}`})
+  }
+  return images
 }
 
 function imageBase(ref: string): string {
@@ -1438,7 +1983,7 @@ export function rollbackTagRefs(container: string, runningImage: string, config:
  */
 export async function checkForNewImages(config: SeedConfig, paths: DeployPaths, shell: ShellRunner): Promise<boolean> {
   const env = buildComposeEnv(config, paths)
-  const beforeImages = await getContainerImages(shell)
+  const beforeImages = await getContainerImages(shell, config)
   if (beforeImages.size === 0) return false
 
   try {
@@ -1497,9 +2042,21 @@ export function checkGpuAcceleration(shell: ShellRunner): GpuStatus {
   return {available: true}
 }
 
+/**
+ * Quote one env value for the `K=V docker compose …` command prefix. Values
+ * from the wizard are plain (hostnames, tags, paths) and keep the historical
+ * double-quoted form, so existing nodes' compose_env_sha is unchanged. Anything
+ * else (an SMTP password with `$` or `"`) is single-quoted for the shell.
+ */
+export function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_\/:.@=,+ -]*$/.test(value)) return `"${value}"`
+  return `'${value.replace(/'/g, `'\\''`)}'`
+}
+
 export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string {
   const dns = extractDns(config.domain)
-  const testnetName = config.testnet ? 'dev' : ''
+  const enterprise = isEnterprise(config)
+  const testnetName = enterprise ? enterpriseTestnetName(config.domain) : config.testnet ? 'dev' : ''
   const lightningUrl = config.testnet ? LIGHTNING_URL_TESTNET : LIGHTNING_URL_MAINNET
 
   const vars: Record<string, string> = {
@@ -1514,7 +2071,7 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     SEED_ENABLE_STATISTICS: String(config.analytics),
     SEED_P2P_TESTNET_NAME: testnetName,
     SEED_LIGHTNING_URL: lightningUrl,
-    NOTIFY_SERVICE_HOST: NOTIFY_SERVICE_HOST,
+    NOTIFY_SERVICE_HOST: notifyHost(config),
     SEED_SITE_MONITORING_WORKDIR: join(paths.seedDir, 'monitoring'),
   }
 
@@ -1525,16 +2082,35 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     vars.SEED_SITE_IMAGE = config.site_image
   }
 
+  if (enterprise) {
+    vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? ''
+    vars.SEED_SESSION_SECRET = config.session_secret ?? ''
+    vars.SEED_CONTACT_EMAIL = config.email ?? ''
+    vars.SEED_NOTIFY_HOST = notifyHost(config)
+    vars.SEED_AGENTS_HOST = agentsHost(config)
+    vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? 'microsandbox' : ''
+    vars.SEED_SMTP_HOST = config.smtp?.host ?? ''
+    vars.SEED_SMTP_PORT = config.smtp?.port ? String(config.smtp.port) : '587'
+    vars.SEED_SMTP_USER = config.smtp?.user ?? ''
+    vars.SEED_SMTP_PASSWORD = config.smtp?.password ?? ''
+    vars.SEED_SMTP_SENDER = config.smtp?.sender ?? ''
+  }
+
+  const profiles = composeProfiles(config)
+  if (profiles.length > 0) {
+    vars.COMPOSE_PROFILES = profiles.join(',')
+  }
+
   return Object.entries(vars)
-    .map(([k, v]) => `${k}="${v}"`)
+    .map(([k, v]) => `${k}=${shellQuote(v)}`)
     .join(' ')
 }
 
-export function getWorkspaceDirs(paths: DeployPaths): string[] {
+export function getWorkspaceDirs(paths: DeployPaths, config?: SeedConfig): string[] {
   // The daemon container always mounts monitoring volumes (for rsync of
   // built-in dashboards), so these directories must exist even when the
   // monitoring profile isn't active.
-  return [
+  const dirs = [
     join(paths.seedDir, 'proxy'),
     join(paths.seedDir, 'proxy', 'data'),
     join(paths.seedDir, 'proxy', 'config'),
@@ -1544,7 +2120,16 @@ export function getWorkspaceDirs(paths: DeployPaths): string[] {
     join(paths.seedDir, 'monitoring', 'grafana'),
     join(paths.seedDir, 'monitoring', 'prometheus'),
   ]
+  if (config && isEnterprise(config)) {
+    // Bind mounts are created by docker as root when missing; create them
+    // here so the containers (running as the host user) can write to them.
+    dirs.push(join(paths.seedDir, 'vault'), join(paths.seedDir, 'notify'), join(paths.seedDir, 'agents'))
+  }
+  return dirs
 }
+
+/** Data directories that belong in a backup, in addition to web/daemon/proxy. */
+export const ENTERPRISE_DATA_DIRS = ['vault', 'notify', 'agents'] as const
 
 /**
  * Ensures the seed directory exists and is writable by the current user.
@@ -1644,6 +2229,38 @@ export async function selfUpdate(scriptPath: string = process.argv[1] || '', dep
   }
 }
 
+/** Compose `devices:` / `group_add:` lines (4-space service indent) for a device injection. */
+export function deviceDirectives(devices: string[], groupIds: string[]): string[] {
+  const lines = ['    devices:', ...devices.map((d) => `      - ${d}:${d}`)]
+  if (groupIds.length > 0) {
+    // GIDs, not names — Docker resolves names from the container's /etc/group,
+    // which may not define them. GIDs pass through without resolution.
+    lines.push('    group_add:', ...groupIds.map((g) => `      - ${g}`))
+  }
+  return lines
+}
+
+/**
+ * Insert directive lines before the `volumes:` line of the named service. The
+ * compose templates ship without host-specific devices so they work on any
+ * server; deploy adds them when the host has the hardware. Matches the first
+ * 4-space `volumes:` after the service's `container_name:` line; a service
+ * without one is left untouched.
+ */
+export function injectServiceDirectives(compose: string, containerName: string, lines: string[]): string {
+  let inService = false
+  const result: string[] = []
+  for (const line of compose.split('\n')) {
+    if (new RegExp(`^\\s+container_name:\\s*${containerName}\\s*$`).test(line)) inService = true
+    if (inService && /^\s{4}volumes:/.test(line)) {
+      result.push(...lines)
+      inService = false // only inject once
+    }
+    result.push(line)
+  }
+  return result.join('\n')
+}
+
 export async function deploy(
   config: SeedConfig,
   paths: DeployPaths,
@@ -1679,14 +2296,15 @@ export async function deploy(
   // Use env-based URL override when present (testing / branch builds),
   // otherwise fall back to the compose_url stored in config.json.
   const hasEnvOverride = process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL
+  const composeFile = composeFileName(config.profile)
   const composeUrl = hasEnvOverride
-    ? `${getOpsBaseUrl()}/docker-compose.yml`
+    ? `${getOpsBaseUrl()}/${composeFile}`
     : config.deploy_url
-      ? `${config.deploy_url.replace(/\/+$/, '')}/docker-compose.yml`
+      ? `${config.deploy_url.replace(/\/+$/, '')}/${composeFile}`
       : config.compose_url
   const composeResponse = await fetch(composeUrl)
   if (!composeResponse.ok) {
-    spinner?.stop('Failed to fetch docker-compose.yml')
+    spinner?.stop(`Failed to fetch ${composeFile}`)
     throw new Error(`Failed to fetch compose file from ${composeUrl}: ${composeResponse.status}`)
   }
   const composeContent = await composeResponse.text()
@@ -1694,7 +2312,7 @@ export async function deploy(
   const envString = buildComposeEnv(config, paths)
   const envSha = sha256(envString)
 
-  const containersHealthy = await checkContainersHealthy(shell)
+  const containersHealthy = await checkContainersHealthy(shell, config)
   const containersOnConfiguredTag = containersMatchReleaseChannel(shell, config)
   if (
     config.compose_sha === composeSha &&
@@ -1745,32 +2363,24 @@ export async function deploy(
     const renderGid = shell.runSafe('getent group render 2>/dev/null | cut -d: -f3')
     if (renderGid) groups.push(renderGid)
 
-    // Insert devices and group_add before the "volumes:" line of seed-daemon.
-    // We match the first "volumes:" that appears after "seed-daemon:" in the file.
-    const gpuLines: string[] = ['    devices:', '      - /dev/dri:/dev/dri']
-    if (groups.length > 0) {
-      gpuLines.push('    group_add:')
-      for (const g of groups) gpuLines.push(`      - ${g}`)
-    }
-    // Find the volumes: line inside the seed-daemon service block and inject before it.
-    let inDaemon = false
-    const lines = finalCompose.split('\n')
-    const result: string[] = []
-    for (const line of lines) {
-      if (/^\s+container_name:\s*seed-daemon/.test(line)) inDaemon = true
-      if (inDaemon && /^\s{4}volumes:/.test(line)) {
-        result.push(...gpuLines)
-        inDaemon = false // only inject once
-      }
-      result.push(line)
-    }
-    finalCompose = result.join('\n')
+    finalCompose = injectServiceDirectives(finalCompose, 'seed-daemon', deviceDirectives(['/dev/dri'], groups))
     log(`GPU detected — added devices${groups.length ? ` and group_add (${groups.join(', ')})` : ''} to compose file.`)
+  }
+  // Enterprise agents: /dev/kvm for sandboxed code execution, opt-in via
+  // config (standard droplets have no KVM; the compose file ships without it).
+  if (isEnterprise(config) && config.agents && config.agents_kvm) {
+    const kvmGid = shell.runSafe('getent group kvm 2>/dev/null | cut -d: -f3')
+    finalCompose = injectServiceDirectives(
+      finalCompose,
+      'seed-agents',
+      deviceDirectives(['/dev/kvm'], kvmGid ? [kvmGid] : []),
+    )
+    log(`agents_kvm — added /dev/kvm${kvmGid ? ` and group_add (${kvmGid})` : ''} to seed-agents.`)
   }
   await writeFile(paths.composePath, finalCompose, 'utf-8')
 
   step('Setting up workspace directories...')
-  const dirs = getWorkspaceDirs(paths)
+  const dirs = getWorkspaceDirs(paths, config)
   for (const dir of dirs) {
     await mkdir(dir, {recursive: true})
   }
@@ -1794,7 +2404,7 @@ export async function deploy(
     step('Created initial web/config.json with registration secret.')
   }
 
-  const previousImages = await getContainerImages(shell)
+  const previousImages = await getContainerImages(shell, config)
 
   // Tag current images as :rollback before pulling so they survive prune and
   // can be restored if the new images fail health checks.
@@ -1863,7 +2473,7 @@ export async function deploy(
   for (let attempt = 0; attempt < 10; attempt++) {
     step(`Health check ${attempt + 1}/10...`)
     await new Promise((r) => setTimeout(r, 3000))
-    healthy = await checkContainersHealthy(shell)
+    healthy = await checkContainersHealthy(shell, config)
     if (healthy) break
   }
 
@@ -1906,6 +2516,25 @@ export async function deploy(
     // Plausible analytics for this domain. Coordinate endpoint with Eric.
 
     const registerUrl = `${config.domain}/hm/register?secret=${config.link_secret}`
+    if (isEnterprise(config)) {
+      p.note(
+        [
+          `Your private Seed is live at ${config.domain}`,
+          '',
+          `  1. Create the first account:  ${cmd('invite you@example.org')}`,
+          `     and open the invitation link in a browser.`,
+          `  2. Register the organization's space (as that account):`,
+          `     ${registerUrl}`,
+          `     or, for a space that already lives on this daemon,`,
+          `     ${cmd('register <accountUid>')}`,
+          '',
+          `Invite the rest of the organization with '${cmd('invite')}'.`,
+          `Updates are manual: run '${cmd('deploy')}' when you want them.`,
+        ].join('\n'),
+        'Setup complete',
+      )
+      return
+    }
     p.note(
       [
         `Your site is live at ${config.domain}`,
@@ -1989,6 +2618,8 @@ const COMMANDS = [
   'backup',
   'restore',
   'uninstall',
+  'register',
+  'invite',
 ] as const
 
 export type CliCommand = (typeof COMMANDS)[number]
@@ -2000,6 +2631,16 @@ export interface CliArgs {
   advanced?: boolean
   /** Node data directory to operate on (overrides DEFAULT_SEED_DIR). */
   dir?: string
+  /** Deploy profile for a first run / reconfigure (`--profile enterprise`). */
+  profile?: DeployProfile
+  /** Unattended-install answers (`--hostname`, `--tag`, `--yes`, …). */
+  headless: HeadlessOptions
+}
+
+function parseProfile(value: string | undefined): DeployProfile {
+  if (value && (DEPLOY_PROFILES as readonly string[]).includes(value)) return value as DeployProfile
+  console.error(`Unknown profile: ${value ?? '(none)'}. Expected one of: ${DEPLOY_PROFILES.join(', ')}\n`)
+  process.exit(1)
 }
 
 export function parseArgs(argv: string[] = process.argv): CliArgs {
@@ -2008,33 +2649,59 @@ export function parseArgs(argv: string[] = process.argv): CliArgs {
   // with command/subcommand parsing:
   //   --advanced        unlock advanced prompts
   //   --dir <path>      operate on that node's data directory
+  //   --profile <name>  deploy profile (site | enterprise) for a first run
+  //   --hostname, --tag, --email, --log-level, --agents, --notify, --yes
+  //                     unattended enterprise install (no TTY)
   const advanced = rawAll.includes('--advanced')
   let dir: string | undefined
+  let profile: DeployProfile | undefined
+  const headless: HeadlessOptions = {}
+  const valueFlags: Record<string, (v: string) => void> = {
+    '--dir': (v) => (dir = v),
+    '--profile': (v) => (profile = parseProfile(v)),
+    '--hostname': (v) => (headless.hostname = v),
+    '--tag': (v) => (headless.tag = v),
+    '--email': (v) => (headless.email = v),
+    '--log-level': (v) => (headless.logLevel = v),
+  }
+  const boolFlags: Record<string, () => void> = {
+    '--advanced': () => {},
+    '--yes': () => (headless.yes = true),
+    '--agents': () => (headless.agents = true),
+    '--no-agents': () => (headless.agents = false),
+    '--notify': () => (headless.notify = true),
+    '--no-notify': () => (headless.notify = false),
+  }
   const raw: string[] = []
   for (let i = 0; i < rawAll.length; i++) {
     const a = rawAll[i]
-    if (a === '--advanced') continue
-    if (a === '--dir') {
-      dir = rawAll[++i]
+    if (boolFlags[a]) {
+      boolFlags[a]()
       continue
     }
-    if (a.startsWith('--dir=')) {
-      dir = a.slice('--dir='.length)
+    if (valueFlags[a]) {
+      valueFlags[a](rawAll[++i] ?? '')
+      continue
+    }
+    const eq = a.indexOf('=')
+    if (a.startsWith('--') && eq > 0 && valueFlags[a.slice(0, eq)]) {
+      valueFlags[a.slice(0, eq)](a.slice(eq + 1))
       continue
     }
     raw.push(a)
   }
   const first = raw[0] ?? 'deploy'
 
-  if (first === '--help' || first === '-h') return {command: 'help', args: [], advanced, dir}
-  if (first === '--version' || first === '-v') return {command: 'version', args: [], advanced, dir}
-  if (first === '--reconfigure') return {command: 'deploy', args: [], reconfigure: true, advanced, dir}
+  if (first === '--help' || first === '-h') return {command: 'help', args: [], advanced, dir, profile, headless}
+  if (first === '--version' || first === '-v') return {command: 'version', args: [], advanced, dir, profile, headless}
+  if (first === '--reconfigure')
+    return {command: 'deploy', args: [], reconfigure: true, advanced, dir, profile, headless}
 
   if ((COMMANDS as readonly string[]).includes(first)) {
     const rest = raw.slice(1)
     const reconfigure = first === 'deploy' && rest.includes('--reconfigure')
     const args = reconfigure ? rest.filter((a) => a !== '--reconfigure') : rest
-    return {command: first as CliCommand, args, reconfigure, advanced, dir}
+    return {command: first as CliCommand, args, reconfigure, advanced, dir, profile, headless}
   }
 
   console.error(`Unknown command: ${first}\n`)
@@ -2058,20 +2725,26 @@ export function printHelp(): void {
     `  doctor      Diagnose node health, versions, and connectivity`,
     `  secret      Print the site registration secret`,
     `  config      Print current configuration (secrets redacted)`,
-    `  logs        Tail container logs [daemon|web|proxy]`,
+    `  logs        Tail container logs [daemon|web|proxy|vault|notify|agents]`,
     `  cron        Install or remove automatic update cron jobs`,
     `  backup      Create a portable backup of all node data`,
     `  restore     Restore node data from a backup file`,
     `  uninstall   Remove all Seed containers, data, and configuration`,
+    `  register    Register a space already on this daemon: register <accountUid>`,
+    `  invite      Create vault invitation link(s): invite [email] [count]  (enterprise)`,
     ``,
     `Options:`,
     `  --reconfigure  Re-run the setup wizard for the current node`,
     `  --advanced     Manage/create/switch nodes: pick the directory, custom tag, etc.`,
+    `  --profile <p>  Deploy profile for a first run: site (default) or enterprise`,
+    `  --hostname <url> --tag <tag> [--email <e>] [--log-level <l>] [--agents] [--notify] --yes`,
+    `                 Unattended enterprise install (no wizard); SMTP from SEED_SMTP_HOST/USER/PASSWORD/SENDER`,
     `  -h, --help     Show this help message`,
     `  -v, --version  Show script version`,
     ``,
     `Examples:`,
     `  seed-deploy                            Deploy or update`,
+    `  seed-deploy --profile enterprise       First-time setup of a private Enterprise node`,
     `  seed-deploy upgrade                    Update deploy script`,
     `  seed-deploy deploy --reconfigure       Change node configuration`,
     `  seed-deploy stop                       Teardown containers`,
@@ -2174,15 +2847,47 @@ export function installWrapper(paths: DeployPaths, shell: ShellRunner): void {
   }
 }
 
-/** Make this dir the live node: point the cron and the wrapper at it. */
-async function setActiveNode(paths: DeployPaths, shell: ShellRunner): Promise<void> {
-  await setupCron(paths, shell)
+/**
+ * Make this dir the live node: point the cron and the wrapper at it.
+ * Enterprise nodes get no auto-update cron (pinned updates are the policy;
+ * `seed-deploy deploy` by hand still updates), and any seed cron left by a
+ * previous site install on the host is disarmed so it cannot redeploy us.
+ */
+async function setActiveNode(paths: DeployPaths, shell: ShellRunner, config?: SeedConfig): Promise<void> {
+  if (config && isEnterprise(config)) {
+    clearSeedCron(shell)
+    log('Enterprise profile: automatic update cron not installed (updates are manual).')
+  } else {
+    await setupCron(paths, shell)
+  }
   installWrapper(paths, shell)
 }
 
-async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = false, advanced = false): Promise<void> {
+function runWizardFor(
+  profile: DeployProfile | undefined,
+  paths: DeployPaths,
+  existing: SeedConfig | undefined,
+  advanced: boolean,
+): Promise<SeedConfig> {
+  const effective = profile ?? existing?.profile ?? 'site'
+  return effective === 'enterprise'
+    ? runEnterpriseWizard(paths, existing, advanced)
+    : runFreshWizard(paths, existing, advanced)
+}
+
+async function cmdDeploy(
+  paths: DeployPaths,
+  shell: ShellRunner,
+  reconfigure = false,
+  advanced = false,
+  profile?: DeployProfile,
+  headless: HeadlessOptions = {},
+): Promise<void> {
   checkDockerAccess(shell)
   const interactive = process.stdout.isTTY
+  // Unattended enterprise install/reconfigure: `--yes` (or no TTY) with the
+  // answers on the command line / in the environment instead of the wizard.
+  const unattended = profile === 'enterprise' && (headless.yes || !interactive) && !!headless.hostname
 
   // Advanced + interactive: the data directory is the first choice, and it
   // drives everything — create a branch node in a new dir, or reconfigure /
@@ -2197,28 +2902,59 @@ async function cmdDeploy(paths: DeployPaths, shell: ShellRunner, reconfigure = f
   await ensureSeedDir(paths, shell)
 
   if (await configExists(paths)) {
+    const existing = await readConfig(paths)
+    if (profile && (existing.profile ?? 'site') !== profile) {
+      throw new Error(
+        `This node is configured with the '${existing.profile ?? 'site'}' profile; ` +
+          `a profile cannot be switched in place. Use a fresh directory (--dir) for a '${profile}' node.`,
+      )
+    }
+    if (unattended) {
+      const config = headlessEnterpriseConfig(headless, existing)
+      await writeConfig(config, paths)
+      log(`Config updated from flags at ${paths.configPath}.`)
+      await deploy(config, paths, shell)
+      await setActiveNode(paths, shell, config)
+      return
+    }
     if ((reconfigure || advanced) && interactive) {
-      const existing = await readConfig(paths)
-      const config = await runFreshWizard(paths, existing, advanced)
+      const config = await runWizardFor(profile, paths, existing, advanced)
       await deploy(config, paths, shell, takeoverApproved)
-      await setActiveNode(paths, shell)
+      await setActiveNode(paths, shell, config)
       p.outro(`Reconfiguration complete! Your Seed node is running.\n${MANAGE_HINT}`)
       return
     }
 
     log(`Seed deploy v${VERSION} — config found at ${paths.configPath}, running headless.`)
-    const config = await readConfig(paths)
-    await deploy(config, paths, shell)
+    await deploy(existing, paths, shell)
     return
   }
 
-  const oldInstall = await detectOldInstall(shell)
+  if (unattended) {
+    const config = headlessEnterpriseConfig(headless)
+    await writeConfig(config, paths)
+    log(`Seed deploy v${VERSION} — enterprise config written to ${paths.configPath} from flags.`)
+    await deploy(config, paths, shell, takeoverApproved)
+    await setActiveNode(paths, shell, config)
+    log(`Setup complete. Next: '${cmd('invite you@example.org')}' then '${cmd('register <accountUid>')}'.`)
+    return
+  }
+  if (!interactive) {
+    throw new Error(
+      `No config at ${paths.configPath} and no TTY for the wizard. ` +
+        `For an unattended enterprise install pass --profile enterprise --hostname https://… --tag <tag> --yes.`,
+    )
+  }
+
+  // The migration wizard only knows site installs; an enterprise first run is
+  // always a fresh config.
+  const oldInstall = profile === 'enterprise' ? null : await detectOldInstall(shell)
   const config = oldInstall
     ? await runMigrationWizard(oldInstall, paths, shell, advanced)
-    : await runFreshWizard(paths, undefined, advanced)
+    : await runWizardFor(profile, paths, undefined, advanced)
 
   await deploy(config, paths, shell, takeoverApproved)
-  await setActiveNode(paths, shell)
+  await setActiveNode(paths, shell, config)
   p.outro(`Setup complete! Your Seed node is running.\n${MANAGE_HINT}`)
 }
 
@@ -2234,10 +2970,26 @@ async function cmdUpgrade(paths: DeployPaths): Promise<void> {
   await selfUpdate(undefined, deployUrl)
 }
 
+/**
+ * Env prefix for compose commands that act on an existing stack (stop, backup,
+ * …). Compose only touches profiled services (notify, agents, metrics) when
+ * their profiles are active, so COMPOSE_PROFILES must be set for those
+ * commands too. Empty when there is no readable config.
+ */
+async function composeEnvPrefix(paths: DeployPaths): Promise<string> {
+  try {
+    if (!(await configExists(paths))) return ''
+    return buildComposeEnv(await readConfig(paths), paths)
+  } catch {
+    return ''
+  }
+}
+
 async function cmdStop(paths: DeployPaths, shell: ShellRunner): Promise<void> {
   checkDockerAccess(shell)
   console.log('Stopping and removing Seed containers...')
-  shell.runSafe(`docker compose -f "${paths.composePath}" down`)
+  const env = await composeEnvPrefix(paths)
+  shell.runSafe(`${env} docker compose -f "${paths.composePath}" down`)
   console.log('All Seed containers stopped and removed.')
 }
 
@@ -2272,14 +3024,23 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
   let config: SeedConfig | null = null
   if (await configExists(paths)) {
     config = await readConfig(paths)
+    const enterprise = isEnterprise(config)
     console.log(`\nConfiguration:`)
+    console.log(`  Profile:     ${enterprise ? 'Enterprise (private, web-only)' : 'Site'}`)
     console.log(`  Domain:      ${config.domain}`)
-    console.log(`  Network:     ${config.testnet ? 'Testnet (devnet)' : 'Mainnet'}`)
+    console.log(`  Network:     ${enterprise ? 'Isolated (no P2P)' : config.testnet ? 'Testnet (devnet)' : 'Mainnet'}`)
     console.log(`  Channel:     ${config.release_channel}`)
     if (config.deploy_url) console.log(`  Deploy URL:  ${config.deploy_url}`)
     if (config.web_image) console.log(`  Web image:   ${config.web_image}`)
     if (config.site_image) console.log(`  Site image:  ${config.site_image}`)
-    console.log(`  Gateway:     ${config.gateway ? 'Yes' : 'No'}`)
+    if (enterprise) {
+      console.log(`  Notify:      ${config.notify ? notifyHost(config) : 'No'}`)
+      console.log(
+        `  Agents:      ${config.agents ? `${agentsHost(config)}${config.agents_kvm ? ' (kvm)' : ''}` : 'No'}`,
+      )
+    } else {
+      console.log(`  Gateway:     ${config.gateway ? 'Yes' : 'No'}`)
+    }
     console.log(`  Config:      ${paths.configPath}`)
     for (const warning of configWarnings(config)) {
       console.log(`  ⚠ ${warning}`)
@@ -2300,7 +3061,7 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
 
   // Containers
   console.log(`\nContainers:`)
-  const containers = ['seed-daemon', 'seed-web', 'seed-proxy']
+  const containers = requiredContainers(config ?? undefined)
   let hasUnhealthy = false
   for (const name of containers) {
     const status = shell.runSafe(`docker inspect ${name} --format '{{.State.Status}}' 2>/dev/null`)
@@ -2334,19 +3095,36 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
     const expectedLightning = config.testnet ? LIGHTNING_URL_TESTNET : LIGHTNING_URL_MAINNET
     const expectedTestnetName = config.testnet ? 'dev' : ''
 
-    const checks: Array<{container: string; envVar: string; expected: string; label?: string}> = [
-      {
-        container: 'seed-daemon',
-        envVar: 'SEED_P2P_TESTNET_NAME',
-        expected: expectedTestnetName,
-        label: expectedTestnetName || '(empty, mainnet)',
-      },
-      {container: 'seed-daemon', envVar: 'LIGHTNING_API_URL', expected: expectedLightning},
-      {container: 'seed-daemon', envVar: 'SEED_LOG_LEVEL', expected: config.compose_envs.LOG_LEVEL},
-      {container: 'seed-web', envVar: 'SEED_BASE_URL', expected: config.domain},
-      {container: 'seed-web', envVar: 'SEED_IS_GATEWAY', expected: String(config.gateway)},
-      {container: 'seed-web', envVar: 'SEED_ENABLE_STATISTICS', expected: String(config.analytics)},
-    ]
+    // Enterprise nodes have no lightning and a fixed private network name;
+    // the public-network checks do not apply.
+    const checks: Array<{container: string; envVar: string; expected: string; label?: string}> = isEnterprise(config)
+      ? [
+          {container: 'seed-daemon', envVar: 'SEED_P2P_TESTNET_NAME', expected: enterpriseTestnetName(config.domain)},
+          {container: 'seed-daemon', envVar: 'SEED_LOG_LEVEL', expected: config.compose_envs.LOG_LEVEL},
+          {container: 'seed-web', envVar: 'SEED_BASE_URL', expected: config.domain},
+          {container: 'seed-web', envVar: 'SEED_IS_GATEWAY', expected: 'false'},
+          {container: 'seed-web', envVar: 'SEED_ENABLE_STATISTICS', expected: 'false'},
+          {container: 'seed-web', envVar: 'SEED_REQUIRE_SIGN_IN', expected: '1'},
+          {
+            container: 'seed-web',
+            envVar: 'NOTIFY_SERVICE_HOST',
+            expected: notifyHost(config),
+            label: notifyHost(config) || '(empty, notify off)',
+          },
+        ]
+      : [
+          {
+            container: 'seed-daemon',
+            envVar: 'SEED_P2P_TESTNET_NAME',
+            expected: expectedTestnetName,
+            label: expectedTestnetName || '(empty, mainnet)',
+          },
+          {container: 'seed-daemon', envVar: 'LIGHTNING_API_URL', expected: expectedLightning},
+          {container: 'seed-daemon', envVar: 'SEED_LOG_LEVEL', expected: config.compose_envs.LOG_LEVEL},
+          {container: 'seed-web', envVar: 'SEED_BASE_URL', expected: config.domain},
+          {container: 'seed-web', envVar: 'SEED_IS_GATEWAY', expected: String(config.gateway)},
+          {container: 'seed-web', envVar: 'SEED_ENABLE_STATISTICS', expected: String(config.analytics)},
+        ]
 
     // Gather env vars from running containers
     const daemonEnvs = getContainerEnvs(shell, 'seed-daemon')
@@ -2498,9 +3276,11 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
       }
     }
 
-    const siteConfigRaw = shell.runSafe(
-      `curl -sS --max-time 10 "http://127.0.0.1:${webPort}/hm/api/config" 2>/dev/null`,
-    )
+    // Enterprise nodes publish no web port; /hm/api/config is open through the proxy.
+    const siteConfigUrl = isEnterprise(config)
+      ? `${config.domain}/hm/api/config`
+      : `http://127.0.0.1:${webPort}/hm/api/config`
+    const siteConfigRaw = shell.runSafe(`curl -sS --max-time 10 "${siteConfigUrl}" 2>/dev/null`)
     if (!siteConfigRaw) {
       console.log(`  \u26A0 Site           could not check`)
     } else {
@@ -2521,6 +3301,11 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
         console.log(`  \u26A0 Site           could not check`)
       }
     }
+
+    if (isEnterprise(config)) {
+      console.log(`\nIsolation:`)
+      for (const line of enterpriseIsolationChecks(shell, config)) console.log(line)
+    }
   }
 
   // Disk usage
@@ -2537,11 +3322,106 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
   console.log(`\nCron:`)
   console.log(`  Auto-update: ${deployCron ? deployCron.split(' ').slice(0, 5).join(' ') : 'not installed'}`)
   console.log(`  Cleanup:     ${cleanupCron ? cleanupCron.split(' ').slice(0, 5).join(' ') : 'not installed'}`)
-  if (!deployCron || !cleanupCron) {
+  if (config && isEnterprise(config)) {
+    if (deployCron) {
+      console.log(
+        `\n  ⚠ Enterprise nodes update manually; this cron will redeploy on every new image. '${cmd(
+          'cron remove',
+        )}' removes it.`,
+      )
+    } else {
+      console.log(`  (Enterprise profile: updates are manual — run '${cmd('deploy')}' to update.)`)
+    }
+  } else if (!deployCron || !cleanupCron) {
     console.log(`\n  Tip: Run '${cmd('cron')}' to set up automatic updates.`)
   }
 
   console.log('')
+}
+
+/**
+ * Doctor lines for the enterprise isolation guarantees: the daemon publishes
+ * no host ports, every page requires sign-in, and the vault answers under the
+ * site origin. Pure over the shell so tests can drive it with a mock.
+ */
+export function enterpriseIsolationChecks(shell: ShellRunner, config: SeedConfig): string[] {
+  const lines: string[] = []
+
+  // 1. No published ports on the daemon: nothing can reach it from outside.
+  const ports = shell.runSafe('docker port seed-daemon 2>/dev/null')
+  if (ports === null) {
+    lines.push(`  ⚠ Daemon ports   could not check (is seed-daemon running?)`)
+  } else if (ports.trim() === '') {
+    lines.push(`  ✔ Daemon ports   none published (P2P unreachable from outside)`)
+  } else {
+    lines.push(`  ✘ Daemon ports   PUBLISHED: ${ports.replace(/\n/g, '; ')}`)
+    lines.push(`      └ the enterprise compose template has no ports on seed-daemon; redeploy with '${cmd('deploy')}'`)
+  }
+
+  // 2. The web app enforces sign-in (what the Caddy gate assumes).
+  const siteConfigRaw = shell.runSafe(`curl -sS --max-time 10 "${config.domain}/hm/api/config" 2>/dev/null`)
+  if (!siteConfigRaw) {
+    lines.push(`  ⚠ Sign-in gate   could not fetch ${config.domain}/hm/api/config`)
+  } else {
+    try {
+      const siteConfig = JSON.parse(siteConfigRaw) as {requireSignIn?: boolean}
+      if (siteConfig.requireSignIn === true) {
+        lines.push(`  ✔ Sign-in gate   /hm/api/config reports requireSignIn: true`)
+      } else {
+        lines.push(
+          `  ✘ Sign-in gate   /hm/api/config reports requireSignIn: ${JSON.stringify(siteConfig.requireSignIn)}`,
+        )
+        lines.push(`      └ seed-web should run with SEED_REQUIRE_SIGN_IN=1; redeploy with '${cmd('deploy')}'`)
+      }
+    } catch {
+      lines.push(`  ⚠ Sign-in gate   /hm/api/config is not JSON`)
+    }
+  }
+
+  // 3. The proxy gate: a cookie-less GET / must bounce to the sign-in page.
+  const gate = shell.runSafe(
+    `curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 10 "${config.domain}/" 2>/dev/null`,
+  )
+  if (!gate) {
+    lines.push(`  ⚠ Proxy gate     could not fetch ${config.domain}/`)
+  } else {
+    const [code, redirect = ''] = gate.trim().split(' ')
+    if (code === '302' && redirect.includes('/hm/sign-in')) {
+      lines.push(`  ✔ Proxy gate     GET / without a session → 302 ${redirect}`)
+    } else if (code === '401') {
+      lines.push(`  ✔ Proxy gate     GET / without a session → 401`)
+    } else {
+      lines.push(`  ✘ Proxy gate     GET / without a session answered ${code}${redirect ? ` → ${redirect}` : ''}`)
+      lines.push(`      └ the Caddyfile's forward_auth gate is not in effect; redeploy with '${cmd('deploy')}'`)
+    }
+  }
+
+  // 4. The session route itself refuses a cookie-less caller (proves the
+  // web app's gate is live, independent of the proxy).
+  const session = shell.runSafe(
+    `curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "${config.domain}${SESSION_CHECK_URI}" 2>/dev/null`,
+  )
+  if (!session) {
+    lines.push(`  \u26A0 Session check  could not fetch ${config.domain}${SESSION_CHECK_URI}`)
+  } else if (session.trim() === '401') {
+    lines.push(`  \u2714 Session check  ${SESSION_CHECK_URI} without a session → 401`)
+  } else {
+    lines.push(`  \u2718 Session check  ${SESSION_CHECK_URI} without a session answered ${session.trim()}`)
+    lines.push(`      \u2514 seed-web should run with SEED_REQUIRE_SIGN_IN=1 and SEED_SESSION_SECRET set`)
+  }
+
+  // 5. The vault is reachable through the proxy at /vault/.
+  const vaultStatus = shell.runSafe(
+    `curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "${config.domain}/vault/" 2>/dev/null`,
+  )
+  if (vaultStatus && /^2\d\d$/.test(vaultStatus.trim())) {
+    lines.push(`  ✔ Vault          ${config.domain}/vault/ (${vaultStatus.trim()})`)
+  } else {
+    lines.push(`  ✘ Vault          ${config.domain}/vault/ answered ${vaultStatus?.trim() || 'nothing'}`)
+    lines.push(`      └ check '${cmd('logs vault')}'`)
+  }
+
+  return lines
 }
 
 async function cmdConfig(paths: DeployPaths): Promise<void> {
@@ -2551,8 +3431,135 @@ async function cmdConfig(paths: DeployPaths): Promise<void> {
   }
 
   const config = await readConfig(paths)
-  const redacted = {...config, link_secret: '****'}
+  const redacted: SeedConfig = {...config, link_secret: '****'}
+  if (config.vault_admin_secret) redacted.vault_admin_secret = '****'
+  if (config.session_secret) redacted.session_secret = '****'
+  if (config.smtp?.password) redacted.smtp = {...config.smtp, password: '****'}
   console.log(JSON.stringify(redacted, null, 2))
+}
+
+// ---------------------------------------------------------------------------
+// Enterprise commands: register, invite
+// ---------------------------------------------------------------------------
+
+/** Minimal fetch wrapper: JSON in, JSON out, with the HTTP status on failure. */
+async function postJson(url: string, body: unknown, headers: Record<string, string> = {}): Promise<unknown> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {'content-type': 'application/json', ...headers},
+    body: JSON.stringify(body),
+  })
+  const text = await response.text()
+  let parsed: unknown = text
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    // not JSON — keep the raw text for the error message
+  }
+  if (!response.ok) {
+    const detail = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
+    throw new Error(`${url} → HTTP ${response.status}${detail ? `: ${detail.slice(0, 500)}` : ''}`)
+  }
+  return parsed
+}
+
+/**
+ * `register <accountUid>` — register a space that already lives on this
+ * daemon with the web app, the same call the Seed desktop app makes from
+ * /hm/register, minus the P2P push (there is no P2P on an enterprise node and
+ * the content is already local). Consumes the registration secret.
+ */
+async function cmdRegister(paths: DeployPaths, args: string[]): Promise<void> {
+  const accountUid = args[0]
+  if (!accountUid) {
+    console.error(`Usage: ${cmd('register <accountUid>')}`)
+    process.exit(1)
+  }
+  if (!(await configExists(paths))) {
+    console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first.`)
+    process.exit(1)
+  }
+  const config = await readConfig(paths)
+  if (!config.link_secret) {
+    console.error('No registration secret found in config.')
+    process.exit(1)
+  }
+
+  const configUrl = `${config.domain}/hm/api/config`
+  const siteResponse = await fetch(configUrl)
+  if (!siteResponse.ok) throw new Error(`${configUrl} → HTTP ${siteResponse.status}`)
+  const siteConfig = (await siteResponse.json()) as {peerId?: string; registeredAccountUid?: string}
+  if (siteConfig.registeredAccountUid) {
+    console.error(`This site is already registered to ${siteConfig.registeredAccountUid}.`)
+    console.error(`To re-register, reset web/config.json as described in the self-hosting guide and restart.`)
+    process.exit(1)
+  }
+  if (!siteConfig.peerId) throw new Error(`${configUrl} did not report a peerId; is the daemon running?`)
+
+  const result = await postJson(`${config.domain}/hm/api/register`, {
+    registrationSecret: config.link_secret,
+    accountUid,
+    peerId: siteConfig.peerId,
+    addrs: [],
+  })
+  console.log(JSON.stringify(result, null, 2))
+  console.log(`\nRegistered ${accountUid} at ${config.domain}.`)
+}
+
+/** Pull invitation links out of whatever shape the vault's admin API returns. */
+export function extractInvitationLinks(result: unknown, vaultBase: string): string[] {
+  if (!result || typeof result !== 'object') return []
+  const r = result as Record<string, unknown>
+  const toLink = (item: unknown): string | null => {
+    if (typeof item === 'string') return item.startsWith('http') ? item : `${vaultBase}?invite=${item}`
+    if (item && typeof item === 'object') {
+      const o = item as Record<string, unknown>
+      if (typeof o.link === 'string') return o.link
+      if (typeof o.url === 'string') return o.url
+      if (typeof o.code === 'string') return `${vaultBase}?invite=${o.code}`
+    }
+    return null
+  }
+  const lists = [r.invitations, r.links, r.codes].filter(Array.isArray) as unknown[][]
+  if (lists.length > 0) return lists[0].map(toLink).filter((l): l is string => !!l)
+  const single = toLink(r)
+  return single ? [single] : []
+}
+
+/**
+ * `invite [email] [count]` — ask the vault's admin API for invitation
+ * link(s). The vault is invite-only on an enterprise node, so this is how the
+ * organization's people get an account.
+ */
+async function cmdInvite(paths: DeployPaths, args: string[]): Promise<void> {
+  if (!(await configExists(paths))) {
+    console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first.`)
+    process.exit(1)
+  }
+  const config = await readConfig(paths)
+  if (!isEnterprise(config) || !config.vault_admin_secret) {
+    console.error(`'${cmd('invite')}' needs an enterprise node (no vault_admin_secret in config).`)
+    process.exit(1)
+  }
+
+  const email = args[0] && args[0].includes('@') ? args[0] : undefined
+  const countArg = email ? args[1] : args[0]
+  const count = countArg && /^\d+$/.test(countArg) ? Number(countArg) : undefined
+  const body: {email?: string; count?: number} = {}
+  if (email) body.email = email
+  if (count) body.count = count
+
+  const vaultBase = `${config.domain}/vault`
+  const result = await postJson(`${vaultBase}/api/admin/invitations`, body, {
+    authorization: `Bearer ${config.vault_admin_secret}`,
+  })
+  const links = extractInvitationLinks(result, vaultBase)
+  if (links.length === 0) {
+    console.log(JSON.stringify(result, null, 2))
+    return
+  }
+  console.log(email ? `Invitation for ${email}:` : `Invitation link${links.length > 1 ? 's' : ''}:`)
+  for (const link of links) console.log(`  ${link}`)
 }
 
 async function cmdSecret(paths: DeployPaths): Promise<void> {
@@ -2640,6 +3647,26 @@ export interface BackupMeta {
   cron: string[]
 }
 
+/**
+ * Paths (relative to the seed dir) that go into a backup archive. Enterprise
+ * nodes add the vault, notify and agents data; a directory that does not exist
+ * yet (profile never enabled) is skipped so tar does not fail on it.
+ */
+export async function backupMembers(paths: DeployPaths, config: SeedConfig): Promise<string[]> {
+  const members = ['config.json', 'backup-meta.json', 'docker-compose.yml', 'web', 'daemon', 'proxy']
+  if (isEnterprise(config)) {
+    for (const dir of ENTERPRISE_DATA_DIRS) {
+      try {
+        await access(join(paths.seedDir, dir))
+        members.push(dir)
+      } catch {
+        // never created — nothing to back up
+      }
+    }
+  }
+  return members
+}
+
 async function cmdBackup(paths: DeployPaths, shell: ShellRunner, args: string[]): Promise<void> {
   checkDockerAccess(shell)
   if (!(await configExists(paths))) {
@@ -2668,19 +3695,23 @@ async function cmdBackup(paths: DeployPaths, shell: ShellRunner, args: string[])
 
   // Stop containers for data consistency
   console.log('Stopping containers for consistent backup...')
-  shell.runSafe(`docker compose -f "${paths.composePath}" stop`)
+  const env = buildComposeEnv(config, paths)
+  shell.runSafe(`${env} docker compose -f "${paths.composePath}" stop`)
 
   // Create tarball — include config, data, compose, metadata. Exclude backups dir and .env
   const seedBase = basename(paths.seedDir)
   const seedParent = dirname(paths.seedDir)
+  const members = await backupMembers(paths, config)
   try {
     shell.run(
-      `tar -czf "${backupFile}" -C "${seedParent}" --exclude="${seedBase}/backups" --exclude="${seedBase}/.env" --exclude="${seedBase}/deploy.js" --exclude="${seedBase}/deploy.log" "${seedBase}/config.json" "${seedBase}/backup-meta.json" "${seedBase}/docker-compose.yml" "${seedBase}/web" "${seedBase}/daemon" "${seedBase}/proxy"`,
+      `tar -czf "${backupFile}" -C "${seedParent}" --exclude="${seedBase}/backups" --exclude="${seedBase}/.env" --exclude="${seedBase}/deploy.js" --exclude="${seedBase}/deploy.log" ${members
+        .map((m) => `"${seedBase}/${m}"`)
+        .join(' ')}`,
     )
   } catch (err) {
     console.error(`Backup failed: ${err}`)
     // Restart containers even on failure
-    shell.runSafe(`docker compose -f "${paths.composePath}" start`)
+    shell.runSafe(`${env} docker compose -f "${paths.composePath}" start`)
     process.exit(1)
   }
 
@@ -2689,7 +3720,7 @@ async function cmdBackup(paths: DeployPaths, shell: ShellRunner, args: string[])
 
   // Restart containers
   console.log('Restarting containers...')
-  shell.runSafe(`docker compose -f "${paths.composePath}" start`)
+  shell.runSafe(`${env} docker compose -f "${paths.composePath}" start`)
 
   const size = shell.runSafe(`du -h "${backupFile}"`)?.split('\t')[0] ?? 'unknown'
   console.log(`\nBackup created: ${backupFile} (${size})`)
@@ -2742,7 +3773,7 @@ async function cmdRestore(paths: DeployPaths, shell: ShellRunner, args: string[]
 
   // Stop existing containers
   console.log('Stopping existing containers...')
-  shell.runSafe(`docker compose -f "${paths.composePath}" down`)
+  shell.runSafe(`${await composeEnvPrefix(paths)} docker compose -f "${paths.composePath}" down`)
 
   // Extract backup
   console.log('Extracting backup...')
@@ -2775,6 +3806,12 @@ async function cmdRestore(paths: DeployPaths, shell: ShellRunner, args: string[]
   if (!p.isCancel(wantsReview) && wantsReview) {
     // Load the restored config and run the migration wizard with it pre-filled
     const restored = await readConfig(paths)
+    if (isEnterprise(restored)) {
+      config = await runEnterpriseWizard(paths, restored)
+      await deploy(config, paths, shell)
+      p.outro(`Restore complete! Your Seed node is running.\n${MANAGE_HINT}`)
+      return
+    }
     const asOldInstall: OldInstallInfo = {
       workspace: paths.seedDir,
       secret: restored.link_secret,
@@ -2836,7 +3873,7 @@ async function cmdUninstall(paths: DeployPaths, shell: ShellRunner): Promise<voi
 
   // Stop and remove containers
   console.log('Stopping and removing containers...')
-  shell.runSafe(`docker compose -f "${paths.composePath}" down`)
+  shell.runSafe(`${await composeEnvPrefix(paths)} docker compose -f "${paths.composePath}" down`)
 
   // Remove seed cron lines
   const existingCron = shell.runSafe('crontab -l 2>/dev/null') ?? ''
@@ -2867,7 +3904,7 @@ async function cmdUninstall(paths: DeployPaths, shell: ShellRunner): Promise<voi
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  const {command, args, reconfigure, advanced, dir} = parseArgs()
+  const {command, args, reconfigure, advanced, dir, profile, headless} = parseArgs()
   const paths = makePaths(dir ?? DEFAULT_SEED_DIR)
   const shell = makeShellRunner()
 
@@ -2879,7 +3916,7 @@ async function main(): Promise<void> {
       console.log(VERSION)
       return
     case 'deploy':
-      return cmdDeploy(paths, shell, reconfigure, advanced)
+      return cmdDeploy(paths, shell, reconfigure, advanced, profile, headless)
     case 'upgrade':
       return cmdUpgrade(paths)
     case 'stop':
@@ -2904,6 +3941,10 @@ async function main(): Promise<void> {
       return cmdRestore(paths, shell, args)
     case 'uninstall':
       return cmdUninstall(paths, shell)
+    case 'register':
+      return cmdRegister(paths, args)
+    case 'invite':
+      return cmdInvite(paths, args)
   }
 }
 

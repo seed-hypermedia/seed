@@ -538,6 +538,30 @@ class fD extends x {
     });
   }
 }
+var yD = Object.defineProperty;
+var _D = (t, u, F) => (u in t) ? yD(t, u, { enumerable: true, configurable: true, writable: true, value: F }) : t[u] = F;
+var Z = (t, u, F) => (_D(t, typeof u != "symbol" ? u + "" : u, F), F);
+
+class kD extends x {
+  constructor({ mask: u, ...F }) {
+    super(F), Z(this, "valueWithCursor", ""), Z(this, "_mask", "\u2022"), this._mask = u ?? "\u2022", this.on("finalize", () => {
+      this.valueWithCursor = this.masked;
+    }), this.on("value", () => {
+      if (this.cursor >= this.value.length)
+        this.valueWithCursor = `${this.masked}${import_picocolors.default.inverse(import_picocolors.default.hidden("_"))}`;
+      else {
+        const e = this.masked.slice(0, this.cursor), s = this.masked.slice(this.cursor);
+        this.valueWithCursor = `${e}${import_picocolors.default.inverse(s[0])}${s.slice(1)}`;
+      }
+    });
+  }
+  get cursor() {
+    return this._cursor;
+  }
+  get masked() {
+    return this.value.replaceAll(/./g, this._mask);
+  }
+}
 var SD = Object.defineProperty;
 var $D = (t, u, F) => (u in t) ? SD(t, u, { enumerable: true, configurable: true, writable: true, value: F }) : t[u] = F;
 var q = (t, u, F) => ($D(t, typeof u != "symbol" ? u + "" : u, F), F);
@@ -654,6 +678,27 @@ ${import_picocolors2.default.yellow(m2)}  ${import_picocolors2.default.yellow(th
 ${import_picocolors2.default.gray(a)}` : ""}`;
     default:
       return `${n}${import_picocolors2.default.cyan(a)}  ${i}
+${import_picocolors2.default.cyan(m2)}
+`;
+  }
+} }).prompt();
+var $e = (s) => new kD({ validate: s.validate, mask: s.mask ?? se, render() {
+  const n = `${import_picocolors2.default.gray(a)}
+${y2(this.state)}  ${s.message}
+`, t = this.valueWithCursor, i = this.masked;
+  switch (this.state) {
+    case "error":
+      return `${n.trim()}
+${import_picocolors2.default.yellow(a)}  ${i}
+${import_picocolors2.default.yellow(m2)}  ${import_picocolors2.default.yellow(this.error)}
+`;
+    case "submit":
+      return `${n}${import_picocolors2.default.gray(a)}  ${import_picocolors2.default.dim(i)}`;
+    case "cancel":
+      return `${n}${import_picocolors2.default.gray(a)}  ${import_picocolors2.default.strikethrough(import_picocolors2.default.dim(i ?? ""))}${i ? `
+${import_picocolors2.default.gray(a)}` : ""}`;
+    default:
+      return `${n}${import_picocolors2.default.cyan(a)}  ${t}
 ${import_picocolors2.default.cyan(m2)}
 `;
   }
@@ -838,8 +883,11 @@ var LIGHTNING_URL_TESTNET = "https://ln.testnet.seed.hyper.media";
 function currentDeployUrl() {
   return getOpsBaseUrl().replace(/\/+$/, "");
 }
-function currentComposeUrl() {
-  return `${currentDeployUrl()}/docker-compose.yml`;
+function composeFileName(profile = "site") {
+  return profile === "enterprise" ? "docker-compose.enterprise.yml" : "docker-compose.yml";
+}
+function currentComposeUrl(profile = "site") {
+  return `${currentDeployUrl()}/${composeFileName(profile)}`;
 }
 function configuredDeployUrl(existing) {
   if (process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL)
@@ -848,14 +896,14 @@ function configuredDeployUrl(existing) {
     return existing.deploy_url.replace(/\/+$/, "");
   return currentDeployUrl();
 }
-function configuredComposeUrl(existing) {
+function configuredComposeUrl(existing, profile = "site") {
   if (process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL)
-    return currentComposeUrl();
+    return currentComposeUrl(profile);
   if (existing?.deploy_url)
-    return `${existing.deploy_url.replace(/\/+$/, "")}/docker-compose.yml`;
+    return `${existing.deploy_url.replace(/\/+$/, "")}/${composeFileName(profile)}`;
   if (existing?.compose_url)
     return existing.compose_url;
-  return currentComposeUrl();
+  return currentComposeUrl(profile);
 }
 var GITHUB_RELEASES_API = "https://api.github.com/repos/seed-hypermedia/seed/releases/latest";
 var DEV_DEPLOY_SCRIPT_URL = "https://seedappdev.s3.eu-west-2.amazonaws.com/dev/latest/deploy.js";
@@ -935,6 +983,35 @@ function checkDockerAccess(shell) {
 `));
   }
 }
+var DEPLOY_PROFILES = ["site", "enterprise"];
+function isEnterprise(config) {
+  return config.profile === "enterprise";
+}
+function composeProfiles(config) {
+  const profiles = [];
+  if (isEnterprise(config)) {
+    if (config.notify)
+      profiles.push("notify");
+    if (config.agents)
+      profiles.push("agents");
+  }
+  if (config.metrics)
+    profiles.push("metrics");
+  return profiles;
+}
+function notifyHost(config) {
+  if (!isEnterprise(config))
+    return NOTIFY_SERVICE_HOST;
+  return config.notify ? `https://notify.${extractDns(config.domain)}` : "";
+}
+function agentsHost(config) {
+  if (!isEnterprise(config) || !config.agents)
+    return "";
+  return `https://agents.${extractDns(config.domain)}`;
+}
+function enterpriseTestnetName(domain) {
+  return `ent-${extractDns(domain).replace(/[^A-Za-z0-9-]+/g, "-")}`;
+}
 function environmentPresets(env) {
   switch (env) {
     case "dev":
@@ -946,6 +1023,12 @@ function environmentPresets(env) {
 }
 function configWarnings(config) {
   const warnings = [];
+  if (isEnterprise(config)) {
+    if (config.release_channel !== "latest") {
+      warnings.push(`Tracking the '${config.release_channel}' image channel (bleeding-edge images). ` + `Enterprise nodes update only when '${cmd("deploy")}' is run by hand.`);
+    }
+    return warnings;
+  }
   if (config.testnet) {
     warnings.push("This node is on the TESTNET (devnet) P2P network \u2014 it will NOT see or sync mainnet content. " + `If this is a production site, run '${cmd("deploy --reconfigure")}' and choose Mainnet.`);
   }
@@ -1178,6 +1261,9 @@ var LEGACY_CONTAINER_NAMES = [
   "seed-daemon",
   "seed-web",
   "seed-proxy",
+  "seed-vault",
+  "seed-notify",
+  "seed-agents",
   "autoupdater",
   "prometheus",
   "grafana"
@@ -1594,10 +1680,326 @@ async function runFreshWizard(paths, existing, advanced = false) {
   v2.success(`Config written to ${paths.configPath}`);
   return config;
 }
+var VAULT_ADMIN_SECRET_LENGTH = 40;
+var SESSION_SECRET_LENGTH = 64;
+function smtpFromEnv(env = process.env) {
+  if (!env.SEED_SMTP_HOST)
+    return;
+  return {
+    host: env.SEED_SMTP_HOST,
+    port: env.SEED_SMTP_PORT && /^\d+$/.test(env.SEED_SMTP_PORT) ? Number(env.SEED_SMTP_PORT) : undefined,
+    user: env.SEED_SMTP_USER ?? "",
+    password: env.SEED_SMTP_PASSWORD ?? "",
+    sender: env.SEED_SMTP_SENDER ?? ""
+  };
+}
+function headlessEnterpriseConfig(opts, existing, env = process.env) {
+  const domain = opts.hostname ?? existing?.domain;
+  if (!domain)
+    throw new Error("--hostname https://\u2026 is required for a non-interactive enterprise install");
+  const urlError = validateUrl(domain);
+  if (urlError)
+    throw new Error(`--hostname: ${urlError}`);
+  const tag = opts.tag ?? existing?.release_channel ?? DEFAULT_RELEASE_CHANNEL;
+  const tagError = validateDockerImageTag(tag);
+  if (tagError)
+    throw new Error(`--tag: ${tagError}`);
+  const logLevel = opts.logLevel ?? existing?.compose_envs.LOG_LEVEL ?? "info";
+  if (!["debug", "info", "warn", "error"].includes(logLevel)) {
+    throw new Error(`--log-level must be one of debug, info, warn, error (got '${logLevel}')`);
+  }
+  const notify = opts.notify ?? existing?.notify ?? false;
+  const smtp = smtpFromEnv(env) ?? existing?.smtp;
+  if (notify && !smtp) {
+    throw new Error("--notify needs SEED_SMTP_HOST, SEED_SMTP_USER, SEED_SMTP_PASSWORD and SEED_SMTP_SENDER in the environment");
+  }
+  return buildEnterpriseConfig({
+    domain,
+    release_channel: tag,
+    web_image: existing?.web_image,
+    site_image: existing?.site_image,
+    log_level: logLevel,
+    agents: opts.agents ?? existing?.agents ?? false,
+    notify,
+    smtp,
+    email: opts.email ?? existing?.email ?? ""
+  }, existing);
+}
+function validateUrl(v3) {
+  if (!v3)
+    return "Required";
+  if (!v3.startsWith("https://") && !v3.startsWith("http://"))
+    return "Must start with https:// or http://";
+}
+function buildEnterpriseConfig(answers, existing) {
+  return {
+    profile: "enterprise",
+    domain: answers.domain,
+    email: answers.email || "",
+    deploy_url: configuredDeployUrl(existing),
+    compose_url: configuredComposeUrl(existing, "enterprise"),
+    compose_sha: existing?.compose_sha ?? "",
+    compose_env_sha: existing?.compose_env_sha ?? "",
+    compose_envs: { LOG_LEVEL: answers.log_level },
+    environment: "prod",
+    release_channel: answers.release_channel,
+    web_image: answers.web_image || undefined,
+    site_image: answers.site_image || undefined,
+    testnet: false,
+    gateway: false,
+    analytics: false,
+    link_secret: existing?.link_secret ?? generateSecret(),
+    vault_admin_secret: existing?.vault_admin_secret ?? generateSecret(VAULT_ADMIN_SECRET_LENGTH),
+    session_secret: existing?.session_secret ?? generateSecret(SESSION_SECRET_LENGTH),
+    notify: answers.notify,
+    smtp: answers.notify ? answers.smtp : existing?.smtp ?? undefined,
+    agents: answers.agents,
+    agents_kvm: answers.agents ? answers.agents_kvm ?? existing?.agents_kvm ?? false : false,
+    metrics: existing?.metrics ?? false,
+    last_script_run: existing?.last_script_run ?? ""
+  };
+}
+async function runEnterpriseWizard(paths, existing, advanced = false) {
+  const isReconfig = !!existing;
+  we(isReconfig ? `Seed Enterprise Reconfiguration v${VERSION}` : `Seed Enterprise Setup v${VERSION}`);
+  if (!isReconfig) {
+    ye([
+      "This wizard configures a private, single-tenant Seed stack:",
+      "web app, daemon (no peer-to-peer connectivity), identity vault (invite-only),",
+      "and optionally email notifications and agents. Every page requires sign-in.",
+      "",
+      `This node's install location is ${paths.seedDir}/ (config + data live here).`,
+      `Updates are manual: run '${cmd("deploy")}' when you want to update.`
+    ].join(`
+`), "Enterprise Edition");
+  } else {
+    ye([
+      "Editing your current configuration. Each prompt shows the current value \u2014 press Enter to keep it.",
+      "",
+      `Configuration: ${paths.configPath}`
+    ].join(`
+`), "Reconfiguration");
+  }
+  const onCancel = () => {
+    ve(isReconfig ? "Reconfiguration cancelled." : "Setup cancelled.");
+    console.log(RESUME_HINT);
+    process.exit(0);
+  };
+  const answers = await be({
+    domain: () => ue({
+      message: "Public hostname (including https://)",
+      placeholder: existing?.domain || "https://seed.example.org",
+      validate: validateUrl
+    }),
+    release_channel: () => promptReleaseChannel({
+      initialTag: existing?.release_channel,
+      advanced
+    }),
+    log_level: () => de({
+      message: "Log level for Seed services",
+      initialValue: existing?.compose_envs?.LOG_LEVEL ?? "info",
+      options: [
+        { value: "debug", label: "Debug", hint: "very verbose, useful for troubleshooting" },
+        { value: "info", label: "Info", hint: "standard operational logging \u2014 recommended" },
+        { value: "warn", label: "Warn", hint: "only warnings and errors" },
+        { value: "error", label: "Error", hint: "only critical errors" }
+      ]
+    }),
+    agents: () => me({
+      message: "Run the agents service? (served at agents.<your domain>; calls model providers)",
+      initialValue: existing?.agents ?? false
+    }),
+    notify: () => me({
+      message: "Run the notify service for email notifications? (needs an SMTP account)",
+      initialValue: existing?.notify ?? false
+    }),
+    smtp_host: ({ results }) => results.notify ? ue({
+      message: "SMTP host",
+      initialValue: existing?.smtp?.host,
+      placeholder: "smtp.example.org",
+      validate: (v3) => v3 ? undefined : "Required"
+    }) : Promise.resolve(undefined),
+    smtp_user: ({ results }) => results.notify ? ue({
+      message: "SMTP user",
+      initialValue: existing?.smtp?.user,
+      validate: (v3) => v3 ? undefined : "Required"
+    }) : Promise.resolve(undefined),
+    smtp_password: ({ results }) => results.notify ? $e({
+      message: existing?.smtp?.password ? "SMTP password (leave empty to keep the current one)" : "SMTP password",
+      validate: (v3) => v3 || existing?.smtp?.password ? undefined : "Required"
+    }) : Promise.resolve(undefined),
+    smtp_sender: ({ results }) => results.notify ? ue({
+      message: "Sender address for emails",
+      initialValue: existing?.smtp?.sender,
+      placeholder: "Seed <seed@example.org>",
+      validate: (v3) => v3 && v3.includes("@") ? undefined : "Must contain an email address"
+    }) : Promise.resolve(undefined),
+    email: () => ue({
+      message: "Contact email (optional) \u2014 lets us notify you about security updates. Not shared publicly.",
+      placeholder: existing ? existing.email || undefined : "you@example.com",
+      validate: (v3) => {
+        if (v3 && !v3.includes("@"))
+          return "Must be a valid email";
+      }
+    })
+  }, { onCancel });
+  const notify = answers.notify;
+  const smtp = notify ? {
+    host: answers.smtp_host,
+    port: existing?.smtp?.port,
+    user: answers.smtp_user,
+    password: answers.smtp_password || existing?.smtp?.password || "",
+    sender: answers.smtp_sender
+  } : undefined;
+  const config = buildEnterpriseConfig({
+    domain: answers.domain,
+    release_channel: answers.release_channel,
+    web_image: existing?.web_image,
+    site_image: existing?.site_image,
+    log_level: answers.log_level,
+    agents: answers.agents,
+    notify,
+    smtp,
+    email: answers.email || ""
+  }, existing);
+  const userFields = [
+    ["domain", config.domain],
+    ["release_channel", config.release_channel],
+    ["log_level", config.compose_envs.LOG_LEVEL],
+    ["agents", String(config.agents)],
+    ["notify", config.notify ? `yes (${config.smtp?.host}, sender ${config.smtp?.sender})` : "false"],
+    ["email", config.email]
+  ];
+  const summary = userFields.map(([k3, v3]) => `    ${k3}: ${v3}`).join(`
+`);
+  ye(summary, "Configuration summary");
+  const confirmed = await me({
+    message: isReconfig ? "Save changes and redeploy?" : "Write config and proceed with deployment?"
+  });
+  if (BD(confirmed) || !confirmed)
+    onCancel();
+  await writeConfig(config, paths);
+  v2.success(`Config written to ${paths.configPath}`);
+  return config;
+}
 function extractDns(domain) {
   return domain.replace(/^https?:\/\//, "").replace(/\/+$/, "");
 }
-function generateCaddyfile(_config) {
+var ENTERPRISE_OPEN_PATHS = [
+  "/hm/sign-in*",
+  "/hm/auth/callback*",
+  "/hm/api/config",
+  "/hm/api/auth",
+  "/hm/api/auth/*",
+  "/hm/api/session",
+  "/hm/api/version",
+  "/hm/api/register",
+  "/hm/register*",
+  "/hm/create-site*",
+  "/healthz",
+  "/assets/*",
+  "/build/*",
+  "/favicon*",
+  "/robots.txt",
+  "/.well-known/*",
+  "/__manifest*"
+];
+var SESSION_CHECK_URI = "/hm/api/session";
+var ENTERPRISE_MAX_BODY = "512MB";
+function generateEnterpriseCaddyfile(config) {
+  const dns = extractDns(config.domain);
+  const blocks = [];
+  blocks.push(`# Ask the web app whether the request carries a member session.
+(gate) {
+	forward_auth seed-web:3000 {
+		uri ${SESSION_CHECK_URI}
+		copy_headers X-Forwarded-Uri
+	}
+}
+
+${dns} {
+	encode zstd gzip
+
+	request_body {
+		max_size ${ENTERPRISE_MAX_BODY}
+	}
+
+	# The vault serves itself under /vault; do not strip the prefix.
+	@vault path /vault /vault/*
+	handle @vault {
+		reverse_proxy seed-vault:3000
+	}
+
+	# The vault UI uploads profile blobs to the daemon before any session exists.
+	@ipfs_upload {
+		method POST
+		path /ipfs/*
+	}
+	handle @ipfs_upload {
+		reverse_proxy seed-daemon:56001
+	}
+
+	# The sign-in callback stores delegation blobs and looks the account up.
+	@open_api_post {
+		method POST
+		path /api/PublishBlobs
+	}
+	@open_api_get {
+		method GET HEAD
+		path /api/Account
+	}
+	@open path ${ENTERPRISE_OPEN_PATHS.join(" ")}
+	handle @open_api_post {
+		reverse_proxy seed-web:3000
+	}
+	handle @open_api_get {
+		reverse_proxy seed-web:3000
+	}
+	handle @open {
+		reverse_proxy seed-web:3000
+	}
+
+	# Everything below requires a session.
+	@ipfs path /ipfs/*
+	handle @ipfs {
+		import gate
+		reverse_proxy seed-daemon:56001
+	}
+
+	@metrics path /.metrics*
+	handle @metrics {
+		import gate
+		reverse_proxy grafana:3001
+	}
+
+	handle {
+		import gate
+		reverse_proxy seed-web:3000
+	}
+}`);
+  if (config.notify) {
+    blocks.push(`notify.${dns} {
+	encode zstd gzip
+	reverse_proxy seed-notify:3000
+}`);
+  }
+  if (config.agents) {
+    blocks.push(`agents.${dns} {
+	encode zstd gzip
+	request_body {
+		max_size ${ENTERPRISE_MAX_BODY}
+	}
+	reverse_proxy seed-agents:3050
+}`);
+  }
+  return blocks.join(`
+
+`) + `
+`;
+}
+function generateCaddyfile(config) {
+  if (isEnterprise(config))
+    return generateEnterpriseCaddyfile(config);
   return `{$SEED_SITE_HOSTNAME}
 
 encode zstd gzip
@@ -1616,8 +2018,19 @@ reverse_proxy * seed-web:{$SEED_SITE_LOCAL_PORT:3000}
 function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
-async function checkContainersHealthy(shell) {
-  const required = ["seed-proxy", "seed-web", "seed-daemon"];
+function requiredContainers(config) {
+  const names = ["seed-proxy", "seed-web", "seed-daemon"];
+  if (config && isEnterprise(config)) {
+    names.push("seed-vault");
+    if (config.notify)
+      names.push("seed-notify");
+    if (config.agents)
+      names.push("seed-agents");
+  }
+  return names;
+}
+async function checkContainersHealthy(shell, config) {
+  const required = requiredContainers(config);
   for (const name of required) {
     const running = shell.runSafe(`docker inspect ${name} --format '{{.State.Running}}' 2>/dev/null`);
     if (running !== "true")
@@ -1626,13 +2039,9 @@ async function checkContainersHealthy(shell) {
   return true;
 }
 function containersMatchReleaseChannel(shell, config) {
-  const expected = [
-    ["seed-web", `seedhypermedia/web:${config.release_channel}`],
-    ["seed-daemon", `seedhypermedia/site:${config.release_channel}`]
-  ];
-  for (const [name, want] of expected) {
-    const got = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`);
-    if (got !== want)
+  for (const { container, expectedImage } of expectedServiceImages(config)) {
+    const got = shell.runSafe(`docker inspect ${container} --format '{{.Config.Image}}' 2>/dev/null`);
+    if (got !== expectedImage)
       return false;
   }
   return true;
@@ -1700,9 +2109,9 @@ async function handleForeignStack(shell, paths, interactive, takeoverApproved) {
   }
   assertNoForeignStack(shell, paths);
 }
-async function getContainerImages(shell) {
+async function getContainerImages(shell, config) {
   const images = new Map;
-  const containers = ["seed-proxy", "seed-web", "seed-daemon"];
+  const containers = requiredContainers(config);
   for (const name of containers) {
     const image = shell.runSafe(`docker inspect ${name} --format '{{.Image}}' 2>/dev/null`);
     if (image)
@@ -1712,10 +2121,18 @@ async function getContainerImages(shell) {
 }
 function expectedServiceImages(config) {
   const tag = config.release_channel || DEFAULT_RELEASE_CHANNEL;
-  return [
+  const images = [
     { container: "seed-web", expectedImage: config.web_image || `seedhypermedia/web:${tag}` },
     { container: "seed-daemon", expectedImage: config.site_image || `seedhypermedia/site:${tag}` }
   ];
+  if (isEnterprise(config)) {
+    images.push({ container: "seed-vault", expectedImage: `seedhypermedia/vault:${tag}` });
+    if (config.notify)
+      images.push({ container: "seed-notify", expectedImage: `seedhypermedia/notify:${tag}` });
+    if (config.agents)
+      images.push({ container: "seed-agents", expectedImage: `seedhypermedia/agents:${tag}` });
+  }
+  return images;
 }
 function imageBase(ref) {
   const lastSlash = ref.lastIndexOf("/");
@@ -1740,7 +2157,7 @@ function rollbackTagRefs(container, runningImage, config) {
 }
 async function checkForNewImages(config, paths, shell) {
   const env = buildComposeEnv(config, paths);
-  const beforeImages = await getContainerImages(shell);
+  const beforeImages = await getContainerImages(shell, config);
   if (beforeImages.size === 0)
     return false;
   try {
@@ -1793,9 +2210,15 @@ function checkGpuAcceleration(shell) {
     return { available: false, reason: "no-vulkan-icd" };
   return { available: true };
 }
+function shellQuote(value) {
+  if (/^[A-Za-z0-9_\/:.@=,+ -]*$/.test(value))
+    return `"${value}"`;
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
 function buildComposeEnv(config, paths) {
   const dns = extractDns(config.domain);
-  const testnetName = config.testnet ? "dev" : "";
+  const enterprise = isEnterprise(config);
+  const testnetName = enterprise ? enterpriseTestnetName(config.domain) : config.testnet ? "dev" : "";
   const lightningUrl = config.testnet ? LIGHTNING_URL_TESTNET : LIGHTNING_URL_MAINNET;
   const vars = {
     SEED_SITE_HOSTNAME: config.domain,
@@ -1809,7 +2232,7 @@ function buildComposeEnv(config, paths) {
     SEED_ENABLE_STATISTICS: String(config.analytics),
     SEED_P2P_TESTNET_NAME: testnetName,
     SEED_LIGHTNING_URL: lightningUrl,
-    NOTIFY_SERVICE_HOST,
+    NOTIFY_SERVICE_HOST: notifyHost(config),
     SEED_SITE_MONITORING_WORKDIR: join(paths.seedDir, "monitoring")
   };
   if (config.web_image) {
@@ -1818,10 +2241,27 @@ function buildComposeEnv(config, paths) {
   if (config.site_image) {
     vars.SEED_SITE_IMAGE = config.site_image;
   }
-  return Object.entries(vars).map(([k3, v3]) => `${k3}="${v3}"`).join(" ");
+  if (enterprise) {
+    vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? "";
+    vars.SEED_SESSION_SECRET = config.session_secret ?? "";
+    vars.SEED_CONTACT_EMAIL = config.email ?? "";
+    vars.SEED_NOTIFY_HOST = notifyHost(config);
+    vars.SEED_AGENTS_HOST = agentsHost(config);
+    vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? "microsandbox" : "";
+    vars.SEED_SMTP_HOST = config.smtp?.host ?? "";
+    vars.SEED_SMTP_PORT = config.smtp?.port ? String(config.smtp.port) : "587";
+    vars.SEED_SMTP_USER = config.smtp?.user ?? "";
+    vars.SEED_SMTP_PASSWORD = config.smtp?.password ?? "";
+    vars.SEED_SMTP_SENDER = config.smtp?.sender ?? "";
+  }
+  const profiles = composeProfiles(config);
+  if (profiles.length > 0) {
+    vars.COMPOSE_PROFILES = profiles.join(",");
+  }
+  return Object.entries(vars).map(([k3, v3]) => `${k3}=${shellQuote(v3)}`).join(" ");
 }
-function getWorkspaceDirs(paths) {
-  return [
+function getWorkspaceDirs(paths, config) {
+  const dirs = [
     join(paths.seedDir, "proxy"),
     join(paths.seedDir, "proxy", "data"),
     join(paths.seedDir, "proxy", "config"),
@@ -1831,7 +2271,12 @@ function getWorkspaceDirs(paths) {
     join(paths.seedDir, "monitoring", "grafana"),
     join(paths.seedDir, "monitoring", "prometheus")
   ];
+  if (config && isEnterprise(config)) {
+    dirs.push(join(paths.seedDir, "vault"), join(paths.seedDir, "notify"), join(paths.seedDir, "agents"));
+  }
+  return dirs;
 }
+var ENTERPRISE_DATA_DIRS = ["vault", "notify", "agents"];
 async function ensureSeedDir(paths, shell) {
   try {
     await access(paths.seedDir);
@@ -1897,6 +2342,29 @@ async function selfUpdate(scriptPath = process.argv[1] || "", deployUrl) {
     report(`Upgrade: skipped (${err})`);
   }
 }
+function deviceDirectives(devices, groupIds) {
+  const lines = ["    devices:", ...devices.map((d2) => `      - ${d2}:${d2}`)];
+  if (groupIds.length > 0) {
+    lines.push("    group_add:", ...groupIds.map((g2) => `      - ${g2}`));
+  }
+  return lines;
+}
+function injectServiceDirectives(compose, containerName, lines) {
+  let inService = false;
+  const result = [];
+  for (const line of compose.split(`
+`)) {
+    if (new RegExp(`^\\s+container_name:\\s*${containerName}\\s*$`).test(line))
+      inService = true;
+    if (inService && /^\s{4}volumes:/.test(line)) {
+      result.push(...lines);
+      inService = false;
+    }
+    result.push(line);
+  }
+  return result.join(`
+`);
+}
 async function deploy(config, paths, shell, takeoverApproved = false) {
   const isInteractive = process.stdout.isTTY;
   const spinner = isInteractive ? L2() : null;
@@ -1918,17 +2386,18 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
   spinner?.start("Fetching docker-compose.yml...");
   step("Fetching docker-compose.yml...");
   const hasEnvOverride = process.env.SEED_DEPLOY_URL || process.env.SEED_REPO_URL;
-  const composeUrl = hasEnvOverride ? `${getOpsBaseUrl()}/docker-compose.yml` : config.deploy_url ? `${config.deploy_url.replace(/\/+$/, "")}/docker-compose.yml` : config.compose_url;
+  const composeFile = composeFileName(config.profile);
+  const composeUrl = hasEnvOverride ? `${getOpsBaseUrl()}/${composeFile}` : config.deploy_url ? `${config.deploy_url.replace(/\/+$/, "")}/${composeFile}` : config.compose_url;
   const composeResponse = await fetch(composeUrl);
   if (!composeResponse.ok) {
-    spinner?.stop("Failed to fetch docker-compose.yml");
+    spinner?.stop(`Failed to fetch ${composeFile}`);
     throw new Error(`Failed to fetch compose file from ${composeUrl}: ${composeResponse.status}`);
   }
   const composeContent = await composeResponse.text();
   const composeSha = sha256(composeContent);
   const envString = buildComposeEnv(config, paths);
   const envSha = sha256(envString);
-  const containersHealthy = await checkContainersHealthy(shell);
+  const containersHealthy = await checkContainersHealthy(shell, config);
   const containersOnConfiguredTag = containersMatchReleaseChannel(shell, config);
   if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy && containersOnConfiguredTag) {
     step("Checking for new images...");
@@ -1967,32 +2436,17 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
     const renderGid = shell.runSafe("getent group render 2>/dev/null | cut -d: -f3");
     if (renderGid)
       groups.push(renderGid);
-    const gpuLines = ["    devices:", "      - /dev/dri:/dev/dri"];
-    if (groups.length > 0) {
-      gpuLines.push("    group_add:");
-      for (const g2 of groups)
-        gpuLines.push(`      - ${g2}`);
-    }
-    let inDaemon = false;
-    const lines = finalCompose.split(`
-`);
-    const result = [];
-    for (const line of lines) {
-      if (/^\s+container_name:\s*seed-daemon/.test(line))
-        inDaemon = true;
-      if (inDaemon && /^\s{4}volumes:/.test(line)) {
-        result.push(...gpuLines);
-        inDaemon = false;
-      }
-      result.push(line);
-    }
-    finalCompose = result.join(`
-`);
+    finalCompose = injectServiceDirectives(finalCompose, "seed-daemon", deviceDirectives(["/dev/dri"], groups));
     log(`GPU detected \u2014 added devices${groups.length ? ` and group_add (${groups.join(", ")})` : ""} to compose file.`);
+  }
+  if (isEnterprise(config) && config.agents && config.agents_kvm) {
+    const kvmGid = shell.runSafe("getent group kvm 2>/dev/null | cut -d: -f3");
+    finalCompose = injectServiceDirectives(finalCompose, "seed-agents", deviceDirectives(["/dev/kvm"], kvmGid ? [kvmGid] : []));
+    log(`agents_kvm \u2014 added /dev/kvm${kvmGid ? ` and group_add (${kvmGid})` : ""} to seed-agents.`);
   }
   await writeFile(paths.composePath, finalCompose, "utf-8");
   step("Setting up workspace directories...");
-  const dirs = getWorkspaceDirs(paths);
+  const dirs = getWorkspaceDirs(paths, config);
   for (const dir of dirs) {
     await mkdir(dir, { recursive: true });
   }
@@ -2010,7 +2464,7 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
 `, "utf-8");
     step("Created initial web/config.json with registration secret.");
   }
-  const previousImages = await getContainerImages(shell);
+  const previousImages = await getContainerImages(shell, config);
   for (const [name, imageId] of previousImages) {
     const imageName = shell.runSafe(`docker inspect ${name} --format '{{.Config.Image}}' 2>/dev/null`);
     if (imageName) {
@@ -2057,7 +2511,7 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
   for (let attempt = 0;attempt < 10; attempt++) {
     step(`Health check ${attempt + 1}/10...`);
     await new Promise((r2) => setTimeout(r2, 3000));
-    healthy = await checkContainersHealthy(shell);
+    healthy = await checkContainersHealthy(shell, config);
     if (healthy)
       break;
   }
@@ -2086,6 +2540,23 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
   }
   if (isInteractive && isFirstDeploy) {
     const registerUrl = `${config.domain}/hm/register?secret=${config.link_secret}`;
+    if (isEnterprise(config)) {
+      ye([
+        `Your private Seed is live at ${config.domain}`,
+        "",
+        `  1. Create the first account:  ${cmd("invite you@example.org")}`,
+        `     and open the invitation link in a browser.`,
+        `  2. Register the organization's space (as that account):`,
+        `     ${registerUrl}`,
+        `     or, for a space that already lives on this daemon,`,
+        `     ${cmd("register <accountUid>")}`,
+        "",
+        `Invite the rest of the organization with '${cmd("invite")}'.`,
+        `Updates are manual: run '${cmd("deploy")}' when you want them.`
+      ].join(`
+`), "Setup complete");
+      return;
+    }
     ye([
       `Your site is live at ${config.domain}`,
       "",
@@ -2141,39 +2612,69 @@ var COMMANDS = [
   "cron",
   "backup",
   "restore",
-  "uninstall"
+  "uninstall",
+  "register",
+  "invite"
 ];
+function parseProfile(value) {
+  if (value && DEPLOY_PROFILES.includes(value))
+    return value;
+  console.error(`Unknown profile: ${value ?? "(none)"}. Expected one of: ${DEPLOY_PROFILES.join(", ")}
+`);
+  process.exit(1);
+}
 function parseArgs(argv = process.argv) {
   const rawAll = argv.slice(2);
   const advanced = rawAll.includes("--advanced");
   let dir;
+  let profile;
+  const headless = {};
+  const valueFlags = {
+    "--dir": (v3) => dir = v3,
+    "--profile": (v3) => profile = parseProfile(v3),
+    "--hostname": (v3) => headless.hostname = v3,
+    "--tag": (v3) => headless.tag = v3,
+    "--email": (v3) => headless.email = v3,
+    "--log-level": (v3) => headless.logLevel = v3
+  };
+  const boolFlags = {
+    "--advanced": () => {},
+    "--yes": () => headless.yes = true,
+    "--agents": () => headless.agents = true,
+    "--no-agents": () => headless.agents = false,
+    "--notify": () => headless.notify = true,
+    "--no-notify": () => headless.notify = false
+  };
   const raw = [];
   for (let i = 0;i < rawAll.length; i++) {
     const a2 = rawAll[i];
-    if (a2 === "--advanced")
-      continue;
-    if (a2 === "--dir") {
-      dir = rawAll[++i];
+    if (boolFlags[a2]) {
+      boolFlags[a2]();
       continue;
     }
-    if (a2.startsWith("--dir=")) {
-      dir = a2.slice("--dir=".length);
+    if (valueFlags[a2]) {
+      valueFlags[a2](rawAll[++i] ?? "");
+      continue;
+    }
+    const eq = a2.indexOf("=");
+    if (a2.startsWith("--") && eq > 0 && valueFlags[a2.slice(0, eq)]) {
+      valueFlags[a2.slice(0, eq)](a2.slice(eq + 1));
       continue;
     }
     raw.push(a2);
   }
   const first = raw[0] ?? "deploy";
   if (first === "--help" || first === "-h")
-    return { command: "help", args: [], advanced, dir };
+    return { command: "help", args: [], advanced, dir, profile, headless };
   if (first === "--version" || first === "-v")
-    return { command: "version", args: [], advanced, dir };
+    return { command: "version", args: [], advanced, dir, profile, headless };
   if (first === "--reconfigure")
-    return { command: "deploy", args: [], reconfigure: true, advanced, dir };
+    return { command: "deploy", args: [], reconfigure: true, advanced, dir, profile, headless };
   if (COMMANDS.includes(first)) {
     const rest = raw.slice(1);
     const reconfigure = first === "deploy" && rest.includes("--reconfigure");
     const args = reconfigure ? rest.filter((a2) => a2 !== "--reconfigure") : rest;
-    return { command: first, args, reconfigure, advanced, dir };
+    return { command: first, args, reconfigure, advanced, dir, profile, headless };
   }
   console.error(`Unknown command: ${first}
 `);
@@ -2197,20 +2698,26 @@ function printHelp() {
     `  doctor      Diagnose node health, versions, and connectivity`,
     `  secret      Print the site registration secret`,
     `  config      Print current configuration (secrets redacted)`,
-    `  logs        Tail container logs [daemon|web|proxy]`,
+    `  logs        Tail container logs [daemon|web|proxy|vault|notify|agents]`,
     `  cron        Install or remove automatic update cron jobs`,
     `  backup      Create a portable backup of all node data`,
     `  restore     Restore node data from a backup file`,
     `  uninstall   Remove all Seed containers, data, and configuration`,
+    `  register    Register a space already on this daemon: register <accountUid>`,
+    `  invite      Create vault invitation link(s): invite [email] [count]  (enterprise)`,
     ``,
     `Options:`,
     `  --reconfigure  Re-run the setup wizard for the current node`,
     `  --advanced     Manage/create/switch nodes: pick the directory, custom tag, etc.`,
+    `  --profile <p>  Deploy profile for a first run: site (default) or enterprise`,
+    `  --hostname <url> --tag <tag> [--email <e>] [--log-level <l>] [--agents] [--notify] --yes`,
+    `                 Unattended enterprise install (no wizard); SMTP from SEED_SMTP_HOST/USER/PASSWORD/SENDER`,
     `  -h, --help     Show this help message`,
     `  -v, --version  Show script version`,
     ``,
     `Examples:`,
     `  seed-deploy                            Deploy or update`,
+    `  seed-deploy --profile enterprise       First-time setup of a private Enterprise node`,
     `  seed-deploy upgrade                    Update deploy script`,
     `  seed-deploy deploy --reconfigure       Change node configuration`,
     `  seed-deploy stop                       Teardown containers`,
@@ -2279,13 +2786,23 @@ exec "${bunPath}" "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}" "$@"
     shell.runSafe(`echo ${b64} | base64 -d | sudo tee ${wrapper} >/dev/null && sudo chmod +x ${wrapper}`);
   }
 }
-async function setActiveNode(paths, shell) {
-  await setupCron(paths, shell);
+async function setActiveNode(paths, shell, config) {
+  if (config && isEnterprise(config)) {
+    clearSeedCron(shell);
+    log("Enterprise profile: automatic update cron not installed (updates are manual).");
+  } else {
+    await setupCron(paths, shell);
+  }
   installWrapper(paths, shell);
 }
-async function cmdDeploy(paths, shell, reconfigure = false, advanced = false) {
+function runWizardFor(profile, paths, existing, advanced) {
+  const effective = profile ?? existing?.profile ?? "site";
+  return effective === "enterprise" ? runEnterpriseWizard(paths, existing, advanced) : runFreshWizard(paths, existing, advanced);
+}
+async function cmdDeploy(paths, shell, reconfigure = false, advanced = false, profile, headless = {}) {
   checkDockerAccess(shell);
   const interactive = process.stdout.isTTY;
+  const unattended = profile === "enterprise" && (headless.yes || !interactive) && !!headless.hostname;
   let takeoverApproved = false;
   if (advanced && interactive) {
     paths = await promptNodeDir(paths, shell);
@@ -2293,24 +2810,46 @@ async function cmdDeploy(paths, shell, reconfigure = false, advanced = false) {
   }
   await ensureSeedDir(paths, shell);
   if (await configExists(paths)) {
+    const existing = await readConfig(paths);
+    if (profile && (existing.profile ?? "site") !== profile) {
+      throw new Error(`This node is configured with the '${existing.profile ?? "site"}' profile; ` + `a profile cannot be switched in place. Use a fresh directory (--dir) for a '${profile}' node.`);
+    }
+    if (unattended) {
+      const config2 = headlessEnterpriseConfig(headless, existing);
+      await writeConfig(config2, paths);
+      log(`Config updated from flags at ${paths.configPath}.`);
+      await deploy(config2, paths, shell);
+      await setActiveNode(paths, shell, config2);
+      return;
+    }
     if ((reconfigure || advanced) && interactive) {
-      const existing = await readConfig(paths);
-      const config3 = await runFreshWizard(paths, existing, advanced);
-      await deploy(config3, paths, shell, takeoverApproved);
-      await setActiveNode(paths, shell);
+      const config2 = await runWizardFor(profile, paths, existing, advanced);
+      await deploy(config2, paths, shell, takeoverApproved);
+      await setActiveNode(paths, shell, config2);
       fe(`Reconfiguration complete! Your Seed node is running.
 ${MANAGE_HINT}`);
       return;
     }
     log(`Seed deploy v${VERSION} \u2014 config found at ${paths.configPath}, running headless.`);
-    const config2 = await readConfig(paths);
-    await deploy(config2, paths, shell);
+    await deploy(existing, paths, shell);
     return;
   }
-  const oldInstall = await detectOldInstall(shell);
-  const config = oldInstall ? await runMigrationWizard(oldInstall, paths, shell, advanced) : await runFreshWizard(paths, undefined, advanced);
+  if (unattended) {
+    const config2 = headlessEnterpriseConfig(headless);
+    await writeConfig(config2, paths);
+    log(`Seed deploy v${VERSION} \u2014 enterprise config written to ${paths.configPath} from flags.`);
+    await deploy(config2, paths, shell, takeoverApproved);
+    await setActiveNode(paths, shell, config2);
+    log(`Setup complete. Next: '${cmd("invite you@example.org")}' then '${cmd("register <accountUid>")}'.`);
+    return;
+  }
+  if (!interactive) {
+    throw new Error(`No config at ${paths.configPath} and no TTY for the wizard. ` + `For an unattended enterprise install pass --profile enterprise --hostname https://\u2026 --tag <tag> --yes.`);
+  }
+  const oldInstall = profile === "enterprise" ? null : await detectOldInstall(shell);
+  const config = oldInstall ? await runMigrationWizard(oldInstall, paths, shell, advanced) : await runWizardFor(profile, paths, undefined, advanced);
   await deploy(config, paths, shell, takeoverApproved);
-  await setActiveNode(paths, shell);
+  await setActiveNode(paths, shell, config);
   fe(`Setup complete! Your Seed node is running.
 ${MANAGE_HINT}`);
 }
@@ -2323,10 +2862,20 @@ async function cmdUpgrade(paths) {
   } catch {}
   await selfUpdate(undefined, deployUrl);
 }
+async function composeEnvPrefix(paths) {
+  try {
+    if (!await configExists(paths))
+      return "";
+    return buildComposeEnv(await readConfig(paths), paths);
+  } catch {
+    return "";
+  }
+}
 async function cmdStop(paths, shell) {
   checkDockerAccess(shell);
   console.log("Stopping and removing Seed containers...");
-  shell.runSafe(`docker compose -f "${paths.composePath}" down`);
+  const env = await composeEnvPrefix(paths);
+  shell.runSafe(`${env} docker compose -f "${paths.composePath}" down`);
   console.log("All Seed containers stopped and removed.");
 }
 async function cmdStart(paths, shell) {
@@ -2354,10 +2903,12 @@ Seed Node Doctor v${VERSION}`);
   let config = null;
   if (await configExists(paths)) {
     config = await readConfig(paths);
+    const enterprise = isEnterprise(config);
     console.log(`
 Configuration:`);
+    console.log(`  Profile:     ${enterprise ? "Enterprise (private, web-only)" : "Site"}`);
     console.log(`  Domain:      ${config.domain}`);
-    console.log(`  Network:     ${config.testnet ? "Testnet (devnet)" : "Mainnet"}`);
+    console.log(`  Network:     ${enterprise ? "Isolated (no P2P)" : config.testnet ? "Testnet (devnet)" : "Mainnet"}`);
     console.log(`  Channel:     ${config.release_channel}`);
     if (config.deploy_url)
       console.log(`  Deploy URL:  ${config.deploy_url}`);
@@ -2365,7 +2916,12 @@ Configuration:`);
       console.log(`  Web image:   ${config.web_image}`);
     if (config.site_image)
       console.log(`  Site image:  ${config.site_image}`);
-    console.log(`  Gateway:     ${config.gateway ? "Yes" : "No"}`);
+    if (enterprise) {
+      console.log(`  Notify:      ${config.notify ? notifyHost(config) : "No"}`);
+      console.log(`  Agents:      ${config.agents ? `${agentsHost(config)}${config.agents_kvm ? " (kvm)" : ""}` : "No"}`);
+    } else {
+      console.log(`  Gateway:     ${config.gateway ? "Yes" : "No"}`);
+    }
     console.log(`  Config:      ${paths.configPath}`);
     for (const warning of configWarnings(config)) {
       console.log(`  \u26A0 ${warning}`);
@@ -2383,7 +2939,7 @@ No config found at ${paths.configPath}. Node is not set up.`);
   }
   console.log(`
 Containers:`);
-  const containers = ["seed-daemon", "seed-web", "seed-proxy"];
+  const containers = requiredContainers(config ?? undefined);
   let hasUnhealthy = false;
   for (const name of containers) {
     const status = shell.runSafe(`docker inspect ${name} --format '{{.State.Status}}' 2>/dev/null`);
@@ -2410,7 +2966,20 @@ Containers:`);
   if (config) {
     const expectedLightning = config.testnet ? LIGHTNING_URL_TESTNET : LIGHTNING_URL_MAINNET;
     const expectedTestnetName = config.testnet ? "dev" : "";
-    const checks = [
+    const checks = isEnterprise(config) ? [
+      { container: "seed-daemon", envVar: "SEED_P2P_TESTNET_NAME", expected: enterpriseTestnetName(config.domain) },
+      { container: "seed-daemon", envVar: "SEED_LOG_LEVEL", expected: config.compose_envs.LOG_LEVEL },
+      { container: "seed-web", envVar: "SEED_BASE_URL", expected: config.domain },
+      { container: "seed-web", envVar: "SEED_IS_GATEWAY", expected: "false" },
+      { container: "seed-web", envVar: "SEED_ENABLE_STATISTICS", expected: "false" },
+      { container: "seed-web", envVar: "SEED_REQUIRE_SIGN_IN", expected: "1" },
+      {
+        container: "seed-web",
+        envVar: "NOTIFY_SERVICE_HOST",
+        expected: notifyHost(config),
+        label: notifyHost(config) || "(empty, notify off)"
+      }
+    ] : [
       {
         container: "seed-daemon",
         envVar: "SEED_P2P_TESTNET_NAME",
@@ -2547,7 +3116,8 @@ Health Checks:`);
         }
       } catch {}
     }
-    const siteConfigRaw = shell.runSafe(`curl -sS --max-time 10 "http://127.0.0.1:${webPort}/hm/api/config" 2>/dev/null`);
+    const siteConfigUrl = isEnterprise(config) ? `${config.domain}/hm/api/config` : `http://127.0.0.1:${webPort}/hm/api/config`;
+    const siteConfigRaw = shell.runSafe(`curl -sS --max-time 10 "${siteConfigUrl}" 2>/dev/null`);
     if (!siteConfigRaw) {
       console.log(`  \u26A0 Site           could not check`);
     } else {
@@ -2566,6 +3136,12 @@ Health Checks:`);
         console.log(`  \u26A0 Site           could not check`);
       }
     }
+    if (isEnterprise(config)) {
+      console.log(`
+Isolation:`);
+      for (const line of enterpriseIsolationChecks(shell, config))
+        console.log(line);
+    }
   }
   const du = shell.runSafe(`du -sh "${paths.seedDir}" 2>/dev/null`);
   if (du) {
@@ -2582,11 +3158,77 @@ Disk:`);
 Cron:`);
   console.log(`  Auto-update: ${deployCron ? deployCron.split(" ").slice(0, 5).join(" ") : "not installed"}`);
   console.log(`  Cleanup:     ${cleanupCron ? cleanupCron.split(" ").slice(0, 5).join(" ") : "not installed"}`);
-  if (!deployCron || !cleanupCron) {
+  if (config && isEnterprise(config)) {
+    if (deployCron) {
+      console.log(`
+  \u26A0 Enterprise nodes update manually; this cron will redeploy on every new image. '${cmd("cron remove")}' removes it.`);
+    } else {
+      console.log(`  (Enterprise profile: updates are manual \u2014 run '${cmd("deploy")}' to update.)`);
+    }
+  } else if (!deployCron || !cleanupCron) {
     console.log(`
   Tip: Run '${cmd("cron")}' to set up automatic updates.`);
   }
   console.log("");
+}
+function enterpriseIsolationChecks(shell, config) {
+  const lines = [];
+  const ports = shell.runSafe("docker port seed-daemon 2>/dev/null");
+  if (ports === null) {
+    lines.push(`  \u26A0 Daemon ports   could not check (is seed-daemon running?)`);
+  } else if (ports.trim() === "") {
+    lines.push(`  \u2714 Daemon ports   none published (P2P unreachable from outside)`);
+  } else {
+    lines.push(`  \u2718 Daemon ports   PUBLISHED: ${ports.replace(/\n/g, "; ")}`);
+    lines.push(`      \u2514 the enterprise compose template has no ports on seed-daemon; redeploy with '${cmd("deploy")}'`);
+  }
+  const siteConfigRaw = shell.runSafe(`curl -sS --max-time 10 "${config.domain}/hm/api/config" 2>/dev/null`);
+  if (!siteConfigRaw) {
+    lines.push(`  \u26A0 Sign-in gate   could not fetch ${config.domain}/hm/api/config`);
+  } else {
+    try {
+      const siteConfig = JSON.parse(siteConfigRaw);
+      if (siteConfig.requireSignIn === true) {
+        lines.push(`  \u2714 Sign-in gate   /hm/api/config reports requireSignIn: true`);
+      } else {
+        lines.push(`  \u2718 Sign-in gate   /hm/api/config reports requireSignIn: ${JSON.stringify(siteConfig.requireSignIn)}`);
+        lines.push(`      \u2514 seed-web should run with SEED_REQUIRE_SIGN_IN=1; redeploy with '${cmd("deploy")}'`);
+      }
+    } catch {
+      lines.push(`  \u26A0 Sign-in gate   /hm/api/config is not JSON`);
+    }
+  }
+  const gate = shell.runSafe(`curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 10 "${config.domain}/" 2>/dev/null`);
+  if (!gate) {
+    lines.push(`  \u26A0 Proxy gate     could not fetch ${config.domain}/`);
+  } else {
+    const [code, redirect = ""] = gate.trim().split(" ");
+    if (code === "302" && redirect.includes("/hm/sign-in")) {
+      lines.push(`  \u2714 Proxy gate     GET / without a session \u2192 302 ${redirect}`);
+    } else if (code === "401") {
+      lines.push(`  \u2714 Proxy gate     GET / without a session \u2192 401`);
+    } else {
+      lines.push(`  \u2718 Proxy gate     GET / without a session answered ${code}${redirect ? ` \u2192 ${redirect}` : ""}`);
+      lines.push(`      \u2514 the Caddyfile's forward_auth gate is not in effect; redeploy with '${cmd("deploy")}'`);
+    }
+  }
+  const session = shell.runSafe(`curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "${config.domain}${SESSION_CHECK_URI}" 2>/dev/null`);
+  if (!session) {
+    lines.push(`  \u26A0 Session check  could not fetch ${config.domain}${SESSION_CHECK_URI}`);
+  } else if (session.trim() === "401") {
+    lines.push(`  \u2714 Session check  ${SESSION_CHECK_URI} without a session \u2192 401`);
+  } else {
+    lines.push(`  \u2718 Session check  ${SESSION_CHECK_URI} without a session answered ${session.trim()}`);
+    lines.push(`      \u2514 seed-web should run with SEED_REQUIRE_SIGN_IN=1 and SEED_SESSION_SECRET set`);
+  }
+  const vaultStatus = shell.runSafe(`curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "${config.domain}/vault/" 2>/dev/null`);
+  if (vaultStatus && /^2\d\d$/.test(vaultStatus.trim())) {
+    lines.push(`  \u2714 Vault          ${config.domain}/vault/ (${vaultStatus.trim()})`);
+  } else {
+    lines.push(`  \u2718 Vault          ${config.domain}/vault/ answered ${vaultStatus?.trim() || "nothing"}`);
+    lines.push(`      \u2514 check '${cmd("logs vault")}'`);
+  }
+  return lines;
 }
 async function cmdConfig(paths) {
   if (!await configExists(paths)) {
@@ -2595,7 +3237,122 @@ async function cmdConfig(paths) {
   }
   const config = await readConfig(paths);
   const redacted = { ...config, link_secret: "****" };
+  if (config.vault_admin_secret)
+    redacted.vault_admin_secret = "****";
+  if (config.session_secret)
+    redacted.session_secret = "****";
+  if (config.smtp?.password)
+    redacted.smtp = { ...config.smtp, password: "****" };
   console.log(JSON.stringify(redacted, null, 2));
+}
+async function postJson(url, body, headers = {}) {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json", ...headers },
+    body: JSON.stringify(body)
+  });
+  const text = await response.text();
+  let parsed = text;
+  try {
+    parsed = JSON.parse(text);
+  } catch {}
+  if (!response.ok) {
+    const detail = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+    throw new Error(`${url} \u2192 HTTP ${response.status}${detail ? `: ${detail.slice(0, 500)}` : ""}`);
+  }
+  return parsed;
+}
+async function cmdRegister(paths, args) {
+  const accountUid = args[0];
+  if (!accountUid) {
+    console.error(`Usage: ${cmd("register <accountUid>")}`);
+    process.exit(1);
+  }
+  if (!await configExists(paths)) {
+    console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first.`);
+    process.exit(1);
+  }
+  const config = await readConfig(paths);
+  if (!config.link_secret) {
+    console.error("No registration secret found in config.");
+    process.exit(1);
+  }
+  const configUrl = `${config.domain}/hm/api/config`;
+  const siteResponse = await fetch(configUrl);
+  if (!siteResponse.ok)
+    throw new Error(`${configUrl} \u2192 HTTP ${siteResponse.status}`);
+  const siteConfig = await siteResponse.json();
+  if (siteConfig.registeredAccountUid) {
+    console.error(`This site is already registered to ${siteConfig.registeredAccountUid}.`);
+    console.error(`To re-register, reset web/config.json as described in the self-hosting guide and restart.`);
+    process.exit(1);
+  }
+  if (!siteConfig.peerId)
+    throw new Error(`${configUrl} did not report a peerId; is the daemon running?`);
+  const result = await postJson(`${config.domain}/hm/api/register`, {
+    registrationSecret: config.link_secret,
+    accountUid,
+    peerId: siteConfig.peerId,
+    addrs: []
+  });
+  console.log(JSON.stringify(result, null, 2));
+  console.log(`
+Registered ${accountUid} at ${config.domain}.`);
+}
+function extractInvitationLinks(result, vaultBase) {
+  if (!result || typeof result !== "object")
+    return [];
+  const r2 = result;
+  const toLink = (item) => {
+    if (typeof item === "string")
+      return item.startsWith("http") ? item : `${vaultBase}?invite=${item}`;
+    if (item && typeof item === "object") {
+      const o = item;
+      if (typeof o.link === "string")
+        return o.link;
+      if (typeof o.url === "string")
+        return o.url;
+      if (typeof o.code === "string")
+        return `${vaultBase}?invite=${o.code}`;
+    }
+    return null;
+  };
+  const lists = [r2.invitations, r2.links, r2.codes].filter(Array.isArray);
+  if (lists.length > 0)
+    return lists[0].map(toLink).filter((l2) => !!l2);
+  const single = toLink(r2);
+  return single ? [single] : [];
+}
+async function cmdInvite(paths, args) {
+  if (!await configExists(paths)) {
+    console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first.`);
+    process.exit(1);
+  }
+  const config = await readConfig(paths);
+  if (!isEnterprise(config) || !config.vault_admin_secret) {
+    console.error(`'${cmd("invite")}' needs an enterprise node (no vault_admin_secret in config).`);
+    process.exit(1);
+  }
+  const email = args[0] && args[0].includes("@") ? args[0] : undefined;
+  const countArg = email ? args[1] : args[0];
+  const count = countArg && /^\d+$/.test(countArg) ? Number(countArg) : undefined;
+  const body = {};
+  if (email)
+    body.email = email;
+  if (count)
+    body.count = count;
+  const vaultBase = `${config.domain}/vault`;
+  const result = await postJson(`${vaultBase}/api/admin/invitations`, body, {
+    authorization: `Bearer ${config.vault_admin_secret}`
+  });
+  const links = extractInvitationLinks(result, vaultBase);
+  if (links.length === 0) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+  console.log(email ? `Invitation for ${email}:` : `Invitation link${links.length > 1 ? "s" : ""}:`);
+  for (const link of links)
+    console.log(`  ${link}`);
 }
 async function cmdSecret(paths) {
   if (!await configExists(paths)) {
@@ -2661,6 +3418,18 @@ function removeSeedCronLines(existing) {
   return cleaned ? cleaned + `
 ` : "";
 }
+async function backupMembers(paths, config) {
+  const members = ["config.json", "backup-meta.json", "docker-compose.yml", "web", "daemon", "proxy"];
+  if (isEnterprise(config)) {
+    for (const dir of ENTERPRISE_DATA_DIRS) {
+      try {
+        await access(join(paths.seedDir, dir));
+        members.push(dir);
+      } catch {}
+    }
+  }
+  return members;
+}
 async function cmdBackup(paths, shell, args) {
   checkDockerAccess(shell);
   if (!await configExists(paths)) {
@@ -2684,19 +3453,21 @@ async function cmdBackup(paths, shell, args) {
   await writeFile(join(paths.seedDir, "backup-meta.json"), JSON.stringify(meta, null, 2) + `
 `, "utf-8");
   console.log("Stopping containers for consistent backup...");
-  shell.runSafe(`docker compose -f "${paths.composePath}" stop`);
+  const env = buildComposeEnv(config, paths);
+  shell.runSafe(`${env} docker compose -f "${paths.composePath}" stop`);
   const seedBase = basename(paths.seedDir);
   const seedParent = dirname(paths.seedDir);
+  const members = await backupMembers(paths, config);
   try {
-    shell.run(`tar -czf "${backupFile}" -C "${seedParent}" --exclude="${seedBase}/backups" --exclude="${seedBase}/.env" --exclude="${seedBase}/deploy.js" --exclude="${seedBase}/deploy.log" "${seedBase}/config.json" "${seedBase}/backup-meta.json" "${seedBase}/docker-compose.yml" "${seedBase}/web" "${seedBase}/daemon" "${seedBase}/proxy"`);
+    shell.run(`tar -czf "${backupFile}" -C "${seedParent}" --exclude="${seedBase}/backups" --exclude="${seedBase}/.env" --exclude="${seedBase}/deploy.js" --exclude="${seedBase}/deploy.log" ${members.map((m3) => `"${seedBase}/${m3}"`).join(" ")}`);
   } catch (err) {
     console.error(`Backup failed: ${err}`);
-    shell.runSafe(`docker compose -f "${paths.composePath}" start`);
+    shell.runSafe(`${env} docker compose -f "${paths.composePath}" start`);
     process.exit(1);
   }
   shell.runSafe(`rm -f "${join(paths.seedDir, "backup-meta.json")}"`);
   console.log("Restarting containers...");
-  shell.runSafe(`docker compose -f "${paths.composePath}" start`);
+  shell.runSafe(`${env} docker compose -f "${paths.composePath}" start`);
   const size = shell.runSafe(`du -h "${backupFile}"`)?.split("\t")[0] ?? "unknown";
   console.log(`
 Backup created: ${backupFile} (${size})`);
@@ -2738,7 +3509,7 @@ Run '${cmd("restore <file>")}' to try again.
     process.exit(0);
   }
   console.log("Stopping existing containers...");
-  shell.runSafe(`docker compose -f "${paths.composePath}" down`);
+  shell.runSafe(`${await composeEnvPrefix(paths)} docker compose -f "${paths.composePath}" down`);
   console.log("Extracting backup...");
   await ensureSeedDir(paths, shell);
   const seedParent = dirname(paths.seedDir);
@@ -2761,6 +3532,13 @@ Run '${cmd("restore <file>")}' to try again.
   let config;
   if (!BD(wantsReview) && wantsReview) {
     const restored = await readConfig(paths);
+    if (isEnterprise(restored)) {
+      config = await runEnterpriseWizard(paths, restored);
+      await deploy(config, paths, shell);
+      fe(`Restore complete! Your Seed node is running.
+${MANAGE_HINT}`);
+      return;
+    }
     const asOldInstall = {
       workspace: paths.seedDir,
       secret: restored.link_secret,
@@ -2811,7 +3589,7 @@ async function cmdUninstall(paths, shell) {
     process.exit(0);
   }
   console.log("Stopping and removing containers...");
-  shell.runSafe(`docker compose -f "${paths.composePath}" down`);
+  shell.runSafe(`${await composeEnvPrefix(paths)} docker compose -f "${paths.composePath}" down`);
   const existingCron = shell.runSafe("crontab -l 2>/dev/null") ?? "";
   if (existingCron.includes("# seed-deploy") || existingCron.includes("# seed-cleanup")) {
     const cleaned = removeSeedCronLines(existingCron);
@@ -2832,7 +3610,7 @@ async function cmdUninstall(paths, shell) {
   fe("Seed node uninstalled.");
 }
 async function main() {
-  const { command, args, reconfigure, advanced, dir } = parseArgs();
+  const { command, args, reconfigure, advanced, dir, profile, headless } = parseArgs();
   const paths = makePaths(dir ?? DEFAULT_SEED_DIR);
   const shell = makeShellRunner();
   switch (command) {
@@ -2843,7 +3621,7 @@ async function main() {
       console.log(VERSION);
       return;
     case "deploy":
-      return cmdDeploy(paths, shell, reconfigure, advanced);
+      return cmdDeploy(paths, shell, reconfigure, advanced, profile, headless);
     case "upgrade":
       return cmdUpgrade(paths);
     case "stop":
@@ -2868,6 +3646,10 @@ async function main() {
       return cmdRestore(paths, shell, args);
     case "uninstall":
       return cmdUninstall(paths, shell);
+    case "register":
+      return cmdRegister(paths, args);
+    case "invite":
+      return cmdInvite(paths, args);
   }
 }
 if (import.meta.main) {
@@ -2882,11 +3664,14 @@ export {
   validateDockerImageRef,
   takeOverHost,
   stopStackByProject,
+  smtpFromEnv,
+  shellQuote,
   sha256,
   setupCron,
   selfUpdate,
   rollbackTagRefs,
   rollbackImageTargets,
+  requiredContainers,
   removeSeedCronLines,
   removeLegacyHostCronLines,
   removeLegacyHostCron,
@@ -2897,11 +3682,15 @@ export {
   parseImageTag,
   parseDaemonEnv,
   parseArgs,
+  notifyHost,
   makeShellRunner,
   makePaths,
   log,
+  isEnterprise,
   installWrapper,
+  injectServiceDirectives,
   inferEnvironment,
+  headlessEnterpriseConfig,
   handleForeignStack,
   getWorkspaceDirs,
   getRunningInstallDir,
@@ -2913,10 +3702,14 @@ export {
   generateCaddyfile,
   freeConflictingPortBindings,
   extractSeedCronLines,
+  extractInvitationLinks,
   extractDns,
   expectedServiceImages,
   environmentPresets,
+  enterpriseTestnetName,
+  enterpriseIsolationChecks,
   ensureSeedDir,
+  deviceDirectives,
   detectOldInstall,
   detectForeignStack,
   describePullFailure,
@@ -2926,15 +3719,23 @@ export {
   configWarnings,
   configExists,
   composeProjectName,
+  composeProfiles,
+  composeFileName,
   cmd,
   clearSeedCron,
   checkGpuAcceleration,
   checkForNewImages,
   checkContainersHealthy,
+  buildEnterpriseConfig,
   buildCrontab,
   buildComposeEnv,
+  backupMembers,
   assertNoForeignStack,
+  agentsHost,
   VERSION,
+  VAULT_ADMIN_SECRET_LENGTH,
+  SESSION_SECRET_LENGTH,
+  SESSION_CHECK_URI,
   SEED_PUBLISHED_PORTS,
   OPS_BASE_URL,
   NOTIFY_SERVICE_HOST,
@@ -2944,8 +3745,12 @@ export {
   LEGACY_AUTOUPDATER_IMAGES,
   IMAGE_PULL_TIMEOUT_MS,
   GITHUB_RELEASES_API,
+  ENTERPRISE_OPEN_PATHS,
+  ENTERPRISE_MAX_BODY,
+  ENTERPRISE_DATA_DIRS,
   DEV_DEPLOY_SCRIPT_URL,
   DEPLOY_SCRIPT_PATH,
+  DEPLOY_PROFILES,
   DEFAULT_SEED_DIR,
   DEFAULT_REPO_URL,
   DEFAULT_RELEASE_CHANNEL,

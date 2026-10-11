@@ -97,7 +97,7 @@ The `seed-deploy` command manages the node. <!-- id:XqYfefmx -->
 | `seed-deploy` or `seed-deploy deploy` | headless update: refetch the compose file, pull images if anything changed, recreate containers, prune old images; a no-op when nothing changed <!-- id:GU195g26 --> |
 | `seed-deploy deploy --reconfigure` | re-run the wizard with current values as defaults <!-- id:Lwf4cCYL --> |
 | `seed-deploy doctor` | health: containers, disk, cron, certificate expiry, whether the site is registered <!-- id:zFrRi04q --> |
-| `seed-deploy logs daemon`, `logs web`, `logs proxy` | tail a container's logs <!-- id:ymL5e_DO --> |
+| `seed-deploy logs daemon`, `logs web`, `logs proxy` | tail a container's logs (also `vault`, `notify`, `agents` on an enterprise node) <!-- id:ymL5e_DO --> |
 | `seed-deploy secret`, `seed-deploy config` | the registration URL; the configuration with secrets redacted <!-- id:upwAVBuC --> |
 | `seed-deploy stop`, `start`, `restart` | without redeploying <!-- id:2S70cDXD --> |
 | `seed-deploy backup [path]` | a `.tar.gz` of the configuration and the `web`, `daemon` and `proxy` directories; containers stop during the backup and restart after <!-- id:_Luurojk --> |
@@ -115,6 +115,51 @@ The `seed-deploy` command manages the node. <!-- id:XqYfefmx -->
 **Metrics.** The compose file has a `metrics` profile with Prometheus and Grafana, served at `https://example.org/.metrics` when enabled. <!-- id:auv0SAGe -->
 
 **Debug pages.** The daemon's `/debug/*` pages answer only to loopback inside its container. `docker exec seed-daemon` gets you a shell there. `seed-deploy logs daemon` is usually enough. <!-- id:fOadKE20 -->
+
+# Enterprise profile
+
+The deploy script has a second profile for an organization that wants Seed for itself: one server, one [space](../protocol/identity.md), accounts only for the people it invites, and nothing reaching the public network. Start it with `--profile enterprise` instead of the default site profile:
+
+```sh
+curl -fsSL https://deploy.seed.hyper.media | sh -s -- --profile enterprise
+```
+
+Without a terminal, for example over `ssh host 'curl … | sh -s -- …'`, pass the answers as flags and `--yes` instead of the wizard: `seed-deploy deploy --profile enterprise --hostname https://example.org --tag latest --email you@example.org [--agents] [--notify] --yes`, with the SMTP account in `SEED_SMTP_HOST`, `SEED_SMTP_USER`, `SEED_SMTP_PASSWORD` and `SEED_SMTP_SENDER` when `--notify` is on. `--tag` takes any image tag, including the sanitized branch name a branch build of the Docker images produces.
+
+Everything above about DNS, the install directory, `seed-deploy` and backups still applies. What differs is what runs, how people get in, and what the box may talk to.
+
+**What it runs.** The compose file is `ops/docker-compose.enterprise.yml`. All services share one internal network; only the proxy publishes ports.
+
+| Container | Image | Ports on the host | Role |
+| --- | --- | --- | --- |
+| `seed-proxy` | `caddy:2` | 80, 443, 443/udp | TLS, then reverse proxy with the sign-in gate |
+| `seed-web` | `seedhypermedia/web` | none | the web app with `SEED_REQUIRE_SIGN_IN=1`, signing and identity enabled, a session secret, and the vault's internal address for the membership check at sign-in |
+| `seed-daemon` | `seedhypermedia/site` | none | the daemon with `-p2p.isolated` (no bootstrap, a deny-all connection gater, no peer exchange), `-lndhub.disabled`, no discovery, no pull, no relay, listening on loopback only, on a private network named `ent-<your-domain>` |
+| `seed-vault` | `seedhypermedia/vault` | none | the [identity vault](../apps/vault.md), invite-only, served at `/vault` on the site's own origin |
+| `seed-notify` | `seedhypermedia/notify` | none | optional, compose profile `notify`, at `https://notify.<your-domain>` |
+| `seed-agents` | `seedhypermedia/agents` | none | optional, compose profile `agents`, at `https://agents.<your-domain>` |
+
+The `metrics` profile with Prometheus and Grafana is the same as in the site profile. Every image uses the release channel's tag, and `web_image` and `site_image` in `config.json` override the web and daemon images as before.
+
+**The wizard asks** for the public hostname, the release channel (`latest`, or `dev` for `main` builds), the log level, whether to run agents (default no), whether to run notify (default no) and if so the SMTP host, user, password and sender address, and a contact email. The vault's mailer uses STARTTLS on port 587 and the notify service implicit TLS on 465, so the SMTP relay must offer both (`smtp.port` in `config.json` overrides the vault's). There is no network, gateway or analytics question: the profile forces mainnet off, gateway off and statistics off. The wizard generates three secrets and stores them in `config.json`: `link_secret`, the registration secret used by `/hm/register`; `vault_admin_secret`, a 40-character bearer token for the vault's admin API; and `session_secret`, the key the web app signs its session cookie with. `seed-deploy config` prints them redacted.
+
+**Getting in.** For every request to the site that is not on an open path, Caddy first asks the web app (`forward_auth` to `/hm/api/session`, with the original path in `X-Forwarded-Uri`) whether the request carries a member session: `204` lets it through, otherwise the web app's answer, a `302` to `/hm/sign-in?next=…` for a browser or a `401` for an API call, goes back to the client. The daemon's `/ipfs/*` reads and the `/.metrics` pages sit behind the same gate. The open paths are the sign-in flow (`/hm/sign-in`, `/hm/auth/callback`, `/hm/api/auth`, `/hm/api/session`), the endpoints the Seed app and the deploy script use (`/hm/api/config`, `/hm/api/version`, `/hm/api/register`, `/hm/register`, `/hm/create-site`), the vault under `/vault`, the calls the sign-in callback makes before a cookie exists (`POST /api/PublishBlobs`, `GET /api/Account`, `POST /ipfs/*` for the vault's profile uploads) and static assets. The list is generated from the web app's `isOpenPath` rules in `frontend/apps/web/app/require-sign-in.ts`, so the two never disagree. Three commands cover the rest:
+
+| Command | What it does |
+| --- | --- |
+| `seed-deploy invite [email] [count]` | asks the vault's admin API (`POST /vault/api/admin/invitations` with the `vault_admin_secret`) for single-use invitation links of the form `https://example.org/vault?invite=<code>` and prints them; the vault is invite-only, so this is how each person gets an account |
+| `seed-deploy register <accountUid>` | registers a space that already lives on this daemon: reads the daemon's peer id from `/hm/api/config` and posts it with the account id and `link_secret` to `/hm/api/register`, the same call the Seed app makes. For a space created in the browser, `/hm/register?secret=…` from `seed-deploy secret` works as on a site |
+| `seed-deploy doctor` | in addition to the usual checks: that `docker port seed-daemon` is empty, that `/hm/api/config` reports `requireSignIn: true`, that `GET /` without a session is bounced to `/hm/sign-in`, and that `/vault/` answers; the lightning and testnet checks are skipped |
+
+A first deploy ends by printing the invitation command and both registration routes. Invite yourself first, create an account in the browser, then register the organization's space with that account.
+
+**What is isolated and how.** The daemon's libp2p listener binds to loopback inside its container and has no published port, so no peer can reach it; `-p2p.isolated` refuses every connection and dials nobody, `-p2p.bootstrap-peers=none`, `-syncing.no-discovery` and `-syncing.no-pull` mean it looks for nothing, and the private testnet name keeps it off the public network even if a peer address leaked in. The image already sets `SEED_PUBLIC_ONLY=true`; `-lndhub.disabled` stops the wallet integration and `SENTRY_DSN` is empty, so no telemetry. The web app talks only to the daemon, the vault, and, when enabled, the notify and agents services on the box; `NOTIFY_SERVICE_HOST`, `SEED_AGENT_SERVER_URL` and `SEED_HOST_URL` are empty otherwise (empty, not unset: the vault and the web app treat an unset notify address as the hosted service). The vault uses the site's domain as its WebAuthn relying party and reaches the daemon over the internal network. What leaves the server is email through your SMTP account, when notify is on, and the agents' calls to their model provider, when agents are on. Caddy caps request bodies at 512 MB; rate limiting needs a Caddy plugin that the stock `caddy:2` image lacks, so it is not configured.
+
+**Updates.** The enterprise profile installs no cron. `seed-deploy deploy` by hand fetches the compose file and new images, and `seed-deploy cron` installs the ten-minute auto-update if you want it after all. `seed-deploy backup` includes the `vault`, `notify` and `agents` directories along with `web`, `daemon` and `proxy`. A directory that holds [private](../protocol/privacy.md) content of the organization's space should be treated accordingly, together with `config.json`, which holds the secrets.
+
+**Agents and code execution.** Sandboxed code execution in the agents service needs `/dev/kvm`, which standard virtual servers do not have. The compose file ships without it; set `"agents_kvm": true` in `config.json` on a host with KVM, and the deploy adds the device and the `kvm` group to the container, the way it adds `/dev/dri` to the daemon on hosts with a GPU.
+
+**Not yet done.** As of October 2026 the profile is phase one of the Enterprise Edition design, isolation: privacy comes from the box being unreachable, and documents inside it are ordinary public documents. Not built yet, from that design: a members directory and the READER role, SSO in front of the vault, an audit log of sign-ins and capability grants, a second gate on `/ipfs/*` so a leaked CID link does not fetch the file, backups encrypted with an operator key before they leave the box, a `-p2p.disabled` daemon flag that replaces the five isolation flags with one, and `deploy --tag` for pinning a specific release. The host firewall and the egress allowlist for the mail relay and model provider are the operator's; the script does not configure them. Phase two, re-enabling private document creation and fixing the visibility gaps so the box can share a subset of spaces with another node, touches the daemon's indexer and is not started. The invite-only vault with its admin API, the daemon's `-p2p.bootstrap-peers=none` and the web app's `SEED_REQUIRE_SIGN_IN` are new in this release; `doctor` fails its isolation checks when the running images predate them.
 
 # Custom domains for hosted sites <!-- id:ZBecOkd6 -->
 
