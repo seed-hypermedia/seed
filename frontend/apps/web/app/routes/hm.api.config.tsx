@@ -1,6 +1,7 @@
 import {grpcClient} from '@/client.server'
 import {parseRequest} from '@/request'
 import {getOrCreateServerSignerAccountUid} from '@/server-signing'
+import {requireSignInEnabled} from '@/require-sign-in.server'
 import {getConfig} from '@/site-config.server'
 import type {LoaderFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'
@@ -28,6 +29,7 @@ export const loader: LoaderFunction = async ({request}) => {
         hostname: SITE_BASE_URL,
         isGateway: WEB_IS_GATEWAY,
         notifyServiceHost: NOTIFY_SERVICE_HOST || null,
+        requireSignIn: requireSignInEnabled(),
       },
       {headers: corsHeaders},
     )

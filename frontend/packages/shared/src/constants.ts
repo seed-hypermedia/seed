@@ -161,10 +161,15 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
  * The dev fallback matches the harness dev agents server port (see agents/.env.vars), not the
  * packaged binary's 3050 — a stale packaged server on 3050 answers but 400s the runs API.
  */
-export const SEED_AGENT_SERVER_URL: string | undefined =
-  process.env.SEED_AGENT_SERVER_URL || // web server
-  WEB_ENV.SEED_AGENT_SERVER_URL || // web client
-  (process.env.NODE_ENV === 'production' ? 'https://agentic.seed.hyper.media' : 'http://localhost:3051')
+export const SEED_AGENT_SERVER_URL: string | undefined = (() => {
+  // An explicitly empty value means "no agent server" (single-tenant sites set
+  // it), so only an unset variable falls back to the shared default.
+  const configured =
+    process.env.SEED_AGENT_SERVER_URL ?? // web server
+    WEB_ENV.SEED_AGENT_SERVER_URL // web client
+  if (typeof configured === 'string') return configured || undefined
+  return process.env.NODE_ENV === 'production' ? 'https://agentic.seed.hyper.media' : 'http://localhost:3051'
+})()
 
 // Discovery timeouts
 export const DISCOVERY_TIMEOUT_MS = 15_000 // 15 seconds before showing not-found
