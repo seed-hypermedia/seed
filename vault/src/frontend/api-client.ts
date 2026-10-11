@@ -80,6 +80,10 @@ export class FetchClient implements api.ClientInterface {
     return this.request(`/api/vault${query}`, {method: 'GET'})
   }
 
+  async syncVaultAccounts(req: api.SyncVaultAccountsRequest): Promise<api.SyncVaultAccountsResponse> {
+    return this.request('/api/vault-accounts', {method: 'POST', body: JSON.stringify(req)})
+  }
+
   async saveVault(req: api.SaveVaultRequest): Promise<api.SaveVaultResponse> {
     return this.request('/api/vault', {method: 'POST', body: JSON.stringify(req)})
   }

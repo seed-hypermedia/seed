@@ -70,6 +70,8 @@ The server only ever sees the encrypted payload. The token travels in the URL fr
 | `/vault/api/credentials/*`, `/vault/api/email-change/*`, `/vault/api/vault-email` | Manage passkeys, passwords, device secrets and the email address. <!-- id:QqIIN__G --> |
 | `/vault/api/vault-connect`, `/vault/api/vault-connect/:id` | The connect mailbox. <!-- id:uhkZRkdi --> |
 | `/vault/api/accounts/:id` | Account lookup through the [daemon](./daemon.md). <!-- id:6c_labv8 --> |
+| `/vault/api/vault-accounts` | The app reports the public account IDs its vault holds, each claim signed by that account's key. See [Invite-only mode and the admin API](#invite-only-mode-and-the-admin-api). |
+| `/vault/api/admin/invitations`, `/vault/api/admin/accounts/:accountUid` | The admin API, for the Enterprise Edition. Bearer-authenticated with the admin secret; answers 404 when none is configured. |
 
 # Configuration <!-- id:RdYLeQPF -->
 
@@ -86,9 +88,19 @@ Every setting is a flag with an environment variable behind it. <!-- id:r5otBYl0
 | `--backend-grpc-base-url` | `SEED_VAULT_BACKEND_GRPC_BASE_URL` | the backend HTTP URL <!-- id:wc1QXIWQ --> |
 | `--web-base-url` | `SEED_VAULT_WEB_BASE_URL` | same origin <!-- id:YyzzqcLE --> |
 | `--smtp-*` | `SEED_VAULT_SMTP_*` | unset, which disables email <!-- id:vGM4RTQy --> |
-| none | `SEED_VAULT_DEFAULT_NOTIFY_SERVER` | `https://notify.seed.hyper.media` <!-- id:Lci_Ngam --> |
+| `--invite-only` | `SEED_VAULT_INVITE_ONLY` | off; `true` makes account creation require an invitation code |
+| `--admin-secret` | `SEED_VAULT_ADMIN_SECRET` | unset, which disables the admin API |
+| none | `SEED_VAULT_DEFAULT_NOTIFY_SERVER` | `https://notify.seed.hyper.media` when unset; set it to an empty string to run without a notify server <!-- id:Lci_Ngam --> |
 
-The database schema carries a version. If it does not match the code, the server starts in a mode that only shows a schema-mismatch page and tells you to delete the database. There are no migrations yet. <!-- id:HO_6v9PS -->
+The database schema carries a version. If it does not match the code, the server starts in a mode that only shows a schema-mismatch page and tells you to delete the database. Migrations live in `src/sqlite.ts` beside the schema and run at startup; the schema version is 5 as of October 2026 (the last two added the invitations and account-claim tables). <!-- id:HO_6v9PS -->
+
+# Invite-only mode and the admin API
+
+The Enterprise Edition runs the vault on a private [site](../protocol/sites.md) where only invited people may create an account. Two settings turn this on: `SEED_VAULT_INVITE_ONLY=true` and `SEED_VAULT_ADMIN_SECRET`, a bearer secret for the admin API. Signing in to an existing account is unchanged.
+
+An operator mints invitations with `POST /vault/api/admin/invitations` (`Authorization: Bearer <admin secret>`, body `{email?, count?}`), which returns one or more random codes and a ready-to-share link of the form `<origin>/vault?invite=<code>`. A code may be bound to an email, in which case only that address can register with it. `GET` on the same path lists invitations with their used state. The app reads `?invite=` from the link, offers a field to paste a code, and sends it with both registration requests. The server checks the code before it sends the verification email, and marks it used in the same database transaction that creates the account, so a code works exactly once.
+
+`GET /vault/api/admin/accounts/:accountUid` tells a site which vault user, if any, holds a given public [account](../protocol/identity.md) ID: `200 {accountUid, email, createTime}` or `404`. The [web app](./web.md) uses it at sign-in to decide membership. For this to work the vault keeps one piece of per-account state in plaintext that the hosted vault never had: a table of public account IDs per vault user. The app reports its IDs after it decrypts the vault and after every save (`POST /vault/api/vault-accounts`), and every entry carries a signature by that account's key over `seed-vault-account:<origin>:<vault user id>:<account id>`, so a user cannot register an ID they do not control; an ID already registered to another user is refused. The account keys themselves still never leave the encrypted blob, but on an invite-only vault the server now knows which public accounts belong to which email.
 
 # Running it <!-- id:A0Kg0MQc -->
 

@@ -73,6 +73,7 @@ async function main() {
     cfg.relyingParty,
     hmacSecret,
     emailSender,
+    {inviteOnly: cfg.inviteOnly, adminSecret: cfg.adminSecret},
   )
 
   // Pre-build asset lookup map at startup for O(1) serving.
@@ -240,6 +241,14 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
+    '/vault/api/vault-accounts': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.syncVaultAccounts(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
     '/vault/api/credentials/password': {
       POST: async (req) => {
         const body = await req.json()
@@ -337,6 +346,30 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
           'Cache-Control': 'no-store, private, max-age=0',
           Vary: 'Authorization, Cookie',
         })
+      },
+    },
+    '/vault/api/admin/invitations': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        const result = await svc.adminListInvitations(ctx)
+        return handleResponse(result, ctx, 200, {'Cache-Control': 'no-store, private, max-age=0'})
+      },
+      POST: async (req) => {
+        const body = await parseJSONBody(req)
+        const ctx = getRequestContext(req)
+        const result = await svc.adminCreateInvitations(body, ctx)
+        return handleResponse(result, ctx, 201)
+      },
+    },
+    '/vault/api/admin/accounts/:accountUid': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        if (!req.params.accountUid) {
+          return handleResponse({error: 'Missing account ID'}, ctx, 400)
+        }
+
+        const result = await svc.adminGetAccount({accountUid: req.params.accountUid}, ctx)
+        return handleResponse(result, ctx, 200, {'Cache-Control': 'no-store, private, max-age=0'})
       },
     },
     '/vault/api/accounts/:id': {
@@ -457,6 +490,23 @@ function parseBearerToken(authorizationHeader: string | null): string | null {
   }
 
   return token
+}
+
+/** Parse an optional JSON object body; an empty body means `{}`. */
+async function parseJSONBody(req: BunRequest): Promise<Record<string, unknown>> {
+  const text = (await req.text()).trim()
+  if (!text) {
+    return {}
+  }
+  try {
+    const parsed = JSON.parse(text)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('not an object')
+    }
+    return parsed
+  } catch {
+    throw new apisvc.APIError('Invalid JSON body', 400)
+  }
 }
 
 function parseKnownVersion(knownVersionRaw: string | null): number | undefined {

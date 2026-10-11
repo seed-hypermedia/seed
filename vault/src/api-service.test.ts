@@ -1,10 +1,11 @@
 import type {Database} from 'bun:sqlite'
 import {afterAll, beforeAll, beforeEach, describe, expect, spyOn, test} from 'bun:test'
 import * as base64 from '@seed-hypermedia/client/base64'
+import * as blobs from '@seed-hypermedia/client/blobs'
 import * as encryption from '@seed-hypermedia/client/encryption'
 import * as webauthn from '@simplewebauthn/server'
-import {APIError, Service} from '@/api-service'
-import type * as api from '@/api'
+import {APIError, Service, type ServiceOptions} from '@/api-service'
+import * as api from '@/api'
 import * as cookies from '@/cookies'
 import type * as email from '@/email'
 import * as crypto from '@/frontend/crypto'
@@ -53,7 +54,7 @@ const mockGrpcClient = {
   },
 } as any
 
-function createService() {
+function createService(opts: ServiceOptions = {}) {
   return new Service(
     db,
     'https://daemon.example.com',
@@ -63,6 +64,7 @@ function createService() {
     rp,
     hmacSecret,
     emailSender,
+    opts,
   )
 }
 
@@ -1338,5 +1340,349 @@ describe('vault auth service', () => {
       success: true,
       userId,
     })
+  })
+})
+
+describe('vault invitations', () => {
+  const adminSecret = 'admin-secret-for-tests'
+
+  function getInvitationRow(code: string) {
+    return db
+      .query<{code: string; email: string | null; used_time: number | null; used_by_account: string | null}, [string]>(
+        `SELECT code, email, used_time, used_by_account FROM invitations WHERE code = ?`,
+      )
+      .get(code)
+  }
+
+  /** Runs registerStart + registerVerify for `email`, passing `invite` to both, and returns the verify context. */
+  async function register(svc: Service, email: string, invite?: string) {
+    let code = ''
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail').mockImplementation(
+      async (_to, sentCode) => {
+        code = sentCode
+      },
+    )
+    try {
+      const startCtx = createContext()
+      await svc.registerStart({email, ...(invite ? {invite} : {})}, startCtx)
+      const verifyCtx = createContext(null, null, null, getEmailBindingCookie(startCtx))
+      const result = await svc.registerVerify({code, ...(invite ? {invite} : {})}, verifyCtx)
+      return {result, verifyCtx}
+    } finally {
+      sendVerificationEmail.mockRestore()
+    }
+  }
+
+  test('admin API answers 404 when no admin secret is configured', async () => {
+    const svc = createService({inviteOnly: true})
+
+    await expect(svc.adminListInvitations(createContext(null, adminSecret))).rejects.toMatchObject({
+      statusCode: 404,
+    })
+    await expect(svc.adminCreateInvitations({}, createContext(null, adminSecret))).rejects.toMatchObject({
+      statusCode: 404,
+    })
+  })
+
+  test('admin API requires the exact bearer secret', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+
+    await expect(svc.adminListInvitations(createContext())).rejects.toMatchObject({statusCode: 401})
+    await expect(svc.adminListInvitations(createContext(null, 'wrong-secret'))).rejects.toMatchObject({
+      statusCode: 401,
+    })
+    await expect(svc.adminCreateInvitations({}, createContext(null, `${adminSecret}x`))).rejects.toMatchObject({
+      statusCode: 401,
+    })
+    // A browser session is not admin access.
+    const sessionId = createSession(createUser('someone@test.com'))
+    await expect(svc.adminListInvitations(createContext(sessionId))).rejects.toMatchObject({statusCode: 401})
+
+    await expect(svc.adminListInvitations(createContext(null, adminSecret))).resolves.toEqual({invitations: []})
+  })
+
+  test('admin API creates and lists invitations with a shareable link', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const adminCtx = createContext(null, adminSecret)
+
+    const created = await svc.adminCreateInvitations({count: 2}, adminCtx)
+    expect(created.invitations).toHaveLength(2)
+    for (const invitation of created.invitations) {
+      expect(invitation.code).toMatch(/^[A-Za-z0-9_-]{32,}$/)
+      expect(invitation.link).toBe(`https://example.com/vault?invite=${invitation.code}`)
+      expect(invitation.email).toBeNull()
+      expect(invitation.used).toBe(false)
+      expect(invitation.usedTime).toBeNull()
+    }
+    expect(created.invitations[0]!.code).not.toBe(created.invitations[1]!.code)
+
+    const bound = await svc.adminCreateInvitations({email: 'Alice@Test.com'}, adminCtx)
+    expect(bound.invitations).toHaveLength(1)
+    expect(bound.invitations[0]!.email).toBe('alice@test.com')
+
+    const listed = await svc.adminListInvitations(adminCtx)
+    expect(listed.invitations).toHaveLength(3)
+    expect(listed.invitations.map((i) => i.code).sort()).toEqual(
+      [...created.invitations, ...bound.invitations].map((i) => i.code).sort(),
+    )
+    // No account data leaks through the admin listing.
+    for (const invitation of listed.invitations) {
+      expect(Object.keys(invitation).sort()).toEqual(['code', 'createTime', 'email', 'link', 'used', 'usedTime'])
+    }
+
+    await expect(svc.adminCreateInvitations({count: 0}, adminCtx)).rejects.toMatchObject({statusCode: 400})
+    await expect(svc.adminCreateInvitations({count: 101}, adminCtx)).rejects.toMatchObject({statusCode: 400})
+    await expect(svc.adminCreateInvitations({email: 'nope'}, adminCtx)).rejects.toMatchObject({statusCode: 400})
+  })
+
+  test('getConfig reports invite-only mode', async () => {
+    await expect(createService().getConfig(createContext())).resolves.toMatchObject({inviteOnly: false})
+    await expect(createService({inviteOnly: true}).getConfig(createContext())).resolves.toMatchObject({
+      inviteOnly: true,
+    })
+  })
+
+  test('registration without invite-only mode ignores invitations', async () => {
+    const svc = createService()
+    const {result} = await register(svc, 'open@test.com')
+    expect(result.verified).toBe(true)
+  })
+
+  test('invite-only registration is refused without a code and no email is sent', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail')
+    try {
+      await expect(svc.registerStart({email: 'nocode@test.com'}, createContext())).rejects.toMatchObject({
+        statusCode: 403,
+        message: 'This vault is invite-only. An invitation code is required to create an account.',
+      })
+      await expect(
+        svc.registerStart(
+          {email: 'nocode@test.com', invite: 'not-a-real-code-at-all-but-long-enough'},
+          createContext(),
+        ),
+      ).rejects.toMatchObject({statusCode: 403, message: 'Invalid invitation code.'})
+      expect(sendVerificationEmail).not.toHaveBeenCalled()
+      expect(getEmailChallenge('nocode@test.com')).toBeNull()
+    } finally {
+      sendVerificationEmail.mockRestore()
+    }
+  })
+
+  test('invite-only registration is refused at verify when the code is dropped', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const email = 'dropped@test.com'
+    const [invitation] = (await svc.adminCreateInvitations({}, createContext(null, adminSecret))).invitations
+    let code = ''
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail').mockImplementation(
+      async (_to, sentCode) => {
+        code = sentCode
+      },
+    )
+    try {
+      const startCtx = createContext()
+      await svc.registerStart({email, invite: invitation!.code}, startCtx)
+      const verifyCtx = createContext(null, null, null, getEmailBindingCookie(startCtx))
+      await expect(svc.registerVerify({code}, verifyCtx)).rejects.toMatchObject({statusCode: 403})
+      expect(verifyCtx.sessionCookie).toBeUndefined()
+      expect(db.query(`SELECT id FROM users WHERE email = ?`).get(email)).toBeNull()
+      expect(getInvitationRow(invitation!.code)?.used_time).toBeNull()
+    } finally {
+      sendVerificationEmail.mockRestore()
+    }
+  })
+
+  test('invite-only registration succeeds with a code, marks it used, and refuses reuse', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const adminCtx = createContext(null, adminSecret)
+    const [invitation] = (await svc.adminCreateInvitations({}, adminCtx)).invitations
+
+    const {result, verifyCtx} = await register(svc, 'invited@test.com', invitation!.code)
+    expect(result.verified).toBe(true)
+    expect(verifyCtx.sessionCookie).toBeString()
+
+    const row = getInvitationRow(invitation!.code)
+    expect(row?.used_time).toBeNumber()
+    expect(row?.used_by_account).toBe(result.userId)
+
+    const listed = await svc.adminListInvitations(adminCtx)
+    expect(listed.invitations.find((i) => i.code === invitation!.code)).toMatchObject({used: true})
+
+    await expect(
+      svc.registerStart({email: 'second@test.com', invite: invitation!.code}, createContext()),
+    ).rejects.toMatchObject({statusCode: 403, message: 'This invitation code has already been used.'})
+    expect(db.query(`SELECT id FROM users WHERE email = ?`).get('second@test.com')).toBeNull()
+  })
+
+  test('an email-bound invitation only registers that email', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const adminCtx = createContext(null, adminSecret)
+    const [invitation] = (await svc.adminCreateInvitations({email: 'bob@test.com'}, adminCtx)).invitations
+
+    await expect(
+      svc.registerStart({email: 'eve@test.com', invite: invitation!.code}, createContext()),
+    ).rejects.toMatchObject({statusCode: 403, message: 'This invitation code is for a different email address.'})
+
+    const {result} = await register(svc, 'Bob@Test.com', invitation!.code)
+    expect(result.verified).toBe(true)
+    expect(getInvitationRow(invitation!.code)?.used_by_account).toBe(result.userId)
+  })
+
+  test('invite-only mode leaves sign-in for existing accounts unchanged', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const email = 'existing-login@test.com'
+    const userId = createUser(email)
+    const credential = await derivePasswordCredential('correct horse battery staple')
+    await svc.addPassword(
+      {authKey: credential.authKey, salt: credential.salt, wrappedDEK: credential.wrappedDEK},
+      createContext(createSession(userId)),
+    )
+
+    await expect(svc.preLogin({email}, createContext())).resolves.toMatchObject({exists: true})
+    const loginCtx = createContext()
+    await expect(svc.login({email, authKey: credential.authKey}, loginCtx)).resolves.toMatchObject({success: true})
+    expect(loginCtx.sessionCookie).toBeString()
+  })
+})
+
+describe('vault accounts', () => {
+  const adminSecret = 'admin-secret-for-tests'
+
+  function listAccountUids(userId: string) {
+    return db
+      .query<{account_uid: string}, [string]>(`SELECT account_uid FROM user_accounts WHERE user_id = ? ORDER BY 1`)
+      .all(userId)
+      .map((row) => row.account_uid)
+  }
+
+  /** Builds a signed claim for `kp` on behalf of vault user `userId`, like the SPA does. */
+  async function claim(kp: blobs.NobleKeyPair, userId: string, createTime = 100, signer: blobs.NobleKeyPair = kp) {
+    const uid = blobs.principalToString(kp.principal)
+    const message = new TextEncoder().encode(api.vaultAccountClaimMessage(rp.origin, userId, uid))
+    return {uid, createTime, signature: base64.encode(await signer.sign(message))}
+  }
+
+  test('syncVaultAccounts stores verified claims and replaces the caller set', async () => {
+    const svc = createService()
+    const alice = createUser('alice@test.com')
+    const aliceCtx = createContext(createSession(alice))
+    const kpA = blobs.generateNobleKeyPair()
+    const kpB = blobs.generateNobleKeyPair()
+    const uidA = blobs.principalToString(kpA.principal)
+    const uidB = blobs.principalToString(kpB.principal)
+
+    await expect(svc.syncVaultAccounts({accounts: []}, createContext())).rejects.toMatchObject({statusCode: 401})
+
+    await svc.syncVaultAccounts({accounts: [await claim(kpA, alice), await claim(kpB, alice, 200)]}, aliceCtx)
+    expect(listAccountUids(alice)).toEqual([uidA, uidB].sort())
+
+    // Dropping an account from the vault drops the mapping.
+    await svc.syncVaultAccounts({accounts: [await claim(kpB, alice, 200)]}, aliceCtx)
+    expect(listAccountUids(alice)).toEqual([uidB])
+  })
+
+  test('syncVaultAccounts rejects missing, malformed and forged signatures', async () => {
+    const svc = createService()
+    const alice = createUser('alice@test.com')
+    const bob = createUser('bob@test.com')
+    const aliceCtx = createContext(createSession(alice))
+    const kp = blobs.generateNobleKeyPair()
+    const other = blobs.generateNobleKeyPair()
+    const valid = await claim(kp, alice)
+
+    const {signature: _omitted, ...unsigned} = valid
+    await expect(
+      svc.syncVaultAccounts({accounts: [unsigned as unknown as api.VaultAccountClaim]}, aliceCtx),
+    ).rejects.toMatchObject({statusCode: 400, message: 'Missing account signature'})
+    await expect(
+      svc.syncVaultAccounts({accounts: [{...valid, uid: 'not-a-principal'}]}, aliceCtx),
+    ).rejects.toMatchObject({statusCode: 400})
+    await expect(svc.syncVaultAccounts({accounts: [{...valid, createTime: -1}]}, aliceCtx)).rejects.toMatchObject({
+      statusCode: 400,
+    })
+    // Signed by a different key.
+    await expect(
+      svc.syncVaultAccounts({accounts: [await claim(kp, alice, 100, other)]}, aliceCtx),
+    ).rejects.toMatchObject({statusCode: 403, message: 'Invalid account signature'})
+    // Signed for a different vault user (replay of Bob's claim by Alice).
+    await expect(svc.syncVaultAccounts({accounts: [await claim(kp, bob)]}, aliceCtx)).rejects.toMatchObject({
+      statusCode: 403,
+    })
+    // Garbage signature bytes.
+    await expect(
+      svc.syncVaultAccounts({accounts: [{...valid, signature: base64.encode(new Uint8Array(64))}]}, aliceCtx),
+    ).rejects.toMatchObject({statusCode: 403})
+    expect(listAccountUids(alice)).toEqual([])
+  })
+
+  test('syncVaultAccounts refuses a verified claim for an account owned by another user', async () => {
+    const svc = createService()
+    const alice = createUser('alice@test.com')
+    const bob = createUser('bob@test.com')
+    const aliceCtx = createContext(createSession(alice))
+    const bobCtx = createContext(createSession(bob))
+    const kp = blobs.generateNobleKeyPair()
+    const kpBob = blobs.generateNobleKeyPair()
+    const uid = blobs.principalToString(kp.principal)
+
+    await svc.syncVaultAccounts({accounts: [await claim(kp, alice)]}, aliceCtx)
+    await expect(
+      svc.syncVaultAccounts({accounts: [await claim(kpBob, bob), await claim(kp, bob)]}, bobCtx),
+    ).rejects.toMatchObject({statusCode: 409})
+    // The whole request rolls back; Alice keeps the account.
+    expect(listAccountUids(bob)).toEqual([])
+    expect(listAccountUids(alice)).toEqual([uid])
+
+    // Once Alice drops it, Bob's verified claim succeeds.
+    await svc.syncVaultAccounts({accounts: []}, aliceCtx)
+    await svc.syncVaultAccounts({accounts: [await claim(kp, bob)]}, bobCtx)
+    expect(listAccountUids(bob)).toEqual([uid])
+  })
+
+  test('syncVaultAccounts accepts secret bearer auth', async () => {
+    const svc = createService()
+    const userId = createUser('daemon@test.com')
+    const secret = generateSecret()
+    const authKey = await deriveSecretCredentialAuthKey(secret)
+    const {credentialId} = await svc.addSecretCredential(
+      {authKey, wrappedDEK: base64.encode(new Uint8Array(32))},
+      createContext(createSession(userId)),
+    )
+    const kp = blobs.generateNobleKeyPair()
+
+    await svc.syncVaultAccounts(
+      {accounts: [await claim(kp, userId, 5)]},
+      createContext(null, `${credentialId}:${authKey}`),
+    )
+    expect(listAccountUids(userId)).toEqual([blobs.principalToString(kp.principal)])
+  })
+
+  test('admin account lookup is gated like the invitations API and reports the owner email', async () => {
+    const svc = createService({adminSecret})
+    const userId = createUser('owner@test.com')
+    const kp = blobs.generateNobleKeyPair()
+    const uid = blobs.principalToString(kp.principal)
+    const unknownUid = blobs.principalToString(blobs.generateNobleKeyPair().principal)
+    await svc.syncVaultAccounts({accounts: [await claim(kp, userId, 1234)]}, createContext(createSession(userId)))
+
+    await expect(svc.adminGetAccount({accountUid: uid}, createContext())).rejects.toMatchObject({statusCode: 401})
+    await expect(svc.adminGetAccount({accountUid: uid}, createContext(null, 'wrong'))).rejects.toMatchObject({
+      statusCode: 401,
+    })
+    await expect(
+      createService().adminGetAccount({accountUid: uid}, createContext(null, adminSecret)),
+    ).rejects.toMatchObject({statusCode: 404})
+
+    await expect(svc.adminGetAccount({accountUid: uid}, createContext(null, adminSecret))).resolves.toEqual({
+      accountUid: uid,
+      email: 'owner@test.com',
+      createTime: 1234,
+    })
+    await expect(svc.adminGetAccount({accountUid: unknownUid}, createContext(null, adminSecret))).rejects.toMatchObject(
+      {
+        statusCode: 404,
+        message: 'Account not found',
+      },
+    )
   })
 })

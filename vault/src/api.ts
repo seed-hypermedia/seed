@@ -31,7 +31,7 @@ import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/docu
  *   `addPasskey*`, `addPassword`,
  *   `changePassword`, `addSecretCredential`, `putVaultConnect`.
  * - Session cookie OR bearer (`credentialId:authKey`, secret credential only):
- *   `getVault`, `saveVault`. Bearer wins when both are present. The bearer's
+ *   `getVault`, `saveVault`, `syncVaultAccounts`. Bearer wins when both are present. The bearer's
  *   `credentialId` is the credentials-table primary key, so lookup is a single
  *   indexed hit that yields `userId` — no scan and no need to include
  *   `userId` in the URL.
@@ -56,6 +56,7 @@ export interface ServiceDefinition {
   // Vault data.
   getVault(req: GetVaultRequest): Promise<GetVaultResponse>
   saveVault(req: SaveVaultRequest): Promise<SaveVaultResponse>
+  syncVaultAccounts(req: SyncVaultAccountsRequest): Promise<SyncVaultAccountsResponse>
 
   // Credential management. All operations are scoped to the authenticated user.
   addPassword(req: AddPasswordRequest): Promise<AddPasswordResponse>
@@ -95,6 +96,8 @@ export type PreLoginResponse = {
 // Register start.
 export type RegisterStartRequest = {
   email: string
+  // Invitation code. Required when the server runs in invite-only mode.
+  invite?: string
 }
 export type RegisterStartResponse = {
   message: string
@@ -105,6 +108,9 @@ export type RegisterStartResponse = {
 // Register verify.
 export type RegisterVerifyRequest = {
   code: string
+  // Invitation code. Required when the server runs in invite-only mode;
+  // it is marked used in the same transaction that creates the account.
+  invite?: string
 }
 export type RegisterVerifyResponse = {
   verified: boolean
@@ -251,6 +257,35 @@ export type SaveVaultResponse = {
   success: boolean
 }
 
+/**
+ * Report the public account IDs held in the caller's vault. Replaces the
+ * caller's previously reported set. This is the one piece of per-account
+ * state the server learns in plaintext: which public account IDs belong to
+ * which vault user, so the admin API can answer membership checks. The keys
+ * themselves never leave the encrypted blob.
+ *
+ * Each claim proves possession of the account key: `signature` is the
+ * account's Ed25519 signature over `vaultAccountClaimMessage(...)`, so a
+ * vault user cannot register an account ID they do not control.
+ */
+export type SyncVaultAccountsRequest = {
+  accounts: VaultAccountClaim[]
+}
+export type VaultAccountClaim = {
+  uid: string
+  createTime: number
+  /** base64url Ed25519 signature by the account key over the claim message. */
+  signature: string
+}
+
+/** Canonical message an account key signs to claim its ID for a vault user. */
+export function vaultAccountClaimMessage(rpOrigin: string, userId: string, uid: string): string {
+  return `seed-vault-account:${rpOrigin}:${userId}:${uid}`
+}
+export type SyncVaultAccountsResponse = {
+  success: boolean
+}
+
 // Get session.
 export type GetSessionResponse = {
   authenticated: boolean
@@ -275,6 +310,43 @@ export type GetConfigResponse = {
   notificationServerUrl: string
   /** Base URL of the public web reader (for "open profile" links); '' = same origin. */
   webBaseUrl: string
+  /** Whether creating an account requires an invitation code. */
+  inviteOnly: boolean
+}
+
+/**
+ * Admin API. Not part of the SPA client: authorized with
+ * `Authorization: Bearer <admin secret>` and answers 404 when no admin secret
+ * is configured. Never exposes account data.
+ */
+export type AdminInvitation = {
+  code: string
+  /** Email the code is bound to, or null for any email. */
+  email: string | null
+  /** Ready-to-share registration link. */
+  link: string
+  createTime: number
+  usedTime: number | null
+  used: boolean
+}
+export type AdminCreateInvitationsRequest = {
+  email?: string
+  /** Number of codes to create (default 1, max 100). */
+  count?: number
+}
+export type AdminCreateInvitationsResponse = {
+  invitations: AdminInvitation[]
+}
+export type AdminListInvitationsResponse = {
+  invitations: AdminInvitation[]
+}
+export type AdminGetAccountRequest = {
+  accountUid: string
+}
+export type AdminGetAccountResponse = {
+  accountUid: string
+  email?: string
+  createTime: number
 }
 
 // Change email start — initiates email change verification.

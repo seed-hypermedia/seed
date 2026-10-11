@@ -23,6 +23,8 @@ describe('vault config', () => {
       'smtp-user': defs['smtp-user'].default,
       'smtp-password': defs['smtp-password'].default,
       'smtp-sender': defs['smtp-sender'].default,
+      'invite-only': defs['invite-only'].default,
+      'admin-secret': defs['admin-secret'].default,
     })
 
     expect(cfg.backend.httpBaseUrl).toBe('https://example.com')
@@ -45,6 +47,8 @@ describe('vault config', () => {
       'smtp-user': '',
       'smtp-password': '',
       'smtp-sender': '',
+      'invite-only': false,
+      'admin-secret': '',
     })
 
     expect(cfg.backend.httpBaseUrl).toBe('https://ipfs.example.com')
@@ -67,6 +71,8 @@ describe('vault config', () => {
       'smtp-user': '',
       'smtp-password': '',
       'smtp-sender': '',
+      'invite-only': false,
+      'admin-secret': '',
     })
 
     expect(cfg.notificationServerUrl).toBe('https://notify.seed.hyper.media')
@@ -89,11 +95,39 @@ describe('vault config', () => {
         'smtp-user': '',
         'smtp-password': '',
         'smtp-sender': '',
+        'invite-only': false,
+        'admin-secret': '',
       },
       {SEED_VAULT_DEFAULT_NOTIFY_SERVER: 'http://localhost:3060'},
     )
 
     expect(cfg.notificationServerUrl).toBe('http://localhost:3060')
+  })
+
+  test('an empty SEED_VAULT_DEFAULT_NOTIFY_SERVER disables the notification server', () => {
+    const cfg = create(
+      {
+        'server-hostname': '0.0.0.0',
+        'server-port': 3000,
+        'rp-id': 'vault.example.com',
+        'rp-name': 'Vault',
+        'rp-origin': 'https://vault.example.com',
+        'db-path': ':memory:',
+        'backend-http-base-url': 'https://ipfs.example.com',
+        'backend-grpc-base-url': '',
+        'web-base-url': '',
+        'smtp-host': '',
+        'smtp-port': 587,
+        'smtp-user': '',
+        'smtp-password': '',
+        'smtp-sender': '',
+        'invite-only': false,
+        'admin-secret': '',
+      },
+      {SEED_VAULT_DEFAULT_NOTIFY_SERVER: ''},
+    )
+
+    expect(cfg.notificationServerUrl).toBe('')
   })
 
   test('uses SEED_VAULT_DEFAULT_NOTIFY_SERVER when provided', () => {
@@ -113,6 +147,8 @@ describe('vault config', () => {
         'smtp-user': '',
         'smtp-password': '',
         'smtp-sender': '',
+        'invite-only': false,
+        'admin-secret': '',
       },
       {SEED_VAULT_DEFAULT_NOTIFY_SERVER: 'https://notify.example.com'},
     )
@@ -136,6 +172,8 @@ describe('vault config', () => {
       'smtp-user': '',
       'smtp-password': '',
       'smtp-sender': '',
+      'invite-only': false,
+      'admin-secret': '',
     })
 
     expect(cfg.backend.httpBaseUrl).toBe('https://ipfs.example.com')
@@ -159,7 +197,55 @@ describe('vault config', () => {
         'smtp-user': '',
         'smtp-password': '',
         'smtp-sender': '',
+        'invite-only': false,
+        'admin-secret': '',
       }),
     ).toThrow('Invalid backend gRPC base URL: not-a-url')
+  })
+
+  test('invite-only and admin-secret default to off', () => {
+    const defs = flags({
+      SEED_VAULT_RP_ID: 'example.com',
+      SEED_VAULT_RP_ORIGIN: 'https://example.com',
+    })
+
+    expect(defs['invite-only'].default).toBe(false)
+    expect(defs['admin-secret'].default).toBe('')
+  })
+
+  test('parses SEED_VAULT_INVITE_ONLY and SEED_VAULT_ADMIN_SECRET from the env', () => {
+    const defs = flags({
+      SEED_VAULT_RP_ID: 'example.com',
+      SEED_VAULT_RP_ORIGIN: 'https://example.com',
+      SEED_VAULT_INVITE_ONLY: 'true',
+      SEED_VAULT_ADMIN_SECRET: 'top-secret',
+    })
+
+    expect(defs['invite-only'].default).toBe(true)
+    expect(defs['admin-secret'].default).toBe('top-secret')
+    expect(flags({SEED_VAULT_INVITE_ONLY: 'false'})['invite-only'].default).toBe(false)
+    expect(flags({SEED_VAULT_INVITE_ONLY: '1'})['invite-only'].default).toBe(true)
+
+    const cfg = create({
+      'server-hostname': '0.0.0.0',
+      'server-port': 3000,
+      'rp-id': 'example.com',
+      'rp-name': 'Vault',
+      'rp-origin': 'https://example.com',
+      'db-path': ':memory:',
+      'backend-http-base-url': 'https://ipfs.example.com',
+      'backend-grpc-base-url': '',
+      'web-base-url': '',
+      'smtp-host': '',
+      'smtp-port': 587,
+      'smtp-user': '',
+      'smtp-password': '',
+      'smtp-sender': '',
+      'invite-only': defs['invite-only'].default,
+      'admin-secret': defs['admin-secret'].default,
+    })
+
+    expect(cfg.inviteOnly).toBe(true)
+    expect(cfg.adminSecret).toBe('top-secret')
   })
 })

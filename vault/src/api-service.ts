@@ -2,6 +2,8 @@ import type {Database} from 'bun:sqlite'
 import * as connect from '@connectrpc/connect'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import * as base64 from '@seed-hypermedia/client/base64'
+import * as blobs from '@seed-hypermedia/client/blobs'
+import {ed25519} from '@noble/curves/ed25519.js'
 import type {GRPCClient} from '@shm/shared/grpc-client'
 import * as webauthn from '@simplewebauthn/server'
 import {argon2id} from 'hash-wasm'
@@ -10,7 +12,7 @@ import * as cookies from '@/cookies'
 import type * as config from '@/config'
 import type * as email from '@/email'
 import * as sess from '@/session'
-import type * as api from './api'
+import * as api from './api'
 
 const isProd = process.env.NODE_ENV === 'production'
 
@@ -68,6 +70,22 @@ interface Challenge {
 interface VaultAccess {
   userId: string
   credentialId?: string
+}
+
+interface Invitation {
+  code: string
+  email: string | null
+  create_time: number
+  used_time: number | null
+  used_by_account: string | null
+}
+
+/** Optional server features, off by default. */
+export type ServiceOptions = {
+  /** Require a valid, unused invitation code to create an account. */
+  inviteOnly?: boolean
+  /** Bearer secret for the admin API. Empty disables the admin API (404). */
+  adminSecret?: string
 }
 
 function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
@@ -144,6 +162,12 @@ function createEmailBinding(): string {
   return base64.encode(bindingBytes)
 }
 
+function createInvitationCode(): string {
+  const codeBytes = new Uint8Array(32)
+  crypto.getRandomValues(codeBytes)
+  return base64.encode(codeBytes)
+}
+
 function hashEmailBinding(binding: string): Uint8Array {
   return sha256Hash(textEncoder.encode(binding))
 }
@@ -178,6 +202,9 @@ const EMAIL_CODE_BINDING_COOKIE_MAX_AGE_SECONDS = EMAIL_CODE_EXPIRY_MS / 1000
 const VAULT_CONNECT_TTL_MS = 15 * 60 * 1000
 const VAULT_CONNECT_ID_PATTERN = /^[A-Za-z0-9_-]{43}$/
 const VAULT_CONNECT_MAX_PAYLOAD_LENGTH = 4096
+const INVITATION_CODE_PATTERN = /^[A-Za-z0-9_-]{32,128}$/
+const INVITATIONS_MAX_BATCH = 100
+const VAULT_ACCOUNTS_MAX = 500
 
 const textEncoder = new TextEncoder()
 
@@ -194,6 +221,8 @@ export class Service implements api.ServerInterface {
   private rp: config.RelyingParty
   private hmacSecret: Uint8Array
   private emailSender: email.EmailSender
+  private inviteOnly: boolean
+  private adminSecret: string
   constructor(
     db: Database,
     backendHttpBaseUrl: string,
@@ -203,6 +232,7 @@ export class Service implements api.ServerInterface {
     rp: config.RelyingParty,
     hmacSecret: Uint8Array,
     emailSender: email.EmailSender,
+    opts: ServiceOptions = {},
   ) {
     this.db = db
     this.sessions = new sess.Store(db)
@@ -213,6 +243,8 @@ export class Service implements api.ServerInterface {
     this.rp = rp
     this.hmacSecret = hmacSecret
     this.emailSender = emailSender
+    this.inviteOnly = opts.inviteOnly ?? false
+    this.adminSecret = opts.adminSecret ?? ''
   }
 
   /**
@@ -304,6 +336,180 @@ export class Service implements api.ServerInterface {
     }
 
     return {userId: credential.user_id, credentialId: credential.id}
+  }
+
+  /**
+   * Validate an invitation code for registering `email` without consuming it.
+   * Returns the code when the server runs in invite-only mode, null otherwise.
+   */
+  private requireInvitation(invite: string | undefined, email: string): string | null {
+    if (!this.inviteOnly) {
+      return null
+    }
+
+    if (!invite || typeof invite !== 'string') {
+      throw new APIError('This vault is invite-only. An invitation code is required to create an account.', 403)
+    }
+
+    const code = invite.trim()
+    if (!INVITATION_CODE_PATTERN.test(code)) {
+      throw new APIError('Invalid invitation code.', 403)
+    }
+
+    const invitation = this.db.query<Invitation, [string]>(`SELECT * FROM invitations WHERE code = ?`).get(code)
+    if (!invitation) {
+      throw new APIError('Invalid invitation code.', 403)
+    }
+    if (invitation.used_time !== null) {
+      throw new APIError('This invitation code has already been used.', 403)
+    }
+    if (invitation.email !== null && invitation.email !== email) {
+      throw new APIError('This invitation code is for a different email address.', 403)
+    }
+
+    return code
+  }
+
+  /**
+   * Mark an invitation as used by `userId`. Must run inside the transaction
+   * that creates the account: the conditional update is what makes a code
+   * single-use under concurrent registrations.
+   */
+  private consumeInvitation(code: string, email: string, userId: string): void {
+    const result = this.db.run(
+      `UPDATE invitations SET used_time = ?, used_by_account = ?
+       WHERE code = ? AND used_time IS NULL AND (email IS NULL OR email = ?)`,
+      [Date.now(), userId, code, email],
+    )
+    if (result.changes === 0) {
+      throw new APIError('This invitation code has already been used.', 403)
+    }
+  }
+
+  private requireAdmin(ctx: api.ServerContext): void {
+    if (!this.adminSecret) {
+      throw new APIError('Not found', 404)
+    }
+
+    const provided = textEncoder.encode(ctx.bearerAuth ?? '')
+    const expected = textEncoder.encode(this.adminSecret)
+    if (!ctx.bearerAuth || !timingSafeEqual(provided, expected)) {
+      throw new APIError('Invalid admin secret', 401)
+    }
+  }
+
+  /** Admin: look up which vault user holds a public account ID. */
+  async adminGetAccount(req: api.AdminGetAccountRequest, ctx: api.ServerContext): Promise<api.AdminGetAccountResponse> {
+    this.requireAdmin(ctx)
+
+    if (!req.accountUid || typeof req.accountUid !== 'string') {
+      throw new APIError('Account ID required', 400)
+    }
+
+    const row = this.db
+      .query<{account_uid: string; create_time: number; email: string | null}, [string]>(
+        `SELECT ua.account_uid, ua.create_time, u.email
+         FROM user_accounts ua JOIN users u ON u.id = ua.user_id
+         WHERE ua.account_uid = ?`,
+      )
+      .get(req.accountUid)
+    if (!row) {
+      throw new APIError('Account not found', 404)
+    }
+
+    return {
+      accountUid: row.account_uid,
+      ...(row.email ? {email: row.email} : {}),
+      createTime: row.create_time,
+    }
+  }
+
+  async syncVaultAccounts(
+    req: api.SyncVaultAccountsRequest,
+    ctx: api.ServerContext,
+  ): Promise<api.SyncVaultAccountsResponse> {
+    const access = this.requireVaultAccess(ctx)
+
+    if (!Array.isArray(req.accounts) || req.accounts.length > VAULT_ACCOUNTS_MAX) {
+      throw new APIError('Invalid accounts', 400)
+    }
+    for (const account of req.accounts) {
+      if (!account || typeof account.uid !== 'string') {
+        throw new APIError('Invalid account ID', 400)
+      }
+      if (!Number.isSafeInteger(account.createTime) || account.createTime < 0) {
+        throw new APIError('Invalid account create time', 400)
+      }
+      if (!account.signature || typeof account.signature !== 'string') {
+        throw new APIError('Missing account signature', 400)
+      }
+      this.verifyAccountClaim(account, access.userId)
+    }
+
+    this.db.transaction(() => {
+      const keep = req.accounts.map((account) => account.uid)
+      const placeholders = keep.map(() => '?').join(', ')
+      this.db.run(
+        keep.length
+          ? `DELETE FROM user_accounts WHERE user_id = ? AND account_uid NOT IN (${placeholders})`
+          : `DELETE FROM user_accounts WHERE user_id = ?`,
+        [access.userId, ...keep],
+      )
+      for (const account of req.accounts) {
+        const owner = this.db
+          .query<{user_id: string}, [string]>(`SELECT user_id FROM user_accounts WHERE account_uid = ?`)
+          .get(account.uid)
+        if (owner && owner.user_id !== access.userId) {
+          throw new APIError('Account is already registered to another vault user', 409)
+        }
+        this.db.run(
+          `INSERT INTO user_accounts (account_uid, user_id, create_time) VALUES (?, ?, ?)
+           ON CONFLICT(account_uid) DO UPDATE SET create_time = excluded.create_time`,
+          [account.uid, access.userId, account.createTime],
+        )
+      }
+    })()
+
+    return {success: true}
+  }
+
+  /** Check that the account key signed the canonical claim for this vault user. */
+  private verifyAccountClaim(claim: api.VaultAccountClaim, userId: string): void {
+    let principal: Uint8Array
+    try {
+      principal = blobs.principalFromString(claim.uid)
+    } catch {
+      throw new APIError('Invalid account ID', 400)
+    }
+
+    const signature = decodeBase64UrlOrThrow(claim.signature, 'account signature')
+    const message = textEncoder.encode(api.vaultAccountClaimMessage(this.rp.origin, userId, claim.uid))
+    const publicKey = principal.slice(blobs.ED25519_VARINT_PREFIX.length)
+
+    let valid = false
+    try {
+      valid = signature.length === blobs.ED25519_SIGNATURE_SIZE && ed25519.verify(signature, message, publicKey)
+    } catch {
+      valid = false
+    }
+    if (!valid) {
+      throw new APIError('Invalid account signature', 403)
+    }
+  }
+
+  private invitationLink(code: string): string {
+    return `${this.rp.origin}/vault?invite=${encodeURIComponent(code)}`
+  }
+
+  private toAdminInvitation(row: Invitation): api.AdminInvitation {
+    return {
+      code: row.code,
+      email: row.email,
+      link: this.invitationLink(row.code),
+      createTime: row.create_time,
+      usedTime: row.used_time,
+      used: row.used_time !== null,
+    }
   }
 
   private requireSessionByID(sessionId: string | null | undefined): sess.Session {
@@ -466,7 +672,61 @@ export class Service implements api.ServerInterface {
       backendHttpBaseUrl: this.backendHttpBaseUrl,
       notificationServerUrl: this.notificationServerUrl,
       webBaseUrl: this.webBaseUrl,
+      inviteOnly: this.inviteOnly,
     }
+  }
+
+  /** Admin: mint one or more invitation codes, optionally bound to an email. */
+  async adminCreateInvitations(
+    req: api.AdminCreateInvitationsRequest,
+    ctx: api.ServerContext,
+  ): Promise<api.AdminCreateInvitationsResponse> {
+    this.requireAdmin(ctx)
+
+    const count = req.count ?? 1
+    if (!Number.isInteger(count) || count < 1 || count > INVITATIONS_MAX_BATCH) {
+      throw new APIError(`count must be an integer between 1 and ${INVITATIONS_MAX_BATCH}`, 400)
+    }
+
+    let boundEmail: string | null = null
+    if (req.email !== undefined && req.email !== null && req.email !== '') {
+      if (typeof req.email !== 'string' || !req.email.includes('@')) {
+        throw new APIError('Invalid email', 400)
+      }
+      boundEmail = normalizeEmail(req.email.trim())
+    }
+
+    const now = Date.now()
+    const rows = this.db.transaction(() => {
+      const created: Invitation[] = []
+      for (let i = 0; i < count; i++) {
+        const row: Invitation = {
+          code: createInvitationCode(),
+          email: boundEmail,
+          create_time: now,
+          used_time: null,
+          used_by_account: null,
+        }
+        this.db.run(`INSERT INTO invitations (code, email, create_time) VALUES (?, ?, ?)`, [
+          row.code,
+          row.email,
+          row.create_time,
+        ])
+        created.push(row)
+      }
+      return created
+    })()
+
+    return {invitations: rows.map((row) => this.toAdminInvitation(row))}
+  }
+
+  /** Admin: list invitations with their used/unused state. */
+  async adminListInvitations(ctx: api.ServerContext): Promise<api.AdminListInvitationsResponse> {
+    this.requireAdmin(ctx)
+
+    const rows = this.db.query<Invitation, []>(`SELECT * FROM invitations ORDER BY create_time DESC, code ASC`).all()
+
+    return {invitations: rows.map((row) => this.toAdminInvitation(row))}
   }
 
   async registerStart(req: api.RegisterStartRequest, _ctx: api.ServerContext): Promise<api.RegisterStartResponse> {
@@ -491,6 +751,9 @@ export class Service implements api.ServerInterface {
         throw new APIError('User already exists', 409)
       }
     }
+
+    // Fail before sending any email when the invitation is missing or invalid.
+    this.requireInvitation(req.invite, normalizedEmail)
 
     const now = Date.now()
     const existingChallenge = this.db
@@ -556,6 +819,8 @@ export class Service implements api.ServerInterface {
     }
 
     const normalizedEmail = normalizeEmail(cookieValue.email)
+    const invite = this.requireInvitation(req.invite, normalizedEmail)
+
     const challengeRow = this.db
       .query<Challenge, [string, number]>(`SELECT * FROM email_challenges WHERE email = ? AND expire_time > ?`)
       .get(normalizedEmail, Date.now())
@@ -602,8 +867,21 @@ export class Service implements api.ServerInterface {
       userId = existingUser.id
     } else {
       userId = sess.randomId()
-      this.db.run(`INSERT INTO users (id, email, create_time) VALUES (?, ?, ?)`, [userId, normalizedEmail, Date.now()])
     }
+
+    // Account creation and invitation redemption commit together.
+    this.db.transaction(() => {
+      if (!existingUser) {
+        this.db.run(`INSERT INTO users (id, email, create_time) VALUES (?, ?, ?)`, [
+          userId,
+          normalizedEmail,
+          Date.now(),
+        ])
+      }
+      if (invite) {
+        this.consumeInvitation(invite, normalizedEmail, userId)
+      }
+    })()
 
     const session = this.sessions.createSession(userId)
     ctx.sessionCookie = sess.createCookie(session)

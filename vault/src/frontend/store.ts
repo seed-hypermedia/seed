@@ -1,4 +1,4 @@
-import type * as api from '@/api'
+import * as api from '@/api'
 import {code as cborCodec} from '@ipld/dag-cbor'
 import * as base64 from '@seed-hypermedia/client/base64'
 import * as encryption from '@seed-hypermedia/client/encryption'
@@ -59,9 +59,13 @@ export function getPendingFlowPath(
 }
 
 /** Creates the initial state for the store. */
-function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBaseUrl = '') {
+function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBaseUrl = '', inviteOnly = false) {
   return {
     email: '',
+    /** Whether the server requires an invitation code to create an account. */
+    inviteOnly,
+    /** Invitation code from `?invite=` in the URL or pasted by the user. */
+    inviteCode: '',
     password: '',
     passwordSalt: '',
     confirmPassword: '',
@@ -312,6 +316,12 @@ function clearCurrentURLFragment() {
 function createActions(state: AppState, client: api.ClientInterface, navigator: Navigator, blockstore: Blockstore) {
   let pendingVaultLoad: Promise<void> | null = null
 
+  /** Registration request field carrying the invitation code, when one is set. */
+  function inviteField(): {invite?: string} {
+    const invite = state.inviteCode.trim()
+    return invite ? {invite} : {}
+  }
+
   async function ensurePasswordSalt() {
     if (state.passwordSalt) {
       return state.passwordSalt
@@ -435,6 +445,32 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     }
   }
 
+  /**
+   * Best-effort report of the vault's public account IDs to the server, so
+   * the admin API can answer membership checks. Never blocks the UI.
+   */
+  async function syncVaultAccounts() {
+    const userId = state.session?.userId
+    const rpOrigin = state.relyingPartyOrigin
+    if (!state.vaultData || !userId || !rpOrigin) {
+      return
+    }
+    try {
+      // Each claim is signed by the account key so the server can verify possession.
+      const accounts = await Promise.all(
+        state.vaultData.accounts.map(async (account) => {
+          const kp = blobs.nobleKeyPairFromSeed(account.seed)
+          const uid = blobs.principalToString(kp.principal)
+          const message = new TextEncoder().encode(api.vaultAccountClaimMessage(rpOrigin, userId, uid))
+          return {uid, createTime: account.createTime, signature: base64.encode(await kp.sign(message))}
+        }),
+      )
+      await client.syncVaultAccounts({accounts})
+    } catch (error) {
+      console.warn('Failed to sync vault accounts:', error)
+    }
+  }
+
   async function hydrateVaultData(serverData?: api.GetVaultResponse) {
     if (!state.decryptedDEK) {
       return
@@ -470,6 +506,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     state.vaultVersion = vaultResponse.version ?? 0
     state.vaultLoaded = true
+    void syncVaultAccounts()
   }
 
   async function ensureVaultLoaded(serverData?: api.GetVaultResponse) {
@@ -517,11 +554,30 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
   const actions = {
     resetState() {
-      Object.assign(state, initialState(state.backendHttpBaseUrl, state.notificationServerUrl, state.webBaseUrl))
+      Object.assign(
+        state,
+        initialState(state.backendHttpBaseUrl, state.notificationServerUrl, state.webBaseUrl, state.inviteOnly),
+      )
     },
 
     setEmail(email: string) {
       state.email = email
+    },
+
+    setInviteCode(inviteCode: string) {
+      state.inviteCode = inviteCode
+    },
+
+    /**
+     * Read the invitation code from `?invite=` in the URL (the link the admin
+     * API hands out). No-op when the parameter is absent.
+     */
+    parseInviteFromUrl(url: URL | string) {
+      const parsedURL = typeof url === 'string' ? new URL(url) : url
+      const invite = (parsedURL.searchParams.get('invite') ?? '').trim()
+      if (invite) {
+        state.inviteCode = invite
+      }
     },
 
     setReturnToPath(path: string) {
@@ -648,7 +704,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        const data = await client.registerStart({email: state.email})
+        const data = await client.registerStart({email: state.email, ...inviteField()})
         state.verificationExpireTime = data.expireTime
         state.resendAllowedTime = data.resendAllowedTime
         navigator.go('/verify/pending')
@@ -664,7 +720,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.error = ''
 
       try {
-        await client.registerVerify({code})
+        await client.registerVerify({code, ...inviteField()})
         await actions.checkSession()
         navigator.go('/auth/choose')
       } catch (e) {
@@ -1252,6 +1308,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })
 
         state.vaultVersion++
+        void syncVaultAccounts()
       } catch (e) {
         console.error('Failed to save vault:', e)
         state.error = getVaultSaveErrorMessage(e)
@@ -2005,6 +2062,8 @@ export type StoreActions = ReturnType<typeof createActions>
  * @param blockstore - The IPFS blockstore used for blob storage.
  * @param backendHttpBaseUrl - Daemon base URL used for IPFS-backed assets.
  * @param notificationServerUrl - Notification server URL shown in the footer.
+ * @param webBaseUrl - Public web reader base URL ('' = same origin).
+ * @param inviteOnly - Whether the server requires an invitation code to create an account.
  */
 export function createStore(
   client: api.ClientInterface,
@@ -2012,8 +2071,9 @@ export function createStore(
   backendHttpBaseUrl = '',
   notificationServerUrl = '',
   webBaseUrl = '',
+  inviteOnly = false,
 ) {
-  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl))
+  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl, inviteOnly))
 
   // Default navigator prevents crashes before router is connected
   let navigate = (path: string) => {

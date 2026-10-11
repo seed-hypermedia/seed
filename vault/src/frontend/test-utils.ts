@@ -23,6 +23,7 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
     registerVerify: notImplemented('registerVerify'),
     getVault: notImplemented('getVault'),
     saveVault: notImplemented('saveVault'),
+    syncVaultAccounts: async () => ({success: true}),
     addPassword: notImplemented('addPassword'),
     changePassword: notImplemented('changePassword'),
     addSecretCredential: notImplemented('addSecretCredential'),
@@ -58,6 +59,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       backendHttpBaseUrl: 'https://daemon.example.com',
       notificationServerUrl: 'https://notify.example.com',
       webBaseUrl: 'https://web.example.com',
+      inviteOnly: false,
     }),
     registerStart: async () => ({
       message: 'ok',
@@ -70,6 +72,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
     }),
     getVault: async () => ({encryptedData: '', version: 0, credentials: []}),
     saveVault: async () => ({success: true}),
+    syncVaultAccounts: async () => ({success: true}),
     addPassword: async () => ({success: true}),
     changePassword: async () => ({success: true}),
     addSecretCredential: async () => ({success: true, credentialId: 'secret-credential'}),

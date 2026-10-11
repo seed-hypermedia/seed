@@ -88,6 +88,7 @@ describe('vault account api service', () => {
       backendHttpBaseUrl: 'https://daemon.example.com',
       notificationServerUrl: 'https://notify.example.com',
       webBaseUrl: 'https://web.example.com',
+      inviteOnly: false,
     })
   })
 })

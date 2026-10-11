@@ -230,6 +230,7 @@ export function RootLayout() {
     })
     actions.parseDelegationFromUrl(window.location.href)
     actions.parseVaultConnectionFromUrl(window.location.href)
+    actions.parseInviteFromUrl(window.location.href)
   }, [actions])
 
   // While unlocked, poll for vault data changed on other devices (e.g. desktop).

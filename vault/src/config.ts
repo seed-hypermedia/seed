@@ -36,10 +36,23 @@ export type Config = {
   smtp: email.SmtpConfig | null
   /** Public web reader base URL for "open profile" links ('' = same origin). */
   webBaseUrl: string
+  /** When true, creating an account requires a valid, unused invitation code. */
+  inviteOnly: boolean
+  /** Bearer secret for the admin API ('' = admin API disabled, answers 404). */
+  adminSecret: string
 }
 
+/**
+ * Unset = the hosted notify server. Set to an empty string = no notify server
+ * (the frontend hides notification settings), for isolated deployments.
+ */
 function getDefaultNotificationServerUrl(env: NodeJS.ProcessEnv = process.env) {
-  return env.SEED_VAULT_DEFAULT_NOTIFY_SERVER || 'https://notify.seed.hyper.media'
+  const value = env.SEED_VAULT_DEFAULT_NOTIFY_SERVER
+  return value === undefined ? 'https://notify.seed.hyper.media' : value.trim()
+}
+
+function parseBooleanEnv(value: string | undefined): boolean {
+  return ['1', 'true', 'yes'].includes((value ?? '').trim().toLowerCase())
 }
 
 /** Creates flag definitions with default values parsed from the current env. */
@@ -118,6 +131,17 @@ export const flags = (env: NodeJS.ProcessEnv = process.env) => ({
     default: env.SEED_VAULT_SMTP_SENDER || '',
     description: 'The email address to use as the sender',
   },
+
+  'invite-only': {
+    type: Boolean,
+    default: parseBooleanEnv(env.SEED_VAULT_INVITE_ONLY),
+    description: 'Require a valid invitation code to create an account (sign-in is unaffected)',
+  },
+  'admin-secret': {
+    type: String,
+    default: env.SEED_VAULT_ADMIN_SECRET || '',
+    description: 'Bearer secret for the admin API under /vault/api/admin (empty = admin API disabled)',
+  },
 })
 
 type FlagsDef = ReturnType<typeof flags>
@@ -170,10 +194,12 @@ export function create(pflags: ParsedFlags, env: NodeJS.ProcessEnv = process.env
     throw new Error(`Invalid backend gRPC base URL: ${backend.grpcBaseUrl}`)
   }
 
-  try {
-    new URL(notificationServerUrl)
-  } catch {
-    throw new Error(`Invalid notification server URL: ${notificationServerUrl}`)
+  if (notificationServerUrl) {
+    try {
+      new URL(notificationServerUrl)
+    } catch {
+      throw new Error(`Invalid notification server URL: ${notificationServerUrl}`)
+    }
   }
 
   const dbPath = pflags['db-path']
@@ -196,5 +222,7 @@ export function create(pflags: ParsedFlags, env: NodeJS.ProcessEnv = process.env
     dbPath,
     smtp,
     webBaseUrl: pflags['web-base-url'],
+    inviteOnly: pflags['invite-only'],
+    adminSecret: pflags['admin-secret'],
   }
 }
