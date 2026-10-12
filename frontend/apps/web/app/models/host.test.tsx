@@ -11,6 +11,12 @@ vi.mock('@shm/shared/constants', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@shm/shared/constants')>()),
   SEED_HOST_URL: 'https://hosting.example',
 }))
+const webIdentity = vi.hoisted(() => ({current: null as any}))
+vi.mock('@/auth', () => ({
+  useLocalKeyPair: () => webIdentity.current,
+  keyPairStore: {get: () => webIdentity.current},
+}))
+
 const updatePublication = vi.hoisted(() => vi.fn(async () => {}))
 vi.mock('./site', () => ({updateMovedSitePublication: updatePublication}))
 
@@ -84,6 +90,7 @@ async function signIn(email = move.email) {
 
 beforeEach(() => {
   ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
+  webIdentity.current = null
   localStorage.clear()
   client = new QueryClient({
     defaultOptions: {queries: {retry: false}, mutations: {retry: false}},
@@ -456,3 +463,75 @@ it('uses the managed address for domain creation while retaining the current cus
     'https://replacement.example',
   )
 })
+
+const vaultProof = {
+  email: move.email,
+  host: 'https://vault.example',
+  signer: 'signed-vault-key',
+  sig: 'proof-signature',
+}
+function vaultIdentity() {
+  webIdentity.current = {
+    id: 'browser-key',
+    delegatedAccountUid: 'space',
+    capabilityCid: 'capability',
+    emailPrevalidation: vaultProof,
+  }
+}
+
+it('uses only the visitor signed vault proof to authenticate hosting', async () => {
+  vaultIdentity()
+  mount()
+  expect(session.canLoginWithVault).toBe(true)
+  expect(session.vaultEmail).toBe(move.email)
+  respond = (url) =>
+    url.endsWith('/info')
+      ? json({})
+      : json({status: 'success', email: move.email, sessionToken: 'vault-token', userId: '1'})
+  await act(async () => {
+    await session.loginWithVaultAsync()
+  })
+  const request = requests.find(({url}) => url.endsWith('/auth/vault'))!
+  expect(JSON.parse(String(request.options.body))).toEqual(vaultProof)
+  expect(stored().sessionToken).toBe('vault-token')
+  expect(session.loggedIn).toBe(true)
+  expect(requests.some(({url}) => url.includes('/auth/code/'))).toBe(false)
+})
+
+it('keeps email verification available when hosting rejects vault prevalidation', async () => {
+  vaultIdentity()
+  mount()
+  respond = (url) => (url.endsWith('/info') ? json({}) : json({status: 'error', message: 'Email validation required.'}))
+  await act(async () => {
+    await expect(session.loginWithVaultAsync()).rejects.toThrow('Email validation required')
+  })
+  expect(session.loggedIn).toBe(false)
+})
+
+it.each(['logout', 'identity switch', 'email proof change'])(
+  'rejects an in-flight vault login after %s',
+  async (change) => {
+    vaultIdentity()
+    mount()
+    const response = deferred<Response>()
+    respond = (url) => (url.endsWith('/auth/vault') ? response.promise : json({}))
+    let login!: Promise<void>
+    await act(async () => {
+      login = session.loginWithVaultAsync()
+      await Promise.resolve()
+    })
+    const rejected = expect(login).rejects.toThrow(
+      change === 'logout' ? 'Hosting session changed' : 'Signing identity changed',
+    )
+    await act(async () => {
+      if (change === 'logout') await logoutHosting()
+      else if (change === 'email proof change')
+        webIdentity.current = {...webIdentity.current, emailPrevalidation: {...vaultProof, email: 'other@example.com'}}
+      else webIdentity.current = {...webIdentity.current, delegatedAccountUid: 'other-owner'}
+      response.resolve(json({status: 'success', email: move.email, sessionToken: 'stale-token', userId: '1'}))
+      await rejected
+    })
+    expect(session.loggedIn).toBe(false)
+    expect(localStorage.getItem(storageKey) || '').not.toContain('stale-token')
+  },
+)

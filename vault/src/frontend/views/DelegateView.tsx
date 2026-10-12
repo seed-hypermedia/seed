@@ -117,6 +117,9 @@ export function DelegateView() {
         <CardDescription className="text-left">
           Join <span className="text-foreground font-medium">{siteDisplayName}</span> to comment, reply, and
           participate.
+          {delegationRequest.emailPrevalidation && (
+            <span className="mt-2 block">Continuing shares your verified email with {clientHostname}.</span>
+          )}
           {/* The site name is claimed by the requesting site, so keep the real origin visible. */}
           {delegationRequest.siteName && (
             <span className="text-muted-foreground my-3 block text-xs">{clientHostname}</span>

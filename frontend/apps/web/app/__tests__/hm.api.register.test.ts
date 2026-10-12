@@ -17,11 +17,14 @@ vi.mock('@/site-config.server', () => ({getConfig: mocks.getConfig, writeConfig:
 
 import {action, loader} from '../routes/hm.api.register'
 
-function register(input: {peerId?: string; registrationSecret?: string} = {}) {
+function register(input: {peerId?: string; registrationSecret?: string} = {}, forwardedHost?: string) {
   return action({
     request: new Request('http://myspace.localhost:3000/hm/api/register', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        ...(forwardedHost ? {'X-Forwarded-Host': forwardedHost, 'X-Forwarded-Proto': 'https'} : {}),
+      },
       body: JSON.stringify({
         registrationSecret: 'setup-secret',
         accountUid: 'space-account',
@@ -69,6 +72,21 @@ describe('/hm/api/register action', () => {
       sourcePeerId: 'publishing-peer',
     })
     expect(mocks.connect.mock.invocationCallOrder[0]).toBeLessThan(mocks.writeConfig.mock.invocationCallOrder[0]!)
+  })
+
+  it('writes the same forwarded hostname whose registration secret was validated', async () => {
+    const forwardedHost = 'published-space.hyper.media'
+    mocks.getConfig.mockImplementation(async (hostname) =>
+      hostname === forwardedHost ? {availableRegistrationSecret: 'setup-secret'} : null,
+    )
+    const response = await register({}, forwardedHost)
+
+    expect(response.status).toBe(200)
+    expect(mocks.getConfig).toHaveBeenCalledExactlyOnceWith(forwardedHost)
+    expect(mocks.writeConfig).toHaveBeenCalledExactlyOnceWith(forwardedHost, {
+      registeredAccountUid: 'space-account',
+      sourcePeerId: 'publishing-peer',
+    })
   })
 
   it('returns real connection failures without recording the space as registered', async () => {

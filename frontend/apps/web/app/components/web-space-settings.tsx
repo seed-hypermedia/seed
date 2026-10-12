@@ -1,5 +1,4 @@
-import {useLocalKeyPair} from '@/auth'
-import {useWebCanEdit} from '@/document-edit/use-web-can-edit'
+import {useLocalKeyPair, useLocalKeyPairLoaded} from '@/auth'
 import {makeWebFileUpload} from '@/document-edit/web-image-upload'
 import {useUpdateHomeDocument} from '@/models/site'
 import type {HMDocument, HMMetadata, HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -7,76 +6,121 @@ import {hmId, useUniversalClient} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
-import {DialogDescription, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {Switch} from '@shm/ui/components/switch'
-import {Tabs, TabsContent, TabsList, TabsTrigger} from '@shm/ui/components/tabs'
+import {ScrollArea} from '@shm/ui/components/scroll-area'
+import {useNavigate} from '@shm/shared/utils/navigation'
+import {SizableText} from '@shm/ui/text'
+import {cn} from '@shm/ui/utils'
 import {useImageUrl} from '@shm/ui/get-file-url'
 import {ImageForm} from '@shm/ui/image-form'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
-import {ArrowDown, ArrowUp, Plus, Trash} from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  Globe,
+  Image as ImageIcon,
+  Navigation as NavigationIcon,
+  Plus,
+  Trash,
+} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useState} from 'react'
 import {WebDomainSettings} from './web-hosting'
 
-/** Browser space settings publish through the owner's active vault delegation. */
-export function WebSpaceSettingsDialog({input}: {input: {siteUid: string}; onClose: () => void}) {
+const SETTINGS_SECTIONS = [
+  {key: 'identity', label: 'Identity', icon: ImageIcon},
+  {key: 'navigation', label: 'Navigation', icon: NavigationIcon},
+  {key: 'web-domain', label: 'Web Domain', icon: Globe},
+] as const
+
+/** Full-page browser settings use the desktop master/detail layout and owner delegation. */
+export function WebSpaceSettingsPage({
+  siteUid,
+  section,
+}: {
+  siteUid: string
+  section?: 'identity' | 'navigation' | 'web-domain'
+}) {
   const identity = useLocalKeyPair()
-  const siteId = useMemo(() => hmId(input.siteUid, {latest: true}), [input.siteUid])
-  const access = useWebCanEdit(siteId)
+  const identityLoaded = useLocalKeyPairLoaded()
+  const navigate = useNavigate()
+  const siteId = useMemo(() => hmId(siteUid, {latest: true}), [siteUid])
   const resource = useResource(siteId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
-  const canManage = access.canEdit && access.signingAccountId === siteId.uid && !!identity?.capabilityCid
+  // Ownership follows the delegated account, independent of the site serving this page.
+  const canManage = identity?.delegatedAccountUid === siteId.uid && !!identity?.capabilityCid
+  const activeSection = section ?? 'identity'
 
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <div className="pr-6">
-        <DialogTitle>Space Settings</DialogTitle>
-        <DialogDescription>Manage your space’s identity, navigation, and web address.</DialogDescription>
-      </div>
-      {!canManage ? (
-        <p className="text-muted-foreground">Sign in as the space owner to change these settings.</p>
-      ) : resource.isInitialLoading ? (
-        <Spinner />
-      ) : !document ? (
-        <div className="flex flex-col gap-3">
-          <p role="alert">
-            {resource.isError ? 'Could not load your space.' : 'Publish your space before changing its settings.'}
-          </p>
-          {resource.isError ? <Button onClick={() => resource.refetch()}>Retry</Button> : null}
+    <div className="bg-panel flex h-full min-h-0 w-full overflow-hidden">
+      <nav
+        aria-label="Space Settings"
+        className={cn(
+          'border-border w-full shrink-0 flex-col gap-1 overflow-y-auto p-2 sm:flex sm:w-[220px] sm:border-r',
+          section ? 'hidden' : 'flex',
+        )}
+      >
+        <SizableText size="xs" weight="bold" color="muted" className="px-3 py-2 uppercase">
+          Space Settings
+        </SizableText>
+        {SETTINGS_SECTIONS.map(({key, label, icon: Icon}) => (
+          <button
+            key={key}
+            type="button"
+            aria-current={activeSection === key ? 'page' : undefined}
+            className={cn(
+              'flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors',
+              activeSection === key ? 'bg-brand/10 text-brand-2 font-medium' : 'text-muted-foreground hover:bg-muted',
+            )}
+            onClick={() => navigate({key: 'site-settings', id: siteId, tab: key})}
+          >
+            <Icon className="size-4" />
+            {label}
+          </button>
+        ))}
+      </nav>
+      <ScrollArea className={cn('min-w-0 flex-1 sm:block', section ? 'block' : 'hidden')}>
+        <div className="flex flex-col gap-6 p-4 sm:p-6">
+          <Button
+            variant="ghost"
+            className="self-start sm:hidden"
+            onClick={() => navigate({key: 'site-settings', id: siteId})}
+          >
+            <ArrowLeft className="size-4" />
+            Space Settings
+          </Button>
+          {!identityLoaded ? (
+            <div role="status" aria-label="Loading account" className="flex justify-center py-10">
+              <Spinner />
+            </div>
+          ) : !canManage ? (
+            <p className="text-muted-foreground">Sign in as the space owner to change these settings.</p>
+          ) : resource.isInitialLoading ? (
+            <div className="flex justify-center py-10">
+              <Spinner />
+            </div>
+          ) : !document ? (
+            <div className="flex flex-col gap-3">
+              <p role="alert">
+                {resource.isError ? 'Could not load your space.' : 'Publish your space before changing its settings.'}
+              </p>
+              {resource.isError ? <Button onClick={() => resource.refetch()}>Retry</Button> : null}
+            </div>
+          ) : (
+            <div key={`${siteId.uid}:${identity?.id}:${identity?.capabilityCid}:${activeSection}`}>
+              {activeSection === 'identity' && <IdentitySettings siteId={siteId} metadata={document.metadata} />}
+              {activeSection === 'navigation' && <NavigationSettings siteId={siteId} document={document} />}
+              {activeSection === 'web-domain' && <WebDomainSettings siteId={siteId} page />}
+            </div>
+          )}
         </div>
-      ) : (
-        <SettingsTabs
-          key={`${siteId.uid}:${identity?.id}:${identity?.capabilityCid}`}
-          siteId={siteId}
-          document={document}
-        />
-      )}
+      </ScrollArea>
     </div>
-  )
-}
-
-function SettingsTabs({siteId, document}: {siteId: UnpackedHypermediaId; document: HMDocument}) {
-  return (
-    <Tabs defaultValue="identity" className="min-w-0 gap-5">
-      <TabsList className="w-full">
-        <TabsTrigger value="identity">Identity</TabsTrigger>
-        <TabsTrigger value="navigation">Navigation</TabsTrigger>
-        <TabsTrigger value="domain">Web Domain</TabsTrigger>
-      </TabsList>
-      <TabsContent value="identity">
-        <IdentitySettings siteId={siteId} metadata={document.metadata} />
-      </TabsContent>
-      <TabsContent value="navigation">
-        <NavigationSettings siteId={siteId} document={document} />
-      </TabsContent>
-      <TabsContent value="domain" className="flex flex-col gap-4">
-        <WebDomainSettings siteId={siteId} />
-      </TabsContent>
-    </Tabs>
   )
 }
 
@@ -123,13 +167,21 @@ function IdentitySettings({siteId, metadata}: {siteId: UnpackedHypermediaId; met
 
   return (
     <form
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault()
         if (dirty && nameValue.trim() && !saving) void save()
       }}
     >
-      <fieldset disabled={saving} className="flex min-w-0 flex-col gap-5">
+      <div className="flex items-center justify-between gap-4">
+        <SizableText size="2xl" weight="bold">
+          Identity
+        </SizableText>
+        <Button type="submit" aria-label="Save identity" disabled={!dirty || !nameValue.trim() || saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+      <fieldset disabled={saving} className="flex min-w-0 flex-col gap-6">
         <div className="flex flex-col gap-2">
           <Label htmlFor="space-settings-name">Space name</Label>
           <Input
@@ -171,9 +223,6 @@ function IdentitySettings({siteId, metadata}: {siteId: UnpackedHypermediaId; met
           {error}
         </p>
       ) : null}
-      <Button type="submit" className="self-end" disabled={!dirty || !nameValue.trim() || saving}>
-        {saving ? 'Saving…' : 'Save identity'}
-      </Button>
     </form>
   )
 }
@@ -299,13 +348,21 @@ function NavigationSettings({siteId, document}: {siteId: UnpackedHypermediaId; d
   }
   return (
     <form
-      className="flex flex-col gap-5"
+      className="flex flex-col gap-6"
       onSubmit={(event) => {
         event.preventDefault()
         if (dirty && valid && !saving) void save()
       }}
     >
-      <fieldset disabled={saving} className="flex min-w-0 flex-col gap-5">
+      <div className="flex items-center justify-between gap-4">
+        <SizableText size="2xl" weight="bold">
+          Navigation
+        </SizableText>
+        <Button type="submit" aria-label="Save navigation" disabled={!dirty || !valid || saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+      <fieldset disabled={saving} className="flex min-w-0 flex-col gap-6">
         <p className="text-muted-foreground text-sm">
           Home is always the first navigation item. Add links in the order you want them to appear.
         </p>
@@ -414,9 +471,6 @@ function NavigationSettings({siteId, document}: {siteId: UnpackedHypermediaId; d
           {error}
         </p>
       ) : null}
-      <Button type="submit" className="self-end" disabled={!dirty || !valid || saving}>
-        {saving ? 'Saving…' : 'Save navigation'}
-      </Button>
     </form>
   )
 }

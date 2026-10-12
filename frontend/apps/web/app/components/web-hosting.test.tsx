@@ -7,10 +7,14 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 const state = vi.hoisted(() => ({
   host: {} as any,
   permission: {} as any,
+  identity: {} as any,
+  identityLoaded: true,
   resource: {} as any,
   register: vi.fn(),
   remove: vi.fn(),
   update: vi.fn(),
+  navigate: vi.fn(),
+  redirectToVault: vi.fn(),
 }))
 vi.mock('@/models/host', () => ({
   useHostSession: (options?: any) => {
@@ -23,6 +27,11 @@ vi.mock('@/models/site', () => ({
   useRemoveSite: () => ({mutateAsync: state.remove}),
   updateMovedSitePublication: (...args: unknown[]) => state.update(...args),
 }))
+vi.mock('@/auth', () => ({
+  redirectToVaultSignIn: (...args: unknown[]) => state.redirectToVault(...args),
+  useLocalKeyPair: () => state.identity,
+  useLocalKeyPairLoaded: () => state.identityLoaded,
+}))
 vi.mock('@/document-edit/use-web-can-edit', () => ({useWebCanEdit: () => state.permission}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => state.resource}))
 vi.mock('@shm/ui/toast', () => ({toast: {success: vi.fn()}}))
@@ -31,11 +40,6 @@ vi.mock('@shm/ui/button', () => ({
     <button {...props} disabled={props.disabled || loading}>
       {children}
     </button>
-  ),
-}))
-vi.mock('@shm/ui/components/input', () => ({
-  Input: ({onChangeText, ...props}: any) => (
-    <input {...props} onChange={(event) => onChangeText?.(event.target.value)} />
   ),
 }))
 vi.mock('@shm/ui/components/code-input', () => ({
@@ -50,7 +54,15 @@ vi.mock('@shm/ui/components/code-input', () => ({
     />
   ),
 }))
-vi.mock('@shm/ui/text', () => ({SizableText: ({children}: any) => <span>{children}</span>}))
+vi.mock('@shm/ui/text', () => ({
+  SizableText: ({children}: any) => <span>{children}</span>,
+  Text: React.forwardRef(({children}: any, ref: any) => <span ref={ref}>{children}</span>),
+}))
+vi.mock('@shm/ui/tooltip', () => ({Tooltip: ({children}: any) => <>{children}</>}))
+vi.mock('@shm/shared', async (importOriginal) => ({
+  ...(await importOriginal<any>()),
+  useUniversalAppContext: () => ({openUrl: state.navigate}),
+}))
 vi.mock('@shm/ui/components/dialog', () => ({
   Dialog: ({open, children}: any) => (open ? <div>{children}</div> : null),
   DialogContent: ({children}: any) => <div>{children}</div>,
@@ -71,13 +83,17 @@ function render(element: React.ReactNode) {
   act(() => root.render(element))
 }
 async function click(label: string) {
-  const button = [...container.querySelectorAll('button')].find((button) => button.textContent === label)
+  const button = [...container.querySelectorAll('button')].find(
+    (button) => button.textContent?.startsWith(label) || button.getAttribute('aria-label') === label,
+  )
   expect(button, label).toBeTruthy()
   await act(async () => button!.click())
 }
 async function input(label: string, value: string) {
+  const fieldLabel = [...container.querySelectorAll('label')].find((el) => el.textContent?.includes(label))
   const element =
-    [...container.querySelectorAll('label')].find((el) => el.textContent?.includes(label))?.querySelector('input') ||
+    fieldLabel?.querySelector('input') ||
+    (fieldLabel?.htmlFor ? document.getElementById(fieldLabel.htmlFor) : null) ||
     container.querySelector(`input[aria-label="${label}"]`)
   expect(element).toBeTruthy()
   await act(async () => {
@@ -92,7 +108,10 @@ async function submit() {
 }
 beforeEach(() => {
   vi.clearAllMocks()
-  state.permission = {canEdit: true, signingAccountId: 'space', capabilitiesLoading: false}
+  state.identityLoaded = true
+  // Reproduce a delegated owner viewing their space through another site's origin.
+  state.permission = {canEdit: false, signingAccountId: 'space', capabilitiesLoading: false}
+  state.identity = {id: 'browser-key', delegatedAccountUid: 'space', capabilityCid: 'owner-delegation'}
   state.resource = {
     data: {type: 'document', document: {metadata: {siteUrl: 'https://old.seed.host'}, visibility: 'PUBLIC'}},
   }
@@ -119,6 +138,9 @@ beforeEach(() => {
     pendingSiteMoves: [],
     startEmailCode: mutation(),
     verifyEmailCode: mutation(),
+    canLoginWithVault: false,
+    vaultEmail: undefined,
+    loginWithVault: vi.fn(),
     createSite: mutation(),
     createDomain: mutation(),
     cancelPendingDomain: mutation(),
@@ -139,11 +161,113 @@ afterEach(() => {
 })
 
 describe('browser hosting workflows', () => {
-  it('hides metadata actions without the delegated owner capability', () => {
-    state.permission = {canEdit: true, signingAccountId: 'writer'}
+  it.each([
+    {id: 'key', delegatedAccountUid: 'writer', capabilityCid: 'writer-cap'},
+    null,
+    {id: 'space'},
+    {id: 'key', delegatedAccountUid: 'space'},
+  ])('hides settings and first-publish actions without the owner delegation: %j', (identity) => {
+    state.identity = identity
     render(<WebDomainSettings siteId={id} />)
     expect(container.textContent).toContain('Sign in as the space owner')
     expect(container.querySelector('button')).toBeNull()
+    render(<WebHostingDialog input={{id}} onClose={vi.fn()} />)
+    expect(container.textContent).toContain('Sign in as the space owner')
+    expect(container.querySelector('button')).toBeNull()
+  })
+  it('lets a delegated owner manage hosting when the current site excludes them from editing', () => {
+    render(<WebDomainSettings siteId={id} />)
+    expect(container.textContent).toContain('Change Site Address')
+    expect(container.textContent).not.toContain('Sign in as the space owner')
+  })
+  it('lets a delegated owner start hosting immediately after first publication on another site', () => {
+    state.resource.data.document.metadata = {}
+    render(<WebHostingDialog input={{id}} onClose={vi.fn()} />)
+    expect(container.textContent).not.toContain('Sign in as the space owner')
+    expect(container.textContent).toContain('Publish')
+    expect(container.querySelector('button')).not.toBeNull()
+  })
+  it('waits for the browser identity before deciding ownership', () => {
+    state.identity = null
+    state.identityLoaded = false
+    render(<WebDomainSettings siteId={id} />)
+    expect(container.textContent).toContain('Loading web domain')
+    expect(container.textContent).not.toContain('Sign in as the space owner')
+    render(<WebHostingDialog input={{id}} onClose={vi.fn()} />)
+    expect(container.textContent).toContain('Loading hosting settings')
+    expect(container.textContent).not.toContain('Sign in as the space owner')
+  })
+  it('shares all desktop domain and hosting choices', async () => {
+    render(<WebHostingDialog input={{id}} onClose={vi.fn()} />)
+    expect(container.textContent).toContain('Where should this space be available?')
+    expect(container.textContent).toContain('Free seed.host domain')
+    expect(container.textContent).toContain('Custom domain')
+    expect(container.textContent).not.toContain('Connect an Existing Site')
+    await click('Custom domain')
+    expect(container.textContent).toContain('How would you like to host the space?')
+    expect(container.textContent).toContain('Hosting by Seed Hypermedia')
+    expect(container.textContent).not.toContain('Connect an Existing Site')
+    expect(container.textContent).toContain('Self Host on Your Own Server')
+    expect(container.textContent).toContain('Paste a Hosting Setup URL')
+    await click('Back')
+    expect(container.textContent).toContain('Where should this space be available?')
+  })
+  it('uses the shared self-host guide and setup flow without a Seed Hosting session', async () => {
+    state.host.loggedIn = false
+    state.host.isSessionLoaded = false
+    state.host.hostInfo = {isError: true, error: new Error('Seed Hosting offline')}
+    state.register.mockResolvedValue('https://selfhost.example')
+    render(<WebHostingDialog input={{id}} onClose={vi.fn()} />)
+    await click('Custom domain')
+    await click('Self Host on Your Own Server')
+    expect(container.textContent).toContain('Host on Your Own Server')
+    await click('Open Setup Guide')
+    expect(state.navigate).toHaveBeenCalledWith(expect.stringContaining('/resources/self-host-seed'), true)
+    await click('My Setup URL is Ready')
+    await input('Space Setup URL', 'https://selfhost.example/hm/register?secret=owner-setup')
+    await submit()
+    expect(state.register).toHaveBeenCalledWith({url: 'https://selfhost.example/hm/register?secret=owner-setup'})
+    expect(container.textContent).toContain('Published to selfhost.example!')
+    expect(container.textContent).not.toContain('Publish Custom Domain')
+    expect(state.host.startEmailCode.mutateAsync).not.toHaveBeenCalled()
+    expect(state.host.createSite.mutateAsync).not.toHaveBeenCalled()
+  })
+  it('retains the setup URL for retry when self-host publication fails', async () => {
+    state.host.loggedIn = false
+    state.register
+      .mockRejectedValueOnce(new Error('Could not connect to your server'))
+      .mockResolvedValueOnce('https://selfhost.example')
+    render(<WebHostingDialog input={{id}} onClose={vi.fn()} />)
+    await click('Custom domain')
+    await click('Paste a Hosting Setup URL')
+    await input('Space Setup URL', 'https://selfhost.example/hm/register?secret=retry-secret')
+    await submit()
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('Could not connect')
+    expect((container.querySelector('input') as HTMLInputElement).value).toContain('retry-secret')
+    await submit()
+    expect(state.register).toHaveBeenCalledTimes(2)
+    expect(container.textContent).toContain('Published to selfhost.example!')
+  })
+  it('prevents duplicate setup submissions and closing while registration is pending', async () => {
+    let finish!: (url: string) => void
+    state.register.mockImplementation(
+      () =>
+        new Promise<string>((resolve) => {
+          finish = resolve
+        }),
+    )
+    const protect = vi.fn()
+    render(<WebHostingDialog input={{id}} onClose={vi.fn()} setDialogCloseProtection={protect} />)
+    await click('Custom domain')
+    await click('Paste a Hosting Setup URL')
+    await input('Space Setup URL', 'https://selfhost.example/hm/register?secret=once')
+    await submit()
+    await submit()
+    expect(state.register).toHaveBeenCalledTimes(1)
+    expect(protect).toHaveBeenLastCalledWith({preventClose: true, showCloseButton: false})
+    expect((container.querySelector('input') as HTMLInputElement).disabled).toBe(true)
+    await act(async () => finish('https://selfhost.example'))
+    expect(protect).toHaveBeenLastCalledWith({preventClose: false, showCloseButton: true})
   })
   it('only shows rename and transfer for a site owned by the signed-in hosting account', () => {
     state.host.sites.data[0].activeConfig.registeredAccountUid = 'other-space'
@@ -188,7 +312,7 @@ describe('browser hosting workflows', () => {
     await submit()
     expect(state.host.createSite.mutateAsync).toHaveBeenCalledTimes(1)
     expect(state.register).toHaveBeenCalledTimes(2)
-    expect(container.textContent).toContain('Your Space Is Published')
+    expect(container.textContent).toContain('Published to the Web!')
   })
   it('keeps DNS progress and cancellation visible after reopening settings', async () => {
     state.host.pendingDomains = [{id: 'domain', hostname: 'www.example.com', siteUid: 'space', status: 'waiting-dns'}]
@@ -219,9 +343,11 @@ describe('browser hosting workflows', () => {
     state.host.sites.data[0].services = [{serviceEnd: null, plan: {dedicatedServerType: 'server'}}]
     render(<WebDomainSettings siteId={id} />)
     for (const label of ['Transfer Hosting', 'Change Site Address'])
-      expect([...container.querySelectorAll('button')].find((button) => button.textContent === label)?.disabled).toBe(
-        true,
-      )
+      expect(
+        [...container.querySelectorAll('button')].find(
+          (button) => button.textContent?.startsWith(label) || button.getAttribute('aria-label') === label,
+        )?.disabled,
+      ).toBe(true)
   })
 })
 
@@ -260,26 +386,6 @@ describe('hosting ownership mutations', () => {
 })
 
 describe('hosting recovery after reopening', () => {
-  it('connects an owned unregistered site without reserving a second site', async () => {
-    state.resource.data.document.metadata.siteUrl = ''
-    state.host.sites.data = [
-      {
-        id: 'reserved',
-        name: 'reserved',
-        url: 'https://reserved.seed.host',
-        activeConfig: {availableRegistrationSecret: 'secret'},
-        customDomains: [],
-        services: [],
-      },
-    ]
-    state.register.mockResolvedValue('https://reserved.seed.host')
-    render(<WebHostingDialog input={{id}} onClose={vi.fn()} />)
-    await click('Connect an Existing Site')
-    await click('Connect reserved')
-    expect(state.register).toHaveBeenCalledWith({url: 'https://reserved.seed.host/hm/register?secret=secret'})
-    expect(state.host.createSite.mutateAsync).not.toHaveBeenCalled()
-    expect(container.textContent).toContain('Your Space Is Published')
-  })
   it('offers custom domain replacement for an owned site already using a custom domain', () => {
     state.resource.data.document.metadata.siteUrl = 'https://existing.example.com'
     state.host.sites.data[0].customDomains = ['existing.example.com']
@@ -346,18 +452,18 @@ describe('hosting navigation and polling errors', () => {
   })
 
   it.each([
-    ['Use a Free Seed Domain', 'Choose Your Subdomain'],
-    ['Use Your Own Domain', 'Set Up Custom Domain'],
-    ['Connect an Existing Site', 'Choose a site from your Seed Hosting account.'],
+    ['Free seed.host domain', 'Choose Your Subdomain'],
+    ['Hosting by Seed Hypermedia', 'Set Up Custom Domain'],
   ])('preserves %s through hosting login', async (choice, expected) => {
     state.host.loggedIn = false
     render(<WebHostingDialog input={{id}} onClose={vi.fn()} />)
+    if (choice !== 'Free seed.host domain') await click('Custom domain')
     await click(choice)
     expect(container.textContent).toContain('Log in to Seed Hosting')
     state.host.loggedIn = true
     render(<WebHostingDialog input={{id}} onClose={vi.fn()} />)
     expect(container.textContent).toContain(expected)
-    expect(container.textContent).not.toContain('Use a Free Seed Domain')
+    expect(container.textContent).not.toContain('Free seed.host domain')
   })
 
   it('discards another hosting account’s reserved setup URL and form values', async () => {
@@ -374,4 +480,126 @@ describe('hosting navigation and polling errors', () => {
     expect(container.textContent).not.toContain('Finish Publishing')
     expect(container.querySelector('input')?.value).toBe('')
   })
+})
+
+it('tries vault prevalidation before showing the hosting email form', async () => {
+  state.host.loggedIn = false
+  state.host.canLoginWithVault = true
+  state.host.vaultEmail = 'verified@example.com'
+  render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
+  expect(state.host.loginWithVault).toHaveBeenCalledTimes(1)
+  expect(container.textContent).toContain('Signing in…')
+  expect(container.querySelector('input[type="email"]')).toBeNull()
+  // An existing account or untrusted vault falls back to the normal code flow.
+  await act(async () => state.host.loginWithVault.mock.calls[0][1].onSettled())
+  expect((container.querySelector('input[type="email"]') as HTMLInputElement).value).toBe('verified@example.com')
+  expect(state.host.startEmailCode.mutateAsync).not.toHaveBeenCalled()
+  expect(state.host.loginWithVault).toHaveBeenCalledTimes(1)
+})
+
+it('opens the subdomain form directly for a signed-in hosting account', () => {
+  state.identity.vaultUrl = 'https://vault.example.com/vault/delegate'
+  render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
+  expect(container.textContent).toContain('Choose Your Subdomain')
+  expect(container.textContent).toContain('owner@example.com')
+  expect(container.textContent).toContain('Switch account')
+  expect(container.textContent).not.toContain('Continue with Seed Vault')
+  expect(container.textContent).not.toContain('Use an email code instead')
+  expect(state.redirectToVault).not.toHaveBeenCalled()
+})
+
+it('continues from automatic Vault login to the subdomain form without an extra choice', async () => {
+  state.host.loggedIn = false
+  state.host.canLoginWithVault = true
+  state.host.vaultEmail = 'verified@example.com'
+  render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
+  expect(state.host.loginWithVault).toHaveBeenCalledTimes(1)
+  state.host.loggedIn = true
+  state.host.email = 'verified@example.com'
+  render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
+  expect(container.textContent).toContain('Choose Your Subdomain')
+  expect(container.textContent).toContain('verified@example.com')
+  expect(container.textContent).toContain('Switch account')
+  expect(container.querySelector('input[type="email"]')).toBeNull()
+  expect(container.textContent).not.toContain('Continue with Seed Vault')
+})
+
+it.each(['seed-host-subdomain', 'seed-host-custom-domain'] as const)(
+  'keeps an explicit account switch in email login through the hosting-session remount: %s',
+  async (step) => {
+    state.host.canLoginWithVault = true
+    state.host.vaultEmail = 'original@example.com'
+    render(<WebHostingDialog input={{id, step}} onClose={vi.fn()} />)
+    await click('Switch account')
+    expect(state.host.logout).toHaveBeenCalledTimes(1)
+    state.host.loggedIn = false
+    render(<WebHostingDialog input={{id, step}} onClose={vi.fn()} />)
+    expect(container.textContent).toContain('Log in to Seed Hosting')
+    expect((container.querySelector('input[type="email"]') as HTMLInputElement).value).toBe('')
+    expect(state.host.loginWithVault).not.toHaveBeenCalled()
+    expect(state.host.startEmailCode.mutateAsync).not.toHaveBeenCalled()
+    expect(state.redirectToVault).not.toHaveBeenCalled()
+    state.host.loggedIn = true
+    state.host.email = 'different@example.com'
+    render(<WebHostingDialog input={{id, step}} onClose={vi.fn()} />)
+    expect(container.textContent).toContain(
+      step === 'seed-host-subdomain' ? 'Choose Your Subdomain' : 'Set Up Custom Domain',
+    )
+    expect(container.textContent).toContain('different@example.com')
+  },
+)
+
+it('uses the email fallback without a Vault redirect loop when no proof is available', () => {
+  state.host.loggedIn = false
+  state.identity.vaultUrl = 'https://vault.example.com/vault/delegate'
+  render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
+  expect(container.querySelector('input[type="email"]')).not.toBeNull()
+  expect(container.textContent).not.toContain('Continue with Seed Vault')
+  expect(container.textContent).not.toContain('Use an email code instead')
+  expect(state.redirectToVault).not.toHaveBeenCalled()
+  expect(state.host.startEmailCode.mutateAsync).not.toHaveBeenCalled()
+})
+
+it('resumes an owned unregistered address after reopening the publishing dialog', async () => {
+  state.resource.data.document.metadata.siteUrl = ''
+  state.host.sites.data = [
+    {
+      id: 'reserved-id',
+      name: 'foo123444',
+      url: 'http://foo123444.localhost:3000',
+      activeConfig: {availableRegistrationSecret: 'reserved-secret'},
+      customDomains: [],
+      services: [],
+    },
+  ]
+  state.register.mockResolvedValue('http://foo123444.localhost:3000')
+  render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
+  await input('Subdomain', 'foo123444')
+  await submit()
+  expect(state.host.createSite.mutateAsync).not.toHaveBeenCalled()
+  expect(state.register).toHaveBeenCalledExactlyOnceWith({
+    url: 'http://foo123444.localhost:3000/hm/register?secret=reserved-secret',
+  })
+  expect(container.textContent).toContain('http://foo123444.localhost:3000')
+  expect(container.textContent).not.toContain('reserved-secret')
+})
+
+it('does not reuse an address already registered to another space', async () => {
+  state.resource.data.document.metadata.siteUrl = ''
+  state.host.sites.data = [
+    {
+      id: 'reserved-id',
+      name: 'foo123444',
+      url: 'http://foo123444.localhost:3000',
+      activeConfig: {registeredAccountUid: 'another-space', availableRegistrationSecret: 'stale-secret'},
+      customDomains: [],
+      services: [],
+    },
+  ]
+  state.host.createSite.mutateAsync.mockRejectedValue(new Error('Subdomain already in use.'))
+  render(<WebHostingDialog input={{id, step: 'seed-host-subdomain'}} onClose={vi.fn()} />)
+  await input('Subdomain', 'foo123444')
+  await submit()
+  expect(state.register).not.toHaveBeenCalled()
+  expect(container.textContent).toContain('Subdomain already in use.')
 })

@@ -135,7 +135,8 @@ export function extractViewTermFromUrl(url: string): {
   }
 
   // Check for site settings patterns like /:settings or /:settings/<tab>.
-  const settingsPattern = /\/\:settings(?:\/(identity|navigation|members|writers|email-subscribers))?(?=[?#]|$)/
+  const settingsPattern =
+    /\/\:settings(?:\/(identity|navigation|web-domain|members|writers|email-subscribers|agents))?(?=[?#]|$)/
   const settingsMatch = inspectCleanUrl.match(settingsPattern)
   if (settingsMatch) {
     return {

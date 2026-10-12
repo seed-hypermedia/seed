@@ -61,6 +61,10 @@ vi.mock('@/models/entities', () => ({
   fetchResource: vi.fn(),
 }))
 
+vi.mock('@shm/shared/models/entity', () => ({
+  useResource: () => ({data: {type: 'document', document: {metadata: {name: 'My Space'}}}}),
+}))
+
 vi.mock('@/utils/useNavigate', () => ({
   useNavigate: () => vi.fn(),
 }))
@@ -140,6 +144,7 @@ describe('choosing a domain', () => {
     expect(container.textContent).toContain('Hosting by Seed Hypermedia')
     expect(container.textContent).toContain('Self Host on Your Own Server')
     expect(container.textContent).toContain('Paste a Hosting Setup URL')
+    expect(container.textContent).not.toContain('Connect an Existing Site')
     expect(mockState.loginWithVault).not.toHaveBeenCalled()
   })
 })

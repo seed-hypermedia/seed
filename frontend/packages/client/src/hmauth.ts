@@ -26,6 +26,8 @@ export interface HypermediaAuthConfig {
   email?: string
   /** Optional display name of this site, shown in the vault's consent UI. */
   siteName?: string
+  /** Ask Vault to share verified email proof after consent. Disabled by default. */
+  requestEmailPrevalidation?: boolean
 }
 
 /** Stored session key with metadata. */
@@ -63,7 +65,48 @@ export interface AuthResult {
   session: StoredSession
   /** Notification server URL configured by the vault (optional). */
   notifyServerUrl?: string
+  /** Optional Vault email proof, delivered separately from public callback data. */
+  emailPrevalidation?: EmailPrevalidation
 }
+
+/** Vault-signed email proof; the receiving service still verifies its signature and trusted issuer. */
+export interface EmailPrevalidation {
+  email: string
+  signer: string
+  host: string
+  sig: string
+}
+
+/** Validate optional transported email proof without turning malformed metadata into a failed sign-in. */
+export function parseEmailPrevalidation(value: unknown, vaultUrl: string): EmailPrevalidation | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const proof = value as Record<string, unknown>
+  if (
+    typeof proof.email !== 'string' ||
+    !proof.email ||
+    typeof proof.host !== 'string' ||
+    typeof proof.signer !== 'string' ||
+    typeof proof.sig !== 'string'
+  )
+    return undefined
+  try {
+    if (proof.host !== new URL(vaultUrl).origin) return undefined
+    const signer = base64.decode(proof.signer)
+    const signature = base64.decode(proof.sig)
+    if (
+      signer.length !== blobs.ED25519_VARINT_PREFIX.length + 32 ||
+      !blobs.ED25519_VARINT_PREFIX.every((byte, index) => signer[index] === byte) ||
+      signature.length !== 64
+    )
+      return undefined
+    return {email: proof.email, host: proof.host, signer: proof.signer, sig: proof.sig}
+  } catch {
+    return undefined
+  }
+}
+
+/** Signed request opt-in and callback fragment key for private email proof transport. */
+export const PARAM_EMAIL_PREVALIDATION = 'email_prevalidation'
 
 /** URL parameter name for the client ID (origin of the requesting site). */
 export const PARAM_CLIENT_ID = 'client_id'
@@ -178,6 +221,8 @@ function decodeProofSignature(proof: string): Uint8Array {
 export interface DelegationRequest {
   /** Original delegation request URL as received by the vault, including `proof`. */
   originalUrl: string
+  /** Client can consume email proof from the callback fragment without leaking it to HTTP requests. */
+  emailPrevalidation?: boolean
   /** The origin of the requesting site (must be HTTPS). e.g. "https://example.com". */
   clientId: string
   /** Where to redirect after delegation. Must be a strict extension of clientId. */
@@ -336,6 +381,7 @@ export function parseDelegationRequest(url: URL | string): DelegationRequest | n
 
   return {
     originalUrl,
+    emailPrevalidation: parsedUrl.searchParams.get(PARAM_EMAIL_PREVALIDATION) === '1',
     clientId,
     redirectUri,
     sessionKeyPrincipal: sessionKey,

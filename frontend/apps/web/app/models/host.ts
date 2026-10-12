@@ -1,3 +1,4 @@
+import {keyPairStore, useLocalKeyPair} from '@/auth'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {SEED_HOST_URL} from '@shm/shared/constants'
@@ -312,6 +313,7 @@ export function useHostSession({
   onAuthenticated,
   includeSites = false,
 }: {onAuthenticated?: () => void; includeSites?: boolean} = {}) {
+  const identity = useLocalKeyPair()
   const loadedState = useSyncExternalStore(subscribe, readState, () => undefined)
   const hostState = loadedState || emptyState
   const callback = useRef(onAuthenticated)
@@ -345,12 +347,38 @@ export function useHostSession({
     })
     clearAccountQueries()
   })
-  const loginWithVault = useMutation({
-    mutationFn: async () => {
-      // Browser delegation sessions contain no vault-signed email prevalidation proof.
-      // Calling the gateway daemon here would authenticate its owner, not this visitor.
+  const loginWithVault = useAuthMutation(async (_input: void, version) => {
+    assertSession(version)
+    const signingIdentity = keyPairStore.get()
+    const proof = signingIdentity?.emailPrevalidation
+    if (!proof || !signingIdentity?.delegatedAccountUid || !signingIdentity.capabilityCid) {
       throw new Error('Sign in to Seed Hosting with a four-digit email code.')
-    },
+    }
+    // Use this visitor's vault proof, never the gateway daemon's credentials.
+    const response = AbsorbResponseSchema.parse(
+      await hostAPI('auth/vault', 'POST', {
+        email: proof.email,
+        signer: proof.signer,
+        host: proof.host,
+        sig: proof.sig,
+      }),
+    )
+    assertSession(version)
+    if (keyPairStore.get() !== signingIdentity) {
+      throw new Error('Signing identity changed. Please try again.')
+    }
+    if (response.status !== 'success') {
+      throw new Error(response.status === 'error' ? response.message : 'Vault login failed')
+    }
+    const current = readState()
+    writeState({
+      ...current,
+      authVersion: current.authVersion + 1,
+      authGeneration: crypto.randomUUID(),
+      email: response.email,
+      sessionToken: response.sessionToken,
+    })
+    clearAccountQueries()
   })
   const sites = useQuery({
     queryKey: ['HOST_SITES', SEED_HOST_URL, hostState.authGeneration],
@@ -644,7 +672,8 @@ export function useHostSession({
     verifyEmailCode,
     loginWithVault: loginWithVault.mutate,
     loginWithVaultAsync: loginWithVault.mutateAsync,
-    canLoginWithVault: false,
+    canLoginWithVault: !!(identity?.emailPrevalidation && identity.delegatedAccountUid && identity.capabilityCid),
+    vaultEmail: identity?.emailPrevalidation?.email,
     reset: () => {
       void logoutHosting()
     },

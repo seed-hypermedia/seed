@@ -206,3 +206,14 @@ describe('hypermediaUrlToHref', () => {
     ).toBe('hm://uid1/docs/page')
   })
 })
+
+test.each(['identity', 'navigation', 'web-domain', 'agents'] as const)(
+  'restores the settings section %s from a URL',
+  (tab) => {
+    expect(hypermediaUrlToRoute(`hm://uid1/:settings/${tab}`)).toEqual({
+      key: 'site-settings',
+      id: unpackHmId('hm://uid1'),
+      tab,
+    })
+  },
+)

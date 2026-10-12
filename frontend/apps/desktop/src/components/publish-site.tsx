@@ -4,21 +4,26 @@ import {useRemoveSite, useSiteRegistration} from '@/models/site'
 import {useNavigate} from '@/utils/useNavigate'
 import {zodResolver} from '@hookform/resolvers/zod'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {DocumentRoute, hmId, hostnameStripProtocol, useUniversalAppContext} from '@shm/shared'
+import {hmId, hostnameStripProtocol} from '@shm/shared'
 import {SEED_HOST_URL, VERSION} from '@shm/shared/constants'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
 import {validateDomain} from '@shm/shared/utils/path'
 import {Button} from '@shm/ui/button'
-import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {FormInput, FormPathInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
-import {IconComponent, PasteSetupUrl, SeedHost, SelfHost, UploadCloud} from '@shm/ui/icons'
+import {UploadCloud} from '@shm/ui/icons'
+import {
+  PublishSiteFlow,
+  setupGuideRoute,
+  PublishSiteSuccess,
+  PublishError as ErrorBox,
+  PublishStep,
+  publishDialogClassName,
+} from '@shm/ui/publish-site'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {Tooltip} from '@shm/ui/tooltip'
-import {AlertCircle, ArrowLeft, ArrowRight, Check, Copy, ExternalLink, Globe} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
 import {z} from 'zod'
@@ -31,12 +36,8 @@ import {
 } from '@shm/ui/components/alert-dialog'
 import {ExpiryHint} from '@shm/ui/components/change-email-dialog'
 import {CodeInput} from '@shm/ui/components/code-input'
-import {DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
+import {DialogFooter} from '@shm/ui/components/dialog'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {CongratsGraphic, WebPublishedGraphic} from './publish-graphics'
-
-// The publishing dialogs are compact, sized by their content.
-const publishDialogClassName = 'w-full max-w-md max-h-[calc(100dvh-4rem)]'
 
 export function usePublishSite() {
   return useAppDialog(PublishSiteDialog, {className: publishDialogClassName})
@@ -80,146 +81,40 @@ function RemoveSiteDialog({onClose, input}: {onClose: () => void; input: Unpacke
   )
 }
 
-const publishSiteSchema = z.object({
-  url: z.string(),
-})
-type PublishSiteFields = z.infer<typeof publishSiteSchema>
-
-/** One step of a publishing dialog: a title with an optional back button, the step's content, and its actions. */
-function PublishStep({
-  title,
-  description,
-  onBack,
-  footer,
-  children,
-}: React.PropsWithChildren<{
-  title: string
-  description?: React.ReactNode
-  onBack?: () => void
-  footer?: React.ReactNode
-}>) {
-  return (
-    <>
-      <DialogHeader className="pr-6">
-        <div className="flex items-center gap-2">
-          {onBack ? (
-            <Button size="iconSm" variant="ghost" onClick={onBack} aria-label="Back">
-              <ArrowLeft className="size-4" />
-            </Button>
-          ) : null}
-          <DialogTitle>{title}</DialogTitle>
-        </div>
-        {description ? <DialogDescription>{description}</DialogDescription> : null}
-      </DialogHeader>
-      {children}
-      {footer ? <DialogFooter className="items-center">{footer}</DialogFooter> : null}
-    </>
-  )
-}
-
-function PublishOptionButton({
-  icon: Icon,
-  onClick,
-  label,
-  description,
-}: {
-  icon: IconComponent
-  onClick: () => void
-  label: string
-  description?: string
-}) {
-  return (
-    <Button variant="outline" onClick={onClick} className="h-auto justify-start gap-3 px-3 py-3 text-left">
-      <span className="text-muted-foreground flex size-6 shrink-0 items-center justify-center">
-        <Icon size={24} color="currentColor" />
-      </span>
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <SizableText weight="medium">{label}</SizableText>
-        {description ? (
-          <SizableText size="xs" color="muted" className="whitespace-normal">
-            {description}
-          </SizableText>
-        ) : null}
-      </div>
-    </Button>
-  )
-}
-
 /** The publishing dialog: choose a domain, then the hosting for it. */
 export function PublishSiteDialog({
   input,
   onClose,
+  setDialogCloseProtection,
 }: {
-  input: {
-    id: UnpackedHypermediaId
-    step?: 'seed-host-custom-domain' | undefined
-  }
+  input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain' | 'seed-host-subdomain'}
   onClose: () => void
+  setDialogCloseProtection?: (value: {preventClose: boolean; showCloseButton: boolean}) => void
 }) {
   const {id, step: initialStep} = input
   const {hostInfo} = useHostSession()
-  const [mode, setMode] = useState<
-    'choose-domain' | 'choose-hosting' | 'input-url' | 'self-host' | 'seed-host' | 'seed-host-custom-domain'
-  >(initialStep || 'choose-domain')
-  if (mode === 'input-url') {
-    return <PublishWithUrl id={id} onComplete={onClose} onBack={() => setMode('choose-hosting')} />
-  }
-  if (mode === 'self-host') {
-    return <SelfHostContent onSetupUrl={() => setMode('input-url')} onBack={() => setMode('choose-hosting')} />
-  }
-  if (mode === 'seed-host') {
-    return <SeedHostContent onClose={onClose} onBack={() => setMode('choose-domain')} id={id} />
-  }
-  if (mode === 'seed-host-custom-domain') {
-    return <SeedHostRegisterCustomDomain id={id} onClose={onClose} />
-  }
-  if (mode === 'choose-hosting') {
-    return (
-      <PublishStep
-        title="Custom Domain"
-        description="How would you like to host the space?"
-        onBack={() => setMode('choose-domain')}
-      >
-        <div className="flex flex-col gap-2">
-          <PublishOptionButton
-            icon={SeedHost}
-            onClick={() => setMode('seed-host')}
-            label="Hosting by Seed Hypermedia"
-            description="Free. Point your domain at it once the space is published."
-          />
-          <PublishOptionButton
-            icon={SelfHost}
-            onClick={() => setMode('self-host')}
-            label="Self Host on Your Own Server"
-            description="Run the Seed site software on a server that you manage."
-          />
-          <PublishOptionButton
-            icon={PasteSetupUrl}
-            onClick={() => setMode('input-url')}
-            label="Paste a Hosting Setup URL"
-            description="Your server is already set up and printed its setup URL."
-          />
-        </div>
-      </PublishStep>
-    )
-  }
+  const entity = useResource(id)
+  const document = entity.data?.type === 'document' ? entity.data.document : undefined
+  const register = useSiteRegistration(id.uid)
+  const spawn = useNavigate('spawn')
   return (
-    <PublishStep title="Publish to the Web" description="Where should this space be available?">
-      <div className="flex flex-col gap-2">
-        <PublishOptionButton
-          icon={SeedHost}
-          onClick={() => setMode('seed-host')}
-          label={`Free ${hostInfo.data?.hostDomain || 'hyper.media'} domain`}
-          description="A subdomain of your choice, hosted by Seed Hypermedia."
-        />
-        <PublishOptionButton
-          icon={Globe}
-          onClick={() => setMode('choose-hosting')}
-          label="Custom domain"
-          description="A domain that you own."
-        />
-      </div>
-    </PublishStep>
+    <PublishSiteFlow
+      key={`${id.id}:${initialStep || 'choose'}`}
+      hostDomain={hostInfo.data?.hostDomain || 'hyper.media'}
+      documentTitle={getDocumentTitle(document)}
+      initialStep={initialStep}
+      onClose={onClose}
+      onOpenSetupGuide={() => spawn(setupGuideRoute)}
+      onRegister={(url) => register.mutateAsync({url})}
+      setDialogCloseProtection={setDialogCloseProtection}
+      renderHosting={({customDomain, onBack, onClose}) =>
+        customDomain && !!document?.metadata.siteUrl ? (
+          <SeedHostRegisterCustomDomain id={id} onClose={onClose} onBack={onBack} />
+        ) : (
+          <SeedHostContent id={id} onClose={onClose} onBack={onBack} />
+        )
+      }
+    />
   )
 }
 
@@ -487,18 +382,6 @@ function SeedHostRegisterSubdomain({
   )
 }
 
-function ErrorBox({error}: {error: string | null}) {
-  if (!error) return null
-  return (
-    <div className="border-destructive flex items-center gap-3 rounded-md border p-3">
-      <AlertCircle className="text-destructive size-5 shrink-0" />
-      <SizableText size="sm" className="text-destructive">
-        {error}
-      </SizableText>
-    </div>
-  )
-}
-
 function SeedHostSubdomainPublished({
   onClose,
   host,
@@ -509,70 +392,7 @@ function SeedHostSubdomainPublished({
   id: UnpackedHypermediaId
   onCustomDomain: () => void
 }) {
-  return (
-    <PublishStep
-      title="Published to the Web!"
-      description="Here is the link to your space. You can also publish it to a domain that you own."
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose}>
-            <Check className="size-4" />
-            Close
-          </Button>
-          <Button variant="default" onClick={onCustomDomain}>
-            Publish Custom Domain
-            <ArrowRight className="size-4" />
-          </Button>
-        </>
-      }
-    >
-      <div className="flex justify-center py-2">
-        <WebPublishedGraphic className="h-24 w-auto" />
-      </div>
-      <PublishedUrl url={host} />
-    </PublishStep>
-  )
-}
-
-function PublishedUrl({url}: {url: string}) {
-  const {openUrl} = useUniversalAppContext()
-  const textRef = useRef<any>(null)
-  return (
-    <div className="border-border bg-muted flex items-center gap-1 overflow-hidden rounded-md border p-1 pl-3">
-      <Text
-        size="sm"
-        weight="medium"
-        className="min-w-0 flex-1 truncate"
-        ref={textRef}
-        onClick={() => {
-          if (textRef.current) {
-            const range = document.createRange()
-            range.selectNode(textRef.current)
-            window.getSelection()?.removeAllRanges()
-            window.getSelection()?.addRange(range)
-          }
-        }}
-      >
-        {url}
-      </Text>
-      <Tooltip content="Copy URL">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            copyTextToClipboard(url)
-            toast(`Copied ${url} URL`)
-          }}
-        >
-          <Copy className="size-4" />
-        </Button>
-      </Tooltip>
-      <Button variant="default" size="sm" onClick={() => openUrl(url)}>
-        Open
-        <ExternalLink className="size-4" />
-      </Button>
-    </div>
-  )
+  return <PublishSiteSuccess url={host} onClose={onClose} onCustomDomain={onCustomDomain} />
 }
 
 const activelyWatchedDomainIds = new Set<string>()
@@ -640,23 +460,7 @@ function SeedHostDomainPublishedDialog({
 }
 
 function SeedHostDomainPublished({onClose, host}: {onClose: () => void; host: string; id: UnpackedHypermediaId}) {
-  return (
-    <PublishStep
-      title={`Published to ${host}!`}
-      description="Here is the link for your space."
-      footer={
-        <Button variant="default" onClick={onClose}>
-          <Check className="size-4" />
-          Done
-        </Button>
-      }
-    >
-      <div className="flex justify-center py-2">
-        <CongratsGraphic className="h-24 w-auto" />
-      </div>
-      <PublishedUrl url={`https://${host}`} />
-    </PublishStep>
-  )
+  return <PublishSiteSuccess url={`https://${host}`} onClose={onClose} />
 }
 
 const RegisterCustomDomainSchema = z.object({
@@ -889,117 +693,4 @@ export function SeedHostContent({
   }
 
   return null
-}
-
-function SelfHostContent({onSetupUrl, onBack}: {onSetupUrl: () => void; onBack: () => void}) {
-  const spawn = useNavigate('spawn')
-  return (
-    <PublishStep
-      title="Host on Your Own Server"
-      description="You will need your own server and domain. Follow the guide to get started, and return when the setup script has printed the setup URL."
-      onBack={onBack}
-      footer={
-        <>
-          <Button
-            variant="outline"
-            onClick={() => {
-              spawn(setupGuideRoute)
-            }}
-          >
-            <ExternalLink className="size-4" />
-            Open Setup Guide
-          </Button>
-          <Button variant="default" onClick={onSetupUrl}>
-            My Setup URL is Ready
-            <ArrowRight className="size-4" />
-          </Button>
-        </>
-      }
-    />
-  )
-}
-
-function PublishWithUrl({
-  id,
-  onComplete,
-  onBack,
-}: {
-  id: UnpackedHypermediaId
-  onComplete: () => void
-  onBack?: () => void
-}) {
-  const entity = useResource(id)
-  const document = entity.data?.type === 'document' ? entity.data.document : undefined
-  const replace = useNavigate('replace')
-  const register = useSiteRegistration(id.uid)
-  const onSubmit: SubmitHandler<PublishSiteFields> = (data) => {
-    register.mutateAsync({url: data.url}).then((publishedUrl) => {
-      onComplete()
-      toast.success(`Space published to ${publishedUrl}`)
-      // make sure the user is seeing the latest version of the site that now includes the url
-      replace({key: 'document', id: {...id, version: null, latest: true}})
-    })
-  }
-  const {
-    control,
-    handleSubmit,
-    setFocus,
-    formState: {errors},
-  } = useForm<PublishSiteFields>({
-    resolver: zodResolver(publishSiteSchema),
-    defaultValues: {
-      url: '',
-    },
-  })
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setFocus('url')
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [setFocus])
-  const spawn = useNavigate('spawn')
-  return (
-    <PublishStep
-      title={`Publish "${getDocumentTitle(document)}"`}
-      description={
-        <>
-          The{' '}
-          <Button
-            variant="link"
-            size="xs"
-            className="h-auto p-0 text-sm"
-            onClick={() => {
-              spawn(setupGuideRoute)
-            }}
-          >
-            server setup
-          </Button>{' '}
-          outputs a setup URL for you to paste here.
-        </>
-      }
-      onBack={onBack}
-    >
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <FormField name="url" label="Space Setup URL" errors={errors}>
-          <FormInput control={control} name="url" placeholder="https://mysite.com/hm/register?..." />
-        </FormField>
-        {/* @ts-expect-error */}
-        {register.error ? <ErrorBox error={register.error.message} /> : null}
-        <DialogFooter>
-          <Button variant="default" type="submit" disabled={register.isLoading} loading={register.isLoading}>
-            <UploadCloud className="size-4" />
-            Publish Space
-          </Button>
-        </DialogFooter>
-      </form>
-    </PublishStep>
-  )
-}
-
-const setupGuideId = hmId('z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS', {
-  path: ['resources', 'self-host-seed'],
-})
-const setupGuideRoute: DocumentRoute = {
-  key: 'document',
-  id: setupGuideId,
 }

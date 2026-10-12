@@ -60,6 +60,12 @@ export function CreateProfileView() {
       <CardContent>
         <p className="text-muted-foreground mb-6 text-sm">Add a name and photo so people recognize you.</p>
 
+        {delegationRequest?.emailPrevalidation && (
+          <p className="text-muted-foreground mb-4 text-sm">
+            Continuing shares your verified email with {new URL(delegationRequest.clientId).host}.
+          </p>
+        )}
+
         <AccountProfileForm
           showDescription={false}
           submitLabel="Start participating"
