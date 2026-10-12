@@ -122,7 +122,7 @@ jobs:
             echo 'Configure the UI_NPM_TOKEN repository secret with publish access to @shm before releasing.' >&2
             exit 1
           fi
-          packages=(ui-package/*.tgz)
+          packages=(./ui-package/*.tgz)
           if [ "${#packages[@]}" -ne 1 ] || [ ! -f "${packages[0]}" ]; then
             echo 'Expected exactly one validated UI package tarball.' >&2
             exit 1
