@@ -119,7 +119,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo 'Configure the UI_NPM_TOKEN repository secret with publish access to @shm before releasing.' >&2
+            echo 'Configure the UI_NPM_TOKEN repository secret with publish access to @seed-hypermedia before releasing.' >&2
             exit 1
           fi
           packages=(./ui-package/*.tgz)

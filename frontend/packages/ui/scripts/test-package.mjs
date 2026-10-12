@@ -20,10 +20,11 @@ try {
       },
     ),
   )[0]
-  const install = path.join(temporary, 'node_modules/@shm/ui')
+  const install = path.join(temporary, 'node_modules/@seed-hypermedia/ui')
   await mkdir(install, {recursive: true})
   execFileSync('tar', ['-xzf', path.join(temporary, packed.filename), '--strip-components=1', '-C', install])
   const manifest = JSON.parse(await readFile(path.join(install, 'package.json'), 'utf8'))
+  assert.equal(manifest.name, '@seed-hypermedia/ui')
   assert.equal(manifest.private, undefined)
   assert.equal(manifest.type, 'module')
   assert(!JSON.stringify(manifest).includes('workspace:'))
@@ -78,9 +79,11 @@ try {
 import assert from 'node:assert/strict'
 import {createElement} from 'react'
 import {renderToStaticMarkup} from 'react-dom/server'
-import {Button} from '@shm/ui/button'
-import {CodeInput} from '@shm/ui/components/code-input'
-for (const entry of ${JSON.stringify(specifiers)}) await import(entry === '.' ? '@shm/ui' : '@shm/ui/' + entry.slice(2))
+import {Button} from '@seed-hypermedia/ui/button'
+import {CodeInput} from '@seed-hypermedia/ui/components/code-input'
+for (const entry of ${JSON.stringify(
+      specifiers,
+    )}) await import(entry === '.' ? '@seed-hypermedia/ui' : '@seed-hypermedia/ui/' + entry.slice(2))
 const button = renderToStaticMarkup(createElement(Button, {loading: true, disabled: false}, 'Continue'))
 assert.match(button, /disabled=""/)
 const code = renderToStaticMarkup(createElement(CodeInput, {value: '', onChange() {}, length: 6}))
@@ -92,12 +95,12 @@ assert.match(code, /min-w-0/)
   await writeFile(
     path.join(temporary, 'consumer.tsx'),
     `
-import {Button, type ButtonProps} from '@shm/ui/button'
-import {Input} from '@shm/ui/input'
-import {Dialog, DialogContent, DialogTitle} from '@shm/ui/dialog'
-import {Label} from '@shm/ui/label'
-import {CodeInput} from '@shm/ui/components/code-input'
-import {SeedLogo} from '@shm/ui'
+import {Button, type ButtonProps} from '@seed-hypermedia/ui/button'
+import {Input} from '@seed-hypermedia/ui/input'
+import {Dialog, DialogContent, DialogTitle} from '@seed-hypermedia/ui/dialog'
+import {Label} from '@seed-hypermedia/ui/label'
+import {CodeInput} from '@seed-hypermedia/ui/components/code-input'
+import {SeedLogo} from '@seed-hypermedia/ui'
 const props: ButtonProps = {variant: 'brand'}
 export const example = <Dialog><DialogContent><DialogTitle>Login</DialogTitle><SeedLogo/><Label>Email</Label><Input type="email"/><CodeInput value="" onChange={() => {}} length={6}/><Button {...props}>Continue</Button></DialogContent></Dialog>
 `,
