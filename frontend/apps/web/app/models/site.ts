@@ -1,7 +1,8 @@
 import {keyPairStore, type LocalWebIdentity} from '@/auth'
 import {webUniversalClient} from '@/universal-client'
 import type {HMDocument, HMMetadata, HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {SEED_HOST_URL} from '@shm/shared/constants'
+import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import type {PublishDocumentInput} from '@shm/shared/universal-client'
 import {getDocAttributeChanges} from '@shm/shared/utils/document-changes'
@@ -152,6 +153,9 @@ export async function registerSite(accountUid: string, setupUrl: string): Promis
   await publishHomeChanges(accountUid, identity, document, [
     {op: {case: 'setMetadata', value: {key: 'siteUrl', value: siteUrl}}},
   ])
+  // Site creation fetches the reservation before registration assigns its space.
+  // Refresh ownership before offering custom-domain setup for the newly published site.
+  await getQueryClient().invalidateQueries({queryKey: ['HOST_SITES', SEED_HOST_URL]})
   return siteUrl
 }
 

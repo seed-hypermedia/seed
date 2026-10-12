@@ -1,13 +1,23 @@
 import type {HMDocument} from '@seed-hypermedia/client/hm-types'
+import {SEED_HOST_URL} from '@shm/shared/constants'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
-const mocks = vi.hoisted(() => ({identity: vi.fn(), request: vi.fn(), publish: vi.fn(), invalidate: vi.fn()}))
+const mocks = vi.hoisted(() => ({
+  identity: vi.fn(),
+  request: vi.fn(),
+  publish: vi.fn(),
+  invalidate: vi.fn(),
+  refreshHosting: vi.fn(),
+}))
 vi.mock('@/auth', () => ({keyPairStore: {get: mocks.identity}}))
 vi.mock('@/universal-client', () => ({
   webUniversalClient: {request: mocks.request, publishDocument: mocks.publish},
 }))
-vi.mock('@shm/shared/models/query-client', () => ({invalidateQueries: mocks.invalidate}))
+vi.mock('@shm/shared/models/query-client', () => ({
+  invalidateQueries: mocks.invalidate,
+  getQueryClient: () => ({invalidateQueries: mocks.refreshHosting}),
+}))
 
 import {registerSite, removeSite, updateHomeDocument, updateMovedSitePublication} from './site'
 
@@ -138,6 +148,34 @@ describe('browser site publication', () => {
       .mockResolvedValueOnce(response({message: 'Success'}))
     await registerSite('alice', setupUrl)
     expect(mocks.publish).toHaveBeenCalledOnce()
+  })
+
+  it('refreshes the authenticated hosting list after registration before returning publication success', async () => {
+    fetchMock
+      .mockResolvedValueOnce(response({peerId: 'shared-peer'}))
+      .mockResolvedValueOnce(response({peerId: 'shared-peer', addrs: []}))
+      .mockResolvedValueOnce(response({message: 'Success'}))
+    let finishRefresh!: () => void
+    mocks.refreshHosting.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRefresh = resolve
+        }),
+    )
+    let complete = false
+    const publication = registerSite('alice', setupUrl).then((url) => {
+      complete = true
+      return url
+    })
+    await vi.waitFor(() =>
+      expect(mocks.refreshHosting).toHaveBeenCalledExactlyOnceWith({
+        queryKey: ['HOST_SITES', SEED_HOST_URL],
+      }),
+    )
+    expect(mocks.publish.mock.invocationCallOrder[0]).toBeLessThan(mocks.refreshHosting.mock.invocationCallOrder[0]!)
+    expect(complete).toBe(false)
+    finishRefresh()
+    expect(await publication).toBe('https://myspace.hyper.media')
   })
 
   it('removes the publishing peer suffix from real gateway addresses before registration appends it', async () => {
