@@ -72,6 +72,14 @@ export class FetchClient implements api.ClientInterface {
     return this.request('/api/register/verify', {method: 'POST', body: JSON.stringify(req)})
   }
 
+  async registerInvited(req: api.RegisterInvitedRequest): Promise<api.RegisterVerifyResponse> {
+    return this.request('/api/register/invited', {method: 'POST', body: JSON.stringify(req)})
+  }
+
+  async getInvitation(req: api.GetInvitationRequest): Promise<api.GetInvitationResponse> {
+    return this.request(`/api/invitations/${encodeURIComponent(req.code)}`, {method: 'GET'})
+  }
+
   // Vault data.
 
   async getVault(req: api.GetVaultRequest = {}): Promise<api.GetVaultResponse> {
@@ -82,6 +90,10 @@ export class FetchClient implements api.ClientInterface {
     const queryString = params.toString()
     const query = queryString ? `?${queryString}` : ''
     return this.request(`/api/vault${query}`, {method: 'GET'})
+  }
+
+  async syncVaultAccounts(req: api.SyncVaultAccountsRequest): Promise<api.SyncVaultAccountsResponse> {
+    return this.request('/api/vault-accounts', {method: 'POST', body: JSON.stringify(req)})
   }
 
   async saveVault(req: api.SaveVaultRequest): Promise<api.SaveVaultResponse> {

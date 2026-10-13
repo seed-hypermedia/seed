@@ -17,6 +17,7 @@ import {DelegateView} from './views/DelegateView'
 import {EnterRecoveryWordsView} from './views/EnterRecoveryWordsView'
 import {IdentityRecoveredView} from './views/IdentityRecoveredView'
 import {IdentitySecuredView} from './views/IdentitySecuredView'
+import {InvitedView} from './views/InvitedView'
 import {LoginView} from './views/LoginView'
 import {NoRecoveryWordsView} from './views/NoRecoveryWordsView'
 import {PasswordSignInView} from './views/PasswordSignInView'
@@ -252,6 +253,11 @@ export function RootLayout() {
     })
     actions.parseDelegationFromUrl(window.location.href)
     actions.parseVaultConnectionFromUrl(window.location.href)
+    if (actions.parseInviteFromUrl(window.location.href)) {
+      void actions.checkInvitation().catch((error) => {
+        console.error('Invitation check failed:', error)
+      })
+    }
   }, [actions])
 
   // While unlocked, poll for vault data changed on other devices (e.g. desktop).
@@ -274,7 +280,16 @@ export function RootLayout() {
 }
 
 function RootView() {
-  const {session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest, returnToPath} = useAppState()
+  const {
+    session,
+    decryptedDEK,
+    delegationRequest,
+    sessionChecked,
+    vaultConnectionRequest,
+    returnToPath,
+    inviteCode,
+    inviteStatus,
+  } = useAppState()
 
   if (!sessionChecked) {
     return null
@@ -297,6 +312,16 @@ function RootView() {
     return (
       <div className="w-full max-w-5xl">
         <AccountSettingsView />
+      </div>
+    )
+  }
+
+  // An invitation link gets its own screen: the email is fixed by the
+  // invitation and there is nothing to sign in to yet.
+  if (inviteCode && inviteStatus !== 'none') {
+    return (
+      <div className="w-full max-w-lg">
+        <InvitedView />
       </div>
     )
   }

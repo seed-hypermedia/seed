@@ -43,6 +43,7 @@ Browser registration reads the current gateway's peer information from `/hm/api/
 | `/api/<Key>` | The Seed API: GET queries and CBOR POST actions, dispatched over the shared typed router. See [The web API](../build/web-api.md). <!-- id:gDTmYS47 --> |
 | `/hm/api/config` | Site identity: registered account, peer id, addresses, protocol id, gateway flag, notification host. <!-- id:jG1jxQE8 --> |
 | `/hm/api/register`, `/hm/api/auth`, `/hm/api/delegate-device`, `/hm/api/discover`, `/hm/api/document-update`, `/hm/api/file/*`, `/hm/api/image/*`, `/hm/api/resource/*`, `/hm/api/version` | The site services. <!-- id:UffPLRjp --> |
+| `/hm/api/enterprise-bootstrap` | POST only, with `Authorization: Bearer <SEED_VAULT_ADMIN_SECRET>` (404 when that variable is unset). Creates the organization's space on an Enterprise node and registers the site to it: mints a key in the daemon keystore, publishes the home document, writes `registeredAccountUid` and `sourcePeerId`, and returns the account plus its `.hmkey.json` export. 409 once the site is registered. Called by `seed-deploy` on the first enterprise deploy; see [Self-hosting](../build/self-hosting.md). |
 | `/hm/register`, `/hm/create-site`, `/hm/connect`, `/hm/download`, `/hm/notifications`, `/hm/agents`, `/hm/auth/callback` | Pages of the app itself. <!-- id:Wv7DUjSg --> |
 
 [URLs](../protocol/urls.md) explains versions, block fragments and view terms. <!-- id:1nw003En -->

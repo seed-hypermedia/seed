@@ -138,6 +138,9 @@ export const NOTIFY_SMTP_PORT = process.env.NOTIFY_SMTP_PORT
 export const NOTIFY_SMTP_USER = process.env.NOTIFY_SMTP_USER
 export const NOTIFY_SMTP_PASSWORD = process.env.NOTIFY_SMTP_PASSWORD
 export const NOTIFY_SENDER = process.env.NOTIFY_SENDER
+// The hosting service's HTTPS email relay; when set, notify sends through it instead of SMTP.
+export const NOTIFY_EMAIL_RELAY_URL = process.env.NOTIFY_EMAIL_RELAY_URL
+export const NOTIFY_EMAIL_RELAY_TOKEN = process.env.NOTIFY_EMAIL_RELAY_TOKEN
 export const NOTIFY_TRUSTED_PREVALIDATORS = process.env.NOTIFY_TRUSTED_PREVALIDATORS
 
 export const WEB_IS_GATEWAY = WEB_ENV.WEB_IS_GATEWAY ?? process.env.SEED_IS_GATEWAY === 'true'
@@ -146,6 +149,7 @@ export const WEB_API_DISABLED = process.env.SEED_API_ENABLED === 'false'
 
 export const ENABLE_EMAIL_NOTIFICATIONS =
   WEB_ENV.ENABLE_EMAIL_NOTIFICATIONS ||
+  !!(NOTIFY_EMAIL_RELAY_URL && NOTIFY_EMAIL_RELAY_TOKEN) ||
   !!(NOTIFY_SMTP_HOST && NOTIFY_SMTP_PORT && NOTIFY_SMTP_USER && NOTIFY_SMTP_PASSWORD && NOTIFY_SENDER)
 
 export const NOTIFY_SERVICE_HOST: string | undefined =
@@ -161,10 +165,15 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
  * The dev fallback matches the harness dev agents server port (see agents/.env.vars), not the
  * packaged binary's 3050 — a stale packaged server on 3050 answers but 400s the runs API.
  */
-export const SEED_AGENT_SERVER_URL: string | undefined =
-  process.env.SEED_AGENT_SERVER_URL || // web server
-  WEB_ENV.SEED_AGENT_SERVER_URL || // web client
-  (process.env.NODE_ENV === 'production' ? 'https://agentic.seed.hyper.media' : 'http://localhost:3051')
+export const SEED_AGENT_SERVER_URL: string | undefined = (() => {
+  // An explicitly empty value means "no agent server" (single-tenant sites set
+  // it), so only an unset variable falls back to the shared default.
+  const configured =
+    process.env.SEED_AGENT_SERVER_URL ?? // web server
+    WEB_ENV.SEED_AGENT_SERVER_URL // web client
+  if (typeof configured === 'string') return configured || undefined
+  return process.env.NODE_ENV === 'production' ? 'https://agentic.seed.hyper.media' : 'http://localhost:3051'
+})()
 
 // Discovery timeouts
 export const DISCOVERY_TIMEOUT_MS = 15_000 // 15 seconds before showing not-found

@@ -1,3 +1,4 @@
+import {requireSignInEnabled} from '@/require-sign-in.server'
 import type {LoaderFunctionArgs} from '@remix-run/node'
 import {WEB_IS_GATEWAY} from '@shm/shared/constants'
 
@@ -15,7 +16,12 @@ import {WEB_IS_GATEWAY} from '@shm/shared/constants'
  * crawlers that honor robots.txt (Google, and the social preview fetchers)
  * would otherwise drop those images from previews and image search.
  */
-export function buildRobotsTxt(isGateway: boolean): string {
+export function buildRobotsTxt(isGateway: boolean, requireSignIn = false): string {
+  // A members-only site has nothing a crawler could reach anyway; say so
+  // rather than letting it collect sign-in redirects.
+  if (requireSignIn) {
+    return ['User-agent: *', 'Disallow: /', ''].join('\n')
+  }
   if (isGateway) {
     return ['User-agent: *', 'Allow: /', ''].join('\n')
   }
@@ -30,7 +36,7 @@ export function buildRobotsTxt(isGateway: boolean): string {
 }
 
 export async function loader({}: LoaderFunctionArgs) {
-  return new Response(buildRobotsTxt(WEB_IS_GATEWAY), {
+  return new Response(buildRobotsTxt(WEB_IS_GATEWAY, requireSignInEnabled()), {
     headers: {
       'Content-Type': 'text/plain',
       'Cache-Control': 'public, max-age=3600',

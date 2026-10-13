@@ -12,6 +12,11 @@ describe('buildRobotsTxt', () => {
     expect(buildRobotsTxt(false)).toContain('Disallow: /hm/')
   })
 
+  it('closes everything to crawlers on a members-only site, gateway or not', () => {
+    expect(buildRobotsTxt(false, true)).toBe('User-agent: *\nDisallow: /\n')
+    expect(buildRobotsTxt(true, true)).toBe('User-agent: *\nDisallow: /\n')
+  })
+
   it('keeps the image endpoints crawlable on a site so link previews keep their images', () => {
     // og:image and twitter:image point at /hm/api/content-image, and the
     // favicon at /hm/api/image/<cid>. Both sit under the disallowed prefix, so

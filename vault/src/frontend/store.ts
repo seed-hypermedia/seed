@@ -1,4 +1,4 @@
-import type * as api from '@/api'
+import * as api from '@/api'
 import {code as cborCodec} from '@ipld/dag-cbor'
 import * as base64 from '@seed-hypermedia/client/base64'
 import * as encryption from '@seed-hypermedia/client/encryption'
@@ -60,10 +60,33 @@ export function getPendingFlowPath(
   return '/'
 }
 
+/**
+ * Where the invited-user flow stands once `?invite=` is in the URL:
+ * `checking` while the code is looked up, `valid`/`invalid` after, `failed`
+ * when the lookup itself could not complete (network, server error).
+ */
+export type InviteStatus = 'none' | 'checking' | 'valid' | 'invalid' | 'failed'
+
 /** Creates the initial state for the store. */
-function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBaseUrl = '') {
+function initialState(
+  backendHttpBaseUrl = '',
+  notificationServerUrl = '',
+  webBaseUrl = '',
+  inviteOnly = false,
+  relyingPartyName = '',
+) {
   return {
     email: '',
+    /** Whether the server requires an invitation code to create an account. */
+    inviteOnly,
+    /** Human-readable relying-party name from the server config ('' = unknown). */
+    relyingPartyName,
+    /** Invitation code from `?invite=` in the URL or pasted by the user. */
+    inviteCode: '',
+    /** Email the invitation is scoped to, from `?email=` or the lookup. */
+    inviteEmail: '',
+    /** Result of looking the invitation up; `none` outside the invited flow. */
+    inviteStatus: 'none' as InviteStatus,
     password: '',
     passwordSalt: '',
     confirmPassword: '',
@@ -331,6 +354,12 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
   let registrationVerificationPending = false
   let registrationVerified = false
 
+  /** Registration request field carrying the invitation code, when one is set. */
+  function inviteField(): {invite?: string} {
+    const invite = state.inviteCode.trim()
+    return invite ? {invite} : {}
+  }
+
   async function ensurePasswordSalt() {
     if (state.passwordSalt) {
       return state.passwordSalt
@@ -463,6 +492,32 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     }
   }
 
+  /**
+   * Best-effort report of the vault's public account IDs to the server, so
+   * the admin API can answer membership checks. Never blocks the UI.
+   */
+  async function syncVaultAccounts() {
+    const userId = state.session?.userId
+    const rpOrigin = state.relyingPartyOrigin
+    if (!state.vaultData || !userId || !rpOrigin) {
+      return
+    }
+    try {
+      // Each claim is signed by the account key so the server can verify possession.
+      const accounts = await Promise.all(
+        state.vaultData.accounts.map(async (account) => {
+          const kp = blobs.nobleKeyPairFromSeed(account.seed)
+          const uid = blobs.principalToString(kp.principal)
+          const message = new TextEncoder().encode(api.vaultAccountClaimMessage(rpOrigin, userId, uid))
+          return {uid, createTime: account.createTime, signature: base64.encode(await kp.sign(message))}
+        }),
+      )
+      await client.syncVaultAccounts({accounts})
+    } catch (error) {
+      console.warn('Failed to sync vault accounts:', error)
+    }
+  }
+
   async function hydrateVaultData(serverData?: api.GetVaultResponse) {
     if (!state.decryptedDEK) {
       return
@@ -498,6 +553,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     state.vaultVersion = vaultResponse.version ?? 0
     state.vaultLoaded = true
+    void syncVaultAccounts()
   }
 
   async function ensureVaultLoaded(serverData?: api.GetVaultResponse) {
@@ -545,7 +601,16 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
   const actions = {
     resetState() {
-      Object.assign(state, initialState(state.backendHttpBaseUrl, state.notificationServerUrl, state.webBaseUrl))
+      Object.assign(
+        state,
+        initialState(
+          state.backendHttpBaseUrl,
+          state.notificationServerUrl,
+          state.webBaseUrl,
+          state.inviteOnly,
+          state.relyingPartyName,
+        ),
+      )
     },
 
     /** Set the email being signed in with. Anything typed or shown for the previous email is cleared. */
@@ -554,6 +619,75 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.password = ''
       state.error = ''
       state.failedSignInAttempts = 0
+    },
+
+    setInviteCode(inviteCode: string) {
+      state.inviteCode = inviteCode
+    },
+
+    /**
+     * Read the invitation code and email from `?invite=&email=` in the URL
+     * (the link the admin API hands out). Returns whether a code was found;
+     * the caller then runs `checkInvitation`. No-op when the parameter is absent.
+     */
+    parseInviteFromUrl(url: URL | string): boolean {
+      const parsedURL = typeof url === 'string' ? new URL(url) : url
+      const invite = (parsedURL.searchParams.get('invite') ?? '').trim()
+      if (!invite) {
+        return false
+      }
+      state.inviteCode = invite
+      state.inviteStatus = 'checking'
+      const email = (parsedURL.searchParams.get('email') ?? '').trim()
+      if (email) {
+        state.inviteEmail = email
+        state.email = email
+      }
+      return true
+    },
+
+    /**
+     * Look the invitation up on the server. The email it is scoped to wins
+     * over whatever the link carried; an unknown or used code makes the
+     * invited screen show a message instead of a form.
+     */
+    async checkInvitation() {
+      const code = state.inviteCode.trim()
+      if (!code) {
+        state.inviteStatus = 'none'
+        return
+      }
+      state.inviteStatus = 'checking'
+      try {
+        const invitation = await client.getInvitation({code})
+        state.inviteEmail = invitation.email
+        state.email = invitation.email
+        state.inviteStatus = 'valid'
+      } catch (e) {
+        state.inviteStatus = e instanceof APIError && e.statusCode === 404 ? 'invalid' : 'failed'
+      }
+    },
+
+    /** Invited user accepted: start registration for the invitation's email. */
+    // The invitation link reached the person's inbox, so it already proves
+    // the address: create the account at once, no second emailed code.
+    async handleInvitedContinue() {
+      if (state.inviteStatus !== 'valid' || !state.inviteEmail) {
+        return
+      }
+      state.email = state.inviteEmail
+      state.error = ''
+      state.loading = true
+      try {
+        await client.registerInvited({email: state.email, invite: state.inviteCode.trim()})
+        registrationVerified = true
+        await actions.checkSession()
+        navigator.go('/auth/choose')
+      } catch (e) {
+        state.error = (e as Error).message || 'Registration failed'
+      } finally {
+        state.loading = false
+      }
     },
 
     setReturnToPath(path: string) {
@@ -680,7 +814,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        const data = await client.registerStart({email: state.email})
+        const data = await client.registerStart({email: state.email, ...inviteField()})
         registrationVerified = false
         state.verificationExpireTime = data.expireTime
         state.resendAllowedTime = data.resendAllowedTime
@@ -701,7 +835,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.error = ''
 
       try {
-        await client.registerVerify({code})
+        await client.registerVerify({code, ...inviteField()})
         registrationVerified = true
         await actions.checkSession()
         navigator.go('/auth/choose')
@@ -1421,6 +1555,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })
 
         state.vaultVersion++
+        void syncVaultAccounts()
       } catch (e) {
         console.error('Failed to save vault:', e)
         state.error = getVaultSaveErrorMessage(e)
@@ -2187,6 +2322,9 @@ export type StoreActions = ReturnType<typeof createActions>
  * @param blockstore - The IPFS blockstore used for blob storage.
  * @param backendHttpBaseUrl - Daemon base URL used for IPFS-backed assets.
  * @param notificationServerUrl - Notification server URL shown in the footer.
+ * @param webBaseUrl - Public web reader base URL ('' = same origin).
+ * @param inviteOnly - Whether the server requires an invitation code to create an account.
+ * @param relyingPartyName - Human-readable relying-party name shown on the invited-user screen.
  */
 export function createStore(
   client: api.ClientInterface,
@@ -2194,8 +2332,12 @@ export function createStore(
   backendHttpBaseUrl = '',
   notificationServerUrl = '',
   webBaseUrl = '',
+  inviteOnly = false,
+  relyingPartyName = '',
 ) {
-  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl))
+  const state = proxy<AppState>(
+    initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl, inviteOnly, relyingPartyName),
+  )
 
   // Default navigator prevents crashes before router is connected
   let navigate = (path: string) => {

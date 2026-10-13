@@ -100,7 +100,8 @@ export function Layout({children}: {children: React.ReactNode}) {
               ENABLE_EMAIL_NOTIFICATIONS,
               SEED_ASSET_HOST,
               NOTIFY_SERVICE_HOST,
-              SEED_AGENT_SERVER_URL,
+              // Empty (not absent) so the client keeps "no agent server" instead of its default.
+              SEED_AGENT_SERVER_URL: SEED_AGENT_SERVER_URL ?? '',
               SEED_HOST_URL: seedHostUrl,
             })}`,
           }}

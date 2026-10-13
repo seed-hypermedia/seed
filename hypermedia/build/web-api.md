@@ -267,7 +267,7 @@ These routes exist so that a site can be a site. Most are called by the Seed app
 <!-- id:PKELLSlU -->
 | Route <!-- col:UhI8xWLl --> | Method <!-- col:mznQCc-8 --> | Purpose <!-- col:tXMDDkZA --> <!-- id:17H0puft --> |
 | --- | --- | --- |
-| `/hm/api/config` | GET | `{registeredAccountUid, peerId, protocolId, signerAccountUid, addrs, hostname, isGateway, notifyServiceHost}`; CORS open, no auth. The one call to learn which space a domain publishes and how to reach its daemon. <!-- id:EdR0gB7w --> |
+| `/hm/api/config` | GET | `{registeredAccountUid, siteUrl, peerId, protocolId, signerAccountUid, addrs, hostname, isGateway, notifyServiceHost, requireSignIn}`; CORS open, no auth. The one call to learn which space a domain publishes and how to reach its daemon. `siteUrl` is what the registered space's home document says its address is (null when unregistered), so an operator can see when it has fallen behind `hostname`. <!-- id:EdR0gB7w --> |
 | `/hm/api/auth` | POST, DELETE, OPTIONS | protobuf `AuthenticateRequest` in, bearer cookie out; DELETE clears it <!-- id:DylsGsu- --> |
 | `/hm/api/version` | GET | `{web: {commit, branch, date}, daemon: {commit, branch, date}}` <!-- id:RTaB8Y2L --> |
 | `/hm/api/file/<cid>` | GET | streams `/ipfs/<cid>` through the web server, forwarding `Range` and the visitor's cookie <!-- id:inUY6yej --> |

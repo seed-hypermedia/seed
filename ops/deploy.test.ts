@@ -1,5 +1,5 @@
 import {describe, test, expect, beforeEach, afterEach} from 'bun:test'
-import {mkdtemp, rm, readFile, writeFile, mkdir, access} from 'node:fs/promises'
+import {mkdtemp, rm, readFile, writeFile, mkdir, access, stat} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
@@ -68,6 +68,41 @@ import {
   removeLegacyHostCron,
   describeBindFailure,
   describePullFailure,
+  composeFileName,
+  isEnterprise,
+  composeProfiles,
+  notifyHost,
+  agentsHost,
+  enterpriseTestnetName,
+  buildEnterpriseConfig,
+  VAULT_ADMIN_SECRET_LENGTH,
+  ENTERPRISE_OPEN_PATHS,
+  SESSION_CHECK_URI,
+  SESSION_SECRET_LENGTH,
+  headlessEnterpriseConfig,
+  smtpFromEnv,
+  requiredContainers,
+  shellQuote,
+  deviceDirectives,
+  injectServiceDirectives,
+  backupMembers,
+  extractInvitationLinks,
+  parseInviteArgs,
+  enterpriseIsolationChecks,
+  bootstrapOptionsFrom,
+  bootstrapSpace,
+  describeBootstrap,
+  ownerKeyPath,
+  OWNER_KEY_DIR,
+  emailRelayFromEnv,
+  emailRelayOf,
+  describeNotify,
+  redactConfig,
+  setSiteUrl,
+  describeSiteUrl,
+  siteUrlCheck,
+  BOOTSTRAP_ATTEMPTS,
+  BOOTSTRAP_RETRY_MS,
 } from './deploy'
 
 // ---------------------------------------------------------------------------
@@ -2260,5 +2295,1114 @@ describe('getDeployScriptUrl', () => {
   test('returns constants with expected values', () => {
     expect(DEV_DEPLOY_SCRIPT_URL).toContain('seedappdev')
     expect(DEV_DEPLOY_SCRIPT_URL).toContain('deploy.js')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Enterprise profile
+// ---------------------------------------------------------------------------
+
+function makeEnterpriseConfig(overrides: Partial<SeedConfig> = {}): SeedConfig {
+  return makeTestConfig({
+    profile: 'enterprise',
+    domain: 'https://example.org',
+    vault_admin_secret: 'x'.repeat(VAULT_ADMIN_SECRET_LENGTH),
+    session_secret: 's',
+    notify: false,
+    agents: false,
+    ...overrides,
+  })
+}
+
+describe('enterprise: profile helpers', () => {
+  test('absent profile means site', () => {
+    expect(isEnterprise(makeTestConfig())).toBe(false)
+    expect(isEnterprise(makeTestConfig({profile: 'site'}))).toBe(false)
+    expect(isEnterprise(makeEnterpriseConfig())).toBe(true)
+  })
+
+  test('compose file name follows the profile', () => {
+    expect(composeFileName()).toBe('docker-compose.yml')
+    expect(composeFileName('site')).toBe('docker-compose.yml')
+    expect(composeFileName('enterprise')).toBe('docker-compose.enterprise.yml')
+  })
+
+  test('testnet name derives from the DNS name with dots replaced', () => {
+    expect(enterpriseTestnetName('https://example.org')).toBe('ent-example-org')
+    expect(enterpriseTestnetName('https://seed.acme.co.uk/')).toBe('ent-seed-acme-co-uk')
+  })
+
+  test('notify and agents hosts are subdomains, empty when disabled', () => {
+    expect(notifyHost(makeEnterpriseConfig())).toBe('')
+    expect(notifyHost(makeEnterpriseConfig({notify: true}))).toBe('https://notify.example.org')
+    expect(agentsHost(makeEnterpriseConfig())).toBe('')
+    expect(agentsHost(makeEnterpriseConfig({agents: true}))).toBe('https://agents.example.org')
+    // The site profile keeps the hosted notify service.
+    expect(notifyHost(makeTestConfig())).toBe(NOTIFY_SERVICE_HOST)
+    expect(agentsHost(makeTestConfig())).toBe('')
+  })
+
+  test('compose profiles follow the config', () => {
+    expect(composeProfiles(makeEnterpriseConfig())).toEqual([])
+    expect(composeProfiles(makeEnterpriseConfig({notify: true}))).toEqual(['notify'])
+    expect(composeProfiles(makeEnterpriseConfig({notify: true, agents: true, metrics: true}))).toEqual([
+      'notify',
+      'agents',
+      'metrics',
+    ])
+    // Site nodes never get notify/agents, only metrics.
+    expect(composeProfiles(makeTestConfig({notify: true, agents: true, metrics: true}))).toEqual(['metrics'])
+  })
+
+  test('required containers grow with the enabled services', () => {
+    expect(requiredContainers()).toEqual(['seed-proxy', 'seed-web', 'seed-daemon'])
+    expect(requiredContainers(makeTestConfig())).toEqual(['seed-proxy', 'seed-web', 'seed-daemon'])
+    expect(requiredContainers(makeEnterpriseConfig())).toEqual(['seed-proxy', 'seed-web', 'seed-daemon', 'seed-vault'])
+    expect(requiredContainers(makeEnterpriseConfig({notify: true, agents: true}))).toEqual([
+      'seed-proxy',
+      'seed-web',
+      'seed-daemon',
+      'seed-vault',
+      'seed-notify',
+      'seed-agents',
+    ])
+  })
+
+  test('expected images include vault, and notify/agents when enabled', () => {
+    const base = expectedServiceImages(makeEnterpriseConfig({release_channel: 'dev'}))
+    expect(base).toContainEqual({container: 'seed-vault', expectedImage: 'seedhypermedia/vault:dev'})
+    expect(base.find((i) => i.container === 'seed-notify')).toBeUndefined()
+    const full = expectedServiceImages(makeEnterpriseConfig({notify: true, agents: true}))
+    expect(full).toContainEqual({container: 'seed-notify', expectedImage: 'seedhypermedia/notify:latest'})
+    expect(full).toContainEqual({container: 'seed-agents', expectedImage: 'seedhypermedia/agents:latest'})
+    // Site profile unchanged.
+    expect(expectedServiceImages(makeTestConfig()).map((i) => i.container)).toEqual(['seed-web', 'seed-daemon'])
+  })
+
+  test('workspace dirs add vault/notify/agents for enterprise only', () => {
+    const paths = makePaths('/opt/seed')
+    expect(getWorkspaceDirs(paths)).not.toContain('/opt/seed/vault')
+    expect(getWorkspaceDirs(paths, makeTestConfig())).not.toContain('/opt/seed/vault')
+    const dirs = getWorkspaceDirs(paths, makeEnterpriseConfig())
+    expect(dirs).toContain('/opt/seed/vault')
+    expect(dirs).toContain('/opt/seed/notify')
+    expect(dirs).toContain('/opt/seed/agents')
+  })
+
+  test('configWarnings: no network warnings, only a non-stable channel notice', () => {
+    expect(configWarnings(makeEnterpriseConfig())).toEqual([])
+    const warnings = configWarnings(makeEnterpriseConfig({release_channel: 'dev'}))
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain("'dev' image channel")
+    expect(warnings[0]).not.toContain('mainnet')
+  })
+})
+
+describe('enterprise: parseArgs --profile', () => {
+  test('--profile enterprise on a bare run', () => {
+    const result = parseArgs(['node', 'deploy.js', '--profile', 'enterprise'])
+    expect(result.command).toBe('deploy')
+    expect(result.profile).toBe('enterprise')
+    expect(result.args).toEqual([])
+  })
+
+  test('--profile=enterprise with the deploy command and other flags', () => {
+    const result = parseArgs(['node', 'deploy.js', 'deploy', '--profile=enterprise', '--dir', '/opt/ent', '--advanced'])
+    expect(result.command).toBe('deploy')
+    expect(result.profile).toBe('enterprise')
+    expect(result.dir).toBe('/opt/ent')
+    expect(result.advanced).toBe(true)
+    expect(result.args).toEqual([])
+  })
+
+  test('--profile site is accepted; profile is undefined when absent', () => {
+    expect(parseArgs(['node', 'deploy.js', '--profile', 'site']).profile).toBe('site')
+    expect(parseArgs(['node', 'deploy.js']).profile).toBeUndefined()
+  })
+
+  test('unattended install flags are parsed and stripped', () => {
+    const r = parseArgs([
+      'node',
+      'deploy.js',
+      'deploy',
+      '--profile',
+      'enterprise',
+      '--tag',
+      'feat-enterprise-edition',
+      '--hostname=https://example.org',
+      '--email',
+      'ops@example.org',
+      '--log-level',
+      'debug',
+      '--agents',
+      '--no-notify',
+      '--yes',
+    ])
+    expect(r.command).toBe('deploy')
+    expect(r.profile).toBe('enterprise')
+    expect(r.args).toEqual([])
+    expect(r.headless).toEqual({
+      tag: 'feat-enterprise-edition',
+      hostname: 'https://example.org',
+      email: 'ops@example.org',
+      logLevel: 'debug',
+      agents: true,
+      notify: false,
+      yes: true,
+    })
+    expect(parseArgs(['node', 'deploy.js', 'doctor']).headless).toEqual({})
+  })
+
+  test('register and invite are commands with pass-through args', () => {
+    const register = parseArgs(['node', 'deploy.js', 'register', 'z6MkAccount'])
+    expect(register.command).toBe('register')
+    expect(register.args).toEqual(['z6MkAccount'])
+    const invite = parseArgs(['node', 'deploy.js', 'invite', 'a@example.org', '3'])
+    expect(invite.command).toBe('invite')
+    expect(invite.args).toEqual(['a@example.org', '3'])
+  })
+})
+
+describe('enterprise: buildEnterpriseConfig defaults', () => {
+  const answers = {
+    domain: 'https://example.org',
+    release_channel: 'latest',
+    log_level: 'info' as const,
+    agents: false,
+    notify: false,
+    email: '',
+  }
+
+  test('forces gateway/testnet/analytics off and generates secrets', () => {
+    const config = buildEnterpriseConfig(answers)
+    expect(config.profile).toBe('enterprise')
+    expect(config.gateway).toBe(false)
+    expect(config.testnet).toBe(false)
+    expect(config.analytics).toBe(false)
+    expect(config.environment).toBe('prod')
+    expect(config.compose_url.endsWith('/docker-compose.enterprise.yml')).toBe(true)
+    expect(config.link_secret).toMatch(/^[A-Za-z0-9]{10}$/)
+    expect(config.vault_admin_secret).toMatch(/^[A-Za-z0-9]+$/)
+    expect(config.vault_admin_secret!.length).toBeGreaterThanOrEqual(32)
+    expect(config.session_secret).toMatch(/^[A-Za-z0-9]+$/)
+    expect(config.session_secret!.length).toBeGreaterThanOrEqual(48)
+    expect(config.session_secret).toBe(config.session_secret)
+    expect(SESSION_SECRET_LENGTH).toBeGreaterThanOrEqual(48)
+    expect(config.notify).toBe(false)
+    expect(config.agents).toBe(false)
+    expect(config.agents_kvm).toBe(false)
+    expect(config.smtp).toBeUndefined()
+  })
+
+  test('keeps existing secrets, smtp and kvm flag on reconfigure', () => {
+    const existing = makeEnterpriseConfig({
+      link_secret: 'keepMe1234',
+      vault_admin_secret: 'keepVault'.repeat(5),
+      agents: true,
+      agents_kvm: true,
+      smtp: {host: 'smtp.example.org', port: 465, user: 'u', password: 'p', sender: 'Seed <s@example.org>'},
+    })
+    const config = buildEnterpriseConfig({...answers, agents: true, notify: true, smtp: existing.smtp}, existing)
+    expect(config.link_secret).toBe('keepMe1234')
+    expect(config.vault_admin_secret).toBe('keepVault'.repeat(5))
+    expect(config.session_secret).toBe('s')
+    expect(config.agents_kvm).toBe(true)
+    expect(config.smtp?.host).toBe('smtp.example.org')
+    // Turning agents off also clears the kvm flag.
+    expect(buildEnterpriseConfig({...answers, agents: false}, existing).agents_kvm).toBe(false)
+  })
+
+  test('config roundtrips through disk', async () => {
+    const tmp = await mkdtemp(join(tmpdir(), 'seed-ent-'))
+    try {
+      const paths = makePaths(tmp)
+      const config = buildEnterpriseConfig({
+        ...answers,
+        notify: true,
+        smtp: {host: 'h', port: 587, user: 'u', password: 'p', sender: 's@h'},
+      })
+      await writeConfig(config, paths)
+      const loaded = await readConfig(paths)
+      expect(loaded.profile).toBe('enterprise')
+      expect(loaded.vault_admin_secret).toBe(config.vault_admin_secret)
+      expect(loaded.smtp).toEqual(config.smtp)
+    } finally {
+      await rm(tmp, {recursive: true, force: true})
+    }
+  })
+})
+
+describe('enterprise: headless config', () => {
+  test('builds a config from flags and env without prompts', () => {
+    const env = {
+      SEED_SMTP_HOST: 'smtp.example.org',
+      SEED_SMTP_USER: 'mailer',
+      SEED_SMTP_PASSWORD: 'pw',
+      SEED_SMTP_SENDER: 'Seed <seed@example.org>',
+    }
+    const config = headlessEnterpriseConfig(
+      {hostname: 'https://example.org', tag: 'feat-enterprise-edition', notify: true, agents: true, yes: true},
+      undefined,
+      env,
+    )
+    expect(config.profile).toBe('enterprise')
+    expect(config.domain).toBe('https://example.org')
+    expect(config.release_channel).toBe('feat-enterprise-edition')
+    expect(config.notify).toBe(true)
+    expect(config.agents).toBe(true)
+    expect(config.smtp).toEqual({
+      host: 'smtp.example.org',
+      port: undefined,
+      user: 'mailer',
+      password: 'pw',
+      sender: 'Seed <seed@example.org>',
+    })
+    expect(config.compose_envs.LOG_LEVEL).toBe('info')
+    expect(config.vault_admin_secret!.length).toBeGreaterThanOrEqual(32)
+    expect(config.session_secret!.length).toBeGreaterThanOrEqual(48)
+  })
+
+  test('names the missing piece', () => {
+    expect(() => headlessEnterpriseConfig({}, undefined, {})).toThrow(/--hostname/)
+    expect(() => headlessEnterpriseConfig({hostname: 'example.org'}, undefined, {})).toThrow(/https:\/\//)
+    expect(() => headlessEnterpriseConfig({hostname: 'https://x.org', tag: 'bad tag'}, undefined, {})).toThrow(/--tag/)
+    expect(() => headlessEnterpriseConfig({hostname: 'https://x.org', logLevel: 'loud'}, undefined, {})).toThrow(
+      /--log-level/,
+    )
+    expect(() => headlessEnterpriseConfig({hostname: 'https://x.org', notify: true}, undefined, {})).toThrow(
+      /SEED_SMTP_HOST/,
+    )
+  })
+
+  test('reuses an existing config for the values not given', () => {
+    const existing = makeEnterpriseConfig({release_channel: 'dev', email: 'a@b.c', agents: true})
+    const config = headlessEnterpriseConfig({hostname: 'https://example.org'}, existing, {})
+    expect(config.release_channel).toBe('dev')
+    expect(config.email).toBe('a@b.c')
+    expect(config.agents).toBe(true)
+    expect(config.vault_admin_secret).toBe(existing.vault_admin_secret)
+    expect(config.session_secret).toBe('s')
+    expect(smtpFromEnv({})).toBeUndefined()
+    expect(smtpFromEnv({SEED_SMTP_HOST: 'h', SEED_SMTP_PORT: '2525'})?.port).toBe(2525)
+  })
+})
+
+describe('enterprise: buildComposeEnv', () => {
+  test('derives the private testnet name and the enterprise vars', () => {
+    const env = buildComposeEnv(makeEnterpriseConfig(), makePaths('/opt/seed'))
+    expect(env).toContain('SEED_P2P_TESTNET_NAME="ent-example-org"')
+    expect(env).toContain(`SEED_VAULT_ADMIN_SECRET="${'x'.repeat(VAULT_ADMIN_SECRET_LENGTH)}"`)
+    expect(env).toContain('SEED_SESSION_SECRET="s"')
+    expect(env).toContain('SEED_CONTACT_EMAIL="ops@seed.hypermedia"')
+    expect(env).toContain('SEED_SITE_NAME="example.org"')
+    expect(buildComposeEnv(makeEnterpriseConfig({site_name: 'Botical'}), makePaths('/opt/seed'))).toContain(
+      'SEED_SITE_NAME="Botical"',
+    )
+    expect(env).toContain('SEED_NOTIFY_HOST=""')
+    expect(env).toContain('NOTIFY_SERVICE_HOST=""')
+    expect(env).toContain('SEED_AGENTS_HOST=""')
+    expect(env).toContain('SEED_AGENTS_EXEC_BACKEND=""')
+    expect(env).toContain('SEED_SMTP_HOST=""')
+    expect(env).toContain('SEED_SMTP_PORT="587"')
+    expect(env).toContain('SEED_IS_GATEWAY="false"')
+    expect(env).toContain('SEED_ENABLE_STATISTICS="false"')
+    expect(env).not.toContain('COMPOSE_PROFILES=')
+  })
+
+  test('passes compose profiles, hosts and smtp when enabled', () => {
+    const env = buildComposeEnv(
+      makeEnterpriseConfig({
+        notify: true,
+        agents: true,
+        agents_kvm: true,
+        metrics: true,
+        smtp: {
+          host: 'smtp.example.org',
+          port: 2587,
+          user: 'mailer',
+          password: 'p@ss"w$rd',
+          sender: 'Seed <seed@example.org>',
+        },
+      }),
+      makePaths('/opt/seed'),
+    )
+    expect(env).toContain('COMPOSE_PROFILES="notify,agents,metrics"')
+    expect(env).toContain('SEED_NOTIFY_HOST="https://notify.example.org"')
+    expect(env).toContain('NOTIFY_SERVICE_HOST="https://notify.example.org"')
+    expect(env).toContain('SEED_AGENTS_HOST="https://agents.example.org"')
+    expect(env).toContain('SEED_AGENTS_EXEC_BACKEND="microsandbox"')
+    expect(env).toContain('SEED_SMTP_HOST="smtp.example.org"')
+    expect(env).toContain('SEED_SMTP_PORT="2587"')
+    expect(env).toContain('SEED_SMTP_USER="mailer"')
+    expect(env).toContain(`SEED_SMTP_PASSWORD='p@ss"w$rd'`)
+    expect(env).toContain(`SEED_SMTP_SENDER='Seed <seed@example.org>'`)
+  })
+
+  test('site profile env is unchanged (no enterprise vars, hosted notify)', () => {
+    const env = buildComposeEnv(makeTestConfig(), makePaths('/opt/seed'))
+    expect(env).not.toContain('SEED_VAULT_ADMIN_SECRET')
+    expect(env).not.toContain('SEED_NOTIFY_HOST')
+    expect(env).not.toContain('COMPOSE_PROFILES')
+    expect(env).toContain(`NOTIFY_SERVICE_HOST="${NOTIFY_SERVICE_HOST}"`)
+  })
+
+  test('shellQuote keeps plain values double-quoted and escapes the rest', () => {
+    expect(shellQuote('https://example.org')).toBe('"https://example.org"')
+    expect(shellQuote('')).toBe('""')
+    expect(shellQuote('Seed <seed@example.org>')).toBe(`'Seed <seed@example.org>'`)
+    expect(shellQuote(`it's $x`)).toBe(`'it'\\''s $x'`)
+  })
+})
+
+describe('enterprise: generateCaddyfile', () => {
+  test('main site block has the forward_auth gate, vault and ipfs routes', () => {
+    const caddy = generateCaddyfile(makeEnterpriseConfig())
+    expect(caddy).toContain('(gate) {')
+    expect(caddy).toContain('forward_auth seed-web:3000 {')
+    expect(caddy).toContain(`uri ${SESSION_CHECK_URI}`)
+    expect(caddy).toContain('copy_headers X-Forwarded-Uri')
+    expect(caddy).toContain('\nexample.org {')
+    expect(caddy).toContain('@vault path /vault /vault/*')
+    expect(caddy).toContain('reverse_proxy seed-vault:3000')
+    expect(caddy).toContain('@metrics path /.metrics*')
+    expect(caddy).toContain('request_body {')
+    expect(caddy).not.toContain('__Host-HM-Auth-Token')
+    for (const path of ENTERPRISE_OPEN_PATHS) expect(caddy).toContain(path)
+    // Pre-session calls: POST /ipfs/* to the daemon, POST /api/PublishBlobs and GET /api/Account to the web app.
+    expect(caddy).toMatch(/@ipfs_upload \{\n\t\tmethod POST\n\t\tpath \/ipfs\/\*/)
+    expect(caddy).toMatch(
+      /@open_api_post \{\n\t\tmethod POST\n\t\tpath \/api\/PublishBlobs \/hm\/api\/enterprise-bootstrap \/hm\/api\/enterprise-site-url\n/,
+    )
+    expect(caddy).toMatch(/@open_api_get \{\n\t\tmethod GET HEAD\n\t\tpath \/api\/Account/)
+    // Open blocks come before the gated ones; the gated ipfs/metrics/catch-all each import the gate.
+    const open = caddy.indexOf('handle @open {')
+    const ipfs = caddy.indexOf('handle @ipfs {')
+    const rest = caddy.lastIndexOf('handle {')
+    expect(open).toBeGreaterThan(0)
+    expect(ipfs).toBeGreaterThan(open)
+    expect(rest).toBeGreaterThan(ipfs)
+    expect(caddy.slice(ipfs).match(/import gate/g)).toHaveLength(3)
+    expect(caddy.slice(0, ipfs)).not.toContain('import gate')
+    expect(caddy.slice(ipfs)).toContain('reverse_proxy seed-daemon:56001')
+  })
+
+  test('no notify or agents blocks when disabled', () => {
+    const caddy = generateCaddyfile(makeEnterpriseConfig())
+    expect(caddy).not.toContain('notify.example.org')
+    expect(caddy).not.toContain('agents.example.org')
+    expect(caddy).not.toContain('seed-notify')
+    expect(caddy).not.toContain('seed-agents')
+  })
+
+  test('adds notify and agents site blocks when enabled', () => {
+    const caddy = generateCaddyfile(makeEnterpriseConfig({notify: true, agents: true}))
+    expect(caddy).toContain('notify.example.org {')
+    expect(caddy).toContain('reverse_proxy seed-notify:3000')
+    expect(caddy).toContain('agents.example.org {')
+    expect(caddy).toContain('reverse_proxy seed-agents:3050')
+  })
+
+  test('site profile Caddyfile is untouched', () => {
+    const caddy = generateCaddyfile(makeTestConfig())
+    expect(caddy).toContain('{$SEED_SITE_HOSTNAME}')
+    expect(caddy).not.toContain('forward_auth')
+  })
+})
+
+describe('enterprise: compose template', () => {
+  test('daemon publishes no ports, services use the shared tag with overrides', async () => {
+    const compose = await readFile(join(import.meta.dir, 'docker-compose.enterprise.yml'), 'utf-8')
+    expect(compose).toContain('image: ${SEED_WEB_IMAGE:-seedhypermedia/web:${SEED_SITE_TAG:-latest}}')
+    expect(compose).toContain('image: ${SEED_SITE_IMAGE:-seedhypermedia/site:${SEED_SITE_TAG:-latest}}')
+    expect(compose).toContain('seedhypermedia/vault:${SEED_SITE_TAG:-latest}')
+    expect(compose).toContain('seedhypermedia/notify:${SEED_SITE_TAG:-latest}')
+    expect(compose).toContain('seedhypermedia/agents:${SEED_SITE_TAG:-latest}')
+    // The daemon block has no ports and no public-network flags.
+    const daemon = compose.slice(
+      compose.indexOf('container_name: seed-daemon'),
+      compose.indexOf('container_name: seed-vault'),
+    )
+    expect(daemon).not.toMatch(/^\s+ports:/m)
+    expect(daemon).toContain('-p2p.isolated=true')
+    expect(daemon).toContain('-lndhub.disabled=true')
+    expect(daemon).toContain('-p2p.listen-addrs=/ip4/127.0.0.1/tcp/56000')
+    expect(daemon).toContain('-p2p.bootstrap-peers=none')
+    expect(daemon).toContain('-syncing.no-discovery=true')
+    expect(daemon).toMatch(/-p2p\.testnet-name=\$\{SEED_P2P_TESTNET_NAME\} \$\{SEED_SITE_HOSTNAME\}"'/)
+    expect(daemon).not.toContain('lndhub.mainnet')
+    expect(daemon).not.toContain('announce-addrs')
+    expect(daemon).not.toContain('force-reachability-public')
+    expect(daemon).not.toContain('no-sync-back')
+    // The web app publishes no host port at all; only the proxy does.
+    const web = compose.slice(
+      compose.indexOf('container_name: seed-web'),
+      compose.indexOf('container_name: seed-daemon'),
+    )
+    expect(web).not.toMatch(/^\s+ports:/m)
+    expect(compose.match(/^\s+ports:/gm)).toHaveLength(1)
+    for (const v of [
+      'SEED_REQUIRE_SIGN_IN=1',
+      'SEED_SESSION_SECRET=${SEED_SESSION_SECRET}',
+      'SEED_VAULT_INTERNAL_URL=http://seed-vault:3000',
+      'SEED_VAULT_ADMIN_SECRET=${SEED_VAULT_ADMIN_SECRET}',
+      'SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST}',
+      'SEED_HOST_URL=',
+      'NODE_ENV=production',
+      'SEED_VAULT_INVITE_ONLY=true',
+      'SEED_VAULT_RP_NAME=${SEED_SITE_NAME}',
+      'SEED_VAULT_DEFAULT_NOTIFY_SERVER=${SEED_NOTIFY_HOST}',
+      'NOTIFY_SMTP_PORT=465',
+      'SEED_DEV_ADMIN_EMAIL=${SEED_CONTACT_EMAIL}',
+      'NOTIFY_TRUSTED_PREVALIDATORS=${SEED_SITE_HOSTNAME}',
+    ]) {
+      expect(compose).toContain(v)
+    }
+  })
+
+  test('kvm device injection targets the agents service only', () => {
+    const compose = [
+      'services:',
+      '  seed-daemon:',
+      '    container_name: seed-daemon',
+      '    volumes:',
+      '      - a:/data',
+      '  seed-agents:',
+      '    container_name: seed-agents',
+      '    volumes:',
+      '      - b:/data',
+    ].join('\n')
+    const out = injectServiceDirectives(compose, 'seed-agents', deviceDirectives(['/dev/kvm'], ['108']))
+    const lines = out.split('\n')
+    const agentsIdx = lines.indexOf('    container_name: seed-agents')
+    expect(lines.slice(agentsIdx + 1, agentsIdx + 6)).toEqual([
+      '    devices:',
+      '      - /dev/kvm:/dev/kvm',
+      '    group_add:',
+      '      - 108',
+      '    volumes:',
+    ])
+    // The daemon block is untouched.
+    expect(lines.slice(0, agentsIdx - 1)).not.toContain('    devices:')
+    expect(deviceDirectives(['/dev/dri'], [])).toEqual(['    devices:', '      - /dev/dri:/dev/dri'])
+  })
+})
+
+describe('enterprise: invite arguments', () => {
+  test('parseInviteArgs: email, role flags, --no-email and a count', () => {
+    expect(parseInviteArgs(['a@example.org'])).toEqual({email: 'a@example.org', role: 'reader', send: true, count: undefined})
+    expect(parseInviteArgs(['a@example.org', '--role', 'writer'])).toMatchObject({role: 'writer', send: true})
+    expect(parseInviteArgs(['--role=writer', 'a@example.org', '--no-email'])).toMatchObject({
+      email: 'a@example.org',
+      role: 'writer',
+      send: false,
+    })
+    expect(parseInviteArgs(['a@example.org', '--writer', '3'])).toMatchObject({role: 'writer', count: 3})
+    expect(parseInviteArgs(['a@example.org', '--role', 'admin']).error).toContain('--role must be reader or writer')
+    expect(parseInviteArgs(['a@example.org', 'bogus']).error).toContain("unexpected argument 'bogus'")
+  })
+})
+
+describe('enterprise: backup, invite, doctor helpers', () => {
+  test('backup members add existing enterprise data dirs only', async () => {
+    const tmp = await mkdtemp(join(tmpdir(), 'seed-ent-backup-'))
+    try {
+      const paths = makePaths(tmp)
+      await mkdir(join(tmp, 'vault'), {recursive: true})
+      const site = await backupMembers(paths, makeTestConfig())
+      expect(site).toEqual(['config.json', 'backup-meta.json', 'docker-compose.yml', 'web', 'daemon', 'proxy'])
+      const ent = await backupMembers(paths, makeEnterpriseConfig())
+      expect(ent).toContain('vault')
+      expect(ent).not.toContain('notify')
+      expect(ent).not.toContain('agents')
+    } finally {
+      await rm(tmp, {recursive: true, force: true})
+    }
+  })
+
+  test('extractInvitationLinks tolerates several response shapes', () => {
+    const base = 'https://example.org/vault'
+    expect(
+      extractInvitationLinks({invitations: [{code: 'abc', link: 'https://example.org/vault/invite/abc'}]}, base),
+    ).toEqual(['https://example.org/vault/invite/abc'])
+    expect(extractInvitationLinks({links: ['https://x/1', 'https://x/2']}, base)).toEqual([
+      'https://x/1',
+      'https://x/2',
+    ])
+    expect(extractInvitationLinks({codes: ['c1']}, base)).toEqual(['https://example.org/vault?invite=c1'])
+    expect(extractInvitationLinks({code: 'solo'}, base)).toEqual(['https://example.org/vault?invite=solo'])
+    expect(extractInvitationLinks({code: 'solo', email: 'a+b@x.io'}, base)).toEqual([
+      'https://example.org/vault?invite=solo&email=a%2Bb%40x.io',
+    ])
+    // The vault's real shape (201 body).
+    expect(
+      extractInvitationLinks(
+        {
+          invitations: [
+            {
+              code: 'abc',
+              email: null,
+              link: 'https://example.org/vault?invite=abc',
+              createTime: 1,
+              usedTime: null,
+              used: false,
+            },
+          ],
+        },
+        base,
+      ),
+    ).toEqual(['https://example.org/vault?invite=abc'])
+    expect(extractInvitationLinks({ok: true}, base)).toEqual([])
+    expect(extractInvitationLinks('nope', base)).toEqual([])
+  })
+
+  test('isolation checks pass on a locked-down node', () => {
+    const shell = makeMockShell({
+      'docker port seed-daemon': '',
+      '/hm/api/config': '{"requireSignIn":true,"peerId":"12D3"}',
+      '/vault/': '200',
+      '"https://example.org/"': '302 https://example.org/hm/sign-in?next=%2F',
+      '/hm/api/session': '401',
+    })
+    const lines = enterpriseIsolationChecks(shell, makeEnterpriseConfig())
+    expect(lines.filter((l) => l.includes('\u2714'))).toHaveLength(5)
+    expect(lines.join('\n')).toContain('/hm/api/session without a session → 401')
+    expect(lines.join('\n')).toContain('none published')
+    expect(lines.join('\n')).toContain('requireSignIn: true')
+    expect(lines.join('\n')).toContain('302 https://example.org/hm/sign-in?next=%2F')
+  })
+
+  test('isolation checks flag published daemon ports and a missing gate', () => {
+    const shell = makeMockShell({
+      'docker port seed-daemon': '56000/tcp -> 0.0.0.0:56000',
+      '/hm/api/config': '{"requireSignIn":false}',
+      '/vault/': '502',
+      '"https://example.org/"': '200 ',
+      '/hm/api/session': '204',
+    })
+    const out = enterpriseIsolationChecks(shell, makeEnterpriseConfig()).join('\n')
+    expect(out).toContain('PUBLISHED: 56000/tcp -> 0.0.0.0:56000')
+    expect(out).toContain('requireSignIn: false')
+    expect(out).toContain('GET / without a session answered 200')
+    expect(out).toContain('/hm/api/session without a session answered 204')
+    expect(out).toContain('answered 502')
+    expect(out).not.toContain('\u2714')
+  })
+})
+
+describe("enterprise: the organization's space", () => {
+  let tmpDir: string
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'seed-bootstrap-'))
+  })
+  afterEach(async () => {
+    await rm(tmpDir, {recursive: true, force: true})
+  })
+
+  const KEY_FILE = {createTime: '2026-10-13T00:00:00.000Z', publicKey: 'z6MkOwner', keyB64: 'AAAA'}
+
+  function jsonResponse(status: number, body: unknown): Response {
+    return new Response(JSON.stringify(body), {status, headers: {'content-type': 'application/json'}})
+  }
+
+  /** A fetch that answers from a queue and records every call. */
+  function fakeFetch(answers: Array<Response | Error>) {
+    const calls: Array<{url: string; init: RequestInit}> = []
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      calls.push({url, init})
+      const next = answers.shift()
+      if (!next) throw new Error('no more answers')
+      if (next instanceof Error) throw next
+      return next
+    }) as unknown as typeof fetch
+    return {fetchImpl, calls}
+  }
+
+  test('parseArgs takes --site-name, --owner-password and the bootstrap-space command', () => {
+    const run = parseArgs([
+      'node',
+      'deploy.js',
+      'bootstrap-space',
+      '--site-name',
+      'Acme Research',
+      '--owner-password=hunter2',
+    ])
+    expect(run.command).toBe('bootstrap-space')
+    expect(run.args).toEqual([])
+    expect(run.headless).toEqual({siteName: 'Acme Research', ownerPassword: 'hunter2'})
+    const first = parseArgs(['node', 'deploy.js', '--profile', 'enterprise', '--site-name', 'Acme'])
+    expect(first.command).toBe('deploy')
+    expect(first.headless.siteName).toBe('Acme')
+  })
+
+  test('bootstrapOptionsFrom reads the password from the flag, then the environment', () => {
+    expect(bootstrapOptionsFrom({}, {})).toEqual({siteName: undefined, ownerPassword: undefined})
+    expect(bootstrapOptionsFrom({siteName: 'Acme'}, {SEED_OWNER_PASSWORD: 'env-pw'})).toEqual({
+      siteName: 'Acme',
+      ownerPassword: 'env-pw',
+    })
+    expect(bootstrapOptionsFrom({ownerPassword: 'flag-pw'}, {SEED_OWNER_PASSWORD: 'env-pw'}).ownerPassword).toBe(
+      'flag-pw',
+    )
+  })
+
+  test('the config carries site_name (bare hostname by default) and keeps owner_account_uid', () => {
+    const answers = {
+      domain: 'https://seed.acme.org',
+      release_channel: 'latest',
+      log_level: 'info' as const,
+      agents: false,
+      notify: false,
+      email: '',
+    }
+    expect(buildEnterpriseConfig(answers).site_name).toBe('seed.acme.org')
+    expect(buildEnterpriseConfig({...answers, site_name: '  Acme  '}).site_name).toBe('Acme')
+    const existing = makeEnterpriseConfig({site_name: 'Acme', owner_account_uid: 'z6MkOwner'})
+    const rebuilt = buildEnterpriseConfig(answers, existing)
+    expect(rebuilt.site_name).toBe('Acme')
+    expect(rebuilt.owner_account_uid).toBe('z6MkOwner')
+    expect(
+      headlessEnterpriseConfig({hostname: 'https://seed.acme.org', siteName: 'Acme HQ'}, undefined, {}).site_name,
+    ).toBe('Acme HQ')
+    expect(headlessEnterpriseConfig({hostname: 'https://seed.acme.org'}, undefined, {}).site_name).toBe('seed.acme.org')
+    expect(headlessEnterpriseConfig({hostname: 'https://seed.acme.org'}, existing, {}).owner_account_uid).toBe(
+      'z6MkOwner',
+    )
+  })
+
+  test('ownerKeyPath lives under owner-key/ in the install directory', () => {
+    const paths = makePaths('/opt/seed')
+    expect(ownerKeyPath(paths, 'z6MkOwner')).toBe(`/opt/seed/${OWNER_KEY_DIR}/z6MkOwner.hmkey.json`)
+  })
+
+  test('bootstrapSpace creates the space, keeps the key file owner-only and records the account', async () => {
+    const paths = makePaths(tmpDir)
+    const config = makeEnterpriseConfig({site_name: 'Acme'})
+    await writeConfig(config, paths)
+    const {fetchImpl, calls} = fakeFetch([
+      jsonResponse(200, {
+        accountUid: 'z6MkOwner',
+        name: 'Acme',
+        keyFile: KEY_FILE,
+        keyFileName: 'z6MkOwner.hmkey.json',
+      }),
+    ])
+    const result = await bootstrapSpace(config, paths, {ownerPassword: 'pw'}, {fetch: fetchImpl})
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('https://example.org/hm/api/enterprise-bootstrap')
+    expect(calls[0].init.method).toBe('POST')
+    expect((calls[0].init.headers as Record<string, string>).authorization).toBe(`Bearer ${config.vault_admin_secret}`)
+    expect(JSON.parse(calls[0].init.body as string)).toEqual({name: 'Acme', ownerPassword: 'pw'})
+
+    const keyPath = ownerKeyPath(paths, 'z6MkOwner')
+    expect(result).toEqual({status: 'created', accountUid: 'z6MkOwner', name: 'Acme', keyPath})
+    expect(JSON.parse(await readFile(keyPath, 'utf-8'))).toEqual(KEY_FILE)
+    expect((await stat(keyPath)).mode & 0o777).toBe(0o600)
+    expect((await stat(join(tmpDir, OWNER_KEY_DIR))).mode & 0o777).toBe(0o700)
+    const saved = await readConfig(paths)
+    expect(saved.owner_account_uid).toBe('z6MkOwner')
+    expect(saved.site_name).toBe('Acme')
+    expect(config.owner_account_uid).toBe('z6MkOwner')
+  })
+
+  test('bootstrapSpace names the space from the flag, then config, then the bare hostname', async () => {
+    const paths = makePaths(tmpDir)
+    const config = makeEnterpriseConfig({site_name: undefined})
+    await writeConfig(config, paths)
+    const answer = () => jsonResponse(200, {accountUid: 'z6MkOwner', name: 'x', keyFile: KEY_FILE})
+    const a = fakeFetch([answer()])
+    await bootstrapSpace(config, paths, {siteName: 'From flag'}, {fetch: a.fetchImpl})
+    expect(JSON.parse(a.calls[0].init.body as string)).toEqual({name: 'From flag'})
+    const b = fakeFetch([answer()])
+    await bootstrapSpace(makeEnterpriseConfig({site_name: undefined}), paths, {}, {fetch: b.fetchImpl})
+    expect(JSON.parse(b.calls[0].init.body as string)).toEqual({name: 'example.org'})
+  })
+
+  test('bootstrapSpace is idempotent: an already registered site is reported, not an error', async () => {
+    const paths = makePaths(tmpDir)
+    const config = makeEnterpriseConfig()
+    const {fetchImpl} = fakeFetch([
+      jsonResponse(409, {message: 'This site is already registered', accountUid: 'z6MkExisting'}),
+    ])
+    const result = await bootstrapSpace(config, paths, {}, {fetch: fetchImpl})
+    expect(result).toEqual({status: 'exists', accountUid: 'z6MkExisting'})
+    expect(config.owner_account_uid).toBeUndefined()
+    await expect(access(join(tmpDir, OWNER_KEY_DIR))).rejects.toThrow()
+  })
+
+  test('bootstrapSpace waits for the web app: retries connection errors and 5xx, then succeeds', async () => {
+    const paths = makePaths(tmpDir)
+    const config = makeEnterpriseConfig()
+    await writeConfig(config, paths)
+    const {fetchImpl, calls} = fakeFetch([
+      new Error('ECONNREFUSED'),
+      jsonResponse(502, 'Bad Gateway'),
+      jsonResponse(200, {accountUid: 'z6MkOwner', name: 'example.org', keyFile: KEY_FILE}),
+    ])
+    const slept: number[] = []
+    const logged: string[] = []
+    const result = await bootstrapSpace(
+      config,
+      paths,
+      {},
+      {
+        fetch: fetchImpl,
+        sleep: async (ms) => {
+          slept.push(ms)
+        },
+        log: (line) => logged.push(line),
+      },
+    )
+    expect(result.status).toBe('created')
+    expect(calls).toHaveLength(3)
+    expect(slept).toEqual([BOOTSTRAP_RETRY_MS, BOOTSTRAP_RETRY_MS])
+    expect(logged[0]).toContain('ECONNREFUSED')
+    expect(logged[1]).toContain('HTTP 502')
+  })
+
+  test('bootstrapSpace gives up after the attempts with the last failure', async () => {
+    const paths = makePaths(tmpDir)
+    const {fetchImpl, calls} = fakeFetch(Array.from({length: BOOTSTRAP_ATTEMPTS}, () => new Error('ECONNREFUSED')))
+    await expect(
+      bootstrapSpace(makeEnterpriseConfig(), paths, {}, {fetch: fetchImpl, sleep: async () => {}}),
+    ).rejects.toThrow(/after 6 attempts: .*ECONNREFUSED/)
+    expect(calls).toHaveLength(BOOTSTRAP_ATTEMPTS)
+  })
+
+  test('bootstrapSpace does not retry a refusal, and explains a missing route', async () => {
+    const paths = makePaths(tmpDir)
+    const unauthorized = fakeFetch([jsonResponse(401, {message: 'Unauthorized'})])
+    await expect(bootstrapSpace(makeEnterpriseConfig(), paths, {}, {fetch: unauthorized.fetchImpl})).rejects.toThrow(
+      /HTTP 401/,
+    )
+    expect(unauthorized.calls).toHaveLength(1)
+    const missing = fakeFetch([new Response('Not Found', {status: 404})])
+    await expect(bootstrapSpace(makeEnterpriseConfig(), paths, {}, {fetch: missing.fetchImpl})).rejects.toThrow(
+      /no bootstrap route.*bootstrap-space/,
+    )
+    expect(missing.calls).toHaveLength(1)
+  })
+
+  test('bootstrapSpace refuses a site node or one without the admin secret', async () => {
+    const paths = makePaths(tmpDir)
+    const {fetchImpl, calls} = fakeFetch([])
+    await expect(bootstrapSpace(makeTestConfig(), paths, {}, {fetch: fetchImpl})).rejects.toThrow(/enterprise/)
+    await expect(
+      bootstrapSpace(makeEnterpriseConfig({vault_admin_secret: undefined}), paths, {}, {fetch: fetchImpl}),
+    ).rejects.toThrow(/vault_admin_secret/)
+    expect(calls).toHaveLength(0)
+  })
+
+  test('describeBootstrap tells the operator the account, the key file and how to take root', () => {
+    const config = makeEnterpriseConfig()
+    const created = describeBootstrap(config, {
+      status: 'created',
+      accountUid: 'z6MkOwner',
+      name: 'Acme',
+      keyPath: '/opt/seed/owner-key/z6MkOwner.hmkey.json',
+    })
+    expect(created[0]).toBe('Created the organization\'s space "Acme": z6MkOwner')
+    expect(created[1]).toContain('/opt/seed/owner-key/z6MkOwner.hmkey.json')
+    expect(created.join('\n')).toContain('https://example.org/vault/settings')
+    expect(created.join('\n')).toContain('seed-cli key import /opt/seed/owner-key/z6MkOwner.hmkey.json')
+    expect(created.join('\n')).toContain('never stored')
+    expect(describeBootstrap(config, {status: 'exists', accountUid: 'z6MkExisting'})).toEqual([
+      'The site is already registered to the space z6MkExisting; nothing to create.',
+    ])
+  })
+})
+
+describe('enterprise: email relay', () => {
+  test('parseArgs takes --email-relay-url and --email-relay-token', () => {
+    const run = parseArgs([
+      'node',
+      'deploy.js',
+      'deploy',
+      '--profile',
+      'enterprise',
+      '--email-relay-url',
+      'https://host.example.com/relay',
+      '--email-relay-token=tok',
+    ])
+    expect(run.command).toBe('deploy')
+    expect(run.headless.emailRelayUrl).toBe('https://host.example.com/relay')
+    expect(run.headless.emailRelayToken).toBe('tok')
+  })
+
+  test('emailRelayFromEnv and emailRelayOf', () => {
+    expect(emailRelayFromEnv({})).toBeUndefined()
+    expect(emailRelayFromEnv({SEED_EMAIL_RELAY_URL: 'https://r', SEED_EMAIL_RELAY_TOKEN: 't'})).toEqual({
+      url: 'https://r',
+      token: 't',
+    })
+    expect(emailRelayFromEnv({SEED_EMAIL_RELAY_URL: 'https://r'})).toEqual({url: 'https://r', token: ''})
+    expect(emailRelayOf(undefined)).toBeUndefined()
+    expect(emailRelayOf(makeEnterpriseConfig())).toBeUndefined()
+    expect(emailRelayOf(makeEnterpriseConfig({email_relay_url: 'https://r', email_relay_token: 't'}))).toEqual({
+      url: 'https://r',
+      token: 't',
+    })
+  })
+
+  test('headless config takes the relay from flags, then the environment, then the existing config', () => {
+    const fromFlags = headlessEnterpriseConfig(
+      {hostname: 'https://example.org', emailRelayUrl: 'https://flag/relay', emailRelayToken: 'flag-tok'},
+      undefined,
+      {SEED_EMAIL_RELAY_URL: 'https://env/relay', SEED_EMAIL_RELAY_TOKEN: 'env-tok'},
+    )
+    expect(fromFlags.email_relay_url).toBe('https://flag/relay')
+    expect(fromFlags.email_relay_token).toBe('flag-tok')
+
+    const fromEnv = headlessEnterpriseConfig({hostname: 'https://example.org'}, undefined, {
+      SEED_EMAIL_RELAY_URL: 'https://env/relay',
+      SEED_EMAIL_RELAY_TOKEN: 'env-tok',
+    })
+    expect(fromEnv.email_relay_url).toBe('https://env/relay')
+    expect(fromEnv.email_relay_token).toBe('env-tok')
+
+    const existing = makeEnterpriseConfig({email_relay_url: 'https://old/relay', email_relay_token: 'old-tok'})
+    const kept = headlessEnterpriseConfig({hostname: 'https://example.org'}, existing, {})
+    expect(kept.email_relay_url).toBe('https://old/relay')
+    expect(kept.email_relay_token).toBe('old-tok')
+
+    // The token may come from the environment when only the URL is a flag.
+    const mixed = headlessEnterpriseConfig(
+      {hostname: 'https://example.org', emailRelayUrl: 'https://flag/relay'},
+      undefined,
+      {
+        SEED_EMAIL_RELAY_TOKEN: 'env-tok',
+      },
+    )
+    expect(mixed.email_relay_token).toBe('env-tok')
+  })
+
+  test('with a relay, --notify no longer needs SMTP; a relay needs a token and a URL', () => {
+    const config = headlessEnterpriseConfig({hostname: 'https://example.org', notify: true}, undefined, {
+      SEED_EMAIL_RELAY_URL: 'https://env/relay',
+      SEED_EMAIL_RELAY_TOKEN: 'env-tok',
+    })
+    expect(config.notify).toBe(true)
+    expect(config.smtp).toBeUndefined()
+    expect(() => headlessEnterpriseConfig({hostname: 'https://x.org', notify: true}, undefined, {})).toThrow(
+      /SEED_SMTP_HOST.*SEED_EMAIL_RELAY_URL/,
+    )
+    expect(() =>
+      headlessEnterpriseConfig({hostname: 'https://x.org', emailRelayUrl: 'https://r/relay'}, undefined, {}),
+    ).toThrow(/--email-relay-token/)
+    expect(() =>
+      headlessEnterpriseConfig({hostname: 'https://x.org', emailRelayUrl: 'r.example.com'}, undefined, {
+        SEED_EMAIL_RELAY_TOKEN: 't',
+      }),
+    ).toThrow(/--email-relay-url/)
+  })
+
+  test('buildEnterpriseConfig keeps, sets or clears the relay', () => {
+    const answers = {
+      domain: 'https://example.org',
+      release_channel: 'latest',
+      log_level: 'info' as const,
+      agents: false,
+      notify: false,
+      email: '',
+    }
+    const existing = makeEnterpriseConfig({email_relay_url: 'https://old/relay', email_relay_token: 'old-tok'})
+    expect(buildEnterpriseConfig(answers).email_relay_url).toBeUndefined()
+    const kept = buildEnterpriseConfig(answers, existing)
+    expect(kept.email_relay_url).toBe('https://old/relay')
+    expect(kept.email_relay_token).toBe('old-tok')
+    const set = buildEnterpriseConfig({...answers, email_relay: {url: 'https://new/relay', token: 'new-tok'}}, existing)
+    expect(set.email_relay_url).toBe('https://new/relay')
+    expect(set.email_relay_token).toBe('new-tok')
+    const cleared = buildEnterpriseConfig({...answers, email_relay: null}, existing)
+    expect(cleared.email_relay_url).toBeUndefined()
+    expect(cleared.email_relay_token).toBeUndefined()
+  })
+
+  test('the relay reaches compose as SEED_EMAIL_RELAY_URL / SEED_EMAIL_RELAY_TOKEN', async () => {
+    const env = buildComposeEnv(
+      makeEnterpriseConfig({notify: true, email_relay_url: 'https://host/relay', email_relay_token: 'se$cret'}),
+      makePaths('/opt/seed'),
+    )
+    expect(env).toContain('SEED_EMAIL_RELAY_URL="https://host/relay"')
+    expect(env).toContain(`SEED_EMAIL_RELAY_TOKEN='se$cret'`)
+    expect(env).toContain('SEED_SMTP_HOST=""')
+    const without = buildComposeEnv(makeEnterpriseConfig(), makePaths('/opt/seed'))
+    expect(without).toContain('SEED_EMAIL_RELAY_URL=""')
+    expect(without).toContain('SEED_EMAIL_RELAY_TOKEN=""')
+    expect(buildComposeEnv(makeTestConfig(), makePaths('/opt/seed'))).not.toContain('SEED_EMAIL_RELAY')
+
+    const compose = await readFile(join(import.meta.dir, 'docker-compose.enterprise.yml'), 'utf-8')
+    const vault = compose.slice(
+      compose.indexOf('container_name: seed-vault'),
+      compose.indexOf('container_name: seed-notify'),
+    )
+    expect(vault).toContain('SEED_VAULT_EMAIL_RELAY_URL=${SEED_EMAIL_RELAY_URL}')
+    expect(vault).toContain('SEED_VAULT_EMAIL_RELAY_TOKEN=${SEED_EMAIL_RELAY_TOKEN}')
+    const notify = compose.slice(
+      compose.indexOf('container_name: seed-notify'),
+      compose.indexOf('container_name: seed-agents'),
+    )
+    expect(notify).toContain('NOTIFY_EMAIL_RELAY_URL=${SEED_EMAIL_RELAY_URL}')
+    expect(notify).toContain('NOTIFY_EMAIL_RELAY_TOKEN=${SEED_EMAIL_RELAY_TOKEN}')
+  })
+
+  test('config output redacts the relay token with the other secrets', () => {
+    const redacted = redactConfig(
+      makeEnterpriseConfig({
+        email_relay_url: 'https://host/relay',
+        email_relay_token: 'top-secret',
+        smtp: {host: 'h', user: 'u', password: 'pw', sender: 's@h'},
+      }),
+    )
+    expect(redacted.email_relay_url).toBe('https://host/relay')
+    expect(redacted.email_relay_token).toBe('****')
+    expect(redacted.smtp?.password).toBe('****')
+    expect(redacted.vault_admin_secret).toBe('****')
+    expect(redacted.session_secret).toBe('****')
+    expect(redacted.link_secret).toBe('****')
+    expect(JSON.stringify(redacted)).not.toContain('top-secret')
+    expect(redactConfig(makeEnterpriseConfig()).email_relay_token).toBeUndefined()
+  })
+
+  test('describeNotify says how mail leaves the box', () => {
+    expect(describeNotify(makeEnterpriseConfig())).toBe('false')
+    expect(describeNotify(makeEnterpriseConfig({notify: true, email_relay_url: 'https://host/relay'}))).toBe(
+      'yes (email relay https://host/relay)',
+    )
+    expect(
+      describeNotify(
+        makeEnterpriseConfig({notify: true, smtp: {host: 'smtp.h', user: 'u', password: 'p', sender: 'Seed <s@h>'}}),
+      ),
+    ).toBe('yes (smtp.h, sender Seed <s@h>)')
+  })
+})
+
+describe('enterprise: hostname change', () => {
+  function jsonResponse(status: number, body: unknown): Response {
+    return new Response(JSON.stringify(body), {status, headers: {'content-type': 'application/json'}})
+  }
+  function fakeFetch(answers: Array<Response | Error>) {
+    const calls: Array<{url: string; init: RequestInit}> = []
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      calls.push({url, init})
+      const next = answers.shift()
+      if (!next) throw new Error('no more answers')
+      if (next instanceof Error) throw next
+      return next
+    }) as unknown as typeof fetch
+    return {fetchImpl, calls}
+  }
+
+  test('parseArgs knows set-hostname', () => {
+    const run = parseArgs(['node', 'deploy.js', 'set-hostname', 'https://new.example.org'])
+    expect(run.command).toBe('set-hostname')
+    expect(run.args).toEqual(['https://new.example.org'])
+  })
+
+  test('setSiteUrl posts to the site-url route with the admin secret and reports the change', async () => {
+    const config = makeEnterpriseConfig({domain: 'https://new.example.org'})
+    const {fetchImpl, calls} = fakeFetch([
+      jsonResponse(200, {
+        accountUid: 'z6MkOwner',
+        siteUrl: 'https://new.example.org',
+        changed: true,
+        previousSiteUrl: 'https://example.org',
+      }),
+    ])
+    const result = await setSiteUrl(config, {fetch: fetchImpl})
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('https://new.example.org/hm/api/enterprise-site-url')
+    expect(calls[0].init.method).toBe('POST')
+    expect((calls[0].init.headers as Record<string, string>).authorization).toBe(`Bearer ${config.vault_admin_secret}`)
+    expect(result).toEqual({
+      accountUid: 'z6MkOwner',
+      siteUrl: 'https://new.example.org',
+      changed: true,
+      previousSiteUrl: 'https://example.org',
+    })
+    const lines = describeSiteUrl(result)
+    expect(lines[0]).toBe(
+      'Republished the home document of z6MkOwner: siteUrl is now https://new.example.org (was https://example.org).',
+    )
+    expect(lines.join('\n')).toContain('Passkeys are bound to the hostname')
+  })
+
+  test('setSiteUrl reports an up-to-date document without changing anything', async () => {
+    const {fetchImpl} = fakeFetch([
+      jsonResponse(200, {
+        accountUid: 'z6MkOwner',
+        siteUrl: 'https://example.org',
+        changed: false,
+        previousSiteUrl: 'https://example.org',
+      }),
+    ])
+    const result = await setSiteUrl(makeEnterpriseConfig(), {fetch: fetchImpl})
+    expect(result.changed).toBe(false)
+    expect(describeSiteUrl(result)).toEqual([
+      'The space z6MkOwner already points at https://example.org; nothing to republish.',
+    ])
+  })
+
+  test('setSiteUrl waits for the web app, then explains 401, 404 and 409', async () => {
+    const slow = fakeFetch([
+      new Error('ECONNREFUSED'),
+      jsonResponse(502, 'Bad Gateway'),
+      jsonResponse(200, {
+        accountUid: 'z6MkOwner',
+        siteUrl: 'https://example.org',
+        changed: true,
+        previousSiteUrl: null,
+      }),
+    ])
+    const logged: string[] = []
+    const result = await setSiteUrl(makeEnterpriseConfig(), {
+      fetch: slow.fetchImpl,
+      sleep: async () => {},
+      log: (line) => logged.push(line),
+    })
+    expect(result.previousSiteUrl).toBeNull()
+    expect(slow.calls).toHaveLength(3)
+    expect(logged[0]).toContain('Site URL not updated yet')
+    expect(logged[1]).toContain('HTTP 502')
+
+    const unauthorized = fakeFetch([jsonResponse(401, {message: 'Unauthorized'})])
+    await expect(setSiteUrl(makeEnterpriseConfig(), {fetch: unauthorized.fetchImpl})).rejects.toThrow(/HTTP 401/)
+    expect(unauthorized.calls).toHaveLength(1)
+    const missing = fakeFetch([new Response('Not Found', {status: 404})])
+    await expect(setSiteUrl(makeEnterpriseConfig(), {fetch: missing.fetchImpl})).rejects.toThrow(
+      /no site-url route.*set-hostname https:\/\/example.org/,
+    )
+    const unregistered = fakeFetch([jsonResponse(409, {message: 'This site is not registered to a space yet'})])
+    await expect(setSiteUrl(makeEnterpriseConfig(), {fetch: unregistered.fetchImpl})).rejects.toThrow(
+      /HTTP 409.*bootstrap-space/,
+    )
+    const gone = fakeFetch(Array.from({length: BOOTSTRAP_ATTEMPTS}, () => new Error('ECONNREFUSED')))
+    await expect(setSiteUrl(makeEnterpriseConfig(), {fetch: gone.fetchImpl, sleep: async () => {}})).rejects.toThrow(
+      /site URL after 6 attempts: .*ECONNREFUSED/,
+    )
+    await expect(setSiteUrl(makeTestConfig(), {fetch: gone.fetchImpl})).rejects.toThrow(/enterprise/)
+  })
+
+  test('doctor compares the hostname with the home document siteUrl from /hm/api/config', () => {
+    expect(siteUrlCheck({hostname: 'https://example.org'})).toEqual([])
+    expect(siteUrlCheck({hostname: 'https://example.org', siteUrl: null})).toEqual([])
+    expect(siteUrlCheck({hostname: 'https://example.org', siteUrl: 'https://example.org'})).toEqual([
+      "  ✔ Site URL       the space's home document points at https://example.org",
+    ])
+    const drift = siteUrlCheck({hostname: 'https://new.example.org', siteUrl: 'https://example.org'})
+    expect(drift[0]).toContain('points at https://example.org, the site is https://new.example.org')
+    expect(drift[1]).toContain('set-hostname https://new.example.org')
+
+    const shell = makeMockShell({
+      'docker port seed-daemon': '',
+      '/hm/api/config':
+        '{"requireSignIn":true,"peerId":"12D3","hostname":"https://example.org","siteUrl":"https://old.example.org"}',
+      '/vault/': '200',
+      '"https://example.org/"': '302 https://example.org/hm/sign-in?next=%2F',
+      '/hm/api/session': '401',
+    })
+    const out = enterpriseIsolationChecks(shell, makeEnterpriseConfig()).join('\n')
+    expect(out).toContain('⚠ Site URL')
+    expect(out).toContain('https://old.example.org')
   })
 })

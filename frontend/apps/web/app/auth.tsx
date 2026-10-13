@@ -175,13 +175,15 @@ export async function redirectToVaultSignIn(opts: {
   origin: string
   siteName?: string
   vaultUrl: string
+  // Where the callback should land; defaults to the page that started sign-in.
+  returnUrl?: string
   hostingRequest?: WebDomainRequest
 }): Promise<void> {
   try {
     await saveWebDomainReturn(opts.hostingRequest)
     await setAuthState(
       AUTH_STATE_DELEGATION_RETURN_URL,
-      `${window.location.pathname}${window.location.search}${window.location.hash}`,
+      opts.returnUrl ?? `${window.location.pathname}${window.location.search}${window.location.hash}`,
     )
     await setAuthState(AUTH_STATE_DELEGATION_VAULT_URL, opts.vaultUrl)
     const authUrl = await authSession.startAuth({

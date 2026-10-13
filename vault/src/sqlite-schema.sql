@@ -63,6 +63,44 @@ CREATE TABLE vault_connects (
 
 CREATE INDEX vault_connects_by_expire_time ON vault_connects (expire_time);
 
+-- Invitation codes required to create an account when the server runs in invite-only mode.
+CREATE TABLE invitations (
+    code TEXT PRIMARY KEY,
+    -- Optional email the code is bound to. When set, the account must register with this email.
+    email TEXT,
+    -- Unix timestamp (ms) when this invitation was created.
+    create_time INTEGER NOT NULL,
+    -- Unix timestamp (ms) when this invitation was redeemed. NULL while unused.
+    used_time INTEGER,
+    -- The user created with this invitation.
+    used_by_account TEXT REFERENCES users (id),
+    -- 'reader' (vault membership only) or 'writer' (a WRITER capability on the
+    -- site's space is granted to the accounts the invited user registers).
+    role TEXT NOT NULL DEFAULT 'reader'
+) WITHOUT ROWID;
+
+-- WRITER capabilities granted for writer invitations, one per account the
+-- invited user reported, so the grant runs once per account.
+CREATE TABLE invitation_grants (
+    account_uid TEXT PRIMARY KEY,
+    code TEXT NOT NULL REFERENCES invitations (code),
+    -- The capability blob's id as the daemon reported it.
+    capability_id TEXT,
+    grant_time INTEGER NOT NULL
+) WITHOUT ROWID;
+
+-- Public account IDs each user keeps in their vault, reported by the client after
+-- it decrypts the vault, so the admin API can answer membership checks.
+-- The keys themselves stay inside the encrypted vault blob.
+CREATE TABLE user_accounts (
+    account_uid TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users (id),
+    -- Account creation time as recorded in the vault (ms).
+    create_time INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX user_accounts_by_user_id ON user_accounts (user_id);
+
 -- Stores various key-value pairs.
 -- E.g. hmac_secret for session cookies, schema_migration_version for DB versioning.
 CREATE TABLE server_config (
