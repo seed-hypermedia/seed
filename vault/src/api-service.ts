@@ -550,6 +550,12 @@ export class Service implements api.ServerInterface {
       createTime: row.create_time,
       usedTime: row.used_time,
       used: row.used_time !== null,
+      grants: this.db
+        .query<{account_uid: string; grant_time: number}, [string]>(
+          `SELECT account_uid, grant_time FROM invitation_grants WHERE code = ? ORDER BY grant_time`,
+        )
+        .all(row.code)
+        .map((g) => ({accountUid: g.account_uid, grantTime: g.grant_time})),
     }
   }
 
