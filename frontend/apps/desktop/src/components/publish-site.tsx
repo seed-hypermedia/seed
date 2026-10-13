@@ -19,6 +19,7 @@ import {
   PublishSiteSuccess,
   PublishError as ErrorBox,
   PublishStep,
+  PublishDomainStatus,
   publishDialogClassName,
 } from '@shm/ui/publish-site'
 import {Spinner} from '@shm/ui/spinner'
@@ -526,14 +527,6 @@ function SeedHostRegisterCustomDomain({
     }
   }, [pendingDomain, localPendingDomain, siteUrl])
   if (pendingDomain) {
-    let pendingStatus = null
-    if (pendingDomain?.status === 'error') {
-      pendingStatus = <ErrorBox error="Something went wrong. Please try domain setup again." />
-    } else if (pendingDomain?.status === 'waiting-dns' && siteUrl) {
-      pendingStatus = <DNSInstructions hostname={pendingDomain.hostname} siteUrl={siteUrl} />
-    } else if (pendingDomain?.status === 'initializing') {
-      pendingStatus = <SizableText color="muted">Initializing your domain…</SizableText>
-    }
     return (
       <PublishStep
         title={`Setting up ${pendingDomain.hostname}`}
@@ -544,8 +537,11 @@ function SeedHostRegisterCustomDomain({
           </Button>
         }
       >
-        {pendingStatus}
-        <CenteredSpinner />
+        <PublishDomainStatus
+          hostname={pendingDomain.hostname}
+          siteUrl={siteUrl || ''}
+          status={pendingDomain.status || 'checking'}
+        />
       </PublishStep>
     )
   }
@@ -583,25 +579,6 @@ function SeedHostRegisterCustomDomain({
       )}
     </PublishStep>
   )
-}
-
-export function DNSInstructions({hostname, siteUrl}: {hostname: string; siteUrl: string}) {
-  const isSubd = isSubdomain(hostname)
-  return (
-    <div className="flex flex-col gap-3">
-      <SizableText>
-        Set the <Text weight="bold">{hostname}</Text> {isSubd ? 'CNAME' : 'ALIAS'} record to{' '}
-        <Text weight="bold">{hostnameStripProtocol(siteUrl)}</Text> at your DNS provider.
-      </SizableText>
-      <SizableText color="muted" size="sm">
-        Once you update the DNS, it usually takes 10 minutes to propagate. Keep the app open until then.
-      </SizableText>
-    </div>
-  )
-}
-
-function isSubdomain(hostname: string) {
-  return hostname.split('.').length > 2
 }
 
 /** Steps of publishing a site to the Seed hosting service: login, subdomain, custom domain. */

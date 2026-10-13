@@ -106,6 +106,7 @@ export function extractViewTermFromUrl(url: string): {
   commentId?: string
   accountUid?: string
   settingsTab?: string
+  settingsDomain?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
 
@@ -131,6 +132,24 @@ export function extractViewTermFromUrl(url: string): {
       isInspect,
       viewTerm: ':activity',
       activityFilter: activitySlugMatch[1],
+    }
+  }
+
+  // A custom-domain setup has its own reloadable settings destination.
+  const domainSetupMatch = inspectCleanUrl.match(/\/\:settings\/web-domain\/([^/?#]+)(?=[?#]|$)/)
+  if (domainSetupMatch) {
+    let settingsDomain: string
+    try {
+      settingsDomain = decodeURIComponent(domainSetupMatch[1]!)
+    } catch {
+      return {url: inspectCleanUrl, isInspect, viewTerm: null}
+    }
+    return {
+      url: inspectCleanUrl.replace(domainSetupMatch[0], ''),
+      isInspect,
+      viewTerm: ':settings',
+      settingsTab: 'web-domain',
+      settingsDomain,
     }
   }
 
@@ -656,7 +675,8 @@ export function routeToUrl(
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
     const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
     const tabPath = route.tab ? `/${route.tab}` : ''
-    return `${urlHost}${siteBase}/:settings${tabPath}`
+    const domainPath = route.tab === 'web-domain' && route.domain ? `/${encodeURIComponent(route.domain)}` : ''
+    return `${urlHost}${siteBase}/:settings${tabPath}${domainPath}`
   }
   if (route.key === 'site-profile') {
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
@@ -753,7 +773,8 @@ export function routeToHmUrl(route: NavRoute): string | null {
 
   if (route.key === 'site-settings') {
     const tabPath = route.tab ? `/${route.tab}` : ''
-    return `${packBaseId(route.id.uid, route.id.path)}/:settings${tabPath}`
+    const domainPath = route.tab === 'web-domain' && route.domain ? `/${encodeURIComponent(route.domain)}` : ''
+    return `${packBaseId(route.id.uid, route.id.path)}/:settings${tabPath}${domainPath}`
   }
 
   // The schema a document defines: the document URL suffixed with /:schema.

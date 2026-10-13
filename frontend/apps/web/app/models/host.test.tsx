@@ -90,7 +90,7 @@ async function signIn(email = move.email) {
 
 beforeEach(() => {
   ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
-  webIdentity.current = null
+  webIdentity.current = {delegatedAccountUid: 'space-id', capabilityCid: 'owner-capability'}
   localStorage.clear()
   client = new QueryClient({
     defaultOptions: {queries: {retry: false}, mutations: {retry: false}},
@@ -108,7 +108,8 @@ beforeEach(() => {
       })
     if (url.endsWith('/info')) return json({hostDomain: 'example'})
     if (url.endsWith('/sites')) return json([ownedSite])
-    if (url.endsWith('/sites/site-id/domains')) return json([{hostname: 'custom.example'}])
+    if (url.endsWith('/sites/site-id/domains'))
+      return json([{id: 'domain-id', hostname: 'custom.example', status: 'Active'}])
     if (url.endsWith('/auth/logout')) return json({success: true})
     throw new Error(`Unexpected request ${url}`)
   }
@@ -535,3 +536,243 @@ it.each(['logout', 'identity switch', 'email proof change'])(
     expect(localStorage.getItem(storageKey) || '').not.toContain('stale-token')
   },
 )
+
+it('resumes a server-owned domain without another create request and retains publication intent across remount', async () => {
+  loggedIn()
+  const otherRequests = respond
+  respond = (url, options) => {
+    if (url.endsWith('/sites/site-id')) return json(ownedSite)
+    if (url.endsWith('/domains/domain-id')) return json({status: 'WaitingForDNS'})
+    return otherRequests(url, options)
+  }
+  mount(true)
+  await act(async () => {
+    await session.resumeDomain.mutateAsync({
+      hostingSiteId: ownedSite.id,
+      hostname: 'custom.example',
+      currentSiteUrl: ownedSite.url,
+      id: {uid: 'space-id'} as any,
+    })
+  })
+  expect(stored().pendingDomains).toEqual([
+    expect.objectContaining({
+      id: 'domain-id',
+      hostname: 'custom.example',
+      siteUid: 'space-id',
+      email: move.email,
+      hostingSiteUrl: ownedSite.url,
+    }),
+  ])
+  act(() => root!.unmount())
+  root = undefined
+  client.clear()
+  mount(true)
+  await act(async () => {
+    await session.retryPendingDomains()
+  })
+  expect(session.pendingDomains[0]?.hostname).toBe('custom.example')
+  expect(requests.filter((request) => request.url.endsWith('/domains') && request.options.method === 'POST')).toEqual(
+    [],
+  )
+  expect(updatePublication).not.toHaveBeenCalled()
+})
+
+it('rejects resuming a domain after its hosted site has moved to another space', async () => {
+  loggedIn()
+  const otherRequests = respond
+  respond = (url, options) =>
+    url.endsWith('/sites/site-id')
+      ? json({...ownedSite, activeConfig: {registeredAccountUid: 'another-space'}})
+      : otherRequests(url, options)
+  mount()
+  await act(async () => {
+    await expect(
+      session.resumeDomain.mutateAsync({
+        hostingSiteId: ownedSite.id,
+        hostname: 'custom.example',
+        currentSiteUrl: ownedSite.url,
+        id: {uid: 'space-id'} as any,
+      }),
+    ).rejects.toThrow('no longer registered')
+  })
+  expect(stored().pendingDomains).toEqual([])
+  expect(updatePublication).not.toHaveBeenCalled()
+})
+
+it('polls restored pending setup every 20 seconds and publishes once when HTTPS becomes active', async () => {
+  vi.useFakeTimers()
+  try {
+    loggedIn()
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({
+        ...stored(),
+        pendingDomains: [
+          {
+            id: 'domain-id',
+            hostname: 'custom.example',
+            siteUid: 'space-id',
+            currentSiteUrl: ownedSite.url,
+            email: move.email,
+            status: 'waiting-dns',
+          },
+        ],
+      }),
+    )
+    let status = 'WaitingForDNS'
+    const otherRequests = respond
+    respond = (url, options) => (url.endsWith('/domains/domain-id') ? json({status}) : otherRequests(url, options))
+    mount()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(session.pendingDomains[0]?.status).toBe('waiting-dns')
+    status = 'Initializing'
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000)
+    })
+    expect(stored().pendingDomains[0]?.status).toBe('initializing')
+    const publication = deferred<void>()
+    updatePublication.mockImplementation(() => publication.promise)
+    status = 'Active'
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000)
+    })
+    expect(stored().pendingDomains[0]?.status).toBe('publishing')
+    expect(updatePublication).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      publication.resolve()
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(stored().pendingDomains).toEqual([])
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40_000)
+    })
+    expect(updatePublication).toHaveBeenCalledTimes(1)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+it('does not adopt a late DNS response after hosting logout', async () => {
+  loggedIn()
+  const domain = {
+    id: 'domain-id',
+    hostname: 'custom.example',
+    siteUid: 'space-id',
+    currentSiteUrl: ownedSite.url,
+    email: move.email,
+    status: 'waiting-dns',
+  }
+  localStorage.setItem(storageKey, JSON.stringify({...stored(), pendingDomains: [domain]}))
+  const response = deferred<Response>()
+  const otherRequests = respond
+  respond = (url, options) => (url.endsWith('/domains/domain-id') ? response.promise : otherRequests(url, options))
+  mount()
+  await act(async () => {
+    await logoutHosting()
+  })
+  await act(async () => {
+    response.resolve(json({status: 'Initializing'}))
+  })
+  expect(stored().pendingDomains).toEqual([domain])
+  expect(session.pendingDomains).toEqual([])
+  expect(updatePublication).not.toHaveBeenCalled()
+})
+
+it('replaces stale local setup ownership only after the server confirms the current owner', async () => {
+  loggedIn()
+  localStorage.setItem(
+    storageKey,
+    JSON.stringify({
+      ...stored(),
+      pendingDomains: [
+        {
+          id: 'domain-id',
+          hostname: 'custom.example',
+          siteUid: 'space-id',
+          currentSiteUrl: ownedSite.url,
+          email: 'previous-owner@example.test',
+          status: 'waiting-dns',
+        },
+      ],
+    }),
+  )
+  const otherRequests = respond
+  respond = (url, options) => {
+    if (url.endsWith('/sites/site-id')) return json(ownedSite)
+    if (url.endsWith('/domains/domain-id')) return json({status: 'WaitingForDNS'})
+    return otherRequests(url, options)
+  }
+  mount()
+  expect(session.pendingDomains).toEqual([])
+  await act(async () => {
+    await session.resumeDomain.mutateAsync({
+      hostingSiteId: ownedSite.id,
+      hostname: 'custom.example',
+      currentSiteUrl: ownedSite.url,
+      id: {uid: 'space-id'} as any,
+    })
+  })
+  expect(stored().pendingDomains).toEqual([expect.objectContaining({email: move.email, id: 'domain-id'})])
+})
+
+it('does not let another space’s pending Active domain block publication of the selected space', async () => {
+  loggedIn()
+  const base = {currentSiteUrl: ownedSite.url, email: move.email, status: 'waiting-dns'}
+  localStorage.setItem(
+    storageKey,
+    JSON.stringify({
+      ...stored(),
+      pendingDomains: [
+        {...base, id: 'foreign', hostname: 'other.example', siteUid: 'other-space'},
+        {...base, id: 'selected', hostname: 'custom.example', siteUid: 'space-id'},
+      ],
+    }),
+  )
+  const otherRequests = respond
+  respond = (url, options) => (url.includes('/domains/') ? json({status: 'Active'}) : otherRequests(url, options))
+  mount()
+  await act(async () => {
+    await session.retryPendingDomains()
+  })
+  expect(updatePublication).toHaveBeenCalledTimes(1)
+  expect(updatePublication).toHaveBeenCalledWith(
+    expect.objectContaining({uid: 'space-id'}),
+    ownedSite.url,
+    'https://custom.example',
+  )
+  expect(stored().pendingDomains.map((domain: any) => domain.id)).toEqual(['foreign'])
+})
+
+it('continues checking selected-space domains when an unrelated pending domain request fails', async () => {
+  loggedIn()
+  const base = {currentSiteUrl: ownedSite.url, email: move.email, status: 'waiting-dns'}
+  localStorage.setItem(
+    storageKey,
+    JSON.stringify({
+      ...stored(),
+      pendingDomains: [
+        {...base, id: 'broken', hostname: 'other.example', siteUid: 'other-space'},
+        {...base, id: 'selected', hostname: 'custom.example', siteUid: 'space-id'},
+      ],
+    }),
+  )
+  const otherRequests = respond
+  respond = (url, options) =>
+    url.endsWith('/domains/broken')
+      ? json({message: 'Domain not found'}, 404)
+      : url.endsWith('/domains/selected')
+        ? json({status: 'Active'})
+        : otherRequests(url, options)
+  mount()
+  await act(async () => {
+    await session.retryPendingDomains('selected')
+  })
+  expect(updatePublication).toHaveBeenCalledWith(
+    expect.objectContaining({uid: 'space-id'}),
+    ownedSite.url,
+    'https://custom.example',
+  )
+  expect(stored().pendingDomains).toEqual([expect.objectContaining({id: 'broken', errorMessage: 'Domain not found'})])
+})

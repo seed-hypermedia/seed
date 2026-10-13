@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
   header: vi.fn(),
   provider: vi.fn(),
   settings: vi.fn(),
+  domain: vi.fn(),
   load: vi.fn(),
 }))
 vi.mock('@/client-lazy', () => ({ClientOnly: ({children}: any) => children}))
@@ -35,6 +36,12 @@ vi.mock('./components/web-space-settings', () => ({
   WebSpaceSettingsPage: (props: any) => {
     state.settings(props)
     return <section>Settings content</section>
+  },
+}))
+vi.mock('./components/web-hosting', () => ({
+  WebDomainSetupPage: (props: any) => {
+    state.domain(props)
+    return <section>Domain progress</section>
   },
 }))
 import {WebSpaceSettingsScreen} from './web-space-settings-page'
@@ -85,4 +92,20 @@ it('does not show gateway branding while the viewed space is loading and preserv
   await act(async () => root.render(<WebSpaceSettingsScreen payload={payload} />))
   expect(state.header).toHaveBeenLastCalledWith(expect.objectContaining({homeMetadata: null}))
   expect(state.settings).toHaveBeenCalledWith({siteUid: 'owner', section: undefined})
+})
+
+it('mounts full-page setup with its stable space and hostname from the URL', async () => {
+  await act(async () =>
+    root.render(<WebSpaceSettingsScreen payload={{...payload, section: 'web-domain', domain: 'www.example.com'}} />),
+  )
+  expect(state.domain).toHaveBeenCalledWith({
+    siteId: expect.objectContaining({uid: 'owner'}),
+    hostname: 'www.example.com',
+  })
+  expect(state.settings).not.toHaveBeenCalled()
+  expect(state.provider).toHaveBeenCalledWith(
+    expect.objectContaining({
+      initialRoute: expect.objectContaining({key: 'site-settings', tab: 'web-domain', domain: 'www.example.com'}),
+    }),
+  )
 })

@@ -121,6 +121,9 @@ describe('space settings page routing', () => {
   })
   it.each([
     ':settings/bogus',
+    ':settings/web-domain/not-a-domain',
+    ':settings/web-domain/evil%2Fpath.example.com',
+    ':settings/web-domain/www.example.com/extra',
     ':settings/identity/extra',
     'hm/owner/:settings/bogus',
     'hm/owner/:settings/email-subscribers/extra',
@@ -141,3 +144,20 @@ describe('space settings page routing', () => {
     },
   )
 })
+
+it.each([':settings/web-domain/www.example.com', 'hm/owner/:settings/web-domain/www.example.com'])(
+  'restores a domain deep link on a fresh request: %s',
+  async (path) => {
+    mocks.getConfig.mockResolvedValue({registeredAccountUid: 'gateway'})
+    mocks.loadSiteHeaderData.mockResolvedValue({originHomeId: {uid: 'gateway'}})
+    for (let reload = 0; reload < 2; reload++) {
+      const result = await loader({params: {'*': path}, request: new Request(`https://seed.example/${path}`)})
+      expect(result).toMatchObject({
+        kind: 'site-settings',
+        siteUid: path.startsWith('hm/') ? 'owner' : 'gateway',
+        section: 'web-domain',
+        domain: 'www.example.com',
+      })
+    }
+  },
+)
