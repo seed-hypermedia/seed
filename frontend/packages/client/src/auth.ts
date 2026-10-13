@@ -27,6 +27,7 @@ import {
   PARAM_EMAIL_PREVALIDATION,
   parseEmailPrevalidation,
   PARAM_ERROR,
+  PARAM_INVITE,
   PARAM_PROOF,
   PARAM_REDIRECT_URI,
   PARAM_SESSION_KEY,
@@ -221,6 +222,7 @@ export async function startAuth(config: HypermediaAuthConfig, options: AuthOptio
   if (config.requestEmailPrevalidation) url.searchParams.set(PARAM_EMAIL_PREVALIDATION, '1')
   if (config.email) url.searchParams.set(PARAM_EMAIL, config.email)
   if (config.siteName) url.searchParams.set(PARAM_SITE_NAME, config.siteName)
+  if (config.invite) url.searchParams.set(PARAM_INVITE, config.invite)
 
   // The proof signs the URL as it appears without the trailing `proof` param,
   // so it must be appended last and never reordered.

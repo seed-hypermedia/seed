@@ -178,6 +178,10 @@ export async function redirectToVaultSignIn(opts: {
   // Where the callback should land; defaults to the page that started sign-in.
   returnUrl?: string
   hostingRequest?: WebDomainRequest
+  // An invitation to an invite-only vault: the vault creates the account for
+  // `email` and completes this delegation in one go.
+  invite?: string
+  email?: string
 }): Promise<void> {
   try {
     await saveWebDomainReturn(opts.hostingRequest)
@@ -191,6 +195,8 @@ export async function redirectToVaultSignIn(opts: {
       clientId: opts.origin || window.location.origin,
       redirectUri: `${opts.origin || window.location.origin}/hm/auth/callback`,
       siteName: opts.siteName || hostnameStripProtocol(opts.origin) || 'this space',
+      ...(opts.invite ? {invite: opts.invite} : {}),
+      ...(opts.email ? {email: opts.email} : {}),
     })
     window.location.href = authUrl
   } catch (error) {

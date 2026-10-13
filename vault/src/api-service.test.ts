@@ -1560,7 +1560,10 @@ describe('vault invitations', () => {
     const invitation = created.invitations[0]!
     expect(invitation.code).toMatch(/^[A-Za-z0-9_-]{32,}$/)
     expect(invitation.email).toBe('alice+seed@test.com')
-    expect(invitation.link).toBe(`https://example.com/vault?invite=${invitation.code}&email=alice%2Bseed%40test.com`)
+    // Invite-only: the link is the site's sign-in page, which creates the account inside the sign-in flow.
+    expect(invitation.link).toBe(
+      `https://web.example.com/hm/sign-in?invite=${invitation.code}&email=alice%2Bseed%40test.com`,
+    )
     expect(invitation.used).toBe(false)
     expect(invitation.usedTime).toBeNull()
     // The link round-trips through URL parsing to the same code and email.
