@@ -1579,9 +1579,11 @@ describe('vault invitations', () => {
     expect(listed.invitations.map((i) => i.code).sort()).toEqual(
       [...created.invitations, ...second.invitations].map((i) => i.code).sort(),
     )
-    // No account data leaks through the admin listing.
+    // Nothing from the user's encrypted vault leaks through the admin listing:
+    // only the public account IDs the person reported.
     for (const invitation of listed.invitations) {
       expect(Object.keys(invitation).sort()).toEqual([
+        'accounts',
         'code',
         'createTime',
         'email',
@@ -1591,6 +1593,7 @@ describe('vault invitations', () => {
         'used',
         'usedTime',
       ])
+      expect(invitation.accounts).toEqual([])
     }
 
     await expect(svc.adminCreateInvitations({email: 'x@test.com', count: 0}, adminCtx)).rejects.toMatchObject({
@@ -1723,9 +1726,10 @@ describe('vault invitations', () => {
           .get(uidA),
       ).toEqual({code: invitation!.code, capability_id: 'cap-1'})
 
-      // The admin listing shows the grant.
+      // The admin listing shows the grant, and the account the person reported.
       const listed = (await svc.adminListInvitations(adminCtx)).invitations.find((i) => i.code === invitation!.code)
       expect(listed?.grants.map((g) => g.accountUid)).toEqual([uidA])
+      expect(listed?.accounts).toEqual([{accountUid: uidA, createTime: 100}])
 
       // Syncing again does not grant again; a second account gets its own grant.
       await svc.syncVaultAccounts({accounts: [claimA]}, userCtx)
