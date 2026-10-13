@@ -567,6 +567,14 @@ export class Service implements api.ServerInterface {
         )
         .all(row.code)
         .map((g) => ({accountUid: g.account_uid, grantTime: g.grant_time})),
+      accounts: row.used_by_account
+        ? this.db
+            .query<{account_uid: string; create_time: number}, [string]>(
+              `SELECT account_uid, create_time FROM user_accounts WHERE user_id = ? ORDER BY create_time`,
+            )
+            .all(row.used_by_account)
+            .map((a) => ({accountUid: a.account_uid, createTime: a.create_time}))
+        : [],
     }
   }
 

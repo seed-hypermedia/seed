@@ -377,6 +377,8 @@ export type AdminInvitation = {
   used: boolean
   /** Writer invitations: the accounts that received a WRITER capability so far. */
   grants: Array<{accountUid: string; grantTime: number}>
+  /** The accounts the invited user keeps in their vault, as they reported them (empty until they joined). */
+  accounts: Array<{accountUid: string; createTime: number}>
 }
 export type AdminCreateInvitationsRequest = {
   /** Email the invitation is for. Required in invite-only mode. */
