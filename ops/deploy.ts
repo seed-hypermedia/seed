@@ -348,6 +348,23 @@ export interface SeedConfig {
   site_name?: string
   /** Account of the organization's space once the first deploy created it. */
   owner_account_uid?: string
+  /**
+   * Earlier hostnames of an enterprise node (bare DNS names). Each keeps its
+   * own certificate and redirects to `domain`, so the managed address a
+   * hosting service gave the node still works after a custom domain is set.
+   */
+  redirect_hostnames?: string[]
+}
+
+/**
+ * Hostnames that redirect to the node's current one: the earlier addresses
+ * of an enterprise node, minus the current one and duplicates.
+ */
+export function redirectHostnames(config: Pick<SeedConfig, 'domain' | 'redirect_hostnames'>): string[] {
+  const current = extractDns(config.domain).toLowerCase()
+  return [...new Set((config.redirect_hostnames ?? []).map((h) => extractDns(h).toLowerCase()).filter(Boolean))].filter(
+    (h) => h !== current,
+  )
 }
 
 /** Whether the config selects the enterprise profile. */
@@ -1854,6 +1871,14 @@ ${dns} {
 \t\treverse_proxy seed-web:3000
 \t}
 }`)
+
+  // Earlier hostnames (the managed address before a custom domain) keep a
+  // certificate and send the browser to the current one.
+  for (const host of redirectHostnames(config)) {
+    blocks.push(`${host} {
+\tredir https://${dns}{uri} permanent
+}`)
+  }
 
   if (config.notify) {
     blocks.push(`notify.${dns} {
@@ -3956,8 +3981,14 @@ async function cmdSetHostname(paths: DeployPaths, shell: ShellRunner, args: stri
   const previous = config.domain
   if (previous !== hostname) {
     config.domain = hostname
+    // The old address keeps working: Caddy keeps its certificate and
+    // redirects to the new hostname.
+    config.redirect_hostnames = redirectHostnames({
+      domain: hostname,
+      redirect_hostnames: [...(config.redirect_hostnames ?? []), extractDns(previous)],
+    })
     await writeConfig(config, paths)
-    log(`Hostname changed from ${previous} to ${hostname}; redeploying.`)
+    log(`Hostname changed from ${previous} to ${hostname}; ${extractDns(previous)} will redirect there. Redeploying.`)
     await deploy(config, paths, shell, false, {}, previous)
     return
   }

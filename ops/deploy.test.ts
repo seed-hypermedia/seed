@@ -103,6 +103,7 @@ import {
   siteUrlCheck,
   BOOTSTRAP_ATTEMPTS,
   BOOTSTRAP_RETRY_MS,
+  redirectHostnames,
 } from './deploy'
 
 // ---------------------------------------------------------------------------
@@ -2655,6 +2656,17 @@ describe('enterprise: buildComposeEnv', () => {
 })
 
 describe('enterprise: generateCaddyfile', () => {
+  test('earlier hostnames get a redirect block of their own', () => {
+    const caddy = generateCaddyfile(makeEnterpriseConfig({redirect_hostnames: ['ee-test-1.hyper.media', 'https://Example.org/', 'ee-test-1.hyper.media']}))
+    const blocks = caddy.split('\n\nee-test-1.hyper.media {')
+    expect(blocks).toHaveLength(2)
+    expect(blocks[1]).toStartWith('\n\tredir https://example.org{uri} permanent\n}')
+    // The current hostname never redirects to itself; duplicates collapse.
+    expect(caddy.match(/redir https:\/\/example.org\{uri\} permanent/g)).toHaveLength(1)
+    expect(redirectHostnames({domain: 'https://example.org', redirect_hostnames: ['example.org']})).toEqual([])
+    expect(generateCaddyfile(makeEnterpriseConfig())).not.toContain('redir ')
+  })
+
   test('main site block has the forward_auth gate, vault and ipfs routes', () => {
     const caddy = generateCaddyfile(makeEnterpriseConfig())
     expect(caddy).toContain('(gate) {')

@@ -986,6 +986,10 @@ function checkDockerAccess(shell) {
   }
 }
 var DEPLOY_PROFILES = ["site", "enterprise"];
+function redirectHostnames(config) {
+  const current = extractDns(config.domain).toLowerCase();
+  return [...new Set((config.redirect_hostnames ?? []).map((h) => extractDns(h).toLowerCase()).filter(Boolean))].filter((h) => h !== current);
+}
 function isEnterprise(config) {
   return config.profile === "enterprise";
 }
@@ -2047,6 +2051,11 @@ ${dns} {
 		reverse_proxy seed-web:3000
 	}
 }`);
+  for (const host of redirectHostnames(config)) {
+    blocks.push(`${host} {
+	redir https://${dns}{uri} permanent
+}`);
+  }
   if (config.notify) {
     blocks.push(`notify.${dns} {
 	encode zstd gzip
@@ -3557,8 +3566,12 @@ async function cmdSetHostname(paths, shell, args) {
   const previous = config.domain;
   if (previous !== hostname) {
     config.domain = hostname;
+    config.redirect_hostnames = redirectHostnames({
+      domain: hostname,
+      redirect_hostnames: [...config.redirect_hostnames ?? [], extractDns(previous)]
+    });
     await writeConfig(config, paths);
-    log(`Hostname changed from ${previous} to ${hostname}; redeploying.`);
+    log(`Hostname changed from ${previous} to ${hostname}; ${extractDns(previous)} will redirect there. Redeploying.`);
     await deploy(config, paths, shell, false, {}, previous);
     return;
   }
@@ -4125,6 +4138,7 @@ export {
   printHelp,
   readConfig,
   redactConfig,
+  redirectHostnames,
   removeLegacyAutoupdaters,
   removeLegacyHostCron,
   removeLegacyHostCronLines,
