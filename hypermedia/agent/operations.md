@@ -190,7 +190,9 @@ services:
   searxng:
     image: searxng/searxng:latest
     volumes:
-      - ./searxng:/etc/searxng:rw # settings.yml must enable the json format
+      - ./searxng:/etc/searxng:rw,z # settings.yml must enable the json format; z labels it for SELinux hosts
+    environment:
+      - FORCE_OWNERSHIP=false # the image only reads settings.yml; keep it owned by the operator
     restart: unless-stopped
     # No published ports: reachable on the internal network as http://searxng:8080
 

@@ -12,9 +12,13 @@ services:
     ports:
       - '127.0.0.1:8899:8080'
     volumes:
-      - ./searxng:/etc/searxng:rw
+      # `z` labels the directory for SELinux hosts (Fedora, RHEL); without it the container cannot even read it.
+      - ./searxng:/etc/searxng:rw,z
     environment:
       - SEARXNG_SECRET_KEY=dev-secret-key-change-me
+      # The image chowns /etc/searxng to its own user at start, which would take the checked-in settings.yml
+      # away from the developer. It only reads the file, so ownership can stay as it is.
+      - FORCE_OWNERSHIP=false
     restart: unless-stopped
 
   crawl4ai:
