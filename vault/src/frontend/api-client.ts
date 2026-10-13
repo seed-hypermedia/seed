@@ -42,6 +42,10 @@ export class FetchClient implements api.ClientInterface {
     return this.request('/api/login', {method: 'POST', body: JSON.stringify(req)})
   }
 
+  async loginRecovery(req: api.LoginRecoveryRequest): Promise<api.LoginRecoveryResponse> {
+    return this.request('/api/login/recovery', {method: 'POST', body: JSON.stringify(req)})
+  }
+
   async logout(): Promise<api.LogoutResponse> {
     return this.request('/api/logout', {method: 'POST'})
   }

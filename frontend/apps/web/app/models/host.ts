@@ -1,3 +1,4 @@
+import {keyPairStore, useLocalKeyPair} from '@/auth'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {SEED_HOST_URL} from '@shm/shared/constants'
@@ -101,6 +102,13 @@ export const HostInfoResponseSchema = z.object({
 export type HostInfoResponse = z.infer<typeof HostInfoResponseSchema>
 
 /** A site owned by the authenticated hosting account, with its gateway identity. */
+const HostedDomainSchema = z.object({
+  id: z.string(),
+  hostname: z.string(),
+  status: z.enum(['WaitingForDNS', 'Initializing', 'Error', 'Active']),
+})
+
+/** Hosted sites and their domain status are scoped to the authenticated hosting account. */
 export const HostedSiteSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -109,6 +117,7 @@ export const HostedSiteSchema = z.object({
     .object({registeredAccountUid: z.string().optional(), availableRegistrationSecret: z.string().optional()})
     .nullable(),
   customDomains: z.array(z.string()).default([]),
+  domainDetails: z.array(HostedDomainSchema).optional(),
   services: z.array(
     z.object({
       serviceEnd: z.string().nullable(),
@@ -136,7 +145,7 @@ const PendingDomainSchema = z.object({
   siteUid: z.string(),
   currentSiteUrl: z.string().url(),
   hostingSiteUrl: z.string().url().optional(),
-  status: z.enum(['waiting-dns', 'initializing', 'error']),
+  status: z.enum(['waiting-dns', 'initializing', 'publishing', 'error']),
   email: z.string(),
   errorMessage: z.string().optional(),
 })
@@ -312,6 +321,7 @@ export function useHostSession({
   onAuthenticated,
   includeSites = false,
 }: {onAuthenticated?: () => void; includeSites?: boolean} = {}) {
+  const identity = useLocalKeyPair()
   const loadedState = useSyncExternalStore(subscribe, readState, () => undefined)
   const hostState = loadedState || emptyState
   const callback = useRef(onAuthenticated)
@@ -345,12 +355,38 @@ export function useHostSession({
     })
     clearAccountQueries()
   })
-  const loginWithVault = useMutation({
-    mutationFn: async () => {
-      // Browser delegation sessions contain no vault-signed email prevalidation proof.
-      // Calling the gateway daemon here would authenticate its owner, not this visitor.
+  const loginWithVault = useAuthMutation(async (_input: void, version) => {
+    assertSession(version)
+    const signingIdentity = keyPairStore.get()
+    const proof = signingIdentity?.emailPrevalidation
+    if (!proof || !signingIdentity?.delegatedAccountUid || !signingIdentity.capabilityCid) {
       throw new Error('Sign in to Seed Hosting with a four-digit email code.')
-    },
+    }
+    // Use this visitor's vault proof, never the gateway daemon's credentials.
+    const response = AbsorbResponseSchema.parse(
+      await hostAPI('auth/vault', 'POST', {
+        email: proof.email,
+        signer: proof.signer,
+        host: proof.host,
+        sig: proof.sig,
+      }),
+    )
+    assertSession(version)
+    if (keyPairStore.get() !== signingIdentity) {
+      throw new Error('Signing identity changed. Please try again.')
+    }
+    if (response.status !== 'success') {
+      throw new Error(response.status === 'error' ? response.message : 'Vault login failed')
+    }
+    const current = readState()
+    writeState({
+      ...current,
+      authVersion: current.authVersion + 1,
+      authGeneration: crypto.randomUUID(),
+      email: response.email,
+      sessionToken: response.sessionToken,
+    })
+    clearAccountQueries()
   })
   const sites = useQuery({
     queryKey: ['HOST_SITES', SEED_HOST_URL, hostState.authGeneration],
@@ -358,13 +394,12 @@ export function useHostSession({
       const state = readState()
       const owned = z.array(HostedSiteSchema).parse(await hostAPI('sites', 'GET', undefined, state, signal))
       return Promise.all(
-        owned.map(async (site) => ({
-          ...site,
-          customDomains: z
-            .array(z.object({hostname: z.string()}))
+        owned.map(async (site) => {
+          const domains = z
+            .array(HostedDomainSchema)
             .parse(await hostAPI(`sites/${encodeURIComponent(site.id)}/domains`, 'GET', undefined, state, signal))
-            .map((domain) => domain.hostname),
-        })),
+          return {...site, customDomains: domains.map((domain) => domain.hostname), domainDetails: domains}
+        }),
       )
     },
     enabled: includeSites && !!hostState.sessionToken,
@@ -530,6 +565,53 @@ export function useHostSession({
       return result
     },
   })
+  const resumeDomain = useMutation({
+    mutationFn: async ({
+      hostingSiteId,
+      hostname,
+      currentSiteUrl,
+      id,
+    }: {
+      hostingSiteId: string
+      hostname: string
+      currentSiteUrl: string
+      id: UnpackedHypermediaId
+    }) => {
+      const state = readState()
+      const site = HostedSiteSchema.parse(
+        await hostAPI(`sites/${encodeURIComponent(hostingSiteId)}`, 'GET', undefined, state),
+      )
+      if (site.activeConfig?.registeredAccountUid !== id.uid)
+        throw new Error('This hosted site is no longer registered to the space.')
+      const domains = z
+        .array(HostedDomainSchema)
+        .parse(await hostAPI(`sites/${encodeURIComponent(hostingSiteId)}/domains`, 'GET', undefined, state))
+      const domain = domains.find((domain) => domain.hostname === hostname)
+      if (!domain) throw new Error('This domain no longer belongs to the hosted site.')
+      assertSession(state.authGeneration)
+      const current = readState()
+      const existing = current.pendingDomains.find((pending) => pending.id === domain.id)
+      // The server has just verified the current owner; replace stale intent after a legitimate transfer.
+      if (!existing || existing.email !== state.email || existing.siteUid !== id.uid)
+        writeState({
+          ...current,
+          pendingDomains: [
+            ...current.pendingDomains.filter((pending) => pending.id !== domain.id),
+            {
+              id: domain.id,
+              hostname: domain.hostname,
+              siteUid: id.uid,
+              currentSiteUrl,
+              hostingSiteUrl: site.url,
+              email: state.email!,
+              status:
+                domain.status === 'Initializing' ? 'initializing' : domain.status === 'Error' ? 'error' : 'waiting-dns',
+            },
+          ],
+        })
+      await getQueryClient().invalidateQueries({queryKey: ['HOST_DOMAINS', SEED_HOST_URL]})
+    },
+  })
   const cancelPendingDomain = useMutation({
     mutationFn: async (id: string) => {
       const state = readState()
@@ -555,77 +637,104 @@ export function useHostSession({
   })
   const ownPendingDomains = hostState.pendingDomains.filter((domain) => domain.email === hostState.email)
   const domainStatus = useQuery({
-    queryKey: ['HOST_DOMAINS', SEED_HOST_URL, hostState.authGeneration],
+    queryKey: ['HOST_DOMAINS', SEED_HOST_URL, hostState.authGeneration, identity?.delegatedAccountUid],
     enabled: !!hostState.sessionToken && ownPendingDomains.length > 0,
     refetchInterval: 20_000,
     useErrorBoundary: false,
     meta: {handlesErrorLocally: true},
     queryFn: async ({signal}) => {
       const state = readState()
+      let firstError: Error | undefined
       for (const domain of state.pendingDomains.filter((pending) => pending.email === state.email)) {
         if (cancelingDomains.has(domain.id)) continue
-        const result = z
-          .object({status: z.enum(['WaitingForDNS', 'Initializing', 'Error', 'Active'])})
-          .parse(await hostAPI(`domains/${encodeURIComponent(domain.id)}`, 'GET', undefined, state, signal))
-        if (signal?.aborted) return null
-        if (result.status === 'Active') {
-          const {updateMovedSitePublication} = await import('./site')
+        try {
+          const result = z
+            .object({status: z.enum(['WaitingForDNS', 'Initializing', 'Error', 'Active'])})
+            .parse(await hostAPI(`domains/${encodeURIComponent(domain.id)}`, 'GET', undefined, state, signal))
+          if (signal?.aborted) return null
           assertSession(state.authGeneration)
-          if (
-            signal?.aborted ||
-            cancelingDomains.has(domain.id) ||
-            !readState().pendingDomains.some((pending) => pending.id === domain.id && pending.email === state.email)
-          )
-            continue
-          const publication =
-            domainPublications.get(domain.id) ||
-            updateMovedSitePublication(hmId(domain.siteUid), domain.currentSiteUrl, `https://${domain.hostname}`)
-          domainPublications.set(domain.id, publication)
-          try {
-            await publication
+          if (result.status === 'Active') {
+            const signingIdentity = keyPairStore.get()
+            if (!signingIdentity?.capabilityCid || signingIdentity.delegatedAccountUid !== domain.siteUid) continue
+            const {updateMovedSitePublication} = await import('./site')
             assertSession(state.authGeneration)
-            const current = readState()
+            if (
+              signal?.aborted ||
+              cancelingDomains.has(domain.id) ||
+              !readState().pendingDomains.some((pending) => pending.id === domain.id && pending.email === state.email)
+            )
+              continue
+            const activeState = readState()
             writeState({
-              ...current,
-              pendingDomains: current.pendingDomains.filter((pending) => pending.id !== domain.id),
+              ...activeState,
+              pendingDomains: activeState.pendingDomains.map((pending) =>
+                pending.id === domain.id ? {...pending, status: 'publishing', errorMessage: undefined} : pending,
+              ),
             })
-          } catch (error) {
-            assertSession(state.authGeneration)
+            const publication =
+              domainPublications.get(domain.id) ||
+              updateMovedSitePublication(hmId(domain.siteUid), domain.currentSiteUrl, `https://${domain.hostname}`)
+            domainPublications.set(domain.id, publication)
+            try {
+              await publication
+              assertSession(state.authGeneration)
+              const current = readState()
+              writeState({
+                ...current,
+                pendingDomains: current.pendingDomains.filter((pending) => pending.id !== domain.id),
+              })
+              void invalidateSites()
+            } catch (error) {
+              assertSession(state.authGeneration)
+              const current = readState()
+              writeState({
+                ...current,
+                pendingDomains: current.pendingDomains.map((pending) =>
+                  pending.id === domain.id
+                    ? {
+                        ...pending,
+                        status: 'error',
+                        errorMessage: `Domain is active, but publication could not be updated. ${
+                          error instanceof Error ? error.message : 'Try again.'
+                        }`,
+                      }
+                    : pending,
+                ),
+              })
+              throw error
+            } finally {
+              if (domainPublications.get(domain.id) === publication) domainPublications.delete(domain.id)
+            }
+          } else {
+            const status =
+              result.status === 'WaitingForDNS'
+                ? 'waiting-dns'
+                : result.status === 'Initializing'
+                  ? 'initializing'
+                  : 'error'
             const current = readState()
             writeState({
               ...current,
               pendingDomains: current.pendingDomains.map((pending) =>
-                pending.id === domain.id
-                  ? {
-                      ...pending,
-                      status: 'error',
-                      errorMessage: `Domain is active, but publication could not be updated. ${
-                        error instanceof Error ? error.message : 'Try again.'
-                      }`,
-                    }
-                  : pending,
+                pending.id === domain.id ? {...pending, status, errorMessage: undefined} : pending,
               ),
             })
-            throw error
-          } finally {
-            if (domainPublications.get(domain.id) === publication) domainPublications.delete(domain.id)
           }
-        } else {
-          const status =
-            result.status === 'WaitingForDNS'
-              ? 'waiting-dns'
-              : result.status === 'Initializing'
-                ? 'initializing'
-                : 'error'
+        } catch (cause) {
+          if (signal?.aborted) return null
+          assertSession(state.authGeneration)
+          const error = Object.assign(cause instanceof Error ? cause : new Error(String(cause)), {domainId: domain.id})
+          firstError ||= error
           const current = readState()
           writeState({
             ...current,
             pendingDomains: current.pendingDomains.map((pending) =>
-              pending.id === domain.id ? {...pending, status, errorMessage: undefined} : pending,
+              pending.id === domain.id ? {...pending, errorMessage: pending.errorMessage || error.message} : pending,
             ),
           })
         }
       }
+      if (firstError) throw firstError
       return null
     },
   })
@@ -636,19 +745,26 @@ export function useHostSession({
     isSessionLoaded: loadedState !== undefined,
     pendingDomains: ownPendingDomains,
     domainStatus,
-    retryPendingDomains: async () => {
-      await domainStatus.refetch({throwOnError: true})
+    retryPendingDomains: async (domainId?: string) => {
+      try {
+        await domainStatus.refetch({throwOnError: true})
+      } catch (error) {
+        if (!domainId || !error || typeof error !== 'object' || !('domainId' in error) || error.domainId === domainId)
+          throw error
+      }
     },
     pendingSiteMoves: hostState.pendingSiteMoves.filter((move) => move.hostUrl === SEED_HOST_URL),
     startEmailCode,
     verifyEmailCode,
     loginWithVault: loginWithVault.mutate,
     loginWithVaultAsync: loginWithVault.mutateAsync,
-    canLoginWithVault: false,
+    canLoginWithVault: !!(identity?.emailPrevalidation && identity.delegatedAccountUid && identity.capabilityCid),
+    vaultEmail: identity?.emailPrevalidation?.email,
     reset: () => {
       void logoutHosting()
     },
     logout: () => logoutMutation.mutate(),
+    logoutAsync: logoutMutation.mutateAsync,
     hostInfo,
     sites,
     renameSite,
@@ -657,6 +773,7 @@ export function useHostSession({
     transferSite,
     createSite,
     createDomain,
+    resumeDomain,
     cancelPendingDomain,
   }
 }

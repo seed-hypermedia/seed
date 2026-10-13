@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '@shm/ui/components/dialog'
 import {Spinner} from '@shm/ui/spinner'
+import {publishDialogClassName} from '@shm/ui/publish-site'
 import {Globe} from 'lucide-react'
 import {lazy, Suspense, useEffect, useState, useSyncExternalStore} from 'react'
 
@@ -40,10 +41,7 @@ export function WebDomainHost() {
     <UniversalAppContext.Provider value={site.universal}>
       <NavContextProvider value={site.navigation}>
         <Dialog open onOpenChange={(open) => !open && dismiss()}>
-          <DialogContent
-            className="max-h-[calc(100dvh-4rem)] w-full max-w-lg"
-            showCloseButton={protection.showCloseButton}
-          >
+          <DialogContent className={publishDialogClassName} showCloseButton={protection.showCloseButton}>
             {request.view === 'invitation' ? (
               <>
                 <div className="bg-primary/10 text-primary flex size-12 items-center justify-center rounded-full">
@@ -76,7 +74,11 @@ export function WebDomainHost() {
                 {request.view === 'settings' ? (
                   <Settings siteId={request.id} />
                 ) : (
-                  <Hosting input={{id: request.id}} onClose={dismiss} setDialogCloseProtection={setProtection} />
+                  <Hosting
+                    input={{id: request.id, step: request.step}}
+                    onClose={dismiss}
+                    setDialogCloseProtection={setProtection}
+                  />
                 )}
               </Suspense>
             )}

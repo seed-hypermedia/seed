@@ -1,6 +1,6 @@
+import {HMInlineContent} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMDraft, HMResourceFetchResult, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMetadataName} from './content'
-import {HMInlineContent} from '@seed-hypermedia/client/editor-types'
 import {unpackHmId} from './utils'
 
 type IconDefinition = React.FC<{size: any; color: any}>
@@ -109,12 +109,7 @@ export function getDraftNodesOutline(
   const outline: NodesOutline = []
   children.forEach((child) => {
     if (child.type === 'heading') {
-      // Extract text from inline content, filtering out non-text items
-      const title = child.content
-        .filter((c: HMInlineContent): c is Extract<HMInlineContent, {type: 'text'}> => c.type === 'text')
-        .map((c: Extract<HMInlineContent, {type: 'text'}>) => c.text)
-        .join('')
-
+      const title = getInlineContentText(child.content)
       outline.push({
         id: child.id,
         title: title || undefined,
@@ -128,4 +123,15 @@ export function getDraftNodesOutline(
     }
   })
   return outline
+}
+
+// Collects the plain text of editor inline content, descending into links so their text is kept.
+function getInlineContentText(content: HMInlineContent[]): string {
+  return content
+    .map((c) => {
+      if (c.type === 'text') return c.text
+      if (c.type === 'link') return getInlineContentText(c.content)
+      return ''
+    })
+    .join('')
 }

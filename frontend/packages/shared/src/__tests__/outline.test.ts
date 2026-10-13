@@ -125,8 +125,29 @@ describe('getDraftNodesOutline', () => {
 
     const outline = getDraftNodesOutline(blocks)
     expect(outline).toHaveLength(1)
-    // Only text items are extracted, links are filtered out
-    expect(outline[0]!.title).toBe('Hello !')
+    expect(outline[0]!.title).toBe('Hello world!')
+  })
+
+  it('uses link text for a heading that is entirely a link', () => {
+    const blocks = [
+      {
+        id: 'h1',
+        type: 'heading',
+        props: {level: '1'},
+        content: [
+          {
+            type: 'link',
+            href: 'https://github.com/seed-hypermedia/seed/pull/1206',
+            content: [{type: 'text', text: 'https://github.com/seed-hypermedia/seed/pull/1206', styles: {}}],
+          },
+        ],
+        children: [],
+      },
+    ] as any
+
+    const outline = getDraftNodesOutline(blocks)
+    expect(outline).toHaveLength(1)
+    expect(outline[0]!.title).toBe('https://github.com/seed-hypermedia/seed/pull/1206')
   })
 
   it('produces updated outline when blocks change (simulating editor updates)', () => {

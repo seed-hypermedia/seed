@@ -9,6 +9,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const source = path.join(root, 'src')
 const output = path.join(root, 'dist')
 const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))
+const publicName = '@seed-hypermedia/ui'
 const entrypoints = [
   'button',
   'seed-logo',
@@ -115,7 +116,7 @@ await writeFile(
   path.join(output, 'package.json'),
   JSON.stringify(
     {
-      name: manifest.name,
+      name: publicName,
       version: manifest.version,
       description: 'Shared Seed Hypermedia React components and design tokens',
       license: 'Apache-2.0',
@@ -134,5 +135,5 @@ await writeFile(
   ) + '\n',
 )
 console.log(
-  `Built ${manifest.name}@${manifest.version}: ${entrypoints.length} public modules, declarations, and compiled CSS`,
+  `Built ${publicName}@${manifest.version}: ${entrypoints.length} public modules, declarations, and compiled CSS`,
 )
