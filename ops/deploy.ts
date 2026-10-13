@@ -367,6 +367,17 @@ export function redirectHostnames(config: Pick<SeedConfig, 'domain' | 'redirect_
   )
 }
 
+/**
+ * `redirect_hostnames` for a (re)configured enterprise node: what the existing
+ * config already had, plus its hostname when the new one differs, so a
+ * reconfiguration keeps the old address reachable just like `set-hostname`.
+ */
+function enterpriseRedirects(domain: string, existing?: SeedConfig): Pick<SeedConfig, 'redirect_hostnames'> {
+  const previous = existing && extractDns(existing.domain) !== extractDns(domain) ? [extractDns(existing.domain)] : []
+  const list = redirectHostnames({domain, redirect_hostnames: [...(existing?.redirect_hostnames ?? []), ...previous]})
+  return list.length ? {redirect_hostnames: list} : {}
+}
+
 /** Whether the config selects the enterprise profile. */
 export function isEnterprise(config: Pick<SeedConfig, 'profile'>): boolean {
   return config.profile === 'enterprise'
@@ -1510,6 +1521,7 @@ export function buildEnterpriseConfig(
     metrics: existing?.metrics ?? false,
     site_name: answers.site_name?.trim() || existing?.site_name || extractDns(answers.domain),
     owner_account_uid: existing?.owner_account_uid,
+    ...enterpriseRedirects(answers.domain, existing),
     last_script_run: existing?.last_script_run ?? '',
   }
 }
@@ -2582,6 +2594,7 @@ export async function deploy(
 
   step('Generating Caddyfile...')
   const caddyfile = generateCaddyfile(config)
+  const previousCaddyfile = await readFile(caddyfilePath, 'utf-8').catch(() => null)
   await writeFile(caddyfilePath, caddyfile, 'utf-8')
 
   // Write registration secret only on first deploy (web/config.json doesn't exist yet)
@@ -2658,6 +2671,22 @@ export async function deploy(
       throw new Error(pullMsg)
     }
     throw new Error(`Deployment failed: ${err}`)
+  }
+
+  // The Caddyfile is a bind mount: compose does not recreate the proxy when
+  // only that file changed, and Caddy does not watch it, so tell it.
+  if (previousCaddyfile !== null && previousCaddyfile !== caddyfile) {
+    step('Reloading the proxy configuration...')
+    try {
+      await shell.exec('docker exec seed-proxy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile')
+    } catch (err) {
+      log(`WARNING: caddy reload failed (${err}); restarting the proxy instead`)
+      try {
+        await shell.exec('docker restart seed-proxy')
+      } catch (restartErr) {
+        log(`WARNING: could not restart the proxy: ${restartErr}`)
+      }
+    }
   }
 
   let healthy = false
