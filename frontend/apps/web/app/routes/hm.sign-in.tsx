@@ -4,6 +4,7 @@ import {loadSiteHeaderData} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {getOptimizedImageUrl} from '@/providers'
 import {parseRequest} from '@/request'
+import {markInviteJoin} from '@/invite-join'
 import {safeNextPath, signInUrl} from '@/require-sign-in'
 import {ensureDaemonAuth} from '@/universal-client'
 import {json, LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
@@ -83,6 +84,9 @@ export default function SignInPage() {
     try {
       // A stale local identity that the daemon rejected must not be reused.
       if (keyPair) await logout()
+      // An invited person becomes a member on arrival; the site header joins
+      // the site for them once the delegation is back.
+      if (invite) markInviteJoin()
       const origin = window.location.origin
       // Come back here rather than straight to `next`: this page waits for the
       // session cookie before the full navigation the proxy gate checks, so a
