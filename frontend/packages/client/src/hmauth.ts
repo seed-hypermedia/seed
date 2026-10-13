@@ -28,6 +28,12 @@ export interface HypermediaAuthConfig {
   siteName?: string
   /** Ask Vault to share verified email proof after consent. Disabled by default. */
   requestEmailPrevalidation?: boolean
+  /**
+   * An invitation code for an invite-only vault. The vault creates the
+   * account for `email` from it and then completes this same delegation, so
+   * an invited person lands on the site signed in without a second sign-in.
+   */
+  invite?: string
 }
 
 /** Stored session key with metadata. */
@@ -137,6 +143,9 @@ export const PARAM_EMAIL = 'email'
 
 /** Optional URL parameter with the requesting site's display name, for vault UI copy. Claimed by the client — display only. */
 export const PARAM_SITE_NAME = 'site_name'
+
+/** Invitation code for an invite-only vault; the vault registers the account before delegating. */
+export const PARAM_INVITE = 'invite'
 
 /** Vault route path for handling delegation requests. */
 export const DELEGATION_PATH = '/delegate'

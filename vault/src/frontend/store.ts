@@ -61,6 +61,19 @@ export function getPendingFlowPath(
 }
 
 /**
+ * The site's sign-in page with an invitation attached. The site starts the
+ * delegation from there and sends the person back to the vault, which creates
+ * the account and completes that delegation, so the invitee ends up signed in
+ * to the site. `webBaseUrl` is '' when the site is this same origin.
+ */
+export function siteInviteSignInUrl(inviteCode: string, inviteEmail: string, webBaseUrl = ''): string {
+  const site = (webBaseUrl || window.location.origin).replace(/\/$/, '')
+  const params = new URLSearchParams({invite: inviteCode})
+  if (inviteEmail) params.set('email', inviteEmail)
+  return `${site}/hm/sign-in?${params.toString()}`
+}
+
+/**
  * Where the invited-user flow stands once `?invite=` is in the URL:
  * `checking` while the code is looked up, `valid`/`invalid` after, `failed`
  * when the lookup itself could not complete (network, server error).
