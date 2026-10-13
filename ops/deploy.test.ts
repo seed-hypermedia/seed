@@ -103,6 +103,7 @@ import {
   siteUrlCheck,
   BOOTSTRAP_ATTEMPTS,
   BOOTSTRAP_RETRY_MS,
+  redirectHostnames,
 } from './deploy'
 
 // ---------------------------------------------------------------------------
@@ -2655,11 +2656,32 @@ describe('enterprise: buildComposeEnv', () => {
 })
 
 describe('enterprise: generateCaddyfile', () => {
+  test('a reconfiguration keeps redirect hostnames and adds the hostname it replaces', () => {
+    const existing = makeEnterpriseConfig({domain: 'https://ee-test-1.hyper.media', redirect_hostnames: ['old.example.net']})
+    const moved = headlessEnterpriseConfig({hostname: 'https://seed.acme.org', yes: true}, existing, {})
+    expect(moved.redirect_hostnames).toEqual(['old.example.net', 'ee-test-1.hyper.media'])
+    const same = headlessEnterpriseConfig({hostname: 'https://ee-test-1.hyper.media', yes: true}, existing, {})
+    expect(same.redirect_hostnames).toEqual(['old.example.net'])
+    expect(headlessEnterpriseConfig({hostname: 'https://x.org', yes: true}, undefined, {}).redirect_hostnames).toBeUndefined()
+  })
+
+  test('earlier hostnames get a redirect block of their own', () => {
+    const caddy = generateCaddyfile(makeEnterpriseConfig({redirect_hostnames: ['ee-test-1.hyper.media', 'https://Example.org/', 'ee-test-1.hyper.media']}))
+    const blocks = caddy.split('\n\nee-test-1.hyper.media {')
+    expect(blocks).toHaveLength(2)
+    expect(blocks[1]).toStartWith('\n\tredir https://example.org{uri} permanent\n}')
+    // The current hostname never redirects to itself; duplicates collapse.
+    expect(caddy.match(/redir https:\/\/example.org\{uri\} permanent/g)).toHaveLength(1)
+    expect(redirectHostnames({domain: 'https://example.org', redirect_hostnames: ['example.org']})).toEqual([])
+    expect(generateCaddyfile(makeEnterpriseConfig())).not.toContain('redir ')
+  })
+
   test('main site block has the forward_auth gate, vault and ipfs routes', () => {
     const caddy = generateCaddyfile(makeEnterpriseConfig())
     expect(caddy).toContain('(gate) {')
     expect(caddy).toContain('forward_auth seed-web:3000 {')
-    expect(caddy).toContain(`uri ${SESSION_CHECK_URI}`)
+    // The trailing "?" strips the original query (Remix `_data` navigations) from the subrequest.
+    expect(caddy).toContain(`uri ${SESSION_CHECK_URI}?\n`)
     expect(caddy).toContain('copy_headers X-Forwarded-Uri')
     expect(caddy).toContain('\nexample.org {')
     expect(caddy).toContain('@vault path /vault /vault/*')

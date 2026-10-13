@@ -348,6 +348,34 @@ export interface SeedConfig {
   site_name?: string
   /** Account of the organization's space once the first deploy created it. */
   owner_account_uid?: string
+  /**
+   * Earlier hostnames of an enterprise node (bare DNS names). Each keeps its
+   * own certificate and redirects to `domain`, so the managed address a
+   * hosting service gave the node still works after a custom domain is set.
+   */
+  redirect_hostnames?: string[]
+}
+
+/**
+ * Hostnames that redirect to the node's current one: the earlier addresses
+ * of an enterprise node, minus the current one and duplicates.
+ */
+export function redirectHostnames(config: Pick<SeedConfig, 'domain' | 'redirect_hostnames'>): string[] {
+  const current = extractDns(config.domain).toLowerCase()
+  return [...new Set((config.redirect_hostnames ?? []).map((h) => extractDns(h).toLowerCase()).filter(Boolean))].filter(
+    (h) => h !== current,
+  )
+}
+
+/**
+ * `redirect_hostnames` for a (re)configured enterprise node: what the existing
+ * config already had, plus its hostname when the new one differs, so a
+ * reconfiguration keeps the old address reachable just like `set-hostname`.
+ */
+function enterpriseRedirects(domain: string, existing?: SeedConfig): Pick<SeedConfig, 'redirect_hostnames'> {
+  const previous = existing && extractDns(existing.domain) !== extractDns(domain) ? [extractDns(existing.domain)] : []
+  const list = redirectHostnames({domain, redirect_hostnames: [...(existing?.redirect_hostnames ?? []), ...previous]})
+  return list.length ? {redirect_hostnames: list} : {}
 }
 
 /** Whether the config selects the enterprise profile. */
@@ -1493,6 +1521,7 @@ export function buildEnterpriseConfig(
     metrics: existing?.metrics ?? false,
     site_name: answers.site_name?.trim() || existing?.site_name || extractDns(answers.domain),
     owner_account_uid: existing?.owner_account_uid,
+    ...enterpriseRedirects(answers.domain, existing),
     last_script_run: existing?.last_script_run ?? '',
   }
 }
@@ -1787,7 +1816,11 @@ function generateEnterpriseCaddyfile(config: SeedConfig): string {
   blocks.push(`# Ask the web app whether the request carries a member session.
 (gate) {
 \tforward_auth seed-web:3000 {
-\t\turi ${SESSION_CHECK_URI}
+\t\t# The trailing "?" drops the original query string from the subrequest:
+\t\t# Remix treats "?_data=<route>" (a client-side navigation) as a data
+\t\t# request for that route, which does not match the session route and
+\t\t# fails with 403. The original URI still travels in X-Forwarded-Uri.
+\t\turi ${SESSION_CHECK_URI}?
 \t\tcopy_headers X-Forwarded-Uri
 \t}
 }
@@ -1854,6 +1887,14 @@ ${dns} {
 \t\treverse_proxy seed-web:3000
 \t}
 }`)
+
+  // Earlier hostnames (the managed address before a custom domain) keep a
+  // certificate and send the browser to the current one.
+  for (const host of redirectHostnames(config)) {
+    blocks.push(`${host} {
+\tredir https://${dns}{uri} permanent
+}`)
+  }
 
   if (config.notify) {
     blocks.push(`notify.${dns} {
@@ -2468,11 +2509,19 @@ export async function deploy(
 
   const containersHealthy = await checkContainersHealthy(shell, config)
   const containersOnConfiguredTag = containersMatchReleaseChannel(shell, config)
+  // The Caddyfile is rendered from the config too (hostname, redirect
+  // hostnames, the gate), but neither the compose nor the env SHA covers it,
+  // so a config change that only touches the proxy must still redeploy.
+  const caddyfilePath = join(paths.seedDir, 'proxy', 'CaddyFile')
+  const caddyfileCurrent = await readFile(caddyfilePath, 'utf-8')
+    .then((existing) => existing === generateCaddyfile(config))
+    .catch(() => false)
   if (
     config.compose_sha === composeSha &&
     config.compose_env_sha === envSha &&
     containersHealthy &&
-    containersOnConfiguredTag
+    containersOnConfiguredTag &&
+    caddyfileCurrent
   ) {
     // Compose and config unchanged, containers running the configured tag.
     // Check if remote images have been updated (e.g. CI pushed a new tag).
@@ -2545,7 +2594,8 @@ export async function deploy(
 
   step('Generating Caddyfile...')
   const caddyfile = generateCaddyfile(config)
-  await writeFile(join(paths.seedDir, 'proxy', 'CaddyFile'), caddyfile, 'utf-8')
+  const previousCaddyfile = await readFile(caddyfilePath, 'utf-8').catch(() => null)
+  await writeFile(caddyfilePath, caddyfile, 'utf-8')
 
   // Write registration secret only on first deploy (web/config.json doesn't exist yet)
   const webConfigPath = join(paths.seedDir, 'web', 'config.json')
@@ -2621,6 +2671,22 @@ export async function deploy(
       throw new Error(pullMsg)
     }
     throw new Error(`Deployment failed: ${err}`)
+  }
+
+  // The Caddyfile is a bind mount: compose does not recreate the proxy when
+  // only that file changed, and Caddy does not watch it, so tell it.
+  if (previousCaddyfile !== null && previousCaddyfile !== caddyfile) {
+    step('Reloading the proxy configuration...')
+    try {
+      await shell.exec('docker exec seed-proxy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile')
+    } catch (err) {
+      log(`WARNING: caddy reload failed (${err}); restarting the proxy instead`)
+      try {
+        await shell.exec('docker restart seed-proxy')
+      } catch (restartErr) {
+        log(`WARNING: could not restart the proxy: ${restartErr}`)
+      }
+    }
   }
 
   let healthy = false
@@ -3956,8 +4022,14 @@ async function cmdSetHostname(paths: DeployPaths, shell: ShellRunner, args: stri
   const previous = config.domain
   if (previous !== hostname) {
     config.domain = hostname
+    // The old address keeps working: Caddy keeps its certificate and
+    // redirects to the new hostname.
+    config.redirect_hostnames = redirectHostnames({
+      domain: hostname,
+      redirect_hostnames: [...(config.redirect_hostnames ?? []), extractDns(previous)],
+    })
     await writeConfig(config, paths)
-    log(`Hostname changed from ${previous} to ${hostname}; redeploying.`)
+    log(`Hostname changed from ${previous} to ${hostname}; ${extractDns(previous)} will redirect there. Redeploying.`)
     await deploy(config, paths, shell, false, {}, previous)
     return
   }

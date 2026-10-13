@@ -986,6 +986,15 @@ function checkDockerAccess(shell) {
   }
 }
 var DEPLOY_PROFILES = ["site", "enterprise"];
+function redirectHostnames(config) {
+  const current = extractDns(config.domain).toLowerCase();
+  return [...new Set((config.redirect_hostnames ?? []).map((h) => extractDns(h).toLowerCase()).filter(Boolean))].filter((h) => h !== current);
+}
+function enterpriseRedirects(domain, existing) {
+  const previous = existing && extractDns(existing.domain) !== extractDns(domain) ? [extractDns(existing.domain)] : [];
+  const list = redirectHostnames({ domain, redirect_hostnames: [...existing?.redirect_hostnames ?? [], ...previous] });
+  return list.length ? { redirect_hostnames: list } : {};
+}
 function isEnterprise(config) {
   return config.profile === "enterprise";
 }
@@ -1790,6 +1799,7 @@ function buildEnterpriseConfig(answers, existing) {
     metrics: existing?.metrics ?? false,
     site_name: answers.site_name?.trim() || existing?.site_name || extractDns(answers.domain),
     owner_account_uid: existing?.owner_account_uid,
+    ...enterpriseRedirects(answers.domain, existing),
     last_script_run: existing?.last_script_run ?? ""
   };
 }
@@ -1980,7 +1990,11 @@ function generateEnterpriseCaddyfile(config) {
   blocks.push(`# Ask the web app whether the request carries a member session.
 (gate) {
 	forward_auth seed-web:3000 {
-		uri ${SESSION_CHECK_URI}
+		# The trailing "?" drops the original query string from the subrequest:
+		# Remix treats "?_data=<route>" (a client-side navigation) as a data
+		# request for that route, which does not match the session route and
+		# fails with 403. The original URI still travels in X-Forwarded-Uri.
+		uri ${SESSION_CHECK_URI}?
 		copy_headers X-Forwarded-Uri
 	}
 }
@@ -2047,6 +2061,11 @@ ${dns} {
 		reverse_proxy seed-web:3000
 	}
 }`);
+  for (const host of redirectHostnames(config)) {
+    blocks.push(`${host} {
+	redir https://${dns}{uri} permanent
+}`);
+  }
   if (config.notify) {
     blocks.push(`notify.${dns} {
 	encode zstd gzip
@@ -2472,7 +2491,9 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
   const envSha = sha256(envString);
   const containersHealthy = await checkContainersHealthy(shell, config);
   const containersOnConfiguredTag = containersMatchReleaseChannel(shell, config);
-  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy && containersOnConfiguredTag) {
+  const caddyfilePath = join(paths.seedDir, "proxy", "CaddyFile");
+  const caddyfileCurrent = await readFile(caddyfilePath, "utf-8").then((existing) => existing === generateCaddyfile(config)).catch(() => false);
+  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy && containersOnConfiguredTag && caddyfileCurrent) {
     step("Checking for new images...");
     const hasNewImages = await checkForNewImages(config, paths, shell);
     if (!hasNewImages) {
@@ -2526,7 +2547,8 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
   await migrateDataFromOldInstall(paths, shell);
   step("Generating Caddyfile...");
   const caddyfile = generateCaddyfile(config);
-  await writeFile(join(paths.seedDir, "proxy", "CaddyFile"), caddyfile, "utf-8");
+  const previousCaddyfile = await readFile(caddyfilePath, "utf-8").catch(() => null);
+  await writeFile(caddyfilePath, caddyfile, "utf-8");
   const webConfigPath = join(paths.seedDir, "web", "config.json");
   let isFirstDeploy = false;
   try {
@@ -2579,6 +2601,19 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
       throw new Error(pullMsg);
     }
     throw new Error(`Deployment failed: ${err}`);
+  }
+  if (previousCaddyfile !== null && previousCaddyfile !== caddyfile) {
+    step("Reloading the proxy configuration...");
+    try {
+      await shell.exec("docker exec seed-proxy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile");
+    } catch (err) {
+      log(`WARNING: caddy reload failed (${err}); restarting the proxy instead`);
+      try {
+        await shell.exec("docker restart seed-proxy");
+      } catch (restartErr) {
+        log(`WARNING: could not restart the proxy: ${restartErr}`);
+      }
+    }
   }
   let healthy = false;
   for (let attempt = 0;attempt < 10; attempt++) {
@@ -3557,8 +3592,12 @@ async function cmdSetHostname(paths, shell, args) {
   const previous = config.domain;
   if (previous !== hostname) {
     config.domain = hostname;
+    config.redirect_hostnames = redirectHostnames({
+      domain: hostname,
+      redirect_hostnames: [...config.redirect_hostnames ?? [], extractDns(previous)]
+    });
     await writeConfig(config, paths);
-    log(`Hostname changed from ${previous} to ${hostname}; redeploying.`);
+    log(`Hostname changed from ${previous} to ${hostname}; ${extractDns(previous)} will redirect there. Redeploying.`);
     await deploy(config, paths, shell, false, {}, previous);
     return;
   }
@@ -4125,6 +4164,7 @@ export {
   printHelp,
   readConfig,
   redactConfig,
+  redirectHostnames,
   removeLegacyAutoupdaters,
   removeLegacyHostCron,
   removeLegacyHostCronLines,
