@@ -14,8 +14,14 @@ import {ConnectSuccessView} from './views/ConnectSuccessView'
 import {ConnectView} from './views/ConnectView'
 import {CreateProfileView} from './views/CreateProfileView'
 import {DelegateView} from './views/DelegateView'
+import {EnterRecoveryWordsView} from './views/EnterRecoveryWordsView'
+import {IdentityRecoveredView} from './views/IdentityRecoveredView'
+import {IdentitySecuredView} from './views/IdentitySecuredView'
 import {LoginView} from './views/LoginView'
+import {NoRecoveryWordsView} from './views/NoRecoveryWordsView'
+import {PasswordSignInView} from './views/PasswordSignInView'
 import {PreLoginView} from './views/PreLoginView'
+import {SaveRecoveryWordsView} from './views/SaveRecoveryWordsView'
 import {SetPasswordView} from './views/SetPasswordView'
 import {VerifyPendingView} from './views/VerifyPendingView'
 
@@ -61,6 +67,7 @@ function LockedView() {
   const {session, password, loading, error, passkeySupported} = useAppState()
   const actions = useActions()
   const location = useLocation()
+  const navigate = navigation.useHashNavigate()
 
   const showPasskey = passkeySupported && !!session?.credentials?.passkey
   const showPassword = !!session?.credentials?.password
@@ -126,6 +133,21 @@ function LockedView() {
                 autoComplete="current-password"
                 autoFocus={!showPasskey}
               />
+
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="link"
+                  className="underline"
+                  onClick={() => {
+                    rememberReturnPath()
+                    actions.setError('')
+                    navigate('/login/recover')
+                  }}
+                >
+                  Forgot password?
+                </Button>
+              </div>
 
               <Button
                 type="submit"
@@ -344,6 +366,18 @@ export function createRouter() {
                     element: <LoginView />,
                   },
                   {
+                    path: '/login/password',
+                    element: <PasswordSignInView />,
+                  },
+                  {
+                    path: '/login/recover',
+                    element: <EnterRecoveryWordsView />,
+                  },
+                  {
+                    path: '/login/no-recovery',
+                    element: <NoRecoveryWordsView />,
+                  },
+                  {
                     path: '/auth/choose',
                     element: <ChooseAuthView />,
                   },
@@ -368,6 +402,22 @@ export function createRouter() {
               {
                 element: <EnsureUnlocked />,
                 children: [
+                  {
+                    path: '/recovery',
+                    element: <SaveRecoveryWordsView />,
+                  },
+                  {
+                    path: '/settings/recovery-words',
+                    element: <SaveRecoveryWordsView fromSettings />,
+                  },
+                  {
+                    path: '/identity-secured',
+                    element: <IdentitySecuredView />,
+                  },
+                  {
+                    path: '/login/recovered',
+                    element: <IdentityRecoveredView />,
+                  },
                   {
                     path: '/profile/create',
                     element: <CreateProfileView />,

@@ -1,10 +1,10 @@
+import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {
   AuthenticationResponseJSON,
   PublicKeyCredentialCreationOptionsJSON,
   PublicKeyCredentialRequestOptionsJSON,
   RegistrationResponseJSON,
 } from '@simplewebauthn/server'
-import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 
 /**
  * Vault service definition. Shared source of truth for both client and server types.
@@ -25,7 +25,7 @@ import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/docu
  *
  * # Authentication rules
  *
- * - Unauthenticated: `preLogin`, `register*`, `login`, `loginPasskey*`,
+ * - Unauthenticated: `preLogin`, `register*`, `login`, `loginRecovery`, `loginPasskey*`,
  *   `getConfig`, `getAccount`.
  * - Session cookie required: `getSession`, `logout`, `changeEmail*`,
  *   `addPasskey*`, `addPassword`,
@@ -44,6 +44,7 @@ export interface ServiceDefinition {
   // Session and identity.
   preLogin(req: PreLoginRequest): Promise<PreLoginResponse>
   login(req: LoginRequest): Promise<LoginResponse>
+  loginRecovery(req: LoginRecoveryRequest): Promise<LoginRecoveryResponse>
   logout(): Promise<LogoutResponse>
   getSession(): Promise<GetSessionResponse>
   getAccount(req: GetAccountRequest): Promise<GetAccountResponse>
@@ -135,6 +136,7 @@ export type ChangePasswordResponse = {
 export type AddSecretCredentialRequest = {
   authKey: string
   wrappedDEK: string
+  purpose?: 'recovery'
 }
 export type AddSecretCredentialResponse = {
   success: boolean
@@ -177,6 +179,18 @@ export type LoginRequest = {
 export type LoginResponse = {
   success: boolean
   userId: string
+}
+
+// Login (recovery words). `authKey` is derived from the secret that the recovery words encode.
+export type LoginRecoveryRequest = {
+  email: string
+  authKey: string
+}
+export type LoginRecoveryResponse = {
+  success: boolean
+  userId: string
+  /** The recovery credential, whose wrapped DEK the client unwraps after signing in. */
+  credentialId: string
 }
 
 /**
@@ -260,6 +274,7 @@ export type GetSessionResponse = {
   credentials?: {
     password?: true
     passkey?: true
+    recoveryWords?: true
   }
 }
 
