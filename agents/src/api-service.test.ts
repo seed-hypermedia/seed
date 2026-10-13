@@ -6,7 +6,7 @@ import * as cbor from '@/cbor'
 import * as sqlite from '@/sqlite'
 import {ProviderOAuthManager} from '@/provider-oauth'
 import * as blobs from '@shm/shared/blobs'
-import {createSeedClient, unpackHmId} from '@seed-hypermedia/client'
+import {createSeedClient, markdownBlockNodesToHMBlockNodes, parseMarkdown, unpackHmId} from '@seed-hypermedia/client'
 import {serialize} from 'superjson'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -12114,5 +12114,33 @@ describe('delegation budget', () => {
       db.close()
       cleanup()
     }
+  })
+})
+
+describe('markdown write guards', () => {
+  const invalidFrontmatter = '---\ntitle: Enterprise Edition: security model\n---\n# Doc\n'
+  const brokenDiagram = '# Doc\n\n```mermaid\nflowchart LR\n  subgraph box [The instance (one droplet)]\n  end\n```\n'
+  const validDiagram = '# Doc\n\n```mermaid\nflowchart LR\n  subgraph box ["The instance (one droplet)"]\n    a --> b\n  end\n```\n'
+
+  test('reports invalid frontmatter YAML as a 400', () => {
+    let error: unknown
+    try {
+      apisvc.parseMarkdownOrBadRequest(invalidFrontmatter)
+    } catch (e) {
+      error = e
+    }
+    expect(error).toBeInstanceOf(apisvc.APIError)
+    expect((error as apisvc.APIError).status).toBe(400)
+    expect((error as Error).message).toContain('Invalid YAML in frontmatter')
+    expect(apisvc.parseMarkdownOrBadRequest('---\ntitle: "A: B"\n---\n# Doc\n').metadata.name).toBe('A: B')
+  })
+
+  test('reports a mermaid fence that does not parse as a 400 and accepts a valid one', async () => {
+    const toBlocks = (md: string) => markdownBlockNodesToHMBlockNodes(parseMarkdown(md).tree)
+    const error = await apisvc.assertPublishableMermaid(toBlocks(brokenDiagram)).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(apisvc.APIError)
+    expect((error as apisvc.APIError).status).toBe(400)
+    expect((error as Error).message).toContain('Invalid mermaid diagram')
+    await expect(apisvc.assertPublishableMermaid(toBlocks(validDiagram))).resolves.toBeUndefined()
   })
 })
