@@ -1582,6 +1582,7 @@ describe('vault invitations', () => {
         'code',
         'createTime',
         'email',
+        'grants',
         'link',
         'role',
         'used',
@@ -1718,6 +1719,10 @@ describe('vault invitations', () => {
           )
           .get(uidA),
       ).toEqual({code: invitation!.code, capability_id: 'cap-1'})
+
+      // The admin listing shows the grant.
+      const listed = (await svc.adminListInvitations(adminCtx)).invitations.find((i) => i.code === invitation!.code)
+      expect(listed?.grants.map((g) => g.accountUid)).toEqual([uidA])
 
       // Syncing again does not grant again; a second account gets its own grant.
       await svc.syncVaultAccounts({accounts: [claimA]}, userCtx)
