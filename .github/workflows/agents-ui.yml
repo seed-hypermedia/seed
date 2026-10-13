@@ -133,12 +133,17 @@ jobs:
           name: agents-ui-${{ github.sha }}
           path: agents-ui-package
 
-      # Trusted publishing (OIDC), like @seed-hypermedia/client. npm only lets an owner of the
-      # @seed-hypermedia scope add this repository as the package's trusted publisher once the
-      # package exists, so the first release is published by hand from the artifact above.
+      # Use the shared UI publisher credential, including for the first release before
+      # this package has an npm trusted publisher configured.
       - name: Publish the validated tarball
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.UI_NPM_TOKEN }}
         run: |
           set -euo pipefail
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo 'Configure UI_NPM_TOKEN with publish access to @seed-hypermedia/agents-ui before releasing.' >&2
+            exit 1
+          fi
           packages=(./agents-ui-package/*.tgz)
           if [ "${#packages[@]}" -ne 1 ] || [ ! -f "${packages[0]}" ]; then
             echo 'Expected exactly one validated package tarball.' >&2
