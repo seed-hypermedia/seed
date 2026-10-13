@@ -12120,7 +12120,8 @@ describe('delegation budget', () => {
 describe('markdown write guards', () => {
   const invalidFrontmatter = '---\ntitle: Enterprise Edition: security model\n---\n# Doc\n'
   const brokenDiagram = '# Doc\n\n```mermaid\nflowchart LR\n  subgraph box [The instance (one droplet)]\n  end\n```\n'
-  const validDiagram = '# Doc\n\n```mermaid\nflowchart LR\n  subgraph box ["The instance (one droplet)"]\n    a --> b\n  end\n```\n'
+  const validDiagram =
+    '# Doc\n\n```mermaid\nflowchart LR\n  subgraph box ["The instance (one droplet)"]\n    a --> b\n  end\n```\n'
 
   test('reports invalid frontmatter YAML as a 400', () => {
     let error: unknown
