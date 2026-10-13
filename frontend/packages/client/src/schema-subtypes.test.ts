@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {HM_SCHEMAS, nameToUrl, schemaCid} from './schema-engine'
-import {closeOverSubtypes, extensionParentRef, inClosure, libraryCandidates, schemaRefKey} from './schema-subtypes'
+import {closeOverSubtypes, extensionParentRefs, inClosure, libraryCandidates, schemaRefKey} from './schema-subtypes'
 
 const ANIMAL = 'hm://z6MkAnimalSpace/types/animal'
 const DOG = 'hm://z6MkAnimalSpace/types/dog'
@@ -11,10 +11,10 @@ const DOG_CID = 'bafyreigkxnvamoxiyp2qvcn7qazdppwnt2mdnbojuehthjrk7yfpuhnmjq'
 const PUPPY_CID = 'bafyreidedtokl6mruxplo3w6hgqmluuubnfgmz43c5zq7oqehysi5wo5ea'
 
 const network = [
-  {refs: [ANIMAL], parent: null},
-  {refs: [DOG, `ipfs://${DOG_CID}`], parent: ANIMAL},
-  {refs: [PUPPY, `ipfs://${PUPPY_CID}`], parent: DOG},
-  {refs: [PLANT], parent: null},
+  {refs: [ANIMAL], parents: []},
+  {refs: [DOG, `ipfs://${DOG_CID}`], parents: [ANIMAL]},
+  {refs: [PUPPY, `ipfs://${PUPPY_CID}`], parents: [DOG]},
+  {refs: [PLANT], parents: []},
 ]
 
 describe('schemaRefKey', () => {
@@ -28,18 +28,30 @@ describe('schemaRefKey', () => {
   })
 })
 
-describe('extensionParentRef', () => {
+describe('extensionParentRefs', () => {
   it('reads the extended schema off `type`, ignoring kinds, unions and literals', () => {
-    expect(extensionParentRef({type: ANIMAL, properties: {}})).toBe(ANIMAL)
-    expect(extensionParentRef({type: ANIMAL})).toBe(ANIMAL)
-    expect(extensionParentRef({type: 'hm://hyper.media/map', properties: {}})).toBeNull()
-    expect(extensionParentRef({anyOf: ['a', 'b']})).toBeNull()
-    expect(extensionParentRef('draft' as never)).toBeNull()
-    expect(extensionParentRef(undefined)).toBeNull()
+    expect(extensionParentRefs({type: ANIMAL, properties: {}})).toEqual([ANIMAL])
+    expect(extensionParentRefs({type: ANIMAL})).toEqual([ANIMAL])
+    expect(extensionParentRefs({type: 'hm://hyper.media/map', properties: {}})).toEqual([])
+    expect(extensionParentRefs({anyOf: ['a', 'b']})).toEqual([])
+    expect(extensionParentRefs('draft' as never)).toEqual([])
+    expect(extensionParentRefs(undefined)).toEqual([])
   })
 
   it('sees the library employee as an extension of person', () => {
-    expect(extensionParentRef(HM_SCHEMAS['example/employee'])).toBe(nameToUrl('example/person'))
+    expect(extensionParentRefs(HM_SCHEMAS['example/employee'])).toEqual([nameToUrl('example/person')])
+  })
+
+  it('gives an intersection every arm as a parent, through nesting, each once', () => {
+    expect(extensionParentRefs(HM_SCHEMAS['example/staff-member'])).toEqual([
+      nameToUrl('example/employee'),
+      nameToUrl('example/contact'),
+    ])
+    expect(
+      extensionParentRefs({
+        allOf: [{type: DOG, properties: {}}, {allOf: [{type: PLANT}, {type: DOG}]}, {type: 'hm://hyper.media/struct'}],
+      }),
+    ).toEqual([DOG, PLANT])
   })
 })
 
@@ -68,11 +80,26 @@ describe('closeOverSubtypes', () => {
   it('terminates on cycles and ignores unresolvable parents', () => {
     const closure = closeOverSubtypes(ANIMAL, [
       ...network,
-      {refs: ['hm://z6MkOther/a'], parent: 'hm://z6MkOther/b'},
-      {refs: ['hm://z6MkOther/b'], parent: 'hm://z6MkOther/a'},
-      {refs: ['hm://z6MkOther/c'], parent: 'garbage'},
+      {refs: ['hm://z6MkOther/a'], parents: ['hm://z6MkOther/b']},
+      {refs: ['hm://z6MkOther/b'], parents: ['hm://z6MkOther/a']},
+      {refs: ['hm://z6MkOther/c'], parents: ['garbage']},
     ])
     expect(closure.refs).toHaveLength(5)
+  })
+
+  it('reaches an intersection from any of its arms', () => {
+    const PET_PLANT = 'hm://z6MkAnimalSpace/types/pet-plant'
+    const mixed = [...network, {refs: [PET_PLANT], parents: [DOG, PLANT]}]
+    expect(inClosure(closeOverSubtypes(PLANT, mixed), PET_PLANT)).toBe(true)
+    expect(inClosure(closeOverSubtypes(ANIMAL, mixed), PET_PLANT)).toBe(true)
+    expect(inClosure(closeOverSubtypes(PUPPY, mixed), PET_PLANT)).toBe(false)
+  })
+
+  it('sees the library staff member as a subtype of employee, person and contact', () => {
+    const staff = nameToUrl('example/staff-member')!
+    for (const parent of ['example/person', 'example/employee', 'example/contact'])
+      expect(inClosure(closeOverSubtypes(nameToUrl(parent)!, libraryCandidates()), staff)).toBe(true)
+    expect(inClosure(closeOverSubtypes(nameToUrl('example/admin')!, libraryCandidates()), staff)).toBe(false)
   })
 
   it('yields nothing for a target that names no schema', () => {

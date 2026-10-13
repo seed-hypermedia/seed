@@ -1,0 +1,19 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "email": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The address to write to."
+    },
+    "phone": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "A telephone number, in any format."
+    }
+  },
+  "description": "Ways to reach someone: a required email and an optional phone number."
+}

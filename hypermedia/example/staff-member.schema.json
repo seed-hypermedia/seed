@@ -1,0 +1,11 @@
+{
+  "allOf": [
+    {
+      "type": "hm://hyper.media/example/employee"
+    },
+    {
+      "type": "hm://hyper.media/example/contact"
+    }
+  ],
+  "description": "An employee who is also a contact: every field of both, with name, employeeId and email required."
+}

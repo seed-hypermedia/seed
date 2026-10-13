@@ -96,6 +96,7 @@ const omit = (obj: Record<string, unknown>, key: string): Record<string, unknown
 function variantLabel(v: HypermediaSchema, reg: SchemaRegistry): string {
   if (v.var !== undefined) return '⟨' + v.var + '⟩'
   if (v.anyOf) return 'one of ' + v.anyOf.length
+  if (v.allOf) return 'all of ' + v.allOf.length
   const named = namedSchemaUrl(v)
   if (named) {
     const t = loadFrom(reg, named)

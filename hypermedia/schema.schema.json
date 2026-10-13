@@ -22,6 +22,9 @@
       "type": "hm://hyper.media/schema/anyof"
     },
     {
+      "type": "hm://hyper.media/schema/allof"
+    },
+    {
       "type": "hm://hyper.media/schema/var-schema"
     },
     {

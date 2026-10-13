@@ -14,6 +14,8 @@ A [struct](./struct.md) is a [closed map](./schema/closed-map.md) with named fie
   - [person](./example/person.md) has a required `name`, an `integer` age, a `boolean` flag, a home that [includes](./schema/references.md) address, and a list of nicknames. <!-- id:nVLVzwuR -->
   - [employee](./example/employee.md) [extends](./schema/extension.md) person with a required `employeeId` and a `department`. <!-- id:ZnIPWts0 -->
   - [admin](./example/admin.md) extends employee with a map of `boolean` permission flags, a two-level chain from admin to employee to person. <!-- id:fQ7YGect -->
+  - [contact](./example/contact.md) is a required `email` and an optional `phone`.
+  - [staff-member](./example/staff-member.md) is the [intersection](./schema/allof.md) of employee and contact: every field of both, three of them required, a subtype of each.
   - [stats](./example/stats.md) holds three integers bounded from 1 to 10, a literal-union alignment, and a list of traits. <!-- id:xIoq_9tG -->
   - [constrained](./example/constrained.md) shows value constraints: a username with `minLength`, `maxLength` and `pattern`, a score between 0 and 100, and a list of one to three tags. <!-- id:PYfnvrw0 -->
   - [blob](./example/blob.md) is a `bytes` payload with a required mime string and an optional size. <!-- id:C-1sn3aB -->

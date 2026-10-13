@@ -7,10 +7,12 @@
 // list, map, link. In human/dag-json form, a link is {"/":"<cid>"} and bytes
 // is {"/":{"bytes":"<base64>"}} -- both are distinct kinds, NOT maps.
 //
-// Schema vocabulary: type, properties, items, values, target, anyOf, and
+// Schema vocabulary: type, properties, items, values, target, anyOf, allOf, and
 // literals (a bare scalar, or {value, description}).
 //   - a literal                 -> the value must equal it; {anyOf: ["a","b"]} is a fixed set.
 //   - `anyOf`                   -> union: value must match one of the variants.
+//   - `allOf`                   -> intersection: the struct arms MERGE into one struct (fields
+//                                  united, required if any arm requires, closed if any arm is).
 //   - `type` naming a schema    -> include: defer to that schema file; other keys refine it.
 //   - `type:"link"` + `target`  -> typed link: the linked block should match that schema
 //                                  (checked lazily, not here).
@@ -110,7 +112,7 @@ export const isLiteralSchema = (s) => {
   if (s === undefined) return false;
   if (s === null || typeof s !== "object") return true;
   if (Array.isArray(s)) return false;
-  return "value" in s && !("type" in s || "ref" in s || "anyOf" in s || "var" in s || "params" in s);
+  return "value" in s && !("type" in s || "ref" in s || "anyOf" in s || "allOf" in s || "var" in s || "params" in s);
 };
 export const literalValue = (s) => (s !== null && typeof s === "object" ? s.value : s);
 const literalNode = (s) => (s !== null && typeof s === "object" ? s : { value: s });
@@ -167,12 +169,55 @@ export function mergeExtend(parent, ext) {
 // Refinements that describe a leaf value or a reference; inherited through extension.
 const LEAF_KEYS = ["format", "pattern", "minLength", "maxLength", "minimum", "maximum", "minItems", "maxItems", "target"];
 
+// Merge the (already-resolved) arms of an `allOf` into one struct — an intersection written as a
+// merge, the way extension already is, so two closed structs combine instead of contradicting each
+// other (a value cannot satisfy two closed field sets at once, so validating against each arm in
+// turn would accept nothing). Every arm must resolve to a struct or map; the fields are united; a
+// field is required when any arm requires it; a field two arms define must be defined the same
+// way; the result is closed when any arm is closed, and otherwise keeps the arms' shared `values`.
+// Returns {__invalid: reason} for arms that cannot be merged.
+export function mergeAllOf(arms) {
+  const byName = new Map();
+  let closed = false;
+  let isStruct = false;
+  let values;
+  for (const [i, arm] of arms.entries()) {
+    if (arm.__unbound || arm.__missing || arm.__invalid) return arm;
+    const kind = arm.type ? kindOf(arm.type) : null;
+    if (isLiteralSchema(arm) || arm.anyOf || (kind !== "map" && kind !== "struct"))
+      return { __invalid: `allOf arm ${i + 1} is not a struct or map` };
+    if (kind === "struct" || arm.properties) isStruct = true;
+    for (const f of structFields(arm)) {
+      const prior = byName.get(f.name);
+      if (prior && !deepEqual(prior.schema, f.schema))
+        return { __invalid: `allOf arms define the field "${f.name}" differently` };
+      byName.set(f.name, {
+        name: f.name,
+        schema: f.schema,
+        required: (prior?.required ?? false) || f.required,
+        description: prior?.description ?? f.description,
+      });
+    }
+    if (arm.properties && !arm.values) closed = true;
+    else if (arm.values !== undefined) {
+      if (values !== undefined && !deepEqual(values, arm.values))
+        return { __invalid: "allOf arms constrain extra keys (`values`) differently" };
+      values = arm.values;
+    }
+  }
+  const merged = { type: `hm://${LIBRARY_AUTHORITY}/${isStruct ? "struct" : "map"}` };
+  if (byName.size) merged.properties = fieldsToProperties([...byName.values()]);
+  if (!closed && values !== undefined) merged.values = values;
+  return merged;
+}
+
 // Resolve a node to a concrete schema (map/list/scalar/link/union), following:
 //   var    -> the schema bound to a type parameter        {var:"B"}
 //   params -> a generic definition; binds defaults        {params:{B:default}, …}
 //   type+args   -> APPLICATION: instantiate a generic     {type:X, args:{B:…}}
 //   type+refine -> EXTENSION: subtype of X                {type:X, properties:…}
 //   type (bare) -> include: conforms to X                 {type:X}
+//   allOf       -> INTERSECTION: the struct arms merged   {allOf:[{type:A},{type:B}]}
 // `env` binds type variables. Returns { schema, env } for the resolved node.
 export function resolveSchema(schema, env = {}) {
   if (isLiteralSchema(schema)) return { schema: literalNode(schema), env };
@@ -186,6 +231,10 @@ export function resolveSchema(schema, env = {}) {
     const bound = env[schema.var];
     if (bound === undefined) return { schema: { __unbound: schema.var }, env: {} };
     return resolveSchema(bound, {});
+  }
+  if (Array.isArray(schema.allOf)) {
+    if (schema.allOf.length === 0) return { schema: { __invalid: "allOf needs at least one arm" }, env };
+    return { schema: mergeAllOf(schema.allOf.map((arm) => resolveSchema(arm, env).schema)), env };
   }
   const named = namedSchemaUrl(schema);
   if (named && schema.anyOf === undefined) {
@@ -210,6 +259,7 @@ export function validate(schema0, data, path = "$", env0 = {}) {
   const { schema, env } = resolveSchema(schema0, env0);
 
   if (schema.__unbound) return [`${path}: unbound type variable "${schema.__unbound}"`];
+  if (schema.__invalid) return [`${path}: ${schema.__invalid}`];
 
   // literal: the value must equal it.
   if (isLiteralSchema(schema))
@@ -399,6 +449,50 @@ failed += reportReject("a pinned integer field rejects another integer", validat
 const pinned = { type: `hm://${LIBRARY_AUTHORITY}/block/base`, properties: { type: { value: "Poll", required: true } } };
 failed += report("an extension can pin a field to a literal", validate(pinned, { id: "b1", type: "Poll" }));
 failed += reportReject("…and then rejects the base's other tags", validate(pinned, { id: "b1", type: "Paragraph" }));
+
+// =====================================================================
+// 3b. Intersections — `allOf` merges its struct arms into one struct.
+// =====================================================================
+section("Intersections (allOf)");
+const P = (n) => `hm://${LIBRARY_AUTHORITY}/example/${n}`;
+const staff = load("example/staff-member.schema.json");
+failed += report("an intersection of two named structs is a schema", validate(meta, staff));
+failed += report("an intersection with an inline struct arm is a schema", validate(meta, { allOf: [{ type: P("person") }, { type: U("struct"), properties: { badge: { value: { type: U("string") } } } }] }));
+failed += reportReject("an empty intersection is not a schema", validate(meta, { allOf: [] }));
+failed += reportReject("an intersection cannot also name a type", validate(meta, { allOf: [{ type: P("person") }], type: P("contact") }));
+failed += reportReject("an intersection cannot carry properties of its own (use an inline arm)", validate(meta, { allOf: [{ type: P("person") }], properties: {} }));
+failed += reportReject("intersection with a non-schema arm", validate(meta, { allOf: [{ nope: 1 }] }));
+const staffOk = { name: "Grace", employeeId: "E-1", email: "grace@example.org" };
+failed += report("staff-member: fields of both arms", validate(staff, { ...staffOk, age: 36, department: "R&D", phone: "+1 555 0100", nicknames: ["G"] }));
+failed += reportReject("staff-member: requires employee's employeeId", validate(staff, { name: "Grace", email: "g@example.org" }));
+failed += reportReject("staff-member: requires contact's email", validate(staff, { name: "Grace", employeeId: "E-1" }));
+failed += reportReject("staff-member: requires person's name (through the employee arm)", validate(staff, { employeeId: "E-1", email: "g@example.org" }));
+failed += reportReject("staff-member: stays closed", validate(staff, { ...staffOk, badge: 7 }));
+failed += assertPath("staff-member: a bad field is reported by name", validate(staff, { ...staffOk, age: "old" }), "$.age");
+const resolvedStaff = resolveSchema(staff).schema;
+failed += report("the merged struct is a struct", kindOf(resolvedStaff.type) === "struct" ? [] : ["expected struct"]);
+failed += report("the merged struct has every field once", structFields(resolvedStaff).length === 9 ? [] : [`got ${structFields(resolvedStaff).length} fields`]);
+const withBadge = { allOf: [{ type: P("employee") }, { type: U("struct"), properties: { badge: { value: { type: U("integer") }, required: true } } }] };
+failed += report("an inline arm adds fields", validate(withBadge, { name: "A", employeeId: "E", badge: 1 }));
+failed += reportReject("…and can require them", validate(withBadge, { name: "A", employeeId: "E" }));
+const sameField = { allOf: [{ type: P("person") }, { type: U("struct"), properties: { name: { value: { type: U("string") }, required: true } } }] };
+failed += report("arms may repeat a field when they agree on it", validate(sameField, { name: "A" }));
+const conflict = { allOf: [{ type: P("person") }, { type: U("struct"), properties: { name: { value: { type: U("integer") } } } }] };
+failed += reportReject("arms that define a field differently accept nothing", validate(conflict, { name: "A" }));
+failed += assertPath("…and say which field", validate(conflict, { name: "A" }), 'field "name"');
+failed += reportReject("a scalar arm accepts nothing", validate({ allOf: [{ type: P("person") }, { type: U("string") }] }, { name: "A" }));
+failed += reportReject("a union arm accepts nothing", validate({ allOf: [{ type: P("person") }, { type: P("status") }] }, { name: "A" }));
+failed += reportReject("a literal arm accepts nothing", validate({ allOf: [{ type: P("person") }, "x"] }, { name: "A" }));
+const openBoth = { allOf: [{ type: U("map"), values: { type: U("integer") } }, { type: U("struct"), properties: { total: { value: { type: U("integer") } } }, values: { type: U("integer") } }] };
+failed += report("open arms that agree on `values` stay open", validate(openBoth, { total: 3, extra: 4 }));
+failed += reportReject("…and still type the extras", validate(openBoth, { total: 3, extra: "x" }));
+failed += reportReject("open arms that disagree on `values` accept nothing", validate({ allOf: [{ type: U("map"), values: { type: U("integer") } }, { type: U("map"), values: { type: U("string") } }] }, {}));
+failed += reportReject("one closed arm closes the merge", validate({ allOf: [{ type: P("person") }, { type: U("map"), values: { type: U("integer") } }] }, { name: "A", extra: 1 }));
+failed += report("intersections nest", validate({ allOf: [staff, { type: U("struct"), properties: { badge: { value: { type: U("integer") } } } }] }, { ...staffOk, badge: 1 }));
+const genericMix = (Extra) => ({ params: { Extra }, allOf: [{ type: P("contact") }, { var: "Extra" }] });
+failed += report("a generic intersection merges its parameter's default", validate(genericMix({ type: P("geo") }), { email: "e", lat: 1, lng: 2 }));
+failed += reportReject("…and the merged arm's fields are required too", validate(genericMix({ type: P("geo") }), { email: "e" }));
+failed += reportReject("an unbound parameter arm accepts nothing", validate({ allOf: [{ type: P("contact") }, { var: "Extra" }] }, { email: "e" }));
 
 // =====================================================================
 // 4. Data validation: each example accepts valid data and rejects invalid.
