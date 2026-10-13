@@ -2914,7 +2914,7 @@ export function printHelp(): void {
     `  restore     Restore node data from a backup file`,
     `  uninstall   Remove all Seed containers, data, and configuration`,
     `  register    Register a space already on this daemon: register <accountUid>`,
-    `  invite      Create vault invitation link(s): invite <email> [count]  (enterprise)`,
+    `  invite      Invite a person: invite <email> [--role reader|writer] [--no-email]  (enterprise)`,
     `  bootstrap-space  Create the organization's space if the first deploy could not  (enterprise)`,
     `  set-hostname  Move the node to a new hostname: set-hostname https://new.example.org  (enterprise)`,
     ``,
@@ -4053,10 +4053,35 @@ export function extractInvitationLinks(result: unknown, vaultBase: string): stri
   return single ? [single] : []
 }
 
+/** Parsed `invite` arguments: the email, the role and whether the vault should email the link. */
+export function parseInviteArgs(args: string[]): {email?: string; role: 'reader' | 'writer'; send: boolean; count?: number; error?: string} {
+  let email: string | undefined
+  let role: 'reader' | 'writer' = 'reader'
+  let send = true
+  let count: number | undefined
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i]!
+    if (a === '--role' || a.startsWith('--role=')) {
+      const value = a.includes('=') ? a.slice('--role='.length) : args[++i]
+      if (value !== 'reader' && value !== 'writer') return {role, send, error: `--role must be reader or writer, not '${value ?? ''}'`}
+      role = value
+    } else if (a === '--writer') role = 'writer'
+    else if (a === '--reader') role = 'reader'
+    else if (a === '--no-email') send = false
+    else if (/^\d+$/.test(a)) count = Number(a)
+    else if (a.includes('@')) email = a
+    else return {role, send, error: `unexpected argument '${a}'`}
+  }
+  return {email, role, send, count}
+}
+
 /**
- * `invite <email> [count]` — ask the vault's admin API for invitation
- * link(s). The vault is invite-only on an enterprise node, so this is how the
- * organization's people get an account.
+ * `invite <email> [--role reader|writer] [--no-email]` — ask the vault's admin
+ * API for an invitation. The vault is invite-only on an enterprise node, so
+ * this is how the organization's people get an account. The vault emails the
+ * one-time link to the person (through the hosting relay) unless --no-email;
+ * a writer invitation also grants them a WRITER capability on the space once
+ * their account exists.
  */
 async function cmdInvite(paths: DeployPaths, args: string[]): Promise<void> {
   if (!(await configExists(paths))) {
@@ -4069,17 +4094,19 @@ async function cmdInvite(paths: DeployPaths, args: string[]): Promise<void> {
     process.exit(1)
   }
 
-  const email = args[0] && args[0].includes('@') ? args[0] : undefined
+  const parsed = parseInviteArgs(args)
+  if (parsed.error) {
+    console.error(`${parsed.error}. Usage: ${cmd('invite <email> [--role reader|writer] [--no-email]')}`)
+    process.exit(1)
+  }
+  const {email, role, send, count} = parsed
   if (!email) {
     console.error(
       `'${cmd('invite <email>')}' needs the invitee's email: invitations are scoped to one address and the link carries it.`,
     )
     process.exit(1)
   }
-  const countArg = args[1]
-  const count = countArg && /^\d+$/.test(countArg) ? Number(countArg) : undefined
-  const body: {email?: string; count?: number} = {}
-  if (email) body.email = email
+  const body: {email?: string; count?: number; role: string; send: boolean} = {email, role, send}
   if (count) body.count = count
 
   const vaultBase = `${config.domain}/vault`
@@ -4091,8 +4118,13 @@ async function cmdInvite(paths: DeployPaths, args: string[]): Promise<void> {
     console.log(JSON.stringify(result, null, 2))
     return
   }
-  console.log(email ? `Invitation for ${email}:` : `Invitation link${links.length > 1 ? 's' : ''}:`)
+  console.log(`Invitation for ${email} (${role}):`)
   for (const link of links) console.log(`  ${link}`)
+  const r = (result ?? {}) as {emailed?: boolean; emailError?: string}
+  if (r.emailed) console.log(`Emailed to ${email}.`)
+  else if (send) console.log(`Not emailed: ${r.emailError ?? 'the vault did not send it'}. Share the link by hand.`)
+  else console.log('Not emailed (--no-email). Share the link by hand.')
+  if (role === 'writer') console.log('They become a writer of the space as soon as their account exists.')
 }
 
 async function cmdSecret(paths: DeployPaths): Promise<void> {

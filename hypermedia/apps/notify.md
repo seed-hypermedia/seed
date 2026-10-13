@@ -143,7 +143,7 @@ As of September 2026, the team plans three changes. None of them is built. <!-- 
   - Move subscriptions and read state out of this central server into private peer-to-peer [sync](../protocol/network.md) once [private documents](../protocol/privacy.md) mature. <!-- id:B4Mbt39y -->
   - Restore the link between an email and the [account](../protocol/identity.md) that subscribes. It was dropped in 2025 and later called a mistake. <!-- id:JyQPdkoX -->
   - Replace the legacy [site](../protocol/sites.md) subscriptions with per-site options for document changes, [discussions](../protocol/comments.md), comments and mentions. <!-- id:8985JUGG -->
-  - Email the recipient when someone grants them a writer [capability](../protocol/permissions.md), so "Add as writer" works as an invitation. The notifier does not look at `Capability` blobs today.
+  - Email the recipient when someone grants them a writer [capability](../protocol/permissions.md), so "Add as writer" works as an invitation. The notifier does not look at `Capability` blobs today. (The Enterprise Edition covers the invite case differently: the [vault](./vault.md) emails the invitation and grants the writer capability itself.)
 
 # See also <!-- id:kO84rx1N -->
 

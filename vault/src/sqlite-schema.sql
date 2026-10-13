@@ -73,7 +73,20 @@ CREATE TABLE invitations (
     -- Unix timestamp (ms) when this invitation was redeemed. NULL while unused.
     used_time INTEGER,
     -- The user created with this invitation.
-    used_by_account TEXT REFERENCES users (id)
+    used_by_account TEXT REFERENCES users (id),
+    -- 'reader' (vault membership only) or 'writer' (a WRITER capability on the
+    -- site's space is granted to the accounts the invited user registers).
+    role TEXT NOT NULL DEFAULT 'reader'
+) WITHOUT ROWID;
+
+-- WRITER capabilities granted for writer invitations, one per account the
+-- invited user reported, so the grant runs once per account.
+CREATE TABLE invitation_grants (
+    account_uid TEXT PRIMARY KEY,
+    code TEXT NOT NULL REFERENCES invitations (code),
+    -- The capability blob's id as the daemon reported it.
+    capability_id TEXT,
+    grant_time INTEGER NOT NULL
 ) WITHOUT ROWID;
 
 -- Public account IDs each user keeps in their vault, reported by the client after

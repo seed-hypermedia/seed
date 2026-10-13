@@ -13,6 +13,14 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 // This list is prepend-only.
 export const migrations = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  `ALTER TABLE invitations ADD COLUMN role TEXT NOT NULL DEFAULT 'reader';
+  CREATE TABLE invitation_grants (
+      account_uid TEXT PRIMARY KEY,
+      code TEXT NOT NULL REFERENCES invitations (code),
+      capability_id TEXT,
+      grant_time INTEGER NOT NULL
+  ) WITHOUT ROWID;`,
+
   `CREATE TABLE user_accounts (
       account_uid TEXT PRIMARY KEY,
       user_id TEXT NOT NULL REFERENCES users (id),

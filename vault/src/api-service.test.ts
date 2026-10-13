@@ -22,6 +22,7 @@ const rp = {
 const hmacSecret = new Uint8Array(32).fill(7)
 const emailSender: email.EmailSender = {
   sendVerificationEmail: async () => {},
+  sendInvitationEmail: async () => {},
 }
 
 beforeAll(() => {
@@ -1577,7 +1578,15 @@ describe('vault invitations', () => {
     )
     // No account data leaks through the admin listing.
     for (const invitation of listed.invitations) {
-      expect(Object.keys(invitation).sort()).toEqual(['code', 'createTime', 'email', 'link', 'used', 'usedTime'])
+      expect(Object.keys(invitation).sort()).toEqual([
+        'code',
+        'createTime',
+        'email',
+        'link',
+        'role',
+        'used',
+        'usedTime',
+      ])
     }
 
     await expect(svc.adminCreateInvitations({email: 'x@test.com', count: 0}, adminCtx)).rejects.toMatchObject({
@@ -1597,6 +1606,161 @@ describe('vault invitations', () => {
       expect(invitation.link).toBe(`https://example.com/vault?invite=${invitation.code}`)
     }
     await expect(svc.adminCreateInvitations({count: 101}, adminCtx)).rejects.toMatchObject({statusCode: 400})
+  })
+
+  test('invitations carry a role, default reader, and refuse anything else', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const adminCtx = createContext(null, adminSecret)
+
+    const reader = await svc.adminCreateInvitations({email: 'r@test.com', send: false}, adminCtx)
+    expect(reader.invitations[0]!.role).toBe('reader')
+    expect(reader.emailed).toBe(false)
+
+    const writer = await svc.adminCreateInvitations({email: 'w@test.com', role: 'writer', send: false}, adminCtx)
+    expect(writer.invitations[0]!.role).toBe('writer')
+    expect(
+      db
+        .query<{role: string}, [string]>(`SELECT role FROM invitations WHERE code = ?`)
+        .get(writer.invitations[0]!.code),
+    ).toEqual({
+      role: 'writer',
+    })
+
+    await expect(
+      svc.adminCreateInvitations({email: 'x@test.com', role: 'admin' as api.InvitationRole}, adminCtx),
+    ).rejects.toMatchObject({statusCode: 400})
+
+    const listed = await svc.adminListInvitations(adminCtx)
+    expect(listed.invitations.map((i) => i.role).sort()).toEqual(['reader', 'writer'])
+  })
+
+  test('the invitation link is emailed to the invitee; a failed send still returns the link', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const adminCtx = createContext(null, adminSecret)
+    const sent: Array<{to: string; link: string; opts: email.InvitationEmailOptions}> = []
+    const sendInvitationEmail = spyOn(emailSender, 'sendInvitationEmail').mockImplementation(async (to, link, opts) => {
+      sent.push({to, link, opts})
+    })
+    try {
+      const res = await svc.adminCreateInvitations({email: 'Dana@Test.com', role: 'writer'}, adminCtx)
+      expect(res.emailed).toBe(true)
+      expect(res.emailError).toBeUndefined()
+      expect(sent).toEqual([
+        {to: 'dana@test.com', link: res.invitations[0]!.link, opts: {siteName: rp.name, role: 'writer'}},
+      ])
+
+      // send: false keeps the relay out of it.
+      await svc.adminCreateInvitations({email: 'quiet@test.com', send: false}, adminCtx)
+      expect(sent).toHaveLength(1)
+
+      sendInvitationEmail.mockImplementation(async () => {
+        throw new Error('Email relay refused the message: HTTP 503')
+      })
+      const failed = await svc.adminCreateInvitations({email: 'eve@test.com'}, adminCtx)
+      expect(failed.emailed).toBe(false)
+      expect(failed.emailError).toContain('HTTP 503')
+      expect(failed.invitations[0]!.link).toContain('invite=')
+      // The invitation exists regardless.
+      expect(getInvitationRow(failed.invitations[0]!.code)).toMatchObject({email: 'eve@test.com'})
+    } finally {
+      sendInvitationEmail.mockRestore()
+    }
+  })
+
+  test('a writer invitation grants WRITER on the space to each account the user reports, once', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const adminCtx = createContext(null, adminSecret)
+    const created: Array<Record<string, unknown>> = []
+    const originalListKeys = mockGrpcClient.daemon.listKeys
+    mockGrpcClient.daemon.listKeys = async () => ({
+      keys: [
+        {name: 'main', accountId: 'z6MkOther', publicKey: 'z6MkOther'},
+        {name: 'enterprise-owner', accountId: 'z6MkOwner', publicKey: 'z6MkOwner'},
+      ],
+    })
+    mockGrpcClient.accessControl = {
+      createCapability: async (req: Record<string, unknown>) => {
+        created.push(req)
+        return {id: `cap-${created.length}`}
+      },
+    }
+    try {
+      const [invitation] = (
+        await svc.adminCreateInvitations({email: 'wri@test.com', role: 'writer', send: false}, adminCtx)
+      ).invitations
+      const {result} = await register(svc, 'wri@test.com', invitation!.code)
+      const userCtx = createContext(createSession(result.userId))
+
+      const kpA = blobs.generateNobleKeyPair()
+      const uidA = blobs.principalToString(kpA.principal)
+      const claimA = {
+        uid: uidA,
+        createTime: 100,
+        signature: base64.encode(
+          await kpA.sign(new TextEncoder().encode(api.vaultAccountClaimMessage(rp.origin, result.userId, uidA))),
+        ),
+      }
+      await svc.syncVaultAccounts({accounts: [claimA]}, userCtx)
+      expect(created).toEqual([
+        {
+          signingKeyName: 'enterprise-owner',
+          account: 'z6MkOwner',
+          delegate: uidA,
+          path: '',
+          role: 2,
+          label: 'Invited writer: wri@test.com',
+        },
+      ])
+      expect(
+        db
+          .query<{code: string; capability_id: string}, [string]>(
+            `SELECT code, capability_id FROM invitation_grants WHERE account_uid = ?`,
+          )
+          .get(uidA),
+      ).toEqual({code: invitation!.code, capability_id: 'cap-1'})
+
+      // Syncing again does not grant again; a second account gets its own grant.
+      await svc.syncVaultAccounts({accounts: [claimA]}, userCtx)
+      expect(created).toHaveLength(1)
+      const kpB = blobs.generateNobleKeyPair()
+      const uidB = blobs.principalToString(kpB.principal)
+      const claimB = {
+        uid: uidB,
+        createTime: 200,
+        signature: base64.encode(
+          await kpB.sign(new TextEncoder().encode(api.vaultAccountClaimMessage(rp.origin, result.userId, uidB))),
+        ),
+      }
+      await svc.syncVaultAccounts({accounts: [claimA, claimB]}, userCtx)
+      expect(created).toHaveLength(2)
+      expect(created[1]!.delegate).toBe(uidB)
+
+      // A reader invitation grants nothing.
+      const [readerInv] = (await svc.adminCreateInvitations({email: 'rea@test.com', send: false}, adminCtx)).invitations
+      const reader = await register(svc, 'rea@test.com', readerInv!.code)
+      const kpC = blobs.generateNobleKeyPair()
+      const uidC = blobs.principalToString(kpC.principal)
+      await svc.syncVaultAccounts(
+        {
+          accounts: [
+            {
+              uid: uidC,
+              createTime: 1,
+              signature: base64.encode(
+                await kpC.sign(
+                  new TextEncoder().encode(api.vaultAccountClaimMessage(rp.origin, reader.result.userId, uidC)),
+                ),
+              ),
+            },
+          ],
+        },
+        createContext(createSession(reader.result.userId)),
+      )
+      expect(created).toHaveLength(2)
+    } finally {
+      mockGrpcClient.daemon.listKeys = originalListKeys
+      delete mockGrpcClient.accessControl
+    }
   })
 
   test('public invitation lookup answers the email for an unused code and 404 otherwise', async () => {

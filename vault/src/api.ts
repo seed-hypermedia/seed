@@ -348,12 +348,22 @@ export type GetConfigResponse = {
  * `Authorization: Bearer <admin secret>` and answers 404 when no admin secret
  * is configured. Never exposes account data.
  */
+/**
+ * What an invitation grants once the person has an account. `reader`: vault
+ * membership, which the sign-in gate turns into read access. `writer`: that,
+ * plus a WRITER capability on the site's space for every account the person
+ * registers, signed by the owner key the daemon holds.
+ */
+export type InvitationRole = 'reader' | 'writer'
+export const INVITATION_ROLES: readonly InvitationRole[] = ['reader', 'writer']
+
 export type AdminInvitation = {
   code: string
   /** Email the code is bound to. Always set in invite-only mode; null only for legacy unbound codes. */
   email: string | null
   /** Ready-to-share registration link: `<origin>/vault?invite=<code>&email=<email>`. */
   link: string
+  role: InvitationRole
   createTime: number
   usedTime: number | null
   used: boolean
@@ -363,9 +373,17 @@ export type AdminCreateInvitationsRequest = {
   email?: string
   /** Number of codes to create (default 1, max 100). Must be 1 when `email` is set. */
   count?: number
+  /** Default `reader`. */
+  role?: InvitationRole
+  /** Email the link to `email` (default true when `email` is set). The link is returned either way. */
+  send?: boolean
 }
 export type AdminCreateInvitationsResponse = {
   invitations: AdminInvitation[]
+  /** True when the link was emailed to the invitee. */
+  emailed: boolean
+  /** Why the email was not sent, when it was attempted and failed; the link still works. */
+  emailError?: string
 }
 export type AdminListInvitationsResponse = {
   invitations: AdminInvitation[]

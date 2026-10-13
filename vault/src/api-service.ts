@@ -4,6 +4,7 @@ import {encode as cborEncode} from '@ipld/dag-cbor'
 import * as base64 from '@seed-hypermedia/client/base64'
 import * as blobs from '@seed-hypermedia/client/blobs'
 import {ed25519} from '@noble/curves/ed25519.js'
+import {Role} from '@shm/shared/client/.generated/documents/v3alpha/access_control_pb'
 import type {GRPCClient} from '@shm/shared/grpc-client'
 import * as webauthn from '@simplewebauthn/server'
 import {argon2id} from 'hash-wasm'
@@ -16,7 +17,10 @@ import * as api from './api'
 
 const isProd = process.env.NODE_ENV === 'production'
 
-type MinimalGRPCClient = Pick<GRPCClient, 'daemon' | 'documents'>
+type MinimalGRPCClient = Pick<GRPCClient, 'daemon' | 'documents' | 'accessControl'>
+
+/** The daemon key the enterprise bootstrap registered for the organization's space. */
+const OWNER_KEY_NAME_PREFIX = 'enterprise-owner'
 
 interface User {
   id: string
@@ -79,6 +83,7 @@ interface Invitation {
   create_time: number
   used_time: number | null
   used_by_account: string | null
+  role: api.InvitationRole
 }
 
 /** Optional server features, off by default. */
@@ -495,6 +500,11 @@ export class Service implements api.ServerInterface {
       }
     })()
 
+    await this.grantInvitedRoles(
+      access.userId,
+      req.accounts.map((account) => account.uid),
+    )
+
     return {success: true}
   }
 
@@ -536,6 +546,7 @@ export class Service implements api.ServerInterface {
       code: row.code,
       email: row.email,
       link: this.invitationLink(row.code, row.email),
+      role: row.role,
       createTime: row.create_time,
       usedTime: row.used_time,
       used: row.used_time !== null,
@@ -736,6 +747,11 @@ export class Service implements api.ServerInterface {
       throw new APIError('count must be 1 when email is set: one invitation per email address', 400)
     }
 
+    const role = req.role ?? 'reader'
+    if (!api.INVITATION_ROLES.includes(role)) {
+      throw new APIError(`role must be one of ${api.INVITATION_ROLES.join(', ')}`, 400)
+    }
+
     const now = Date.now()
     const rows = this.db.transaction(() => {
       const created: Invitation[] = []
@@ -746,18 +762,110 @@ export class Service implements api.ServerInterface {
           create_time: now,
           used_time: null,
           used_by_account: null,
+          role,
         }
-        this.db.run(`INSERT INTO invitations (code, email, create_time) VALUES (?, ?, ?)`, [
+        this.db.run(`INSERT INTO invitations (code, email, create_time, role) VALUES (?, ?, ?, ?)`, [
           row.code,
           row.email,
           row.create_time,
+          row.role,
         ])
         created.push(row)
       }
       return created
     })()
 
-    return {invitations: rows.map((row) => this.toAdminInvitation(row))}
+    const invitations = rows.map((row) => this.toAdminInvitation(row))
+
+    // Email the link to the invitee. A failed send does not undo the
+    // invitation: the operator gets the link back and can pass it on.
+    let emailed = false
+    let emailError: string | undefined
+    const first = invitations[0]
+    if (boundEmail !== null && first && req.send !== false) {
+      try {
+        await this.emailSender.sendInvitationEmail(boundEmail, first.link, {siteName: this.rp.name, role})
+        emailed = true
+      } catch (error) {
+        emailError = error instanceof Error ? error.message : String(error)
+        console.error(`[vault:adminCreateInvitations] could not email the invitation to ${boundEmail}:`, emailError)
+      }
+    }
+
+    return emailError === undefined ? {invitations, emailed} : {invitations, emailed, emailError}
+  }
+
+  /**
+   * Writer invitations end in a WRITER capability on the site's space for each
+   * account the invited user reports. Runs after every account sync and is
+   * idempotent: one grant per account, recorded in invitation_grants. Errors
+   * are logged, not raised; the next sync retries.
+   */
+  private async grantInvitedRoles(userId: string, accountUids: string[]): Promise<void> {
+    const invitation = this.db
+      .query<Pick<Invitation, 'code' | 'email'>, [string]>(
+        `SELECT code, email FROM invitations WHERE used_by_account = ? AND role = 'writer' ORDER BY used_time LIMIT 1`,
+      )
+      .get(userId)
+    if (!invitation) return
+
+    const pending = accountUids.filter(
+      (uid) =>
+        !this.db
+          .query<{account_uid: string}, [string]>(`SELECT account_uid FROM invitation_grants WHERE account_uid = ?`)
+          .get(uid),
+    )
+    if (pending.length === 0) return
+
+    let owner: {name: string; accountId: string}
+    try {
+      owner = await this.ownerKey()
+    } catch (error) {
+      console.error('[vault:grantInvitedRoles] no owner key to sign with:', error)
+      return
+    }
+
+    for (const uid of pending) {
+      try {
+        const capability = await this.grpcClient.accessControl.createCapability({
+          signingKeyName: owner.name,
+          account: owner.accountId,
+          delegate: uid,
+          path: '',
+          role: Role.WRITER,
+          label: invitation.email ? `Invited writer: ${invitation.email}` : 'Invited writer',
+        })
+        this.db.run(
+          `INSERT INTO invitation_grants (account_uid, code, capability_id, grant_time) VALUES (?, ?, ?, ?)
+           ON CONFLICT(account_uid) DO NOTHING`,
+          [uid, invitation.code, capability.id ?? null, Date.now()],
+        )
+        console.log(
+          `[vault:grantInvitedRoles] granted WRITER on ${owner.accountId} to ${uid} (${
+            invitation.email ?? invitation.code
+          })`,
+        )
+      } catch (error) {
+        console.error(`[vault:grantInvitedRoles] could not grant WRITER to ${uid}:`, error)
+      }
+    }
+  }
+
+  /** The daemon key that owns the organization's space: the bootstrap's `enterprise-owner*` key, or the only key. */
+  private async ownerKey(): Promise<{name: string; accountId: string}> {
+    const {keys} = await this.grpcClient.daemon.listKeys({})
+    const all = keys || []
+    const key =
+      all.find((candidate) => candidate.name.startsWith(OWNER_KEY_NAME_PREFIX)) ??
+      (all.length === 1 ? all[0] : undefined)
+    if (!key) {
+      throw new Error(
+        all.length === 0
+          ? 'the daemon holds no keys'
+          : `the daemon holds ${all.length} keys and none is named ${OWNER_KEY_NAME_PREFIX}*`,
+      )
+    }
+    return {name: key.name, accountId: key.accountId}
   }
 
   /** Admin: list invitations with their used/unused state. */

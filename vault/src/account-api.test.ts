@@ -22,6 +22,7 @@ const rp = {
 const hmacSecret = new Uint8Array(32)
 const emailSender = {
   sendVerificationEmail: async () => {},
+  sendInvitationEmail: async () => {},
 }
 
 function createService(getAccountImpl: (req: {id: string}) => Promise<Account>) {

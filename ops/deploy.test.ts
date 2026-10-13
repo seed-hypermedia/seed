@@ -87,6 +87,7 @@ import {
   injectServiceDirectives,
   backupMembers,
   extractInvitationLinks,
+  parseInviteArgs,
   enterpriseIsolationChecks,
   bootstrapOptionsFrom,
   bootstrapSpace,
@@ -2783,6 +2784,21 @@ describe('enterprise: compose template', () => {
     // The daemon block is untouched.
     expect(lines.slice(0, agentsIdx - 1)).not.toContain('    devices:')
     expect(deviceDirectives(['/dev/dri'], [])).toEqual(['    devices:', '      - /dev/dri:/dev/dri'])
+  })
+})
+
+describe('enterprise: invite arguments', () => {
+  test('parseInviteArgs: email, role flags, --no-email and a count', () => {
+    expect(parseInviteArgs(['a@example.org'])).toEqual({email: 'a@example.org', role: 'reader', send: true, count: undefined})
+    expect(parseInviteArgs(['a@example.org', '--role', 'writer'])).toMatchObject({role: 'writer', send: true})
+    expect(parseInviteArgs(['--role=writer', 'a@example.org', '--no-email'])).toMatchObject({
+      email: 'a@example.org',
+      role: 'writer',
+      send: false,
+    })
+    expect(parseInviteArgs(['a@example.org', '--writer', '3'])).toMatchObject({role: 'writer', count: 3})
+    expect(parseInviteArgs(['a@example.org', '--role', 'admin']).error).toContain('--role must be reader or writer')
+    expect(parseInviteArgs(['a@example.org', 'bogus']).error).toContain("unexpected argument 'bogus'")
   })
 })
 

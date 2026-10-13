@@ -28,9 +28,17 @@ export type RelayMessage = {
   replyTo?: string
 }
 
-/** Sends login/verification emails. */
+/** What an invitation email says besides the link. */
+export type InvitationEmailOptions = {
+  /** The organization's site name (the relying party name). */
+  siteName: string
+  role: 'reader' | 'writer'
+}
+
+/** Sends login/verification and invitation emails. */
 export interface EmailSender {
   sendVerificationEmail(to: string, code: string): Promise<void>
+  sendInvitationEmail(to: string, link: string, opts: InvitationEmailOptions): Promise<void>
 }
 
 /** Sends emails via SMTP using nodemailer. */
@@ -67,6 +75,13 @@ class SmtpSender implements EmailSender {
     })
     console.log(`Email sent to ${to}`)
   }
+
+  async sendInvitationEmail(to: string, link: string, opts: InvitationEmailOptions): Promise<void> {
+    console.log(`Sending invitation to ${to}...`)
+    const {subject, text, html} = emailTemplate.createInvitationEmail(link, opts, this.logoUrl)
+    await this.transporter.sendMail({from: this.sender, to, subject, text, html})
+    console.log(`Invitation sent to ${to}`)
+  }
 }
 
 /**
@@ -90,6 +105,13 @@ export class RelaySender implements EmailSender {
     const {subject, text, html} = emailTemplate.createVerificationEmail(code, this.logoUrl)
     await this.send({to, subject, text, html})
     console.log(`Email sent to ${to}`)
+  }
+
+  async sendInvitationEmail(to: string, link: string, opts: InvitationEmailOptions): Promise<void> {
+    console.log(`Sending invitation to ${to} via relay...`)
+    const {subject, text, html} = emailTemplate.createInvitationEmail(link, opts, this.logoUrl)
+    await this.send({to, subject, text, html})
+    console.log(`Invitation sent to ${to}`)
   }
 
   async send(message: RelayMessage): Promise<void> {
@@ -118,6 +140,10 @@ export class RelaySender implements EmailSender {
 class ConsoleSender implements EmailSender {
   async sendVerificationEmail(to: string, code: string): Promise<void> {
     console.log(`\n📧 Verification code for ${to}: ${code}\n`)
+  }
+
+  async sendInvitationEmail(to: string, link: string, opts: InvitationEmailOptions): Promise<void> {
+    console.log(`\n📧 Invitation for ${to} (${opts.role}): ${link}\n`)
   }
 }
 

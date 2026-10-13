@@ -41,6 +41,28 @@ describe('RelaySender', () => {
     expect(body.from).toBeUndefined()
   })
 
+  test('posts the invitation email with the link, the site name and the role', async () => {
+    const {fetchImpl, calls} = fakeFetch([new Response(null, {status: 202})])
+    const sender = new email.RelaySender(relay, 'https://seed.acme.org', fetchImpl)
+
+    await sender.sendInvitationEmail(
+      'carol@acme.org',
+      'https://seed.acme.org/vault?invite=abc&email=carol%40acme.org',
+      {
+        siteName: 'Acme',
+        role: 'writer',
+      },
+    )
+
+    const body = JSON.parse(calls[0]!.init.body as string)
+    expect(body.to).toBe('carol@acme.org')
+    expect(body.subject).toBe("You're invited to Acme")
+    expect(body.text).toContain('https://seed.acme.org/vault?invite=abc&email=carol%40acme.org')
+    expect(body.text).toContain('read and edit')
+    expect(body.html).toContain('invite=abc&amp;email=carol%40acme.org')
+    expect(body.html).toContain('https://seed.acme.org/email-logo.png')
+  })
+
   test('passes replyTo through and leaves html out when absent', async () => {
     const {fetchImpl, calls} = fakeFetch([new Response(null, {status: 202})])
     const sender = new email.RelaySender(relay, '', fetchImpl)
