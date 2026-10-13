@@ -611,10 +611,6 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 	genesisBlobJson := "[" + strings.Join(genesisBlobIDs, ",") + "]"
 	err = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 		return sqlitex.ExecTransient(conn, entities.QGetMovedBlocks(), func(stmt *sqlite.Stmt) error {
-			var heads []head
-			if err := json.Unmarshal(stmt.ColumnBytes(3), &heads); err != nil {
-				return err
-			}
 			movedResources = append(movedResources, entities.MovedResource{
 				NewIri:    stmt.ColumnText(0),
 				OldIri:    stmt.ColumnText(1),
@@ -991,7 +987,7 @@ SELECT
   sb.extra_attrs->>'redirect' AS redirect,
   r.iri,
   dg.is_deleted
-  from structural_blobs sb
+  from structural_blobs sb INDEXED BY structural_blobs_by_redirect
   JOIN resources r ON r.id = sb.resource
   JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
   WHERE sb.type = 'Ref'

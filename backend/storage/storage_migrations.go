@@ -63,6 +63,15 @@ type migration struct {
 //
 // In case of even the most minor doubts, consult with the team before adding a new migration, and submit the code to review if needed.
 var migrations = []migration{
+	// Give the feed an index holding only redirecting Refs, so resolving moved
+	// documents for a page no longer walks every blob sharing a genesis. Index
+	// only: one scan of structural_blobs at startup, no reindex.
+	{Version: "2026-10-13.102918", Run: func(_ *Store, conn *sqlite.Conn) error {
+		return sqlitex.ExecScript(conn, sqlfmt(`
+			CREATE INDEX IF NOT EXISTS structural_blobs_by_redirect ON structural_blobs (genesis_blob, extra_attrs->>'redirect', resource) WHERE type = 'Ref' AND extra_attrs->>'redirect' != '';
+		`))
+	}},
+
 	// Add independently backfilled summaries of references in published
 	// document content. This is intentionally additive and does not schedule a
 	// full blob reindex; the bounded document-fields worker populates it.

@@ -265,27 +265,19 @@ SELECT
   ORDER BY ts ASC
 `)
 
-// The CROSS JOIN forces SQLite to drive the query from the (small, deduped) list of
-// genesis blobs using the index on structural_blobs.genesis_blob, instead of scanning
-// every Ref blob in the database.
+// QGetMovedBlocks resolves, for a page of events, the documents sharing their
+// genesis that were moved elsewhere: the redirect target, the old address and
+// whether the target is deleted. The CROSS JOIN drives the query from the
+// (small, deduped) list of genesis blobs, and the pinned partial index holds
+// only redirecting Refs, so the lookup never walks the thousands of blobs an
+// account's documents can share through the home genesis.
 var QGetMovedBlocks = dqb.Str(`
 SELECT
   sb.extra_attrs->>'redirect' AS redirect,
   r.iri,
-  dg.is_deleted,
-  (
-    SELECT json_group_array(
-             json_object(
-               'codec',    b2.codec,
-               'multihash', hex(b2.multihash)
-             )
-           )
-    FROM json_each(dg.heads) AS a
-      JOIN blobs AS b2
-        ON b2.id = a.value
-  ) AS heads
+  dg.is_deleted
   FROM (SELECT DISTINCT value FROM json_each(:genesisBlobJson)) AS g
-  CROSS JOIN structural_blobs sb ON sb.genesis_blob = g.value
+  CROSS JOIN structural_blobs sb INDEXED BY structural_blobs_by_redirect ON sb.genesis_blob = g.value
   JOIN resources r ON r.id = sb.resource
   JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
   WHERE sb.type = 'Ref'
