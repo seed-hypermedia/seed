@@ -21,6 +21,7 @@ import {
   PARAM_PROOF,
   PARAM_REDIRECT_URI,
   PARAM_SESSION_KEY,
+  PARAM_INVITE,
   PARAM_SITE_NAME,
   PARAM_STATE,
   PARAM_TS,
@@ -132,6 +133,11 @@ export async function startAuth(config: HypermediaAuthConfig): Promise<string> {
   }
   if (config.siteName) {
     url.searchParams.set(PARAM_SITE_NAME, config.siteName)
+  }
+  // Invite-only vault: the vault creates the account from the invitation and
+  // then completes this delegation.
+  if (config.invite) {
+    url.searchParams.set(PARAM_INVITE, config.invite)
   }
   const signedUrl = url.toString()
   const proofPayload = new TextEncoder().encode(signedUrl)
