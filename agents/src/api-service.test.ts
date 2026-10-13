@@ -5840,7 +5840,9 @@ describe('api service', () => {
       fs.mkdirSync(path.join(memoryRoot, 'reports', 'images'), {recursive: true})
       fs.writeFileSync(
         path.join(memoryRoot, 'reports', 'weekly.md'),
-        '---\nname: Weekly Report\nsummary: Week in review\n---\n# Weekly Report\n\nHello world from memory.\n\n![chart](images/chart.png)\n',
+        // The citation link is a `#ref-1` fragment the way convert's post-processor writes it; it
+        // resolves to this very document, which does not exist yet on the first publish.
+        '---\nname: Weekly Report\nsummary: Week in review\n---\n# Weekly Report\n\nHello world from memory [[1](#ref-1)].\n\n![chart](images/chart.png)\n\n## References\n\n- [1] First entry <!-- id:ref-1 -->\n',
       )
       fs.writeFileSync(
         path.join(memoryRoot, 'reports', 'images', 'chart.png'),
@@ -5908,9 +5910,13 @@ describe('api service', () => {
       expect(first.body?.opCount ?? 0).toBeGreaterThan(0)
       expect(BigInt(first.ts)).toBeGreaterThan(0n)
       const createBodyText = new TextDecoder('utf-8', {fatal: false}).decode(createBody)
-      expect(createBodyText).toContain('Hello world from memory.')
+      expect(createBodyText).toContain('Hello world from memory [1].')
       expect(createBodyText).toContain('ipfs://')
       expect(createBodyText).not.toContain('file://')
+      // The fragment link was resolved to the document's own address and let through the link
+      // check, and the entry keeps the id it points at.
+      expect(createBodyText).toContain(`hm://${signerPublicKey}/weekly-report#ref-1`)
+      expect(createBodyText).toContain('ref-1')
 
       // Second publish of the same file: the document now exists, so it updates in place.
       existingVersion = createResult!.output!.version!

@@ -15443,7 +15443,10 @@ async function writeDocumentCreate(
     normalizeOptionalBoundedString(request.input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
   const path = normalizeDocumentPath(request.input.path, documentName)
   await ensureParentDocumentExists(client, account, path)
-  await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  await assertHmContentLinks(client, parsed.blocks, {
+    skipResolve: request.input.skipLinkCheck === true,
+    self: `hm://${account}${path}`,
+  })
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
@@ -15559,7 +15562,11 @@ async function writeDocumentUpdate(
     request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
   const parsed = hasContent ? parseWriteDocumentContent(request.input) : undefined
   if (parsed) await assertPublishableMermaid(parsed.blocks)
-  if (parsed) await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  if (parsed)
+    await assertHmContentLinks(client, parsed.blocks, {
+      skipResolve: request.input.skipLinkCheck === true,
+      self: `hm://${id.uid}${id.path?.length ? `/${id.path.join('/')}` : ''}`,
+    })
   const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
   let contentOps: DocumentOperation[] = []
   if (parsed) {
@@ -17049,7 +17056,10 @@ const MAX_LINK_RESOLUTION_CHECKS = 50
  * well-formed ones must resolve on the configured HM server — `{type: 'not-found'}` is a broken
  * link, while a server that cannot answer (thrown request) never blocks publishing, because an
  * infra flake must not be able to hold content hostage. `skipLinkCheck` skips only the resolution
- * half, for links whose targets are about to exist; nothing skips malformed-ness.
+ * half, for links whose targets are about to exist; nothing skips malformed-ness. Links into the
+ * document being written (`self`, its address without a fragment; the convert post-processor's
+ * `#ref-N` citation links become these) are never resolved: on a first publication the document
+ * does not exist yet, and on an update it trivially does.
  */
 export async function assertHmContentLinks(
   // Structural: only Resource lookups are needed, and the SeedClient generic makes a full
@@ -17058,10 +17068,11 @@ export async function assertHmContentLinks(
     request: (key: 'Resource', id: NonNullable<ReturnType<typeof unpackHmId>>) => Promise<unknown>
   },
   nodes: HMBlockNode[],
-  options: {skipResolve?: boolean} = {},
+  options: {skipResolve?: boolean; self?: string} = {},
 ): Promise<void> {
   const links = [...new Set(collectHmContentLinks(nodes))]
   if (links.length === 0) return
+  const selfId = options.self ? unpackHmId(options.self) : null
   const malformed: string[] = []
   const targets: Array<{link: string; id: NonNullable<ReturnType<typeof unpackHmId>>}> = []
   for (const link of links) {
@@ -17074,10 +17085,12 @@ export async function assertHmContentLinks(
     }
     try {
       blobs.principalFromString(id.uid)
-      targets.push({link, id})
     } catch {
       malformed.push(link)
+      continue
     }
+    if (selfId && id.uid === selfId.uid && (id.path ?? []).join('/') === (selfId.path ?? []).join('/')) continue
+    targets.push({link, id})
   }
   if (malformed.length > 0) {
     throw new APIError(
