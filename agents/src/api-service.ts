@@ -14689,6 +14689,8 @@ async function executeConvert(
         imagesRewritten: rewritten.rewritten,
         imagesUnresolved: rewritten.unresolved,
         droppedImages: result.droppedImages ?? [],
+        internalLinksUnwrapped: polished.internalLinksUnwrapped,
+        mathBlocksNormalized: polished.mathBlocksNormalized,
         captionsFolded: polished.captionsFolded,
         referenceEntries: polished.referenceEntries,
         citationsLinked: polished.citationsLinked,

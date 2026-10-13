@@ -17,9 +17,26 @@
  *
  * Parenthesised author-year citations, `(Meyrowitz, 1986)`, have no bracketed key to match
  * on and are left alone.
+ *
+ * Before either step, the PDF's own internal links are unwrapped. With the `extract_links`
+ * extra Datalab keeps them as `[\[49\].](#block-9-2)` pointing at an `<a id="block-9-2"></a>`
+ * anchor it writes before the target block. The anchors do not survive the markdown parser, so
+ * published they would be dead links, and for citations they are coarser than the entry ids
+ * anyway (one anchor per page block, not per entry). The label text stays; the anchors go.
+ *
+ * Display math is put on the parser's terms as well. Datalab writes `$$T_i = Y_i(1)$$` on one
+ * line; the markdown dialect opens a math block at a line starting with `$$`, ignores the rest
+ * of that line and reads until a line that is exactly `$$`, so one such formula would swallow
+ * the rest of the document into a single block. Each one becomes `$$`, the formula, `$$`.
  */
 
 const FENCE_RE = /^\s*(```|~~~)/
+const MATH_FENCE_RE = /^\s*\$\$\s*$/
+const MATH_ONE_LINE_RE = /^\s*\$\$(.+?)\$\$\s*$/
+const MATH_OPEN_RE = /^\s*\$\$(.+)$/
+const MATH_CLOSE_RE = /^(.+?)\$\$\s*$/
+const ANCHOR_RE = /<a\s+(?:id|name)="[^"]*"\s*>\s*<\/a>\s*/g
+const INTERNAL_LINK_RE = /\[((?:[^[\]\\\n]|\\.)*)\]\(#(?:block|page)-\d+(?:-\d+)*\)/g
 const IMAGE_LINE_RE = /^\s*!\[([^\]]*)\]\(([^)\s]+)\)\s*(<!--\s*id:[^>]*-->)?\s*$/
 const CAPTION_RE =
   /^\s*(?:\*\*|__)?\s*((?:Figure|Fig\.?|Table|Tab\.?|Chart|Plate|Scheme)\s*[A-Z]?\d+[a-z]?(?:\.\d+)?)\s*[.:：\-–—]?\s*(.*?)\s*(?:\*\*|__)?\s*$/i
@@ -29,7 +46,8 @@ const HEADING_RE = /^(#{1,6})\s/
 const NUMERIC_ENTRY_RE = /^(\s*(?:[-*+]|\d+[.)])\s+)?\[?(\d{1,4})[\].]\s+(.*)$/
 const LABELLED_ENTRY_RE = /^\s*(?:[-*+]\s+)?\[([^[\]]{1,80})\]\s+\S/
 const ID_COMMENT_RE = /<!--\s*id:([A-Za-z0-9_-]+)[^>]*-->/
-const BRACKET_RE = /\[([^[\]\n]{1,200})\]/g
+// Datalab escapes literal brackets, `\[49\]`, so a citation may carry backslashes.
+const BRACKET_RE = /\\?\[([^[\]\n]{1,200}?)\\?\]/g
 const RANGE_RE = /^(\d{1,4})\s*[-–]\s*(\d{1,4})$/
 /** A bracket that was meant as a citation even though no entry matched: a number, or a label with a year. */
 const LOOKS_CITED_RE = /^\d{1,4}$|\b(?:1[5-9]|20)\d\d[a-z]?\b|\bundated\b|\bn\.d\.?/i
@@ -37,11 +55,75 @@ const LOOKS_CITED_RE = /^\d{1,4}$|\b(?:1[5-9]|20)\d\d[a-z]?\b|\bundated\b|\bn\.d
 /** What the post-processor changed, for the manifest and the summary. */
 export type PostprocessReport = {
   markdown: string
+  /** Datalab's PDF-internal links (`[…](#block-N-M)`) reduced to their text. */
+  internalLinksUnwrapped: number
+  /** One-line `$$…$$` formulas rewritten as fenced math blocks. */
+  mathBlocksNormalized: number
   captionsFolded: number
   referenceEntries: number
   citationsLinked: number
   /** Citation keys (`12`, `Meyrowitz 1999`) with no bibliography entry, left as plain text. */
   citationsUnlinked: string[]
+}
+
+function unwrapInternalLinks(lines: string[]): {lines: string[]; unwrapped: number} {
+  const out: string[] = []
+  let unwrapped = 0
+  let inFence = false
+  for (const line of lines) {
+    if (FENCE_RE.test(line)) inFence = !inFence
+    if (inFence) {
+      out.push(line)
+      continue
+    }
+    const stripped = line.replace(ANCHOR_RE, '')
+    // An anchor on a line of its own leaves nothing behind.
+    if (stripped.trim() === '' && line.trim() !== '') continue
+    out.push(
+      stripped.replace(INTERNAL_LINK_RE, (_m, label: string) => {
+        unwrapped++
+        return label
+      }),
+    )
+  }
+  return {lines: out, unwrapped}
+}
+
+function normalizeDisplayMath(lines: string[]): {lines: string[]; normalized: number} {
+  const out: string[] = []
+  let normalized = 0
+  let inFence = false
+  let inMath = false
+  for (const line of lines) {
+    if (FENCE_RE.test(line)) inFence = !inFence
+    if (inFence) {
+      out.push(line)
+      continue
+    }
+    if (MATH_FENCE_RE.test(line)) {
+      inMath = !inMath
+      out.push(line)
+      continue
+    }
+    const oneLine = inMath ? null : MATH_ONE_LINE_RE.exec(line)
+    const open = inMath || oneLine ? null : MATH_OPEN_RE.exec(line)
+    const close = inMath ? MATH_CLOSE_RE.exec(line) : null
+    if (oneLine) {
+      out.push('$$', oneLine[1]!.trim(), '$$')
+      normalized++
+    } else if (open) {
+      out.push('$$', open[1]!.trim())
+      inMath = true
+      normalized++
+    } else if (close) {
+      // The opening line already counted this block.
+      out.push(close[1]!.trim(), '$$')
+      inMath = false
+    } else {
+      out.push(line)
+    }
+  }
+  return {lines: out, normalized}
 }
 
 /** The lookup key of a citation or entry label: emphasis and spacing differences do not matter. */
@@ -216,10 +298,14 @@ function expandRange(from: number, to: number): string[] {
 
 /** Runs every clean-up step over converted markdown. Fenced code is never touched. */
 export function postprocessConvertedMarkdown(markdown: string): PostprocessReport {
-  const captions = foldCaptions(markdown.split('\n'))
+  const internal = unwrapInternalLinks(markdown.split('\n'))
+  const math = normalizeDisplayMath(internal.lines)
+  const captions = foldCaptions(math.lines)
   const citations = linkCitations(captions.lines)
   return {
     markdown: citations.lines.join('\n'),
+    internalLinksUnwrapped: internal.unwrapped,
+    mathBlocksNormalized: math.normalized,
     captionsFolded: captions.folded,
     referenceEntries: citations.entries,
     citationsLinked: citations.linked,

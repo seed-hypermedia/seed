@@ -102,6 +102,60 @@ describe('postprocessConvertedMarkdown', () => {
     expect(out.citationsUnlinked).toEqual(['meyrowitz 1999'])
   })
 
+  // Shapes from a real conversion with the extract_links extra (an ACM paper on migration):
+  // the PDF's internal links wrap each citation, `[\[49\].](#block-9-2)`, pointing at `<a id>`
+  // anchors; literal brackets are escaped; display math is written on one line.
+  test('unwraps Datalab internal links and anchors, reads escaped citations, fences one-line math', () => {
+    const src = [
+      '# Title',
+      '',
+      '<a id="block-5-4"></a>![](assets/fig1.jpg)',
+      '',
+      'Figure 1: A figure',
+      '',
+      'Migrants increased [\\[49\\].](#block-9-2) However [\\[37,](#block-9-0) [60,](#block-9-2) [64\\].](#block-9-2) and plain \\[34\\] too, see [Section 3](#block-3-0) and [the site](https://example.org/#block-1-1).',
+      '',
+      '$$T_i = Y_i(1) - Y_i(0).$$',
+      '',
+      '$$\\begin{aligned} a &= b \\\\',
+      'c &= d \\end{aligned}$$',
+      '',
+      '$$',
+      'already fenced',
+      '$$',
+      '',
+      '## REFERENCES',
+      '',
+      '<a id="block-9-0"></a>',
+      '',
+      '- [34] Entry thirty-four.',
+      '- [37] Entry thirty-seven.',
+      '- [49] Entry forty-nine.',
+      '- [60] Entry sixty.',
+      '- [64] Entry sixty-four.',
+      '',
+    ].join('\n')
+    const out = postprocessConvertedMarkdown(src)
+    expect(out).toMatchObject({
+      internalLinksUnwrapped: 5,
+      mathBlocksNormalized: 2,
+      captionsFolded: 1,
+      referenceEntries: 5,
+      citationsLinked: 5,
+      citationsUnlinked: [],
+    })
+    expect(out.markdown).not.toContain('<a id=')
+    expect(out.markdown).not.toContain('](#block-')
+    expect(out.markdown).toContain('![Figure 1: A figure](assets/fig1.jpg)')
+    expect(out.markdown).toContain(
+      'Migrants increased [[49](#ref-49)]. However [[37](#ref-37), [60](#ref-60), [64](#ref-64)]. and plain [[34](#ref-34)] too, see Section 3 and [the site](https://example.org/#block-1-1).',
+    )
+    expect(out.markdown).toContain('$$\nT_i = Y_i(1) - Y_i(0).\n$$')
+    expect(out.markdown).toContain('$$\n\\begin{aligned} a &= b \\\\\nc &= d \\end{aligned}\n$$')
+    expect(out.markdown).toContain('$$\nalready fenced\n$$')
+    expect(out.markdown).toContain('- [34] Entry thirty-four. <!-- id:ref-34 -->')
+  })
+
   test('leaves link labels, reference-style links, code and the bibliography itself alone', () => {
     expect(out.markdown).toContain('[link label](https://example.com/[1])')
     expect(out.markdown).toContain('[x][1] stay')
