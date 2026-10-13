@@ -9,6 +9,23 @@ import {NOTIFY_SERVICE_HOST, SITE_BASE_URL, WEB_IS_GATEWAY} from '@shm/shared/co
 
 const corsHeaders = {'Access-Control-Allow-Origin': '*'}
 
+/**
+ * The `siteUrl` the registered space's home document carries, so `seed-deploy
+ * doctor` can tell when it disagrees with the hostname (after a hostname
+ * change that was not followed by `set-hostname`). Null when there is no
+ * registered space or the daemon cannot answer; this route must not fail on it.
+ */
+async function registeredSiteUrl(accountUid: string | undefined): Promise<string | null> {
+  if (!accountUid) return null
+  try {
+    const home = await grpcClient.documents.getDocument({account: accountUid, path: '', version: undefined})
+    const metadata = home.metadata ? (home.metadata.toJson() as Record<string, unknown>) : {}
+    return typeof metadata.siteUrl === 'string' ? metadata.siteUrl : null
+  } catch {
+    return null
+  }
+}
+
 export const loader: LoaderFunction = async ({request}) => {
   try {
     const {hostname} = parseRequest(request)
@@ -19,9 +36,11 @@ export const loader: LoaderFunction = async ({request}) => {
       deviceId: daemonInfo.peerId,
     })
     const signerAccountUid = await getOrCreateServerSignerAccountUid()
+    const siteUrl = await registeredSiteUrl(config.registeredAccountUid)
     return json(
       {
         registeredAccountUid: config.registeredAccountUid,
+        siteUrl,
         peerId: daemonInfo.peerId,
         protocolId: daemonInfo.protocolId,
         signerAccountUid,

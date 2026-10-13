@@ -88,6 +88,7 @@ Every setting is a flag with an environment variable behind it. <!-- id:r5otBYl0
 | `--backend-grpc-base-url` | `SEED_VAULT_BACKEND_GRPC_BASE_URL` | the backend HTTP URL <!-- id:wc1QXIWQ --> |
 | `--web-base-url` | `SEED_VAULT_WEB_BASE_URL` | same origin <!-- id:YyzzqcLE --> |
 | `--smtp-*` | `SEED_VAULT_SMTP_*` | unset, which disables email <!-- id:vGM4RTQy --> |
+| `--email-relay-url`, `--email-relay-token` | `SEED_VAULT_EMAIL_RELAY_URL`, `SEED_VAULT_EMAIL_RELAY_TOKEN` | unset; when set, verification emails go as `POST <url>` with `Authorization: Bearer <token>` and a JSON body `{to, subject, text, html}` to the Seed hosting email relay, which wins over SMTP and sets the sender itself. The [enterprise profile](../build/self-hosting.md) uses it so an instance needs no SMTP account; a reply other than 2xx fails the request the way an SMTP rejection does |
 | `--invite-only` | `SEED_VAULT_INVITE_ONLY` | off; `true` makes account creation require an invitation code |
 | `--admin-secret` | `SEED_VAULT_ADMIN_SECRET` | unset, which disables the admin API |
 | none | `SEED_VAULT_DEFAULT_NOTIFY_SERVER` | `https://notify.seed.hyper.media` when unset; set it to an empty string to run without a notify server <!-- id:Lci_Ngam --> |

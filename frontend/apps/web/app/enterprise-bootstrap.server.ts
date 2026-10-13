@@ -89,3 +89,48 @@ export function homeDocumentOps(input: {name: string; siteUrl: string}): Documen
     {type: 'MoveBlocks', parent: '', blocks: [blockId]},
   ]
 }
+
+/**
+ * The metadata-only change that moves the space to a new public address
+ * after the site's hostname changed. Nothing else about the document moves.
+ */
+export function siteUrlOps(siteUrl: string): DocumentOperation[] {
+  return [{type: 'SetAttributes', attrs: [{key: ['siteUrl'], value: siteUrl}]}]
+}
+
+/** What a new Change on an existing document must point at: the current heads and the depth after them. */
+export type ChangeBase = {
+  /** CID of the genesis change (the one with no deps). */
+  genesis: string
+  /** CIDs of the current heads (changes no other change depends on). */
+  heads: string[]
+  /** Depth of the new change: max depth among the heads, plus one. */
+  depth: number
+}
+
+/**
+ * Walks a document's change list the way the client SDK's resolveDocumentState
+ * does: genesis has depth 0, every other change sits one below the deepest of
+ * its deps. The daemon lists the changes but not their depth.
+ */
+export function changeBase(changes: Array<{id: string; deps: string[]}>): ChangeBase {
+  if (changes.length === 0) throw new Error('The document has no changes')
+  const byId = new Map(changes.map((change) => [change.id, change.deps]))
+  const dependedOn = new Set(changes.flatMap((change) => change.deps))
+  const genesis = changes.find((change) => change.deps.length === 0)?.id
+  if (!genesis) throw new Error('The document has no genesis change')
+  const depths = new Map<string, number>()
+  const depthOf = (id: string, trail: Set<string>): number => {
+    const known = depths.get(id)
+    if (known !== undefined) return known
+    if (trail.has(id)) throw new Error(`Change ${id} depends on itself`)
+    trail.add(id)
+    const deps = byId.get(id) ?? []
+    const depth = deps.length === 0 ? 0 : Math.max(...deps.map((dep) => depthOf(dep, trail))) + 1
+    depths.set(id, depth)
+    return depth
+  }
+  const heads = changes.filter((change) => !dependedOn.has(change.id)).map((change) => change.id)
+  const depth = Math.max(...heads.map((head) => depthOf(head, new Set()))) + 1
+  return {genesis, heads, depth}
+}

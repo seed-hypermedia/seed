@@ -34,6 +34,8 @@ export type Config = {
   relyingParty: RelyingParty
   dbPath: string
   smtp: email.SmtpConfig | null
+  /** HTTPS email relay of the hosting service; takes precedence over SMTP when set. */
+  emailRelay: email.RelayConfig | null
   /** Public web reader base URL for "open profile" links ('' = same origin). */
   webBaseUrl: string
   /** When true, creating an account requires a valid, unused invitation code. */
@@ -132,6 +134,17 @@ export const flags = (env: NodeJS.ProcessEnv = process.env) => ({
     description: 'The email address to use as the sender',
   },
 
+  'email-relay-url': {
+    type: String,
+    default: env.SEED_VAULT_EMAIL_RELAY_URL || '',
+    description: 'HTTPS email relay to POST outgoing emails to instead of SMTP (takes precedence over SMTP)',
+  },
+  'email-relay-token': {
+    type: String,
+    default: env.SEED_VAULT_EMAIL_RELAY_TOKEN || '',
+    description: 'Bearer token for the email relay',
+  },
+
   'invite-only': {
     type: Boolean,
     default: parseBooleanEnv(env.SEED_VAULT_INVITE_ONLY),
@@ -214,6 +227,24 @@ export function create(pflags: ParsedFlags, env: NodeJS.ProcessEnv = process.env
       }
     : null
 
+  const emailRelay = pflags['email-relay-url']
+    ? {
+        url: pflags['email-relay-url'],
+        token: pflags['email-relay-token'],
+      }
+    : null
+
+  if (emailRelay) {
+    try {
+      new URL(emailRelay.url)
+    } catch {
+      throw new Error(`Invalid email relay URL: ${emailRelay.url}`)
+    }
+    if (!emailRelay.token) {
+      throw new Error('Email relay token configuration is required when the email relay URL is set')
+    }
+  }
+
   return {
     http,
     backend,
@@ -221,6 +252,7 @@ export function create(pflags: ParsedFlags, env: NodeJS.ProcessEnv = process.env
     relyingParty,
     dbPath,
     smtp,
+    emailRelay,
     webBaseUrl: pflags['web-base-url'],
     inviteOnly: pflags['invite-only'],
     adminSecret: pflags['admin-secret'],

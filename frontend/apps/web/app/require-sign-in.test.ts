@@ -84,6 +84,14 @@ describe('isOpenPath', () => {
     expect(isOpenPath('/hm/api/enterprise-bootstrap')).toBe(false)
     expect(isOpenPath('/hm/api/enterprise-bootstrap/anything', 'POST')).toBe(false)
   })
+
+  it('opens the enterprise site-url update for the deploy script, POST only', () => {
+    expect(isOpenPath('/hm/api/enterprise-site-url', 'POST')).toBe(true)
+    expect(isOpenPath('/hm/api/enterprise-site-url/', 'POST')).toBe(true)
+    expect(isOpenPath('/hm/api/enterprise-site-url', 'GET')).toBe(false)
+    expect(isOpenPath('/hm/api/enterprise-site-url')).toBe(false)
+    expect(isOpenPath('/hm/api/enterprise-site-url/anything', 'POST')).toBe(false)
+  })
 })
 
 describe('safeNextPath', () => {

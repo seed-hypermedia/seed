@@ -23,6 +23,8 @@ describe('vault config', () => {
       'smtp-user': defs['smtp-user'].default,
       'smtp-password': defs['smtp-password'].default,
       'smtp-sender': defs['smtp-sender'].default,
+      'email-relay-url': defs['email-relay-url'].default,
+      'email-relay-token': defs['email-relay-token'].default,
       'invite-only': defs['invite-only'].default,
       'admin-secret': defs['admin-secret'].default,
     })
@@ -47,6 +49,8 @@ describe('vault config', () => {
       'smtp-user': '',
       'smtp-password': '',
       'smtp-sender': '',
+      'email-relay-url': '',
+      'email-relay-token': '',
       'invite-only': false,
       'admin-secret': '',
     })
@@ -71,6 +75,8 @@ describe('vault config', () => {
       'smtp-user': '',
       'smtp-password': '',
       'smtp-sender': '',
+      'email-relay-url': '',
+      'email-relay-token': '',
       'invite-only': false,
       'admin-secret': '',
     })
@@ -95,6 +101,8 @@ describe('vault config', () => {
         'smtp-user': '',
         'smtp-password': '',
         'smtp-sender': '',
+        'email-relay-url': '',
+        'email-relay-token': '',
         'invite-only': false,
         'admin-secret': '',
       },
@@ -121,6 +129,8 @@ describe('vault config', () => {
         'smtp-user': '',
         'smtp-password': '',
         'smtp-sender': '',
+        'email-relay-url': '',
+        'email-relay-token': '',
         'invite-only': false,
         'admin-secret': '',
       },
@@ -147,6 +157,8 @@ describe('vault config', () => {
         'smtp-user': '',
         'smtp-password': '',
         'smtp-sender': '',
+        'email-relay-url': '',
+        'email-relay-token': '',
         'invite-only': false,
         'admin-secret': '',
       },
@@ -172,6 +184,8 @@ describe('vault config', () => {
       'smtp-user': '',
       'smtp-password': '',
       'smtp-sender': '',
+      'email-relay-url': '',
+      'email-relay-token': '',
       'invite-only': false,
       'admin-secret': '',
     })
@@ -197,6 +211,8 @@ describe('vault config', () => {
         'smtp-user': '',
         'smtp-password': '',
         'smtp-sender': '',
+        'email-relay-url': '',
+        'email-relay-token': '',
         'invite-only': false,
         'admin-secret': '',
       }),
@@ -241,11 +257,60 @@ describe('vault config', () => {
       'smtp-user': '',
       'smtp-password': '',
       'smtp-sender': '',
+      'email-relay-url': '',
+      'email-relay-token': '',
       'invite-only': defs['invite-only'].default,
       'admin-secret': defs['admin-secret'].default,
     })
 
     expect(cfg.inviteOnly).toBe(true)
     expect(cfg.adminSecret).toBe('top-secret')
+  })
+})
+
+describe('vault email relay config', () => {
+  const base = {
+    'server-hostname': '0.0.0.0',
+    'server-port': 3000,
+    'rp-id': 'example.com',
+    'rp-name': 'Vault',
+    'rp-origin': 'https://example.com',
+    'db-path': ':memory:',
+    'backend-http-base-url': 'https://ipfs.example.com',
+    'backend-grpc-base-url': '',
+    'web-base-url': '',
+    'smtp-host': 'smtp.example.org',
+    'smtp-port': 587,
+    'smtp-user': 'u',
+    'smtp-password': 'p',
+    'smtp-sender': 's@example.org',
+    'invite-only': false,
+    'admin-secret': '',
+  }
+
+  test('reads SEED_VAULT_EMAIL_RELAY_URL and SEED_VAULT_EMAIL_RELAY_TOKEN from the env', () => {
+    const defs = flags({
+      SEED_VAULT_EMAIL_RELAY_URL: 'https://host.example.com/relay',
+      SEED_VAULT_EMAIL_RELAY_TOKEN: 'tok',
+    })
+    expect(defs['email-relay-url'].default).toBe('https://host.example.com/relay')
+    expect(defs['email-relay-token'].default).toBe('tok')
+    expect(flags({})['email-relay-url'].default).toBe('')
+  })
+
+  test('keeps SMTP and the relay side by side; the sender decides precedence', () => {
+    const cfg = create({...base, 'email-relay-url': 'https://host.example.com/relay', 'email-relay-token': 'tok'})
+    expect(cfg.emailRelay).toEqual({url: 'https://host.example.com/relay', token: 'tok'})
+    expect(cfg.smtp?.host).toBe('smtp.example.org')
+    expect(create({...base, 'email-relay-url': '', 'email-relay-token': ''}).emailRelay).toBeNull()
+  })
+
+  test('rejects a relay URL that is not a URL, or one without a token', () => {
+    expect(() => create({...base, 'email-relay-url': 'not-a-url', 'email-relay-token': 'tok'})).toThrow(
+      'Invalid email relay URL: not-a-url',
+    )
+    expect(() =>
+      create({...base, 'email-relay-url': 'https://host.example.com/relay', 'email-relay-token': ''}),
+    ).toThrow(/relay token/)
   })
 })

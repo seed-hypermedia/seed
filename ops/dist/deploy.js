@@ -1699,6 +1699,16 @@ function smtpFromEnv(env = process.env) {
     sender: env.SEED_SMTP_SENDER ?? ""
   };
 }
+function emailRelayFromEnv(env = process.env) {
+  if (!env.SEED_EMAIL_RELAY_URL)
+    return;
+  return { url: env.SEED_EMAIL_RELAY_URL, token: env.SEED_EMAIL_RELAY_TOKEN ?? "" };
+}
+function emailRelayOf(config) {
+  if (!config?.email_relay_url)
+    return;
+  return { url: config.email_relay_url, token: config.email_relay_token ?? "" };
+}
 function headlessEnterpriseConfig(opts, existing, env = process.env) {
   const domain = opts.hostname ?? existing?.domain;
   if (!domain)
@@ -1716,8 +1726,17 @@ function headlessEnterpriseConfig(opts, existing, env = process.env) {
   }
   const notify = opts.notify ?? existing?.notify ?? false;
   const smtp = smtpFromEnv(env) ?? existing?.smtp;
-  if (notify && !smtp) {
-    throw new Error("--notify needs SEED_SMTP_HOST, SEED_SMTP_USER, SEED_SMTP_PASSWORD and SEED_SMTP_SENDER in the environment");
+  const relay = opts.emailRelayUrl ? { url: opts.emailRelayUrl, token: opts.emailRelayToken ?? env.SEED_EMAIL_RELAY_TOKEN ?? "" } : emailRelayFromEnv(env) ?? emailRelayOf(existing);
+  if (relay) {
+    const urlError2 = validateUrl(relay.url);
+    if (urlError2)
+      throw new Error(`--email-relay-url: ${urlError2}`);
+    if (!relay.token) {
+      throw new Error("--email-relay-url needs --email-relay-token (or SEED_EMAIL_RELAY_TOKEN in the environment)");
+    }
+  }
+  if (notify && !smtp && !relay) {
+    throw new Error("--notify needs SEED_SMTP_HOST, SEED_SMTP_USER, SEED_SMTP_PASSWORD and SEED_SMTP_SENDER in the environment, " + "or the email relay (--email-relay-url and --email-relay-token, or SEED_EMAIL_RELAY_URL and SEED_EMAIL_RELAY_TOKEN)");
   }
   return buildEnterpriseConfig({
     domain,
@@ -1728,6 +1747,7 @@ function headlessEnterpriseConfig(opts, existing, env = process.env) {
     agents: opts.agents ?? existing?.agents ?? false,
     notify,
     smtp,
+    email_relay: relay ?? null,
     email: opts.email ?? existing?.email ?? "",
     site_name: opts.siteName
   }, existing);
@@ -1739,6 +1759,7 @@ function validateUrl(v3) {
     return "Must start with https:// or http://";
 }
 function buildEnterpriseConfig(answers, existing) {
+  const relay = answers.email_relay === undefined ? emailRelayOf(existing) : answers.email_relay ?? undefined;
   return {
     profile: "enterprise",
     domain: answers.domain,
@@ -1760,6 +1781,8 @@ function buildEnterpriseConfig(answers, existing) {
     session_secret: existing?.session_secret ?? generateSecret(SESSION_SECRET_LENGTH),
     notify: answers.notify,
     smtp: answers.notify ? answers.smtp : existing?.smtp ?? undefined,
+    email_relay_url: relay?.url || undefined,
+    email_relay_token: relay?.url ? relay.token : undefined,
     agents: answers.agents,
     agents_kvm: answers.agents ? answers.agents_kvm ?? existing?.agents_kvm ?? false : false,
     metrics: existing?.metrics ?? false,
@@ -1767,6 +1790,13 @@ function buildEnterpriseConfig(answers, existing) {
     owner_account_uid: existing?.owner_account_uid,
     last_script_run: existing?.last_script_run ?? ""
   };
+}
+function describeNotify(config) {
+  if (!config.notify)
+    return "false";
+  if (config.email_relay_url)
+    return `yes (email relay ${config.email_relay_url})`;
+  return `yes (${config.smtp?.host}, sender ${config.smtp?.sender})`;
 }
 async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap) {
   const isReconfig = !!existing;
@@ -1794,6 +1824,7 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
     console.log(RESUME_HINT);
     process.exit(0);
   };
+  const relayUrlOf = (results) => advanced ? (results.email_relay_url ?? "").trim() : existing?.email_relay_url ?? "";
   const answers = await be({
     domain: () => ue({
       message: "Public hostname (including https://)",
@@ -1826,26 +1857,36 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
       message: "Run the agents service? (served at agents.<your domain>; calls model providers)",
       initialValue: existing?.agents ?? false
     }),
-    notify: () => me({
-      message: "Run the notify service for email notifications? (needs an SMTP account)",
+    email_relay_url: () => advanced ? ue({
+      message: "Email relay URL from Seed hosting (optional; empty means SMTP, or no email)",
+      initialValue: existing?.email_relay_url,
+      placeholder: "https://host.seed.hyper.media/api/email-relay",
+      validate: (v3) => v3 ? validateUrl(v3) : undefined
+    }) : Promise.resolve(undefined),
+    email_relay_token: ({ results }) => advanced && results.email_relay_url ? $e({
+      message: existing?.email_relay_token ? "Email relay token (leave empty to keep the current one)" : "Email relay token",
+      validate: (v3) => v3 || existing?.email_relay_token ? undefined : "Required"
+    }) : Promise.resolve(undefined),
+    notify: ({ results }) => me({
+      message: relayUrlOf(results) ? "Run the notify service for email notifications? (sends through the email relay)" : "Run the notify service for email notifications? (needs an SMTP account)",
       initialValue: existing?.notify ?? false
     }),
-    smtp_host: ({ results }) => results.notify ? ue({
+    smtp_host: ({ results }) => results.notify && !relayUrlOf(results) ? ue({
       message: "SMTP host",
       initialValue: existing?.smtp?.host,
       placeholder: "smtp.example.org",
       validate: (v3) => v3 ? undefined : "Required"
     }) : Promise.resolve(undefined),
-    smtp_user: ({ results }) => results.notify ? ue({
+    smtp_user: ({ results }) => results.notify && !relayUrlOf(results) ? ue({
       message: "SMTP user",
       initialValue: existing?.smtp?.user,
       validate: (v3) => v3 ? undefined : "Required"
     }) : Promise.resolve(undefined),
-    smtp_password: ({ results }) => results.notify ? $e({
+    smtp_password: ({ results }) => results.notify && !relayUrlOf(results) ? $e({
       message: existing?.smtp?.password ? "SMTP password (leave empty to keep the current one)" : "SMTP password",
       validate: (v3) => v3 || existing?.smtp?.password ? undefined : "Required"
     }) : Promise.resolve(undefined),
-    smtp_sender: ({ results }) => results.notify ? ue({
+    smtp_sender: ({ results }) => results.notify && !relayUrlOf(results) ? ue({
       message: "Sender address for emails",
       initialValue: existing?.smtp?.sender,
       placeholder: "Seed <seed@example.org>",
@@ -1861,13 +1902,15 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
     })
   }, { onCancel });
   const notify = answers.notify;
-  const smtp = notify ? {
+  const relayUrl = relayUrlOf(answers);
+  const email_relay = !advanced ? undefined : relayUrl ? { url: relayUrl, token: answers.email_relay_token || existing?.email_relay_token || "" } : null;
+  const smtp = notify && !relayUrl ? {
     host: answers.smtp_host,
     port: existing?.smtp?.port,
     user: answers.smtp_user,
     password: answers.smtp_password || existing?.smtp?.password || "",
     sender: answers.smtp_sender
-  } : undefined;
+  } : existing?.smtp;
   const config = buildEnterpriseConfig({
     domain: answers.domain,
     release_channel: answers.release_channel,
@@ -1877,6 +1920,7 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
     agents: answers.agents,
     notify,
     smtp,
+    email_relay,
     email: answers.email || "",
     site_name: answers.site_name
   }, existing);
@@ -1889,7 +1933,7 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
     ["release_channel", config.release_channel],
     ["log_level", config.compose_envs.LOG_LEVEL],
     ["agents", String(config.agents)],
-    ["notify", config.notify ? `yes (${config.smtp?.host}, sender ${config.smtp?.sender})` : "false"],
+    ["notify", describeNotify(config)],
     ["email", config.email]
   ];
   const summary = userFields.map(([k3, v3]) => `    ${k3}: ${v3}`).join(`
@@ -1962,10 +2006,11 @@ ${dns} {
 	}
 
 	# The sign-in callback stores delegation blobs and looks the account up;
-	# the deploy script creates the organization's space on the first deploy.
+	# the deploy script creates the organization's space on the first deploy
+	# and republishes its address after a hostname change.
 	@open_api_post {
 		method POST
-		path /api/PublishBlobs /hm/api/enterprise-bootstrap
+		path /api/PublishBlobs /hm/api/enterprise-bootstrap /hm/api/enterprise-site-url
 	}
 	@open_api_get {
 		method GET HEAD
@@ -2276,6 +2321,8 @@ function buildComposeEnv(config, paths) {
     vars.SEED_SMTP_USER = config.smtp?.user ?? "";
     vars.SEED_SMTP_PASSWORD = config.smtp?.password ?? "";
     vars.SEED_SMTP_SENDER = config.smtp?.sender ?? "";
+    vars.SEED_EMAIL_RELAY_URL = config.email_relay_url ?? "";
+    vars.SEED_EMAIL_RELAY_TOKEN = config.email_relay_token ?? "";
   }
   const profiles = composeProfiles(config);
   if (profiles.length > 0) {
@@ -2388,7 +2435,7 @@ function injectServiceDirectives(compose, containerName, lines) {
   return result.join(`
 `);
 }
-async function deploy(config, paths, shell, takeoverApproved = false, bootstrap = {}) {
+async function deploy(config, paths, shell, takeoverApproved = false, bootstrap = {}, previousDomain) {
   const isInteractive = process.stdout.isTTY;
   const spinner = isInteractive ? L2() : null;
   const step = (msg) => {
@@ -2563,8 +2610,19 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
     for (const line of bootstrapLines)
       log(line);
   }
+  let siteUrlLines = [];
+  if (isEnterprise(config) && !isFirstDeploy && previousDomain && previousDomain !== config.domain) {
+    step(`Updating the space's site URL to ${config.domain}...`);
+    siteUrlLines = await syncSiteUrlAfterDeploy(config, step);
+    for (const line of siteUrlLines)
+      log(line);
+  }
   spinner?.stop("Deployment complete!");
   log("Deployment complete.");
+  if (isInteractive && siteUrlLines.length > 0) {
+    ye(siteUrlLines.join(`
+`), "Hostname changed");
+  }
   if (isInteractive) {
     v2.message(MANAGE_HINT);
   }
@@ -2641,7 +2699,8 @@ var COMMANDS = [
   "restore",
   "uninstall",
   "register",
-  "invite"
+  "invite",
+  "set-hostname"
 ];
 function parseProfile(value) {
   if (value && DEPLOY_PROFILES.includes(value))
@@ -2664,7 +2723,9 @@ function parseArgs(argv = process.argv) {
     "--email": (v3) => headless.email = v3,
     "--log-level": (v3) => headless.logLevel = v3,
     "--site-name": (v3) => headless.siteName = v3,
-    "--owner-password": (v3) => headless.ownerPassword = v3
+    "--owner-password": (v3) => headless.ownerPassword = v3,
+    "--email-relay-url": (v3) => headless.emailRelayUrl = v3,
+    "--email-relay-token": (v3) => headless.emailRelayToken = v3
   };
   const boolFlags = {
     "--advanced": () => {},
@@ -2735,6 +2796,7 @@ function printHelp() {
     `  register    Register a space already on this daemon: register <accountUid>`,
     `  invite      Create vault invitation link(s): invite [email] [count]  (enterprise)`,
     `  bootstrap-space  Create the organization's space if the first deploy could not  (enterprise)`,
+    `  set-hostname  Move the node to a new hostname: set-hostname https://new.example.org  (enterprise)`,
     ``,
     `Options:`,
     `  --reconfigure  Re-run the setup wizard for the current node`,
@@ -2742,6 +2804,9 @@ function printHelp() {
     `  --profile <p>  Deploy profile for a first run: site (default) or enterprise`,
     `  --hostname <url> --tag <tag> [--email <e>] [--log-level <l>] [--agents] [--notify] --yes`,
     `                 Unattended enterprise install (no wizard); SMTP from SEED_SMTP_HOST/USER/PASSWORD/SENDER`,
+    `  --email-relay-url <url> --email-relay-token <token>`,
+    `                 Send email through the Seed hosting relay instead of SMTP`,
+    `                 (SEED_EMAIL_RELAY_URL / SEED_EMAIL_RELAY_TOKEN work too)`,
     `  --site-name <name> [--owner-password <pw>]`,
     `                 Name of the organization's space and a password for its exported owner key`,
     `                 (first enterprise deploy and bootstrap-space; SEED_OWNER_PASSWORD works too)`,
@@ -2852,13 +2917,13 @@ async function cmdDeploy(paths, shell, reconfigure = false, advanced = false, pr
       const config2 = headlessEnterpriseConfig(headless, existing);
       await writeConfig(config2, paths);
       log(`Config updated from flags at ${paths.configPath}.`);
-      await deploy(config2, paths, shell, false, bootstrap);
+      await deploy(config2, paths, shell, false, bootstrap, existing.domain);
       await setActiveNode(paths, shell, config2);
       return;
     }
     if ((reconfigure || advanced) && interactive) {
       const config2 = await runWizardFor(profile, paths, existing, advanced, bootstrap);
-      await deploy(config2, paths, shell, takeoverApproved, bootstrap);
+      await deploy(config2, paths, shell, takeoverApproved, bootstrap, existing.domain);
       await setActiveNode(paths, shell, config2);
       fe(`Reconfiguration complete! Your Seed node is running.
 ${MANAGE_HINT}`);
@@ -3232,6 +3297,7 @@ function enterpriseIsolationChecks(shell, config) {
         lines.push(`  \u2718 Sign-in gate   /hm/api/config reports requireSignIn: ${JSON.stringify(siteConfig.requireSignIn)}`);
         lines.push(`      \u2514 seed-web should run with SEED_REQUIRE_SIGN_IN=1; redeploy with '${cmd("deploy")}'`);
       }
+      lines.push(...siteUrlCheck(siteConfig));
     } catch {
       lines.push(`  \u26A0 Sign-in gate   /hm/api/config is not JSON`);
     }
@@ -3268,12 +3334,26 @@ function enterpriseIsolationChecks(shell, config) {
   }
   return lines;
 }
+function siteUrlCheck(siteConfig) {
+  if (typeof siteConfig.siteUrl !== "string" || !siteConfig.hostname)
+    return [];
+  if (siteConfig.siteUrl === siteConfig.hostname) {
+    return [`  \u2714 Site URL       the space's home document points at ${siteConfig.hostname}`];
+  }
+  return [
+    `  \u26A0 Site URL       the space's home document points at ${siteConfig.siteUrl}, the site is ${siteConfig.hostname}`,
+    `      \u2514 republish it with '${cmd(`set-hostname ${siteConfig.hostname}`)}'`
+  ];
+}
 async function cmdConfig(paths) {
   if (!await configExists(paths)) {
     console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first.`);
     process.exit(1);
   }
   const config = await readConfig(paths);
+  console.log(JSON.stringify(redactConfig(config), null, 2));
+}
+function redactConfig(config) {
   const redacted = { ...config, link_secret: "****" };
   if (config.vault_admin_secret)
     redacted.vault_admin_secret = "****";
@@ -3281,7 +3361,9 @@ async function cmdConfig(paths) {
     redacted.session_secret = "****";
   if (config.smtp?.password)
     redacted.smtp = { ...config.smtp, password: "****" };
-  console.log(JSON.stringify(redacted, null, 2));
+  if (config.email_relay_token)
+    redacted.email_relay_token = "****";
+  return redacted;
 }
 async function postJson(url, body, headers = {}) {
   const response = await fetch(url, {
@@ -3310,20 +3392,49 @@ async function bootstrapSpace(config, paths, opts = {}, io = {}) {
   if (!isEnterprise(config) || !config.vault_admin_secret) {
     throw new Error("Creating the organization's space needs an enterprise node (no vault_admin_secret in config).");
   }
-  const doFetch = io.fetch ?? fetch;
-  const sleep = io.sleep ?? ((ms) => new Promise((r2) => setTimeout(r2, ms)));
   const name = opts.siteName?.trim() || config.site_name || extractDns(config.domain);
   const url = `${config.domain}/hm/api/enterprise-bootstrap`;
   const body = { name };
   if (opts.ownerPassword)
     body.ownerPassword = opts.ownerPassword;
+  const answer = await postAdminRoute(url, config.vault_admin_secret, body, io, {
+    waiting: "Space not created yet",
+    failure: "Could not create the organization's space"
+  });
+  const result = answer.result;
+  if (answer.ok) {
+    const accountUid = typeof result.accountUid === "string" ? result.accountUid : "";
+    if (!accountUid || !result.keyFile)
+      throw new Error(`${url} answered without an account or key file`);
+    const keyPath = ownerKeyPath(paths, accountUid);
+    await mkdir(dirname(keyPath), { recursive: true, mode: 448 });
+    await chmod(dirname(keyPath), 448);
+    await writeFile(keyPath, `${JSON.stringify(result.keyFile, null, 2)}
+`, { encoding: "utf-8", mode: 384 });
+    await chmod(keyPath, 384);
+    config.owner_account_uid = accountUid;
+    config.site_name = typeof result.name === "string" && result.name ? result.name : name;
+    await writeConfig(config, paths);
+    return { status: "created", accountUid, name: config.site_name, keyPath };
+  }
+  if (answer.status === 409 && typeof result.accountUid === "string") {
+    return { status: "exists", accountUid: result.accountUid };
+  }
+  if (answer.status === 404) {
+    throw new Error(`${url} \u2192 HTTP 404: the web app has no bootstrap route. ` + `Its image predates it, or SEED_VAULT_ADMIN_SECRET is not set on seed-web; ` + `after '${cmd("deploy")}' with current images run '${cmd("bootstrap-space")}'.`);
+  }
+  throw new Error(`${url} \u2192 HTTP ${answer.status}${answer.detail ? `: ${answer.detail.slice(0, 500)}` : ""}`);
+}
+async function postAdminRoute(url, secret, body, io, messages) {
+  const doFetch = io.fetch ?? fetch;
+  const sleep = io.sleep ?? ((ms) => new Promise((r2) => setTimeout(r2, ms)));
   let lastError = "";
   for (let attempt = 1;attempt <= BOOTSTRAP_ATTEMPTS; attempt++) {
     let response = null;
     try {
       response = await doFetch(url, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${config.vault_admin_secret}` },
+        headers: { "content-type": "application/json", authorization: `Bearer ${secret}` },
         body: JSON.stringify(body)
       });
     } catch (err) {
@@ -3335,40 +3446,19 @@ async function bootstrapSpace(config, paths, opts = {}, io = {}) {
       try {
         parsed = JSON.parse(text);
       } catch {}
-      const result = parsed && typeof parsed === "object" ? parsed : {};
-      if (response.ok) {
-        const accountUid = typeof result.accountUid === "string" ? result.accountUid : "";
-        if (!accountUid || !result.keyFile)
-          throw new Error(`${url} answered without an account or key file`);
-        const keyPath = ownerKeyPath(paths, accountUid);
-        await mkdir(dirname(keyPath), { recursive: true, mode: 448 });
-        await chmod(dirname(keyPath), 448);
-        await writeFile(keyPath, `${JSON.stringify(result.keyFile, null, 2)}
-`, { encoding: "utf-8", mode: 384 });
-        await chmod(keyPath, 384);
-        config.owner_account_uid = accountUid;
-        config.site_name = typeof result.name === "string" && result.name ? result.name : name;
-        await writeConfig(config, paths);
-        return { status: "created", accountUid, name: config.site_name, keyPath };
-      }
-      if (response.status === 409 && typeof result.accountUid === "string") {
-        return { status: "exists", accountUid: result.accountUid };
-      }
       const detail = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
-      if (response.status === 404) {
-        throw new Error(`${url} \u2192 HTTP 404: the web app has no bootstrap route. ` + `Its image predates it, or SEED_VAULT_ADMIN_SECRET is not set on seed-web; ` + `after '${cmd("deploy")}' with current images run '${cmd("bootstrap-space")}'.`);
-      }
       if (response.status < 500) {
-        throw new Error(`${url} \u2192 HTTP ${response.status}${detail ? `: ${detail.slice(0, 500)}` : ""}`);
+        const result = parsed && typeof parsed === "object" ? parsed : {};
+        return { status: response.status, ok: response.ok, result, detail };
       }
       lastError = `${url} \u2192 HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`;
     }
     if (attempt < BOOTSTRAP_ATTEMPTS) {
-      io.log?.(`Space not created yet (${lastError}); retrying in ${BOOTSTRAP_RETRY_MS / 1000}s...`);
+      io.log?.(`${messages.waiting} (${lastError}); retrying in ${BOOTSTRAP_RETRY_MS / 1000}s...`);
       await sleep(BOOTSTRAP_RETRY_MS);
     }
   }
-  throw new Error(`Could not create the organization's space after ${BOOTSTRAP_ATTEMPTS} attempts: ${lastError}`);
+  throw new Error(`${messages.failure} after ${BOOTSTRAP_ATTEMPTS} attempts: ${lastError}`);
 }
 function describeBootstrap(config, result) {
   if (result.status === "exists") {
@@ -3393,6 +3483,85 @@ async function bootstrapAfterDeploy(config, paths, opts, progress) {
       `The node is up; retry with '${cmd("bootstrap-space")}'.`
     ];
   }
+}
+async function setSiteUrl(config, io = {}) {
+  if (!isEnterprise(config) || !config.vault_admin_secret) {
+    throw new Error("Updating the space's site URL needs an enterprise node (no vault_admin_secret in config).");
+  }
+  const url = `${config.domain}/hm/api/enterprise-site-url`;
+  const answer = await postAdminRoute(url, config.vault_admin_secret, {}, io, {
+    waiting: "Site URL not updated yet",
+    failure: "Could not update the space's site URL"
+  });
+  const result = answer.result;
+  if (answer.ok) {
+    const accountUid = typeof result.accountUid === "string" ? result.accountUid : "";
+    const siteUrl = typeof result.siteUrl === "string" ? result.siteUrl : "";
+    if (!accountUid || !siteUrl)
+      throw new Error(`${url} answered without an account or site URL`);
+    return {
+      accountUid,
+      siteUrl,
+      changed: result.changed === true,
+      previousSiteUrl: typeof result.previousSiteUrl === "string" ? result.previousSiteUrl : null
+    };
+  }
+  if (answer.status === 404) {
+    throw new Error(`${url} \u2192 HTTP 404: the web app has no site-url route. ` + `Its image predates it, or SEED_VAULT_ADMIN_SECRET is not set on seed-web; ` + `after '${cmd("deploy")}' with current images run '${cmd(`set-hostname ${config.domain}`)}'.`);
+  }
+  if (answer.status === 409) {
+    throw new Error(`${url} \u2192 HTTP 409: the site has no registered space yet; run '${cmd("bootstrap-space")}' first.`);
+  }
+  throw new Error(`${url} \u2192 HTTP ${answer.status}${answer.detail ? `: ${answer.detail.slice(0, 500)}` : ""}`);
+}
+function describeSiteUrl(result) {
+  if (!result.changed) {
+    return [`The space ${result.accountUid} already points at ${result.siteUrl}; nothing to republish.`];
+  }
+  return [
+    `Republished the home document of ${result.accountUid}: siteUrl is now ${result.siteUrl}` + (result.previousSiteUrl ? ` (was ${result.previousSiteUrl}).` : "."),
+    "Passkeys are bound to the hostname: people who registered one on the old address",
+    "sign in with their password and add a new passkey in the vault."
+  ];
+}
+async function syncSiteUrlAfterDeploy(config, progress) {
+  try {
+    return describeSiteUrl(await setSiteUrl(config, { log: progress }));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return [
+      `The space's site URL could not be updated: ${message}`,
+      `The node is up on ${config.domain}; retry with '${cmd(`set-hostname ${config.domain}`)}'.`
+    ];
+  }
+}
+async function cmdSetHostname(paths, shell, args) {
+  const hostname = (args[0] ?? "").trim().replace(/\/+$/, "");
+  const urlError = hostname ? validateUrl(hostname) : "Required";
+  if (urlError) {
+    console.error(`Usage: ${cmd("set-hostname https://new.example.org")} (${urlError})`);
+    process.exit(1);
+  }
+  if (!await configExists(paths)) {
+    console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first.`);
+    process.exit(1);
+  }
+  const config = await readConfig(paths);
+  if (!isEnterprise(config) || !config.vault_admin_secret) {
+    console.error(`'${cmd("set-hostname")}' needs an enterprise node; on a site run '${cmd("deploy --reconfigure")}' instead.`);
+    process.exit(1);
+  }
+  const previous = config.domain;
+  if (previous !== hostname) {
+    config.domain = hostname;
+    await writeConfig(config, paths);
+    log(`Hostname changed from ${previous} to ${hostname}; redeploying.`);
+    await deploy(config, paths, shell, false, {}, previous);
+    return;
+  }
+  log(`The hostname is already ${hostname}; checking the space's site URL.`);
+  for (const line of describeSiteUrl(await setSiteUrl(config, { log: (line2) => console.log(line2) })))
+    console.log(line);
 }
 async function cmdBootstrapSpace(paths, headless) {
   if (!await configExists(paths)) {
@@ -3803,6 +3972,8 @@ async function main() {
       return cmdInvite(paths, args);
     case "bootstrap-space":
       return cmdBootstrapSpace(paths, headless);
+    case "set-hostname":
+      return cmdSetHostname(paths, shell, args);
   }
 }
 if (import.meta.main) {
@@ -3818,9 +3989,11 @@ export {
   takeOverHost,
   stopStackByProject,
   smtpFromEnv,
+  siteUrlCheck,
   shellQuote,
   sha256,
   setupCron,
+  setSiteUrl,
   selfUpdate,
   rollbackTagRefs,
   rollbackImageTargets,
@@ -3829,6 +4002,7 @@ export {
   removeLegacyHostCronLines,
   removeLegacyHostCron,
   removeLegacyAutoupdaters,
+  redactConfig,
   readConfig,
   printHelp,
   parseWebEnv,
@@ -3863,10 +4037,14 @@ export {
   enterpriseTestnetName,
   enterpriseIsolationChecks,
   ensureSeedDir,
+  emailRelayOf,
+  emailRelayFromEnv,
   deviceDirectives,
   detectOldInstall,
   detectForeignStack,
+  describeSiteUrl,
   describePullFailure,
+  describeNotify,
   describeBootstrap,
   describeBindFailure,
   deploy,

@@ -2,7 +2,8 @@
 # private use. One VPS runs caddy, the web app, a daemon with NO peer-to-peer
 # connectivity, the identity vault (invite-only), and optionally notify (email)
 # and agents. Every page requires sign-in (enforced by the Caddyfile that
-# deploy.ts generates). Nothing leaves the box except email and, when agents
+# deploy.ts generates). Nothing leaves the box except email (through the
+# operator's SMTP account or the Seed hosting email relay) and, when agents
 # are enabled, model-provider calls.
 #
 # Fetched by deploy.ts when config.json has `"profile": "enterprise"`.
@@ -137,6 +138,10 @@ services:
       - 'SEED_VAULT_SMTP_USER=${SEED_SMTP_USER}'
       - 'SEED_VAULT_SMTP_PASSWORD=${SEED_SMTP_PASSWORD}'
       - 'SEED_VAULT_SMTP_SENDER=${SEED_SMTP_SENDER}'
+      # The Seed hosting email relay wins over SMTP when set; the instance then
+      # needs no SMTP account.
+      - 'SEED_VAULT_EMAIL_RELAY_URL=${SEED_EMAIL_RELAY_URL}'
+      - 'SEED_VAULT_EMAIL_RELAY_TOKEN=${SEED_EMAIL_RELAY_TOKEN}'
 
   seed-notify:
     container_name: seed-notify
@@ -164,6 +169,9 @@ services:
       - 'NOTIFY_SMTP_USER=${SEED_SMTP_USER}'
       - 'NOTIFY_SMTP_PASSWORD=${SEED_SMTP_PASSWORD}'
       - 'NOTIFY_SENDER=${SEED_SMTP_SENDER}'
+      # Same relay as the vault; wins over SMTP when set.
+      - 'NOTIFY_EMAIL_RELAY_URL=${SEED_EMAIL_RELAY_URL}'
+      - 'NOTIFY_EMAIL_RELAY_TOKEN=${SEED_EMAIL_RELAY_TOKEN}'
       # Trust the vault (same origin as the site) to prevalidate emails.
       - 'NOTIFY_TRUSTED_PREVALIDATORS=${SEED_SITE_HOSTNAME}'
       - 'NOTIFY_SENTRY_DSN='

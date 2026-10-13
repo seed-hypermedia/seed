@@ -41,6 +41,9 @@ export const OPEN_METHOD_RULES: readonly {method: string; path: string; prefix?:
   // The deploy script creates the organization's space before any member
   // exists; the route itself demands the vault admin secret.
   {method: 'POST', path: '/hm/api/enterprise-bootstrap'},
+  // After a hostname change the deploy script republishes the home document's
+  // siteUrl; the same admin secret guards it.
+  {method: 'POST', path: '/hm/api/enterprise-site-url'},
   {method: 'GET', path: '/api/Account'},
   {method: 'HEAD', path: '/api/Account'},
   {method: 'POST', path: '/ipfs/', prefix: true},

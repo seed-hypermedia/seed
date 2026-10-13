@@ -93,6 +93,13 @@ import {
   describeBootstrap,
   ownerKeyPath,
   OWNER_KEY_DIR,
+  emailRelayFromEnv,
+  emailRelayOf,
+  describeNotify,
+  redactConfig,
+  setSiteUrl,
+  describeSiteUrl,
+  siteUrlCheck,
   BOOTSTRAP_ATTEMPTS,
   BOOTSTRAP_RETRY_MS,
 } from './deploy'
@@ -2659,7 +2666,7 @@ describe('enterprise: generateCaddyfile', () => {
     // Pre-session calls: POST /ipfs/* to the daemon, POST /api/PublishBlobs and GET /api/Account to the web app.
     expect(caddy).toMatch(/@ipfs_upload \{\n\t\tmethod POST\n\t\tpath \/ipfs\/\*/)
     expect(caddy).toMatch(
-      /@open_api_post \{\n\t\tmethod POST\n\t\tpath \/api\/PublishBlobs \/hm\/api\/enterprise-bootstrap\n/,
+      /@open_api_post \{\n\t\tmethod POST\n\t\tpath \/api\/PublishBlobs \/hm\/api\/enterprise-bootstrap \/hm\/api\/enterprise-site-url\n/,
     )
     expect(caddy).toMatch(/@open_api_get \{\n\t\tmethod GET HEAD\n\t\tpath \/api\/Account/)
     // Open blocks come before the gated ones; the gated ipfs/metrics/catch-all each import the gate.
@@ -3078,5 +3085,300 @@ describe("enterprise: the organization's space", () => {
     expect(describeBootstrap(config, {status: 'exists', accountUid: 'z6MkExisting'})).toEqual([
       'The site is already registered to the space z6MkExisting; nothing to create.',
     ])
+  })
+})
+
+describe('enterprise: email relay', () => {
+  test('parseArgs takes --email-relay-url and --email-relay-token', () => {
+    const run = parseArgs([
+      'node',
+      'deploy.js',
+      'deploy',
+      '--profile',
+      'enterprise',
+      '--email-relay-url',
+      'https://host.example.com/relay',
+      '--email-relay-token=tok',
+    ])
+    expect(run.command).toBe('deploy')
+    expect(run.headless.emailRelayUrl).toBe('https://host.example.com/relay')
+    expect(run.headless.emailRelayToken).toBe('tok')
+  })
+
+  test('emailRelayFromEnv and emailRelayOf', () => {
+    expect(emailRelayFromEnv({})).toBeUndefined()
+    expect(emailRelayFromEnv({SEED_EMAIL_RELAY_URL: 'https://r', SEED_EMAIL_RELAY_TOKEN: 't'})).toEqual({
+      url: 'https://r',
+      token: 't',
+    })
+    expect(emailRelayFromEnv({SEED_EMAIL_RELAY_URL: 'https://r'})).toEqual({url: 'https://r', token: ''})
+    expect(emailRelayOf(undefined)).toBeUndefined()
+    expect(emailRelayOf(makeEnterpriseConfig())).toBeUndefined()
+    expect(emailRelayOf(makeEnterpriseConfig({email_relay_url: 'https://r', email_relay_token: 't'}))).toEqual({
+      url: 'https://r',
+      token: 't',
+    })
+  })
+
+  test('headless config takes the relay from flags, then the environment, then the existing config', () => {
+    const fromFlags = headlessEnterpriseConfig(
+      {hostname: 'https://example.org', emailRelayUrl: 'https://flag/relay', emailRelayToken: 'flag-tok'},
+      undefined,
+      {SEED_EMAIL_RELAY_URL: 'https://env/relay', SEED_EMAIL_RELAY_TOKEN: 'env-tok'},
+    )
+    expect(fromFlags.email_relay_url).toBe('https://flag/relay')
+    expect(fromFlags.email_relay_token).toBe('flag-tok')
+
+    const fromEnv = headlessEnterpriseConfig({hostname: 'https://example.org'}, undefined, {
+      SEED_EMAIL_RELAY_URL: 'https://env/relay',
+      SEED_EMAIL_RELAY_TOKEN: 'env-tok',
+    })
+    expect(fromEnv.email_relay_url).toBe('https://env/relay')
+    expect(fromEnv.email_relay_token).toBe('env-tok')
+
+    const existing = makeEnterpriseConfig({email_relay_url: 'https://old/relay', email_relay_token: 'old-tok'})
+    const kept = headlessEnterpriseConfig({hostname: 'https://example.org'}, existing, {})
+    expect(kept.email_relay_url).toBe('https://old/relay')
+    expect(kept.email_relay_token).toBe('old-tok')
+
+    // The token may come from the environment when only the URL is a flag.
+    const mixed = headlessEnterpriseConfig(
+      {hostname: 'https://example.org', emailRelayUrl: 'https://flag/relay'},
+      undefined,
+      {
+        SEED_EMAIL_RELAY_TOKEN: 'env-tok',
+      },
+    )
+    expect(mixed.email_relay_token).toBe('env-tok')
+  })
+
+  test('with a relay, --notify no longer needs SMTP; a relay needs a token and a URL', () => {
+    const config = headlessEnterpriseConfig({hostname: 'https://example.org', notify: true}, undefined, {
+      SEED_EMAIL_RELAY_URL: 'https://env/relay',
+      SEED_EMAIL_RELAY_TOKEN: 'env-tok',
+    })
+    expect(config.notify).toBe(true)
+    expect(config.smtp).toBeUndefined()
+    expect(() => headlessEnterpriseConfig({hostname: 'https://x.org', notify: true}, undefined, {})).toThrow(
+      /SEED_SMTP_HOST.*SEED_EMAIL_RELAY_URL/,
+    )
+    expect(() =>
+      headlessEnterpriseConfig({hostname: 'https://x.org', emailRelayUrl: 'https://r/relay'}, undefined, {}),
+    ).toThrow(/--email-relay-token/)
+    expect(() =>
+      headlessEnterpriseConfig({hostname: 'https://x.org', emailRelayUrl: 'r.example.com'}, undefined, {
+        SEED_EMAIL_RELAY_TOKEN: 't',
+      }),
+    ).toThrow(/--email-relay-url/)
+  })
+
+  test('buildEnterpriseConfig keeps, sets or clears the relay', () => {
+    const answers = {
+      domain: 'https://example.org',
+      release_channel: 'latest',
+      log_level: 'info' as const,
+      agents: false,
+      notify: false,
+      email: '',
+    }
+    const existing = makeEnterpriseConfig({email_relay_url: 'https://old/relay', email_relay_token: 'old-tok'})
+    expect(buildEnterpriseConfig(answers).email_relay_url).toBeUndefined()
+    const kept = buildEnterpriseConfig(answers, existing)
+    expect(kept.email_relay_url).toBe('https://old/relay')
+    expect(kept.email_relay_token).toBe('old-tok')
+    const set = buildEnterpriseConfig({...answers, email_relay: {url: 'https://new/relay', token: 'new-tok'}}, existing)
+    expect(set.email_relay_url).toBe('https://new/relay')
+    expect(set.email_relay_token).toBe('new-tok')
+    const cleared = buildEnterpriseConfig({...answers, email_relay: null}, existing)
+    expect(cleared.email_relay_url).toBeUndefined()
+    expect(cleared.email_relay_token).toBeUndefined()
+  })
+
+  test('the relay reaches compose as SEED_EMAIL_RELAY_URL / SEED_EMAIL_RELAY_TOKEN', async () => {
+    const env = buildComposeEnv(
+      makeEnterpriseConfig({notify: true, email_relay_url: 'https://host/relay', email_relay_token: 'se$cret'}),
+      makePaths('/opt/seed'),
+    )
+    expect(env).toContain('SEED_EMAIL_RELAY_URL="https://host/relay"')
+    expect(env).toContain(`SEED_EMAIL_RELAY_TOKEN='se$cret'`)
+    expect(env).toContain('SEED_SMTP_HOST=""')
+    const without = buildComposeEnv(makeEnterpriseConfig(), makePaths('/opt/seed'))
+    expect(without).toContain('SEED_EMAIL_RELAY_URL=""')
+    expect(without).toContain('SEED_EMAIL_RELAY_TOKEN=""')
+    expect(buildComposeEnv(makeTestConfig(), makePaths('/opt/seed'))).not.toContain('SEED_EMAIL_RELAY')
+
+    const compose = await readFile(join(import.meta.dir, 'docker-compose.enterprise.yml'), 'utf-8')
+    const vault = compose.slice(
+      compose.indexOf('container_name: seed-vault'),
+      compose.indexOf('container_name: seed-notify'),
+    )
+    expect(vault).toContain('SEED_VAULT_EMAIL_RELAY_URL=${SEED_EMAIL_RELAY_URL}')
+    expect(vault).toContain('SEED_VAULT_EMAIL_RELAY_TOKEN=${SEED_EMAIL_RELAY_TOKEN}')
+    const notify = compose.slice(
+      compose.indexOf('container_name: seed-notify'),
+      compose.indexOf('container_name: seed-agents'),
+    )
+    expect(notify).toContain('NOTIFY_EMAIL_RELAY_URL=${SEED_EMAIL_RELAY_URL}')
+    expect(notify).toContain('NOTIFY_EMAIL_RELAY_TOKEN=${SEED_EMAIL_RELAY_TOKEN}')
+  })
+
+  test('config output redacts the relay token with the other secrets', () => {
+    const redacted = redactConfig(
+      makeEnterpriseConfig({
+        email_relay_url: 'https://host/relay',
+        email_relay_token: 'top-secret',
+        smtp: {host: 'h', user: 'u', password: 'pw', sender: 's@h'},
+      }),
+    )
+    expect(redacted.email_relay_url).toBe('https://host/relay')
+    expect(redacted.email_relay_token).toBe('****')
+    expect(redacted.smtp?.password).toBe('****')
+    expect(redacted.vault_admin_secret).toBe('****')
+    expect(redacted.session_secret).toBe('****')
+    expect(redacted.link_secret).toBe('****')
+    expect(JSON.stringify(redacted)).not.toContain('top-secret')
+    expect(redactConfig(makeEnterpriseConfig()).email_relay_token).toBeUndefined()
+  })
+
+  test('describeNotify says how mail leaves the box', () => {
+    expect(describeNotify(makeEnterpriseConfig())).toBe('false')
+    expect(describeNotify(makeEnterpriseConfig({notify: true, email_relay_url: 'https://host/relay'}))).toBe(
+      'yes (email relay https://host/relay)',
+    )
+    expect(
+      describeNotify(
+        makeEnterpriseConfig({notify: true, smtp: {host: 'smtp.h', user: 'u', password: 'p', sender: 'Seed <s@h>'}}),
+      ),
+    ).toBe('yes (smtp.h, sender Seed <s@h>)')
+  })
+})
+
+describe('enterprise: hostname change', () => {
+  function jsonResponse(status: number, body: unknown): Response {
+    return new Response(JSON.stringify(body), {status, headers: {'content-type': 'application/json'}})
+  }
+  function fakeFetch(answers: Array<Response | Error>) {
+    const calls: Array<{url: string; init: RequestInit}> = []
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      calls.push({url, init})
+      const next = answers.shift()
+      if (!next) throw new Error('no more answers')
+      if (next instanceof Error) throw next
+      return next
+    }) as unknown as typeof fetch
+    return {fetchImpl, calls}
+  }
+
+  test('parseArgs knows set-hostname', () => {
+    const run = parseArgs(['node', 'deploy.js', 'set-hostname', 'https://new.example.org'])
+    expect(run.command).toBe('set-hostname')
+    expect(run.args).toEqual(['https://new.example.org'])
+  })
+
+  test('setSiteUrl posts to the site-url route with the admin secret and reports the change', async () => {
+    const config = makeEnterpriseConfig({domain: 'https://new.example.org'})
+    const {fetchImpl, calls} = fakeFetch([
+      jsonResponse(200, {
+        accountUid: 'z6MkOwner',
+        siteUrl: 'https://new.example.org',
+        changed: true,
+        previousSiteUrl: 'https://example.org',
+      }),
+    ])
+    const result = await setSiteUrl(config, {fetch: fetchImpl})
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('https://new.example.org/hm/api/enterprise-site-url')
+    expect(calls[0].init.method).toBe('POST')
+    expect((calls[0].init.headers as Record<string, string>).authorization).toBe(`Bearer ${config.vault_admin_secret}`)
+    expect(result).toEqual({
+      accountUid: 'z6MkOwner',
+      siteUrl: 'https://new.example.org',
+      changed: true,
+      previousSiteUrl: 'https://example.org',
+    })
+    const lines = describeSiteUrl(result)
+    expect(lines[0]).toBe(
+      'Republished the home document of z6MkOwner: siteUrl is now https://new.example.org (was https://example.org).',
+    )
+    expect(lines.join('\n')).toContain('Passkeys are bound to the hostname')
+  })
+
+  test('setSiteUrl reports an up-to-date document without changing anything', async () => {
+    const {fetchImpl} = fakeFetch([
+      jsonResponse(200, {
+        accountUid: 'z6MkOwner',
+        siteUrl: 'https://example.org',
+        changed: false,
+        previousSiteUrl: 'https://example.org',
+      }),
+    ])
+    const result = await setSiteUrl(makeEnterpriseConfig(), {fetch: fetchImpl})
+    expect(result.changed).toBe(false)
+    expect(describeSiteUrl(result)).toEqual([
+      'The space z6MkOwner already points at https://example.org; nothing to republish.',
+    ])
+  })
+
+  test('setSiteUrl waits for the web app, then explains 401, 404 and 409', async () => {
+    const slow = fakeFetch([
+      new Error('ECONNREFUSED'),
+      jsonResponse(502, 'Bad Gateway'),
+      jsonResponse(200, {
+        accountUid: 'z6MkOwner',
+        siteUrl: 'https://example.org',
+        changed: true,
+        previousSiteUrl: null,
+      }),
+    ])
+    const logged: string[] = []
+    const result = await setSiteUrl(makeEnterpriseConfig(), {
+      fetch: slow.fetchImpl,
+      sleep: async () => {},
+      log: (line) => logged.push(line),
+    })
+    expect(result.previousSiteUrl).toBeNull()
+    expect(slow.calls).toHaveLength(3)
+    expect(logged[0]).toContain('Site URL not updated yet')
+    expect(logged[1]).toContain('HTTP 502')
+
+    const unauthorized = fakeFetch([jsonResponse(401, {message: 'Unauthorized'})])
+    await expect(setSiteUrl(makeEnterpriseConfig(), {fetch: unauthorized.fetchImpl})).rejects.toThrow(/HTTP 401/)
+    expect(unauthorized.calls).toHaveLength(1)
+    const missing = fakeFetch([new Response('Not Found', {status: 404})])
+    await expect(setSiteUrl(makeEnterpriseConfig(), {fetch: missing.fetchImpl})).rejects.toThrow(
+      /no site-url route.*set-hostname https:\/\/example.org/,
+    )
+    const unregistered = fakeFetch([jsonResponse(409, {message: 'This site is not registered to a space yet'})])
+    await expect(setSiteUrl(makeEnterpriseConfig(), {fetch: unregistered.fetchImpl})).rejects.toThrow(
+      /HTTP 409.*bootstrap-space/,
+    )
+    const gone = fakeFetch(Array.from({length: BOOTSTRAP_ATTEMPTS}, () => new Error('ECONNREFUSED')))
+    await expect(setSiteUrl(makeEnterpriseConfig(), {fetch: gone.fetchImpl, sleep: async () => {}})).rejects.toThrow(
+      /site URL after 6 attempts: .*ECONNREFUSED/,
+    )
+    await expect(setSiteUrl(makeTestConfig(), {fetch: gone.fetchImpl})).rejects.toThrow(/enterprise/)
+  })
+
+  test('doctor compares the hostname with the home document siteUrl from /hm/api/config', () => {
+    expect(siteUrlCheck({hostname: 'https://example.org'})).toEqual([])
+    expect(siteUrlCheck({hostname: 'https://example.org', siteUrl: null})).toEqual([])
+    expect(siteUrlCheck({hostname: 'https://example.org', siteUrl: 'https://example.org'})).toEqual([
+      "  ✔ Site URL       the space's home document points at https://example.org",
+    ])
+    const drift = siteUrlCheck({hostname: 'https://new.example.org', siteUrl: 'https://example.org'})
+    expect(drift[0]).toContain('points at https://example.org, the site is https://new.example.org')
+    expect(drift[1]).toContain('set-hostname https://new.example.org')
+
+    const shell = makeMockShell({
+      'docker port seed-daemon': '',
+      '/hm/api/config':
+        '{"requireSignIn":true,"peerId":"12D3","hostname":"https://example.org","siteUrl":"https://old.example.org"}',
+      '/vault/': '200',
+      '"https://example.org/"': '302 https://example.org/hm/sign-in?next=%2F',
+      '/hm/api/session': '401',
+    })
+    const out = enterpriseIsolationChecks(shell, makeEnterpriseConfig()).join('\n')
+    expect(out).toContain('⚠ Site URL')
+    expect(out).toContain('https://old.example.org')
   })
 })

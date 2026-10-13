@@ -138,6 +138,9 @@ export const NOTIFY_SMTP_PORT = process.env.NOTIFY_SMTP_PORT
 export const NOTIFY_SMTP_USER = process.env.NOTIFY_SMTP_USER
 export const NOTIFY_SMTP_PASSWORD = process.env.NOTIFY_SMTP_PASSWORD
 export const NOTIFY_SENDER = process.env.NOTIFY_SENDER
+// The hosting service's HTTPS email relay; when set, notify sends through it instead of SMTP.
+export const NOTIFY_EMAIL_RELAY_URL = process.env.NOTIFY_EMAIL_RELAY_URL
+export const NOTIFY_EMAIL_RELAY_TOKEN = process.env.NOTIFY_EMAIL_RELAY_TOKEN
 export const NOTIFY_TRUSTED_PREVALIDATORS = process.env.NOTIFY_TRUSTED_PREVALIDATORS
 
 export const WEB_IS_GATEWAY = WEB_ENV.WEB_IS_GATEWAY ?? process.env.SEED_IS_GATEWAY === 'true'
@@ -146,6 +149,7 @@ export const WEB_API_DISABLED = process.env.SEED_API_ENABLED === 'false'
 
 export const ENABLE_EMAIL_NOTIFICATIONS =
   WEB_ENV.ENABLE_EMAIL_NOTIFICATIONS ||
+  !!(NOTIFY_EMAIL_RELAY_URL && NOTIFY_EMAIL_RELAY_TOKEN) ||
   !!(NOTIFY_SMTP_HOST && NOTIFY_SMTP_PORT && NOTIFY_SMTP_USER && NOTIFY_SMTP_PASSWORD && NOTIFY_SENDER)
 
 export const NOTIFY_SERVICE_HOST: string | undefined =

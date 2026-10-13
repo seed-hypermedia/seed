@@ -18,7 +18,7 @@ Notifications are centralized on purpose, for now. The desktop app no longer dis
 | `app/email-notifier.ts` | The loops that read the activity feed, classify events, write inbox rows and send email. <!-- id:oM6DMnjS --> |
 | `app/notification-state.ts` | The unified state API: snapshot and actions. <!-- id:Ai6QJTgG --> |
 | `app/validate-signature.ts`, `app/verify-delegation.ts` | Request signatures and agent-capability checks. <!-- id:OLo0GDuF --> |
-| `app/mailer.ts` | The SMTP sender. <!-- id:RJaXjCfh --> |
+| `app/mailer.ts` | The email sender: the hosting email relay when configured, SMTP otherwise. <!-- id:RJaXjCfh --> |
 | `app/routes/` | Every HTTP route, listed below. <!-- id:-V5OkVr9 --> |
 | `frontend/packages/shared/src/models/notification-*.ts` | The client transport, payload shape, read-state logic and [comment](../protocol/comments.md) classifier shared with every client. <!-- id:uCp0ziWT --> |
 
@@ -98,7 +98,8 @@ All routes live under `/hm/api` and `/hm` on the notify host. The signed routes 
 | `DATA_DIR` | Where `web-db.sqlite` lives. <!-- id:21ohCkj5 --> |
 | `SEED_BASE_URL` | The public [site](../protocol/sites.md) used to build links in emails. <!-- id:dUCuD8GL --> |
 | `NOTIFY_SERVICE_HOST` | This service's own public URL, used in email links. <!-- id:liIarWt- --> |
-| `NOTIFY_SMTP_HOST`, `NOTIFY_SMTP_PORT`, `NOTIFY_SMTP_USER`, `NOTIFY_SMTP_PASSWORD`, `NOTIFY_SENDER` | Outgoing mail. Without host, user and password, emails are logged and dropped. <!-- id:9NBHNLks --> |
+| `NOTIFY_SMTP_HOST`, `NOTIFY_SMTP_PORT`, `NOTIFY_SMTP_USER`, `NOTIFY_SMTP_PASSWORD`, `NOTIFY_SENDER` | Outgoing mail over SMTP. Without host, user and password (and no relay), emails are logged and dropped. <!-- id:9NBHNLks --> |
+| `NOTIFY_EMAIL_RELAY_URL`, `NOTIFY_EMAIL_RELAY_TOKEN` | The Seed hosting email relay: each email is one `POST <url>` with `Authorization: Bearer <token>` and a JSON body `{to, subject, text, html?}`; the relay sets the sender. Set together, they win over the SMTP variables, so an [enterprise](../build/self-hosting.md) instance needs no SMTP account. A reply other than 2xx fails the send like an SMTP rejection. |
 | `NOTIFY_TRUSTED_PREVALIDATORS` | [Vault](./vault.md) origins whose email prevalidation is trusted. <!-- id:IYib82x9 --> |
 | `NOTIFY_SENTRY_DSN` | Error reporting. <!-- id:uhMVrRkx --> |
 
