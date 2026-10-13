@@ -1036,7 +1036,7 @@ function configWarnings(config) {
   const warnings = [];
   if (isEnterprise(config)) {
     if (config.release_channel !== "latest") {
-      warnings.push(`Tracking the '${config.release_channel}' image channel (bleeding-edge images). ` + `Enterprise nodes update only when '${cmd("deploy")}' is run by hand.`);
+      warnings.push(`Tracking the '${config.release_channel}' image channel (bleeding-edge images). ` + `On this channel the node updates only when '${cmd("deploy")}' is run by hand; on 'latest' it follows releases automatically.`);
     }
     return warnings;
   }
@@ -2922,10 +2922,13 @@ exec "${bunPath}" "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}" "$@"
     shell.runSafe(`echo ${b64} | base64 -d | sudo tee ${wrapper} >/dev/null && sudo chmod +x ${wrapper}`);
   }
 }
+function autoUpdates(config) {
+  return !isEnterprise(config) || config.release_channel === "latest";
+}
 async function setActiveNode(paths, shell, config) {
-  if (config && isEnterprise(config)) {
+  if (config && !autoUpdates(config)) {
     clearSeedCron(shell);
-    log("Enterprise profile: automatic update cron not installed (updates are manual).");
+    log(`Enterprise profile on the '${config.release_channel}' channel: automatic update cron not installed (updates are manual).`);
   } else {
     await setupCron(paths, shell);
   }
@@ -4100,6 +4103,7 @@ export {
   VERSION,
   agentsHost,
   assertNoForeignStack,
+  autoUpdates,
   backupMembers,
   bootstrapOptionsFrom,
   bootstrapSpace,
