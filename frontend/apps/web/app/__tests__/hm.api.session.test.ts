@@ -49,6 +49,17 @@ describe('/hm/api/session (forward_auth target)', () => {
     expect(location.searchParams.get('next')).toBe('/private/doc?panel=comments')
   })
 
+  it('drops the Remix data-request marker from the destination it sends back to', async () => {
+    const response = await probe({
+      'X-Forwarded-Uri': '/private/doc?_data=routes%2F%24&panel=comments',
+      'X-Forwarded-Method': 'GET',
+      Accept: 'text/html,application/xhtml+xml',
+    })
+    expect(response.status).toBe(302)
+    const location = new URL(response.headers.get('Location')!, 'http://site.localhost')
+    expect(location.searchParams.get('next')).toBe('/private/doc?panel=comments')
+  })
+
   it('answers 401 to a fetch without a session', async () => {
     const response = await probe({'X-Forwarded-Uri': '/api/Resource?id=x', Accept: 'application/json'})
     expect(response.status).toBe(401)

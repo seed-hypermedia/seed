@@ -1980,7 +1980,11 @@ function generateEnterpriseCaddyfile(config) {
   blocks.push(`# Ask the web app whether the request carries a member session.
 (gate) {
 	forward_auth seed-web:3000 {
-		uri ${SESSION_CHECK_URI}
+		# The trailing "?" drops the original query string from the subrequest:
+		# Remix treats "?_data=<route>" (a client-side navigation) as a data
+		# request for that route, which does not match the session route and
+		# fails with 403. The original URI still travels in X-Forwarded-Uri.
+		uri ${SESSION_CHECK_URI}?
 		copy_headers X-Forwarded-Uri
 	}
 }

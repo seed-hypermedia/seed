@@ -1787,7 +1787,11 @@ function generateEnterpriseCaddyfile(config: SeedConfig): string {
   blocks.push(`# Ask the web app whether the request carries a member session.
 (gate) {
 \tforward_auth seed-web:3000 {
-\t\turi ${SESSION_CHECK_URI}
+\t\t# The trailing "?" drops the original query string from the subrequest:
+\t\t# Remix treats "?_data=<route>" (a client-side navigation) as a data
+\t\t# request for that route, which does not match the session route and
+\t\t# fails with 403. The original URI still travels in X-Forwarded-Uri.
+\t\turi ${SESSION_CHECK_URI}?
 \t\tcopy_headers X-Forwarded-Uri
 \t}
 }
