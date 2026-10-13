@@ -328,6 +328,8 @@ function clearCurrentURLFragment() {
 /** Creates actions bound to a specific state proxy and client. */
 function createActions(state: AppState, client: api.ClientInterface, navigator: Navigator, blockstore: Blockstore) {
   let pendingVaultLoad: Promise<void> | null = null
+  let registrationVerificationPending = false
+  let registrationVerified = false
 
   async function ensurePasswordSalt() {
     if (state.passwordSalt) {
@@ -679,6 +681,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
       try {
         const data = await client.registerStart({email: state.email})
+        registrationVerified = false
         state.verificationExpireTime = data.expireTime
         state.resendAllowedTime = data.resendAllowedTime
         navigator.go('/verify/pending')
@@ -690,16 +693,22 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     async handleRegisterVerify(code: string) {
+      // Code completion and form submission may fire before the view rerenders.
+      // Keep a consumed challenge closed until registration starts a new one.
+      if (registrationVerificationPending || registrationVerified) return
+      registrationVerificationPending = true
       state.loading = true
       state.error = ''
 
       try {
         await client.registerVerify({code})
+        registrationVerified = true
         await actions.checkSession()
         navigator.go('/auth/choose')
       } catch (e) {
         state.error = (e as Error).message || 'Verification failed'
       } finally {
+        registrationVerificationPending = false
         state.loading = false
       }
     },
