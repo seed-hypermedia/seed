@@ -27,14 +27,8 @@ export function DocumentCreateButton({
   if (hidden) return null
 
   return (
-    <div className="bg-background flex items-center overflow-hidden rounded-md border border-green-700 shadow-xs">
-      <Button
-        type="button"
-        size="sm"
-        disabled={disabled}
-        className="rounded-none text-green-700 hover:bg-green-50 hover:text-green-800 dark:text-green-500 dark:hover:bg-green-950 dark:hover:text-green-400"
-        onClick={() => onCreate('document')}
-      >
+    <div className="bg-background flex items-center overflow-hidden rounded-md border border-green-900 shadow-xs dark:border-green-700">
+      <Button type="button" size="sm" disabled={disabled} className="rounded-none" onClick={() => onCreate('document')}>
         <Plus className="size-4" />
         New
       </Button>
@@ -45,7 +39,7 @@ export function DocumentCreateButton({
             size="icon"
             disabled={disabled}
             aria-label="Choose what to create"
-            className="h-8 w-7 min-w-7 rounded-none border-l border-green-700 px-0 text-green-700 hover:bg-green-50 hover:text-green-800 dark:text-green-500 dark:hover:bg-green-950 dark:hover:text-green-400"
+            className="h-8 w-7 min-w-7 rounded-none border-l border-green-900 px-0 dark:border-green-700"
           >
             <ChevronDown className="size-4" />
           </Button>
