@@ -460,6 +460,7 @@ func parseBootstrapPeers(in string) ([]peer.AddrInfo, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid bootstrap peer %q: %w", addr, err)
 		}
+
 		out[i] = maddr
 	}
 

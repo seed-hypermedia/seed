@@ -447,6 +447,7 @@ func (n *Node) Start(ctx context.Context) (err error) {
 	}
 
 	n.log.Info("P2PNodeStarted", zap.String("protocolID", string(n.protocol.ID)))
+
 	if n.cfg.Isolated {
 		n.log.Warn("NodeIsolated", zap.String("reason", "-p2p.isolated: every libp2p connection is denied; no bootstrap, peer exchange, relay or NAT services"))
 	}
@@ -489,13 +490,16 @@ func (n *Node) Start(ctx context.Context) (err error) {
 						return nil
 					case <-t.C:
 					}
+
 					if err := n.runPeerExchangeTick(ctx); err != nil && ctx.Err() == nil {
 						n.log.Debug("PeerExchangeTickFailed", zap.Error(err))
 					}
+
 					t.Reset(peerExchangeTick)
 				}
 			})
 		}
+
 		// peerWriter drains the identify-driven write queue into
 		// batched COMMITs. Exits when ctx is cancelled (Start
 		// teardown) so it shares lifetime with the libp2p event loop.
@@ -597,6 +601,7 @@ func (n *Node) startLibp2p(ctx context.Context) error {
 		if !n.cfg.Isolated {
 			n.log.Warn("NoBoostrapMode")
 		}
+
 		close(doneOnce)
 	}
 

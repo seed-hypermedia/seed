@@ -48,11 +48,13 @@ func TestBootstrapPeersFlag(t *testing.T) {
 
 		// AddrInfosFromP2pAddrs groups addresses through a map, so the order is not stable.
 		var ids []string
+
 		for _, info := range p2p.BootstrapPeers {
 			ids = append(ids, info.ID.String())
 			require.Len(t, info.Addrs, 1)
 			require.True(t, p2p.IsBootstrap(info.ID))
 		}
+
 		require.ElementsMatch(t, []string{
 			"12D3KooWNmjM4sMbSkDEA6ShvjTgkrJHjMya46fhZ9PjKZ4KVZYq",
 			"12D3KooWGvsbBfcbnkecNoRBM7eUTiuriDqUyzu87pobZXSdUUsJ",

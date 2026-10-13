@@ -194,6 +194,7 @@ func (ds *DomainStore) CheckAllDomains(ctx context.Context) {
 	if ds.offline.Load() {
 		return
 	}
+
 	entries, err := ds.ListDomains(ctx)
 	if err != nil {
 		ds.log.Warn("FailedToListDomains", zap.Error(err))
@@ -267,6 +268,7 @@ func (ds *DomainStore) TrackSiteURL(_ context.Context, siteURL string) {
 	if ds.offline.Load() {
 		return
 	}
+
 	domain, err := extractDomain(siteURL)
 	if err != nil {
 		return

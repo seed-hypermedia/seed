@@ -23,6 +23,7 @@ func (srv *Server) ListPaidInvoices(ctx context.Context, in *payments.ListInvoic
 	if err := srv.checkEnabled(); err != nil {
 		return nil, err
 	}
+
 	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return nil, err
@@ -73,6 +74,7 @@ func (srv *Server) ListReceivedInvoices(ctx context.Context, in *payments.ListIn
 	if err := srv.checkEnabled(); err != nil {
 		return nil, err
 	}
+
 	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return nil, err
@@ -125,6 +127,7 @@ func (srv *Server) RequestLud6Invoice(ctx context.Context, in *payments.RequestL
 	if err := srv.checkEnabled(); err != nil {
 		return nil, err
 	}
+
 	invoice := &payments.InvoiceResponse{}
 	var err error
 	invoice.Payreq, err = srv.lightningClient.Lndhub.RequestLud6Invoice(ctx, in.URL, in.User, in.Amount, in.Memo)
@@ -187,6 +190,7 @@ func (srv *Server) CreateInvoice(ctx context.Context, in *payments.CreateInvoice
 	if err := srv.checkEnabled(); err != nil {
 		return nil, err
 	}
+
 	ret := &payments.InvoiceResponse{}
 	wallet, err := srv.GetWallet(ctx, &payments.WalletRequest{Id: in.Id})
 	if in.Id == "" && in.Account != "" {
@@ -226,6 +230,7 @@ func (srv *Server) PayInvoice(ctx context.Context, in *payments.PayInvoiceReques
 	if err := srv.checkEnabled(); err != nil {
 		return nil, err
 	}
+
 	walletToPay := &payments.Wallet{}
 	var err error
 	var amountToPay int64

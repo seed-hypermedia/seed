@@ -54,6 +54,7 @@ func (srv *Server) checkEnabled() error {
 	if srv.disabled {
 		return errLndhubDisabled
 	}
+
 	return nil
 }
 
@@ -70,6 +71,7 @@ type Credentials struct {
 func NewServer(log *zap.Logger, db *sqlitex.Pool, net *hmnet.Node, ks core.KeyStore, cfg config.Lndhub) *Server {
 	lndhubDomain := "ln.testnet.seed.hyper.media"
 	lnaddressDomain := "ln.testnet.seed.hyper.media"
+
 	if cfg.Mainnet {
 		//lndhubDomain is the domain for internal lndhub calls.
 		lndhubDomain = "ln.seed.hyper.media"
@@ -86,10 +88,12 @@ func NewServer(log *zap.Logger, db *sqlitex.Pool, net *hmnet.Node, ks core.KeySt
 		disabled: cfg.Disabled,
 	}
 	srv.net.SetInvoicer(srv)
+
 	if srv.disabled {
 		log.Info("LndhubDisabled", zap.String("reason", "-lndhub.disabled: skipping the startup wallet check, payment RPCs will fail with FailedPrecondition"))
 		return srv
 	}
+
 	keys, err := srv.ks.ListKeys(context.Background())
 	if err != nil {
 		log.Warn("Could not list keys to check opt-in wallets", zap.Error(err))
@@ -275,6 +279,7 @@ func (srv *Server) CreateWallet(ctx context.Context, in *payments.CreateWalletRe
 	if err := srv.checkEnabled(); err != nil {
 		return nil, err
 	}
+
 	kp, err := srv.ks.GetKey(ctx, in.Account)
 	if err != nil {
 		return ret, fmt.Errorf("Problems with provided account: %w", err)
@@ -309,6 +314,7 @@ func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRe
 	if err := srv.checkEnabled(); err != nil {
 		return nil, err
 	}
+
 	ret := &payments.Wallet{}
 	creds, err := DecodeCredentialsURL(in.CredentialsUrl)
 	if err != nil {
@@ -446,6 +452,7 @@ func (srv *Server) GetWalletBalance(ctx context.Context, in *payments.WalletRequ
 	if err := srv.checkEnabled(); err != nil {
 		return nil, err
 	}
+
 	ret := &payments.GetWalletBalanceResponse{}
 	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
@@ -576,6 +583,7 @@ func (srv *Server) UpdateLNAddress(ctx context.Context, nickname, walletID strin
 	if err := srv.checkEnabled(); err != nil {
 		return err
 	}
+
 	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return err
@@ -656,6 +664,7 @@ func (srv *Server) GetLnAddress(ctx context.Context, walletID string) (string, e
 	if err := srv.checkEnabled(); err != nil {
 		return "", err
 	}
+
 	lnaddress, err := srv.lightningClient.Lndhub.GetLnAddress(ctx, walletID)
 	if err != nil {
 		srv.log.Debug("couldn't get lnaddress", zap.Error(err))
