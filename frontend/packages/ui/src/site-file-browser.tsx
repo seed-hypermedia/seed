@@ -9,7 +9,7 @@ import {
   flattenTree,
   getAncestorPathKeys,
 } from '@shm/shared/utils/all-documents-tree'
-import {ChevronDown, ChevronRight, FileText, Grid3X3, Lock, Plus, Search, X} from 'lucide-react'
+import {ChevronDown, ChevronRight, createLucideIcon, FileText, Grid3X3, Lock, Plus, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
@@ -18,6 +18,16 @@ import {ScrollArea} from './components/scroll-area'
 import type {MenuItemType} from './options-dropdown'
 import {Spinner} from './spinner'
 import {cn} from './utils'
+
+// Lucide's FileText puts its outline on even coordinates, which land between pixels at the 12px tree size and render
+// blurry and heavier than Grid3X3. This redraw keeps every stroke on odd coordinates so both icons stay crisp at 1x.
+const TreeDocumentIcon = createLucideIcon('TreeDocument', [
+  ['path', {d: 'M15 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7Z', key: 'outline'}],
+  ['path', {d: 'M15 3v2a2 2 0 0 0 2 2h2', key: 'fold'}],
+  ['path', {d: 'M9 9h2', key: 'line-1'}],
+  ['path', {d: 'M9 13h6', key: 'line-2'}],
+  ['path', {d: 'M9 17h6', key: 'line-3'}],
+])
 
 /** Props for the shared site document browser. */
 export type IncludeDocumentState = {disabled: boolean; pending: boolean; reason?: string}
@@ -257,9 +267,9 @@ export function SiteFileBrowser({
                       ) : doc.visibility === 'PRIVATE' ? (
                         <Lock aria-label="Private document" className="text-icon size-3 shrink-0" />
                       ) : unpublishedDraftIds.has(doc.id.id) ? (
-                        <FileText aria-label="Unpublished draft" className="size-3 shrink-0 text-yellow-500" />
+                        <TreeDocumentIcon aria-label="Unpublished draft" className="size-3 shrink-0 text-yellow-500" />
                       ) : (
-                        <FileText aria-label="Document" className="text-icon size-3 shrink-0" />
+                        <TreeDocumentIcon aria-label="Document" className="text-icon size-3 shrink-0" />
                       )}
                       <span className="truncate">{titleOf(doc)}</span>
                     </button>
