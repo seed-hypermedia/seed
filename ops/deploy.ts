@@ -2497,11 +2497,19 @@ export async function deploy(
 
   const containersHealthy = await checkContainersHealthy(shell, config)
   const containersOnConfiguredTag = containersMatchReleaseChannel(shell, config)
+  // The Caddyfile is rendered from the config too (hostname, redirect
+  // hostnames, the gate), but neither the compose nor the env SHA covers it,
+  // so a config change that only touches the proxy must still redeploy.
+  const caddyfilePath = join(paths.seedDir, 'proxy', 'CaddyFile')
+  const caddyfileCurrent = await readFile(caddyfilePath, 'utf-8')
+    .then((existing) => existing === generateCaddyfile(config))
+    .catch(() => false)
   if (
     config.compose_sha === composeSha &&
     config.compose_env_sha === envSha &&
     containersHealthy &&
-    containersOnConfiguredTag
+    containersOnConfiguredTag &&
+    caddyfileCurrent
   ) {
     // Compose and config unchanged, containers running the configured tag.
     // Check if remote images have been updated (e.g. CI pushed a new tag).
@@ -2574,7 +2582,7 @@ export async function deploy(
 
   step('Generating Caddyfile...')
   const caddyfile = generateCaddyfile(config)
-  await writeFile(join(paths.seedDir, 'proxy', 'CaddyFile'), caddyfile, 'utf-8')
+  await writeFile(caddyfilePath, caddyfile, 'utf-8')
 
   // Write registration secret only on first deploy (web/config.json doesn't exist yet)
   const webConfigPath = join(paths.seedDir, 'web', 'config.json')
