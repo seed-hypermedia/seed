@@ -1,5 +1,5 @@
 import {useEffect, useId, useRef, useState, type PropsWithChildren, type ReactNode} from 'react'
-import {AlertCircle, ArrowLeft, ArrowRight, Check, Copy, ExternalLink, Globe} from 'lucide-react'
+import {AlertCircle, ArrowLeft, ArrowRight, Check, Copy, ExternalLink, Globe, Loader2} from 'lucide-react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Label} from './components/label'
@@ -14,6 +14,104 @@ import {CongratsGraphic, WebPublishedGraphic} from './publish-graphics'
 
 /** Compact publishing dialog dimensions shared by desktop and web. */
 export const publishDialogClassName = 'w-full max-w-md max-h-[calc(100dvh-4rem)]'
+
+/** DNS instructions shared by the browser setup page and desktop publishing flow. */
+export function DNSInstructions({hostname, siteUrl}: {hostname: string; siteUrl: string}) {
+  const target = hostnameStripProtocol(siteUrl).replace(/\/$/, '')
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-sm">
+        At your DNS provider, point <strong>{hostname}</strong> to <strong>{target}</strong>. Use a CNAME for a
+        subdomain, or your provider’s ALIAS/ANAME option for a root domain.
+      </p>
+      <p className="text-muted-foreground text-sm">
+        DNS propagation depends on your provider. You can return to Web Domain in Space Settings to check progress and
+        finish setup.
+      </p>
+    </div>
+  )
+}
+
+/** Shared DNS, HTTPS, and publication progress; platform adapters own polling and persistence. */
+export function PublishDomainStatus({
+  hostname,
+  siteUrl,
+  status,
+  checking = false,
+  error,
+  onRetry,
+  onCancel,
+  canceling = false,
+}: {
+  hostname: string
+  siteUrl: string
+  status: 'checking' | 'waiting-dns' | 'initializing' | 'publishing' | 'ready' | 'error'
+  checking?: boolean
+  error?: string | null
+  onRetry?: () => void
+  onCancel?: () => void
+  canceling?: boolean
+}) {
+  const title = {
+    checking: 'Checking domain status',
+    'waiting-dns': 'Waiting for DNS',
+    initializing: 'Setting up HTTPS',
+    publishing: 'Updating your space',
+    ready: 'Your domain is ready',
+    error: 'Domain setup needs attention',
+  }[status]
+  const failed = status === 'error' || !!error
+  const StatusIcon = failed ? AlertCircle : status === 'ready' ? Check : Loader2
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex items-center gap-3" role="status" aria-live="polite">
+        <StatusIcon
+          className={`size-5 shrink-0 ${
+            !failed && status !== 'ready' ? 'animate-spin motion-reduce:animate-none' : ''
+          }`}
+        />
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold">{title}</h2>
+          {checking && status !== 'checking' ? (
+            <p className="text-muted-foreground text-sm">Checking for updates…</p>
+          ) : null}
+        </div>
+      </div>
+      {status === 'checking' || status === 'waiting-dns' || status === 'error' ? (
+        <DNSInstructions hostname={hostname} siteUrl={siteUrl} />
+      ) : status === 'initializing' ? (
+        <p className="text-muted-foreground text-sm">
+          DNS is connected. Seed is preparing the secure connection for your domain.
+        </p>
+      ) : status === 'publishing' ? (
+        <p className="text-muted-foreground text-sm">
+          The secure connection is ready. Updating your space’s web address…
+        </p>
+      ) : (
+        <a className="text-primary break-all underline" href={`https://${hostname}`} target="_blank" rel="noreferrer">
+          Open {hostname}
+        </a>
+      )}
+      {failed ? (
+        <PublishError error={error || 'Domain setup could not finish. Check your DNS settings and try again.'} />
+      ) : null}
+      {onRetry || onCancel ? (
+        <div className="flex flex-wrap gap-2">
+          {onRetry ? (
+            <Button variant="outline" onClick={onRetry} disabled={checking || canceling}>
+              {failed ? 'Retry Domain Setup' : 'Check Again'}
+            </Button>
+          ) : null}
+          {onCancel ? (
+            <Button variant="ghost" onClick={onCancel} loading={canceling} disabled={checking}>
+              Cancel Domain Setup
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 /** One step of a publishing dialog: a title with an optional back button, the step's content, and its actions. */
 export function PublishStep({

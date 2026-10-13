@@ -8,6 +8,7 @@ import {hostnameStripProtocol} from '@shm/shared/site-hostname'
 import {getDocumentTitle} from '@shm/shared/content'
 import {useUniversalAppContext} from '@shm/shared'
 import {validateDomain} from '@shm/shared/utils/path'
+import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {CodeInput} from '@shm/ui/components/code-input'
 import {
@@ -22,6 +23,7 @@ import {Input} from '@shm/ui/components/input'
 import {SizableText} from '@shm/ui/text'
 import {
   PublishSiteFlow,
+  PublishDomainStatus,
   setupGuideRoute,
   PublishSiteSuccess,
   PublishStep,
@@ -624,7 +626,7 @@ function HostingDialogContent({
   const [hostname, setHostname] = useState('')
   const [setupUrl, setSetupUrl] = useState<string | null>(null)
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
-  const [requestedDomain, setRequestedDomain] = useState<string | null>(null)
+  const navigate = useNavigate()
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
@@ -633,9 +635,6 @@ function HostingDialogContent({
   }, [busy, setDialogCloseProtection])
   const pendingDomain = host.pendingDomains?.find((pending) => pending.siteUid === id.uid)
   const ownedSite = host.loggedIn && host.sites.data?.find((site) => matchesPublishedSite(site, id.uid, siteUrl))
-  useEffect(() => {
-    if (requestedDomain && siteUrl === `https://${requestedDomain}` && !pendingDomain) setPublishedUrl(siteUrl)
-  }, [requestedDomain, siteUrl, pendingDomain])
   async function publish() {
     if (busy) return
     const validation = validateDomain(subdomain, 'subdomain')
@@ -686,7 +685,8 @@ function HostingDialogContent({
         hostingSiteUrl: ownedSite.url,
         id,
       })
-      setRequestedDomain(domain.hostname)
+      onClose()
+      navigate({key: 'site-settings', id, tab: 'web-domain', domain: domain.hostname})
     } catch (cause) {
       setError(cause)
     } finally {
@@ -720,14 +720,10 @@ function HostingDialogContent({
       <PublishSiteSuccess
         url={publishedUrl}
         onClose={onClose}
-        onCustomDomain={
-          !requestedDomain
-            ? () => {
-                setPublishedUrl(null)
-                setStep('custom')
-              }
-            : undefined
-        }
+        onCustomDomain={() => {
+          setPublishedUrl(null)
+          setStep('custom')
+        }}
       />
     )
   return (
@@ -842,65 +838,224 @@ function HostingDialogContent({
   )
 }
 
-function PendingDomainStatus({id, siteUrl}: {id: UnpackedHypermediaId; siteUrl: string}) {
+function PendingDomainStatus({
+  id,
+  siteUrl,
+  hostname,
+  fullPage = false,
+}: {
+  id: UnpackedHypermediaId
+  siteUrl: string
+  hostname?: string
+  fullPage?: boolean
+}) {
   const host = useHostSession()
-  const pending = host.pendingDomains?.find((domain) => domain.siteUid === id.uid)
+  const navigate = useNavigate()
+  const pending = host.pendingDomains?.find(
+    (domain) => domain.siteUid === id.uid && (!hostname || domain.hostname === hostname),
+  )
   const [error, setError] = useState<unknown>(null)
   if (!pending) return null
+  const pollingError = host.domainStatus.error
+  const selectedPollingError =
+    pollingError &&
+    typeof pollingError === 'object' &&
+    'domainId' in pollingError &&
+    pollingError.domainId !== pending.id
+      ? null
+      : pollingError
+  const failure = error || pending.errorMessage || selectedPollingError
   return (
-    <div className="border-border flex flex-col gap-3 rounded-lg border p-4">
-      <SizableText weight="medium">Setting up {pending.hostname}</SizableText>
-      {pending.status === 'waiting-dns' ? (
-        <>
-          <p>
-            At your DNS provider, point <strong>{pending.hostname}</strong> to{' '}
-            <strong>{(pending.hostingSiteUrl || siteUrl).replace(/^https?:\/\//, '').replace(/\/$/, '')}</strong>. Use a
-            CNAME for a subdomain, or your provider’s ALIAS/ANAME option for a root domain.
-          </p>
-          <p className="text-muted-foreground text-sm">
-            DNS updates may take a few minutes. Keep Seed open to finish publishing. You can close this dialog and
-            return here to check progress.
-          </p>
-        </>
-      ) : pending.status === 'error' ? (
-        <p role="alert">
-          {pending.errorMessage || 'Domain setup could not finish. Check your DNS settings and try again.'}
-        </p>
-      ) : (
-        <p role="status">Connecting your domain and updating the space publication…</p>
-      )}
-      <ErrorMessage error={error || host.domainStatus.error} />
-      {pending.status === 'error' || host.domainStatus.isError ? (
-        <Button
-          className="self-start"
-          variant="outline"
-          onClick={async () => {
-            setError(null)
-            try {
-              await host.retryPendingDomains()
-            } catch (cause) {
-              setError(cause)
-            }
-          }}
-        >
-          Retry Domain Setup
-        </Button>
-      ) : null}
-      <Button
-        className="self-start"
-        variant="outline"
-        loading={host.cancelPendingDomain.isLoading}
-        onClick={async () => {
+    <div className={fullPage ? 'flex flex-col gap-4' : 'border-border flex flex-col gap-4 rounded-lg border p-5'}>
+      <PublishDomainStatus
+        hostname={pending.hostname}
+        siteUrl={pending.hostingSiteUrl || siteUrl}
+        status={pending.status || 'checking'}
+        checking={host.domainStatus.isFetching}
+        error={failure ? (failure instanceof Error ? failure.message : String(failure)) : null}
+        canceling={host.cancelPendingDomain.isLoading}
+        onRetry={async () => {
+          setError(null)
+          try {
+            await host.retryPendingDomains(pending.id)
+          } catch (cause) {
+            setError(cause)
+          }
+        }}
+        onCancel={async () => {
+          setError(null)
           try {
             await host.cancelPendingDomain.mutateAsync(pending.id)
           } catch (cause) {
             setError(cause)
           }
         }}
-      >
-        Cancel Domain Setup
-      </Button>
+      />
+      {fullPage ? (
+        <p className="text-muted-foreground text-sm">
+          This page checks progress every 20 seconds. Seed Hosting checks DNS every minute. DNS propagation depends on
+          your provider.
+        </p>
+      ) : (
+        <Button
+          variant="outline"
+          onClick={() => navigate({key: 'site-settings', id, tab: 'web-domain', domain: pending.hostname})}
+        >
+          Open Domain Setup
+        </Button>
+      )}
     </div>
+  )
+}
+
+/** Durable, owner-gated custom-domain progress; reopening never creates a domain. */
+export function WebDomainSetupPage({siteId, hostname}: {siteId: UnpackedHypermediaId; hostname: string}) {
+  const identity = useLocalKeyPair()
+  const identityLoaded = useLocalKeyPairLoaded()
+  const resource = useResource(siteId, {subscribed: true})
+  const host = useHostSession({includeSites: true})
+  const navigate = useNavigate()
+  const [loginOpen, setLoginOpen] = useState(false)
+  const [loginError, setLoginError] = useState<unknown>(null)
+  const [switchingAccount, setSwitchingAccount] = useState(false)
+  async function openLogin(clearSession: boolean) {
+    if (switchingAccount) return
+    setSwitchingAccount(true)
+    setLoginError(null)
+    try {
+      if (clearSession) await host.logoutAsync()
+      setLoginOpen(true)
+    } catch (error) {
+      setLoginError(error)
+    } finally {
+      setSwitchingAccount(false)
+    }
+  }
+  const document = resource.data?.type === 'document' ? resource.data.document : undefined
+  const siteUrl = document?.metadata.siteUrl
+  const pending = host.pendingDomains?.find((domain) => domain.siteUid === siteId.uid && domain.hostname === hostname)
+  const ownedSite = host.sites.data?.find(
+    (site) => site.activeConfig?.registeredAccountUid === siteId.uid && site.customDomains.includes(hostname),
+  )
+  const serverDomain = ownedSite?.domainDetails?.find((domain) => domain.hostname === hostname)
+  const expired = [host.domainStatus.error, host.sites.error].some(
+    (error) => !!error && typeof error === 'object' && 'status' in error && error.status === 401,
+  )
+  const owner = !!identity?.capabilityCid && identity.delegatedAccountUid === siteId.uid
+  let content
+  if (!identityLoaded || !host.isSessionLoaded || resource.isInitialLoading)
+    content = <p role="status">Loading domain setup…</p>
+  else if (!owner)
+    content = <p>Sign in as the space owner to continue domain setup. Your setup address will stay here.</p>
+  else if (!document || document.visibility === 'PRIVATE')
+    content = <p>A public space is required to finish domain setup.</p>
+  else if (!host.loggedIn || expired)
+    content = (
+      <div className="flex flex-col items-start gap-4">
+        <p>Sign in to the Seed Hosting account that started this domain setup to resume checking its progress.</p>
+        <Button loading={switchingAccount} onClick={() => void openLogin(expired)}>
+          Sign in to Seed Hosting
+        </Button>
+      </div>
+    )
+  else if (pending)
+    content = (
+      <PendingDomainStatus
+        key={`${host.email}:${pending.id}`}
+        id={siteId}
+        hostname={hostname}
+        siteUrl={siteUrl || ''}
+        fullPage
+      />
+    )
+  else if (host.sites.isInitialLoading || host.sites.isFetching) content = <p role="status">Checking domain status…</p>
+  else if (host.sites.error)
+    content = (
+      <div className="flex flex-col items-start gap-4">
+        <ErrorMessage error={host.sites.error} />
+        <Button onClick={() => void host.sites.refetch()}>Retry Domain Setup</Button>
+      </div>
+    )
+  else if (ownedSite && serverDomain?.status === 'Active' && siteUrl === `https://${hostname}`)
+    content = <PublishDomainStatus hostname={hostname} siteUrl={ownedSite.url} status="ready" />
+  else if (ownedSite && serverDomain && siteUrl)
+    content = (
+      <div className="flex flex-col items-start gap-4">
+        <PublishDomainStatus
+          hostname={hostname}
+          siteUrl={ownedSite.url}
+          status={
+            serverDomain.status === 'Active'
+              ? 'publishing'
+              : serverDomain.status === 'Initializing'
+                ? 'initializing'
+                : serverDomain.status === 'Error'
+                  ? 'error'
+                  : 'waiting-dns'
+          }
+        />
+        <p>
+          Resume this existing domain setup to finish updating this space’s published address. No new domain will be
+          created.
+        </p>
+        <ErrorMessage error={host.resumeDomain.error} />
+        <Button
+          loading={host.resumeDomain.isLoading}
+          onClick={() =>
+            void host.resumeDomain
+              .mutateAsync({hostingSiteId: ownedSite.id, hostname, currentSiteUrl: siteUrl, id: siteId})
+              .catch(() => {})
+          }
+        >
+          Resume Domain Setup
+        </Button>
+      </div>
+    )
+  else
+    content = (
+      <div className="flex flex-col gap-3">
+        <p>
+          {ownedSite
+            ? 'This domain is active, but it is not the current published address of this space.'
+            : 'No domain setup was found for this space in the signed-in hosting account. It may have been canceled or moved to another account.'}
+        </p>
+        <p>Return to Web Domain settings to review the space, or switch to the hosting account that started setup.</p>
+        <Button
+          variant="outline"
+          className="self-start"
+          loading={switchingAccount}
+          onClick={() => void openLogin(true)}
+        >
+          Switch hosting account
+        </Button>
+      </div>
+    )
+  return (
+    <section className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-4 sm:p-8">
+        <Button
+          variant="ghost"
+          className="self-start"
+          onClick={() => navigate({key: 'site-settings', id: siteId, tab: 'web-domain'})}
+        >
+          Back to Web Domain Settings
+        </Button>
+        <div>
+          <p className="text-muted-foreground text-sm">Custom domain setup</p>
+          <h1 className="text-2xl font-bold break-all">{hostname}</h1>
+        </div>
+        {content}
+        <ErrorMessage error={loginError} />
+        {owner && host.loggedIn && !expired ? (
+          <p className="text-muted-foreground text-sm">Seed Hosting: {host.email}</p>
+        ) : null}
+        <Dialog open={loginOpen && owner} onOpenChange={setLoginOpen}>
+          <DialogContent className={publishDialogClassName}>
+            <HostingLogin onAuthenticated={() => setLoginOpen(false)} onBack={() => setLoginOpen(false)} />
+          </DialogContent>
+        </Dialog>
+      </div>
+    </section>
   )
 }
 
@@ -912,6 +1067,7 @@ export function WebDomainSettings({siteId, page = false}: {siteId: UnpackedHyper
   const identityLoaded = useLocalKeyPairLoaded()
   const host = useHostSession({includeSites: true})
   const publish = useWebHostingDialog()
+  const navigate = useNavigate()
   const remove = useRemoveSite(siteId)
   const [confirmRemove, setConfirmRemove] = useState(false)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
@@ -942,6 +1098,45 @@ export function WebDomainSettings({siteId, page = false}: {siteId: UnpackedHyper
             {siteUrl}
           </a>
           <HostedSiteSettings siteId={siteId} siteUrl={siteUrl} />
+          {host.loggedIn &&
+          host.sites.data?.some(
+            (site) =>
+              matchesPublishedSite(site, siteId.uid, siteUrl) && site.customDomains.includes(new URL(siteUrl).hostname),
+          ) ? (
+            <Button
+              variant="outline"
+              className="self-start"
+              onClick={() =>
+                navigate({key: 'site-settings', id: siteId, tab: 'web-domain', domain: new URL(siteUrl).hostname})
+              }
+            >
+              View Domain Status
+            </Button>
+          ) : null}
+          {host.loggedIn
+            ? host.sites.data
+                ?.filter((site) => site.activeConfig?.registeredAccountUid === siteId.uid)
+                .flatMap((site) =>
+                  (site.domainDetails || [])
+                    .filter(
+                      (domain) =>
+                        `https://${domain.hostname}` !== siteUrl &&
+                        !host.pendingDomains?.some((pending) => pending.id === domain.id),
+                    )
+                    .map((domain) => (
+                      <Button
+                        key={domain.id}
+                        variant="outline"
+                        className="self-start"
+                        onClick={() =>
+                          navigate({key: 'site-settings', id: siteId, tab: 'web-domain', domain: domain.hostname})
+                        }
+                      >
+                        Resume Domain Setup: {domain.hostname}
+                      </Button>
+                    )),
+                )
+            : null}
           {pending ? (
             <PendingDomainStatus id={siteId} siteUrl={siteUrl} />
           ) : host.loggedIn && host.sites.data?.some((site) => matchesPublishedSite(site, siteId.uid, siteUrl)) ? (

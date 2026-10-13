@@ -347,6 +347,8 @@ export const siteSettingsRouteSchema = z.object({
   key: z.literal('site-settings'),
   id: unpackedHmIdSchema,
   tab: siteSettingsTabSchema.optional(),
+  /** The custom domain whose durable setup progress is being viewed. */
+  domain: z.string().optional(),
 })
 export type SiteSettingsRoute = z.infer<typeof siteSettingsRouteSchema>
 

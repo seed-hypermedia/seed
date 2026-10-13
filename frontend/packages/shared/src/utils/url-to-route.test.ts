@@ -217,3 +217,12 @@ test.each(['identity', 'navigation', 'web-domain', 'agents'] as const)(
     })
   },
 )
+
+test('round-trips a domain setup Hypermedia deep link', () => {
+  expect(hypermediaUrlToRoute('hm://owner/:settings/web-domain/www.example.com')).toEqual({
+    key: 'site-settings',
+    id: unpackHmId('hm://owner'),
+    tab: 'web-domain',
+    domain: 'www.example.com',
+  })
+})

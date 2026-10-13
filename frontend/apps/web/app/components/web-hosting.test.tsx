@@ -33,6 +33,7 @@ vi.mock('@/auth', () => ({
   useLocalKeyPairLoaded: () => state.identityLoaded,
 }))
 vi.mock('@/document-edit/use-web-can-edit', () => ({useWebCanEdit: () => state.permission}))
+vi.mock('@shm/shared/utils/navigation', () => ({useNavigate: () => state.navigate}))
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => state.resource}))
 vi.mock('@shm/ui/toast', () => ({toast: {success: vi.fn()}}))
 vi.mock('@shm/ui/button', () => ({
@@ -71,7 +72,7 @@ vi.mock('@shm/ui/components/dialog', () => ({
   DialogHeader: ({children}: any) => <div>{children}</div>,
   DialogTitle: ({children}: any) => <h2>{children}</h2>,
 }))
-import {WebDomainSettings, WebHostingDialog} from './web-hosting'
+import {WebDomainSettings, WebHostingDialog, WebDomainSetupPage} from './web-hosting'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 const id = {uid: 'space', id: 'hm://space', path: []} as any
 let root: Root
@@ -143,12 +144,14 @@ beforeEach(() => {
     loginWithVault: vi.fn(),
     createSite: mutation(),
     createDomain: mutation(),
+    resumeDomain: mutation(),
     cancelPendingDomain: mutation(),
     renameSite: mutation(),
     transferSite: mutation(),
     recoverSiteMove: mutation(),
     clearPendingSiteMove: vi.fn(),
     logout: vi.fn(),
+    logoutAsync: vi.fn(async () => {}),
     retryPendingDomains: vi.fn(),
   }
   container = document.createElement('div')
@@ -425,6 +428,12 @@ describe('hosting navigation and polling errors', () => {
       currentSiteUrl: 'https://current.example.com',
       hostingSiteUrl: 'https://old.seed.host',
     })
+    expect(state.navigate).toHaveBeenCalledWith({
+      key: 'site-settings',
+      id,
+      tab: 'web-domain',
+      domain: 'next.example.com',
+    })
     state.host.pendingDomains = [
       {
         id: 'domain',
@@ -602,4 +611,144 @@ it('does not reuse an address already registered to another space', async () => 
   await submit()
   expect(state.register).not.toHaveBeenCalled()
   expect(container.textContent).toContain('Subdomain already in use.')
+})
+
+describe('durable custom-domain page', () => {
+  it('restores the selected pending domain on a fresh page mount and retries without creating it again', async () => {
+    state.host.pendingDomains = [
+      {id: 'other', hostname: 'other.example.com', siteUid: 'space', status: 'initializing'},
+      {
+        id: 'selected',
+        hostname: 'www.example.com',
+        siteUid: 'space',
+        status: 'waiting-dns',
+        hostingSiteUrl: 'https://old.seed.host',
+      },
+    ]
+    render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+    expect(container.textContent).toContain('Waiting for DNS')
+    expect(container.textContent).not.toContain('other.example.com')
+    expect(container.textContent).toContain('old.seed.host')
+    expect(container.textContent).toContain('every 20 seconds')
+    await click('Check Again')
+    expect(state.host.retryPendingDomains).toHaveBeenCalledTimes(1)
+    expect(state.host.createDomain.mutateAsync).not.toHaveBeenCalled()
+    render(<div />)
+    render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+    expect(container.textContent).toContain('Waiting for DNS')
+    await click('Back to Web Domain Settings')
+    expect(state.navigate).toHaveBeenCalledWith({key: 'site-settings', id, tab: 'web-domain'})
+  })
+  it('restores Ready from the owned server domain after the pending record has been removed', () => {
+    state.resource.data.document.metadata.siteUrl = 'https://www.example.com'
+    state.host.sites.data[0].customDomains = ['www.example.com']
+    state.host.sites.data[0].domainDetails = [{id: 'domain-id', hostname: 'www.example.com', status: 'Active'}]
+    render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+    expect(container.textContent).toContain('Your domain is ready')
+    expect(container.querySelector('a')?.href).toBe('https://www.example.com/')
+    expect(state.host.createDomain.mutateAsync).not.toHaveBeenCalled()
+    state.host.sites.data = []
+    render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+    expect(container.textContent).not.toContain('Your domain is ready')
+    expect(container.textContent).toContain('No domain setup was found')
+  })
+  it('retains the selected URL while signing back into an expired hosting session', async () => {
+    state.host.pendingDomains = [{id: 'domain', hostname: 'www.example.com', siteUid: 'space', status: 'waiting-dns'}]
+    state.host.domainStatus.error = Object.assign(new Error('Expired'), {status: 401})
+    render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+    expect(container.textContent).toContain('Sign in to the Seed Hosting account')
+    expect(container.textContent).not.toContain('Waiting for DNS')
+    await click('Sign in to Seed Hosting')
+    expect(state.host.logoutAsync).toHaveBeenCalledTimes(1)
+    expect(state.navigate).not.toHaveBeenCalled()
+  })
+  it('does not expose setup details to another space identity', () => {
+    state.identity = {delegatedAccountUid: 'other', capabilityCid: 'cap'}
+    state.host.pendingDomains = [
+      {
+        id: 'domain',
+        hostname: 'www.example.com',
+        siteUid: 'space',
+        status: 'waiting-dns',
+        hostingSiteUrl: 'https://private-target.seed.host',
+      },
+    ]
+    render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+    expect(container.textContent).toContain('Sign in as the space owner')
+    expect(container.textContent).not.toContain('private-target')
+  })
+  it('provides a settings reentry link for a completed domain', async () => {
+    state.resource.data.document.metadata.siteUrl = 'https://www.example.com'
+    state.host.sites.data[0].customDomains = ['www.example.com']
+    state.host.sites.data[0].domainDetails = [{id: 'domain-id', hostname: 'www.example.com', status: 'Active'}]
+    render(<WebDomainSettings siteId={id} />)
+    await click('View Domain Status')
+    expect(state.navigate).toHaveBeenCalledWith({
+      key: 'site-settings',
+      id,
+      tab: 'web-domain',
+      domain: 'www.example.com',
+    })
+  })
+})
+
+it('offers explicit recovery for a server domain whose local pending record is missing', async () => {
+  state.host.sites.data[0].customDomains = ['www.example.com']
+  state.host.sites.data[0].domainDetails = [{id: 'domain-id', hostname: 'www.example.com', status: 'Active'}]
+  state.host.resumeDomain.mutateAsync.mockResolvedValue(undefined)
+  render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+  expect(container.textContent).not.toContain('Your domain is ready')
+  await click('Resume Domain Setup')
+  expect(state.host.resumeDomain.mutateAsync).toHaveBeenCalledWith({
+    hostingSiteId: state.host.sites.data[0].id,
+    hostname: 'www.example.com',
+    currentSiteUrl: 'https://old.seed.host',
+    id,
+  })
+  expect(state.host.createDomain.mutateAsync).not.toHaveBeenCalled()
+})
+
+it('makes server-only pending domain recovery discoverable from Space Settings', async () => {
+  state.host.sites.data[0].domainDetails = [{id: 'domain-id', hostname: 'www.example.com', status: 'WaitingForDNS'}]
+  render(<WebDomainSettings siteId={id} />)
+  await click('Resume Domain Setup: www.example.com')
+  expect(state.navigate).toHaveBeenCalledWith({key: 'site-settings', id, tab: 'web-domain', domain: 'www.example.com'})
+  expect(state.host.createDomain.mutateAsync).not.toHaveBeenCalled()
+})
+
+it.each(['WaitingForDNS', 'Initializing', 'Error'])(
+  'never shows Ready from metadata alone while the server reports %s',
+  (status) => {
+    state.resource.data.document.metadata.siteUrl = 'https://www.example.com'
+    state.host.sites.data[0].customDomains = ['www.example.com']
+    state.host.sites.data[0].domainDetails = [{id: 'domain-id', hostname: 'www.example.com', status}]
+    render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+    expect(container.textContent).not.toContain('Your domain is ready')
+  },
+)
+
+it('waits for publication metadata after pending completion before showing Ready', () => {
+  state.host.sites.data[0].customDomains = ['www.example.com']
+  state.host.sites.data[0].domainDetails = [{id: 'domain-id', hostname: 'www.example.com', status: 'Active'}]
+  state.host.pendingDomains = [{id: 'domain-id', hostname: 'www.example.com', siteUid: 'space', status: 'publishing'}]
+  render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+  expect(container.textContent).toContain('Updating your space')
+  state.host.pendingDomains = []
+  render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+  expect(container.textContent).not.toContain('Your domain is ready')
+  state.resource.data.document.metadata.siteUrl = 'https://www.example.com'
+  render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+  expect(container.textContent).toContain('Your domain is ready')
+})
+
+it('keeps an unrelated failed domain out of the selected full-page status', () => {
+  state.host.pendingDomains = [{id: 'selected', hostname: 'www.example.com', siteUid: 'space', status: 'waiting-dns'}]
+  state.host.domainStatus = {
+    isError: true,
+    error: Object.assign(new Error('Other domain failed'), {domainId: 'unrelated'}),
+  }
+  render(<WebDomainSetupPage siteId={id} hostname="www.example.com" />)
+  expect(container.textContent).toContain('Waiting for DNS')
+  expect(container.textContent).not.toContain('Other domain failed')
+  expect(container.textContent).not.toContain('Retry Domain Setup')
 })

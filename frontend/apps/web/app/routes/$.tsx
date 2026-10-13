@@ -34,6 +34,7 @@ import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {HMDiscoveryStatusOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {lazy, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
 import {Spinner} from '@shm/ui/spinner'
+import {validateDomain} from '@shm/shared/utils/path'
 import {
   commentIdToHmId,
   createDocumentNavRoute,
@@ -257,7 +258,8 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   if ('kind' in payload && payload.kind === 'inspect-ipfs') {
     return [{title: `ipfs://${payload.ipfsPath}`}]
   }
-  if ('kind' in payload && payload.kind === 'site-settings') return [{title: 'Space Settings'}]
+  if ('kind' in payload && payload.kind === 'site-settings')
+    return [{title: payload.domain ? `Set up ${payload.domain}` : 'Space Settings'}]
   if ('kind' in payload && payload.kind === 'site-settings-emails') {
     return [{title: 'Email Subscribers'}]
   }
@@ -346,9 +348,11 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     rawSitePath[0] === ':settings' ? 0 : rawSitePath[0] === 'hm' && rawSitePath[2] === ':settings' ? 2 : -1
   if (settingsOffset !== -1) {
     const section = rawSitePath[settingsOffset + 1]
+    const domain = rawSitePath[settingsOffset + 2]
     const siteUid = settingsOffset === 0 ? registeredAccountUid : rawSitePath[1]!
     if (
-      rawSitePath.length > settingsOffset + 2 ||
+      rawSitePath.length > settingsOffset + 3 ||
+      (domain !== undefined && (section !== 'web-domain' || !!validateDomain(domain))) ||
       (section !== undefined && !['identity', 'navigation', 'web-domain', 'email-subscribers'].includes(section))
     ) {
       throw new Response('Settings page not found', {status: 404})
@@ -361,6 +365,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
         kind: 'site-settings',
         siteUid,
         section: section as WebSpaceSettingsPayload['section'],
+        domain,
       } satisfies WebSpaceSettingsPayload)
     }
   }

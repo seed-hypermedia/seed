@@ -14,15 +14,19 @@ export type WebSpaceSettingsPayload = SiteHeaderPayload & {
   kind: 'site-settings'
   siteUid: string
   section?: 'identity' | 'navigation' | 'web-domain'
+  domain?: string
 }
 
 const LazySettingsPage = lazy(() =>
   import('./components/web-space-settings').then((module) => ({default: module.WebSpaceSettingsPage})),
 )
+const LazyDomainSetupPage = lazy(() =>
+  import('./components/web-hosting').then((module) => ({default: module.WebDomainSetupPage})),
+)
 
 /** Site chrome and navigation context for desktop-style space settings on the web. */
 export function WebSpaceSettingsScreen({payload}: {payload: WebSpaceSettingsPayload}) {
-  const {origin, originHomeId, siteHost, dehydratedState, siteUid, section} = payload
+  const {origin, originHomeId, siteHost, dehydratedState, siteUid, section, domain} = payload
   const siteId = useMemo(() => hmId(siteUid, {latest: true}), [siteUid])
   if (!originHomeId) return <h1>Space unavailable</h1>
   return (
@@ -31,7 +35,7 @@ export function WebSpaceSettingsScreen({payload}: {payload: WebSpaceSettingsPayl
       originHomeId={originHomeId}
       siteHost={siteHost}
       dehydratedState={dehydratedState}
-      initialRoute={{key: 'site-settings', id: siteId, tab: section}}
+      initialRoute={{key: 'site-settings', id: siteId, tab: section, ...(domain ? {domain} : {})}}
     >
       <SettingsScreenContent payload={payload} />
     </WebSiteProvider>
@@ -39,7 +43,7 @@ export function WebSpaceSettingsScreen({payload}: {payload: WebSpaceSettingsPayl
 }
 
 function SettingsScreenContent({payload}: {payload: WebSpaceSettingsPayload}) {
-  const {origin, originHomeId, homeMetadata, siteUid, section} = payload
+  const {origin, originHomeId, homeMetadata, siteUid, section, domain} = payload
   const siteId = useMemo(() => hmId(siteUid, {latest: true}), [siteUid])
   const resource = useResource(siteId)
   const viewedMetadata = resource.data?.type === 'document' ? resource.data.document.metadata : null
@@ -65,7 +69,11 @@ function SettingsScreenContent({payload}: {payload: WebSpaceSettingsPayload}) {
               </div>
             }
           >
-            <LazySettingsPage key={siteUid} siteUid={siteUid} section={section} />
+            {domain ? (
+              <LazyDomainSetupPage key={`${siteUid}:${domain}`} siteId={siteId} hostname={domain} />
+            ) : (
+              <LazySettingsPage key={siteUid} siteUid={siteUid} section={section} />
+            )}
           </Suspense>
         </ClientOnly>
       </NavigationLoadingContent>
