@@ -21,6 +21,9 @@ export async function loader({request}: LoaderFunctionArgs) {
 
   const accept = request.headers.get('Accept') || ''
   if (original && accept.includes('text/html')) {
+    // A Remix data request (`?_data=<route>`) must not become the page the
+    // person is sent back to after sign-in: that URL answers JSON.
+    original.searchParams.delete('_data')
     return redirect(signInUrl(safeNextPath(`${original.pathname}${original.search}`)))
   }
   return new Response(JSON.stringify({error: 'Sign in required'}), {

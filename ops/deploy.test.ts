@@ -2659,7 +2659,8 @@ describe('enterprise: generateCaddyfile', () => {
     const caddy = generateCaddyfile(makeEnterpriseConfig())
     expect(caddy).toContain('(gate) {')
     expect(caddy).toContain('forward_auth seed-web:3000 {')
-    expect(caddy).toContain(`uri ${SESSION_CHECK_URI}`)
+    // The trailing "?" strips the original query (Remix `_data` navigations) from the subrequest.
+    expect(caddy).toContain(`uri ${SESSION_CHECK_URI}?\n`)
     expect(caddy).toContain('copy_headers X-Forwarded-Uri')
     expect(caddy).toContain('\nexample.org {')
     expect(caddy).toContain('@vault path /vault /vault/*')
