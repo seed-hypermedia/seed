@@ -862,7 +862,7 @@ var be = async (s, n) => {
 };
 
 // deploy.ts
-import { readFile, writeFile, mkdir, access } from "fs/promises";
+import { readFile, writeFile, mkdir, access, chmod } from "fs/promises";
 import { execSync, exec as execCb } from "child_process";
 import { createHash, randomBytes } from "crypto";
 import { homedir } from "os";
@@ -1682,6 +1682,12 @@ async function runFreshWizard(paths, existing, advanced = false) {
 }
 var VAULT_ADMIN_SECRET_LENGTH = 40;
 var SESSION_SECRET_LENGTH = 64;
+function bootstrapOptionsFrom(opts, env = process.env) {
+  return {
+    siteName: opts.siteName || undefined,
+    ownerPassword: opts.ownerPassword || env.SEED_OWNER_PASSWORD || undefined
+  };
+}
 function smtpFromEnv(env = process.env) {
   if (!env.SEED_SMTP_HOST)
     return;
@@ -1722,7 +1728,8 @@ function headlessEnterpriseConfig(opts, existing, env = process.env) {
     agents: opts.agents ?? existing?.agents ?? false,
     notify,
     smtp,
-    email: opts.email ?? existing?.email ?? ""
+    email: opts.email ?? existing?.email ?? "",
+    site_name: opts.siteName
   }, existing);
 }
 function validateUrl(v3) {
@@ -1756,10 +1763,12 @@ function buildEnterpriseConfig(answers, existing) {
     agents: answers.agents,
     agents_kvm: answers.agents ? answers.agents_kvm ?? existing?.agents_kvm ?? false : false,
     metrics: existing?.metrics ?? false,
+    site_name: answers.site_name?.trim() || existing?.site_name || extractDns(answers.domain),
+    owner_account_uid: existing?.owner_account_uid,
     last_script_run: existing?.last_script_run ?? ""
   };
 }
-async function runEnterpriseWizard(paths, existing, advanced = false) {
+async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap) {
   const isReconfig = !!existing;
   we(isReconfig ? `Seed Enterprise Reconfiguration v${VERSION}` : `Seed Enterprise Setup v${VERSION}`);
   if (!isReconfig) {
@@ -1790,6 +1799,14 @@ async function runEnterpriseWizard(paths, existing, advanced = false) {
       message: "Public hostname (including https://)",
       placeholder: existing?.domain || "https://seed.example.org",
       validate: validateUrl
+    }),
+    site_name: ({ results }) => ue({
+      message: "Name of the organization's space (shown as the site's title)",
+      initialValue: existing?.site_name,
+      placeholder: extractDns(results.domain || "seed.example.org")
+    }),
+    owner_password: () => isReconfig || bootstrap?.ownerPassword ? Promise.resolve(undefined) : $e({
+      message: "Password for the space's owner key file (optional; Enter for none)"
     }),
     release_channel: () => promptReleaseChannel({
       initialTag: existing?.release_channel,
@@ -1860,10 +1877,15 @@ async function runEnterpriseWizard(paths, existing, advanced = false) {
     agents: answers.agents,
     notify,
     smtp,
-    email: answers.email || ""
+    email: answers.email || "",
+    site_name: answers.site_name
   }, existing);
+  if (bootstrap && typeof answers.owner_password === "string" && answers.owner_password) {
+    bootstrap.ownerPassword = answers.owner_password;
+  }
   const userFields = [
     ["domain", config.domain],
+    ["site_name", config.site_name ?? ""],
     ["release_channel", config.release_channel],
     ["log_level", config.compose_envs.LOG_LEVEL],
     ["agents", String(config.agents)],
@@ -1939,10 +1961,11 @@ ${dns} {
 		reverse_proxy seed-daemon:56001
 	}
 
-	# The sign-in callback stores delegation blobs and looks the account up.
+	# The sign-in callback stores delegation blobs and looks the account up;
+	# the deploy script creates the organization's space on the first deploy.
 	@open_api_post {
 		method POST
-		path /api/PublishBlobs
+		path /api/PublishBlobs /hm/api/enterprise-bootstrap
 	}
 	@open_api_get {
 		method GET HEAD
@@ -2365,7 +2388,7 @@ function injectServiceDirectives(compose, containerName, lines) {
   return result.join(`
 `);
 }
-async function deploy(config, paths, shell, takeoverApproved = false) {
+async function deploy(config, paths, shell, takeoverApproved = false, bootstrap = {}) {
   const isInteractive = process.stdout.isTTY;
   const spinner = isInteractive ? L2() : null;
   const step = (msg) => {
@@ -2533,6 +2556,13 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
   }
   step("Cleaning up unused images...");
   shell.runSafe('docker image prune -f --filter "until=1m" 2>/dev/null');
+  let bootstrapLines = [];
+  if (isEnterprise(config) && isFirstDeploy) {
+    step("Creating the organization's space...");
+    bootstrapLines = await bootstrapAfterDeploy(config, paths, bootstrap, step);
+    for (const line of bootstrapLines)
+      log(line);
+  }
   spinner?.stop("Deployment complete!");
   log("Deployment complete.");
   if (isInteractive) {
@@ -2544,14 +2574,10 @@ async function deploy(config, paths, shell, takeoverApproved = false) {
       ye([
         `Your private Seed is live at ${config.domain}`,
         "",
-        `  1. Create the first account:  ${cmd("invite you@example.org")}`,
-        `     and open the invitation link in a browser.`,
-        `  2. Register the organization's space (as that account):`,
-        `     ${registerUrl}`,
-        `     or, for a space that already lives on this daemon,`,
-        `     ${cmd("register <accountUid>")}`,
+        ...bootstrapLines,
         "",
-        `Invite the rest of the organization with '${cmd("invite")}'.`,
+        `Invite the organization's people with '${cmd("invite you@example.org")}'`,
+        `and have them open the invitation link in a browser.`,
         `Updates are manual: run '${cmd("deploy")}' when you want them.`
       ].join(`
 `), "Setup complete");
@@ -2607,6 +2633,7 @@ var COMMANDS = [
   "restart",
   "doctor",
   "secret",
+  "bootstrap-space",
   "config",
   "logs",
   "cron",
@@ -2635,7 +2662,9 @@ function parseArgs(argv = process.argv) {
     "--hostname": (v3) => headless.hostname = v3,
     "--tag": (v3) => headless.tag = v3,
     "--email": (v3) => headless.email = v3,
-    "--log-level": (v3) => headless.logLevel = v3
+    "--log-level": (v3) => headless.logLevel = v3,
+    "--site-name": (v3) => headless.siteName = v3,
+    "--owner-password": (v3) => headless.ownerPassword = v3
   };
   const boolFlags = {
     "--advanced": () => {},
@@ -2705,6 +2734,7 @@ function printHelp() {
     `  uninstall   Remove all Seed containers, data, and configuration`,
     `  register    Register a space already on this daemon: register <accountUid>`,
     `  invite      Create vault invitation link(s): invite [email] [count]  (enterprise)`,
+    `  bootstrap-space  Create the organization's space if the first deploy could not  (enterprise)`,
     ``,
     `Options:`,
     `  --reconfigure  Re-run the setup wizard for the current node`,
@@ -2712,6 +2742,9 @@ function printHelp() {
     `  --profile <p>  Deploy profile for a first run: site (default) or enterprise`,
     `  --hostname <url> --tag <tag> [--email <e>] [--log-level <l>] [--agents] [--notify] --yes`,
     `                 Unattended enterprise install (no wizard); SMTP from SEED_SMTP_HOST/USER/PASSWORD/SENDER`,
+    `  --site-name <name> [--owner-password <pw>]`,
+    `                 Name of the organization's space and a password for its exported owner key`,
+    `                 (first enterprise deploy and bootstrap-space; SEED_OWNER_PASSWORD works too)`,
     `  -h, --help     Show this help message`,
     `  -v, --version  Show script version`,
     ``,
@@ -2795,14 +2828,15 @@ async function setActiveNode(paths, shell, config) {
   }
   installWrapper(paths, shell);
 }
-function runWizardFor(profile, paths, existing, advanced) {
+function runWizardFor(profile, paths, existing, advanced, bootstrap) {
   const effective = profile ?? existing?.profile ?? "site";
-  return effective === "enterprise" ? runEnterpriseWizard(paths, existing, advanced) : runFreshWizard(paths, existing, advanced);
+  return effective === "enterprise" ? runEnterpriseWizard(paths, existing, advanced, bootstrap) : runFreshWizard(paths, existing, advanced);
 }
 async function cmdDeploy(paths, shell, reconfigure = false, advanced = false, profile, headless = {}) {
   checkDockerAccess(shell);
   const interactive = process.stdout.isTTY;
   const unattended = profile === "enterprise" && (headless.yes || !interactive) && !!headless.hostname;
+  const bootstrap = bootstrapOptionsFrom(headless);
   let takeoverApproved = false;
   if (advanced && interactive) {
     paths = await promptNodeDir(paths, shell);
@@ -2818,37 +2852,37 @@ async function cmdDeploy(paths, shell, reconfigure = false, advanced = false, pr
       const config2 = headlessEnterpriseConfig(headless, existing);
       await writeConfig(config2, paths);
       log(`Config updated from flags at ${paths.configPath}.`);
-      await deploy(config2, paths, shell);
+      await deploy(config2, paths, shell, false, bootstrap);
       await setActiveNode(paths, shell, config2);
       return;
     }
     if ((reconfigure || advanced) && interactive) {
-      const config2 = await runWizardFor(profile, paths, existing, advanced);
-      await deploy(config2, paths, shell, takeoverApproved);
+      const config2 = await runWizardFor(profile, paths, existing, advanced, bootstrap);
+      await deploy(config2, paths, shell, takeoverApproved, bootstrap);
       await setActiveNode(paths, shell, config2);
       fe(`Reconfiguration complete! Your Seed node is running.
 ${MANAGE_HINT}`);
       return;
     }
     log(`Seed deploy v${VERSION} \u2014 config found at ${paths.configPath}, running headless.`);
-    await deploy(existing, paths, shell);
+    await deploy(existing, paths, shell, false, bootstrap);
     return;
   }
   if (unattended) {
     const config2 = headlessEnterpriseConfig(headless);
     await writeConfig(config2, paths);
     log(`Seed deploy v${VERSION} \u2014 enterprise config written to ${paths.configPath} from flags.`);
-    await deploy(config2, paths, shell, takeoverApproved);
+    await deploy(config2, paths, shell, takeoverApproved, bootstrap);
     await setActiveNode(paths, shell, config2);
-    log(`Setup complete. Next: '${cmd("invite you@example.org")}' then '${cmd("register <accountUid>")}'.`);
+    log(`Setup complete. Next: '${cmd("invite you@example.org")}' for each person of the organization.`);
     return;
   }
   if (!interactive) {
     throw new Error(`No config at ${paths.configPath} and no TTY for the wizard. ` + `For an unattended enterprise install pass --profile enterprise --hostname https://\u2026 --tag <tag> --yes.`);
   }
   const oldInstall = profile === "enterprise" ? null : await detectOldInstall(shell);
-  const config = oldInstall ? await runMigrationWizard(oldInstall, paths, shell, advanced) : await runWizardFor(profile, paths, undefined, advanced);
-  await deploy(config, paths, shell, takeoverApproved);
+  const config = oldInstall ? await runMigrationWizard(oldInstall, paths, shell, advanced) : await runWizardFor(profile, paths, undefined, advanced, bootstrap);
+  await deploy(config, paths, shell, takeoverApproved, bootstrap);
   await setActiveNode(paths, shell, config);
   fe(`Setup complete! Your Seed node is running.
 ${MANAGE_HINT}`);
@@ -3129,8 +3163,12 @@ Health Checks:`);
           console.log(`  \u2714 Site           registered (${shortUid})`);
         } else {
           console.log(`  \u26A0 Site           not registered`);
-          console.log(`      Tip: Run '${cmd("secret")}' to get the registration URL,`);
-          console.log("      then paste it into the Seed desktop app to register.");
+          if (isEnterprise(config)) {
+            console.log(`      Tip: Run '${cmd("bootstrap-space")}' to create the organization's space.`);
+          } else {
+            console.log(`      Tip: Run '${cmd("secret")}' to get the registration URL,`);
+            console.log("      then paste it into the Seed desktop app to register.");
+          }
         }
       } catch {
         console.log(`  \u26A0 Site           could not check`);
@@ -3262,6 +3300,116 @@ async function postJson(url, body, headers = {}) {
   }
   return parsed;
 }
+var OWNER_KEY_DIR = "owner-key";
+function ownerKeyPath(paths, accountUid) {
+  return join(paths.seedDir, OWNER_KEY_DIR, `${accountUid}.hmkey.json`);
+}
+var BOOTSTRAP_ATTEMPTS = 6;
+var BOOTSTRAP_RETRY_MS = 5000;
+async function bootstrapSpace(config, paths, opts = {}, io = {}) {
+  if (!isEnterprise(config) || !config.vault_admin_secret) {
+    throw new Error("Creating the organization's space needs an enterprise node (no vault_admin_secret in config).");
+  }
+  const doFetch = io.fetch ?? fetch;
+  const sleep = io.sleep ?? ((ms) => new Promise((r2) => setTimeout(r2, ms)));
+  const name = opts.siteName?.trim() || config.site_name || extractDns(config.domain);
+  const url = `${config.domain}/hm/api/enterprise-bootstrap`;
+  const body = { name };
+  if (opts.ownerPassword)
+    body.ownerPassword = opts.ownerPassword;
+  let lastError = "";
+  for (let attempt = 1;attempt <= BOOTSTRAP_ATTEMPTS; attempt++) {
+    let response = null;
+    try {
+      response = await doFetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${config.vault_admin_secret}` },
+        body: JSON.stringify(body)
+      });
+    } catch (err) {
+      lastError = `${url}: ${err instanceof Error ? err.message : String(err)}`;
+    }
+    if (response) {
+      const text = await response.text();
+      let parsed = text;
+      try {
+        parsed = JSON.parse(text);
+      } catch {}
+      const result = parsed && typeof parsed === "object" ? parsed : {};
+      if (response.ok) {
+        const accountUid = typeof result.accountUid === "string" ? result.accountUid : "";
+        if (!accountUid || !result.keyFile)
+          throw new Error(`${url} answered without an account or key file`);
+        const keyPath = ownerKeyPath(paths, accountUid);
+        await mkdir(dirname(keyPath), { recursive: true, mode: 448 });
+        await chmod(dirname(keyPath), 448);
+        await writeFile(keyPath, `${JSON.stringify(result.keyFile, null, 2)}
+`, { encoding: "utf-8", mode: 384 });
+        await chmod(keyPath, 384);
+        config.owner_account_uid = accountUid;
+        config.site_name = typeof result.name === "string" && result.name ? result.name : name;
+        await writeConfig(config, paths);
+        return { status: "created", accountUid, name: config.site_name, keyPath };
+      }
+      if (response.status === 409 && typeof result.accountUid === "string") {
+        return { status: "exists", accountUid: result.accountUid };
+      }
+      const detail = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+      if (response.status === 404) {
+        throw new Error(`${url} \u2192 HTTP 404: the web app has no bootstrap route. ` + `Its image predates it, or SEED_VAULT_ADMIN_SECRET is not set on seed-web; ` + `after '${cmd("deploy")}' with current images run '${cmd("bootstrap-space")}'.`);
+      }
+      if (response.status < 500) {
+        throw new Error(`${url} \u2192 HTTP ${response.status}${detail ? `: ${detail.slice(0, 500)}` : ""}`);
+      }
+      lastError = `${url} \u2192 HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`;
+    }
+    if (attempt < BOOTSTRAP_ATTEMPTS) {
+      io.log?.(`Space not created yet (${lastError}); retrying in ${BOOTSTRAP_RETRY_MS / 1000}s...`);
+      await sleep(BOOTSTRAP_RETRY_MS);
+    }
+  }
+  throw new Error(`Could not create the organization's space after ${BOOTSTRAP_ATTEMPTS} attempts: ${lastError}`);
+}
+function describeBootstrap(config, result) {
+  if (result.status === "exists") {
+    return [`The site is already registered to the space ${result.accountUid}; nothing to create.`];
+  }
+  return [
+    `Created the organization's space "${result.name}": ${result.accountUid}`,
+    `Owner key file (the root of the space): ${result.keyPath}`,
+    `To take root, import it in the vault at ${config.domain}/vault/settings (Import identity),`,
+    `with the desktop app's key import, or 'seed-cli key import ${result.keyPath}'.`,
+    "The mnemonic was never stored; this file is the only copy of the key outside the daemon."
+  ];
+}
+async function bootstrapAfterDeploy(config, paths, opts, progress) {
+  try {
+    const result = await bootstrapSpace(config, paths, opts, { log: progress });
+    return describeBootstrap(config, result);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return [
+      `The organization's space could not be created: ${message}`,
+      `The node is up; retry with '${cmd("bootstrap-space")}'.`
+    ];
+  }
+}
+async function cmdBootstrapSpace(paths, headless) {
+  if (!await configExists(paths)) {
+    console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first.`);
+    process.exit(1);
+  }
+  const config = await readConfig(paths);
+  if (!isEnterprise(config) || !config.vault_admin_secret) {
+    console.error(`'${cmd("bootstrap-space")}' needs an enterprise node (no vault_admin_secret in config).`);
+    process.exit(1);
+  }
+  const result = await bootstrapSpace(config, paths, bootstrapOptionsFrom(headless), {
+    log: (line) => console.log(line)
+  });
+  for (const line of describeBootstrap(config, result))
+    console.log(line);
+}
 async function cmdRegister(paths, args) {
   const accountUid = args[0];
   if (!accountUid) {
@@ -3365,6 +3513,9 @@ async function cmdSecret(paths) {
     process.exit(1);
   }
   console.log(`${config.domain}/hm/register?secret=${config.link_secret}`);
+  if (config.owner_account_uid) {
+    console.log(`Owner key of the space ${config.owner_account_uid}: ${ownerKeyPath(paths, config.owner_account_uid)}`);
+  }
 }
 async function cmdLogs(paths, args) {
   const service = args[0];
@@ -3650,6 +3801,8 @@ async function main() {
       return cmdRegister(paths, args);
     case "invite":
       return cmdInvite(paths, args);
+    case "bootstrap-space":
+      return cmdBootstrapSpace(paths, headless);
   }
 }
 if (import.meta.main) {
@@ -3682,6 +3835,7 @@ export {
   parseImageTag,
   parseDaemonEnv,
   parseArgs,
+  ownerKeyPath,
   notifyHost,
   makeShellRunner,
   makePaths,
@@ -3713,6 +3867,7 @@ export {
   detectOldInstall,
   detectForeignStack,
   describePullFailure,
+  describeBootstrap,
   describeBindFailure,
   deploy,
   containersMatchReleaseChannel,
@@ -3729,6 +3884,8 @@ export {
   buildEnterpriseConfig,
   buildCrontab,
   buildComposeEnv,
+  bootstrapSpace,
+  bootstrapOptionsFrom,
   backupMembers,
   assertNoForeignStack,
   agentsHost,
@@ -3737,6 +3894,7 @@ export {
   SESSION_SECRET_LENGTH,
   SESSION_CHECK_URI,
   SEED_PUBLISHED_PORTS,
+  OWNER_KEY_DIR,
   OPS_BASE_URL,
   NOTIFY_SERVICE_HOST,
   LIGHTNING_URL_TESTNET,
@@ -3758,5 +3916,7 @@ export {
   DEFAULT_DATA_DIR,
   DEFAULT_COMPOSE_URL,
   CURL_INSTALL_CMD,
-  CLI_INSTALLED
+  CLI_INSTALLED,
+  BOOTSTRAP_RETRY_MS,
+  BOOTSTRAP_ATTEMPTS
 };

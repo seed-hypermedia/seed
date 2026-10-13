@@ -1,5 +1,5 @@
 import {describe, test, expect, beforeEach, afterEach} from 'bun:test'
-import {mkdtemp, rm, readFile, writeFile, mkdir, access} from 'node:fs/promises'
+import {mkdtemp, rm, readFile, writeFile, mkdir, access, stat} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 
@@ -88,6 +88,13 @@ import {
   backupMembers,
   extractInvitationLinks,
   enterpriseIsolationChecks,
+  bootstrapOptionsFrom,
+  bootstrapSpace,
+  describeBootstrap,
+  ownerKeyPath,
+  OWNER_KEY_DIR,
+  BOOTSTRAP_ATTEMPTS,
+  BOOTSTRAP_RETRY_MS,
 } from './deploy'
 
 // ---------------------------------------------------------------------------
@@ -2651,7 +2658,9 @@ describe('enterprise: generateCaddyfile', () => {
     for (const path of ENTERPRISE_OPEN_PATHS) expect(caddy).toContain(path)
     // Pre-session calls: POST /ipfs/* to the daemon, POST /api/PublishBlobs and GET /api/Account to the web app.
     expect(caddy).toMatch(/@ipfs_upload \{\n\t\tmethod POST\n\t\tpath \/ipfs\/\*/)
-    expect(caddy).toMatch(/@open_api_post \{\n\t\tmethod POST\n\t\tpath \/api\/PublishBlobs/)
+    expect(caddy).toMatch(
+      /@open_api_post \{\n\t\tmethod POST\n\t\tpath \/api\/PublishBlobs \/hm\/api\/enterprise-bootstrap\n/,
+    )
     expect(caddy).toMatch(/@open_api_get \{\n\t\tmethod GET HEAD\n\t\tpath \/api\/Account/)
     // Open blocks come before the gated ones; the gated ipfs/metrics/catch-all each import the gate.
     const open = caddy.indexOf('handle @open {')
@@ -2846,5 +2855,228 @@ describe('enterprise: backup, invite, doctor helpers', () => {
     expect(out).toContain('/hm/api/session without a session answered 204')
     expect(out).toContain('answered 502')
     expect(out).not.toContain('\u2714')
+  })
+})
+
+describe("enterprise: the organization's space", () => {
+  let tmpDir: string
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), 'seed-bootstrap-'))
+  })
+  afterEach(async () => {
+    await rm(tmpDir, {recursive: true, force: true})
+  })
+
+  const KEY_FILE = {createTime: '2026-10-13T00:00:00.000Z', publicKey: 'z6MkOwner', keyB64: 'AAAA'}
+
+  function jsonResponse(status: number, body: unknown): Response {
+    return new Response(JSON.stringify(body), {status, headers: {'content-type': 'application/json'}})
+  }
+
+  /** A fetch that answers from a queue and records every call. */
+  function fakeFetch(answers: Array<Response | Error>) {
+    const calls: Array<{url: string; init: RequestInit}> = []
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      calls.push({url, init})
+      const next = answers.shift()
+      if (!next) throw new Error('no more answers')
+      if (next instanceof Error) throw next
+      return next
+    }) as unknown as typeof fetch
+    return {fetchImpl, calls}
+  }
+
+  test('parseArgs takes --site-name, --owner-password and the bootstrap-space command', () => {
+    const run = parseArgs([
+      'node',
+      'deploy.js',
+      'bootstrap-space',
+      '--site-name',
+      'Acme Research',
+      '--owner-password=hunter2',
+    ])
+    expect(run.command).toBe('bootstrap-space')
+    expect(run.args).toEqual([])
+    expect(run.headless).toEqual({siteName: 'Acme Research', ownerPassword: 'hunter2'})
+    const first = parseArgs(['node', 'deploy.js', '--profile', 'enterprise', '--site-name', 'Acme'])
+    expect(first.command).toBe('deploy')
+    expect(first.headless.siteName).toBe('Acme')
+  })
+
+  test('bootstrapOptionsFrom reads the password from the flag, then the environment', () => {
+    expect(bootstrapOptionsFrom({}, {})).toEqual({siteName: undefined, ownerPassword: undefined})
+    expect(bootstrapOptionsFrom({siteName: 'Acme'}, {SEED_OWNER_PASSWORD: 'env-pw'})).toEqual({
+      siteName: 'Acme',
+      ownerPassword: 'env-pw',
+    })
+    expect(bootstrapOptionsFrom({ownerPassword: 'flag-pw'}, {SEED_OWNER_PASSWORD: 'env-pw'}).ownerPassword).toBe(
+      'flag-pw',
+    )
+  })
+
+  test('the config carries site_name (bare hostname by default) and keeps owner_account_uid', () => {
+    const answers = {
+      domain: 'https://seed.acme.org',
+      release_channel: 'latest',
+      log_level: 'info' as const,
+      agents: false,
+      notify: false,
+      email: '',
+    }
+    expect(buildEnterpriseConfig(answers).site_name).toBe('seed.acme.org')
+    expect(buildEnterpriseConfig({...answers, site_name: '  Acme  '}).site_name).toBe('Acme')
+    const existing = makeEnterpriseConfig({site_name: 'Acme', owner_account_uid: 'z6MkOwner'})
+    const rebuilt = buildEnterpriseConfig(answers, existing)
+    expect(rebuilt.site_name).toBe('Acme')
+    expect(rebuilt.owner_account_uid).toBe('z6MkOwner')
+    expect(
+      headlessEnterpriseConfig({hostname: 'https://seed.acme.org', siteName: 'Acme HQ'}, undefined, {}).site_name,
+    ).toBe('Acme HQ')
+    expect(headlessEnterpriseConfig({hostname: 'https://seed.acme.org'}, undefined, {}).site_name).toBe('seed.acme.org')
+    expect(headlessEnterpriseConfig({hostname: 'https://seed.acme.org'}, existing, {}).owner_account_uid).toBe(
+      'z6MkOwner',
+    )
+  })
+
+  test('ownerKeyPath lives under owner-key/ in the install directory', () => {
+    const paths = makePaths('/opt/seed')
+    expect(ownerKeyPath(paths, 'z6MkOwner')).toBe(`/opt/seed/${OWNER_KEY_DIR}/z6MkOwner.hmkey.json`)
+  })
+
+  test('bootstrapSpace creates the space, keeps the key file owner-only and records the account', async () => {
+    const paths = makePaths(tmpDir)
+    const config = makeEnterpriseConfig({site_name: 'Acme'})
+    await writeConfig(config, paths)
+    const {fetchImpl, calls} = fakeFetch([
+      jsonResponse(200, {
+        accountUid: 'z6MkOwner',
+        name: 'Acme',
+        keyFile: KEY_FILE,
+        keyFileName: 'z6MkOwner.hmkey.json',
+      }),
+    ])
+    const result = await bootstrapSpace(config, paths, {ownerPassword: 'pw'}, {fetch: fetchImpl})
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].url).toBe('https://example.org/hm/api/enterprise-bootstrap')
+    expect(calls[0].init.method).toBe('POST')
+    expect((calls[0].init.headers as Record<string, string>).authorization).toBe(`Bearer ${config.vault_admin_secret}`)
+    expect(JSON.parse(calls[0].init.body as string)).toEqual({name: 'Acme', ownerPassword: 'pw'})
+
+    const keyPath = ownerKeyPath(paths, 'z6MkOwner')
+    expect(result).toEqual({status: 'created', accountUid: 'z6MkOwner', name: 'Acme', keyPath})
+    expect(JSON.parse(await readFile(keyPath, 'utf-8'))).toEqual(KEY_FILE)
+    expect((await stat(keyPath)).mode & 0o777).toBe(0o600)
+    expect((await stat(join(tmpDir, OWNER_KEY_DIR))).mode & 0o777).toBe(0o700)
+    const saved = await readConfig(paths)
+    expect(saved.owner_account_uid).toBe('z6MkOwner')
+    expect(saved.site_name).toBe('Acme')
+    expect(config.owner_account_uid).toBe('z6MkOwner')
+  })
+
+  test('bootstrapSpace names the space from the flag, then config, then the bare hostname', async () => {
+    const paths = makePaths(tmpDir)
+    const config = makeEnterpriseConfig({site_name: undefined})
+    await writeConfig(config, paths)
+    const answer = () => jsonResponse(200, {accountUid: 'z6MkOwner', name: 'x', keyFile: KEY_FILE})
+    const a = fakeFetch([answer()])
+    await bootstrapSpace(config, paths, {siteName: 'From flag'}, {fetch: a.fetchImpl})
+    expect(JSON.parse(a.calls[0].init.body as string)).toEqual({name: 'From flag'})
+    const b = fakeFetch([answer()])
+    await bootstrapSpace(makeEnterpriseConfig({site_name: undefined}), paths, {}, {fetch: b.fetchImpl})
+    expect(JSON.parse(b.calls[0].init.body as string)).toEqual({name: 'example.org'})
+  })
+
+  test('bootstrapSpace is idempotent: an already registered site is reported, not an error', async () => {
+    const paths = makePaths(tmpDir)
+    const config = makeEnterpriseConfig()
+    const {fetchImpl} = fakeFetch([
+      jsonResponse(409, {message: 'This site is already registered', accountUid: 'z6MkExisting'}),
+    ])
+    const result = await bootstrapSpace(config, paths, {}, {fetch: fetchImpl})
+    expect(result).toEqual({status: 'exists', accountUid: 'z6MkExisting'})
+    expect(config.owner_account_uid).toBeUndefined()
+    await expect(access(join(tmpDir, OWNER_KEY_DIR))).rejects.toThrow()
+  })
+
+  test('bootstrapSpace waits for the web app: retries connection errors and 5xx, then succeeds', async () => {
+    const paths = makePaths(tmpDir)
+    const config = makeEnterpriseConfig()
+    await writeConfig(config, paths)
+    const {fetchImpl, calls} = fakeFetch([
+      new Error('ECONNREFUSED'),
+      jsonResponse(502, 'Bad Gateway'),
+      jsonResponse(200, {accountUid: 'z6MkOwner', name: 'example.org', keyFile: KEY_FILE}),
+    ])
+    const slept: number[] = []
+    const logged: string[] = []
+    const result = await bootstrapSpace(
+      config,
+      paths,
+      {},
+      {
+        fetch: fetchImpl,
+        sleep: async (ms) => {
+          slept.push(ms)
+        },
+        log: (line) => logged.push(line),
+      },
+    )
+    expect(result.status).toBe('created')
+    expect(calls).toHaveLength(3)
+    expect(slept).toEqual([BOOTSTRAP_RETRY_MS, BOOTSTRAP_RETRY_MS])
+    expect(logged[0]).toContain('ECONNREFUSED')
+    expect(logged[1]).toContain('HTTP 502')
+  })
+
+  test('bootstrapSpace gives up after the attempts with the last failure', async () => {
+    const paths = makePaths(tmpDir)
+    const {fetchImpl, calls} = fakeFetch(Array.from({length: BOOTSTRAP_ATTEMPTS}, () => new Error('ECONNREFUSED')))
+    await expect(
+      bootstrapSpace(makeEnterpriseConfig(), paths, {}, {fetch: fetchImpl, sleep: async () => {}}),
+    ).rejects.toThrow(/after 6 attempts: .*ECONNREFUSED/)
+    expect(calls).toHaveLength(BOOTSTRAP_ATTEMPTS)
+  })
+
+  test('bootstrapSpace does not retry a refusal, and explains a missing route', async () => {
+    const paths = makePaths(tmpDir)
+    const unauthorized = fakeFetch([jsonResponse(401, {message: 'Unauthorized'})])
+    await expect(bootstrapSpace(makeEnterpriseConfig(), paths, {}, {fetch: unauthorized.fetchImpl})).rejects.toThrow(
+      /HTTP 401/,
+    )
+    expect(unauthorized.calls).toHaveLength(1)
+    const missing = fakeFetch([new Response('Not Found', {status: 404})])
+    await expect(bootstrapSpace(makeEnterpriseConfig(), paths, {}, {fetch: missing.fetchImpl})).rejects.toThrow(
+      /no bootstrap route.*bootstrap-space/,
+    )
+    expect(missing.calls).toHaveLength(1)
+  })
+
+  test('bootstrapSpace refuses a site node or one without the admin secret', async () => {
+    const paths = makePaths(tmpDir)
+    const {fetchImpl, calls} = fakeFetch([])
+    await expect(bootstrapSpace(makeTestConfig(), paths, {}, {fetch: fetchImpl})).rejects.toThrow(/enterprise/)
+    await expect(
+      bootstrapSpace(makeEnterpriseConfig({vault_admin_secret: undefined}), paths, {}, {fetch: fetchImpl}),
+    ).rejects.toThrow(/vault_admin_secret/)
+    expect(calls).toHaveLength(0)
+  })
+
+  test('describeBootstrap tells the operator the account, the key file and how to take root', () => {
+    const config = makeEnterpriseConfig()
+    const created = describeBootstrap(config, {
+      status: 'created',
+      accountUid: 'z6MkOwner',
+      name: 'Acme',
+      keyPath: '/opt/seed/owner-key/z6MkOwner.hmkey.json',
+    })
+    expect(created[0]).toBe('Created the organization\'s space "Acme": z6MkOwner')
+    expect(created[1]).toContain('/opt/seed/owner-key/z6MkOwner.hmkey.json')
+    expect(created.join('\n')).toContain('https://example.org/vault/settings')
+    expect(created.join('\n')).toContain('seed-cli key import /opt/seed/owner-key/z6MkOwner.hmkey.json')
+    expect(created.join('\n')).toContain('never stored')
+    expect(describeBootstrap(config, {status: 'exists', accountUid: 'z6MkExisting'})).toEqual([
+      'The site is already registered to the space z6MkExisting; nothing to create.',
+    ])
   })
 })

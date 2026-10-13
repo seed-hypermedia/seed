@@ -76,6 +76,14 @@ describe('isOpenPath', () => {
     expect(isOpenPath('/ipfs', 'POST')).toBe(false)
     expect(isOpenPath('/api/Resource', 'POST')).toBe(false)
   })
+
+  it('opens the enterprise bootstrap for the deploy script, POST only', () => {
+    expect(isOpenPath('/hm/api/enterprise-bootstrap', 'POST')).toBe(true)
+    expect(isOpenPath('/hm/api/enterprise-bootstrap/', 'POST')).toBe(true)
+    expect(isOpenPath('/hm/api/enterprise-bootstrap', 'GET')).toBe(false)
+    expect(isOpenPath('/hm/api/enterprise-bootstrap')).toBe(false)
+    expect(isOpenPath('/hm/api/enterprise-bootstrap/anything', 'POST')).toBe(false)
+  })
 })
 
 describe('safeNextPath', () => {

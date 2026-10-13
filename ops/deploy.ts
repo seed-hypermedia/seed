@@ -22,7 +22,7 @@
  */
 
 import * as p from '@clack/prompts'
-import {readFile, writeFile, mkdir, access, stat} from 'node:fs/promises'
+import {readFile, writeFile, mkdir, access, stat, chmod} from 'node:fs/promises'
 import {execSync, exec as execCb} from 'node:child_process'
 import {createHash, randomBytes} from 'node:crypto'
 import {homedir} from 'node:os'
@@ -330,6 +330,10 @@ export interface SeedConfig {
   agents_kvm?: boolean
   /** Run the Prometheus + Grafana `metrics` compose profile. */
   metrics?: boolean
+  /** Display name of the organization's space; the bare hostname by default. */
+  site_name?: string
+  /** Account of the organization's space once the first deploy created it. */
+  owner_account_uid?: string
 }
 
 /** Whether the config selects the enterprise profile. */
@@ -1306,6 +1310,28 @@ export interface HeadlessOptions {
   agents?: boolean
   notify?: boolean
   yes?: boolean
+  /** `--site-name`: display name of the organization's space. */
+  siteName?: string
+  /** `--owner-password`: encrypts the exported owner key file. Never stored. */
+  ownerPassword?: string
+}
+
+/** What creating the organization's space needs beyond the config. */
+export interface BootstrapOptions {
+  siteName?: string
+  /** Encrypts the exported owner key file; never written anywhere. */
+  ownerPassword?: string
+}
+
+/**
+ * The bootstrap answers from the flags, with the password also accepted from
+ * `SEED_OWNER_PASSWORD` so it need not land in a shell history.
+ */
+export function bootstrapOptionsFrom(opts: HeadlessOptions, env: NodeJS.ProcessEnv = process.env): BootstrapOptions {
+  return {
+    siteName: opts.siteName || undefined,
+    ownerPassword: opts.ownerPassword || env.SEED_OWNER_PASSWORD || undefined,
+  }
 }
 
 export function smtpFromEnv(env: NodeJS.ProcessEnv = process.env): SmtpConfig | undefined {
@@ -1358,6 +1384,7 @@ export function headlessEnterpriseConfig(
       notify,
       smtp,
       email: opts.email ?? existing?.email ?? '',
+      site_name: opts.siteName,
     },
     existing,
   )
@@ -1385,6 +1412,8 @@ export function buildEnterpriseConfig(
     notify: boolean
     smtp?: SmtpConfig
     email: string
+    /** Display name of the organization's space; the bare hostname when empty. */
+    site_name?: string
   },
   existing?: SeedConfig,
 ): SeedConfig {
@@ -1414,11 +1443,18 @@ export function buildEnterpriseConfig(
     agents: answers.agents,
     agents_kvm: answers.agents ? answers.agents_kvm ?? existing?.agents_kvm ?? false : false,
     metrics: existing?.metrics ?? false,
+    site_name: answers.site_name?.trim() || existing?.site_name || extractDns(answers.domain),
+    owner_account_uid: existing?.owner_account_uid,
     last_script_run: existing?.last_script_run ?? '',
   }
 }
 
-async function runEnterpriseWizard(paths: DeployPaths, existing?: SeedConfig, advanced = false): Promise<SeedConfig> {
+async function runEnterpriseWizard(
+  paths: DeployPaths,
+  existing?: SeedConfig,
+  advanced = false,
+  bootstrap?: BootstrapOptions,
+): Promise<SeedConfig> {
   const isReconfig = !!existing
   p.intro(isReconfig ? `Seed Enterprise Reconfiguration v${VERSION}` : `Seed Enterprise Setup v${VERSION}`)
 
@@ -1459,6 +1495,20 @@ async function runEnterpriseWizard(paths: DeployPaths, existing?: SeedConfig, ad
           placeholder: existing?.domain || 'https://seed.example.org',
           validate: validateUrl,
         }),
+      site_name: ({results}) =>
+        p.text({
+          message: "Name of the organization's space (shown as the site's title)",
+          initialValue: existing?.site_name,
+          placeholder: extractDns((results.domain as string) || 'seed.example.org'),
+        }),
+      // The owner key file is exported once, on the first deploy; a password
+      // given here only encrypts that file and is never stored.
+      owner_password: () =>
+        isReconfig || bootstrap?.ownerPassword
+          ? Promise.resolve(undefined)
+          : p.password({
+              message: "Password for the space's owner key file (optional; Enter for none)",
+            }),
       release_channel: () =>
         promptReleaseChannel({
           initialTag: existing?.release_channel,
@@ -1554,12 +1604,17 @@ async function runEnterpriseWizard(paths: DeployPaths, existing?: SeedConfig, ad
       notify,
       smtp,
       email: (answers.email as string) || '',
+      site_name: answers.site_name as string | undefined,
     },
     existing,
   )
+  if (bootstrap && typeof answers.owner_password === 'string' && answers.owner_password) {
+    bootstrap.ownerPassword = answers.owner_password
+  }
 
   const userFields: [string, string][] = [
     ['domain', config.domain],
+    ['site_name', config.site_name ?? ''],
     ['release_channel', config.release_channel],
     ['log_level', config.compose_envs.LOG_LEVEL],
     ['agents', String(config.agents)],
@@ -1668,10 +1723,11 @@ ${dns} {
 \t\treverse_proxy seed-daemon:56001
 \t}
 
-\t# The sign-in callback stores delegation blobs and looks the account up.
+\t# The sign-in callback stores delegation blobs and looks the account up;
+\t# the deploy script creates the organization's space on the first deploy.
 \t@open_api_post {
 \t\tmethod POST
-\t\tpath /api/PublishBlobs
+\t\tpath /api/PublishBlobs /hm/api/enterprise-bootstrap
 \t}
 \t@open_api_get {
 \t\tmethod GET HEAD
@@ -2266,6 +2322,7 @@ export async function deploy(
   paths: DeployPaths,
   shell: ShellRunner,
   takeoverApproved = false,
+  bootstrap: BootstrapOptions = {},
 ): Promise<void> {
   const isInteractive = process.stdout.isTTY
   const spinner = isInteractive ? p.spinner() : null
@@ -2503,6 +2560,16 @@ export async function deploy(
   step('Cleaning up unused images...')
   shell.runSafe('docker image prune -f --filter "until=1m" 2>/dev/null')
 
+  // An enterprise node's first deploy also creates the organization's space,
+  // so the first member to sign in finds something. A failure here is not a
+  // failed deploy: the stack is up, and 'bootstrap-space' retries it.
+  let bootstrapLines: string[] = []
+  if (isEnterprise(config) && isFirstDeploy) {
+    step("Creating the organization's space...")
+    bootstrapLines = await bootstrapAfterDeploy(config, paths, bootstrap, step)
+    for (const line of bootstrapLines) log(line)
+  }
+
   spinner?.stop('Deployment complete!')
   log('Deployment complete.')
 
@@ -2521,14 +2588,10 @@ export async function deploy(
         [
           `Your private Seed is live at ${config.domain}`,
           '',
-          `  1. Create the first account:  ${cmd('invite you@example.org')}`,
-          `     and open the invitation link in a browser.`,
-          `  2. Register the organization's space (as that account):`,
-          `     ${registerUrl}`,
-          `     or, for a space that already lives on this daemon,`,
-          `     ${cmd('register <accountUid>')}`,
+          ...bootstrapLines,
           '',
-          `Invite the rest of the organization with '${cmd('invite')}'.`,
+          `Invite the organization's people with '${cmd('invite you@example.org')}'`,
+          `and have them open the invitation link in a browser.`,
           `Updates are manual: run '${cmd('deploy')}' when you want them.`,
         ].join('\n'),
         'Setup complete',
@@ -2612,6 +2675,7 @@ const COMMANDS = [
   'restart',
   'doctor',
   'secret',
+  'bootstrap-space',
   'config',
   'logs',
   'cron',
@@ -2652,6 +2716,8 @@ export function parseArgs(argv: string[] = process.argv): CliArgs {
   //   --profile <name>  deploy profile (site | enterprise) for a first run
   //   --hostname, --tag, --email, --log-level, --agents, --notify, --yes
   //                     unattended enterprise install (no TTY)
+  //   --site-name, --owner-password
+  //                     the organization's space (first deploy / bootstrap-space)
   const advanced = rawAll.includes('--advanced')
   let dir: string | undefined
   let profile: DeployProfile | undefined
@@ -2663,6 +2729,8 @@ export function parseArgs(argv: string[] = process.argv): CliArgs {
     '--tag': (v) => (headless.tag = v),
     '--email': (v) => (headless.email = v),
     '--log-level': (v) => (headless.logLevel = v),
+    '--site-name': (v) => (headless.siteName = v),
+    '--owner-password': (v) => (headless.ownerPassword = v),
   }
   const boolFlags: Record<string, () => void> = {
     '--advanced': () => {},
@@ -2732,6 +2800,7 @@ export function printHelp(): void {
     `  uninstall   Remove all Seed containers, data, and configuration`,
     `  register    Register a space already on this daemon: register <accountUid>`,
     `  invite      Create vault invitation link(s): invite [email] [count]  (enterprise)`,
+    `  bootstrap-space  Create the organization's space if the first deploy could not  (enterprise)`,
     ``,
     `Options:`,
     `  --reconfigure  Re-run the setup wizard for the current node`,
@@ -2739,6 +2808,9 @@ export function printHelp(): void {
     `  --profile <p>  Deploy profile for a first run: site (default) or enterprise`,
     `  --hostname <url> --tag <tag> [--email <e>] [--log-level <l>] [--agents] [--notify] --yes`,
     `                 Unattended enterprise install (no wizard); SMTP from SEED_SMTP_HOST/USER/PASSWORD/SENDER`,
+    `  --site-name <name> [--owner-password <pw>]`,
+    `                 Name of the organization's space and a password for its exported owner key`,
+    `                 (first enterprise deploy and bootstrap-space; SEED_OWNER_PASSWORD works too)`,
     `  -h, --help     Show this help message`,
     `  -v, --version  Show script version`,
     ``,
@@ -2868,10 +2940,11 @@ function runWizardFor(
   paths: DeployPaths,
   existing: SeedConfig | undefined,
   advanced: boolean,
+  bootstrap?: BootstrapOptions,
 ): Promise<SeedConfig> {
   const effective = profile ?? existing?.profile ?? 'site'
   return effective === 'enterprise'
-    ? runEnterpriseWizard(paths, existing, advanced)
+    ? runEnterpriseWizard(paths, existing, advanced, bootstrap)
     : runFreshWizard(paths, existing, advanced)
 }
 
@@ -2888,6 +2961,9 @@ async function cmdDeploy(
   // Unattended enterprise install/reconfigure: `--yes` (or no TTY) with the
   // answers on the command line / in the environment instead of the wizard.
   const unattended = profile === 'enterprise' && (headless.yes || !interactive) && !!headless.hostname
+  // What the first enterprise deploy needs to create the organization's space;
+  // the wizard fills in the password when it is not given on the command line.
+  const bootstrap = bootstrapOptionsFrom(headless)
 
   // Advanced + interactive: the data directory is the first choice, and it
   // drives everything — create a branch node in a new dir, or reconfigure /
@@ -2913,20 +2989,20 @@ async function cmdDeploy(
       const config = headlessEnterpriseConfig(headless, existing)
       await writeConfig(config, paths)
       log(`Config updated from flags at ${paths.configPath}.`)
-      await deploy(config, paths, shell)
+      await deploy(config, paths, shell, false, bootstrap)
       await setActiveNode(paths, shell, config)
       return
     }
     if ((reconfigure || advanced) && interactive) {
-      const config = await runWizardFor(profile, paths, existing, advanced)
-      await deploy(config, paths, shell, takeoverApproved)
+      const config = await runWizardFor(profile, paths, existing, advanced, bootstrap)
+      await deploy(config, paths, shell, takeoverApproved, bootstrap)
       await setActiveNode(paths, shell, config)
       p.outro(`Reconfiguration complete! Your Seed node is running.\n${MANAGE_HINT}`)
       return
     }
 
     log(`Seed deploy v${VERSION} — config found at ${paths.configPath}, running headless.`)
-    await deploy(existing, paths, shell)
+    await deploy(existing, paths, shell, false, bootstrap)
     return
   }
 
@@ -2934,9 +3010,9 @@ async function cmdDeploy(
     const config = headlessEnterpriseConfig(headless)
     await writeConfig(config, paths)
     log(`Seed deploy v${VERSION} — enterprise config written to ${paths.configPath} from flags.`)
-    await deploy(config, paths, shell, takeoverApproved)
+    await deploy(config, paths, shell, takeoverApproved, bootstrap)
     await setActiveNode(paths, shell, config)
-    log(`Setup complete. Next: '${cmd('invite you@example.org')}' then '${cmd('register <accountUid>')}'.`)
+    log(`Setup complete. Next: '${cmd('invite you@example.org')}' for each person of the organization.`)
     return
   }
   if (!interactive) {
@@ -2951,9 +3027,9 @@ async function cmdDeploy(
   const oldInstall = profile === 'enterprise' ? null : await detectOldInstall(shell)
   const config = oldInstall
     ? await runMigrationWizard(oldInstall, paths, shell, advanced)
-    : await runWizardFor(profile, paths, undefined, advanced)
+    : await runWizardFor(profile, paths, undefined, advanced, bootstrap)
 
-  await deploy(config, paths, shell, takeoverApproved)
+  await deploy(config, paths, shell, takeoverApproved, bootstrap)
   await setActiveNode(paths, shell, config)
   p.outro(`Setup complete! Your Seed node is running.\n${MANAGE_HINT}`)
 }
@@ -3294,8 +3370,12 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
           console.log(`  \u2714 Site           registered (${shortUid})`)
         } else {
           console.log(`  \u26A0 Site           not registered`)
-          console.log(`      Tip: Run '${cmd('secret')}' to get the registration URL,`)
-          console.log('      then paste it into the Seed desktop app to register.')
+          if (isEnterprise(config)) {
+            console.log(`      Tip: Run '${cmd('bootstrap-space')}' to create the organization's space.`)
+          } else {
+            console.log(`      Tip: Run '${cmd('secret')}' to get the registration URL,`)
+            console.log('      then paste it into the Seed desktop app to register.')
+          }
         }
       } catch {
         console.log(`  \u26A0 Site           could not check`)
@@ -3463,6 +3543,165 @@ async function postJson(url: string, body: unknown, headers: Record<string, stri
   return parsed
 }
 
+// ---------------------------------------------------------------------------
+// Enterprise: the organization's space
+// ---------------------------------------------------------------------------
+
+/** Where the first deploy leaves the exported root key of the space. */
+export const OWNER_KEY_DIR = 'owner-key'
+
+export function ownerKeyPath(paths: DeployPaths, accountUid: string): string {
+  return join(paths.seedDir, OWNER_KEY_DIR, `${accountUid}.hmkey.json`)
+}
+
+/** The web app answers a moment after its container does; ~30s covers it. */
+export const BOOTSTRAP_ATTEMPTS = 6
+export const BOOTSTRAP_RETRY_MS = 5000
+
+export type BootstrapResult =
+  | {status: 'created'; accountUid: string; name: string; keyPath: string}
+  | {status: 'exists'; accountUid: string}
+
+type BootstrapIo = {
+  fetch?: typeof fetch
+  sleep?: (ms: number) => Promise<void>
+  log?: (line: string) => void
+}
+
+/**
+ * Ask the web app to create the organization's space and register the site
+ * to it (`POST /hm/api/enterprise-bootstrap`, authorized by the vault admin
+ * secret), then keep the key file it returns under `owner-key/` with owner-
+ * only permissions and record the account in config.json. Idempotent: a site
+ * that is already registered answers 409 with its account, which is returned
+ * as `exists`. Retries while the web app is still coming up.
+ */
+export async function bootstrapSpace(
+  config: SeedConfig,
+  paths: DeployPaths,
+  opts: BootstrapOptions = {},
+  io: BootstrapIo = {},
+): Promise<BootstrapResult> {
+  if (!isEnterprise(config) || !config.vault_admin_secret) {
+    throw new Error("Creating the organization's space needs an enterprise node (no vault_admin_secret in config).")
+  }
+  const doFetch = io.fetch ?? fetch
+  const sleep = io.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)))
+  const name = opts.siteName?.trim() || config.site_name || extractDns(config.domain)
+  const url = `${config.domain}/hm/api/enterprise-bootstrap`
+  const body: {name: string; ownerPassword?: string} = {name}
+  if (opts.ownerPassword) body.ownerPassword = opts.ownerPassword
+
+  let lastError = ''
+  for (let attempt = 1; attempt <= BOOTSTRAP_ATTEMPTS; attempt++) {
+    let response: Response | null = null
+    try {
+      response = await doFetch(url, {
+        method: 'POST',
+        headers: {'content-type': 'application/json', authorization: `Bearer ${config.vault_admin_secret}`},
+        body: JSON.stringify(body),
+      })
+    } catch (err) {
+      lastError = `${url}: ${err instanceof Error ? err.message : String(err)}`
+    }
+    if (response) {
+      const text = await response.text()
+      let parsed: unknown = text
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        // not JSON — keep the raw text for the error message
+      }
+      const result = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>
+      if (response.ok) {
+        const accountUid = typeof result.accountUid === 'string' ? result.accountUid : ''
+        if (!accountUid || !result.keyFile) throw new Error(`${url} answered without an account or key file`)
+        const keyPath = ownerKeyPath(paths, accountUid)
+        await mkdir(dirname(keyPath), {recursive: true, mode: 0o700})
+        await chmod(dirname(keyPath), 0o700)
+        await writeFile(keyPath, `${JSON.stringify(result.keyFile, null, 2)}\n`, {encoding: 'utf-8', mode: 0o600})
+        await chmod(keyPath, 0o600)
+        config.owner_account_uid = accountUid
+        config.site_name = typeof result.name === 'string' && result.name ? result.name : name
+        await writeConfig(config, paths)
+        return {status: 'created', accountUid, name: config.site_name, keyPath}
+      }
+      if (response.status === 409 && typeof result.accountUid === 'string') {
+        return {status: 'exists', accountUid: result.accountUid}
+      }
+      const detail = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
+      if (response.status === 404) {
+        throw new Error(
+          `${url} → HTTP 404: the web app has no bootstrap route. ` +
+            `Its image predates it, or SEED_VAULT_ADMIN_SECRET is not set on seed-web; ` +
+            `after '${cmd('deploy')}' with current images run '${cmd('bootstrap-space')}'.`,
+        )
+      }
+      if (response.status < 500) {
+        throw new Error(`${url} → HTTP ${response.status}${detail ? `: ${detail.slice(0, 500)}` : ''}`)
+      }
+      lastError = `${url} → HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`
+    }
+    if (attempt < BOOTSTRAP_ATTEMPTS) {
+      io.log?.(`Space not created yet (${lastError}); retrying in ${BOOTSTRAP_RETRY_MS / 1000}s...`)
+      await sleep(BOOTSTRAP_RETRY_MS)
+    }
+  }
+  throw new Error(`Could not create the organization's space after ${BOOTSTRAP_ATTEMPTS} attempts: ${lastError}`)
+}
+
+/** What the operator reads after the space exists: its account, the key file, how to take root. */
+export function describeBootstrap(config: SeedConfig, result: BootstrapResult): string[] {
+  if (result.status === 'exists') {
+    return [`The site is already registered to the space ${result.accountUid}; nothing to create.`]
+  }
+  return [
+    `Created the organization's space "${result.name}": ${result.accountUid}`,
+    `Owner key file (the root of the space): ${result.keyPath}`,
+    `To take root, import it in the vault at ${config.domain}/vault/settings (Import identity),`,
+    `with the desktop app's key import, or 'seed-cli key import ${result.keyPath}'.`,
+    'The mnemonic was never stored; this file is the only copy of the key outside the daemon.',
+  ]
+}
+
+async function bootstrapAfterDeploy(
+  config: SeedConfig,
+  paths: DeployPaths,
+  opts: BootstrapOptions,
+  progress: (msg: string) => void,
+): Promise<string[]> {
+  try {
+    const result = await bootstrapSpace(config, paths, opts, {log: progress})
+    return describeBootstrap(config, result)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return [
+      `The organization's space could not be created: ${message}`,
+      `The node is up; retry with '${cmd('bootstrap-space')}'.`,
+    ]
+  }
+}
+
+/**
+ * `bootstrap-space [--site-name …] [--owner-password …]` — create the
+ * organization's space by hand, for when the first deploy's attempt failed.
+ */
+async function cmdBootstrapSpace(paths: DeployPaths, headless: HeadlessOptions): Promise<void> {
+  if (!(await configExists(paths))) {
+    console.error(`No config found at ${paths.configPath}. Run '${cmd()}' first.`)
+    process.exit(1)
+  }
+  const config = await readConfig(paths)
+  if (!isEnterprise(config) || !config.vault_admin_secret) {
+    console.error(`'${cmd('bootstrap-space')}' needs an enterprise node (no vault_admin_secret in config).`)
+    process.exit(1)
+  }
+  const result = await bootstrapSpace(config, paths, bootstrapOptionsFrom(headless), {
+    log: (line) => console.log(line),
+  })
+  for (const line of describeBootstrap(config, result)) console.log(line)
+}
+
 /**
  * `register <accountUid>` — register a space that already lives on this
  * daemon with the web app, the same call the Seed desktop app makes from
@@ -3575,6 +3814,9 @@ async function cmdSecret(paths: DeployPaths): Promise<void> {
   }
 
   console.log(`${config.domain}/hm/register?secret=${config.link_secret}`)
+  if (config.owner_account_uid) {
+    console.log(`Owner key of the space ${config.owner_account_uid}: ${ownerKeyPath(paths, config.owner_account_uid)}`)
+  }
 }
 
 async function cmdLogs(paths: DeployPaths, args: string[]): Promise<void> {
@@ -3945,6 +4187,8 @@ async function main(): Promise<void> {
       return cmdRegister(paths, args)
     case 'invite':
       return cmdInvite(paths, args)
+    case 'bootstrap-space':
+      return cmdBootstrapSpace(paths, headless)
   }
 }
 

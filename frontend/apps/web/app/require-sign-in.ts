@@ -38,6 +38,9 @@ export const OPEN_PATH_PREFIXES: readonly string[] = [
 // (proxied under /vault) uploads profile blobs straight to the daemon.
 export const OPEN_METHOD_RULES: readonly {method: string; path: string; prefix?: boolean}[] = [
   {method: 'POST', path: '/api/PublishBlobs'},
+  // The deploy script creates the organization's space before any member
+  // exists; the route itself demands the vault admin secret.
+  {method: 'POST', path: '/hm/api/enterprise-bootstrap'},
   {method: 'GET', path: '/api/Account'},
   {method: 'HEAD', path: '/api/Account'},
   {method: 'POST', path: '/ipfs/', prefix: true},
