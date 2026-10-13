@@ -2795,7 +2795,7 @@ function printHelp() {
     `  restore     Restore node data from a backup file`,
     `  uninstall   Remove all Seed containers, data, and configuration`,
     `  register    Register a space already on this daemon: register <accountUid>`,
-    `  invite      Create vault invitation link(s): invite [email] [count]  (enterprise)`,
+    `  invite      Create vault invitation link(s): invite <email> [count]  (enterprise)`,
     `  bootstrap-space  Create the organization's space if the first deploy could not  (enterprise)`,
     `  set-hostname  Move the node to a new hostname: set-hostname https://new.example.org  (enterprise)`,
     ``,
