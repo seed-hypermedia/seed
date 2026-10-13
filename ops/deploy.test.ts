@@ -2656,6 +2656,15 @@ describe('enterprise: buildComposeEnv', () => {
 })
 
 describe('enterprise: generateCaddyfile', () => {
+  test('a reconfiguration keeps redirect hostnames and adds the hostname it replaces', () => {
+    const existing = makeEnterpriseConfig({domain: 'https://ee-test-1.hyper.media', redirect_hostnames: ['old.example.net']})
+    const moved = headlessEnterpriseConfig({hostname: 'https://seed.acme.org', yes: true}, existing, {})
+    expect(moved.redirect_hostnames).toEqual(['old.example.net', 'ee-test-1.hyper.media'])
+    const same = headlessEnterpriseConfig({hostname: 'https://ee-test-1.hyper.media', yes: true}, existing, {})
+    expect(same.redirect_hostnames).toEqual(['old.example.net'])
+    expect(headlessEnterpriseConfig({hostname: 'https://x.org', yes: true}, undefined, {}).redirect_hostnames).toBeUndefined()
+  })
+
   test('earlier hostnames get a redirect block of their own', () => {
     const caddy = generateCaddyfile(makeEnterpriseConfig({redirect_hostnames: ['ee-test-1.hyper.media', 'https://Example.org/', 'ee-test-1.hyper.media']}))
     const blocks = caddy.split('\n\nee-test-1.hyper.media {')
