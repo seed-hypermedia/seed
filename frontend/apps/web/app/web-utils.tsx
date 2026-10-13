@@ -40,6 +40,7 @@ import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Add} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
+import {clearInviteJoin, hasInviteJoin, shouldAutoJoin} from './invite-join'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
@@ -498,7 +499,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
   const {content: createAccountContent, createAccount} = useCreateAccount({})
-  const {isJoined, joinSite} = useJoinSite({siteUid})
+  const {isJoined, isLoaded: contactsLoaded, joinSite} = useJoinSite({siteUid})
   const logoutDialog = useAppDialog(LogoutDialog, {showCloseButton: false})
   const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
   const universalClient = useUniversalClient()
@@ -536,6 +537,32 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   useAssistantAutoOpen(!!keyPair && hasSiteAgents && siteAgents.publishesAgents && !isMobile)
   // Hide join button if inside a pending space draft.
   const isPendingSpace = isPendingSpaceUid(siteUid)
+
+  // Someone who just accepted an invitation is joined on arrival: the sign-in
+  // page left a marker, and this is where the Join button would otherwise show.
+  const autoJoinStarted = useRef(false)
+  useEffect(() => {
+    if (autoJoinStarted.current) return
+    if (
+      !shouldAutoJoin({
+        pending: hasInviteJoin(),
+        signedIn: !!keyPair && !!accountId,
+        contactsLoaded,
+        isJoined,
+        isPendingSpace,
+      })
+    ) {
+      if (isJoined && hasInviteJoin()) clearInviteJoin()
+      return
+    }
+    autoJoinStarted.current = true
+    joinSite()
+      .then(() => clearInviteJoin())
+      .catch((error) => {
+        autoJoinStarted.current = false
+        console.error('[invite-join] could not join the site automatically', error)
+      })
+  }, [keyPair, accountId, contactsLoaded, isJoined, isPendingSpace, joinSite])
 
   // Show the join button if not joined the site
   if (!keyPair) {
