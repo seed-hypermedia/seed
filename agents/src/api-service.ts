@@ -92,6 +92,9 @@ import {
   markdownBlockNodesToHMBlockNodes,
   packHmId,
   parseMarkdown,
+  assertValidMermaid,
+  InvalidMermaidError,
+  MarkdownFrontmatterError,
   fileToIpfsBlobs,
   resolveFileLinksInBlocks,
   describeRedirect,
@@ -105,6 +108,7 @@ import {
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
+import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
 import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
@@ -14682,6 +14686,7 @@ async function writeDocumentCreate(
   extraBlobs: CollectedBlob[] = [],
 ): Promise<Record<string, unknown>> {
   const parsed = parseWriteDocumentContent(request.input)
+  await assertPublishableMermaid(parsed.blocks)
   const metadata = mergeWriteMetadata(parsed.metadata, request.input)
   // A document cannot be born nameless: the name is its identity in every listing, and an
   // "Untitled" default just hides the omission until it is published and visible to everyone.
@@ -14812,6 +14817,7 @@ async function writeDocumentUpdate(
   const hasContent =
     request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
   const parsed = hasContent ? parseWriteDocumentContent(request.input) : undefined
+  if (parsed) await assertPublishableMermaid(parsed.blocks)
   if (parsed) await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
   let contentOps: DocumentOperation[] = []
@@ -15403,13 +15409,14 @@ async function publishMemoryDocument(
     throw new APIError(400, `Memory file ${file.path} is not UTF-8 text; only markdown files can be published`)
   if (file.size > MAX_WRITE_CONTENT_BYTES) throw new APIError(400, `Memory file ${file.path} is too large to publish`)
 
-  const {tree, metadata: frontmatter} = parseMarkdown(file.content ?? '')
+  const {tree, metadata: frontmatter} = parseMarkdownOrBadRequest(file.content ?? '')
   const parsedNodes = markdownBlockNodesToHMBlockNodes(tree)
   const imagesUploaded = countFileLinkBlocks(parsedNodes)
   const baseDir = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : ''
   const {nodes, blobs: fileBlobs} = await resolveFileLinksInBlocks(parsedNodes, (linkPath) =>
     readMemoryLinkBytes(context.stateDir, baseDir, linkPath),
   )
+  await assertPublishableMermaid(nodes)
   // Frontmatter media (icon, cover, logo) referencing memory files gets the same treatment
   // as body images: read from memory, chunk to UnixFS, and rewrite to ipfs://.
   for (const key of ['icon', 'cover', 'seedExperimentalLogo'] as const) {
@@ -16050,6 +16057,26 @@ function getDraftRow(context: WriteToolContext, draftId: string) {
   return row
 }
 
+/** Invalid frontmatter YAML is the caller's mistake, so it is reported as a 400 rather than a crash. */
+export function parseMarkdownOrBadRequest(content: string): ReturnType<typeof parseMarkdown> {
+  try {
+    return parseMarkdown(content)
+  } catch (error) {
+    if (error instanceof MarkdownFrontmatterError) throw new APIError(400, error.message)
+    throw error
+  }
+}
+
+/** Mermaid fences are checked before publishing so a syntax error reaches the agent, not the reader. */
+export async function assertPublishableMermaid(blocks: HMBlockNode[]): Promise<void> {
+  try {
+    await assertValidMermaid(blocks, await loadMermaidParser())
+  } catch (error) {
+    if (error instanceof InvalidMermaidError) throw new APIError(400, error.message)
+    throw error
+  }
+}
+
 function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteDocumentContent {
   const rawContent = input.content ?? input.body ?? input.text
   const format =
@@ -16061,7 +16088,7 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
   if (format !== 'markdown' && format !== 'json') throw new APIError(400, 'Document format must be markdown or json')
   if (format === 'markdown') {
     const content = normalizeWriteContent(rawContent, 'Document content')
-    const {tree, metadata} = parseMarkdown(content)
+    const {tree, metadata} = parseMarkdownOrBadRequest(content)
     const blocks = markdownBlockNodesToHMBlockNodes(tree)
     return {ops: flattenToOperations(tree), metadata, blocks}
   }
