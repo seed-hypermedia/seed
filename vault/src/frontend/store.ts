@@ -669,12 +669,25 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     /** Invited user accepted: start registration for the invitation's email. */
+    // The invitation link reached the person's inbox, so it already proves
+    // the address: create the account at once, no second emailed code.
     async handleInvitedContinue() {
       if (state.inviteStatus !== 'valid' || !state.inviteEmail) {
         return
       }
       state.email = state.inviteEmail
-      await actions.handleStartRegistration()
+      state.error = ''
+      state.loading = true
+      try {
+        await client.registerInvited({email: state.email, invite: state.inviteCode.trim()})
+        registrationVerified = true
+        await actions.checkSession()
+        navigator.go('/auth/choose')
+      } catch (e) {
+        state.error = (e as Error).message || 'Registration failed'
+      } finally {
+        state.loading = false
+      }
     },
 
     setReturnToPath(path: string) {

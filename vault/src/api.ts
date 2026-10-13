@@ -53,6 +53,7 @@ export interface ServiceDefinition {
   // Email-based registration.
   registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
   registerVerify(req: RegisterVerifyRequest): Promise<RegisterVerifyResponse>
+  registerInvited(req: RegisterInvitedRequest): Promise<RegisterVerifyResponse>
   getInvitation(req: GetInvitationRequest): Promise<GetInvitationResponse>
 
   // Vault data.
@@ -117,6 +118,13 @@ export type RegisterVerifyRequest = {
 export type RegisterVerifyResponse = {
   verified: boolean
   userId: string
+}
+
+// Register with an invitation: no emailed code. The invitation link was
+// itself delivered to the address it is bound to, so it proves the email.
+export type RegisterInvitedRequest = {
+  email: string
+  invite: string
 }
 
 // Look up an unused invitation by its code (public, unauthenticated).

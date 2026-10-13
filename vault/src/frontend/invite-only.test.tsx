@@ -45,15 +45,15 @@ describe('invite-only registration', () => {
     setWindowUrl('http://localhost/')
   })
 
-  test('store reads the invite and email from the URL and sends the code with both registration requests', async () => {
+  test('store reads the invite and email from the URL and registers without an emailed code', async () => {
     const registerStart = registerStartMock()
-    const registerVerify = mock(async (_req: {code: string; invite?: string}) => ({verified: true, userId: 'user-1'}))
+    const registerInvited = mock(async (_req: {email: string; invite: string}) => ({verified: true, userId: 'user-1'}))
     const getInvitation = mock(async (_req: {code: string}) => ({email: invitedEmail, valid: true as const}))
     const client = createMockClient({
       getSession: async () => ({authenticated: true, relyingPartyOrigin: window.location.origin, userId: 'user-1'}),
       getInvitation,
       registerStart,
-      registerVerify,
+      registerInvited,
     })
     const {state, actions, navigator} = createStore(client, createMockBlockstore(), '', '', '', true)
     navigator.setNavigate(() => {})
@@ -73,11 +73,13 @@ describe('invite-only registration', () => {
     expect(state.inviteEmail).toBe(invitedEmail)
     expect(state.email).toBe(invitedEmail)
 
+    const visited: string[] = []
+    navigator.setNavigate((path) => visited.push(path))
     await actions.handleInvitedContinue()
-    expect(registerStart).toHaveBeenCalledWith({email: invitedEmail, invite: inviteCode})
-
-    await actions.handleRegisterVerify('1234')
-    expect(registerVerify).toHaveBeenCalledWith({code: '1234', invite: inviteCode})
+    expect(registerInvited).toHaveBeenCalledWith({email: invitedEmail, invite: inviteCode})
+    // No verification code round trip: straight to choosing a passkey or password.
+    expect(registerStart).not.toHaveBeenCalled()
+    expect(visited).toEqual(['/auth/choose'])
   })
 
   test('store marks the invitation invalid on 404 and failed on other lookup errors', async () => {
@@ -126,10 +128,12 @@ describe('invite-only registration', () => {
 
   test('invitation link shows the invited screen with a locked email and a single Continue action', async () => {
     const registerStart = registerStartMock()
+    const registerInvited = mock(async (_req: {email: string; invite: string}) => ({verified: true, userId: 'user-1'}))
     const client = createMockClient({
       getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
       getInvitation: async () => ({email: invitedEmail, valid: true as const}),
       registerStart,
+      registerInvited,
     })
     setWindowUrl(`http://localhost/vault?invite=${inviteCode}&email=${encodeURIComponent(invitedEmail)}`)
     await renderApp(client)
@@ -157,9 +161,11 @@ describe('invite-only registration', () => {
       rtl.fireEvent.click(continueButton)
     })
 
-    expect(registerStart).toHaveBeenCalledWith({email: invitedEmail, invite: inviteCode})
-    await rtl.screen.findByText('Check your inbox')
-    rtl.screen.getByText(invitedEmail)
+    // The link already proved the address: no "check your inbox" step.
+    expect(registerInvited).toHaveBeenCalledWith({email: invitedEmail, invite: inviteCode})
+    expect(registerStart).not.toHaveBeenCalled()
+    await rtl.waitFor(() => expect(window.location.pathname).toContain('/auth/choose'))
+    expect(rtl.screen.queryByText('Check your inbox')).toBeNull()
   })
 
   test('invited screen takes the email from the lookup when the link lost it, and names the host without an rp name', async () => {
@@ -181,7 +187,7 @@ describe('invite-only registration', () => {
     const client = createMockClient({
       getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
       getInvitation: async () => ({email: invitedEmail, valid: true as const}),
-      registerStart: async () => {
+      registerInvited: async () => {
         throw new APIError('User already exists', 409)
       },
     })

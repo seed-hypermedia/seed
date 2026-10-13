@@ -1768,6 +1768,50 @@ describe('vault invitations', () => {
     }
   })
 
+  test('registerInvited creates the account from the link alone, once, for the bound email', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const adminCtx = createContext(null, adminSecret)
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail')
+    try {
+      const [invitation] = (await svc.adminCreateInvitations({email: 'Fay@Test.com', send: false}, adminCtx))
+        .invitations
+
+      // Wrong address, missing code, unknown code.
+      await expect(
+        svc.registerInvited({email: 'other@test.com', invite: invitation!.code}, createContext()),
+      ).rejects.toMatchObject({statusCode: 403})
+      await expect(svc.registerInvited({email: 'fay@test.com', invite: ''}, createContext())).rejects.toMatchObject({
+        statusCode: 400,
+      })
+      await expect(
+        svc.registerInvited({email: 'fay@test.com', invite: 'Z'.repeat(43)}, createContext()),
+      ).rejects.toMatchObject({statusCode: 403})
+
+      const ctx = createContext()
+      const res = await svc.registerInvited({email: 'FAY@test.com', invite: invitation!.code}, ctx)
+      expect(res.verified).toBe(true)
+      expect(ctx.sessionCookie).toBeTruthy()
+      expect(sendVerificationEmail).not.toHaveBeenCalled()
+      expect(getInvitationRow(invitation!.code)).toMatchObject({email: 'fay@test.com', used_by_account: res.userId})
+      expect(db.query<{email: string}, [string]>(`SELECT email FROM users WHERE id = ?`).get(res.userId)).toEqual({
+        email: 'fay@test.com',
+      })
+
+      // The link works once.
+      await expect(
+        svc.registerInvited({email: 'fay@test.com', invite: invitation!.code}, createContext()),
+      ).rejects.toMatchObject({statusCode: 403})
+    } finally {
+      sendVerificationEmail.mockRestore()
+    }
+
+    // Outside invite-only mode the endpoint is not in use.
+    const open = createService({adminSecret})
+    await expect(
+      open.registerInvited({email: 'x@test.com', invite: 'A'.repeat(43)}, createContext()),
+    ).rejects.toMatchObject({statusCode: 400})
+  })
+
   test('public invitation lookup answers the email for an unused code and 404 otherwise', async () => {
     const svc = createService({inviteOnly: true, adminSecret})
     const adminCtx = createContext(null, adminSecret)

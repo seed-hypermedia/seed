@@ -14,6 +14,7 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
 
   return {
     preLogin: notImplemented('preLogin'),
+    registerInvited: notImplemented('registerInvited'),
     login: notImplemented('login'),
     loginRecovery: notImplemented('loginRecovery'),
     logout: notImplemented('logout'),
@@ -50,6 +51,7 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
 export function createSuccessMockClient(overrides: Partial<api.ClientInterface> = {}): api.ClientInterface {
   return {
     preLogin: async () => ({exists: false}),
+    registerInvited: async () => ({verified: true, userId: 'user-1'}),
     login: async () => ({success: true, userId: 'user-1'}),
     loginRecovery: async () => ({success: true, userId: 'user-1', credentialId: 'recovery-credential'}),
     logout: async () => ({success: true}),

@@ -222,6 +222,14 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
+    '/vault/api/register/invited': {
+      POST: async (req) => {
+        const body = await req.json()
+        const ctx = getRequestContext(req)
+        const result = await svc.registerInvited(body, ctx)
+        return handleResponse(result, ctx)
+      },
+    },
     '/vault/api/register/verify': {
       POST: async (req) => {
         const body = await req.json()

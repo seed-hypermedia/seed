@@ -1048,6 +1048,64 @@ export class Service implements api.ServerInterface {
   }
 
   /**
+   * Create the account straight from an email-bound invitation. The one-time
+   * code in the link was emailed to that address, so a second verification
+   * code would prove nothing new; the invitation is consumed in the same
+   * transaction as the user row, and the session starts right away.
+   */
+  async registerInvited(req: api.RegisterInvitedRequest, ctx: api.ServerContext): Promise<api.RegisterVerifyResponse> {
+    if (!req.email || typeof req.email !== 'string') {
+      throw new APIError('Email required', 400)
+    }
+    if (!req.invite || typeof req.invite !== 'string') {
+      throw new APIError('Invitation code required', 400)
+    }
+    if (!this.inviteOnly) {
+      throw new APIError('Invitations are only used on invite-only vaults', 400)
+    }
+    const normalizedEmail = normalizeEmail(req.email)
+    const invite = this.requireInvitation(req.invite, normalizedEmail)
+    if (!invite) {
+      throw new APIError('Invalid invitation code.', 403)
+    }
+
+    let userId: string
+    const existingUser = this.db
+      .query<{id: string}, [string]>(`SELECT id FROM users WHERE email = ?`)
+      .get(normalizedEmail)
+    if (existingUser) {
+      const credential = this.db
+        .query<{id: string}, [string]>(`SELECT id FROM credentials WHERE user_id = ?`)
+        .get(existingUser.id)
+      if (credential) {
+        throw new APIError('User already exists', 409)
+      }
+      userId = existingUser.id
+    } else {
+      userId = sess.randomId()
+    }
+
+    this.db.transaction(() => {
+      if (!existingUser) {
+        this.db.run(`INSERT INTO users (id, email, create_time) VALUES (?, ?, ?)`, [
+          userId,
+          normalizedEmail,
+          Date.now(),
+        ])
+      }
+      this.consumeInvitation(invite, normalizedEmail, userId)
+    })()
+    // Any half-finished code flow for this address is moot now.
+    this.db.run(`DELETE FROM email_challenges WHERE email = ?`, [normalizedEmail])
+
+    const session = this.sessions.createSession(userId)
+    ctx.sessionCookie = sess.createCookie(session)
+    ctx.outboundEmailChallengeCookie = null
+
+    return {verified: true, userId}
+  }
+
+  /**
    * Add the authenticated user's password credential.
    */
   async addPassword(req: api.AddPasswordRequest, ctx: api.ServerContext): Promise<api.AddPasswordResponse> {
