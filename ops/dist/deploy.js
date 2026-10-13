@@ -2481,7 +2481,9 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
   const envSha = sha256(envString);
   const containersHealthy = await checkContainersHealthy(shell, config);
   const containersOnConfiguredTag = containersMatchReleaseChannel(shell, config);
-  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy && containersOnConfiguredTag) {
+  const caddyfilePath = join(paths.seedDir, "proxy", "CaddyFile");
+  const caddyfileCurrent = await readFile(caddyfilePath, "utf-8").then((existing) => existing === generateCaddyfile(config)).catch(() => false);
+  if (config.compose_sha === composeSha && config.compose_env_sha === envSha && containersHealthy && containersOnConfiguredTag && caddyfileCurrent) {
     step("Checking for new images...");
     const hasNewImages = await checkForNewImages(config, paths, shell);
     if (!hasNewImages) {
@@ -2535,7 +2537,7 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
   await migrateDataFromOldInstall(paths, shell);
   step("Generating Caddyfile...");
   const caddyfile = generateCaddyfile(config);
-  await writeFile(join(paths.seedDir, "proxy", "CaddyFile"), caddyfile, "utf-8");
+  await writeFile(caddyfilePath, caddyfile, "utf-8");
   const webConfigPath = join(paths.seedDir, "web", "config.json");
   let isFirstDeploy = false;
   try {
