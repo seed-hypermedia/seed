@@ -89,6 +89,7 @@ describe('vault account api service', () => {
       notificationServerUrl: 'https://notify.example.com',
       webBaseUrl: 'https://web.example.com',
       inviteOnly: false,
+      relyingPartyName: rp.name,
     })
   })
 })

@@ -21,6 +21,7 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
     getConfig: notImplemented('getConfig'),
     registerStart: notImplemented('registerStart'),
     registerVerify: notImplemented('registerVerify'),
+    getInvitation: notImplemented('getInvitation'),
     getVault: notImplemented('getVault'),
     saveVault: notImplemented('saveVault'),
     syncVaultAccounts: async () => ({success: true}),
@@ -60,6 +61,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       notificationServerUrl: 'https://notify.example.com',
       webBaseUrl: 'https://web.example.com',
       inviteOnly: false,
+      relyingPartyName: 'Test Vault',
     }),
     registerStart: async () => ({
       message: 'ok',
@@ -70,6 +72,7 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       verified: true,
       userId: 'user-1',
     }),
+    getInvitation: async () => ({email: 'invited@example.com', valid: true}),
     getVault: async () => ({encryptedData: '', version: 0, credentials: []}),
     saveVault: async () => ({success: true}),
     syncVaultAccounts: async () => ({success: true}),

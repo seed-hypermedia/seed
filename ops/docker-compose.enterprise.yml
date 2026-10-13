@@ -123,6 +123,7 @@ services:
       - 'SEED_VAULT_DB_PATH=/data/vault.sqlite'
       # WebAuthn relying party = the site itself; the vault lives at /vault.
       - 'SEED_VAULT_RP_ID=${SEED_SITE_DNS}'
+      - 'SEED_VAULT_RP_NAME=${SEED_SITE_NAME}'
       - 'SEED_VAULT_RP_ORIGIN=${SEED_SITE_HOSTNAME}'
       - 'SEED_VAULT_WEB_BASE_URL=${SEED_SITE_HOSTNAME}'
       # Public /ipfs access goes through the proxy; gRPC-web stays internal.

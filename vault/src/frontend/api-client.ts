@@ -68,6 +68,10 @@ export class FetchClient implements api.ClientInterface {
     return this.request('/api/register/verify', {method: 'POST', body: JSON.stringify(req)})
   }
 
+  async getInvitation(req: api.GetInvitationRequest): Promise<api.GetInvitationResponse> {
+    return this.request(`/api/invitations/${encodeURIComponent(req.code)}`, {method: 'GET'})
+  }
+
   // Vault data.
 
   async getVault(req: api.GetVaultRequest = {}): Promise<api.GetVaultResponse> {

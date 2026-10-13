@@ -149,7 +149,7 @@ The `metrics` profile with Prometheus and Grafana is the same as in the site pro
 
 | Command | What it does |
 | --- | --- |
-| `seed-deploy invite [email] [count]` | asks the vault's admin API (`POST /vault/api/admin/invitations` with the `vault_admin_secret`) for single-use invitation links of the form `https://example.org/vault?invite=<code>` and prints them; the vault is invite-only, so this is how each person gets an account |
+| `seed-deploy invite <email> [count]` | asks the vault's admin API (`POST /vault/api/admin/invitations` with the `vault_admin_secret`) for single-use invitation links of the form `https://example.org/vault?invite=<code>&email=<email>` and prints them; each invitation is bound to that one address (the vault shows it read-only and accepts no other), and the vault is invite-only, so this is how each person gets an account |
 | `seed-deploy bootstrap-space [--site-name …] [--owner-password …]` | creates the organization's space and registers the site to it, what the first deploy does on its own; for when that attempt failed. Idempotent: on a registered site it prints the existing account and changes nothing |
 | `seed-deploy register <accountUid>` | registers a space that already lives on this daemon: reads the daemon's peer id from `/hm/api/config` and posts it with the account id and `link_secret` to `/hm/api/register`, the same call the Seed app makes. For a space created in the browser, `/hm/register?secret=…` from `seed-deploy secret` works as on a site |
 | `seed-deploy set-hostname https://new.example.org` | moves the node to a new hostname: rewrites `domain` in `config.json`, redeploys (Caddyfile, certificate, every container's env) and then republishes the space's home document with the new address; see below |

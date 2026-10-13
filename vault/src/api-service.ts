@@ -363,11 +363,35 @@ export class Service implements api.ServerInterface {
     if (invitation.used_time !== null) {
       throw new APIError('This invitation code has already been used.', 403)
     }
-    if (invitation.email !== null && invitation.email !== email) {
+    // Invitations are scoped to one email. A code without an email (minted
+    // before the binding became mandatory) cannot register anyone.
+    if (invitation.email === null) {
+      throw new APIError('Invalid invitation code.', 403)
+    }
+    if (invitation.email !== email) {
       throw new APIError('This invitation code is for a different email address.', 403)
     }
 
     return code
+  }
+
+  /**
+   * Public lookup of an unused invitation, so the app can show who it is for
+   * even when the link lost its query string. Unknown, used and unbound codes
+   * all answer 404 to keep the response free of state details.
+   */
+  async getInvitation(req: api.GetInvitationRequest, _ctx: api.ServerContext): Promise<api.GetInvitationResponse> {
+    const code = typeof req.code === 'string' ? req.code.trim() : ''
+    if (!INVITATION_CODE_PATTERN.test(code)) {
+      throw new APIError('Invitation not found', 404)
+    }
+
+    const invitation = this.db.query<Invitation, [string]>(`SELECT * FROM invitations WHERE code = ?`).get(code)
+    if (!invitation || invitation.used_time !== null || invitation.email === null) {
+      throw new APIError('Invitation not found', 404)
+    }
+
+    return {email: invitation.email, valid: true}
   }
 
   /**
@@ -378,7 +402,7 @@ export class Service implements api.ServerInterface {
   private consumeInvitation(code: string, email: string, userId: string): void {
     const result = this.db.run(
       `UPDATE invitations SET used_time = ?, used_by_account = ?
-       WHERE code = ? AND used_time IS NULL AND (email IS NULL OR email = ?)`,
+       WHERE code = ? AND used_time IS NULL AND email = ?`,
       [Date.now(), userId, code, email],
     )
     if (result.changes === 0) {
@@ -497,15 +521,20 @@ export class Service implements api.ServerInterface {
     }
   }
 
-  private invitationLink(code: string): string {
-    return `${this.rp.origin}/vault?invite=${encodeURIComponent(code)}`
+  /** `<origin>/vault?invite=<code>&email=<email>`; the email part is omitted for legacy unbound codes. */
+  private invitationLink(code: string, email: string | null): string {
+    const params = new URLSearchParams({invite: code})
+    if (email !== null) {
+      params.set('email', email)
+    }
+    return `${this.rp.origin}/vault?${params.toString()}`
   }
 
   private toAdminInvitation(row: Invitation): api.AdminInvitation {
     return {
       code: row.code,
       email: row.email,
-      link: this.invitationLink(row.code),
+      link: this.invitationLink(row.code, row.email),
       createTime: row.create_time,
       usedTime: row.used_time,
       used: row.used_time !== null,
@@ -673,10 +702,14 @@ export class Service implements api.ServerInterface {
       notificationServerUrl: this.notificationServerUrl,
       webBaseUrl: this.webBaseUrl,
       inviteOnly: this.inviteOnly,
+      relyingPartyName: this.rp.name,
     }
   }
 
-  /** Admin: mint one or more invitation codes, optionally bound to an email. */
+  /**
+   * Admin: mint invitation codes. In invite-only mode every invitation is
+   * scoped to one email, so `email` is required and `count` must be 1.
+   */
   async adminCreateInvitations(
     req: api.AdminCreateInvitationsRequest,
     ctx: api.ServerContext,
@@ -694,6 +727,12 @@ export class Service implements api.ServerInterface {
         throw new APIError('Invalid email', 400)
       }
       boundEmail = normalizeEmail(req.email.trim())
+    }
+    if (boundEmail === null && this.inviteOnly) {
+      throw new APIError('email is required: invitations are scoped to one email address', 400)
+    }
+    if (boundEmail !== null && count !== 1) {
+      throw new APIError('count must be 1 when email is set: one invitation per email address', 400)
     }
 
     const now = Date.now()

@@ -2310,6 +2310,7 @@ function buildComposeEnv(config, paths) {
     vars.SEED_SITE_IMAGE = config.site_image;
   }
   if (enterprise) {
+    vars.SEED_SITE_NAME = config.site_name ?? dns;
     vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? "";
     vars.SEED_SESSION_SECRET = config.session_secret ?? "";
     vars.SEED_CONTACT_EMAIL = config.email ?? "";
@@ -3629,8 +3630,10 @@ function extractInvitationLinks(result, vaultBase) {
         return o.link;
       if (typeof o.url === "string")
         return o.url;
-      if (typeof o.code === "string")
-        return `${vaultBase}?invite=${o.code}`;
+      if (typeof o.code === "string") {
+        const email = typeof o.email === "string" && o.email ? `&email=${encodeURIComponent(o.email)}` : "";
+        return `${vaultBase}?invite=${o.code}${email}`;
+      }
     }
     return null;
   };
@@ -3651,7 +3654,11 @@ async function cmdInvite(paths, args) {
     process.exit(1);
   }
   const email = args[0] && args[0].includes("@") ? args[0] : undefined;
-  const countArg = email ? args[1] : args[0];
+  if (!email) {
+    console.error(`'${cmd("invite <email>")}' needs the invitee's email: invitations are scoped to one address and the link carries it.`);
+    process.exit(1);
+  }
+  const countArg = args[1];
   const count = countArg && /^\d+$/.test(countArg) ? Number(countArg) : undefined;
   const body = {};
   if (email)

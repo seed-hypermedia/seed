@@ -2593,6 +2593,10 @@ describe('enterprise: buildComposeEnv', () => {
     expect(env).toContain(`SEED_VAULT_ADMIN_SECRET="${'x'.repeat(VAULT_ADMIN_SECRET_LENGTH)}"`)
     expect(env).toContain('SEED_SESSION_SECRET="s"')
     expect(env).toContain('SEED_CONTACT_EMAIL="ops@seed.hypermedia"')
+    expect(env).toContain('SEED_SITE_NAME="example.org"')
+    expect(buildComposeEnv(makeEnterpriseConfig({site_name: 'Botical'}), makePaths('/opt/seed'))).toContain(
+      'SEED_SITE_NAME="Botical"',
+    )
     expect(env).toContain('SEED_NOTIFY_HOST=""')
     expect(env).toContain('NOTIFY_SERVICE_HOST=""')
     expect(env).toContain('SEED_AGENTS_HOST=""')
@@ -2744,6 +2748,7 @@ describe('enterprise: compose template', () => {
       'SEED_HOST_URL=',
       'NODE_ENV=production',
       'SEED_VAULT_INVITE_ONLY=true',
+      'SEED_VAULT_RP_NAME=${SEED_SITE_NAME}',
       'SEED_VAULT_DEFAULT_NOTIFY_SERVER=${SEED_NOTIFY_HOST}',
       'NOTIFY_SMTP_PORT=465',
       'SEED_DEV_ADMIN_EMAIL=${SEED_CONTACT_EMAIL}',
@@ -2809,6 +2814,9 @@ describe('enterprise: backup, invite, doctor helpers', () => {
     ])
     expect(extractInvitationLinks({codes: ['c1']}, base)).toEqual(['https://example.org/vault?invite=c1'])
     expect(extractInvitationLinks({code: 'solo'}, base)).toEqual(['https://example.org/vault?invite=solo'])
+    expect(extractInvitationLinks({code: 'solo', email: 'a+b@x.io'}, base)).toEqual([
+      'https://example.org/vault?invite=solo&email=a%2Bb%40x.io',
+    ])
     // The vault's real shape (201 body).
     expect(
       extractInvitationLinks(

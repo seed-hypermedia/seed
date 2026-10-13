@@ -2231,6 +2231,7 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
   }
 
   if (enterprise) {
+    vars.SEED_SITE_NAME = config.site_name ?? dns
     vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? ''
     vars.SEED_SESSION_SECRET = config.session_secret ?? ''
     vars.SEED_CONTACT_EMAIL = config.email ?? ''
@@ -2913,7 +2914,7 @@ export function printHelp(): void {
     `  restore     Restore node data from a backup file`,
     `  uninstall   Remove all Seed containers, data, and configuration`,
     `  register    Register a space already on this daemon: register <accountUid>`,
-    `  invite      Create vault invitation link(s): invite [email] [count]  (enterprise)`,
+    `  invite      Create vault invitation link(s): invite <email> [count]  (enterprise)`,
     `  bootstrap-space  Create the organization's space if the first deploy could not  (enterprise)`,
     `  set-hostname  Move the node to a new hostname: set-hostname https://new.example.org  (enterprise)`,
     ``,
@@ -4039,7 +4040,10 @@ export function extractInvitationLinks(result: unknown, vaultBase: string): stri
       const o = item as Record<string, unknown>
       if (typeof o.link === 'string') return o.link
       if (typeof o.url === 'string') return o.url
-      if (typeof o.code === 'string') return `${vaultBase}?invite=${o.code}`
+      if (typeof o.code === 'string') {
+        const email = typeof o.email === 'string' && o.email ? `&email=${encodeURIComponent(o.email)}` : ''
+        return `${vaultBase}?invite=${o.code}${email}`
+      }
     }
     return null
   }
@@ -4050,7 +4054,7 @@ export function extractInvitationLinks(result: unknown, vaultBase: string): stri
 }
 
 /**
- * `invite [email] [count]` — ask the vault's admin API for invitation
+ * `invite <email> [count]` — ask the vault's admin API for invitation
  * link(s). The vault is invite-only on an enterprise node, so this is how the
  * organization's people get an account.
  */
@@ -4066,7 +4070,13 @@ async function cmdInvite(paths: DeployPaths, args: string[]): Promise<void> {
   }
 
   const email = args[0] && args[0].includes('@') ? args[0] : undefined
-  const countArg = email ? args[1] : args[0]
+  if (!email) {
+    console.error(
+      `'${cmd('invite <email>')}' needs the invitee's email: invitations are scoped to one address and the link carries it.`,
+    )
+    process.exit(1)
+  }
+  const countArg = args[1]
   const count = countArg && /^\d+$/.test(countArg) ? Number(countArg) : undefined
   const body: {email?: string; count?: number} = {}
   if (email) body.email = email

@@ -58,14 +58,33 @@ export function getPendingFlowPath(
   return '/'
 }
 
+/**
+ * Where the invited-user flow stands once `?invite=` is in the URL:
+ * `checking` while the code is looked up, `valid`/`invalid` after, `failed`
+ * when the lookup itself could not complete (network, server error).
+ */
+export type InviteStatus = 'none' | 'checking' | 'valid' | 'invalid' | 'failed'
+
 /** Creates the initial state for the store. */
-function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBaseUrl = '', inviteOnly = false) {
+function initialState(
+  backendHttpBaseUrl = '',
+  notificationServerUrl = '',
+  webBaseUrl = '',
+  inviteOnly = false,
+  relyingPartyName = '',
+) {
   return {
     email: '',
     /** Whether the server requires an invitation code to create an account. */
     inviteOnly,
+    /** Human-readable relying-party name from the server config ('' = unknown). */
+    relyingPartyName,
     /** Invitation code from `?invite=` in the URL or pasted by the user. */
     inviteCode: '',
+    /** Email the invitation is scoped to, from `?email=` or the lookup. */
+    inviteEmail: '',
+    /** Result of looking the invitation up; `none` outside the invited flow. */
+    inviteStatus: 'none' as InviteStatus,
     password: '',
     passwordSalt: '',
     confirmPassword: '',
@@ -556,7 +575,13 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     resetState() {
       Object.assign(
         state,
-        initialState(state.backendHttpBaseUrl, state.notificationServerUrl, state.webBaseUrl, state.inviteOnly),
+        initialState(
+          state.backendHttpBaseUrl,
+          state.notificationServerUrl,
+          state.webBaseUrl,
+          state.inviteOnly,
+          state.relyingPartyName,
+        ),
       )
     },
 
@@ -569,15 +594,55 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     /**
-     * Read the invitation code from `?invite=` in the URL (the link the admin
-     * API hands out). No-op when the parameter is absent.
+     * Read the invitation code and email from `?invite=&email=` in the URL
+     * (the link the admin API hands out). Returns whether a code was found;
+     * the caller then runs `checkInvitation`. No-op when the parameter is absent.
      */
-    parseInviteFromUrl(url: URL | string) {
+    parseInviteFromUrl(url: URL | string): boolean {
       const parsedURL = typeof url === 'string' ? new URL(url) : url
       const invite = (parsedURL.searchParams.get('invite') ?? '').trim()
-      if (invite) {
-        state.inviteCode = invite
+      if (!invite) {
+        return false
       }
+      state.inviteCode = invite
+      state.inviteStatus = 'checking'
+      const email = (parsedURL.searchParams.get('email') ?? '').trim()
+      if (email) {
+        state.inviteEmail = email
+        state.email = email
+      }
+      return true
+    },
+
+    /**
+     * Look the invitation up on the server. The email it is scoped to wins
+     * over whatever the link carried; an unknown or used code makes the
+     * invited screen show a message instead of a form.
+     */
+    async checkInvitation() {
+      const code = state.inviteCode.trim()
+      if (!code) {
+        state.inviteStatus = 'none'
+        return
+      }
+      state.inviteStatus = 'checking'
+      try {
+        const invitation = await client.getInvitation({code})
+        state.inviteEmail = invitation.email
+        state.email = invitation.email
+        state.inviteStatus = 'valid'
+      } catch (e) {
+        state.inviteStatus = e instanceof APIError && e.statusCode === 404 ? 'invalid' : 'failed'
+      }
+    },
+
+    /** Invited user accepted: start registration for the invitation's email. */
+    async handleInvitedContinue() {
+      if (state.inviteStatus !== 'valid' || !state.inviteEmail) {
+        return
+      }
+      state.email = state.inviteEmail
+      await actions.handleStartRegistration()
     },
 
     setReturnToPath(path: string) {
@@ -2064,6 +2129,7 @@ export type StoreActions = ReturnType<typeof createActions>
  * @param notificationServerUrl - Notification server URL shown in the footer.
  * @param webBaseUrl - Public web reader base URL ('' = same origin).
  * @param inviteOnly - Whether the server requires an invitation code to create an account.
+ * @param relyingPartyName - Human-readable relying-party name shown on the invited-user screen.
  */
 export function createStore(
   client: api.ClientInterface,
@@ -2072,8 +2138,11 @@ export function createStore(
   notificationServerUrl = '',
   webBaseUrl = '',
   inviteOnly = false,
+  relyingPartyName = '',
 ) {
-  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl, inviteOnly))
+  const state = proxy<AppState>(
+    initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl, inviteOnly, relyingPartyName),
+  )
 
   // Default navigator prevents crashes before router is connected
   let navigate = (path: string) => {

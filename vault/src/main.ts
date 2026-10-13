@@ -222,6 +222,17 @@ function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, strin
         return handleResponse(result, ctx)
       },
     },
+    '/vault/api/invitations/:code': {
+      GET: async (req) => {
+        const ctx = getRequestContext(req)
+        if (!req.params.code) {
+          return handleResponse({error: 'Missing code'}, ctx, 400)
+        }
+
+        const result = await svc.getInvitation({code: req.params.code}, ctx)
+        return handleResponse(result, ctx, 200, {'Cache-Control': 'no-store, private, max-age=0'})
+      },
+    },
     '/vault/api/vault': {
       GET: async (req) => {
         const knownVersion = parseKnownVersion(new URL(req.url).searchParams.get('knownVersion'))

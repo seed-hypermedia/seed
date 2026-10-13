@@ -1401,42 +1401,98 @@ describe('vault invitations', () => {
     await expect(svc.adminListInvitations(createContext(null, adminSecret))).resolves.toEqual({invitations: []})
   })
 
-  test('admin API creates and lists invitations with a shareable link', async () => {
+  test('admin API creates and lists email-scoped invitations with a shareable link', async () => {
     const svc = createService({inviteOnly: true, adminSecret})
     const adminCtx = createContext(null, adminSecret)
 
-    const created = await svc.adminCreateInvitations({count: 2}, adminCtx)
-    expect(created.invitations).toHaveLength(2)
-    for (const invitation of created.invitations) {
-      expect(invitation.code).toMatch(/^[A-Za-z0-9_-]{32,}$/)
-      expect(invitation.link).toBe(`https://example.com/vault?invite=${invitation.code}`)
-      expect(invitation.email).toBeNull()
-      expect(invitation.used).toBe(false)
-      expect(invitation.usedTime).toBeNull()
-    }
-    expect(created.invitations[0]!.code).not.toBe(created.invitations[1]!.code)
+    // Invite-only mode: every invitation is for exactly one email.
+    await expect(svc.adminCreateInvitations({}, adminCtx)).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'email is required: invitations are scoped to one email address',
+    })
+    await expect(svc.adminCreateInvitations({count: 2}, adminCtx)).rejects.toMatchObject({statusCode: 400})
+    await expect(svc.adminCreateInvitations({email: 'alice@test.com', count: 2}, adminCtx)).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'count must be 1 when email is set: one invitation per email address',
+    })
 
-    const bound = await svc.adminCreateInvitations({email: 'Alice@Test.com'}, adminCtx)
-    expect(bound.invitations).toHaveLength(1)
-    expect(bound.invitations[0]!.email).toBe('alice@test.com')
+    const created = await svc.adminCreateInvitations({email: 'Alice+Seed@Test.com'}, adminCtx)
+    expect(created.invitations).toHaveLength(1)
+    const invitation = created.invitations[0]!
+    expect(invitation.code).toMatch(/^[A-Za-z0-9_-]{32,}$/)
+    expect(invitation.email).toBe('alice+seed@test.com')
+    expect(invitation.link).toBe(`https://example.com/vault?invite=${invitation.code}&email=alice%2Bseed%40test.com`)
+    expect(invitation.used).toBe(false)
+    expect(invitation.usedTime).toBeNull()
+    // The link round-trips through URL parsing to the same code and email.
+    const linkParams = new URL(invitation.link).searchParams
+    expect(linkParams.get('invite')).toBe(invitation.code)
+    expect(linkParams.get('email')).toBe('alice+seed@test.com')
+
+    const second = await svc.adminCreateInvitations({email: 'bob@test.com', count: 1}, adminCtx)
+    expect(second.invitations[0]!.code).not.toBe(invitation.code)
 
     const listed = await svc.adminListInvitations(adminCtx)
-    expect(listed.invitations).toHaveLength(3)
+    expect(listed.invitations).toHaveLength(2)
     expect(listed.invitations.map((i) => i.code).sort()).toEqual(
-      [...created.invitations, ...bound.invitations].map((i) => i.code).sort(),
+      [...created.invitations, ...second.invitations].map((i) => i.code).sort(),
     )
     // No account data leaks through the admin listing.
     for (const invitation of listed.invitations) {
       expect(Object.keys(invitation).sort()).toEqual(['code', 'createTime', 'email', 'link', 'used', 'usedTime'])
     }
 
-    await expect(svc.adminCreateInvitations({count: 0}, adminCtx)).rejects.toMatchObject({statusCode: 400})
-    await expect(svc.adminCreateInvitations({count: 101}, adminCtx)).rejects.toMatchObject({statusCode: 400})
+    await expect(svc.adminCreateInvitations({email: 'x@test.com', count: 0}, adminCtx)).rejects.toMatchObject({
+      statusCode: 400,
+    })
     await expect(svc.adminCreateInvitations({email: 'nope'}, adminCtx)).rejects.toMatchObject({statusCode: 400})
   })
 
-  test('getConfig reports invite-only mode', async () => {
-    await expect(createService().getConfig(createContext())).resolves.toMatchObject({inviteOnly: false})
+  test('admin API outside invite-only mode still mints unbound codes in batches', async () => {
+    const svc = createService({adminSecret})
+    const adminCtx = createContext(null, adminSecret)
+
+    const created = await svc.adminCreateInvitations({count: 2}, adminCtx)
+    expect(created.invitations).toHaveLength(2)
+    for (const invitation of created.invitations) {
+      expect(invitation.email).toBeNull()
+      expect(invitation.link).toBe(`https://example.com/vault?invite=${invitation.code}`)
+    }
+    await expect(svc.adminCreateInvitations({count: 101}, adminCtx)).rejects.toMatchObject({statusCode: 400})
+  })
+
+  test('public invitation lookup answers the email for an unused code and 404 otherwise', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const adminCtx = createContext(null, adminSecret)
+    const [invitation] = (await svc.adminCreateInvitations({email: 'Carol@Test.com'}, adminCtx)).invitations
+
+    await expect(svc.getInvitation({code: invitation!.code}, createContext())).resolves.toEqual({
+      email: 'carol@test.com',
+      valid: true,
+    })
+    await expect(svc.getInvitation({code: ` ${invitation!.code} `}, createContext())).resolves.toMatchObject({
+      valid: true,
+    })
+
+    await expect(svc.getInvitation({code: 'A'.repeat(43)}, createContext())).rejects.toMatchObject({statusCode: 404})
+    await expect(svc.getInvitation({code: 'short'}, createContext())).rejects.toMatchObject({statusCode: 404})
+    await expect(svc.getInvitation({code: ''}, createContext())).rejects.toMatchObject({statusCode: 404})
+
+    // Legacy unbound codes cannot register anyone, so they are not "valid" either.
+    db.run(`INSERT INTO invitations (code, email, create_time) VALUES (?, NULL, ?)`, ['B'.repeat(43), Date.now()])
+    await expect(svc.getInvitation({code: 'B'.repeat(43)}, createContext())).rejects.toMatchObject({statusCode: 404})
+
+    await register(svc, 'carol@test.com', invitation!.code)
+    await expect(svc.getInvitation({code: invitation!.code}, createContext())).rejects.toMatchObject({
+      statusCode: 404,
+    })
+  })
+
+  test('getConfig reports invite-only mode and the relying-party name', async () => {
+    await expect(createService().getConfig(createContext())).resolves.toMatchObject({
+      inviteOnly: false,
+      relyingPartyName: 'Vault',
+    })
     await expect(createService({inviteOnly: true}).getConfig(createContext())).resolves.toMatchObject({
       inviteOnly: true,
     })
@@ -1472,7 +1528,7 @@ describe('vault invitations', () => {
   test('invite-only registration is refused at verify when the code is dropped', async () => {
     const svc = createService({inviteOnly: true, adminSecret})
     const email = 'dropped@test.com'
-    const [invitation] = (await svc.adminCreateInvitations({}, createContext(null, adminSecret))).invitations
+    const [invitation] = (await svc.adminCreateInvitations({email}, createContext(null, adminSecret))).invitations
     let code = ''
     const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail').mockImplementation(
       async (_to, sentCode) => {
@@ -1495,7 +1551,7 @@ describe('vault invitations', () => {
   test('invite-only registration succeeds with a code, marks it used, and refuses reuse', async () => {
     const svc = createService({inviteOnly: true, adminSecret})
     const adminCtx = createContext(null, adminSecret)
-    const [invitation] = (await svc.adminCreateInvitations({}, adminCtx)).invitations
+    const [invitation] = (await svc.adminCreateInvitations({email: 'invited@test.com'}, adminCtx)).invitations
 
     const {result, verifyCtx} = await register(svc, 'invited@test.com', invitation!.code)
     expect(result.verified).toBe(true)
@@ -1514,18 +1570,39 @@ describe('vault invitations', () => {
     expect(db.query(`SELECT id FROM users WHERE email = ?`).get('second@test.com')).toBeNull()
   })
 
-  test('an email-bound invitation only registers that email', async () => {
+  test('an invitation only registers the email it was minted for', async () => {
     const svc = createService({inviteOnly: true, adminSecret})
     const adminCtx = createContext(null, adminSecret)
     const [invitation] = (await svc.adminCreateInvitations({email: 'bob@test.com'}, adminCtx)).invitations
 
-    await expect(
-      svc.registerStart({email: 'eve@test.com', invite: invitation!.code}, createContext()),
-    ).rejects.toMatchObject({statusCode: 403, message: 'This invitation code is for a different email address.'})
+    const sendVerificationEmail = spyOn(emailSender, 'sendVerificationEmail')
+    try {
+      await expect(
+        svc.registerStart({email: 'eve@test.com', invite: invitation!.code}, createContext()),
+      ).rejects.toMatchObject({statusCode: 403, message: 'This invitation code is for a different email address.'})
+      expect(sendVerificationEmail).not.toHaveBeenCalled()
+      expect(getEmailChallenge('eve@test.com')).toBeNull()
+    } finally {
+      sendVerificationEmail.mockRestore()
+    }
+    expect(getInvitationRow(invitation!.code)?.used_time).toBeNull()
 
+    // Email comparison is on the normalized address, so case differences in the link do not matter.
     const {result} = await register(svc, 'Bob@Test.com', invitation!.code)
     expect(result.verified).toBe(true)
     expect(getInvitationRow(invitation!.code)?.used_by_account).toBe(result.userId)
+  })
+
+  test('a legacy unbound invitation is refused in invite-only mode', async () => {
+    const svc = createService({inviteOnly: true, adminSecret})
+    const code = 'C'.repeat(43)
+    db.run(`INSERT INTO invitations (code, email, create_time) VALUES (?, NULL, ?)`, [code, Date.now()])
+
+    await expect(svc.registerStart({email: 'legacy@test.com', invite: code}, createContext())).rejects.toMatchObject({
+      statusCode: 403,
+      message: 'Invalid invitation code.',
+    })
+    expect(getInvitationRow(code)?.used_time).toBeNull()
   })
 
   test('invite-only mode leaves sign-in for existing accounts unchanged', async () => {

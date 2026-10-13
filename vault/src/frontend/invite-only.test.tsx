@@ -13,6 +13,31 @@ function setWindowUrl(url: string) {
 }
 
 const inviteCode = 'A'.repeat(43)
+const invitedEmail = 'new@user.com'
+
+function registerStartMock() {
+  return mock(async (_req: {email: string; invite?: string}) => ({
+    message: 'ok',
+    expireTime: Date.now() + 15 * 60 * 1000,
+    resendAllowedTime: Date.now() + 60 * 1000,
+  }))
+}
+
+/** Mounts the app at the current window URL with `client`, in invite-only mode. */
+async function renderApp(client: ReturnType<typeof createMockClient>, relyingPartyName = 'Acme Vault') {
+  const store = createStore(client, createMockBlockstore(), '', '', '', true, relyingPartyName)
+  const router = createRouter()
+  store.navigator.setNavigate((path) => router.navigate(navigation.withHash(path)))
+
+  await rtl.act(async () => {
+    rtl.render(
+      <StoreContext.Provider value={store}>
+        <ReactRouter.RouterProvider router={router} />
+      </StoreContext.Provider>,
+    )
+  })
+  return store
+}
 
 describe('invite-only registration', () => {
   afterEach(() => {
@@ -20,31 +45,64 @@ describe('invite-only registration', () => {
     setWindowUrl('http://localhost/')
   })
 
-  test('store reads the invite from the URL and sends it with both registration requests', async () => {
-    const registerStart = mock(async (_req: {email: string; invite?: string}) => ({
-      message: 'ok',
-      expireTime: Date.now() + 15 * 60 * 1000,
-      resendAllowedTime: Date.now() + 60 * 1000,
-    }))
+  test('store reads the invite and email from the URL and sends the code with both registration requests', async () => {
+    const registerStart = registerStartMock()
     const registerVerify = mock(async (_req: {code: string; invite?: string}) => ({verified: true, userId: 'user-1'}))
+    const getInvitation = mock(async (_req: {code: string}) => ({email: invitedEmail, valid: true as const}))
     const client = createMockClient({
-      preLogin: async () => ({exists: false}),
       getSession: async () => ({authenticated: true, relyingPartyOrigin: window.location.origin, userId: 'user-1'}),
+      getInvitation,
       registerStart,
       registerVerify,
     })
     const {state, actions, navigator} = createStore(client, createMockBlockstore(), '', '', '', true)
     navigator.setNavigate(() => {})
 
-    actions.parseInviteFromUrl('http://localhost/vault?invite=%20' + inviteCode + '%20')
+    expect(actions.parseInviteFromUrl(`http://localhost/vault?invite=%20${inviteCode}%20&email=New%40User.com`)).toBe(
+      true,
+    )
     expect(state.inviteCode).toBe(inviteCode)
+    expect(state.inviteEmail).toBe('New@User.com')
+    expect(state.email).toBe('New@User.com')
+    expect(state.inviteStatus).toBe('checking')
 
-    state.email = 'new@user.com'
-    await actions.handlePreLogin()
-    expect(registerStart).toHaveBeenCalledWith({email: 'new@user.com', invite: inviteCode})
+    // The server's answer is authoritative for the email.
+    await actions.checkInvitation()
+    expect(getInvitation).toHaveBeenCalledWith({code: inviteCode})
+    expect(state.inviteStatus).toBe('valid')
+    expect(state.inviteEmail).toBe(invitedEmail)
+    expect(state.email).toBe(invitedEmail)
+
+    await actions.handleInvitedContinue()
+    expect(registerStart).toHaveBeenCalledWith({email: invitedEmail, invite: inviteCode})
 
     await actions.handleRegisterVerify('1234')
     expect(registerVerify).toHaveBeenCalledWith({code: '1234', invite: inviteCode})
+  })
+
+  test('store marks the invitation invalid on 404 and failed on other lookup errors', async () => {
+    const notFound = createMockClient({
+      getInvitation: async () => {
+        throw new APIError('Invitation not found', 404)
+      },
+    })
+    const {state, actions} = createStore(notFound, createMockBlockstore(), '', '', '', true)
+    actions.parseInviteFromUrl(`http://localhost/vault?invite=${inviteCode}`)
+    await actions.checkInvitation()
+    expect(state.inviteStatus).toBe('invalid')
+    // Nothing to continue with.
+    await actions.handleInvitedContinue()
+
+    const broken = createMockClient({
+      getInvitation: async () => {
+        throw new Error('network down')
+      },
+    })
+    const failedStore = createStore(broken, createMockBlockstore(), '', '', '', true)
+    failedStore.actions.parseInviteFromUrl(`http://localhost/vault?invite=${inviteCode}&email=${invitedEmail}`)
+    await failedStore.actions.checkInvitation()
+    expect(failedStore.state.inviteStatus).toBe('failed')
+    expect(failedStore.state.inviteEmail).toBe(invitedEmail)
   })
 
   test('store leaves the invite out when none is set', async () => {
@@ -57,49 +115,121 @@ describe('invite-only registration', () => {
     const {state, actions, navigator} = createStore(client, createMockBlockstore())
     navigator.setNavigate(() => {})
 
-    actions.parseInviteFromUrl('http://localhost/vault')
+    expect(actions.parseInviteFromUrl('http://localhost/vault')).toBe(false)
     expect(state.inviteCode).toBe('')
+    expect(state.inviteStatus).toBe('none')
 
     state.email = 'new@user.com'
     await actions.handlePreLogin()
     expect(registerStart).toHaveBeenCalledWith({email: 'new@user.com'})
   })
 
-  test('pre-login screen shows the invite input prefilled from the URL and surfaces the server error', async () => {
-    const registerStart = mock(async (_req: {email: string; invite?: string}) => {
-      throw new APIError('This invitation code has already been used.', 403)
-    })
+  test('invitation link shows the invited screen with a locked email and a single Continue action', async () => {
+    const registerStart = registerStartMock()
     const client = createMockClient({
       getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
-      preLogin: async () => ({exists: false}),
+      getInvitation: async () => ({email: invitedEmail, valid: true as const}),
       registerStart,
     })
+    setWindowUrl(`http://localhost/vault?invite=${inviteCode}&email=${encodeURIComponent(invitedEmail)}`)
+    await renderApp(client)
+
+    await rtl.screen.findByText("You've been invited")
+    rtl.screen.getByText('to Acme Vault')
+
+    const emailInput = (await rtl.screen.findByLabelText('Your email')) as HTMLInputElement
+    expect(emailInput.value).toBe(invitedEmail)
+    expect(emailInput.readOnly).toBe(true)
+
+    // The code stays in state; nothing from the regular pre-login screen leaks in.
+    expect(document.body.textContent).not.toContain(inviteCode)
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    expect(rtl.screen.queryByLabelText('Enter your email to continue')).toBeNull()
+    expect(rtl.screen.queryByText(/Terms and Privacy Policy/)).toBeNull()
+    expect(rtl.screen.queryByText(/Sign in/)).toBeNull()
+    expect(rtl.screen.queryByText('Send code')).toBeNull()
+
+    const buttons = rtl.screen.getAllByRole('button')
+    expect(buttons.map((b) => b.textContent?.trim())).toEqual(['Continue'])
+    const continueButton = buttons[0]!
+    await rtl.waitFor(() => expect((continueButton as HTMLButtonElement).disabled).toBe(false))
+    await rtl.act(async () => {
+      rtl.fireEvent.click(continueButton)
+    })
+
+    expect(registerStart).toHaveBeenCalledWith({email: invitedEmail, invite: inviteCode})
+    await rtl.screen.findByText('Check your inbox')
+    rtl.screen.getByText(invitedEmail)
+  })
+
+  test('invited screen takes the email from the lookup when the link lost it, and names the host without an rp name', async () => {
+    const client = createMockClient({
+      getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      getInvitation: async () => ({email: invitedEmail, valid: true as const}),
+    })
     setWindowUrl(`http://localhost/vault?invite=${inviteCode}`)
-    const store = createStore(client, createMockBlockstore(), '', '', '', true)
-    const router = createRouter()
-    store.navigator.setNavigate((path) => router.navigate(navigation.withHash(path)))
+    await renderApp(client, '')
 
-    await rtl.act(async () => {
-      rtl.render(
-        <StoreContext.Provider value={store}>
-          <ReactRouter.RouterProvider router={router} />
-        </StoreContext.Provider>,
-      )
+    await rtl.screen.findByText("You've been invited")
+    rtl.screen.getByText('to localhost')
+    const emailInput = (await rtl.screen.findByLabelText('Your email')) as HTMLInputElement
+    await rtl.waitFor(() => expect(emailInput.value).toBe(invitedEmail))
+    expect(emailInput.readOnly).toBe(true)
+  })
+
+  test('invited screen surfaces the server error from registration', async () => {
+    const client = createMockClient({
+      getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      getInvitation: async () => ({email: invitedEmail, valid: true as const}),
+      registerStart: async () => {
+        throw new APIError('User already exists', 409)
+      },
     })
+    setWindowUrl(`http://localhost/vault?invite=${inviteCode}&email=${encodeURIComponent(invitedEmail)}`)
+    await renderApp(client)
 
-    const inviteInput = (await rtl.screen.findByLabelText('Invitation code')) as HTMLInputElement
-    expect(inviteInput.value).toBe(inviteCode)
-
-    const emailInput = rtl.screen.getByLabelText('Enter your email to continue')
+    const continueButton = (await rtl.screen.findByRole('button', {name: 'Continue'})) as HTMLButtonElement
+    await rtl.waitFor(() => expect(continueButton.disabled).toBe(false))
     await rtl.act(async () => {
-      rtl.fireEvent.change(emailInput, {target: {value: 'new@user.com'}})
+      rtl.fireEvent.click(continueButton)
     })
-    await rtl.act(async () => {
-      rtl.fireEvent.submit(emailInput.closest('form')!)
-    })
+    await rtl.screen.findByText('User already exists')
+  })
 
-    expect(registerStart).toHaveBeenCalledWith({email: 'new@user.com', invite: inviteCode})
-    await rtl.screen.findByText('This invitation code has already been used.')
+  test('used or unknown invitation shows a message instead of a form', async () => {
+    const registerStart = registerStartMock()
+    const client = createMockClient({
+      getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      getInvitation: async () => {
+        throw new APIError('Invitation not found', 404)
+      },
+      registerStart,
+    })
+    setWindowUrl(`http://localhost/vault?invite=${inviteCode}&email=${encodeURIComponent(invitedEmail)}`)
+    await renderApp(client)
+
+    await rtl.screen.findByText("You've been invited")
+    await rtl.screen.findByText(/This invitation was already used or is invalid/)
+    expect(rtl.screen.queryByLabelText('Your email')).toBeNull()
+    expect(rtl.screen.queryByRole('button', {name: 'Continue'})).toBeNull()
+    expect(rtl.screen.queryByLabelText('Enter your email to continue')).toBeNull()
+    expect(document.querySelector('form')).toBeNull()
+    expect(registerStart).not.toHaveBeenCalled()
+  })
+
+  test('pre-login screen without a link keeps the invite input and the invite-only hint', async () => {
+    const client = createMockClient({
+      getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+    })
+    setWindowUrl('http://localhost/vault')
+    await renderApp(client)
+
+    await rtl.screen.findByLabelText('Enter your email to continue')
+    rtl.screen.getByLabelText('Invitation code')
+    rtl.screen.getByText(/This vault is invite-only. A code is required to create a new account/)
+    rtl.screen.getByText('Send code')
+    rtl.screen.getByText(/Terms and Privacy Policy/)
+    expect(rtl.screen.queryByText("You've been invited")).toBeNull()
   })
 
   test('pre-login screen hides the invite input when the vault is open', async () => {

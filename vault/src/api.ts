@@ -26,7 +26,7 @@ import type {Account} from '@shm/shared/client/.generated/documents/v3alpha/docu
  * # Authentication rules
  *
  * - Unauthenticated: `preLogin`, `register*`, `login`, `loginPasskey*`,
- *   `getConfig`, `getAccount`.
+ *   `getConfig`, `getAccount`, `getInvitation`.
  * - Session cookie required: `getSession`, `logout`, `changeEmail*`,
  *   `addPasskey*`, `addPassword`,
  *   `changePassword`, `addSecretCredential`, `putVaultConnect`.
@@ -52,6 +52,7 @@ export interface ServiceDefinition {
   // Email-based registration.
   registerStart(req: RegisterStartRequest): Promise<RegisterStartResponse>
   registerVerify(req: RegisterVerifyRequest): Promise<RegisterVerifyResponse>
+  getInvitation(req: GetInvitationRequest): Promise<GetInvitationResponse>
 
   // Vault data.
   getVault(req: GetVaultRequest): Promise<GetVaultResponse>
@@ -115,6 +116,17 @@ export type RegisterVerifyRequest = {
 export type RegisterVerifyResponse = {
   verified: boolean
   userId: string
+}
+
+// Look up an unused invitation by its code (public, unauthenticated).
+// Answers 404 when the code is unknown, already used, or not bound to an email.
+export type GetInvitationRequest = {
+  code: string
+}
+export type GetInvitationResponse = {
+  /** Email the invitation is for; registration is only possible with this address. */
+  email: string
+  valid: true
 }
 
 // Add password credential. Fails if the user already has a password.
@@ -312,6 +324,8 @@ export type GetConfigResponse = {
   webBaseUrl: string
   /** Whether creating an account requires an invitation code. */
   inviteOnly: boolean
+  /** Human-readable name of the vault's WebAuthn relying party (`--rp-name`). */
+  relyingPartyName: string
 }
 
 /**
@@ -321,17 +335,18 @@ export type GetConfigResponse = {
  */
 export type AdminInvitation = {
   code: string
-  /** Email the code is bound to, or null for any email. */
+  /** Email the code is bound to. Always set in invite-only mode; null only for legacy unbound codes. */
   email: string | null
-  /** Ready-to-share registration link. */
+  /** Ready-to-share registration link: `<origin>/vault?invite=<code>&email=<email>`. */
   link: string
   createTime: number
   usedTime: number | null
   used: boolean
 }
 export type AdminCreateInvitationsRequest = {
+  /** Email the invitation is for. Required in invite-only mode. */
   email?: string
-  /** Number of codes to create (default 1, max 100). */
+  /** Number of codes to create (default 1, max 100). Must be 1 when `email` is set. */
   count?: number
 }
 export type AdminCreateInvitationsResponse = {
