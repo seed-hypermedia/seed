@@ -404,8 +404,7 @@ function HMEntitySearchInput({
             if (showAccounts && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
               e.preventDefault()
               const count = accounts.suggestions.length
-              if (count)
-                setSelected((Math.max(0, accountIndex) + (e.key === 'ArrowDown' ? 1 : -1) + count) % count)
+              if (count) setSelected((Math.max(0, accountIndex) + (e.key === 'ArrowDown' ? 1 : -1) + count) % count)
               return
             }
             if (showAccounts && e.key === 'Enter') {
