@@ -2973,7 +2973,7 @@ exec "${bunPath}" "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}" "$@"
   }
 }
 function autoUpdates(config) {
-  return !isEnterprise(config) || config.release_channel === "latest";
+  return !isEnterprise(config) || isPresetReleaseChannel(config.release_channel);
 }
 async function setActiveNode(paths, shell, config) {
   if (config && !autoUpdates(config)) {
