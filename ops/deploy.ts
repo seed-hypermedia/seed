@@ -326,6 +326,11 @@ export interface SeedConfig {
   vault_admin_secret?: string
   /** HMAC secret the web app signs its session cookie with. Random, 48+ chars. */
   session_secret?: string
+  /**
+   * Lets the box's own services (the agents service) past the sign-in gate:
+   * they read the site server-side with no session. Random, 48+ chars.
+   */
+  service_secret?: string
   /** Run the notify (email) service at notify.<dns>. */
   notify?: boolean
   /** SMTP settings for the vault and notify; required when `notify` is on and there is no email relay. */
@@ -338,7 +343,7 @@ export interface SeedConfig {
   email_relay_url?: string
   /** Bearer token for the email relay. */
   email_relay_token?: string
-  /** Run the agents service at agents.<dns>. */
+  /** Run the agents service, served by the site itself under /agents/*. */
   agents?: boolean
   /** Pass /dev/kvm to the agents container so sandboxed code execution works. */
   agents_kvm?: boolean
@@ -400,10 +405,14 @@ export function notifyHost(config: SeedConfig): string {
   return config.notify ? `https://notify.${extractDns(config.domain)}` : ''
 }
 
-/** Public URL of the agents service, or '' when it is not deployed. */
+/**
+ * Public URL of the agents service, or '' when it is not deployed. It is the
+ * site itself: the service answers under /agents/*, behind the same sign-in
+ * gate, so an instance needs one hostname and agents are for members only.
+ */
 export function agentsHost(config: SeedConfig): string {
   if (!isEnterprise(config) || !config.agents) return ''
-  return `https://agents.${extractDns(config.domain)}`
+  return `https://${extractDns(config.domain)}`
 }
 
 /**
@@ -1512,6 +1521,7 @@ export function buildEnterpriseConfig(
     link_secret: existing?.link_secret ?? generateSecret(),
     vault_admin_secret: existing?.vault_admin_secret ?? generateSecret(VAULT_ADMIN_SECRET_LENGTH),
     session_secret: existing?.session_secret ?? generateSecret(SESSION_SECRET_LENGTH),
+    service_secret: existing?.service_secret ?? generateSecret(SESSION_SECRET_LENGTH),
     notify: answers.notify,
     smtp: answers.notify ? answers.smtp : existing?.smtp ?? undefined,
     email_relay_url: relay?.url || undefined,
@@ -1802,6 +1812,34 @@ export const SESSION_CHECK_URI = '/hm/api/session'
 export const ENTERPRISE_MAX_BODY = '512MB'
 
 /**
+ * Inbound webhook triggers are posted by outside services, which have no
+ * session; the trigger's secret in the path is their credential.
+ */
+function agentsWebhookBlock(config: SeedConfig): string {
+  if (!config.agents) return ''
+  return `\t@agents_webhook {
+\t\tmethod POST
+\t\tpath /agents/api/webhooks/*
+\t}
+\thandle @agents_webhook {
+\t\treverse_proxy seed-agents:3050
+\t}
+`
+}
+
+/** The agents service (API and WebSocket under /agents/*), for members only. */
+function agentsGatedBlock(config: SeedConfig): string {
+  if (!config.agents) return ''
+  return `
+\t@agents path /agents/*
+\thandle @agents {
+\t\timport gate
+\t\treverse_proxy seed-agents:3050
+\t}
+`
+}
+
+/**
  * Enterprise Caddyfile. Explicit site blocks (one per hostname) with a sign-in
  * gate: every request to the main site that is not open is first sent to the
  * web app's session check (`forward_auth`); 2xx lets it through, anything else
@@ -1859,7 +1897,7 @@ ${dns} {
 \t\tpath /api/Account
 \t}
 \t@open path ${ENTERPRISE_OPEN_PATHS.join(' ')}
-\thandle @open_api_post {
+${agentsWebhookBlock(config)}\thandle @open_api_post {
 \t\treverse_proxy seed-web:3000
 \t}
 \thandle @open_api_get {
@@ -1881,7 +1919,7 @@ ${dns} {
 \t\timport gate
 \t\treverse_proxy grafana:3001
 \t}
-
+${agentsGatedBlock(config)}
 \thandle {
 \t\timport gate
 \t\treverse_proxy seed-web:3000
@@ -1900,16 +1938,6 @@ ${dns} {
     blocks.push(`notify.${dns} {
 \tencode zstd gzip
 \treverse_proxy seed-notify:3000
-}`)
-  }
-
-  if (config.agents) {
-    blocks.push(`agents.${dns} {
-\tencode zstd gzip
-\trequest_body {
-\t\tmax_size ${ENTERPRISE_MAX_BODY}
-\t}
-\treverse_proxy seed-agents:3050
 }`)
   }
 
@@ -2275,6 +2303,7 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     vars.SEED_SITE_NAME = config.site_name ?? dns
     vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? ''
     vars.SEED_SESSION_SECRET = config.session_secret ?? ''
+    vars.SEED_SERVICE_SECRET = config.service_secret ?? ''
     vars.SEED_CONTACT_EMAIL = config.email ?? ''
     vars.SEED_NOTIFY_HOST = notifyHost(config)
     vars.SEED_AGENTS_HOST = agentsHost(config)
@@ -3732,6 +3761,7 @@ export function redactConfig(config: SeedConfig): SeedConfig {
   const redacted: SeedConfig = {...config, link_secret: '****'}
   if (config.vault_admin_secret) redacted.vault_admin_secret = '****'
   if (config.session_secret) redacted.session_secret = '****'
+  if (config.service_secret) redacted.service_secret = '****'
   if (config.smtp?.password) redacted.smtp = {...config.smtp, password: '****'}
   if (config.email_relay_token) redacted.email_relay_token = '****'
   return redacted

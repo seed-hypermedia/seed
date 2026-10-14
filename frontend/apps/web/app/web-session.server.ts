@@ -71,6 +71,28 @@ export function getWebSession(request: Request): WebSession | null {
   return value ? verifyWebSession(value, secret) : null
 }
 
+/** Header the box's own services (the agents service) send instead of a session cookie. */
+export const SERVICE_SECRET_HEADER = 'X-Seed-Service-Secret'
+
+/**
+ * True when the request carries the deployment's service secret
+ * (SEED_SERVICE_SECRET). Services on the box poll and read the site server-side
+ * and have no browser session; the secret is never sent to a browser.
+ */
+export function hasServiceSecret(request: Request): boolean {
+  const secret = process.env.SEED_SERVICE_SECRET
+  const presented = request.headers.get(SERVICE_SECRET_HEADER)
+  if (!secret || !presented) return false
+  const expected = Buffer.from(secret)
+  const actual = Buffer.from(presented)
+  return expected.length === actual.length && timingSafeEqual(expected, actual)
+}
+
+/** A member's session cookie, or one of the box's own services. */
+export function isSignedInRequest(request: Request): boolean {
+  return !!getWebSession(request) || hasServiceSecret(request)
+}
+
 // Hand-rolled rather than Remix's createCookie so the value stays the plain
 // `payload.signature` form that other services on the box can verify.
 function cookieAttributes(expires: Date): string {

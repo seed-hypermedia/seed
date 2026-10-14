@@ -47,7 +47,7 @@ describe('/api gate under SEED_REQUIRE_SIGN_IN', () => {
     process.env.SEED_SESSION_SECRET = SECRET
   })
   afterEach(() => {
-    for (const name of ['SEED_REQUIRE_SIGN_IN', 'SEED_SESSION_SECRET'] as const) {
+    for (const name of ['SEED_REQUIRE_SIGN_IN', 'SEED_SESSION_SECRET', 'SEED_SERVICE_SECRET'] as const) {
       if (env[name] === undefined) delete process.env[name]
       else process.env[name] = env[name]
     }
@@ -76,6 +76,15 @@ describe('/api gate under SEED_REQUIRE_SIGN_IN', () => {
     const response = await get('Resource', {Authorization: 'Bearer api-token'})
     expect(response.status).toBe(401)
     expect(mocks.handleApiRequest).not.toHaveBeenCalled()
+  })
+
+  it("serves the box's own services that present the service secret", async () => {
+    process.env.SEED_SERVICE_SECRET = 'service-secret'
+    expect((await get('ListEvents', {'X-Seed-Service-Secret': 'service-secret'})).status).toBe(200)
+    expect((await get('ListEvents', {'X-Seed-Service-Secret': 'wrong-secret!!'})).status).toBe(401)
+    delete process.env.SEED_SERVICE_SECRET
+    expect((await get('ListEvents', {'X-Seed-Service-Secret': ''})).status).toBe(401)
+    expect((await get('ListEvents', {'X-Seed-Service-Secret': 'service-secret'})).status).toBe(401)
   })
 
   it('keeps the sign-in bootstrap calls open', async () => {

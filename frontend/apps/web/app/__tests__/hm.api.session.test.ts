@@ -66,6 +66,19 @@ describe('/hm/api/session (forward_auth target)', () => {
     expect(await response.json()).toEqual({error: 'Sign in required'})
   })
 
+  it("passes the box's own services by the service secret, and nothing else without a session", async () => {
+    process.env.SEED_SERVICE_SECRET = 'service-secret'
+    try {
+      expect((await probe({'X-Seed-Service-Secret': 'service-secret', 'X-Forwarded-Uri': '/ipfs/bafy'})).status).toBe(
+        204,
+      )
+      expect((await probe({'X-Seed-Service-Secret': 'other', 'X-Forwarded-Uri': '/ipfs/bafy'})).status).toBe(401)
+    } finally {
+      delete process.env.SEED_SERVICE_SECRET
+    }
+    expect((await probe({'X-Seed-Service-Secret': 'service-secret', 'X-Forwarded-Uri': '/ipfs/bafy'})).status).toBe(401)
+  })
+
   it('rejects an expired or forged session cookie', async () => {
     expect((await probe({Cookie: sessionCookie(-10), 'X-Forwarded-Uri': '/x'})).status).toBe(401)
     expect((await probe({Cookie: `${WEB_SESSION_COOKIE}=abc.def`, 'X-Forwarded-Uri': '/x'})).status).toBe(401)

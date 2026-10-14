@@ -32,7 +32,7 @@ var __toESM = (mod, isNodeMode, target) => {
 };
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 
-// node_modules/sisteransi/src/index.js
+// ops/node_modules/sisteransi/src/index.js
 var require_src = __commonJS((exports, module) => {
   var ESC = "\x1B";
   var CSI = `${ESC}[`;
@@ -90,7 +90,7 @@ var require_src = __commonJS((exports, module) => {
   module.exports = { cursor, scroll, erase, beep };
 });
 
-// node_modules/picocolors/picocolors.js
+// ops/node_modules/picocolors/picocolors.js
 var require_picocolors = __commonJS((exports, module) => {
   var p = process || {};
   var argv = p.argv || [];
@@ -160,10 +160,10 @@ var require_picocolors = __commonJS((exports, module) => {
   module.exports.createColors = createColors;
 });
 
-// node_modules/@clack/prompts/dist/index.mjs
+// ops/node_modules/@clack/prompts/dist/index.mjs
 import { stripVTControlCharacters as T2 } from "util";
 
-// node_modules/@clack/core/dist/index.mjs
+// ops/node_modules/@clack/core/dist/index.mjs
 var import_sisteransi = __toESM(require_src(), 1);
 var import_picocolors = __toESM(require_picocolors(), 1);
 import { stdin as $, stdout as j } from "process";
@@ -608,7 +608,7 @@ class PD extends x {
   }
 }
 
-// node_modules/@clack/prompts/dist/index.mjs
+// ops/node_modules/@clack/prompts/dist/index.mjs
 var import_picocolors2 = __toESM(require_picocolors(), 1);
 var import_sisteransi2 = __toESM(require_src(), 1);
 import p from "process";
@@ -861,7 +861,7 @@ var be = async (s, n) => {
   return t;
 };
 
-// deploy.ts
+// ops/deploy.ts
 import { readFile, writeFile, mkdir, access, chmod } from "fs/promises";
 import { execSync, exec as execCb } from "child_process";
 import { createHash, randomBytes } from "crypto";
@@ -1016,7 +1016,7 @@ function notifyHost(config) {
 function agentsHost(config) {
   if (!isEnterprise(config) || !config.agents)
     return "";
-  return `https://agents.${extractDns(config.domain)}`;
+  return `https://${extractDns(config.domain)}`;
 }
 function enterpriseTestnetName(domain) {
   return `ent-${extractDns(domain).replace(/[^A-Za-z0-9-]+/g, "-")}`;
@@ -1788,6 +1788,7 @@ function buildEnterpriseConfig(answers, existing) {
     link_secret: existing?.link_secret ?? generateSecret(),
     vault_admin_secret: existing?.vault_admin_secret ?? generateSecret(VAULT_ADMIN_SECRET_LENGTH),
     session_secret: existing?.session_secret ?? generateSecret(SESSION_SECRET_LENGTH),
+    service_secret: existing?.service_secret ?? generateSecret(SESSION_SECRET_LENGTH),
     notify: answers.notify,
     smtp: answers.notify ? answers.smtp : existing?.smtp ?? undefined,
     email_relay_url: relay?.url || undefined,
@@ -1982,6 +1983,29 @@ var ENTERPRISE_OPEN_PATHS = [
 ];
 var SESSION_CHECK_URI = "/hm/api/session";
 var ENTERPRISE_MAX_BODY = "512MB";
+function agentsWebhookBlock(config) {
+  if (!config.agents)
+    return "";
+  return `	@agents_webhook {
+		method POST
+		path /agents/api/webhooks/*
+	}
+	handle @agents_webhook {
+		reverse_proxy seed-agents:3050
+	}
+`;
+}
+function agentsGatedBlock(config) {
+  if (!config.agents)
+    return "";
+  return `
+	@agents path /agents/*
+	handle @agents {
+		import gate
+		reverse_proxy seed-agents:3050
+	}
+`;
+}
 function generateEnterpriseCaddyfile(config) {
   const dns = extractDns(config.domain);
   const blocks = [];
@@ -2031,7 +2055,7 @@ ${dns} {
 		path /api/Account
 	}
 	@open path ${ENTERPRISE_OPEN_PATHS.join(" ")}
-	handle @open_api_post {
+${agentsWebhookBlock(config)}	handle @open_api_post {
 		reverse_proxy seed-web:3000
 	}
 	handle @open_api_get {
@@ -2053,7 +2077,7 @@ ${dns} {
 		import gate
 		reverse_proxy grafana:3001
 	}
-
+${agentsGatedBlock(config)}
 	handle {
 		import gate
 		reverse_proxy seed-web:3000
@@ -2068,15 +2092,6 @@ ${dns} {
     blocks.push(`notify.${dns} {
 	encode zstd gzip
 	reverse_proxy seed-notify:3000
-}`);
-  }
-  if (config.agents) {
-    blocks.push(`agents.${dns} {
-	encode zstd gzip
-	request_body {
-		max_size ${ENTERPRISE_MAX_BODY}
-	}
-	reverse_proxy seed-agents:3050
 }`);
   }
   return blocks.join(`
@@ -2332,6 +2347,7 @@ function buildComposeEnv(config, paths) {
     vars.SEED_SITE_NAME = config.site_name ?? dns;
     vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? "";
     vars.SEED_SESSION_SECRET = config.session_secret ?? "";
+    vars.SEED_SERVICE_SECRET = config.service_secret ?? "";
     vars.SEED_CONTACT_EMAIL = config.email ?? "";
     vars.SEED_NOTIFY_HOST = notifyHost(config);
     vars.SEED_AGENTS_HOST = agentsHost(config);
@@ -3398,6 +3414,8 @@ function redactConfig(config) {
     redacted.vault_admin_secret = "****";
   if (config.session_secret)
     redacted.session_secret = "****";
+  if (config.service_secret)
+    redacted.service_secret = "****";
   if (config.smtp?.password)
     redacted.smtp = { ...config.smtp, password: "****" };
   if (config.email_relay_token)

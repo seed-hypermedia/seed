@@ -2,6 +2,7 @@ import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
+import {installHmServerAuth} from '@/hm-server-auth'
 import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
 import {perfSnapshot} from '@/perf'
@@ -307,6 +308,8 @@ async function main(): Promise<void> {
 
   const cfg = config.create(config.parseArgs())
   setLogLevel(cfg.logLevel)
+  // A members-only (Enterprise) site lets this service in by a shared secret instead of a session.
+  installHmServerAuth([cfg.activity.hmServerUrl, cfg.activity.ipfsServerUrl], process.env.SEED_AGENTS_HM_SERVER_SECRET)
   const result = sqlite.open(cfg.dbPath)
 
   if (!result.ok) {
