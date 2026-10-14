@@ -260,6 +260,76 @@ describe('QueryBlockContent table view', () => {
   })
 })
 
+describe('QueryBlockContent activity sorting', () => {
+  it.each(['Table', 'List', 'Card'] as const)(
+    'keeps server activity order in %s, including tied timestamps',
+    (style) => {
+      const items = makeItems(3)
+      items[0].metadata.name = 'Zed publish reference'
+      items[1].metadata.name = 'Beta comment'
+      items[2].metadata.name = 'Alpha content change'
+      items.forEach((item: any, index: number) => {
+        item.updateTime = `2026-01-0${index + 1}T00:00:00Z`
+        item.activitySummary = {
+          latestChangeTime: item.updateTime,
+          latestCommentTime: '2026-02-01T00:00:00Z',
+          commentCount: 1,
+        }
+      })
+      act(() =>
+        root.render(
+          <QueryBlockContent
+            items={items}
+            style={style}
+            accountsMetadata={{}}
+            tableSorting={[{id: 'activity', desc: true}]}
+          />,
+        ),
+      )
+      const content = container.textContent!
+      expect(content.indexOf('Zed publish reference')).toBeLessThan(content.indexOf('Beta comment'))
+      expect(content.indexOf('Beta comment')).toBeLessThan(content.indexOf('Alpha content change'))
+    },
+  )
+
+  it('selects newest activity first and requests the reverse order without sorting by local change time', () => {
+    const items = makeItems(2)
+    items[0].metadata.name = 'Older document with new comment'
+    items[0].updateTime = '2025-01-01T00:00:00Z'
+    items[1].metadata.name = 'Recently updated document'
+    items[1].updateTime = '2026-01-01T00:00:00Z'
+    function Collection() {
+      const [sorting, setSorting] = React.useState([{id: 'updated', desc: false}])
+      const results = sorting[0]?.id === 'activity' && !sorting[0].desc ? [...items].reverse() : items
+      return (
+        <QueryBlockContent
+          items={results}
+          style="Table"
+          accountsMetadata={{}}
+          tableSorting={sorting}
+          onTableSortingChange={setSorting}
+        />
+      )
+    }
+    act(() => root.render(<Collection />))
+    act(() => (container.querySelector('button[aria-label="Sort"]') as HTMLButtonElement).click())
+    const combo = document.querySelector('[role="combobox"]')!
+    act(() => combo.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true})))
+    const activity = Array.from(document.querySelectorAll('[role="option"]')).find(
+      (option) => option.textContent === 'Latest activity',
+    )
+    expect(activity).toBeTruthy()
+    act(() => activity!.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true})))
+    const names = () => Array.from(container.querySelectorAll('tbody tr td a[title]')).map((link) => link.textContent)
+    expect(names()).toEqual(['Older document with new comment', 'Recently updated document'])
+    const ascending = Array.from(document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Ascending',
+    )!
+    act(() => ascending.click())
+    expect(names()).toEqual(['Recently updated document', 'Older document with new comment'])
+  })
+})
+
 describe('QueryBlockContent toolbar', () => {
   it('focuses expanded search and preserves its value and results after blur', () => {
     act(() => root.render(<QueryBlockContent items={makeItems(2)} style="List" accountsMetadata={{}} />))

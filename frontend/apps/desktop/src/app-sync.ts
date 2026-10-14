@@ -473,6 +473,7 @@ function processEventsInner(events: Event[]) {
   // Comment changes: keep object-shaped comment view keys broad, but target
   // string-keyed comment indexes when the activity event carries enough data.
   if (seenBlobTypes.has('comment')) {
+    appInvalidateQueries([queryKeys.QUERY_BLOCK])
     appInvalidateQueries([queryKeys.DOCUMENT_COMMENTS])
     appInvalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
     appInvalidateQueries([queryKeys.BLOCK_DISCUSSIONS])

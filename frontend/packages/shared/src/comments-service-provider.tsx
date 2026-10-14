@@ -180,6 +180,7 @@ export function useDeleteComment() {
       // refetchType 'all' also refreshes comment views that are unmounted right
       // now — web disables refetchOnMount, so they'd otherwise show stale data
       // when remounted (#812).
+      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})
@@ -220,6 +221,7 @@ export function useUpdateComment() {
     },
     onSuccess: (_result, params) => {
       // refetchType 'all': see useDeleteComment above (#812).
+      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})

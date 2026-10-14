@@ -211,6 +211,7 @@ export default function WebCommenting({
       // 'active'-only invalidation would leave that list rendering its stale
       // cache (without the new comment) when the user tabs back to it (#812).
       invalidateQueries([queryKeys.DOCUMENT_ACTIVITY], {refetchType: 'all'})
+      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY], {refetchType: 'all'})

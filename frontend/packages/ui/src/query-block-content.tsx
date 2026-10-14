@@ -266,6 +266,9 @@ export function QueryBlockContent({
     const current = sorting[0]
     if (!current) return filteredItems
     const {id, desc} = current
+    // Activity uses publish-reference timestamps that are not exposed on each row.
+    // Keep the backend order rather than replacing it with content-change times.
+    if (id === 'activity') return filteredItems
     return [...filteredItems].sort((a, b) => {
       const aValue = getQueryTableSortValue(a, id, context)
       const bValue = getQueryTableSortValue(b, id, context)
@@ -324,6 +327,7 @@ export function QueryBlockContent({
         setFilters={setEffectiveFilters}
         sorting={sorting}
         setSorting={setSortingAndPersist}
+        allowActivitySort={!!onTableSortingChange}
         search={effectiveSearch}
         setSearch={setEffectiveSearch}
         filterOptions={availableFilterOptions}
@@ -409,6 +413,7 @@ function QueryBlockToolbar({
   setFilters,
   sorting,
   setSorting,
+  allowActivitySort,
   search,
   setSearch,
   filterOptions,
@@ -429,6 +434,7 @@ function QueryBlockToolbar({
   setFilters: (filters: QueryTableFilter[]) => void
   sorting: SortingState
   setSorting: (sorting: SortingState) => void
+  allowActivitySort: boolean
   search: string
   setSearch: (value: string) => void
   filterOptions: HMQueryBlockFilterOptions
@@ -495,6 +501,7 @@ function QueryBlockToolbar({
           descriptors={getQuerySortColumns(descriptors, columnVisibility)}
           sorting={sorting}
           setSorting={setSorting}
+          allowActivitySort={allowActivitySort}
         />
         <AttributesPopover
           descriptors={descriptors}
@@ -817,10 +824,12 @@ function SortPopover({
   descriptors,
   sorting,
   setSorting,
+  allowActivitySort,
 }: {
   descriptors: QueryTableColumn[]
   sorting: SortingState
   setSorting: (sorting: SortingState) => void
+  allowActivitySort: boolean
 }) {
   const current = sorting[0]
   const columnId = current?.id ?? descriptors[0]?.id ?? 'title'
@@ -842,9 +851,12 @@ function SortPopover({
             <SelectField
               id="sort-column"
               className="w-full"
-              options={descriptors.map((d) => ({value: d.id, label: d.label}))}
+              options={[
+                ...descriptors.map((d) => ({value: d.id, label: d.label})),
+                ...(allowActivitySort ? [{value: 'activity', label: 'Latest activity'}] : []),
+              ]}
               value={columnId}
-              onValue={(value) => setSorting([{id: value, desc}])}
+              onValue={(value) => setSorting([{id: value, desc: value === 'activity' ? true : desc}])}
             />
           </div>
           <div className="flex flex-col gap-1">

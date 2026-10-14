@@ -233,6 +233,7 @@ function CommentBoxImpl(props: {
 
       removeDraft.mutate()
 
+      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION, docId.uid, ...(docId.path || [])])
       invalidateQueries([queryKeys.LIBRARY])
       invalidateQueries([queryKeys.SITE_LIBRARY, docId.uid])
@@ -343,6 +344,7 @@ function CommentBoxImpl(props: {
         const recordId = await commentRecordIdFromBlob(commentBlobData)
         await publish(commentPayload)
         removeDraft.mutate()
+        invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
         invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
         invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
