@@ -33,6 +33,9 @@ const transporter =
           user: NOTIFY_SMTP_USER as string,
           pass: NOTIFY_SMTP_PASSWORD as string,
         },
+        // Under Bun, implicit TLS (port 465) sends no SNI unless servername is set, and Mailgun
+        // then never sends its greeting ("Greeting never received" after the timeout).
+        tls: {servername: NOTIFY_SMTP_HOST as string},
       })
     : null
 
