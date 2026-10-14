@@ -7,7 +7,7 @@ import {PasswordInput} from './components/PasswordInput'
 import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
-import {getPendingFlowPath, useActions, useAppState, VAULT_BASENAME} from './store'
+import {getPendingFlowPath, siteInviteSignInUrl, useActions, useAppState, VAULT_BASENAME} from './store'
 import {AccountSettingsView} from './views/AccountSettingsView'
 import {ChooseAuthView} from './views/ChooseAuthView'
 import {ConnectSuccessView} from './views/ConnectSuccessView'
@@ -279,6 +279,30 @@ export function RootLayout() {
   )
 }
 
+/**
+ * Hands an invitation that was opened on the vault itself to the site's
+ * sign-in page, which starts the delegation and comes back here with the
+ * invitation attached, so the account is created and the site signed in to
+ * in one flow.
+ */
+function InviteViaSiteSignIn() {
+  const {inviteCode, inviteEmail, webBaseUrl} = useAppState()
+  const target = siteInviteSignInUrl(inviteCode, inviteEmail, webBaseUrl)
+  useEffect(() => {
+    window.location.replace(target)
+  }, [target])
+  return (
+    <div className="w-full max-w-lg">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-left text-xl">Opening your invitation</CardTitle>
+          <CardDescription className="text-left">Taking you to the site to set up your account…</CardDescription>
+        </CardHeader>
+      </Card>
+    </div>
+  )
+}
+
 function RootView() {
   const {
     session,
@@ -289,6 +313,7 @@ function RootView() {
     returnToPath,
     inviteCode,
     inviteStatus,
+    inviteOnly,
   } = useAppState()
 
   if (!sessionChecked) {
@@ -319,6 +344,13 @@ function RootView() {
   // An invitation link gets its own screen: the email is fixed by the
   // invitation and there is nothing to sign in to yet.
   if (inviteCode && inviteStatus !== 'none') {
+    // On an invite-only vault the invitation belongs inside the site's
+    // sign-in flow, so that creating the account also signs the person in to
+    // the site. A link that came straight here (older links) is sent through
+    // the site first; it comes back with a delegation request attached.
+    if (inviteOnly && !delegationRequest && inviteStatus === 'valid') {
+      return <InviteViaSiteSignIn />
+    }
     return (
       <div className="w-full max-w-lg">
         <InvitedView />

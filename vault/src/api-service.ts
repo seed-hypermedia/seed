@@ -532,11 +532,22 @@ export class Service implements api.ServerInterface {
     }
   }
 
-  /** `<origin>/vault?invite=<code>&email=<email>`; the email part is omitted for legacy unbound codes. */
+  /**
+   * The link an invited person opens. In invite-only mode it is the site's
+   * sign-in page (`<site>/hm/sign-in?invite=<code>&email=<email>`): the site
+   * starts the delegation and sends the person here, the account is created
+   * inside that flow, and the same delegation signs them in to the site, so
+   * they land on the site as a member instead of in the vault. Outside
+   * invite-only mode (and for legacy unbound codes) it is the vault itself.
+   */
   private invitationLink(code: string, email: string | null): string {
     const params = new URLSearchParams({invite: code})
     if (email !== null) {
       params.set('email', email)
+    }
+    if (this.inviteOnly && email !== null) {
+      const site = (this.webBaseUrl || this.rp.origin).replace(/\/$/, '')
+      return `${site}/hm/sign-in?${params.toString()}`
     }
     return `${this.rp.origin}/vault?${params.toString()}`
   }
@@ -556,6 +567,14 @@ export class Service implements api.ServerInterface {
         )
         .all(row.code)
         .map((g) => ({accountUid: g.account_uid, grantTime: g.grant_time})),
+      accounts: row.used_by_account
+        ? this.db
+            .query<{account_uid: string; create_time: number}, [string]>(
+              `SELECT account_uid, create_time FROM user_accounts WHERE user_id = ? ORDER BY create_time`,
+            )
+            .all(row.used_by_account)
+            .map((a) => ({accountUid: a.account_uid, createTime: a.create_time}))
+        : [],
     }
   }
 

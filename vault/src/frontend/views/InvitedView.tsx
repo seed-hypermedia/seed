@@ -60,7 +60,7 @@ export function InvitedView() {
                 <p className="text-muted-foreground text-sm">
                   {inviteStatus === 'checking' && !inviteEmail
                     ? 'Checking your invitation…'
-                    : "We'll send a verification code to this address."}
+                    : 'Continue to create your account for this address.'}
                 </p>
               </div>
 

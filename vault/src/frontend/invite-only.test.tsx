@@ -1,5 +1,7 @@
+import * as base64 from '@seed-hypermedia/client/base64'
+import * as blobs from '@shm/shared/blobs'
 import * as rtl from '@testing-library/react'
-import {afterEach, describe, expect, mock, test} from 'bun:test'
+import {afterEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import * as ReactRouter from 'react-router-dom'
 import {APIError} from './api-client'
 import * as navigation from './navigation'
@@ -14,6 +16,26 @@ function setWindowUrl(url: string) {
 
 const inviteCode = 'A'.repeat(43)
 const invitedEmail = 'new@user.com'
+
+/**
+ * The URL the site's sign-in page sends an invited person to: a delegation
+ * request with the invitation attached. (`proof` is only verified when the
+ * delegation completes.)
+ */
+function inviteViaSiteUrl(email?: string) {
+  const sessionKey = blobs.generateNobleKeyPair()
+  const vaultOrigin = 'http://localhost'
+  const url = new URL('/vault/delegate', vaultOrigin)
+  url.searchParams.set('client_id', vaultOrigin)
+  url.searchParams.set('redirect_uri', `${vaultOrigin}/hm/auth/callback`)
+  url.searchParams.set('session_key', blobs.principalToString(sessionKey.principal))
+  url.searchParams.set('state', base64.encode(new Uint8Array(16)))
+  url.searchParams.set('ts', String(Date.now()))
+  url.searchParams.set('invite', inviteCode)
+  if (email) url.searchParams.set('email', email)
+  url.searchParams.set('proof', 'test-proof')
+  return url.toString()
+}
 
 function registerStartMock() {
   return mock(async (_req: {email: string; invite?: string}) => ({
@@ -135,7 +157,7 @@ describe('invite-only registration', () => {
       registerStart,
       registerInvited,
     })
-    setWindowUrl(`http://localhost/vault?invite=${inviteCode}&email=${encodeURIComponent(invitedEmail)}`)
+    setWindowUrl(inviteViaSiteUrl(invitedEmail))
     await renderApp(client)
 
     await rtl.screen.findByText("You've been invited")
@@ -173,7 +195,7 @@ describe('invite-only registration', () => {
       getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
       getInvitation: async () => ({email: invitedEmail, valid: true as const}),
     })
-    setWindowUrl(`http://localhost/vault?invite=${inviteCode}`)
+    setWindowUrl(inviteViaSiteUrl())
     await renderApp(client, '')
 
     await rtl.screen.findByText("You've been invited")
@@ -191,7 +213,7 @@ describe('invite-only registration', () => {
         throw new APIError('User already exists', 409)
       },
     })
-    setWindowUrl(`http://localhost/vault?invite=${inviteCode}&email=${encodeURIComponent(invitedEmail)}`)
+    setWindowUrl(inviteViaSiteUrl(invitedEmail))
     await renderApp(client)
 
     const continueButton = (await rtl.screen.findByRole('button', {name: 'Continue'})) as HTMLButtonElement
@@ -200,6 +222,29 @@ describe('invite-only registration', () => {
       rtl.fireEvent.click(continueButton)
     })
     await rtl.screen.findByText('User already exists')
+  })
+
+  test('an invitation opened on the vault itself is sent through the site sign-in, with the delegation to come back with', async () => {
+    const client = createMockClient({
+      getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      getInvitation: async () => ({email: invitedEmail, valid: true as const}),
+    })
+    const replace = spyOn(window.location, 'replace').mockImplementation(() => {})
+    try {
+      setWindowUrl(`http://localhost/vault?invite=${inviteCode}&email=${encodeURIComponent(invitedEmail)}`)
+      await renderApp(client)
+
+      await rtl.screen.findByText('Opening your invitation')
+      await rtl.waitFor(() => expect(replace).toHaveBeenCalled())
+      const target = new URL(replace.mock.calls[0]![0] as string)
+      expect(target.origin).toBe('http://localhost')
+      expect(target.pathname).toBe('/hm/sign-in')
+      expect(target.searchParams.get('invite')).toBe(inviteCode)
+      expect(target.searchParams.get('email')).toBe(invitedEmail)
+      expect(rtl.screen.queryByRole('button', {name: 'Continue'})).toBeNull()
+    } finally {
+      replace.mockRestore()
+    }
   })
 
   test('used or unknown invitation shows a message instead of a form', async () => {

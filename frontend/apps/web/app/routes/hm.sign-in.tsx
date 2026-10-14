@@ -4,6 +4,7 @@ import {loadSiteHeaderData} from '@/loaders'
 import {defaultSiteIcon} from '@/meta'
 import {getOptimizedImageUrl} from '@/providers'
 import {parseRequest} from '@/request'
+import {markInviteJoin} from '@/invite-join'
 import {safeNextPath, signInUrl} from '@/require-sign-in'
 import {ensureDaemonAuth} from '@/universal-client'
 import {json, LoaderFunctionArgs, MetaFunction} from '@remix-run/node'
@@ -40,10 +41,16 @@ export default function SignInPage() {
   const {siteName} = useLoaderData<typeof loader>()
   const [searchParams] = useSearchParams()
   const next = safeNextPath(searchParams.get('next'))
+  // An invitation link (invite-only vault): the vault creates the account for
+  // this email and completes the same delegation, so the person ends up here
+  // signed in rather than parked in the vault.
+  const invite = searchParams.get('invite')?.trim() || undefined
+  const inviteEmail = searchParams.get('email')?.trim() || undefined
   const keyPair = useLocalKeyPair()
   const keyPairLoaded = useLocalKeyPairLoaded()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [autoStarted, setAutoStarted] = useState(false)
 
   // A browser that already holds a local identity only needs the daemon cookie
   // before the gate lets it through, so wait for that and then leave. A full
@@ -77,6 +84,9 @@ export default function SignInPage() {
     try {
       // A stale local identity that the daemon rejected must not be reused.
       if (keyPair) await logout()
+      // An invited person becomes a member on arrival; the site header joins
+      // the site for them once the delegation is back.
+      if (invite) markInviteJoin()
       const origin = window.location.origin
       // Come back here rather than straight to `next`: this page waits for the
       // session cookie before the full navigation the proxy gate checks, so a
@@ -86,6 +96,8 @@ export default function SignInPage() {
         siteName,
         vaultUrl: `${WEB_IDENTITY_ORIGIN || origin}/vault/delegate`,
         returnUrl: signInUrl(next),
+        invite,
+        email: inviteEmail,
       })
     } catch (e) {
       console.error('Failed to start sign-in', e)
@@ -94,17 +106,27 @@ export default function SignInPage() {
     }
   }
 
-  const waitingOnSession = !keyPairLoaded || (!!keyPair && !error)
+  // An invitation needs no button: go straight to the vault to create the account.
+  useEffect(() => {
+    if (!invite || autoStarted || !keyPairLoaded || keyPair) return
+    setAutoStarted(true)
+    void signIn()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invite, autoStarted, keyPairLoaded, keyPair])
+
+  const waitingOnSession = !keyPairLoaded || (!!keyPair && !error) || (!!invite && busy && !error)
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
       <div className="bg-card text-card-foreground flex w-full max-w-sm flex-col items-center gap-6 rounded-xl border p-8 shadow-sm">
         <div className="flex flex-col gap-2 text-center">
           <SizableText size="xl" weight="bold">
-            Sign in to {siteName}
+            {invite ? `Join ${siteName}` : `Sign in to ${siteName}`}
           </SizableText>
           <SizableText color="muted" size="sm">
-            This site is only available to signed-in members.
+            {invite
+              ? `Setting up your account${inviteEmail ? ` for ${inviteEmail}` : ''}…`
+              : 'This site is only available to signed-in members.'}
           </SizableText>
         </div>
         {error ? (
@@ -116,7 +138,7 @@ export default function SignInPage() {
           <Spinner />
         ) : (
           <Button onClick={signIn} loading={busy} disabled={busy} className="w-full">
-            Sign in
+            {invite ? 'Set up your account' : 'Sign in'}
           </Button>
         )}
       </div>

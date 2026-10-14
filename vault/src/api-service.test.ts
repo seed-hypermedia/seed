@@ -1560,7 +1560,10 @@ describe('vault invitations', () => {
     const invitation = created.invitations[0]!
     expect(invitation.code).toMatch(/^[A-Za-z0-9_-]{32,}$/)
     expect(invitation.email).toBe('alice+seed@test.com')
-    expect(invitation.link).toBe(`https://example.com/vault?invite=${invitation.code}&email=alice%2Bseed%40test.com`)
+    // Invite-only: the link is the site's sign-in page, which creates the account inside the sign-in flow.
+    expect(invitation.link).toBe(
+      `https://web.example.com/hm/sign-in?invite=${invitation.code}&email=alice%2Bseed%40test.com`,
+    )
     expect(invitation.used).toBe(false)
     expect(invitation.usedTime).toBeNull()
     // The link round-trips through URL parsing to the same code and email.
@@ -1576,9 +1579,11 @@ describe('vault invitations', () => {
     expect(listed.invitations.map((i) => i.code).sort()).toEqual(
       [...created.invitations, ...second.invitations].map((i) => i.code).sort(),
     )
-    // No account data leaks through the admin listing.
+    // Nothing from the user's encrypted vault leaks through the admin listing:
+    // only the public account IDs the person reported.
     for (const invitation of listed.invitations) {
       expect(Object.keys(invitation).sort()).toEqual([
+        'accounts',
         'code',
         'createTime',
         'email',
@@ -1588,6 +1593,7 @@ describe('vault invitations', () => {
         'used',
         'usedTime',
       ])
+      expect(invitation.accounts).toEqual([])
     }
 
     await expect(svc.adminCreateInvitations({email: 'x@test.com', count: 0}, adminCtx)).rejects.toMatchObject({
@@ -1720,9 +1726,10 @@ describe('vault invitations', () => {
           .get(uidA),
       ).toEqual({code: invitation!.code, capability_id: 'cap-1'})
 
-      // The admin listing shows the grant.
+      // The admin listing shows the grant, and the account the person reported.
       const listed = (await svc.adminListInvitations(adminCtx)).invitations.find((i) => i.code === invitation!.code)
       expect(listed?.grants.map((g) => g.accountUid)).toEqual([uidA])
+      expect(listed?.accounts).toEqual([{accountUid: uidA, createTime: 100}])
 
       // Syncing again does not grant again; a second account gets its own grant.
       await svc.syncVaultAccounts({accounts: [claimA]}, userCtx)
