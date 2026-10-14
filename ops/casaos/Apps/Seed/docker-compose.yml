@@ -66,7 +66,7 @@ services:
       SEED_BASE_URL: http://casaos.local:3567
       SEED_ASSET_HOST: http://casaos.local:3567
       DATA_DIR: /data
-      NOTIFY_SERVICE_HOST: https://notify.seed.hyper.media
+      NOTIFY_SERVICE_HOST: https://hyper.media/hm/api/notify
       SEED_IS_GATEWAY: 'false'
       SEED_ENABLE_STATISTICS: 'false'
       SEED_LINK_SECRET: ${SEED_LINK_SECRET:-}

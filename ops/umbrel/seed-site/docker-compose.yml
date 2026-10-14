@@ -67,7 +67,7 @@ services:
       SEED_ASSET_HOST: ${SEED_ASSET_HOST:-}
       PORT: '3000'
       DATA_DIR: /data
-      NOTIFY_SERVICE_HOST: https://notify.seed.hyper.media
+      NOTIFY_SERVICE_HOST: https://hyper.media/hm/api/notify
       SEED_IS_GATEWAY: 'false'
       SEED_ENABLE_STATISTICS: 'false'
     volumes:

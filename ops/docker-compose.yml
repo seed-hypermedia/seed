@@ -41,6 +41,9 @@ services:
     environment:
       - 'SEED_BASE_URL=${SEED_SITE_HOSTNAME}'
       - 'NOTIFY_SERVICE_HOST=${NOTIFY_SERVICE_HOST}'
+      # The site's own agents service (`<site>/hm/api/agents`) when the
+      # `agents` profile is on; the hosted one otherwise.
+      - 'SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST:-https://agentic.seed.hyper.media}'
       - 'SEED_IS_GATEWAY=${SEED_IS_GATEWAY:-false}'
       - 'SEED_ENABLE_STATISTICS=${SEED_ENABLE_STATISTICS:-false}'
       - 'DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}'
@@ -75,6 +78,32 @@ services:
       -syncing.no-sync-back=true -syncing.no-pull=${SEED_SITE_NO_PULL:-false}
       -p2p.announce-addrs=/dns4/${SEED_SITE_DNS}/tcp/56000,/dns4/${SEED_SITE_DNS}/udp/56000/quic-v1
       ${SEED_SITE_HOSTNAME}"'
+
+  # Optional: Seed agents, served by the site under /hm/api/agents (the
+  # Caddyfile routes it when `agents` is on in config.json).
+  seed-agents:
+    container_name: seed-agents
+    image: ${SEED_AGENTS_IMAGE:-seedhypermedia/agents:${SEED_SITE_TAG:-latest}}
+    user: '${SEED_UID}:${SEED_GID}'
+    profiles:
+      - agents
+    depends_on:
+      - seed-daemon
+      - seed-web
+    restart: unless-stopped
+    networks:
+      - internal_network
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/agents:/data:rw,z
+    environment:
+      - 'SEED_AGENTS_HTTP_PORT=3050'
+      - 'SEED_AGENTS_DB_PATH=/data/agents.sqlite'
+      - 'SEED_AGENTS_DATA_DIR=/data'
+      # Agents read and write through this site.
+      - 'SEED_AGENTS_HM_SERVER_URL=${SEED_SITE_HOSTNAME}'
+      # Sandboxed code execution needs /dev/kvm; `agents_kvm` in config.json
+      # injects the device and sets this to "microsandbox".
+      - 'SEED_AGENTS_EXEC_BACKEND=${SEED_AGENTS_EXEC_BACKEND:-}'
 
   prometheus:
     image: prom/prometheus:latest

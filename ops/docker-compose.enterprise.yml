@@ -69,8 +69,9 @@ services:
       - 'SEED_SESSION_SECRET=${SEED_SESSION_SECRET}'
       # The agents service presents this instead of a session cookie.
       - 'SEED_SERVICE_SECRET=${SEED_SERVICE_SECRET}'
-      # Empty when the notify / agents profiles are off. SEED_HOST_URL is empty
-      # on purpose: no Seed Hosting integration.
+      # The site's own <site>/hm/api/notify and <site>/hm/api/agents; empty
+      # when the notify / agents profiles are off. SEED_HOST_URL is empty on
+      # purpose: no Seed Hosting integration.
       - 'NOTIFY_SERVICE_HOST=${SEED_NOTIFY_HOST}'
       - 'SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST}'
       - 'SEED_HOST_URL='
@@ -164,7 +165,9 @@ services:
       - 'PORT=3000'
       - 'DATA_DIR=/data'
       - 'SEED_BASE_URL=${SEED_SITE_HOSTNAME}'
-      # Served at its own subdomain (notify.<dns>): the app expects a root.
+      # Its public base URL, <site>/hm/api/notify: the proxy routes that prefix
+      # (and the legacy /hm/api/<leaf> API paths) here; email links are built
+      # from its origin.
       - 'NOTIFY_SERVICE_HOST=${SEED_NOTIFY_HOST}'
       - 'NOTIFY_SMTP_HOST=${SEED_SMTP_HOST}'
       # The notify mailer uses implicit TLS, which means port 465.

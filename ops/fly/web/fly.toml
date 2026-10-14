@@ -5,7 +5,7 @@ app = "seed-web"
 
 [env]
   DATA_DIR = "/data"
-  NOTIFY_SERVICE_HOST = "https://notify.seed.hyper.media"
+  NOTIFY_SERVICE_HOST = "https://hyper.media/hm/api/notify"
   PORT = "3000"
   SEED_ENABLE_STATISTICS = "false"
   SEED_IS_GATEWAY = "false"
