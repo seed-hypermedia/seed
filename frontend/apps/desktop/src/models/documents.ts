@@ -16,7 +16,6 @@ import {
   HMBlock,
   HMBlockNode,
   HMDocument,
-  HMDocumentMetadataSchema,
   HMPublishBlobsInput,
   HMSigner,
   HMDraft,
@@ -581,7 +580,6 @@ export function usePublishResource(
           invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
         })
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-        invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.DOC_CITATIONS])
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, resultDocId.id])
@@ -604,7 +602,6 @@ export function useDocumentRead(id: UnpackedHypermediaId | undefined | false) {
         isRead: true,
       })
       .then(() => {
-        invalidateQueries([queryKeys.SITE_LIBRARY, id.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
       })
       .catch((error) => {
@@ -624,7 +621,6 @@ export function useMarkAsRead() {
           isRecursive: true,
           isRead: true,
         })
-        invalidateQueries([queryKeys.SITE_LIBRARY, id.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
       }),
     )
@@ -1051,33 +1047,6 @@ function observeBlocks(
     if (block.children) {
       observeBlocks(editor, block.children, onChange)
     }
-  })
-}
-
-export function useAccountDocuments(id?: UnpackedHypermediaId) {
-  return useQuery({
-    queryKey: [queryKeys.ACCOUNT_DOCUMENTS, id?.uid],
-    enabled: !!id?.uid,
-    queryFn: async () => {
-      const account = id?.uid
-      if (!account) return {documents: []}
-      const result = await grpcClient.documents.listDocuments({
-        account: id?.uid,
-        pageSize: BIG_INT,
-      })
-      const documents = result.documents.map((response) => ({
-        ...toPlainMessage(response),
-        metadata: HMDocumentMetadataSchema.parse(
-          response.metadata?.toJson({
-            emitDefaultValues: true,
-            enumAsInteger: false,
-          }),
-        ),
-      }))
-      return {
-        documents,
-      }
-    },
   })
 }
 
@@ -1741,8 +1710,6 @@ export function useMoveDocument() {
       })
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-      invalidateQueries([queryKeys.SITE_LIBRARY, from.uid])
-      invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
     },
   })
 }
@@ -1825,7 +1792,6 @@ export function useRepublishDocument() {
       })
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-      invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
     },
   })
 }

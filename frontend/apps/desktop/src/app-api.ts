@@ -57,8 +57,10 @@ import {
   updateWindowState,
 } from './app-windows'
 import * as log from './logger'
-ipcMain.on('invalidate_queries', (_event, info) => {
-  appInvalidateQueries(info)
+ipcMain.on('invalidate_queries', (event, info) => {
+  // The sender invalidated its own query client before forwarding the key
+  // (root.tsx); only the other windows need it.
+  appInvalidateQueries(info, {except: event.sender})
 })
 
 ipcMain.on('focusedWindowAppEvent', (_event, info) => {
