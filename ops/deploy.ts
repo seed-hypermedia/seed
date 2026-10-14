@@ -260,8 +260,7 @@ export const DEPLOY_PROFILES: readonly DeployProfile[] = ['site', 'enterprise'] 
 export interface SmtpConfig {
   host: string
   /**
-   * STARTTLS port for the vault's mailer (default 587). The notify service
-   * always uses implicit TLS on 465; the relay must offer both.
+   * STARTTLS port for the vault's and notify's mailers (default 587).
    */
   port?: number
   user: string

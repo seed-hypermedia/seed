@@ -170,8 +170,8 @@ services:
       # from its origin.
       - 'NOTIFY_SERVICE_HOST=${SEED_NOTIFY_HOST}'
       - 'NOTIFY_SMTP_HOST=${SEED_SMTP_HOST}'
-      # The notify mailer uses implicit TLS, which means port 465.
-      - 'NOTIFY_SMTP_PORT=465'
+      # STARTTLS, like the vault: Bun's implicit TLS (465) is unreliable.
+      - 'NOTIFY_SMTP_PORT=${SEED_SMTP_PORT:-587}'
       - 'NOTIFY_SMTP_USER=${SEED_SMTP_USER}'
       - 'NOTIFY_SMTP_PASSWORD=${SEED_SMTP_PASSWORD}'
       - 'NOTIFY_SENDER=${SEED_SMTP_SENDER}'
