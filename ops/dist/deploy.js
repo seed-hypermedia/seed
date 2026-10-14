@@ -19,15 +19,13 @@ var __toESM = (mod, isNodeMode, target) => {
       return cached;
   }
   target = mod != null ? __create(__getProtoOf(mod)) : {};
-  const to = isNodeMode || !mod || !mod.__esModule || !__hasOwnProp.call(mod, "default") ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
-  if (mod && typeof mod === "object" || typeof mod === "function") {
-    for (let key of __getOwnPropNames(mod))
-      if (!__hasOwnProp.call(to, key))
-        __defProp(to, key, {
-          get: __accessProp.bind(mod, key),
-          enumerable: true
-        });
-  }
+  const to = isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target;
+  for (let key of __getOwnPropNames(mod))
+    if (!__hasOwnProp.call(to, key))
+      __defProp(to, key, {
+        get: __accessProp.bind(mod, key),
+        enumerable: true
+      });
   if (canCache)
     cache.set(mod, to);
   return to;
@@ -35,7 +33,7 @@ var __toESM = (mod, isNodeMode, target) => {
 var __commonJS = (cb, mod) => () => (mod || cb((mod = { exports: {} }).exports, mod), mod.exports);
 
 // node_modules/sisteransi/src/index.js
-var require_src = __commonJS(function(exports, module) {
+var require_src = __commonJS((exports, module) => {
   var ESC = "\x1B";
   var CSI = `${ESC}[`;
   var beep = "\x07";
@@ -93,7 +91,7 @@ var require_src = __commonJS(function(exports, module) {
 });
 
 // node_modules/picocolors/picocolors.js
-var require_picocolors = __commonJS(function(exports, module) {
+var require_picocolors = __commonJS((exports, module) => {
   var p = process || {};
   var argv = p.argv || [];
   var env = p.env || {};
@@ -654,13 +652,13 @@ var y2 = (s) => {
   }
 };
 var k2 = (s) => {
-  const { cursor: n, options: t, style: i } = s, r = s.maxItems ?? Number.POSITIVE_INFINITY, c = Math.max(process.stdout.rows - 4, 0), o = Math.min(c, Math.max(r, 5));
-  let l = 0;
-  n >= l + o - 3 ? l = Math.max(Math.min(n - o + 3, t.length - o), 0) : n < l + 2 && (l = Math.max(n - 2, 0));
-  const $ = o < t.length && l > 0, d = o < t.length && l + o < t.length;
-  return t.slice(l, l + o).map((w, b, C) => {
-    const I = b === 0 && $, x = b === C.length - 1 && d;
-    return I || x ? import_picocolors2.default.dim("...") : i(w, b + l === n);
+  const { cursor: n, options: t, style: i } = s, r2 = s.maxItems ?? Number.POSITIVE_INFINITY, c2 = Math.max(process.stdout.rows - 4, 0), o = Math.min(c2, Math.max(r2, 5));
+  let l2 = 0;
+  n >= l2 + o - 3 ? l2 = Math.max(Math.min(n - o + 3, t.length - o), 0) : n < l2 + 2 && (l2 = Math.max(n - 2, 0));
+  const $2 = o < t.length && l2 > 0, d2 = o < t.length && l2 + o < t.length;
+  return t.slice(l2, l2 + o).map((w2, b2, C) => {
+    const I2 = b2 === 0 && $2, x2 = b2 === C.length - 1 && d2;
+    return I2 || x2 ? import_picocolors2.default.dim("...") : i(w2, b2 + l2 === n);
   });
 };
 var ue = (s) => new PD({ validate: s.validate, placeholder: s.placeholder, defaultValue: s.defaultValue, initialValue: s.initialValue, render() {
@@ -710,12 +708,12 @@ var me = (s) => {
   return new fD({ active: n, inactive: t, initialValue: s.initialValue ?? true, render() {
     const i = `${import_picocolors2.default.gray(a)}
 ${y2(this.state)}  ${s.message}
-`, r = this.value ? n : t;
+`, r2 = this.value ? n : t;
     switch (this.state) {
       case "submit":
-        return `${i}${import_picocolors2.default.gray(a)}  ${import_picocolors2.default.dim(r)}`;
+        return `${i}${import_picocolors2.default.gray(a)}  ${import_picocolors2.default.dim(r2)}`;
       case "cancel":
-        return `${i}${import_picocolors2.default.gray(a)}  ${import_picocolors2.default.strikethrough(import_picocolors2.default.dim(r))}
+        return `${i}${import_picocolors2.default.gray(a)}  ${import_picocolors2.default.strikethrough(import_picocolors2.default.dim(r2))}
 ${import_picocolors2.default.gray(a)}`;
       default:
         return `${i}${import_picocolors2.default.cyan(a)}  ${this.value ? `${import_picocolors2.default.green(j2)} ${n}` : `${import_picocolors2.default.dim(R2)} ${import_picocolors2.default.dim(n)}`} ${import_picocolors2.default.dim("/")} ${this.value ? `${import_picocolors2.default.dim(R2)} ${import_picocolors2.default.dim(t)}` : `${import_picocolors2.default.green(j2)} ${t}`}
@@ -726,16 +724,16 @@ ${import_picocolors2.default.cyan(m2)}
 };
 var de = (s) => {
   const n = (t, i) => {
-    const r = t.label ?? String(t.value);
+    const r2 = t.label ?? String(t.value);
     switch (i) {
       case "selected":
-        return `${import_picocolors2.default.dim(r)}`;
+        return `${import_picocolors2.default.dim(r2)}`;
       case "active":
-        return `${import_picocolors2.default.green(j2)} ${r} ${t.hint ? import_picocolors2.default.dim(`(${t.hint})`) : ""}`;
+        return `${import_picocolors2.default.green(j2)} ${r2} ${t.hint ? import_picocolors2.default.dim(`(${t.hint})`) : ""}`;
       case "cancelled":
-        return `${import_picocolors2.default.strikethrough(import_picocolors2.default.dim(r))}`;
+        return `${import_picocolors2.default.strikethrough(import_picocolors2.default.dim(r2))}`;
       default:
-        return `${import_picocolors2.default.dim(R2)} ${import_picocolors2.default.dim(r)}`;
+        return `${import_picocolors2.default.dim(R2)} ${import_picocolors2.default.dim(r2)}`;
     }
   };
   return new jD({ options: s.options, initialValue: s.initialValue, render() {
@@ -749,7 +747,7 @@ ${y2(this.state)}  ${s.message}
         return `${t}${import_picocolors2.default.gray(a)}  ${n(this.options[this.cursor], "cancelled")}
 ${import_picocolors2.default.gray(a)}`;
       default:
-        return `${t}${import_picocolors2.default.cyan(a)}  ${k2({ cursor: this.cursor, options: this.options, maxItems: s.maxItems, style: (i, r) => n(i, r ? "active" : "inactive") }).join(`
+        return `${t}${import_picocolors2.default.cyan(a)}  ${k2({ cursor: this.cursor, options: this.options, maxItems: s.maxItems, style: (i, r2) => n(i, r2 ? "active" : "inactive") }).join(`
 ${import_picocolors2.default.cyan(a)}  `)}
 ${import_picocolors2.default.cyan(m2)}
 `;
@@ -760,15 +758,15 @@ var ye = (s = "", n = "") => {
   const t = `
 ${s}
 `.split(`
-`), i = T2(n).length, r = Math.max(t.reduce((o, l) => {
-    const $ = T2(l);
-    return $.length > o ? $.length : o;
-  }, 0), i) + 2, c = t.map((o) => `${import_picocolors2.default.gray(a)}  ${import_picocolors2.default.dim(o)}${" ".repeat(r - T2(o).length)}${import_picocolors2.default.gray(a)}`).join(`
+`), i = T2(n).length, r2 = Math.max(t.reduce((o, l2) => {
+    const $2 = T2(l2);
+    return $2.length > o ? $2.length : o;
+  }, 0), i) + 2, c2 = t.map((o) => `${import_picocolors2.default.gray(a)}  ${import_picocolors2.default.dim(o)}${" ".repeat(r2 - T2(o).length)}${import_picocolors2.default.gray(a)}`).join(`
 `);
   process.stdout.write(`${import_picocolors2.default.gray(a)}
-${import_picocolors2.default.green(S2)}  ${import_picocolors2.default.reset(n)} ${import_picocolors2.default.gray(N2.repeat(Math.max(r - i - 1, 1)) + re)}
-${c}
-${import_picocolors2.default.gray(ie + N2.repeat(r + 2) + ne)}
+${import_picocolors2.default.green(S2)}  ${import_picocolors2.default.reset(n)} ${import_picocolors2.default.gray(N2.repeat(Math.max(r2 - i - 1, 1)) + re)}
+${c2}
+${import_picocolors2.default.gray(ie + N2.repeat(r2 + 2) + ne)}
 `);
 };
 var ve = (s = "") => {
@@ -789,9 +787,9 @@ ${import_picocolors2.default.gray(m2)}  ${s}
 var v2 = { message: (s = "", { symbol: n = import_picocolors2.default.gray(a) } = {}) => {
   const t = [`${import_picocolors2.default.gray(a)}`];
   if (s) {
-    const [i, ...r] = s.split(`
+    const [i, ...r2] = s.split(`
 `);
-    t.push(`${n}  ${i}`, ...r.map((c) => `${import_picocolors2.default.gray(a)}  ${c}`));
+    t.push(`${n}  ${i}`, ...r2.map((c2) => `${import_picocolors2.default.gray(a)}  ${c2}`));
   }
   process.stdout.write(`${t.join(`
 `)}
@@ -811,54 +809,54 @@ var v2 = { message: (s = "", { symbol: n = import_picocolors2.default.gray(a) } 
 } };
 var L2 = () => {
   const s = E ? ["\u25D2", "\u25D0", "\u25D3", "\u25D1"] : ["\u2022", "o", "O", "0"], n = E ? 80 : 120, t = process.env.CI === "true";
-  let i, r, c = false, o = "", l;
-  const $ = (h) => {
-    const g = h > 1 ? "Something went wrong" : "Canceled";
-    c && P(g, h);
-  }, d = () => $(2), w = () => $(1), b = () => {
-    process.on("uncaughtExceptionMonitor", d), process.on("unhandledRejection", d), process.on("SIGINT", w), process.on("SIGTERM", w), process.on("exit", $);
+  let i, r2, c2 = false, o = "", l2;
+  const $2 = (h2) => {
+    const g2 = h2 > 1 ? "Something went wrong" : "Canceled";
+    c2 && P2(g2, h2);
+  }, d2 = () => $2(2), w2 = () => $2(1), b2 = () => {
+    process.on("uncaughtExceptionMonitor", d2), process.on("unhandledRejection", d2), process.on("SIGINT", w2), process.on("SIGTERM", w2), process.on("exit", $2);
   }, C = () => {
-    process.removeListener("uncaughtExceptionMonitor", d), process.removeListener("unhandledRejection", d), process.removeListener("SIGINT", w), process.removeListener("SIGTERM", w), process.removeListener("exit", $);
-  }, I = () => {
-    if (l === undefined)
+    process.removeListener("uncaughtExceptionMonitor", d2), process.removeListener("unhandledRejection", d2), process.removeListener("SIGINT", w2), process.removeListener("SIGTERM", w2), process.removeListener("exit", $2);
+  }, I2 = () => {
+    if (l2 === undefined)
       return;
     t && process.stdout.write(`
 `);
-    const h = l.split(`
+    const h2 = l2.split(`
 `);
-    process.stdout.write(import_sisteransi2.cursor.move(-999, h.length - 1)), process.stdout.write(import_sisteransi2.erase.down(h.length));
-  }, x = (h) => h.replace(/\.+$/, ""), O = (h = "") => {
-    c = true, i = cD(), o = x(h), process.stdout.write(`${import_picocolors2.default.gray(a)}
+    process.stdout.write(import_sisteransi2.cursor.move(-999, h2.length - 1)), process.stdout.write(import_sisteransi2.erase.down(h2.length));
+  }, x2 = (h2) => h2.replace(/\.+$/, ""), O2 = (h2 = "") => {
+    c2 = true, i = cD(), o = x2(h2), process.stdout.write(`${import_picocolors2.default.gray(a)}
 `);
-    let g = 0, f = 0;
-    b(), r = setInterval(() => {
-      if (t && o === l)
+    let g2 = 0, f2 = 0;
+    b2(), r2 = setInterval(() => {
+      if (t && o === l2)
         return;
-      I(), l = o;
-      const W = import_picocolors2.default.magenta(s[g]), _ = t ? "..." : ".".repeat(Math.floor(f)).slice(0, 3);
-      process.stdout.write(`${W}  ${o}${_}`), g = g + 1 < s.length ? g + 1 : 0, f = f < s.length ? f + 0.125 : 0;
+      I2(), l2 = o;
+      const W2 = import_picocolors2.default.magenta(s[g2]), _2 = t ? "..." : ".".repeat(Math.floor(f2)).slice(0, 3);
+      process.stdout.write(`${W2}  ${o}${_2}`), g2 = g2 + 1 < s.length ? g2 + 1 : 0, f2 = f2 < s.length ? f2 + 0.125 : 0;
     }, n);
-  }, P = (h = "", g = 0) => {
-    c = false, clearInterval(r), I();
-    const f = g === 0 ? import_picocolors2.default.green(S2) : g === 1 ? import_picocolors2.default.red(A2) : import_picocolors2.default.red(B);
-    o = x(h ?? o), process.stdout.write(`${f}  ${o}
+  }, P2 = (h2 = "", g2 = 0) => {
+    c2 = false, clearInterval(r2), I2();
+    const f2 = g2 === 0 ? import_picocolors2.default.green(S2) : g2 === 1 ? import_picocolors2.default.red(A2) : import_picocolors2.default.red(B);
+    o = x2(h2 ?? o), process.stdout.write(`${f2}  ${o}
 `), C(), i();
   };
-  return { start: O, stop: P, message: (h = "") => {
-    o = x(h ?? o);
+  return { start: O2, stop: P2, message: (h2 = "") => {
+    o = x2(h2 ?? o);
   } };
 };
 var be = async (s, n) => {
   const t = {}, i = Object.keys(s);
-  for (const r of i) {
-    const c = s[r], o = await c({ results: t })?.catch((l) => {
-      throw l;
+  for (const r2 of i) {
+    const c2 = s[r2], o = await c2({ results: t })?.catch((l2) => {
+      throw l2;
     });
     if (typeof n?.onCancel == "function" && BD(o)) {
-      t[r] = "canceled", n.onCancel({ results: t });
+      t[r2] = "canceled", n.onCancel({ results: t });
       continue;
     }
-    t[r] = o;
+    t[r2] = o;
   }
   return t;
 };
@@ -941,19 +939,19 @@ var DEFAULT_EXEC_TIMEOUT_MS = 120000;
 var IMAGE_PULL_TIMEOUT_MS = 8 * 60000;
 function makeShellRunner() {
   return {
-    run(cmd) {
-      return execSync(cmd, { encoding: "utf-8", timeout: 30000 }).trim();
+    run(cmd2) {
+      return execSync(cmd2, { encoding: "utf-8", timeout: 30000 }).trim();
     },
-    runSafe(cmd) {
+    runSafe(cmd2) {
       try {
-        return this.run(cmd);
+        return this.run(cmd2);
       } catch {
         return null;
       }
     },
-    exec(cmd, timeoutMs = DEFAULT_EXEC_TIMEOUT_MS) {
+    exec(cmd2, timeoutMs = DEFAULT_EXEC_TIMEOUT_MS) {
       return new Promise((resolve, reject) => {
-        execCb(cmd, { timeout: timeoutMs }, (err, stdout, stderr) => {
+        execCb(cmd2, { timeout: timeoutMs }, (err, stdout, stderr) => {
           if (err) {
             const killed = err.killed;
             const detail = stderr.toString().trim() || stdout.toString().trim();
@@ -988,7 +986,7 @@ function checkDockerAccess(shell) {
 var DEPLOY_PROFILES = ["site", "enterprise"];
 function redirectHostnames(config) {
   const current = extractDns(config.domain).toLowerCase();
-  return [...new Set((config.redirect_hostnames ?? []).map((h) => extractDns(h).toLowerCase()).filter(Boolean))].filter((h) => h !== current);
+  return [...new Set((config.redirect_hostnames ?? []).map((h2) => extractDns(h2).toLowerCase()).filter(Boolean))].filter((h2) => h2 !== current);
 }
 function enterpriseRedirects(domain, existing) {
   const previous = existing && extractDns(existing.domain) !== extractDns(domain) ? [extractDns(existing.domain)] : [];
@@ -1142,7 +1140,7 @@ async function writeConfig(config, paths) {
 function generateSecret(length = 10) {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
   const bytes = randomBytes(length);
-  return Array.from(bytes).map((b) => chars[b % chars.length]).join("");
+  return Array.from(bytes).map((b2) => chars[b2 % chars.length]).join("");
 }
 function log(msg) {
   const ts = new Date().toISOString();
@@ -1162,10 +1160,10 @@ function parseDaemonEnv(envJson) {
   let testnet = false;
   try {
     const envs = JSON.parse(envJson);
-    for (const e of envs) {
-      if (e.startsWith("SEED_LOG_LEVEL="))
-        logLevel = e.split("=")[1];
-      if (e.startsWith("SEED_P2P_TESTNET_NAME=") && e.split("=")[1])
+    for (const e2 of envs) {
+      if (e2.startsWith("SEED_LOG_LEVEL="))
+        logLevel = e2.split("=")[1];
+      if (e2.startsWith("SEED_P2P_TESTNET_NAME=") && e2.split("=")[1])
         testnet = true;
     }
   } catch {}
@@ -1177,12 +1175,12 @@ function parseWebEnv(envJson) {
   let trafficStats = false;
   try {
     const envs = JSON.parse(envJson);
-    for (const e of envs) {
-      if (e.startsWith("SEED_BASE_URL="))
-        hostname = e.split("=")[1];
-      if (e.startsWith("SEED_IS_GATEWAY=true"))
+    for (const e2 of envs) {
+      if (e2.startsWith("SEED_BASE_URL="))
+        hostname = e2.split("=")[1];
+      if (e2.startsWith("SEED_IS_GATEWAY=true"))
         gateway = true;
-      if (e.startsWith("SEED_ENABLE_STATISTICS=true"))
+      if (e2.startsWith("SEED_ENABLE_STATISTICS=true"))
         trafficStats = true;
     }
   } catch {}
@@ -1298,7 +1296,7 @@ function removeLegacyAutoupdaters(shell) {
   return ids;
 }
 function freeConflictingPortBindings(shell, projectName) {
-  const portFilters = SEED_PUBLISHED_PORTS.map((p) => `--filter "publish=${p}"`).join(" ");
+  const portFilters = SEED_PUBLISHED_PORTS.map((p2) => `--filter "publish=${p2}"`).join(" ");
   const portOut = shell.runSafe(`docker ps -aq ${portFilters} 2>/dev/null`) ?? "";
   const nameFilters = LEGACY_CONTAINER_NAMES.map((n) => `--filter "name=^${n}$"`).join(" ");
   const nameOut = shell.runSafe(`docker ps -aq ${nameFilters} 2>/dev/null`) ?? "";
@@ -1406,10 +1404,10 @@ async function runMigrationWizard(old, paths, shell, advanced = false) {
     domain: () => ue({
       message: "Public hostname (including https://)",
       placeholder: old.hostname || "https://node1.seed.run",
-      validate: (v) => {
-        if (!v)
+      validate: (v3) => {
+        if (!v3)
           return "Required";
-        if (!v.startsWith("https://") && !v.startsWith("http://"))
+        if (!v3.startsWith("https://") && !v3.startsWith("http://"))
           return "Must start with https:// or http://";
       }
     }),
@@ -1468,8 +1466,8 @@ async function runMigrationWizard(old, paths, shell, advanced = false) {
     email: () => ue({
       message: "Contact email (optional) \u2014 lets us notify you about security updates. Not shared publicly.",
       placeholder: "you@example.com",
-      validate: (v) => {
-        if (v && !v.includes("@"))
+      validate: (v3) => {
+        if (v3 && !v3.includes("@"))
           return "Must be a valid email";
       }
     })
@@ -1510,7 +1508,7 @@ async function runMigrationWizard(old, paths, shell, advanced = false) {
     gateway: answers.gateway,
     last_script_run: ""
   };
-  const summary = Object.entries(config).filter(([k]) => k !== "analytics").map(([k, v]) => `  ${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(`
+  const summary = Object.entries(config).filter(([k3]) => k3 !== "analytics").map(([k3, v3]) => `  ${k3}: ${typeof v3 === "object" ? JSON.stringify(v3) : v3}`).join(`
 `);
   ye(summary, "Configuration summary");
   const confirmed = await me({
@@ -1552,10 +1550,10 @@ async function runFreshWizard(paths, existing, advanced = false) {
     domain: () => ue({
       message: "Public hostname (including https://)",
       placeholder: existing?.domain || "https://node1.seed.run",
-      validate: (v) => {
-        if (!v)
+      validate: (v3) => {
+        if (!v3)
           return "Required";
-        if (!v.startsWith("https://") && !v.startsWith("http://"))
+        if (!v3.startsWith("https://") && !v3.startsWith("http://"))
           return "Must start with https:// or http://";
       }
     }),
@@ -1616,8 +1614,8 @@ async function runFreshWizard(paths, existing, advanced = false) {
     email: () => ue({
       message: "Contact email (optional) \u2014 lets us notify you about security updates. Not shared publicly.",
       placeholder: existing ? existing.email || undefined : "you@example.com",
-      validate: (v) => {
-        if (v && !v.includes("@"))
+      validate: (v3) => {
+        if (v3 && !v3.includes("@"))
           return "Must be a valid email";
       }
     })
@@ -1671,11 +1669,11 @@ async function runFreshWizard(paths, existing, advanced = false) {
     log_level: existing.compose_envs?.LOG_LEVEL ?? "info",
     gateway: String(existing.gateway)
   } : undefined;
-  const summary = userFields.map(([k, v]) => {
-    if (oldFields && String(v) !== String(oldFields[k] ?? "")) {
-      return `  \u270E ${k}: ${v}`;
+  const summary = userFields.map(([k3, v3]) => {
+    if (oldFields && String(v3) !== String(oldFields[k3] ?? "")) {
+      return `  \u270E ${k3}: ${v3}`;
     }
-    return `    ${k}: ${v}`;
+    return `    ${k3}: ${v3}`;
   }).join(`
 `);
   ye(summary, "Configuration summary");
@@ -1739,9 +1737,9 @@ function headlessEnterpriseConfig(opts, existing, env = process.env) {
   const smtp = smtpFromEnv(env) ?? existing?.smtp;
   const relay = opts.emailRelayUrl ? { url: opts.emailRelayUrl, token: opts.emailRelayToken ?? env.SEED_EMAIL_RELAY_TOKEN ?? "" } : emailRelayFromEnv(env) ?? emailRelayOf(existing);
   if (relay) {
-    const urlError = validateUrl(relay.url);
-    if (urlError)
-      throw new Error(`--email-relay-url: ${urlError}`);
+    const urlError2 = validateUrl(relay.url);
+    if (urlError2)
+      throw new Error(`--email-relay-url: ${urlError2}`);
     if (!relay.token) {
       throw new Error("--email-relay-url needs --email-relay-token (or SEED_EMAIL_RELAY_TOKEN in the environment)");
     }
@@ -1763,10 +1761,10 @@ function headlessEnterpriseConfig(opts, existing, env = process.env) {
     site_name: opts.siteName
   }, existing);
 }
-function validateUrl(v) {
-  if (!v)
+function validateUrl(v3) {
+  if (!v3)
     return "Required";
-  if (!v.startsWith("https://") && !v.startsWith("http://"))
+  if (!v3.startsWith("https://") && !v3.startsWith("http://"))
     return "Must start with https:// or http://";
 }
 function buildEnterpriseConfig(answers, existing) {
@@ -1873,11 +1871,11 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
       message: "Email relay URL from Seed hosting (optional; empty means SMTP, or no email)",
       initialValue: existing?.email_relay_url,
       placeholder: "https://host.seed.hyper.media/api/email-relay",
-      validate: (v) => v ? validateUrl(v) : undefined
+      validate: (v3) => v3 ? validateUrl(v3) : undefined
     }) : Promise.resolve(undefined),
     email_relay_token: ({ results }) => advanced && results.email_relay_url ? $e({
       message: existing?.email_relay_token ? "Email relay token (leave empty to keep the current one)" : "Email relay token",
-      validate: (v) => v || existing?.email_relay_token ? undefined : "Required"
+      validate: (v3) => v3 || existing?.email_relay_token ? undefined : "Required"
     }) : Promise.resolve(undefined),
     notify: ({ results }) => me({
       message: relayUrlOf(results) ? "Run the notify service for email notifications? (sends through the email relay)" : "Run the notify service for email notifications? (needs an SMTP account)",
@@ -1887,28 +1885,28 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
       message: "SMTP host",
       initialValue: existing?.smtp?.host,
       placeholder: "smtp.example.org",
-      validate: (v) => v ? undefined : "Required"
+      validate: (v3) => v3 ? undefined : "Required"
     }) : Promise.resolve(undefined),
     smtp_user: ({ results }) => results.notify && !relayUrlOf(results) ? ue({
       message: "SMTP user",
       initialValue: existing?.smtp?.user,
-      validate: (v) => v ? undefined : "Required"
+      validate: (v3) => v3 ? undefined : "Required"
     }) : Promise.resolve(undefined),
     smtp_password: ({ results }) => results.notify && !relayUrlOf(results) ? $e({
       message: existing?.smtp?.password ? "SMTP password (leave empty to keep the current one)" : "SMTP password",
-      validate: (v) => v || existing?.smtp?.password ? undefined : "Required"
+      validate: (v3) => v3 || existing?.smtp?.password ? undefined : "Required"
     }) : Promise.resolve(undefined),
     smtp_sender: ({ results }) => results.notify && !relayUrlOf(results) ? ue({
       message: "Sender address for emails",
       initialValue: existing?.smtp?.sender,
       placeholder: "Seed <seed@example.org>",
-      validate: (v) => v && v.includes("@") ? undefined : "Must contain an email address"
+      validate: (v3) => v3 && v3.includes("@") ? undefined : "Must contain an email address"
     }) : Promise.resolve(undefined),
     email: () => ue({
       message: "Contact email (optional) \u2014 lets us notify you about security updates. Not shared publicly.",
       placeholder: existing ? existing.email || undefined : "you@example.com",
-      validate: (v) => {
-        if (v && !v.includes("@"))
+      validate: (v3) => {
+        if (v3 && !v3.includes("@"))
           return "Must be a valid email";
       }
     })
@@ -1948,7 +1946,7 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
     ["notify", describeNotify(config)],
     ["email", config.email]
   ];
-  const summary = userFields.map(([k, v]) => `    ${k}: ${v}`).join(`
+  const summary = userFields.map(([k3, v3]) => `    ${k3}: ${v3}`).join(`
 `);
   ye(summary, "Configuration summary");
   const confirmed = await me({
@@ -2350,7 +2348,7 @@ function buildComposeEnv(config, paths) {
   if (profiles.length > 0) {
     vars.COMPOSE_PROFILES = profiles.join(",");
   }
-  return Object.entries(vars).map(([k, v]) => `${k}=${shellQuote(v)}`).join(" ");
+  return Object.entries(vars).map(([k3, v3]) => `${k3}=${shellQuote(v3)}`).join(" ");
 }
 function getWorkspaceDirs(paths, config) {
   const dirs = [
@@ -2435,9 +2433,9 @@ async function selfUpdate(scriptPath = process.argv[1] || "", deployUrl) {
   }
 }
 function deviceDirectives(devices, groupIds) {
-  const lines = ["    devices:", ...devices.map((d) => `      - ${d}:${d}`)];
+  const lines = ["    devices:", ...devices.map((d2) => `      - ${d2}:${d2}`)];
   if (groupIds.length > 0) {
-    lines.push("    group_add:", ...groupIds.map((g) => `      - ${g}`));
+    lines.push("    group_add:", ...groupIds.map((g2) => `      - ${g2}`));
   }
   return lines;
 }
@@ -2618,7 +2616,7 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
   let healthy = false;
   for (let attempt = 0;attempt < 10; attempt++) {
     step(`Health check ${attempt + 1}/10...`);
-    await new Promise((r) => setTimeout(r, 3000));
+    await new Promise((r2) => setTimeout(r2, 3000));
     healthy = await checkContainersHealthy(shell, config);
     if (healthy)
       break;
@@ -2754,16 +2752,16 @@ function parseArgs(argv = process.argv) {
   let profile;
   const headless = {};
   const valueFlags = {
-    "--dir": (v) => dir = v,
-    "--profile": (v) => profile = parseProfile(v),
-    "--hostname": (v) => headless.hostname = v,
-    "--tag": (v) => headless.tag = v,
-    "--email": (v) => headless.email = v,
-    "--log-level": (v) => headless.logLevel = v,
-    "--site-name": (v) => headless.siteName = v,
-    "--owner-password": (v) => headless.ownerPassword = v,
-    "--email-relay-url": (v) => headless.emailRelayUrl = v,
-    "--email-relay-token": (v) => headless.emailRelayToken = v
+    "--dir": (v3) => dir = v3,
+    "--profile": (v3) => profile = parseProfile(v3),
+    "--hostname": (v3) => headless.hostname = v3,
+    "--tag": (v3) => headless.tag = v3,
+    "--email": (v3) => headless.email = v3,
+    "--log-level": (v3) => headless.logLevel = v3,
+    "--site-name": (v3) => headless.siteName = v3,
+    "--owner-password": (v3) => headless.ownerPassword = v3,
+    "--email-relay-url": (v3) => headless.emailRelayUrl = v3,
+    "--email-relay-token": (v3) => headless.emailRelayToken = v3
   };
   const boolFlags = {
     "--advanced": () => {},
@@ -2775,21 +2773,21 @@ function parseArgs(argv = process.argv) {
   };
   const raw = [];
   for (let i = 0;i < rawAll.length; i++) {
-    const a = rawAll[i];
-    if (boolFlags[a]) {
-      boolFlags[a]();
+    const a2 = rawAll[i];
+    if (boolFlags[a2]) {
+      boolFlags[a2]();
       continue;
     }
-    if (valueFlags[a]) {
-      valueFlags[a](rawAll[++i] ?? "");
+    if (valueFlags[a2]) {
+      valueFlags[a2](rawAll[++i] ?? "");
       continue;
     }
-    const eq = a.indexOf("=");
-    if (a.startsWith("--") && eq > 0 && valueFlags[a.slice(0, eq)]) {
-      valueFlags[a.slice(0, eq)](a.slice(eq + 1));
+    const eq = a2.indexOf("=");
+    if (a2.startsWith("--") && eq > 0 && valueFlags[a2.slice(0, eq)]) {
+      valueFlags[a2.slice(0, eq)](a2.slice(eq + 1));
       continue;
     }
-    raw.push(a);
+    raw.push(a2);
   }
   const first = raw[0] ?? "deploy";
   if (first === "--help" || first === "-h")
@@ -2801,7 +2799,7 @@ function parseArgs(argv = process.argv) {
   if (COMMANDS.includes(first)) {
     const rest = raw.slice(1);
     const reconfigure = first === "deploy" && rest.includes("--reconfigure");
-    const args = reconfigure ? rest.filter((a) => a !== "--reconfigure") : rest;
+    const args = reconfigure ? rest.filter((a2) => a2 !== "--reconfigure") : rest;
     return { command: first, args, reconfigure, advanced, dir, profile, headless };
   }
   console.error(`Unknown command: ${first}
@@ -2881,10 +2879,10 @@ async function promptNodeDir(current, shell) {
     message: "Node directory \u2014 existing dir reconfigures it; a new/empty dir creates a branch node",
     initialValue: running ?? current.seedDir,
     placeholder: running ?? current.seedDir,
-    validate: (v) => {
-      if (!v)
+    validate: (v3) => {
+      if (!v3)
         return "Required";
-      if (!v.startsWith("/"))
+      if (!v3.startsWith("/"))
         return "Use an absolute path";
     }
   });
@@ -2955,17 +2953,17 @@ async function cmdDeploy(paths, shell, reconfigure = false, advanced = false, pr
       throw new Error(`This node is configured with the '${existing.profile ?? "site"}' profile; ` + `a profile cannot be switched in place. Use a fresh directory (--dir) for a '${profile}' node.`);
     }
     if (unattended) {
-      const config = headlessEnterpriseConfig(headless, existing);
-      await writeConfig(config, paths);
+      const config2 = headlessEnterpriseConfig(headless, existing);
+      await writeConfig(config2, paths);
       log(`Config updated from flags at ${paths.configPath}.`);
-      await deploy(config, paths, shell, false, bootstrap, existing.domain);
-      await setActiveNode(paths, shell, config);
+      await deploy(config2, paths, shell, false, bootstrap, existing.domain);
+      await setActiveNode(paths, shell, config2);
       return;
     }
     if ((reconfigure || advanced) && interactive) {
-      const config = await runWizardFor(profile, paths, existing, advanced, bootstrap);
-      await deploy(config, paths, shell, takeoverApproved, bootstrap, existing.domain);
-      await setActiveNode(paths, shell, config);
+      const config2 = await runWizardFor(profile, paths, existing, advanced, bootstrap);
+      await deploy(config2, paths, shell, takeoverApproved, bootstrap, existing.domain);
+      await setActiveNode(paths, shell, config2);
       fe(`Reconfiguration complete! Your Seed node is running.
 ${MANAGE_HINT}`);
       return;
@@ -2975,11 +2973,11 @@ ${MANAGE_HINT}`);
     return;
   }
   if (unattended) {
-    const config = headlessEnterpriseConfig(headless);
-    await writeConfig(config, paths);
+    const config2 = headlessEnterpriseConfig(headless);
+    await writeConfig(config2, paths);
     log(`Seed deploy v${VERSION} \u2014 enterprise config written to ${paths.configPath} from flags.`);
-    await deploy(config, paths, shell, takeoverApproved, bootstrap);
-    await setActiveNode(paths, shell, config);
+    await deploy(config2, paths, shell, takeoverApproved, bootstrap);
+    await setActiveNode(paths, shell, config2);
     log(`Setup complete. Next: '${cmd("invite you@example.org")}' for each person of the organization.`);
     return;
   }
@@ -3158,8 +3156,8 @@ Containers:`);
     if (hasMismatch) {
       console.log(`
 Configuration Sync:`);
-      for (const m of mismatches)
-        console.log(m);
+      for (const m3 of mismatches)
+        console.log(m3);
       console.log(`
   Tip: Run '${cmd("deploy")}' to reconcile running containers with config.`);
     }
@@ -3295,9 +3293,9 @@ Disk:`);
   }
   const crontab = shell.runSafe("crontab -l 2>/dev/null") ?? "";
   const deployCron = crontab.split(`
-`).find((l) => l.includes("# seed-deploy"));
+`).find((l2) => l2.includes("# seed-deploy"));
   const cleanupCron = crontab.split(`
-`).find((l) => l.includes("# seed-cleanup"));
+`).find((l2) => l2.includes("# seed-cleanup"));
   console.log(`
 Cron:`);
   console.log(`  Auto-update: ${deployCron ? deployCron.split(" ").slice(0, 5).join(" ") : "not installed"}`);
@@ -3468,7 +3466,7 @@ async function bootstrapSpace(config, paths, opts = {}, io = {}) {
 }
 async function postAdminRoute(url, secret, body, io, messages) {
   const doFetch = io.fetch ?? fetch;
-  const sleep = io.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const sleep = io.sleep ?? ((ms) => new Promise((r2) => setTimeout(r2, ms)));
   let lastError = "";
   for (let attempt = 1;attempt <= BOOTSTRAP_ATTEMPTS; attempt++) {
     let response = null;
@@ -3605,7 +3603,7 @@ async function cmdSetHostname(paths, shell, args) {
     return;
   }
   log(`The hostname is already ${hostname}; checking the space's site URL.`);
-  for (const line of describeSiteUrl(await setSiteUrl(config, { log: (line) => console.log(line) })))
+  for (const line of describeSiteUrl(await setSiteUrl(config, { log: (line2) => console.log(line2) })))
     console.log(line);
 }
 async function cmdBootstrapSpace(paths, headless) {
@@ -3664,7 +3662,7 @@ Registered ${accountUid} at ${config.domain}.`);
 function extractInvitationLinks(result, vaultBase) {
   if (!result || typeof result !== "object")
     return [];
-  const r = result;
+  const r2 = result;
   const toLink = (item) => {
     if (typeof item === "string")
       return item.startsWith("http") ? item : `${vaultBase}?invite=${item}`;
@@ -3681,10 +3679,10 @@ function extractInvitationLinks(result, vaultBase) {
     }
     return null;
   };
-  const lists = [r.invitations, r.links, r.codes].filter(Array.isArray);
+  const lists = [r2.invitations, r2.links, r2.codes].filter(Array.isArray);
   if (lists.length > 0)
-    return lists[0].map(toLink).filter((l) => !!l);
-  const single = toLink(r);
+    return lists[0].map(toLink).filter((l2) => !!l2);
+  const single = toLink(r2);
   return single ? [single] : [];
 }
 function parseInviteArgs(args) {
@@ -3693,24 +3691,24 @@ function parseInviteArgs(args) {
   let send = true;
   let count;
   for (let i = 0;i < args.length; i++) {
-    const a = args[i];
-    if (a === "--role" || a.startsWith("--role=")) {
-      const value = a.includes("=") ? a.slice("--role=".length) : args[++i];
+    const a2 = args[i];
+    if (a2 === "--role" || a2.startsWith("--role=")) {
+      const value = a2.includes("=") ? a2.slice("--role=".length) : args[++i];
       if (value !== "reader" && value !== "writer")
         return { role, send, error: `--role must be reader or writer, not '${value ?? ""}'` };
       role = value;
-    } else if (a === "--writer")
+    } else if (a2 === "--writer")
       role = "writer";
-    else if (a === "--reader")
+    else if (a2 === "--reader")
       role = "reader";
-    else if (a === "--no-email")
+    else if (a2 === "--no-email")
       send = false;
-    else if (/^\d+$/.test(a))
-      count = Number(a);
-    else if (a.includes("@"))
-      email = a;
+    else if (/^\d+$/.test(a2))
+      count = Number(a2);
+    else if (a2.includes("@"))
+      email = a2;
     else
-      return { role, send, error: `unexpected argument '${a}'` };
+      return { role, send, error: `unexpected argument '${a2}'` };
   }
   return { email, role, send, count };
 }
@@ -3749,11 +3747,11 @@ async function cmdInvite(paths, args) {
   console.log(`Invitation for ${email} (${role}):`);
   for (const link of links)
     console.log(`  ${link}`);
-  const r = result ?? {};
-  if (r.emailed)
+  const r2 = result ?? {};
+  if (r2.emailed)
     console.log(`Emailed to ${email}.`);
   else if (send)
-    console.log(`Not emailed: ${r.emailError ?? "the vault did not send it"}. Share the link by hand.`);
+    console.log(`Not emailed: ${r2.emailError ?? "the vault did not send it"}. Share the link by hand.`);
   else
     console.log("Not emailed (--no-email). Share the link by hand.");
   if (role === "writer")
@@ -3803,9 +3801,9 @@ async function cmdCron(paths, shell, args) {
     await setupCron(paths, shell);
     const crontab = shell.runSafe("crontab -l 2>/dev/null") ?? "";
     const deployCron = crontab.split(`
-`).find((l) => l.includes("# seed-deploy"));
+`).find((l2) => l2.includes("# seed-deploy"));
     const cleanupCron = crontab.split(`
-`).find((l) => l.includes("# seed-cleanup"));
+`).find((l2) => l2.includes("# seed-cleanup"));
     console.log("Cron jobs installed:");
     console.log(`  Auto-update: ${deployCron ?? "(missing)"}`);
     console.log(`  Cleanup:     ${cleanupCron ?? "(missing)"}`);
@@ -3867,7 +3865,7 @@ async function cmdBackup(paths, shell, args) {
   const seedParent = dirname(paths.seedDir);
   const members = await backupMembers(paths, config);
   try {
-    shell.run(`tar -czf "${backupFile}" -C "${seedParent}" --exclude="${seedBase}/backups" --exclude="${seedBase}/.env" --exclude="${seedBase}/deploy.js" --exclude="${seedBase}/deploy.log" ${members.map((m) => `"${seedBase}/${m}"`).join(" ")}`);
+    shell.run(`tar -czf "${backupFile}" -C "${seedParent}" --exclude="${seedBase}/backups" --exclude="${seedBase}/.env" --exclude="${seedBase}/deploy.js" --exclude="${seedBase}/deploy.log" ${members.map((m3) => `"${seedBase}/${m3}"`).join(" ")}`);
   } catch (err) {
     console.error(`Backup failed: ${err}`);
     shell.runSafe(`${env} docker compose -f "${paths.composePath}" start`);
@@ -3987,8 +3985,8 @@ async function cmdUninstall(paths, shell) {
   }
   const confirmation = await ue({
     message: 'Type "yes" to confirm uninstallation:',
-    validate: (v) => {
-      if (v !== "yes")
+    validate: (v3) => {
+      if (v3 !== "yes")
         return 'Please type "yes" to confirm, or press Ctrl+C to cancel.';
     }
   });
@@ -4071,121 +4069,121 @@ if (import.meta.main) {
   });
 }
 export {
-  BOOTSTRAP_ATTEMPTS,
-  BOOTSTRAP_RETRY_MS,
-  CLI_INSTALLED,
-  CURL_INSTALL_CMD,
-  DEFAULT_COMPOSE_URL,
-  DEFAULT_DATA_DIR,
-  DEFAULT_EXEC_TIMEOUT_MS,
-  DEFAULT_RELEASE_CHANNEL,
-  DEFAULT_REPO_URL,
-  DEFAULT_SEED_DIR,
-  DEPLOY_PROFILES,
-  DEPLOY_SCRIPT_PATH,
-  DEV_DEPLOY_SCRIPT_URL,
-  ENTERPRISE_DATA_DIRS,
-  ENTERPRISE_MAX_BODY,
-  ENTERPRISE_OPEN_PATHS,
-  GITHUB_RELEASES_API,
-  IMAGE_PULL_TIMEOUT_MS,
-  LEGACY_AUTOUPDATER_IMAGES,
-  LEGACY_CONTAINER_NAMES,
-  LIGHTNING_URL_MAINNET,
-  LIGHTNING_URL_TESTNET,
-  NOTIFY_SERVICE_HOST,
-  OPS_BASE_URL,
-  OWNER_KEY_DIR,
-  SEED_PUBLISHED_PORTS,
-  SESSION_CHECK_URI,
-  SESSION_SECRET_LENGTH,
-  VAULT_ADMIN_SECRET_LENGTH,
-  VERSION,
-  agentsHost,
-  assertNoForeignStack,
-  autoUpdates,
-  backupMembers,
-  bootstrapOptionsFrom,
-  bootstrapSpace,
-  buildComposeEnv,
-  buildCrontab,
-  buildEnterpriseConfig,
-  checkContainersHealthy,
-  checkForNewImages,
-  checkGpuAcceleration,
-  clearSeedCron,
-  cmd,
-  composeFileName,
-  composeProfiles,
-  composeProjectName,
-  configExists,
-  configWarnings,
-  containersMatchReleaseChannel,
-  deploy,
-  describeBindFailure,
-  describeBootstrap,
-  describeNotify,
-  describePullFailure,
-  describeSiteUrl,
-  detectForeignStack,
-  detectOldInstall,
-  deviceDirectives,
-  emailRelayFromEnv,
-  emailRelayOf,
-  ensureSeedDir,
-  enterpriseIsolationChecks,
-  enterpriseTestnetName,
-  environmentPresets,
-  expectedServiceImages,
-  extractDns,
-  extractInvitationLinks,
-  extractSeedCronLines,
-  freeConflictingPortBindings,
-  generateCaddyfile,
-  generateSecret,
-  getContainerEnvs,
-  getContainerImages,
-  getDeployScriptUrl,
-  getOpsBaseUrl,
-  getRunningInstallDir,
-  getWorkspaceDirs,
-  handleForeignStack,
-  headlessEnterpriseConfig,
-  inferEnvironment,
-  injectServiceDirectives,
-  installWrapper,
-  isEnterprise,
-  log,
-  makePaths,
-  makeShellRunner,
-  notifyHost,
-  ownerKeyPath,
-  parseArgs,
-  parseDaemonEnv,
-  parseImageTag,
-  parseInviteArgs,
-  parseWebEnv,
-  printHelp,
-  readConfig,
-  redactConfig,
-  redirectHostnames,
-  removeLegacyAutoupdaters,
-  removeLegacyHostCron,
-  removeLegacyHostCronLines,
-  removeSeedCronLines,
-  requiredContainers,
-  rollbackImageTargets,
-  rollbackTagRefs,
-  selfUpdate,
-  setSiteUrl,
-  setupCron,
-  sha256,
-  shellQuote,
-  siteUrlCheck,
-  smtpFromEnv,
-  stopStackByProject,
-  takeOverHost,
-  validateDockerImageRef,
+  writeConfig,
   validateDockerImageTag,
-  writeConfig
+  validateDockerImageRef,
+  takeOverHost,
+  stopStackByProject,
+  smtpFromEnv,
+  siteUrlCheck,
+  shellQuote,
+  sha256,
+  setupCron,
+  setSiteUrl,
+  selfUpdate,
+  rollbackTagRefs,
+  rollbackImageTargets,
+  requiredContainers,
+  removeSeedCronLines,
+  removeLegacyHostCronLines,
+  removeLegacyHostCron,
+  removeLegacyAutoupdaters,
+  redirectHostnames,
+  redactConfig,
+  readConfig,
+  printHelp,
+  parseWebEnv,
+  parseInviteArgs,
+  parseImageTag,
+  parseDaemonEnv,
+  parseArgs,
+  ownerKeyPath,
+  notifyHost,
+  makeShellRunner,
+  makePaths,
+  log,
+  isEnterprise,
+  installWrapper,
+  injectServiceDirectives,
+  inferEnvironment,
+  headlessEnterpriseConfig,
+  handleForeignStack,
+  getWorkspaceDirs,
+  getRunningInstallDir,
+  getOpsBaseUrl,
+  getDeployScriptUrl,
+  getContainerImages,
+  getContainerEnvs,
+  generateSecret,
+  generateCaddyfile,
+  freeConflictingPortBindings,
+  extractSeedCronLines,
+  extractInvitationLinks,
+  extractDns,
+  expectedServiceImages,
+  environmentPresets,
+  enterpriseTestnetName,
+  enterpriseIsolationChecks,
+  ensureSeedDir,
+  emailRelayOf,
+  emailRelayFromEnv,
+  deviceDirectives,
+  detectOldInstall,
+  detectForeignStack,
+  describeSiteUrl,
+  describePullFailure,
+  describeNotify,
+  describeBootstrap,
+  describeBindFailure,
+  deploy,
+  containersMatchReleaseChannel,
+  configWarnings,
+  configExists,
+  composeProjectName,
+  composeProfiles,
+  composeFileName,
+  cmd,
+  clearSeedCron,
+  checkGpuAcceleration,
+  checkForNewImages,
+  checkContainersHealthy,
+  buildEnterpriseConfig,
+  buildCrontab,
+  buildComposeEnv,
+  bootstrapSpace,
+  bootstrapOptionsFrom,
+  backupMembers,
+  autoUpdates,
+  assertNoForeignStack,
+  agentsHost,
+  VERSION,
+  VAULT_ADMIN_SECRET_LENGTH,
+  SESSION_SECRET_LENGTH,
+  SESSION_CHECK_URI,
+  SEED_PUBLISHED_PORTS,
+  OWNER_KEY_DIR,
+  OPS_BASE_URL,
+  NOTIFY_SERVICE_HOST,
+  LIGHTNING_URL_TESTNET,
+  LIGHTNING_URL_MAINNET,
+  LEGACY_CONTAINER_NAMES,
+  LEGACY_AUTOUPDATER_IMAGES,
+  IMAGE_PULL_TIMEOUT_MS,
+  GITHUB_RELEASES_API,
+  ENTERPRISE_OPEN_PATHS,
+  ENTERPRISE_MAX_BODY,
+  ENTERPRISE_DATA_DIRS,
+  DEV_DEPLOY_SCRIPT_URL,
+  DEPLOY_SCRIPT_PATH,
+  DEPLOY_PROFILES,
+  DEFAULT_SEED_DIR,
+  DEFAULT_REPO_URL,
+  DEFAULT_RELEASE_CHANNEL,
+  DEFAULT_EXEC_TIMEOUT_MS,
+  DEFAULT_DATA_DIR,
+  DEFAULT_COMPOSE_URL,
+  CURL_INSTALL_CMD,
+  CLI_INSTALLED,
+  BOOTSTRAP_RETRY_MS,
+  BOOTSTRAP_ATTEMPTS
 };
