@@ -118,6 +118,16 @@ describe('notify route table', () => {
     expect(response.headers.get('Location')).toBe('/hm/email-notifications?token=tok')
   })
 
+  it('read-redirect does not follow a target without a real email token', async () => {
+    for (const token of ['', 'not-a-token']) {
+      const response = await get(
+        `/hm/api/notify/read-redirect?${new URLSearchParams({token, redirectTo: 'https://evil.example/x'})}`,
+      )
+      expect(response.status).toBe(302)
+      expect(response.headers.get('Location')).not.toContain('evil.example')
+    }
+  })
+
   it('verify-email marks the config verified and redirects to the settings page', async () => {
     setNotificationConfig('acc-verify', 'verify@example.com')
     setNotificationEmailVerification({accountId: 'acc-verify', email: 'verify@example.com', token: 'verify-token'})
