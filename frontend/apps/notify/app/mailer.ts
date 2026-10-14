@@ -20,12 +20,18 @@ const relay =
     ? {url: NOTIFY_EMAIL_RELAY_URL, token: NOTIFY_EMAIL_RELAY_TOKEN}
     : null
 
+const SMTP_PORT = NOTIFY_SMTP_PORT ? parseInt(NOTIFY_SMTP_PORT, 10) : 587
+
 const transporter =
   !relay && NOTIFY_SMTP_HOST && NOTIFY_SMTP_USER && NOTIFY_SMTP_PASSWORD
     ? nodemailer.createTransport({
         host: NOTIFY_SMTP_HOST as string,
-        port: NOTIFY_SMTP_PORT ? parseInt(NOTIFY_SMTP_PORT, 10) : 587,
-        secure: true,
+        port: SMTP_PORT,
+        // STARTTLS on 587 (the default). Under Bun, implicit TLS on 465 is unreliable: from the dev
+        // host most connections to Mailgun never got the greeting (ETIMEDOUT), with or without SNI,
+        // while STARTTLS connected every time. The vault's mailer uses STARTTLS for the same reason.
+        secure: SMTP_PORT === 465,
+        tls: {servername: NOTIFY_SMTP_HOST as string},
         pool: true,
         maxConnections: 5,
         rateLimit: 10,
@@ -33,9 +39,6 @@ const transporter =
           user: NOTIFY_SMTP_USER as string,
           pass: NOTIFY_SMTP_PASSWORD as string,
         },
-        // Under Bun, implicit TLS (port 465) sends no SNI unless servername is set, and Mailgun
-        // then never sends its greeting ("Greeting never received" after the timeout).
-        tls: {servername: NOTIFY_SMTP_HOST as string},
       })
     : null
 
