@@ -1808,6 +1808,7 @@ export const ENTERPRISE_OPEN_PATHS = [
   '/hm/sign-in*',
   '/hm/auth/callback*',
   '/hm/api/config',
+  '/hm/api/site-url',
   '/hm/api/auth',
   '/hm/api/auth/*',
   '/hm/api/session',
@@ -3726,7 +3727,7 @@ export function enterpriseIsolationChecks(shell: ShellRunner, config: SeedConfig
     lines.push(`  ⚠ Sign-in gate   could not fetch ${config.domain}/hm/api/config`)
   } else {
     try {
-      const siteConfig = JSON.parse(siteConfigRaw) as {requireSignIn?: boolean; hostname?: string; siteUrl?: unknown}
+      const siteConfig = JSON.parse(siteConfigRaw) as {requireSignIn?: boolean}
       if (siteConfig.requireSignIn === true) {
         lines.push(`  ✔ Sign-in gate   /hm/api/config reports requireSignIn: true`)
       } else {
@@ -3735,9 +3736,18 @@ export function enterpriseIsolationChecks(shell: ShellRunner, config: SeedConfig
         )
         lines.push(`      └ seed-web should run with SEED_REQUIRE_SIGN_IN=1; redeploy with '${cmd('deploy')}'`)
       }
-      lines.push(...siteUrlCheck(siteConfig))
     } catch {
       lines.push(`  ⚠ Sign-in gate   /hm/api/config is not JSON`)
+    }
+  }
+
+  // 2b. The space's home document still names this hostname.
+  const siteUrlRaw = shell.runSafe(`curl -sS --max-time 10 "${config.domain}/hm/api/site-url" 2>/dev/null`)
+  if (siteUrlRaw) {
+    try {
+      lines.push(...siteUrlCheck(JSON.parse(siteUrlRaw) as {hostname?: string; siteUrl?: unknown}))
+    } catch {
+      lines.push(`  ⚠ Site URL       /hm/api/site-url is not JSON`)
     }
   }
 
@@ -3789,7 +3799,7 @@ export function enterpriseIsolationChecks(shell: ShellRunner, config: SeedConfig
 
 /**
  * Doctor lines comparing the hostname the web app serves with the `siteUrl`
- * the space's home document carries (both from /hm/api/config). They drift
+ * the space's home document carries (both from /hm/api/site-url). They drift
  * apart when config.json's domain was changed without `set-hostname`.
  */
 export function siteUrlCheck(siteConfig: {hostname?: string; siteUrl?: unknown}): string[] {
