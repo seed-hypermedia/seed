@@ -877,7 +877,9 @@ function getOpsBaseUrl() {
 }
 var OPS_BASE_URL = getOpsBaseUrl();
 var DEFAULT_COMPOSE_URL = `${OPS_BASE_URL}/docker-compose.yml`;
-var NOTIFY_SERVICE_HOST = "https://notify.seed.hyper.media";
+var NOTIFY_SERVICE_HOST = "https://hyper.media/hm/api/notify";
+var AGENTS_API_PATH = "/hm/api/agents";
+var NOTIFY_API_PATH = "/hm/api/notify";
 var LIGHTNING_URL_MAINNET = "https://ln.seed.hyper.media";
 var LIGHTNING_URL_TESTNET = "https://ln.testnet.seed.hyper.media";
 function currentDeployUrl() {
@@ -998,12 +1000,10 @@ function isEnterprise(config) {
 }
 function composeProfiles(config) {
   const profiles = [];
-  if (isEnterprise(config)) {
-    if (config.notify)
-      profiles.push("notify");
-    if (config.agents)
-      profiles.push("agents");
-  }
+  if (isEnterprise(config) && config.notify)
+    profiles.push("notify");
+  if (config.agents)
+    profiles.push("agents");
   if (config.metrics)
     profiles.push("metrics");
   return profiles;
@@ -1011,12 +1011,12 @@ function composeProfiles(config) {
 function notifyHost(config) {
   if (!isEnterprise(config))
     return NOTIFY_SERVICE_HOST;
-  return config.notify ? `https://notify.${extractDns(config.domain)}` : "";
+  return config.notify ? `https://${extractDns(config.domain)}${NOTIFY_API_PATH}` : "";
 }
 function agentsHost(config) {
-  if (!isEnterprise(config) || !config.agents)
+  if (!config.agents)
     return "";
-  return `https://agents.${extractDns(config.domain)}`;
+  return `https://${extractDns(config.domain)}${AGENTS_API_PATH}`;
 }
 function enterpriseTestnetName(domain) {
   return `ent-${extractDns(domain).replace(/[^A-Za-z0-9-]+/g, "-")}`;
@@ -1611,6 +1611,10 @@ async function runFreshWizard(paths, existing, advanced = false) {
       message: "Run as a public gateway? (serves all known public content)",
       initialValue: existing?.gateway ?? false
     }),
+    agents: () => me({
+      message: "Run the agents service? (served at <your domain>/hm/api/agents; calls model providers)",
+      initialValue: existing?.agents ?? false
+    }),
     email: () => ue({
       message: "Contact email (optional) \u2014 lets us notify you about security updates. Not shared publicly.",
       placeholder: existing ? existing.email || undefined : "you@example.com",
@@ -1647,6 +1651,8 @@ async function runFreshWizard(paths, existing, advanced = false) {
     link_secret: secret,
     analytics: existing?.analytics ?? false,
     gateway: answers.gateway,
+    agents: answers.agents,
+    agents_kvm: answers.agents ? existing?.agents_kvm ?? false : false,
     last_script_run: existing?.last_script_run ?? ""
   };
   const userFields = [
@@ -1657,7 +1663,8 @@ async function runFreshWizard(paths, existing, advanced = false) {
     ["web_image", config.web_image || "(default)"],
     ["site_image", config.site_image || "(default)"],
     ["log_level", config.compose_envs.LOG_LEVEL],
-    ["gateway", String(config.gateway)]
+    ["gateway", String(config.gateway)],
+    ["agents", String(config.agents)]
   ];
   const oldFields = existing ? {
     domain: existing.domain,
@@ -1667,7 +1674,8 @@ async function runFreshWizard(paths, existing, advanced = false) {
     web_image: existing.web_image || "(default)",
     site_image: existing.site_image || "(default)",
     log_level: existing.compose_envs?.LOG_LEVEL ?? "info",
-    gateway: String(existing.gateway)
+    gateway: String(existing.gateway),
+    agents: String(existing.agents ?? false)
   } : undefined;
   const summary = userFields.map(([k3, v3]) => {
     if (oldFields && String(v3) !== String(oldFields[k3] ?? "")) {
@@ -1788,6 +1796,7 @@ function buildEnterpriseConfig(answers, existing) {
     link_secret: existing?.link_secret ?? generateSecret(),
     vault_admin_secret: existing?.vault_admin_secret ?? generateSecret(VAULT_ADMIN_SECRET_LENGTH),
     session_secret: existing?.session_secret ?? generateSecret(SESSION_SECRET_LENGTH),
+    service_secret: existing?.service_secret ?? generateSecret(SESSION_SECRET_LENGTH),
     notify: answers.notify,
     smtp: answers.notify ? answers.smtp : existing?.smtp ?? undefined,
     email_relay_url: relay?.url || undefined,
@@ -1864,7 +1873,7 @@ async function runEnterpriseWizard(paths, existing, advanced = false, bootstrap)
       ]
     }),
     agents: () => me({
-      message: "Run the agents service? (served at agents.<your domain>; calls model providers)",
+      message: "Run the agents service? (served at <your domain>/hm/api/agents, members only; calls model providers)",
       initialValue: existing?.agents ?? false
     }),
     email_relay_url: () => advanced ? ue({
@@ -1972,6 +1981,7 @@ var ENTERPRISE_OPEN_PATHS = [
   "/hm/api/register",
   "/hm/register*",
   "/hm/create-site*",
+  "/hm/email-notifications*",
   "/healthz",
   "/assets/*",
   "/build/*",
@@ -1982,6 +1992,50 @@ var ENTERPRISE_OPEN_PATHS = [
 ];
 var SESSION_CHECK_URI = "/hm/api/session";
 var ENTERPRISE_MAX_BODY = "512MB";
+var NOTIFY_PROXY_PATHS = [
+  NOTIFY_API_PATH,
+  `${NOTIFY_API_PATH}/*`,
+  "/hm/api/notifications",
+  "/hm/api/notification-config",
+  "/hm/api/notification-inbox",
+  "/hm/api/notification-read-state",
+  "/hm/api/public-subscribe",
+  "/hm/api/public-subscribe/*",
+  "/hm/api/email-notif-token",
+  "/hm/api/unsubscribe"
+];
+function notifyOpenBlock(config) {
+  if (!config.notify)
+    return "";
+  return `	@notify path ${NOTIFY_PROXY_PATHS.join(" ")}
+	handle @notify {
+		reverse_proxy seed-notify:3000
+	}
+`;
+}
+function agentsWebhookBlock(config) {
+  if (!config.agents)
+    return "";
+  return `	@agents_webhook {
+		method POST
+		path ${AGENTS_API_PATH}/webhooks/*
+	}
+	handle @agents_webhook {
+		reverse_proxy seed-agents:3050
+	}
+`;
+}
+function agentsGatedBlock(config) {
+  if (!config.agents)
+    return "";
+  return `
+	@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*
+	handle @agents {
+		import gate
+		reverse_proxy seed-agents:3050
+	}
+`;
+}
 function generateEnterpriseCaddyfile(config) {
   const dns = extractDns(config.domain);
   const blocks = [];
@@ -2031,7 +2085,7 @@ ${dns} {
 		path /api/Account
 	}
 	@open path ${ENTERPRISE_OPEN_PATHS.join(" ")}
-	handle @open_api_post {
+${notifyOpenBlock(config)}${agentsWebhookBlock(config)}	handle @open_api_post {
 		reverse_proxy seed-web:3000
 	}
 	handle @open_api_get {
@@ -2053,7 +2107,7 @@ ${dns} {
 		import gate
 		reverse_proxy grafana:3001
 	}
-
+${agentsGatedBlock(config)}
 	handle {
 		import gate
 		reverse_proxy seed-web:3000
@@ -2064,21 +2118,6 @@ ${dns} {
 	redir https://${dns}{uri} permanent
 }`);
   }
-  if (config.notify) {
-    blocks.push(`notify.${dns} {
-	encode zstd gzip
-	reverse_proxy seed-notify:3000
-}`);
-  }
-  if (config.agents) {
-    blocks.push(`agents.${dns} {
-	encode zstd gzip
-	request_body {
-		max_size ${ENTERPRISE_MAX_BODY}
-	}
-	reverse_proxy seed-agents:3050
-}`);
-  }
   return blocks.join(`
 
 `) + `
@@ -2087,6 +2126,13 @@ ${dns} {
 function generateCaddyfile(config) {
   if (isEnterprise(config))
     return generateEnterpriseCaddyfile(config);
+  const agents = config.agents ? `
+@agentsroute {
+	path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*
+}
+
+reverse_proxy @agentsroute seed-agents:3050
+` : "";
   return `{$SEED_SITE_HOSTNAME}
 
 encode zstd gzip
@@ -2098,7 +2144,7 @@ encode zstd gzip
 reverse_proxy /.metrics* grafana:{$SEED_SITE_MONITORING_PORT:3001}
 
 reverse_proxy @ipfsroute seed-daemon:{$SEED_SITE_BACKEND_GRPCWEB_PORT:56001}
-
+${agents}
 reverse_proxy * seed-web:{$SEED_SITE_LOCAL_PORT:3000}
 `;
 }
@@ -2111,9 +2157,9 @@ function requiredContainers(config) {
     names.push("seed-vault");
     if (config.notify)
       names.push("seed-notify");
-    if (config.agents)
-      names.push("seed-agents");
   }
+  if (config?.agents)
+    names.push("seed-agents");
   return names;
 }
 async function checkContainersHealthy(shell, config) {
@@ -2216,9 +2262,9 @@ function expectedServiceImages(config) {
     images.push({ container: "seed-vault", expectedImage: `seedhypermedia/vault:${tag}` });
     if (config.notify)
       images.push({ container: "seed-notify", expectedImage: `seedhypermedia/notify:${tag}` });
-    if (config.agents)
-      images.push({ container: "seed-agents", expectedImage: `seedhypermedia/agents:${tag}` });
   }
+  if (config.agents)
+    images.push({ container: "seed-agents", expectedImage: `seedhypermedia/agents:${tag}` });
   return images;
 }
 function imageBase(ref) {
@@ -2332,6 +2378,7 @@ function buildComposeEnv(config, paths) {
     vars.SEED_SITE_NAME = config.site_name ?? dns;
     vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? "";
     vars.SEED_SESSION_SECRET = config.session_secret ?? "";
+    vars.SEED_SERVICE_SECRET = config.service_secret ?? "";
     vars.SEED_CONTACT_EMAIL = config.email ?? "";
     vars.SEED_NOTIFY_HOST = notifyHost(config);
     vars.SEED_AGENTS_HOST = agentsHost(config);
@@ -2343,6 +2390,9 @@ function buildComposeEnv(config, paths) {
     vars.SEED_SMTP_SENDER = config.smtp?.sender ?? "";
     vars.SEED_EMAIL_RELAY_URL = config.email_relay_url ?? "";
     vars.SEED_EMAIL_RELAY_TOKEN = config.email_relay_token ?? "";
+  } else if (config.agents) {
+    vars.SEED_AGENTS_HOST = agentsHost(config);
+    vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? "microsandbox" : "";
   }
   const profiles = composeProfiles(config);
   if (profiles.length > 0) {
@@ -2363,6 +2413,8 @@ function getWorkspaceDirs(paths, config) {
   ];
   if (config && isEnterprise(config)) {
     dirs.push(join(paths.seedDir, "vault"), join(paths.seedDir, "notify"), join(paths.seedDir, "agents"));
+  } else if (config?.agents) {
+    dirs.push(join(paths.seedDir, "agents"));
   }
   return dirs;
 }
@@ -2531,7 +2583,7 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
     finalCompose = injectServiceDirectives(finalCompose, "seed-daemon", deviceDirectives(["/dev/dri"], groups));
     log(`GPU detected \u2014 added devices${groups.length ? ` and group_add (${groups.join(", ")})` : ""} to compose file.`);
   }
-  if (isEnterprise(config) && config.agents && config.agents_kvm) {
+  if (config.agents && config.agents_kvm) {
     const kvmGid = shell.runSafe("getent group kvm 2>/dev/null | cut -d: -f3");
     finalCompose = injectServiceDirectives(finalCompose, "seed-agents", deviceDirectives(["/dev/kvm"], kvmGid ? [kvmGid] : []));
     log(`agents_kvm \u2014 added /dev/kvm${kvmGid ? ` and group_add (${kvmGid})` : ""} to seed-agents.`);
@@ -3056,10 +3108,10 @@ Configuration:`);
       console.log(`  Site image:  ${config.site_image}`);
     if (enterprise) {
       console.log(`  Notify:      ${config.notify ? notifyHost(config) : "No"}`);
-      console.log(`  Agents:      ${config.agents ? `${agentsHost(config)}${config.agents_kvm ? " (kvm)" : ""}` : "No"}`);
     } else {
       console.log(`  Gateway:     ${config.gateway ? "Yes" : "No"}`);
     }
+    console.log(`  Agents:      ${config.agents ? `${agentsHost(config)}${config.agents_kvm ? " (kvm)" : ""}` : "No"}`);
     console.log(`  Config:      ${paths.configPath}`);
     for (const warning of configWarnings(config)) {
       console.log(`  \u26A0 ${warning}`);
@@ -3398,6 +3450,8 @@ function redactConfig(config) {
     redacted.vault_admin_secret = "****";
   if (config.session_secret)
     redacted.session_secret = "****";
+  if (config.service_secret)
+    redacted.service_secret = "****";
   if (config.smtp?.password)
     redacted.smtp = { ...config.smtp, password: "****" };
   if (config.email_relay_token)
@@ -3826,13 +3880,12 @@ function removeSeedCronLines(existing) {
 }
 async function backupMembers(paths, config) {
   const members = ["config.json", "backup-meta.json", "docker-compose.yml", "web", "daemon", "proxy"];
-  if (isEnterprise(config)) {
-    for (const dir of ENTERPRISE_DATA_DIRS) {
-      try {
-        await access(join(paths.seedDir, dir));
-        members.push(dir);
-      } catch {}
-    }
+  const extra = isEnterprise(config) ? ENTERPRISE_DATA_DIRS : config.agents ? ["agents"] : [];
+  for (const dir of extra) {
+    try {
+      await access(join(paths.seedDir, dir));
+      members.push(dir);
+    } catch {}
   }
   return members;
 }
@@ -4164,6 +4217,8 @@ export {
   OWNER_KEY_DIR,
   OPS_BASE_URL,
   NOTIFY_SERVICE_HOST,
+  NOTIFY_PROXY_PATHS,
+  NOTIFY_API_PATH,
   LIGHTNING_URL_TESTNET,
   LIGHTNING_URL_MAINNET,
   LEGACY_CONTAINER_NAMES,
@@ -4185,5 +4240,6 @@ export {
   CURL_INSTALL_CMD,
   CLI_INSTALLED,
   BOOTSTRAP_RETRY_MS,
-  BOOTSTRAP_ATTEMPTS
+  BOOTSTRAP_ATTEMPTS,
+  AGENTS_API_PATH
 };

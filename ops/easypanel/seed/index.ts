@@ -44,7 +44,7 @@ export function generate(input: Input): Output {
           `SEED_ASSET_HOST=${baseUrl}`,
           `DAEMON_HTTP_URL=http://$(PROJECT_NAME)_${daemonServiceName}:56001`,
           `SEED_LINK_SECRET=${linkSecret}`,
-          "NOTIFY_SERVICE_HOST=https://notify.seed.hyper.media",
+          "NOTIFY_SERVICE_HOST=https://hyper.media/hm/api/notify",
           "SEED_IS_GATEWAY=false",
           "SEED_ENABLE_STATISTICS=false",
           "PORT=3000",

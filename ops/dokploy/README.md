@@ -40,7 +40,7 @@ the daemon; no Caddy proxy is needed.
 | `SEED_LOG_LEVEL`         | `info`                            | Daemon log level.                                                                                |
 | `LIGHTNING_API_URL`      | `https://ln.seed.hyper.media`     | Lightning API endpoint.                                                                          |
 | `SENTRY_DSN`             | Seed's default DSN                | Daemon error reporting DSN.                                                                      |
-| `NOTIFY_SERVICE_HOST`    | `https://notify.seed.hyper.media` | Notification service endpoint.                                                                   |
+| `NOTIFY_SERVICE_HOST`    | `https://hyper.media/hm/api/notify` | Notification service endpoint.                                                                   |
 | `SEED_IS_GATEWAY`        | `false`                           | Run the web app as a gateway.                                                                    |
 | `SEED_ENABLE_STATISTICS` | `false`                           | Enable web statistics.                                                                           |
 | `SEED_NO_PULL`           | `false`                           | Disable daemon pull requests.                                                                    |

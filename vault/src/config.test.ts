@@ -81,7 +81,7 @@ describe('vault config', () => {
       'admin-secret': '',
     })
 
-    expect(cfg.notificationServerUrl).toBe('https://notify.seed.hyper.media')
+    expect(cfg.notificationServerUrl).toBe('https://hyper.media/hm/api/notify')
   })
 
   test('uses SEED_VAULT_DEFAULT_NOTIFY_SERVER for local development overrides', () => {

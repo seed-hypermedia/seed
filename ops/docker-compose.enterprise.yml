@@ -67,8 +67,11 @@ services:
       # Every page requires a session; the proxy asks /hm/api/session.
       - 'SEED_REQUIRE_SIGN_IN=1'
       - 'SEED_SESSION_SECRET=${SEED_SESSION_SECRET}'
-      # Empty when the notify / agents profiles are off. SEED_HOST_URL is empty
-      # on purpose: no Seed Hosting integration.
+      # The agents service presents this instead of a session cookie.
+      - 'SEED_SERVICE_SECRET=${SEED_SERVICE_SECRET}'
+      # The site's own <site>/hm/api/notify and <site>/hm/api/agents; empty
+      # when the notify / agents profiles are off. SEED_HOST_URL is empty on
+      # purpose: no Seed Hosting integration.
       - 'NOTIFY_SERVICE_HOST=${SEED_NOTIFY_HOST}'
       - 'SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST}'
       - 'SEED_HOST_URL='
@@ -162,7 +165,9 @@ services:
       - 'PORT=3000'
       - 'DATA_DIR=/data'
       - 'SEED_BASE_URL=${SEED_SITE_HOSTNAME}'
-      # Served at its own subdomain (notify.<dns>): the app expects a root.
+      # Its public base URL, <site>/hm/api/notify: the proxy routes that prefix
+      # (and the legacy /hm/api/<leaf> API paths) here; email links are built
+      # from its origin.
       - 'NOTIFY_SERVICE_HOST=${SEED_NOTIFY_HOST}'
       - 'NOTIFY_SMTP_HOST=${SEED_SMTP_HOST}'
       # The notify mailer uses implicit TLS, which means port 465.
@@ -197,8 +202,10 @@ services:
       - 'SEED_AGENTS_HTTP_PORT=3050'
       - 'SEED_AGENTS_DB_PATH=/data/agents.sqlite'
       - 'SEED_AGENTS_DATA_DIR=/data'
-      # Agents talk to this site, never to hyper.media.
+      # Agents talk to this site, never to hyper.media. The site is
+      # members-only; the service secret lets this service read it.
       - 'SEED_AGENTS_HM_SERVER_URL=${SEED_SITE_HOSTNAME}'
+      - 'SEED_AGENTS_HM_SERVER_SECRET=${SEED_SERVICE_SECRET}'
       # Sandboxed code execution needs /dev/kvm; `agents_kvm` in config.json
       # injects the device and sets this to "microsandbox".
       - 'SEED_AGENTS_EXEC_BACKEND=${SEED_AGENTS_EXEC_BACKEND}'

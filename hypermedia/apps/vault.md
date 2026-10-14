@@ -95,7 +95,7 @@ Every setting is a flag with an environment variable behind it. <!-- id:r5otBYl0
 | `--email-relay-url`, `--email-relay-token` | `SEED_VAULT_EMAIL_RELAY_URL`, `SEED_VAULT_EMAIL_RELAY_TOKEN` | unset; when set, verification emails go as `POST <url>` with `Authorization: Bearer <token>` and a JSON body `{to, subject, text, html}` to the Seed hosting email relay, which wins over SMTP and sets the sender itself. The [enterprise profile](../build/self-hosting.md) uses it so an instance needs no SMTP account; a reply other than 2xx fails the request the way an SMTP rejection does |
 | `--invite-only` | `SEED_VAULT_INVITE_ONLY` | off; `true` makes account creation require an invitation code |
 | `--admin-secret` | `SEED_VAULT_ADMIN_SECRET` | unset, which disables the admin API |
-| none | `SEED_VAULT_DEFAULT_NOTIFY_SERVER` | `https://notify.seed.hyper.media` when unset; set it to an empty string to run without a notify server <!-- id:Lci_Ngam --> |
+| none | `SEED_VAULT_DEFAULT_NOTIFY_SERVER` | `https://hyper.media/hm/api/notify` when unset; set it to an empty string to run without a notify server. A stored `notify.seed.hyper.media` setting is rewritten to the new URL. The sign-in callback hands sites only the notify origin, which every web version can use <!-- id:Lci_Ngam --> |
 
 The database schema carries a version. If it does not match the code, the server starts in a mode that only shows a schema-mismatch page and tells you to delete the database. Migrations live in `src/sqlite.ts` beside the schema and run at startup; the schema version is 6 as of October 2026 (the last three added the invitations and account-claim tables, then the invitation role and grants). <!-- id:HO_6v9PS -->
 
@@ -115,7 +115,7 @@ The admin listing (`GET /vault/api/admin/invitations`) reports, for each invitat
 
 ```sh <!-- id:F2Io5mhz -->
 cd vault
-bun run dev      # :3030 with hot reload, against notify on :3060 and the web app on :3000
+bun run dev      # :3030 with hot reload, against the web app on :3000 and notify through it (:3000/hm/api/notify → :3060)
 bun check        # typecheck and format
 bun test
 ```

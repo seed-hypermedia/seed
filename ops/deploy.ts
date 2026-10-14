@@ -67,7 +67,12 @@ export function getOpsBaseUrl(): string {
 export const OPS_BASE_URL = getOpsBaseUrl()
 
 export const DEFAULT_COMPOSE_URL = `${OPS_BASE_URL}/docker-compose.yml`
-export const NOTIFY_SERVICE_HOST = 'https://notify.seed.hyper.media'
+/** The hosted notify service, served on hyper.media's own origin. */
+export const NOTIFY_SERVICE_HOST = 'https://hyper.media/hm/api/notify'
+/** Where the agents service answers on a site's own origin. */
+export const AGENTS_API_PATH = '/hm/api/agents'
+/** Where the notify service answers on a site's own origin. */
+export const NOTIFY_API_PATH = '/hm/api/notify'
 export const LIGHTNING_URL_MAINNET = 'https://ln.seed.hyper.media'
 export const LIGHTNING_URL_TESTNET = 'https://ln.testnet.seed.hyper.media'
 
@@ -326,7 +331,12 @@ export interface SeedConfig {
   vault_admin_secret?: string
   /** HMAC secret the web app signs its session cookie with. Random, 48+ chars. */
   session_secret?: string
-  /** Run the notify (email) service at notify.<dns>. */
+  /**
+   * Lets the box's own services (the agents service) past the sign-in gate:
+   * they read the site server-side with no session. Random, 48+ chars.
+   */
+  service_secret?: string
+  /** Run the notify (email) service, served by the site itself under /hm/api/notify. */
   notify?: boolean
   /** SMTP settings for the vault and notify; required when `notify` is on and there is no email relay. */
   smtp?: SmtpConfig
@@ -338,7 +348,10 @@ export interface SeedConfig {
   email_relay_url?: string
   /** Bearer token for the email relay. */
   email_relay_token?: string
-  /** Run the agents service at agents.<dns>. */
+  /**
+   * Run the agents service, served by the site itself under /hm/api/agents
+   * (members only on an enterprise node). Any profile.
+   */
   agents?: boolean
   /** Pass /dev/kvm to the agents container so sandboxed code execution works. */
   agents_kvm?: boolean
@@ -386,24 +399,30 @@ export function isEnterprise(config: Pick<SeedConfig, 'profile'>): boolean {
 /** Compose profiles to activate for a config (via COMPOSE_PROFILES). */
 export function composeProfiles(config: SeedConfig): string[] {
   const profiles: string[] = []
-  if (isEnterprise(config)) {
-    if (config.notify) profiles.push('notify')
-    if (config.agents) profiles.push('agents')
-  }
+  if (isEnterprise(config) && config.notify) profiles.push('notify')
+  if (config.agents) profiles.push('agents')
   if (config.metrics) profiles.push('metrics')
   return profiles
 }
 
-/** Public URL of the notify service, or '' when it is not deployed. */
+/**
+ * Public base URL of the notify service, or '' when it is not deployed. Site
+ * nodes use the hosted one; an enterprise node serves its own on the site's
+ * origin under /hm/api/notify, so it needs no second hostname.
+ */
 export function notifyHost(config: SeedConfig): string {
   if (!isEnterprise(config)) return NOTIFY_SERVICE_HOST
-  return config.notify ? `https://notify.${extractDns(config.domain)}` : ''
+  return config.notify ? `https://${extractDns(config.domain)}${NOTIFY_API_PATH}` : ''
 }
 
-/** Public URL of the agents service, or '' when it is not deployed. */
+/**
+ * Public base URL of the agents service, or '' when it is not deployed. It is
+ * the site itself under /hm/api/agents; on an enterprise node that path sits
+ * behind the same sign-in gate, so agents are for members only.
+ */
 export function agentsHost(config: SeedConfig): string {
-  if (!isEnterprise(config) || !config.agents) return ''
-  return `https://agents.${extractDns(config.domain)}`
+  if (!config.agents) return ''
+  return `https://${extractDns(config.domain)}${AGENTS_API_PATH}`
 }
 
 /**
@@ -444,7 +463,9 @@ export function configWarnings(config: SeedConfig): string[] {
     if (config.release_channel !== 'latest') {
       warnings.push(
         `Tracking the '${config.release_channel}' image channel (bleeding-edge images). ` +
-          `On this channel the node updates only when '${cmd('deploy')}' is run by hand; on 'latest' it follows releases automatically.`,
+          `On this channel the node updates only when '${cmd(
+            'deploy',
+          )}' is run by hand; on 'latest' it follows releases automatically.`,
       )
     }
     return warnings
@@ -1233,6 +1254,11 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advance
           message: 'Run as a public gateway? (serves all known public content)',
           initialValue: existing?.gateway ?? false,
         }),
+      agents: () =>
+        p.confirm({
+          message: 'Run the agents service? (served at <your domain>/hm/api/agents; calls model providers)',
+          initialValue: existing?.agents ?? false,
+        }),
       email: () =>
         p.text({
           message: 'Contact email (optional) — lets us notify you about security updates. Not shared publicly.',
@@ -1279,6 +1305,9 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advance
     // so self-hosters know how analytics works and when it is active again.
     analytics: existing?.analytics ?? false,
     gateway: answers.gateway as boolean,
+    agents: answers.agents as boolean,
+    // Set by hand in config.json on a host with /dev/kvm.
+    agents_kvm: answers.agents ? existing?.agents_kvm ?? false : false,
     last_script_run: existing?.last_script_run ?? '',
   }
 
@@ -1291,6 +1320,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advance
     ['site_image', config.site_image || '(default)'],
     ['log_level', config.compose_envs.LOG_LEVEL],
     ['gateway', String(config.gateway)],
+    ['agents', String(config.agents)],
   ]
   const oldFields: Record<string, string> | undefined = existing
     ? {
@@ -1302,6 +1332,7 @@ async function runFreshWizard(paths: DeployPaths, existing?: SeedConfig, advance
         site_image: existing.site_image || '(default)',
         log_level: existing.compose_envs?.LOG_LEVEL ?? 'info',
         gateway: String(existing.gateway),
+        agents: String(existing.agents ?? false),
       }
     : undefined
   const summary = userFields
@@ -1512,6 +1543,7 @@ export function buildEnterpriseConfig(
     link_secret: existing?.link_secret ?? generateSecret(),
     vault_admin_secret: existing?.vault_admin_secret ?? generateSecret(VAULT_ADMIN_SECRET_LENGTH),
     session_secret: existing?.session_secret ?? generateSecret(SESSION_SECRET_LENGTH),
+    service_secret: existing?.service_secret ?? generateSecret(SESSION_SECRET_LENGTH),
     notify: answers.notify,
     smtp: answers.notify ? answers.smtp : existing?.smtp ?? undefined,
     email_relay_url: relay?.url || undefined,
@@ -1616,7 +1648,8 @@ async function runEnterpriseWizard(
         }),
       agents: () =>
         p.confirm({
-          message: 'Run the agents service? (served at agents.<your domain>; calls model providers)',
+          message:
+            'Run the agents service? (served at <your domain>/hm/api/agents, members only; calls model providers)',
           initialValue: existing?.agents ?? false,
         }),
       // The hosting service's email relay replaces the SMTP account; it is
@@ -1782,6 +1815,7 @@ export const ENTERPRISE_OPEN_PATHS = [
   '/hm/api/register',
   '/hm/register*',
   '/hm/create-site*',
+  '/hm/email-notifications*',
   '/healthz',
   '/assets/*',
   '/build/*',
@@ -1800,6 +1834,62 @@ export const SESSION_CHECK_URI = '/hm/api/session'
  * the stock `caddy:2` image lacks, so it is not configured.
  */
 export const ENTERPRISE_MAX_BODY = '512MB'
+
+/**
+ * Paths the notify service answers on a site's origin: its own prefix, plus
+ * the API paths older Seed apps call on the advertised notify origin. Signed
+ * requests and email tokens are their credentials, so they need no session.
+ */
+export const NOTIFY_PROXY_PATHS = [
+  NOTIFY_API_PATH,
+  `${NOTIFY_API_PATH}/*`,
+  '/hm/api/notifications',
+  '/hm/api/notification-config',
+  '/hm/api/notification-inbox',
+  '/hm/api/notification-read-state',
+  '/hm/api/public-subscribe',
+  '/hm/api/public-subscribe/*',
+  '/hm/api/email-notif-token',
+  '/hm/api/unsubscribe',
+] as const
+
+/** The notify service on the site's origin, open (it sits before the gate). */
+function notifyOpenBlock(config: SeedConfig): string {
+  if (!config.notify) return ''
+  return `\t@notify path ${NOTIFY_PROXY_PATHS.join(' ')}
+\thandle @notify {
+\t\treverse_proxy seed-notify:3000
+\t}
+`
+}
+
+/**
+ * Inbound webhook triggers are posted by outside services, which have no
+ * session; the trigger's secret in the path is their credential.
+ */
+function agentsWebhookBlock(config: SeedConfig): string {
+  if (!config.agents) return ''
+  return `\t@agents_webhook {
+\t\tmethod POST
+\t\tpath ${AGENTS_API_PATH}/webhooks/*
+\t}
+\thandle @agents_webhook {
+\t\treverse_proxy seed-agents:3050
+\t}
+`
+}
+
+/** The agents service (API and WebSocket under /hm/api/agents), for members only. */
+function agentsGatedBlock(config: SeedConfig): string {
+  if (!config.agents) return ''
+  return `
+\t@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*
+\thandle @agents {
+\t\timport gate
+\t\treverse_proxy seed-agents:3050
+\t}
+`
+}
 
 /**
  * Enterprise Caddyfile. Explicit site blocks (one per hostname) with a sign-in
@@ -1859,7 +1949,7 @@ ${dns} {
 \t\tpath /api/Account
 \t}
 \t@open path ${ENTERPRISE_OPEN_PATHS.join(' ')}
-\thandle @open_api_post {
+${notifyOpenBlock(config)}${agentsWebhookBlock(config)}\thandle @open_api_post {
 \t\treverse_proxy seed-web:3000
 \t}
 \thandle @open_api_get {
@@ -1881,7 +1971,7 @@ ${dns} {
 \t\timport gate
 \t\treverse_proxy grafana:3001
 \t}
-
+${agentsGatedBlock(config)}
 \thandle {
 \t\timport gate
 \t\treverse_proxy seed-web:3000
@@ -1896,28 +1986,15 @@ ${dns} {
 }`)
   }
 
-  if (config.notify) {
-    blocks.push(`notify.${dns} {
-\tencode zstd gzip
-\treverse_proxy seed-notify:3000
-}`)
-  }
-
-  if (config.agents) {
-    blocks.push(`agents.${dns} {
-\tencode zstd gzip
-\trequest_body {
-\t\tmax_size ${ENTERPRISE_MAX_BODY}
-\t}
-\treverse_proxy seed-agents:3050
-}`)
-  }
-
   return blocks.join('\n\n') + '\n'
 }
 
 export function generateCaddyfile(config: SeedConfig): string {
   if (isEnterprise(config)) return generateEnterpriseCaddyfile(config)
+  // A public site: the agents service, when enabled, is open like the site.
+  const agents = config.agents
+    ? `\n@agentsroute {\n\tpath ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*\n}\n\nreverse_proxy @agentsroute seed-agents:3050\n`
+    : ''
   return `{$SEED_SITE_HOSTNAME}
 
 encode zstd gzip
@@ -1929,7 +2006,7 @@ encode zstd gzip
 reverse_proxy /.metrics* grafana:{$SEED_SITE_MONITORING_PORT:3001}
 
 reverse_proxy @ipfsroute seed-daemon:{$SEED_SITE_BACKEND_GRPCWEB_PORT:56001}
-
+${agents}
 reverse_proxy * seed-web:{$SEED_SITE_LOCAL_PORT:3000}
 `
 }
@@ -1944,8 +2021,8 @@ export function requiredContainers(config?: SeedConfig): string[] {
   if (config && isEnterprise(config)) {
     names.push('seed-vault')
     if (config.notify) names.push('seed-notify')
-    if (config.agents) names.push('seed-agents')
   }
+  if (config?.agents) names.push('seed-agents')
   return names
 }
 
@@ -2128,8 +2205,8 @@ export function expectedServiceImages(config: SeedConfig): Array<{container: str
   if (isEnterprise(config)) {
     images.push({container: 'seed-vault', expectedImage: `seedhypermedia/vault:${tag}`})
     if (config.notify) images.push({container: 'seed-notify', expectedImage: `seedhypermedia/notify:${tag}`})
-    if (config.agents) images.push({container: 'seed-agents', expectedImage: `seedhypermedia/agents:${tag}`})
   }
+  if (config.agents) images.push({container: 'seed-agents', expectedImage: `seedhypermedia/agents:${tag}`})
   return images
 }
 
@@ -2275,6 +2352,7 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     vars.SEED_SITE_NAME = config.site_name ?? dns
     vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? ''
     vars.SEED_SESSION_SECRET = config.session_secret ?? ''
+    vars.SEED_SERVICE_SECRET = config.service_secret ?? ''
     vars.SEED_CONTACT_EMAIL = config.email ?? ''
     vars.SEED_NOTIFY_HOST = notifyHost(config)
     vars.SEED_AGENTS_HOST = agentsHost(config)
@@ -2286,6 +2364,11 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     vars.SEED_SMTP_SENDER = config.smtp?.sender ?? ''
     vars.SEED_EMAIL_RELAY_URL = config.email_relay_url ?? ''
     vars.SEED_EMAIL_RELAY_TOKEN = config.email_relay_token ?? ''
+  } else if (config.agents) {
+    // Unset otherwise, so the web app keeps the compose file's default (the
+    // hosted agents service) and existing sites' env hash does not change.
+    vars.SEED_AGENTS_HOST = agentsHost(config)
+    vars.SEED_AGENTS_EXEC_BACKEND = config.agents_kvm ? 'microsandbox' : ''
   }
 
   const profiles = composeProfiles(config)
@@ -2316,6 +2399,8 @@ export function getWorkspaceDirs(paths: DeployPaths, config?: SeedConfig): strin
     // Bind mounts are created by docker as root when missing; create them
     // here so the containers (running as the host user) can write to them.
     dirs.push(join(paths.seedDir, 'vault'), join(paths.seedDir, 'notify'), join(paths.seedDir, 'agents'))
+  } else if (config?.agents) {
+    dirs.push(join(paths.seedDir, 'agents'))
   }
   return dirs
 }
@@ -2569,9 +2654,9 @@ export async function deploy(
     finalCompose = injectServiceDirectives(finalCompose, 'seed-daemon', deviceDirectives(['/dev/dri'], groups))
     log(`GPU detected — added devices${groups.length ? ` and group_add (${groups.join(', ')})` : ''} to compose file.`)
   }
-  // Enterprise agents: /dev/kvm for sandboxed code execution, opt-in via
-  // config (standard droplets have no KVM; the compose file ships without it).
-  if (isEnterprise(config) && config.agents && config.agents_kvm) {
+  // Agents: /dev/kvm for sandboxed code execution, opt-in via config
+  // (standard droplets have no KVM; the compose file ships without it).
+  if (config.agents && config.agents_kvm) {
     const kvmGid = shell.runSafe('getent group kvm 2>/dev/null | cut -d: -f3')
     finalCompose = injectServiceDirectives(
       finalCompose,
@@ -3124,7 +3209,9 @@ export function autoUpdates(config: SeedConfig): boolean {
 async function setActiveNode(paths: DeployPaths, shell: ShellRunner, config?: SeedConfig): Promise<void> {
   if (config && !autoUpdates(config)) {
     clearSeedCron(shell)
-    log(`Enterprise profile on the '${config.release_channel}' channel: automatic update cron not installed (updates are manual).`)
+    log(
+      `Enterprise profile on the '${config.release_channel}' channel: automatic update cron not installed (updates are manual).`,
+    )
   } else {
     await setupCron(paths, shell)
   }
@@ -3307,12 +3394,10 @@ async function cmdDoctor(paths: DeployPaths, shell: ShellRunner): Promise<void> 
     if (config.site_image) console.log(`  Site image:  ${config.site_image}`)
     if (enterprise) {
       console.log(`  Notify:      ${config.notify ? notifyHost(config) : 'No'}`)
-      console.log(
-        `  Agents:      ${config.agents ? `${agentsHost(config)}${config.agents_kvm ? ' (kvm)' : ''}` : 'No'}`,
-      )
     } else {
       console.log(`  Gateway:     ${config.gateway ? 'Yes' : 'No'}`)
     }
+    console.log(`  Agents:      ${config.agents ? `${agentsHost(config)}${config.agents_kvm ? ' (kvm)' : ''}` : 'No'}`)
     console.log(`  Config:      ${paths.configPath}`)
     for (const warning of configWarnings(config)) {
       console.log(`  ⚠ ${warning}`)
@@ -3732,6 +3817,7 @@ export function redactConfig(config: SeedConfig): SeedConfig {
   const redacted: SeedConfig = {...config, link_secret: '****'}
   if (config.vault_admin_secret) redacted.vault_admin_secret = '****'
   if (config.session_secret) redacted.session_secret = '****'
+  if (config.service_secret) redacted.service_secret = '****'
   if (config.smtp?.password) redacted.smtp = {...config.smtp, password: '****'}
   if (config.email_relay_token) redacted.email_relay_token = '****'
   return redacted
@@ -4137,7 +4223,13 @@ export function extractInvitationLinks(result: unknown, vaultBase: string): stri
 }
 
 /** Parsed `invite` arguments: the email, the role and whether the vault should email the link. */
-export function parseInviteArgs(args: string[]): {email?: string; role: 'reader' | 'writer'; send: boolean; count?: number; error?: string} {
+export function parseInviteArgs(args: string[]): {
+  email?: string
+  role: 'reader' | 'writer'
+  send: boolean
+  count?: number
+  error?: string
+} {
   let email: string | undefined
   let role: 'reader' | 'writer' = 'reader'
   let send = true
@@ -4146,7 +4238,8 @@ export function parseInviteArgs(args: string[]): {email?: string; role: 'reader'
     const a = args[i]!
     if (a === '--role' || a.startsWith('--role=')) {
       const value = a.includes('=') ? a.slice('--role='.length) : args[++i]
-      if (value !== 'reader' && value !== 'writer') return {role, send, error: `--role must be reader or writer, not '${value ?? ''}'`}
+      if (value !== 'reader' && value !== 'writer')
+        return {role, send, error: `--role must be reader or writer, not '${value ?? ''}'`}
       role = value
     } else if (a === '--writer') role = 'writer'
     else if (a === '--reader') role = 'reader'
@@ -4185,7 +4278,9 @@ async function cmdInvite(paths: DeployPaths, args: string[]): Promise<void> {
   const {email, role, send, count} = parsed
   if (!email) {
     console.error(
-      `'${cmd('invite <email>')}' needs the invitee's email: invitations are scoped to one address and the link carries it.`,
+      `'${cmd(
+        'invite <email>',
+      )}' needs the invitee's email: invitations are scoped to one address and the link carries it.`,
     )
     process.exit(1)
   }
@@ -4300,19 +4395,19 @@ export interface BackupMeta {
 
 /**
  * Paths (relative to the seed dir) that go into a backup archive. Enterprise
- * nodes add the vault, notify and agents data; a directory that does not exist
- * yet (profile never enabled) is skipped so tar does not fail on it.
+ * nodes add the vault, notify and agents data, site nodes the agents data; a
+ * directory that does not exist yet (profile never enabled) is skipped so tar
+ * does not fail on it.
  */
 export async function backupMembers(paths: DeployPaths, config: SeedConfig): Promise<string[]> {
   const members = ['config.json', 'backup-meta.json', 'docker-compose.yml', 'web', 'daemon', 'proxy']
-  if (isEnterprise(config)) {
-    for (const dir of ENTERPRISE_DATA_DIRS) {
-      try {
-        await access(join(paths.seedDir, dir))
-        members.push(dir)
-      } catch {
-        // never created — nothing to back up
-      }
+  const extra: readonly string[] = isEnterprise(config) ? ENTERPRISE_DATA_DIRS : config.agents ? ['agents'] : []
+  for (const dir of extra) {
+    try {
+      await access(join(paths.seedDir, dir))
+      members.push(dir)
+    } catch {
+      // never created — nothing to back up
     }
   }
   return members

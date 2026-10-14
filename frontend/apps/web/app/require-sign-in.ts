@@ -18,6 +18,11 @@ export const OPEN_EXACT_PATHS: readonly string[] = [
   // Creating the organization's space must work before any content exists;
   // the route itself refuses to publish without a signed-in identity.
   '/hm/create-site',
+  // Email notification settings, reached from a link in a notification email:
+  // the token in the URL is the credential, and its holder need not be a member.
+  // The notify API it calls (/hm/api/notify/*) is routed by the proxy straight to
+  // the notify service, so this gate never sees those requests.
+  '/hm/email-notifications',
   '/vault',
   '/robots.txt',
   '/healthz',

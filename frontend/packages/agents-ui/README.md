@@ -37,9 +37,11 @@ export function Agents() {
 
 `SeedAgentsHost` (all types are exported):
 
-- `serverUrl`: the agents server as the browser can reach it. The UI calls `<serverUrl>/api/message`,
-  `<serverUrl>/agents/ws` and `<serverUrl>/agents/api/*`, so this can be the host's own reverse proxy mounted under a
-  path.
+- `serverUrl`: the agents server as the browser can reach it. A canonical base ends in `/hm/api/agents` (for example
+  `https://site.example/hm/api/agents` for a site that serves agents on its own origin) and the UI calls
+  `<serverUrl>/message`, `<serverUrl>/ws`, `<serverUrl>/health` and `<serverUrl>/webhooks/*`. Any other base is a legacy
+  server: the UI calls `<serverUrl>/api/message`, `<serverUrl>/agents/ws` and `<serverUrl>/agents/api/*`, so this can be
+  the host's own reverse proxy mounted under a path.
 - `signer`: `{accountUid, sign}`, or `null` to show a sign-in notice. Every request is a signed `AgentsAction` envelope;
   `sign` receives its exact bytes and returns the 64-byte Ed25519 signature. The key may live anywhere, including a
   server that signs on the page's behalf. When the signing key is not the account's own, also pass `signerUid` and the

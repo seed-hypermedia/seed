@@ -2,6 +2,7 @@ import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
+import {installHmServerAuth} from '@/hm-server-auth'
 import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
 import {perfSnapshot} from '@/perf'
@@ -31,6 +32,24 @@ export type WSData = {
 async function handleError(error: unknown): Promise<Response> {
   console.error('Unexpected error:', error)
   return cbor.response({_: 'Error', message: 'Internal server error'} satisfies api.ErrorResponse, {status: 500})
+}
+
+/** Canonical path prefix of the agents API, on its own host or on a site's origin. */
+export const AGENTS_API_PREFIX = '/hm/api/agents'
+
+/** WebSocket paths: the canonical one and the legacy one. */
+export const AGENTS_WS_PATHS = [`${AGENTS_API_PREFIX}/ws`, '/agents/ws'] as const
+
+function upgradeWebSocket(req: BunRequest, srv: Server<WSData>) {
+  const upgraded = srv.upgrade(req, {
+    data: {
+      connectedAt: Date.now(),
+      subscriptions: new Set<string>(),
+      publicSubscriptions: new Map<string, string>(),
+    },
+  })
+  if (upgraded) return undefined as unknown as Response
+  return new Response('WebSocket upgrade failed', {status: 400})
 }
 
 /** Creates Bun route handlers for the Agents signed CBOR API. */
@@ -148,6 +167,17 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
     return Response.json(rollup, {headers: corsHeaders()})
   }
   return {
+    // Canonical mount: everything under one prefix, so a site's reverse proxy can route
+    // `/hm/api/agents/*` to this service on the site's own origin.
+    [`${AGENTS_API_PREFIX}/message`]: {OPTIONS: options, POST: message},
+    [`${AGENTS_API_PREFIX}/webhooks/:triggerId`]: {POST: webhook},
+    [`${AGENTS_API_PREFIX}/webhooks/:triggerId/:secret`]: {POST: webhook},
+    [`${AGENTS_API_PREFIX}/health`]: {GET: health},
+    [`${AGENTS_API_PREFIX}/version`]: {GET: version},
+    [`${AGENTS_API_PREFIX}/perf`]: {GET: perf},
+    [`${AGENTS_API_PREFIX}/perf/sessions/:sessionId`]: {GET: sessionPerf},
+    // Legacy routes, kept for the standalone host (agentic.seed.hyper.media), older clients and
+    // webhook URLs already handed out.
     '/api/message': {OPTIONS: options, POST: message},
     '/agents/api/message': {OPTIONS: options, POST: message},
     '/agents/api/webhooks/:triggerId': {POST: webhook},
@@ -307,6 +337,8 @@ async function main(): Promise<void> {
 
   const cfg = config.create(config.parseArgs())
   setLogLevel(cfg.logLevel)
+  // A members-only (Enterprise) site lets this service in by a shared secret instead of a session.
+  installHmServerAuth([cfg.activity.hmServerUrl, cfg.activity.ipfsServerUrl], process.env.SEED_AGENTS_HM_SERVER_SECRET)
   const result = sqlite.open(cfg.dbPath)
 
   if (!result.ok) {
@@ -468,17 +500,8 @@ async function main(): Promise<void> {
     error: handleError,
     routes: {
       ...createAPIRoutes(svc, cfg.defaultPromptUrl),
-      '/agents/ws': (req: BunRequest, srv: Server<WSData>) => {
-        const upgraded = srv.upgrade(req, {
-          data: {
-            connectedAt: Date.now(),
-            subscriptions: new Set<string>(),
-            publicSubscriptions: new Map<string, string>(),
-          },
-        })
-        if (upgraded) return undefined as unknown as Response
-        return new Response('WebSocket upgrade failed', {status: 400})
-      },
+      [AGENTS_WS_PATHS[0]]: upgradeWebSocket,
+      [AGENTS_WS_PATHS[1]]: upgradeWebSocket,
     },
     // The server has no browser UI: everything outside the signed CBOR API, the health/version
     // probes, and the WebSocket is a 404. Account data is only reachable through signed envelopes.
@@ -574,7 +597,7 @@ async function main(): Promise<void> {
   const hostname = cfg.http.hostname === '0.0.0.0' ? 'localhost' : cfg.http.hostname
   console.log(`Agents server running at http://${hostname}:${server.port}`)
   console.log(`  Database: ${cfg.dbPath}`)
-  console.log(`  WebSocket endpoint: ws://${hostname}:${server.port}/agents/ws`)
+  console.log(`  WebSocket endpoint: ws://${hostname}:${server.port}${AGENTS_WS_PATHS[0]} (legacy /agents/ws)`)
   console.log(`  API: http://${hostname}:${server.port}/api/message`)
   console.log(`  HM API: ${cfg.activity.hmServerUrl}`)
   console.log(`  IPFS: ${cfg.activity.ipfsServerUrl}`)

@@ -10,6 +10,7 @@
  * The frontend fetched public config from the server, which explicitly exposes only what's needed. Check [GetConfigResponse] in `./api.ts`.
  */
 
+import {HOSTED_NOTIFY_SERVICE_URL} from '@shm/shared/notify-url'
 import type * as email from '@/email'
 import type * as cleye from 'cleye'
 
@@ -50,7 +51,7 @@ export type Config = {
  */
 function getDefaultNotificationServerUrl(env: NodeJS.ProcessEnv = process.env) {
   const value = env.SEED_VAULT_DEFAULT_NOTIFY_SERVER
-  return value === undefined ? 'https://notify.seed.hyper.media' : value.trim()
+  return value === undefined ? HOSTED_NOTIFY_SERVICE_URL : value.trim()
 }
 
 function parseBooleanEnv(value: string | undefined): boolean {

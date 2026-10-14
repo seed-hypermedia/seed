@@ -271,9 +271,15 @@ SQLite is authoritative for everything except bytes on disk. An agent's state di
 
 # HTTP endpoints <!-- id:oTx-eqES -->
 
+Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service can sit on its own host or on a site's own origin with one reverse-proxy rule. The older paths (`/api/*`, `/agents/api/*`, `/agents/ws`) stay registered: the standalone production host, released clients and webhook URLs already handed out use them.
+
 <!-- id:WyyD8vqE -->
 | Endpoint <!-- col:QqHnNcMC --> | Method <!-- col:0cPxyrJj --> | Purpose <!-- col:oVN2t9-G --> <!-- id:p8d1Mrxo --> |
 | --- | --- | --- |
+| `/hm/api/agents/message` | `POST` | Signed CBOR action API (canonical). |
+| `/hm/api/agents/ws` | WebSocket | Signed live subscriptions (canonical). |
+| `/hm/api/agents/health`, `/version`, `/perf`, `/perf/sessions/<sessionId>` | `GET` | Health, build metadata, timing counters (canonical). |
+| `/hm/api/agents/webhooks/<triggerId>[/<secret>]` | `POST` | Webhook trigger delivery (canonical). |
 | `/api/message` | `POST` | Signed CBOR action API. <!-- id:D634v2_4 --> |
 | `/agents/api/message` | `POST` | Same action API under `/agents`. <!-- id:0MOz3jtf --> |
 | `/api/health` | `GET` | JSON health and capabilities (no account data). <!-- id:A68cofS7 --> |
@@ -282,7 +288,18 @@ SQLite is authoritative for everything except bytes on disk. An agent's state di
 | `/agents/api/version` | `GET` | Build metadata under `/agents`. <!-- id:UrIALpko --> |
 | `/agents/ws` | WebSocket | Signed live subscriptions. <!-- id:Em_QCmeP --> |
 
-`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)). Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on `/api/message` and `/agents/ws`. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)); a trigger's `endpointPath` names the canonical form. Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on the message endpoint and the WebSocket. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+
+# Where the service lives
+
+A client holds one base URL per agents server and picks the endpoint paths from its shape (`agentServerEndpoint()` in `frontend/packages/ui/src/agents/client.ts`):
+
+- **Canonical**: the path ends in `/hm/api/agents`, for example `https://site.example/hm/api/agents`. The client calls `<base>/message`, `<base>/ws`, `<base>/health` and `<base>/webhooks/…`.
+- **Legacy**: an origin only, for example `https://agentic.seed.hyper.media` (a trailing `/agents` is stripped). The client calls `/api/message`, `/agents/ws` and `/agents/api/*` under it.
+
+Production stays standalone at `https://agentic.seed.hyper.media`, and the desktop, web and mobile defaults keep its legacy form; `https://agentic.seed.hyper.media/hm/api/agents` reaches the same server. A site may instead serve agents on its own origin: the reverse proxy routes `/hm/api/agents/*` (API and WebSocket) to the agents container, and the site advertises `<site>/hm/api/agents` as its agent server URL (`SEED_AGENT_SERVER_URL`, surfaced as `agentServerUrl` in `/hm/api/config`). The web app never proxies agents traffic. Pointing a client at a bare site origin does not work: `<origin>/api/message` is the site's own API, not the agents service.
+
+On an Enterprise (members-only) site, `/hm/api/agents/*` sits behind the same sign-in gate as the rest of the site, except `POST /hm/api/agents/webhooks/*`, which outside services call with the trigger secret and which stays open. The agents service reads its members-only site with the deployment's service secret (`SEED_AGENTS_HM_SERVER_SECRET`, sent as `X-Seed-Service-Secret` only to that site's origin; `agents/src/hm-server-auth.ts`), so mention triggers keep firing behind the gate.
 
 # Trigger monitors <!-- id:KlGKY3Ne -->
 

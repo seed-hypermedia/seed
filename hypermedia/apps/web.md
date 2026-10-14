@@ -41,10 +41,11 @@ Browser registration reads the current gateway's peer information from `/hm/api/
 | --- | --- |
 | `/<path>` and `/hm/<account>/<path>` | Server-rendered documents, with `?v=` versions, block fragments, and view terms such as `/:comments`. Append `.md` for markdown or `.json` for the document as JSON. <!-- id:XGWCl2kJ --> |
 | `/api/<Key>` | The Seed API: GET queries and CBOR POST actions, dispatched over the shared typed router. See [The web API](../build/web-api.md). <!-- id:gDTmYS47 --> |
-| `/hm/api/config` | Site identity: registered account, peer id, addresses, protocol id, gateway flag, notification host. <!-- id:jG1jxQE8 --> |
+| `/hm/api/config` | Site identity: registered account, peer id, addresses, protocol id, gateway flag, notify service URL, agent server URL. <!-- id:jG1jxQE8 --> |
 | `/hm/api/register`, `/hm/api/auth`, `/hm/api/delegate-device`, `/hm/api/discover`, `/hm/api/document-update`, `/hm/api/file/*`, `/hm/api/image/*`, `/hm/api/resource/*`, `/hm/api/version` | The site services. <!-- id:UffPLRjp --> |
 | `/hm/api/enterprise-bootstrap` | POST only, with `Authorization: Bearer <SEED_VAULT_ADMIN_SECRET>` (404 when that variable is unset). Creates the organization's space on an Enterprise node and registers the site to it: mints a key in the daemon keystore, publishes the home document, writes `registeredAccountUid` and `sourcePeerId`, and returns the account plus its `.hmkey.json` export. 409 once the site is registered. Called by `seed-deploy` on the first enterprise deploy; see [Self-hosting](../build/self-hosting.md). |
 | `/hm/register`, `/hm/create-site`, `/hm/connect`, `/hm/download`, `/hm/notifications`, `/hm/agents`, `/hm/auth/callback` | Pages of the app itself. <!-- id:Wv7DUjSg --> |
+| `/hm/email-notifications?token=…` | Email notification settings, linked from every notification email. The token is the credential, so the page is open on members-only sites and sends `Referrer-Policy: no-referrer`. It talks to the notify service's `email-notif-token` endpoint: the configured notify service, or `/hm/api/notify` on the site's own origin. |
 
 [URLs](../protocol/urls.md) explains versions, block fragments and view terms. <!-- id:1nw003En -->
 
@@ -73,9 +74,9 @@ Browser identities are Ed25519 keys generated with WebCrypto as non-extractable 
 | `SEED_SIGNING_ENABLED`, `SEED_IDENTITY_ENABLED`, `SEED_IDENTITY_DEFAULT_ORIGIN` | Web signing and the vault origin used for sign-in. <!-- id:GbCyB_Df --> |
 | `DATA_DIR` | Where `config.json` lives. <!-- id:Yog9fhT0 --> |
 | `SERVICE_ADMIN_SECRET` | Admin secret for the multi-site service mode. <!-- id:7hphqAYs --> |
-| `VITE_NOTIFY_SERVICE_HOST` | The [notify](./notify.md) service to use. <!-- id:qjnnUf-X --> |
+| `NOTIFY_SERVICE_HOST` (`VITE_NOTIFY_SERVICE_HOST` at build time) | The [notify](./notify.md) service to use: canonically `https://<site>/hm/api/notify`. An origin-only value still works and uses the legacy `/hm/api/<endpoint>` paths; the retired `notify.seed.hyper.media` and `notify-dev.seed.hyper.media` are rewritten to `https://hyper.media/hm/api/notify` and `https://dev.hyper.media/hm/api/notify`. <!-- id:qjnnUf-X --> |
 
-The `/hm/notifications` page signs its requests in the browser with the session key and talks to the notify host that the vault callback named at sign-in, not to `NOTIFY_SERVICE_HOST`. [Notify](./notify.md) describes both the signed inbox and the older unsigned email subscribe form.
+The `/hm/notifications` page signs its requests in the browser with the session key and talks to the notify service that the vault callback named at sign-in, not to `NOTIFY_SERVICE_HOST`. Every client builds notify URLs with `notifyEndpointUrl` from `@shm/shared/notify-url`, which handles canonical, legacy and retired values alike. [Notify](./notify.md) describes both the signed inbox and the older unsigned email subscribe form.
 
 # Working with it <!-- id:pl0RnALo -->
 

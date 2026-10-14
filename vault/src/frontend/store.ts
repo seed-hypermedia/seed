@@ -6,6 +6,7 @@ import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import * as hmauth from '@shm/shared/hmauth'
+import {normalizeNotifyServiceUrl, notifyServiceOrigin} from '@shm/shared/notify-url'
 import * as joinedSite from '@shm/shared/publish-default-joined-site'
 import * as sharedPassword from '@shm/ui/components/password-input'
 import * as webauthn from '@simplewebauthn/browser'
@@ -243,6 +244,20 @@ function getNotificationRegistrationErrorMessage(error: unknown) {
   }
 
   return getErrorMessage(error, 'Your account was created, but notification registration failed.')
+}
+
+/**
+ * The notify server as handed to a site on sign-in: its origin only. Every site version can use
+ * that (older web builds append `/hm/api/notifications`, which notify still serves on its origin).
+ */
+function notifyServerUrlForCallback(notificationServerUrl: string): string {
+  const normalized = normalizeNotifyServiceUrl(notificationServerUrl)
+  if (!normalized) return ''
+  try {
+    return notifyServiceOrigin(normalized)
+  } catch {
+    return normalized
+  }
 }
 
 function normalizeNotificationServerUrl(notificationServerUrl: string) {
@@ -2233,7 +2248,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           capabilityCid: encoded.cid,
           profile: encodedProfile.decoded,
           profileCid: encodedProfile.cid,
-          notifyServerUrl: getEffectiveNotificationServerUrl(),
+          notifyServerUrl: notifyServerUrlForCallback(getEffectiveNotificationServerUrl()),
         }
         const compressedCallbackData = await (async () => {
           const stream = new CompressionStream('gzip')

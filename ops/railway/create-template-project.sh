@@ -346,7 +346,7 @@ export SEED_P2P_TESTNET_NAME=\"\${SEED_P2P_TESTNET_NAME:-}\"
 exec seed-daemon -data-dir=/data -keystore-dir=/data/keys -lndhub.mainnet -p2p.port=56000 -http.port=56001 -grpc.port=56002 -p2p.no-relay=true -p2p.force-reachability-public=true -syncing.smart=true -syncing.no-sync-back=true -syncing.no-pull=false -p2p.listen-addrs=/ip4/0.0.0.0/tcp/56000,/ip6/::/tcp/56000 -p2p.announce-addrs=/dns4/\$RAILWAY_TCP_PROXY_DOMAIN/tcp/\$RAILWAY_TCP_PROXY_PORT'")
 web_start_command=$(printf '%s' "/bin/sh -c 'set -eu
 export DATA_DIR=\"\${DATA_DIR:-/data}\"
-export NOTIFY_SERVICE_HOST=\"\${NOTIFY_SERVICE_HOST:-https://notify.seed.hyper.media}\"
+export NOTIFY_SERVICE_HOST=\"\${NOTIFY_SERVICE_HOST:-https://hyper.media/hm/api/notify}\"
 export PORT=3000
 export SEED_ENABLE_STATISTICS=\"\${SEED_ENABLE_STATISTICS:-false}\"
 export SEED_IS_GATEWAY=\"\${SEED_IS_GATEWAY:-false}\"

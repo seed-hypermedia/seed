@@ -7,16 +7,18 @@ The [Seed Agents](../agent.md) WebSocket API delivers live account, agent, sessi
 Endpoint: <!-- id:81Qi_5av -->
 
 ```text <!-- id:W1ldgCLe -->
-/agents/ws
+/hm/api/agents/ws
 ```
+
+The legacy path `/agents/ws` stays served for clients holding an origin-only server URL.
 
 Local URL (dev; release builds use port 3050): <!-- id:WN40e7Mr -->
 
 ```text <!-- id:5ExdGmxf -->
-ws://localhost:3051/agents/ws
+ws://localhost:3051/hm/api/agents/ws
 ```
 
-URL helper: `getAgentWebSocketUrl()` in `frontend/packages/ui/src/agents/client.ts`. <!-- id:RwWUii1G -->
+URL helper: `getAgentWebSocketUrl()` in `frontend/packages/ui/src/agents/client.ts`, which picks the canonical or legacy path from the server URL's shape. <!-- id:RwWUii1G -->
 
 # Transport <!-- id:Ylw5APIb -->
 

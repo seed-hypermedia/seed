@@ -12540,16 +12540,16 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
       ? {
           webhook: webhookSecret
             ? {
-                endpointPath: `/agents/api/webhooks/${row.id}/${webhookSecret}`,
+                endpointPath: `/hm/api/agents/webhooks/${row.id}/${webhookSecret}`,
                 secret: webhookSecret,
-                alternative: `POST to /agents/api/webhooks/${row.id} with the header Authorization: Bearer ${webhookSecret}`,
+                alternative: `POST to /hm/api/agents/webhooks/${row.id} with the header Authorization: Bearer ${webhookSecret}`,
                 requiredHeaders: {'Content-Type': 'application/json'},
                 optionalHeaders: {
                   'Idempotency-Key': '<unique delivery id; retries with the same key and body are deduplicated>',
                 },
               }
             : {
-                endpointPath: `/agents/api/webhooks/${row.id}/<secret>`,
+                endpointPath: `/hm/api/agents/webhooks/${row.id}/<secret>`,
                 secret: null,
                 note: 'The secret for this trigger was not kept; recreate the trigger to get a new one.',
               },
@@ -12843,9 +12843,9 @@ async function writeTriggerAddress(
     ...(webhookSecret
       ? {
           webhook: {
-            endpointPath: `/agents/api/webhooks/${id}/${webhookSecret}`,
+            endpointPath: `/hm/api/agents/webhooks/${id}/${webhookSecret}`,
             secret: webhookSecret,
-            alternative: `Senders that cannot use the secret URL may POST to /agents/api/webhooks/${id} with the header Authorization: Bearer ${webhookSecret}`,
+            alternative: `Senders that cannot use the secret URL may POST to /hm/api/agents/webhooks/${id} with the header Authorization: Bearer ${webhookSecret}`,
             requiredHeaders: {'Content-Type': 'application/json'},
             optionalHeaders: {
               'Idempotency-Key':

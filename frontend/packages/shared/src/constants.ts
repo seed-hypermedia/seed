@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import {normalizeNotifyServiceUrl} from './notify-url'
 
 // we are using this ternary ugly thing with `import.meta.env?` and `process.env` because this variables will be loaded in different runtimes, and not in all runtines both "ways" are available.
 
@@ -152,11 +153,17 @@ export const ENABLE_EMAIL_NOTIFICATIONS =
   !!(NOTIFY_EMAIL_RELAY_URL && NOTIFY_EMAIL_RELAY_TOKEN) ||
   !!(NOTIFY_SMTP_HOST && NOTIFY_SMTP_PORT && NOTIFY_SMTP_USER && NOTIFY_SMTP_PASSWORD && NOTIFY_SENDER)
 
+/**
+ * Base URL of the notify service: canonical (`https://site.com/hm/api/notify`) or a legacy
+ * origin-only value. Retired hosted hostnames are rewritten; build URLs with `notifyEndpointUrl`.
+ */
 export const NOTIFY_SERVICE_HOST: string | undefined =
-  process.env.NOTIFY_SERVICE_HOST || // web server (runtime env must beat the build-time VITE value,
-  // which vite bakes into the SSR bundle from .env.vars on dev machines)
-  IME.VITE_NOTIFY_SERVICE_HOST || // desktop app
-  WEB_ENV.NOTIFY_SERVICE_HOST // web client
+  normalizeNotifyServiceUrl(
+    process.env.NOTIFY_SERVICE_HOST || // web server (runtime env must beat the build-time VITE value,
+      // which vite bakes into the SSR bundle from .env.vars on dev machines)
+      IME.VITE_NOTIFY_SERVICE_HOST || // desktop app
+      WEB_ENV.NOTIFY_SERVICE_HOST, // web client
+  ) ?? undefined
 
 /**
  * Default agent server for the web app's /hm/agents UI. The site will eventually support several

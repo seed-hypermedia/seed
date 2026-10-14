@@ -76,7 +76,7 @@ The desktop app starts a local [agents server](./agents.md) and shows the agents
 
 ## Notifications
 
-The inbox page reads a local copy of the account's notification state that the main process syncs with the [notify service](./notify.md), signing requests through the daemon. Marking things read works offline and syncs later. [Notify](./notify.md) describes the store and the read-state rules.
+The inbox page reads a local copy of the account's notification state that the main process syncs with the [notify service](./notify.md), signing requests through the daemon. Release builds default to `https://hyper.media/hm/api/notify` (dev builds `https://dev.hyper.media/hm/api/notify`); the vault's notify setting overrides it, and a site's email subscribers come from the notify service its `/hm/api/config` advertises as `notifyServiceUrl` (or the older `notifyServiceHost`). Marking things read works offline and syncs later. [Notify](./notify.md) describes the store and the read-state rules.
 
 # Development notes <!-- id:TUREvD9- -->
 

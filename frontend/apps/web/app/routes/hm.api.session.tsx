@@ -1,5 +1,5 @@
 import {isOpenPath, requireSignInEnabled, safeNextPath, signInUrl} from '@/require-sign-in.server'
-import {getWebSession} from '@/web-session.server'
+import {isSignedInRequest} from '@/web-session.server'
 import type {ActionFunctionArgs, LoaderFunctionArgs} from '@remix-run/node'
 import {redirect} from '@remix-run/node'
 
@@ -17,7 +17,7 @@ export async function loader({request}: LoaderFunctionArgs) {
   const original = forwardedUri ? new URL(forwardedUri, 'http://forwarded.invalid') : null
   if (original && isOpenPath(original.pathname, method)) return new Response(null, {status: 204})
 
-  if (getWebSession(request)) return new Response(null, {status: 204})
+  if (isSignedInRequest(request)) return new Response(null, {status: 204})
 
   const accept = request.headers.get('Accept') || ''
   if (original && accept.includes('text/html')) {

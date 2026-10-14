@@ -2,7 +2,7 @@ import {grpcClient} from '@/client.server'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {isOpenPath, requireSignInEnabled} from '@/require-sign-in.server'
 import {withCors} from '@/utils/cors'
-import {getWebSession} from '@/web-session.server'
+import {isSignedInRequest} from '@/web-session.server'
 import {ActionFunctionArgs, LoaderFunctionArgs} from '@remix-run/node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {handleApiAction, handleApiRequest} from '@shm/shared/api-server'
@@ -69,12 +69,13 @@ function corsOptions() {
 }
 
 // Defense in depth behind the proxy's forward_auth. A daemon token or bearer
-// header is not membership; only the session cookie minted at sign-in is, and
-// the few calls the sign-in flow itself needs stay open.
+// header is not membership; only the session cookie minted at sign-in (or the
+// box's service secret) is, and the few calls the sign-in flow itself needs
+// stay open.
 function signInRequired(request: Request, key: string): Response | null {
   if (!requireSignInEnabled()) return null
   if (isOpenPath(`/api/${key}`, request.method)) return null
-  if (getWebSession(request)) return null
+  if (isSignedInRequest(request)) return null
   return withCors(
     new Response(JSON.stringify({error: 'Sign in required'}), {
       status: 401,

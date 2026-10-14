@@ -85,7 +85,9 @@ export function getLocalAgentsServerUrl(): string | null {
 /** Returns true when a healthy agents server answers at `url`. */
 async function isAgentsServerHealthy(url: string): Promise<boolean> {
   try {
-    const response = await fetch(`${url}/agents/api/health`, {
+    // A canonical base (`…/hm/api/agents`) serves `/health`; an origin serves the legacy path.
+    const healthUrl = url.endsWith('/hm/api/agents') ? `${url}/health` : `${url}/agents/api/health`
+    const response = await fetch(healthUrl, {
       signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     })
     if (!response.ok) return false

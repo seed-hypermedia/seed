@@ -54,10 +54,10 @@ The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` in `.env.vars`, so the dev serve
 | what <!-- col:_1WRiXMp --> | dev URL <!-- col:TDo0vFXF --> <!-- id:QLFChrGi --> |
 | --- | --- |
 | server base | `http://localhost:3051` <!-- id:0JDepxKs --> |
-| health | `http://localhost:3051/agents/api/health` <!-- id:5IM7m_SR --> |
+| health | `http://localhost:3051/hm/api/agents/health` <!-- id:5IM7m_SR --> |
 | perf | `http://localhost:3051/api/perf` and `/api/perf/sessions/<sessionId>` |
-| signed API | `POST http://localhost:3051/api/message` <!-- id:hhM3PRG8 --> |
-| WebSocket | `ws://localhost:3051/agents/ws` <!-- id:omAL0PAD --> |
+| signed API | `POST http://localhost:3051/hm/api/agents/message` <!-- id:hhM3PRG8 --> |
+| WebSocket | `ws://localhost:3051/hm/api/agents/ws` <!-- id:omAL0PAD --> |
 | latency snapshot | `http://localhost:3051/api/perf` <!-- id:zM2v1hz1 --> |
 
 # Code map <!-- id:l1qGFiv- -->

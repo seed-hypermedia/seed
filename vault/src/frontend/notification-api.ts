@@ -2,6 +2,7 @@ import type * as api from '@/api'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import * as base64 from '@seed-hypermedia/client/base64'
 import type * as blobs from '@shm/shared/blobs'
+import {notifyEndpointUrl} from '@shm/shared/notify-url'
 
 type NotificationRequestSigner = Pick<blobs.NobleKeyPair, 'principal' | 'sign'>
 
@@ -17,13 +18,9 @@ export type NotificationConfigResponse = {
   isRegistered: boolean
 }
 
-function normalizeNotificationHost(notifyServiceHost: string) {
-  return notifyServiceHost.replace(/\/$/, '')
-}
-
 async function postSignedNotificationRequest<ResultType>(
   notifyServiceHost: string,
-  path: string,
+  leaf: string,
   signer: NotificationRequestSigner,
   payload: Record<string, unknown>,
 ): Promise<ResultType> {
@@ -35,7 +32,7 @@ async function postSignedNotificationRequest<ResultType>(
   const encodedPayload = new Uint8Array(cborEncode(unsignedPayload))
   const sig = await signer.sign(encodedPayload)
   const body = new Uint8Array(cborEncode({...unsignedPayload, sig}))
-  const response = await fetch(`${normalizeNotificationHost(notifyServiceHost)}${path}`, {
+  const response = await fetch(notifyEndpointUrl(notifyServiceHost, leaf), {
     method: 'POST',
     body,
     headers: {'Content-Type': 'application/cbor'},
@@ -56,7 +53,7 @@ export async function getNotificationConfig(
   notifyServiceHost: string,
   signer: NotificationRequestSigner,
 ): Promise<NotificationConfigResponse> {
-  return postSignedNotificationRequest(notifyServiceHost, '/hm/api/notification-config', signer, {
+  return postSignedNotificationRequest(notifyServiceHost, 'notification-config', signer, {
     action: 'get-notification-config',
   })
 }
@@ -70,7 +67,7 @@ export async function registerNotificationInbox(
 ): Promise<boolean> {
   const data = await postSignedNotificationRequest<{registered?: boolean}>(
     notifyServiceHost,
-    '/hm/api/notification-inbox',
+    'notification-inbox',
     signer,
     {
       action: 'register-inbox',
@@ -104,7 +101,7 @@ export async function setNotificationConfig(
     }
   }
 
-  return postSignedNotificationRequest(notifyServiceHost, '/hm/api/notification-config', signer, payload)
+  return postSignedNotificationRequest(notifyServiceHost, 'notification-config', signer, payload)
 }
 
 /**
@@ -114,7 +111,7 @@ export async function removeNotificationConfig(
   notifyServiceHost: string,
   signer: NotificationRequestSigner,
 ): Promise<NotificationConfigResponse> {
-  return postSignedNotificationRequest(notifyServiceHost, '/hm/api/notification-config', signer, {
+  return postSignedNotificationRequest(notifyServiceHost, 'notification-config', signer, {
     action: 'remove-notification-config',
   })
 }
