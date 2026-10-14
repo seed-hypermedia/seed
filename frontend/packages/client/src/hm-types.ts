@@ -1311,17 +1311,21 @@ export const ParsedFragmentSchema = BlockRangeSchema.extend({
 })
 export type ParsedFragment = z.infer<typeof ParsedFragmentSchema>
 
+// blockId is the block that carries the link (the citation's sourceContext): a block of
+// the citing document, or a block of the citing comment.
 const HMCitationCommentSourceSchema = z.object({
   type: z.literal('c'),
   id: unpackedHmIdSchema,
   author: z.string().optional(),
   time: HMTimestampSchema.optional(),
+  blockId: z.string().optional(),
 })
 const HMCitationDocumentSourceSchema = z.object({
   type: z.literal('d'),
   id: unpackedHmIdSchema,
   author: z.string().optional(),
   time: HMTimestampSchema.optional(),
+  blockId: z.string().optional(),
 })
 
 export const HMCitationSchema = z.object({
