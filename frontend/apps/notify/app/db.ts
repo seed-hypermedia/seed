@@ -523,9 +523,10 @@ export async function initDatabase(): Promise<void> {
     SELECT feedEventId FROM notification_comment_claims WHERE accountId = ? AND commentId = ?
   `)
   stmtUpgradeClaimedComment = db.prepare(`
-    UPDATE notification_inbox SET data = json_set(data, '$.reason', 'mention')
+    UPDATE notification_inbox SET data = json_set(data, '$.reason', ?)
     WHERE accountId = ? AND feedEventId = ?
-      AND json_extract(data, '$.reason') != 'mention'
+      AND (json_extract(data, '$.reason') = 'discussion'
+        OR (json_extract(data, '$.reason') = 'mention' AND ? = 'reply'))
   `)
   stmtClaimBatchComment = db.prepare(`
     INSERT OR IGNORE INTO notification_batch_comment_claims (accountId, email, commentId)
@@ -966,7 +967,8 @@ function selectNotificationRows(
 type NotificationInsert = {accountId: string; feedEventId: string; eventAtMs: number; data: NotificationPayload}
 
 /** Claim and insert in one SQLite transaction, shared by inbox and immediate email dispatch.
- * Existing rows retain their cursor and read-state identity even when mention takes precedence.
+ * Keep the classifier's reply > mention > discussion precedence without changing the
+ * original event cursor or making a duplicate claim eligible for another email.
  */
 function insertNotificationClaimed(item: NotificationInsert): boolean {
   const {accountId, feedEventId, eventAtMs, data} = item
@@ -974,8 +976,8 @@ function insertNotificationClaimed(item: NotificationInsert): boolean {
     const claimed = stmtClaimComment.run(accountId, data.commentId, feedEventId)
     if (!claimed.changes) {
       const original = stmtGetClaimedComment.get(accountId, data.commentId) as {feedEventId: string} | null
-      if (original && data.reason === 'mention') {
-        stmtUpgradeClaimedComment.run(accountId, original.feedEventId)
+      if (original && (data.reason === 'mention' || data.reason === 'reply')) {
+        stmtUpgradeClaimedComment.run(data.reason, accountId, original.feedEventId, data.reason)
       }
       return false
     }

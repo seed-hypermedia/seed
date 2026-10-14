@@ -16,7 +16,7 @@ import {
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 
 const comment = 'author/stable-tsid'
-function payload(event: string, reason: 'discussion' | 'mention', id = comment): NotificationPayload {
+function payload(event: string, reason: 'discussion' | 'mention' | 'reply', id = comment): NotificationPayload {
   return {
     feedEventId: event,
     eventAtMs: Number(event.replace(/\D/g, '')) || 1000,
@@ -29,7 +29,7 @@ function payload(event: string, reason: 'discussion' | 'mention', id = comment):
     citationType: null,
   }
 }
-function insert(account: string, event: string, reason: 'discussion' | 'mention', id = comment) {
+function insert(account: string, event: string, reason: 'discussion' | 'mention' | 'reply', id = comment) {
   return insertNotification(account, event, payload(event, reason, id).eventAtMs, payload(event, reason, id))
 }
 
@@ -52,6 +52,46 @@ describe('logical comment notification claims', () => {
     expect(insert('new-recipient', 'mention3000', 'mention')).toBe(true)
     expect(getAllNotifications('owner')).toHaveLength(1)
     expect(getAllNotifications('new-recipient')[0]?.reason).toBe('mention')
+  })
+
+  it('keeps reply ahead of a later mention for the same recipient and comment', () => {
+    expect(insert('owner', 'reply1000', 'reply')).toBe(true)
+    // A duplicate claim is not a second email-eligible notification.
+    expect(insert('owner', 'mention2000', 'mention')).toBe(false)
+    const rows = getAllNotifications('owner')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.reason).toBe('reply')
+    expect(rows[0]?.feedEventId).toBe('reply1000')
+  })
+
+  it('promotes an earlier mention to reply in place without a second email-eligible row', () => {
+    expect(insert('owner', 'mention1000', 'mention')).toBe(true)
+    expect(insert('owner', 'reply2000', 'reply')).toBe(false)
+    expect(insert('owner', 'mention3000', 'mention')).toBe(false)
+    const rows = getAllNotifications('owner')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.reason).toBe('reply')
+    expect(rows[0]?.feedEventId).toBe('mention1000')
+  })
+
+  it('keeps only the first claim email-eligible in both batch event orders', () => {
+    for (const [accountId, first, second] of [
+      ['reply-first', 'reply', 'mention'],
+      ['mention-first', 'mention', 'reply'],
+    ] as const) {
+      const event1 = accountId + '1000'
+      const event2 = accountId + '2000'
+      expect(
+        insertNotificationsBatch([
+          {accountId, feedEventId: event1, eventAtMs: 1000, data: payload(event1, first)},
+          {accountId, feedEventId: event2, eventAtMs: 2000, data: payload(event2, second)},
+        ]),
+      ).toEqual([true, false])
+      const rows = getAllNotifications(accountId)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]?.reason).toBe('reply')
+      expect(rows[0]?.feedEventId).toBe(event1)
+    }
   })
 
   it('upgrades late mention in place, preserving event and read cursor identity', () => {
