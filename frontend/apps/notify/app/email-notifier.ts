@@ -862,7 +862,7 @@ async function sendBatchNotificationEmails(notificationsToSend: NotificationsByE
   }
 }
 
-async function processImmediateNotifications(events: PlainMessage<Event>[]) {
+export async function processImmediateNotifications(events: PlainMessage<Event>[]) {
   if (!events.length) return
   domainVerifier.clear()
   const allEmails = getAllEmails()
@@ -911,7 +911,7 @@ async function processImmediateNotifications(events: PlainMessage<Event>[]) {
   await sendImmediateNotificationEmails(acceptedEmails)
 }
 
-async function processBatchNotifications(events: PlainMessage<Event>[]) {
+export async function processBatchNotifications(events: PlainMessage<Event>[]) {
   if (!events.length) return
   domainVerifier.clear()
   const allEmails = getAllEmails()
@@ -1680,7 +1680,10 @@ async function evaluateNewCommentForNotifications(
     candidateSubscriptions: allSubscriptions.length,
   })
 
+  const noMentionRecipients = new Set<string>()
   for (const sub of allSubscriptions) {
+    // Subscriptions without mention delivery still qualify for their discussion
+    // (including the legacy site-discussion batch fallback).
     const commentReason = classifyCommentNotificationForAccount({
       subscriptionAccountUid: sub.id,
       commentAuthorUid: commentAuthorUid,
@@ -1688,7 +1691,7 @@ async function evaluateNewCommentForNotifications(
       targetAuthorUids,
       isTopLevelComment: !comment.threadRoot,
       parentCommentAuthorUid: parentCommentAuthor,
-      mentionedAccountUids: mentionedUsers,
+      mentionedAccountUids: sub.notifyAllMentions ? mentionedUsers : noMentionRecipients,
     })
 
     logNotifVerbose('comment notification candidate evaluated', {
