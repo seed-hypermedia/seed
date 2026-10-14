@@ -67,10 +67,6 @@ import {runWorkflowInWorker} from '@/workflow-worker-host'
 import {executeWebRead, executeWebSearch, withFetchDeadline, type WebToolsConfig} from '@/web-tools'
 import {CONVERT_DEFAULTS, type ConvertConfig} from '@/config'
 import * as datalab from '@/datalab'
-import * as conversionLedger from '@/conversion-ledger'
-import * as convertRelay from '@/convert-relay'
-import * as convertPostprocess from '@/convert-postprocess'
-import {createSignedEnvelope} from '@/envelope'
 import * as blobs from '@shm/shared/blobs'
 import {
   blocksToMarkdown,
@@ -4104,12 +4100,12 @@ export class Service {
       : input.mode ?? this.#convert.mode
     let reservationId: string | undefined
     let reservedPages = Math.min(
-      input.maxPages ?? conversionLedger.CONVERT_PAGES_PER_CALL_CAP,
-      conversionLedger.CONVERT_PAGES_PER_CALL_CAP,
+      input.maxPages ?? datalab.CONVERT_PAGES_PER_CALL_CAP,
+      datalab.CONVERT_PAGES_PER_CALL_CAP,
     )
     if (key.metered) {
       try {
-        const reservation = conversionLedger.reservePages(this.#db, {
+        const reservation = datalab.reservePages(this.#db, {
           accountId,
           sourceName: input.fileName,
           requested: input.maxPages,
@@ -4120,7 +4116,7 @@ export class Service {
         reservationId = reservation.id
         reservedPages = reservation.pages
       } catch (error) {
-        if (error instanceof conversionLedger.ConversionQuotaError) throw new APIError(429, quotaMessage(error))
+        if (error instanceof datalab.ConversionQuotaError) throw new APIError(429, quotaMessage(error))
         throw error
       }
     }
@@ -4174,7 +4170,7 @@ export class Service {
       fs.mkdirSync(path.dirname(resultPath), {recursive: true})
       fs.writeFileSync(resultPath, cbor.encode(payload))
       if (job.reservationId) {
-        conversionLedger.settleReservation(this.#db, job.reservationId, {
+        datalab.settleReservation(this.#db, job.reservationId, {
           pageCount: result.pageCount,
           requestId: result.requestId,
           now: Date.now(),
@@ -4183,7 +4179,7 @@ export class Service {
       job.resultPath = resultPath
       job.status = 'complete'
     } catch (error) {
-      if (job.reservationId) conversionLedger.releaseReservation(this.#db, job.reservationId, Date.now())
+      if (job.reservationId) datalab.releaseReservation(this.#db, job.reservationId, Date.now())
       job.error = errorMessage(error)
       job.status = 'failed'
     }
@@ -4231,7 +4227,7 @@ export class Service {
       if (!expired) continue
       if (job.status === 'processing') {
         job.abort.abort()
-        if (job.reservationId) conversionLedger.releaseReservation(this.#db, job.reservationId, now)
+        if (job.reservationId) datalab.releaseReservation(this.#db, job.reservationId, now)
         job.status = 'failed'
       }
       if (job.resultPath) fs.rmSync(job.resultPath, {force: true})
@@ -14889,7 +14885,7 @@ function resolveConvertKey(db: Database, accountId: string, config: ConvertTools
   return undefined
 }
 
-function quotaMessage(error: conversionLedger.ConversionQuotaError): string {
+function quotaMessage(error: datalab.ConversionQuotaError): string {
   return `${error.message}. Add your own Datalab key as the secret \`${DATALAB_SECRET_NAME}\` to keep converting, or wait for next month.`
 }
 
@@ -14958,7 +14954,7 @@ type ConvertFileJob = {
   type: {ext: string; mimeType: string}
   bytes: Uint8Array
   outDir: string
-  reservation?: conversionLedger.Reservation
+  reservation?: datalab.Reservation
   maxPagesApplied: number
   truncationReason: string
 }
@@ -15089,10 +15085,10 @@ async function executeConvert(
       failures.push({source, error: `Output ${outDir}/ already exists; pass overwrite: true to replace it`})
       continue
     }
-    let reservation: conversionLedger.Reservation | undefined
+    let reservation: datalab.Reservation | undefined
     if (metered) {
       try {
-        reservation = conversionLedger.reservePages(context.db, {
+        reservation = datalab.reservePages(context.db, {
           accountId: context.accountId,
           agentId: context.agentId,
           sourceName: fileName,
@@ -15102,14 +15098,14 @@ async function executeConvert(
           now: Date.now(),
         })
       } catch (error) {
-        if (!(error instanceof conversionLedger.ConversionQuotaError)) throw error
+        if (!(error instanceof datalab.ConversionQuotaError)) throw error
         // Nothing converted yet: the whole call is refused. Otherwise the earlier documents still count.
         if (jobs.length === 0) throw new APIError(429, quotaMessage(error))
         failures.push({source, error: quotaMessage(error)})
         continue
       }
     }
-    const cap = conversionLedger.CONVERT_PAGES_PER_CALL_CAP
+    const cap = datalab.CONVERT_PAGES_PER_CALL_CAP
     const maxPagesApplied = reservation ? reservation.pages : Math.min(maxPagesRequested ?? cap, cap)
     const truncationReason = reservation
       ? {
@@ -15132,7 +15128,7 @@ async function executeConvert(
   let pagesCharged = 0
   await datalab.runWithConcurrency(jobs, context.convert.concurrency, async (job) => {
     if (fatal) {
-      if (job.reservation) conversionLedger.releaseReservation(context.db, job.reservation.id, Date.now())
+      if (job.reservation) datalab.releaseReservation(context.db, job.reservation.id, Date.now())
       return
     }
     const label = `${job.fileName} (${++started}/${jobs.length})`
@@ -15154,7 +15150,7 @@ async function executeConvert(
             timeoutMs: CONVERT_TIMEOUT_MS,
             onProgress: (p) => progress(`Converting ${label}: ${p.stage} ${Math.round(p.elapsedMs / 1000)}s`),
           })
-        : await convertRelay.convertDocumentViaRelay({
+        : await datalab.convertDocumentViaRelay({
             relayUrl: relayUrl!,
             signer: relaySigner!,
             bytes: job.bytes,
@@ -15166,7 +15162,7 @@ async function executeConvert(
             onProgress: (detail) => progress(`${label}: ${detail}`),
           })
     } catch (error) {
-      if (job.reservation) conversionLedger.releaseReservation(context.db, job.reservation.id, Date.now())
+      if (job.reservation) datalab.releaseReservation(context.db, job.reservation.id, Date.now())
       if (error instanceof datalab.DatalabError && error.kind === 'auth') {
         // Every later document would fail the same way: this is configuration, not this file.
         fatal = new APIError(
@@ -15187,7 +15183,7 @@ async function executeConvert(
         const safe = assetNames.get(ref) ?? assetNames.get(ref.slice(ref.lastIndexOf('/') + 1))
         return safe ? `assets/${safe}` : undefined
       })
-      const polished = convertPostprocess.postprocessConvertedMarkdown(rewritten.markdown)
+      const polished = datalab.postprocessConvertedMarkdown(rewritten.markdown)
       withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, `${job.outDir}/raw.md`, result.markdown))
       for (const [original, safe] of assetNames) {
         const bytes = result.images.get(original)
@@ -15233,7 +15229,7 @@ async function executeConvert(
       )
       wrote = true
       if (job.reservation) {
-        conversionLedger.settleReservation(context.db, job.reservation.id, {
+        datalab.settleReservation(context.db, job.reservation.id, {
           pageCount: result.pageCount,
           requestId: result.requestId,
           now: Date.now(),
@@ -15252,7 +15248,7 @@ async function executeConvert(
         citationsUnlinked: polished.citationsUnlinked.length,
       })
     } catch (error) {
-      if (job.reservation) conversionLedger.releaseReservation(context.db, job.reservation.id, Date.now())
+      if (job.reservation) datalab.releaseReservation(context.db, job.reservation.id, Date.now())
       failures.push({source: job.source, error: boundedFailure(errorMessage(error))})
     }
   })
@@ -15284,9 +15280,9 @@ async function executeConvert(
     : 'Converted nothing.'
   const pagesRemaining =
     metered && jobs.length
-      ? conversionLedger.pagesUsed(context.db, {
+      ? datalab.pagesUsed(context.db, {
           accountId: context.accountId,
-          period: conversionLedger.periodOf(Date.now()),
+          period: datalab.periodOf(Date.now()),
         })
       : undefined
   return {
@@ -18807,4 +18803,4 @@ function normalizeBoundedString(value: unknown, label: string, maxBytes: number)
 
 // Tests and tooling sign envelopes through this module; the implementation moved to envelope.ts
 // so the convert relay can sign without importing the whole service.
-export {createSignedEnvelope}
+export {createSignedEnvelope} from '@/auth'
