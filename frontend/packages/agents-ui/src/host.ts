@@ -85,9 +85,11 @@ export type SeedAgentsNavigationMode = 'push' | 'replace' | 'spawn'
  */
 export type SeedAgentsHost = {
   /**
-   * Base URL of the agents server, as the browser can reach it. The kit calls
-   * `<serverUrl>/api/message`, `<serverUrl>/agents/ws` and `<serverUrl>/agents/api/*`, so a host
-   * may point this at its own reverse proxy of an agents server.
+   * Base URL of the agents server, as the browser can reach it. A canonical base ends in
+   * `/hm/api/agents` (a site serving agents on its own origin, or `https://agentic.seed.hyper.media/hm/api/agents`)
+   * and the kit calls `<serverUrl>/message`, `/ws` and `/health`. Any other base is a legacy server:
+   * the kit calls `<serverUrl>/api/message`, `<serverUrl>/agents/ws` and `<serverUrl>/agents/api/*`,
+   * so a host may point this at its own reverse proxy of an agents server.
    */
   serverUrl: string
   /** Signs agent actions. `null` while the host has no account; the kit then shows a sign-in notice. */

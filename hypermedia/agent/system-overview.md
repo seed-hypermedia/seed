@@ -37,8 +37,8 @@ Seed app (desktop) and Seed web app, sharing frontend/packages/ui/src/agents
   └─ chat message renderer shared with the desktop assistant panel
 
 Agents service (Bun)
-  ├─ /api/message signed action API
-  ├─ /agents/ws signed subscription API
+  ├─ /hm/api/agents/message signed action API
+  ├─ /hm/api/agents/ws signed subscription API
   ├─ SQLite persistence (state, and the runs table that is also the queue)
   ├─ AES-GCM secret storage
   ├─ Pi SDK-backed model execution loop
@@ -86,9 +86,9 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 ## Server <!-- id:4Y9bCXsB -->
 
 - Bun standalone service with configurable host, port, db, and data dir. See [operations](./operations.md). <!-- id:4LiSzWvH -->
-- `/api/message` and `/agents/api/message` signed CBOR action routes. <!-- id:tZu7kMWo -->
-- `/api/health` and `/agents/api/health` JSON health routes. <!-- id:DEcuBaGj -->
-- `/agents/ws` signed WebSocket subscription endpoint. <!-- id:w0JhfKLo -->
+- `/hm/api/agents/message` (legacy `/api/message`, `/agents/api/message`) signed CBOR action routes. <!-- id:tZu7kMWo -->
+- `/hm/api/agents/health` (legacy `/api/health`, `/agents/api/health`) JSON health routes. <!-- id:DEcuBaGj -->
+- `/hm/api/agents/ws` (legacy `/agents/ws`) signed WebSocket subscription endpoint. <!-- id:w0JhfKLo -->
 - No browser UI and no unauthenticated data routes. Everything else is a 404. <!-- id:ERQ0V57X -->
 - Graceful shutdown for WebSockets and SQLite. <!-- id:cCtN6O8W -->
 
