@@ -1974,6 +1974,7 @@ var ENTERPRISE_OPEN_PATHS = [
   "/hm/sign-in*",
   "/hm/auth/callback*",
   "/hm/api/config",
+  "/hm/api/site-url",
   "/hm/api/auth",
   "/hm/api/auth/*",
   "/hm/api/session",
@@ -3388,9 +3389,16 @@ function enterpriseIsolationChecks(shell, config) {
         lines.push(`  \u2718 Sign-in gate   /hm/api/config reports requireSignIn: ${JSON.stringify(siteConfig.requireSignIn)}`);
         lines.push(`      \u2514 seed-web should run with SEED_REQUIRE_SIGN_IN=1; redeploy with '${cmd("deploy")}'`);
       }
-      lines.push(...siteUrlCheck(siteConfig));
     } catch {
       lines.push(`  \u26A0 Sign-in gate   /hm/api/config is not JSON`);
+    }
+  }
+  const siteUrlRaw = shell.runSafe(`curl -sS --max-time 10 "${config.domain}/hm/api/site-url" 2>/dev/null`);
+  if (siteUrlRaw) {
+    try {
+      lines.push(...siteUrlCheck(JSON.parse(siteUrlRaw)));
+    } catch {
+      lines.push(`  \u26A0 Site URL       /hm/api/site-url is not JSON`);
     }
   }
   const gate = shell.runSafe(`curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 10 "${config.domain}/" 2>/dev/null`);

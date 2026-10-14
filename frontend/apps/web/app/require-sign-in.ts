@@ -10,6 +10,7 @@ export const OPEN_EXACT_PATHS: readonly string[] = [
   SIGN_IN_PATH,
   '/hm/auth/callback',
   '/hm/api/config',
+  '/hm/api/site-url',
   '/hm/api/auth',
   '/hm/api/session',
   '/hm/api/version',

@@ -3533,7 +3533,7 @@ describe('enterprise: hostname change', () => {
     await expect(setSiteUrl(makeTestConfig(), {fetch: gone.fetchImpl})).rejects.toThrow(/enterprise/)
   })
 
-  test('doctor compares the hostname with the home document siteUrl from /hm/api/config', () => {
+  test('doctor compares the hostname with the home document siteUrl from /hm/api/site-url', () => {
     expect(siteUrlCheck({hostname: 'https://example.org'})).toEqual([])
     expect(siteUrlCheck({hostname: 'https://example.org', siteUrl: null})).toEqual([])
     expect(siteUrlCheck({hostname: 'https://example.org', siteUrl: 'https://example.org'})).toEqual([
@@ -3545,8 +3545,8 @@ describe('enterprise: hostname change', () => {
 
     const shell = makeMockShell({
       'docker port seed-daemon': '',
-      '/hm/api/config':
-        '{"requireSignIn":true,"peerId":"12D3","hostname":"https://example.org","siteUrl":"https://old.example.org"}',
+      '/hm/api/config': '{"requireSignIn":true,"peerId":"12D3"}',
+      '/hm/api/site-url': '{"hostname":"https://example.org","siteUrl":"https://old.example.org"}',
       '/vault/': '200',
       '"https://example.org/"': '302 https://example.org/hm/sign-in?next=%2F',
       '/hm/api/session': '401',
