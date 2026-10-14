@@ -2432,13 +2432,13 @@ describe('enterprise: profile helpers', () => {
     expect(site).not.toContain('/opt/seed/vault')
   })
 
-  test('autoUpdates: sites always, enterprise nodes only on the latest channel', () => {
+  test('autoUpdates: sites always, enterprise nodes on the latest and dev channels', () => {
     expect(autoUpdates(makeTestConfig({release_channel: 'latest'}))).toBe(true)
     expect(autoUpdates(makeTestConfig({release_channel: 'dev'}))).toBe(true)
     expect(autoUpdates(makeEnterpriseConfig())).toBe(true)
     expect(autoUpdates(makeEnterpriseConfig({release_channel: 'latest'}))).toBe(true)
     expect(autoUpdates(makeEnterpriseConfig({release_channel: 'feat-enterprise-edition'}))).toBe(false)
-    expect(autoUpdates(makeEnterpriseConfig({release_channel: 'dev'}))).toBe(false)
+    expect(autoUpdates(makeEnterpriseConfig({release_channel: 'dev'}))).toBe(true)
   })
 
   test('configWarnings: no network warnings, only a non-stable channel notice', () => {

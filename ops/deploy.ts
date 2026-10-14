@@ -3197,13 +3197,14 @@ export function installWrapper(paths: DeployPaths, shell: ShellRunner): void {
  */
 /**
  * Whether this node follows its image channel on its own (the ten-minute
- * `upgrade; deploy` cron). Sites always do. Enterprise nodes do on the stable
- * `latest` channel, so a release reaches them like everyone else; on any
- * other channel (a feature branch under test) updates stay a deliberate
- * `seed-deploy deploy`, so a pushed branch image cannot surprise the organization.
+ * `upgrade; deploy` cron). Sites always do. Enterprise nodes do on the two
+ * preset channels: `latest`, so a release reaches them like everyone else, and
+ * `dev`, which follows main (Seed's own test nodes). On any other channel (a
+ * feature branch under test) updates stay a deliberate `seed-deploy deploy`,
+ * so a pushed branch image cannot surprise the organization.
  */
 export function autoUpdates(config: SeedConfig): boolean {
-  return !isEnterprise(config) || config.release_channel === 'latest'
+  return !isEnterprise(config) || isPresetReleaseChannel(config.release_channel)
 }
 
 async function setActiveNode(paths: DeployPaths, shell: ShellRunner, config?: SeedConfig): Promise<void> {
