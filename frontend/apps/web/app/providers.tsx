@@ -301,7 +301,7 @@ export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
 const WEB_EXPERIMENTS = {developerMode: true} as const
 
 export function WebSiteProvider(props: {
-  originHomeId: UnpackedHypermediaId
+  originHomeId?: UnpackedHypermediaId
   children: React.ReactNode
   siteHost?: string
   origin?: string

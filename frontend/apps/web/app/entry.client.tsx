@@ -10,6 +10,7 @@ import {RemixBrowser, useLocation, useMatches} from '@remix-run/react'
 import {seedBrowserTracePropagationTargets} from '@shm/shared/sentry-tracing'
 import {startTransition, StrictMode, useEffect} from 'react'
 import {hydrateRoot} from 'react-dom/client'
+import {sentryTokenScrubOptions} from './sentry-scrub.mjs'
 
 if (process.env.NODE_ENV === 'production' && process.env.SITE_SENTRY_DSN) {
   Sentry.init({
@@ -34,6 +35,7 @@ if (process.env.NODE_ENV === 'production' && process.env.SITE_SENTRY_DSN) {
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1,
     sendDefaultPii: false,
+    ...sentryTokenScrubOptions,
     ignoreErrors: [
       'ResizeObserver loop limit exceeded',
       'ResizeObserver loop completed with undelivered notifications',

@@ -17,6 +17,8 @@ describe('isOpenPath', () => {
     '/hm/register',
     '/hm/register.data',
     '/hm/create-site',
+    '/hm/email-notifications',
+    '/hm/email-notifications.data',
     '/vault',
     '/vault/',
     '/vault/delegate',

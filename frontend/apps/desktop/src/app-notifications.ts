@@ -1,4 +1,5 @@
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {normalizeNotifyServiceUrl} from '@shm/shared/notify-url'
 import {
   applyNotificationActions,
   getNotificationState,
@@ -85,17 +86,11 @@ function writeStore() {
   appStore.set(NOTIFICATIONS_STORE_KEY, store)
 }
 
-function normalizeHost(host: string) {
-  return host.replace(/\/$/, '')
-}
-
 /** Returns the app-wide notify service host: the stored override, or the built-in default. */
 export function getNotifyServiceHostDefault(): string | null {
   const stored = appStore.get(NOTIFY_SERVICE_HOST_KEY) as string | undefined
   const host = stored !== undefined ? stored : NOTIFY_SERVICE_HOST
-  if (!host) return null
-  const trimmed = host.trim()
-  return trimmed || null
+  return normalizeNotifyServiceUrl(host)
 }
 
 /** The notify server URL synced from the connected remote vault (matches the web vault), if any. */
@@ -115,7 +110,7 @@ async function resolveNotifyHost(notifyServiceHost: string | undefined): Promise
   // Prefer the synced vault notification server URL so background syncs hit the
   // same notify server the web vault and the UI use; fall back to the local
   // default (appStore / NOTIFY_SERVICE_HOST, seeded from the renderer).
-  const host = explicit || vaultHost || fallback
+  const host = normalizeNotifyServiceUrl(explicit || vaultHost || fallback)
   if (!host) {
     throw new Error('Notify service host is not configured')
   }
