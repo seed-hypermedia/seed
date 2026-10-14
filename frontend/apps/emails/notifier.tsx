@@ -2,15 +2,12 @@ import {
   Mjml,
   MjmlAll,
   MjmlAttributes,
-  MjmlBody,
-  MjmlButton,
   MjmlColumn,
   MjmlHead,
   MjmlPreview,
   MjmlSection,
   MjmlText,
   MjmlTitle,
-  MjmlWrapper,
 } from '@faire/mjml-react'
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {HMBlockNode, HMComment, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -22,6 +19,7 @@ import React from 'react'
 import {EmailContent, QuotedContent} from './components/EmailContent'
 import {EmailFooter} from './components/EmailFooter'
 import {EmailHeader} from './components/EmailHeader'
+import {EmailBody, EmailButton, EmailButtonSection, emailTheme} from './components/EmailLayout'
 
 type GroupedNotifications = Record<Notification['reason'], Record<string, FullNotification[]>>
 
@@ -30,8 +28,7 @@ function getNotifyServiceHost() {
 }
 
 /** System font stack used across all email templates. */
-const SYSTEM_FONT_FAMILY =
-  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+const SYSTEM_FONT_FAMILY = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
 
 /** Standard MJML <head> attributes applied to all new-style emails. */
 export function EmailHeadDefaults({children}: {children?: React.ReactNode}) {
@@ -77,22 +74,21 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
 
-        <MjmlSection padding="24px 24px 0">
+        <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
           <MjmlColumn>
-            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0">
               {input.authorName} mentioned {input.subjectName} in a comment on <em>{input.documentName}</em>
             </MjmlText>
           </MjmlColumn>
         </MjmlSection>
 
         {input.sectionName ? (
-          <MjmlSection padding="8px 24px 0">
+          <MjmlSection padding={`8px ${emailTheme.gutter} 0`}>
             <MjmlColumn>
-              <MjmlText fontSize="14px" color="#6b7280">
+              <MjmlText fontSize="14px" color={emailTheme.muted} padding="0">
                 Section: {input.sectionName}
               </MjmlText>
             </MjmlColumn>
@@ -103,26 +99,14 @@ Manage notifications: ${input.unsubscribeUrl}`
           <QuotedContent blocks={input.commentBlocks} resolvedNames={input.resolvedNames} variant="border" />
         ) : null}
 
-        <MjmlSection padding="0 24px 24px">
-          <MjmlColumn>
-            <MjmlButton
-              href={input.actionUrl}
-              backgroundColor="#068f7b"
-              color="#ffffff"
-              borderRadius="6px"
-              fontSize="14px"
-              fontWeight="600"
-              innerPadding="12px 24px"
-              align="center"
-            >
-              See comment
-            </MjmlButton>
-          </MjmlColumn>
-        </MjmlSection>
+        <EmailButtonSection href={input.actionUrl}>See comment</EmailButtonSection>
 
-        <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
-        </MjmlWrapper>
-      </MjmlBody>
+        <EmailFooter
+          siteUrl={input.siteUrl}
+          unsubscribeUrl={input.unsubscribeUrl}
+          manageNotificationsUrl={input.unsubscribeUrl}
+        />
+      </EmailBody>
     </Mjml>,
   )
 
@@ -156,22 +140,21 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
 
-        <MjmlSection padding="24px 24px 0">
+        <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
           <MjmlColumn>
-            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0">
               {input.authorName} replied to your comment in <em>{input.documentName}</em>
             </MjmlText>
           </MjmlColumn>
         </MjmlSection>
 
         {input.sectionName ? (
-          <MjmlSection padding="8px 24px 0">
+          <MjmlSection padding={`8px ${emailTheme.gutter} 0`}>
             <MjmlColumn>
-              <MjmlText fontSize="14px" color="#6b7280">
+              <MjmlText fontSize="14px" color={emailTheme.muted} padding="0">
                 Section: {input.sectionName}
               </MjmlText>
             </MjmlColumn>
@@ -182,26 +165,14 @@ Manage notifications: ${input.unsubscribeUrl}`
           <QuotedContent blocks={input.commentBlocks} resolvedNames={input.resolvedNames} />
         ) : null}
 
-        <MjmlSection padding="0 24px 24px">
-          <MjmlColumn>
-            <MjmlButton
-              href={input.actionUrl}
-              backgroundColor="#068f7b"
-              color="#ffffff"
-              borderRadius="6px"
-              fontSize="14px"
-              fontWeight="600"
-              innerPadding="12px 24px"
-              align="center"
-            >
-              Continue the discussion
-            </MjmlButton>
-          </MjmlColumn>
-        </MjmlSection>
+        <EmailButtonSection href={input.actionUrl}>Continue the discussion</EmailButtonSection>
 
-        <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
-        </MjmlWrapper>
-      </MjmlBody>
+        <EmailFooter
+          siteUrl={input.siteUrl}
+          unsubscribeUrl={input.unsubscribeUrl}
+          manageNotificationsUrl={input.unsubscribeUrl}
+        />
+      </EmailBody>
     </Mjml>,
   )
 
@@ -222,9 +193,7 @@ export type CreateDocUpdateEmailInput = {
 export async function createDocUpdateEmail(input: CreateDocUpdateEmailInput) {
   const subject = `${input.documentName} was updated by ${input.authorName}`
 
-  const changesList = input.changes?.length
-    ? input.changes.map((c) => `  - ${c}`).join('\n')
-    : ''
+  const changesList = input.changes?.length ? input.changes.map((c) => `  - ${c}`).join('\n') : ''
 
   const text = `${subject}
 ${input.sectionName ? `Section: ${input.sectionName}\n` : ''}${changesList ? `What changed:\n${changesList}\n` : ''}
@@ -238,22 +207,21 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
 
-        <MjmlSection padding="24px 24px 0">
+        <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
           <MjmlColumn>
-            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0">
               <em>{input.documentName}</em> was updated by {input.authorName}
             </MjmlText>
           </MjmlColumn>
         </MjmlSection>
 
         {input.sectionName ? (
-          <MjmlSection padding="8px 24px 0">
+          <MjmlSection padding={`8px ${emailTheme.gutter} 0`}>
             <MjmlColumn>
-              <MjmlText fontSize="14px" color="#6b7280">
+              <MjmlText fontSize="14px" color={emailTheme.muted} padding="0">
                 Section: {input.sectionName}
               </MjmlText>
             </MjmlColumn>
@@ -261,40 +229,29 @@ Manage notifications: ${input.unsubscribeUrl}`
         ) : null}
 
         {input.changes?.length ? (
-          <MjmlSection padding="12px 24px 16px">
-            <MjmlColumn backgroundColor="#f3f4f6" borderRadius="8px" padding="12px 16px">
+          <MjmlSection padding={`12px ${emailTheme.gutter} 16px`}>
+            <MjmlColumn backgroundColor={emailTheme.quoteBackground} padding="12px 16px">
               <MjmlText fontSize="14px" fontWeight="bold" paddingBottom="4px">
                 What changed:
               </MjmlText>
               {input.changes.map((change, i) => (
                 <MjmlText key={i} fontSize="14px" paddingBottom="2px">
-                  {'• '}{change}
+                  {'• '}
+                  {change}
                 </MjmlText>
               ))}
             </MjmlColumn>
           </MjmlSection>
         ) : null}
 
-        <MjmlSection padding="0 24px 24px">
-          <MjmlColumn>
-            <MjmlButton
-              href={input.actionUrl}
-              backgroundColor="#068f7b"
-              color="#ffffff"
-              borderRadius="6px"
-              fontSize="14px"
-              fontWeight="600"
-              innerPadding="12px 24px"
-              align="center"
-            >
-              Review changes
-            </MjmlButton>
-          </MjmlColumn>
-        </MjmlSection>
+        <EmailButtonSection href={input.actionUrl}>Review changes</EmailButtonSection>
 
-        <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
-        </MjmlWrapper>
-      </MjmlBody>
+        <EmailFooter
+          siteUrl={input.siteUrl}
+          unsubscribeUrl={input.unsubscribeUrl}
+          manageNotificationsUrl={input.unsubscribeUrl}
+        />
+      </EmailBody>
     </Mjml>,
   )
 
@@ -328,13 +285,12 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
 
-        <MjmlSection padding="24px 24px 0">
+        <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
           <MjmlColumn>
-            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0">
               {input.authorName} left a comment on your document{' '}
               <strong>
                 <em>{input.documentName}</em>
@@ -344,9 +300,9 @@ Manage notifications: ${input.unsubscribeUrl}`
         </MjmlSection>
 
         {input.sectionName ? (
-          <MjmlSection padding="8px 24px 0">
+          <MjmlSection padding={`8px ${emailTheme.gutter} 0`}>
             <MjmlColumn>
-              <MjmlText fontSize="14px" color="#6b7280">
+              <MjmlText fontSize="14px" color={emailTheme.muted} padding="0">
                 Section: {input.sectionName}
               </MjmlText>
             </MjmlColumn>
@@ -357,26 +313,14 @@ Manage notifications: ${input.unsubscribeUrl}`
           <QuotedContent blocks={input.commentBlocks} resolvedNames={input.resolvedNames} />
         ) : null}
 
-        <MjmlSection padding="0 24px 24px">
-          <MjmlColumn>
-            <MjmlButton
-              href={input.actionUrl}
-              backgroundColor="#068f7b"
-              color="#ffffff"
-              borderRadius="6px"
-              fontSize="14px"
-              fontWeight="600"
-              innerPadding="12px 24px"
-              align="center"
-            >
-              See comment
-            </MjmlButton>
-          </MjmlColumn>
-        </MjmlSection>
+        <EmailButtonSection href={input.actionUrl}>See comment</EmailButtonSection>
 
-        <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
-        </MjmlWrapper>
-      </MjmlBody>
+        <EmailFooter
+          siteUrl={input.siteUrl}
+          unsubscribeUrl={input.unsubscribeUrl}
+          manageNotificationsUrl={input.unsubscribeUrl}
+        />
+      </EmailBody>
     </Mjml>,
   )
 
@@ -409,13 +353,12 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{subject}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
 
-        <MjmlSection padding="24px 24px 0">
+        <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
           <MjmlColumn>
-            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0">
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0">
               A new discussion in <em>{input.documentName}</em> was created by {input.authorName}
             </MjmlText>
           </MjmlColumn>
@@ -425,26 +368,14 @@ Manage notifications: ${input.unsubscribeUrl}`
           <QuotedContent blocks={input.commentBlocks} resolvedNames={input.resolvedNames} />
         ) : null}
 
-        <MjmlSection padding="0 24px 24px">
-          <MjmlColumn>
-            <MjmlButton
-              href={input.actionUrl}
-              backgroundColor="#068f7b"
-              color="#ffffff"
-              borderRadius="6px"
-              fontSize="14px"
-              fontWeight="600"
-              innerPadding="12px 24px"
-              align="center"
-            >
-              See discussion
-            </MjmlButton>
-          </MjmlColumn>
-        </MjmlSection>
+        <EmailButtonSection href={input.actionUrl}>See discussion</EmailButtonSection>
 
-        <EmailFooter siteUrl={input.siteUrl} unsubscribeUrl={input.unsubscribeUrl} manageNotificationsUrl={input.unsubscribeUrl} />
-        </MjmlWrapper>
-      </MjmlBody>
+        <EmailFooter
+          siteUrl={input.siteUrl}
+          unsubscribeUrl={input.unsubscribeUrl}
+          manageNotificationsUrl={input.unsubscribeUrl}
+        />
+      </EmailBody>
     </Mjml>,
   )
 
@@ -475,41 +406,29 @@ Go to ${input.siteName}: ${input.siteUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>Welcome to Seed Hypermedia — you're all set!</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
 
-        <MjmlSection padding="24px 24px 0">
+        <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
           <MjmlColumn>
-            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0 0 16px">
               You're in. Welcome to the community.
             </MjmlText>
-            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 4px">
+            <MjmlText fontSize="16px" lineHeight="1.5" color={emailTheme.body} padding="0 0 4px">
               {greeting}
             </MjmlText>
-            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 16px">
+            <MjmlText fontSize="16px" lineHeight="1.5" color={emailTheme.body} padding="0 0 16px">
               We're thrilled to have you as part of Seed Hypermedia. You can now participate, comment, follow authors,
               bookmark content and much more!
             </MjmlText>
-            <MjmlButton
-              href={input.siteUrl}
-              backgroundColor="#068f7b"
-              color="#ffffff"
-              borderRadius="6px"
-              fontSize="14px"
-              fontWeight="600"
-              innerPadding="12px 24px"
-              align="center"
-              padding="0 0 24px"
-            >
+            <EmailButton href={input.siteUrl} padding="0 0 24px">
               Go to {input.siteName}
-            </MjmlButton>
+            </EmailButton>
           </MjmlColumn>
         </MjmlSection>
 
         <EmailFooter />
-        </MjmlWrapper>
-      </MjmlBody>
+      </EmailBody>
     </Mjml>,
   )
 
@@ -526,10 +445,7 @@ function getNotificationActionUrl(notification: Notification) {
   return notification.url
 }
 
-export async function createNotificationVerificationEmail(input: {
-  verificationUrl: string
-  recipientName?: string
-}) {
+export async function createNotificationVerificationEmail(input: {verificationUrl: string; recipientName?: string}) {
   const subject = 'Confirm your email address'
   const greeting = input.recipientName ? `Hi ${input.recipientName},` : 'Hi there,'
   const text = `${subject}
@@ -548,42 +464,30 @@ This link expires in 2 hours. If you didn't create an account, you can safely ig
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>Confirm your email to complete your registration</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
-        <MjmlSection padding="24px 24px 0">
+        <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
           <MjmlColumn>
-            <MjmlText fontSize="20px" fontWeight="bold" lineHeight="1.3" padding="0 0 16px">
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0 0 16px">
               Confirm your email address
             </MjmlText>
-            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 4px">
+            <MjmlText fontSize="16px" lineHeight="1.5" color={emailTheme.body} padding="0 0 4px">
               {greeting}
             </MjmlText>
-            <MjmlText fontSize="14px" lineHeight="1.6" padding="0 0 16px">
+            <MjmlText fontSize="16px" lineHeight="1.5" color={emailTheme.body} padding="0 0 16px">
               Thanks for signing up for Seed Hypermedia. To complete your registration and access the community, please
               verify your email address.
             </MjmlText>
-            <MjmlButton
-              href={input.verificationUrl}
-              backgroundColor="#068f7b"
-              color="#ffffff"
-              borderRadius="6px"
-              fontSize="14px"
-              fontWeight="600"
-              innerPadding="12px 24px"
-              align="center"
-              padding="0 0 16px"
-            >
+            <EmailButton href={input.verificationUrl} padding="0 0 16px">
               Verify email address
-            </MjmlButton>
-            <MjmlText fontSize="13px" color="#6b7280" lineHeight="1.5" padding="0 0 24px">
+            </EmailButton>
+            <MjmlText fontSize="13px" color={emailTheme.muted} lineHeight="1.5" padding="0 0 24px">
               This link expires in 2 hours. If you didn't create an account, you can safely ignore this.
             </MjmlText>
           </MjmlColumn>
         </MjmlSection>
         <EmailFooter />
-        </MjmlWrapper>
-      </MjmlBody>
+      </EmailBody>
     </Mjml>,
   )
 
@@ -711,8 +615,7 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
           {notifications.length > 1 ? `${firstNotificationSummary} and more` : firstNotificationSummary}
         </MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
 
         {(['site-doc-update', 'site-new-discussion', 'discussion', 'mention', 'reply'] as const).map((reason) => {
@@ -721,101 +624,42 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
 
           if (!docEntries.length) return null
 
-          const totalCount = docEntries.flatMap(([, n]) => n).length
-
-          const sectionTitle = (() => {
-            switch (reason) {
-              case 'site-new-discussion':
-                return `New comment${totalCount === 1 ? '' : 's'}`
-              case 'discussion':
-                return `New discussion${totalCount === 1 ? '' : 's'}`
-              case 'mention':
-                return `Mention${totalCount === 1 ? '' : 's'}`
-              case 'reply':
-                return `Repl${totalCount === 1 ? 'y' : 'ies'}`
-              case 'site-doc-update':
-              default:
-                return 'Document changes'
-            }
-          })()
-
           return (
             <React.Fragment key={reason}>
-              <MjmlSection padding="10px 24px 0">
-                <MjmlColumn>
-                  <MjmlText fontSize="20px" fontWeight="bold">
-                    {sectionTitle}
-                  </MjmlText>
-                </MjmlColumn>
-              </MjmlSection>
-
               {docEntries.map(([docId, docNotifs]) => {
                 const targetName = docNotifs?.[0]?.notif?.targetMeta?.name || 'Untitled Document'
                 const docUrl = getNotificationActionUrl(docNotifs?.[0]?.notif!)
 
                 return (
                   <React.Fragment key={docId}>
-                    <MjmlSection padding="4px 24px 10px">
+                    <MjmlSection padding={`24px ${emailTheme.gutter} 8px`}>
                       <MjmlColumn>
-                        <MjmlText fontSize="14px" color="#6b7280">
-                          {reason === 'site-new-discussion' || reason === 'discussion' ? (
-                            <>
-                              {docNotifs.length} {docNotifs.length === 1 ? 'discussion' : 'discussions'} on{' '}
-                              <strong style={{color: '#1a1a1a'}}>{targetName}</strong>
-                            </>
-                          ) : reason === 'mention' ? (
-                            <>
-                              {docNotifs.length} {docNotifs.length === 1 ? 'mention' : 'mentions'} on{' '}
-                              <strong style={{color: '#1a1a1a'}}>{targetName}</strong>
-                            </>
-                          ) : reason === 'reply' ? (
-                            <>
-                              {docNotifs.length} {totalCount === 1 ? 'reply' : 'replies'} on{' '}
-                              <strong style={{color: '#1a1a1a'}}>{targetName}</strong>
-                            </>
-                          ) : null}
+                        <MjmlText
+                          fontSize="24px"
+                          fontWeight="bold"
+                          lineHeight="1.25"
+                          color={emailTheme.heading}
+                          padding="0"
+                        >
+                          {getDigestTitle(reason, docNotifs)} <em>{targetName}</em>
                         </MjmlText>
                       </MjmlColumn>
                     </MjmlSection>
 
                     {docNotifs.map(({notif}) => {
                       const key = 'comment' in notif && notif.comment ? notif.comment.id : Math.random()
-                      return (
-                        <React.Fragment key={key}>
-                          <EmailContent notification={notif} />
-                          <MjmlSection padding="0px">
-                            <MjmlColumn>
-                              <MjmlText lineHeight="1" fontSize="1px">
-                                &nbsp;
-                              </MjmlText>
-                            </MjmlColumn>
-                          </MjmlSection>
-                        </React.Fragment>
-                      )
+                      return <EmailContent key={key} notification={notif} />
                     })}
 
-                    <MjmlSection padding="0 24px 16px">
-                      <MjmlColumn>
-                        <MjmlButton
-                          align="center"
-                          href={docUrl}
-                          backgroundColor="#068f7b"
-                          color="#ffffff"
-                          borderRadius="6px"
-                          fontSize="14px"
-                          fontWeight="600"
-                          innerPadding="12px 24px"
-                        >
-                          {reason === 'site-new-discussion' || reason === 'discussion'
-                            ? 'See discussion'
-                            : reason === 'mention'
-                            ? 'See mention'
-                            : reason === 'reply'
+                    <EmailButtonSection href={docUrl}>
+                      {reason === 'site-new-discussion' || reason === 'discussion'
+                        ? 'See discussion'
+                        : reason === 'mention'
+                          ? 'See mention'
+                          : reason === 'reply'
                             ? 'See reply'
                             : 'See changes'}
-                        </MjmlButton>
-                      </MjmlColumn>
-                    </MjmlSection>
+                    </EmailButtonSection>
                   </React.Fragment>
                 )
               })}
@@ -823,9 +667,12 @@ Subscribed by mistake? Click here to unsubscribe or manage notifications: ${noti
           )
         })}
 
-        <EmailFooter siteUrl={batchSiteUrl} unsubscribeUrl={notifSettingsUrl} manageNotificationsUrl={notifSettingsUrl} />
-        </MjmlWrapper>
-      </MjmlBody>
+        <EmailFooter
+          siteUrl={batchSiteUrl}
+          unsubscribeUrl={notifSettingsUrl}
+          manageNotificationsUrl={notifSettingsUrl}
+        />
+      </EmailBody>
     </Mjml>,
   )
 
@@ -887,13 +734,12 @@ Manage notification emails: ${notifSettingsUrl}`
         <MjmlTitle>{subject}</MjmlTitle>
         <MjmlPreview>{preview}</MjmlPreview>
       </EmailHeadDefaults>
-      <MjmlBody width={500} backgroundColor="#f4f4f5">
-        <MjmlWrapper backgroundColor="#ffffff" padding="0">
+      <EmailBody>
         <EmailHeader />
 
-        <MjmlSection padding="8px 24px 0">
+        <MjmlSection padding={`24px ${emailTheme.gutter} 16px`}>
           <MjmlColumn>
-            <MjmlText fontSize="20px" fontWeight="bold">
+            <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0">
               Notifications
             </MjmlText>
           </MjmlColumn>
@@ -905,8 +751,8 @@ Manage notification emails: ${notifSettingsUrl}`
             notification.notif.reason === 'mention'
               ? 'See mention'
               : notification.notif.reason === 'discussion'
-              ? 'See discussion'
-              : 'See reply'
+                ? 'See discussion'
+                : 'See reply'
           const timeLabel = formatDesktopNotificationTime(notification.notif.eventAtMs)
           const key =
             notification.notif.reason === 'mention'
@@ -914,37 +760,30 @@ Manage notification emails: ${notifSettingsUrl}`
               : `${notification.accountId}:${notification.notif.comment?.id || notification.notif.url}`
 
           return (
-            <MjmlSection key={key} padding="0px 24px 12px">
-              <MjmlColumn backgroundColor="#f3f4f6" borderRadius="8px" padding="12px 16px">
-                <MjmlText fontSize="15px" fontWeight="bold" padding="0px 0px 6px">
+            <MjmlSection key={key} padding={`0px ${emailTheme.gutter} 12px`}>
+              <MjmlColumn backgroundColor={emailTheme.quoteBackground} padding="16px 24px">
+                <MjmlText fontSize="16px" fontWeight="bold" color={emailTheme.heading} padding="0px 0px 6px">
                   {getDesktopNotificationText(notification)}
                 </MjmlText>
                 {timeLabel ? (
-                  <MjmlText fontSize="12px" color="#6b7280" padding="0px 0px 8px">
+                  <MjmlText fontSize="13px" color={emailTheme.muted} padding="0px 0px 12px">
                     {timeLabel}
                   </MjmlText>
                 ) : null}
-                <MjmlButton
-                  align="center"
-                  href={actionUrl}
-                  backgroundColor="#068f7b"
-                  color="#ffffff"
-                  borderRadius="6px"
-                  fontSize="14px"
-                  fontWeight="600"
-                  innerPadding="12px 24px"
-                  padding="4px 0px 0px"
-                >
+                <EmailButton href={actionUrl} padding="4px 0px 0px">
                   {actionLabel}
-                </MjmlButton>
+                </EmailButton>
               </MjmlColumn>
             </MjmlSection>
           )
         })}
 
-        <EmailFooter siteUrl={desktopSiteUrl} unsubscribeUrl={notifSettingsUrl} manageNotificationsUrl={notifSettingsUrl} />
-        </MjmlWrapper>
-      </MjmlBody>
+        <EmailFooter
+          siteUrl={desktopSiteUrl}
+          unsubscribeUrl={notifSettingsUrl}
+          manageNotificationsUrl={notifSettingsUrl}
+        />
+      </EmailBody>
     </Mjml>,
   )
 
@@ -1068,6 +907,41 @@ function getDesktopNotificationText(notification: ImmediateNotification) {
   const targetName = notif.targetMeta?.name
   const commentOwner = subjectName ? `${subjectName}'s` : 'your'
   return `${actor} replied to ${commentOwner} comment${targetName ? ` in ${targetName}` : ''}`
+}
+
+/** Digest heading for one document, e.g. "Gabo and Eric started 3 discussions on" (the document name follows). */
+function getDigestTitle(reason: Notification['reason'], docNotifs: FullNotification[]) {
+  const authors = [...new Set(docNotifs.map(({notif}) => notif.authorMeta?.name || 'Someone'))]
+  const who =
+    authors.length === 1
+      ? authors[0]
+      : authors.length === 2
+        ? `${authors[0]} and ${authors[1]}`
+        : `${authors[0]} and ${authors.length - 1} others`
+  const count = docNotifs.length
+  const first = docNotifs[0]!
+
+  switch (reason) {
+    case 'site-new-discussion':
+    case 'discussion':
+      return `${who} started ${count === 1 ? 'a discussion' : `${count} discussions`} on`
+    case 'mention':
+      return `${who} mentioned ${first.accountMeta?.name || 'you'} in`
+    case 'reply':
+      return `${who} replied to ${count === 1 ? 'your comment' : 'your comments'} in`
+    case 'user-comment':
+      return `${who} commented on`
+    case 'site-doc-update':
+      return first.notif.reason === 'site-doc-update' && first.notif.isNewDocument && count === 1
+        ? `${who} created`
+        : `${who} updated`
+    default:
+      return assertNever(reason)
+  }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`Unhandled notification reason: ${JSON.stringify(value)}`)
 }
 
 function getNotificationSummary(notification: Notification, accountMeta: HMMetadata | null): string {
