@@ -2,19 +2,22 @@ import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMetadataName} from '@shm/shared/content'
 import {useResource} from '@shm/shared/models/entity'
-import {useAccountSearch} from '@shm/shared/models/account-search'
+import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {useSchemaDocumentSearch} from '@shm/shared/models/schema-documents'
 import {useSearch} from '@shm/shared/models/search'
 import {useSchemaSubtypes, useTypedDocumentSearch} from '@shm/shared/models/typed-documents'
 import {useUniversalAppContext} from '@shm/shared/routing'
-import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {useStream} from '@shm/shared/use-stream'
+import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
 import {principalFromString} from '@seed-hypermedia/client/blobs'
 import {inClosure} from '@seed-hypermedia/client/schema-subtypes'
 import {FileCode2, FileText, TriangleAlert, User, X} from 'lucide-react'
-import {useState} from 'react'
+import {useId, useState} from 'react'
 import {Button} from './button'
 import {Input} from './components/input'
 import {HMIcon} from './hm-icon'
+import {MentionResults} from './mention-results'
 import {HM_SCHEMAS, refToName} from './schema/engine'
 import {HM_SCHEMA_PAGES} from './schema/schema-registry.generated'
 import {useEffectiveSchemaRef} from './schema/schema-resolve'
@@ -263,17 +266,36 @@ function HMEntitySearchInput({
   const [text, setText] = useState(initialText)
   const [focused, setFocused] = useState(false)
   const [resolving, setResolving] = useState(false)
+  const [selected, setSelected] = useState(0)
+  const listId = useId()
   // The platform's domain store answers first (cached, offline); the site's own answer is the fallback.
-  const {domainResolver} = useUniversalAppContext()
+  const {domainResolver, selectedIdentity, originHomeId} = useUniversalAppContext()
+  const perspectiveAccountUid = useStream(selectedIdentity)
+  const route = useNavRouteOrNull()
+  const documentId =
+    route?.key === 'document'
+      ? route.id
+      : route?.key === 'draft' && route.editUid
+        ? hmId(route.editUid, {path: route.editPath})
+        : undefined
   const isUrlInput = /^(hm|ipfs|https?):\/\//i.test(text.trim())
   const search = useSearch(text.trim(), {enabled: mode === 'document' && text.trim().length > 0 && !isUrlInput})
-  // An account field offers the @mention picker's account candidates: one per account, under
-  // its current name, with its icon. Raw search hits come once per matching version or block
-  // and carry the matched text, which is not always the name.
-  const accounts = useAccountSearch(text, {enabled: mode === 'profile' && !isUrlInput})
+  const showAccounts = mode === 'profile' && focused && !isUrlInput
+  const accounts = useInlineMentions(text.trim(), {
+    enabled: showAccounts,
+    mode: 'account',
+    perspectiveAccountUid,
+    siteUid: documentId?.uid ?? originHomeId?.uid,
+    documentId,
+  })
+  const accountIndex = Math.min(selected, accounts.suggestions.length - 1)
+  const selectAccount = (id: UnpackedHypermediaId) => {
+    setFocused(false)
+    onCommit(packHmId({...id, path: null, version: null, latest: null, blockRef: null, blockRange: null}))
+  }
   // Schema mode offers only pages that DEFINE a schema (carry `schemaDefinition`), through the
   // attribute query — by name when text is typed, the latest ones when the field is empty — so
-  // whatever is picked resolves to a schema. Text and profile modes use full-text search.
+  // whatever is picked resolves to a schema.
   const schemaPages = useSchemaDocumentSearch(text, {enabled: mode === 'schema' && !isUrlInput})
   // A targeted document field offers documents typed by the target or a subtype first — the
   // latest ones while the field is empty, by name once text is typed — through the attribute
@@ -283,17 +305,9 @@ function HMEntitySearchInput({
     enabled: !!target && !isUrlInput && (focused || text.trim().length > 0),
   })
   const targetName = useHmRefTitle(target ?? '')
-  const fullText: SearchResult[] =
-    mode === 'profile'
-      ? (accounts.data ?? []).map((candidate) => ({
-          id: candidate.id,
-          // The public name, so the row reads the same as the pill it becomes; a petname is a hint.
-          title: candidate.publicName || candidate.title || candidate.id.uid,
-          icon: candidate.icon || undefined,
-        }))
-      : (search.data?.entities ?? [])
-          .filter((entity) => entity.type !== 'comment')
-          .map((entity) => ({id: entity.id, title: entity.title || entity.id.id}))
+  const fullText: SearchResult[] = (search.data?.entities ?? [])
+    .filter((entity) => entity.type !== 'comment')
+    .map((entity) => ({id: entity.id, title: entity.title || entity.id.id}))
   const typedResults: SearchResult[] = (typed.data ?? [])
     .slice(0, 6)
     .map((info) => ({id: info.id, title: getMetadataName(info.metadata) || info.id.id}))
@@ -353,6 +367,15 @@ function HMEntitySearchInput({
           value={text}
           autoFocus={autoFocus}
           aria-label={ariaLabel}
+          role={mode === 'profile' ? 'combobox' : undefined}
+          aria-autocomplete={mode === 'profile' ? 'list' : undefined}
+          aria-expanded={mode === 'profile' ? showAccounts : undefined}
+          aria-controls={showAccounts ? listId : undefined}
+          aria-activedescendant={
+            showAccounts && accountIndex >= 0 && !accounts.isFetching && !accounts.isError
+              ? `${listId}-${accountIndex}`
+              : undefined
+          }
           placeholder={
             mode === 'profile'
               ? 'Search accounts or paste hm:// URL'
@@ -364,9 +387,35 @@ function HMEntitySearchInput({
           }
           className="h-8 min-w-52"
           disabled={resolving}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            setSelected(0)
+          }}
           onFocus={() => setFocused(true)}
           onKeyDown={(e) => {
+            if (mode === 'profile' && e.key === 'Escape') {
+              e.preventDefault()
+              e.stopPropagation()
+              setFocused(false)
+              setText(initialText)
+              onCancel?.()
+              return
+            }
+            if (showAccounts && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+              e.preventDefault()
+              const count = accounts.suggestions.length
+              if (count) setSelected((Math.max(0, accountIndex) + (e.key === 'ArrowDown' ? 1 : -1) + count) % count)
+              return
+            }
+            if (showAccounts && e.key === 'Enter') {
+              e.preventDefault()
+              if (accounts.isFetching) return
+              const account = accounts.suggestions[accountIndex]
+              if (account && !accounts.isError) {
+                selectAccount(account.id)
+                return
+              }
+            }
             if (e.key === 'Enter') void commitText()
             if (e.key === 'Escape') (onCancel ?? (() => void commitText()))()
           }}
@@ -390,7 +439,22 @@ function HMEntitySearchInput({
           </Button>
         )}
       </div>
-      {results.length > 0 && (focused || text.trim().length > 0) && (
+      {showAccounts && (
+        <div data-hm-search-results className="absolute top-full left-0 z-50 mt-1 max-w-full">
+          <MentionResults
+            id={listId}
+            mode="account"
+            suggestions={accounts.suggestions}
+            selected={accountIndex}
+            loading={accounts.isFetching}
+            error={accounts.isError}
+            onRetry={() => void accounts.refetch()}
+            onSelect={(item) => selectAccount(item.id)}
+            className="max-w-full"
+          />
+        </div>
+      )}
+      {mode !== 'profile' && results.length > 0 && (focused || text.trim().length > 0) && (
         <div
           data-hm-search-results
           className="bg-popover border-border absolute top-full right-0 left-0 z-50 mt-1 flex flex-col overflow-hidden rounded-md border shadow-md"
@@ -407,21 +471,13 @@ function HMEntitySearchInput({
               )}
               onClick={() => {
                 // A reference names the document, not a version of it (a listing's id carries the
-                // version it was read at). Profiles store the bare account URL, no path either.
+                // version it was read at).
                 const document = {...entity.id, version: null, latest: null, blockRef: null, blockRange: null}
-                onCommit(packHmId(mode === 'profile' ? {...document, path: null} : document))
+                onCommit(packHmId(document))
               }}
             >
               {entity.offType ? (
                 <TriangleAlert className="text-muted-foreground size-3.5 shrink-0" />
-              ) : mode === 'profile' ? (
-                <HMIcon
-                  id={{...entity.id, path: []}}
-                  name={entity.title}
-                  icon={entity.icon}
-                  size={16}
-                  className="shrink-0"
-                />
               ) : mode === 'schema' ? (
                 <FileCode2 className="text-muted-foreground size-3.5 shrink-0" />
               ) : (
