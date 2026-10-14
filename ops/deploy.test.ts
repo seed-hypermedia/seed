@@ -2310,6 +2310,7 @@ function makeEnterpriseConfig(overrides: Partial<SeedConfig> = {}): SeedConfig {
     domain: 'https://example.org',
     vault_admin_secret: 'x'.repeat(VAULT_ADMIN_SECRET_LENGTH),
     session_secret: 's',
+    service_secret: 'svc',
     notify: false,
     agents: false,
     ...overrides,
@@ -2338,7 +2339,7 @@ describe('enterprise: profile helpers', () => {
     expect(notifyHost(makeEnterpriseConfig())).toBe('')
     expect(notifyHost(makeEnterpriseConfig({notify: true}))).toBe('https://notify.example.org')
     expect(agentsHost(makeEnterpriseConfig())).toBe('')
-    expect(agentsHost(makeEnterpriseConfig({agents: true}))).toBe('https://agents.example.org')
+    expect(agentsHost(makeEnterpriseConfig({agents: true}))).toBe('https://example.org')
     // The site profile keeps the hosted notify service.
     expect(notifyHost(makeTestConfig())).toBe(NOTIFY_SERVICE_HOST)
     expect(agentsHost(makeTestConfig())).toBe('')
@@ -2498,6 +2499,8 @@ describe('enterprise: buildEnterpriseConfig defaults', () => {
     expect(config.session_secret).toMatch(/^[A-Za-z0-9]+$/)
     expect(config.session_secret!.length).toBeGreaterThanOrEqual(48)
     expect(config.session_secret).toBe(config.session_secret)
+    expect(config.service_secret).toMatch(/^[A-Za-z0-9]{48,}$/)
+    expect(config.service_secret).not.toBe(config.session_secret)
     expect(SESSION_SECRET_LENGTH).toBeGreaterThanOrEqual(48)
     expect(config.notify).toBe(false)
     expect(config.agents).toBe(false)
@@ -2517,6 +2520,7 @@ describe('enterprise: buildEnterpriseConfig defaults', () => {
     expect(config.link_secret).toBe('keepMe1234')
     expect(config.vault_admin_secret).toBe('keepVault'.repeat(5))
     expect(config.session_secret).toBe('s')
+    expect(config.service_secret).toBe('svc')
     expect(config.agents_kvm).toBe(true)
     expect(config.smtp?.host).toBe('smtp.example.org')
     // Turning agents off also clears the kvm flag.
@@ -2604,6 +2608,7 @@ describe('enterprise: buildComposeEnv', () => {
     expect(env).toContain('SEED_P2P_TESTNET_NAME="ent-example-org"')
     expect(env).toContain(`SEED_VAULT_ADMIN_SECRET="${'x'.repeat(VAULT_ADMIN_SECRET_LENGTH)}"`)
     expect(env).toContain('SEED_SESSION_SECRET="s"')
+    expect(env).toContain('SEED_SERVICE_SECRET="svc"')
     expect(env).toContain('SEED_CONTACT_EMAIL="ops@seed.hypermedia"')
     expect(env).toContain('SEED_SITE_NAME="example.org"')
     expect(buildComposeEnv(makeEnterpriseConfig({site_name: 'Botical'}), makePaths('/opt/seed'))).toContain(
@@ -2640,7 +2645,7 @@ describe('enterprise: buildComposeEnv', () => {
     expect(env).toContain('COMPOSE_PROFILES="notify,agents,metrics"')
     expect(env).toContain('SEED_NOTIFY_HOST="https://notify.example.org"')
     expect(env).toContain('NOTIFY_SERVICE_HOST="https://notify.example.org"')
-    expect(env).toContain('SEED_AGENTS_HOST="https://agents.example.org"')
+    expect(env).toContain('SEED_AGENTS_HOST="https://example.org"')
     expect(env).toContain('SEED_AGENTS_EXEC_BACKEND="microsandbox"')
     expect(env).toContain('SEED_SMTP_HOST="smtp.example.org"')
     expect(env).toContain('SEED_SMTP_PORT="2587"')
@@ -2726,12 +2731,23 @@ describe('enterprise: generateCaddyfile', () => {
     expect(caddy).not.toContain('seed-agents')
   })
 
-  test('adds notify and agents site blocks when enabled', () => {
+  test('adds the notify site block and serves agents on the site itself when enabled', () => {
     const caddy = generateCaddyfile(makeEnterpriseConfig({notify: true, agents: true}))
     expect(caddy).toContain('notify.example.org {')
     expect(caddy).toContain('reverse_proxy seed-notify:3000')
-    expect(caddy).toContain('agents.example.org {')
-    expect(caddy).toContain('reverse_proxy seed-agents:3050')
+    expect(caddy).not.toContain('agents.example.org')
+    // Members only: /agents/* sits behind the gate, before the catch-all.
+    const gated = caddy.indexOf('@agents path /agents/*')
+    expect(gated).toBeGreaterThan(0)
+    expect(caddy.slice(gated, caddy.indexOf('}', gated + 30) + 1)).toMatch(
+      /handle @agents \{\s*import gate\s*reverse_proxy seed-agents:3050/,
+    )
+    expect(gated).toBeLessThan(caddy.lastIndexOf('handle {'))
+    // Inbound webhooks come from outside services and carry their own secret.
+    const webhook = caddy.indexOf('@agents_webhook {')
+    expect(webhook).toBeGreaterThan(0)
+    expect(webhook).toBeLessThan(caddy.indexOf('# Everything below requires a session.'))
+    expect(caddy).toContain('path /agents/api/webhooks/*')
   })
 
   test('site profile Caddyfile is untouched', () => {
@@ -2775,6 +2791,8 @@ describe('enterprise: compose template', () => {
     for (const v of [
       'SEED_REQUIRE_SIGN_IN=1',
       'SEED_SESSION_SECRET=${SEED_SESSION_SECRET}',
+      'SEED_SERVICE_SECRET=${SEED_SERVICE_SECRET}',
+      'SEED_AGENTS_HM_SERVER_SECRET=${SEED_SERVICE_SECRET}',
       'SEED_VAULT_INTERNAL_URL=http://seed-vault:3000',
       'SEED_VAULT_ADMIN_SECRET=${SEED_VAULT_ADMIN_SECRET}',
       'SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST}',
@@ -3291,6 +3309,7 @@ describe('enterprise: email relay', () => {
     expect(redacted.smtp?.password).toBe('****')
     expect(redacted.vault_admin_secret).toBe('****')
     expect(redacted.session_secret).toBe('****')
+    expect(redacted.service_secret).toBe('****')
     expect(redacted.link_secret).toBe('****')
     expect(JSON.stringify(redacted)).not.toContain('top-secret')
     expect(redactConfig(makeEnterpriseConfig()).email_relay_token).toBeUndefined()
