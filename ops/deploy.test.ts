@@ -34,6 +34,7 @@ import {
   assertNoForeignStack,
   stopStackByProject,
   takeOverHost,
+  autoUpdates,
   clearSeedCron,
   handleForeignStack,
   getRunningInstallDir,
@@ -2388,6 +2389,15 @@ describe('enterprise: profile helpers', () => {
     expect(dirs).toContain('/opt/seed/vault')
     expect(dirs).toContain('/opt/seed/notify')
     expect(dirs).toContain('/opt/seed/agents')
+  })
+
+  test('autoUpdates: sites always, enterprise nodes only on the latest channel', () => {
+    expect(autoUpdates(makeTestConfig({release_channel: 'latest'}))).toBe(true)
+    expect(autoUpdates(makeTestConfig({release_channel: 'dev'}))).toBe(true)
+    expect(autoUpdates(makeEnterpriseConfig())).toBe(true)
+    expect(autoUpdates(makeEnterpriseConfig({release_channel: 'latest'}))).toBe(true)
+    expect(autoUpdates(makeEnterpriseConfig({release_channel: 'feat-enterprise-edition'}))).toBe(false)
+    expect(autoUpdates(makeEnterpriseConfig({release_channel: 'dev'}))).toBe(false)
   })
 
   test('configWarnings: no network warnings, only a non-stable channel notice', () => {

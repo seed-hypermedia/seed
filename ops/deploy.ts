@@ -444,7 +444,7 @@ export function configWarnings(config: SeedConfig): string[] {
     if (config.release_channel !== 'latest') {
       warnings.push(
         `Tracking the '${config.release_channel}' image channel (bleeding-edge images). ` +
-          `Enterprise nodes update only when '${cmd('deploy')}' is run by hand.`,
+          `On this channel the node updates only when '${cmd('deploy')}' is run by hand; on 'latest' it follows releases automatically.`,
       )
     }
     return warnings
@@ -3110,10 +3110,21 @@ export function installWrapper(paths: DeployPaths, shell: ShellRunner): void {
  * `seed-deploy deploy` by hand still updates), and any seed cron left by a
  * previous site install on the host is disarmed so it cannot redeploy us.
  */
+/**
+ * Whether this node follows its image channel on its own (the ten-minute
+ * `upgrade; deploy` cron). Sites always do. Enterprise nodes do on the stable
+ * `latest` channel, so a release reaches them like everyone else; on any
+ * other channel (a feature branch under test) updates stay a deliberate
+ * `seed-deploy deploy`, so a pushed branch image cannot surprise the organization.
+ */
+export function autoUpdates(config: SeedConfig): boolean {
+  return !isEnterprise(config) || config.release_channel === 'latest'
+}
+
 async function setActiveNode(paths: DeployPaths, shell: ShellRunner, config?: SeedConfig): Promise<void> {
-  if (config && isEnterprise(config)) {
+  if (config && !autoUpdates(config)) {
     clearSeedCron(shell)
-    log('Enterprise profile: automatic update cron not installed (updates are manual).')
+    log(`Enterprise profile on the '${config.release_channel}' channel: automatic update cron not installed (updates are manual).`)
   } else {
     await setupCron(paths, shell)
   }
