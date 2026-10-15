@@ -23,6 +23,7 @@ import {
 } from '@shm/shared/models/notifications'
 import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {normalizeNotifyServiceUrl} from '@shm/shared/notify-url'
 import {useMutation} from '@tanstack/react-query'
 import {useEffect, useState} from 'react'
 import {useLocalKeyPair} from './auth'
@@ -30,7 +31,8 @@ import {preparePublicKey, signWithKeyPair} from './auth-utils'
 
 function useWebNotifyServiceHost() {
   const keyPair = useLocalKeyPair()
-  return keyPair?.notifyServerUrl
+  // Stored at sign-in; may be a legacy origin or a retired hosted notify host.
+  return normalizeNotifyServiceUrl(keyPair?.notifyServerUrl) ?? undefined
 }
 
 /**

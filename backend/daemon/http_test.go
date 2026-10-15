@@ -267,18 +267,22 @@ func TestHTTPCORS(t *testing.T) {
 
 func TestHTTPAppSecret(t *testing.T) {
 	t.Setenv("SEED_APP_SECRET", "")
-	first, err := appSecretFromEnv()
+	first, err := appSecretFromEnv(true)
 	require.NoError(t, err)
 	require.Len(t, first, 64)
-	second, err := appSecretFromEnv()
+	second, err := appSecretFromEnv(true)
 	require.NoError(t, err)
 	require.NotEqual(t, first, second)
 	t.Setenv("SEED_APP_SECRET", first)
-	supplied, err := appSecretFromEnv()
+	supplied, err := appSecretFromEnv(true)
 	require.NoError(t, err)
 	require.Equal(t, first, supplied)
+	t.Setenv("SEED_APP_SECRET", "")
+	off, err := appSecretFromEnv(false)
+	require.NoError(t, err)
+	require.Empty(t, off)
 	t.Setenv("SEED_APP_SECRET", "too-short")
-	_, err = appSecretFromEnv()
+	_, err = appSecretFromEnv(true)
 	require.Error(t, err)
 }
 
@@ -356,6 +360,33 @@ func TestHTTPGateRoutes(t *testing.T) {
 			}
 		})
 	}
+	t.Run("without a secret or -http.browser-auth the daemon keeps the open policy", func(t *testing.T) {
+		t.Setenv("SEED_APP_SECRET", "")
+		plain := makeTestApp(t, "alice", makeTestConfig(t), false)
+		req := httptest.NewRequest("POST", "/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
+		req.Header.Set("Content-Type", "application/grpc-web+proto")
+		req.Header.Set("X-Grpc-Web", "1")
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Sec-Fetch-Site", "cross-site")
+		rec := httptest.NewRecorder()
+		plain.HTTPServer.Handler.ServeHTTP(rec, req)
+		require.Equal(t, 200, rec.Code)
+		require.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+	})
+	t.Run("-http.browser-auth gates browser pages with a generated secret", func(t *testing.T) {
+		t.Setenv("SEED_APP_SECRET", "")
+		gatedCfg := makeTestConfig(t)
+		gatedCfg.HTTP.BrowserAuth = true
+		gated := makeTestApp(t, "bob", gatedCfg, false)
+		req := httptest.NewRequest("POST", "/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
+		req.Header.Set("Content-Type", "application/grpc-web+proto")
+		req.Header.Set("X-Grpc-Web", "1")
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Sec-Fetch-Site", "cross-site")
+		rec := httptest.NewRecorder()
+		gated.HTTPServer.Handler.ServeHTTP(rec, req)
+		require.Equal(t, 403, rec.Code)
+	})
 	t.Run("server mode keeps the open policy for websites", func(t *testing.T) {
 		req := httptest.NewRequest("POST", "/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
 		req.Header.Set("Content-Type", "application/grpc-web+proto")

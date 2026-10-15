@@ -94,6 +94,9 @@ import {
   markdownBlockNodesToHMBlockNodes,
   packHmId,
   parseMarkdown,
+  assertValidMermaid,
+  InvalidMermaidError,
+  MarkdownFrontmatterError,
   fileToIpfsBlobs,
   resolveFileLinksInBlocks,
   describeRedirect,
@@ -107,7 +110,9 @@ import {
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
+import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
+import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
 import type {
   HMSigner,
@@ -12702,16 +12707,16 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
       ? {
           webhook: webhookSecret
             ? {
-                endpointPath: `/agents/api/webhooks/${row.id}/${webhookSecret}`,
+                endpointPath: `/hm/api/agents/webhooks/${row.id}/${webhookSecret}`,
                 secret: webhookSecret,
-                alternative: `POST to /agents/api/webhooks/${row.id} with the header Authorization: Bearer ${webhookSecret}`,
+                alternative: `POST to /hm/api/agents/webhooks/${row.id} with the header Authorization: Bearer ${webhookSecret}`,
                 requiredHeaders: {'Content-Type': 'application/json'},
                 optionalHeaders: {
                   'Idempotency-Key': '<unique delivery id; retries with the same key and body are deduplicated>',
                 },
               }
             : {
-                endpointPath: `/agents/api/webhooks/${row.id}/<secret>`,
+                endpointPath: `/hm/api/agents/webhooks/${row.id}/<secret>`,
                 secret: null,
                 note: 'The secret for this trigger was not kept; recreate the trigger to get a new one.',
               },
@@ -13005,9 +13010,9 @@ async function writeTriggerAddress(
     ...(webhookSecret
       ? {
           webhook: {
-            endpointPath: `/agents/api/webhooks/${id}/${webhookSecret}`,
+            endpointPath: `/hm/api/agents/webhooks/${id}/${webhookSecret}`,
             secret: webhookSecret,
-            alternative: `Senders that cannot use the secret URL may POST to /agents/api/webhooks/${id} with the header Authorization: Bearer ${webhookSecret}`,
+            alternative: `Senders that cannot use the secret URL may POST to /hm/api/agents/webhooks/${id} with the header Authorization: Bearer ${webhookSecret}`,
             requiredHeaders: {'Content-Type': 'application/json'},
             optionalHeaders: {
               'Idempotency-Key':
@@ -13096,6 +13101,10 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
   }
 }
 
+/** `read thread:` content search reads the last N events of each of the newest M sessions. */
+const THREAD_SEARCH_SESSIONS = 60
+const THREAD_SEARCH_EVENTS_PER_SESSION = 25
+
 /**
  * Lists (and searches) THIS AGENT's conversations for `read thread:` with no id. Other agents'
  * threads are not listed — agents do not read each other's state, whatever account they share —
@@ -13180,30 +13189,37 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
     .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
     .filter((row) => visible(row.id))
     .filter((row) => `${row.title ?? ''}\n${row.description ?? ''}`.toLowerCase().includes(query))
-  // Content matches: a bounded scan over the most recent message events, one snippet per thread.
+  // Content matches: the tail of each of the newest sessions, one snippet per thread. Each tail is
+  // an index-ordered read on (session_id, seq); a single `ORDER BY created_at` across all of the
+  // agent's events made SQLite load and sort EVERY event of the agent (hundreds of thousands of
+  // blobs on prod, 30–40 min on the event loop) to keep the newest few thousand.
   const snippets = new Map<string, string>()
-  const eventRows = stmt<{session_id: string; event_cbor: Uint8Array}, (string | number)[]>(
+  const recentSessions = stmt<{id: string}, [string, string, number]>(
     context.db,
-    `SELECT e.session_id, e.event_cbor FROM session_events e
-       JOIN sessions s ON s.id = e.session_id
-       WHERE s.account_id = ?${agentId ? ' AND s.agent_id = ?' : ''}
-       ORDER BY e.created_at DESC LIMIT 4000`,
-  ).all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
-  for (const eventRow of eventRows) {
-    if (snippets.has(eventRow.session_id) || !visible(eventRow.session_id)) continue
-    let event: {type?: string; content?: unknown}
-    try {
-      event = cbor.decode(eventRow.event_cbor)
-    } catch {
-      continue
+    `SELECT id FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC LIMIT ?`,
+  ).all(context.accountId, agentId, THREAD_SEARCH_SESSIONS)
+  const sessionTail = stmt<{event_cbor: Uint8Array}, [string, number]>(
+    context.db,
+    `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
+  )
+  for (const session of recentSessions) {
+    if (!visible(session.id)) continue
+    for (const eventRow of sessionTail.all(session.id, THREAD_SEARCH_EVENTS_PER_SESSION)) {
+      let event: {type?: string; content?: unknown}
+      try {
+        event = cbor.decode(eventRow.event_cbor)
+      } catch {
+        continue
+      }
+      if (event.type !== 'message') continue
+      const text = typeof event.content === 'string' ? event.content : safeJSONStringify(event.content)
+      const index = text.toLowerCase().indexOf(query)
+      if (index < 0) continue
+      const start = Math.max(0, index - 80)
+      const end = Math.min(text.length, index + query.length + 80)
+      snippets.set(session.id, `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`)
+      break
     }
-    if (event.type !== 'message') continue
-    const text = typeof event.content === 'string' ? event.content : safeJSONStringify(event.content)
-    const index = text.toLowerCase().indexOf(query)
-    if (index < 0) continue
-    const start = Math.max(0, index - 80)
-    const end = Math.min(text.length, index + query.length + 80)
-    snippets.set(eventRow.session_id, `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`)
   }
   const matchedIds = [...new Set([...titleMatches.map((row) => row.id), ...snippets.keys()])].slice(0, limit)
   const rows = loadThreads(matchedIds)
@@ -13435,7 +13451,7 @@ const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck']
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
   document: ['name', 'metadata'],
   update: ['name', 'metadata'],
-  comment: ['target', 'replyTo'],
+  comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
   delete: [],
@@ -13831,6 +13847,7 @@ export async function executeWriteVerb(
       input: {
         ...passthrough,
         ...(options.skipLinkCheck === true ? {skipLinkCheck: true} : {}),
+        ...(options.allowPlainMentions === true ? {allowPlainMentions: true} : {}),
         ...commandInput,
       },
     })
@@ -14739,8 +14756,9 @@ async function writeCommentCreate(
   const resourceId = {...id, blockRef: null}
   const resource = await client.request('Resource', resourceId)
   if (resource.type !== 'document') throw new APIError(400, `Comment target is ${resource.type}, not a document`)
-  const blocks = commentMarkdownToBlocks(body)
+  const {blocks, mentionedAccounts} = commentMarkdownToBlocks(body, request.input)
   await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
+  const mentions = mentionedAccounts.map((uid) => `hm://${uid}`)
   const replyCommentVersion = parentComment?.version || undefined
   const rootReplyCommentVersion = parentComment
     ? parentComment.threadRootVersion || parentComment.version || undefined
@@ -14752,6 +14770,7 @@ async function writeCommentCreate(
       target: packHmId(id),
       ...(parentComment ? {replyCommentId: parentComment.id} : {}),
       blockCount: blocks.length,
+      mentions,
       dryRun: true,
     })
   const publishInput = await createComment(
@@ -14782,6 +14801,7 @@ async function writeCommentCreate(
     authorUrl: `hm://${signer.publicKey}`,
     authorName: signer.profileName || signer.publicKey,
     markdown: body,
+    mentions,
     ...(parentComment ? {replyCommentId: parentComment.id} : {}),
     cids: published.cids,
   })
@@ -14795,9 +14815,10 @@ async function writeCommentUpdate(
   const commentId = normalizeCommentId(request.input.comment ?? request.input.commentId, 'Comment ID')
   const body = normalizeWriteContent(request.input.body ?? request.input.content ?? request.input.text, 'Comment body')
   const existing = await client.request('Comment', commentId)
-  const blocks = commentMarkdownToBlocks(body)
+  const {blocks, mentionedAccounts} = commentMarkdownToBlocks(body, request.input)
   await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
-  if (request.dryRun) return writeToolResult(request.command, signer, {commentId, dryRun: true})
+  const mentions = mentionedAccounts.map((uid) => `hm://${uid}`)
+  if (request.dryRun) return writeToolResult(request.command, signer, {commentId, mentions, dryRun: true})
   const published = await client.publish(
     await updateComment(
       {
@@ -14813,7 +14834,7 @@ async function writeCommentUpdate(
       signer.signer,
     ),
   )
-  return writeToolResult(request.command, signer, {commentId, cids: published.cids})
+  return writeToolResult(request.command, signer, {commentId, mentions, cids: published.cids})
 }
 
 async function writeCommentDelete(
@@ -14869,6 +14890,7 @@ async function writeDocumentCreate(
   extraBlobs: CollectedBlob[] = [],
 ): Promise<Record<string, unknown>> {
   const parsed = parseWriteDocumentContent(request.input)
+  await assertPublishableMermaid(parsed.blocks)
   const metadata = mergeWriteMetadata(parsed.metadata, request.input)
   // A document cannot be born nameless: the name is its identity in every listing, and an
   // "Untitled" default just hides the omission until it is published and visible to everyone.
@@ -14981,9 +15003,8 @@ async function writeDocumentUpdate(
   }
   const edit = normalizeBoundedString(editSource, 'Document edit target', 2048)
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
-  // A redirected address (including a republished one) is edited by building the Change on the
-  // redirect target's DAG and publishing a Version Ref at THIS address with a fresh generation,
-  // which supersedes the redirect: the path becomes a live document and stops following the target.
+  // Content changes follow redirects and publish at the final live document. The requested address
+  // remains a redirect; publishing there would revive an old path as an independent document.
   const base = await resolveEditableDocument(client, id).catch((error) => {
     throw new APIError(400, error instanceof Error ? error.message : String(error))
   })
@@ -15000,6 +15021,7 @@ async function writeDocumentUpdate(
   const hasContent =
     request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
   const parsed = hasContent ? parseWriteDocumentContent(request.input) : undefined
+  if (parsed) await assertPublishableMermaid(parsed.blocks)
   if (parsed) await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
   let contentOps: DocumentOperation[] = []
@@ -15017,20 +15039,21 @@ async function writeDocumentUpdate(
   }
   const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
   if (ops.length === 0) throw new APIError(400, 'No document updates specified — provide content and/or metadata')
-  // The Ref lands at the requested address (id.uid's space), not the redirect target's, so
-  // authorization is checked against the address's space. Checked before the dry-run return so a
-  // dry run surfaces authorization failures instead of reporting a success that publish would
-  // silently lose.
-  const capability = await requireWriteCapability(client, id.uid, signer.publicKey)
-  const replacedRedirect = base.redirect
-    ? {target: packHmId(base.redirect.target), republish: base.redirect.republish}
-    : undefined
-  const typed = await documentSchemaReport(client, packHmId(id), {...resource.document.metadata, ...metadata})
+  const targetId = base.targetId
+  // Checked before the dry-run return so a dry run surfaces authorization failures instead of
+  // reporting a success that publish would silently lose.
+  const capability = await requireWriteCapability(client, targetId.uid, signer.publicKey)
+  const typed = await documentSchemaReport(client, packHmId(targetId), {...resource.document.metadata, ...metadata})
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: packHmId(id),
+      resolvedDocumentId: packHmId(targetId),
+      redirectHops: base.redirects.map((hop) => ({
+        from: packHmId(hop.from),
+        to: packHmId(hop.to),
+        republish: hop.republish,
+      })),
       ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
-      ...(replacedRedirect ? {replacedRedirect} : {}),
       ...typed,
       dryRun: true,
     })
@@ -15044,8 +15067,8 @@ async function writeDocumentUpdate(
   const changeBlock = await createChange(unsignedBytes, signer.signer)
   const refInput = await createVersionRef(
     {
-      space: id.uid,
-      path: hmIdPathToEntityQueryPath(id.path),
+      space: targetId.uid,
+      path: hmIdPathToEntityQueryPath(targetId.path),
       genesis: state.genesis,
       version: changeBlock.cid.toString(),
       generation: Number(ts),
@@ -15062,9 +15085,14 @@ async function writeDocumentUpdate(
   })
   return writeToolResult(request.command, signer, {
     id: packHmId(id),
+    resolvedDocumentId: packHmId(targetId),
+    redirectHops: base.redirects.map((hop) => ({
+      from: packHmId(hop.from),
+      to: packHmId(hop.to),
+      republish: hop.republish,
+    })),
     version: changeBlock.cid.toString(),
     cids: published.cids,
-    ...(replacedRedirect ? {replacedRedirect} : {}),
     ...typed,
   })
 }
@@ -15585,13 +15613,14 @@ async function publishMemoryDocument(
     throw new APIError(400, `Memory file ${file.path} is not UTF-8 text; only markdown files can be published`)
   if (file.size > MAX_WRITE_CONTENT_BYTES) throw new APIError(400, `Memory file ${file.path} is too large to publish`)
 
-  const {tree, metadata: frontmatter} = parseMarkdown(file.content ?? '')
+  const {tree, metadata: frontmatter} = parseMarkdownOrBadRequest(file.content ?? '')
   const parsedNodes = markdownBlockNodesToHMBlockNodes(tree)
   const imagesUploaded = countFileLinkBlocks(parsedNodes)
   const baseDir = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : ''
   const {nodes, blobs: fileBlobs} = await resolveFileLinksInBlocks(parsedNodes, (linkPath) =>
     readMemoryLinkBytes(context.stateDir, baseDir, linkPath),
   )
+  await assertPublishableMermaid(nodes)
   // Frontmatter media (icon, cover, logo) referencing memory files gets the same treatment
   // as body images: read from memory, chunk to UnixFS, and rewrite to ipfs://.
   for (const key of ['icon', 'cover', 'seedExperimentalLogo'] as const) {
@@ -16232,6 +16261,26 @@ function getDraftRow(context: WriteToolContext, draftId: string) {
   return row
 }
 
+/** Invalid frontmatter YAML is the caller's mistake, so it is reported as a 400 rather than a crash. */
+export function parseMarkdownOrBadRequest(content: string): ReturnType<typeof parseMarkdown> {
+  try {
+    return parseMarkdown(content)
+  } catch (error) {
+    if (error instanceof MarkdownFrontmatterError) throw new APIError(400, error.message)
+    throw error
+  }
+}
+
+/** Mermaid fences are checked before publishing so a syntax error reaches the agent, not the reader. */
+export async function assertPublishableMermaid(blocks: HMBlockNode[]): Promise<void> {
+  try {
+    await assertValidMermaid(blocks, await loadMermaidParser())
+  } catch (error) {
+    if (error instanceof InvalidMermaidError) throw new APIError(400, error.message)
+    throw error
+  }
+}
+
 function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteDocumentContent {
   const rawContent = input.content ?? input.body ?? input.text
   const format =
@@ -16243,7 +16292,7 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
   if (format !== 'markdown' && format !== 'json') throw new APIError(400, 'Document format must be markdown or json')
   if (format === 'markdown') {
     const content = normalizeWriteContent(rawContent, 'Document content')
-    const {tree, metadata} = parseMarkdown(content)
+    const {tree, metadata} = parseMarkdownOrBadRequest(content)
     const blocks = markdownBlockNodesToHMBlockNodes(tree)
     return {ops: flattenToOperations(tree), metadata, blocks}
   }
@@ -16269,12 +16318,28 @@ function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId = ''): Document
   return ops
 }
 
-function commentMarkdownToBlocks(content: string): HMBlockNode[] {
+/**
+ * Comment markdown → blocks, with mentions normalized (see comment-mentions.ts). A body that still
+ * carries plain-text `@Name` tokens is refused unless the caller passed `allowPlainMentions`, because
+ * such a "mention" notifies nobody and activates no agent — the failure Eric caught on hyper.media
+ * when Ion wrote "@Artist" as a Link and Artist never woke up.
+ */
+function commentMarkdownToBlocks(
+  content: string,
+  input: Record<string, unknown> = {},
+): {blocks: HMBlockNode[]; mentionedAccounts: string[]} {
   if (!content.trim())
-    return [
-      {block: {id: crypto.randomUUID(), type: 'Paragraph', text: '', attributes: {}, annotations: []}, children: []},
-    ]
-  return markdownBlockNodesToHMBlockNodes(parseMarkdown(content).tree)
+    return {
+      blocks: [
+        {block: {id: crypto.randomUUID(), type: 'Paragraph', text: '', attributes: {}, annotations: []}, children: []},
+      ],
+      mentionedAccounts: [],
+    }
+  const prepared = prepareCommentMentions(markdownBlockNodesToHMBlockNodes(parseMarkdown(content).tree))
+  if (prepared.plainMentions.length && input.allowPlainMentions !== true) {
+    throw new APIError(400, plainMentionsError(prepared.plainMentions))
+  }
+  return {blocks: prepared.blocks, mentionedAccounts: prepared.mentionedAccounts}
 }
 
 function detectWriteContentFormat(content: string): 'markdown' | 'json' {
@@ -16968,6 +17033,8 @@ type CommentThreadEntry = {
   id: string
   author: string
   authorName?: string
+  /** The markdown that mentions this comment's author: `[@](hm://uid/:profile)`. */
+  mention: string
   createTime?: string
   replyParent?: string
   markdown: string
@@ -17003,6 +17070,7 @@ async function commentThreadEntries(
           id: entry.id,
           author: entry.author,
           authorName: authors[entry.author]?.metadata?.name || undefined,
+          mention: mentionMarkdown(entry.author),
           createTime: hmTimestampToIso(entry.createTime),
           replyParent: entry.replyParent || undefined,
           markdown: await commentToResolvedMarkdown(entry, {client, maxDepth: 1}).catch(
@@ -17059,7 +17127,7 @@ function commentEntryHeading(
   const relation = entry.replyParent ? `replying to \`${entry.replyParent}\`` : 'thread root'
   return [
     `### ${index + 1}. ${who}${when}${mark}`,
-    `Comment id: \`${entry.id}\` · ${relation}`,
+    `Comment id: \`${entry.id}\` · ${relation} · mention the author with \`${entry.mention}\``,
     '',
     entry.markdown || '_(empty)_',
   ]
@@ -17128,6 +17196,8 @@ async function commentReadResult(input: {
   }
   const authorName = thread?.comments.find((entry) => entry.id === comment.id)?.authorName
   if (authorName) (result.comment as Record<string, unknown>).authorName = authorName
+  const authorMention = mentionMarkdown(comment.author)
+  ;(result.comment as Record<string, unknown>).authorMention = authorMention
   if (format === 'json') {
     result.resource = resource
     if (thread) result.thread = thread
@@ -17141,6 +17211,9 @@ async function commentReadResult(input: {
       comment.replyParent ? ` · replying to \`${comment.replyParent}\`` : ' · thread root'
     }${comment.createTime ? ` · ${hmTimestampToIso(comment.createTime)}` : ''}`,
     `Reply with: write {address: "${target}", content: "…", options: {action: "comment", replyTo: "${comment.id}"}}`,
+    `Mention the author with: \`${authorMention}\` (a mention is this inline form only; plain @${
+      authorName || 'Name'
+    } text notifies nobody)`,
     '',
     own || '_(empty)_',
   ]

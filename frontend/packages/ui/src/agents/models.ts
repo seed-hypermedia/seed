@@ -58,6 +58,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useInfiniteQuery, useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {useContext, useEffect, useMemo, useRef, useState} from 'react'
+import {randomUUID} from './random-id'
 
 const AGENT_SERVER_URL_KEY = 'agent-server-url'
 const AGENT_SERVER_URLS_KEY = 'agent-server-urls'
@@ -1220,7 +1221,7 @@ export function useCreateSigningIdentity(serverUrl: string | undefined, accountU
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateSigningIdentity', label, clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateSigningIdentity', label, clientRequestId: randomUUID()},
       })
     },
     onSuccess(result) {
@@ -1249,7 +1250,7 @@ export function useImportSigningIdentity(serverUrl: string | undefined, accountU
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'ImportSigningIdentity', seed, ...(label ? {label} : {}), clientRequestId: crypto.randomUUID()},
+        action: {_: 'ImportSigningIdentity', seed, ...(label ? {label} : {}), clientRequestId: randomUUID()},
       })
       if (res._ !== 'ImportSigningIdentityResponse') throw new Error('Unexpected ImportSigningIdentity response')
       return res.identity
@@ -1559,7 +1560,7 @@ export function useCreateAgent(serverUrl: string | undefined, accountUid: string
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateAgent', definition, clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateAgent', definition, clientRequestId: randomUUID()},
       })
     },
     onSuccess() {
@@ -2390,7 +2391,7 @@ export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid:
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateAgentTrigger', agentId, trigger, clientRequestId: clientRequestId ?? crypto.randomUUID()},
+        action: {_: 'CreateAgentTrigger', agentId, trigger, clientRequestId: clientRequestId ?? randomUUID()},
       })
     },
     onSuccess(result, {agentId}) {
@@ -3161,7 +3162,7 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
           content,
           // Doubles as the action's idempotency key; unique per send since drafts are stamped
           // fresh by addOptimisticSessionMessage.
-          clientMessageId: messages[0]?.clientMessageId ?? crypto.randomUUID(),
+          clientMessageId: messages[0]?.clientMessageId ?? randomUUID(),
         },
       })
     },
@@ -3670,7 +3671,7 @@ export function addOptimisticSessionMessage(
   // exactly this row — text comparison can't do that, since the server re-serializes `content`.
   const messages = (Array.isArray(message) ? message : [message]).map((message) => ({
     ...message,
-    clientMessageId: message.clientMessageId ?? crypto.randomUUID(),
+    clientMessageId: message.clientMessageId ?? randomUUID(),
   }))
   getQueryClient().setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]}, (old: any) => {
     if (!old || old._ !== 'GetSessionResponse') return old
@@ -3719,7 +3720,7 @@ export function useCreateAgentSession(serverUrl: string | undefined, accountUid:
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: randomUUID()},
       })
     },
     onSuccess() {
@@ -3757,7 +3758,7 @@ export function useCreateAgentSessionOnServer(accountUid: string | null | undefi
           ...(title ? {title} : {}),
           ...(modelOverride ? {modelOverride} : {}),
           ...(thoroughness ? {thoroughness} : {}),
-          clientRequestId: crypto.randomUUID(),
+          clientRequestId: randomUUID(),
         },
       })
     },

@@ -1,4 +1,4 @@
-import {BrowserWindow} from 'electron'
+import {BrowserWindow, WebContents} from 'electron'
 
 const QUERY_INVALIDATION_CHANNEL = 'query_invalidation'
 
@@ -15,7 +15,14 @@ export function getInvalidationTargetWindowCount(): number {
   }).length
 }
 
-export function appInvalidateQueries(queryKey: any) {
+/**
+ * Broadcasts a query-key invalidation to every renderer window.
+ *
+ * `except` skips one window: a renderer that forwarded its own invalidation
+ * over IPC has already invalidated its query client, so echoing the key back
+ * would make it refetch twice.
+ */
+export function appInvalidateQueries(queryKey: any, opts?: {except?: WebContents}) {
   if (INVALIDATION_LOG_ENABLED) {
     broadcastCount++
     const now = Date.now()
@@ -39,6 +46,7 @@ export function appInvalidateQueries(queryKey: any) {
   BrowserWindow.getAllWindows().forEach((window) => {
     if (window.isDestroyed()) return
     if (window.webContents.isDestroyed()) return
+    if (opts?.except && window.webContents.id === opts.except.id) return
     window.webContents.send(QUERY_INVALIDATION_CHANNEL, queryKey)
   })
 }

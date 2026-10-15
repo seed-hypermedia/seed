@@ -400,6 +400,8 @@ export function PublishButtonWithPopover({
   unpublishedChildCount?: number
 } & EditingToolbarCallbacks) {
   const draftId = useDocumentSelector(selectDraftId)
+  const publishedDoc = useDocumentSelector(selectDocument)
+  const isUnpublishedDraft = !!draftId && !publishedDoc?.version
   const changeCount = useUnpublishedChangeCount()
   const effectiveUnpublishedChildCount = Math.max(unpublishedChildCount, getUnpublishedChildCount?.() ?? 0)
   const canPublish = canPublishDocument({
@@ -415,7 +417,7 @@ export function PublishButtonWithPopover({
   if (draftId) {
     editingTrailingItems.push({
       key: 'discard-changes',
-      label: 'Discard Changes',
+      label: isUnpublishedDraft ? 'Delete Draft' : 'Discard Changes',
       icon: <Trash className="size-4" />,
       variant: 'destructive' as const,
       onClick: () => {
@@ -428,7 +430,10 @@ export function PublishButtonWithPopover({
     })
   }
 
-  const allItems = [...existingMenuItems, ...editingTrailingItems]
+  const allItems = [
+    ...existingMenuItems.filter((item) => !isUnpublishedDraft || item.key !== 'delete'),
+    ...editingTrailingItems,
+  ]
 
   const publishNow = () => {
     if (!canPublish) return

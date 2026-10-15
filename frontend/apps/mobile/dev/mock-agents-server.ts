@@ -207,7 +207,11 @@ async function runTurn(session: MockSession, userText: string, account: string):
         id: `${runId}-call-1`,
         name: 'read',
         input: {address: 'hm://hyper.media'},
-        output: {title: 'Hypermedia Schemas', type: 'hypermedia_document', markdown: '# Hypermedia Schemas\n\nA self-describing type system.'},
+        output: {
+          title: 'Hypermedia Schemas',
+          type: 'hypermedia_document',
+          markdown: '# Hypermedia Schemas\n\nA self-describing type system.',
+        },
       })
       await streamAssistant(
         session,
@@ -460,12 +464,16 @@ const server = Bun.serve({
 
     if (request.method === 'OPTIONS') return new Response(null, {headers: CORS_HEADERS})
 
-    if (url.pathname === '/agents/ws') {
+    if (url.pathname === '/agents/ws' || url.pathname === '/hm/api/agents/ws') {
       if (server.upgrade(request)) return undefined
       return new Response('Expected a WebSocket upgrade', {status: 400})
     }
 
-    if (url.pathname === '/agents/api/health' || url.pathname === '/api/health') {
+    if (
+      url.pathname === '/agents/api/health' ||
+      url.pathname === '/api/health' ||
+      url.pathname === '/hm/api/agents/health'
+    ) {
       return Response.json(
         {
           status: 'ok',
@@ -479,7 +487,11 @@ const server = Bun.serve({
       )
     }
 
-    if (url.pathname === '/api/message' || url.pathname === '/agents/api/message') {
+    if (
+      url.pathname === '/api/message' ||
+      url.pathname === '/agents/api/message' ||
+      url.pathname === '/hm/api/agents/message'
+    ) {
       const envelope = cbor.decode<any>(new Uint8Array(await request.arrayBuffer()))
       const response = handleAction(envelope.action ?? {}, accountFromEnvelope(envelope))
       return new Response(cbor.encode(response) as BodyInit, {

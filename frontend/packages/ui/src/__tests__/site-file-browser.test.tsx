@@ -132,6 +132,26 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelector('[aria-label="Document"]')).toBeTruthy()
   })
 
+  it('colors collection, private and document icons with the shared icon token', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [
+        makeCollection(['collection'], 'Collection'),
+        makeDoc(['private'], 'Private', 'PRIVATE'),
+        makeDoc(['document'], 'Document'),
+      ],
+      drafts: [],
+      isLoading: false,
+    })
+
+    act(() => {
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+    })
+
+    for (const label of ['Collection', 'Private document', 'Document']) {
+      expect(container.querySelector(`[aria-label="${label}"]`)?.getAttribute('class')).toContain('text-icon')
+    }
+  })
+
   it('reveals the active document and marks private rows', () => {
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [makeDoc(['guides'], 'Guides'), makeDoc(['guides', 'private'], 'Private guide', 'PRIVATE')],

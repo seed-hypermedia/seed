@@ -15,6 +15,7 @@ key^text                                                                starts w
 has:key       missing:key                                               presence
 in:<space uid>    in:<hm:// url>                                        scope to a space or a document subtree
 path:/specs       path:/specs/*                                         exact path, or a path prefix
+$author:<uid>     $created>=2026-09-01     $updated<2026-10-01          built-in fields: any one author; create or update time
 type:document|block|comment|space|contact                               result type (Explore only)
 AND   OR   NOT   ( … )                                                  boolean structure; adjacency is AND
 free words   "quoted phrases"                                           full-text terms (Explore only)
@@ -56,7 +57,7 @@ Two parts of the grammar belong to Explore alone. `type:` chooses what kind of r
 
 `sort` is a list of `{key, descending?}` for a user attribute or `{attribute, descending?}` for a built-in field: `NAME`, `PATH`, `CREATE_TIME`, `UPDATE_TIME`, `ACTIVITY_TIME`, `COMMENT_COUNT`. Pages are `pageSize` wide (the agents tool allows up to 100) and continue with the returned `nextPageToken`. <!-- id:tWlNXZJ7 -->
 
-The grammar maps onto this directly. `key=value` is a `comparison`, `key:text` a `stringMatch`, `key^text` a `stringMatch` with `prefix`, `has:` an `exists`, `in:` a `spaceMatch` or `urlMatch`, `path:` a `pathMatch`. When a query runs inside one [site](../protocol/sites.md), the compiler adds that site's `urlMatch` so results stay within it. <!-- id:NkoYXfSa -->
+The grammar maps onto this directly. `key=value` is a `comparison`, `key:text` a `stringMatch`, `key^text` a `stringMatch` with `prefix`, `has:` an `exists`, `in:` a `spaceMatch` or `urlMatch`, `path:` a `pathMatch`. Built-in fields carry a `$` so they never clash with your own attributes: `$author:<account uid>` matches any one of a document's authors, and `$created` and `$updated` take `<`, `<=`, `>`, `>=` against an ISO date or date-time; a bare date covers its whole UTC day, so `$created<=2026-09-01` includes the 1st. In a shell, single-quote such a query, since `$` is expanded inside double quotes. When a query runs inside one [site](../protocol/sites.md), the compiler adds that site's `urlMatch` so results stay within it. <!-- id:NkoYXfSa -->
 
 Over HTTP, `QueryDocuments` is a `POST /api/QueryDocuments` whose body is the request as protobuf JSON. The answer is protobuf JSON too, unlike the superjson envelope the other keys use. The [Seed API](./web-api.md) page has the transport. The three query encodings matter only when you bypass the SDK. <!-- id:16VXvag6 -->
 

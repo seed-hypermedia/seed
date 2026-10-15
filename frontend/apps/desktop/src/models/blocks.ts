@@ -143,6 +143,9 @@ function isQueryEqual(q1?: HMQuery, q2?: HMQuery): boolean {
   // Compare sorting arrays
   if (!isEqual(q1.sort || [], q2.sort || [])) return false
 
+  // Compare filters arrays
+  if (!isEqual(q1.filters || [], q2.filters || [])) return false
+
   // Compare includes arrays
   if (q1.includes.length !== q2.includes.length) return false
 

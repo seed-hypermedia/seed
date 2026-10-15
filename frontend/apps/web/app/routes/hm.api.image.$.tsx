@@ -1,3 +1,4 @@
+import {fetchUpstreamFile} from '@/upstream-reads.server'
 import {LoaderFunction} from '@remix-run/node'
 import {OptimizedImageSize} from '@shm/shared'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
@@ -159,7 +160,10 @@ async function loadImage(params: Record<string, string | undefined>, request: Re
 
 async function fetchSourceImage(CID: string, authToken: string | null): Promise<SourceImage> {
   const imageUrl = `${DAEMON_HTTP_URL}/ipfs/${CID}`
-  const response = await fetch(imageUrl, {headers: authToken ? {Authorization: `Bearer ${authToken}`} : undefined})
+  const local = await fetch(imageUrl, {headers: authToken ? {Authorization: `Bearer ${authToken}`} : undefined})
+  // An image from another space's document (an external embed) is not on an isolated daemon;
+  // the upstream node (SEED_UPSTREAM_API_URL) may have it. Content-addressed, so safe to reuse.
+  const response = local.ok ? local : (await fetchUpstreamFile(`/ipfs/${CID}`)) ?? local
   if (!response.ok) throw new Error(`Failed to fetch image from ${imageUrl}`)
 
   const arrayBuffer = await response.arrayBuffer()

@@ -79,6 +79,7 @@ import {
 } from './web-draft-db'
 import {getWebDraftPlaceholderId, isWebDraftPlaceholderPath, isWebPrivateDraftPlaceholderPath} from './web-draft-path'
 import {moveWebDocuments} from '../web-move-document-dialog'
+import {inviteWebDomainPublication} from '../models/domain-publishing'
 
 /** @deprecated Use `EditorAccessor` from `@shm/shared/models/document-machine` instead. */
 export type WebEditorAccessor = EditorAccessor
@@ -339,6 +340,14 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
           : currentPath
   const publishedDocId =
     publishPath === currentPath ? deps.docId : hmId(deps.docId.uid, {...deps.docId, path: publishPath})
+  // A new space draft can live at a placeholder path. Check its actual home
+  // before bootstrapping a genesis; another tab may already have published it.
+  if (!editDocument && publishPath.length === 0 && currentPath.length > 0) {
+    const home = await deps.client.request('Resource', hmId(publishedDocId.uid))
+    if (home.type !== 'not-found') {
+      throw new Error('This space already has a home document. Open it before publishing further changes.')
+    }
+  }
   if (!editDocument && !isPrivate && publishPath.length) {
     const parent = await deps.client.request('Resource', hmId(publishedDocId.uid, {path: publishPath.slice(0, -1)}))
     if (parent.type !== 'document' || !parent.document.version || parent.document.visibility === 'PRIVATE')
@@ -545,6 +554,17 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
     // Non-critical: draft cache will clear on next mount via invalidation.
   }
 
+  if (
+    !editDocument &&
+    resource.type === 'not-found' &&
+    !isPrivate &&
+    publishPath.length === 0 &&
+    draft.deps.length === 0 &&
+    !draft.metadata?.siteUrl &&
+    !publishedDocument.metadata?.siteUrl
+  ) {
+    inviteWebDomainPublication(hmId(publishedDocId.uid), signerAccountUid)
+  }
   deps.onPublishSuccess?.(publishedDocument)
 
   return publishedDocument

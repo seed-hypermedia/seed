@@ -24,7 +24,10 @@ import {
   PARAM_CLIENT_ID,
   PARAM_DATA,
   PARAM_EMAIL,
+  PARAM_EMAIL_PREVALIDATION,
+  parseEmailPrevalidation,
   PARAM_ERROR,
+  PARAM_INVITE,
   PARAM_PROOF,
   PARAM_REDIRECT_URI,
   PARAM_SESSION_KEY,
@@ -216,8 +219,10 @@ export async function startAuth(config: HypermediaAuthConfig, options: AuthOptio
   url.searchParams.set(PARAM_SESSION_KEY, session.principal)
   url.searchParams.set(PARAM_STATE, authState)
   url.searchParams.set(PARAM_TS, String(authStartTime))
+  if (config.requestEmailPrevalidation) url.searchParams.set(PARAM_EMAIL_PREVALIDATION, '1')
   if (config.email) url.searchParams.set(PARAM_EMAIL, config.email)
   if (config.siteName) url.searchParams.set(PARAM_SITE_NAME, config.siteName)
+  if (config.invite) url.searchParams.set(PARAM_INVITE, config.invite)
 
   // The proof signs the URL as it appears without the trailing `proof` param,
   // so it must be appended last and never reordered.
@@ -239,6 +244,14 @@ export async function handleCallback(
   options: AuthOptions = {},
 ): Promise<AuthResult | null> {
   const url = new URL(window.location.href)
+  const fragment = new URLSearchParams(url.hash.slice(1))
+  const emailProof = fragment.get(PARAM_EMAIL_PREVALIDATION)
+  if (fragment.has(PARAM_EMAIL_PREVALIDATION)) {
+    fragment.delete(PARAM_EMAIL_PREVALIDATION)
+    url.hash = fragment.toString()
+    // Remove the bearer proof before any asynchronous work, including failed callbacks.
+    window.history.replaceState(window.history.state, '', url.toString())
+  }
   const dataParam = url.searchParams.get(PARAM_DATA)
   const stateParam = url.searchParams.get(PARAM_STATE)
   const error = url.searchParams.get(PARAM_ERROR)
@@ -314,6 +327,14 @@ export async function handleCallback(
     throw new Error('Callback account does not match profile signer')
   }
 
+  let emailPrevalidation: AuthResult['emailPrevalidation']
+  if (emailProof) {
+    try {
+      emailPrevalidation = parseEmailPrevalidation(cbor.decode(base64.decode(emailProof)), vaultUrl)
+    } catch {
+      // Optional metadata must not prevent a valid delegation from signing in.
+    }
+  }
   await store.put(vaultUrl, {...record, authState: null, authStartTime: null})
 
   return {
@@ -322,6 +343,7 @@ export async function handleCallback(
     ...(profile ? {profile} : {}),
     session,
     notifyServerUrl,
+    ...(emailPrevalidation ? {emailPrevalidation} : {}),
   }
 }
 

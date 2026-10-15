@@ -687,6 +687,40 @@ message DocumentFilter {
     bool prefix = 2;
   }
 
+  // Matches documents an account contributed to.
+  message AuthorMatch {
+    // Account principal to match. Matches when it is any one of the document's authors.
+    string author = 1;
+  }
+
+  // Matches documents whose built-in timestamp falls within a range.
+  message TimeRange {
+    // Built-in document timestamps that can be filtered on.
+    enum Field {
+      // No field specified.
+      FIELD_UNSPECIFIED = 0;
+
+      // When the document was first created.
+      CREATE_TIME = 1;
+
+      // When the document was last changed.
+      UPDATE_TIME = 2;
+    }
+
+    // Timestamp to filter on.
+    Field field = 1;
+
+    // Optional. Inclusive lower bound. Unbounded when unset.
+    // Rounded up to the next millisecond when finer precision is supplied.
+    // Millisecond-aligned bounds are unchanged.
+    google.protobuf.Timestamp start = 2;
+
+    // Optional. Exclusive upper bound. Unbounded when unset.
+    // Rounded up to the next millisecond when finer precision is supplied.
+    // Millisecond-aligned bounds are unchanged.
+    google.protobuf.Timestamp end = 3;
+  }
+
   // Predicate to apply.
   oneof filter {
     // Matches when every nested filter matches.
@@ -718,6 +752,12 @@ message DocumentFilter {
 
     // Matches the document path across accounts.
     PathMatch path_match = 10;
+
+    // Matches documents the account is one of the authors of.
+    AuthorMatch author_match = 11;
+
+    // Matches documents whose creation or update time falls within a range.
+    TimeRange time_range = 12;
   }
 }
 
