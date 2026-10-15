@@ -65,6 +65,57 @@ Browser results stay with the owner:
 - Favicons and archived images are read with a size cap and must be images.
 - Settings has **Clear browsing data** for the browser's own session.
 
+## Known-bad websites (Phase 2.1)
+
+The browser partition blocks main-frame navigation to listed hosts and their subdomains. Typed addresses, restored
+history, page links and redirects are checked; agent navigation to listed hosts is refused before loading the page. The
+Seed warning names the host and the list that flagged it. It offers **Go back** and **Open in default browser**, with no
+option to continue inside the pane. This policy does not install request handlers on the app's own session.
+
+A small bundled **Seed test sites** list includes `malware.testing.google.test`, `phishing.testing.google.test` and
+`phishing.seed.test`. These are test entries, not a complete offline threat database. The live source is the
+[OpenPhish community URL feed](https://openphish.com/feed.txt); URLhaus and Phishing.Database are not enabled.
+
+The browser loads its last valid cache from `browser/blocklist.json` under Electron's `userData` before creating a
+guest. It attempts a background refresh at startup and on a daily timer, with at least 24 hours between attempts,
+including failed attempts and restarts. Requests send `If-None-Match` when an ETag is available, time out after 30
+seconds, and reject feeds larger than 1 MiB of decoded response bytes. A `304` keeps the existing rules. Failed,
+oversized or empty updates preserve the last valid list and the bundled test entries.
+
+## Tracker and content blocking (Phase 2.2)
+
+Network request blocking is on by default for the `persist:seed-web-browser` partition. Seed uses `@ghostery/adblocker`
+2.18.2 directly inside its existing request handler, so filtering does not replace the private-network guard or the
+known-bad-site blocklist. The Electron wrapper supports Electron 44, but its automatic session setup would replace those
+handlers. No blocker handler is installed on the app session. Configured daemon, file-service and agent-server origins,
+including the running local agent server, are excluded as both destinations and page sources. Cosmetic filtering and
+script injection are not enabled.
+
+The shield in the pane header shows the number of requests blocked on the current page. **Allow trackers on a host**
+applies to that exact origin, including scheme and port, and reloads the page. The setting is saved in the app store
+under `browser-allow-trackers`. It applies to the page's subframes too and does not disable phishing or private-network
+protection. Counts belong to each guest, reset for a new document, and remain through same-document navigation. The main
+process sends `browser-blocked-count` window events containing the guest ID, page URL, count and allow setting.
+
+Updates use [EasyList](https://easylist.to/easylist/easylist.txt) and
+[EasyPrivacy](https://easylist.to/easylist/easyprivacy.txt). The compiled engine is cached in
+`browser/content-blocker.json` under Electron's `userData`. The first launch loads the bundled engine without fetching
+tracker lists. Background refreshes occur at most once every 24 hours, including failures and restarts. Each list has an
+8 MiB decoded-response cap and a 30-second timeout; the serialized engine has a 16 MiB cap. Both lists must validate
+before an update replaces the engine. Failed updates keep the last valid engine.
+
+**Offline coverage is currently limited.** Ghostery 2.18.2 ships neither list text nor a prebuilt engine: its
+`fromPrebuiltAdsAndTracking` method fetches lists at runtime. The current bundled snapshot contains only four Seed
+starter rules for `doubleclick.net`, `googlesyndication.com`, `google-analytics.com` and `googletagmanager.com`. Full
+EasyList/EasyPrivacy protection begins after a successful daily refresh. Bundling a full offline snapshot remains
+unfinished because the build environment cannot reach the list servers.
+
+To replace the starter snapshot, place full upstream `easylist.txt` and `easyprivacy.txt` files in
+`frontend/apps/desktop/src/browser-filter-lists/` and run `pnpm --filter @shm/desktop browser:build-filters` from the
+repo root. This offline build writes `engine.json` with source URLs and SHA-256 hashes; preserve the upstream
+attribution and license notices when distributing the list snapshot. Rebuild the snapshot whenever the engine dependency
+changes.
+
 ## Transport and verification
 
 Desktop long-polls the existing signed Agents API, so local and remote agent servers use the same path. Connections are

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('browserTest', {
   events: () => events,
   create: (options = {}) => ipcRenderer.invoke('web-browser-create', options),
   destroy: (input: unknown) => ipcRenderer.invoke('web-browser-destroy', input),
+  allowTrackers: (input: unknown) => ipcRenderer.invoke('web-browser-trackers', input),
   bounds: (input: unknown) => ipcRenderer.send('web-browser-bounds', input),
   navigate: (input: unknown) => ipcRenderer.send('web-browser-navigate', input),
   access: (input: unknown) => ipcRenderer.invoke('browser-agent-access', input),

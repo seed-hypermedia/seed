@@ -1,6 +1,8 @@
 import type {BrowserWindow, WebContents} from 'electron'
-import {WebContentsView, nativeTheme} from 'electron'
+import {WebContentsView, nativeTheme, shell} from 'electron'
+import {browserBlocklist, browserBlockedPage, type BrowserBlocklistMatch} from './browser-blocklist'
 import {z} from 'zod'
+import {browserContentBlocker} from './browser-content-blocker'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {loadBrowserFavicon, readBrowserFavicons} from './app-browser-favicon'
 import {executeBrowserCommand, type BrowserArchive} from './app-browser-agent'
@@ -78,6 +80,7 @@ export function setupWebBrowser(
   const privateGuests = new Set<number>()
   let closingPrivate: Promise<void> | undefined
   let routeRevision = 0
+  const blockedNavigations = new Map<number, (url: string, match: BrowserBlocklistMatch) => void>()
   setupBrowserSessionPolicy()
   setupBrowserSessionPolicy(privateBrowserPartition)
 
@@ -195,6 +198,24 @@ export function setupWebBrowser(
     }
     view.setVisible(parsed.data.visible && isWebBrowserEnabled())
   })
+  host.ipc.handle('web-browser-trackers', (event, input: unknown) => {
+    if (event.sender !== host || event.senderFrame !== host.mainFrame || !isWebBrowserEnabled())
+      throw new Error('Invalid browser host')
+    const {browserId, origin, allowed} = z
+      .object({browserId: z.number(), origin: z.string().url(), allowed: z.boolean()})
+      .parse(input)
+    const guest = guests.get(browserId)
+    if (!guest || guest.isDestroyed()) throw new Error('The browser page closed')
+    browserContentBlocker.setAllowed(guest, origin, allowed)
+    guest.reload()
+  })
+  host.ipc.on('web-browser-blocking-state', (event, input: unknown) => {
+    if (event.sender !== host || event.senderFrame !== host.mainFrame) return
+    const parsed = z.object({browserId: z.number()}).safeParse(input)
+    if (!parsed.success) return
+    const guest = guests.get(parsed.data.browserId)
+    if (guest && !guest.isDestroyed()) browserContentBlocker.report(guest)
+  })
   host.ipc.on('web-browser-control', (event, input: unknown) => {
     if (event.sender !== host || event.senderFrame !== host.mainFrame) return
     const parsed = controlSchema.safeParse(input)
@@ -275,11 +296,18 @@ export function setupWebBrowser(
 
   function attachGuest(guest: WebContents) {
     guests.set(guest.id, guest)
-    trackBrowserNetwork(guest)
+    let blocked: {url: string; page: string} | undefined
+    const showBlocked = (url: string, match: BrowserBlocklistMatch) => {
+      blocked = {url, page: browserBlockedPage(match)}
+      void guest.loadURL(blocked.page).catch(() => {})
+    }
+    blockedNavigations.set(guest.id, showBlocked)
+    trackBrowserNetwork(guest, showBlocked)
     const gesture = browserUserGesture(guest)
     const send = (event: Record<string, unknown>) => {
       if (!host.isDestroyed()) host.send('appWindowEvent', {...event, browserId: guest.id})
     }
+    browserContentBlocker.track(guest, send)
     const openUrl = (url: string) => send({type: 'browser-open-url', url})
     // Electron 44 has no public dialog event. Observe its native dialog notification
     // without replacing the handler or callback, preserving safeDialogs suppression.
@@ -323,7 +351,21 @@ export function setupWebBrowser(
       faviconIcons = []
       send({type: 'browser-favicons', url: guest.getURL(), icons: []})
     })
-    const guardNavigation = (event: Electron.Event, url: string) => {
+    const guardNavigation = (event: Electron.Event, url: string, _inPlace?: boolean, mainFrame = true) => {
+      if (!mainFrame) return
+      if (url === 'seed-browser://back' || url === 'seed-browser://external') {
+        event.preventDefault()
+        if (!blocked || guest.getURL() !== blocked.page || !gesture.consume()) return
+        if (url === 'seed-browser://back') send({type: 'back'})
+        else void shell.openExternal(blocked.url)
+        return
+      }
+      const match = browserBlocklist.match(url)
+      if (match) {
+        event.preventDefault()
+        showBlocked(url, match)
+        return
+      }
       if (!isWebBrowserEnabled() || !/^https?:\/\//.test(url) || hypermediaUrlToRoute(url)) {
         event.preventDefault()
         if (isWebBrowserEnabled() && hypermediaUrlToRoute(url) && gesture.consume()) openUrl(url)
@@ -348,13 +390,15 @@ export function setupWebBrowser(
       return {action: 'deny'}
     })
     const committed = () => {
-      if (!/^https?:\/\//.test(guest.getURL())) return
+      const url = blocked?.page === guest.getURL() ? blocked.url : guest.getURL()
+      if (!/^https?:\/\//.test(url)) return
+      if (url === guest.getURL()) blocked = undefined
       const requestId = requests.get(guest.id)
       requests.delete(guest.id)
       send({
         type: 'browser-location',
         userInitiated: gesture.allowed(),
-        url: guest.getURL(),
+        url,
         title: guest.getTitle(),
         historyIndex: guest.navigationHistory.getActiveIndex(),
         requestId,
@@ -372,7 +416,7 @@ export function setupWebBrowser(
     guest.on('did-start-loading', () => send({type: 'browser-loading', loading: true}))
     guest.on('did-stop-loading', () => send({type: 'browser-loading', loading: false}))
     guest.on('did-fail-load', (_event, errorCode, errorDescription, _url, isMainFrame) => {
-      if (isMainFrame && errorCode !== -3)
+      if (isMainFrame && errorCode !== -3 && !(blocked && _url === blocked.url))
         send({type: 'browser-load-error', description: errorDescription || 'The page could not be loaded.'})
     })
     guest.on('render-process-gone', () =>
@@ -403,6 +447,7 @@ export function setupWebBrowser(
       faviconRevision++
       nativeTheme.off('updated', updateFavicons)
       guests.delete(guest.id)
+      blockedNavigations.delete(guest.id)
       requests.delete(guest.id)
       if (activeGuests.get(window) === guest) activeGuests.delete(window)
     })
@@ -417,6 +462,12 @@ export function setupWebBrowser(
     if (!guest || guest.isDestroyed()) return
     activeGuests.set(window, guest)
     requests.set(browserId, requestId)
+    // Check before restoring history too: a back/forward cache hit may make no request.
+    const match = browserBlocklist.match(url)
+    if (match) {
+      blockedNavigations.get(browserId)?.(url, match)
+      return
+    }
     const entry =
       historyIndex === undefined || historyIndex >= guest.navigationHistory.length()
         ? undefined

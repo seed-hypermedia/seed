@@ -1,6 +1,12 @@
 import {app, BrowserWindow, dialog, session, webContents} from 'electron'
 import type {WebContents, WebPreferences} from 'electron'
 import {basename} from 'node:path'
+import {API_HTTP_URL, DAEMON_HTTP_URL, DAEMON_FILE_URL, DEFAULT_DESKTOP_AGENTS_URL} from '@shm/shared/constants'
+import {appStore} from './app-store.mts'
+import {DEFAULT_AGENT_SERVER_URL} from './agents-defaults'
+import {getLocalAgentsServerUrl} from './agents-server-process'
+import {browserContentBlocker} from './browser-content-blocker'
+import {browserBlocklist, browserListRefreshInterval} from './browser-blocklist'
 import {setupBrowserNetworkPolicy} from './browser-network-policy'
 
 /** Dedicated persistent session for untrusted integrated websites. */
@@ -116,6 +122,7 @@ export function isDangerousDownload(filename: string): boolean {
 
 const installed = new Set<string>()
 let checkedSiteIsolation = false
+let listsInstalled = false
 /** Installs partition-scoped permission, certificate and download rules once per process. */
 export function setupBrowserSessionPolicy(partition = browserPartition) {
   if (!checkedSiteIsolation) {
@@ -129,6 +136,39 @@ export function setupBrowserSessionPolicy(partition = browserPartition) {
   if (installed.has(partition)) return
   installed.add(partition)
   const browserSession = session.fromPartition(partition)
+  // The blocklists and the content blocker follow the persistent partition; private pages reuse the
+  // blocklist (it is partition-free) and get no tracker shield yet.
+  if (partition === browserPartition && !listsInstalled) {
+    listsInstalled = true
+    browserBlocklist.load(app.getPath('userData'))
+    browserContentBlocker.initialize(browserSession, app.getPath('userData'), appStore, () => {
+      const configured = appStore.get('Settings-v001')?.['agent-server-urls']
+      const urls = [
+        API_HTTP_URL,
+        DAEMON_HTTP_URL,
+        DAEMON_FILE_URL,
+        DEFAULT_DESKTOP_AGENTS_URL,
+        DEFAULT_AGENT_SERVER_URL,
+        getLocalAgentsServerUrl(),
+        ...(Array.isArray(configured) ? configured : []),
+      ]
+      return urls.flatMap((url) => {
+        try {
+          return [new URL(url).origin]
+        } catch {
+          return []
+        }
+      })
+    })
+    void browserBlocklist.refresh()
+    void browserContentBlocker.refresh()
+    const refresh = setInterval(() => {
+      void browserBlocklist.refresh()
+      void browserContentBlocker.refresh()
+    }, browserListRefreshInterval)
+    refresh.unref()
+    app.once('will-quit', () => clearInterval(refresh))
+  }
   setupBrowserNetworkPolicy(browserSession)
   browserSession.setPermissionRequestHandler((contents, permission, callback, details) => {
     // A WebContentsView must never fullscreen: Seed's origin and navigation controls

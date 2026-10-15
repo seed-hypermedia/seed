@@ -1,5 +1,7 @@
 import type {Session, WebContents} from 'electron'
 import {isIP} from 'node:net'
+import {browserContentBlocker} from './browser-content-blocker'
+import {browserBlocklist, type BrowserBlocklistMatch} from './browser-blocklist'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {assertPublicWebUrl, isPrivateHost} from './browser-url-policy'
 import {isPublicIPAddress, normalizeIPHostname} from './remote-file-security'
@@ -9,6 +11,7 @@ const guests = new Map<
   number,
   {
     guest: WebContents
+    onBlocked?: (url: string, match: BrowserBlocklistMatch) => void
     current?: MainResponse
     pending?: MainResponse
     requestId?: number
@@ -23,8 +26,11 @@ export function isGuestOnPrivateNetwork(guestId: number): boolean {
 }
 
 /** Keeps response provenance bound to the guest document, including history restoration. */
-export function trackBrowserNetwork(guest: WebContents) {
-  const state = {guest, history: new Map<number, MainResponse>()} as NonNullable<ReturnType<typeof guests.get>>
+export function trackBrowserNetwork(
+  guest: WebContents,
+  onBlocked?: (url: string, match: BrowserBlocklistMatch) => void,
+) {
+  const state = {guest, history: new Map<number, MainResponse>(), onBlocked} as NonNullable<ReturnType<typeof guests.get>>
   guests.set(guest.id, state)
   guest.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
     if (mainFrame && !inPlace) {
@@ -105,6 +111,14 @@ export function setupBrowserNetworkPolicy(browserSession: Session) {
     callback({responseHeaders})
   })
   browserSession.webRequest.onBeforeRequest((details, callback) => {
+    if (details.resourceType === 'mainFrame') {
+      const match = browserBlocklist.match(details.url)
+      if (match) {
+        callback({cancel: true})
+        if (details.webContentsId !== undefined) guests.get(details.webContentsId)?.onBlocked?.(details.url, match)
+        return
+      }
+    }
     // Public pages get no sub-requests into localhost or the local network, not even for images.
     // Main-frame navigations are judged in will-navigate, so typed addresses keep working.
     const source = details.frame?.url || details.referrer || ''
@@ -114,6 +128,10 @@ export function setupBrowserNetworkPolicy(browserSession: Session) {
     }
     const state = details.webContentsId === undefined ? undefined : guests.get(details.webContentsId)
     if (state && details.resourceType === 'mainFrame') state.requestId = details.id
+    if (browserContentBlocker.shouldBlock(browserSession, details)) {
+      callback({cancel: true})
+      return
+    }
     callback({})
   })
   // Electron supplies ip at runtime, but v39's response-event declarations omit it.
@@ -149,6 +167,8 @@ export async function navigatePublicBrowser(
   assertAllowed: (url: string) => void = () => {},
 ): Promise<void> {
   for (let redirects = 0; redirects <= 10; redirects++) {
+    const match = browserBlocklist.match(url)
+    if (match) throw new Error(`Website blocked by ${match.list}: ${match.host}`)
     assertAllowed(url)
     await assertPublicWebUrl(url)
     assertActive()
