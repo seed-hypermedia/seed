@@ -2,6 +2,7 @@ import {canUseDocumentDestination} from '@shm/shared/utils/document-actions'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {toast} from '@shm/ui/toast'
 import {desktopUniversalClient} from '@/desktop-universal-client'
+import {inviteToPublishDomain} from '@/models/domain-publishing-invitation'
 import {reportError} from '@/errors'
 import {grpcClient} from '@/grpc-client'
 import {useSelectedAccountId} from '@/selected-account'
@@ -15,7 +16,6 @@ import {
   HMBlock,
   HMBlockNode,
   HMDocument,
-  HMDocumentMetadataSchema,
   HMPublishBlobsInput,
   HMSigner,
   HMDraft,
@@ -71,7 +71,7 @@ import type {DocumentCardActionOrigin} from '@shm/shared/utils/document-actions'
 import {
   createRepublishRefOperation,
   getDocumentCardReconciliationInputForRepublish,
-  getDocumentCardReconciliationInputsForMove,
+  getDocumentCardReconciliationInputsForMoves,
   getDocumentMoveRefOperations,
   getMovedChildPath,
   isChildDocumentPath,
@@ -295,15 +295,15 @@ export function usePublishResource(
           // The result drives two things:
           //  1. Whether to apply the inline-first-publish slug rename below.
           //  2. Fallback base version for legacy drafts that have no deps.
-          // Skipped for legacy first-publishes (no `editId` outer arg) because
-          // there is no doc to fetch yet.
+          // Also probe legacy root drafts to distinguish a new space from an existing one.
           let existingDocVersion: string | null = null
+          let destinationIsMissing = false
           // True when the destination path currently holds a redirect Ref (a republished or moved
           // document). Editing such a path is a takeover: the editor was seeded with the redirect
           // target's content, so the publish builds on the target's DAG and mints a fresh
           // generation, which supersedes the redirect Ref at this path.
           let takesOverRedirect = false
-          if (editId) {
+          if (editId || !destinationId.path?.length) {
             try {
               const latestDoc = await grpcClient.documents.getDocument({
                 account: destinationId.uid,
@@ -313,9 +313,12 @@ export function usePublishResource(
                 existingDocVersion = latestDoc.version
               }
             } catch (err) {
+              destinationIsMissing = ConnectError.from(err).code === Code.NotFound
               try {
                 const raw = await desktopUniversalClient.request('Resource', destinationId)
                 takesOverRedirect = raw.type === 'redirect'
+                // A successful resource probe takes precedence over a stale gRPC miss.
+                destinationIsMissing = raw.type === 'not-found'
               } catch {
                 // Raw resource probe is best-effort; fall through to first-publish handling.
               }
@@ -453,6 +456,20 @@ export function usePublishResource(
                 ? editDocument?.generationInfo?.generation
                 : undefined,
           }
+          const inviteAfterPublication = () => {
+            if (
+              destinationIsMissing &&
+              !takesOverRedirect &&
+              !destinationId.path?.length &&
+              !resolvedPath.length &&
+              !baseVersion &&
+              !editDocument?.version &&
+              draft.visibility !== 'PRIVATE' &&
+              !draft.metadata?.siteUrl
+            ) {
+              inviteToPublishDomain(hmId(resolvedDestinationId.uid))
+            }
+          }
           let parentMaintenanceJobId: string | undefined
           if (!existingDocVersion && draft.visibility !== 'PRIVATE' && resolvedPath.length) {
             try {
@@ -490,6 +507,7 @@ export function usePublishResource(
             // The signed publication is authoritative even while indexing is unavailable.
             // Use the actual submitted content and signed identifiers, never a synthetic version.
             console.warn('Document published; using its signed result while indexing catches up', error)
+            inviteAfterPublication()
             return {
               ...editDocument,
               account: resolvedDestinationId.uid,
@@ -528,6 +546,7 @@ export function usePublishResource(
             console.log('[publish] listDocumentChanges failed', err)
           }
           const resultDoc: HMDocument = prepareHMDocument(updatedDoc)
+          inviteAfterPublication()
           return resultDoc
         } else {
           throw Error('PUBLISH ERROR: Please select an account to sign first')
@@ -561,7 +580,6 @@ export function usePublishResource(
           invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, parentId.id])
         })
         invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-        invalidateQueries([queryKeys.SITE_LIBRARY, resultDocId.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
         invalidateQueries([queryKeys.DOC_CITATIONS])
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY, resultDocId.id])
@@ -584,7 +602,6 @@ export function useDocumentRead(id: UnpackedHypermediaId | undefined | false) {
         isRead: true,
       })
       .then(() => {
-        invalidateQueries([queryKeys.SITE_LIBRARY, id.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
       })
       .catch((error) => {
@@ -604,7 +621,6 @@ export function useMarkAsRead() {
           isRecursive: true,
           isRead: true,
         })
-        invalidateQueries([queryKeys.SITE_LIBRARY, id.uid])
         invalidateQueries([queryKeys.LIST_ACCOUNTS])
       }),
     )
@@ -1031,33 +1047,6 @@ function observeBlocks(
     if (block.children) {
       observeBlocks(editor, block.children, onChange)
     }
-  })
-}
-
-export function useAccountDocuments(id?: UnpackedHypermediaId) {
-  return useQuery({
-    queryKey: [queryKeys.ACCOUNT_DOCUMENTS, id?.uid],
-    enabled: !!id?.uid,
-    queryFn: async () => {
-      const account = id?.uid
-      if (!account) return {documents: []}
-      const result = await grpcClient.documents.listDocuments({
-        account: id?.uid,
-        pageSize: BIG_INT,
-      })
-      const documents = result.documents.map((response) => ({
-        ...toPlainMessage(response),
-        metadata: HMDocumentMetadataSchema.parse(
-          response.metadata?.toJson({
-            emitDefaultValues: true,
-            enumAsInteger: false,
-          }),
-        ),
-      }))
-      return {
-        documents,
-      }
-    },
   })
 }
 
@@ -1608,9 +1597,8 @@ export function useMoveDocument() {
       //   count: moveRefBundles.length,
       //   moveRefBundles,
       // })
-      const reconciliationInputs = getDocumentCardReconciliationInputsForMove({
-        from,
-        to,
+      const reconciliationInputs = getDocumentCardReconciliationInputsForMoves({
+        moves: moveResources,
         signingAccountUid: signingAccountId,
         sourceCapabilityId,
         targetCapabilityId,
@@ -1625,14 +1613,15 @@ export function useMoveDocument() {
         } as any)
       const pendingJobs: string[] = []
       for (const reconciliationInput of reconciliationInputs) {
+        const movedDocument = moveResources.find((move) => move.from.id === reconciliationInput.sourceDocumentId)
         const queued = await client.documentCardCleanup.enqueue
           .mutate({
             ...reconciliationInput,
             awaitingPrimary: {
-              documentId: from.id,
+              documentId: movedDocument?.from.id || from.id,
               expectedType: 'redirect',
-              targetDocumentId: to.id,
-              expectedGenesis: moveResources[0]?.doc.genesis,
+              targetDocumentId: movedDocument?.to.id || to.id,
+              expectedGenesis: movedDocument?.doc.genesis || moveResources[0]?.doc.genesis,
             },
           } as any)
           .catch((error) => {
@@ -1695,6 +1684,12 @@ export function useMoveDocument() {
     },
     onSuccess: (moves, {from, to}) => {
       const idsToInvalidate = moves || [{from, to}]
+      invalidateQueries([queryKeys.DOC_LIST_DIRECTORY], {refetchType: 'all'})
+      new Set(idsToInvalidate.flatMap(({from: sourceId, to: targetId}) => [sourceId.uid, targetId.uid])).forEach(
+        (uid) => {
+          invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, uid], {refetchType: 'all'})
+        },
+      )
       idsToInvalidate.forEach(({from: sourceId, to: targetId}) => {
         invalidateQueries([queryKeys.ENTITY, sourceId.id])
         invalidateQueries([queryKeys.ENTITY, targetId.id])
@@ -1715,8 +1710,6 @@ export function useMoveDocument() {
       })
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-      invalidateQueries([queryKeys.SITE_LIBRARY, from.uid])
-      invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
     },
   })
 }
@@ -1799,7 +1792,6 @@ export function useRepublishDocument() {
       })
       invalidateQueries([queryKeys.SEARCH])
       invalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
-      invalidateQueries([queryKeys.SITE_LIBRARY, to.uid])
     },
   })
 }

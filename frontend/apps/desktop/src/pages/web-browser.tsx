@@ -2,15 +2,29 @@ import {useAppContext} from '@/app-context'
 import {domainResolver} from '@/grpc-client'
 import {useExperiments} from '@/models/experiments'
 import {resolveOmnibarUrlToRoute} from '@/omnibar-url'
+import {client} from '@/trpc'
 import {commitBrowserLocation, resolveBrowserRoute} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {Button} from '@shm/ui/button'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from '@shm/ui/components/alert-dialog'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@shm/ui/components/dropdown-menu'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Switch} from '@shm/ui/components/switch'
 import type {BrowserBlockedCount} from '../browser-content-blocker'
-import {ExternalLink, Globe, Lock, LockOpen, RotateCw, Shield, ShieldOff, X} from 'lucide-react'
+import {ExternalLink, EyeOff, Globe, Lock, LockOpen, MoreHorizontal, RotateCw, Shield, ShieldOff, X} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 
 let nextRequestId = 0
@@ -57,8 +71,15 @@ export function WebBrowser() {
   const enabled = experiments.data?.webBrowser === true
   const {externalOpen} = useAppContext()
   const container = useRef<HTMLDivElement>(null)
-  const [browserId, setBrowserId] = useState<number>()
+  const [privatePage, setPrivatePage] = useState(false)
+  const [guest, setGuest] = useState<{browserId: number; privatePage: boolean}>()
+  const browserId = guest?.privatePage === privatePage ? guest.browserId : undefined
+  const normalRoute = useRef(route)
   const [loading, setLoading] = useState(false)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [clearMessage, setClearMessage] = useState<string>()
+  const [dialogOrigin, setDialogOrigin] = useState<string>()
   const [blocking, setBlocking] = useState<BrowserBlockedCount>()
   const [savingTrackers, setSavingTrackers] = useState(false)
   const [trackerError, setTrackerError] = useState<string>()
@@ -73,29 +94,38 @@ export function WebBrowser() {
   const [mounted, setMounted] = useState(active)
   useEffect(() => {
     if (active) setMounted(true)
+    else setPrivatePage(false)
   }, [active])
 
   useEffect(() => {
     if (!enabled || !mounted) {
-      setBrowserId(undefined)
+      setGuest(undefined)
+      setPrivatePage(false)
       return
     }
     let cancelled = false
+    let createdId: number | undefined
+    setError(null)
+    setDialogOrigin(undefined)
     window.webBrowser
-      .create()
+      .create({private: privatePage})
       .then((result) => {
         const id = (result as {browserId?: unknown} | undefined)?.browserId
-        if (!cancelled && typeof id === 'number') setBrowserId(id)
+        if (typeof id !== 'number') return
+        createdId = id
+        if (!cancelled) setGuest({browserId: id, privatePage})
+        else if (privatePage) void window.webBrowser.destroy({browserId: id}).catch(() => {})
       })
       .catch((reason) => {
         if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason))
       })
     return () => {
       cancelled = true
+      if (privatePage && createdId !== undefined) void window.webBrowser.destroy({browserId: createdId}).catch(() => {})
       resolution.current++
       location.current = undefined
     }
-  }, [enabled, mounted])
+  }, [enabled, mounted, privatePage])
 
   const obscured = useOverlayPresence(active && browserId !== undefined)
   // The main process draws the page where this element is, and only while it should be seen.
@@ -175,7 +205,13 @@ export function WebBrowser() {
   useListenAppEvent('browser-loading', (event) => {
     if (event.browserId !== browserId) return
     setLoading(event.loading)
-    if (event.loading) setError(null)
+    if (event.loading) {
+      setError(null)
+      setDialogOrigin(undefined)
+    }
+  })
+  useListenAppEvent('browser-dialog', (event) => {
+    if (event.browserId === browserId) setDialogOrigin(event.origin)
   })
   useListenAppEvent('browser-load-error', (event) => {
     if (event.browserId !== browserId) return
@@ -235,8 +271,26 @@ export function WebBrowser() {
             ) : null
           })()}
           <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs" role="status">
-            {loading ? 'Loading…' : route.title || route.url}
+            {dialogOrigin ? `${dialogOrigin} is showing dialogs` : loading ? 'Loading…' : route.title || route.url}
           </span>
+          {privatePage && <span className="bg-muted rounded px-2 py-1 text-xs">Private</span>}
+          <Button
+            size="icon"
+            variant="ghost"
+            aria-label={privatePage ? 'Close private page' : 'New private page'}
+            disabled={!enabled || (!privatePage && !browserId)}
+            onClick={() => {
+              if (privatePage) {
+                setPrivatePage(false)
+                dispatch({type: 'replace', route: normalRoute.current})
+              } else {
+                normalRoute.current = route
+                setPrivatePage(true)
+              }
+            }}
+          >
+            {privatePage ? <X className="size-4" /> : <EyeOff className="size-4" />}
+          </Button>
           <Popover onOpenChange={() => setTrackerError(undefined)}>
             <PopoverTrigger asChild>
               <Button
@@ -305,6 +359,23 @@ export function WebBrowser() {
           >
             <ExternalLink className="size-4" />
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" variant="ghost" aria-label="Page menu">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() => {
+                  setClearMessage(undefined)
+                  setConfirmClear(true)
+                }}
+              >
+                Clear browsing data
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
       {active && !enabled && !experiments.isLoading && (
@@ -328,6 +399,38 @@ export function WebBrowser() {
         </div>
       )}
       <div ref={container} className="min-h-0 flex-1" />
+      <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Clear browsing data?</AlertDialogTitle>
+          <AlertDialogDescription>
+            This clears cookies, saved website data and the cache for normal pages. You will be signed out of websites.
+          </AlertDialogDescription>
+          {clearMessage && (
+            <p role="alert" className="text-sm">
+              {clearMessage}
+            </p>
+          )}
+          <div className="flex justify-end gap-2">
+            <AlertDialogCancel disabled={clearing}>Cancel</AlertDialogCancel>
+            <Button
+              disabled={clearing}
+              onClick={async () => {
+                setClearing(true)
+                try {
+                  await client.experiments.clearBrowserData.mutate()
+                  setConfirmClear(false)
+                } catch {
+                  setClearMessage('Unable to clear browser data')
+                } finally {
+                  setClearing(false)
+                }
+              }}
+            >
+              {clearing ? 'Clearing…' : 'Clear browsing data'}
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 name: Log
 summary: The log is the append-only record of everything that happened in a thread, shared by the person and the agent, with every event stamped with its actor.
 ---
-**Log**: everything that happened in a thread, as an append-only list of events: messages, tool calls, results, and plan updates. Each event names its [actor](./actor.md). The person and the agent write to the same log, and the person adds to it with the [wrench palette](./wrench-palette.md). The log is `session_events` in [persistence](./persistence.md). <!-- id:xVgDNEcp -->
+**Log**: everything that happened in a thread, as an append-only list of events: messages, tool calls, spawned children (`tool_spawn`), results, and errors. The plan is not an event: it lives on the session and shows as a card. Each event names its [actor](./actor.md). The person and the agent write to the same log, and the person adds to it with the [wrench palette](./wrench-palette.md). The log is `session_events` in [persistence](./persistence.md). <!-- id:xVgDNEcp -->
 
 # See also <!-- id:MUjMZKiw -->
 

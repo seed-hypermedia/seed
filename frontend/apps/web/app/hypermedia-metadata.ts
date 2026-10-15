@@ -91,9 +91,10 @@ export function metadataToPageMeta(
 
   meta.push({name: 'hypermedia_id', content: metadata.id})
 
+  // Change the cache key when the image layout changes: image responses are immutable.
   const imageUrl = `${display.origin}/hm/api/content-image?space=${display.id.uid}&path=${hmIdPathToEntityQueryPath(
     display.id.path,
-  )}&version=${metadata.version}`
+  )}&version=${metadata.version}&layout=2`
   const currentUrl = `${display.origin}${display.id.path?.length ? '/' + display.id.path.join('/') : ''}`
   const domain = hostnameStripProtocol(display.origin)
   const description = ''

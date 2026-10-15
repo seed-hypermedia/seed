@@ -13,9 +13,13 @@ import {
   browserUserGesture,
   hardenBrowserPreferences,
   hardenGuestWebContents,
+  privateBrowserPartition,
   setupBrowserSessionPolicy,
 } from './browser-session-policy'
 const activeGuests = new WeakMap<BrowserWindow, WebContents>()
+// Electron sessions are process-wide. A new private guest must wait for the previous
+// guest's asynchronous erasure, even when it is opened in another window.
+let privateCleanup = Promise.resolve()
 
 /** The visible page to target with native find commands, whether a website or Seed content. */
 export function getPageWebContents(window: BrowserWindow): WebContents {
@@ -47,7 +51,12 @@ const accessSchema = z.object({
   enabled: z.boolean(),
   /** Websites the user approved for this session, as exact `https://host[:port]` origins. */
   origins: z
-    .array(z.string().refine((origin) => webOrigin(origin) === origin, 'Invalid website origin'))
+    .array(
+      z.object({
+        origin: z.string().refine((origin) => webOrigin(origin) === origin, 'Invalid website origin'),
+        level: z.enum(['read', 'act']),
+      }),
+    )
     .max(100)
     .default([]),
 })
@@ -69,55 +78,109 @@ export function setupWebBrowser(
   archive?: (archive: BrowserArchive, accountUid: string) => Promise<{id: string}>,
 ) {
   const host = window.webContents
-  let access: {connectionId: string; browserId: number; accountUid: string; origins: string[]} | undefined
+  let access:
+    | {connectionId: string; browserId: number; accountUid: string; origins: {origin: string; level: 'read' | 'act'}[]}
+    | undefined
   const guests = new Map<number, WebContents>()
   const views = new Map<number, WebContentsView>()
   const requests = new Map<number, number>()
+  const privateGuests = new Set<number>()
+  let closingPrivate: Promise<void> | undefined
+  let routeRevision = 0
   const blockedNavigations = new Map<number, (url: string, match: BrowserBlocklistMatch) => void>()
   setupBrowserSessionPolicy()
+  setupBrowserSessionPolicy(privateBrowserPartition)
 
   /**
    * Creates the website guest as a main-process-owned view. The app renderer never holds web view
    * privileges: it only asks for a guest, reports where to draw it, and receives events.
    */
-  const createGuest = (): WebContentsView => {
+  const createGuest = (privatePage = false): WebContentsView => {
+    if (views.size >= 2) throw new Error('This window can have at most two browser pages: one normal and one private.')
     const webPreferences: Electron.WebPreferences = {}
-    hardenBrowserPreferences(webPreferences)
+    hardenBrowserPreferences(webPreferences, privatePage)
     const view = new WebContentsView({webPreferences})
     view.setVisible(false)
     view.setBounds({x: 0, y: 0, width: 0, height: 0})
     window.contentView.addChildView(view)
     const guest = view.webContents
+    const guestSession = guest.session
+    if (privatePage) privateGuests.add(guest.id)
     hardenGuestWebContents(guest)
     views.set(guest.id, view)
     attachGuest(guest)
     guest.once('destroyed', () => {
       views.delete(guest.id)
+      if (privateGuests.delete(guest.id)) {
+        privateCleanup = privateCleanup.then(async () => {
+          await guestSession.clearStorageData()
+          await guestSession.clearCache()
+          await guestSession.clearAuthCache()
+          await guestSession.closeAllConnections()
+        })
+        void privateCleanup.catch((error) => console.error('Could not clear private browsing data', error))
+      }
       if (!window.isDestroyed()) window.contentView.removeChildView(view)
     })
     return view
   }
-  const liveView = () => Array.from(views.values()).find((view) => !view.webContents.isDestroyed())
+  const liveView = (privatePage = false) =>
+    Array.from(views.values()).find(
+      (view) => !view.webContents.isDestroyed() && privateGuests.has(view.webContents.id) === privatePage,
+    )
+  const closePrivate = (guest: WebContents): Promise<void> => {
+    if (closingPrivate) return closingPrivate
+    if (!privateGuests.has(guest.id) || guest.isDestroyed()) return Promise.resolve()
+    const destroyed = new Promise<void>((resolve) => guest.once('destroyed', resolve))
+    closingPrivate = destroyed
+      .then(() => privateCleanup)
+      .finally(() => {
+        closingPrivate = undefined
+      })
+    guest.close({waitForBeforeUnload: false})
+    return closingPrivate
+  }
   window.once('closed', () => {
-    for (const view of Array.from(views.values())) if (!view.webContents.isDestroyed()) view.webContents.close()
+    for (const view of Array.from(views.values()))
+      if (!view.webContents.isDestroyed()) view.webContents.close({waitForBeforeUnload: false})
   })
 
   host.ipc.on('windowNavState', (event, state) => {
     if (event.sender !== host) return
     const route = state?.routes?.[state.routeIndex]
     if (route?.key !== 'web') {
+      routeRevision++
       access = undefined
       activeGuests.delete(window)
       guests.forEach((guest) => guest.stop())
       views.forEach((view) => view.setVisible(false))
+      guests.forEach((guest) => {
+        if (privateGuests.has(guest.id)) void closePrivate(guest).catch(() => {})
+      })
     }
   })
 
-  host.ipc.handle('web-browser-create', (event) => {
+  host.ipc.handle('web-browser-create', (event, input: unknown) => {
     if (event.sender !== host || event.senderFrame !== host.mainFrame) throw new Error('Invalid browser host')
     if (!isWebBrowserEnabled()) throw new Error('The web browser is disabled')
+    const options = z.object({private: z.boolean().optional()}).parse(input ?? {})
+    const revision = routeRevision
+    if (options.private)
+      return (closingPrivate ?? privateCleanup).then(() => {
+        if (host.isDestroyed() || window.isDestroyed()) throw new Error('The browser window is closed')
+        if (revision !== routeRevision) throw new Error('The private page was closed')
+        if (!isWebBrowserEnabled()) throw new Error('The web browser is disabled')
+        const view = liveView(true) ?? createGuest(true)
+        return {browserId: view.webContents.id}
+      })
     const view = liveView() ?? createGuest()
     return {browserId: view.webContents.id}
+  })
+  host.ipc.handle('web-browser-destroy', (event, input: unknown) => {
+    if (event.sender !== host || event.senderFrame !== host.mainFrame) throw new Error('Invalid browser host')
+    const {browserId} = z.object({browserId: z.number()}).parse(input)
+    const guest = guests.get(browserId)
+    return guest ? closePrivate(guest) : closingPrivate ?? privateCleanup
   })
   host.ipc.on('web-browser-bounds', (event, input: unknown) => {
     if (event.sender !== host || event.senderFrame !== host.mainFrame) return
@@ -191,6 +254,7 @@ export function setupWebBrowser(
     if (event.sender !== host || event.senderFrame !== host.mainFrame) throw new Error('Invalid browser host')
     const grant = access
     const guest = grant && guests.get(grant.browserId)
+    const startingOrigin = guest && webOrigin(guest.getURL())
     const assertActive = () => {
       if (
         !grant ||
@@ -203,18 +267,26 @@ export function setupWebBrowser(
       )
         throw new Error('Browser access is paused or the connected page is no longer active')
       const origin = webOrigin(guest.getURL())
-      if (!origin || !grant.origins.includes(origin))
+      if (!origin || !grant.origins.some((entry) => entry.origin === origin))
         throw new Error(
           `The user has not allowed browser access on ${
             origin ?? 'this page'
           }. They can allow it in the assistant panel.`,
         )
+      // Opening an approved destination may leave it read-only. Navigation still requires
+      // action access on the source, including while the navigation is in flight.
+      const actionOrigin = input.command?.action === 'navigate' ? startingOrigin : origin
+      if (
+        !['snapshot', 'screenshot', 'scroll'].includes(input.command?.action) &&
+        grant.origins.find((entry) => entry.origin === actionOrigin)?.level !== 'act'
+      )
+        throw new Error('The user allowed reading this website but not acting on it; ask them to allow actions')
       if (isGuestOnPrivateNetwork(guest.id)) throw new Error('Browser page is on a private network')
     }
     const assertAllowed = (url: string) => {
       const origin = webOrigin(url)
       if (!origin) throw new Error('Agents can only open HTTP(S) websites. Ask the user to open Seed links.')
-      if (!grant!.origins.includes(origin))
+      if (!grant!.origins.some((entry) => entry.origin === origin))
         throw new Error(`Opening ${origin} needs the user's approval in the assistant panel.`)
     }
     assertActive()
@@ -223,7 +295,7 @@ export function setupWebBrowser(
         assertActive,
         assertOrigin: (url) => {
           const origin = webOrigin(url)
-          if (!origin || !grant!.origins.includes(origin))
+          if (!origin || !grant!.origins.some((entry) => entry.origin === origin))
             throw new Error('The page moved to a website the user has not allowed. Take a fresh snapshot.')
         },
         // Every hop, including redirects, must stay on websites the user allowed and off private networks.
@@ -253,6 +325,21 @@ export function setupWebBrowser(
     }
     browserContentBlocker.track(guest, send)
     const openUrl = (url: string) => send({type: 'browser-open-url', url})
+    // Electron 44 has no public dialog event. Observe its native dialog notification
+    // without replacing the handler or callback, preserving safeDialogs suppression.
+    // Keep this in sync with Electron's lib/browser/api/web-contents.ts on upgrades.
+    ;(guest as NodeJS.EventEmitter).on('-run-dialog', (info: {frame: {origin: string}; dialogType: string}) => {
+      if (info.dialogType === 'prompt') return // Electron does not display prompt().
+      const origin = webOrigin(info.frame.origin)
+      if (origin) send({type: 'browser-dialog', origin})
+    })
+    guest.on('enter-html-full-screen', () => {
+      // Permission denial is the primary gate. Hide unexpected fullscreen content
+      // immediately; neither its view bounds nor Seed's window may expand for it.
+      views.get(guest.id)?.setVisible(false)
+      void guest.executeJavaScript('document.exitFullscreen()').catch(() => {})
+      send({type: 'browser-load-error', description: 'Fullscreen is not available in this browser pane.'})
+    })
     let faviconRevision = 0
     let faviconIcons: string[] = []
     const updateFavicons = async () => {

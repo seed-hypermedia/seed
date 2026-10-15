@@ -1,6 +1,6 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {filterQueryBlockDocuments} from '../query-block-filter'
+import {filterQueryBlockDocuments, getQueryBlockFilterOptions, matchesQueryFilterEquality} from '../query-block-filter'
 
 function item(name: string, metadata: Record<string, unknown> = {}): HMDocumentInfo {
   return {
@@ -42,5 +42,78 @@ describe('filterQueryBlockDocuments', () => {
         ],
       }).map((entry) => entry.metadata.name),
     ).toEqual(['Two'])
+  })
+})
+
+describe('collection equality', () => {
+  it.each([
+    ['Ready', 'ready', true],
+    [['Draft', 'Ready'], 'READY', true],
+    [['Draft', 'Ready'], 'Draft, Ready', false],
+    [false, 'false', true],
+    [0, '0', true],
+    [undefined, 'Ready', false],
+    [null, 'Ready', false],
+    [[], 'Ready', false],
+    [{status: 'Ready'}, 'Ready', false],
+  ])('compares %j with %s', (value, expected, matches) => {
+    expect(matchesQueryFilterEquality(value, expected)).toBe(matches)
+  })
+
+  it('inverts array equality and includes missing values with AND conditions', () => {
+    const items = [
+      item('Ready', {status: ['Draft', 'READY']}),
+      item('Draft', {status: 'Draft'}),
+      item('Missing'),
+      item('Null', {status: null}),
+      item('Empty', {status: []}),
+    ]
+    expect(
+      filterQueryBlockDocuments(items, {
+        filters: [
+          {columnId: 'metadata:status', operator: 'notEquals', value: 'ready'},
+          {columnId: 'title', operator: 'notEquals', value: 'draft'},
+        ],
+      }).map((entry) => entry.metadata.name),
+    ).toEqual(['Missing', 'Null', 'Empty'])
+  })
+})
+
+describe('getQueryBlockFilterOptions', () => {
+  it('extracts scalar options, preserves spelling, and omits reserved metadata', () => {
+    const options = getQueryBlockFilterOptions([
+      item('One', {
+        status: ['Ready', 'Draft', null, '', '  ', {}, 0, false],
+        priority: 0,
+        enabled: false,
+        due: '2026-01-01',
+      }),
+      item('Two', {status: ['ready', 'Done'], priority: 2, enabled: true, due: '2026-02-01'}),
+    ])
+    expect(options['metadata:status']).toEqual({type: 'list', values: ['Ready', 'Draft', '0', 'false', 'Done']})
+    expect(options['metadata:priority']).toEqual({type: 'number', values: ['0', '2']})
+    expect(options['metadata:enabled']).toEqual({type: 'boolean', values: ['false', 'true']})
+    expect(options['metadata:due']).toEqual({type: 'date', values: ['2026-01-01', '2026-02-01']})
+    expect(options['metadata:name']).toBeUndefined()
+    expect(options.title?.values).toEqual(['One', 'Two'])
+  })
+
+  it('offers each comma-separated tag as an equality choice', () => {
+    const docs = [item('One', {tags: 'Research, Design'})]
+    expect(getQueryBlockFilterOptions(docs).tags).toEqual({type: 'list', values: ['Research', 'Design']})
+    expect(
+      filterQueryBlockDocuments(docs, {filters: [{columnId: 'tags', operator: 'equals', value: 'design'}]}),
+    ).toEqual(docs)
+  })
+
+  it('uses selectable ISO values for timestamp columns', () => {
+    const doc = {...item('One'), createTime: {seconds: 1, nanos: 0}}
+    const options = getQueryBlockFilterOptions([doc])
+    expect(options.created).toEqual({type: 'date', values: ['1970-01-01T00:00:01.000Z']})
+    expect(
+      filterQueryBlockDocuments([doc], {
+        filters: [{columnId: 'created', operator: 'equals', value: options.created!.values[0]!}],
+      }),
+    ).toEqual([doc])
   })
 })

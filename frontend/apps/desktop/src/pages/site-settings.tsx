@@ -1,6 +1,7 @@
 import {SpaceAgentsSettings} from '@/components/site-settings-agents'
 import {MembersSettings} from '@/components/site-settings-members'
 import {NavigationSettings} from '@/components/site-settings-navigation'
+import {WebDomainSettings} from '@/components/site-settings-web-domain'
 import {useUpdateHomeDocument} from '@/models/site'
 import {fileUpload} from '@/utils/file-upload'
 import {useNavigate} from '@/utils/useNavigate'
@@ -20,11 +21,11 @@ import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {Bot, Image as ImageIcon, Navigation as NavigationIcon, Users} from 'lucide-react'
+import {Bot, Globe, Image as ImageIcon, Navigation as NavigationIcon, Users} from 'lucide-react'
 import {type ReactNode, useEffect, useState} from 'react'
 
 // Tabs of the site settings page
-type SiteSettingsSection = 'identity' | 'navigation' | 'members' | 'agents'
+type SiteSettingsSection = 'identity' | 'navigation' | 'web-domain' | 'members' | 'agents'
 
 type SiteSettingsTabConfig = {
   key: SiteSettingsSection
@@ -35,6 +36,7 @@ type SiteSettingsTabConfig = {
 const SITE_SETTINGS_TAB_CONFIG: SiteSettingsTabConfig[] = [
   {key: 'identity', icon: ImageIcon, label: 'Identity'},
   {key: 'navigation', icon: NavigationIcon, label: 'Navigation'},
+  {key: 'web-domain', icon: Globe, label: 'Web Domain'},
   {key: 'members', icon: Users, label: 'Members'},
   {key: 'agents', icon: Bot, label: 'Agents'},
 ]
@@ -42,6 +44,7 @@ const SITE_SETTINGS_TAB_CONFIG: SiteSettingsTabConfig[] = [
 /** Map a URL subpath to its tab. */
 function sectionForTab(tab: SiteSettingsTab | undefined): SiteSettingsSection {
   if (tab === 'navigation') return 'navigation'
+  if (tab === 'web-domain') return 'web-domain'
   if (tab === 'members' || tab === 'writers' || tab === 'email-subscribers') return 'members'
   if (tab === 'agents') return 'agents'
   return 'identity'
@@ -78,6 +81,7 @@ export default function SiteSettings() {
               <div className="flex flex-col gap-6 p-6">
                 {activeSection === 'identity' && <IdentityTab siteId={route.id} />}
                 {activeSection === 'navigation' && <NavigationSettings siteId={route.id} />}
+                {activeSection === 'web-domain' && <WebDomainSettings siteId={route.id} />}
                 {activeSection === 'members' && <MembersSettings siteId={route.id} activeTab={route.tab} />}
                 {activeSection === 'agents' && <SpaceAgentsSettings siteId={route.id} />}
               </div>

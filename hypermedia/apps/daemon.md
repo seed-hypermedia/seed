@@ -19,7 +19,7 @@ Other binaries beside the daemon: `monitord` (health checks of sites), `relayd` 
 | HTTP | `-http.port` | 55001 | gRPC-web for every service, `/ipfs/*`, `/hm/api/config`, `/debug/*` <!-- id:G7uKQa9- --> |
 | gRPC | `-grpc.port` | 55002 | the same services over plain gRPC <!-- id:H9V6rMI- --> |
 
-HTTP binds `127.0.0.1` by default, and a daemon on loopback only answers a browser page that presents the desktop app secret or a bearer token. Server and container deployments must pass `-http.listen-all` (or `SEED_HTTP_LISTEN_ALL=true`): it binds all interfaces and keeps the open web policy, since the hosted web app uploads to the gateway straight from the browser. `-public-only` keeps the open policy too. Plain gRPC still binds all interfaces and needs a firewall. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
+HTTP binds `127.0.0.1` by default. Browser authentication is opt-in: when the parent process supplies `SEED_APP_SECRET` (the desktop app always does) or `-http.browser-auth` is set, a daemon on loopback only answers a browser page that presents that secret or a bearer token; a daemon you run by hand keeps the open policy. Server and container deployments must pass `-http.listen-all` (or `SEED_HTTP_LISTEN_ALL=true`): it binds all interfaces and keeps the open web policy, since the hosted web app uploads to the gateway straight from the browser. `-public-only` keeps the open policy too. Plain gRPC still binds all interfaces and needs a firewall. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
 
 # Flags that matter to operators <!-- id:qKo2ROZg -->
 
@@ -28,6 +28,7 @@ HTTP binds `127.0.0.1` by default, and a daemon on loopback only answers a brows
 | --- | --- | --- |
 | `-data-dir` | `~/.mtt` | Where everything is stored. The desktop app passes its own data directory. <!-- id:ypeA1_vg --> |
 | `-http.listen-all` | false | Server mode: bind HTTP to all interfaces and answer any web origin. Required for hosted containers, including external SeedInfra deployments. |
+| `-http.browser-auth` | false | Gate browser-page requests even without a parent-supplied `SEED_APP_SECRET` (a generated secret only bearer tokens can satisfy). The desktop app opts in by supplying the secret. |
 | `-http.app-origins` | empty | Additional comma-separated trusted app origins. The desktop supplies its Vite dev origin or custom local-server port range; production server deployments normally leave this empty. |
 | `-public-only` | false | Serve only public data in the APIs and over HTTP. Hosted sites and [gateways](../protocol/sites.md) use this mode. <!-- id:3vWzc_PR --> |
 | `-keystore-dir` | empty | Use a file-based keystore in place of the OS keychain or vault. It is marked insecure. Sites use it inside their container. <!-- id:7a5pl9E4 --> |
@@ -48,6 +49,10 @@ The data directory holds three things. <!-- id:sBs3fgUk -->
   - `db/db.sqlite` is the SQLite database. It holds every [blob](../protocol/blobs.md), the index derived from them, full-text search, and the domain store. <!-- id:EFYA2PwL -->
 
 The schema in `backend/storage/schema.sql` is the source of truth, and migrations only go forward. Reindexing rebuilds everything derived from the blobs and can take a long time on a large node. A debug flag forces a reindex with profiling. <!-- id:VHdZ4OXj -->
+
+# Load and the read pool
+
+Every read RPC takes a connection from the SQLite read pool before it runs. The pool has `max(NumCPU, 12)` connections, set in [storage.go](https://github.com/seed-hypermedia/seed/blob/main/backend/storage/storage.go). A query that holds a connection for seconds removes that share of the node's read capacity for every other caller, so a call that costs microseconds of CPU can wait many seconds for a connection. When a node is pinned, measure cost per call rather than request volume. A CPU profile from `/debug/pprof/profile?seconds=20` names the RPC that holds the connections, `/debug/sqlite` shows the pool, and counting calls by method over the same window gives the cost of one call. Clients must not enumerate every page of an expensive listing such as `ListCitations` for a heavily cited document. The [web app](./web.md) caps those at one page. A restart only drains the backlog for a few minutes. Treat a fix as verified only after a long window of real traffic, never from the quiet minutes after a restart. The saturation of hyper.media on 2026-08-11 is written up in [daemon-saturation-incident.md](https://github.com/seed-hypermedia/seed/blob/4af3478e9599cdd7f8f32536b2f701d2effbdf5b/docs/daemon-saturation-incident.md) in the repository history.
 
 # The HTTP surface <!-- id:6a_7IwIy -->
 

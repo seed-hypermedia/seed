@@ -574,6 +574,12 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 		return err
 	}
 
+	// Comments pinned to this change that arrived before it were indexed but
+	// couldn't be attributed to a document. Now they can.
+	if err := resettleComments(ictx, qPendingCommentsTargetingChange(), id); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -88,7 +88,7 @@ Related: `tests/key-derivation.test.ts` (JS/Go key-derivation parity) and `tests
 
 ## Agents
 
-The agents screens (`src/agents/`) are the mobile port of the Seed Agents runtime — see `agents/docs/` for the system
+The agents screens (`src/agents/`) are the mobile port of the Seed Agents runtime — see `hypermedia/agent/` for the system
 itself. The platform-neutral half of the shared implementation is reused as-is from `@shm/ui/agents`: the signed client,
 the React Query models, the chat row model and the tool summaries. Only the views are rewritten for React Native.
 

@@ -13,6 +13,8 @@ import {keyOptions, resolveSigningKey} from '../utils/keys'
 import {resolveIdWithClient} from '../utils/resolve-id'
 import {createSignerFromKey} from '../utils/signer'
 import {textToBlocks as parseCommentMarkdown} from './comment-blocks'
+import {assertValidMermaid} from '@seed-hypermedia/client'
+import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 
 export function registerCommentCommands(program: Command) {
   const comment = program.command('comment').description('Manage comments (get, list, create, edit, discussions)')
@@ -95,6 +97,7 @@ export function registerCommentCommands(program: Command) {
         const doc = resource.document
 
         let body = textToBlocks(text)
+        await assertValidMermaid(body, await loadMermaidParser())
 
         // When targeting a specific block, wrap the comment body in an
         // Embed block whose link contains the block reference fragment.
@@ -190,7 +193,9 @@ export function registerCommentCommands(program: Command) {
         }
 
         const signer = createSignerFromKey(key)
-        const updatedContent = preserveBlockCommentWrapper(existing, textToBlocks(text))
+        const editedBlocks = textToBlocks(text)
+        await assertValidMermaid(editedBlocks, await loadMermaidParser())
+        const updatedContent = preserveBlockCommentWrapper(existing, editedBlocks)
 
         await client.publish(
           await updateComment(

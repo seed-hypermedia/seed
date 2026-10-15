@@ -37,6 +37,6 @@
       assume a warning is an artifact without checking — tracked source files must be formatted.
 - For full CI parity before pushing, validate locally via agent-ci:
   `npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token`.
-  See `docs/local-ci-with-agent-ci.md` for setup, the fix-and-retry loop, and what to skip.
+  See `hypermedia/build/local-ci.md` for setup, the fix-and-retry loop, and what to skip.
 - When developing new UI, avoid putting in extra text that clutters the UI. including unnecessary metadata, and 
   never show opaque IDs in the UI

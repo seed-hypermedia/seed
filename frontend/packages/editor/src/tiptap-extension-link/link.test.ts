@@ -1,4 +1,5 @@
-import {describe, expect, it} from 'vitest'
+import {BlockNoteEditor} from '../blocknote/core/BlockNoteEditor'
+import {describe, expect, it, vi} from 'vitest'
 import {buildRenderedLinkAttributes, getLinkAttrsFromElement} from './link'
 
 describe('link DOM round-tripping', () => {
@@ -45,4 +46,49 @@ describe('link DOM round-tripping', () => {
 
     expect(getLinkAttrsFromElement(element)).toBe(false)
   })
+})
+
+it.each(['paste', 'drop'])('filters hostile website HTML through the shared editor schema on %s', (operation) => {
+  const editor = new BlockNoteEditor({initialContent: [{id: 'target', type: 'paragraph'}]})
+  const view = editor._tiptapEditor.view
+  document.body.appendChild(view.dom)
+  const html = `<p onclick="alert(1)">Article
+    <script>scriptPayload()</script>
+    <a href="javascript:alert(1)">bad1</a>
+    <a href="java&#x09;script:alert(1)">bad2</a>
+    <a href="https://example.com" data-hm-link="javascript:alert(1)">bad3</a>
+    <a href="data:text/html,scriptPayload()">bad4</a>
+    <a href="https://example.com" data-inline-embed="javascript:alert(1)">bad5</a>
+    <span data-inline-embed="java&#x09;script:alert(1)">bad6</span>
+    <a href="https://example.com/safe">safe</a>
+    <a href="hm://alice/docs" data-hm-link="hm://alice/docs">Seed</a>
+  </p>`
+  const getData = (type: string) => (type === 'text/html' ? html : '')
+  try {
+    if (operation === 'paste') {
+      const event = new Event('paste', {bubbles: true, cancelable: true})
+      Object.defineProperty(event, 'clipboardData', {value: {getData, items: [], files: []}})
+      view.dom.dispatchEvent(event)
+    } else {
+      vi.spyOn(view, 'posAtCoords').mockReturnValue({pos: view.state.selection.from, inside: -1})
+      const event = new MouseEvent('drop', {bubbles: true, cancelable: true})
+      Object.defineProperty(event, 'dataTransfer', {value: {getData, types: ['text/html'], items: [], files: []}})
+      view.dom.dispatchEvent(event)
+    }
+    expect(view.state.doc.textContent).toContain('Article')
+    expect(view.state.doc.textContent).toContain('bad3')
+    expect(view.state.doc.textContent).toContain('bad5')
+    expect(view.state.doc.textContent).toContain('bad6')
+    expect(view.state.doc.textContent).not.toContain('scriptPayload')
+    const links: string[] = []
+    view.state.doc.descendants((node) => {
+      for (const mark of node.marks) if (mark.type.name === 'link') links.push(mark.attrs.href)
+    })
+    expect(links).toEqual(['https://example.com/safe', 'hm://alice/docs'])
+    expect(view.dom.querySelector('[onclick], script')).toBeNull()
+  } finally {
+    editor._tiptapEditor.destroy()
+    view.dom.remove()
+    vi.restoreAllMocks()
+  }
 })

@@ -5,7 +5,7 @@ import {StoreContext, createStore} from '@/frontend/store'
 import {createMockBlockstore, createMockClient} from '@/frontend/test-utils'
 import {CreateProfileView} from './CreateProfileView'
 
-function renderCreateProfileView({withDelegationRequest = false} = {}) {
+function renderCreateProfileView({withDelegationRequest = false, emailPrevalidation = false} = {}) {
   const store = createStore(createMockClient(), createMockBlockstore(), '', 'https://notify.default.example.com')
   const createAccount = mock(async () => true)
   const completeDelegation = mock(async () => true)
@@ -23,6 +23,7 @@ function renderCreateProfileView({withDelegationRequest = false} = {}) {
   if (withDelegationRequest) {
     store.state.delegationRequest = {
       originalUrl: 'https://vault.example.com/delegate',
+      emailPrevalidation,
       clientId: 'https://site.example.com',
       redirectUri: 'https://site.example.com/callback',
       sessionKeyPrincipal: 'z6MkTest',
@@ -60,7 +61,7 @@ describe('CreateProfileView', () => {
     expect(checkbox.checked).toBe(true)
 
     fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'Alice'}})
-    fireEvent.click(screen.getByRole('button', {name: 'Start participating'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Create profile'}))
 
     await waitFor(() => {
       expect(createAccount).toHaveBeenCalledWith('Alice', undefined, undefined, {
@@ -71,11 +72,16 @@ describe('CreateProfileView', () => {
     })
   })
 
+  test('discloses verified email sharing before creating and delegating the first account', () => {
+    renderCreateProfileView({withDelegationRequest: true, emailPrevalidation: true})
+    expect(screen.getByText('Continuing shares your verified email with site.example.com.')).toBeDefined()
+  })
+
   test('completes the delegation right away after creating the first account', async () => {
     const {createAccount, completeDelegation} = renderCreateProfileView({withDelegationRequest: true})
 
     fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'Alice'}})
-    fireEvent.click(screen.getByRole('button', {name: 'Start participating'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Create profile'}))
 
     await waitFor(() => {
       expect(createAccount).toHaveBeenCalled()
@@ -88,7 +94,7 @@ describe('CreateProfileView', () => {
 
     fireEvent.click(screen.getByLabelText('Get email notifications about mentions and replies activity.'))
     fireEvent.change(screen.getByLabelText('Name'), {target: {value: 'Alice'}})
-    fireEvent.click(screen.getByRole('button', {name: 'Start participating'}))
+    fireEvent.click(screen.getByRole('button', {name: 'Create profile'}))
 
     await waitFor(() => {
       expect(createAccount).toHaveBeenCalledWith('Alice', undefined, undefined, {

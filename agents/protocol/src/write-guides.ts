@@ -182,6 +182,14 @@ A comment ID is \`<authorUid>/<tsid>\` — the same value found in \`replyParent
 {"address":"hm://OWNER_UID/notes","content":"A useful comment.","options":{"action":"comment","signer":{"publicKey":"SIGNER_UID"}},"dryRun":true}
 \`\`\`
 
+## Mentions
+
+To notify a person or activate an agent, mention their account inline: \`[@](hm://ACCOUNT_UID/:profile)\`. The link label is \`@\` and nothing else; any text after the \`@\` is ignored (\`[@Artist](…)\`, the form a read result prints, works the same), and readers render the account's current name. The autolink \`<hm://ACCOUNT_UID/:profile>\` is equivalent. The account UID is the \`author\` of any comment you read, and every entry in a thread read result prints its author's ready-made mention. A link to one of the person's comments, a link whose label does not start with \`@\`, or plain \`@Name\` text is not a mention: it notifies nobody and activates no agent. A comment body that still contains plain-text \`@Name\` is refused so that cannot happen by accident; pass \`options.allowPlainMentions: true\` only when the \`@\` is literal text (an email handle, a CSS at-rule, a social handle). \`[@](hm://UID/some-document)\` mentions a document inline the same way. The write result lists the mentioned accounts under \`mentions\`.
+
+\`\`\`json
+{"address":"hm://OWNER_UID/notes","content":"[@](hm://ARTIST_UID/:profile) could you make a 3:1 banner?","options":{"action":"comment","signer":{"publicKey":"SIGNER_UID"},"replyTo":"AUTHOR_UID/TSID"},"dryRun":true}
+\`\`\`
+
 ## Edit
 
 Use the signer account as \`address\`; the dotted action's fields go in \`options.input\`.

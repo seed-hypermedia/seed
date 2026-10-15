@@ -11,11 +11,12 @@ export function buildSlotItems(
   style: 'Card' | 'List' | 'Table',
   banner: boolean,
   hasQueryResults = false,
-): {prependItems?: ReactNode[]; bannerContent?: ReactNode} {
+): {prependItems?: ReactNode[]; bannerContent?: ReactNode; tableDrafts?: QueryBlockDraftSlotData} {
   if (!slot) return {}
   const {drafts, onCreateDraft, onOpenDraft, onDeleteDraft, onMoveDraft, onUpdateDraftName} = slot
   const hasDrafts = drafts.length > 0 && !!onOpenDraft && !!onDeleteDraft && !!onUpdateDraftName
   if (!hasDrafts && !hasQueryResults) return {}
+  if (style === 'Table') return hasDrafts ? {tableDrafts: slot} : {}
   const shouldHideCreateButton = style === 'Card' && banner && (hasDrafts || hasQueryResults)
 
   const createButton =

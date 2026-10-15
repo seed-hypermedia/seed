@@ -7,7 +7,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 
 test('embedded Chromium preserves history, routes Seed links, and isolates website privileges', async () => {
-  test.setTimeout(60000)
+  test.setTimeout(120000)
   const directory = await mkdtemp(path.join(tmpdir(), 'seed-web-browser-e2e-'))
   let blockedHostRequests = 0
   let trackerRequests = 0
@@ -84,6 +84,7 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       <form action="https://collector.example/submit"><input aria-label="Leak"></form>
       <a id="next" href="/redirect">Next</a>
       <a id="seed" href="hm://alice/docs">Seed document</a>
+      <button id="fullscreen" onclick="document.documentElement.requestFullscreen().then(() => window.fullscreenResult = 'allowed', () => window.fullscreenResult = 'denied')">Fullscreen</button>
       <a id="popup" href="/popup" target="_blank">Popup</a>`)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -132,7 +133,7 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     // The app page never holds a web view: it asks the main process for a guest and places it.
     const browserId: number = await page.evaluate(async () => {
       const {browserId} = await (window as any).browserTest.create()
-      ;(window as any).browserTest.bounds({browserId, visible: true, bounds: {x: 0, y: 0, width: 900, height: 600}})
+      ;(window as any).browserTest.bounds({browserId, visible: true, bounds: {x: 0, y: 40, width: 900, height: 560}})
       return browserId
     })
     expect(await page.evaluate(() => document.querySelector('webview'))).toBeNull()
@@ -173,7 +174,24 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     await page.evaluate((input) => (window as any).browserTest.access(input), grant)
     // A connection alone is not permission: the user has to allow this website.
     await expect(command({action: 'snapshot'})).rejects.toThrow('has not allowed browser access')
-    await page.evaluate((input) => (window as any).browserTest.access(input), {...grant, origins: [origin]})
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [{origin, level: 'act'}],
+    })
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [{origin, level: 'read'}],
+    })
+    const readSnapshot = await command({action: 'snapshot'})
+    await command({action: 'screenshot', document: readSnapshot.document})
+    await command({action: 'scroll', document: readSnapshot.document, y: 0})
+    await expect(command({action: 'click', document: readSnapshot.document, ref: 'e1'})).rejects.toThrow(
+      'allowed reading this website but not acting on it',
+    )
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [{origin, level: 'act'}],
+    })
     const snapshot = await command({action: 'snapshot'})
     expect(snapshot.text).toContain('Article heading')
     for (const secret of [
@@ -306,6 +324,24 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
         contents.sendInputEvent({type: 'mouseUp', ...point, button: 'left', clickCount: 1})
       }, selector)
     }
+    // A denied fullscreen request may reject or simply never settle; what matters is that nothing
+    // went fullscreen and the view kept its place under Seed's header.
+    await clickGuest('#fullscreen')
+    // Not awaited inside the page: a denied request can stay pending forever.
+    await guest.evaluate((contents) =>
+      contents.executeJavaScript('void document.documentElement.requestFullscreen().catch(() => {}); 0', true),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    expect(await guest.evaluate((contents) => contents.executeJavaScript('window.fullscreenResult'))).not.toBe(
+      'allowed',
+    )
+    expect(await guest.evaluate((contents) => contents.executeJavaScript('!!document.fullscreenElement'))).toBe(false)
+    expect(await electron.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0]!.isFullScreen())).toBe(false)
+    expect(
+      await electron.evaluate(({BrowserWindow}) =>
+        BrowserWindow.getAllWindows()[0]!.contentView.children.at(-1)!.getBounds(),
+      ),
+    ).toEqual({x: 0, y: 40, width: 900, height: 560})
     await clickGuest('#seed')
     await expect
       .poll(() => page.evaluate(() => (window as any).browserTest.events()))
@@ -326,7 +362,7 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     // Even a website the user allowed is refused when its hostname resolves to a private address.
     await page.evaluate((input) => (window as any).browserTest.access(input), {
       ...grant,
-      origins: [origin, new URL(reboundUrl).origin],
+      origins: [origin, new URL(reboundUrl).origin].map((origin) => ({origin, level: 'act'})),
     })
     await navigate(reboundUrl, 4)
     await expect(command({action: 'snapshot'})).rejects.toThrow('private network')
@@ -406,6 +442,35 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     expect(trackerRequests).toBe(2)
     await page.evaluate(() => (window as any).browserTest.hide())
     await expect(command({action: 'snapshot'})).rejects.toThrow('Browser access is paused')
+
+    const privateId = await page.evaluate(() =>
+      (window as any).browserTest.create({private: true}).then((guest: any) => guest.browserId),
+    )
+    const privateGuest = await electron.evaluateHandle(({webContents}, id) => webContents.fromId(id)!, privateId)
+    await privateGuest.evaluate(async (contents, url) => {
+      await contents.loadURL(url)
+      await contents.executeJavaScript("document.cookie = 'private-only=secret; Path=/'")
+    }, `${origin}/private`)
+    expect(await privateGuest.evaluate((contents) => contents.session.isPersistent())).toBe(false)
+    expect(await privateGuest.evaluate((contents) => contents.executeJavaScript('document.cookie'))).toContain(
+      'private-only=secret',
+    )
+    expect(await guest.evaluate((contents) => contents.session.cookies.get({name: 'private-only'}))).toEqual([])
+    await page.evaluate((browserId) => (window as any).browserTest.destroy({browserId}), privateId)
+    expect(await electron.evaluate(({webContents}, id) => webContents.fromId(id) === undefined, privateId)).toBe(true)
+    const reopenedId = await page.evaluate(() =>
+      (window as any).browserTest.create({private: true}).then((guest: any) => guest.browserId),
+    )
+    const reopened = await electron.evaluateHandle(({webContents}, id) => webContents.fromId(id)!, reopenedId)
+    expect(await reopened.evaluate((contents) => contents.session.cookies.get({}))).toEqual([])
+    await reopened.evaluate((contents, url) => contents.loadURL(url), `${origin}/private`)
+    expect(await reopened.evaluate((contents) => contents.executeJavaScript('document.cookie'))).not.toContain(
+      'private-only',
+    )
+    await page.evaluate(() => (window as any).browserTest.hide())
+    await expect
+      .poll(() => electron!.evaluate(({webContents}, id) => webContents.fromId(id) === undefined, reopenedId))
+      .toBe(true)
   } finally {
     await electron?.close()
     await new Promise<void>((resolve) => server.close(() => resolve()))
