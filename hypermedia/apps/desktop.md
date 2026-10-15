@@ -78,6 +78,10 @@ The desktop app starts a local [agents server](./agents.md) and shows the agents
 
 The inbox page reads a local copy of the account's notification state that the main process syncs with the [notify service](./notify.md), signing requests through the daemon. Release builds default to `https://hyper.media/hm/api/notify` (dev builds `https://dev.hyper.media/hm/api/notify`); the vault's notify setting overrides it, and a site's email subscribers come from the notify service its `/hm/api/config` advertises as `notifyServiceUrl` (or the older `notifyServiceHost`). Marking things read works offline and syncs later. [Notify](./notify.md) describes the store and the read-state rules.
 
+# The web browser
+
+The desktop app can open ordinary websites in a pane beside the sidebar and the agents panel. It is off by default and ships behind the **Integrated Web Browser** toggle in Settings, Advanced. With the toggle off, web links open in the system browser, the omnibar only resolves Hypermedia addresses, and agents are not offered the `browser` tool. The toggle is also forced off when the bundled Chromium is older than the release policy allows, so an unpatched build never shows websites. The security model, the per-website agent consent and the blocklists are described in the agents service's browser notes (`agents/docs/integrated-browser.md` in the repo).
+
 # Development notes <!-- id:TUREvD9- -->
 
 - `pnpm desktop dev:debug` opens Chrome DevTools Protocol on 9222. Automated drivers use it to screenshot and navigate the dev app. <!-- id:VTL7vY_K -->
