@@ -6,7 +6,7 @@ The [Seed app](../apps/desktop.md) and the [Seed web app](../apps/web.md) are th
 
 # Two surfaces, one code <!-- id:T7G6VI9d -->
 
-Two surfaces read the same sessions. The **Agents pages** are full-window: an index of recent sessions across every configured server, one page per server, one page per agent with its tabs, and one page per session. The **assistant panel** is the same thing in a column: on the desktop it is toggled from the footer and sits beside whatever you are reading; on the web it is mounted above the site's page outlet so route changes never remount it, opened from the account menu's "Agents" item, full-screen with a "Back to page" bar on narrow screens. On the web the full pages live under `/hm/agents`. <!-- id:p_UDNR-m -->
+Two surfaces read the same sessions. The **Agents pages** are full-window: an index of recent sessions across every configured server, one page per server, one page per agent with its tabs, and one page per session. The **assistant panel** is the same thing in a column: on the desktop it is toggled from the footer and sits beside whatever you are reading; on the web it is mounted above the site's page outlet so route changes never remount it, opened from the account menu's "Agents" item, full-screen with a "Back to page" bar on narrow screens (only when opened there on purpose: a remembered open state never takes over a narrow screen by itself). On the web the full pages live under `/hm/agents`. <!-- id:p_UDNR-m -->
 
 Both surfaces need a selected [account](../protocol/identity.md), because an agents server, including the local one, rejects unsigned requests. With no account the pages render an invitation to sign in. <!-- id:5ouzsQhP -->
 
