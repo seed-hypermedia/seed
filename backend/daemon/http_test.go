@@ -309,6 +309,8 @@ func TestHTTPBrowserServer(t *testing.T) {
 	}
 	cfg := makeTestConfig(t)
 	cfg.Syncing.NoDiscovery = true
+	// The desktop opts in by supplying a secret; the fixture opts in through the flag.
+	cfg.HTTP.BrowserAuth = true
 	app := makeTestApp(t, "bob", cfg, false)
 	data := []byte("public browser regression content")
 	c := makeCID(t, data)
