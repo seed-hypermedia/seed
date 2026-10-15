@@ -2,6 +2,7 @@ import {grpcClient} from '@/client.server'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {isOpenPath, requireSignInEnabled} from '@/require-sign-in.server'
 import {withCors} from '@/utils/cors'
+import {withUpstreamFallback} from '@/upstream-reads.server'
 import {isSignedInRequest} from '@/web-session.server'
 import {ActionFunctionArgs, LoaderFunctionArgs} from '@remix-run/node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
@@ -93,8 +94,12 @@ export async function loader({request, params}: LoaderFunctionArgs) {
   if (denied) return denied
   return withDaemonAuthToken(cookieToken, async () => {
     const url = new URL(request.url)
-    const result = await handleApiRequest(url, withAuthorizationHeader(grpcClient, authorization), (pathAndQuery) =>
-      queryDaemon(pathAndQuery, authorization),
+    const client = withAuthorizationHeader(grpcClient, authorization)
+    const result = await handleApiRequest(
+      url,
+      client,
+      (pathAndQuery) => queryDaemon(pathAndQuery, authorization),
+      (key, input, output) => withUpstreamFallback(key, input, output, client),
     )
     return withCors(
       new Response(result.body, {

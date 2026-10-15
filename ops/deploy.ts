@@ -69,6 +69,8 @@ export const OPS_BASE_URL = getOpsBaseUrl()
 export const DEFAULT_COMPOSE_URL = `${OPS_BASE_URL}/docker-compose.yml`
 /** The hosted notify service, served on hyper.media's own origin. */
 export const NOTIFY_SERVICE_HOST = 'https://hyper.media/hm/api/notify'
+/** The public node an enterprise web app asks for other spaces' content (see `upstream_api_url`). */
+export const DEFAULT_UPSTREAM_API_URL = 'https://hyper.media'
 /** Where the agents service answers on a site's own origin. */
 export const AGENTS_API_PATH = '/hm/api/agents'
 /** Where the notify service answers on a site's own origin. */
@@ -335,6 +337,12 @@ export interface SeedConfig {
    * they read the site server-side with no session. Random, 48+ chars.
    */
   service_secret?: string
+  /**
+   * Mainnet node whose public HTTP API answers reads of other spaces (embeds of external
+   * documents, the agents' guide) that the isolated daemon cannot have. Unset means
+   * DEFAULT_UPSTREAM_API_URL; '' turns it off and keeps every read on the box.
+   */
+  upstream_api_url?: string
   /** Run the notify (email) service, served by the site itself under /hm/api/notify. */
   notify?: boolean
   /** SMTP settings for the vault and notify; required when `notify` is on and there is no email relay. */
@@ -2353,6 +2361,7 @@ export function buildComposeEnv(config: SeedConfig, paths: DeployPaths): string 
     vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? ''
     vars.SEED_SESSION_SECRET = config.session_secret ?? ''
     vars.SEED_SERVICE_SECRET = config.service_secret ?? ''
+    vars.SEED_UPSTREAM_API_URL = config.upstream_api_url ?? DEFAULT_UPSTREAM_API_URL
     vars.SEED_CONTACT_EMAIL = config.email ?? ''
     vars.SEED_NOTIFY_HOST = notifyHost(config)
     vars.SEED_AGENTS_HOST = agentsHost(config)
