@@ -523,6 +523,9 @@ async function main(): Promise<void> {
             if (ws.data.accountId && ws.data.accountId !== sub.accountId) {
               throw new apisvc.APIError(403, 'WebSocket account switch is not allowed')
             }
+            // Read and subscribe in one step, with nothing awaited between them: an event written
+            // after the read is delivered live, and one written before it is in the replay.
+            const replay = sub.replay?.()
             ws.data.accountId = sub.accountId
             ws.data.subscriptions.add(sub.key)
             if (sub.publicReadOf) ws.data.publicSubscriptions.set(sub.key, sub.publicReadOf)
@@ -530,12 +533,12 @@ async function main(): Promise<void> {
             console.info('[agents/ws] subscribed', {
               accountId: sub.accountId,
               key: sub.key,
-              replayEvents: sub.replay?.events.length ?? 0,
+              replayEvents: replay?.events.length ?? 0,
             })
             sendWS(ws, {_: 'subscribed', key: sub.key, accountId: sub.accountId})
-            if (sub.replay) {
-              sendWS(ws, {_: 'change', key: `sessions/${sub.replay.session.id}`, value: sub.replay.session})
-              for (const event of sub.replay.events) {
+            if (replay) {
+              sendWS(ws, {_: 'change', key: `sessions/${replay.session.id}`, value: replay.session})
+              for (const event of replay.events) {
                 sendWS(ws, {_: 'append', key: `sessions/${event.sessionId}`, event})
               }
             }
