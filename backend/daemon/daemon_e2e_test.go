@@ -291,13 +291,14 @@ func TestDaemonImportKey(t *testing.T) {
 }
 
 func TestDaemonCORS(t *testing.T) {
-	// Browser authentication is opt-in; this test covers the desktop's gated policy.
-	t.Setenv("SEED_APP_SECRET", "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
 	t.Parallel()
 
 	const fileCID = "bafybeiecq2irw4fl5vunnxo6cegoutv4de63h7n27tekkjtak3jrvrzzhe"
 
-	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
+	// Browser authentication is opt-in; this test covers the gated policy the desktop runs with.
+	cfg := makeTestConfig(t)
+	cfg.HTTP.BrowserAuth = true
+	dmn := makeTestApp(t, "alice", cfg, false)
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(dmn.HTTPListener.Addr().(*net.TCPAddr).Port)
 	client := &http.Client{Timeout: 5 * time.Second}
 
