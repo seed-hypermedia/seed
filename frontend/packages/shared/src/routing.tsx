@@ -12,6 +12,7 @@ import {
   hmIdToURL,
   hypermediaUrlToRoute,
   idToUrl,
+  isViewTermPath,
   routeToHmUrl,
   routeToUrl,
   serializeBlockRange,
@@ -481,5 +482,7 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
     href: href || '/',
     tag: 'a',
     onClick,
+    // Panels multiply every document and account into many URLs; keep crawlers on the documents.
+    ...(href && isViewTermPath(href) ? {rel: 'nofollow'} : {}),
   }
 }

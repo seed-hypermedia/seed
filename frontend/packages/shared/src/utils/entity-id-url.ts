@@ -58,6 +58,23 @@ export const VIEW_TERMS = [
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
+/**
+ * Whether a path or URL addresses a view-term panel (`/:followers`, `/:comments`, ...)
+ * rather than a document itself. Panels are alternate views of documents and accounts
+ * whose URL space grows with every pair of accounts, so crawlers are kept out of them
+ * (robots.txt) and links to them carry rel="nofollow".
+ */
+export function isViewTermPath(pathOrUrl: string): boolean {
+  let path = pathOrUrl
+  const schemeEnd = path.indexOf('://')
+  if (schemeEnd >= 0) {
+    const pathStart = path.indexOf('/', schemeEnd + 3)
+    path = pathStart >= 0 ? path.slice(pathStart) : '/'
+  }
+  path = path.split(/[?#]/)[0] || ''
+  return path.split('/').some((segment) => (VIEW_TERMS as readonly string[]).includes(segment))
+}
+
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
 export type ViewRouteKey =
   | 'activity'
