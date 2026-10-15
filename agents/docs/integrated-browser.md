@@ -58,8 +58,8 @@ Browser results stay with the owner:
 
 - The website runs in a `WebContentsView` owned by the main process. The app page never holds a web view: it asks for a
   guest, reports where to draw it, and receives events. `webviewTag` is off in every window.
-- Websites get no permissions, never auto-select a client certificate, and can only download after a click, with a save
-  dialog.
+- Websites get no permissions except clipboard writes confirmed after a click. They never auto-select a client
+  certificate, and can only download after a click, with a save dialog.
 - A page can only switch the app to a Seed page or open a popup right after real user input, and never while an agent
   command runs.
 - Favicons and archived images are read with a size cap and must be images.
@@ -73,3 +73,62 @@ over. Commands are delivered once, with leases and execution deadlines; uncertai
 
 Coverage includes the signed relay and its authorization, run gating and reader redaction (`agents/src`), the consent
 panel, policy modules and the real Electron fixture in `frontend/apps/desktop/tests/web-browser.e2e.ts`.
+
+## Third-party cookies (Phase 1.5)
+
+Electron 44.5.1 exposes cookie storage and Storage Access permissions, but no supported per-session third-party cookie
+toggle. Chromium feature switches are process-wide and are not a stable partition policy. The browser's network hooks
+strip `Cookie` and `Set-Cookie` on requests outside the top-level document's approximate registrable domain. Main-frame
+navigations, including every OAuth redirect, retain their cookies. GPC shares the same header hook.
+
+The bundled PSL-free heuristic handles IP literals, single-label hosts, common ccTLD categories such as `co.uk`, and a
+small set of shared hosting suffixes. It does not implement the full Public Suffix List or its exceptions; unusual
+suffixes can be grouped incorrectly. Unattributed worker and main-process requests cannot be classified and retain
+cookies (including authenticated favicon fetches). This is HTTP header filtering, not isolation of JavaScript cookie
+access or all third-party storage. Storage Access permission remains denied.
+
+References: [session API](https://www.electronjs.org/docs/latest/api/session),
+[cookie API](https://www.electronjs.org/docs/latest/api/cookies), and
+[supported switches](https://www.electronjs.org/docs/latest/api/command-line-switches).
+
+## Private pages (Phase 1.5)
+
+**New private page** opens the current URL in the memory-only `seed-web-private` partition with a **Private** badge. It
+has the same permissions, network filtering, downloads, GPC and certificate rules as the normal partition. **Close
+private page** returns to the normal page. Leaving the web route or closing the window destroys the private guest
+without waiting for website unload handlers, then clears storage, cache, authentication and connections. Reopening waits
+for erasure to finish. Each window reuses at most one normal and one private guest.
+
+Electron partitions are shared across windows: private pages in different windows share this memory-only session, and
+closing one clears its data for all of them. Private mode does not hide activity from websites or the network.
+
+## Clear browsing data (Phase 1.5)
+
+The pane's page menu offers **Clear browsing data** with a confirmation. It calls the same
+`experiments.clearBrowserData` operation as Settings: normal browser documents are stopped before cookies, website
+storage, cache, authentication and connections are cleared. Settings retains its existing entry. Private data is erased
+when the private page closes; it is separate from this normal-session operation.
+
+## Permissions and page dialogs (Phase 1.2)
+
+Permissions stay denied by default. `clipboard-sanitized-write` requires recent real input on that guest, consumes that
+gesture, and shows **Copy to clipboard?** with the requesting origin and **Deny** / **Allow**. Agent execution cannot
+supply or inherit this gesture. Grants are not remembered; clipboard reading remains denied.
+
+Fullscreen is always denied: a website in a `WebContentsView` must not cover Seed's origin display or navigation. HTML
+fullscreen window resizing is disabled as well. An unexpected `enter-html-full-screen` hides the guest and requests exit
+without changing the view bounds, then shows an error. Fullscreen denial is covered in the Electron fixture; renderer
+crashes are recoverable only through a user reload or **Try again**.
+
+`safeDialogs` includes **Prevent this page from showing more dialogs**. The header reports **<origin> is showing
+dialogs** until the next load or guest change. Electron 44 has no public JavaScript-dialog event, so this informational
+notice observes its internal `-run-dialog` notification without replacing the native handler or callback. Recheck this
+hook on Electron upgrades against
+[Electron 44's dialog handler](https://github.com/electron/electron/blob/v44.5.1/lib/browser/api/web-contents.ts).
+
+## Site isolation and guest limits (Phase 1.6)
+
+The session policy checks `disable-site-isolation-trials` once at startup and warns if it is present. Each window has a
+hard limit of two guest views, one normal and one private, with a clear creation error if both slots are occupied.
+Renderer termination only reports a load error: no automatic reload is scheduled. **Try again** and the normal reload
+controls are explicit user actions.

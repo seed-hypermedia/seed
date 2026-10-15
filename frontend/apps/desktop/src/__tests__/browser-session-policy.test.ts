@@ -5,32 +5,45 @@ import {afterEach, expect, it, vi} from 'vitest'
 const mocks = vi.hoisted(() => ({
   app: undefined as any,
   session: undefined as any,
+  sessions: new Map<string, any>(),
   contents: [] as any[],
   save: vi.fn(),
   message: vi.fn(),
 }))
 vi.mock('electron', async () => {
   const {EventEmitter} = await import('node:events')
-  mocks.app = Object.assign(new EventEmitter(), {configureHostResolver: vi.fn()})
-  mocks.session = Object.assign(new EventEmitter(), {
-    webRequest: {
-      onBeforeRequest: vi.fn(),
-      onBeforeSendHeaders: vi.fn(),
-      onResponseStarted: vi.fn(),
-      onCompleted: vi.fn(),
-    },
-    setPermissionRequestHandler: vi.fn(),
-    setPermissionCheckHandler: vi.fn(),
-    clearStorageData: vi.fn(),
-    clearCache: vi.fn(),
-    clearAuthCache: vi.fn(),
-    closeAllConnections: vi.fn(),
+  mocks.app = Object.assign(new EventEmitter(), {
+    configureHostResolver: vi.fn(),
+    commandLine: {hasSwitch: vi.fn(() => false)},
   })
+  const makeSession = () =>
+    Object.assign(new EventEmitter(), {
+      webRequest: {
+        onBeforeRequest: vi.fn(),
+        onBeforeSendHeaders: vi.fn(),
+        onHeadersReceived: vi.fn(),
+        onResponseStarted: vi.fn(),
+        onCompleted: vi.fn(),
+      },
+      setPermissionRequestHandler: vi.fn(),
+      setPermissionCheckHandler: vi.fn(),
+      clearStorageData: vi.fn(),
+      clearCache: vi.fn(),
+      clearAuthCache: vi.fn(),
+      closeAllConnections: vi.fn(),
+    })
+  mocks.session = makeSession()
+  mocks.sessions.set('persist:seed-web-browser', mocks.session)
   return {
     app: mocks.app,
     BrowserWindow: {fromWebContents: () => null},
     dialog: {showSaveDialogSync: mocks.save, showMessageBoxSync: mocks.message},
-    session: {fromPartition: () => mocks.session},
+    session: {
+      fromPartition: (partition: string) => {
+        if (!mocks.sessions.has(partition)) mocks.sessions.set(partition, makeSession())
+        return mocks.sessions.get(partition)
+      },
+    },
     webContents: {getAllWebContents: () => mocks.contents},
   }
 })
@@ -94,6 +107,8 @@ it('removes every supplied preference before applying its allowlist', () => {
     allowRunningInsecureContent: false,
     webviewTag: false,
     safeDialogs: true,
+    safeDialogsMessage: 'Prevent this page from showing more dialogs',
+    disableHtmlFullscreenWindowResize: true,
   })
 })
 it('installs partition-scoped certificate rejection and gesture-gated native save dialogs once', () => {
@@ -184,4 +199,80 @@ it('asks twice before saving a file that can run programs', () => {
   mocks.session.emit('will-download', event, item, contents)
   expect(mocks.save).toHaveBeenCalledOnce()
   expect(item.setSavePath).toHaveBeenCalledWith('/chosen/tool.dmg')
+})
+
+it('installs identical policies once on both partitions and selects memory-only preferences', () => {
+  setupBrowserSessionPolicy()
+  setupBrowserSessionPolicy('seed-web-private')
+  setupBrowserSessionPolicy('seed-web-private')
+  const privateSession = mocks.sessions.get('seed-web-private')
+  expect(privateSession).not.toBe(mocks.session)
+  for (const session of [mocks.session, privateSession]) {
+    expect(session.listenerCount('will-download')).toBe(1)
+    expect(session.setPermissionRequestHandler).toHaveBeenCalledOnce()
+    expect(session.setPermissionCheckHandler).toHaveBeenCalledOnce()
+    expect(session.webRequest.onBeforeSendHeaders).toHaveBeenCalledOnce()
+    expect(session.webRequest.onHeadersReceived).toHaveBeenCalledOnce()
+    const callback = vi.fn()
+    mocks.app.emit('certificate-error', {preventDefault: vi.fn()}, {session}, '', '', {}, callback)
+    expect(callback).toHaveBeenCalledWith(false)
+  }
+  const preferences: WebPreferences = {}
+  hardenBrowserPreferences(preferences, true)
+  expect(preferences.partition).toBe('seed-web-private')
+  expect(preferences.sandbox).toBe(true)
+})
+
+it('denies permissions by default, prompts for clipboard writes only after real guest input', async () => {
+  setupBrowserSessionPolicy()
+  const request = mocks.session.setPermissionRequestHandler.mock.calls[0][0]
+  const check = mocks.session.setPermissionCheckHandler.mock.calls[0][0]
+  const guest = Object.assign(new EventEmitter(), {
+    getURL: () => 'https://example.com/page',
+    isDestroyed: () => false,
+  }) as unknown as WebContents
+  browserUserGesture(guest)
+  const callback = vi.fn()
+  const details = {requestingUrl: 'https://example.com/page', isMainFrame: true}
+  mocks.message.mockClear().mockReturnValue(1)
+  for (const permission of ['fullscreen', 'geolocation', 'media', 'clipboard-read', 'clipboard-sanitized-write']) {
+    request(guest, permission, callback, details)
+    expect(callback).toHaveBeenLastCalledWith(false)
+    expect(check(guest, permission)).toBe(false)
+  }
+  expect(mocks.message).not.toHaveBeenCalled()
+  guest.emit('input-event', {}, {type: 'mouseDown'})
+  request(guest, 'clipboard-sanitized-write', callback, details)
+  expect(callback).toHaveBeenLastCalledWith(true)
+  expect(mocks.message).toHaveBeenCalledWith(
+    expect.objectContaining({message: 'Allow https://example.com to copy to your clipboard?'}),
+  )
+  request(guest, 'clipboard-sanitized-write', callback, details)
+  expect(callback).toHaveBeenLastCalledWith(false)
+  mocks.message.mockReturnValue(0)
+  guest.emit('input-event', {}, {type: 'mouseDown'})
+  request(guest, 'clipboard-sanitized-write', callback, details)
+  expect(callback).toHaveBeenLastCalledWith(false)
+  mocks.message.mockClear()
+  await browserUserGesture(guest).runAgent(async () => {
+    guest.emit('input-event', {}, {type: 'mouseDown'})
+    request(guest, 'clipboard-sanitized-write', callback, details)
+  })
+  expect(callback).toHaveBeenLastCalledWith(false)
+  expect(mocks.message).not.toHaveBeenCalled()
+  guest.emit('input-event', {}, {type: 'mouseDown'})
+  request(guest, 'fullscreen', callback, details)
+  expect(callback).toHaveBeenLastCalledWith(false)
+  expect(mocks.message).not.toHaveBeenCalled()
+})
+it.each([false, true])('checks the site isolation switch once (disabled=%s)', async (disabled) => {
+  vi.resetModules()
+  mocks.app.commandLine.hasSwitch.mockClear().mockReturnValue(disabled)
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const policy = await import('../browser-session-policy')
+  policy.setupBrowserSessionPolicy()
+  policy.setupBrowserSessionPolicy('seed-web-private')
+  expect(mocks.app.commandLine.hasSwitch).toHaveBeenCalledExactlyOnceWith('disable-site-isolation-trials')
+  expect(warning).toHaveBeenCalledTimes(disabled ? 1 : 0)
+  warning.mockRestore()
 })
