@@ -9,8 +9,9 @@ it.
 The user's signed-in browser is the thing being protected. The agent server, other people in a session, and every
 website are treated as untrusted.
 
-- **Opt in per website.** The panel asks "Let <agent> on <server> read, screenshot and act on <website>?". Access covers
-  only the websites allowed in that session. When you move to another website, the panel asks again. Pause stops new
+- **Read-only by default.** "Allow on this website" grants `read`: snapshot, screenshot and scroll. "Allow actions on
+  this website" upgrades that origin to `act`: click, type, press, navigate and archive, as well as reading. The panel
+  explains that action access lets the agent click and type as the user. Grants cover only that session. Pause stops new
   commands. Revoke forgets every allowed website.
 - **Owner only.** Only the agent's owner is offered access. Collaborators and public chatters never are. Public agents
   never get the browser, and making an agent public closes any open connection.
@@ -18,9 +19,11 @@ website are treated as untrusted.
   connected owner started by sending a message. Triggers, delegated and child sessions, workflows, retries and
   continuations cannot use the browser.
 - **Enforced in Electron.** The main process keeps the allowed websites on the grant. It refuses a command when the page
-  is on any other website, both before and after the page script runs.
-- **Asking before leaving.** When the agent wants to open a website you have not allowed, the panel shows Allow and Deny
-  before any request is made. Redirects are checked the same way.
+  is on any other website, both before and after the page script runs. Action commands on read-only origins are refused
+  with a message asking the user to allow actions.
+- **Asking before leaving.** When the agent wants to open a website you have not allowed, the panel offers **Allow
+  reading**, **Allow actions** and **Deny** before any request is made. Navigation requires action access on the source
+  website; allowing reading opens the destination with read-only access. Redirects must also stay on approved websites.
 - **No private networks.** Agent navigation refuses loopback, private, link-local and `.local` addresses, including
   hostnames that resolve to them. Commands are also refused on a page whose main response came from a private address
   behind a public hostname (DNS rebinding). A website you opened at a literal local address, like
@@ -33,12 +36,17 @@ Discover the tool with `read ~/tools/browser`, then invoke `call` with `tool: "b
 - `snapshot` reads the text a person can see, source metadata, viewport information and interactive element references.
   Transparent, clipped, off-page and tiny text is left out.
 - `screenshot` returns the page viewport to a vision-capable model.
-- `click`, `type`, `press` and `scroll` interact with the page. Typing into password and other secret fields is refused,
-  and so is typing into or submitting a form that posts to another website.
+- `scroll` moves through the page with read access. `click`, `type` and `press` require action access. Typing into
+  password and other secret fields is refused, and so is typing into or submitting a form that posts to another website.
 - `navigate` opens an HTTP(S) URL on an allowed website, or asks the user first. Agents cannot open Seed links; the user
   opens those.
 - `archive` creates an editable desktop draft and saves a Markdown copy in the owner-only `~/memory/private/browser/`
   folder. Images are fetched once and stored locally, so the draft never loads the source site.
+
+The panel’s **Browser activity** disclosure shows the last 20 commands with time, action, origin and `ok`/`refused`
+outcome. **Copy log** copies the complete in-memory list for that panel session. It includes no page content, typed
+values, query strings or fragments. The list survives pause and revoke, but is discarded when the session panel closes
+or switches sessions; it is never persisted.
 
 Every action except `snapshot` requires its returned `document` token. Click and type require an observed `ref`. Tokens
 expire on a new snapshot or navigation. Page content is untrusted material, never permission or instructions.
@@ -58,12 +66,68 @@ Browser results stay with the owner:
 
 - The website runs in a `WebContentsView` owned by the main process. The app page never holds a web view: it asks for a
   guest, reports where to draw it, and receives events. `webviewTag` is off in every window.
+- Guest bounds are clamped to the window content area, and the app hides the native view while overlays are open.
+- Paste and drag from websites use the same BlockNote schema parser as other external HTML. Scripts and event handlers
+  are not document content; link parsing rejects script and data URLs, including forged `data-hm-link` attributes.
+- Browser output is tool data. Page text asking to sign or publish cannot execute a write; publishing still requires an
+  explicit call through the normal write tool and its available write keys.
 - Websites get no permissions except clipboard writes confirmed after a click. They never auto-select a client
   certificate, and can only download after a click, with a save dialog.
 - A page can only switch the app to a Seed page or open a popup right after real user input, and never while an agent
   command runs.
 - Favicons and archived images are read with a size cap and must be images.
 - Settings has **Clear browsing data** for the browser's own session.
+
+## Known-bad websites (Phase 2.1)
+
+The browser partition blocks main-frame navigation to listed hosts and their subdomains. Typed addresses, restored
+history, page links and redirects are checked; agent navigation to listed hosts is refused before loading the page. The
+Seed warning names the host and the list that flagged it. It offers **Go back** and **Open in default browser**, with no
+option to continue inside the pane. This policy does not install request handlers on the app's own session.
+
+A small bundled **Seed test sites** list includes `malware.testing.google.test`, `phishing.testing.google.test` and
+`phishing.seed.test`. These are test entries, not a complete offline threat database. The live source is the
+[OpenPhish community URL feed](https://openphish.com/feed.txt); URLhaus and Phishing.Database are not enabled.
+
+The browser loads its last valid cache from `browser/blocklist.json` under Electron's `userData` before creating a
+guest. It attempts a background refresh at startup and on a daily timer, with at least 24 hours between attempts,
+including failed attempts and restarts. Requests send `If-None-Match` when an ETag is available, time out after 30
+seconds, and reject feeds larger than 1 MiB of decoded response bytes. A `304` keeps the existing rules. Failed,
+oversized or empty updates preserve the last valid list and the bundled test entries.
+
+## Tracker and content blocking (Phase 2.2)
+
+Network request blocking is on by default for the `persist:seed-web-browser` partition. Seed uses `@ghostery/adblocker`
+2.18.2 directly inside its existing request handler, so filtering does not replace the private-network guard or the
+known-bad-site blocklist. The Electron wrapper supports Electron 44, but its automatic session setup would replace those
+handlers. No blocker handler is installed on the app session. Configured daemon, file-service and agent-server origins,
+including the running local agent server, are excluded as both destinations and page sources. Cosmetic filtering and
+script injection are not enabled.
+
+The shield in the pane header shows the number of requests blocked on the current page. **Allow trackers on a host**
+applies to that exact origin, including scheme and port, and reloads the page. The setting is saved in the app store
+under `browser-allow-trackers`. It applies to the page's subframes too and does not disable phishing or private-network
+protection. Counts belong to each guest, reset for a new document, and remain through same-document navigation. The main
+process sends `browser-blocked-count` window events containing the guest ID, page URL, count and allow setting.
+
+Updates use [EasyList](https://easylist.to/easylist/easylist.txt) and
+[EasyPrivacy](https://easylist.to/easylist/easyprivacy.txt). The compiled engine is cached in
+`browser/content-blocker.json` under Electron's `userData`. The first launch loads the bundled engine without fetching
+tracker lists. Background refreshes occur at most once every 24 hours, including failures and restarts. Each list has an
+8 MiB decoded-response cap and a 30-second timeout; the serialized engine has a 16 MiB cap. Both lists must validate
+before an update replaces the engine. Failed updates keep the last valid engine.
+
+**Offline coverage is currently limited.** Ghostery 2.18.2 ships neither list text nor a prebuilt engine: its
+`fromPrebuiltAdsAndTracking` method fetches lists at runtime. The current bundled snapshot contains only four Seed
+starter rules for `doubleclick.net`, `googlesyndication.com`, `google-analytics.com` and `googletagmanager.com`. Full
+EasyList/EasyPrivacy protection begins after a successful daily refresh. Bundling a full offline snapshot remains
+unfinished because the build environment cannot reach the list servers.
+
+To replace the starter snapshot, place full upstream `easylist.txt` and `easyprivacy.txt` files in
+`frontend/apps/desktop/src/browser-filter-lists/` and run `pnpm --filter @shm/desktop browser:build-filters` from the
+repo root. This offline build writes `engine.json` with source URLs and SHA-256 hashes; preserve the upstream
+attribution and license notices when distributing the list snapshot. Rebuild the snapshot whenever the engine dependency
+changes.
 
 ## Transport and verification
 

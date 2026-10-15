@@ -68,16 +68,19 @@ func initHTTP(
 	apiServer *daemonapi.Server,
 	telemetrySrv *telemetryapi.Server,
 ) (srv *http.Server, lis net.Listener, err error) {
-	secret, err := appSecretFromEnv()
+	secret, err := appSecretFromEnv(httpCfg.BrowserAuth)
 	if err != nil {
 		return nil, nil, err
 	}
 	allowedOrigin := appOriginAllowlist(httpCfg.AppOrigins)
+	// Browser authentication is opt-in: the desktop app supplies SEED_APP_SECRET, and operators
+	// can ask for it with -http.browser-auth. A daemon run by hand keeps the open policy.
+	browserAuth := secret != ""
 	router := &Router{mux: http.NewServeMux()}
 	// Server daemons (-http.listen-all or -public-only) serve websites directly: the hosted web app
 	// uploads to the gateway from the browser, from any custom domain. They keep the open policy,
 	// as before. A personal daemon on loopback authenticates every browser page instead.
-	if httpCfg.ListenAll || cfg.PublicOnly {
+	if httpCfg.ListenAll || cfg.PublicOnly || !browserAuth {
 		router.Use(
 			openCORSMiddleware,
 			bearerAuthMiddleware(apiServer.AuthenticateBearerToken),
@@ -235,14 +238,19 @@ func loopbackOnly(next http.Handler) http.Handler {
 	})
 }
 
-// The parent supplies the secret only through the environment, never a flag or disk.
-func appSecretFromEnv() (string, error) {
+// The parent supplies the secret only through the environment, never a flag or disk. Without one,
+// browser authentication stays off unless -http.browser-auth asks for a generated secret (usable
+// only through bearer tokens, since nothing else learns it).
+func appSecretFromEnv(generate bool) (string, error) {
 	if secret := os.Getenv("SEED_APP_SECRET"); secret != "" {
 		decoded, err := hex.DecodeString(secret)
 		if err != nil || len(decoded) != 32 {
 			return "", fmt.Errorf("SEED_APP_SECRET must encode 32 bytes as hex")
 		}
 		return secret, nil
+	}
+	if !generate {
+		return "", nil
 	}
 	var secret [32]byte
 	if _, err := rand.Read(secret[:]); err != nil {

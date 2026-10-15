@@ -1,8 +1,8 @@
 ---
 name: The identity vault
-summary: The Bun service at hyper.media/vault that stores a person's account keys end-to-end encrypted, signs them in with a passkey or password, lets websites act for them through delegated session keys, and syncs keys to the desktop and mobile apps.
+summary: The Bun service at hyper.media/vault that stores a person's account keys end-to-end encrypted, signs them in with a passkey or a password (with recovery words as a fallback), lets websites act for them through delegated session keys, and syncs keys to the desktop and mobile apps.
 ---
-The vault is where a person's Hypermedia [account](../protocol/identity.md) keys live when they do not want to manage a recovery phrase. It works like a password manager: the keys are encrypted in the browser with a key only the person can derive, and the server stores ciphertext it cannot read. [Keys](../build/keys.md) covers the other ways to hold a key. From the vault a person creates an account, signs in with a passkey or a password, approves websites that want to [act for them](../build/sign-in.md), and connects the desktop and mobile apps so the same accounts appear there. The hosted vault is `https://hyper.media/vault`, and in the interface it is called "Identity". <!-- id:CVIMFwRf -->
+The vault is where a person's Hypermedia [account](../protocol/identity.md) keys live when they do not want to manage a recovery phrase. It works like a password manager: the keys are encrypted in the browser with a key only the person can derive, and the server stores ciphertext it cannot read. [Keys](../build/keys.md) covers the other ways to hold a key. From the vault a person creates an account, signs in with a passkey or a password, recovers a forgotten password with recovery words, approves websites that want to [act for them](../build/sign-in.md), and connects the desktop and mobile apps so the same accounts appear there. The hosted vault is `https://hyper.media/vault`, and in the interface it is called "Identity". <!-- id:CVIMFwRf -->
 
 # Where the code is <!-- id:F28qoZtC -->
 
@@ -17,7 +17,7 @@ The vault is where a person's Hypermedia [account](../protocol/identity.md) keys
 | `src/api-service.ts` | The handlers. <!-- id:bqUk9SEK --> |
 | `src/sqlite-schema.sql`, `src/sqlite.ts` | The schema and its version check. <!-- id:HnUJogGP --> |
 | `src/frontend/store.ts` | The app's logic: login, vault decryption, [profile](../protocol/identity.md) publishing, [delegation](../protocol/permissions.md), vault connect. <!-- id:7woqPrGI --> |
-| `src/frontend/crypto.ts`, `src/frontend/views/` | Browser crypto helpers (WebAuthn, PRF) and the screens. <!-- id:8vG4Eds9 --> |
+| `src/frontend/crypto.ts`, `src/frontend/views/` | Browser crypto helpers (WebAuthn, PRF, recovery words) and the screens. <!-- id:8vG4Eds9 --> |
 
 The cryptography itself, key derivation and encryption, is in the [SDK](../build/sdk.md) (`@seed-hypermedia/client/vault` and `/encryption`), so the browser and the [mobile app](./mobile.md) share one implementation. The [daemon](./daemon.md), which holds the [desktop app](./desktop.md)'s side of a connected vault, has its own Go implementation. <!-- id:prJkVv5H -->
 
@@ -33,8 +33,11 @@ Each way of signing in is a credential that wraps the DEK with its own key, and 
 | Passkey | The [WebAuthn PRF extension](https://w3c.github.io/webauthn/#prf-extension) yields a secret the authenticator reproduces on every login. | Attestation data and the wrapped DEK. <!-- id:6Ua8C5a_ --> |
 | Password | [Argon2id](https://datatracker.ietf.org/doc/html/rfc9106) in the browser, with the email as salt. | An Argon2id hash of the authentication half and the wrapped DEK. <!-- id:TFBLQ015 --> |
 | Secret | A full-entropy random secret, used by the [desktop app](./desktop.md) after vault connect; no Argon2id needed. | A SHA-256 hash of the authentication half and the wrapped DEK. <!-- id:fiTlMH9k --> |
+| Recovery words | 12 [BIP-39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) words chosen at password sign-up encode 128 bits, which HKDF turns into the secret of a secret credential tagged `purpose: 'recovery'`; no Argon2id needed. | The same as a secret. A person has at most one: saving new words deletes the old credential. |
 
 The derivation splits into two halves. The authentication key goes to the server and proves who you are; the encryption key never leaves the client and is the only thing that unwraps the DEK. Encryption is [XChaCha20-Poly1305](https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-xchacha). <!-- id:Pw1-vmAW -->
+
+A person who signs up with a password also saves recovery words. The vault shows them once, and the person copies them, downloads them as a text file, or writes them down. If the password is forgotten, the words, typed in or uploaded as that file, sign in through `/vault/api/login/recovery` and unwrap the DEK through their own credential. Signing in this way does not reset the password; the person can change it in settings afterwards. A password user without recovery words, because they left sign-up early or set the password before recovery words existed, sees a reminder in the vault, and on the consent screen before returning to a site, until they save them. These words unlock the vault only. They are not the [recovery phrase](../protocol/identity.md) of an account key.
 
 If you lose every credential and have no exported key or recovery phrase, nobody can recover your accounts. Email proves you own an address, with a 4-digit code and three attempts, but it cannot decrypt anything. The design also trusts the vault's origin to serve honest JavaScript, which is why the hosted vault lives on hyper.media and other [sites](../protocol/sites.md) redirect people there to sign in. <!-- id:rE2xi8WD -->
 
@@ -43,7 +46,7 @@ If you lose every credential and have no exported key or recovery phrase, nobody
 The vault uses the [daemon](./daemon.md) behind the same [site](../protocol/sites.md) for three things. <!-- id:ynKuIVJT -->
   - **Publishing.** [Account](../protocol/identity.md) creation and [delegation](../protocol/permissions.md) build [profile](../profile.md) and [capability](../capability.md) [blobs](../protocol/blobs.md) in the browser, signed with the decrypted account key, and upload them to `<backend>/ipfs/<cid>` on the site's daemon. <!-- id:jb4aggOT -->
   - **Reading accounts.** `GET /vault/api/accounts/:id` calls the daemon's `GetAccount` over gRPC-web. <!-- id:PCzHu9o6 -->
-  - **Email prevalidation.** When the vault returns a person's data, it signs `{email, signer, host}` with the first key in its daemon's keystore through `SignData`. A [notify service](./notify.md) that trusts this vault accepts that signature instead of sending its own verification email. <!-- id:PN749lGL -->
+  - **Email prevalidation.** When the vault returns a person's data, it signs `{email, signer, host}` with the first key in its daemon's keystore through `SignData`. A [notify service](./notify.md) that trusts this vault accepts that signature instead of sending its own verification email. The desktop app reads the same signature through its daemon's `GetVaultEmailPrevalidation` and presents it to the Seed hosting service, which lets a new user skip the email login. <!-- id:PN749lGL -->
 
 # Delegation: Sign in with Seed <!-- id:ivOSZ-oq -->
 
@@ -63,13 +66,16 @@ The server only ever sees the encrypted payload. The token travels in the URL fr
 <!-- id:ZpqHLlkc -->
 | Route <!-- col:H1FpMbDk --> | Purpose <!-- col:CGY2OlRR --> <!-- id:eXKYzCXi --> |
 | --- | --- |
-| `/vault`, `/vault/*` | The app: login, choose credential, verify email, create [profile](../protocol/identity.md), delegate, connect, settings. <!-- id:tEXyrgeg --> |
+| `/vault`, `/vault/*` | The app: login, choose credential, verify email, recovery words, create [profile](../protocol/identity.md), delegate, connect, settings. <!-- id:tEXyrgeg --> |
 | `/vault/api/config` | Public config: backend URL, notify server, web base URL. <!-- id:Orj54V7z --> |
-| `/vault/api/pre-login`, `/login`, `/login/passkey/*`, `/register/*`, `/logout`, `/session` | Authentication, with an HTTP-only session cookie. <!-- id:2R0qLu9z --> |
+| `/vault/api/pre-login`, `/login`, `/login/recovery`, `/login/passkey/*`, `/register/*`, `/logout`, `/session` | Authentication, with an HTTP-only session cookie. <!-- id:2R0qLu9z --> |
 | `/vault/api/vault` | Read and save the encrypted vault. <!-- id:4afqtp5d --> |
 | `/vault/api/credentials/*`, `/vault/api/email-change/*`, `/vault/api/vault-email` | Manage passkeys, passwords, device secrets and the email address. <!-- id:QqIIN__G --> |
 | `/vault/api/vault-connect`, `/vault/api/vault-connect/:id` | The connect mailbox. <!-- id:uhkZRkdi --> |
 | `/vault/api/accounts/:id` | Account lookup through the [daemon](./daemon.md). <!-- id:6c_labv8 --> |
+| `/vault/api/vault-accounts` | The app reports the public account IDs its vault holds, each claim signed by that account's key. See [Invite-only mode and the admin API](#invite-only-mode-and-the-admin-api). |
+| `/vault/api/invitations/:code` | Public lookup of an unused invitation: the email it is for, or 404. The invited-user screen uses it. |
+| `/vault/api/admin/invitations`, `/vault/api/admin/accounts/:accountUid` | The admin API, for the Enterprise Edition. Bearer-authenticated with the admin secret; answers 404 when none is configured. |
 
 # Configuration <!-- id:RdYLeQPF -->
 
@@ -86,15 +92,30 @@ Every setting is a flag with an environment variable behind it. <!-- id:r5otBYl0
 | `--backend-grpc-base-url` | `SEED_VAULT_BACKEND_GRPC_BASE_URL` | the backend HTTP URL <!-- id:wc1QXIWQ --> |
 | `--web-base-url` | `SEED_VAULT_WEB_BASE_URL` | same origin <!-- id:YyzzqcLE --> |
 | `--smtp-*` | `SEED_VAULT_SMTP_*` | unset, which disables email <!-- id:vGM4RTQy --> |
-| none | `SEED_VAULT_DEFAULT_NOTIFY_SERVER` | `https://notify.seed.hyper.media` <!-- id:Lci_Ngam --> |
+| `--email-relay-url`, `--email-relay-token` | `SEED_VAULT_EMAIL_RELAY_URL`, `SEED_VAULT_EMAIL_RELAY_TOKEN` | unset; when set, verification emails go as `POST <url>` with `Authorization: Bearer <token>` and a JSON body `{to, subject, text, html}` to the Seed hosting email relay, which wins over SMTP and sets the sender itself. The [enterprise profile](../build/self-hosting.md) uses it so an instance needs no SMTP account; a reply other than 2xx fails the request the way an SMTP rejection does |
+| `--invite-only` | `SEED_VAULT_INVITE_ONLY` | off; `true` makes account creation require an invitation code |
+| `--admin-secret` | `SEED_VAULT_ADMIN_SECRET` | unset, which disables the admin API |
+| none | `SEED_VAULT_DEFAULT_NOTIFY_SERVER` | `https://hyper.media/hm/api/notify` when unset; set it to an empty string to run without a notify server. A stored `notify.seed.hyper.media` setting is rewritten to the new URL. The sign-in callback hands sites only the notify origin, which every web version can use <!-- id:Lci_Ngam --> |
 
-The database schema carries a version. If it does not match the code, the server starts in a mode that only shows a schema-mismatch page and tells you to delete the database. There are no migrations yet. <!-- id:HO_6v9PS -->
+The database schema carries a version. If it does not match the code, the server starts in a mode that only shows a schema-mismatch page and tells you to delete the database. Migrations live in `src/sqlite.ts` beside the schema and run at startup; the schema version is 6 as of October 2026 (the last three added the invitations and account-claim tables, then the invitation role and grants). <!-- id:HO_6v9PS -->
+
+# Invite-only mode and the admin API
+
+The Enterprise Edition runs the vault on a private [site](../protocol/sites.md) where only invited people may create an account. Two settings turn this on: `SEED_VAULT_INVITE_ONLY=true` and `SEED_VAULT_ADMIN_SECRET`, a bearer secret for the admin API. Signing in to an existing account is unchanged.
+
+Every invitation is for one person. An operator mints one with `POST /vault/api/admin/invitations` (`Authorization: Bearer <admin secret>`, body `{email, role?, send?}`; in invite-only mode `email` is required and `count`, if given, must be 1), which returns a random code and a ready-to-share link of the form `<site>/hm/sign-in?invite=<code>&email=<url-encoded email>` (the site is `--web-base-url`, or the vault's own origin): the site's sign-in page starts a delegation to the vault with the invitation attached, so creating the account and signing in to the site are one flow and the person lands on the site as a member. Outside invite-only mode the link is `<origin>/vault?invite=<code>`. `role` is `reader` (the default: vault membership, which the site's sign-in gate turns into read access) or `writer`. Unless `send` is false the vault emails the link to that address through its configured sender (the hosting relay on an enterprise node); the response says `emailed: true`, or `emailed: false` with an `emailError` when the send failed, and the link is returned either way so the operator can pass it on by hand. A writer invitation also grants a WRITER [capability](../protocol/permissions.md) on the site's space: once the person has an account, the vault learns its public ID from the account-claim call described below, signs the capability with the `enterprise-owner` key in the daemon's keystore, and records the grant in `invitation_grants` so it happens once per account; a failed grant is retried on the next claim. Only that address can register with the code: `registerStart` and `registerVerify` both refuse any other email, and a code with no email attached is refused outright. `GET` on the same path lists invitations with their role, used state and, for writers, the accounts that have received the capability (`grants`). `GET /vault/api/invitations/:code` is public and answers `{email, valid: true}` for an unused code and 404 for an unknown, used or unbound one; it never reveals anything else.
+
+Reaching the vault with an invitation (through the site's sign-in, or by an older link straight to `/vault?invite=…`, which the vault first bounces through the site so that the delegation is in place) shows the invited-user screen instead of the usual sign-in form: "You've been invited to <relying-party name>" (the `--rp-name` setting, which `/vault/api/config` now reports as `relyingPartyName`; the host name when it is empty), the email fixed and not editable, and a single Continue button. There is no code field, no terms line and no sign-in option, because the invitation already says who the person is and they have no account to sign in to. The app takes the email from the link and then from the lookup, so a link that lost its query string still works, and a used or invalid code shows a plain message with no form. Continue sends the email and the code to `POST /vault/api/register/invited`, which creates the account at once and starts the session: the link was itself emailed to that address, so there is no second verification code. The invitation is marked used in the same database transaction that creates the account, so a code works exactly once; from there the flow is the usual one: pick a passkey or password, set up the vault. Without `?invite=` in the URL the regular sign-in screen is unchanged, and in invite-only mode it says that a code is required to create a new account.
+
+The admin listing (`GET /vault/api/admin/invitations`) reports, for each invitation, the role, whether and when it was used, the writer `grants` made so far, and `accounts`: the account IDs the invited person's app has reported, so an operator can find the person's profile on the site.
+
+`GET /vault/api/admin/accounts/:accountUid` tells a site which vault user, if any, holds a given public [account](../protocol/identity.md) ID: `200 {accountUid, email, createTime}` or `404`. The [web app](./web.md) uses it at sign-in to decide membership. For this to work the vault keeps one piece of per-account state in plaintext that the hosted vault never had: a table of public account IDs per vault user. The app reports its IDs after it decrypts the vault and after every save (`POST /vault/api/vault-accounts`), and every entry carries a signature by that account's key over `seed-vault-account:<origin>:<vault user id>:<account id>`, so a user cannot register an ID they do not control; an ID already registered to another user is refused. The account keys themselves still never leave the encrypted blob, but on an invite-only vault the server now knows which public accounts belong to which email.
 
 # Running it <!-- id:A0Kg0MQc -->
 
 ```sh <!-- id:F2Io5mhz -->
 cd vault
-bun run dev      # :3030 with hot reload, against notify on :3060 and the web app on :3000
+bun run dev      # :3030 with hot reload, against the web app on :3000 and notify through it (:3000/hm/api/notify → :3060)
 bun check        # typecheck and format
 bun test
 ```

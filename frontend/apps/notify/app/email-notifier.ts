@@ -27,7 +27,8 @@ import {
   unpackHmId,
 } from '@shm/shared'
 import {FeedOrder} from '@shm/shared/client/.generated/activity/v1alpha/activity_pb'
-import {DAEMON_HTTP_URL, NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'
+import {DAEMON_HTTP_URL, SITE_BASE_URL} from '@shm/shared/constants'
+import {buildEmailSettingsUrl, buildEmailUnsubscribeUrl, getNotifyEmailOrigin} from '@shm/emails/notify-links'
 import {createDomainVerifier} from '@shm/shared/models/domain-resolver'
 import {
   classifyCommentNotificationForAccount,
@@ -78,7 +79,8 @@ const notificationBackfillMaxAgeMs = 60 * 60 * 1000
 const handleImmediateEmailNotificationsIntervalSeconds = 15
 
 const adminEmail = process.env.SEED_DEV_ADMIN_EMAIL || 'eric@seedhypermedia.com'
-const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/$/, '')
+// Email links (settings page, unsubscribe, read-redirect) live on the notify site's origin.
+const notifyEmailOrigin = getNotifyEmailOrigin()
 const fallbackSiteBaseUrl = SITE_BASE_URL.replace(/\/$/, '')
 const notifDebugEnabled = process.env.NOTIFY_DEBUG === '1' || process.env.NODE_ENV !== 'production'
 const notifVerboseEnabled = process.env.VERBOSE === 'true'
@@ -675,16 +677,6 @@ function withImmediateActionUrl(notification: QueuedNotification): QueuedNotific
     return notification
   }
 
-  if (!notificationEmailHost) {
-    logNotifDebug('immediate action URL skipped: missing notification host', {
-      accountId: notification.accountId,
-      reason: notification.notif.reason,
-      eventId: notification.notif.eventId,
-      eventAtMs: notification.notif.eventAtMs,
-    })
-    return notification
-  }
-
   if (!notification.notif.eventId || !notification.notif.eventAtMs) {
     logNotifDebug('immediate action URL skipped: missing event metadata', {
       accountId: notification.accountId,
@@ -703,7 +695,7 @@ function withImmediateActionUrl(notification: QueuedNotification): QueuedNotific
   }
 
   const actionUrl = buildNotificationReadRedirectUrl({
-    notifyServiceHost: notificationEmailHost,
+    notifyServiceHost: notifyEmailOrigin,
     token: notification.adminToken,
     accountId: notification.accountId,
     eventId: notification.notif.eventId,
@@ -750,7 +742,9 @@ async function buildImmediateNotificationEmail(
   notification: QueuedNotification,
 ): Promise<{subject: string; text: string; html: string} | null> {
   const {notif, adminToken} = notification
-  const unsubscribeUrl = `${notificationEmailHost}/hm/email-notifications?token=${adminToken}`
+  // The body links go to the settings page; only the List-Unsubscribe header (RFC 8058 POST) unsubscribes,
+  // since link scanners prefetch GET links in the body.
+  const unsubscribeUrl = buildEmailSettingsUrl(notifyEmailOrigin, adminToken)
   const authorName = notif.authorMeta?.name || 'Someone'
   const documentName = notif.targetMeta?.name || 'Untitled Document'
   const siteUrl = extractSiteOrigin(notif.url)
@@ -821,7 +815,7 @@ async function sendImmediateNotificationEmails(notificationsToSend: Notification
         if (!notificationEmail) continue
         const {subject, text, html} = notificationEmail
         const reason = notificationWithAction.notif.reason
-        const unsubscribeUrl = `${notificationEmailHost}/hm/api/unsubscribe?token=${notification.adminToken}`
+        const unsubscribeUrl = buildEmailUnsubscribeUrl(notifyEmailOrigin, notification.adminToken)
         logNotifDebug('sending immediate notification email', {
           email,
           subject,
@@ -857,7 +851,7 @@ async function sendBatchNotificationEmails(notificationsToSend: NotificationsByE
       )
       if (!notificationEmail) continue
       const {subject, text, html} = notificationEmail
-      const batchUnsubscribeUrl = `${notificationEmailHost}/hm/api/unsubscribe?token=${firstNotification.adminToken}`
+      const batchUnsubscribeUrl = buildEmailUnsubscribeUrl(notifyEmailOrigin, firstNotification.adminToken)
       logNotifDebug('sending batch notification email', {
         email,
         subject,

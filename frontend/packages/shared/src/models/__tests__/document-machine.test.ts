@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {
   createDefaultCollectionQueryBlock,
   deriveDocumentType,
@@ -11,6 +12,7 @@ import {
 } from '../document-machine'
 import {
   selectCanEditCurrentRoute,
+  selectIsCollection,
   selectPendingRemoteVersion,
   selectRenderableBlocks,
   selectShouldFocusDraftTitle,
@@ -18,6 +20,7 @@ import {
 } from '../use-document-machine'
 import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import type {ConfirmChildDeletionInput, ConfirmedChildDeletion} from '../../utils/confirmed-child-deletion'
 
 const mockDocumentId = {
   id: 'hm://z6Mktest/doc',
@@ -114,6 +117,84 @@ describe('document collection helpers', () => {
     actor.send({type: 'collection.convertToDocument'})
     expect(actor.getSnapshot().context.documentType).toBe('document')
     expect(actor.getSnapshot().context.draftContent).toEqual([])
+  })
+
+  describe.each(['document', 'collection'] as const)('discard conversion from %s', (originalType) => {
+    it('keeps the converted type after publishing', async () => {
+      const collectionContent = editorBlocksToHMBlockNodes([createDefaultCollectionQueryBlock('query')])
+      const publishedDocument = {
+        ...mockDocument,
+        content: originalType === 'document' ? collectionContent : [],
+        version: 'converted-version',
+      }
+      const machine = documentMachine.provide({
+        actors: {
+          writeDraft: fromPromise(async () => ({id: 'conversion-draft'})),
+          inspectChildDeletions: fromPromise<ConfirmedChildDeletion[], ConfirmChildDeletionInput>(async () => []),
+          publishDocument: fromPromise(async () => publishedDocument),
+        },
+      })
+      const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}}).start()
+      try {
+        loadDocument(actor, {...mockDocument, content: originalType === 'collection' ? collectionContent : []})
+        actor.send({
+          type: originalType === 'document' ? 'collection.convertToCollection' : 'collection.convertToDocument',
+        })
+        await vi.waitFor(() => expect(actor.getSnapshot().context.draftCreated).toBe(true))
+        actor.send({type: 'publish.start'})
+        await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+        expect(selectIsCollection(actor.getSnapshot())).toBe(originalType === 'document')
+        expect(selectRenderableBlocks(actor.getSnapshot())).toEqual(publishedDocument.content)
+      } finally {
+        actor.stop()
+      }
+    })
+
+    it.each(['unsaved', 'saved', 'outside editing'] as const)(
+      'restores published content for a %s draft',
+      async (draftState) => {
+        const content = editorBlocksToHMBlockNodes(
+          originalType === 'collection'
+            ? [createDefaultCollectionQueryBlock('published-query')]
+            : [
+                {
+                  id: 'paragraph',
+                  type: 'paragraph',
+                  props: {},
+                  content: [{type: 'text', text: 'Original content', styles: {}}],
+                  children: [],
+                } as EditorBlock,
+              ],
+        )
+        const publishedDocument = {...mockDocument, content}
+        const actor = createTestActor().start()
+        try {
+          loadDocument(actor, publishedDocument)
+          actor.send({
+            type: originalType === 'document' ? 'collection.convertToCollection' : 'collection.convertToDocument',
+          })
+          actor.send({type: 'change', metadata: {name: 'Unpublished title'}})
+          expect(selectIsCollection(actor.getSnapshot())).toBe(originalType !== 'collection')
+          if (draftState !== 'unsaved') {
+            await vi.waitFor(() => expect(actor.getSnapshot().context.draftCreated).toBe(true))
+          }
+          if (draftState === 'outside editing') actor.send({type: 'edit.cancel'})
+
+          actor.send({type: 'edit.discard'})
+          await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+
+          const snapshot = actor.getSnapshot()
+          expect(selectIsCollection(snapshot)).toBe(originalType === 'collection')
+          expect(selectRenderableBlocks(snapshot)).toEqual(content)
+          expect(snapshot.context.document).toEqual(publishedDocument)
+          expect(snapshot.context.draftContent).toBeNull()
+          expect(snapshot.context.metadata).toEqual({})
+          expect(snapshot.context.draftId).toBeNull()
+        } finally {
+          actor.stop()
+        }
+      },
+    )
   })
 
   it('writes the canonical collection query block when conversion autosaves', async () => {

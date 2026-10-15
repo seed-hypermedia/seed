@@ -267,7 +267,7 @@ These routes exist so that a site can be a site. Most are called by the Seed app
 <!-- id:PKELLSlU -->
 | Route <!-- col:UhI8xWLl --> | Method <!-- col:mznQCc-8 --> | Purpose <!-- col:tXMDDkZA --> <!-- id:17H0puft --> |
 | --- | --- | --- |
-| `/hm/api/config` | GET | `{registeredAccountUid, peerId, protocolId, signerAccountUid, addrs, hostname, isGateway, notifyServiceHost}`; CORS open, no auth. The one call to learn which space a domain publishes and how to reach its daemon. <!-- id:EdR0gB7w --> |
+| `/hm/api/config` | GET | `{registeredAccountUid, siteUrl, peerId, protocolId, signerAccountUid, addrs, hostname, isGateway, notifyServiceUrl, notifyServiceHost, agentServerUrl, requireSignIn}`; CORS open, no auth. `notifyServiceUrl` is the notify service's base URL (canonically `<origin>/hm/api/notify`) and `notifyServiceHost` its origin, kept for older clients; `agentServerUrl` is the agent server the web app uses, or null. The one call to learn which space a domain publishes and how to reach its daemon. `siteUrl` is what the registered space's home document says its address is (null when unregistered), so an operator can see when it has fallen behind `hostname`. <!-- id:EdR0gB7w --> |
 | `/hm/api/auth` | POST, DELETE, OPTIONS | protobuf `AuthenticateRequest` in, bearer cookie out; DELETE clears it <!-- id:DylsGsu- --> |
 | `/hm/api/version` | GET | `{web: {commit, branch, date}, daemon: {commit, branch, date}}` <!-- id:RTaB8Y2L --> |
 | `/hm/api/file/<cid>` | GET | streams `/ipfs/<cid>` through the web server, forwarding `Range` and the visitor's cookie <!-- id:inUY6yej --> |
@@ -286,10 +286,10 @@ curl https://hyper.media/hm/api/config
 ```
 
 ```json <!-- id:9sTFtDRg -->
-{"registeredAccountUid":"z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB","peerId":"12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ","protocolId":"/hypermedia/0.9.2","signerAccountUid":"z6MktB9d9djZFYDzrQ8jpgveVpjdBADZDtQUFaU8ygD37YYU","addrs":["/dns4/hyper.media/tcp/56001/p2p/12D3KooWEDdEe…","/dns4/hyper.media/udp/56001/quic-v1/p2p/12D3KooWEDdEe…"],"hostname":"https://hyper.media","isGateway":true,"notifyServiceHost":"https://notify.seed.hyper.media"}
+{"registeredAccountUid":"z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB","peerId":"12D3KooWEDdEeuY3oHCSKtn1eC7tU9qNWjF9bb8sCtHzpuCjvomQ","protocolId":"/hypermedia/0.9.2","signerAccountUid":"z6MktB9d9djZFYDzrQ8jpgveVpjdBADZDtQUFaU8ygD37YYU","addrs":["/dns4/hyper.media/tcp/56001/p2p/12D3KooWEDdEe…","/dns4/hyper.media/udp/56001/quic-v1/p2p/12D3KooWEDdEe…"],"hostname":"https://hyper.media","isGateway":true,"notifyServiceUrl":"https://hyper.media/hm/api/notify","notifyServiceHost":"https://hyper.media","agentServerUrl":"https://agentic.seed.hyper.media"}
 ```
 
-Email notification endpoints (`/hm/api/notifications`, `/hm/api/notification-config`, `/hm/api/public-subscribe`) are not part of the web server. They belong to the [notify service](../apps/notify.md), whose host `/hm/api/config` advertises as `notifyServiceHost`. There is no sitemap, no RSS and no `.well-known` route. `robots.txt` allows everything. <!-- id:lCPdAtXB -->
+Email notification endpoints (`/hm/api/notify/*`, and the older `/hm/api/notifications`, `/hm/api/notification-config`, `/hm/api/public-subscribe` and friends) are not part of the web server. The reverse proxy routes them to the [notify service](../apps/notify.md), which `/hm/api/config` advertises as `notifyServiceUrl`. The web server only serves the email settings page, `/hm/email-notifications`. There is no sitemap, no RSS and no `.well-known` route. `robots.txt` allows everything. <!-- id:lCPdAtXB -->
 
 # The desktop bridge differs in two ways <!-- id:407ymi_o -->
 

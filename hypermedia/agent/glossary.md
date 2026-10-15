@@ -38,6 +38,10 @@ The words the [Seed Agents](../agent.md) pages use, one line each, linked to the
 - [typed result](./typed-result.md): a child spawned with an `output` schema must deliver its result through the `return_result` tool. <!-- id:THID80eE -->
 - [script and ctx](./script.md): a script child's world: `ctx.call`, `ctx.delegate`, `ctx.parallel`, `ctx.step`, `ctx.plan`, `ctx.sleep`, `ctx.waitForEvent`, `ctx.continueAsNew`. <!-- id:QxQG0zGR -->
 - [journal](./journal.md): a script run's durable effect record; resume replays the source against it and completed effects never re-execute. <!-- id:Pi9NkRbM -->
+- journal entry: one record in a [journal](./journal.md), a JSON value with a `kind` (`call`, `result`, `timer`, `fired`, `wait`, `event`, `now`, `log`, `step`, `plan`), the `callSeq` of the ctx call it belongs to, and a content `key` replay matches on.
+- run tree: a root [run](./runs.md) and every run spawned under it, all sharing one `rootRunId`; what `ListRuns {rootRunId}` returns and a `runs/<rootRunId>` subscription replays.
+- root run: the run a message or a firing started, at depth 0; its children carry `parentRunId` and a greater `depth`.
+- turn: one model run of a session, from a message or a wake to the reply; each turn is a run row of kind `agent`.
 - [park and wait](./park.md): a run pausing without holding resources, for children, a timer, an event, or a budget pause. <!-- id:yYu22gIQ -->
 - [wake source](./wake-source.md): whatever ends a park: children finishing, a timer, a signal, an activity event, or a person resuming. <!-- id:3WjoeEZL -->
 - [continueAsNew](./continue-as-new.md): a long-running script finishing into a fresh successor run with a clean journal. <!-- id:RIJrxpyc -->
@@ -52,15 +56,19 @@ The words the [Seed Agents](../agent.md) pages use, one line each, linked to the
 
 # The symmetric log <!-- id:TDeu0X7Q -->
 
-- [actor](./actor.md): who did it: `user`, `agent`, `system`, or `trigger`; every event carries one. <!-- id:C05dWJaO -->
+- [actor](./actor.md): who did it: `user`, `agent`, `system`, or `trigger`; every event has one, stamped or derived from its shape. <!-- id:C05dWJaO -->
+- thread: a synonym these pages use for a session, the conversation a [log](./log.md) records.
 - [wrench palette](./wrench-palette.md): the tool button in the composer that lets a person run `read`, `write`, and `call` themselves, with results landing on the log as user events. <!-- id:HoQrWl3R -->
 - [session continuation](./session-continuation.md): carrying a conversation into a fresh successor session with a structured handoff. The old history is not compacted. <!-- id:Jiai9ykh -->
 
 # Triggers <!-- id:Cv20mJqD -->
 
-- [trigger](./trigger.md): standing configuration binding a source (schedule, comment, mention, [site](../protocol/sites.md) update, webhook, run completed) to a continuation. <!-- id:Y2MmLcGs -->
+- [trigger](./trigger.md): standing configuration binding a source (comment, mention, reply, document-author comment, [site](../protocol/sites.md) update, a list of those as conditions, schedule, webhook, run completed) to a continuation. <!-- id:Y2MmLcGs -->
 - [firing](./firing.md): one trigger activation, deduplicated exactly once, with run-completed chains loop-guarded at eight hops. <!-- id:ixEodPl5 -->
-- continuation: what a firing does: start a new thread, wake a parked run, or run a tool or script with no model; see [triggers](./triggers.md). <!-- id:fdvIUBGI -->
+- continuation: what a firing does: start a new thread, wake a parked run, or run a tool or script with no model; see [triggers](./triggers.md). Not to be confused with [session continuation](./session-continuation.md), which carries a conversation into a successor session. <!-- id:fdvIUBGI -->
+- condition: one alternative inside an `activity` trigger, `{id, source}`; the trigger fires once when any condition matches, and the firing records `matchedConditions`; see [triggers](./triggers.md).
+- claim: the `trigger_event_claims` row inserted for `(account, trigger, firing key)` before an activity firing is created, the admission authority that makes a firing exactly-once; see [triggers](./triggers.md).
+- firing key: the key a feed event dedupes on, `blob-<cid>` of the comment version, which a comment and its citation twin share (`activityFiringKey`); the raw event key (`activityEventKey`) differs per sibling.
 - activity monitor: the server's poll loop over the Hypermedia activity feed that matches events against triggers and waiting runs; see [triggers](./triggers.md). <!-- id:r06uh5ey -->
 
 # Control plane <!-- id:rFeEtwox -->

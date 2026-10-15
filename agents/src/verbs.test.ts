@@ -1106,7 +1106,7 @@ describe('trigger introspection (~/triggers/ and ~/self)', () => {
     }
     expect(created.prompt).toBe('Summarize the posted deployment event.')
     expect(webhook.secret).toMatch(/^[A-Za-z0-9_-]{43}$/)
-    expect(webhook.endpointPath).toBe(`/agents/api/webhooks/${created.id}/${webhook.secret}`)
+    expect(webhook.endpointPath).toBe(`/hm/api/agents/webhooks/${created.id}/${webhook.secret}`)
     expect(webhook.alternative).toContain(`Bearer ${webhook.secret}`)
     expect(webhook.requiredHeaders).toEqual({'Content-Type': 'application/json'})
     expect(webhook.optionalHeaders['Idempotency-Key']).toContain('unique')

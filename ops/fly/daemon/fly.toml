@@ -1,0 +1,39 @@
+app = "seed-daemon"
+
+[build]
+  image = "seedhypermedia/site:latest"
+
+[env]
+  LIGHTNING_API_URL = "https://ln.seed.hyper.media"
+  SENTRY_DSN = "https://47c66bd7a6d64db68a59c03f2337e475@o4504088793841664.ingest.sentry.io/4505527493328896"
+  SEED_LOG_LEVEL = "info"
+  SEED_P2P_TESTNET_NAME = ""
+
+[mounts]
+  source = "seed_daemon_data"
+  destination = "/data"
+
+[processes]
+  app = """sh -c 'set -eu; : "${SEED_P2P_HOST:?SEED_P2P_HOST must be set}"; p2p_ip=$(getent ahostsv4 fly-global-services | awk "NR == 1 {print \\$1}"); if [ -z "$p2p_ip" ]; then echo "Could not resolve fly-global-services to an IPv4 address." >&2; exit 1; fi; exec seed-daemon -data-dir=/data -keystore-dir=/data/keys -lndhub.mainnet -p2p.port=56000 -http.port=56001 -grpc.port=56002 -p2p.no-relay=true -p2p.force-reachability-public=true -syncing.smart=true -syncing.no-sync-back=true -syncing.no-pull=false -p2p.listen-addrs=/ip4/$p2p_ip/udp/56000/quic-v1,/ip4/0.0.0.0/tcp/56000 -p2p.announce-addrs=/dns4/$SEED_P2P_HOST/tcp/56000,/dns4/$SEED_P2P_HOST/udp/56000/quic-v1'"""
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 56000
+  processes = ["app"]
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 56000
+
+[[services]]
+  protocol = "udp"
+  internal_port = 56000
+  processes = ["app"]
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 56000

@@ -71,6 +71,7 @@ export function AccountSettingsLayout({
             sublabel={vaultEmail}
             active={isVaultSelected}
             onClick={onSelectVault}
+            outlined
           />
         </div>
 
@@ -121,6 +122,7 @@ function SidebarItem({
   active,
   onClick,
   menu,
+  outlined,
 }: {
   icon: ReactNode
   label: string
@@ -128,6 +130,8 @@ function SidebarItem({
   active: boolean
   onClick: () => void
   menu?: AccountSettingsAccountMenu
+  /** Draws a persistent 1px border so the row reads as clickable even without hover. */
+  outlined?: boolean
 }) {
   return (
     <div className="group/account relative">
@@ -136,6 +140,7 @@ function SidebarItem({
         className={cn(
           'flex w-full items-center gap-3 rounded-md px-2 py-2 text-left',
           menu ? 'pr-9' : '',
+          outlined ? 'border-border border' : '',
           active ? 'bg-sidebar-accent text-sidebar-accent-foreground' : 'hover:bg-black/5 dark:hover:bg-white/5',
         )}
       >

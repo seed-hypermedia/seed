@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "sync-shared": "bun install",
-    "dev": "SEED_VAULT_DEFAULT_NOTIFY_SERVER=http://localhost:3060 SEED_VAULT_WEB_BASE_URL=http://localhost:3000 bun ../scripts/watch-file-deps.ts bun --hot src/main.ts",
+    "dev": "SEED_VAULT_DEFAULT_NOTIFY_SERVER=http://localhost:3000/hm/api/notify SEED_VAULT_WEB_BASE_URL=http://localhost:3000 bun ../scripts/watch-file-deps.ts bun --hot src/main.ts",
     "build": "NODE_ENV=production bun build.ts",
     "typecheck": "bun tsgo --noEmit",
     "format:check": "prettier --check .",
@@ -38,6 +38,7 @@
     "@noble/hashes": "^2.0.1",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-slot": "^1.2.4",
+    "@scure/bip39": "^2.4.0",
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "@shm/shared": "file:../frontend/packages/shared",
     "@shm/ui": "file:../frontend/packages/ui",

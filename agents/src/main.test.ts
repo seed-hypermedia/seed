@@ -3,7 +3,7 @@ import {describe, expect, test} from 'bun:test'
 import * as apisvc from '@/api-service'
 import type * as api from '@/api'
 import * as cbor from '@/cbor'
-import {createAPIRoutes, wsShouldDeliver, type WSData} from '@/main'
+import {AGENTS_API_PREFIX, AGENTS_WS_PATHS, createAPIRoutes, wsShouldDeliver, type WSData} from '@/main'
 import * as sqlite from '@/sqlite'
 import * as blobs from '@shm/shared/blobs'
 import * as fs from 'node:fs'
@@ -31,6 +31,57 @@ describe('main routes', () => {
         const decoded = cbor.decode(await bytes(res))
         expect(decoded).toEqual({_: 'ListAgentsResponse', agents: []})
       }
+    } finally {
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('every endpoint answers on the canonical /hm/api/agents mount and on its legacy path', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const routes = createAPIRoutes(new apisvc.Service(db, dataDir))
+
+      for (const route of [`${AGENTS_API_PREFIX}/message`, '/api/message']) {
+        const res = await getPostHandler(
+          routes,
+          route,
+        )(
+          new Request(`http://agents.test${route}`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/cbor'},
+            body: cbor.encode(await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}})) as BodyInit,
+          }) as never,
+        )
+        expect(res.status).toBe(200)
+        expect(cbor.decode<unknown>(await bytes(res))).toEqual({_: 'ListAgentsResponse', agents: []})
+      }
+      const options = routes[`${AGENTS_API_PREFIX}/message`] as {OPTIONS?: unknown}
+      expect(typeof options.OPTIONS).toBe('function')
+
+      for (const [canonical, legacy] of [
+        ['/health', '/agents/api/health'],
+        ['/version', '/agents/api/version'],
+        ['/perf', '/agents/api/perf'],
+      ] as const) {
+        for (const route of [`${AGENTS_API_PREFIX}${canonical}`, legacy]) {
+          const res = await getGetHandler(routes, route)()
+          expect(res.status).toBe(200)
+        }
+      }
+      for (const route of [`${AGENTS_API_PREFIX}/perf/sessions/:sessionId`, '/agents/api/perf/sessions/:sessionId']) {
+        expect(routes[route]).toBeDefined()
+      }
+      for (const route of [
+        `${AGENTS_API_PREFIX}/webhooks/:triggerId`,
+        `${AGENTS_API_PREFIX}/webhooks/:triggerId/:secret`,
+        '/agents/api/webhooks/:triggerId',
+        '/agents/api/webhooks/:triggerId/:secret',
+      ]) {
+        expect(typeof getPostHandler(routes, route)).toBe('function')
+      }
+      expect(AGENTS_WS_PATHS).toEqual(['/hm/api/agents/ws', '/agents/ws'])
     } finally {
       sqlite.closeDatabase(db)
       cleanup()
@@ -405,12 +456,16 @@ describe('webhook tool continuation', () => {
         }),
       )
       if (created._ !== 'CreateAgentTriggerResponse' || !created.webhookSecret) throw new Error('unexpected response')
-      const handler = getPostHandler(createAPIRoutes(svc), '/agents/api/webhooks/:triggerId/:secret')
-      const req = new Request(`http://agents.test/agents/api/webhooks/${created.trigger.id}/${created.webhookSecret}`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({address: '~/triggers/'}),
-      })
+      // The canonical mount: the path the trigger's endpointPath advertises.
+      const handler = getPostHandler(createAPIRoutes(svc), '/hm/api/agents/webhooks/:triggerId/:secret')
+      const req = new Request(
+        `http://agents.test/hm/api/agents/webhooks/${created.trigger.id}/${created.webhookSecret}`,
+        {
+          method: 'POST',
+          headers: {'content-type': 'application/json'},
+          body: JSON.stringify({address: '~/triggers/'}),
+        },
+      )
       Object.defineProperty(req, 'params', {value: {triggerId: created.trigger.id, secret: created.webhookSecret}})
       const res = await handler(req as never)
       expect(res.status).toBe(202)

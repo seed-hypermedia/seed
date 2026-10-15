@@ -58,6 +58,23 @@ export const VIEW_TERMS = [
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
+/**
+ * Whether a path or URL addresses a view-term panel (`/:followers`, `/:comments`, ...)
+ * rather than a document itself. Panels are alternate views of documents and accounts
+ * whose URL space grows with every pair of accounts, so crawlers are kept out of them
+ * (robots.txt) and links to them carry rel="nofollow".
+ */
+export function isViewTermPath(pathOrUrl: string): boolean {
+  let path = pathOrUrl
+  const schemeEnd = path.indexOf('://')
+  if (schemeEnd >= 0) {
+    const pathStart = path.indexOf('/', schemeEnd + 3)
+    path = pathStart >= 0 ? path.slice(pathStart) : '/'
+  }
+  path = path.split(/[?#]/)[0] || ''
+  return path.split('/').some((segment) => (VIEW_TERMS as readonly string[]).includes(segment))
+}
+
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
 export type ViewRouteKey =
   | 'activity'
@@ -106,6 +123,7 @@ export function extractViewTermFromUrl(url: string): {
   commentId?: string
   accountUid?: string
   settingsTab?: string
+  settingsDomain?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
 
@@ -134,8 +152,27 @@ export function extractViewTermFromUrl(url: string): {
     }
   }
 
+  // A custom-domain setup has its own reloadable settings destination.
+  const domainSetupMatch = inspectCleanUrl.match(/\/\:settings\/web-domain\/([^/?#]+)(?=[?#]|$)/)
+  if (domainSetupMatch) {
+    let settingsDomain: string
+    try {
+      settingsDomain = decodeURIComponent(domainSetupMatch[1]!)
+    } catch {
+      return {url: inspectCleanUrl, isInspect, viewTerm: null}
+    }
+    return {
+      url: inspectCleanUrl.replace(domainSetupMatch[0], ''),
+      isInspect,
+      viewTerm: ':settings',
+      settingsTab: 'web-domain',
+      settingsDomain,
+    }
+  }
+
   // Check for site settings patterns like /:settings or /:settings/<tab>.
-  const settingsPattern = /\/\:settings(?:\/(identity|navigation|members|writers|email-subscribers))?(?=[?#]|$)/
+  const settingsPattern =
+    /\/\:settings(?:\/(identity|navigation|web-domain|members|writers|email-subscribers|agents))?(?=[?#]|$)/
   const settingsMatch = inspectCleanUrl.match(settingsPattern)
   if (settingsMatch) {
     return {
@@ -655,7 +692,8 @@ export function routeToUrl(
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
     const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
     const tabPath = route.tab ? `/${route.tab}` : ''
-    return `${urlHost}${siteBase}/:settings${tabPath}`
+    const domainPath = route.tab === 'web-domain' && route.domain ? `/${encodeURIComponent(route.domain)}` : ''
+    return `${urlHost}${siteBase}/:settings${tabPath}${domainPath}`
   }
   if (route.key === 'site-profile') {
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
@@ -752,7 +790,8 @@ export function routeToHmUrl(route: NavRoute): string | null {
 
   if (route.key === 'site-settings') {
     const tabPath = route.tab ? `/${route.tab}` : ''
-    return `${packBaseId(route.id.uid, route.id.path)}/:settings${tabPath}`
+    const domainPath = route.tab === 'web-domain' && route.domain ? `/${encodeURIComponent(route.domain)}` : ''
+    return `${packBaseId(route.id.uid, route.id.path)}/:settings${tabPath}${domainPath}`
   }
 
   // The schema a document defines: the document URL suffixed with /:schema.

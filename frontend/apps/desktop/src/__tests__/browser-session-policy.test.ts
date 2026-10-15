@@ -10,11 +10,20 @@ const mocks = vi.hoisted(() => ({
   save: vi.fn(),
   message: vi.fn(),
 }))
+vi.mock('../app-store.mts', () => ({appStore: {get: vi.fn(), set: vi.fn()}}))
+vi.mock('../agents-server-process', () => ({getLocalAgentsServerUrl: () => null}))
+vi.mock('../browser-blocklist', async () => {
+  const actual = await vi.importActual<typeof import('../browser-blocklist')>('../browser-blocklist')
+  actual.browserBlocklist.load = vi.fn()
+  actual.browserBlocklist.refresh = vi.fn().mockResolvedValue(undefined)
+  return actual
+})
 vi.mock('electron', async () => {
   const {EventEmitter} = await import('node:events')
   mocks.app = Object.assign(new EventEmitter(), {
     configureHostResolver: vi.fn(),
     commandLine: {hasSwitch: vi.fn(() => false)},
+    getPath: () => '/unused',
   })
   const makeSession = () =>
     Object.assign(new EventEmitter(), {
