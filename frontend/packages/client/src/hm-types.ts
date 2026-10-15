@@ -907,6 +907,41 @@ export const HMQuerySortSchema = z
   .transform(normalizeQuerySortEntry)
 export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
 
+export const HMQueryFilterSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('Author'),
+    uid: z.string(),
+  }),
+])
+export type HMQueryFilter = z.infer<typeof HMQueryFilterSchema>
+
+/** Returns only query filters supported by this client, dropping malformed or future filter types. */
+export function getSupportedHMQueryFilters(val: unknown): HMQueryFilter[] {
+  if (!Array.isArray(val)) return []
+  return val.filter(
+    (filter): filter is HMQueryFilter =>
+      filter !== null &&
+      typeof filter === 'object' &&
+      (filter as {type?: unknown}).type === 'Author' &&
+      typeof (filter as {uid?: unknown}).uid === 'string',
+  )
+}
+
+/** Parses stored query filter JSON, returning an empty list for invalid or unsupported payloads. */
+export function parseHMQueryFiltersJSON(rawFilters: string | undefined): HMQueryFilter[] {
+  if (!rawFilters) return []
+  try {
+    return getSupportedHMQueryFilters(JSON.parse(rawFilters))
+  } catch {
+    return []
+  }
+}
+
+function removeUnsupportedQueryFilters(val: unknown) {
+  if (val === undefined) return undefined
+  return getSupportedHMQueryFilters(val)
+}
+
 export const HMQuerySchema = z.object({
   includes: z.array(HMQueryInclusionSchema),
   sort: z.array(HMQuerySortSchema).optional(),
@@ -914,6 +949,7 @@ export const HMQuerySchema = z.object({
     (val) => (val === '' || val === null || val === undefined ? undefined : val),
     z.coerce.number().optional(),
   ),
+  filters: z.preprocess(removeUnsupportedQueryFilters, z.array(HMQueryFilterSchema).optional()),
 })
 export type HMQuery = z.infer<typeof HMQuerySchema>
 
@@ -1275,17 +1311,21 @@ export const ParsedFragmentSchema = BlockRangeSchema.extend({
 })
 export type ParsedFragment = z.infer<typeof ParsedFragmentSchema>
 
+// blockId is the block that carries the link (the citation's sourceContext): a block of
+// the citing document, or a block of the citing comment.
 const HMCitationCommentSourceSchema = z.object({
   type: z.literal('c'),
   id: unpackedHmIdSchema,
   author: z.string().optional(),
   time: HMTimestampSchema.optional(),
+  blockId: z.string().optional(),
 })
 const HMCitationDocumentSourceSchema = z.object({
   type: z.literal('d'),
   id: unpackedHmIdSchema,
   author: z.string().optional(),
   time: HMTimestampSchema.optional(),
+  blockId: z.string().optional(),
 })
 
 export const HMCitationSchema = z.object({
@@ -1900,6 +1940,10 @@ export const HMListEventsInputSchema = z.object({
   filterAuthors: z.array(z.string()).optional(),
   filterEventType: z.array(z.string()).optional(),
   filterResource: z.string().optional(),
+  // Citations of one block of filterResource, one entry per citing block, read from ListCitations
+  // instead of the feed: the feed keeps one event per publication, so a document that links one
+  // block from many blocks has at most one of them there. Document citations only, a single page.
+  targetBlockId: z.string().optional(),
   currentAccount: z.string().optional(),
   // Feed ordering. 'claimed' (default) orders by the event's claimed/create time; 'observed' orders by
   // when the server locally observed the blob — needed by pollers that must see late-propagating events
@@ -1995,6 +2039,8 @@ export const HMRawCitationSchema = z.object({
   targetFragment: z.string().optional(),
   isExactVersion: z.boolean().optional(),
   targetBlockRevision: z.string().optional(),
+  // The link type, `doc/Link`, `doc/Embed`, `comment/Embed`...
+  citationType: z.string().optional(),
   mentionType: z.string().optional(),
   isExact: z.boolean().optional(),
 })

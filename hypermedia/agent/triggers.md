@@ -81,7 +81,7 @@ It only contacts the feed for accounts that have at least one enabled non-schedu
 
 The **schedule monitor** checks enabled `schedule` triggers on the same interval, records their firings, and disables a `once` trigger at fire time, before its run starts. <!-- id:4faqwRaM -->
 
-The HTTP server delivers **webhooks** synchronously. A request to `POST /agents/api/webhooks/<triggerId>/<secret>`, or to `POST /agents/api/webhooks/<triggerId>` with `Authorization: Bearer <secret>`, with a JSON body answers `202 {accepted, duplicate}`. The body must be `application/json` with no content encoding (anything else is 415) and under the webhook body cap. The secret is 43 URL-safe characters. It is generated with the trigger and shown on its page to accounts that can edit the agent. The client builds the delivery URL from the server's base. <!-- id:30W5TAHJ -->
+The HTTP server delivers **webhooks** synchronously. A request to `POST /hm/api/agents/webhooks/<triggerId>/<secret>`, or to `POST /hm/api/agents/webhooks/<triggerId>` with `Authorization: Bearer <secret>`, with a JSON body answers `202 {accepted, duplicate}`. The body must be `application/json` with no content encoding (anything else is 415) and under the webhook body cap. The secret is 43 URL-safe characters. It is generated with the trigger and shown on its page to accounts that can edit the agent. The client builds the delivery URL from the server's base. The legacy `/agents/api/webhooks/…` paths keep working, so URLs already handed out stay valid. <!-- id:30W5TAHJ -->
 
 **Run-completed** fires inline when a run is finalized. There is no polling. <!-- id:KKT9w-mu -->
 

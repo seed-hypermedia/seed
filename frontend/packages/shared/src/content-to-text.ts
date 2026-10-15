@@ -1,6 +1,6 @@
-import {GRPCClient} from '.'
-import {accountMetadataFromAccount} from './account-metadata'
 import {HMBlock, HMBlockNode, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {accountMetadataFromAccount} from './account-metadata'
+import type {GRPCClient} from './grpc-client'
 import {unpackHmId} from './utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'
 
@@ -56,7 +56,15 @@ export function commentToText({
   return contentToText({content: comment.content, resolvedNames, lineBreaks})
 }
 
-function blockToPlainText(block: HMBlock, resolvedNames: Readonly<Record<string, string>>): string {
+/**
+ * Converts one block to text, replacing inline mentions with their resolved names.
+ * Mentions whose name is not resolved are dropped.
+ */
+export function blockToPlainText(
+  block: HMBlock,
+  resolvedNames: Readonly<Record<string, string>> = {},
+  range?: {start: number; end: number},
+): string {
   if (block.type === 'Query') return ''
   if (block.type === 'Button') {
     const attributes = (block as any).attributes
@@ -67,22 +75,19 @@ function blockToPlainText(block: HMBlock, resolvedNames: Readonly<Record<string,
 
   const text = (block as any).text || ''
   const annotations = (block as any).annotations || []
-  if (!annotations.length) return text || (block as any).link || ''
+  if (!annotations.length && !range) return text || (block as any).link || ''
 
   const embeds = new Map<number, string>()
   for (const annotation of annotations) {
+    if (annotation.type !== 'Embed') continue
     const kind = annotation.attributes?.mentionKind
-    const name =
-      annotation.type === 'Embed'
-        ? (kind ? resolvedNames[`${kind}:${annotation.link}`] : undefined) ?? resolvedNames[annotation.link]
-        : undefined
-    if (!name) continue
-    annotation.starts?.forEach((start: number) => embeds.set(start, name))
+    const name = (kind ? resolvedNames[`${kind}:${annotation.link}`] : undefined) ?? resolvedNames[annotation.link]
+    annotation.starts?.forEach((start: number) => embeds.set(start, name || ''))
   }
-  if (!embeds.size) return text
 
   return Array.from(text)
-    .map((character, index) => embeds.get(index) || character)
+    .map((character, index) => embeds.get(index) ?? character)
+    .slice(range?.start, range?.end)
     .join('')
 }
 

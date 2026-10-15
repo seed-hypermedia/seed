@@ -35,6 +35,7 @@ import {
   Workflow,
 } from 'lucide-react'
 import React, {createContext, useCallback, useContext, useEffect, useId, useMemo, useState} from 'react'
+import {randomUUID} from './random-id'
 
 /**
  * Canonical per-trigger-type frontend definitions.
@@ -227,9 +228,7 @@ export function TriggerSourceFields({
         size="sm"
         className="text-muted-foreground hover:text-foreground justify-self-start"
         disabled={isEditing || !isTriggerSourceReady(source)}
-        onClick={() =>
-          setEditing({id: crypto.randomUUID(), draft: {type: 'document-comment', resource: ''}, isNew: true})
-        }
+        onClick={() => setEditing({id: randomUUID(), draft: {type: 'document-comment', resource: ''}, isNew: true})}
       >
         <Plus className="size-3.5" />
         Add condition

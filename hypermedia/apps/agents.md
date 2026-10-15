@@ -8,7 +8,7 @@ The same build runs in three places. The desktop app ships it as a compiled bina
 
 # Where the code is <!-- id:m2SxIwMF -->
 
-`agents/`, package `@seed-hypermedia/agents`: a separate Bun workspace. Use Bun commands inside it, never pnpm. It is built on [Pi](https://github.com/badlogic/pi-mono) (`@mariozechner/pi-ai` and `pi-coding-agent`, pinned to 0.70.x) for model calls and the agent loop, the MCP SDK for connecting to remote [MCP servers](../agent/mcp.md), QuickJS for scripts, and microsandbox microVMs for code execution. It consumes `@seed-hypermedia/client` and `@shm/shared` through `file:` dependencies, which copy the packages at install time. <!-- id:YveM76cu -->
+`agents/`, package `@seed-hypermedia/agents`: a separate Bun workspace. Use Bun commands inside it, never pnpm. It is built on [Pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-ai` for model calls and `@earendil-works/pi-durable` for the agent loop, pinned to 1.0.x), the MCP SDK for connecting to remote [MCP servers](../agent/mcp.md), QuickJS for scripts, and microsandbox microVMs for code execution. It consumes `@seed-hypermedia/client` and `@shm/shared` through `file:` dependencies, which copy the packages at install time. <!-- id:YveM76cu -->
 
 <!-- id:p0g-x6aC -->
 | Path <!-- col:XVydtKVl --> | What it holds <!-- col:pxciYz7N --> <!-- id:QY9BBlKE --> |
@@ -16,6 +16,7 @@ The same build runs in three places. The desktop app ships it as a compiled bina
 | `src/main.ts` | Startup, the HTTP routes and the WebSocket server. <!-- id:Y0Xw5Kqi --> |
 | `src/config.ts` | Every flag and its environment variable; the top code comment is the configuration reference. <!-- id:2V09w8mX --> |
 | `src/api-service.ts` | The signed action handlers, by far the largest file. <!-- id:WgUneRMx --> |
+| `src/durable-session.ts` | The per-session [Pi Durable store](../agent/durable-sessions.md) the model turn runs on. |
 | `src/auth.ts` | Envelope signature checks and capability-based authorization. <!-- id:IKVKS0ev --> |
 | `src/runs.ts`, `src/workflow-*.ts` | The run queue and the workflow engine. <!-- id:Jy_5I5KZ --> |
 | `src/activity-monitor.ts`, `src/activity-triggers.ts`, `src/schedule-*.ts` | [Trigger](../agent/triggers.md) monitors. <!-- id:FzH_JMtW --> |

@@ -1,5 +1,5 @@
 import {describe, it, expect, vi} from 'vitest'
-import {commentToText, contentToText, documentToText} from '../content-to-text'
+import {blockToPlainText, commentToText, contentToText, documentToText} from '../content-to-text'
 import {hmId} from '../utils/entity-id-url'
 import type {GRPCClient} from '..'
 
@@ -48,6 +48,20 @@ describe('contentToText', () => {
         lineBreaks: false,
       }),
     ).toBe('wdyt Alice and Roadmap nested text')
+  })
+
+  it('limits a block to a codepoint range and drops unresolved mentions', () => {
+    const block = {
+      id: 'one',
+      type: 'Paragraph',
+      text: '🌱 \uFFFC and \uFFFC end',
+      annotations: [
+        {type: 'Embed', link: 'hm://alice', starts: [2], ends: [3]},
+        {type: 'Embed', link: 'hm://bob', starts: [8], ends: [9]},
+      ],
+    } as any
+
+    expect(blockToPlainText(block, {'hm://alice': 'Alice'}, {start: 2, end: 10})).toBe('Alice and  ')
   })
 
   it('converts comment content through the shared converter', () => {

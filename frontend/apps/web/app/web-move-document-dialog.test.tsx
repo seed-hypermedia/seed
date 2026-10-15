@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
@@ -16,6 +16,7 @@ const createRedirectRefMock = vi.hoisted(() =>
 const enqueueCleanupMock = vi.hoisted(() => vi.fn(async () => ({enqueued: true, jobId: 'pending-job'})))
 const releaseCleanupMock = vi.hoisted(() => vi.fn(async () => {}))
 const sharedDestinationDialogMock = vi.hoisted(() => vi.fn(() => <div data-testid="shared-destination-dialog" />))
+const invalidateQueriesMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@seed-hypermedia/client', async () => {
   const actual = await vi.importActual<typeof import('@seed-hypermedia/client')>('@seed-hypermedia/client')
@@ -34,6 +35,13 @@ vi.mock('./document-edit/web-document-card-cleanup', () => ({
 vi.mock('@shm/ui/document-destination-dialog', () => ({
   DocumentDestinationDialog: sharedDestinationDialogMock,
 }))
+
+vi.mock('@shm/shared/models/query-client', async () => {
+  const actual = await vi.importActual<typeof import('@shm/shared/models/query-client')>(
+    '@shm/shared/models/query-client',
+  )
+  return {...actual, invalidateQueries: invalidateQueriesMock}
+})
 
 vi.mock('@shm/shared/utils/navigation', () => ({
   useNavigate: () => vi.fn(),
@@ -239,6 +247,7 @@ describe('moveWebDocuments', () => {
   })
 
   it('publishes version and redirect refs and enqueues parent card rewrite', async () => {
+    invalidateQueriesMock.mockClear()
     const from = makeId('site', ['old-parent', 'doc'])
     const to = makeId('site', ['old-parent', 'renamed'])
     const publish = vi.fn(async () => ({}))
@@ -291,6 +300,8 @@ describe('moveWebDocuments', () => {
     )
     expect(enqueueCleanupMock.mock.invocationCallOrder.at(-1)!).toBeLessThan(publish.mock.invocationCallOrder[0]!)
     expect(publish).toHaveBeenCalledTimes(2)
+    expect(invalidateQueriesMock).toHaveBeenCalledWith(['DOC_LIST_DIRECTORY'], {refetchType: 'all'})
+    expect(invalidateQueriesMock).toHaveBeenCalledWith(['DOC_LIST_UNREFERENCED', 'site'], {refetchType: 'all'})
     expect(enqueueCleanupMock).toHaveBeenCalledWith(
       {
         operation: 'rewrite',
@@ -306,6 +317,59 @@ describe('moveWebDocuments', () => {
         signingAccountUid: 'site',
         capabilityId: 'cap-cid',
       },
+      {client: expect.anything()},
+    )
+  })
+
+  it('enqueues a child-card rewrite when moving a parent subtree', async () => {
+    enqueueCleanupMock.mockClear()
+    const from = makeId('site', ['old-parent'])
+    const to = makeId('site', ['new-parent'])
+    const childFrom = makeId('site', ['old-parent', 'child'])
+    const childTo = makeId('site', ['new-parent', 'child'])
+    const publish = vi.fn(async () => ({}))
+    const request = vi.fn(async (_key: string, id: UnpackedHypermediaId) => {
+      if (id.id === to.id || id.id === childTo.id) return {type: 'not-found', id}
+      return {
+        type: 'document',
+        document: {
+          version: id.id === childFrom.id ? 'child-version' : 'parent-version',
+          genesis: id.id === childFrom.id ? 'child-genesis' : 'parent-genesis',
+          generationInfo: {
+            genesis: id.id === childFrom.id ? 'child-genesis' : 'parent-genesis',
+            generation: 1n,
+          },
+        },
+      }
+    })
+
+    await moveWebDocuments(
+      {
+        request,
+        publish,
+        getSigner: () => ({getPublicKey: async () => new Uint8Array([1]), sign: async () => new Uint8Array([2])}),
+      } as any,
+      {
+        from,
+        to,
+        childDocuments: [{path: childFrom.path}] as HMDocumentInfo[],
+        signingAccountId: 'site',
+      },
+    )
+
+    expect(enqueueCleanupMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'rewrite',
+        parentDocumentId: to.id,
+        sourceDocumentId: childFrom.id,
+        targetDocumentId: childTo.id,
+        awaitingPrimary: {
+          documentId: childFrom.id,
+          expectedType: 'redirect',
+          targetDocumentId: childTo.id,
+          expectedGenesis: 'child-genesis',
+        },
+      }),
       {client: expect.anything()},
     )
   })

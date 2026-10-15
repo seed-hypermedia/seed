@@ -1,4 +1,4 @@
-version: "2"
+version: '2'
 linters:
   enable:
     - errcheck
@@ -13,9 +13,18 @@ linters:
     - gosec
     - misspell
     - revive
-    - whitespace
+    - wsl_v5
     - nakedret
   settings:
+    wsl_v5:
+      default: none
+      enable:
+        - after-block
+        - after-decl
+        - if
+        - err
+        - leading-whitespace
+        - trailing-whitespace
     nakedret:
       max-func-lines: 0 # Disallow function with naked returns.
   exclusions:

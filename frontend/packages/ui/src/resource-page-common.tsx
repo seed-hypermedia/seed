@@ -17,8 +17,10 @@ import {
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
+  extractRefs,
   findContentBlock,
   getBlockText,
+  getDraftMentionRefs,
   getDraftNodesOutline,
   getMetadataName,
   getNodesOutline,
@@ -59,6 +61,8 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
+import {useMentionNames} from '@shm/shared/models/inline-mentions'
+import {blockToPlainText} from '@shm/shared/content-to-text'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {queryQueryBlock} from '@shm/shared/models/queries'
@@ -2246,6 +2250,14 @@ function DocumentBody({
 
   const breadcrumbResults = useResources(resourceFetchIds, {subscribed: true})
 
+  const focusedBlock = useMemo(
+    () => (routeBlockRef && document.content ? findContentBlock(document.content, routeBlockRef)?.block : null),
+    [routeBlockRef, document.content],
+  )
+  const focusedBlockMentionNames = useMentionNames(
+    useMemo(() => (focusedBlock ? extractRefs([{block: focusedBlock, children: []}]) : []), [focusedBlock]),
+  )
+
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
     const lastIdx = breadcrumbIds.length - 1
@@ -2342,18 +2354,16 @@ function DocumentBody({
     }
 
     // Append block text when a block is focused
-    if (routeBlockRef && document.content) {
-      const blockNode = findContentBlock(document.content, routeBlockRef)
-      if (blockNode?.block) {
-        let text = getBlockText(blockNode.block)
-        const routeId = 'id' in route && typeof route.id === 'object' ? route.id : null
-        const blockRange = routeId?.blockRange ?? null
-        if (blockRange && typeof blockRange.start === 'number' && typeof blockRange.end === 'number') {
-          text = text.slice(blockRange.start, blockRange.end)
-        }
-        const truncated = text.length > 40 ? text.slice(0, 40) + '…' : text
-        if (truncated) items.push({label: `"${truncated}"`})
-      }
+    if (focusedBlock) {
+      const routeId = 'id' in route && typeof route.id === 'object' ? route.id : null
+      const blockRange = routeId?.blockRange ?? null
+      const range =
+        blockRange && typeof blockRange.start === 'number' && typeof blockRange.end === 'number'
+          ? {start: blockRange.start, end: blockRange.end}
+          : undefined
+      const text = blockToPlainText(focusedBlock, focusedBlockMentionNames, range)
+      const truncated = text.length > 40 ? text.slice(0, 40) + '…' : text
+      if (truncated) items.push({label: `"${truncated}"`})
     }
 
     return items
@@ -2369,8 +2379,8 @@ function DocumentBody({
     existingDraft,
     ctx.metadata?.name,
     activeView,
-    routeBlockRef,
-    document.content,
+    focusedBlock,
+    focusedBlockMentionNames,
     route,
   ])
 
@@ -4654,13 +4664,21 @@ function ContentViewWithOutline({
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
   const outlineSource = existingDraftContent ?? document.content ?? []
-  const outline = useMemo(() => {
-    const first = outlineSource[0] as any
-    const isEditorFormat = first != null && 'type' in first && !('block' in first)
-    return isEditorFormat
-      ? getDraftNodesOutline(outlineSource as any, docId)
-      : getNodesOutline(outlineSource as any, docId)
-  }, [outlineSource, docId])
+  const firstOutlineBlock = outlineSource[0] as any
+  const isEditorFormat = firstOutlineBlock != null && 'type' in firstOutlineBlock && !('block' in firstOutlineBlock)
+  const outlineMentionNames = useMentionNames(
+    useMemo(
+      () => (isEditorFormat ? getDraftMentionRefs(outlineSource as any) : extractRefs(outlineSource)),
+      [outlineSource, isEditorFormat],
+    ),
+  )
+  const outline = useMemo(
+    () =>
+      isEditorFormat
+        ? getDraftNodesOutline(outlineSource as any, docId, undefined, outlineMentionNames)
+        : getNodesOutline(outlineSource, docId, undefined, outlineMentionNames),
+    [outlineSource, isEditorFormat, docId, outlineMentionNames],
+  )
   const handleFileAttachment = useMemo<DocumentContentProps['handleFileAttachment'] | undefined>(() => {
     if (!fileUpload) return undefined
     return async (file: File) => {

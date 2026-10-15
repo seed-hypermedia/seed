@@ -71,6 +71,8 @@ Any command that takes an id accepts `hm://<uid>/<path>`, a bare `<uid>`, or an 
 
 [Metadata](../metadata.md) precedence on create is defaults, then frontmatter or PDF, then flags, then `--metadata`. `file://` links in image [blocks](../protocol/blocks.md) and in icon, cover and logo metadata are uploaded as [IPFS files](../protocol/files.md) and rewritten to `ipfs://`. After creating a child, the CLI links it from the parent document. The SDK applies the [genesis](../protocol/documents.md) rule that makes a new document distinct from the home document. See [SDK](./sdk.md). <!-- id:byfHfFJe -->
 
+Two things are refused before anything is published: frontmatter whose YAML does not parse (quote a value that contains a colon, `name: "A: B"`), and a ```` ```mermaid ```` fence that mermaid cannot parse. Both used to publish silently, as a paragraph holding the raw frontmatter and as a diagram that only failed in the reader's viewer. The same checks run on `document update`, `comment create` and `space push`.
+
 # comment <!-- id:RYYLyDKM -->
 
 <!-- id:Nfp1AYor -->

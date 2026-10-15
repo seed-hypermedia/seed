@@ -19,6 +19,7 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {DesktopDocumentMaintenance} from './components/document-maintenance'
 import {DebugDialogs} from './components/debug-dialogs'
+import {DomainPublishingInvitation} from './components/domain-publishing-invitation'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -384,7 +385,10 @@ function MainApp({}: {}) {
                   window.location.reload()
                 }}
               >
-                <NavigationContainer>{mainContent}</NavigationContainer>
+                <NavigationContainer>
+                  {mainContent}
+                  <DomainPublishingInvitation />
+                </NavigationContainer>
 
                 <Toaster />
 

@@ -1,6 +1,7 @@
 import {AccountNotificationsSection} from '@/frontend/components/AccountNotificationsSection'
 import {AccountProfileDialog} from '@/frontend/components/AccountProfileDialog'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
+import {RecoveryWordsReminder} from '@/frontend/components/RecoveryWordsReminder'
 import {Input} from '@/frontend/components/ui/input'
 import {Label} from '@/frontend/components/ui/label'
 import {getProfileAvatarImageSrc, getProfileDisplayName, type AccountProfileSummary} from '@/frontend/profile'
@@ -186,6 +187,8 @@ export function AccountSettingsView() {
 
   return (
     <div className="flex w-full flex-col gap-4">
+      {/* Reminder to save the recovery words. Shows only for password users who haven't saved recovery words. */}
+      <RecoveryWordsReminder />
       <div className="bg-card flex h-[640px] w-full overflow-hidden rounded-xl border max-md:h-auto max-md:min-h-[480px] max-md:flex-col">
         <AccountSettingsLayout
           accounts={sidebarAccounts}

@@ -12,6 +12,7 @@ import {
   hmIdToURL,
   hypermediaUrlToRoute,
   idToUrl,
+  isViewTermPath,
   routeToHmUrl,
   routeToUrl,
   serializeBlockRange,
@@ -263,6 +264,11 @@ export function routeToHref(
     if (route.agentId) query.push(`agent=${encodeURIComponent(route.agentId)}`)
     return `/hm/agents/run/${encodeURIComponent(route.runId)}${query.length ? `?${query.join('&')}` : ''}`
   }
+  if (typeof route !== 'string' && route.key === 'site-settings') {
+    return options?.hmUrlHref
+      ? routeToHmUrl(route)
+      : routeToUrl(route, {hostname: null, originHomeId: options?.originHomeId})
+  }
   if (typeof route !== 'string' && route.key === 'site-settings-emails') {
     const siteBase =
       !route.accountUid || options?.originHomeId?.uid === route.accountUid ? '' : `/hm/${route.accountUid}`
@@ -476,5 +482,7 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
     href: href || '/',
     tag: 'a',
     onClick,
+    // Panels multiply every document and account into many URLs; keep crawlers on the documents.
+    ...(href && isViewTermPath(href) ? {rel: 'nofollow'} : {}),
   }
 }
