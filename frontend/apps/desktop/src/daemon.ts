@@ -52,6 +52,9 @@ const embeddingFlags = [
 function buildDaemonArguments(embeddingEnabled: boolean, testnetName: string): string[] {
   const args = [
     `-http.port=${String(DAEMON_HTTP_PORT)}`,
+    // Locked-down mode: HTTP on 127.0.0.1 only, and (with the app secret below) browser pages
+    // other than this app cannot call it.
+    '-http.loopback',
     `-grpc.port=${String(DAEMON_GRPC_PORT)}`,
     `-p2p.port=${String(P2P_PORT)}`,
 
