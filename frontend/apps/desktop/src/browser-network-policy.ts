@@ -30,7 +30,9 @@ export function trackBrowserNetwork(
   guest: WebContents,
   onBlocked?: (url: string, match: BrowserBlocklistMatch) => void,
 ) {
-  const state = {guest, history: new Map<number, MainResponse>(), onBlocked} as NonNullable<ReturnType<typeof guests.get>>
+  const state = {guest, history: new Map<number, MainResponse>(), onBlocked} as NonNullable<
+    ReturnType<typeof guests.get>
+  >
   guests.set(guest.id, state)
   guest.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
     if (mainFrame && !inPlace) {
