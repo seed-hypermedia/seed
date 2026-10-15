@@ -3999,10 +3999,8 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	aliceKey := coretest.NewTester("alice").Account
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobKey := coretest.NewTester("bob").Account
-	// The gateway is reached at the machine's LAN address, so it listens like a server deployment.
-	gatewayCfg := makeTestConfig(t)
-	gatewayCfg.HTTP.ListenAll = true
-	gateway := makeTestApp(t, "carol", gatewayCfg, true)
+	// The gateway is reached at the machine's LAN address; the default listens on all interfaces.
+	gateway := makeTestApp(t, "carol", makeTestConfig(t), true)
 	gatewayKey := coretest.NewTester("carol").Account
 
 	var gatewayURL string

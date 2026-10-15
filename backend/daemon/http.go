@@ -77,10 +77,11 @@ func initHTTP(
 	// can ask for it with -http.browser-auth. A daemon run by hand keeps the open policy.
 	browserAuth := secret != ""
 	router := &Router{mux: http.NewServeMux()}
-	// Server daemons (-http.listen-all or -public-only) serve websites directly: the hosted web app
+	// Server daemons (no app secret, or -public-only) serve websites directly: the hosted web app
 	// uploads to the gateway from the browser, from any custom domain. They keep the open policy,
-	// as before. A personal daemon on loopback authenticates every browser page instead.
-	if httpCfg.ListenAll || cfg.PublicOnly || !browserAuth {
+	// as before. The desktop's daemon (-http.loopback plus SEED_APP_SECRET) authenticates every
+	// browser page instead; the gate follows the secret, the bind address follows the flag.
+	if cfg.PublicOnly || !browserAuth {
 		router.Use(
 			openCORSMiddleware,
 			bearerAuthMiddleware(apiServer.AuthenticateBearerToken),
@@ -132,9 +133,9 @@ func initHTTP(
 		router.Handle("/", grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(allowedOrigin)))
 	}
 
-	host := "127.0.0.1"
-	if httpCfg.ListenAll {
-		host = ""
+	host := ""
+	if httpCfg.Loopback {
+		host = "127.0.0.1"
 	}
 	srv = &http.Server{
 		Addr:              net.JoinHostPort(host, strconv.Itoa(httpCfg.Port)),

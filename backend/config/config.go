@@ -175,8 +175,9 @@ func newURLFlag(val url.URL, p *url.URL) flag.Value {
 // HTTP configuration.
 type HTTP struct {
 	Port int
-	// ListenAll exposes HTTP beyond loopback for server deployments.
-	ListenAll bool
+	// Loopback binds HTTP to 127.0.0.1 only: the locked-down mode the desktop app runs its daemon
+	// in. Servers and containers keep the default, all interfaces.
+	Loopback bool
 	// AppOrigins adds explicit dev/test origins to the desktop CORS allowlist.
 	AppOrigins string
 	// BrowserAuth gates browser-page requests even without a parent-supplied app secret.
@@ -191,8 +192,8 @@ func (c HTTP) Default() HTTP {
 
 // BindFlags binds the flags to the given FlagSet.
 func (c *HTTP) BindFlags(fs *flag.FlagSet) {
-	fs.IntVar(&c.Port, "http.port", c.Port, "Port for the HTTP server (including grpc-web); binds 127.0.0.1 unless -http.listen-all")
-	fs.BoolVar(&c.ListenAll, "http.listen-all", c.ListenAll, "Server mode: bind HTTP to all interfaces and answer any web origin (required for container/server deployments); without it the daemon binds loopback and only the desktop app may call it from a browser page")
+	fs.IntVar(&c.Port, "http.port", c.Port, "Port for the HTTP server (including grpc-web)")
+	fs.BoolVar(&c.Loopback, "http.loopback", c.Loopback, "Locked-down mode: bind HTTP to 127.0.0.1 only; with SEED_APP_SECRET (the desktop app passes both) only that app may call the daemon from a browser page. Servers and containers leave this off and keep answering any web origin")
 	fs.BoolVar(&c.BrowserAuth, "http.browser-auth", c.BrowserAuth, "Require the app secret or a bearer token from browser pages even when no SEED_APP_SECRET was supplied (the desktop app always supplies one)")
 	fs.StringVar(&c.AppOrigins, "http.app-origins", c.AppOrigins, "Additional comma-separated trusted app origins for CORS (desktop dev/test only); parent may provide a 32-byte hex SEED_APP_SECRET in the environment")
 }
