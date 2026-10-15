@@ -17,8 +17,9 @@
  * storage-agnostic: the caller persists the resulting credentials and returns
  * the secret name clients should reference.
  */
-import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
-import type {AuthStorageBackend} from '@mariozechner/pi-coding-agent'
+import type * as piAi from '@earendil-works/pi-ai'
+
+type OAuthCredentials = piAi.OAuthCredentials
 
 export type OAuthLoginFn = (options: {
   onAuth: (info: {url: string; instructions?: string}) => void
@@ -151,6 +152,45 @@ export const loginOpenAICodexHeadless: OAuthLoginFn = async (options) => {
     expires: Date.now() + json.expires_in * 1000,
     accountId,
   }
+}
+
+/**
+ * pi-ai `OAuthAuth` for the stored ChatGPT sign-in. `Models.getAuth()` calls `refresh` under the
+ * credential store's lock when the access token expired, and `toAuth` to turn whatever credential
+ * ends up stored into the bearer token the Codex backend expects. Interactive login never runs
+ * through here: the signed `StartProviderOAuth` flow above owns it.
+ */
+export const openaiCodexSubscriptionAuth: piAi.OAuthAuth = {
+  name: 'OpenAI (ChatGPT subscription)',
+  isSubscription: true,
+  login: async () => {
+    throw new Error('Sign in through the model provider settings')
+  },
+  refresh: async (credential, signal) => {
+    const response = await fetch(OPENAI_TOKEN_URL, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: credential.refresh,
+        client_id: OPENAI_CLIENT_ID,
+      }),
+      signal,
+    })
+    if (!response.ok) throw new Error(`OpenAI token refresh failed: HTTP ${response.status}`)
+    const json = (await response.json()) as {access_token?: string; refresh_token?: string; expires_in?: number}
+    if (!json.access_token || !json.refresh_token || typeof json.expires_in !== 'number') {
+      throw new Error('OpenAI token refresh response is missing fields')
+    }
+    return {
+      ...credential,
+      access: json.access_token,
+      refresh: json.refresh_token,
+      expires: Date.now() + json.expires_in * 1000,
+      accountId: chatgptAccountId(json.access_token) ?? credential.accountId,
+    }
+  },
+  toAuth: async (credential) => ({apiKey: credential.access}),
 }
 
 const LOGIN_TIMEOUT_MS = 10 * 60 * 1000
@@ -328,40 +368,53 @@ export class ProviderOAuthManager {
 }
 
 /**
- * Pi `AuthStorage` backend holding one account's OAuth credentials in memory
- * and writing every change back through a persist callback (the encrypted
- * secret store). Pi refreshes expired access tokens through this backend's
- * locks, so refreshed/rotated tokens survive server restarts. Async access is
- * serialized in-process — the instance is shared per account+secret so
- * concurrent sessions cannot race a refresh against each other.
+ * pi-ai `CredentialStore` holding one account's OAuth credential for a single Pi provider in
+ * memory and writing every change back through a persist callback (the encrypted secret store).
+ * `Models.getAuth()` refreshes expired access tokens inside `modify`, so refreshed/rotated tokens
+ * survive server restarts. Writes are serialized in-process — the instance is shared per
+ * account+secret so concurrent sessions cannot race a refresh against each other.
  */
-export class PersistedOAuthBackend implements AuthStorageBackend {
-  #value: string
-  #persist: (json: string) => Promise<void>
+export class PersistedOAuthStore implements piAi.CredentialStore {
+  readonly #providerId: string
+  #credential: piAi.OAuthCredential | undefined
+  readonly #persist: (credential: piAi.OAuthCredential) => Promise<void>
   #queue: Promise<unknown> = Promise.resolve()
 
-  constructor(initialJson: string, persist: (json: string) => Promise<void>) {
-    this.#value = initialJson
+  constructor(
+    providerId: string,
+    initial: OAuthCredentials,
+    persist: (credential: piAi.OAuthCredential) => Promise<void>,
+  ) {
+    this.#providerId = providerId
+    this.#credential = {...initial, type: 'oauth'}
     this.#persist = persist
   }
 
-  withLock<T>(fn: (current: string | undefined) => {result: T; next?: string}): T {
-    const {result, next} = fn(this.#value)
-    if (next !== undefined) {
-      this.#value = next
-      void this.#persistSafe(next)
-    }
-    return result
+  /** Reads the stored credential, possibly expired. */
+  async read(providerId: string): Promise<piAi.Credential | undefined> {
+    return providerId === this.#providerId ? this.#credential : undefined
   }
 
-  async withLockAsync<T>(fn: (current: string | undefined) => Promise<{result: T; next?: string}>): Promise<T> {
+  /** Lists the one stored credential without exposing its secret. */
+  async list(): Promise<readonly piAi.CredentialInfo[]> {
+    return this.#credential ? [{providerId: this.#providerId, type: 'oauth'}] : []
+  }
+
+  /** Serialized read-modify-write; a credential `fn` returns is persisted before the next writer runs. */
+  modify(
+    providerId: string,
+    fn: (current: piAi.Credential | undefined) => Promise<piAi.Credential | undefined>,
+  ): Promise<piAi.Credential | undefined> {
     const run = this.#queue.then(async () => {
-      const {result, next} = await fn(this.#value)
-      if (next !== undefined) {
-        this.#value = next
-        await this.#persistSafe(next)
+      if (providerId !== this.#providerId) return fn(undefined)
+      const next = await fn(this.#credential)
+      if (next?.type === 'oauth') {
+        this.#credential = next
+        await this.#persist(next).catch((error) => {
+          console.error('[agents] Failed to persist refreshed OAuth credentials:', error)
+        })
       }
-      return result
+      return this.#credential
     })
     this.#queue = run.then(
       () => undefined,
@@ -370,9 +423,9 @@ export class PersistedOAuthBackend implements AuthStorageBackend {
     return run
   }
 
-  #persistSafe(json: string): Promise<void> {
-    return this.#persist(json).catch((error) => {
-      console.error('[agents] Failed to persist refreshed OAuth credentials:', error)
-    })
+  /** Drops the in-memory credential; the encrypted secret is owned by the caller. */
+  async delete(providerId: string): Promise<void> {
+    await this.modify(providerId, async () => undefined)
+    if (providerId === this.#providerId) this.#credential = undefined
   }
 }

@@ -24,11 +24,11 @@ Expected server log chain: <!-- id:kS7VU6wp -->
 [agents/ws] send partial
 ```
 
-Model execution now goes through Pi SDK events. The old `[agents/openai]` manual-stream logs do not appear on the main path. See [model providers](./model-providers.md). <!-- id:WLPDhFNa -->
+Model execution goes through Pi Durable. Text is published as the harness commits it, about every 100 ms. See [model providers](./model-providers.md). <!-- id:WLPDhFNa -->
 
 Diagnosis: <!-- id:OZhfU5mQ -->
   - If desktop shows `Invalid signature`, check `signAgentAction()` and make sure undefined fields are omitted before signing. <!-- id:uk35MOQp -->
-  - If no partial publish appears, inspect the session (desktop session page or `GetSession`) for a durable error event from the Pi or provider path. <!-- id:5TK579Jv -->
+  - If no partial publish appears, inspect the session (desktop session page or `GetSession`) for a durable error event from the provider path. <!-- id:5TK579Jv -->
   - If server logs `skip partial; no subscription`, desktop is not subscribed to the target session or account. See [WebSocket subscriptions](./websocket-subscriptions.md). <!-- id:ieSRY6Mu -->
   - If desktop logs partial state updates but the UI does not render, inspect `AgentSessionPage` and `PartialAssistantRow`. <!-- id:L2h_XtH4 -->
 
@@ -49,7 +49,7 @@ If it happens again: <!-- id:-DfwmYgp -->
 
 # Provider returns no streamed deltas <!-- id:HRSlBUhE -->
 
-The Seed server receives text deltas from Pi SDK `message_update` events. If no deltas appear: <!-- id:QfW4_j9O -->
+The Seed server publishes text as the harness commits the response in flight. If no deltas appear: <!-- id:QfW4_j9O -->
   - inspect the session for a durable error event; <!-- id:wtb9LeW- -->
   - verify the [provider](./model-providers.md) API key and model name; <!-- id:y5-42lTk -->
   - check whether the provider or backend supports streaming for the selected Pi API mapping; <!-- id:EdsIwMZ1 -->
