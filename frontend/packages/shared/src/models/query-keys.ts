@@ -8,9 +8,6 @@ export const queryKeys = {
 
   // NOTE: Arguments to query keys documented in comments
 
-  LIBRARY: 'LIBRARY',
-  SITE_LIBRARY: 'SITE_LIBRARY', // siteUid: string
-
   // feed
   FEED: 'FEED', // docId?: boolean
 
@@ -39,7 +36,6 @@ export const queryKeys = {
   ENTITY_TIMELINE: 'ENTITY_TIMELINE', //, entityId: string, includeDrafts: boolean
 
   // documents
-  ACCOUNT_DOCUMENTS: 'ACCOUNT_DOCUMENTS', //, accountId: string
   DOC_LIST_DIRECTORY: 'DOC_LIST_DIRECTORY', // accountUid: string
   DOC_LIST_UNREFERENCED: 'DOC_LIST_UNREFERENCED', // site account UID
   QUERY_BLOCK: 'QUERY_BLOCK',
@@ -97,7 +93,6 @@ export const queryKeys = {
   DOCUMENT_ACTIVITY: 'DOCUMENT_ACTIVITY', //, docId.id: string
   DOCUMENT_DISCUSSION: 'DOCUMENT_DISCUSSION', //, docId.id: string, targetCommentId?: string
   BLOCK_DISCUSSIONS: 'BLOCK_DISCUSSIONS', //, docId.id: string, blockId: string
-  COMMENTS_BATCH: 'COMMENTS_BATCH',
   COMMENT_VERSIONS: 'COMMENT_VERSIONS', //, commentId: string
   COMMENT_REPLY_COUNT: 'COMMENT_REPLY_COUNT', //, commentId: string
   DOCUMENT_COMMENTS: 'DOCUMENT_COMMENTS', //, docId.id: string, targetCommentId?: string
@@ -163,12 +158,6 @@ export function labelOfQueryKey(key: QueryKey) {
   const discriminator = key[0]
   const arg1 = key[1] as string | undefined
   switch (discriminator) {
-    // library
-    case queryKeys.LIBRARY:
-      return 'Library'
-    case queryKeys.SITE_LIBRARY:
-      return `Site Library`
-
     // feed
     case queryKeys.FEED:
       return 'Activity Feed'
@@ -196,8 +185,6 @@ export function labelOfQueryKey(key: QueryKey) {
       return 'Entity Timeline'
 
     // documents
-    case queryKeys.ACCOUNT_DOCUMENTS:
-      return 'Account Publications'
     case queryKeys.DRAFT:
       return `Editor Draft ${abbreviateCid(arg1)}`
     case queryKeys.ENTITY:

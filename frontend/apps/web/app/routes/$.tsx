@@ -13,6 +13,7 @@ import {
   loadWebDraftPlaceholderResource,
   SiteDocumentPayload,
 } from '@/loaders'
+import type {WebSpaceSettingsPayload} from '@/web-space-settings-page'
 import {SiteSettingsEmailsScreen, type SiteSettingsEmailsPayload} from '@/site-settings-emails-content'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {defaultPageMeta} from '@/meta'
@@ -31,8 +32,9 @@ import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {HMDiscoveryStatusOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {lazy, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
 import {Spinner} from '@shm/ui/spinner'
+import {validateDomain} from '@shm/shared/utils/path'
 import {
   commentIdToHmId,
   createDocumentNavRoute,
@@ -54,6 +56,10 @@ import {InspectIpfsPage} from '@shm/ui/inspect-ipfs-page'
 import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 import {shouldRevalidateDocumentRoute} from './revalidation'
+
+const WebSpaceSettingsScreen = lazy(() =>
+  import('@/web-space-settings-page').then((module) => ({default: module.WebSpaceSettingsScreen})),
+)
 
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
@@ -87,6 +93,7 @@ type DocumentPayload =
   | ExtendedSitePayload
   | InspectIpfsPayload
   | SiteSettingsEmailsPayload
+  | WebSpaceSettingsPayload
   | SchemaPayload
   | 'unregistered'
   | 'no-site'
@@ -251,6 +258,8 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   if ('kind' in payload && payload.kind === 'inspect-ipfs') {
     return [{title: `ipfs://${payload.ipfsPath}`}]
   }
+  if ('kind' in payload && payload.kind === 'site-settings')
+    return [{title: payload.domain ? `Set up ${payload.domain}` : 'Space Settings'}]
   if ('kind' in payload && payload.kind === 'site-settings-emails') {
     return [{title: 'Email Subscribers'}]
   }
@@ -335,6 +344,31 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   // Site settings pages use a `:settings` view term: /:settings/email-subscribers
   // on the site's own origin, or /hm/<uid>/:settings/email-subscribers on the gateway.
   const rawSitePath = params['*'] ? params['*'].split('/').filter(Boolean) : []
+  const settingsOffset =
+    rawSitePath[0] === ':settings' ? 0 : rawSitePath[0] === 'hm' && rawSitePath[2] === ':settings' ? 2 : -1
+  if (settingsOffset !== -1) {
+    const section = rawSitePath[settingsOffset + 1]
+    const domain = rawSitePath[settingsOffset + 2]
+    const siteUid = settingsOffset === 0 ? registeredAccountUid : rawSitePath[1]!
+    if (
+      rawSitePath.length > settingsOffset + 3 ||
+      (domain !== undefined && (section !== 'web-domain' || !!validateDomain(domain))) ||
+      (section !== undefined && !['identity', 'navigation', 'web-domain', 'email-subscribers'].includes(section))
+    ) {
+      throw new Response('Settings page not found', {status: 404})
+    }
+    if (section !== 'email-subscribers') {
+      const headerData = await instrument(ctx, 'loadSiteHeaderData', () => loadSiteHeaderData(parsedRequest))
+      if (isDataRequest && ctx.enabled) printInstrumentationSummary(ctx)
+      return wrapJSON({
+        ...headerData,
+        kind: 'site-settings',
+        siteUid,
+        section: section as WebSpaceSettingsPayload['section'],
+        domain,
+      } satisfies WebSpaceSettingsPayload)
+    }
+  }
   let settingsSiteAccountUid: string | null = null
   if (rawSitePath.length === 2 && rawSitePath[0] === ':settings' && rawSitePath[1] === 'email-subscribers') {
     settingsSiteAccountUid = registeredAccountUid
@@ -488,6 +522,12 @@ export default function UnifiedDocumentPage() {
   if (data === 'no-site') {
     return <NoSitePage />
   }
+  if ('kind' in data && data.kind === 'site-settings')
+    return (
+      <Suspense fallback={<Spinner />}>
+        <WebSpaceSettingsScreen payload={data} />
+      </Suspense>
+    )
   if ('kind' in data && data.kind === 'site-settings-emails') {
     return <SiteSettingsEmailsScreen payload={data} />
   }

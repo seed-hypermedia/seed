@@ -53,7 +53,9 @@ This route describes the site. Any client that has only a web URL starts here: <
   "addrs": ["/dns4/hyper.media/udp/56001/quic-v1", "/dns4/hyper.media/tcp/56001"],
   "hostname": "https://hyper.media",
   "isGateway": true,
-  "notifyServiceHost": "https://notify.hyper.media"
+  "notifyServiceUrl": "https://hyper.media/hm/api/notify",
+  "notifyServiceHost": "https://hyper.media",
+  "agentServerUrl": "https://agentic.seed.hyper.media"
 }
 ```
 
@@ -63,6 +65,8 @@ This route describes the site. Any client that has only a web URL starts here: <
 - `protocolId` tells you whether your node can talk to it. <!-- id:nZx9yDva -->
 - `signerAccountUid` is a key the web app generated for itself. The server signs with it on its own behalf, for example when a web visitor edits through the site. <!-- id:US2kbkxG -->
 - `isGateway` is explained below. <!-- id:77d8-6PY -->
+- `notifyServiceUrl` is the base URL of the notify service the site uses, normally `<origin>/hm/api/notify` on the site itself or on hyper.media. `notifyServiceHost` is the same service's origin, kept for older apps, which append `/hm/api/notifications` to it. See [notify](../apps/notify.md).
+- `agentServerUrl` is the site's default agents server: `<origin>/hm/api/agents` when the site hosts one, otherwise a standalone server such as `https://agentic.seed.hyper.media`, or null.
 
 The route is public and answers any origin. The daemon's own HTTP port serves the same path with only `peerId`, `addrs` and `protocolId`, which is enough to bootstrap a libp2p connection from a URL. <!-- id:9Ba7hmw7 -->
 

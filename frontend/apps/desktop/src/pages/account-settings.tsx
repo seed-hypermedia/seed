@@ -34,6 +34,7 @@ import type {HMRole} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {HOSTED_NOTIFY_SERVICE_URL} from '@shm/shared/notify-url'
 import {useAccounts, useCapabilities} from '@shm/shared/models/entity'
 import type {AccountSettingsTab} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
@@ -316,7 +317,7 @@ function VaultSettings() {
   const changeEmailVerify = useChangeVaultEmailVerify()
   const emailBinding = useRef('')
 
-  const notifyDefault = NOTIFY_SERVICE_HOST || 'https://notify.seed.hyper.media'
+  const notifyDefault = NOTIFY_SERVICE_HOST || HOSTED_NOTIFY_SERVICE_URL
   const notifyOverride = notifyServer.data || ''
   const remoteVaultUrl = data?.remoteVaultUrl || ''
   const passkeyManageUrl = remoteVaultUrl ? `${remoteVaultUrl.replace(/\/+$/, '')}/settings` : ''

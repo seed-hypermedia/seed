@@ -48,6 +48,7 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
     commentId,
     accountUid,
     settingsTab,
+    settingsDomain,
   } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
   let id = unpackHmId(cleanUrl)
@@ -94,7 +95,7 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
       }
     }
     if (route.key === 'site-settings' && settingsTab) {
-      return {...route, tab: settingsTab as SiteSettingsTab}
+      return {...route, tab: settingsTab as SiteSettingsTab, ...(settingsDomain ? {domain: settingsDomain} : {})}
     }
     return route
   }

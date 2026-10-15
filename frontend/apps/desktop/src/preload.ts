@@ -15,7 +15,10 @@ declare global {
   interface Window {
     isWindowMaximized?: boolean
     webBrowser: {
-      create: () => Promise<{browserId: number}>
+      create: (options?: {private?: boolean}) => Promise<{browserId: number}>
+      destroy: (input: {browserId: number}) => Promise<void>
+      blockingState: (input: {browserId: number}) => void
+      allowTrackers: (input: {browserId: number; origin: string; allowed: boolean}) => Promise<void>
       setBounds: (input: {
         browserId: number
         visible: boolean
@@ -60,7 +63,10 @@ contextBridge.exposeInMainWorld('appInfo', AppInfo)
 const windowInfo = ipcRenderer.sendSync('initWindow')
 // The web pane: the renderer never holds a web view, it asks the main process for one.
 contextBridge.exposeInMainWorld('webBrowser', {
-  create: () => ipcRenderer.invoke('web-browser-create', {}),
+  create: (options?: {private?: boolean}) => ipcRenderer.invoke('web-browser-create', options ?? {}),
+  destroy: (input: unknown) => ipcRenderer.invoke('web-browser-destroy', input),
+  blockingState: (input: unknown) => ipcRenderer.send('web-browser-blocking-state', input),
+  allowTrackers: (input: unknown) => ipcRenderer.invoke('web-browser-trackers', input),
   setBounds: (input: unknown) => ipcRenderer.send('web-browser-bounds', input),
   control: (input: unknown) => ipcRenderer.send('web-browser-control', input),
   navigate: (input: unknown) => ipcRenderer.send('web-browser-navigate', input),

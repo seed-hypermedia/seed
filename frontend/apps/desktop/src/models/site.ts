@@ -1,4 +1,5 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
+import {fetchResource} from '@/models/entities'
 import {reportError} from '@/errors'
 import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
@@ -26,7 +27,10 @@ export function useSiteRegistration(accountUid: string) {
       const registerUrl = `${siteUrl}/hm/api/register`
       console.log('registerUrl', registerUrl)
       const siteConfig = await client.sites.getConfig.mutate(siteUrl)
-      console.log('siteConfig', siteConfig)
+      console.log('siteConfig', {
+        peerId: siteConfig?.peerId,
+        registeredAccountUid: siteConfig?.registeredAccountUid,
+      })
       if (!siteConfig) throw new Error('Space is not set up.')
 
       if (siteConfig.registeredAccountUid && siteConfig.registeredAccountUid !== accountUid) {
@@ -43,36 +47,40 @@ export function useSiteRegistration(accountUid: string) {
           peerId: daemonInfo.peerId,
           addrs: peerInfo.addrs,
         }
-        console.log(JSON.stringify(registerPayload, null, 2))
+        console.log('Registering site', {siteUrl, accountUid, peerId: daemonInfo.peerId})
         const registerResult = await client.sites.registerSite.mutate({
           url: registerUrl,
           payload: registerPayload,
         })
-        console.log('registerResult', registerResult)
-        console.log('connecting to site...')
-        await grpcClient.networking.connect({
-          addrs: siteConfig.addrs,
-        })
-        console.log('doing force sync from this node...')
-        const pushProgress = grpcClient.resources.pushResourcesToPeer({
-          addrs: siteConfig.addrs,
-          resources: [packHmId(accountId)],
-        })
-        try {
-          for await (const progress of pushProgress) {
-            console.log(`== publish progress`, JSON.stringify(toPlainMessage(progress)))
-          }
-          console.log('push progress: done')
-        } catch (error) {
-          // error is not a dealbreaker for this workflow, we still want to move to the next step
-          console.error('Failed pushing resources to site', error)
-          toast.error('Failed to push resources to the new space. Sync can be attempted again later.')
-          reportError(error, {
-            feature: 'site-registration',
-            operation: 'push-resources',
-            siteUrl,
-            accountUid,
+        console.log('Site registration response received', {siteUrl, received: !!registerResult})
+        // Local development can serve the site from this daemon; its data is already present.
+        const isSamePeer = !!daemonInfo.peerId && siteConfig.peerId === daemonInfo.peerId
+        if (!isSamePeer) {
+          console.log('connecting to site...')
+          await grpcClient.networking.connect({
+            addrs: siteConfig.addrs,
           })
+          console.log('doing force sync from this node...')
+          const pushProgress = grpcClient.resources.pushResourcesToPeer({
+            addrs: siteConfig.addrs,
+            resources: [packHmId(accountId)],
+          })
+          try {
+            for await (const progress of pushProgress) {
+              console.log(`== publish progress`, JSON.stringify(toPlainMessage(progress)))
+            }
+            console.log('push progress: done')
+          } catch (error) {
+            // error is not a dealbreaker for this workflow, we still want to move to the next step
+            console.error('Failed pushing resources to site', error)
+            toast.error('Failed to push resources to the new space. Sync can be attempted again later.')
+            reportError(error, {
+              feature: 'site-registration',
+              operation: 'push-resources',
+              siteUrl,
+              accountUid,
+            })
+          }
         }
       }
 
@@ -147,4 +155,23 @@ export function useRemoveSite(id: UnpackedHypermediaId) {
       invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
     },
   })
+}
+
+/** Update a moved hosting URL without overwriting a custom domain or a newer publication choice. */
+export async function updateMovedSitePublication(id: UnpackedHypermediaId, oldUrl: string, newUrl: string) {
+  const resource = await fetchResource(id)
+  if (resource?.type !== 'document') throw new Error('Unable to load the space publication. Try again.')
+  const document = resource.document
+  if (document.metadata.siteUrl !== oldUrl) return
+  await desktopUniversalClient.publishDocument!({
+    signerAccountUid: id.uid,
+    account: id.uid,
+    baseVersion: document.version,
+    genesis: document.genesis,
+    generation: document.generationInfo?.generation,
+    changes: [{op: {case: 'setMetadata', value: {key: 'siteUrl', value: newUrl}}}],
+  })
+  invalidateQueries([queryKeys.ENTITY, id.id])
+  invalidateQueries([queryKeys.ACCOUNT, id.uid])
+  invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])
 }

@@ -1,6 +1,7 @@
 import {useVaultNotificationServer} from '@/models/daemon'
 import {client} from '@/trpc'
 import {DEFAULT_GATEWAY_URL, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {normalizeNotifyServiceUrl} from '@shm/shared/notify-url'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
@@ -59,7 +60,7 @@ export function useNotifyServiceHost() {
   })
   const vaultNotifyServer = useVaultNotificationServer()
   if (!notifyServiceHost.isFetched || !vaultNotifyServer.isFetched) return undefined
-  return vaultNotifyServer.data || notifyServiceHost.data || NOTIFY_SERVICE_HOST
+  return normalizeNotifyServiceUrl(vaultNotifyServer.data || notifyServiceHost.data || NOTIFY_SERVICE_HOST) ?? undefined
 }
 
 export function useSetNotifyServiceHost() {

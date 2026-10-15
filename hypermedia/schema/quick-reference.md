@@ -47,7 +47,7 @@ The worked demo is [the World Builder](./world-builder.md): a world page typed b
 
 ## With the CLI <!-- id:fOfjpD4m -->
 
-The [Seed CLI](../build/cli.md) reads the same library and resolves references the same way the app does. Every command is in [the CLI reference](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/cli/docs/CLI-REFERENCE.md). <!-- id:WPRUahTQ -->
+The [Seed CLI](../build/cli.md) reads the same library and resolves references the same way the app does. Every command and flag is listed on that page. <!-- id:WPRUahTQ -->
 
 ```sh <!-- id:5ZlBShDv -->
 # type a document, a folder, and publish a type

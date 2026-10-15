@@ -108,7 +108,7 @@ Run the checks for every area you touched. CI runs the same ones, and a single u
 
 In `agents/` and `vault/`, `bun check` runs the type checker and rewrites formatting, so commit whatever it changes. Go tests need the submodule and model that `direnv allow` fetched. CI runs them with `go test -tags cpu --count 1 ./backend/...`. For backend bug fixes, add a failing test first when practical, and use `testify/require` in Go tests. <!-- id:Fo7jkVlG -->
 
-To reproduce CI locally before pushing, use [agent-ci](https://agent-ci.dev). `docs/local-ci-with-agent-ci.md` has the guide. <!-- id:eVnAHnXe -->
+To reproduce CI locally before pushing, use [agent-ci](https://agent-ci.dev). [Local CI with agent-ci](./local-ci.md) has the guide. <!-- id:eVnAHnXe -->
 
 ```sh <!-- id:tVXkQuiV -->
 npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token
@@ -151,7 +151,7 @@ The process is slow on purpose because published blobs are permanent. Every node
 
 # Releasing <!-- id:1K6l12Qg -->
 
-Maintainers cut releases with the runbook in `docs/releasing.md`. <!-- id:NpvcWh0F -->
+Maintainers cut releases with the [releasing](./releasing.md) runbook, and configure error reporting as described on [Sentry setup](./sentry.md). <!-- id:NpvcWh0F -->
   1. Pick the version `YYYY.M.N`: the year, the month without zero padding, and the next number within the month. Check recent tags with `git tag --sort=-creatordate | head -5`. <!-- id:TjSczyA1 -->
   2. Tag the release commit, normally the tip of main, and push the tag. A `*.*.*` tag starts the `Release - Desktop App` and `Release - Docker Images` workflows. <!-- id:DuttAgUS -->
   3. Wait for the desktop workflow to build every platform and create the GitHub release as a prerelease. <!-- id:AEsYoSkE -->
@@ -183,7 +183,7 @@ Corrections are welcome as pull requests, or as [comments](../protocol/comments.
 
 Report security issues by email to [security@hyper.media](mailto:security@hyper.media). Do not open a public issue or pull request about an unfixed vulnerability. This repository is public. <!-- id:c1G7qQ-T -->
 
-Once a vulnerability is fixed, the team discloses it as a GitHub issue closed by the fixing commit. The public record of what has been audited and which hypotheses were ruled out is `docs/security/audit-log.md`, and the audit procedure itself is `docs/security/auditor.md`. The known limits you should design around, such as the unauthenticated local [daemon API](./grpc.md) and non-revocable [capabilities](../protocol/permissions.md), are listed on [Integrity](../protocol/integrity.md). <!-- id:xbymaI9s -->
+Once a vulnerability is fixed, the team discloses it as a GitHub issue closed by the fixing commit. The public record of what has been audited and which hypotheses were ruled out is [`.agents/security/audit-log.md`](https://github.com/seed-hypermedia/seed/blob/main/.agents/security/audit-log.md), and the audit procedure itself is [`.agents/security/auditor.md`](https://github.com/seed-hypermedia/seed/blob/main/.agents/security/auditor.md). The known limits you should design around, such as the unauthenticated local [daemon API](./grpc.md) and non-revocable [capabilities](../protocol/permissions.md), are listed on [Integrity](../protocol/integrity.md). <!-- id:xbymaI9s -->
 
 # See also <!-- id:-aDpNcBJ -->
 

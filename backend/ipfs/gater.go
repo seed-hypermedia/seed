@@ -11,17 +11,19 @@ import (
 
 type gater struct {
 	peerstore.Peerstore
+	// isolated denies every inbound and outbound connection.
+	isolated bool
 }
 
-func newGater(ps peerstore.Peerstore) connmgr.ConnectionGater {
-	return &gater{ps}
+func newGater(ps peerstore.Peerstore, isolated bool) connmgr.ConnectionGater {
+	return &gater{Peerstore: ps, isolated: isolated}
 }
 
 // InterceptPeerDial tests whether we're permitted to Dial the specified peer.
 //
 // This is called by the network.Network implementation when dialling a peer.
 func (cg *gater) InterceptPeerDial(_ peer.ID) bool {
-	return true
+	return !cg.isolated
 }
 
 // InterceptAddrDial tests whether we're permitted to dial the specified
@@ -30,7 +32,7 @@ func (cg *gater) InterceptPeerDial(_ peer.ID) bool {
 // This is called by the network.Network implementation after it has
 // resolved the peer's addrs, and prior to dialling each.
 func (cg *gater) InterceptAddrDial(_ peer.ID, _ ma.Multiaddr) (allow bool) {
-	return true
+	return !cg.isolated
 }
 
 // InterceptAccept tests whether an incipient inbound connection is allowed.
@@ -38,7 +40,7 @@ func (cg *gater) InterceptAddrDial(_ peer.ID, _ ma.Multiaddr) (allow bool) {
 // This is called by the upgrader, or by the transport directly (e.g. QUIC,
 // Bluetooth), straight after it has accepted a connection from its socket.
 func (cg *gater) InterceptAccept(_ network.ConnMultiaddrs) (allow bool) {
-	return true
+	return !cg.isolated
 }
 
 // InterceptSecured tests whether a given connection, now authenticated,
@@ -48,7 +50,7 @@ func (cg *gater) InterceptAccept(_ network.ConnMultiaddrs) (allow bool) {
 // handshake, and before it negotiates the muxer, or by the directly by the
 // transport, at the exact same checkpoint.
 func (cg *gater) InterceptSecured(_ network.Direction, _ peer.ID, _ network.ConnMultiaddrs) (allow bool) {
-	return true
+	return !cg.isolated
 	/*
 		protocols, err := cg.Peerstore.GetProtocols(p)
 		if err != nil {
@@ -92,5 +94,5 @@ func (cg *gater) InterceptUpgraded(_ network.Conn) (allow bool, reason control.D
 		fmt.Println("Gater InterceptUpgraded Not allowing non-seed connections Protocol length", len(protocols))
 		return false, 0
 	*/
-	return true, 0
+	return !cg.isolated, 0
 }

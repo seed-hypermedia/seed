@@ -327,6 +327,14 @@ type GetVaultResponse struct {
 	RemoteVersion int          `json:"version"`
 	Credentials   []Credential `json:"credentials"`
 	Unchanged     bool         `json:"unchanged"`
+
+	// EmailPrevalidation is signed by the vault server. Signer and Sig are base64url-encoded.
+	EmailPrevalidation *struct {
+		Email  string `json:"email"`
+		Signer string `json:"signer"`
+		Host   string `json:"host"`
+		Sig    string `json:"sig"`
+	} `json:"emailPrevalidation,omitempty"`
 }
 
 // Credential describes one remote vault credential returned by the vault service.
@@ -1920,6 +1928,47 @@ func (ks *Vault) GetVaultEmail(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return resp.Email, nil
+}
+
+// EmailPrevalidation is a statement signed by the remote vault server that the
+// vault user's email is verified. The signature covers the DAG-CBOR encoding
+// of {email, signer, host}.
+type EmailPrevalidation struct {
+	Email  string
+	Signer []byte
+	Host   string
+	Sig    []byte
+}
+
+// GetVaultEmailPrevalidation returns the email prevalidation signed by the
+// connected remote vault server.
+func (ks *Vault) GetVaultEmailPrevalidation(ctx context.Context) (EmailPrevalidation, error) {
+	remoteURL, bearerAuth, err := ks.activeRemoteEmailAuth()
+	if err != nil {
+		return EmailPrevalidation{}, err
+	}
+	// The prevalidation is only served as part of the full vault response.
+	resp, err := ks.getRemote(ctx, remoteURL, bearerAuth, 0)
+	if err != nil {
+		return EmailPrevalidation{}, err
+	}
+	if resp.EmailPrevalidation == nil {
+		return EmailPrevalidation{}, fmt.Errorf("remote vault did not provide an email prevalidation")
+	}
+	signer, err := decodeBase64URLField(resp.EmailPrevalidation.Signer, "email prevalidation signer")
+	if err != nil {
+		return EmailPrevalidation{}, err
+	}
+	sig, err := decodeBase64URLField(resp.EmailPrevalidation.Sig, "email prevalidation signature")
+	if err != nil {
+		return EmailPrevalidation{}, err
+	}
+	return EmailPrevalidation{
+		Email:  resp.EmailPrevalidation.Email,
+		Signer: signer,
+		Host:   resp.EmailPrevalidation.Host,
+		Sig:    sig,
+	}, nil
 }
 
 // ChangeVaultEmailStart begins a remote vault email change, sending a code to

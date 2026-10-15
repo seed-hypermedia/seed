@@ -26,7 +26,8 @@ Every HTTP action is a signed `SignedActionEnvelope`, described in the [signed A
 The server verifies the [signature](../signature.md) and authorizes the signer for the [account](../protocol/identity.md). <!-- id:mJA0FdHP -->
 
 A signer is authorized when: <!-- id:vI4I2YXO -->
-  - `signer === account`; or <!-- id:MFXBbOw6 -->
+  - `signer === account`; or
+  - the envelope carries `capability` (and usually `capabilityBlob`): a [Capability](../capability.md) issued by `account`, delegating to `signer`, role `AGENT` or `WRITER`, not self-issued, under 64 KiB; a verified delegation is recorded as an `AGENT` authorization; or <!-- id:MFXBbOw6 -->
   - `account_authorizations` has role `OWNER` or `AGENT` for `(account, signer)`. <!-- id:nwMz9Fv- -->
 
 # WebSocket authentication <!-- id:bARrb-Xh -->
@@ -102,27 +103,27 @@ Each provider type has a code-owned spec in `PROVIDER_SPECS` (`agents/src/api-se
   - **Pinned providers** (`openai`, `anthropic`, `google`, `openrouter`, `deepseek`, `groq`, `xai`): the spec default base URL always wins, and any stored `baseUrl` override is ignored. This keeps a stored API key from being redirected to an arbitrary host. <!-- id:Z7EuhaCE -->
   - **Self-hosted and custom providers** (`ollama`, `custom`): the user-supplied `baseUrl` is honored, because pointing at a local or private endpoint is the whole purpose. These accept requests without an API key. The base-URL value is set by the authenticated account owner through signed `SetModelProvider` actions, so the endpoint and any key it carries share a single trust owner. The desktop save flow still refuses to send an API key to a remote plain-HTTP **agent server**. Outbound SSRF to whatever a custom `baseUrl` names is accepted by design. Tightening this (for example, blocking link-local ranges for non-local custom endpoints) is future hardening. <!-- id:wI6Dm9fI -->
 
-Subscription ("Sign in with ChatGPT") providers hold OAuth credentials in place of an API key. Pi re-resolves and refreshes them per request through the persisted auth backend. An expired or revoked sign-in fails the run with an explicit re-auth message, never a cryptic provider 401 (`api-service.ts:4262`). The flow is off unless the operator opts in with `SEED_AGENTS_SUBSCRIPTION_AUTH`, because it needs a client that can catch the provider's localhost redirect (`agents/src/config.ts:20`). <!-- id:_cTbxDWl -->
+Subscription ("Sign in with ChatGPT") providers hold OAuth credentials in place of an API key. Pi re-resolves and refreshes them per request through the persisted auth backend. An expired or revoked sign-in fails the run with an explicit re-auth message, never a cryptic provider 401 (`api-service.ts`). The flow is off unless the operator opts in with `SEED_AGENTS_SUBSCRIPTION_AUTH`, because it needs a client that can catch the provider's localhost redirect (`agents/src/config.ts`). <!-- id:_cTbxDWl -->
 
 Adding a pinned provider type needs only a `PROVIDER_SPECS` entry. It inherits the pinned-URL policy automatically. See [model providers](./model-providers.md). <!-- id:xuEyWxUM -->
 
 # The tool surface is the authority boundary <!-- id:ZUb7YijU -->
 
-The model sees the five verbs ([read](./read.md), [write](./write.md), [call](./call.md), [delegate](./delegate.md), [plan](./plan.md)) plus the two session verbs, `status` and `continue_session`, which touch only the session's own title and lineage. Only **[promotion](./promotion.md)** widens that set, and promotion has two bounds (`api-service.ts:4322`): <!-- id:jh9t4A6y -->
+The model sees the five verbs ([read](./read.md), [write](./write.md), [call](./call.md), [delegate](./delegate.md), [plan](./plan.md)) plus the two session verbs, `status` and `continue_session`, which touch only the session's own title and lineage. Only **[promotion](./promotion.md)** widens that set, and promotion has two bounds (`api-service.ts`): <!-- id:jh9t4A6y -->
   - promotion is derived only from durable `tool_call` events in this session's own transcript, so it survives restarts and live state cannot inject it; <!-- id:LdBc3z4t -->
   - the promoted list is intersected with `enabledCallableTools()` before it reaches Pi. This filter is a security control. A hallucinated or injected `call {tool: 'bash'}` durably stores that name, and an unfiltered allowlist would hand `bash` to Pi and activate Pi's own host bash/edit builtins **outside** the sandbox. <!-- id:q2b0tftt -->
 
 `noTools: 'builtin'` on the Pi session means Pi's own tool suite never loads. The only executable surface is the Seed-owned custom tools. <!-- id:RMyDqBZn -->
 
-Events written by a user's own verb calls carry `actor: 'user'` and are explicitly skipped when computing promotion (`api-service.ts:7237`), so a user's palette activity never reshapes the agent's active toolset. <!-- id:ahkTiyN7 -->
+Events written by a user's own verb calls carry `actor: 'user'` and are explicitly skipped when computing promotion (`api-service.ts`), so a user's palette activity never reshapes the agent's active toolset. <!-- id:ahkTiyN7 -->
 
 # Grants <!-- id:u27bF0_B -->
 
 Two things are [granted](./grants.md) per agent, both stored in `definition.tools`. The verbs themselves are never grants. <!-- id:c2iQDOLW -->
   - **The callable set**: which of `search`, `query`, `attributes`, `web_search`, `execute` the agent may dispatch. `execute` also drops out when the host cannot run sandboxes. <!-- id:svPa8AfP -->
-  - **Publish**: the pseudo-tool `publish` (legacy write-group names still count). Without it, `write` to `hm://` or `ipfs://` returns 403 (`api-service.ts:7454`, `api-service.ts:7499`). Memory writes are never gated. That is the intended line: private files are the agent's workspace, and signed public content is a disclosure. <!-- id:N5F17hzw -->
+  - **Publish**: the pseudo-tool `publish` (legacy write-group names still count). Without it, `write` to `hm://` or `ipfs://` returns 403 (`api-service.ts`, `api-service.ts`). Memory writes are never gated. That is the intended line: private files are the agent's workspace, and signed public content is a disclosure. <!-- id:N5F17hzw -->
 
-A [delegate](./delegate.md) child's `tools` narrowing intersects against the parent's full callable set, so delegation can only reduce authority (`api-service.ts:2623`). <!-- id:6GNsOBus -->
+A [delegate](./delegate.md) child's `tools` narrowing intersects against the parent's full callable set, so delegation can only reduce authority (`narrowDefinitionTools`). The two translations it makes never add authority: a child keeps `publish` only when its `tools` ask for `write` or `publish`, and an authored lambda named in `tools` is kept, without the general `execute`, only when the parent holds `execute`. <!-- id:6GNsOBus -->
   - **MCP servers**: `definition.mcpServers` names the account [MCP servers](./mcp.md) an agent may call. Enabling a server is a grant on par with `execute`: its tools run with whatever the remote server can do. The projected `mcp` tool documents only cache this grant. `executeMcpTool` re-checks `definition.mcpServers` before any call, so a stale document cannot reach a server the owner turned off. See [`mcp.md`](./mcp.md). <!-- id:JAdshfOI -->
 
 The promotion filter admits the enabled callable set **and** the agent's own enabled non-builtin documents (lambdas and MCP projections), re-derived from the definition at run start. A promoted [tool document](./tool-document.md) executes through the same `call` dispatch and the same checks as an explicit `call`. <!-- id:Cqpe6uA3 -->
@@ -141,7 +142,7 @@ Mitigations present: <!-- id:PtUHslMF -->
   - server names are slugs and tool names are sanitized to `[A-Za-z0-9_-]` and capped at 64 characters, so a remote name can never collide with a verb, shadow a builtin, or break a provider's tool-name rules. An authored lambda keeps its name against a remote tool of the same name; <!-- id:mLjHfMUi -->
   - input is validated against the projected contract before a call leaves the host, and a miss returns the contract; <!-- id:TLAD4kkE -->
   - results are bounded (256 KiB text, 4 MiB per inline image) and server errors become `tool_result.error`; <!-- id:1_EpLlOF -->
-  - connections are per run and closed with it. A call has a 120s timeout and a connect has 20s; <!-- id:svG753_g -->
+  - connections are per run and closed with it. A call has a 120s timeout and a connect has 30s; <!-- id:svG753_g -->
   - deleting a server scrubs it from every agent and deletes the header secrets it owns. <!-- id:DJvUELcZ -->
 
 # Agent-managed triggers <!-- id:COfrFvPS -->
@@ -158,13 +159,13 @@ If consent is ever wanted back, the enforcement point is `writeTriggerAddress` a
 
 # Framing injection (`<user_action>`, `<plan_state>`) <!-- id:VRRmTIj5 -->
 
-Two model-facing frames carry text the model or a fetched page authored, handed back inside tags whose syntax the model knows. Both rewrite every `<` as its unicode escape through `escapeActionFraming()` (`api-service.ts:9179`). The escape stays valid inside JSON and still renders as `<` to a human reader, but can never form a tag: <!-- id:0iHcYBOu -->
+Two model-facing frames carry text the model or a fetched page authored, handed back inside tags whose syntax the model knows. Both rewrite every `<` as its unicode escape through `escapeActionFraming()` (`api-service.ts`). The escape stays valid inside JSON and still renders as `<` to a human reader, but can never form a tag: <!-- id:0iHcYBOu -->
   - **`<user_action>` and `<user_action_result>`**: the user's own verb calls and their results, including fetched web content. Without escaping, a page containing `</user_action_result>` could close the frame and forge trusted user actions for everything after it. <!-- id:OdKHUfbu -->
-  - **`<plan_state>`**: the live checklist injected fresh each turn. Step ids and labels are whatever the model last wrote, so a label carrying `</plan_state>` would otherwise turn the rest of the block into instructions nothing vouched for (`api-service.ts:409`). <!-- id:n36-MmI1 -->
+  - **`<plan_state>`**: the live checklist injected fresh each turn. Step ids and labels are whatever the model last wrote, so a label carrying `</plan_state>` would otherwise turn the rest of the block into instructions nothing vouched for (`api-service.ts`). <!-- id:n36-MmI1 -->
 
-A related guard: an actor-less `tool_result` answering a user-actor `tool_call` (a synthetic written before the synthesizer knew about actors) is dropped, and never replayed as an orphan provider tool result (`api-service.ts:4868`). <!-- id:sy5R8JFG -->
+A related guard: an actor-less `tool_result` answering a user-actor `tool_call` (a synthetic written before the synthesizer knew about actors) is dropped, and never replayed as an orphan provider tool result (`api-service.ts`). <!-- id:sy5R8JFG -->
 
-`InvokeSessionTool` itself is bounded: only `read`, `write`, and `call` are accepted, it is rejected with 409 while the session has a live run, and execution failures append to the log where anyone can see them (`api-service.ts:2345`). <!-- id:yQRuxww- -->
+`InvokeSessionTool` itself is bounded: only `read`, `write`, and `call` are accepted, it is rejected with 409 while the session has a live run, and execution failures append to the log where anyone can see them (`api-service.ts`). <!-- id:yQRuxww- -->
 
 # `read` safety <!-- id:tJvMcJBK -->
 
@@ -217,27 +218,27 @@ Agent memory (`agents/src/agent-memory.ts`) exposes a real filesystem directory 
   - `write ipfs://` and `UploadAgentMemoryFileToIpfs` chunk files as [UnixFS](../protocol/files.md) and publish the blocks through the typed HM API. The daemon stores the blocks, but its gateway refuses them (`blob … is not public`) until public Hypermedia content links to the [CID](../protocol/blobs.md). DagPB [visibility](../protocol/privacy.md) propagates from a referencing [Change](../change.md), [Comment](../comment.md), or [Profile](../profile.md) (`backend/storage/schema.sql` visibility rules). So a standalone `write ipfs://` is not retrievable yet. It becomes retrievable the moment any public blob references it. `SEED_AGENTS_IPFS_SERVER_URL` only selects the gateway for later reads. Treat publishing as irreversible disclosure anyway. Showing a memory file to the owner in chat does not go through IPFS: the transcript renders `![…](~/memory/path)` over the signed API; <!-- id:BArm8mQq -->
   - session [attachments](./attachment.md) (files dropped into the chat composer) are session-private: stored under `<stateDir>/session-attachments/<sessionId>/`, keyed by content SHA-256, capped at 100 MiB each, never auto-copied into cross-session memory or published, deleted with the session, and exposed to the model as metadata until it reads one by address. <!-- id:LnfnVLp1 -->
 
-**Memory has no size quota, and never has.** Earlier revisions of this document described a 1 MiB text write cap, a 100 MiB per-file cap, a 1 GiB per-agent total, and a 2000-entry limit. None of those exist in the code, at HEAD or in the commit that introduced the memory filesystem (`8326a22e7`). `agent-memory.ts` bounds only path length and depth. `downloadToMemory` allows downloads of any size and aborts only on a 60-second stall (`agent-memory.ts:290`). The sandbox mount is created with `mount.bind(memoryRoot)` and **no** `.quota()` call (`code-exec.ts:402`), even though the builder supports one. Disk exhaustion by a runaway model write, download, or sandbox program is unbounded today. The only enforced size limits nearby are per-attachment (100 MiB, `session-attachments.ts:26`) and per-chunked-upload (2 GiB, `api-service.ts:158`). <!-- id:C7MI47U4 -->
+**Memory has no size quota, and never has.** Earlier revisions of this document described a 1 MiB text write cap, a 100 MiB per-file cap, a 1 GiB per-agent total, and a 2000-entry limit. None of those exist in the code, at HEAD or in the commit that introduced the memory filesystem (`8326a22e7`). `agent-memory.ts` bounds only path length and depth. `downloadToMemory` allows downloads of any size and aborts only on a 60-second stall (`agent-memory.ts`). The sandbox mount is created with `mount.bind(memoryRoot)` and **no** `.quota()` call (`code-exec.ts`), even though the builder supports one. Disk exhaustion by a runaway model write, download, or sandbox program is unbounded today. The only enforced size limits nearby are per-attachment (100 MiB, `session-attachments.ts`) and per-chunked-upload (2 GiB, `api-service.ts`). <!-- id:C7MI47U4 -->
 
 # Code execution safety <!-- id:mIs-6SHz -->
 
 `execute` and every authored lambda run model-written code, so isolation comes from hardware virtualization. Process sandboxing is not used (`agents/src/code-exec.ts`): <!-- id:VPSYqRA7 -->
-  - each execution runs in a fresh ephemeral microVM (embedded `microsandbox` runtime: libkrun on macOS/Linux, WHP on Windows) with the `restricted` in-guest security profile. The VM boundary is the isolation line. Seccomp and containers are not; <!-- id:YwAmk-Tb -->
+  - each execution runs in a microVM that is fresh by default, or, when the warm pool is enabled (`SEED_AGENTS_EXEC_WARM_POOL=1`), one reused only by the same principal (account, agent, session, image); no VM is ever shared across principals. The VM runs the (embedded `microsandbox` runtime: libkrun on macOS/Linux, WHP on Windows) with the `restricted` in-guest security profile. The VM boundary is the isolation line. Seccomp and containers are not; <!-- id:YwAmk-Tb -->
   - the only host filesystem exposure is the agent's own memory directory, bind-mounted at `/workspace`. Code cannot see other agents' memory, the SQLite DB, or secrets; <!-- id:ilw1LQ5e -->
   - guest-created symlinks inside the memory directory cannot trick host-side reads. Memory reads refuse symlinks and listings skip them; <!-- id:-VQDLseP -->
-  - nothing is interpreted by a shell unless the runtime _is_ the shell. The sandbox takes an argv array, so model code containing quotes, newlines, or `$` needs no escaping (`code-exec.ts:470`); <!-- id:oxwzfHCg -->
-  - sandbox networking is on by default but constrained to a **non-local egress policy** (`NetworkPolicy.fromProfiles(['public'])`, with `nonLocal()` as the older-SDK dialect, `code-exec.ts:117`). Code reaches the public internet but not the host's private network or cloud-metadata endpoints. DNS uses an explicit resolver set (`SEED_AGENTS_EXEC_DNS`) and never the host's. `SEED_AGENTS_EXEC_ALLOW_NETWORK=false` removes the NIC entirely. On-by-default egress widens the exfiltration surface compared to an offline sandbox. The isolation is the non-local policy plus the memory-only mount. There is no air gap; <!-- id:rVcD6uqo -->
+  - nothing is interpreted by a shell unless the runtime _is_ the shell. The sandbox takes an argv array, so model code containing quotes, newlines, or `$` needs no escaping (`code-exec.ts`); <!-- id:oxwzfHCg -->
+  - sandbox networking is on by default but constrained to a **non-local egress policy** (`NetworkPolicy.fromProfiles(['public'])`, with `nonLocal()` as the older-SDK dialect, `code-exec.ts`). Code reaches the public internet but not the host's private network or cloud-metadata endpoints. DNS uses an explicit resolver set (`SEED_AGENTS_EXEC_DNS`) and never the host's. `SEED_AGENTS_EXEC_ALLOW_NETWORK=false` removes the NIC entirely. On-by-default egress widens the exfiltration surface compared to an offline sandbox. The isolation is the non-local policy plus the memory-only mount. There is no air gap; <!-- id:rVcD6uqo -->
   - CPU count, guest memory, per-exec timeout (clamped to ≤ 300s) and total sandbox lifetime (`timeout + 30s`) are capped server-side. stdout and stderr are bounded to 64 KiB each before reaching the model; <!-- id:V1pbuaC_ -->
-  - a lambda's input is baked into its program as a double-`JSON.stringify` literal, so no call input can escape into code (`code-exec.ts:505`); <!-- id:JI7bmi1s -->
-  - an authored lambda rides on the **same grant** the `execute` tool needs (`api-service.ts:7696`). Without that check, writing a tool document would be a way around an owner who turned code execution off; <!-- id:5h1AAOPn -->
-  - resource note: each concurrent execution boots a microVM with its configured guest memory. There is no per-account concurrency limit yet. <!-- id:pU1Hj4Fe -->
+  - a lambda's input is baked into its program as a double-`JSON.stringify` literal, so no call input can escape into code (`code-exec.ts`); <!-- id:JI7bmi1s -->
+  - an authored lambda rides on the **same grant** the `execute` tool needs, or on its own name being listed in the agent's `tools` (how a narrowed child keeps one authored tool without general code execution; see above). Without that check, writing a tool document would be a way around an owner who turned code execution off; <!-- id:5h1AAOPn -->
+  - resource note: each concurrent execution boots a microVM with its configured guest memory. There is no per-account concurrency limit yet. A host-wide cap, `SEED_AGENTS_EXEC_MAX_CONCURRENT` (default `CPUs - 2`, at least 1), queues executions first-in first-out and answers 503 after `SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS` (30 s). <!-- id:pU1Hj4Fe -->
 
 # Script (workflow) safety <!-- id:fcE-ASsj -->
 
 [Script](./script.md) children are untrusted, model-authored JavaScript. The posture is defense in depth (`agents/src/workflow-host.ts`): <!-- id:Mi-PBDI- -->
   - **Zero-ambient-authority realm**: each run gets a fresh QuickJS-WASM context with no `Date`, `Math.random`, timers, `fetch`, imports, or process access. A submission-time lint rejects those tokens up front, and the realm removes them at runtime. The only way to affect the world is the journaled `ctx` bridge. <!-- id:mvCxlsOc -->
-  - **Every effect is validated, bounded, and journaled**: `ctx.call` is checked against the read and write verbs plus the agent's enabled callables (`api-service.ts:3801`) and the tool's input schema. Results are size-bounded by the tool caps. The [journal](./journal.md) is a flight recorder: you can list every external effect after the fact via `GetRunJournal`. <!-- id:BNwxImA5 -->
-  - **No new authority**: a script can do exactly what its agent could do call-by-call in chat, under the agent's own signing identities and configured HM server. The new factor is scale, bounded by spawn depth (3), fan-out (10 children per run), the separate workflow concurrency pool, compute fuel between awaits, VM memory, and journal caps. <!-- id:lvFcXqNY -->
+  - **Every effect is validated, bounded, and journaled**: `ctx.call` is checked against the read and write verbs plus the agent's enabled callables (`api-service.ts`) and the tool's input schema. Results are size-bounded by the tool caps. The [journal](./journal.md) is a flight recorder: you can list every external effect after the fact via `GetRunJournal`. <!-- id:BNwxImA5 -->
+  - **No new authority**: a script can do exactly what its agent could do call-by-call in chat, under the agent's own signing identities and configured HM server. The new factor is scale, bounded by spawn depth and fan-out (the thoroughness preset: quick 1/4, normal 3/10, deep 5/16), the separate workflow concurrency pool, compute fuel between awaits, VM memory, and journal caps. <!-- id:lvFcXqNY -->
   - **Child outputs re-enter parents as data** (schema-validated when a [typed result](./typed-result.md) was declared), inside tool results. They are never trusted instructions. A prompt-injected child can corrupt only its own return value. <!-- id:_9Lz0w7L -->
   - **Kill switch**: `CancelRun` on any root cascades to every descendant. Queued runs never start, waiting runs never wake, live agent runs abort through Pi, live script VMs are interrupted. `StopSession` on the launching chat does the same for its whole tree. <!-- id:LvFiHHRo -->
   - **Accepted gaps**: there are no cost (dollar or token) budgets yet. Wall-time, depth, fan-out, and concurrency caps are the blast-radius controls (live usage is persisted per run and visible to clients). A `ctx.call` interrupted between execution and its journaled result **re-executes on resume** (at-least-once). That is fine for idempotent tools, but a `write` that crashed at exactly that point could publish twice. Idempotency keys are the roadmap fix. <!-- id:4HiLThr0 -->
@@ -245,9 +246,9 @@ Agent memory (`agents/src/agent-memory.ts`) exposes a real filesystem directory 
 # Honest-record guarantees <!-- id:2PvmSscn -->
 
 Several behaviors keep the log from quietly disagreeing with reality. That is a security property and a product property: <!-- id:XS7PsjRR -->
-  - the runtime settles a [plan](./plan.md) step only on evidence (every attached child `succeeded`) and never derives anything from failure (`api-service.ts:2723`); <!-- id:lEfY3dmN -->
-  - `resolvedBy: 'runtime'` cannot be forged from model input and is carried across rewrites only while the step stays done (`api-service.ts:2174`); <!-- id:MAH6svgu -->
-  - a run that exhausts its continuations leaves an actor-`system` notice naming exactly what was left open, and nothing is ticked off on the agent's behalf (`api-service.ts:2659`); <!-- id:0dfC_lVg -->
+  - the runtime settles a [plan](./plan.md) step only on evidence (every attached child `succeeded`) and never derives anything from failure (`api-service.ts`); <!-- id:lEfY3dmN -->
+  - `resolvedBy: 'runtime'` cannot be forged from model input and is carried across rewrites only while the step stays done (`api-service.ts`); <!-- id:MAH6svgu -->
+  - a run that exhausts its continuations leaves an actor-`system` notice naming exactly what was left open, and nothing is ticked off on the agent's behalf (`api-service.ts`); <!-- id:0dfC_lVg -->
   - a typed child that never delivered **fails**, because its parent is blocked on a result that is never coming. <!-- id:PyWycS8a -->
 
 # Replay protection status <!-- id:wDYh8XGZ -->
