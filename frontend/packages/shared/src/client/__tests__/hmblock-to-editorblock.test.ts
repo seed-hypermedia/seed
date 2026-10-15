@@ -1526,3 +1526,47 @@ describe('HMBlock to EditorBlock', () => {
     })
   })
 })
+
+describe('textAlignment', () => {
+  function paragraph(attributes: Record<string, unknown>): HMBlock {
+    return {id: 'align', type: 'Paragraph', text: 'Aligned', annotations: [], attributes} as HMBlock
+  }
+
+  test.each(['center', 'right', 'justify'] as const)('reads %s into the editor prop', (textAlignment) => {
+    expect(hmBlockToEditorBlock(paragraph({textAlignment})).props.textAlignment).toBe(textAlignment)
+  })
+
+  test('leaves the prop unset when the attribute is missing or left', () => {
+    expect(hmBlockToEditorBlock(paragraph({})).props.textAlignment).toBeUndefined()
+    expect(hmBlockToEditorBlock(paragraph({textAlignment: 'left'})).props.textAlignment).toBeUndefined()
+  })
+
+  test.each(['middle', 'CENTER', 3, null])('falls back to the default for an invalid stored value %s', (value) => {
+    expect(hmBlockToEditorBlock(paragraph({textAlignment: value})).props.textAlignment).toBeUndefined()
+  })
+
+  test('does not copy an invalid value through the media attribute passthrough', () => {
+    const image = {
+      id: 'img',
+      type: 'Image',
+      text: '',
+      annotations: [],
+      link: 'ipfs://bafy',
+      attributes: {textAlignment: 'middle'},
+    } as unknown as HMBlock
+    expect(hmBlockToEditorBlock(image).props.textAlignment).toBeUndefined()
+  })
+
+  test.each(['center', 'right', 'justify'] as const)('%s survives HM -> editor -> HM', (textAlignment) => {
+    const original: HMBlockNode = {block: paragraph({textAlignment})}
+    const [roundTripped] = editorBlocksToHMBlockNodes(hmBlocksToEditorContent([original]))
+    expect(roundTripped!.block).toEqual(original.block)
+  })
+
+  test('an invalid stored value is dropped on the next save', () => {
+    const [roundTripped] = editorBlocksToHMBlockNodes(
+      hmBlocksToEditorContent([{block: paragraph({textAlignment: 'middle'})}]),
+    )
+    expect((roundTripped!.block as any).attributes).toEqual({})
+  })
+})

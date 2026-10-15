@@ -115,6 +115,8 @@ export type HMBlockButton = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Alternative label for the button. */
     name?: string
     /** Horizontal position of the button in its column. */
@@ -154,6 +156,8 @@ export type HMBlockCode = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Programming language used for syntax highlighting. */
     language?: string
   } & {[key: string]: unknown}
@@ -209,6 +213,8 @@ export type HMBlockEmbed = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** How the target renders: its content, a card, its comments or a plain link. */
     view?: HMBlockEmbedView
   } & {[key: string]: unknown}
@@ -238,6 +244,8 @@ export type HMBlockFile = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** File size in bytes. */
     size?: number
     /** File name shown to readers. */
@@ -263,6 +271,8 @@ export type HMBlockHeading = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
   } & {[key: string]: unknown}
 }
 
@@ -286,6 +296,8 @@ export type HMBlockImage = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Display width in pixels. */
     width?: number
     /** Original file name of the image. */
@@ -309,6 +321,8 @@ export type HMBlockMath = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
   } & {[key: string]: unknown}
 }
 
@@ -355,6 +369,8 @@ export type HMBlockParagraph = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Id of the TableColumn block this cell belongs to; set only on cells inside a TableRow. */
     columnId?: string
   } & {[key: string]: unknown}
@@ -374,6 +390,8 @@ export type HMBlockQuery = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of card columns in the `Card` style (default 3). */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** How results are shown: `Card`, `List` or `Table`. */
     style?: HMQueryStyle
     /** The query to run: spaces and paths to include, sort and limit. */
@@ -399,6 +417,8 @@ export type HMBlockTable = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
   }
 }
 
@@ -416,6 +436,8 @@ export type HMBlockTableColumn = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Column width in pixels. · minimum: 0 */
     width?: number
     /** Marks a header column; honored only on the first column. */
@@ -437,10 +459,20 @@ export type HMBlockTableRow = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Marks the header row; honored only on the first row. */
     isHeader?: boolean
   }
 }
+
+/**
+ * Text Alignment
+ * The horizontal alignment of a block's text: left, center, right or justify.
+ * Horizontal alignment of a block's text: `left` (the default, also when the key is absent), `center`, `right` or `justify`.
+ * Schema: hm://hyper.media/block/text-alignment
+ */
+export type HMBlockTextAlignment = 'left' | 'center' | 'right' | 'justify'
 
 /**
  * Video Block
@@ -458,6 +490,8 @@ export type HMBlockVideo = HMBlockBase & {
     childrenType?: HMBlockChildrenType
     /** Number of columns the children occupy when `childrenType` is `Grid`. */
     columnCount?: number
+    /** Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`. */
+    textAlignment?: HMBlockTextAlignment
     /** Display width in pixels. */
     width?: number
     /** Original file name of the video. */
