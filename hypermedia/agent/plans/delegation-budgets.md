@@ -2,7 +2,7 @@
 name: Delegation Budgets
 summary: A proposal, not started as of September 2026, to let a person answer budget pauses, give each run tree one shared budget, and count budgets in tokens and money.
 ---
-Written 2026-09-10 alongside PR #1070 (budgeted delegation with thoroughness presets). What that PR built is now reference material on the [tools](../tools.md) page, with a summary below. The rest of this page proposes the next project, **budget pauses and tree budgets**. In it, a hard cap that the model hits becomes a question for the person paying for the work. Status as of 2026-09-16: proposed, not started. <!-- id:ZtY71Q3g -->
+Written 2026-09-10 alongside PR #1070 (budgeted delegation with thoroughness presets). What that PR built is now reference material on the [tools](../tools.md) page, with a summary below. The rest of this page proposes the next project, **budget pauses and tree budgets**. In it, a hard cap that the model hits becomes a question for the person paying for the work. Status as of 2026-09-16: proposed, not started. (A `budget-pause` wait and a **Resume** button already exist, but only for a script run's wall-clock budget `maxWallMs`; the fan-out pause proposed here does not.) <!-- id:ZtY71Q3g -->
 
 # What shipped in #1070 <!-- id:ujIb66Pu -->
 

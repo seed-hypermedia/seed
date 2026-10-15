@@ -203,6 +203,13 @@ const appWindowSchema = z.object({
   assistantSessionId: z.string().nullable().optional(),
 })
 
+/** Window creation input leaves layout values unset so the focused window can supply them. */
+export const createAppWindowInputSchema = appWindowSchema.partial().extend({
+  routes: z.array(z.any()),
+  routeIndex: z.number().default(0),
+  id: z.string().optional(),
+})
+
 export type AppWindow = z.infer<typeof appWindowSchema>
 
 const WINDOW_STATE_STORAGE_KEY = 'WindowState-v004'
@@ -415,6 +422,11 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     }
   }
 
+  // Read the source before constructing a window, which can change focus.
+  const sourceWindow = getLastFocusedWindow()
+  const sourceWindowId = Array.from(allWindows.entries()).find(([, window]) => window === sourceWindow)?.[0]
+  const sourceState = sourceWindowId ? windowNavState[sourceWindowId] : undefined
+
   const windowId = input.id || `window.${windowIdCount++}.${Date.now()}`
   const initActiveRoute = initRoutes[initRouteIndex]
   const windowType = getRouteWindowType(initActiveRoute)
@@ -531,7 +543,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     },
   })
 
-  const focusedSelectedIdentity = lastFocusedWindowId ? windowNavState[lastFocusedWindowId]?.selectedIdentity : null
+  const focusedSelectedIdentity = sourceState?.selectedIdentity
   const selectedIdentity = resolveSelectedIdentityForWindow({
     availableAccountIds,
     inputSelectedIdentity: input.selectedIdentity,
@@ -542,9 +554,9 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   const initNavState: WindowNavState = {
     routes: initRoutes,
     routeIndex: initRouteIndex,
-    sidebarLocked: typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
-    sidebarWidth: input.sidebarWidth || 15,
-    accessoryWidth: input.accessoryWidth || 20,
+    sidebarLocked: input.sidebarLocked ?? sourceState?.sidebarLocked ?? true,
+    sidebarWidth: input.sidebarWidth ?? sourceState?.sidebarWidth ?? 15,
+    accessoryWidth: input.accessoryWidth ?? sourceState?.accessoryWidth ?? 20,
     selectedIdentity,
     assistantOpen: input.assistantOpen || false,
     assistantSessionId: input.assistantSessionId || null,

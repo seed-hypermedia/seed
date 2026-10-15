@@ -6,7 +6,7 @@ import {
 } from '@seed-hypermedia/agents-protocol'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
-import {getAgentsPlatform} from './platform'
+import {getAgentsPlatform, type AgentsSignerDelegation} from './platform'
 
 /** Definition used when creating a server-hosted Seed agent. */
 export type AgentDefinition = AgentsProtocol.AgentDefinition
@@ -152,7 +152,14 @@ export type AgentServerHealth = {
   minClientProtocol?: number
 }
 
-/** Normalizes an agent server URL for storage and fetch calls. */
+/** Canonical path of the agents API, on a standalone agents host or on a site's own origin. */
+export const AGENTS_API_PREFIX = '/hm/api/agents'
+
+/**
+ * Normalizes an agent server URL for storage and fetch calls. A canonical base (path ending in
+ * `/hm/api/agents`) is kept as is; a bare `/agents` suffix (the old way of naming the legacy
+ * mount) is stripped back to the origin.
+ */
 export function normalizeAgentServerUrl(input: string): string {
   const value = input.trim().replace(/\/+$/, '')
   if (!value) throw new Error('Agent server URL is required')
@@ -163,13 +170,47 @@ export function normalizeAgentServerUrl(input: string): string {
   if (url.pathname === '/agents' || url.pathname === '/agents/') {
     url.pathname = '/'
   }
-  return url.toString().replace(/\/$/, '')
+  url.search = ''
+  url.hash = ''
+  return url.toString().replace(/\/+$/, '')
+}
+
+/** True when the server URL names the canonical mount (`…/hm/api/agents`) rather than a legacy origin. */
+export function isCanonicalAgentServerUrl(serverUrl: string): boolean {
+  return new URL(normalizeAgentServerUrl(serverUrl)).pathname.endsWith(AGENTS_API_PREFIX)
+}
+
+/** The agents service endpoints a client calls. `webhooks`, `perf/sessions` take a trailing path. */
+export type AgentServerEndpoint = 'message' | 'ws' | 'health' | 'version' | 'perf' | 'perf/sessions' | 'webhooks'
+
+const LEGACY_AGENT_ENDPOINT_PATHS: Record<AgentServerEndpoint, string> = {
+  message: '/api/message',
+  ws: '/agents/ws',
+  health: '/agents/api/health',
+  version: '/agents/api/version',
+  perf: '/agents/api/perf',
+  'perf/sessions': '/agents/api/perf/sessions',
+  webhooks: '/agents/api/webhooks',
+}
+
+/**
+ * The http(s) URL of one agents service endpoint. A canonical base (`https://site/hm/api/agents`)
+ * gets `/<endpoint>` appended; any other base is a legacy server, whose endpoints sit at fixed
+ * paths under whatever path prefix the base carries (`/api/message`, `/agents/ws`, `/agents/api/*`).
+ * `rest` segments are URL-encoded and appended (a webhook's trigger id and secret, a session id).
+ */
+export function agentServerEndpoint(serverUrl: string, endpoint: AgentServerEndpoint, ...rest: string[]): string {
+  const base = normalizeAgentServerUrl(serverUrl)
+  const path = isCanonicalAgentServerUrl(base) ? `/${endpoint}` : LEGACY_AGENT_ENDPOINT_PATHS[endpoint]
+  const tail = rest.map((segment) => `/${encodeURIComponent(segment)}`).join('')
+  return `${base}${path}${tail}`
 }
 
 /** Returns the public delivery endpoint for an inbound webhook trigger. */
 export function getAgentWebhookUrl(serverUrl: string, triggerId: string, secret?: string): string {
-  const base = `${normalizeAgentServerUrl(serverUrl)}/agents/api/webhooks/${encodeURIComponent(triggerId)}`
-  return secret ? `${base}/${encodeURIComponent(secret)}` : base
+  return secret
+    ? agentServerEndpoint(serverUrl, 'webhooks', triggerId, secret)
+    : agentServerEndpoint(serverUrl, 'webhooks', triggerId)
 }
 
 /** Returns true when a URL can safely receive secrets over the current transport. */
@@ -182,20 +223,16 @@ export function isSafeAgentServerSecretTarget(serverUrl: string): boolean {
 
 /** Fetches agent server health from the built-in status endpoint. */
 export async function getAgentServerHealth(serverUrl: string): Promise<AgentServerHealth> {
-  const baseUrl = normalizeAgentServerUrl(serverUrl)
-  const res = await fetch(`${baseUrl}/agents/api/health`)
+  const res = await fetch(agentServerEndpoint(serverUrl, 'health'))
   if (!res.ok) throw new Error(`Agent server health failed: HTTP ${res.status}`)
   return res.json()
 }
 
-/** Sends a signed CBOR action to the agents service. */
+/** The agents service's live-update WebSocket URL. Keeps a path prefix (a server behind a reverse proxy). */
 export function getAgentWebSocketUrl(serverUrl: string): string {
-  const baseUrl = new URL(normalizeAgentServerUrl(serverUrl))
-  baseUrl.protocol = baseUrl.protocol === 'https:' ? 'wss:' : 'ws:'
-  baseUrl.pathname = '/agents/ws'
-  baseUrl.search = ''
-  baseUrl.hash = ''
-  return baseUrl.toString()
+  const url = new URL(agentServerEndpoint(serverUrl, 'ws'))
+  url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+  return url.toString()
 }
 
 export async function signAgentAction(input: {accountUid: string; action: AgentAction}) {
@@ -206,7 +243,21 @@ export async function signAgentAction(input: {accountUid: string; action: AgentA
   // Capability so the server can verify the delegation itself (see the platform's getDelegation).
   const delegated = blobs.principalToString(signer.principal) !== input.accountUid
   const delegation = delegated ? await platform.getDelegation?.(input.accountUid) : null
-  if (delegated && !delegation) {
+  return signAgentActionWith({signer, delegation: delegation ?? null, ...input})
+}
+
+/**
+ * Signs an agent action with an explicit signer, outside any registered platform (hosts that
+ * call the agents service directly). `delegation` is required when the signer is not the account.
+ */
+export async function signAgentActionWith(input: {
+  signer: blobs.Signer
+  delegation: AgentsSignerDelegation | null
+  accountUid: string
+  action: AgentAction
+}) {
+  const {signer, delegation} = input
+  if (blobs.principalToString(signer.principal) !== input.accountUid && !delegation) {
     throw new Error('The local key holds no delegation for this account')
   }
   return blobs.sign(signer, {
@@ -289,10 +340,13 @@ export async function sendAgentAction(input: {
   /** Cancels a window-scoped request, such as a browser long-poll when its panel closes. */
   signal?: AbortSignal
 }): Promise<AgentsResponse> {
-  const baseUrl = normalizeAgentServerUrl(input.serverUrl)
   const envelope = await signAgentAction({accountUid: input.accountUid, action: input.action})
+  return postSignedAgentAction(input.serverUrl, envelope)
+}
 
-  const res = await fetch(`${baseUrl}/api/message`, {
+/** Posts an already signed action envelope and decodes the reply, throwing on server errors. */
+export async function postSignedAgentAction(serverUrl: string, envelope: unknown): Promise<AgentsResponse> {
+  const res = await fetch(agentServerEndpoint(serverUrl, 'message'), {
     method: 'POST',
     headers: {'Content-Type': 'application/cbor', Accept: 'application/cbor'},
     body: cbor.encode(envelope) as BodyInit,

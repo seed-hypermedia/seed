@@ -2245,6 +2245,22 @@ export class DocumentFilter extends Message<DocumentFilter> {
      */
     value: DocumentFilter_PathMatch;
     case: "pathMatch";
+  } | {
+    /**
+     * Matches documents the account is one of the authors of.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.AuthorMatch author_match = 11;
+     */
+    value: DocumentFilter_AuthorMatch;
+    case: "authorMatch";
+  } | {
+    /**
+     * Matches documents whose creation or update time falls within a range.
+     *
+     * @generated from field: com.seed.documents.v3alpha.DocumentFilter.TimeRange time_range = 12;
+     */
+    value: DocumentFilter_TimeRange;
+    case: "timeRange";
   } | { case: undefined; value?: undefined } = { case: undefined };
 
   constructor(data?: PartialMessage<DocumentFilter>) {
@@ -2265,6 +2281,8 @@ export class DocumentFilter extends Message<DocumentFilter> {
     { no: 8, name: "url_match", kind: "message", T: DocumentFilter_URLMatch, oneof: "filter" },
     { no: 9, name: "space_match", kind: "message", T: DocumentFilter_SpaceMatch, oneof: "filter" },
     { no: 10, name: "path_match", kind: "message", T: DocumentFilter_PathMatch, oneof: "filter" },
+    { no: 11, name: "author_match", kind: "message", T: DocumentFilter_AuthorMatch, oneof: "filter" },
+    { no: 12, name: "time_range", kind: "message", T: DocumentFilter_TimeRange, oneof: "filter" },
   ]);
 
   static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter {
@@ -2774,6 +2792,142 @@ export class DocumentFilter_PathMatch extends Message<DocumentFilter_PathMatch> 
     return proto3.util.equals(DocumentFilter_PathMatch, a, b);
   }
 }
+
+/**
+ * Matches documents an account contributed to.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.AuthorMatch
+ */
+export class DocumentFilter_AuthorMatch extends Message<DocumentFilter_AuthorMatch> {
+  /**
+   * Account principal to match. Matches when it is any one of the document's authors.
+   *
+   * @generated from field: string author = 1;
+   */
+  author = "";
+
+  constructor(data?: PartialMessage<DocumentFilter_AuthorMatch>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.AuthorMatch";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "author", kind: "scalar", T: 9 /* ScalarType.STRING */ },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_AuthorMatch {
+    return new DocumentFilter_AuthorMatch().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_AuthorMatch {
+    return new DocumentFilter_AuthorMatch().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_AuthorMatch {
+    return new DocumentFilter_AuthorMatch().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_AuthorMatch | PlainMessage<DocumentFilter_AuthorMatch> | undefined, b: DocumentFilter_AuthorMatch | PlainMessage<DocumentFilter_AuthorMatch> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_AuthorMatch, a, b);
+  }
+}
+
+/**
+ * Matches documents whose built-in timestamp falls within a range.
+ *
+ * @generated from message com.seed.documents.v3alpha.DocumentFilter.TimeRange
+ */
+export class DocumentFilter_TimeRange extends Message<DocumentFilter_TimeRange> {
+  /**
+   * Timestamp to filter on.
+   *
+   * @generated from field: com.seed.documents.v3alpha.DocumentFilter.TimeRange.Field field = 1;
+   */
+  field = DocumentFilter_TimeRange_Field.FIELD_UNSPECIFIED;
+
+  /**
+   * Optional. Inclusive lower bound. Unbounded when unset.
+   * Rounded up to the next millisecond when finer precision is supplied.
+   * Millisecond-aligned bounds are unchanged.
+   *
+   * @generated from field: google.protobuf.Timestamp start = 2;
+   */
+  start?: Timestamp;
+
+  /**
+   * Optional. Exclusive upper bound. Unbounded when unset.
+   * Rounded up to the next millisecond when finer precision is supplied.
+   * Millisecond-aligned bounds are unchanged.
+   *
+   * @generated from field: google.protobuf.Timestamp end = 3;
+   */
+  end?: Timestamp;
+
+  constructor(data?: PartialMessage<DocumentFilter_TimeRange>) {
+    super();
+    proto3.util.initPartial(data, this);
+  }
+
+  static readonly runtime: typeof proto3 = proto3;
+  static readonly typeName = "com.seed.documents.v3alpha.DocumentFilter.TimeRange";
+  static readonly fields: FieldList = proto3.util.newFieldList(() => [
+    { no: 1, name: "field", kind: "enum", T: proto3.getEnumType(DocumentFilter_TimeRange_Field) },
+    { no: 2, name: "start", kind: "message", T: Timestamp },
+    { no: 3, name: "end", kind: "message", T: Timestamp },
+  ]);
+
+  static fromBinary(bytes: Uint8Array, options?: Partial<BinaryReadOptions>): DocumentFilter_TimeRange {
+    return new DocumentFilter_TimeRange().fromBinary(bytes, options);
+  }
+
+  static fromJson(jsonValue: JsonValue, options?: Partial<JsonReadOptions>): DocumentFilter_TimeRange {
+    return new DocumentFilter_TimeRange().fromJson(jsonValue, options);
+  }
+
+  static fromJsonString(jsonString: string, options?: Partial<JsonReadOptions>): DocumentFilter_TimeRange {
+    return new DocumentFilter_TimeRange().fromJsonString(jsonString, options);
+  }
+
+  static equals(a: DocumentFilter_TimeRange | PlainMessage<DocumentFilter_TimeRange> | undefined, b: DocumentFilter_TimeRange | PlainMessage<DocumentFilter_TimeRange> | undefined): boolean {
+    return proto3.util.equals(DocumentFilter_TimeRange, a, b);
+  }
+}
+
+/**
+ * Built-in document timestamps that can be filtered on.
+ *
+ * @generated from enum com.seed.documents.v3alpha.DocumentFilter.TimeRange.Field
+ */
+export enum DocumentFilter_TimeRange_Field {
+  /**
+   * No field specified.
+   *
+   * @generated from enum value: FIELD_UNSPECIFIED = 0;
+   */
+  FIELD_UNSPECIFIED = 0,
+
+  /**
+   * When the document was first created.
+   *
+   * @generated from enum value: CREATE_TIME = 1;
+   */
+  CREATE_TIME = 1,
+
+  /**
+   * When the document was last changed.
+   *
+   * @generated from enum value: UPDATE_TIME = 2;
+   */
+  UPDATE_TIME = 2,
+}
+// Retrieve enum metadata with: proto3.getEnumType(DocumentFilter_TimeRange_Field)
+proto3.util.setEnumType(DocumentFilter_TimeRange_Field, "com.seed.documents.v3alpha.DocumentFilter.TimeRange.Field", [
+  { no: 0, name: "FIELD_UNSPECIFIED" },
+  { no: 1, name: "CREATE_TIME" },
+  { no: 2, name: "UPDATE_TIME" },
+]);
 
 /**
  * Sorting configuration for QueryDocuments.

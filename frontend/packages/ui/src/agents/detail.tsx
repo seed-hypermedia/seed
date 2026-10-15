@@ -145,6 +145,7 @@ import {AgentsNoAccountPage} from './no-account'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {NewSessionComposer} from './new-session-composer'
 import {type AgentsRichEditorSubmitHandle} from './platform'
+import {randomUUID} from './random-id'
 
 function AgentDetailPage({
   agentId,
@@ -857,7 +858,8 @@ function sameModelRefs(a: AgentModelRef[], b: AgentModelRef[]): boolean {
 
 function agentPromptToBlocks(prompt: AgentDefinition['systemPrompt']): HMBlockNode[] {
   if (Array.isArray(prompt)) return prompt as HMBlockNode[]
-  return markdownBlockNodesToHMBlockNodes(parseMarkdown(prompt || '').tree)
+  // Display path: a prompt that happens to start with a broken `---` block still has to render.
+  return markdownBlockNodesToHMBlockNodes(parseMarkdown(prompt || '', {strictFrontmatter: false}).tree)
 }
 
 /**
@@ -2653,7 +2655,7 @@ function CreateAgentTriggerDialog({
   )
   const [continuation, setContinuation] = useState<TriggerContinuation>({kind: 'newThread'})
   const agentTools = useAgentTools(input.serverUrl, input.selectedAccountId, input.agentId)
-  const createRequestId = useRef(crypto.randomUUID())
+  const createRequestId = useRef(randomUUID())
   const createRequestKey = useRef('')
 
   async function handleCreateTrigger() {
@@ -2669,7 +2671,7 @@ function CreateAgentTriggerDialog({
       }
       const requestKey = JSON.stringify(trigger)
       if (createRequestKey.current && createRequestKey.current !== requestKey) {
-        createRequestId.current = crypto.randomUUID()
+        createRequestId.current = randomUUID()
       }
       createRequestKey.current = requestKey
       const result = await createTrigger.mutateAsync({

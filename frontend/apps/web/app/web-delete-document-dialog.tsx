@@ -164,6 +164,10 @@ export async function deleteWebDocuments(
   if (pendingJobId) await releaseWebDocumentCardCleanup(pendingJobId).catch(console.error)
 
   invalidateQueries([])
+  invalidateQueries([queryKeys.DOC_LIST_DIRECTORY], {refetchType: 'all'})
+  new Set(input.ids.map((id) => id.uid)).forEach((uid) => {
+    invalidateQueries([queryKeys.DOC_LIST_UNREFERENCED, uid], {refetchType: 'all'})
+  })
   input.ids.forEach((id) => {
     invalidateQueries([queryKeys.ENTITY, id.id])
     invalidateQueries([queryKeys.RESOLVED_ENTITY, id.id])

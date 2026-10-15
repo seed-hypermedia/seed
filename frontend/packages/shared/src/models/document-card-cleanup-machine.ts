@@ -16,6 +16,27 @@ export type CleanupCoordinatorState = 'idle' | 'running' | 'retryWaiting'
 /** Supported parent-reference mutations. */
 export type DocumentCardCleanupOperation = 'remove' | 'add' | 'rewrite' | 'delete-child'
 
+/** Terminal reason why a document content mutation was declined before publication. */
+export type DocumentContentMutationFailureReason =
+  | 'document_deleted'
+  | 'redirect_cycle'
+  | 'redirect_limit_exceeded'
+  | 'document_not_found'
+  | 'permission_denied'
+
+/** A non-retryable content-mutation error returned by platform preflight. */
+export class DocumentContentMutationDeclinedError extends Error {
+  readonly nonRetryable = true
+
+  constructor(
+    readonly reason: DocumentContentMutationFailureReason,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'DocumentContentMutationDeclinedError'
+  }
+}
+
 /** Job progress, including the one-attempt failure consumed by the coordinator. */
 export type DocumentCardCleanupJobState =
   | 'idle'
@@ -58,6 +79,14 @@ export type DocumentCardCleanupJob = {
   childDraftId?: string
   /** Verified publication checkpoint; retries reconcile drafts without republishing. */
   publishedVersion?: string
+  /** Address requested by the operation before redirect resolution. */
+  requestedDocumentId?: string
+  /** Final live address that received the content change. */
+  resolvedDocumentId?: string
+  /** Redirects followed from the requested address to the final live document. */
+  redirectHops?: Array<{from: string; to: string; republish?: boolean}>
+  /** Terminal preflight reason when a content mutation was declined. */
+  failureReason?: DocumentContentMutationFailureReason
   /** Explicitly approved destructive scope, captured at confirmation. */
   approvedSubtree?: Array<{id: string; version: string}>
   authorizingParentVersion?: string
@@ -83,7 +112,13 @@ export type DocumentCardCleanupStore = {
 
 type CleanupParent = {uid: string; path: string[]; id: string}
 type CleanupDraft = {id: string; [key: string]: unknown}
-type CleanupDocument = {version?: string; [key: string]: unknown}
+type CleanupDocument = {
+  version?: string
+  requestedDocumentId?: string
+  resolvedDocumentId?: string
+  redirectHops?: Array<{from: string; to: string; republish?: boolean}>
+  [key: string]: unknown
+}
 
 type CleanupJobPlan = {
   changes: unknown[]
@@ -303,6 +338,17 @@ function toErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error)
 }
 
+function isTerminalMutationError(
+  error: unknown,
+): error is {nonRetryable: true; reason: DocumentContentMutationFailureReason; message: string} {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as {nonRetryable?: unknown}).nonRetryable === true &&
+    typeof (error as {reason?: unknown}).reason === 'string'
+  )
+}
+
 function updateJob(job: DocumentCardCleanupJob, patch: Partial<DocumentCardCleanupJob>, now: number) {
   return {...job, ...patch, updatedAt: now}
 }
@@ -378,14 +424,28 @@ export function createDocumentCardCleanupJobMachine(effects: CleanupJobEffects) 
         await effects.executeConfirmedDeletion(input.job)
       }),
     },
+    guards: {
+      terminalMutationFailure: ({event}) => isTerminalMutationError(event.error),
+    },
     actions: {
       state: assign(({context}, params: {state: DocumentCardCleanupJobState}) => ({
         job: updateJob(context.job, {state: params.state}, effects.now()),
       })),
       progress: ({context}) => effects.onJobProgress?.(context.job),
-      loaded: assign(({event}) => ({
+      loaded: assign(({context, event}) => ({
         parentDocument: event.output.document,
         publishedPlan: event.output.plan,
+        job: event.output.document
+          ? updateJob(
+              context.job,
+              {
+                requestedDocumentId: event.output.document.requestedDocumentId,
+                resolvedDocumentId: event.output.document.resolvedDocumentId,
+                redirectHops: event.output.document.redirectHops,
+              },
+              effects.now(),
+            )
+          : context.job,
       })),
       checkpoint: assign(({context, event}) => ({
         parentDocument: event.output,
@@ -394,10 +454,23 @@ export function createDocumentCardCleanupJobMachine(effects: CleanupJobEffects) 
       failure: assign(({context, event}) => ({
         job: updateJob(context.job, {state: 'failed', lastError: toErrorMessage(event.error)}, effects.now()),
       })),
+      terminalFailure: assign(({context, event}) => ({
+        job: updateJob(
+          context.job,
+          {
+            state: 'skippedTerminal',
+            lastError: toErrorMessage(event.error),
+            failureReason: isTerminalMutationError(event.error) ? event.error.reason : undefined,
+            nextRunAt: undefined,
+          },
+          effects.now(),
+        ),
+      })),
       finish: assign(({context}) => ({
         job: updateJob(context.job, {state: 'done', lastError: undefined, nextRunAt: undefined}, effects.now()),
       })),
-      invalidate: ({context}) => effects.invalidateParent(getCleanupJobParent(context.job).id),
+      invalidate: ({context}) =>
+        effects.invalidateParent(context.job.resolvedDocumentId || getCleanupJobParent(context.job).id),
     },
   }).createMachine({
     id: 'documentCardCleanupJob',
@@ -481,7 +554,10 @@ export function createDocumentCardCleanupJobMachine(effects: CleanupJobEffects) 
           src: 'loadParentDocument',
           input: ({context}) => ({job: context.job}),
           onDone: {target: 'planning', actions: 'loaded'},
-          onError: {target: 'failed', actions: 'failure'},
+          onError: [
+            {guard: 'terminalMutationFailure', target: 'declined', actions: 'terminalFailure'},
+            {target: 'failed', actions: 'failure'},
+          ],
         },
       },
       planning: {
@@ -521,6 +597,7 @@ export function createDocumentCardCleanupJobMachine(effects: CleanupJobEffects) 
       },
       done: {type: 'final', entry: ['finish', 'invalidate', 'progress']},
       skipped: {type: 'final', entry: [{type: 'state', params: {state: 'skippedTerminal'}}, 'progress']},
+      declined: {type: 'final', entry: 'progress'},
       failed: {type: 'final', entry: ['invalidate', 'progress']},
     },
   })

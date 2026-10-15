@@ -1,6 +1,6 @@
 import {createWelcomeEmail} from '@shm/emails/notifier'
 import {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {getNotifyEmailOrigin} from '@shm/emails/notify-links'
 import {sendEmail} from './mailer'
 
 /** Send the welcome email after a user subscribes to notifications. */
@@ -13,10 +13,6 @@ export async function sendNotificationWelcomeEmail(
     notifySiteDiscussions: boolean
   },
 ) {
-  if (!NOTIFY_SERVICE_HOST) {
-    throw new Error('NOTIFY_SERVICE_HOST is not set')
-  }
-
   let notificationTypes = []
   if (opts.notifyOwnedDocChange) notificationTypes.push('document updates')
   if (opts.notifySiteDiscussions) notificationTypes.push('discussions')
@@ -25,11 +21,10 @@ export async function sendNotificationWelcomeEmail(
     return // no notifications enabled
   }
 
-  const siteHost = NOTIFY_SERVICE_HOST.replace(/\/$/, '')
   const {subject, text, html} = await createWelcomeEmail({
     recipientName: accountMeta?.name,
     siteName: 'Seed Hypermedia',
-    siteUrl: siteHost,
+    siteUrl: getNotifyEmailOrigin(),
   })
 
   await sendEmail(

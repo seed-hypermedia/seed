@@ -2,7 +2,7 @@ import {useLocalKeyPair} from '@/auth'
 import {createSpaceHomeDraft} from '@/document-edit/web-create-space-draft'
 import {makeWebFileUpload} from '@/document-edit/web-image-upload'
 import {useNavigate} from '@remix-run/react'
-import {useUniversalClient} from '@shm/shared'
+import {useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Dialog, DialogSideContent, DialogTitle} from '@shm/ui/components/dialog'
@@ -13,6 +13,23 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useQuery} from '@tanstack/react-query'
 import {useCallback, useMemo, useState} from 'react'
+import {setPendingIntent} from './local-db'
+
+/** Publishes a signed-in account's home draft while keeping app-level dialogs mounted. */
+export function usePublishSpaceDraft() {
+  const navigate = useNavigate()
+  const {originHomeId} = useUniversalAppContext()
+  return useCallback(
+    async (draftId: string) => {
+      await setPendingIntent({type: 'publish-draft', draftId})
+      const {processPendingIntent} = await import('./pending-intent')
+      const result = await processPendingIntent(originHomeId ?? undefined)
+      // A document reload would discard the invitation opened by publication.
+      if (result.type === 'publish-draft') navigate(result.spaceUrl)
+    },
+    [navigate, originHomeId],
+  )
+}
 
 /** Whether the account already has a space, plus the site's canonical URL. */
 export type ExistingSpaceInfo = {exists: boolean; siteUrl: string | null}

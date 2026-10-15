@@ -45,6 +45,7 @@ import {getOnboardingState} from './app-onboarding-store'
 import {
   closeAppWindow,
   createAppWindow,
+  createAppWindowInputSchema,
   dispatchAllWindowsAppEvent,
   ensureFocusedWindowVisible,
   getAllWindows,
@@ -58,8 +59,10 @@ import {
   updateWindowState,
 } from './app-windows'
 import * as log from './logger'
-ipcMain.on('invalidate_queries', (_event, info) => {
-  appInvalidateQueries(info)
+ipcMain.on('invalidate_queries', (event, info) => {
+  // The sender invalidated its own query client before forwarding the key
+  // (root.tsx); only the other windows need it.
+  appInvalidateQueries(info, {except: event.sender})
 })
 
 ipcMain.on('focusedWindowAppEvent', (_event, info) => {
@@ -365,44 +368,21 @@ export const router = t.router({
       })
     }
   }),
-  createAppWindow: t.procedure
-    .input(
-      z.object({
-        routes: z.array(z.any()), // todo, zodify NavRoute type
-        routeIndex: z.number().default(0),
-        id: z.string().optional(),
-        sidebarLocked: z.boolean().default(true),
-        sidebarWidth: z.number().default(15),
-        accessoryWidth: z.number().default(20),
-        bounds: z
-          .object({
-            x: z.number().optional(),
-            y: z.number().optional(),
-            width: z.number().optional(),
-            height: z.number().optional(),
-          })
-          .or(z.null())
-          .optional(),
-        selectedIdentity: z.string().nullable().optional(),
-        assistantOpen: z.boolean().optional(),
-        assistantSessionId: z.string().nullable().optional(),
-      }),
-    )
-    .mutation(async ({input}) => {
-      log.info(`[MAIN]: will createAppWindow ${JSON.stringify(input.routes)}`)
-      if (!app.isReady()) {
-        await new Promise<void>((resolve) => {
-          app.whenReady().then(() => resolve())
-        })
-      }
-      await getFirstAvailableAccount()
-      const browserWindow = createAppWindow(input)
-
-      trpcHandlers.attachWindow(browserWindow)
-      browserWindow.on('close', () => {
-        trpcHandlers.detachWindow(browserWindow)
+  createAppWindow: t.procedure.input(createAppWindowInputSchema).mutation(async ({input}) => {
+    log.info(`[MAIN]: will createAppWindow ${JSON.stringify(input.routes)}`)
+    if (!app.isReady()) {
+      await new Promise<void>((resolve) => {
+        app.whenReady().then(() => resolve())
       })
-    }),
+    }
+    await getFirstAvailableAccount()
+    const browserWindow = createAppWindow(input)
+
+    trpcHandlers.attachWindow(browserWindow)
+    browserWindow.on('close', () => {
+      trpcHandlers.detachWindow(browserWindow)
+    })
+  }),
 
   webQuery: t.procedure
     .input(

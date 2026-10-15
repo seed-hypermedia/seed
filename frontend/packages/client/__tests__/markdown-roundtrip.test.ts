@@ -1,6 +1,11 @@
 import {describe, it, expect} from 'vitest'
 import {blocksToMarkdown} from '../src/blocks-to-markdown'
-import {parseMarkdown, parseInlineFormatting, markdownBlockNodesToHMBlockNodes} from '../src/markdown-to-blocks'
+import {
+  parseMarkdown,
+  parseInlineFormatting,
+  markdownBlockNodesToHMBlockNodes,
+  hmAccountMentionUid,
+} from '../src/markdown-to-blocks'
 import type {HMBlockNode, HMDocument} from '../src/hm-types'
 
 function doc(content: HMBlockNode[]): HMDocument {
@@ -158,6 +163,90 @@ describe('markdown round-trip', () => {
     expect(annotations).toHaveLength(1)
     expect(annotations[0]!.type).toBe('Link')
     expect(annotations[0]!.link).toBe('hm://z6Mktest/:profile')
+  })
+
+  // The resolved markdown an agent reads prints an account mention as `[@Name](hm://uid/:profile)`.
+  // Writing that back must produce the same inline Embed, or the "mention" is a dead Link that
+  // notifies nobody and activates no agent (seen on hyper.media: Ion "mentioning" Artist).
+  it('parses an @-labelled link to a profile as an account mention', () => {
+    const {text, annotations} = parseInlineFormatting('cc [@Julio](hm://z6Mktest/:profile) please')
+    expect(text).toBe('cc ￼ please')
+    expect(annotations).toEqual([
+      {type: 'Embed', starts: [3], ends: [4], link: 'hm://z6Mktest/:profile', attributes: {mentionKind: 'account'}},
+    ])
+  })
+
+  it('parses an @-labelled link to an account root as an account mention', () => {
+    const {text, annotations} = parseInlineFormatting('[@Artist](hm://z6Mktest)')
+    expect(text).toBe('￼')
+    expect(annotations).toEqual([
+      {type: 'Embed', starts: [0], ends: [1], link: 'hm://z6Mktest', attributes: {mentionKind: 'account'}},
+    ])
+  })
+
+  it('parses a bare-@ link as a mention: the label text is ignored', () => {
+    const {text, annotations} = parseInlineFormatting('hey [@](hm://z6Mktest/:profile)')
+    expect(text).toBe('hey ￼')
+    expect(annotations).toEqual([
+      {type: 'Embed', starts: [4], ends: [5], link: 'hm://z6Mktest/:profile', attributes: {mentionKind: 'account'}},
+    ])
+  })
+
+  it('parses an @-labelled link to a document as a document mention', () => {
+    const {text, annotations} = parseInlineFormatting('see [@Notes](hm://z6Mktest/notes)')
+    expect(text).toBe('see ￼')
+    expect(annotations).toEqual([
+      {type: 'Embed', starts: [4], ends: [5], link: 'hm://z6Mktest/notes', attributes: {mentionKind: 'document'}},
+    ])
+  })
+
+  it('keeps @-labelled links to non-hm URLs as Links', () => {
+    const web = parseInlineFormatting('[@seed](https://x.com/seed)')
+    expect(web.text).toBe('@seed')
+    expect(web.annotations[0]!.type).toBe('Link')
+    const bare = parseInlineFormatting('[@](https://x.com/seed)')
+    expect(bare.text).toBe('@')
+    expect(bare.annotations[0]!.type).toBe('Link')
+  })
+
+  it('absorbs a literal @ in front of an account autolink', () => {
+    const {text, annotations} = parseInlineFormatting('ping @<hm://z6Mktest/:profile> now')
+    expect(text).toBe('ping ￼ now')
+    expect(annotations).toEqual([
+      {type: 'Embed', starts: [5], ends: [6], link: 'hm://z6Mktest/:profile', attributes: {mentionKind: 'account'}},
+    ])
+  })
+
+  it('round-trips an account mention through resolved-style markdown and back', () => {
+    const first = parseInlineFormatting('[@Julio](hm://z6Mktest/:profile)')
+    const tree: HMBlockNode[] = [
+      {
+        block: {
+          type: 'Paragraph',
+          id: 'P1',
+          text: first.text,
+          annotations: first.annotations as HMBlockNode['block']['annotations'],
+          attributes: {},
+          link: '',
+          revision: '',
+        },
+        children: [],
+      },
+    ]
+    const md = blocksToMarkdown(doc(tree))
+    expect(md).toContain('<hm://z6Mktest/:profile>')
+    const again = parseMarkdown(md).tree[0]!.block
+    expect(again.annotations.filter((a) => a.type === 'Embed')).toHaveLength(1)
+  })
+
+  it('hmAccountMentionUid names accounts, not documents', () => {
+    expect(hmAccountMentionUid('hm://z6Mktest')).toBe('z6Mktest')
+    expect(hmAccountMentionUid('hm://z6Mktest/')).toBe('z6Mktest')
+    expect(hmAccountMentionUid('hm://z6Mktest/:profile')).toBe('z6Mktest')
+    expect(hmAccountMentionUid('hm://z6Mktest/notes')).toBeNull()
+    expect(hmAccountMentionUid('hm://z6Mktest/:comments')).toBeNull()
+    expect(hmAccountMentionUid('hm://z6Mktest?v=1')).toBeNull()
+    expect(hmAccountMentionUid('https://hyper.media/hm/z6Mktest')).toBeNull()
   })
 
   it('round-trips Embed annotations without downgrading to Link', () => {

@@ -2066,6 +2066,170 @@ func TestQueryDocuments(t *testing.T) {
 	require.Equal(t, "page_size must not exceed 1000", status.Convert(err).Message())
 }
 
+func TestQueryDocumentsAuthorMatch(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	bob := coretest.NewTester("bob")
+	ctx := t.Context()
+	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
+	account := alice.me.Account.Principal()
+
+	publish := func(path, baseVersion, key string) *documents.Document {
+		doc, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(account, path, baseVersion, key).
+			SetAttribute("", []string{"title"}, path+" by "+key).
+			Build())
+		require.NoError(t, err)
+		return doc
+	}
+
+	publish("/notes/solo", "", "main")
+	shared := publish("/notes/shared", "", "main")
+	_, err := alice.CreateCapability(ctx, &documents.CreateCapabilityRequest{
+		SigningKeyName: "main",
+		Delegate:       bob.Account.PublicKey.String(),
+		Account:        account.String(),
+		Path:           "/notes",
+		Role:           documents.Role_WRITER,
+	})
+	require.NoError(t, err)
+	// Bob edits Alice's document, making him a co-author, and writes one of his own.
+	publish("/notes/shared", shared.Version, "bob")
+	publish("/notes/bobs", "", "bob")
+
+	query := func(author string) []string {
+		url, err := blob.NewIRI(account, "/notes")
+		require.NoError(t, err)
+		resp, err := alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+			Filter: &documents.DocumentFilter{Filter: &documents.DocumentFilter_And_{And: &documents.DocumentFilter_And{Filters: []*documents.DocumentFilter{
+				{Filter: &documents.DocumentFilter_UrlMatch{UrlMatch: &documents.DocumentFilter_URLMatch{Url: url.String(), Prefix: true}}},
+				{Filter: &documents.DocumentFilter_AuthorMatch_{AuthorMatch: &documents.DocumentFilter_AuthorMatch{Author: author}}},
+			}}}},
+		})
+		require.NoError(t, err)
+		paths := make([]string, len(resp.Documents))
+		for i, doc := range resp.Documents {
+			paths[i] = doc.Path
+		}
+		return paths
+	}
+
+	require.ElementsMatch(t, []string{"/notes/solo", "/notes/shared"}, query(account.String()),
+		"the original author keeps matching a document someone else also edited")
+	require.ElementsMatch(t, []string{"/notes/shared", "/notes/bobs"}, query(bob.Account.Principal().String()),
+		"a co-author matches the documents they contributed to")
+	require.Empty(t, query(coretest.NewTester("carol").Account.Principal().String()),
+		"an account that wrote nothing matches nothing")
+
+	_, err = alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+		Filter: &documents.DocumentFilter{Filter: &documents.DocumentFilter_AuthorMatch_{AuthorMatch: &documents.DocumentFilter_AuthorMatch{Author: "not-an-account"}}},
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err))
+}
+
+func TestQueryDocumentsTimeRange(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := t.Context()
+	account := alice.me.Account.Principal()
+
+	created, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(account, "/edited", "", "main").
+		SetAttribute("", []string{"title"}, "Draft").
+		Build())
+	require.NoError(t, err)
+	_, err = alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(account, "/edited", created.Version, "main").
+		SetAttribute("", []string{"title"}, "Final").
+		Build())
+	require.NoError(t, err)
+
+	url, err := blob.NewIRI(account, "/edited")
+	require.NoError(t, err)
+	onlyEdited := &documents.DocumentFilter{Filter: &documents.DocumentFilter_UrlMatch{UrlMatch: &documents.DocumentFilter_URLMatch{Url: url.String()}}}
+	query := func(span *documents.DocumentFilter_TimeRange) ([]*documents.DocumentInfo, error) {
+		resp, err := alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{
+			Filter: &documents.DocumentFilter{Filter: &documents.DocumentFilter_And_{And: &documents.DocumentFilter_And{Filters: []*documents.DocumentFilter{
+				onlyEdited,
+				{Filter: &documents.DocumentFilter_TimeRange_{TimeRange: span}},
+			}}}},
+		})
+		if err != nil {
+			return nil, err
+		}
+		return resp.Documents, nil
+	}
+
+	// Read the times back through the API, so the ranges below use exactly the stored values.
+	all, err := alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{Filter: onlyEdited})
+	require.NoError(t, err)
+	require.Len(t, all.Documents, 1)
+	createTime, updateTime := all.Documents[0].CreateTime.AsTime(), all.Documents[0].UpdateTime.AsTime()
+	require.True(t, updateTime.After(createTime), "an edit must land after the change it builds on")
+
+	createField, updateField := documents.DocumentFilter_TimeRange_CREATE_TIME, documents.DocumentFilter_TimeRange_UPDATE_TIME
+	cases := []struct {
+		name  string
+		span  *documents.DocumentFilter_TimeRange
+		match bool
+	}{
+		{"created since the edit", &documents.DocumentFilter_TimeRange{Field: createField, Start: timestamppb.New(updateTime)}, false},
+		{"updated since the edit", &documents.DocumentFilter_TimeRange{Field: updateField, Start: timestamppb.New(updateTime)}, true},
+		{"start is inclusive", &documents.DocumentFilter_TimeRange{Field: createField, Start: timestamppb.New(createTime), End: timestamppb.New(createTime.Add(time.Millisecond))}, true},
+		{"end is exclusive", &documents.DocumentFilter_TimeRange{Field: createField, End: timestamppb.New(createTime)}, false},
+		{"start just after creation excludes it", &documents.DocumentFilter_TimeRange{Field: createField, Start: timestamppb.New(createTime.Add(time.Nanosecond))}, false},
+		{"end just after creation includes it", &documents.DocumentFilter_TimeRange{Field: createField, End: timestamppb.New(createTime.Add(time.Nanosecond))}, true},
+		{"start just before creation includes it", &documents.DocumentFilter_TimeRange{Field: createField, Start: timestamppb.New(createTime.Add(-time.Nanosecond))}, true},
+		{"end just before creation excludes it", &documents.DocumentFilter_TimeRange{Field: createField, End: timestamppb.New(createTime.Add(-time.Nanosecond))}, false},
+		{"updated before the edit", &documents.DocumentFilter_TimeRange{Field: updateField, End: timestamppb.New(updateTime)}, false},
+		{"unbounded", &documents.DocumentFilter_TimeRange{Field: updateField}, true},
+	}
+	for _, tc := range cases {
+		docs, err := query(tc.span)
+		require.NoError(t, err, tc.name)
+		require.Equal(t, tc.match, len(docs) == 1, tc.name)
+	}
+
+	_, err = query(&documents.DocumentFilter_TimeRange{Start: timestamppb.New(createTime)})
+	require.Equal(t, codes.InvalidArgument, status.Code(err), "the field is required")
+	_, err = query(&documents.DocumentFilter_TimeRange{Field: createField, Start: timestamppb.New(updateTime), End: timestamppb.New(createTime)})
+	require.Equal(t, codes.InvalidArgument, status.Code(err), "start must not be after end")
+	_, err = query(&documents.DocumentFilter_TimeRange{
+		Field: createField,
+		Start: timestamppb.New(createTime.Add(2 * time.Nanosecond)),
+		End:   timestamppb.New(createTime.Add(time.Nanosecond)),
+	})
+	require.Equal(t, codes.InvalidArgument, status.Code(err), "validate ordering before rounding")
+}
+
+func TestDocumentFilterTimeRangeCeiling(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		seconds int64
+		nanos   int32
+		want    int64
+	}{
+		{"aligned", 0, 1_000_000, 1},
+		{"just above a millisecond", 0, 1_000_001, 2},
+		{"across a second", 0, 999_999_999, 1000},
+		{"before epoch", -1, 1, -999},
+		{"just before epoch", -1, 999_999_999, 0},
+		{"latest protobuf timestamp", 253_402_300_799, 999_999_999, 253_402_300_800_000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bound := &timestamppb.Timestamp{Seconds: tc.seconds, Nanos: tc.nanos}
+			args := colx.Slice[any]{}
+			sql, err := documentFilterSQL(&documents.DocumentFilter{Filter: &documents.DocumentFilter_TimeRange_{
+				TimeRange: &documents.DocumentFilter_TimeRange{Field: documents.DocumentFilter_TimeRange_UPDATE_TIME, Start: bound, End: bound},
+			}}, &args, 0)
+			require.NoError(t, err)
+			require.Equal(t, "dg.last_change_time >= ? AND dg.last_change_time < ?", sql)
+			require.Equal(t, colx.Slice[any]{tc.want, tc.want}, args)
+		})
+	}
+}
+
 // A folder's childAttributesSchema types its direct children (hypermedia/schema/typed-documents.md),
 // so a filter on attributesSchema must find those children even though they carry no binding of
 // their own. Grandchildren are not typed by it: the rule is one level deep.

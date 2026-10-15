@@ -48,7 +48,7 @@ func New(
 	sync *syncing.Service,
 	activity *activity.Server,
 	LogLevel string,
-	isMainnet bool,
+	lndhub config.Lndhub,
 	taskMgr *taskmanager.TaskManager,
 	embedder llm.LightEmbedder,
 ) Server {
@@ -68,7 +68,7 @@ func New(
 		Entities:    entities.NewServer(cfg, db, sync, embedder, logging.New("seed/entities", LogLevel)),
 		DocumentsV3: docs,
 		Syncing:     sync,
-		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), isMainnet),
+		Payments:    payments.NewServer(logging.New("seed/payments", LogLevel), db, node, repo.KeyStore(), lndhub),
 		Telemetry:   tel,
 		P2PProxy:    proxy,
 	}

@@ -1,5 +1,4 @@
 import type {JsonValue} from '@bufbuild/protobuf'
-import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   compileExploreQuery as compileExploreQueryJson,
   parseExploreQuery,
@@ -8,12 +7,15 @@ import {
   type ExploreAttributePredicate,
   type ExploreCompilation as ExploreCompilationJson,
   type ExploreQueryNode,
-  type ExploreScopePredicate,
   type ExploreScalar,
+  type ExploreScopePredicate,
   type ExploreSortRule,
+  type ExploreTimeComparison,
+  type ExploreTimeField,
   type HMExploreResultType,
   type ParsedExploreQuery,
 } from '@seed-hypermedia/client/explore-query'
+import type {HMDocumentInfo, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {DocumentFilter} from './client/grpc-types'
 import type {SearchResultItem} from './models/search'
 import {packHmId} from './utils/entity-id-url'
@@ -24,8 +26,8 @@ import {packHmId} from './utils/entity-id-url'
 // wrapper that yields protobuf message instances.
 export {
   parseExploreQuery,
-  serializeExploreQuery,
   quoteExploreValue,
+  serializeExploreQuery,
   type ExploreAttributePredicate,
   type ExploreComparisonOperator,
   type ExploreDiagnostic,
@@ -36,6 +38,9 @@ export {
   type ExploreScalar,
   type ExploreScopePredicate,
   type ExploreSortRule,
+  type ExploreTimeComparison,
+  type ExploreTimeField,
+  type ExploreTimePredicate,
   type ExploreView,
   type HMExploreResultType,
   type ParsedExploreQuery,
@@ -125,7 +130,7 @@ export type ExploreChip = {
   id: string
   label: string
   token: string
-  kind: 'text' | 'attribute' | 'scope' | 'type'
+  kind: 'text' | 'attribute' | 'scope' | 'type' | 'author' | 'time'
   path: number[]
 }
 type ValuedAttributePredicate = Extract<ExploreAttributePredicate, {value: ExploreScalar}>
@@ -148,6 +153,13 @@ function chipLabel(node: ExploreQueryNode): {label: string; token: string; kind:
   const predicate = node.predicate
   if (predicate.kind === 'type')
     return {label: `type ${predicate.value}`, token: `type:${predicate.value}`, kind: 'type'}
+  // Built-in fields take their spelling from the serializer, so the `$` keywords live in one place.
+  if (predicate.kind === 'author')
+    return {label: `author ${predicate.value}`, token: serializeExploreQuery(node), kind: 'author'}
+  if (predicate.kind === 'time') {
+    const label = `${predicate.field} ${predicate.comparison} ${predicate.value}`
+    return {label, token: serializeExploreQuery(node), kind: 'time'}
+  }
   if (predicate.kind === 'scope') {
     if (predicate.scope === 'space' || predicate.scope === 'url')
       return {label: `In ${predicate.value}`, token: `in:${predicate.value}`, kind: 'scope'}
@@ -238,6 +250,51 @@ export function toggleExplorePredicate(parsed: ParsedExploreQuery, token: string
         ? {kind: 'and' as const, children: [parsed.ast, predicate]}
         : predicate
   return {ast, presentation: parsed.presentation, diagnostics: []}
+}
+
+/**
+ * Replaces every predicate of one chip kind with `tokens`, keeping the rest of the query. A filter
+ * dropdown owns its kind outright: applying it states the whole selection, so a previous author or
+ * date range is dropped rather than combined with the new one.
+ */
+export function replaceExploreChips(
+  parsed: ParsedExploreQuery,
+  kind: ExploreChip['kind'],
+  tokens: string[],
+): ParsedExploreQuery {
+  let next = parsed
+  for (let chip = exploreQueryChips(next).find((c) => c.kind === kind); chip; ) {
+    next = removeExploreQueryChip(next, chip.id)
+    chip = exploreQueryChips(next).find((c) => c.kind === kind)
+  }
+  for (const token of tokens) next = toggleExplorePredicate(next, token)
+  return next
+}
+
+/** A date range the Date dropdown can apply. */
+export type ExploreDateSelection =
+  | {field: ExploreTimeField; preset: 'any' | 'week' | 'month' | 'year'}
+  | {field: ExploreTimeField; preset: 'custom'; from?: string; to?: string}
+
+const PRESET_DAYS = {week: 7, month: 30, year: 365} as const
+
+/**
+ * The query tokens a date selection stands for. A preset is turned into a fixed start date when it
+ * is applied, so the query a reader shares or reloads keeps meaning the same days. `to` is
+ * inclusive, matching how the range reads in the menu.
+ */
+export function exploreDateTokens(selection: ExploreDateSelection, now = Date.now()): string[] {
+  const token = (comparison: ExploreTimeComparison, value: string) =>
+    serializeExploreQuery({kind: 'predicate', predicate: {kind: 'time', field: selection.field, comparison, value}})
+  if (selection.preset === 'any') return []
+  if (selection.preset === 'custom') {
+    return [
+      ...(selection.from ? [token('>=', selection.from)] : []),
+      ...(selection.to ? [token('<=', selection.to)] : []),
+    ]
+  }
+  const since = new Date(now - PRESET_DAYS[selection.preset] * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  return [token('>=', since)]
 }
 
 // Narrows a query to one result type, for the currently selected tab.

@@ -7,7 +7,8 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {getMetadataName, getNodesOutline, NavRoute, NodeOutline, useRouteLink} from '@shm/shared'
+import {extractRefs, getMetadataName, getNodesOutline, NavRoute, NodeOutline, useRouteLink} from '@shm/shared'
+import {useMentionNames} from '@shm/shared/models/inline-mentions'
 import {getVersionHeads} from '@shm/shared/utils/entity-id-url'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {ReactNode, useMemo} from 'react'
@@ -156,9 +157,10 @@ export function useNodesOutline(
   id: UnpackedHypermediaId,
   embeddedDocs?: HMResourceFetchResult[],
 ) {
+  const mentionNames = useMentionNames(useMemo(() => extractRefs(document?.content || []), [document?.content]))
   return useMemo(
-    () => getNodesOutline(document?.content || [], id, embeddedDocs),
-    [document?.content, id, embeddedDocs],
+    () => getNodesOutline(document?.content || [], id, embeddedDocs, mentionNames),
+    [document?.content, id, embeddedDocs, mentionNames],
   )
 }
 

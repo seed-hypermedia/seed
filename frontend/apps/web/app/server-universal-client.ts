@@ -9,6 +9,7 @@ import {UniversalClient} from '@shm/shared'
 import {APIRouter} from '@shm/shared/api'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {grpcClient} from './client.server'
+import {withUpstreamFallback} from './upstream-reads.server'
 import {prepareHMDocumentInfo} from '@shm/shared/models/entity'
 
 // queryDaemon for handlers that need direct HTTP access (e.g., GetCID)
@@ -57,9 +58,14 @@ export async function serverRequest<K extends keyof typeof APIRouter>(
   type Result = Awaited<ReturnType<(typeof APIRouter)[K]['getData']>>
   const apiDefinition = APIRouter[key]
 
+  // Reads this node does not have may be answered by the upstream node (SEED_UPSTREAM_API_URL).
+  const getData = () =>
+    apiDefinition
+      .getData(grpcClient, input as never, queryDaemon)
+      .then((output) => withUpstreamFallback(key, input, output, grpcClient))
+
   if (!CACHEABLE_KEYS.has(key)) {
-    const result = await apiDefinition.getData(grpcClient, input as never, queryDaemon)
-    return result as Result
+    return (await getData()) as Result
   }
 
   const cacheKey = `${key}:${stableStringify(input)}`
@@ -74,7 +80,7 @@ export async function serverRequest<K extends keyof typeof APIRouter>(
     if (oldest !== undefined) responseCache.delete(oldest)
   }
 
-  const result = apiDefinition.getData(grpcClient, input as never, queryDaemon)
+  const result = getData()
   responseCache.set(cacheKey, {expires: Date.now() + CACHE_TTL_MS, result})
   result.catch(() => {
     const entry = responseCache.get(cacheKey)

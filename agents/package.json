@@ -33,6 +33,7 @@
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "@shm/shared": "file:../frontend/packages/shared",
     "linkedom": "0.18.12",
+    "mermaid": "^11.4.0",
     "microsandbox": "0.6.8",
     "multiformats": "^13.4.1",
     "quickjs-emscripten-core": "0.32.0",

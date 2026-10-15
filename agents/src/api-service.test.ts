@@ -6,7 +6,7 @@ import * as cbor from '@/cbor'
 import * as sqlite from '@/sqlite'
 import {ProviderOAuthManager} from '@/provider-oauth'
 import * as blobs from '@shm/shared/blobs'
-import {createSeedClient, unpackHmId} from '@seed-hypermedia/client'
+import {createSeedClient, markdownBlockNodesToHMBlockNodes, parseMarkdown, unpackHmId} from '@seed-hypermedia/client'
 import {serialize} from 'superjson'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
@@ -6509,12 +6509,11 @@ describe('api service', () => {
     }
   })
 
-  test('write takes over a republished address: update rebases on the redirect target, delete tombstones it, and unauthorized writes fail loudly', async () => {
+  test('write follows a republished address for updates, keeps delete address-based, and checks target access', async () => {
     // Live incident (session b44d4d81): a path holding a republish redirect could not be updated
     // ("Resource is redirect, not a document"), deleted ("Cannot delete redirect"), and an update
     // signed without a capability on the target space "succeeded" without ever becoming latest.
-    // Editing a republished address must build the Change on the redirect target's DAG and publish
-    // a Version Ref at the address with a fresh generation, which supersedes the redirect.
+    // Editing a republished address must target the live document. It must not replace the redirect.
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
     try {
@@ -6719,13 +6718,11 @@ describe('api service', () => {
         .filter((event) => event.type === 'tool_result' && event.name === 'write')
       expect(writeResults).toHaveLength(3)
 
-      const takeover = writeResults.find((result) => result.output?.id === `hm://${signerPublicKey}/agent-guide`)
-      expect(takeover?.error).toBeUndefined()
-      expect(takeover?.output?.command).toBe('document.update')
-      expect(takeover?.output?.replacedRedirect).toEqual({
-        target: `hm://${otherSpace}/resources/guide`,
-        republish: true,
-      })
+      const redirectedUpdate = writeResults.find(
+        (result) =>
+          result.output?.id === `hm://${signerPublicKey}/agent-guide` || result.error?.includes('write access'),
+      )
+      expect(redirectedUpdate?.error).toContain(`no write access to space ${otherSpace}`)
 
       const deletion = writeResults.find((result) => result.output?.id === `hm://${signerPublicKey}/old-link`)
       expect(deletion?.error).toBeUndefined()
@@ -6736,28 +6733,14 @@ describe('api service', () => {
       )
       expect(unauthorized?.error).toContain('no write access')
 
-      // Two publishes: the takeover update and the tombstone. The unauthorized write never publishes.
+      // Only delete publishes. Both updates target the other space and fail authorization.
       const messagePublishes = publishedBodies.slice(publishesBeforeMessage)
-      expect(messagePublishes).toHaveLength(2)
+      expect(messagePublishes).toHaveLength(1)
       const decodedRefs = messagePublishes.map((body) => {
         const {blobs: published} = cbor.decode<{blobs: {data: Uint8Array}[]}>(body)
         return published.map((blob) => cbor.decode<Record<string, unknown>>(new Uint8Array(blob.data)))
       })
-      const updateBlobs = decodedRefs.find((blobsInBody) => blobsInBody.some((blob) => blob.type === 'Change'))
-      expect(updateBlobs).toBeDefined()
-      const change = updateBlobs!.find((blob) => blob.type === 'Change') as {deps: unknown[]; genesis: unknown}
-      // The takeover Change continues the redirect target's DAG.
-      expect(String(change.deps[0])).toBe(targetHead)
-      expect(String(change.genesis)).toBe(targetGenesis)
-      const updateRef = updateBlobs!.find((blob) => blob.type === 'Ref') as {
-        heads: unknown[]
-        generation: number
-        redirect?: unknown
-      }
-      expect(updateRef.heads).toHaveLength(1)
-      expect(updateRef.redirect).toBeUndefined()
-      // A fresh generation strictly above the redirect's is what supersedes it.
-      expect(updateRef.generation).toBeGreaterThan(1000)
+      expect(decodedRefs.some((blobsInBody) => blobsInBody.some((blob) => blob.type === 'Change'))).toBe(false)
       const tombstoneBlobs = decodedRefs.find((blobsInBody) => blobsInBody.every((blob) => blob.type === 'Ref'))
       expect(tombstoneBlobs).toBeDefined()
       const tombstone = tombstoneBlobs![0] as {heads: unknown[]; generation: number}
@@ -12583,5 +12566,34 @@ describe('delegation budget', () => {
       db.close()
       cleanup()
     }
+  })
+})
+
+describe('markdown write guards', () => {
+  const invalidFrontmatter = '---\ntitle: Enterprise Edition: security model\n---\n# Doc\n'
+  const brokenDiagram = '# Doc\n\n```mermaid\nflowchart LR\n  subgraph box [The instance (one droplet)]\n  end\n```\n'
+  const validDiagram =
+    '# Doc\n\n```mermaid\nflowchart LR\n  subgraph box ["The instance (one droplet)"]\n    a --> b\n  end\n```\n'
+
+  test('reports invalid frontmatter YAML as a 400', () => {
+    let error: unknown
+    try {
+      apisvc.parseMarkdownOrBadRequest(invalidFrontmatter)
+    } catch (e) {
+      error = e
+    }
+    expect(error).toBeInstanceOf(apisvc.APIError)
+    expect((error as apisvc.APIError).status).toBe(400)
+    expect((error as Error).message).toContain('Invalid YAML in frontmatter')
+    expect(apisvc.parseMarkdownOrBadRequest('---\ntitle: "A: B"\n---\n# Doc\n').metadata.name).toBe('A: B')
+  })
+
+  test('reports a mermaid fence that does not parse as a 400 and accepts a valid one', async () => {
+    const toBlocks = (md: string) => markdownBlockNodesToHMBlockNodes(parseMarkdown(md).tree)
+    const error = await apisvc.assertPublishableMermaid(toBlocks(brokenDiagram)).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(apisvc.APIError)
+    expect((error as apisvc.APIError).status).toBe(400)
+    expect((error as Error).message).toContain('Invalid mermaid diagram')
+    await expect(apisvc.assertPublishableMermaid(toBlocks(validDiagram))).resolves.toBeUndefined()
   })
 })

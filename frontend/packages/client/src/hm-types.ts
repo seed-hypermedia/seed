@@ -411,6 +411,7 @@ export type HMPublishableAnnotation =
       starts: number[]
       ends: number[]
       link: string
+      attributes?: {mentionKind?: 'account' | 'document'}
     }
   | {
       type: 'TextColor' | 'BackgroundColor' | 'TextSize' | 'TextFamily'
@@ -601,7 +602,7 @@ export const HMDocumentMetadataSchema = z
     // Import taxonomy fields (comma-separated values from external sources like WordPress)
     importCategories: z.string().optional(),
     importTags: z.string().optional(),
-    // JSON-stringified schema definition; present iff this document describes a schema (see notes/schema-as-document.md).
+    // `ipfs://<cid>` of the schema blob this document defines; present iff this document is a schema's home page (see hypermedia/schema/typed-documents.md).
     schemaDefinition: z.string().optional(),
   })
   // Metadata is an open/extensible attribute map: the document data model
@@ -906,6 +907,41 @@ export const HMQuerySortSchema = z
   .transform(normalizeQuerySortEntry)
 export type HMQuerySort = z.infer<typeof HMQuerySortSchema>
 
+export const HMQueryFilterSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('Author'),
+    uid: z.string(),
+  }),
+])
+export type HMQueryFilter = z.infer<typeof HMQueryFilterSchema>
+
+/** Returns only query filters supported by this client, dropping malformed or future filter types. */
+export function getSupportedHMQueryFilters(val: unknown): HMQueryFilter[] {
+  if (!Array.isArray(val)) return []
+  return val.filter(
+    (filter): filter is HMQueryFilter =>
+      filter !== null &&
+      typeof filter === 'object' &&
+      (filter as {type?: unknown}).type === 'Author' &&
+      typeof (filter as {uid?: unknown}).uid === 'string',
+  )
+}
+
+/** Parses stored query filter JSON, returning an empty list for invalid or unsupported payloads. */
+export function parseHMQueryFiltersJSON(rawFilters: string | undefined): HMQueryFilter[] {
+  if (!rawFilters) return []
+  try {
+    return getSupportedHMQueryFilters(JSON.parse(rawFilters))
+  } catch {
+    return []
+  }
+}
+
+function removeUnsupportedQueryFilters(val: unknown) {
+  if (val === undefined) return undefined
+  return getSupportedHMQueryFilters(val)
+}
+
 export const HMQuerySchema = z.object({
   includes: z.array(HMQueryInclusionSchema),
   sort: z.array(HMQuerySortSchema).optional(),
@@ -913,6 +949,7 @@ export const HMQuerySchema = z.object({
     (val) => (val === '' || val === null || val === undefined ? undefined : val),
     z.coerce.number().optional(),
   ),
+  filters: z.preprocess(removeUnsupportedQueryFilters, z.array(HMQueryFilterSchema).optional()),
 })
 export type HMQuery = z.infer<typeof HMQuerySchema>
 
@@ -1274,17 +1311,21 @@ export const ParsedFragmentSchema = BlockRangeSchema.extend({
 })
 export type ParsedFragment = z.infer<typeof ParsedFragmentSchema>
 
+// blockId is the block that carries the link (the citation's sourceContext): a block of
+// the citing document, or a block of the citing comment.
 const HMCitationCommentSourceSchema = z.object({
   type: z.literal('c'),
   id: unpackedHmIdSchema,
   author: z.string().optional(),
   time: HMTimestampSchema.optional(),
+  blockId: z.string().optional(),
 })
 const HMCitationDocumentSourceSchema = z.object({
   type: z.literal('d'),
   id: unpackedHmIdSchema,
   author: z.string().optional(),
   time: HMTimestampSchema.optional(),
+  blockId: z.string().optional(),
 })
 
 export const HMCitationSchema = z.object({
@@ -1581,11 +1622,16 @@ export const HMDocumentFilterComparisonOperatorSchema = z.enum([
 ])
 export type HMDocumentFilterComparisonOperator = z.infer<typeof HMDocumentFilterComparisonOperatorSchema>
 
+/** A built-in document timestamp a timeRange filter can test. */
+export const HMDocumentTimeFieldSchema = z.enum(['CREATE_TIME', 'UPDATE_TIME'])
+export type HMDocumentTimeField = z.infer<typeof HMDocumentTimeFieldSchema>
+
 /**
  * A recursive predicate over document attributes and built-in fields (proto `DocumentFilter`):
  * exactly one of `and`, `or`, `not`, `comparison`, `exists`, `missing`, `stringMatch`, `urlMatch`,
- * `spaceMatch`, `pathMatch`. Attribute keys are dotted paths into the document's metadata
- * (`status`, `address.city`, `attributesSchema`).
+ * `spaceMatch`, `pathMatch`, `authorMatch`, `timeRange`. Attribute keys are dotted paths into the
+ * document's metadata (`status`, `address.city`, `attributesSchema`). `timeRange` bounds are
+ * RFC 3339 instants: `start` inclusive, `end` exclusive, either may be omitted.
  */
 export type HMDocumentFilter = {
   and?: {filters: HMDocumentFilter[]}
@@ -1598,6 +1644,8 @@ export type HMDocumentFilter = {
   urlMatch?: {url: string; prefix?: boolean}
   spaceMatch?: {space: string}
   pathMatch?: {path: string; prefix?: boolean}
+  authorMatch?: {author: string}
+  timeRange?: {field: HMDocumentTimeField; start?: string; end?: string}
 }
 export const HMDocumentFilterSchema: z.ZodType<HMDocumentFilter> = z.lazy(() =>
   z
@@ -1621,6 +1669,10 @@ export const HMDocumentFilterSchema: z.ZodType<HMDocumentFilter> = z.lazy(() =>
       urlMatch: z.object({url: z.string(), prefix: z.boolean().optional()}).optional(),
       spaceMatch: z.object({space: z.string()}).optional(),
       pathMatch: z.object({path: z.string(), prefix: z.boolean().optional()}).optional(),
+      authorMatch: z.object({author: z.string()}).optional(),
+      timeRange: z
+        .object({field: HMDocumentTimeFieldSchema, start: z.string().optional(), end: z.string().optional()})
+        .optional(),
     })
     .strict(),
 )
@@ -1807,7 +1859,7 @@ export const HMQueryBlockInputSchema = z.object({
         .array(
           z.object({
             columnId: z.string(),
-            operator: z.enum(['contains', 'equals', 'greaterThan', 'lessThan']),
+            operator: z.enum(['contains', 'equals', 'notEquals', 'greaterThan', 'lessThan']),
             value: z.string(),
           }),
         )
@@ -1888,6 +1940,10 @@ export const HMListEventsInputSchema = z.object({
   filterAuthors: z.array(z.string()).optional(),
   filterEventType: z.array(z.string()).optional(),
   filterResource: z.string().optional(),
+  // Citations of one block of filterResource, one entry per citing block, read from ListCitations
+  // instead of the feed: the feed keeps one event per publication, so a document that links one
+  // block from many blocks has at most one of them there. Document citations only, a single page.
+  targetBlockId: z.string().optional(),
   currentAccount: z.string().optional(),
   // Feed ordering. 'claimed' (default) orders by the event's claimed/create time; 'observed' orders by
   // when the server locally observed the blob — needed by pollers that must see late-propagating events
@@ -1983,6 +2039,8 @@ export const HMRawCitationSchema = z.object({
   targetFragment: z.string().optional(),
   isExactVersion: z.boolean().optional(),
   targetBlockRevision: z.string().optional(),
+  // The link type, `doc/Link`, `doc/Embed`, `comment/Embed`...
+  citationType: z.string().optional(),
   mentionType: z.string().optional(),
   isExact: z.boolean().optional(),
 })
@@ -2159,11 +2217,23 @@ export const HMQueryBlockItemSummarySchema = z.object({
 })
 export type HMQueryBlockItemSummary = z.infer<typeof HMQueryBlockItemSummarySchema>
 
+/** Existing filter values and inferred column types from the full collection scope. */
+export const HMQueryBlockFilterOptionsSchema = z.record(
+  z.string(),
+  z.object({
+    values: z.array(z.string()),
+    type: z.enum(['text', 'number', 'boolean', 'date', 'list']),
+  }),
+)
+/** Filter choices available before viewer search, filters, and display limits. */
+export type HMQueryBlockFilterOptions = z.infer<typeof HMQueryBlockFilterOptionsSchema>
+
 export const HMQueryBlockPayloadSchema = z.object({
   queryTargetName: z.string(),
   in: unpackedHmIdSchema,
   results: z.array(HMDocumentInfoSchema),
   totalMatches: z.number().optional(),
+  filterOptions: HMQueryBlockFilterOptionsSchema.optional(),
   mode: z.union([z.literal('Children'), z.literal('AllDescendants')]).optional(),
   interactionSummaries: z.record(z.string(), HMQueryBlockItemSummarySchema),
   accountsMetadata: HMAccountsMetadataSchema,
