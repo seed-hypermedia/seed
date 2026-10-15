@@ -2,6 +2,7 @@ import {BlockNoteEditor, BlockSchema, mergeCSSClasses} from '../core'
 import {MantineProvider, createStyles} from '@mantine/core'
 import {EditorContent} from '@tiptap/react'
 import {HTMLAttributes, ReactNode, useEffect, useMemo, useState} from 'react'
+import {getEditorViewKey} from '../../editor-view-key'
 import {Theme, blockNoteToMantineTheme} from './BlockNoteTheme'
 import {darkDefaultTheme, lightDefaultTheme} from './defaultThemes'
 import {FormattingToolbarPositioner} from './FormattingToolbar/components/FormattingToolbarPositioner'
@@ -25,6 +26,7 @@ function BaseBlockNoteView<BSchema extends BlockSchema>(
 
   return (
     <EditorContent
+      key={props.editor ? getEditorViewKey(props.editor) : undefined}
       editor={props.editor?._tiptapEditor || null}
       className={mergeCSSClasses(classes.root, props.className || '')}
       {...rest}
