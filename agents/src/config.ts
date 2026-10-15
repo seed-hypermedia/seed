@@ -12,6 +12,7 @@ export type Server = {
   port: number
 }
 
+import {DATALAB_MODES, parseDatalabMode, type DatalabMode} from '@/datalab'
 import {parseLogLevel, type LogLevel} from '@/log'
 import {defaultExecMaxConcurrent} from './code-exec'
 
@@ -55,6 +56,7 @@ export type Config = {
     /** Bearer token for Crawl4AI (required by Crawl4AI >= 0.9). */
     crawlerToken?: string
   }
+  convert: ConvertConfig
   exec: {
     /** Code-execution backend: 'microsandbox' or '' to disable. */
     backend: '' | 'microsandbox'
@@ -93,6 +95,35 @@ export type Config = {
   }
 }
 
+/** Settings of the `convert` tool: which Datalab key a server has, how it converts, and what it gives away. */
+export type ConvertConfig = {
+  /** Server-wide Datalab key, metered per account against the allowances below. Undefined means no shared key. */
+  datalabApiKey?: string
+  /** Hosted agents server that converts for this one when it has no key, billing the agent's own account. */
+  relayUrl?: string
+  /** Datalab mode used by default, and the most expensive one a shared-key call may ask for. */
+  mode: DatalabMode
+  /** Comma-separated Datalab extras sent with every conversion. */
+  extras: string
+  /** Documents converted at once within one call. */
+  concurrency: number
+  /** Pages each account may convert on the shared key per UTC month. */
+  allowancePagesPerMonth: number
+  /** Pages the whole server may convert on the shared key per UTC month. */
+  globalCeilingPagesPerMonth: number
+}
+
+/** Convert settings a server starts from when nothing is configured: how Datalab is called, and what is given away. */
+export const CONVERT_DEFAULTS: Omit<ConvertConfig, 'datalabApiKey' | 'relayUrl'> = {
+  mode: 'accurate',
+  // Not `infographic`: measured on a figure-heavy paper, that extra replaces every figure with its
+  // textual reading and returns no images at all, in every mode.
+  extras: 'extract_links,chart_understanding',
+  concurrency: 4,
+  allowancePagesPerMonth: 1000,
+  globalCeilingPagesPerMonth: 20000,
+}
+
 /** Parsed command-line flags accepted by the Agents service. */
 export type Flags = {
   'server-hostname': string
@@ -110,6 +141,13 @@ export type Flags = {
   'searxng-url': string
   'crawler-url': string
   'crawler-token': string
+  'datalab-api-key': string
+  'convert-relay-url': string
+  'datalab-mode': string
+  'datalab-extras': string
+  'datalab-concurrency': number
+  'datalab-allowance-pages': number
+  'datalab-global-ceiling-pages': number
   'exec-backend': string
   'subscription-auth': boolean
   'session-title-generation': boolean
@@ -150,6 +188,15 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'searxng-url': env.SEED_AGENTS_SEARXNG_URL || '',
     'crawler-url': env.SEED_AGENTS_CRAWLER_URL || '',
     'crawler-token': env.SEED_AGENTS_CRAWLER_TOKEN || '',
+    'datalab-api-key': env.SEED_AGENTS_DATALAB_API_KEY || '',
+    'convert-relay-url': env.SEED_AGENTS_CONVERT_RELAY_URL || '',
+    'datalab-mode': env.SEED_AGENTS_DATALAB_MODE || CONVERT_DEFAULTS.mode,
+    'datalab-extras': env.SEED_AGENTS_DATALAB_EXTRAS ?? CONVERT_DEFAULTS.extras,
+    'datalab-concurrency': Number(env.SEED_AGENTS_DATALAB_CONCURRENCY) || CONVERT_DEFAULTS.concurrency,
+    'datalab-allowance-pages':
+      Number(env.SEED_AGENTS_DATALAB_ALLOWANCE_PAGES_PER_MONTH) || CONVERT_DEFAULTS.allowancePagesPerMonth,
+    'datalab-global-ceiling-pages':
+      Number(env.SEED_AGENTS_DATALAB_GLOBAL_CEILING_PAGES_PER_MONTH) || CONVERT_DEFAULTS.globalCeilingPagesPerMonth,
     'exec-backend': env.SEED_AGENTS_EXEC_BACKEND ?? 'microsandbox',
     'subscription-auth': isTruthyFlag(env.SEED_AGENTS_SUBSCRIPTION_AUTH ?? ''),
     'session-title-generation': env.SEED_AGENTS_SESSION_TITLE_GENERATION !== 'false',
@@ -205,6 +252,9 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
       key === 'exec-cpus' ||
       key === 'exec-memory-mib' ||
       key === 'exec-timeout-secs' ||
+      key === 'datalab-concurrency' ||
+      key === 'datalab-allowance-pages' ||
+      key === 'datalab-global-ceiling-pages' ||
       key === 'max-concurrent-model-runs' ||
       key === 'max-concurrent-workflows'
     ) {
@@ -247,6 +297,25 @@ export function create(pflags: Flags): Config {
       searxngUrl: optionalHttpUrl(pflags['searxng-url'], 'SearXNG URL'),
       crawlerUrl: optionalHttpUrl(pflags['crawler-url'], 'Crawler URL'),
       crawlerToken: pflags['crawler-token'].trim() || undefined,
+    },
+    convert: {
+      datalabApiKey: pflags['datalab-api-key'].trim() || undefined,
+      relayUrl: optionalHttpUrl(pflags['convert-relay-url'], 'Convert relay URL'),
+      mode: parseDatalabModeFlag(pflags['datalab-mode']),
+      extras: pflags['datalab-extras']
+        .split(',')
+        .map((extra) => extra.trim())
+        .filter(Boolean)
+        .join(','),
+      concurrency: parsePositiveInteger(String(pflags['datalab-concurrency']), 'datalab-concurrency'),
+      allowancePagesPerMonth: parsePositiveInteger(
+        String(pflags['datalab-allowance-pages']),
+        'datalab-allowance-pages',
+      ),
+      globalCeilingPagesPerMonth: parsePositiveInteger(
+        String(pflags['datalab-global-ceiling-pages']),
+        'datalab-global-ceiling-pages',
+      ),
     },
     exec: {
       backend: parseExecBackend(pflags['exec-backend']),
@@ -305,6 +374,13 @@ function isNetworkEnabled(value: string): boolean {
 /** True only when a flag is explicitly turned on; empty means off. */
 function isFlagEnabled(value: string): boolean {
   return ['1', 'true', 'yes', 'on'].includes(value.trim().toLowerCase())
+}
+
+/** Parses the Datalab mode flag against the three modes Datalab offers. */
+function parseDatalabModeFlag(value: string): DatalabMode {
+  const mode = parseDatalabMode(value.trim())
+  if (!mode) throw new Error(`Invalid datalab-mode: ${value} (expected ${DATALAB_MODES.join(', ')})`)
+  return mode
 }
 
 /** Parses the code-execution backend flag; empty disables execution. */

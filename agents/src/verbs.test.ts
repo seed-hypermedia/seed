@@ -12,6 +12,7 @@ import {decode as cborDecode, encode as cborEncode} from '@/cbor'
 import {LAMBDA_RESULT_PREFIX} from '@/code-exec'
 import * as toolDocs from '@/tool-documents'
 import * as agentMemory from '@/agent-memory'
+import * as config from '@/config'
 import * as sqlite from '@/sqlite'
 import type {CodeExecutor} from '@/code-exec'
 
@@ -62,6 +63,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
     hmServerUrl: 'https://hm.example',
     ipfsServerUrl: 'https://hm.example',
     web: {},
+    convert: config.CONVERT_DEFAULTS,
     stateDir: dataDir,
     sessionId: 'session-1',
     modelAcceptsImages: false,

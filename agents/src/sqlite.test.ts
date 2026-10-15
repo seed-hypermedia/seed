@@ -104,6 +104,7 @@ describe('sqlite', () => {
       expect(tableExists(db, 'runs')).toBe(true)
       expect(tableExists(db, 'run_journal')).toBe(true)
       expect(tableExists(db, 'tool_documents')).toBe(true)
+      expect(tableExists(db, 'conversion_usage')).toBe(true)
       expect(tableExists(db, 'mcp_servers')).toBe(true)
       expect(columnExists(db, 'mcp_servers', 'tools_cbor')).toBe(true)
       expect(columnExists(db, 'agent_triggers', 'cooldown_ms')).toBe(true)
@@ -132,7 +133,7 @@ describe('sqlite', () => {
       db.run(sqlite.schema)
       db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
         sqlite.SCHEMA_MIGRATION_VERSION_KEY,
-        String(sqlite.desiredVersion - 2),
+        String(sqlite.desiredVersion - 3),
       ])
       const now = 1_700_000_000_000
       db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES ('acct', ?, ?)`, [now, now])
@@ -204,8 +205,8 @@ describe('sqlite', () => {
   test('a database behind the trigger-claims migration gains its claims and history fields', () => {
     // The array is prepend-only and reversed on apply, so the newest migration must sit at the
     // top: placed lower, a deployed database would replay an older migration (tolerated as
-    // "already exists") and never receive the new column. The claims migration is second from the
-    // top (the firing-session link migration sits above it), so start two versions behind.
+    // "already exists") and never receive the new column. The claims migration is fourth from the
+    // top (the conversion ledger, session-index and firing-session link migrations sit above it).
     const db = createMemoryDatabase()
     try {
       db.run(
@@ -217,7 +218,7 @@ describe('sqlite', () => {
       expect(columnExists(db, 'agent_triggers', 'merged_into')).toBe(false)
       db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
         sqlite.SCHEMA_MIGRATION_VERSION_KEY,
-        String(sqlite.desiredVersion - 3),
+        String(sqlite.desiredVersion - 4),
       ])
       const result = sqlite.openWithDatabase(db)
       expect(result.ok).toBe(true)

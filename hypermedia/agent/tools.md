@@ -8,12 +8,12 @@ An agent's whole model-facing tool surface is **five verbs**, [`read`](./read.md
 
 The canonical registry is `agents/protocol/src/tool-registry.ts`. The Agents service executes from it and the desktop renders from it, so a tool's prompt text, schemas, chat bubble, and HM-reference extraction cannot drift apart. It exports three tables: <!-- id:5JGudaAa -->
   - `seedVerbRegistry`: the five verbs, `status`, `continue_session`, and the hidden `return_result` mechanism. This is the **only** provider-facing toolset. A leaf run gets no `delegate`, a delegated child gets no `continue_session`, and only a typed child gets `return_result`. <!-- id:cpDWf5e4 -->
-  - `callableToolRegistry`: `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`. By default these are never handed to the provider as tools. `call` dispatches them (`callableToolRegistry`). <!-- id:Z3ye-2G4 -->
+  - `callableToolRegistry`: `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`, `convert`. By default these are never handed to the provider as tools. `call` dispatches them (`callableToolRegistry`). <!-- id:Z3ye-2G4 -->
   - `seedToolRegistry`: both, merged, for renderers and validation lookups (`seedToolRegistry`). <!-- id:lnALDCIy -->
 
 Each entry owns the model-facing name, label, prompt description, JSON input schema, optional output schema, runtime availability (`assistant` or `agent-service`), rendering metadata, and an optional `getReferencedUrls` extractor. The extractor lists the `hm://` resources a call touched so they can [sync](../protocol/network.md). Write results include [document](../protocol/documents.md) versions and [comment](../protocol/comments.md) and target URLs in this extraction. An open desktop session can then keep newly published content subscribed on its local node before the user follows the result link. Server runtimes only add execution functions around registry entries. Chat UIs pick their bubble renderer from the same metadata. <!-- id:Io_jNF7p -->
 
-`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it. `serviceCallableNames()` (in `agents/src/api-service.ts`) filters on `runtimes.includes('agent-service')`, which leaves the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`. Nothing on this branch runs the `assistant` runtime, so `navigate` does nothing today. It stays as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
+`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it. `serviceCallableNames()` (in `agents/src/api-service.ts`) filters on `runtimes.includes('agent-service')`, which leaves the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`, `convert`. Nothing on this branch runs the `assistant` runtime, so `navigate` does nothing today. It stays as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
 
 ## Legacy names <!-- id:xGuoC4hF -->
 
@@ -76,7 +76,7 @@ This filter is a security control. A hallucinated `call {tool: 'bash'}` durably 
 # Grants <!-- id:tPg5Z6sN -->
 
 Verbs are never [grants](./grants.md). They are always on. Two things are granted per agent, both through `definition.tools`: <!-- id:dEtv6vHA -->
-  - **The callable set.** `enabledCallableTools()` (`api-service.ts`) intersects the service callables with `definition.tools` (normalized, unknown names ignored). An undefined `tools` array grants all of them. `execute` drops out silently when the host cannot run sandboxes, so the model never sees a tool that can only fail. <!-- id:22xP_Z0w -->
+  - **The callable set.** `enabledCallableTools()` (`api-service.ts`) intersects the service callables with `definition.tools` (normalized, unknown names ignored). An undefined `tools` array grants all of them. `execute` drops out silently when the host cannot run sandboxes, and `convert` when the server has no Datalab key, no relay, and the account no key of its own, so the model never sees a tool that can only fail. <!-- id:22xP_Z0w -->
   - **Publish.** `publishGrantEnabled()` (`api-service.ts`) checks for the pseudo-tool name `publish` in `definition.tools`. Legacy write-group names (`write`, `memory_publish_document`, `ipfs_write`, `attachment_to_ipfs`) still count, so a pre-verbs agent keeps exactly the publishing posture its owner configured. An undefined `tools` array publishes. Without the grant, `write` to `hm://` or `ipfs://` returns 403 (`api-service.ts`, `api-service.ts`). Memory writes are never gated. <!-- id:27po_PK5 -->
 
 Definition limits: at most 32 tool names, 128 bytes each, 4 KiB total (`api-service.ts`). <!-- id:H43msgHh -->
@@ -179,7 +179,7 @@ More write behavior: <!-- id:6PdHCPGt -->
   - A comment mentions an account only through an inline mention, `[@](hm://ACCOUNT_UID/:profile)` (`prepareCommentMentions`). The shared markdown parser turns any `@`-labelled hm:// link (text after the `@` is ignored; a document URL gives a document mention), and the autolink `<hm://ACCOUNT_UID/:profile>`, into the `Embed` annotation the [mention trigger](./triggers.md) and notifications look for; a plain `[Name](hm://ACCOUNT_UID/:profile)` link in a comment is promoted to a mention as well. A comment body that still contains plain-text `@Name` is refused with the correct form in the message, because a plain `@Name`, or a link to someone's comment, notifies nobody and summons no agent. `options.allowPlainMentions: true` posts literal `@` text anyway. The result lists the mentioned accounts under `mentions`, and every thread entry in a comment read result prints its author's ready-made mention.
   - `options.fromPath` on an `hm://` address publishes a memory markdown file (frontmatter plus resolved images) through the dedicated pipeline. Path `/` derives the document path from the file's frontmatter name. <!-- id:gZfg4J0I -->
   - `document.create` refuses a nested path whose parent is not already published. Top-level paths are always allowed. The server enforces this, including in `dryRun`. <!-- id:KlGDRPlO -->
-  - `options.skipLinkCheck` publishes without checking that every link in the body resolves.
+  - `options.skipLinkCheck` publishes without checking that every link in the body resolves. Links into the document being published (`#blockId` fragments, resolved to its own address at publish time, such as the citation links `convert` writes) are never checked: on a first publication the document does not exist yet.
   - Root-level `server` and `dev` are accepted only when they resolve to the configured agent HM server. Publishing always uses that server, never one the model picks (`api-service.ts`). <!-- id:Dlh1Pqbd -->
   - `path: "/"` means the account [home document](../protocol/documents.md) and is published as the canonical empty HM path. <!-- id:zkDp34Z8 -->
   - [Tables](../block/table.md) round-trip through markdown as GFM tables carrying identity comments. The shared dialect is in `frontend/packages/client/src/markdown-to-blocks.ts` and `blocks-to-markdown.ts`. <!-- id:-ULSX1WW -->
@@ -204,7 +204,7 @@ Dispatch order in `executeCallVerb` (`api-service.ts`): <!-- id:iTHt2YHO -->
   2. If it is not a granted builtin, look for an enabled document of that name. A **lambda** runs in the sandbox (`executeLambdaTool`). An **MCP projection** is proxied to its server (`executeMcpTool`, see [`mcp.md`](./mcp.md)). <!-- id:SWV7WM4u -->
   3. Otherwise return the `~/tools` listing with a "no callable tool named …" summary. <!-- id:WixN3gx_ -->
   4. Validate `input` against the tool's schema. On failure, return the contract (touch-expand). <!-- id:euze5A7r -->
-  5. Execute: `search` goes to `executeAgentServiceSearch`, `query` to `executeAgentServiceQuery`, `attributes` to `executeAgentServiceAttributes`, `web_search` to `executeWebSearch`, and `execute` to the sandbox. <!-- id:dlSy993f -->
+  5. Execute: `search` goes to `executeAgentServiceSearch`, `query` to `executeAgentServiceQuery`, `attributes` to `executeAgentServiceAttributes`, `web_search` to `executeWebSearch`, `convert` to `executeConvert`, and `execute` to the sandbox. <!-- id:dlSy993f -->
 
 Promoted callables are exposed as real provider tools that route back through the same function (`createAgentServicePiTools`, `api-service.ts`). A promoted tool and a `call` of it behave identically: same validation, same narrowing, same executor. <!-- id:NFz3qyK1 -->
 
@@ -247,6 +247,19 @@ type ExecuteInput = {
 - Networking is **on by default**, with explicit DNS resolvers and a non-local egress policy (`NetworkPolicy.fromProfiles(['public'])`, falling back to `nonLocal()` for older staged SDKs, `code-exec.ts`). <!-- id:V5Dky7AY -->
 - Output: `{summary, exitCode, success, stdout, stderr, truncated, durationMs, changedFiles}`. stdout and stderr are bounded at 64 KiB each. `changedFiles` is a before/after listing diff of memory. Live progress streams a \~2000-char output tail at most every 250 ms. <!-- id:Zr_CQ4Uz -->
 - The SDK loads lazily and `availability()` is memoized. Hosts without virtualization run normally, and the tool is absent there instead of failing (`code-exec.ts`, with codes `config-disabled`, `unsupported-platform`, `whp-disabled`, `kvm-missing`, `kvm-forbidden`, `runtime-error`). <!-- id:nzXZhUiw -->
+
+## `convert`
+
+Converts documents in memory (PDF, office formats, EPUB, images) to markdown with the Datalab document parser, on the server (`executeConvert`, `api-service.ts`; the HTTP client is `agents/src/datalab.ts`). The model-facing side is in [Document import](./datalab-importer.md). What the server does:
+
+- **Input** is a list of memory paths; a folder expands to every supported file under it, up to 50 documents per call. Each document is read, size-capped (100 MiB), checked by extension (and `%PDF-` for PDFs), and given an output folder `<output_dir>/<slug>/`. An existing folder is a failure unless `overwrite` is set.
+- **Key chooser**: the account's own `datalab-api-key` secret (unmetered), else the server key `SEED_AGENTS_DATALAB_API_KEY` (metered), else the relay `SEED_AGENTS_CONVERT_RELAY_URL` (signed `ConvertDocument` to the hosted server as the agent's identity, see [Signed API](./signed-api.md)), else the tool is withheld.
+- **Ledger** (`agents/src/datalab.ts`, table `conversion_usage`): on the shared key, pages are reserved before the call as `min(max_pages, per-call cap, account allowance remaining, server ceiling remaining)` in one transaction, sent to Datalab as `max_pages`, settled to the reported page count on success and released on failure. Reserved rows count as used, so concurrent calls cannot overshoot together. A reservation older than 30 minutes is released by the next one.
+- **Mode**: `SEED_AGENTS_DATALAB_MODE` is both the default and the ceiling on the shared key; a requested mode more expensive than it is lowered. `SEED_AGENTS_DATALAB_EXTRAS` goes with every call; synthetic image captions are off.
+- **Concurrency**: documents in one call run through a pool of `SEED_AGENTS_DATALAB_CONCURRENCY` workers; the preflight (reading, checks, reservations) runs in list order first so slugs and ledger rows are deterministic. Datalab's rate limits (HTTP 429, and a completed job reporting its page-concurrency limit) are retried with backoff.
+- **Output** per document: `raw.md`, `seed.md` (image references rewritten to standalone `![alt](assets/<file>)` paragraphs, because the markdown parser drops inline images and the memory publish path uploads only standalone image blocks), `assets/`, `manifest.json`. One `agent-memory-changed` event per call.
+- **Post-processing** (`agents/src/datalab.ts`, deterministic, no model turns): a `Figure N: …` paragraph adjacent to a standalone image becomes the image's caption; entries of the references section get block ids (`<!-- id:ref-3 -->` for numbered entries, `<!-- id:ref-meyrowitz-1986 -->` for `[Author year]` labelled ones, kept by the markdown dialect) and bracketed citations in the body (`[3]`, `[1, 2]`, `[4-6]`, `[Meyrowitz 1986]`, `[Langston 1988, Ogura & Robertson 1989]`) become `[[3](#ref-3)]` links to them. `publishMemoryDocument` resolves such `#blockId` links to the published document's own address (`resolveFragmentLinks`), which is why no second pass after publishing is needed. Before that, the PDF's own internal links that the `extract_links` extra keeps (`[\[49\].](#block-9-2)` pointing at `<a id="block-9-2"></a>` anchors the parser drops) are reduced to their text, and one-line display math `$$…$$` is rewritten as a fenced `$$` block, because the dialect opens a math block at any line starting with `$$` and would swallow the rest of the document. Counts go to the manifest and the summary; parenthesised author-year citations are left to the agent.
+- **Result**: `{summary, documents[], failures[], keySource, pagesChargedThisCall?, pagesRemainingThisMonth?}`, paths and counts only. A document that failed to convert is a `failures` entry; a rejected key, bad input paths or an exhausted allowance before the first document throw.
 
 ## Authored (lambda) tools <!-- id:tzwll2x7 -->
 
@@ -388,7 +401,7 @@ Durable session events and the desktop UI keep the tool's full output. Only the 
 - [Grants](./grants.md) <!-- id:rK4BKGX7 -->
 - [Tool document](./tool-document.md) <!-- id:lG_ea_kJ -->
 - [MCP servers](./mcp.md) <!-- id:4D2TubeN -->
-- [Datalab PDF importer](./datalab-importer.md)
+- [Document import](./datalab-importer.md)
 - [Triggers](./triggers.md) <!-- id:F1npZzOs -->
 - [Security](./security.md) <!-- id:1gpCge_Z -->
 - [Session continuation](./session-continuation.md) <!-- id:5SxLzsxa -->
