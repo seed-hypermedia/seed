@@ -19,7 +19,7 @@ Other binaries beside the daemon: `monitord` (health checks of sites), `relayd` 
 | HTTP | `-http.port` | 55001 | gRPC-web for every service, `/ipfs/*`, `/hm/api/config`, `/debug/*` <!-- id:G7uKQa9- --> |
 | gRPC | `-grpc.port` | 55002 | the same services over plain gRPC <!-- id:H9V6rMI- --> |
 
-HTTP binds `127.0.0.1` by default. Browser authentication is opt-in: when the parent process supplies `SEED_APP_SECRET` (the desktop app always does) or `-http.browser-auth` is set, a daemon on loopback only answers a browser page that presents that secret or a bearer token; a daemon you run by hand keeps the open policy. Server and container deployments must pass `-http.listen-all` (or `SEED_HTTP_LISTEN_ALL=true`): it binds all interfaces and keeps the open web policy, since the hosted web app uploads to the gateway straight from the browser. `-public-only` keeps the open policy too. Plain gRPC still binds all interfaces and needs a firewall. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
+HTTP binds all interfaces and answers any web origin by default, which is what servers and containers need: the hosted web app uploads to the gateway straight from the browser, from any custom domain. The desktop app runs its daemon in the locked-down mode instead: `-http.loopback` binds `127.0.0.1` only, and with `SEED_APP_SECRET` from the parent process (or `-http.browser-auth`) the daemon answers a browser page only when it presents that secret or a bearer token. The desktop app always passes both. `-public-only` keeps the open policy even in loopback mode. Plain gRPC still binds all interfaces and needs a firewall. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
 
 # Flags that matter to operators <!-- id:qKo2ROZg -->
 
@@ -27,7 +27,7 @@ HTTP binds `127.0.0.1` by default. Browser authentication is opt-in: when the pa
 | Flag <!-- col:9aAQ-i5K --> | Default <!-- col:k2MWOcv4 --> | Meaning <!-- col:WdP1mgRz --> <!-- id:oDc0TVDL --> |
 | --- | --- | --- |
 | `-data-dir` | `~/.mtt` | Where everything is stored. The desktop app passes its own data directory. <!-- id:ypeA1_vg --> |
-| `-http.listen-all` | false | Server mode: bind HTTP to all interfaces and answer any web origin. Required for hosted containers, including external SeedInfra deployments. |
+| `-http.loopback` | false | Locked-down mode: bind HTTP to `127.0.0.1` only. The desktop app passes it; servers and containers leave it off. |
 | `-http.browser-auth` | false | Gate browser-page requests even without a parent-supplied `SEED_APP_SECRET` (a generated secret only bearer tokens can satisfy). The desktop app opts in by supplying the secret. |
 | `-http.app-origins` | empty | Additional comma-separated trusted app origins. The desktop supplies its Vite dev origin or custom local-server port range; production server deployments normally leave this empty. |
 | `-public-only` | false | Serve only public data in the APIs and over HTTP. Hosted sites and [gateways](../protocol/sites.md) use this mode. <!-- id:3vWzc_PR --> |

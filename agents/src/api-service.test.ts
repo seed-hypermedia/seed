@@ -400,6 +400,22 @@ describe('api service', () => {
             input_cbor: Uint8Array
           }
           db.run("UPDATE runs SET status = 'queued', attempt = 0 WHERE id = ?", [run.id])
+          // The durable conversation already answered the first message; a re-queued run with
+          // nothing new in the log makes no model call. Give it a message to answer.
+          const nextSeq = (
+            db
+              .query('SELECT COALESCE(MAX(seq), 0) + 1 AS seq FROM session_events WHERE session_id = ?')
+              .get(sessionId) as {
+              seq: number
+            }
+          ).seq
+          db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
+            `guard-${scenario}`,
+            sessionId,
+            nextSeq,
+            cbor.encode({type: 'message', role: 'user', content: 'Use browser again'}),
+            Date.now(),
+          ])
           if (scenario === 'trigger') db.run("UPDATE runs SET origin = 'trigger' WHERE id = ?", [run.id])
           if (scenario === 'background') db.run("UPDATE runs SET queue = 'background' WHERE id = ?", [run.id])
           if (scenario === 'continuation') db.run("UPDATE runs SET origin = 'agent' WHERE id = ?", [run.id])
@@ -1651,9 +1667,22 @@ describe('api service', () => {
       expect(requestBodies[0]).toContain('Olivia Owner')
       expect(requestBodies[0]).toContain('Casey Collaborator')
       expect(requestBodies[0]).toContain(`<message_sender>\\n{\\"accountId\\":\\"${ownerAccountId}\\"}`)
-      expect(requestBodies[1]).toContain('concurrent_user_messages')
-      expect(requestBodies[1]).toContain('Collaborator message')
-      expect(requestBodies[1]).toContain(collaboratorAccountId)
+      // The collaborator's message reached the log while the first answer was still streaming, so
+      // the log orders it before that answer. The durable conversation orders messages by when the
+      // model takes them in: the second request reads the first answer, then the new message with
+      // its sender — no handoff note needed to tell the model which message is unanswered.
+      const secondRequest = (JSON.parse(requestBodies[1] ?? '{}') as {messages: {role: string; content: unknown}[]})
+        .messages
+      const firstAnswerAt = secondRequest.findIndex((message) => message.role === 'assistant')
+      const collaboratorMessageAt = secondRequest.findIndex(
+        (message) => message.role === 'user' && String(message.content).includes('Collaborator message'),
+      )
+      expect(firstAnswerAt).toBeGreaterThan(-1)
+      expect(collaboratorMessageAt).toBeGreaterThan(firstAnswerAt)
+      expect(String(secondRequest[collaboratorMessageAt]?.content)).toContain(
+        `<message_sender>\n{"accountId":"${collaboratorAccountId}"}`,
+      )
+      expect(requestBodies[1]).not.toContain('concurrent_user_messages')
     } finally {
       releaseFirstResponse()
       globalThis.fetch = originalFetch
@@ -7886,7 +7915,16 @@ describe('api service', () => {
       )
       expect(sub.accountId).toBe(blobs.principalToString(account.principal))
       expect(sub.key).toBe(`sessions/${createdSession.sessionId}`)
-      expect(sub.replay?._).toBe('GetSessionResponse')
+      // The replay is read when the socket starts the subscription, not when the envelope was
+      // verified: what changed in between is in it, so nothing falls into a gap between the two.
+      await svc.message(
+        await apisvc.createSignedEnvelope(account, {
+          action: {_: 'UpdateSession', sessionId: createdSession.sessionId, title: 'Renamed meanwhile'},
+        }),
+      )
+      const replay = sub.replay?.()
+      expect(replay?.session.title).toBe('Renamed meanwhile')
+      expect(replay?.events).toEqual([])
     } finally {
       sqlite.closeDatabase(db)
       cleanup()
@@ -9928,7 +9966,7 @@ describe('api service', () => {
         expect(JSON.stringify(body.messages)).not.toContain('boom')
         const realUserMessages = body.messages.filter(
           (message: {role?: string; content?: unknown}) =>
-            message.role === 'user' && !String(message.content).startsWith('<session_status>'),
+            message.role === 'user' && !/^<(space|session_status|current_time)>/.test(String(message.content)),
         )
         expect(realUserMessages).toHaveLength(1)
         return openAIStreamResponse([

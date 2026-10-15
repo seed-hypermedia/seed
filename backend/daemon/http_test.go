@@ -169,6 +169,7 @@ func makeCID(t *testing.T, data []byte) cid.Cid {
 func TestHTTPBrowserGate(t *testing.T) {
 	allowed := appOriginAllowlist("")
 	const secret = "launch-secret"
+
 	tests := []struct {
 		name, method, path, origin, site, secret, bearer string
 		status                                           int
@@ -202,6 +203,7 @@ func TestHTTPBrowserGate(t *testing.T) {
 				if token != "valid" {
 					return nil, errors.New("invalid token")
 				}
+
 				return core.Principal("verified"), nil
 			}
 			handler := browserGateMiddleware(secret, allowed, authenticate)(appCORSMiddleware(allowed)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -209,25 +211,32 @@ func TestHTTPBrowserGate(t *testing.T) {
 					_, ok := blob.GetAuthenticatedCaller(r.Context())
 					require.True(t, ok)
 				}
+
 				w.WriteHeader(http.StatusOK)
 			})))
+
 			method, path := tt.method, tt.path
 			if method == "" {
 				method = "POST"
 			}
+
 			if path == "" {
 				path = "/com.seed.daemon.v1alpha.Daemon/ListKeys"
 			}
+
 			req := httptest.NewRequest(method, path, nil)
 			req.Header.Set("Origin", tt.origin)
 			req.Header.Set("Sec-Fetch-Site", tt.site)
 			req.Header.Set("X-Seed-App-Secret", tt.secret)
+
 			if tt.bearer != "" {
 				req.Header.Set("Authorization", "Bearer "+tt.bearer)
 			}
+
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
 			require.Equal(t, tt.status, rec.Code)
+
 			if tt.status == 403 || !allowed(tt.origin) {
 				require.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
 			}
@@ -248,6 +257,7 @@ func TestHTTPCORS(t *testing.T) {
 			req.Header.Set("Access-Control-Request-Private-Network", "true")
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, req)
+
 			if allowed(origin) {
 				require.Equal(t, 204, rec.Code)
 				require.Equal(t, origin, rec.Header().Get("Access-Control-Allow-Origin"))
@@ -262,6 +272,7 @@ func TestHTTPCORS(t *testing.T) {
 			}
 		})
 	}
+
 	require.False(t, appOriginAllowlist("")("http://localhost:5173"), "Vite is trusted only when explicitly configured")
 }
 
@@ -289,9 +300,10 @@ func TestHTTPAppSecret(t *testing.T) {
 func TestHTTPListenAddress(t *testing.T) {
 	for _, all := range []bool{false, true} {
 		cfg := makeTestConfig(t)
-		cfg.HTTP.ListenAll = all
+		cfg.HTTP.Loopback = !all
 		cfg.PublicOnly = true
 		app := makeTestApp(t, "alice", cfg, false)
+
 		ip := app.HTTPListener.Addr().(*net.TCPAddr).IP
 		if all {
 			require.True(t, ip.IsUnspecified())
@@ -307,6 +319,7 @@ func TestHTTPBrowserServer(t *testing.T) {
 	if os.Getenv("SEED_HTTP_BROWSER_TEST_SERVER") != "1" {
 		t.Skip("Electron harness only")
 	}
+
 	cfg := makeTestConfig(t)
 	cfg.Syncing.NoDiscovery = true
 	// The desktop opts in by supplying a secret; the fixture opts in through the flag.
@@ -329,12 +342,11 @@ func TestHTTPBrowserServer(t *testing.T) {
 
 func TestHTTPGateRoutes(t *testing.T) {
 	const secret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
 	t.Setenv("SEED_APP_SECRET", secret)
 	cfg := makeTestConfig(t)
+	cfg.HTTP.Loopback = true
 	app := makeTestApp(t, "carol", cfg, false)
-	serverCfg := makeTestConfig(t)
-	serverCfg.HTTP.ListenAll = true
-	server := makeTestApp(t, "david", serverCfg, false)
 	for _, tt := range []struct {
 		name, origin, site, secret string
 		status                     int
@@ -354,14 +366,17 @@ func TestHTTPGateRoutes(t *testing.T) {
 			rec := httptest.NewRecorder()
 			app.HTTPServer.Handler.ServeHTTP(rec, req)
 			require.Equal(t, tt.status, rec.Code)
+
 			if tt.status == 403 {
 				require.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
 			}
+
 			if tt.secret != "" {
 				require.Equal(t, tt.origin, rec.Header().Get("Access-Control-Allow-Origin"))
 			}
 		})
 	}
+
 	t.Run("without a secret or -http.browser-auth the daemon keeps the open policy", func(t *testing.T) {
 		t.Setenv("SEED_APP_SECRET", "")
 		plain := makeTestApp(t, "alice", makeTestConfig(t), false)
@@ -390,6 +405,10 @@ func TestHTTPGateRoutes(t *testing.T) {
 		require.Equal(t, 403, rec.Code)
 	})
 	t.Run("server mode keeps the open policy for websites", func(t *testing.T) {
+		// A server has no app secret and no -http.loopback: the default binds all interfaces and
+		// answers any web origin.
+		t.Setenv("SEED_APP_SECRET", "")
+		server := makeTestApp(t, "david", makeTestConfig(t), false)
 		req := httptest.NewRequest("POST", "/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
 		req.Header.Set("Content-Type", "application/grpc-web+proto")
 		req.Header.Set("X-Grpc-Web", "1")

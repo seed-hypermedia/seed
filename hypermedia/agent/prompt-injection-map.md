@@ -18,27 +18,31 @@ File: `agents/protocol/src/index.ts` <!-- id:lqdhE1St -->
 
 File: `agents/src/api-service.ts`, `Service.#agentSystemPrompt()` (line 4169). In order: <!-- id:JwABxkZY -->
   1. the user-configured `AgentDefinition.systemPrompt`, stored as Seed [blocks](../protocol/blocks.md) and converted to resolved markdown; <!-- id:iORcX3ZN -->
-  2. `seedAssistantSystemPrompt({currentTime})`; <!-- id:z67VE1ZB -->
+  2. `seedAssistantSystemPrompt()`. The agents server passes no `currentTime`: the clock reaches the model as a per-turn block (below), so the system prompt stays byte for byte the same between turns and the provider's prompt cache holds; <!-- id:z67VE1ZB -->
   3. the **memory prompt** (line 4184). It is always included, because memory is a [read](./read.md) and [write](./write.md) address and belongs to no tool group. It describes `~/memory/`, the check-memory-first habit, whole-file rewrites, `{fromUrl}` downloads, `read ipfs://`, `write ipfs://` publishing, and that chat attachments are session-private and read with `read attachment:<id>`; <!-- id:g-QiS7CE -->
   4. the **user-actions prompt** (line 4190): "Your user holds the same verbs you do… entries tagged `<user_action>`/`<user_action_result>` are actions the user ran themselves — read their results as shared ground truth"; <!-- id:g-pL5KLj -->
-  5. the **`<space>` index** (see below), present whenever the call passes a `stateDir`, which agent runs always do; <!-- id:1rTVcDpS -->
-  6. `<available_signing_identities>` JSON plus signing and publishing instructions, only when the agent has signing keys. This includes the publish recipe and the parent-must-exist rule. <!-- id:J0uQfOR5 -->
+  5. `<available_signing_identities>` JSON plus signing and publishing instructions, only when the agent has signing keys. This includes the publish recipe and the parent-must-exist rule. <!-- id:J0uQfOR5 -->
 
-`GetSession` returns the fully assembled prompt as `systemPromptMarkdown` (line 5042) for UI inspection. That dialog is the ground truth for what the agent is being told. <!-- id:l7U_jM_4 -->
+Nothing in this prompt depends on what the session has done or on the state of the agent's Space, so every request of a session starts with the same bytes. `GetSession` returns the assembled prompt followed by the current Space index as `systemPromptMarkdown` (line 5042) for UI inspection. That dialog is the ground truth for what the agent is being told. <!-- id:l7U_jM_4 -->
 
 ## The Space index <!-- id:DTNSen_I -->
 
 File: `agents/src/api-service.ts`, `buildSpaceIndex()` (line 5900). <!-- id:xgw7pHEV -->
 
-Every system prompt has a `<space>` block, the [Space index](./space-index.md). It has one line per enabled [tool document](./tool-document.md) (`- name — summary`, with authored tools tagged `(authored)`), a one-line summary of the memory top level, and the names of active [triggers](./triggers.md). It is cached per `(account, agent, callable set)`, invalidated on memory and tool writes, and collapsed to counts above 2048 bytes. <!-- id:KVIlLiaC -->
+Every turn's input is followed by a `<space>` block, the [Space index](./space-index.md). It is one of the per-turn state blocks, not part of the system prompt: it changes whenever the agent writes a memory file or gains a tool, and a system prompt that changed with it would lose the provider's prompt cache for the whole conversation. It has one line per enabled [tool document](./tool-document.md) (`- name — summary`, with authored tools tagged `(authored)`), a one-line summary of the memory top level, and the names of active [triggers](./triggers.md). It is cached per `(account, agent, callable set)`, invalidated on memory and tool writes, and collapsed to counts above 2048 bytes. <!-- id:KVIlLiaC -->
 
 For review, this matters: **an agent's own authored tool text lands in its prompt.** A lambda's `summary` reaches the system prompt through this index. Its `description` (bounded at 16 KiB) reaches the model in full whenever the tool is expanded or [promoted](./promotion.md). Both are model-authored text that comes back as instruction-shaped context. This is intended, because the agent configures itself. It is also the one prompt source the agent writes. <!-- id:pdHXZ5PB -->
 
 ## Ephemeral per-turn blocks <!-- id:q72Nkpnm -->
 
-None of these are stored as events. They exist only in the replay handed to Pi. <!-- id:ttTlHN0y -->
-  - **`<plan_state>`**: `planStateBlock()` (line 414), appended as the last user message of every turn. The [plan](./plan.md) verb writes no transcript event, so this block is how a resumed model sees the checklist it published. [Step](./step.md) ids and labels pass through `escapeActionFraming()`. A checklist that fully settled under an earlier run is not injected. The new turn retires it to the run that owned it (`#retireSettledSessionPlan`) and starts with no plan, so a new request never brings back a finished list. <!-- id:CQBauD_N -->
-  - **`<background_work_update>`** (line 4431): pushed when a [park](./park.md)-resume leaves the replay ending on an assistant message, which Pi cannot continue from. It tells the model its children finished and to act on their results. <!-- id:FGgHfyDO -->
+None of these are stored as events. The first six are also not stored in the session's [durable store](./durable-sessions.md): a hook adds them to every provider request of the turn, right behind the turn's input (`turnStateMessages` in `#runPiAgent`). <!-- id:ttTlHN0y -->
+  - **`<space>`**: `buildSpaceIndex()`, the [Space index](./space-index.md) described above, as it stands when the turn starts.
+  - **`<delegation_budget>`**: `delegationBudgetBlock()`, how many children the run may still start. Absent until it has started one.
+  - **`<plan_state>`**: `planStateBlock()` (line 414), rendered once per turn. The [plan](./plan.md) verb writes no transcript event, so this block is how a resumed model sees the checklist it published. [Step](./step.md) ids and labels pass through `escapeActionFraming()`. A checklist that fully settled under an earlier run is not injected. The new turn retires it to the run that owned it (`#retireSettledSessionPlan`) and starts with no plan, so a new request never brings back a finished list. <!-- id:CQBauD_N -->
+  - **`<context_usage>`**: `contextUsageBlock()`, how full the model's context was on the last turn, only where the run may [continue the session](./session-continuation.md).
+  - **`<session_status>`**: `sessionStatusBlock()`, the session's current title and description.
+  - **`<current_time>`**: the time the turn started.
+  - **`<background_work_update>`** (`#importSessionLog`): the turn's input when a [park](./park.md)-resume has no new user message to answer. The children's results are already in place of their placeholders. It tells the model its children finished and to act on their results. A turn resumed after a restart with nothing else to answer gets `<turn_resumed>` in its place. Both are stored in the durable conversation and never in the log. <!-- id:FGgHfyDO -->
   - **`<window_context>`** (line 4914): the desktop's current window. It arrives as `context` content parts and is formatted by `formatWindowContextLines()` (`frontend/packages/ui/src/agents/assistant-window-context.ts`). It stays out of the durable message `content`, so transcripts stay clean. <!-- id:PVCZPZJK -->
   - **`<attachments>`**: `formatAttachmentMetadata()` (line 5970) lists name, MIME type, size, and id for each attached file, and never the bytes. Its guidance uses the verbs: `read attachment:<id>` to see an image or read a text file, `write ~/memory/<path>` with `{fromAttachment}` to keep one across sessions, and `write ipfs://` with `{fromAttachment}` to publish one. It ends with "Only read what you need." Until `21a492a51` it named the deleted `view_attachment`, `attachment_to_memory`, and `attachment_to_ipfs` tools. This section exists to catch that kind of drift. <!-- id:kugrsi3z -->
 
@@ -74,7 +78,7 @@ A tool's `description` and its JSON-schema field descriptions are model-facing i
 
 ## Pi boundary <!-- id:Hb4MK5dx -->
 
-`createSeedPiResourceLoader(systemPrompt)` (line 6852) injects the assembled prompt through `getSystemPrompt()` and turns off every Pi discovery source. `getAgentsFiles()` returns none, `getPrompts()` returns none, `getAppendSystemPrompt()` returns an empty array, and skills, extensions, and themes are empty. With `noTools: 'builtin'`, this stops hosted Agents from loading a local `AGENTS.md`, prompt templates, skills, extensions, or Pi's own host tools. <!-- id:uzPGFAv_ -->
+The harness of a turn is built from an empty registry. `#runPiAgent` installs one extension in it, holding the assembled prompt as its only system prompt section, the turn's verbs as its only tools, and one hook. Pi Durable discovers nothing by itself: it reads no `AGENTS.md`, prompt templates, skills, or settings files, and its coding tools (`read`, `write`, `edit`, `bash`) are a separate extension that Seed never installs. <!-- id:uzPGFAv_ -->
 
 # What others could inject <!-- id:drzedXzu -->
 

@@ -50,7 +50,7 @@ import {queryClient} from '@shm/shared/models/query-client'
 import {QueryClientProvider} from '@tanstack/react-query'
 
 const agentsServerAvailable =
-  spawnSync('bun', ['-e', 'await import("@mariozechner/pi-ai")'], {
+  spawnSync('bun', ['-e', 'await import("@earendil-works/pi-ai")'], {
     cwd: REPO_AGENTS_DIR,
     encoding: 'utf8',
   }).status === 0
