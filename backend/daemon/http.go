@@ -72,15 +72,17 @@ func initHTTP(
 	if err != nil {
 		return nil, nil, err
 	}
+
 	allowedOrigin := appOriginAllowlist(httpCfg.AppOrigins)
 	// Browser authentication is opt-in: the desktop app supplies SEED_APP_SECRET, and operators
 	// can ask for it with -http.browser-auth. A daemon run by hand keeps the open policy.
 	browserAuth := secret != ""
 	router := &Router{mux: http.NewServeMux()}
-	// Server daemons (-http.listen-all or -public-only) serve websites directly: the hosted web app
+	// Server daemons (no app secret, or -public-only) serve websites directly: the hosted web app
 	// uploads to the gateway from the browser, from any custom domain. They keep the open policy,
-	// as before. A personal daemon on loopback authenticates every browser page instead.
-	if httpCfg.ListenAll || cfg.PublicOnly || !browserAuth {
+	// as before. The desktop's daemon (-http.loopback plus SEED_APP_SECRET) authenticates every
+	// browser page instead; the gate follows the secret, the bind address follows the flag.
+	if cfg.PublicOnly || !browserAuth {
 		router.Use(
 			openCORSMiddleware,
 			bearerAuthMiddleware(apiServer.AuthenticateBearerToken),
@@ -91,6 +93,7 @@ func initHTTP(
 			appCORSMiddleware(allowedOrigin),
 		)
 	}
+
 	router.Use(
 		publicOnlyMiddleware(cfg.PublicOnly),
 		handlerNameMiddleware(router.mux),
@@ -132,10 +135,11 @@ func initHTTP(
 		router.Handle("/", grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(allowedOrigin)))
 	}
 
-	host := "127.0.0.1"
-	if httpCfg.ListenAll {
-		host = ""
+	host := ""
+	if httpCfg.Loopback {
+		host = "127.0.0.1"
 	}
+
 	srv = &http.Server{
 		Addr:              net.JoinHostPort(host, strconv.Itoa(httpCfg.Port)),
 		ReadHeaderTimeout: 5 * time.Second,
@@ -247,15 +251,20 @@ func appSecretFromEnv(generate bool) (string, error) {
 		if err != nil || len(decoded) != 32 {
 			return "", fmt.Errorf("SEED_APP_SECRET must encode 32 bytes as hex")
 		}
+
 		return secret, nil
 	}
+
 	if !generate {
 		return "", nil
 	}
+
 	var secret [32]byte
+
 	if _, err := rand.Read(secret[:]); err != nil {
 		return "", err
 	}
+
 	return hex.EncodeToString(secret[:]), nil
 }
 
@@ -264,11 +273,13 @@ func appOriginAllowlist(extra string) func(string) bool {
 	for port := 17654; port <= 17664; port++ {
 		origins["http://localhost:"+strconv.Itoa(port)] = true
 	}
+
 	for _, origin := range strings.Split(extra, ",") {
 		if origin = strings.TrimSpace(origin); origin != "" {
 			origins[origin] = true
 		}
 	}
+
 	return func(origin string) bool { return origins[origin] }
 }
 
@@ -281,6 +292,7 @@ func bearerAuthMiddleware(authenticate func(context.Context, string) (core.Princ
 				next.ServeHTTP(w, r)
 				return
 			}
+
 			caller, err := authenticate(r.Context(), strings.TrimSpace(token))
 			if err != nil {
 				http.Error(w, "bad bearer authorization", http.StatusUnauthorized)
@@ -298,13 +310,16 @@ func openCORSMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "*")
+
 		if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
 			if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
 				w.Header().Set("Access-Control-Allow-Private-Network", "true")
 			}
+
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -321,8 +336,10 @@ func browserGateMiddleware(secret string, allowedOrigin func(string) bool, authe
 				next.ServeHTTP(w, r)
 				return
 			}
+
 			appAuthenticated := secret != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Seed-App-Secret")), []byte(secret)) == 1
 			bearerAuthenticated := false
+
 			scheme, token, ok := strings.Cut(r.Header.Get("Authorization"), " ")
 			if ok && strings.EqualFold(scheme, "Bearer") && strings.TrimSpace(token) != "" {
 				caller, err := authenticate(r.Context(), strings.TrimSpace(token))
@@ -331,21 +348,26 @@ func browserGateMiddleware(secret string, allowedOrigin func(string) bool, authe
 					if browser {
 						status = http.StatusForbidden
 					}
+
 					http.Error(w, "bad bearer authorization", status)
 					return
 				}
+
 				bearerAuthenticated = true
 				r = r.WithContext(blob.WithAuthenticatedCaller(r.Context(), caller))
 			}
+
 			if browser && !appAuthenticated && !bearerAuthenticated {
 				cidPath, ipfsPath := strings.CutPrefix(r.URL.Path, "/ipfs/")
 				publicIPFS := r.Method == http.MethodGet && ipfsPath && cidPath != "" && !strings.Contains(cidPath, "/")
+
 				public := r.Method == http.MethodGet && (r.URL.Path == "/hm/api/config" || r.URL.Path == "/debug/version")
 				if !public && !publicIPFS {
 					http.Error(w, "forbidden", http.StatusForbidden)
 					return
 				}
 			}
+
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -368,19 +390,23 @@ func appCORSMiddleware(allowedOrigin func(string) bool) func(http.Handler) http.
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Vary", "Origin")
+
 			if allowedOrigin(r.Header.Get("Origin")) {
 				w.Header().Set("Access-Control-Allow-Origin", r.Header.Get("Origin"))
 				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Range, X-Seed-App-Secret, X-Grpc-Web, X-User-Agent, Grpc-Timeout, Connect-Protocol-Version, Connect-Timeout-Ms")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
 				w.Header().Set("Access-Control-Expose-Headers", "Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin")
+
 				if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
 					if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
 						w.Header().Set("Access-Control-Allow-Private-Network", "true")
 					}
+
 					w.WriteHeader(http.StatusNoContent)
 					return
 				}
 			}
+
 			next.ServeHTTP(w, r)
 		})
 	}
