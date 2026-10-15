@@ -25,7 +25,7 @@ vi.mock('@/models/daemon', () => ({
 }))
 
 vi.mock('@/models/documents', () => ({
-  useListSite: () => ({data: listSiteDataMock}),
+  useDescendantDocuments: () => ({data: listSiteDataMock}),
 }))
 
 vi.mock('../../models/entities', () => ({
