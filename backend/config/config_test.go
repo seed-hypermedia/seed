@@ -99,3 +99,15 @@ func TestLndhubDisabledFlag(t *testing.T) {
 	require.True(t, cfg.Disabled)
 	require.True(t, cfg.Mainnet)
 }
+
+func TestHTTPListenAllFlag(t *testing.T) {
+	cfg := HTTP{}.Default()
+	require.False(t, cfg.ListenAll)
+
+	fs := flag.NewFlagSet(t.Name(), flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	cfg.BindFlags(fs)
+	require.NoError(t, fs.Parse([]string{"-http.listen-all"}), "server deployments pass the flag ahead of the loopback default")
+
+	require.True(t, cfg.ListenAll)
+}

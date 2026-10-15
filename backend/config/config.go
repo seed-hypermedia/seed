@@ -177,6 +177,9 @@ func newURLFlag(val url.URL, p *url.URL) flag.Value {
 // HTTP configuration.
 type HTTP struct {
 	Port int
+	// ListenAll exposes HTTP beyond loopback for server deployments. It is accepted ahead of the
+	// loopback-by-default daemon so container and server commands can pass it before that ships.
+	ListenAll bool
 }
 
 func (c HTTP) Default() HTTP {
@@ -188,6 +191,7 @@ func (c HTTP) Default() HTTP {
 // BindFlags binds the flags to the given FlagSet.
 func (c *HTTP) BindFlags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Port, "http.port", c.Port, "Port for the HTTP server (including grpc-web)")
+	fs.BoolVar(&c.ListenAll, "http.listen-all", c.ListenAll, "Server mode: bind HTTP to all interfaces and answer any web origin (currently the only behaviour; required for container/server deployments once the daemon binds loopback by default)")
 }
 
 // GRPC configuration.
