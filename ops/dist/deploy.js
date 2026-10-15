@@ -878,6 +878,7 @@ function getOpsBaseUrl() {
 var OPS_BASE_URL = getOpsBaseUrl();
 var DEFAULT_COMPOSE_URL = `${OPS_BASE_URL}/docker-compose.yml`;
 var NOTIFY_SERVICE_HOST = "https://hyper.media/hm/api/notify";
+var DEFAULT_UPSTREAM_API_URL = "https://hyper.media";
 var AGENTS_API_PATH = "/hm/api/agents";
 var NOTIFY_API_PATH = "/hm/api/notify";
 var LIGHTNING_URL_MAINNET = "https://ln.seed.hyper.media";
@@ -2380,6 +2381,7 @@ function buildComposeEnv(config, paths) {
     vars.SEED_VAULT_ADMIN_SECRET = config.vault_admin_secret ?? "";
     vars.SEED_SESSION_SECRET = config.session_secret ?? "";
     vars.SEED_SERVICE_SECRET = config.service_secret ?? "";
+    vars.SEED_UPSTREAM_API_URL = config.upstream_api_url ?? DEFAULT_UPSTREAM_API_URL;
     vars.SEED_CONTACT_EMAIL = config.email ?? "";
     vars.SEED_NOTIFY_HOST = notifyHost(config);
     vars.SEED_AGENTS_HOST = agentsHost(config);
@@ -4239,6 +4241,7 @@ export {
   DEV_DEPLOY_SCRIPT_URL,
   DEPLOY_SCRIPT_PATH,
   DEPLOY_PROFILES,
+  DEFAULT_UPSTREAM_API_URL,
   DEFAULT_SEED_DIR,
   DEFAULT_REPO_URL,
   DEFAULT_RELEASE_CHANNEL,

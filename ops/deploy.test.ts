@@ -2649,6 +2649,10 @@ describe('enterprise: buildComposeEnv', () => {
     expect(env).toContain(`SEED_VAULT_ADMIN_SECRET="${'x'.repeat(VAULT_ADMIN_SECRET_LENGTH)}"`)
     expect(env).toContain('SEED_SESSION_SECRET="s"')
     expect(env).toContain('SEED_SERVICE_SECRET="svc"')
+    expect(env).toContain('SEED_UPSTREAM_API_URL="https://hyper.media"')
+    expect(buildComposeEnv(makeEnterpriseConfig({upstream_api_url: ''}), makePaths('/opt/seed'))).toContain(
+      'SEED_UPSTREAM_API_URL=""',
+    )
     expect(env).toContain('SEED_CONTACT_EMAIL="ops@seed.hypermedia"')
     expect(env).toContain('SEED_SITE_NAME="example.org"')
     expect(buildComposeEnv(makeEnterpriseConfig({site_name: 'Botical'}), makePaths('/opt/seed'))).toContain(
@@ -2882,6 +2886,7 @@ describe('enterprise: compose template', () => {
       'SEED_REQUIRE_SIGN_IN=1',
       'SEED_SESSION_SECRET=${SEED_SESSION_SECRET}',
       'SEED_SERVICE_SECRET=${SEED_SERVICE_SECRET}',
+      'SEED_UPSTREAM_API_URL=${SEED_UPSTREAM_API_URL}',
       'SEED_AGENTS_HM_SERVER_SECRET=${SEED_SERVICE_SECRET}',
       'SEED_VAULT_INTERNAL_URL=http://seed-vault:3000',
       'SEED_VAULT_ADMIN_SECRET=${SEED_VAULT_ADMIN_SECRET}',

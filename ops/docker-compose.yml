@@ -101,6 +101,8 @@ services:
       - 'SEED_AGENTS_DATA_DIR=/data'
       # Agents read and write through this site.
       - 'SEED_AGENTS_HM_SERVER_URL=${SEED_SITE_HOSTNAME}'
+      # `hm://hyper.media/...` links (the Agent Guide's) name the Seed knowledge base space.
+      - 'SEED_AGENTS_DOCS_ACCOUNT=${SEED_AGENTS_DOCS_ACCOUNT:-z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB}'
       # Sandboxed code execution needs /dev/kvm; `agents_kvm` in config.json
       # injects the device and sets this to "microsandbox".
       - 'SEED_AGENTS_EXEC_BACKEND=${SEED_AGENTS_EXEC_BACKEND:-}'

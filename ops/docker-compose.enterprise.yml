@@ -69,6 +69,11 @@ services:
       - 'SEED_SESSION_SECRET=${SEED_SESSION_SECRET}'
       # The agents service presents this instead of a session cookie.
       - 'SEED_SERVICE_SECRET=${SEED_SERVICE_SECRET}'
+      # The daemon is isolated, so other spaces' public content (an embed of an
+      # external document, the agents' guide) is read from this mainnet node's
+      # HTTP API instead. Only ids the daemon has never seen go there; empty
+      # keeps every read on the box.
+      - 'SEED_UPSTREAM_API_URL=${SEED_UPSTREAM_API_URL}'
       # The site's own <site>/hm/api/notify and <site>/hm/api/agents; empty
       # when the notify / agents profiles are off. SEED_HOST_URL is empty on
       # purpose: no Seed Hosting integration.
@@ -205,6 +210,9 @@ services:
       # Agents talk to this site, never to hyper.media. The site is
       # members-only; the service secret lets this service read it.
       - 'SEED_AGENTS_HM_SERVER_URL=${SEED_SITE_HOSTNAME}'
+      # `hm://hyper.media/...` links (the Agent Guide's) name the Seed knowledge base
+      # space; reads of it go to the upstream node through the web app.
+      - 'SEED_AGENTS_DOCS_ACCOUNT=${SEED_AGENTS_DOCS_ACCOUNT:-z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB}'
       - 'SEED_AGENTS_HM_SERVER_SECRET=${SEED_SERVICE_SECRET}'
       # Sandboxed code execution needs /dev/kvm; `agents_kvm` in config.json
       # injects the device and sets this to "microsandbox".
