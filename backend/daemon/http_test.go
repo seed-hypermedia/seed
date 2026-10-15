@@ -289,7 +289,7 @@ func TestHTTPAppSecret(t *testing.T) {
 func TestHTTPListenAddress(t *testing.T) {
 	for _, all := range []bool{false, true} {
 		cfg := makeTestConfig(t)
-		cfg.HTTP.ListenAll = all
+		cfg.HTTP.Loopback = !all
 		cfg.PublicOnly = true
 		app := makeTestApp(t, "alice", cfg, false)
 		ip := app.HTTPListener.Addr().(*net.TCPAddr).IP
@@ -331,10 +331,8 @@ func TestHTTPGateRoutes(t *testing.T) {
 	const secret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	t.Setenv("SEED_APP_SECRET", secret)
 	cfg := makeTestConfig(t)
+	cfg.HTTP.Loopback = true
 	app := makeTestApp(t, "carol", cfg, false)
-	serverCfg := makeTestConfig(t)
-	serverCfg.HTTP.ListenAll = true
-	server := makeTestApp(t, "david", serverCfg, false)
 	for _, tt := range []struct {
 		name, origin, site, secret string
 		status                     int
@@ -390,6 +388,10 @@ func TestHTTPGateRoutes(t *testing.T) {
 		require.Equal(t, 403, rec.Code)
 	})
 	t.Run("server mode keeps the open policy for websites", func(t *testing.T) {
+		// A server has no app secret and no -http.loopback: the default binds all interfaces and
+		// answers any web origin.
+		t.Setenv("SEED_APP_SECRET", "")
+		server := makeTestApp(t, "david", makeTestConfig(t), false)
 		req := httptest.NewRequest("POST", "/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
 		req.Header.Set("Content-Type", "application/grpc-web+proto")
 		req.Header.Set("X-Grpc-Web", "1")
