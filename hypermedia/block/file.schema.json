@@ -28,6 +28,12 @@
             },
             "description": "Number of columns the children occupy when `childrenType` is `Grid`."
           },
+          "textAlignment": {
+            "value": {
+              "type": "hm://hyper.media/block/text-alignment"
+            },
+            "description": "Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`."
+          },
           "size": {
             "value": {
               "type": "hm://hyper.media/float"

@@ -983,6 +983,54 @@ describe('HMBlock to EditorBlock', () => {
 
       expect((val as EditorQueryBlock).props.queryFilters).toBe('[]')
     })
+
+    test('query block drops unsupported filter attributes while preserving supported filters', () => {
+      const hmBlock = {
+        id: 'foo',
+        type: 'Query',
+        text: ``,
+        annotations: [],
+        attributes: {
+          style: 'Card',
+          columnCount: 1,
+          query: {
+            includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
+            sort: [],
+            filters: [
+              {type: 'Author', uid: 'author-a'},
+              {type: 'PublishDate', after: '2026-01-01'},
+              {type: 'Author', uid: 42},
+            ],
+          },
+        },
+      } as unknown as HMBlockQuery
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect((val as EditorQueryBlock).props.queryFilters).toBe('[{"type":"Author","uid":"author-a"}]')
+    })
+
+    test('query block treats malformed filter attributes as no filters', () => {
+      const hmBlock = {
+        id: 'foo',
+        type: 'Query',
+        text: ``,
+        annotations: [],
+        attributes: {
+          style: 'Card',
+          columnCount: 1,
+          query: {
+            includes: [{space: 'FOO_SPACE', path: '', mode: 'Children'}],
+            sort: [],
+            filters: {type: 'PublishDate', after: '2026-01-01'},
+          },
+        },
+      } as unknown as HMBlockQuery
+
+      const val = hmBlockToEditorBlock(hmBlock)
+
+      expect((val as EditorQueryBlock).props.queryFilters).toBe('[]')
+    })
   })
 
   describe('childrenType', () => {
@@ -1476,5 +1524,49 @@ describe('HMBlock to EditorBlock', () => {
       expect(editor).toHaveLength(2)
       expect(editor.map((b: any) => b.id)).toEqual(['p1', 'p2'])
     })
+  })
+})
+
+describe('textAlignment', () => {
+  function paragraph(attributes: Record<string, unknown>): HMBlock {
+    return {id: 'align', type: 'Paragraph', text: 'Aligned', annotations: [], attributes} as HMBlock
+  }
+
+  test.each(['center', 'right', 'justify'] as const)('reads %s into the editor prop', (textAlignment) => {
+    expect(hmBlockToEditorBlock(paragraph({textAlignment})).props.textAlignment).toBe(textAlignment)
+  })
+
+  test('leaves the prop unset when the attribute is missing or left', () => {
+    expect(hmBlockToEditorBlock(paragraph({})).props.textAlignment).toBeUndefined()
+    expect(hmBlockToEditorBlock(paragraph({textAlignment: 'left'})).props.textAlignment).toBeUndefined()
+  })
+
+  test.each(['middle', 'CENTER', 3, null])('falls back to the default for an invalid stored value %s', (value) => {
+    expect(hmBlockToEditorBlock(paragraph({textAlignment: value})).props.textAlignment).toBeUndefined()
+  })
+
+  test('does not copy an invalid value through the media attribute passthrough', () => {
+    const image = {
+      id: 'img',
+      type: 'Image',
+      text: '',
+      annotations: [],
+      link: 'ipfs://bafy',
+      attributes: {textAlignment: 'middle'},
+    } as unknown as HMBlock
+    expect(hmBlockToEditorBlock(image).props.textAlignment).toBeUndefined()
+  })
+
+  test.each(['center', 'right', 'justify'] as const)('%s survives HM -> editor -> HM', (textAlignment) => {
+    const original: HMBlockNode = {block: paragraph({textAlignment})}
+    const [roundTripped] = editorBlocksToHMBlockNodes(hmBlocksToEditorContent([original]))
+    expect(roundTripped!.block).toEqual(original.block)
+  })
+
+  test('an invalid stored value is dropped on the next save', () => {
+    const [roundTripped] = editorBlocksToHMBlockNodes(
+      hmBlocksToEditorContent([{block: paragraph({textAlignment: 'middle'})}]),
+    )
+    expect((roundTripped!.block as any).attributes).toEqual({})
   })
 })
