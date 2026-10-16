@@ -83,6 +83,31 @@ describe('hosting logout', () => {
     vi.unstubAllGlobals()
   })
 
+  it('expires a rejected session, preserves recovery work, and ignores repeated or stale rejections', async () => {
+    const host = await caller()
+    const expired = await host.expireSession({sessionToken: 'active-token'})
+    expect(expired).toMatchObject({
+      authVersion: 1,
+      email: 'owner@example.com',
+      sessionToken: null,
+      pendingSessionToken: null,
+      pendingDomains: [],
+      pendingSiteMoves: [move],
+    })
+    expect(await host.expireSession({sessionToken: 'active-token'})).toEqual(expired)
+    await expect(host.set({...expired, sessionToken: 'late-login', expectedAuthVersion: 0})).rejects.toThrow(
+      'Hosting session changed',
+    )
+    await host.set({...expired, sessionToken: 'fresh-token', expectedAuthVersion: 1})
+    expect(await host.expireSession({sessionToken: 'active-token'})).toMatchObject({
+      authVersion: 1,
+      sessionToken: 'fresh-token',
+    })
+    vi.resetModules()
+    expect((await (await caller()).get()).sessionToken).toBe('fresh-token')
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('clears saved credentials before revocation completes and keeps move recovery across restart', async () => {
     let finishRevocation!: (value: unknown) => void
     vi.mocked(fetch).mockReturnValue(
