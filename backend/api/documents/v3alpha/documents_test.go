@@ -4417,3 +4417,241 @@ func TestHomeGenesisBootstrap(t *testing.T) {
 		require.Equal(t, sdkGenesisCID.String(), got.Genesis)
 	})
 }
+
+// TestListingsPaginateExhaustively walks every document listing page by page and checks that
+// the pages add up to the single unpaginated result: nothing skipped, nothing repeated, every
+// document with its latest generation. The fixture has what used to break the cursors:
+// documents tied on activity time and on name, an unnamed document, a name above U+FFFF, a
+// document with two live generations, a republish, and a second space.
+func TestListingsPaginateExhaustively(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	bob := coretest.NewTester("bob")
+	ctx := context.Background()
+	require.NoError(t, alice.keys.StoreKey(ctx, "bob", bob.Account))
+
+	aliceSpace := alice.me.Account.PublicKey.String()
+	bobSpace := bob.Account.PublicKey.String()
+	baseTS := time.UnixMilli(1730000000000).UTC()
+
+	publish := func(key, space, path, name string, at time.Duration) *documents.Document {
+		t.Helper()
+
+		changes := appendBlockChange("b1", "body of "+path, "")
+		if name != "" {
+			changes = append(changes, &documents.DocumentChange{Op: &documents.DocumentChange_SetMetadata_{
+				SetMetadata: &documents.DocumentChange_SetMetadata{Key: "name", Value: name},
+			}})
+		}
+
+		doc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+			SigningKeyName: key,
+			Account:        space,
+			Path:           path,
+			Changes:        changes,
+			Timestamp:      timestamppb.New(baseTS.Add(at)),
+		})
+		require.NoError(t, err)
+
+		return doc
+	}
+
+	publish("main", aliceSpace, "", "Alice", 0)
+	publish("main", aliceSpace, "/a", "Alpha", 1*time.Second)
+	publish("main", aliceSpace, "/b", "Alpha", 1*time.Second) // Ties with /a on activity time and on name.
+	publish("main", aliceSpace, "/c", "", 2*time.Second)      // No name at all.
+	publish("main", aliceSpace, "/d", "😀 emoji", 3*time.Second)
+	nested := publish("main", aliceSpace, "/nested/e", "Nested", 4*time.Second)
+	publish("bob", bobSpace, "", "Bob", 6*time.Second)
+
+	// A second, newer generation of /nested/e. The first one stays alive underneath it, which is
+	// what resurfaced on later pages when the cursor was applied before the grouping.
+	_, err := alice.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: "main",
+		Account:        aliceSpace,
+		Path:           "/nested/e",
+		Generation:     nested.GenerationInfo.Generation + 10,
+		Target: &documents.RefTarget{
+			Target: &documents.RefTarget_Version_{
+				Version: &documents.RefTarget_Version{Genesis: nested.Genesis, Version: nested.Version},
+			},
+		},
+		Timestamp: timestamppb.New(baseTS.Add(5 * time.Second)),
+	})
+	require.NoError(t, err)
+
+	// A republish of /a: it is listed with /a's name but pages on its own, empty, name.
+	createRedirectRef(ctx, t, alice, "main", aliceSpace, "/r", aliceSpace, "/a", true)
+
+	type listed struct {
+		Account    string
+		Path       string
+		Generation int64
+	}
+
+	toListed := func(docs []*documents.DocumentInfo) []listed {
+		out := make([]listed, 0, len(docs))
+		for _, d := range docs {
+			out = append(out, listed{d.Account, d.Path, d.GenerationInfo.GetGeneration()})
+		}
+
+		return out
+	}
+
+	// walk follows next_page_token at the given page size and fails fast on a cursor that
+	// never advances instead of looping forever.
+	walk := func(name string, size int32, total int, fetch func(size int32, token string) ([]*documents.DocumentInfo, string)) []listed {
+		t.Helper()
+
+		var out []listed
+
+		token := ""
+		for pages := 0; ; pages++ {
+			require.LessOrEqual(t, pages, total+1, "%s at page size %d: the cursor does not advance", name, size)
+
+			items, next := fetch(size, token)
+			out = append(out, toListed(items)...)
+
+			if next == "" {
+				break
+			}
+
+			token = next
+		}
+
+		return out
+	}
+
+	// checkListing compares the unpaginated result with walks at page sizes 1 and 2.
+	checkListing := func(name string, fetch func(size int32, token string) ([]*documents.DocumentInfo, string)) []*documents.DocumentInfo {
+		t.Helper()
+
+		full, next := fetch(100, "")
+		require.Empty(t, next, "%s: a single page must hold the whole fixture", name)
+		want := toListed(full)
+
+		seen := map[listed]bool{}
+		for _, d := range want {
+			require.False(t, seen[d], "%s: %v listed twice", name, d)
+			seen[d] = true
+		}
+
+		for _, size := range []int32{1, 2} {
+			require.Equal(t, want, walk(name, size, len(want), fetch), "%s walked at page size %d", name, size)
+		}
+
+		return full
+	}
+
+	byPath := func(docs []*documents.DocumentInfo, path string) *documents.DocumentInfo {
+		for _, d := range docs {
+			if d.Path == path && d.Account == aliceSpace {
+				return d
+			}
+		}
+
+		return nil
+	}
+
+	all := checkListing("ListDocuments", func(size int32, token string) ([]*documents.DocumentInfo, string) {
+		out, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{PageSize: size, PageToken: token})
+		require.NoError(t, err)
+		return out.Documents, out.NextPageToken
+	})
+	require.Len(t, all, 8, "7 documents of alice plus bob's root")
+
+	space := checkListing("ListDocuments(account)", func(size int32, token string) ([]*documents.DocumentInfo, string) {
+		out, err := alice.ListDocuments(ctx, &documents.ListDocumentsRequest{Account: aliceSpace, PageSize: size, PageToken: token})
+		require.NoError(t, err)
+		return out.Documents, out.NextPageToken
+	})
+	require.Len(t, space, 7)
+	require.Equal(t, nested.GenerationInfo.Generation+10, byPath(space, "/nested/e").GenerationInfo.Generation, "the newest generation is the one listed")
+	require.Equal(t, "Alpha", byPath(space, "/r").Metadata.Fields["name"].GetStringValue(), "a republish shows its target's name")
+
+	roots := checkListing("ListRootDocuments", func(size int32, token string) ([]*documents.DocumentInfo, string) {
+		out, err := alice.ListRootDocuments(ctx, &documents.ListRootDocumentsRequest{PageSize: size, PageToken: token})
+		require.NoError(t, err)
+		return out.Documents, out.NextPageToken
+	})
+	require.Len(t, roots, 2)
+
+	for _, sort := range []struct {
+		attr documents.SortAttribute
+		desc bool
+	}{
+		{documents.SortAttribute_ACTIVITY_TIME, true},
+		{documents.SortAttribute_ACTIVITY_TIME, false},
+		{documents.SortAttribute_NAME, true},
+		{documents.SortAttribute_NAME, false},
+		{documents.SortAttribute_PATH, true},
+		{documents.SortAttribute_PATH, false},
+	} {
+		name := fmt.Sprintf("ListDirectory(%s, descending=%v)", sort.attr, sort.desc)
+		dir := checkListing(name, func(size int32, token string) ([]*documents.DocumentInfo, string) {
+			out, err := alice.ListDirectory(ctx, &documents.ListDirectoryRequest{
+				Account:       aliceSpace,
+				DirectoryPath: "",
+				Recursive:     true,
+				PageSize:      size,
+				PageToken:     token,
+				SortOptions:   &documents.SortOptions{Attribute: sort.attr, Descending: sort.desc},
+			})
+			require.NoError(t, err)
+			return out.Documents, out.NextPageToken
+		})
+		require.Len(t, dir, 7, name)
+		require.NotNil(t, byPath(dir, "/c"), "%s lists the unnamed document", name)
+		require.NotNil(t, byPath(dir, "/d"), "%s lists the document named above U+FFFF", name)
+		require.Equal(t, nested.GenerationInfo.Generation+10, byPath(dir, "/nested/e").GenerationInfo.Generation, name)
+	}
+
+	for _, sort := range []struct {
+		attr documents.SortAttribute
+		desc bool
+	}{
+		{documents.SortAttribute_ACTIVITY_TIME, true},
+		{documents.SortAttribute_ACTIVITY_TIME, false},
+		{documents.SortAttribute_NAME, true},
+		{documents.SortAttribute_NAME, false},
+	} {
+		name := fmt.Sprintf("ListAccounts(%s, descending=%v)", sort.attr, sort.desc)
+		fetch := func(size int32, token string) ([]string, string) {
+			out, err := alice.ListAccounts(ctx, &documents.ListAccountsRequest{
+				PageSize:    size,
+				PageToken:   token,
+				SortOptions: &documents.SortOptions{Attribute: sort.attr, Descending: sort.desc},
+			})
+			require.NoError(t, err)
+			ids := make([]string, 0, len(out.Accounts))
+			for _, a := range out.Accounts {
+				ids = append(ids, a.Id)
+			}
+
+			return ids, out.NextPageToken
+		}
+
+		want, next := fetch(100, "")
+		require.Empty(t, next, name)
+		require.ElementsMatch(t, []string{aliceSpace, bobSpace}, want, name)
+
+		var got []string
+
+		token := ""
+		for pages := 0; ; pages++ {
+			require.LessOrEqual(t, pages, 3, "%s: the cursor does not advance", name)
+
+			ids, next := fetch(1, token)
+			got = append(got, ids...)
+
+			if next == "" {
+				break
+			}
+
+			token = next
+		}
+
+		require.Equal(t, want, got, "%s walked one account per page", name)
+	}
+}

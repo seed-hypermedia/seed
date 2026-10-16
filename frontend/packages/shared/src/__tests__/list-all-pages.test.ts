@@ -51,4 +51,18 @@ describe('listAllPages', () => {
     expect(items.length).toBe(10_000)
     expect(fetchPage).toHaveBeenCalledTimes(10_000 / LIST_PAGE_SIZE)
   })
+
+  it('walks past the safety cap when the caller must have everything', async () => {
+    const page = Array.from({length: LIST_PAGE_SIZE}, (_, i) => i)
+    let served = 0
+    const fetchPage = vi.fn(async () => {
+      served++
+      return {items: page, nextPageToken: served < 25 ? 'more' : ''}
+    })
+
+    const items = await listAllPages(fetchPage, (r) => r, {maxItems: Infinity})
+
+    expect(items.length).toBe(25 * LIST_PAGE_SIZE)
+    expect(fetchPage).toHaveBeenCalledTimes(25)
+  })
 })
