@@ -29,6 +29,7 @@ import {
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
+import {getCommentContinuation, getSubmittedCommentGroups} from '@shm/shared/comments'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {commentToText} from '@shm/shared/content-to-text'
 import {
@@ -71,12 +72,14 @@ export function CommentDiscussions({
   targetId,
   isEntirelyHighlighted = false,
   commentId,
+  replyCommentId,
   commentEditor,
   targetDomain,
   selection,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
+  replyCommentId?: string
   commentEditor?: ReactNode
   onStartDiscussion?: () => void
   isEntirelyHighlighted?: boolean
@@ -86,6 +89,8 @@ export function CommentDiscussions({
     blockRange?: BlockRange
   }
 }) {
+  const route = useNavRoute()
+  const replaceRoute = useNavigate('replace')
   const focusedCommentRef = useRef<HTMLDivElement>(null)
   const [showParents, setShowParents] = useState(false)
   const parentsRef = useRef<HTMLDivElement>(null)
@@ -95,6 +100,8 @@ export function CommentDiscussions({
 
   const parentThread = useCommentParents(commentsService.data?.comments, commentId ?? '')
   const commentGroupReplies = useCommentGroups(commentsService.data?.comments, commentId)
+  const continuation = getCommentContinuation(commentsService.data?.comments, commentId ?? '', replyCommentId)
+  const highlightedCommentId = replyCommentId || commentId
 
   // Subscribe to all authors in this discussion
   const allAuthorIds = useMemo(() => {
@@ -136,10 +143,11 @@ export function CommentDiscussions({
   // Wait for the resource query to fully settle before deciding deleted/not-found, so we don't
   // flash "This comment was deleted." while peer sync is still in flight (issue #435).
   const isFocusedCommentLoading =
-    commentResource.isFetching ||
-    commentResource.isLoading ||
-    commentResource.isDiscovering ||
-    (!commentResource.data && !commentResource.error)
+    !focusedComment &&
+    (commentResource.isFetching ||
+      commentResource.isLoading ||
+      commentResource.isDiscovering ||
+      (!commentResource.data && !commentResource.error))
   const isFocusedCommentDeleted = commentResource.data?.type === 'tombstone'
   const showDeletedPreview = !!showDeletedContent && isFocusedCommentDeleted && !!deletedLastVersion
   const showDeletedPreviewLoading = !!showDeletedContent && isFocusedCommentDeleted && deletedVersions.isLoading
@@ -158,24 +166,44 @@ export function CommentDiscussions({
   }, [parentThread?.thread, showParents, commentId]) // Added commentId as dependency
 
   useLayoutEffect(() => {
-    if (!showParents) return
+    if (!showParents && !replyCommentId) return
 
-    focusedCommentRef.current?.scrollIntoView({behavior: 'instant', block: 'start'})
-  }, [showParents, commentId])
+    focusedCommentRef.current?.scrollIntoView({behavior: 'instant', block: replyCommentId ? 'nearest' : 'start'})
+  }, [showParents, commentId, replyCommentId])
 
-  const commentEditorSlot = commentEditor ? (
-    <div className="relative max-h-1/2 py-4">
-      <div
-        className="bg-border absolute w-px"
-        style={{
-          height: isEntirelyHighlighted ? 40 : 56,
-          top: isEntirelyHighlighted ? -16 : -32,
-          left: 26,
-        }}
-      />
-      <div className="px-2 pr-4 pl-3">{commentEditor}</div>
-    </div>
-  ) : null
+  const commentEditorSlot =
+    replyCommentId && !continuation ? (
+      <div className="flex flex-col gap-2 p-4">
+        <SizableText color="muted" size="sm">
+          The reply target could not be loaded.
+        </SizableText>
+        <Button
+          variant="outline"
+          onClick={() => {
+            if (route.key === 'comments') replaceRoute({...route, replyCommentId: undefined})
+            else {
+              const panel = getRoutePanel(route)
+              if (panel?.key === 'comments')
+                replaceRoute({...route, panel: {...panel, replyCommentId: undefined}} as NavRoute)
+            }
+          }}
+        >
+          Reply to the selected discussion
+        </Button>
+      </div>
+    ) : commentEditor ? (
+      <div className="relative max-h-1/2 py-4">
+        <div
+          className="bg-border absolute w-px"
+          style={{
+            height: isEntirelyHighlighted ? 40 : 56,
+            top: isEntirelyHighlighted ? -16 : -32,
+            left: 26,
+          }}
+        />
+        <div className="px-2 pr-4 pl-3">{commentEditor}</div>
+      </div>
+    ) : null
 
   if (!commentId) return null
 
@@ -273,38 +301,37 @@ export function CommentDiscussions({
         </div>
       )}
 
-      {/* Render the focused comment */}
-      {focusedComment && (
-        <div ref={focusedCommentRef} className={cn('p-2')}>
+      {(continuation?.chain ?? (focusedComment ? [focusedComment] : [])).map((comment, index, chain) => (
+        <div key={comment.id} ref={comment.id === highlightedCommentId ? focusedCommentRef : undefined} className="p-2">
           <Comment
-            comment={focusedComment}
-            authorId={focusedComment.author}
-            authorMetadata={commentsService.data?.authors?.[focusedComment.author]?.metadata}
+            comment={comment}
+            authorId={comment.author}
+            authorMetadata={commentsService.data?.authors?.[comment.author]?.metadata}
             targetDomain={targetDomain}
-            isFirst={!(hasParents && showParents)}
-            isLast={true}
-            highlight
-            selection={selection}
+            isFirst={index === 0 && !(hasParents && showParents)}
+            isLast={index === chain.length - 1}
+            highlight={comment.id === highlightedCommentId}
+            selection={comment.id === highlightedCommentId ? selection : undefined}
           />
         </div>
-      )}
-
+      ))}
       {commentEditorSlot}
-
-      {commentGroupReplies.data?.length > 0
-        ? commentGroupReplies.data.map((cg) => {
-            return (
-              <div key={cg.id} className={cn('p-2')}>
-                <CommentGroup
-                  key={cg.id}
-                  commentGroup={cg}
-                  authors={commentsService.data?.authors}
-                  targetDomain={targetDomain}
-                />
-              </div>
-            )
-          })
-        : null}
+      {(
+        continuation?.branches ?? (focusedComment ? [{parent: focusedComment, groups: commentGroupReplies.data}] : [])
+      ).map(({parent, groups}) => (
+        <div key={parent.id}>
+          {replyCommentId && groups.length > 0 && (
+            <SizableText color="muted" size="sm" className="px-4 py-2">
+              Other replies to “{commentToText({comment: parent, lineBreaks: false}).slice(0, 80)}”
+            </SizableText>
+          )}
+          {groups.map((cg) => (
+            <div key={cg.id} className="p-2">
+              <CommentGroup commentGroup={cg} authors={commentsService.data?.authors} targetDomain={targetDomain} />
+            </div>
+          ))}
+        </div>
+      ))}
     </SelectionContent>
   )
 }
@@ -312,10 +339,14 @@ export function CommentDiscussions({
 export const Discussions = memo(function Discussions({
   targetId,
   commentId,
+  submittedRoots = [],
+  onCommentDeleted,
   targetDomain,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
+  submittedRoots?: HMComment[]
+  onCommentDeleted?: (commentId: string) => void
   targetDomain?: string
 }) {
   const discussionsService = useDocumentDiscussions(targetId, commentId)
@@ -331,7 +362,7 @@ export const Discussions = memo(function Discussions({
       })
     }
     if (discussionsService.data?.citingDiscussions) {
-      discussionsService.data.citingDiscussions.forEach((cg) => {
+      discussionsService.data?.citingDiscussions.forEach((cg) => {
         cg.comments.forEach((c) => {
           if (c.author) authors.add(c.author)
         })
@@ -342,14 +373,28 @@ export const Discussions = memo(function Discussions({
 
   useHackyAuthorsSubscriptions(allAuthorIds)
 
+  const acknowledgedRoots = useRef(new Set<string>())
+  useEffect(() => {
+    const listedIds = new Set(
+      discussionsService.data?.discussions.flatMap((group) => group.comments.map((comment) => comment.id)),
+    )
+    for (const root of submittedRoots) {
+      if (listedIds.has(root.id)) acknowledgedRoots.current.add(root.id)
+    }
+  }, [discussionsService.data?.discussions, submittedRoots])
+  const rootGroups = getSubmittedCommentGroups(
+    discussionsService.data?.discussions,
+    submittedRoots,
+    acknowledgedRoots.current,
+  )
   let panelContent = null
-  if (discussionsService.isLoading && !discussionsService.data) {
+  if (!submittedRoots.length && discussionsService.isLoading && !discussionsService.data) {
     panelContent = (
       <div className="flex items-center justify-center">
         <Spinner />
       </div>
     )
-  } else if (discussionsService.error) {
+  } else if (!submittedRoots.length && discussionsService.error) {
     panelContent = (
       <div className="flex flex-col items-center gap-2 p-4">
         <SizableText color="muted" size="sm" className="font-sans">
@@ -357,19 +402,20 @@ export const Discussions = memo(function Discussions({
         </SizableText>
       </div>
     )
-  } else if (discussionsService.data) {
-    const totalCount =
-      (discussionsService.data.discussions?.length ?? 0) + (discussionsService.data.citingDiscussions?.length ?? 0)
+  } else if (discussionsService.data || submittedRoots.length) {
+    const totalCount = rootGroups.length + (discussionsService.data?.citingDiscussions?.length ?? 0)
     panelContent =
       totalCount > 0 ? (
         <>
-          {discussionsService.data.discussions?.map((cg) => {
+          {rootGroups.map((cg) => {
             return (
               <div key={cg.id} className={cn('border-border border-b')}>
                 <LazyCommentGroup>
                   <CommentGroup
                     commentGroup={cg}
-                    authors={discussionsService.data.authors}
+                    highlightedCommentId={submittedRoots.at(-1)?.id}
+                    onCommentDeleted={onCommentDeleted}
+                    authors={discussionsService.data?.authors}
                     enableReplies
                     targetDomain={targetDomain}
                   />
@@ -377,13 +423,13 @@ export const Discussions = memo(function Discussions({
               </div>
             )
           })}
-          {discussionsService.data.citingDiscussions?.map((cg) => {
+          {discussionsService.data?.citingDiscussions?.map((cg) => {
             return (
               <div key={cg.id} className={cn('border-border border-b')}>
                 <LazyCommentGroup>
                   <CommentGroup
                     commentGroup={cg}
-                    authors={discussionsService.data.authors}
+                    authors={discussionsService.data?.authors}
                     enableReplies
                     targetDomain={targetDomain}
                   />
@@ -537,12 +583,16 @@ export const CommentGroup = memo(function CommentGroup({
   authors,
   enableReplies = true,
   highlightLastComment = false,
+  highlightedCommentId,
+  onCommentDeleted,
   targetDomain,
 }: {
   commentGroup: HMCommentGroup | HMExternalCommentGroup
   authors?: HMListDiscussionsOutput['authors']
   enableReplies?: boolean
   highlightLastComment?: boolean
+  highlightedCommentId?: string
+  onCommentDeleted?: (commentId: string) => void
   targetDomain?: string
 }) {
   const lastComment = commentGroup.comments.at(-1)
@@ -573,10 +623,13 @@ export const CommentGroup = memo(function CommentGroup({
             }
             key={comment.id}
             comment={comment}
+            onCommentDeleted={onCommentDeleted}
             authorMetadata={comment.author ? authors?.[comment.author]?.metadata : null}
             authorId={comment.author}
             enableReplies={enableReplies}
-            highlight={highlightLastComment && isLastCommentInGroup}
+            highlight={
+              highlightedCommentId ? comment.id === highlightedCommentId : highlightLastComment && isLastCommentInGroup
+            }
             targetDomain={targetDomain}
           />
         )
@@ -587,6 +640,7 @@ export const CommentGroup = memo(function CommentGroup({
 
 export const Comment = memo(function Comment({
   comment,
+  onCommentDeleted,
   isFirst = true,
   isLast = false,
   authorMetadata,
@@ -600,6 +654,7 @@ export const Comment = memo(function Comment({
   selection,
 }: {
   comment: HMComment
+  onCommentDeleted?: (commentId: string) => void
   isFirst?: boolean
   isLast?: boolean
   authorMetadata?: HMMetadata | null
@@ -701,11 +756,20 @@ export const Comment = memo(function Comment({
               {comment, signingAccountId: comment.author},
               {
                 onSuccess: () => {
+                  onCommentDeleted?.(comment.id)
                   if (!isFocusedComment) return
                   if (currentRoute.key === 'comments' && currentRoute.openComment) {
-                    navigate({...currentRoute, openComment: undefined, openCommentVersion: undefined})
+                    navigate({
+                      ...currentRoute,
+                      openComment: undefined,
+                      openCommentVersion: undefined,
+                      replyCommentId: undefined,
+                    })
                   } else if ('panel' in currentRoute && routePanel?.key === 'comments' && routePanel.openComment) {
-                    navigate({...currentRoute, panel: {...routePanel, openComment: undefined}} as NavRoute)
+                    navigate({
+                      ...currentRoute,
+                      panel: {...routePanel, openComment: undefined, replyCommentId: undefined},
+                    } as NavRoute)
                   }
                 },
               },

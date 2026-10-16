@@ -158,4 +158,12 @@ describe('comment permalink route loading', () => {
       commentVersion: null,
     })
   })
+  it.each([
+    ['hm/doc-account/docs/:comments/author/root', '?reply=author%2Freply'],
+    ['hm/doc-account/docs', '?panel=comments%2Fauthor%2Froot&reply=author%2Freply'],
+  ])('loads the continuation target for %s', async (path, search) => {
+    await loader({params: {'*': path}, request: new Request(`https://seed.example/${path}${search}`)})
+    const [, , extraData] = mocks.loadSiteResource.mock.calls[0]!
+    expect(extraData.replyCommentId).toBe('author/reply')
+  })
 })

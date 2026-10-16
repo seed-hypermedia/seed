@@ -87,7 +87,15 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
   }
 
   if (routeKey || panelParam || commentId || accountUid) {
-    const route = createDocumentNavRoute(id, routeKey, effectivePanelParam, commentId, accountUid, commentVersion)
+    const route = createDocumentNavRoute(
+      id,
+      routeKey,
+      effectivePanelParam,
+      commentId,
+      accountUid,
+      commentVersion,
+      query?.reply,
+    )
     if (route.key === 'activity' && activityFilter) {
       return {
         ...route,

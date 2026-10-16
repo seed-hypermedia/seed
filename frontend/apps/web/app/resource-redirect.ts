@@ -4,6 +4,7 @@ import {createDocumentNavRoute, createWebHMUrl, routeToUrl, ViewRouteKey} from '
 export type RedirectRouteContext = {
   viewTerm?: ViewRouteKey | null
   panelParam?: string | null
+  replyCommentId?: string | null
   openComment?: string | null
   accountUid?: string | null
 }
@@ -24,6 +25,8 @@ export function createResourceRedirectUrl(
     routeContext.panelParam,
     routeContext.openComment,
     routeContext.accountUid,
+    undefined,
+    routeContext.replyCommentId,
   )
   return (
     routeToUrl(route, {hostname: null, originHomeId}) ??
