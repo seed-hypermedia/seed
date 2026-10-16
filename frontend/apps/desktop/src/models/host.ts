@@ -1,6 +1,6 @@
 import type {PendingSiteMove} from '@/app-host'
 import {grpcClient} from '@/grpc-client'
-import {logoutHosting} from './host-session'
+import {expireHostingSession, logoutHosting} from './host-session'
 import {client} from '@/trpc'
 import * as base64 from '@seed-hypermedia/client/base64'
 import {invalidateQueries} from '@shm/shared'
@@ -112,6 +112,7 @@ export type HostedSite = z.infer<typeof HostedSiteSchema>
 
 // END MANUAL SYNC WITH SEED REPO
 
+/** Manages hosting authentication and authenticated site operations. */
 export function useHostSession({
   onAuthenticated,
   includeSites = false,
@@ -142,8 +143,13 @@ export function useHostSession({
       body: body ? JSON.stringify(body) : undefined,
     })
     if (!res.ok) {
-      const respJson = await res.json()
-      throw Object.assign(new Error(respJson.message), {status: res.status})
+      const respJson = await res.json().catch(() => null)
+      if (res.status === 401 && hostState?.sessionToken && !path.startsWith('auth/')) {
+        await expireHostingSession(hostState.sessionToken)
+      }
+      throw Object.assign(new Error(respJson?.message || respJson?.error || `Hosting request failed (${res.status})`), {
+        status: res.status,
+      })
     }
     const respJson = await res.json()
     return respJson
