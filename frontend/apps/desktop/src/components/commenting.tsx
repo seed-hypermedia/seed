@@ -10,6 +10,7 @@ import {commentRecordIdFromBlob, createComment} from '@seed-hypermedia/client'
 import {
   HMBlockNode,
   HMCommentGroup,
+  HMComment,
   HMListDiscussionsOutput,
   HMMetadataPayload,
   HMPublishBlobsInput,
@@ -27,7 +28,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useUniversalClient} from '@shm/shared/routing'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavRoute, useNavigation} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Button} from '@shm/ui/button'
 import {toast} from '@shm/ui/toast'
@@ -67,6 +68,7 @@ function CommentBoxImpl(props: {
   replyCommentVersion?: string
   /** CID version of the thread root comment, passed from the route. */
   rootReplyCommentVersion?: string
+  onCommentSubmitted?: (comment: HMComment) => void
 }) {
   const {docId, quotingBlockId, quotingRange, commentId, isReplying, focusOnMount, context} = props
   const quoting = useMemo(
@@ -81,6 +83,7 @@ function CommentBoxImpl(props: {
   const universalClient = useUniversalClient()
   const {getSigner, publish} = universalClient
   const route = useNavRoute()
+  const navigation = useNavigation(undefined)
   const navigate = useNavigate('replace')
   const accountIntent = useDesktopAccountIntent()
   const subscribeContact = useContactSubscribeIntent()
@@ -213,23 +216,27 @@ function CommentBoxImpl(props: {
         visibility: targetDoc?.visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
       })
 
-      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
-      navigateToComment(navigate, route, optimisticComment.id)
+      const rollback = applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
+      return {optimisticComment, rollback}
     },
-    onError: (err: {message: string}) => {
-      // Keep the optimistic comment visible — the publish can be retried later.
-      // Do NOT roll back cache or navigation; do NOT invalidate queries (would fail offline).
+    onError: (err: {message: string}, _variables, context) => {
+      context?.rollback()
       setIsSubmitting(false)
-      console.warn('Comment publish failed, keeping optimistic comment:', err.message)
+      console.warn('Comment publish failed; draft retained:', err.message)
       reportError(err, {
         feature: 'comment',
         operation: 'publish',
         docId: docId.id,
       })
     },
-    onSuccess: () => {
+    onSuccess: (response, _variables, context) => {
+      const comment = {...context!.optimisticComment, version: response.cids[0]!}
+      applyOptimisticComment(queryClient, docId, comment, undefined, quoting)
+      props.onCommentSubmitted?.(comment)
       setIsSubmitting(false)
       isDeletingDraft.current = true
+      pendingBlocksRef.current = null
+      latestBlocksRef.current = null
       clearTimeout(saveTimeoutRef.current)
 
       removeDraft.mutate()
@@ -247,6 +254,12 @@ function CommentBoxImpl(props: {
       invalidateQueries([queryKeys.ACTIVITY_FEED])
 
       pushAfterAction({id: docId, trigger: 'publish'})
+      navigateToComment(
+        navigate,
+        route,
+        comment.id,
+        navigation.state.get().routes[navigation.state.get().routeIndex] ?? route,
+      )
     },
   })
 
@@ -340,13 +353,35 @@ function CommentBoxImpl(props: {
         const commentBlobData = commentPayload.blobs[0]?.data
         if (!commentBlobData) throw new Error('No comment blob data')
         const recordId = await commentRecordIdFromBlob(commentBlobData)
-        await publish(commentPayload)
+        const response = await publish(commentPayload)
+        if (!response.cids[0]) throw new Error('Failed to publish comment blob')
+        const comment = await buildOptimisticComment({
+          commentPayload,
+          authorUid: accountUid,
+          docId,
+          docVersion: targetDoc?.version || docId.version || '',
+          contentBlocks,
+          replyParentId: commentId,
+          threadRootVersion: finalRootVersion,
+          quoting,
+          visibility: targetDoc?.visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
+        })
+        comment.version = response.cids[0]
+        applyOptimisticComment(queryClient, docId, comment, undefined, quoting)
+        pendingBlocksRef.current = null
+        latestBlocksRef.current = null
+        props.onCommentSubmitted?.(comment)
         removeDraft.mutate()
         invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
         invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
         invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
-        navigateToComment(navigate, route, recordId)
+        navigateToComment(
+          navigate,
+          route,
+          recordId,
+          navigation.state.get().routes[navigation.state.get().routeIndex] ?? route,
+        )
         pushAfterAction({id: docId, trigger: 'publish'})
         reset()
         toast.success(joinedSite ? 'Joined space and posted comment' : 'Comment posted')
@@ -362,8 +397,11 @@ function CommentBoxImpl(props: {
       docId,
       finalReplyVersion,
       finalRootVersion,
+      commentId,
+      props.onCommentSubmitted,
       getSigner,
       navigate,
+      navigation,
       publish,
       pushAfterAction,
       quoting,

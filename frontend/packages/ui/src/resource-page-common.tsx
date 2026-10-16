@@ -830,6 +830,8 @@ function getActiveView(routeKey: string): ActiveView {
 }
 
 export interface CommentEditorProps {
+  /** Called after the comment is published successfully. */
+  onCommentSubmitted?: (comment: HMComment) => void
   docId: UnpackedHypermediaId
   quotingBlockId?: string
   /** Codepoint range within the quoted block. Absent ⇒ whole-block quote. */
@@ -2106,6 +2108,7 @@ function DocumentBody({
     route.key === 'comments'
       ? {
           openComment: route.openComment,
+          replyCommentId: route.replyCommentId,
           targetBlockId: route.targetBlockId,
           blockId: route.blockId,
           blockRange: route.blockRange,
@@ -3100,6 +3103,7 @@ function DocumentBody({
               contentMaxWidth={contentMaxWidth}
               targetDomain={siteUrl}
               openComment={commentsPanelTarget.openComment}
+              replyCommentId={panelRoute?.key === 'comments' ? panelRoute.replyCommentId : undefined}
               targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
               blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
               blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
@@ -3433,6 +3437,7 @@ function CommentsPanelContent({
         contentMaxWidth={contentMaxWidth}
         targetDomain={targetDomain}
         openComment={openComment}
+        replyCommentId={panelRoute.replyCommentId}
         targetBlockId={panelRoute.targetBlockId}
         blockId={panelRoute.blockId}
         blockRange={panelRoute.blockRange}
@@ -4338,6 +4343,7 @@ function MainContent({
   showCollapsed: boolean
   discussionsParams?: {
     openComment?: string
+    replyCommentId?: string
     targetBlockId?: string
     blockId?: string
     blockRange?: import('@seed-hypermedia/client/hm-types').BlockRange | null
@@ -4521,6 +4527,7 @@ function MainContent({
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
           openComment={discussionsParams?.openComment}
+          replyCommentId={discussionsParams?.replyCommentId}
           targetBlockId={discussionsParams?.targetBlockId}
           blockId={discussionsParams?.blockId}
           blockRange={discussionsParams?.blockRange}

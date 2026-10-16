@@ -84,6 +84,9 @@ export function getRouteKey(route: NavRoute): string {
 const NavContext = createContext<null | NavigationContext>(null)
 
 export function navStateReducer(state: NavState, action: NavAction): NavState {
+  if ('route' in action && action.route.key === 'comments' && action.route.panel?.key === 'comments') {
+    action = {...action, route: {...action.route, panel: null}}
+  }
   switch (action.type) {
     case 'push':
       return {

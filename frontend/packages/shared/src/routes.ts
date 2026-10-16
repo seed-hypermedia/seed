@@ -92,6 +92,8 @@ const commentsPanelSchema = z.object({
   key: z.literal('comments'),
   id: unpackedHmIdSchema.optional(),
   openComment: z.string().optional(),
+  /** Last comment in the active reply chain. */
+  replyCommentId: z.string().optional(),
 })
 
 const collaboratorsPanelSchema = z.object({
@@ -218,6 +220,8 @@ export const commentsRouteSchema = z.object({
   id: unpackedHmIdSchema,
   width: z.number().optional(),
   openComment: z.string().optional(),
+  /** Last comment in the active reply chain. */
+  replyCommentId: z.string().optional(),
   /** Version CID of the opened comment to view (an old version from its edit history). */
   openCommentVersion: z.string().optional(),
   targetBlockId: z.string().optional(),
@@ -545,7 +549,7 @@ export function getRoutePanel(route: NavRoute): NavRoute | null {
   }
   if (!panel) return null
   // Ensure panel has id from parent route if not set
-  if (routeId && 'id' in panel && !panel.id) {
+  if (routeId && panel.key !== 'options' && !panel.id) {
     return {...panel, id: routeId} as NavRoute
   }
   return panel as NavRoute
@@ -676,12 +680,17 @@ export function createDocumentNavRoute(
   openComment?: string | null,
   accountUid?: string | null,
   openCommentVersion?: string | null,
+  replyCommentId?: string | null,
 ): NavRoute {
   // Create properly typed panel route if panelParam provided.
   // Cast needed: each route schema has a narrow panel union (excluding itself),
   // but createPanelRoute returns the broader DocumentPanelRoute.
   // Same pattern used in document-tools.tsx panelFor().
-  const panel = (panelParam ? createPanelRoute(panelParam, docId) : null) as any
+  let panel = (panelParam ? createPanelRoute(panelParam, docId) : null) as any
+  if (viewTerm === 'comments' && panel?.key === 'comments') panel = null
+  if (panel?.key === 'comments' && panel.openComment && replyCommentId) {
+    panel = {...panel, replyCommentId}
+  }
 
   if (isSiteProfileTab(viewTerm)) {
     return {key: 'site-profile', id: docId, accountUid: accountUid || undefined, tab: viewTerm as SiteProfileTab}
@@ -703,14 +712,16 @@ export function createDocumentNavRoute(
       return {key: 'activity', id: docId, filterEventType, panel}
     }
     case 'comments':
-      // /:comments?panel=comments/COMMENT_ID → comments main + comments right panel
-      if (panelParam?.startsWith('comments/') || panelParam?.startsWith('comment/')) {
-        const commentsPanel = panel && panel.key === 'comments' ? panel : null
-        return {key: 'comments', id: docId, panel: commentsPanel}
-      }
       // /:comments/UID/TSID → comments main with openComment
       if (openComment) {
-        return {key: 'comments', id: docId, openComment, openCommentVersion: openCommentVersion || undefined, panel}
+        return {
+          key: 'comments',
+          id: docId,
+          openComment,
+          openCommentVersion: openCommentVersion || undefined,
+          ...(replyCommentId ? {replyCommentId} : {}),
+          panel,
+        }
       }
       // Preserve non-comments panel (e.g. activity, collaborators)
       return {key: 'comments', id: docId, panel}

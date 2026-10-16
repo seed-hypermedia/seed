@@ -33,6 +33,7 @@ export function shouldRevalidate({
 type ExtendedSitePayload = SiteDocumentPayload & {
   viewTerm?: ViewRouteKey | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
+  replyCommentId?: string | null
   openComment?: string | null
 }
 
@@ -61,7 +62,15 @@ export default function IndexPage() {
       originHomeId={data.originHomeId}
       siteHost={data.siteHost}
       dehydratedState={data.dehydratedState}
-      initialRoute={createDocumentNavRoute(data.id, data.viewTerm, data.panelParam, data.openComment)}
+      initialRoute={createDocumentNavRoute(
+        data.id,
+        data.viewTerm,
+        data.panelParam,
+        data.openComment,
+        undefined,
+        undefined,
+        data.replyCommentId,
+      )}
     >
       <InnerResourcePage docId={data.id} ssrContentHTML={data.ssrContentHTML} />
     </WebSiteProvider>

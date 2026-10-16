@@ -200,12 +200,12 @@ describe('createDocumentNavRoute', () => {
       })
     })
 
-    test('comments viewTerm + comments panel → comments main + right panel', () => {
+    test('comments viewTerm + comments panel → comments main only', () => {
       const route = createDocumentNavRoute(testDocId, 'comments', 'comments/uid123/tsid456')
       expect(route).toEqual({
         key: 'comments',
         id: testDocId,
-        panel: {key: 'comments', id: testDocId, openComment: 'uid123/tsid456'},
+        panel: null,
       })
     })
 

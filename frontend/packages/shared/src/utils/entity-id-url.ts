@@ -582,7 +582,7 @@ export function getRoutePanelParam(route: NavRoute): string | null {
     panel = route.panel
   }
 
-  if (!panel) return null
+  if (!panel || (route.key === 'comments' && panel.key === 'comments')) return null
 
   // Priority 1: Encode openComment - most specific
   if (panel.key === 'comments' && panel.openComment) {
@@ -640,6 +640,7 @@ export function routeToUrl(
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
     })
     return url
   }
@@ -677,6 +678,7 @@ export function routeToUrl(
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,
       panel: effectivePanelParam,
+      reply: getRouteReplyCommentId(route),
     })
   }
   if (route.key === 'schema' && route.id) {
@@ -720,6 +722,15 @@ export function routeToUrl(
   return null
 }
 
+/** Gets the continuation target from the single active Comments view. */
+function getRouteReplyCommentId(route: NavRoute): string | undefined {
+  if (route.key === 'comments') return route.openComment ? route.replyCommentId : undefined
+  if ('panel' in route && route.panel?.key === 'comments' && route.panel.openComment) {
+    return route.panel.replyCommentId
+  }
+  return undefined
+}
+
 /**
  * Serializes an application route into an hm:// URL.
  */
@@ -745,6 +756,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
       version: route.id.version,
       latest: route.id.latest,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
     })
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -781,6 +793,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
     url += getHMQueryString({
       ...versionQuery,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
     })
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -859,6 +872,7 @@ export function createWebHMUrl(
     originHomeId,
     viewTerm,
     panel,
+    reply,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
@@ -869,6 +883,7 @@ export function createWebHMUrl(
     originHomeId?: UnpackedHypermediaId
     viewTerm?: string | null
     panel?: string | null
+    reply?: string | null
   } = {},
 ) {
   let webPath = `/hm/${uid}`
@@ -888,6 +903,7 @@ export function createWebHMUrl(
     latest: latest ?? null,
     version: latest ? undefined : version,
     panel,
+    reply,
   })
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -899,10 +915,12 @@ function getHMQueryString({
   version,
   latest,
   panel,
+  reply,
 }: {
   version?: string | null
   latest?: boolean | null
   panel?: string | null
+  reply?: string | null
 }) {
   const query: Record<string, string | null> = {}
   if (version) {
@@ -914,6 +932,7 @@ function getHMQueryString({
   if (panel) {
     query.panel = panel
   }
+  if (reply) query.reply = reply
   return serializeQueryString(query)
 }
 

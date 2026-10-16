@@ -1,8 +1,9 @@
-import {commentRecordIdFromBlob, createComment, createContact, updateContact} from '@seed-hypermedia/client'
-import type {HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {createComment, createContact, updateContact} from '@seed-hypermedia/client'
+import type {HMComment, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared'
-import {invalidateQueries} from '@shm/shared/models/query-client'
+import {invalidateQueries, getQueryClient} from '@shm/shared/models/query-client'
 import type {NavRoute} from '@shm/shared/routes'
+import {applyOptimisticComment, buildOptimisticComment, getCommentSubmissionRoute} from '@shm/shared/optimistic-comment'
 import {hmId, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {toast} from '@shm/ui/toast'
 import {getCurrentAccountUidWithDelegation, getCurrentSigner} from './auth'
@@ -15,7 +16,7 @@ export type PendingIntentResult =
   | {type: 'none'}
   | {type: 'join'; joinStatus: JoinSiteResult}
   | {type: 'follow'}
-  | {type: 'comment'; commentUrl: string}
+  | {type: 'comment'; commentUrl: string; comment: HMComment}
   | {type: 'publish-draft'; spaceUrl: string}
   | {type: 'publish-draft-failed'; retryUrl: string}
   | {type: 'publish-draft-existing-space'; spaceUrl: string; draftId: string}
@@ -270,11 +271,23 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
         signer,
       )
 
-      const commentBlobData = commentPayload.blobs[0]?.data
-      if (!commentBlobData) throw new Error('No comment blob data')
-      const recordId = await commentRecordIdFromBlob(commentBlobData)
-
-      await webUniversalClient.publish(commentPayload)
+      const accountUid = await getCurrentAccountUidWithDelegation()
+      if (!accountUid) throw new Error('No account available to publish comment')
+      const comment = await buildOptimisticComment({
+        commentPayload,
+        authorUid: accountUid,
+        docId,
+        docVersion: intent.docVersion,
+        contentBlocks: content,
+        replyParentId: intent.replyCommentId,
+        threadRootVersion: intent.rootReplyCommentVersion,
+        quoting: intent.quotingBlockId ? {blockId: intent.quotingBlockId, range: intent.quotingRange} : undefined,
+      })
+      const response = await webUniversalClient.publish(commentPayload)
+      const version = response.cids[0]
+      if (!version) throw new Error('Published comment has no version')
+      comment.version = version
+      applyOptimisticComment(getQueryClient(), docId, comment)
 
       invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
@@ -284,23 +297,23 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
 
-      clearCommentDraft(docId.id, intent.replyCommentId, intent.quotingBlockId, intent.quotingRange)
-      await clearPendingIntent()
-
-      const commentRoute: NavRoute = {
+      const originalRoute: NavRoute = intent.commentRoute || {
         key: 'comments',
         id: docId,
-        openComment: recordId,
+        openComment: intent.replyCommentId,
       }
+      const commentRoute = getCommentSubmissionRoute(originalRoute, comment.id) || originalRoute
       const commentUrl = routeToUrl(commentRoute, {hostname: null, originHomeId})
       if (!commentUrl) {
         throw new Error('Failed to build comment URL')
       }
+      clearCommentDraft(docId.id, intent.replyCommentId, intent.quotingBlockId, intent.quotingRange)
+      await clearPendingIntent()
+
       console.log('[processPendingIntent] END. commentRoute:', commentRoute)
-      return {type: 'comment', commentUrl}
+      return {type: 'comment', commentUrl, comment}
     } catch (e) {
       console.error('Failed to process pending comment intent:', e)
-      await clearPendingIntent()
       return {type: 'none'}
     }
   }

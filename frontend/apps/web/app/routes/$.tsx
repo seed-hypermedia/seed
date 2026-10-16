@@ -68,6 +68,7 @@ type ExtendedSitePayload = SiteDocumentPayload & {
   exploreQ?: string | null
   exploreSort?: 'relevance' | 'recently_updated' | 'newest' | 'oldest' | 'title' | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
+  replyCommentId?: string | null
   openComment?: string | null
   commentVersion?: string | null
   accountUid?: string | null
@@ -314,6 +315,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === '' || !version
   const panelParam = url.searchParams.get('panel')
+  const replyCommentId = url.searchParams.get('reply')
   const inspectTab = url.searchParams.get('tab')
   const exploreQ = url.searchParams.get('q')
   const rawExploreSort = url.searchParams.get('sort')
@@ -482,6 +484,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     exploreQ,
     exploreSort,
     panelParam: effectivePanelParam,
+    replyCommentId,
     openComment,
     commentVersion: isCommentPermalink ? version : null,
     accountUid,
@@ -577,6 +580,7 @@ export default function UnifiedDocumentPage() {
     siteData.openComment,
     siteData.accountUid,
     siteData.commentVersion,
+    siteData.replyCommentId,
   )
   const initialRouteWithExploreParams =
     initialRoute.key === 'explore'

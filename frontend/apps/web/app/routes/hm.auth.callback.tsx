@@ -176,7 +176,10 @@ export default function AuthCallbackRoute() {
         if (successVariant) nextUrl.searchParams.set('vault_success', successVariant)
         if (existingSpaceUrl) nextUrl.searchParams.set('vault_space_url', existingSpaceUrl)
         if (existingSpaceDraftId) nextUrl.searchParams.set('vault_draft_id', existingSpaceDraftId)
-        navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {replace: true})
+        navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {
+          replace: true,
+          state: intentResult.type === 'comment' ? {submittedComment: intentResult.comment} : undefined,
+        })
       } catch (err) {
         await saveWebDomainReturn()
         const message = err instanceof Error ? err.message : String(err)
