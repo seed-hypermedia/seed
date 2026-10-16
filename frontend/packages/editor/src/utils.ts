@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {HMBlockChildrenTypeSchema} from '@seed-hypermedia/client/hm-types'
@@ -288,7 +289,7 @@ export async function handleDragMedia(
   formData.append('file', file)
 
   try {
-    const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+    const response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
       method: 'POST',
       body: formData,
     })

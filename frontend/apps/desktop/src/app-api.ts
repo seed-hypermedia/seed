@@ -1,4 +1,7 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {parseDeepLink} from '@/utils/deep-links'
+import {getPageWebContents} from './app-web-browser'
+import {setupBrowserSessionPolicy} from './browser-session-policy'
 import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL, OS_PROTOCOL_SCHEME} from '@shm/shared/constants'
@@ -110,7 +113,7 @@ ipcMain.on('close_window', (_event, _info) => {
 ipcMain.on('find_in_page_query', (_event, info: {query: string; findNext?: boolean; forward?: boolean}) => {
   const focusedWindow = getFocusedWindow()
   if (!focusedWindow || focusedWindow.webContents.isDestroyed()) return
-  focusedWindow.webContents.findInPage(info.query, {
+  getPageWebContents(focusedWindow).findInPage(info.query, {
     findNext: info.findNext,
     forward: info.forward,
   })
@@ -389,6 +392,9 @@ export const router = t.router({
       }),
     )
     .mutation(async ({input: {webUrl}}) => {
+      // The imported page is untrusted web content: it renders in the web pane's partition with the
+      // same isolation and policies, never in the app's own session.
+      setupBrowserSessionPolicy()
       const webView = new BrowserWindow({
         show: false,
         width: 1200,
@@ -396,6 +402,10 @@ export const router = t.router({
         webPreferences: {
           offscreen: true,
           spellcheck: true,
+          partition: 'persist:seed-web-browser',
+          contextIsolation: true,
+          sandbox: true,
+          nodeIntegration: false,
         },
         icon: process.env.CI
           ? path.resolve(__dirname, '../assets/icons-prod/icon.png')
@@ -449,7 +459,7 @@ export const router = t.router({
     let daemonVersion = null
     const errors = []
     try {
-      const daemonVersionReq = await fetch(buildInfoUrl)
+      const daemonVersionReq = await daemonFetch(buildInfoUrl)
       daemonVersion = await daemonVersionReq.text()
     } catch (error: unknown) {
       const e = error as Error

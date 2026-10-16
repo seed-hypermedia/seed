@@ -8,6 +8,8 @@ import {UpdateAsset, UpdateInfo, UpdateStatus} from './types/updater-types'
 import {shutdownDaemonForUpdate} from './daemon'
 import {stopApiServer} from './app-http-server'
 import {stopLocalServer} from './local-server'
+import {updateChromiumPolicy} from './app-experiments'
+import {DEV_UPDATE_PUBLIC_KEY, PROD_UPDATE_PUBLIC_KEY, verifyUpdateAsset, verifyUpdateManifest} from './update-manifest'
 
 export const checkForUpdates = customAutoUpdates
 
@@ -143,13 +145,13 @@ export class AutoUpdater {
         const asset = this.getAssetForCurrentPlatform(this.currentUpdateInfo)
         if (process.platform === 'darwin') {
           if (asset?.zip_url) {
-            this.downloadAndInstall(asset.zip_url)
+            this.downloadAndInstall(asset.zip_url, asset.zip_sha256)
           } else {
             log.error('[AUTO-UPDATE] No compatible update found for download')
           }
         } else {
           if (asset?.download_url) {
-            this.downloadAndInstall(asset.download_url)
+            this.downloadAndInstall(asset.download_url, asset.sha256)
           } else {
             log.error('[AUTO-UPDATE] No compatible update found for download')
           }
@@ -229,7 +231,12 @@ export class AutoUpdater {
         log.warn(`[AUTO-UPDATE] Unexpected content type: ${contentType}`)
       }
 
-      const updateInfo: UpdateInfo = await response.json()
+      const updateInfo: UpdateInfo = verifyUpdateManifest(
+        await response.json(),
+        IS_PROD_DEV ? DEV_UPDATE_PUBLIC_KEY : PROD_UPDATE_PUBLIC_KEY,
+        (message) => log.warn(message),
+      )
+      updateChromiumPolicy(updateInfo)
       log.info(`[AUTO-UPDATE] Received update info for version: ${updateInfo.name}`)
       log.info(`[AUTO-UPDATE] Current version: ${app.getVersion()}, Latest version: ${updateInfo.name}`)
 
@@ -340,7 +347,7 @@ export class AutoUpdater {
     return null
   }
 
-  private async downloadAndInstall(downloadUrl: string): Promise<void> {
+  private async downloadAndInstall(downloadUrl: string, expectedSha256?: string): Promise<void> {
     log.info(`[AUTO-UPDATE] Starting download from: ${downloadUrl}`)
 
     // Validate download URL
@@ -375,9 +382,10 @@ export class AutoUpdater {
       this.status = {type: 'downloading', progress: 0}
       win.webContents.send('auto-update:status', this.status)
       log.info(`[AUTO-UPDATE] Initiating download for: ${downloadUrl}`)
-      session.defaultSession.downloadURL(downloadUrl)
-
-      session.defaultSession.on('will-download', (_event: any, item: any) => {
+      const onDownload = (_event: Electron.Event, item: Electron.DownloadItem) => {
+        // Bind this hash to this request, not to unrelated browser downloads or later updates.
+        if (item.getURLChain()[0] !== downloadUrl) return
+        session.defaultSession.removeListener('will-download', onDownload)
         log.info(`[AUTO-UPDATE] Download started for file: ${item?.getFilename() || 'unknown'}`)
         // Set download path
         let filePath: string
@@ -436,6 +444,8 @@ export class AutoUpdater {
                 throw new Error('Downloaded file is empty')
               }
 
+              await verifyUpdateAsset(filePath, expectedSha256)
+
               this.status = {type: 'restarting'}
               win.webContents.send('auto-update:status', this.status)
               log.info(`[AUTO-UPDATE] Download successfully saved to ${filePath}`)
@@ -448,6 +458,7 @@ export class AutoUpdater {
                 return
               }
             } catch (verifyError) {
+              await fs.promises.rm(filePath, {force: true}).catch(() => {})
               log.error(`[AUTO-UPDATE] Download verification failed: ${verifyError}`)
               this.status = {
                 type: 'error',
@@ -1033,7 +1044,14 @@ ${packageName}
             win?.webContents.send('auto-update:status', this.status)
           }
         })
-      })
+      }
+      session.defaultSession.on('will-download', onDownload)
+      try {
+        session.defaultSession.downloadURL(downloadUrl)
+      } catch (error) {
+        session.defaultSession.removeListener('will-download', onDownload)
+        throw error
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
       log.error(`[AUTO-UPDATE] Download initiation error: ${errorMessage}`)

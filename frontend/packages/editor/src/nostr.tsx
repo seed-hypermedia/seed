@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {Block, BlockNoteEditor, defaultProps, getBlockInfoFromPos} from '@shm/editor/blocknote'
 import {createReactBlockSpec} from './blocknote/react/ReactBlockSpec'
 import {DAEMON_FILE_UPLOAD_URL, DAEMON_FILE_URL} from '@shm/shared/constants'
@@ -318,7 +319,7 @@ function NostrForm({
 
       const formData = new FormData()
       formData.append('file', blob, event.id)
-      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+      const response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
         method: 'POST',
         body: formData,
       })

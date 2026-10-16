@@ -15,6 +15,8 @@ import packageJson from './package.json'
 // import setLanguages from 'electron-packager-languages'
 import fs from 'node:fs'
 import {signWindowsMakeResults, signWindowsPackagePaths} from './scripts/windows-signing'
+import {flipFuses} from '@electron/fuses'
+import {checkElectronFuses, electronFuses} from './scripts/electron-fuses'
 
 const {version} = packageJson
 const IS_PROD_DEV = version.includes('dev')
@@ -76,9 +78,13 @@ if (hasAgentsBinary) {
  */
 function agentsNestedBinaries(): string[] {
   const platformPkgDir = path.join(agentsDistPath, 'node_modules', '@superradcompany', 'microsandbox-darwin-arm64')
-  return ['bin/msb', 'lib/libkrunfw.5.dylib', 'microsandbox.darwin-arm64.node']
-    .map((rel) => path.join(platformPkgDir, rel))
-    .filter((candidate) => fs.existsSync(candidate))
+  return [
+    ...['bin/msb', 'lib/libkrunfw.5.dylib', 'microsandbox.darwin-arm64.node'].map((rel) =>
+      path.join(platformPkgDir, rel),
+    ),
+    // build-binary.ts copies the binding here for the compiled Bun server's relative loader.
+    path.join(agentsDistPath, 'node_modules', 'microsandbox', 'native', 'microsandbox.darwin-arm64.node'),
+  ].filter((candidate) => fs.existsSync(candidate))
 }
 
 function stagedMacExtraResourceBinaries(buildPath: string): string[] {
@@ -230,7 +236,19 @@ const config: ForgeConfig = {
     appCategoryType: 'public.app-category.productivity',
     // packageManager: 'yarn',
     extraResource: extraResources,
-    afterCopyExtraResources: [signMacExtraResourceBinaries],
+    // Runs after ASAR creation and executable renaming, before macOS/Windows signing.
+    afterCopyExtraResources: [
+      (buildPath, _version, platform, _arch, callback) => {
+        const executable = path.join(
+          buildPath,
+          platform === 'darwin' || platform === 'mas'
+            ? `${macAppName}.app`
+            : `${macAppName}${platform === 'win32' ? '.exe' : ''}`,
+        )
+        flipFuses(executable, {...electronFuses, resetAdHocDarwinSignature: true}).then(() => callback(), callback)
+      },
+      signMacExtraResourceBinaries,
+    ],
     // beforeCopy: [setLanguages(['en', 'en_US'])],
     win32metadata: {
       CompanyName: 'Mintter Inc.',
@@ -348,6 +366,14 @@ const config: ForgeConfig = {
       })
 
       for (const outputPath of options.outputPaths) {
+        await checkElectronFuses(
+          path.join(
+            outputPath,
+            options.platform === 'darwin' || options.platform === 'mas'
+              ? `${macAppName}.app`
+              : `${macAppName}${options.platform === 'win32' ? '.exe' : ''}`,
+          ),
+        )
         console.info(`\nListing contents of: ${outputPath}`)
         const files = fs.readdirSync(outputPath)
         files.forEach((file) => {

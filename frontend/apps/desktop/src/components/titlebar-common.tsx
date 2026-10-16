@@ -13,6 +13,7 @@ import {
   agentUrl,
   isOmnibarRouteUrlShareable,
   resolveOmnibarUrlToRoute,
+  parseBrowserAddress,
   selectValidatedOmnibarSiteUrl,
 } from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
@@ -891,6 +892,7 @@ function useCurrentRouteUrl(): {
   const draftTitle = draft?.metadata?.name
 
   return useMemo(() => {
+    if (route.key === 'web') return {displayUrl: route.url, copyableUrl: route.url}
     if (route.key === 'draft') {
       const hostname = validatedSiteUrl || gwUrl
       if (route.editUid) {
@@ -1148,6 +1150,7 @@ function useOmnibarState(currentUrl: string | null) {
  */
 export function Omnibar() {
   const route = useNavRoute()
+  const {experiments} = useUniversalAppContext()
   const navigate = useNavigate()
   const {displayUrl, copyableUrl} = useCurrentRouteUrl()
   const localAgentServerUrl = useLocalAgentServerUrl()
@@ -1191,9 +1194,13 @@ export function Omnibar() {
         navigate(route)
         return true
       }
+      if (experiments?.webBrowser && /^https?:\/\//.test(url)) {
+        navigate({key: 'web', url})
+        return true
+      }
       return false
     },
-    [navigate],
+    [navigate, experiments?.webBrowser],
   )
 
   // Handle keyboard events
@@ -1202,6 +1209,12 @@ export function Omnibar() {
       if (e.key === 'Escape') {
         blur()
       } else if (e.key === 'Enter') {
+        const webAddress = experiments?.webBrowser ? parseBrowserAddress(inputValue) : null
+        if (webAddress) {
+          e.preventDefault()
+          void handleUrlNavigation(webAddress).then(() => blur())
+          return
+        }
         if (mode === 'focused') {
           e.preventDefault()
           const url = inputValue.trim()
@@ -1235,7 +1248,7 @@ export function Omnibar() {
         searchInputRef.current?.handleArrowDown()
       }
     },
-    [blur, mode, inputValue, handleUrlNavigation],
+    [blur, mode, inputValue, handleUrlNavigation, experiments?.webBrowser],
   )
 
   // Handle click on idle state to focus

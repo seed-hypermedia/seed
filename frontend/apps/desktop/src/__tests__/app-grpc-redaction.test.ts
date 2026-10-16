@@ -2,6 +2,15 @@ import {describe, expect, it, vi} from 'vitest'
 import {loggingInterceptor, markGRPCReady} from '../app-grpc'
 import * as log from '../logger'
 
+// Keep the logging assertion in memory without initializing Electron's user-data directory.
+vi.mock('../logger', () => ({
+  debug: vi.fn(),
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  isQuietNodeLogsEnabled: () => true,
+}))
+
 describe('app-grpc loggingInterceptor', () => {
   it('redacts sensitive daemon payloads in error logs', async () => {
     markGRPCReady()

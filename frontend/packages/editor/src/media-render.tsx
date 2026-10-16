@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {Button} from '@shm/ui/button'
@@ -345,7 +346,7 @@ function MediaForm({
         const formData = new FormData()
         // @ts-ignore
         formData.append('file', files[0])
-        const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+        const response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
           method: 'POST',
           body: formData,
         })

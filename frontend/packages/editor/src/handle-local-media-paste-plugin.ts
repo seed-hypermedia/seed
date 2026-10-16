@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL, IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey} from 'prosemirror-state'
@@ -247,7 +248,7 @@ async function uploadMedia(file: File) {
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+  const response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
     method: 'POST',
     body: formData,
   })
