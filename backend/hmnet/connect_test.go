@@ -2,7 +2,6 @@ package hmnet
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"seed/backend/blob"
 	"seed/backend/config"
@@ -20,7 +19,6 @@ import (
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 )
 
 func TestConnect(t *testing.T) {
@@ -92,6 +90,34 @@ func fakePeerIDs(t *testing.T, n int) []peer.ID {
 func makeTestNode(t *testing.T) *Node {
 	t.Helper()
 
+	n := newTestNode(t)
+
+	errc := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		errc <- n.Start(ctx)
+	}()
+
+	t.Cleanup(func() {
+		require.NoError(t, <-errc)
+	})
+
+	select {
+	case <-n.Ready():
+	case err := <-errc:
+		require.NoError(t, err)
+	}
+
+	t.Cleanup(cancel)
+
+	return n
+}
+
+// newTestNode builds the node makeTestNode starts, without starting it.
+func newTestNode(t *testing.T) *Node {
+	t.Helper()
+
 	u := coretest.NewTester("alice")
 
 	db := storage.MakeTestDB(t)
@@ -109,6 +135,19 @@ func makeTestNode(t *testing.T) *Node {
 	n, err := New(cfg, u.Device, ks, db, idx, zap.NewNop())
 	require.NoError(t, err)
 
+	return n
+}
+
+// TestStartSurvivesStopBeforeServe pins the shutdown race in Start: a context
+// cancelled before the Serve goroutine gets scheduled runs GracefulStop first,
+// and Serve on a stopped server reports ErrServerStopped, which used to come
+// out of Start as an error (TestLndhubDisabled hit it in CI under -race).
+// Stopping the server ahead of Start reproduces that ordering without
+// depending on the scheduler.
+func TestStartSurvivesStopBeforeServe(t *testing.T) {
+	n := newTestNode(t)
+	n.grpc.GracefulStop()
+
 	errc := make(chan error, 1)
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -116,22 +155,14 @@ func makeTestNode(t *testing.T) *Node {
 		errc <- n.Start(ctx)
 	}()
 
-	t.Cleanup(func() {
-		err := <-errc
-		if err != nil && !errors.Is(err, grpc.ErrServerStopped) {
-			t.Fatal(err)
-		}
-	})
-
 	select {
 	case <-n.Ready():
 	case err := <-errc:
 		require.NoError(t, err)
 	}
 
-	t.Cleanup(cancel)
-
-	return n
+	cancel()
+	require.NoError(t, <-errc)
 }
 
 // insertPeers inserts the given peers directly into the peers table with the
