@@ -197,8 +197,16 @@ const LoginSchema = z.object({
 })
 type LoginFields = z.infer<typeof LoginSchema>
 /** Shared email-code login for publishing and managing hosted sites. */
-export function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () => void; onBack: () => void}) {
-  const {startEmailCode, verifyEmailCode} = useHostSession({onAuthenticated})
+export function SeedHostLogin({
+  onAuthenticated,
+  onBack,
+  sessionExpired = false,
+}: {
+  onAuthenticated: () => void
+  onBack: () => void
+  sessionExpired?: boolean
+}) {
+  const {email, startEmailCode, verifyEmailCode} = useHostSession({onAuthenticated})
   const [pending, setPending] = useState<CodeStartResponse | null>(null)
   const [code, setCode] = useState('')
 
@@ -208,6 +216,7 @@ export function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () =>
     formState: {errors},
   } = useForm<LoginFields>({
     resolver: zodResolver(LoginSchema),
+    defaultValues: {email: email || ''},
   })
   async function sendCode(email: string) {
     verifyEmailCode.reset()
@@ -266,7 +275,15 @@ export function SeedHostLogin({onAuthenticated, onBack}: {onAuthenticated: () =>
     )
   }
   return (
-    <PublishStep title="Log in to Seed Hosting" description="We will email you a code to log in." onBack={onBack}>
+    <PublishStep
+      title="Log in to Seed Hosting"
+      description={
+        sessionExpired
+          ? 'Your hosting session is no longer valid. Sign in again to continue publishing.'
+          : 'We will email you a code to log in.'
+      }
+      onBack={onBack}
+    >
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <FormField name="email" label="Email Address" errors={errors}>
           <FormInput disabled={startEmailCode.isLoading} control={control} name="email" placeholder="me@email.com" />
@@ -303,12 +320,16 @@ function SeedHostRegisterSubdomain({
   info,
   onPublished,
   id,
+  subdomain,
+  onSubdomainChange,
 }: {
   onBack: () => void
   onLogout: () => void
   onPublished: (host: string) => void
   id: UnpackedHypermediaId
   info?: HostInfoResponse
+  subdomain: string
+  onSubdomainChange: (subdomain: string) => void
 }) {
   const {loggedIn, email, createSite, logout} = useHostSession({})
   const register = useSiteRegistration(id.uid)
@@ -321,7 +342,7 @@ function SeedHostRegisterSubdomain({
   } = useForm<RegisterSubdomainFields>({
     resolver: zodResolver(RegisterSubdomainSchema),
     defaultValues: {
-      subdomain: '',
+      subdomain,
     },
   })
   useEffect(() => {
@@ -329,6 +350,7 @@ function SeedHostRegisterSubdomain({
   }, [setFocus])
   if (!loggedIn) return null
   function onSubmit({subdomain}: RegisterSubdomainFields) {
+    onSubdomainChange(subdomain)
     createSite
       .mutateAsync({subdomain})
       .then(async ({setupUrl, host}) => {
@@ -340,6 +362,8 @@ function SeedHostRegisterSubdomain({
       .then(({host}) => {
         onPublished(host)
       })
+      // The mutation state renders failures; authentication failures open the login step.
+      .catch(() => {})
   }
   const isSubmitting = register.isLoading || createSite.isLoading
 
@@ -593,6 +617,7 @@ export function SeedHostContent({
 }) {
   const {loggedIn, isSessionLoaded, hostInfo, loginWithVault} = useHostSession({})
   const [host, setHost] = useState<string | null>(null)
+  const [subdomain, setSubdomain] = useState('')
   const [mode, setMode] = useState<
     'intro' | 'vault-login' | 'login' | 'register-subdomain' | 'subdomain-published' | 'register-custom-domain'
   >('intro')
@@ -626,13 +651,25 @@ export function SeedHostContent({
       </PublishStep>
     )
   }
-  if (mode === 'login') {
-    return <SeedHostLogin onAuthenticated={() => setMode('register-subdomain')} onBack={onBack} />
+  const sessionExpired =
+    !loggedIn && (mode === 'register-subdomain' || mode === 'subdomain-published' || mode === 'register-custom-domain')
+  if (mode === 'login' || sessionExpired) {
+    return (
+      <SeedHostLogin
+        sessionExpired={sessionExpired}
+        onAuthenticated={() => {
+          if (mode === 'login') setMode('register-subdomain')
+        }}
+        onBack={onBack}
+      />
+    )
   }
   if (mode === 'register-subdomain' && loggedIn) {
     return (
       <SeedHostRegisterSubdomain
         id={id}
+        subdomain={subdomain}
+        onSubdomainChange={setSubdomain}
         // @ts-expect-error
         info={hostInfo.data}
         onLogout={() => {
