@@ -65,7 +65,7 @@ if (!hasAgentsBinary) {
   )
 }
 
-const extraResources = [daemonBinaryPath]
+const extraResources = [daemonBinaryPath, path.join(devProjectRoot, 'frontend/packages/ui/THIRD_PARTY_NOTICES.md')]
 if (hasAgentsBinary) {
   extraResources.push(agentsDistPath)
 }

@@ -7,8 +7,7 @@ import {cn} from '../utils'
 import {Input} from './input'
 import {Label} from './label'
 import {Textarea} from './textarea'
-
-const MAX_AVATAR_BYTES = 1024 * 1024
+import {AVATAR_IMAGE_POLICY, IMAGE_FILE_ACCEPT} from '../image-processing'
 
 export type AccountProfileFormValues = {
   name: string
@@ -67,8 +66,8 @@ export function AccountProfileForm({
   const cropper = useImageCropper({
     crop: {aspect: 1, cropShape: 'round', maxDimension: 512} satisfies ImageCropConfig,
     onCropped: (file) => {
-      if (file.size >= MAX_AVATAR_BYTES) {
-        setAvatarError('Image must be smaller than 1 MiB')
+      if (file.size > AVATAR_IMAGE_POLICY.maxBytes) {
+        setAvatarError('The processed avatar is too large')
         return
       }
       setAvatarError('')
@@ -79,6 +78,7 @@ export function AccountProfileForm({
 
   // Reset when the initial values change (dialog reopened for a different account).
   useEffect(() => {
+    cropper.clear()
     setName(initialName)
     setDescription(initialDescription)
     setNameError('')
@@ -98,19 +98,13 @@ export function AccountProfileForm({
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
-    if (cropper.pick(file)) return
-    if (file.size >= MAX_AVATAR_BYTES) {
-      setImageFile(undefined)
-      setPreviewUrl(initialImageUrl)
-      setAvatarError('Image must be smaller than 1 MiB')
-      return
-    }
     setAvatarError('')
-    setImageFile(file)
+    cropper.pick(file)
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
+    if (cropper.isOpen) return
     const trimmedName = name.trim()
     if (!trimmedName) {
       setNameError('Name is required')
@@ -147,9 +141,9 @@ export function AccountProfileForm({
               <input
                 id="account-profile-image"
                 type="file"
-                accept="image/*"
+                accept={IMAGE_FILE_ACCEPT}
                 onChange={handleImageChange}
-                disabled={loading}
+                disabled={loading || cropper.isOpen}
                 className="absolute inset-0 cursor-pointer opacity-0"
               />
             </label>
@@ -238,7 +232,7 @@ export function AccountProfileForm({
               Cancel
             </Button>
           ) : null}
-          <Button type="submit" variant="default" loading={loading}>
+          <Button type="submit" variant="default" loading={loading || cropper.isOpen} disabled={cropper.isOpen}>
             {submitLabel}
           </Button>
         </div>

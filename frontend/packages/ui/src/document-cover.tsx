@@ -3,6 +3,7 @@ import {ChangeEvent, useCallback, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Button} from './button'
 import {useImageUrl} from './get-file-url'
+import {IMAGE_FILE_ACCEPT} from './image-processing'
 import {cn} from './utils'
 
 interface DocumentCoverProps {
@@ -152,7 +153,7 @@ export function DocumentCover({cover, className, onRemove, onChangeCover}: Docum
                 <input
                   ref={replacementInputRef}
                   type="file"
-                  accept="image/*"
+                  accept={IMAGE_FILE_ACCEPT}
                   aria-label="Choose replacement cover image"
                   className="sr-only"
                   tabIndex={-1}
