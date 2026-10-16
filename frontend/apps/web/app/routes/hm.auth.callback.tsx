@@ -1,5 +1,4 @@
 import {keyPairStore} from '@/auth'
-import {saveWebDomainReturn, setWebDomainRequest, takeWebDomainReturn} from '@/models/domain-publishing'
 import * as authSession from '@/auth-session'
 import {
   AUTH_STATE_DELEGATION_RETURN_URL,
@@ -9,7 +8,8 @@ import {
   writeLocalKeys,
 } from '@/local-db'
 import {queryAPI} from '@/models'
-import {getSiteMembershipStatus, processPendingIntent} from '@/pending-intent'
+import {saveWebDomainReturn, setWebDomainRequest, takeWebDomainReturn} from '@/models/domain-publishing'
+import {getSiteMembershipStatus, processPendingIntent, type SiteMembershipStatus} from '@/pending-intent'
 import {webUniversalClient} from '@/universal-client'
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
@@ -54,13 +54,18 @@ export default function AuthCallbackRoute() {
         // handleCallback already verified signatures, coherence, and built EncodedBlobs.
 
         let hadExistingAccountAtOrigin = false
-        try {
-          const accountResult = await queryAPI<{type?: string}>(
-            `/api/Account?id=${encodeURIComponent(result.accountPrincipal)}`,
-          )
-          hadExistingAccountAtOrigin = accountResult?.type === 'account'
-        } catch {
-          hadExistingAccountAtOrigin = false
+        queryAPI<{type?: string}>(`/api/Account?id=${encodeURIComponent(result.accountPrincipal)}`)
+          .then((accountResult) => {
+            hadExistingAccountAtOrigin = accountResult?.type === 'account'
+          })
+          .catch(() => {})
+        let membershipStatus = null as SiteMembershipStatus | null
+        if (originHomeId?.uid) {
+          getSiteMembershipStatus(originHomeId.uid, result.accountPrincipal)
+            .then((status) => {
+              membershipStatus = status
+            })
+            .catch(() => {})
         }
 
         // Build the session Signer for creating reverse blobs.
@@ -90,33 +95,21 @@ export default function AuthCallbackRoute() {
           account: result.accountPrincipal,
         })
 
-        // Dual-origin persistence.
-        const uploadPromises: Promise<unknown>[] = []
-
-        // 1. Current origin (must succeed).
-        uploadPromises.push(
-          webUniversalClient.publish({blobs: publishBlobs}).then((res) => {
-            console.log('[auth-callback] Published delegation blobs to current origin', res)
-            return res
-          }),
-        )
-
-        // 2. Identity origin (failure is non-fatal).
+        // Identity origin failure is non-fatal, so it doesn't hold the redirect.
         if (WEB_IDENTITY_ORIGIN && WEB_IDENTITY_ORIGIN !== origin) {
-          uploadPromises.push(
-            createSeedClient(WEB_IDENTITY_ORIGIN)
-              .publish({blobs: publishBlobs})
-              .then((res) => {
-                console.log('[auth-callback] Published delegation blobs to identity origin', res)
-                return res
-              })
-              .catch((e) => {
-                console.warn('Identity origin save failed, continuing anyway', e)
-              }),
-          )
+          createSeedClient(WEB_IDENTITY_ORIGIN)
+            .publish({blobs: publishBlobs})
+            .then((res) => {
+              console.log('[auth-callback] Published delegation blobs to identity origin', res)
+            })
+            .catch((e) => {
+              console.warn('Identity origin save failed, continuing anyway', e)
+            })
         }
 
-        await Promise.all(uploadPromises)
+        // Current origin must succeed before the session counts as secured.
+        const res = await webUniversalClient.publish({blobs: publishBlobs})
+        console.log('[auth-callback] Published delegation blobs to current origin', res)
 
         // Store the session key pair as the active local keys with delegation info.
         await writeLocalKeys(sessionSigner.keyPair, {
@@ -167,11 +160,12 @@ export default function AuthCallbackRoute() {
           existingSpaceDraftId = intentResult.draftId
         } else if (intentResult.type === 'join') {
           successVariant = intentResult.joinStatus === 'joined' ? 'join' : 'welcome-back'
-        } else if (originHomeId?.uid) {
-          const membershipStatus = await getSiteMembershipStatus(originHomeId.uid)
-          successVariant = membershipStatus === 'not-member' && !hadExistingAccountAtOrigin ? 'login' : 'welcome-back'
-        } else if (hadExistingAccountAtOrigin) {
-          successVariant = 'welcome-back'
+        } else {
+          // Read whichever toast lookups have settled. An unknown membership
+          // counts as not a member, which keeps the default login wording.
+          const isReturning =
+            hadExistingAccountAtOrigin || (membershipStatus !== null && membershipStatus !== 'not-member')
+          successVariant = isReturning ? 'welcome-back' : 'login'
         }
 
         const nextUrl = new URL(targetUrl, window.location.origin)

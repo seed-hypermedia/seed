@@ -22,8 +22,9 @@ export type PendingIntentResult =
 
 let pendingIntentProcessingPromise: Promise<PendingIntentResult> | null = null
 
-export async function getSiteMembershipStatus(siteUid: string): Promise<SiteMembershipStatus> {
-  const accountUid = await getCurrentAccountUidWithDelegation()
+/** Whether the account is a member of the site, owns it, or neither. */
+export async function getSiteMembershipStatus(siteUid: string, accountUid?: string): Promise<SiteMembershipStatus> {
+  accountUid ??= (await getCurrentAccountUidWithDelegation()) ?? undefined
   if (!accountUid) {
     throw new Error('No account UID available to check site membership')
   }

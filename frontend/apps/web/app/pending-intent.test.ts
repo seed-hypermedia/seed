@@ -178,4 +178,11 @@ describe('pending-intent', () => {
 
     await expect(getSiteMembershipStatus('account-1')).resolves.toBe('own-site')
   })
+
+  it('checks membership for an explicit account before the session keys are stored', async () => {
+    // The auth callback runs this alongside the delegation publish, before the
+    // local keys exist, so it must not depend on the stored account.
+    mocks.getCurrentAccountUidWithDelegationMock.mockResolvedValue(null)
+    await expect(getSiteMembershipStatus('account-2', 'account-2')).resolves.toBe('own-site')
+  })
 })
