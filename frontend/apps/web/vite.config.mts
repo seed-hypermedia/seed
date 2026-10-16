@@ -36,7 +36,9 @@ export default defineConfig(({isSsrBuild}) => {
     // ssr: {
     //   noExternal: ["react-tweet"],
     // },
-    build: {minify: true, sourcemap: true},
+    // SEED_WEB_NO_MINIFY=1 keeps function names readable in CPU profiles
+    // (scripts/ssr-bench); production builds are always minified.
+    build: {minify: !process.env.SEED_WEB_NO_MINIFY, sourcemap: true},
     ssr: {
       // Bundle all workspace packages and common dependencies for proper SSR with pnpm
       noExternal: [
