@@ -1,10 +1,32 @@
 import * as http from 'http'
 import {handleApiAction, handleApiRequest} from '@shm/shared/api-server'
 import {API_HTTP_PORT, DAEMON_HTTP_URL} from '@shm/shared/constants'
+import * as path from 'path'
+import {userDataPath} from './app-paths'
 import {grpcClient} from './grpc-client'
 import * as logger from './logger'
+import {
+  PLAYGROUND_PAGE_PATH,
+  PlaygroundHandler,
+  createFilePlaygroundStorage,
+  createPlaygroundHandler,
+  isPlaygroundPath,
+} from './playground/api'
 
 let server: http.Server | null = null
+let playground: PlaygroundHandler | null = null
+
+/** The HM26 playground (`/hm/playground`, `/api/playground`) lives on this server. Its world is one JSON file in userData. */
+function getPlayground(): PlaygroundHandler {
+  if (!playground) {
+    playground = createPlaygroundHandler({storage: createFilePlaygroundStorage(path.join(userDataPath, 'playground'))})
+  }
+  return playground
+}
+
+export function playgroundUrl(): string {
+  return `http://localhost:${API_HTTP_PORT}${PLAYGROUND_PAGE_PATH}/`
+}
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -66,6 +88,14 @@ export function startApiServer(): Promise<void> {
       }
 
       const url = new URL(req.url || '/', `http://localhost:${API_HTTP_PORT}`)
+
+      if (isPlaygroundPath(url.pathname)) {
+        const body = req.method === 'POST' ? Buffer.from(await readBody(req)).toString('utf8') : undefined
+        const result = getPlayground().handle({method: req.method || 'GET', pathname: url.pathname, body})
+        res.writeHead(result.status, result.headers)
+        res.end(result.body)
+        return
+      }
 
       if (!url.pathname.startsWith('/api/')) {
         res.writeHead(404, {'Content-Type': 'application/json'})

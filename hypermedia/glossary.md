@@ -168,7 +168,7 @@ Seed Agents has its own vocabulary, defined once in the [Agents glossary](./agen
 - **Seed app.** The Electron desktop app, which runs its own daemon. See [Desktop](./apps/desktop.md). <!-- id:cSXWzIi_ -->
 - **Seed web app.** The server-rendered web app that turns a daemon into a site and serves the Seed API. See [Web](./apps/web.md). <!-- id:ranDOCO7 -->
 - **Extensions (plugins).** A planned plugin system in which a document carries a small app that a site installs. It is being redone and nothing ships today. See [Roadmap](./protocol/roadmap.md). <!-- id:sHvv1RQS -->
-- **HM26.** The working name for a redesign of the blob layout and resource model under discussion in 2026. Nothing of it ships. See [Where this is going](./protocol/roadmap.md). <!-- id:dDtKuX_n -->
+- **HM26.** The working name for a redesign of the blob layout and resource model under discussion in 2026. Nothing of it ships. See [Where this is going](./protocol/roadmap.md), the tentative [HM26 authority model](./protocol/hm26-authority.md), and the [HM26 playground](./apps/playground.md) that simulates it. <!-- id:dDtKuX_n -->
 - **Protocol change.** Any change to permanent data, the sync protocol, capabilities, identity, or any interoperable wire or disk format. It goes through a written proposal and review. See [Contributing](./build/contributing.md). <!-- id:yTSdjbju -->
 - **Repo HM sync.** The round trip between a git folder and a Hypermedia space that publishes this site from the repository. See [Publish a folder](./build/publish-a-folder.md). <!-- id:mkEgUuP2 -->
 

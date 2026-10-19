@@ -22,6 +22,8 @@ The app is four processes. The main process spawns the [daemon](./daemon.md) wit
 
 The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on 56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local agents server and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge refuses cross-site browser requests. <!-- id:0UKp_9Fm -->
 
+The same server serves the [HM26 playground](./playground.md) at `/hm/playground` and its JSON API at `/api/playground`. It is a simulator of the tentative HM26 authority model that runs entirely in the main process and keeps its world in `playground/world.json` under user data.
+
 Two things run once per app in the main process rather than once per window. The sync service, [`src/app-sync.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-sync.ts), keeps a reference-counted list of the resources any window is showing, runs [discovery](../protocol/network.md) for each of them on a loop, polls the daemon's activity feed, and broadcasts React Query invalidations to every window. Its intervals stretch ten times when no window is focused. The notification store described on [Notify](./notify.md) lives there too. Windows also share hover state: pointing at a block or a resource broadcasts `hypermediaHoverIn` over IPC, and every window highlights the elements with the matching `data-blockid` or `data-resourceid`.
 
 # Where it keeps things <!-- id:rXZ_ZjIJ -->
@@ -56,6 +58,8 @@ Two desktop-only surfaces expose the protocol directly. <!-- id:SHBUOTJL -->
 
 A blob you publish this way is stored but is not public until a public change, [comment](../protocol/comments.md) or profile links its CID. See [Files](../protocol/files.md). <!-- id:BEwjBgan -->
 
+A third surface is not about today's data at all. **The HM26 playground**, `/hm/playground` on the API bridge port and **View → HM26 Playground** in the menu, simulates the proposed [HM26 authority model](../protocol/hm26-authority.md) with puzzles and a free-play world, so the rules can be tried before the daemon implements them. See [The HM26 playground](./playground.md).
+
 # Working with it <!-- id:80mk_eOH -->
 
 ## CLI <!-- id:QkjOH_65 -->
@@ -89,6 +93,7 @@ The inbox page reads a local copy of the account's notification state that the m
 <!-- id:PHFBxAlV -->
 - [The daemon](./daemon.md), [The agents service](./agents.md), [The CLI](./cli.md), [The web app](./web.md) <!-- id:IOPgXQO6 -->
 - [Documents](../protocol/documents.md), [Identity](../protocol/identity.md), [Publish a folder](../build/publish-a-folder.md) <!-- id:xg6Cx51h -->
+- [The HM26 playground](./playground.md), [The HM26 authority model](../protocol/hm26-authority.md)
 
 ## Seed Hosting <!-- id:mW_AKbPg -->
 
