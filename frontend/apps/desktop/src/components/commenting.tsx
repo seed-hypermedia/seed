@@ -241,6 +241,7 @@ function CommentBoxImpl(props: {
 
       removeDraft.mutate()
 
+      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION, docId.uid, ...(docId.path || [])])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.DOC_CITATIONS])
@@ -372,6 +373,7 @@ function CommentBoxImpl(props: {
         latestBlocksRef.current = null
         props.onCommentSubmitted?.(comment)
         removeDraft.mutate()
+        invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
         invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
         invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])

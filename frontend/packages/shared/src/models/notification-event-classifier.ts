@@ -75,11 +75,13 @@ export function classifyCommentNotificationForAccount(input: {
   const isSelfAuthored = input.commentAuthorUid === input.subscriptionAccountUid
   if (isSelfAuthored) return null
   if (input.parentCommentAuthorUid === input.subscriptionAccountUid) return 'reply'
+  // Comment bodies are authoritative even if separate mention events arrive later.
+  // Reply precedence remains unchanged.
+  if (input.mentionedAccountUids.has(input.subscriptionAccountUid)) return 'mention'
   const isTargetAuthor = Boolean(input.targetAuthorUids?.includes(input.subscriptionAccountUid))
   if (input.isTopLevelComment && (input.targetAccountUid === input.subscriptionAccountUid || isTargetAuthor)) {
     return 'discussion'
   }
-  if (input.mentionedAccountUids.has(input.subscriptionAccountUid)) return 'mention'
   return null
 }
 
