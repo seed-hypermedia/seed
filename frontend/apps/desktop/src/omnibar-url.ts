@@ -152,6 +152,21 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
 }
 
 /**
+ * The route for an address typed into the omnibar: Hypermedia addresses always, other websites only
+ * while the integrated browser is on, which the caller answers from the main process.
+ */
+export async function resolveOmnibarNavigation(
+  url: string,
+  opts: ResolveOptions & {isWebBrowserEnabled: () => Promise<boolean>},
+): Promise<NavRoute | null> {
+  const {isWebBrowserEnabled, ...resolveOpts} = opts
+  const route = await resolveOmnibarUrlToRoute(url, resolveOpts)
+  if (route) return route
+  if (/^https?:\/\//.test(url) && (await isWebBrowserEnabled())) return {key: 'web', url}
+  return null
+}
+
+/**
  * Resolves a URL using omnibar routing rules and returns the hm:// URL form.
  */
 export async function resolveOmnibarUrlToHypermediaUrl(url: string, opts?: ResolveOptions): Promise<string | null> {

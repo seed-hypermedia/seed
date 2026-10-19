@@ -7,6 +7,7 @@ export type AppWindowEvent =
   | import('../browser-content-blocker').BrowserBlockedCount
   | {type: 'browser-favicons'; browserId: number; url: string; icons: string[]}
   | {type: 'open_web_url'; url: string}
+  | {type: 'experiments_changed'}
   | {type: 'browser-open-url'; browserId: number; url: string}
   | {type: 'browser-title'; browserId: number; title: string}
   | {type: 'browser-loading'; browserId: number; loading: boolean}

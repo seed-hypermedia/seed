@@ -15,6 +15,7 @@ import {
   agentTriggerUrl,
   isOmnibarRouteUrlShareable,
   agentUrl,
+  resolveOmnibarNavigation,
   resolveOmnibarUrlToHypermediaUrl,
   resolveOmnibarUrlToRoute,
   parseBrowserAddress,
@@ -39,6 +40,21 @@ describe('omnibar url resolution', () => {
   })
   beforeEach(() => {
     resolveHypermediaUrlMock.mockReset()
+  })
+
+  it('opens a website from the omnibar only while the integrated browser is on', async () => {
+    resolveHypermediaUrlMock.mockResolvedValue(null)
+    const off = {isWebBrowserEnabled: async () => false}
+    const on = {isWebBrowserEnabled: async () => true}
+    await expect(resolveOmnibarNavigation('https://example.com/page', off)).resolves.toBeNull()
+    await expect(resolveOmnibarNavigation('https://example.com/page', on)).resolves.toEqual({
+      key: 'web',
+      url: 'https://example.com/page',
+    })
+    // A Hypermedia address resolves either way, and a site that resolves to a document is never a web route.
+    await expect(resolveOmnibarNavigation('hm://uid1/docs', off)).resolves.toMatchObject({key: 'document'})
+    resolveHypermediaUrlMock.mockResolvedValue({hmId: unpackHmId('hm://uid1/path'), panel: null})
+    await expect(resolveOmnibarNavigation('https://example.com/path', on)).resolves.toMatchObject({key: 'document'})
   })
 
   it('returns hm urls unchanged when they are already parseable', async () => {

@@ -6,7 +6,7 @@ import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
 import {reportTelemetry, TelemetryStage, telemetryKeyForRoute} from '@/telemetry'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {usePushAfterAction} from '@/models/push-after-action'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -147,7 +147,12 @@ export function NavigationContainer({children}: {children: ReactNode}) {
           return
         }
         if (isHttpUrl(url)) {
-          if (experiments?.webBrowser) {
+          // The main process decides, so the answer is never a stale cache from before a toggle.
+          void readWebBrowserEnabled().then((browserEnabled) => {
+            if (!browserEnabled) {
+              externalOpen(url)
+              return
+            }
             const route: NavRoute = {key: 'web', url}
             if (newWindow) {
               const state = navigation.state.get()
@@ -159,9 +164,7 @@ export function NavigationContainer({children}: {children: ReactNode}) {
             } else {
               navigation.dispatch({type: 'push', route})
             }
-          } else {
-            externalOpen(url)
-          }
+          })
           return
         }
         console.warn(`[openUrl] Failed to resolve route for "${url}"`)

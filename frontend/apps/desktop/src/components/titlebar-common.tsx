@@ -2,7 +2,7 @@ import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
 import {domainResolver} from '@/grpc-client'
 import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
@@ -12,7 +12,7 @@ import {
   agentTriggerUrl,
   agentUrl,
   isOmnibarRouteUrlShareable,
-  resolveOmnibarUrlToRoute,
+  resolveOmnibarNavigation,
   parseBrowserAddress,
   selectValidatedOmnibarSiteUrl,
 } from '@/omnibar-url'
@@ -1189,18 +1189,14 @@ export function Omnibar() {
   // Handle URL navigation - returns true if navigation was synchronous
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
-      const route = await resolveOmnibarUrlToRoute(url, {domainResolver})
+      const route = await resolveOmnibarNavigation(url, {domainResolver, isWebBrowserEnabled: readWebBrowserEnabled})
       if (route) {
         navigate(route)
         return true
       }
-      if (experiments?.webBrowser && /^https?:\/\//.test(url)) {
-        navigate({key: 'web', url})
-        return true
-      }
       return false
     },
-    [navigate, experiments?.webBrowser],
+    [navigate],
   )
 
   // Handle keyboard events
