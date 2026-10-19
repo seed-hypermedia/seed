@@ -2,8 +2,10 @@ import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {FileText, ImagePlus, Plus, Smile} from 'lucide-react'
 import {ChangeEvent, useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY, IMAGE_FILE_ACCEPT, processImage} from './image-processing'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {cn} from './utils'
+import {toast} from './toast'
 
 type MetadataAffordanceKey = 'icon' | 'cover'
 
@@ -89,12 +91,14 @@ export function DocumentMetadataAffordanceButtons({
 
     setUploading(field)
     try {
-      const cid = await fileUpload(file)
+      const imagePolicy = field === 'icon' ? AVATAR_IMAGE_POLICY : COVER_IMAGE_POLICY
+      const cid = await fileUpload(await processImage(file, imagePolicy))
       onBeforeMetadataChange?.()
       onMetadata({[field]: toIpfsUrl(cid)} as Partial<HMMetadata>)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       console.error(`Failed to upload document ${field}: ${message}`, error)
+      toast.error(message)
     } finally {
       setUploading(null)
       event.target.value = ''
@@ -142,7 +146,7 @@ export function DocumentMetadataAffordanceButtons({
           <input
             ref={iconInputRef}
             type="file"
-            accept="image/*"
+            accept={IMAGE_FILE_ACCEPT}
             aria-label="Choose document icon"
             className="sr-only"
             tabIndex={-1}
@@ -153,7 +157,7 @@ export function DocumentMetadataAffordanceButtons({
           <input
             ref={coverInputRef}
             type="file"
-            accept="image/*"
+            accept={IMAGE_FILE_ACCEPT}
             aria-label="Choose document cover image"
             className="sr-only"
             tabIndex={-1}
@@ -203,7 +207,7 @@ export function DocumentMetadataAffordanceButtons({
           <input
             ref={iconInputRef}
             type="file"
-            accept="image/*"
+            accept={IMAGE_FILE_ACCEPT}
             aria-label="Choose document icon"
             className="sr-only"
             tabIndex={-1}
@@ -238,7 +242,7 @@ export function DocumentMetadataAffordanceButtons({
           <input
             ref={coverInputRef}
             type="file"
-            accept="image/*"
+            accept={IMAGE_FILE_ACCEPT}
             aria-label="Choose document cover image"
             className="sr-only"
             tabIndex={-1}

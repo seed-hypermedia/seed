@@ -2,6 +2,7 @@ import {parseEmailPrevalidation, type EmailPrevalidation} from '@shm/shared/hmau
 import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {HMBlockNodeSchema, unpackedHmIdSchema} from '@seed-hypermedia/client/hm-types'
 import {z} from 'zod'
+import {navRouteSchema, type NavRoute} from '@shm/shared/routes'
 
 function upgradeStore(db: IDBDatabase, storeName: string, options?: IDBObjectStoreParameters): IDBObjectStore | null {
   if (db.objectStoreNames.contains(storeName)) {
@@ -362,6 +363,8 @@ export async function clearAllAuthState(): Promise<void> {
 
 export interface PendingCommentIntent {
   type: 'comment'
+  /** Discussion location to restore after authentication and publication. */
+  commentRoute?: NavRoute
   docId: UnpackedHypermediaId
   docVersion: string
   content: HMBlockNode[]
@@ -393,6 +396,7 @@ export type PendingIntent = PendingCommentIntent | PendingJoinIntent | PendingFo
 // Zod schemas for validating stored intent data
 const PendingCommentIntentSchema = z.object({
   type: z.literal('comment'),
+  commentRoute: navRouteSchema.optional(),
   docId: unpackedHmIdSchema,
   docVersion: z.string(),
   content: z.array(HMBlockNodeSchema),

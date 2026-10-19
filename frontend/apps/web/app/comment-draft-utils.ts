@@ -66,6 +66,21 @@ export function useCommentDraftPersistence(
   const [draft, setDraftState] = useState<CommentDraft | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const saveTimeoutRef = useRef<NodeJS.Timeout>()
+  const pendingSaveRef = useRef<{key: string; draft: CommentDraft} | null>(null)
+  const activeDraftKeyRef = useRef<string | null>(draftKey)
+
+  const flushPendingSave = () => {
+    clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = undefined
+    const pending = pendingSaveRef.current
+    pendingSaveRef.current = null
+    if (!pending) return
+    try {
+      localStorage.setItem(pending.key, JSON.stringify(pending.draft))
+    } catch (error) {
+      console.error('Failed to save comment draft:', error)
+    }
+  }
 
   // Load draft on mount
   useEffect(() => {
@@ -93,6 +108,8 @@ export function useCommentDraftPersistence(
       clearTimeout(saveTimeoutRef.current)
     }
 
+    pendingSaveRef.current = null
+
     // Check if content is empty
     const hasContent = blocks.some(hasBlockContent)
 
@@ -106,28 +123,23 @@ export function useCommentDraftPersistence(
       return
     }
 
-    // Debounce the save
-    saveTimeoutRef.current = setTimeout(() => {
-      try {
-        const draft: CommentDraft = {
-          blocks,
-          timestamp: Date.now(),
-        }
-        // Save mediaRefs in a map because they get stripped by Zod schema
-        if (mediaRefs && Object.keys(mediaRefs).length > 0) {
-          draft.mediaRefs = mediaRefs
-        }
-        localStorage.setItem(draftKey, JSON.stringify(draft))
-        // Updating state here caused unnecessary rerenders that caused cursor jumping
-        // The draft state is only needed for initial load so no need to update it
-        // setDraftState(draft)
-      } catch (error) {
-        console.error('Failed to save comment draft:', error)
-      }
-    }, 500)
+    pendingSaveRef.current = {
+      key: draftKey,
+      draft: {blocks, timestamp: Date.now(), ...(mediaRefs && Object.keys(mediaRefs).length ? {mediaRefs} : {})},
+    }
+    // The editor can emit its final content during child cleanup after this
+    // hook has unmounted. Save that content before the next editor loads it.
+    if (activeDraftKeyRef.current !== draftKey) {
+      flushPendingSave()
+    } else {
+      saveTimeoutRef.current = setTimeout(flushPendingSave, 500)
+    }
   }
 
   const removeDraft = () => {
+    pendingSaveRef.current = null
+    clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = undefined
     try {
       localStorage.removeItem(draftKey)
       setDraftState(null)
@@ -140,14 +152,15 @@ export function useCommentDraftPersistence(
     }
   }
 
-  // Cleanup on unmount
+  // Preserve drafts when the editor moves between the main view and panel,
+  // or when a new reply target replaces the current editor.
   useEffect(() => {
+    activeDraftKeyRef.current = draftKey
     return () => {
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
+      activeDraftKeyRef.current = null
+      flushPendingSave()
     }
-  }, [])
+  }, [draftKey])
 
   return {
     draft: draft?.blocks || null,

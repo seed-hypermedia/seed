@@ -8,6 +8,8 @@ type LocalMediaType = 'image' | 'video' | 'file'
 type FileAttachmentResult = {
   displaySrc?: string
   url?: string
+  mime?: string
+  name?: string
   fileBinary?: Uint8Array | ArrayBuffer
   mediaRef?:
     | string
@@ -18,6 +20,10 @@ type FileAttachmentResult = {
         mime: string
         size: number
       }
+}
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name)
 }
 
 export const LocalMediaPastePlugin = Extension.create({
@@ -76,7 +82,7 @@ export const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
         }
 
         for (const file of files) {
-          if (file.type.startsWith('image/')) {
+          if (isImageFile(file)) {
             processMedia(file, view, insertPos, blockNoteEditor, 'image')
             return true
           }
@@ -208,7 +214,7 @@ export function createNodePropsFromAttachmentResult(
   mediaType: LocalMediaType,
 ): Record<string, any> {
   const nodeProps: Record<string, any> = {
-    name: file.name,
+    name: (typeof result.mediaRef === 'object' ? result.mediaRef.name : undefined) || result.name || file.name,
   }
 
   if (mediaType === 'file') {

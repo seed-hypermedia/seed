@@ -46,6 +46,7 @@ import type {
   DocumentContentProps,
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
+import {CONTENT_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage, processImageIfSupported} from './image-processing'
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {parseExploreQuery, type HMExploreResultType} from '@shm/shared/explore'
 import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
@@ -829,6 +830,8 @@ function getActiveView(routeKey: string): ActiveView {
 }
 
 export interface CommentEditorProps {
+  /** Called after the comment is published successfully. */
+  onCommentSubmitted?: (comment: HMComment) => void
   docId: UnpackedHypermediaId
   quotingBlockId?: string
   /** Codepoint range within the quoted block. Absent ⇒ whole-block quote. */
@@ -2024,7 +2027,7 @@ function DocumentBody({
   const changeCover = useCallback(
     async (file: File) => {
       if (!fileUpload) return
-      const cid = await fileUpload(file)
+      const cid = await fileUpload(await processImage(file, COVER_IMAGE_POLICY))
       beginEditIfNeeded()
       send({type: 'change', metadata: {cover: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
     },
@@ -2105,6 +2108,7 @@ function DocumentBody({
     route.key === 'comments'
       ? {
           openComment: route.openComment,
+          replyCommentId: route.replyCommentId,
           targetBlockId: route.targetBlockId,
           blockId: route.blockId,
           blockRange: route.blockRange,
@@ -3099,6 +3103,7 @@ function DocumentBody({
               contentMaxWidth={contentMaxWidth}
               targetDomain={siteUrl}
               openComment={commentsPanelTarget.openComment}
+              replyCommentId={panelRoute?.key === 'comments' ? panelRoute.replyCommentId : undefined}
               targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
               blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
               blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
@@ -3432,6 +3437,7 @@ function CommentsPanelContent({
         contentMaxWidth={contentMaxWidth}
         targetDomain={targetDomain}
         openComment={openComment}
+        replyCommentId={panelRoute.replyCommentId}
         targetBlockId={panelRoute.targetBlockId}
         blockId={panelRoute.blockId}
         blockRange={panelRoute.blockRange}
@@ -4337,6 +4343,7 @@ function MainContent({
   showCollapsed: boolean
   discussionsParams?: {
     openComment?: string
+    replyCommentId?: string
     targetBlockId?: string
     blockId?: string
     blockRange?: import('@seed-hypermedia/client/hm-types').BlockRange | null
@@ -4520,6 +4527,7 @@ function MainContent({
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
           openComment={discussionsParams?.openComment}
+          replyCommentId={discussionsParams?.replyCommentId}
           targetBlockId={discussionsParams?.targetBlockId}
           blockId={discussionsParams?.blockId}
           blockRange={discussionsParams?.blockRange}
@@ -4682,10 +4690,13 @@ function ContentViewWithOutline({
   const handleFileAttachment = useMemo<DocumentContentProps['handleFileAttachment'] | undefined>(() => {
     if (!fileUpload) return undefined
     return async (file: File) => {
-      const cid = await fileUpload(file)
+      const attachment = await processImageIfSupported(file, CONTENT_IMAGE_POLICY)
+      const cid = await fileUpload(attachment)
       return {
         url: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`,
         displaySrc: '',
+        mime: attachment.type,
+        name: attachment.name,
       }
     }
   }, [fileUpload])

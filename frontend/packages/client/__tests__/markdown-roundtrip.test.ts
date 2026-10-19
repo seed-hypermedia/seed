@@ -371,6 +371,26 @@ describe('markdown round-trip', () => {
   })
 })
 
+describe('textAlignment attribute', () => {
+  it('survives markdown export and import on paragraphs and headings', () => {
+    const content: HMBlockNode[] = [
+      {
+        block: {id: 'h1', type: 'Heading', text: 'Title', annotations: [], attributes: {textAlignment: 'center'}},
+        children: [
+          {block: {id: 'p1', type: 'Paragraph', text: 'Right', annotations: [], attributes: {textAlignment: 'right'}}},
+          {block: {id: 'p2', type: 'Paragraph', text: 'Plain', annotations: [], attributes: {}}},
+        ],
+      } as HMBlockNode,
+    ]
+    const md = blocksToMarkdown(doc(content))
+    expect(md).toContain('"textAlignment":"center"')
+    const [heading] = roundtrip(content)
+    expect(heading!.block.attributes).toMatchObject({textAlignment: 'center'})
+    expect(heading!.children?.[0]?.block.attributes).toMatchObject({textAlignment: 'right'})
+    expect(heading!.children?.[1]?.block.attributes?.textAlignment).toBeUndefined()
+  })
+})
+
 describe('list nesting under text blocks', () => {
   it('nests a bullet list under the preceding paragraph instead of an empty container', () => {
     const {tree} = parseMarkdown('Here are the items:\n\n- one\n- two')

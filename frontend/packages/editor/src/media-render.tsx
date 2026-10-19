@@ -6,6 +6,7 @@ import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {useFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
+import {IMAGE_FILE_ACCEPT} from '@shm/ui/image-processing'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -489,7 +490,9 @@ function MediaForm({
                     id={'file-upload' + block.id}
                     type="file"
                     multiple
-                    accept={mediaType !== 'file' ? `${mediaType}/*` : undefined}
+                    accept={
+                      mediaType === 'image' ? IMAGE_FILE_ACCEPT : mediaType !== 'file' ? `${mediaType}/*` : undefined
+                    }
                     style={{
                       display: 'none',
                     }}

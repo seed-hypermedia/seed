@@ -1,0 +1,88 @@
+diff --git a/src/utilities/mergeAttributes.ts b/src/utilities/mergeAttributes.ts
+--- a/src/utilities/mergeAttributes.ts
++++ b/src/utilities/mergeAttributes.ts
+@@ -5,6 +5,18 @@
+       const mergedAttributes = { ...items }
+ 
+       Object.entries(item).forEach(([key, value]) => {
++        // Define a data property so untrusted input cannot change the merged object's prototype.
++        if (key === '__proto__') {
++          Object.defineProperty(mergedAttributes, key, {
++            configurable: true,
++            enumerable: true,
++            value,
++            writable: true,
++          })
++
++          return
++        }
++
+         const exists = mergedAttributes[key]
+ 
+         if (!exists) {
+diff --git a/dist/index.cjs b/dist/index.cjs
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -303,6 +303,18 @@
+         .reduce((items, item) => {
+         const mergedAttributes = { ...items };
+         Object.entries(item).forEach(([key, value]) => {
++            // Define a data property so untrusted input cannot change the merged object's prototype.
++            if (key === '__proto__') {
++                Object.defineProperty(mergedAttributes, key, {
++                    configurable: true,
++                    enumerable: true,
++                    value,
++                    writable: true,
++                });
++
++                return;
++            }
++
+             const exists = mergedAttributes[key];
+             if (!exists) {
+                 mergedAttributes[key] = value;
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -299,6 +299,18 @@
+         .reduce((items, item) => {
+         const mergedAttributes = { ...items };
+         Object.entries(item).forEach(([key, value]) => {
++            // Define a data property so untrusted input cannot change the merged object's prototype.
++            if (key === '__proto__') {
++                Object.defineProperty(mergedAttributes, key, {
++                    configurable: true,
++                    enumerable: true,
++                    value,
++                    writable: true,
++                });
++
++                return;
++            }
++
+             const exists = mergedAttributes[key];
+             if (!exists) {
+                 mergedAttributes[key] = value;
+diff --git a/dist/index.umd.js b/dist/index.umd.js
+--- a/dist/index.umd.js
++++ b/dist/index.umd.js
+@@ -297,6 +297,18 @@
+           .reduce((items, item) => {
+           const mergedAttributes = { ...items };
+           Object.entries(item).forEach(([key, value]) => {
++              // Define a data property so untrusted input cannot change the merged object's prototype.
++              if (key === '__proto__') {
++                  Object.defineProperty(mergedAttributes, key, {
++                      configurable: true,
++                      enumerable: true,
++                      value,
++                      writable: true,
++                  });
++
++                  return;
++              }
++
+               const exists = mergedAttributes[key];
+               if (!exists) {
+                   mergedAttributes[key] = value;

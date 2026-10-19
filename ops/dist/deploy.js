@@ -2570,7 +2570,7 @@ async function deploy(config, paths, shell, takeoverApproved = false, bootstrap 
     step(`Configuration changed: ${config.compose_env_sha.slice(0, 8)} -> ${envSha.slice(0, 8)}`);
   }
   if (containersHealthy && !containersOnConfiguredTag) {
-    step(`Running containers do not match release channel '${config.release_channel}' \u2014 redeploying to reconcile.`);
+    step(`Running containers do not match the configured images (${expectedServiceImages(config).map((i) => `${i.container}=${i.expectedImage}`).join(", ")}) \u2014 redeploying to reconcile.`);
   }
   await ensureSeedDir(paths, shell);
   let finalCompose = composeContent;
@@ -2759,8 +2759,11 @@ function clearSeedCron(shell) {
     return;
   shell.runSafe(`echo '${removeSeedCronLines(existing)}' | crontab -`);
 }
+function resolveBunPath(shell) {
+  return shell.runSafe("command -v bun") || process.execPath;
+}
 async function setupCron(paths, shell) {
-  const bunPath = shell.runSafe("which bun") ?? "/usr/local/bin/bun";
+  const bunPath = resolveBunPath(shell);
   const existing = shell.runSafe("crontab -l 2>/dev/null") ?? "";
   const newCrontab = buildCrontab(existing, paths, bunPath);
   try {
@@ -2773,6 +2776,53 @@ async function setupCron(paths, shell) {
   } catch (err) {
     log(`Warning: Failed to install cron job: ${err}`);
   }
+}
+async function migrateLegacyCron(paths, shell, scriptPath = process.argv[1] || "") {
+  const existing = shell.runSafe("crontab -l 2>/dev/null") ?? "";
+  const deployLine = existing.split(`
+`).find((line) => line.includes("# seed-deploy"));
+  if (!deployLine)
+    return;
+  if (!deployLine.includes(`"${paths.seedDir}/deploy.js"`) && !deployLine.includes(` ${paths.seedDir}/deploy.js `) && !deployLine.includes(`--dir "${paths.seedDir}"`)) {
+    return;
+  }
+  const bunPath = resolveBunPath(shell);
+  const updated = buildCrontab(existing, paths, bunPath);
+  if (JSON.stringify(extractSeedCronLines(existing)) === JSON.stringify(extractSeedCronLines(updated)))
+    return;
+  let copyNeeded = false;
+  let copySucceeded = false;
+  if (scriptPath !== DEPLOY_SCRIPT_PATH) {
+    let source;
+    if (scriptPath.endsWith("deploy.js")) {
+      try {
+        source = await readFile(scriptPath, "utf-8");
+      } catch {}
+    }
+    if (source !== undefined) {
+      let targetMatches = false;
+      try {
+        targetMatches = sha256(await readFile(DEPLOY_SCRIPT_PATH, "utf-8")) === sha256(source);
+      } catch {}
+      if (!targetMatches) {
+        copyNeeded = true;
+        const dir = dirname(DEPLOY_SCRIPT_PATH);
+        copySucceeded = shell.runSafe(`mkdir -p "${dir}" && cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && echo ok`) === "ok";
+        if (!copySucceeded) {
+          copySucceeded = shell.runSafe(`sudo mkdir -p "${dir}" && sudo cp "${scriptPath}" "${DEPLOY_SCRIPT_PATH}" && sudo chown "$(id -u):$(id -g)" "${dir}" "${DEPLOY_SCRIPT_PATH}" && echo ok`) === "ok";
+        }
+      }
+    }
+  }
+  const scriptExists = shell.runSafe(`test -f "${DEPLOY_SCRIPT_PATH}" && echo ok`) === "ok";
+  if (copyNeeded && !copySucceeded || !scriptExists) {
+    log(`WARNING: could not install deploy.js at ${DEPLOY_SCRIPT_PATH} \u2014 leaving the legacy cron untouched.`);
+    return;
+  }
+  const oldSchedule = deployLine.trim().split(/\s+/).slice(0, 5).join(" ");
+  await setupCron(paths, shell);
+  installWrapper(paths, shell);
+  log(`Migrated legacy cron (${oldSchedule} \u2192 */10) to ${DEPLOY_SCRIPT_PATH}.`);
 }
 var COMMANDS = [
   "deploy",
@@ -2965,7 +3015,7 @@ async function maybeStopOtherRunningNode(target, shell) {
   return true;
 }
 function installWrapper(paths, shell) {
-  const bunPath = shell.runSafe("command -v bun") ?? "/usr/local/bin/bun";
+  const bunPath = resolveBunPath(shell);
   const wrapper = "/usr/local/bin/seed-deploy";
   const content = `#!/bin/sh
 exec "${bunPath}" "${DEPLOY_SCRIPT_PATH}" --dir "${paths.seedDir}" "$@"
@@ -3024,6 +3074,13 @@ ${MANAGE_HINT}`);
       return;
     }
     log(`Seed deploy v${VERSION} \u2014 config found at ${paths.configPath}, running headless.`);
+    if (autoUpdates(existing)) {
+      try {
+        await migrateLegacyCron(paths, shell);
+      } catch (err) {
+        log(`WARNING: cron migration failed: ${err}`);
+      }
+    }
     await deploy(existing, paths, shell, false, bootstrap);
     return;
   }
@@ -4146,6 +4203,7 @@ export {
   selfUpdate,
   rollbackTagRefs,
   rollbackImageTargets,
+  resolveBunPath,
   requiredContainers,
   removeSeedCronLines,
   removeLegacyHostCronLines,
@@ -4162,6 +4220,7 @@ export {
   parseArgs,
   ownerKeyPath,
   notifyHost,
+  migrateLegacyCron,
   makeShellRunner,
   makePaths,
   log,

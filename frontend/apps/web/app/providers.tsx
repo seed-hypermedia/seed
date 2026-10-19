@@ -361,9 +361,23 @@ export function WebSiteProvider(props: {
       isInternalNav.current = false
       return
     }
-    // Location changed externally (browser back/forward) — sync initialRoute
-    if (props.initialRoute) {
-      navigation.dispatch({type: 'replace', route: props.initialRoute})
+    // Query-only transitions can skip the loader. Read the live URL so Back
+    // and Forward restore the reply target instead of the stale loader route.
+    const hmPath = routerPathname.startsWith('/hm/')
+      ? routerPathname
+      : props.originHomeId
+        ? `/hm/${props.originHomeId.uid}${routerPathname === '/' ? '' : routerPathname}`
+        : null
+    const route = hmPath ? hypermediaUrlToRoute(`${props.origin}${hmPath}${routerSearch}${routerLocation.hash}`) : null
+    const params = new URLSearchParams(routerSearch)
+    const panelParam = params.get('panel')
+    if (route?.key === 'comments' && /^(comments?|discussions)(\/|$)/.test(panelParam || '')) {
+      params.delete('panel')
+      const search = params.toString()
+      navigate(`${routerPathname}${search ? `?${search}` : ''}${routerLocation.hash}`, {replace: true})
+    }
+    if (route || props.initialRoute) {
+      navigation.dispatch({type: 'replace', route: route || props.initialRoute!})
     }
   }, [routerPathname, routerSearch])
 

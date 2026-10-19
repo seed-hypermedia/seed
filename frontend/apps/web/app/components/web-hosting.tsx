@@ -367,8 +367,12 @@ function HostingLogin({
       return
     vaultAttempted.current = true
     setVaultPending(true)
-    host.loginWithVault(undefined, {onSettled: () => setVaultPending(false)})
-  }, [skipVaultLogin, host.isSessionLoaded, host.canLoginWithVault, host.loggedIn, host.loginWithVault])
+    // Per-call mutation callbacks can be detached by StrictMode's effect remount.
+    void host.loginWithVaultAsync().then(
+      () => setVaultPending(false),
+      () => setVaultPending(false),
+    )
+  }, [skipVaultLogin, host.isSessionLoaded, host.canLoginWithVault, host.loggedIn, host.loginWithVaultAsync])
   const [pending, setPending] = useState<CodeStartResponse | null>(null)
   const [code, setCode] = useState('')
   const [now, setNow] = useState(Date.now())

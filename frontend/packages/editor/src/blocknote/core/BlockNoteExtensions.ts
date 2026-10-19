@@ -37,6 +37,7 @@ import {Placeholder} from './extensions/Placeholder/PlaceholderExtension'
 import {createSupernumbersPlugin} from './extensions/Supernumbers/SupernumbersPlugin'
 import {TextColorMark} from './extensions/TextColor/TextColorMark'
 import {TextFamilyMark} from './extensions/TextFamily/TextFamilyMark'
+import {TextAlignmentExtension} from './extensions/TextAlignment/TextAlignmentExtension'
 import {TextSizeMark} from './extensions/TextSize/TextSizeMark'
 import {TrailingNode} from './extensions/TrailingNode/TrailingNodeExtension'
 import {UniqueID} from './extensions/UniqueID/UniqueID'
@@ -107,6 +108,7 @@ export const getBlockNoteExtensions = <BSchema extends HMBlockSchema>(opts: {
       })
     }),
     CustomBlockSerializerExtension,
+    TextAlignmentExtension,
 
     HardBreak,
     BlockNode.configure({

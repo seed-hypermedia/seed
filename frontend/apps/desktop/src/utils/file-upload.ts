@@ -1,9 +1,11 @@
 import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
+import {CONTENT_IMAGE_POLICY, processImageIfSupported, type ImageProcessingPolicy} from '@shm/ui/image-processing'
 
-export async function fileUpload(file: File) {
+export async function fileUpload(file: File, imagePolicy: ImageProcessingPolicy = CONTENT_IMAGE_POLICY) {
+  const uploadFile = await processImageIfSupported(file, imagePolicy)
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', uploadFile)
   let response: Response
   try {
     response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
