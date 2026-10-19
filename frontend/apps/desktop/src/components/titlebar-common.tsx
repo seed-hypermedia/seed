@@ -1,4 +1,5 @@
 import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
+import {useAppContext} from '@/app-context'
 import {domainResolver} from '@/grpc-client'
 import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
@@ -1151,6 +1152,7 @@ function useOmnibarState(currentUrl: string | null) {
 export function Omnibar() {
   const route = useNavRoute()
   const {experiments} = useUniversalAppContext()
+  const {externalOpen} = useAppContext()
   const navigate = useNavigate()
   const {displayUrl, copyableUrl} = useCurrentRouteUrl()
   const localAgentServerUrl = useLocalAgentServerUrl()
@@ -1189,14 +1191,13 @@ export function Omnibar() {
   // Handle URL navigation - returns true if navigation was synchronous
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
-      const route = await resolveOmnibarNavigation(url, {domainResolver, isWebBrowserEnabled: readWebBrowserEnabled})
-      if (route) {
-        navigate(route)
-        return true
-      }
-      return false
+      const target = await resolveOmnibarNavigation(url, {domainResolver, isWebBrowserEnabled: readWebBrowserEnabled})
+      if (!target) return false
+      if ('route' in target) navigate(target.route)
+      else externalOpen(target.externalUrl)
+      return true
     },
-    [navigate],
+    [navigate, externalOpen],
   )
 
   // Handle keyboard events

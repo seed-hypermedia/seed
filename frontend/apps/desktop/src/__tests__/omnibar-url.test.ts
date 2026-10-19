@@ -42,19 +42,24 @@ describe('omnibar url resolution', () => {
     resolveHypermediaUrlMock.mockReset()
   })
 
-  it('opens a website from the omnibar only while the integrated browser is on', async () => {
+  it('sends a website typed into the omnibar to the integrated browser when on, else to the system browser', async () => {
     resolveHypermediaUrlMock.mockResolvedValue(null)
     const off = {isWebBrowserEnabled: async () => false}
     const on = {isWebBrowserEnabled: async () => true}
-    await expect(resolveOmnibarNavigation('https://example.com/page', off)).resolves.toBeNull()
-    await expect(resolveOmnibarNavigation('https://example.com/page', on)).resolves.toEqual({
-      key: 'web',
-      url: 'https://example.com/page',
+    await expect(resolveOmnibarNavigation('https://example.com/page', off)).resolves.toEqual({
+      externalUrl: 'https://example.com/page',
     })
+    await expect(resolveOmnibarNavigation('https://example.com/page', on)).resolves.toEqual({
+      route: {key: 'web', url: 'https://example.com/page'},
+    })
+    // Not a web address at all: nothing to open.
+    await expect(resolveOmnibarNavigation('some search text', off)).resolves.toBeNull()
     // A Hypermedia address resolves either way, and a site that resolves to a document is never a web route.
-    await expect(resolveOmnibarNavigation('hm://uid1/docs', off)).resolves.toMatchObject({key: 'document'})
+    await expect(resolveOmnibarNavigation('hm://uid1/docs', off)).resolves.toMatchObject({route: {key: 'document'}})
     resolveHypermediaUrlMock.mockResolvedValue({hmId: unpackHmId('hm://uid1/path'), panel: null})
-    await expect(resolveOmnibarNavigation('https://example.com/path', on)).resolves.toMatchObject({key: 'document'})
+    await expect(resolveOmnibarNavigation('https://example.com/path', off)).resolves.toMatchObject({
+      route: {key: 'document'},
+    })
   })
 
   it('returns hm urls unchanged when they are already parseable', async () => {

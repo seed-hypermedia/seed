@@ -151,19 +151,22 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   }
 }
 
+/** Where an address typed into the omnibar goes: a Seed route, the integrated browser, or the system browser. */
+export type OmnibarNavigation = {route: NavRoute} | {externalUrl: string} | null
+
 /**
- * The route for an address typed into the omnibar: Hypermedia addresses always, other websites only
- * while the integrated browser is on, which the caller answers from the main process.
+ * Hypermedia addresses always resolve to a route. Any other website opens in the integrated browser
+ * while it is on, which the caller answers from the main process, and in the system browser otherwise.
  */
 export async function resolveOmnibarNavigation(
   url: string,
   opts: ResolveOptions & {isWebBrowserEnabled: () => Promise<boolean>},
-): Promise<NavRoute | null> {
+): Promise<OmnibarNavigation> {
   const {isWebBrowserEnabled, ...resolveOpts} = opts
   const route = await resolveOmnibarUrlToRoute(url, resolveOpts)
-  if (route) return route
-  if (/^https?:\/\//.test(url) && (await isWebBrowserEnabled())) return {key: 'web', url}
-  return null
+  if (route) return {route}
+  if (!/^https?:\/\//.test(url)) return null
+  return (await isWebBrowserEnabled()) ? {route: {key: 'web', url}} : {externalUrl: url}
 }
 
 /**
