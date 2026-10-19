@@ -175,3 +175,13 @@ it('loads the bundled snapshot and protects the first page without fetching list
   await blocker.refresh(fetchFeed)
   expect(fetchFeed).not.toHaveBeenCalled()
 })
+
+it('does not deserialize the bundled engine until a decision or cache needs it', () => {
+  const deserialize = vi.spyOn(FiltersEngine, 'deserialize')
+  const blocker = new BrowserContentBlocker()
+  expect(deserialize).not.toHaveBeenCalled()
+  const f = fixture()
+  blocker.initialize(f.session, join(f.path, 'lazy'), f.store, () => [])
+  expect(deserialize).toHaveBeenCalled()
+  deserialize.mockRestore()
+})

@@ -88,15 +88,20 @@ export function setupWebBrowser(
   let closingPrivate: Promise<void> | undefined
   let routeRevision = 0
   const blockedNavigations = new Map<number, (url: string, match: BrowserBlocklistMatch) => void>()
-  setupBrowserSessionPolicy()
-  setupBrowserSessionPolicy(privateBrowserPartition)
 
   /**
    * Creates the website guest as a main-process-owned view. The app renderer never holds web view
    * privileges: it only asks for a guest, reports where to draw it, and receives events.
+   *
+   * The session policy (filter lists, their disk cache and daily refresh, secure DNS) is installed
+   * here, before the first guest exists, rather than when the window opens: a user who leaves the
+   * web browser off must not load, write or fetch anything for it.
    */
   const createGuest = (privatePage = false): WebContentsView => {
     if (views.size >= 2) throw new Error('This window can have at most two browser pages: one normal and one private.')
+    // The persistent partition owns the blocklists that private pages share, so it is set up first.
+    setupBrowserSessionPolicy()
+    if (privatePage) setupBrowserSessionPolicy(privateBrowserPartition)
     const webPreferences: Electron.WebPreferences = {}
     hardenBrowserPreferences(webPreferences, privatePage)
     const view = new WebContentsView({webPreferences})
