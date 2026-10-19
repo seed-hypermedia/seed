@@ -216,16 +216,37 @@ describe('browser page lifecycle', () => {
       }),
     )
     const icon = container.querySelector('img')!
-    // Icon, then the real origin Seed draws, then the page-chosen title.
-    expect(icon.nextElementSibling?.getAttribute('data-testid')).toBe('browser-origin')
-    expect(icon.nextElementSibling?.textContent).toContain('example.com')
-    expect(icon.nextElementSibling?.nextElementSibling?.getAttribute('role')).toBe('status')
+    // Icon, then the page-chosen title: the address is in the omnibar, not here.
+    expect(icon.nextElementSibling?.getAttribute('role')).toBe('status')
+    expect(icon.nextElementSibling?.textContent).toBe('First page')
     const refresh = container.querySelector('[aria-label="Reload page"]')!
     expect(refresh.nextElementSibling?.getAttribute('aria-label')).toBe('Open in default browser')
     act(() => icon.dispatchEvent(new Event('error')))
     expect(container.querySelector('img')?.getAttribute('src')).toBe('data:image/png;base64,second')
     act(() => dispatch({type: 'push', route: {key: 'web', url: 'https://other.example'}}))
     expect(container.querySelector('img')).toBeNull()
+  })
+
+  it('names the page in the header without its address or a lock', async () => {
+    await attachAndCommit()
+    const header = container.querySelector('[role="status"]')!.parentElement!
+    expect(header.textContent).toContain('First page')
+    expect(header.textContent).not.toContain('example.com')
+    expect(header.querySelector('[data-testid="browser-origin"]')).toBeNull()
+    expect(header.querySelector('[aria-label="Secure connection"]')).toBeNull()
+    expect(header.querySelector('[aria-label="Not secure"]')).toBeNull()
+    // Without a title the host stands in, never the full address.
+    await act(async () =>
+      emit({
+        type: 'browser-location',
+        browserId: 42,
+        url: 'https://xn--pple-43d.com/login?x=1',
+        title: '',
+        historyIndex: 2,
+      }),
+    )
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('xn--pple-43d.com')
+    expect(container.textContent).not.toContain('/login')
   })
 
   it('shows the guest count and saves a per-origin tracker exception from the shield', async () => {

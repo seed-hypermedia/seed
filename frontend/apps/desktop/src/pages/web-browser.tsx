@@ -24,14 +24,14 @@ import {
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {Switch} from '@shm/ui/components/switch'
 import type {BrowserBlockedCount} from '../browser-content-blocker'
-import {ExternalLink, EyeOff, Globe, Lock, LockOpen, MoreHorizontal, RotateCw, Shield, ShieldOff, X} from 'lucide-react'
+import {ExternalLink, EyeOff, Globe, MoreHorizontal, RotateCw, Shield, ShieldOff, X} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 
 let nextRequestId = 0
 
 /**
- * The origin to show for a page: the host as Chromium sees it, so look-alike domains appear in
- * their raw punycode form, never the pretty version the page might prefer.
+ * The origin of a page as Chromium sees it, so look-alike domains appear in their raw punycode
+ * form, never the pretty version the page might prefer. Used wherever the pane names a website.
  */
 export function displayedOrigin(url: string): {host: string; secure: boolean} | null {
   try {
@@ -253,25 +253,13 @@ export function WebBrowser() {
           ) : (
             <Globe aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
           )}
-          {(() => {
-            const origin = displayedOrigin(route.url)
-            return origin ? (
-              <span
-                className="flex min-w-0 shrink-0 items-center gap-1 font-mono text-xs"
-                data-testid="browser-origin"
-                title={origin.secure ? 'Secure connection' : 'Not secure'}
-              >
-                {origin.secure ? (
-                  <Lock aria-label="Secure connection" className="size-3 shrink-0" />
-                ) : (
-                  <LockOpen aria-label="Not secure" className="text-destructive size-3 shrink-0" />
-                )}
-                <span className="max-w-[40%] truncate">{origin.host}</span>
-              </span>
-            ) : null
-          })()}
+          {/* The address itself is in the omnibar; the header names the page, never the URL. */}
           <span className="text-muted-foreground min-w-0 flex-1 truncate text-xs" role="status">
-            {dialogOrigin ? `${dialogOrigin} is showing dialogs` : loading ? 'Loading…' : route.title || route.url}
+            {dialogOrigin
+              ? `${dialogOrigin} is showing dialogs`
+              : loading
+                ? 'Loading…'
+                : route.title || displayedOrigin(route.url)?.host || ''}
           </span>
           {privatePage && <span className="bg-muted rounded px-2 py-1 text-xs">Private</span>}
           <Button
