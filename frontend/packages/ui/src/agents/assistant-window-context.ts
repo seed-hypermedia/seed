@@ -64,7 +64,9 @@ export type AssistantWindowContext = {
 
 /** Formats window context into the model-facing lines of a `context` message part. */
 export function formatWindowContextLines(context: AssistantWindowContext | undefined): string[] | undefined {
-  if (context?.view === 'web' && context.browserStatus !== 'connected') {
+  // Websites stay undisclosed until browser access is granted; a local app is the agent's own
+  // session artifact, so its reference is disclosed either way.
+  if (context?.view === 'web' && !context.appReference && context.browserStatus !== 'connected') {
     return ['## Current window', 'The user is viewing a website with browser access not granted.']
   }
   if (!context || (!context.url && !context.isDraft)) return undefined
