@@ -25,7 +25,7 @@ export type BrowserBlockedCount = {
 
 /** Network-only filtering, composed with Seed's existing partition policy rather than replacing it. */
 export class BrowserContentBlocker {
-  private engine: FiltersEngine
+  private loadedEngine?: FiltersEngine
   private session?: Session
   private store?: BrowserBlockingStore
   private allowed = new Set<string>()
@@ -35,8 +35,21 @@ export class BrowserContentBlocker {
   private refreshing = false
   private pages = new Map<number, {url: string; count: number; send: (state: BrowserBlockedCount) => void}>()
 
-  constructor(engine = FiltersEngine.deserialize(Buffer.from(bundled.engine, 'base64'))) {
-    this.engine = engine
+  constructor(engine?: FiltersEngine) {
+    this.loadedEngine = engine
+  }
+
+  /**
+   * The bundled snapshot is several megabytes; it is deserialized on first use, so the module-level
+   * singleton costs nothing until the web browser is actually set up.
+   */
+  private get engine(): FiltersEngine {
+    if (!this.loadedEngine) this.loadedEngine = FiltersEngine.deserialize(Buffer.from(bundled.engine, 'base64'))
+    return this.loadedEngine
+  }
+
+  private set engine(engine: FiltersEngine) {
+    this.loadedEngine = engine
   }
 
   /** Loads preferences and cached rules synchronously before the browser's first request. */

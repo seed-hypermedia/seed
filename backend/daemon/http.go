@@ -82,7 +82,11 @@ func initHTTP(
 	// uploads to the gateway from the browser, from any custom domain. They keep the open policy,
 	// as before. The desktop's daemon (-http.loopback plus SEED_APP_SECRET) authenticates every
 	// browser page instead; the gate follows the secret, the bind address follows the flag.
+	// grpc-web adds its own CORS headers on actual requests; in the open policy it keeps
+	// answering any origin, as before the browser gate existed.
+	grpcWebOrigin := allowedOrigin
 	if cfg.PublicOnly || !browserAuth {
+		grpcWebOrigin = func(_ string) bool { return true }
 		router.Use(
 			openCORSMiddleware,
 			bearerAuthMiddleware(apiServer.AuthenticateBearerToken),
@@ -132,16 +136,11 @@ func initHTTP(
 		router.HandleNav("GET /debug/version", gitVersionHandler())
 		router.HandleFunc("/vault-connect", apiServer.HandleVaultConnect)
 
-		router.Handle("/", grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(allowedOrigin)))
-	}
-
-	host := ""
-	if httpCfg.Loopback {
-		host = "127.0.0.1"
+		router.Handle("/", grpcweb.WrapServer(rpc, grpcweb.WithOriginFunc(grpcWebOrigin)))
 	}
 
 	srv = &http.Server{
-		Addr:              net.JoinHostPort(host, strconv.Itoa(httpCfg.Port)),
+		Addr:              listenAddr(httpCfg.Loopback, httpCfg.Port),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       20 * time.Second,
 		Handler:           router,

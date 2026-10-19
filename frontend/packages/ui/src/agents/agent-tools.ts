@@ -10,6 +10,11 @@ export const AGENT_WEB_SEARCH_TOOL = callableToolRegistry.web_search.name
 export const AGENT_EXECUTE_TOOL = callableToolRegistry.execute.name
 /** Creates session-private app artifacts without a code execution backend. */
 export const AGENT_APPS_TOOL = callableToolRegistry.apps.name
+/**
+ * The integrated browser: lets the agent read and act on websites open in the owner's Seed window.
+ * Opt-in per agent (not in DEFAULT_AGENT_TOOLS); the owner still consents per website at run time.
+ */
+export const AGENT_BROWSER_TOOL = callableToolRegistry.browser.name
 /** Pseudo-grant: signed public publishing (hm:// documents/comments, IPFS uploads). */
 export const AGENT_PUBLISH_GRANT = 'publish'
 
