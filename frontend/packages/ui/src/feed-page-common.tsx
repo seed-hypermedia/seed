@@ -2,11 +2,10 @@ import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types
 import {hmId} from '@shm/shared'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
-import {useNavRoute} from '@shm/shared/utils/navigation'
-import {useMemo} from 'react'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {ActivityContent, ActivityHeader, useCollapseActivity} from './activity-panel'
 import {ScrollArea} from './components/scroll-area'
-import {Feed} from './feed'
-import {GeneralPageContainer, GeneralPageHeader} from './general-page'
+import {GeneralPageContainer} from './general-page'
 import {useDocumentLayout} from './layout'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {CommentEditorProps, computeHeaderData, PageWrapper} from './resource-page-common'
@@ -34,13 +33,7 @@ export function FeedPage({docId, extraMenuItems, rightActions}: FeedPageProps) {
 
   if (siteHomeResource.isInitialLoading) {
     return (
-      <PageWrapper
-        siteHomeId={siteHomeId}
-        docId={docId}
-        headerData={headerData}
-        isMainFeedVisible
-        rightActions={rightActions}
-      >
+      <PageWrapper siteHomeId={siteHomeId} docId={docId} headerData={headerData} rightActions={rightActions}>
         <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
@@ -54,7 +47,6 @@ export function FeedPage({docId, extraMenuItems, rightActions}: FeedPageProps) {
       docId={docId}
       headerData={headerData}
       document={siteHomeDocument ?? undefined}
-      isMainFeedVisible
       rightActions={rightActions}
     >
       <FeedBody siteHomeId={siteHomeId} extraMenuItems={extraMenuItems} targetDomain={targetDomain} />
@@ -72,13 +64,9 @@ function FeedBody({
   targetDomain?: string
 }) {
   const route = useNavRoute()
-
-  const filterEventType = useMemo(() => {
-    if (route.key === 'feed' && route.panel?.key === 'activity') {
-      return (route.panel as any).filterEventType
-    }
-    return undefined
-  }, [route])
+  const replaceRoute = useNavigate('replace')
+  const tab = route.key === 'feed' ? route.tab : undefined
+  const collapse = useCollapseActivity(siteHomeId, tab)
 
   const {contentMaxWidth} = useDocumentLayout({
     contentWidth: undefined,
@@ -95,14 +83,16 @@ function FeedBody({
 
   const feedContent = (
     <GeneralPageContainer contentMaxWidth={contentMaxWidth}>
-      <GeneralPageHeader title="Activity Feed" />
-      <Separator />
-      <Feed
-        filterResource={`${siteHomeId.id}*`}
-        targetDomain={targetDomain}
-        size="md"
-        filterEventType={filterEventType}
+      <ActivityHeader
+        tab={tab}
+        // Switching tabs replaces the history entry, so collapsing never lands on the other tab.
+        onTabChange={(nextTab) => {
+          if (route.key === 'feed') replaceRoute({...route, tab: nextTab})
+        }}
+        onCollapse={collapse}
       />
+      <Separator />
+      <ActivityContent spaceId={siteHomeId} tab={tab} targetDomain={targetDomain} size="md" />
     </GeneralPageContainer>
   )
 

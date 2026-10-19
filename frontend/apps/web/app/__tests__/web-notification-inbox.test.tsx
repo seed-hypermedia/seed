@@ -23,15 +23,14 @@ vi.mock('@/web-notifications', () => ({
   useWebMarkNotificationEventRead: mocks.useWebMarkNotificationEventReadMock,
   useWebMarkNotificationEventUnread: mocks.useWebMarkNotificationEventUnreadMock,
   useWebMarkAllNotificationsRead: mocks.useWebMarkAllNotificationsReadMock,
+  useWebNotificationConfig: () => ({data: undefined, isLoading: false}),
+  useWebSetNotificationConfig: () => ({mutateAsync: vi.fn()}),
+  useWebRemoveNotificationConfig: () => ({mutateAsync: vi.fn()}),
+  useWebResendNotificationConfigVerification: () => ({mutateAsync: vi.fn()}),
 }))
 
 vi.mock('@remix-run/react', () => ({
   useNavigate: () => vi.fn(),
-  // `notifications-page-content` persists the `view` filter to the URL via
-  // `useSearchParams`. The component reads `searchParams.get('view')` and
-  // calls `setSearchParams({view}, {replace: true})`, so we return an empty
-  // URLSearchParams + a noop setter.
-  useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }))
 
 vi.mock('@shm/shared', async () => {
@@ -43,9 +42,10 @@ vi.mock('@shm/shared', async () => {
   }
 })
 
-import {WebNotificationsPage} from '../notifications-page-content'
+import {TooltipProvider} from '@shm/ui/tooltip'
+import {WebNotificationInbox} from '../web-notification-inbox'
 
-describe('WebNotificationsPage', () => {
+describe('WebNotificationInbox', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.useWebAccountUidMock.mockReturnValue('account-1')
@@ -80,7 +80,11 @@ describe('WebNotificationsPage', () => {
       notifyServerUrl: undefined,
     })
 
-    const markup = renderToStaticMarkup(<WebNotificationsPage />)
+    const markup = renderToStaticMarkup(
+      <TooltipProvider>
+        <WebNotificationInbox spaceUid="space-1" />
+      </TooltipProvider>,
+    )
 
     expect(markup).toContain('Notifications unavailable')
     expect(markup).toContain('Log out and log back in again to use notifications.')
@@ -104,14 +108,18 @@ describe('WebNotificationsPage', () => {
       error: new Error('Signer session-key is not authorized to act on behalf of account account-1'),
     })
 
-    const markup = renderToStaticMarkup(<WebNotificationsPage />)
+    const markup = renderToStaticMarkup(
+      <TooltipProvider>
+        <WebNotificationInbox spaceUid="space-1" />
+      </TooltipProvider>,
+    )
 
     expect(markup).toContain('Could not load notifications')
     expect(markup).toContain('Signer session-key is not authorized to act on behalf of account account-1')
     expect(markup).not.toContain('No notifications yet')
   })
 
-  it('passes the current site uid into notification hooks', () => {
+  it('scopes notification hooks to the given space, not the site it is viewed on', () => {
     mocks.useLocalKeyPairMock.mockReturnValue({
       id: 'session-key',
       delegatedAccountUid: 'account-1',
@@ -128,12 +136,16 @@ describe('WebNotificationsPage', () => {
       error: null,
     })
 
-    renderToStaticMarkup(<WebNotificationsPage />)
+    renderToStaticMarkup(
+      <TooltipProvider>
+        <WebNotificationInbox spaceUid="space-1" />
+      </TooltipProvider>,
+    )
 
-    expect(mocks.useWebNotificationInboxMock).toHaveBeenCalledWith('site-1')
-    expect(mocks.useWebNotificationReadStateMock).toHaveBeenCalledWith('site-1')
-    expect(mocks.useWebMarkNotificationEventReadMock).toHaveBeenCalledWith('site-1')
-    expect(mocks.useWebMarkNotificationEventUnreadMock).toHaveBeenCalledWith('site-1')
-    expect(mocks.useWebMarkAllNotificationsReadMock).toHaveBeenCalledWith('site-1')
+    expect(mocks.useWebNotificationInboxMock).toHaveBeenCalledWith('space-1')
+    expect(mocks.useWebNotificationReadStateMock).toHaveBeenCalledWith('space-1')
+    expect(mocks.useWebMarkNotificationEventReadMock).toHaveBeenCalledWith('space-1')
+    expect(mocks.useWebMarkNotificationEventUnreadMock).toHaveBeenCalledWith('space-1')
+    expect(mocks.useWebMarkAllNotificationsReadMock).toHaveBeenCalledWith('space-1')
   })
 })

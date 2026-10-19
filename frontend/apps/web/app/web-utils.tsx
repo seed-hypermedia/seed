@@ -6,7 +6,6 @@ import {
   hmId,
   routeToUrl,
   useJoinSite,
-  useRouteLink,
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
@@ -20,10 +19,12 @@ import {queryQueryBlock} from '@shm/shared/models/queries'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {getActivityBellTarget, getRouteSpaceUid, isActivityOpen} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
-import {ButtonLink} from '@shm/ui/button'
+import {useCollapseActivity} from '@shm/ui/activity-panel'
+import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -569,6 +570,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     return (
       <>
         <div className="flex items-center gap-2">
+          <NotifsButton signedIn={false} />
           <PlaceholderAvatar onClick={() => createAccount({source: 'login'})} />
           {isPendingSpace ? null : <JoinButton onClick={() => createAccount({source: 'join'})} />}
         </div>
@@ -704,7 +706,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     <>
       {isMobile ? (
         <div className="flex items-center gap-2">
-          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+          <NotifsButton signedIn />
           <button
             ref={accountMenuTriggerRef}
             className="flex cursor-pointer rounded-full shadow-lg"
@@ -726,7 +728,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+          <NotifsButton signedIn />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button ref={accountMenuTriggerRef} className="flex cursor-pointer rounded-full shadow-lg">
@@ -846,13 +848,17 @@ export function WebSitePageShell({children, siteUid}: {children?: ReactNode; sit
   )
 }
 
-function NotifsButton() {
-  const storedView = typeof window !== 'undefined' ? localStorage.getItem('seed-notifications-view') : null
-  const linkProps = useRouteLink({key: 'notifications', view: storedView === 'unread' ? 'unread' : undefined})
+// Toggles the space Activity panel, or collapses the full Activity page. It opens on To you, or on All updates for a
+// signed-out reader, who has no notifications but can still follow the space.
+function NotifsButton({signedIn}: {signedIn: boolean}) {
+  const tab = signedIn ? 'to-you' : 'all-updates'
   const route = useNavRoute()
-  const isActive = route.key === 'notifications'
+  const navigate = useNavigate()
+  const isActive = isActivityOpen(route)
   const {originHomeId} = useUniversalAppContext()
-  const siteUid = originHomeId?.uid
+  // Gateway pages (/hm/<uid>/...) belong to the space in their route, not to the gateway's own site.
+  const siteUid = getRouteSpaceUid(route) ?? originHomeId?.uid
+  const collapse = useCollapseActivity(hmId(siteUid), route.key === 'feed' ? route.tab : tab)
   const inbox = useWebNotificationInbox(siteUid)
   const readState = useWebNotificationReadState(siteUid)
 
@@ -870,16 +876,23 @@ function NotifsButton() {
   }, [inbox.data, readState.data])
 
   return (
-    <Tooltip content="Notifications" asChild>
-      <ButtonLink
+    <Tooltip content="Activity" asChild>
+      <Button
         className={cn(
           'relative h-8 rounded-full border-1 border-transparent p-0',
           isActive && 'dark:bg-muted bg-black/5',
         )}
         variant="ghost"
         size="icon"
-        aria-current={isActive ? 'page' : undefined}
-        {...linkProps}
+        aria-label="Activity"
+        aria-pressed={isActive}
+        onClick={() => {
+          const target = getActivityBellTarget(route, tab)
+          if (target === 'collapse') collapse()
+          else if (target) navigate(target)
+          // Pages outside any space have no panel to open, so open the site's full Activity page.
+          else if (siteUid) navigate({key: 'feed', id: hmId(siteUid), tab})
+        }}
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
@@ -888,7 +901,7 @@ function NotifsButton() {
             <span className="sr-only">{unreadCount} unread notifications</span>
           </>
         ) : null}
-      </ButtonLink>
+      </Button>
     </Tooltip>
   )
 }

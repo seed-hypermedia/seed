@@ -15,9 +15,11 @@ export interface MobilePanelSheetProps {
   onClose: () => void
   /** Panel content */
   children: ReactNode
+  /** Replaces the title row for panels with their own controls, including their own close button. */
+  header?: ReactNode
 }
 
-export function MobilePanelSheet({isOpen, title, onClose, children}: MobilePanelSheetProps) {
+export function MobilePanelSheet({isOpen, title, onClose, children, header}: MobilePanelSheetProps) {
   const titleId = useId()
   const [isVisible, setIsVisible] = useState(false)
   const [dragY, setDragY] = useState(0)
@@ -117,7 +119,8 @@ export function MobilePanelSheet({isOpen, title, onClose, children}: MobilePanel
       <div
         role="dialog"
         aria-modal="true"
-        aria-labelledby={titleId}
+        aria-labelledby={header ? undefined : titleId}
+        aria-label={header ? title : undefined}
         data-slot="mobile-panel-sheet"
         onClick={(event) => event.stopPropagation()}
         style={{transform: isOpen && isVisible ? `translateY(${dragY}px)` : 'translateY(2rem)'}}
@@ -145,13 +148,17 @@ export function MobilePanelSheet({isOpen, title, onClose, children}: MobilePanel
 
         {/* Header */}
         <div className="border-border flex shrink-0 items-center border-b px-4 py-2 text-left">
-          <Text id={titleId} weight="semibold" className="flex-1">
-            {title}
-          </Text>
+          {header ?? (
+            <>
+              <Text id={titleId} weight="semibold" className="flex-1">
+                {title}
+              </Text>
 
-          <Button aria-label="Close panel" variant="ghost" size="icon" onClick={onClose} className="shrink-0">
-            <Close className="size-4" />
-          </Button>
+              <Button aria-label="Close panel" variant="ghost" size="icon" onClick={onClose} className="shrink-0">
+                <Close className="size-4" />
+              </Button>
+            </>
+          )}
         </div>
 
         {/* Content */}

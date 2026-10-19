@@ -90,7 +90,7 @@ export type ViewRouteKey =
   | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
-export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
+export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options' | 'feed'
 
 function extractInspectPrefixFromUrl(url: string): {url: string; isInspect: boolean} {
   const hmInspectMatch = url.match(/^(hm:\/\/)inspect(?:\/(.*))?$/)
@@ -120,12 +120,24 @@ export function extractViewTermFromUrl(url: string): {
   isInspect: boolean
   viewTerm: ViewTerm | null
   activityFilter?: string
+  feedTab?: string
   commentId?: string
   accountUid?: string
   settingsTab?: string
   settingsDomain?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
+
+  // Check for the :feed/to-you pattern (the Activity page on its To you tab)
+  const feedTabMatch = inspectCleanUrl.match(/\/\:feed\/(to-you)(?=[?#]|$)/)
+  if (feedTabMatch) {
+    return {
+      url: inspectCleanUrl.replace(feedTabMatch[0], ''),
+      isInspect,
+      viewTerm: ':feed',
+      feedTab: feedTabMatch[1],
+    }
+  }
 
   // Check for :comments/<comment-id> or :comment/<comment-id> pattern.
   // Comment IDs may be a single segment or a slash-delimited path.
@@ -600,6 +612,11 @@ export function getRoutePanelParam(route: NavRoute): string | null {
     if (filterSlug) return `activity/${filterSlug}`
   }
 
+  // The space Activity panel spells out To you. All updates is the bare key
+  if (panel.key === 'feed' && (panel as {tab?: string}).tab === 'to-you') {
+    return 'feed/to-you'
+  }
+
   return panel.key as PanelQueryKey
 }
 
@@ -662,6 +679,9 @@ export function routeToUrl(
       if (filterSlug) {
         viewTermPath = `:activity/${filterSlug}`
       }
+    }
+    if (route.key === 'feed' && route.tab === 'to-you') {
+      viewTermPath = ':feed/to-you'
     }
     // For comments with openComment, put commentId in view term path.
     // On comment permalinks, ?v pins the comment version (not the document version).
@@ -778,6 +798,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTermPath = `:activity/${filterSlug}`
     }
+    if (route.key === 'feed' && route.tab === 'to-you') viewTermPath = ':feed/to-you'
     // On comment permalinks, ?v pins the comment version (not the document version).
     let versionQuery: {version?: string | null; latest?: boolean | null} = {
       version: route.id.version,

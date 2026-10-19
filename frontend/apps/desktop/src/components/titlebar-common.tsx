@@ -7,6 +7,7 @@ import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
+import {notificationMatchesSite} from '@shm/shared/models/notification-read-logic'
 import {
   agentRunUrl,
   agentSessionUrl,
@@ -19,7 +20,6 @@ import {
 } from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
-import {client} from '@/trpc'
 import {pathNameify} from '@/utils/path'
 import {queryDevtoolsOpen, RouteDialog, setQueryDevtoolsOpen} from '@/utils/navigation-container'
 import {useNavigate} from '@/utils/useNavigate'
@@ -29,8 +29,13 @@ import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {createInspectNavRouteFromRoute, NavRoute} from '@shm/shared/routes'
+import {
+  createInspectNavRouteFromRoute,
+  getActivityBellTarget,
+  getRouteSpaceUid,
+  isActivityOpen,
+  NavRoute,
+} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
@@ -59,6 +64,7 @@ import {LogoutVaultDialog} from '@shm/ui/components/logout-vault-dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AccountAvatar} from '@shm/ui/account-avatar'
+import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {Back, Forward} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
@@ -66,9 +72,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {useQuery} from '@tanstack/react-query'
 import {
-  Activity,
   Bell,
   Bot,
   ChevronDown,
@@ -135,54 +139,51 @@ export function DocOptionsButton(_props: {
   return null
 }
 
+// The bell belongs to a space, so it only shows on pages inside one.
 function NotificationButton() {
   const accountUid = useSelectedAccountId()
-  if (!accountUid) return null
-  return <NotificationButtonForAccount accountUid={accountUid} />
+  const spaceUid = getRouteSpaceUid(useNavRoute())
+  if (!accountUid || !spaceUid) return null
+  return <NotificationButtonForAccount accountUid={accountUid} spaceUid={spaceUid} />
 }
 
-function NotificationButtonForAccount({accountUid}: {accountUid: string}) {
+function NotificationButtonForAccount({accountUid, spaceUid}: {accountUid: string; spaceUid: string}) {
   const navigate = useNavigate()
   const route = useNavRoute()
   const inbox = useNotificationInbox(accountUid)
   const readState = useLocalNotificationReadState(accountUid)
-  const isActive = route.key === 'notifications'
-  const persistedView = useQuery({
-    queryKey: [queryKeys.SETTINGS, 'notifications-view'],
-    queryFn: () => client.appSettings.getSetting.query('notifications-view'),
-  })
+  const isActive = isActivityOpen(route)
+  const collapse = useCollapseActivity(hmId(spaceUid), route.key === 'feed' ? route.tab : 'to-you')
 
   const unreadCount = useMemo(() => {
     if (!inbox.data || !readState.data) return 0
     return inbox.data.filter(
       (item) =>
+        notificationMatchesSite(item, spaceUid) &&
         !isNotificationEventRead({
           readState: readState.data,
           eventId: item.feedEventId,
           eventAtMs: item.eventAtMs,
         }),
     ).length
-  }, [inbox.data, readState.data])
+  }, [inbox.data, readState.data, spaceUid])
 
   return (
-    <Tooltip content="Notifications" asChild>
+    <Tooltip content="Activity" asChild>
       <Button
         className={cn(
           'window-no-drag relative h-8 rounded-full border-1 p-0',
           isActive
-            ? 'cursor-default border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
             : 'border-transparent',
         )}
-        aria-current={isActive ? 'page' : undefined}
-        aria-disabled={isActive || undefined}
-        onClick={
-          isActive
-            ? undefined
-            : () => {
-                const view = persistedView.data === 'unread' ? ('unread' as const) : undefined
-                navigate({key: 'notifications', view})
-              }
-        }
+        aria-label="Activity"
+        aria-pressed={isActive}
+        onClick={() => {
+          const target = getActivityBellTarget(route)
+          if (target === 'collapse') collapse()
+          else if (target) navigate(target)
+        }}
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
@@ -551,41 +552,8 @@ export function PageActionButtons(props: TitleBarProps) {
       <AssistantChatButton assistantOpen={props.assistantOpen} onToggleAssistant={props.onToggleAssistant} />
       <BookmarksPopover />
       <NotificationButton />
-      <ActivityFeedButton />
       <AccountProfileButton />
     </TitlebarSection>
-  )
-}
-
-/**
- * Titlebar Activity Feed button. Inside a space it opens that space's feed.
- * With no space in the route it opens the node wide feed.
- */
-function ActivityFeedButton() {
-  const route = useNavRoute()
-  const navigate = useNavigate()
-  const isActive = route.key === 'feed' || route.key === 'node-feed'
-  const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-  const siteId = routeId?.uid ? hmId(routeId.uid) : null
-  return (
-    <Tooltip content="Activity Feed" asChild>
-      <Button
-        className={cn(
-          'window-no-drag h-8 w-8 rounded-full border p-0',
-          isActive
-            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
-            : 'border-transparent',
-        )}
-        aria-current={isActive ? 'page' : undefined}
-        aria-label="Activity Feed"
-        onMouseEnter={() => {
-          import('@shm/ui/feed').catch(() => {})
-        }}
-        onClick={() => navigate(siteId ? {key: 'feed', id: siteId} : {key: 'node-feed'})}
-      >
-        <Activity className="size-4" />
-      </Button>
-    </Tooltip>
   )
 }
 
@@ -742,10 +710,6 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Query Documents'
     case 'explore':
       return 'Explore'
-    case 'node-feed':
-      return 'Activity Feed'
-    case 'notifications':
-      return 'Notifications'
     case 'draft':
       return 'Draft'
     default:

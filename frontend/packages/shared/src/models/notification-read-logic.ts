@@ -125,6 +125,46 @@ export function markNotificationEventUnreadInState(input: {
 }
 
 /**
+ * Whether a notification belongs to a site: its target document is owned by the site's account.
+ * Without a site every notification matches. The notify server and the desktop inbox share this rule.
+ */
+export function notificationMatchesSite(notification: {target: {uid: string}}, siteUid?: string) {
+  if (!siteUid) return true
+  return notification.target.uid === siteUid
+}
+
+/**
+ * Returns the next read state after marking each given notification as read, one event at a time.
+ * Used for a site-scoped "mark all as read", where a global watermark would also cover other sites.
+ */
+export function markNotificationsReadInState<State extends NotificationReadLikeState>(
+  readState: State,
+  notifications: Array<{feedEventId: string; eventAtMs: number}>,
+): State {
+  let nextReadState = readState
+  for (const notification of notifications) {
+    if (
+      isNotificationEventRead({
+        readState: nextReadState,
+        eventId: notification.feedEventId,
+        eventAtMs: notification.eventAtMs,
+      })
+    ) {
+      continue
+    }
+    nextReadState = {
+      ...nextReadState,
+      ...markNotificationEventReadInState({
+        readState: nextReadState,
+        eventId: notification.feedEventId,
+        eventAtMs: notification.eventAtMs,
+      }),
+    }
+  }
+  return nextReadState
+}
+
+/**
  * Returns the next read state after marking all loaded notifications as read.
  */
 export function markAllNotificationsReadInState(input: {

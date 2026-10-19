@@ -32,6 +32,8 @@ import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from '
 import {AppErrorPage, RootAppError} from '../components/app-error'
 import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
 import {AutoUpdater} from '../components/auto-updater'
+import {NotificationInboxProvider} from '@shm/ui/activity-panel'
+import {DesktopNotificationInbox} from '../components/desktop-notification-inbox'
 import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'
 import {AppSidebar} from '../components/sidebar'
@@ -51,7 +53,6 @@ var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./desktop-resource'))
 var Feed = lazy(() => import('./desktop-feed'))
-var NodeFeed = lazy(() => import('./desktop-node-feed'))
 var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var SchemaBrowser = lazy(() => import('./schema'))
@@ -64,7 +65,6 @@ var AgentDetail = lazy(() => import('@shm/ui/agents/detail'))
 var AgentSession = lazy(() => import('@shm/ui/agents/session'))
 var AgentRun = lazy(() => import('@shm/ui/agents/run'))
 var Profile = lazy(() => import('./profile'))
-var Notifications = lazy(() => import('./notifications'))
 var SiteSettingsEmails = lazy(() => import('./site-settings-emails'))
 
 /**
@@ -261,7 +261,11 @@ export default function Main({className}: {className?: string}) {
                         root boundary and the whole window — chrome included — becomes a spinner. */}
                     <Suspense fallback={<Fallback />}>
                       {(browserMounted || navR.key === 'web') && <WebBrowser />}
-                      {navR.key !== 'web' && <PageComponent />}
+                      {navR.key !== 'web' && (
+                        <NotificationInboxProvider value={DesktopNotificationInbox}>
+                          <PageComponent />
+                        </NotificationInboxProvider>
+                      )}
                     </Suspense>
                   </ErrorBoundary>
                 </Panel>
@@ -467,11 +471,6 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: Feed,
         Fallback: DocumentPlaceholder,
       }
-    case 'node-feed':
-      return {
-        PageComponent: NodeFeed,
-        Fallback: BaseLoading,
-      }
     case 'directory':
       return {
         PageComponent: Document,
@@ -521,11 +520,6 @@ function getPageComponent(navRoute: NavRoute) {
       return {
         PageComponent: Document,
         Fallback: DocumentPlaceholder,
-      }
-    case 'notifications':
-      return {
-        PageComponent: Notifications,
-        Fallback: BaseLoading,
       }
     case 'site-settings-emails':
       return {

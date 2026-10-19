@@ -100,6 +100,7 @@ import {
 } from '@shm/shared/models/use-document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
+import {ActivityContent, ActivityHeader} from './activity-panel'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
@@ -952,6 +953,7 @@ export interface ResourcePageProps {
 function getPanelTitle(panelKey: string | null): string {
   switch (panelKey) {
     case 'activity':
+    case 'feed':
       return 'Activity'
     case 'comments':
       return 'Discussions'
@@ -1608,7 +1610,6 @@ export interface PageShellProps {
   headerData: HeaderData
   document?: HMDocument
   children: React.ReactNode
-  isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
@@ -1630,7 +1631,6 @@ export function PageShell({
   headerData,
   document,
   children,
-  isMainFeedVisible = false,
   rightActions,
   editNavPane,
   editNavPanePortalRef,
@@ -1673,7 +1673,6 @@ export function PageShell({
         isCenterLayout={headerData.isCenterLayout}
         document={document}
         siteHomeDocument={headerData.siteHomeDocument}
-        isMainFeedVisible={isMainFeedVisible}
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={rightActions}
         editNavPane={editNavPanePortalRef ? undefined : editNavPane}
@@ -1708,7 +1707,6 @@ export function PageWrapper({
   headerData,
   document,
   children,
-  isMainFeedVisible = false,
   rightActions,
   editNavPane,
   editNavPanePortalRef,
@@ -1724,7 +1722,6 @@ export function PageWrapper({
   headerData: HeaderData
   document?: HMDocument
   children: React.ReactNode
-  isMainFeedVisible?: boolean
   rightActions?: React.ReactNode
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
@@ -1755,7 +1752,6 @@ export function PageWrapper({
       docId={docId}
       headerData={headerData}
       document={document}
-      isMainFeedVisible={isMainFeedVisible}
       rightActions={rightActions}
       editNavPane={editNavPane}
       editNavPanePortalRef={editNavPanePortalRef}
@@ -3081,6 +3077,17 @@ function DocumentBody({
     }
   }
 
+  // The space Activity panel brings its own header. Switching tabs replaces the history entry.
+  const activityPanelHeader =
+    panelRoute?.key === 'feed' ? (
+      <ActivityHeader
+        tab={panelRoute.tab}
+        onTabChange={(tab) => replaceRoute({...route, panel: {...panelRoute, tab}} as NavRoute)}
+        onExpand={() => navigate({key: 'feed', id: hmId(panelRoute.id?.uid ?? docId.uid), tab: panelRoute.tab})}
+        onClose={handlePanelClose}
+      />
+    ) : undefined
+
   // Mobile: use document scroll with bottom bar and panel sheet
   if (isMobile) {
     return (
@@ -3096,51 +3103,60 @@ function DocumentBody({
             isOpen={mobilePanelOpen}
             title={panelRoute?.key === 'activity' && panelRoute.targetBlockId ? 'Citations' : getPanelTitle(panelKey)}
             onClose={handlePanelClose}
+            header={activityPanelHeader}
           >
-            <DiscussionsPageContent
-              docId={commentsPanelTarget.docId}
-              showTitle={false}
-              showOpenInPanel={false}
-              contentMaxWidth={contentMaxWidth}
-              targetDomain={siteUrl}
-              openComment={commentsPanelTarget.openComment}
-              replyCommentId={panelRoute?.key === 'comments' ? panelRoute.replyCommentId : undefined}
-              targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-              blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
-              blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
-              commentEditor={
-                CommentEditor ? (
-                  <CommentEditor
-                    key={
-                      panelRoute?.key === 'comments'
-                        ? getCommentEditorRouteKey({
-                            openComment: panelRoute.openComment,
-                            targetBlockId: panelRoute.targetBlockId,
-                            blockRange: panelRoute.blockRange,
-                          })
-                        : undefined
-                    }
-                    docId={commentsPanelTarget.docId}
-                    quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-                    quotingRange={
-                      panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
-                    }
-                    commentId={commentsPanelTarget.openComment}
-                    isReplying={
-                      panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
-                    }
-                    replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
-                    rootReplyCommentVersion={
-                      panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
-                    }
-                    // On mobile, opening the keyboard during the sheet entrance
-                    // causes visible viewport jumps. Let the drawer settle and
-                    // let users tap the composer when they are ready to type.
-                    focusOnMount={false}
-                  />
-                ) : undefined
-              }
-            />
+            {panelRoute?.key === 'feed' ? (
+              <ActivityContent
+                spaceId={hmId(panelRoute.id?.uid ?? docId.uid)}
+                tab={panelRoute.tab}
+                targetDomain={siteUrl}
+              />
+            ) : (
+              <DiscussionsPageContent
+                docId={commentsPanelTarget.docId}
+                showTitle={false}
+                showOpenInPanel={false}
+                contentMaxWidth={contentMaxWidth}
+                targetDomain={siteUrl}
+                openComment={commentsPanelTarget.openComment}
+                replyCommentId={panelRoute?.key === 'comments' ? panelRoute.replyCommentId : undefined}
+                targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
+                blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
+                blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
+                commentEditor={
+                  CommentEditor ? (
+                    <CommentEditor
+                      key={
+                        panelRoute?.key === 'comments'
+                          ? getCommentEditorRouteKey({
+                              openComment: panelRoute.openComment,
+                              targetBlockId: panelRoute.targetBlockId,
+                              blockRange: panelRoute.blockRange,
+                            })
+                          : undefined
+                      }
+                      docId={commentsPanelTarget.docId}
+                      quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
+                      quotingRange={
+                        panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
+                      }
+                      commentId={commentsPanelTarget.openComment}
+                      isReplying={
+                        panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
+                      }
+                      replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
+                      rootReplyCommentVersion={
+                        panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
+                      }
+                      // On mobile, opening the keyboard during the sheet entrance
+                      // causes visible viewport jumps. Let the drawer settle and
+                      // let users tap the composer when they are ready to type.
+                      focusOnMount={false}
+                    />
+                  ) : undefined
+                }
+              />
+            )}
           </MobilePanelSheet>
         )}
       </>
@@ -3173,6 +3189,7 @@ function DocumentBody({
         isCitationsPanel={panelRoute?.key === 'activity' && !!panelRoute.targetBlockId}
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
+        header={activityPanelHeader}
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
@@ -3374,6 +3391,10 @@ function PanelContentRenderer({
         <div className="p-4">
           <CollaboratorsPage docId={docId} />
         </div>
+      )
+    case 'feed':
+      return (
+        <ActivityContent spaceId={hmId(panelRoute.id?.uid ?? docId.uid)} tab={panelRoute.tab} targetDomain={siteUrl} />
       )
 
     default:

@@ -6,7 +6,9 @@ import {
   createInspectNavRoute,
   createRouteFromInspectNavRoute,
   defaultRoute,
+  getActivityBellTarget,
   getRecentsRouteEntityUrl,
+  isActivityOpen,
   navRouteSchema,
   replaceRouteDocumentId,
   type NavRoute,
@@ -1103,4 +1105,123 @@ describe('space settings browser destinations', () => {
       )
     },
   )
+})
+
+describe('space Activity', () => {
+  const space = hmId('space1')
+  const doc = hmId('space1', {path: ['notes']})
+
+  describe('side panel URL', () => {
+    test('round-trips To you through the panel query param', () => {
+      const route: NavRoute = {key: 'document', id: doc, panel: {key: 'feed', id: space, tab: 'to-you'}}
+      expect(routeToHref(route, {originHomeId: space})).toBe('/notes?panel=feed/to-you')
+      expect(createDocumentNavRoute(doc, null, 'feed/to-you')).toMatchObject({
+        key: 'document',
+        panel: {key: 'feed', id: expect.objectContaining({uid: 'space1', path: []}), tab: 'to-you'},
+      })
+    })
+
+    test('leaves All updates as the bare panel key', () => {
+      const route: NavRoute = {key: 'document', id: doc, panel: {key: 'feed', id: space, tab: 'all-updates'}}
+      expect(routeToHref(route, {originHomeId: space})).toBe('/notes?panel=feed')
+      const parsed = createDocumentNavRoute(doc, null, 'feed')
+      expect(parsed.key === 'document' && parsed.panel).toMatchObject({key: 'feed', tab: undefined})
+    })
+  })
+
+  describe('full page URL', () => {
+    test('puts To you in the view-term path', () => {
+      const route: NavRoute = {key: 'feed', id: space, tab: 'to-you'}
+      expect(routeToHref(route, {originHomeId: space})).toBe('/:feed/to-you')
+      expect(routeToUrl(route, {hostname: 'https://site.example', originHomeId: space})).toBe(
+        'https://site.example/:feed/to-you',
+      )
+    })
+
+    test('keeps old /:feed links on All updates', () => {
+      expect(routeToHref({key: 'feed', id: space}, {originHomeId: space})).toBe('/:feed')
+      expect(createDocumentNavRoute(space, 'feed', null)).toEqual({key: 'feed', id: space, panel: null})
+    })
+
+    test('parses the To you tab from a pasted URL', () => {
+      const extracted = extractViewTermFromUrl('https://site.example/:feed/to-you')
+      expect(extracted).toMatchObject({url: 'https://site.example', viewTerm: ':feed', feedTab: 'to-you'})
+      expect(createDocumentNavRoute(space, 'feed', 'feed/to-you')).toEqual({
+        key: 'feed',
+        id: space,
+        tab: 'to-you',
+        panel: null,
+      })
+    })
+  })
+
+  describe('getActivityBellTarget', () => {
+    test('opens the panel on To you, replacing any other panel', () => {
+      expect(getActivityBellTarget({key: 'document', id: doc, panel: {key: 'comments', id: doc}})).toEqual({
+        key: 'document',
+        id: doc,
+        panel: {key: 'feed', id: expect.objectContaining({uid: 'space1', path: []}), tab: 'to-you'},
+      })
+    })
+
+    test('opens on All updates for a signed-out reader', () => {
+      expect(getActivityBellTarget({key: 'document', id: doc}, 'all-updates')).toEqual({
+        key: 'document',
+        id: doc,
+        panel: {key: 'feed', id: expect.objectContaining({uid: 'space1'}), tab: 'all-updates'},
+      })
+    })
+
+    test('closes the panel when it is already open', () => {
+      expect(getActivityBellTarget({key: 'document', id: doc, panel: {key: 'feed', id: space}})).toEqual({
+        key: 'document',
+        id: doc,
+        panel: null,
+      })
+    })
+
+    test('collapses the full page', () => {
+      expect(getActivityBellTarget({key: 'feed', id: space})).toBe('collapse')
+    })
+
+    test('opens the full page on space pages without a right panel', () => {
+      expect(getActivityBellTarget({key: 'site-profile', id: space, tab: 'profile'})).toEqual({
+        key: 'feed',
+        id: expect.objectContaining({uid: 'space1'}),
+        tab: 'to-you',
+      })
+      expect(getActivityBellTarget({key: 'explore', context: {type: 'site', id: space}})).toMatchObject({
+        key: 'feed',
+        tab: 'to-you',
+      })
+    })
+
+    test('has nothing to open outside any space', () => {
+      expect(getActivityBellTarget({key: 'library'})).toBeNull()
+      expect(getActivityBellTarget({key: 'explore', context: {type: 'node'}})).toBeNull()
+    })
+  })
+
+  test('isActivityOpen covers the side panel and the full page', () => {
+    expect(isActivityOpen({key: 'document', id: doc, panel: {key: 'feed', id: space}})).toBe(true)
+    expect(isActivityOpen({key: 'feed', id: space})).toBe(true)
+    expect(isActivityOpen({key: 'document', id: doc, panel: {key: 'comments', id: doc}})).toBe(false)
+  })
+
+  test('the panel follows the space when the route moves to another document', () => {
+    const moved = replaceRouteDocumentId(
+      {key: 'document', id: doc, panel: {key: 'feed', id: space, tab: 'to-you'}},
+      hmId('space2', {path: ['other']}),
+    )
+    expect(moved.key === 'document' && moved.panel).toEqual({
+      key: 'feed',
+      id: expect.objectContaining({uid: 'space2', path: []}),
+      tab: 'to-you',
+    })
+  })
+
+  test('removed the standalone Notifications and node-wide feed routes', () => {
+    expect(navRouteSchema.safeParse({key: 'notifications'}).success).toBe(false)
+    expect(navRouteSchema.safeParse({key: 'node-feed'}).success).toBe(false)
+  })
 })

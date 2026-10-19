@@ -18,7 +18,7 @@ import {useResponsiveItems} from './use-responsive-items'
 
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Activity, Lock} from 'lucide-react'
+import {Lock} from 'lucide-react'
 import {AssistantPanelHeaderButton, AssistantPanelMenuItem} from './assistant-panel-toggle'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
@@ -103,35 +103,6 @@ function ExploreHeaderButton({siteHomeId}: {siteHomeId: UnpackedHypermediaId}) {
   )
 }
 
-// Site header entry point to the space Activity Feed.
-function FeedHeaderButton({siteHomeId, isActive}: {siteHomeId: UnpackedHypermediaId; isActive: boolean}) {
-  const linkProps = useRouteLink({
-    key: 'feed',
-    id: {...siteHomeId, latest: true, version: null},
-  })
-  return (
-    <Tooltip content="Activity Feed">
-      <Button
-        asChild
-        variant="ghost"
-        size="icon"
-        className={cn('h-8 rounded-full border-1 border-transparent p-0', isActive && 'dark:bg-muted bg-black/5')}
-      >
-        <a
-          aria-label="Activity Feed"
-          aria-current={isActive ? 'page' : undefined}
-          onMouseEnter={() => {
-            import('./feed').catch(() => {})
-          }}
-          {...linkProps}
-        >
-          <Activity className="size-4" />
-        </a>
-      </Button>
-    </Tooltip>
-  )
-}
-
 export function SiteHeader({
   siteHomeId,
   docId,
@@ -148,7 +119,6 @@ export function SiteHeader({
   isLatest: _isLatest,
   editNavPane,
   editNavPanePortalRef,
-  isMainFeedVisible = false,
   wrapperClassName,
   notifyServiceHost: _notifyServiceHost,
   routeType,
@@ -170,7 +140,6 @@ export function SiteHeader({
   isLatest?: boolean
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
-  isMainFeedVisible: boolean
   wrapperClassName?: string
   notifyServiceHost?: string
   routeType?: NavRoute['key']
@@ -208,7 +177,6 @@ export function SiteHeader({
       {siteHomeId && !IS_DESKTOP ? (
         <div className="hidden items-center gap-1 md:flex">
           <ExploreHeaderButton siteHomeId={siteHomeId} />
-          <FeedHeaderButton siteHomeId={siteHomeId} isActive={isMainFeedVisible} />
           <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
           <DocumentMaintenanceTrigger compact />
         </div>
@@ -327,7 +295,6 @@ export function SiteHeader({
                         setIsMobileMenuOpen(false)
                       }}
                     />
-                    <MobileFeedLink siteHomeId={siteHomeId} onClick={() => setIsMobileMenuOpen(false)} />
                   </div>
                 )}
                 {!IS_DESKTOP && (
@@ -421,26 +388,6 @@ function MobileMenuOutline({
 
   return (
     <DocumentOutline onActivateBlock={onActivateBlock} outline={outline} id={docId} activeBlockId={docId.blockRef} />
-  )
-}
-
-function MobileFeedLink({siteHomeId, onClick}: {siteHomeId: UnpackedHypermediaId; onClick?: () => void}) {
-  const feedLinkProps = useRouteLink({
-    key: 'feed',
-    id: {...siteHomeId, latest: true, version: null},
-  })
-
-  return (
-    <SmallListItem
-      bold
-      title="Activity Feed"
-      icon={<Activity className="size-4" />}
-      {...feedLinkProps}
-      onClick={(e) => {
-        feedLinkProps.onClick?.(e)
-        onClick?.()
-      }}
-    />
   )
 }
 
