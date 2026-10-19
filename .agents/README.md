@@ -10,7 +10,8 @@ should share it.
   and `.agents/skills/`. Codex reads `AGENTS.md` and `.agents/skills/` natively (`.codex/environments/environment.toml`
   is its environment setup); Cursor reads `.cursor/`; Zed and Ollama-backed harnesses are configured to read `AGENTS.md`
   and attach the relevant `.agents/skills/*/SKILL.md`.
-- `security/` holds the vulnerability-hunting protocol (`auditor.md`), its audit log, and the probe scripts.
+- `skills/security-audit/` holds the explicitly requested security-audit workflow, its historical log in `resources/`,
+  and probe scripts in `scripts/`. Routine fixes, including security fixes, do not activate it.
 - Do not add canonical instructions to a provider folder when they apply to every agent, and do not duplicate a workflow
   across provider folders: create or update a skill under `skills/` instead.
 

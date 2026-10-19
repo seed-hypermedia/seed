@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Preflight gate for Seed security probes. Run this before ANY probe or measurement.
+# Preflight gate for explicitly requested Seed security audit probes and measurements.
 #
-#   bash .agents/security/probes/lib/preflight.sh [http_port] [grpc_port]
+#   direnv exec . bash .agents/skills/security-audit/scripts/probes/lib/preflight.sh [http_port] [grpc_port]
 #
 # Defaults to the devnet desktop dev ports (58001 / 58002). Exits non-zero naming the gate that
 # failed. Its stdout is meant to be pasted into a finding record as evidence entry 0.
@@ -9,7 +9,7 @@
 # The gate that matters most is gate 3: it refuses to let a probe run against a MAINNET daemon.
 # Anything published on mainnet reaches real peers and cannot be recalled.
 #
-# See .agents/security/auditor.md sections 1 and 6.1.
+# See .agents/skills/security-audit/resources/protocol.md sections 1 and 6.1.
 
 set -uo pipefail
 
