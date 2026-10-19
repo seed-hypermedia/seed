@@ -235,7 +235,9 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 		lightEmbedder = embedder
 	}
 
-	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.Base, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
+	// The locked-down mode covers both API listeners: plain gRPC has no authentication at all, and
+	// the desktop never needs it off the machine (its apps use grpc-web on the HTTP port).
+	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.Base, cfg.GRPC.Port, cfg.HTTP.Loopback, &a.clean, a.g, a.Storage, a.Index, a.Net,
 		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub, opts.grpc, a.taskMgr, lightEmbedder)
 	if err != nil {
 		return nil, err
@@ -392,6 +394,7 @@ func initSyncing(
 func initGRPC(
 	cfg config.Base,
 	port int,
+	loopback bool,
 	clean *cleanup.Stack,
 	g *errgroup.Group,
 	repo *storage.Store,
@@ -405,7 +408,7 @@ func initGRPC(
 	taskMgr *taskmanager.TaskManager,
 	embedder embeddings.LightEmbedder,
 ) (srv *grpc.Server, lis net.Listener, apis api.Server, err error) {
-	lis, err = net.Listen("tcp", ":"+strconv.Itoa(port))
+	lis, err = net.Listen("tcp", listenAddr(loopback, port))
 	if err != nil {
 		return
 	}
@@ -452,6 +455,17 @@ func initGRPC(
 	})
 
 	return
+}
+
+// listenAddr is where an API listener binds: every interface by default (servers and containers),
+// 127.0.0.1 only in the locked-down mode the desktop app runs its daemon in.
+func listenAddr(loopback bool, port int) string {
+	host := ""
+	if loopback {
+		host = "127.0.0.1"
+	}
+
+	return net.JoinHostPort(host, strconv.Itoa(port))
 }
 
 func initLLM(

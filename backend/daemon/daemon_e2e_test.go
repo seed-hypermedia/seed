@@ -404,6 +404,65 @@ func TestDaemonCORS(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, resp.StatusCode)
 		requireCORSHeaders(t, resp.Header)
 	})
+
+	t.Run("gated grpc-web request from a foreign origin", func(t *testing.T) {
+		status, header := grpcWebRequest(t, client, baseURL, "https://example.com")
+		require.Equal(t, http.StatusForbidden, status)
+		require.Empty(t, header.Get("Access-Control-Allow-Origin"))
+		require.Empty(t, header.Get("Access-Control-Allow-Credentials"))
+	})
+
+	// The open default (no app secret, no -http.browser-auth) is what servers and containers run,
+	// and what every daemon ran before the gate existed: any origin may preflight and call
+	// grpc-web, and grpc-web's own CORS wrapper echoes the origin with credentials allowed.
+	open := makeTestApp(t, "bob", makeTestConfig(t), false)
+	openURL := "http://127.0.0.1:" + strconv.Itoa(open.HTTPListener.Addr().(*net.TCPAddr).Port)
+
+	t.Run("open preflight from a foreign origin", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodOptions, openURL+"/com.seed.daemon.v1alpha.Daemon/GetInfo", nil)
+		require.NoError(t, err)
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "Content-Type, X-Grpc-Web")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
+		require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Headers"))
+		require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Methods"))
+	})
+
+	t.Run("open grpc-web request from a foreign origin", func(t *testing.T) {
+		status, header := grpcWebRequest(t, client, openURL, "https://example.com")
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, "https://example.com", header.Get("Access-Control-Allow-Origin"))
+		require.Equal(t, "true", header.Get("Access-Control-Allow-Credentials"))
+		require.Contains(t, header.Values("Vary"), "Origin")
+	})
+}
+
+// grpcWebRequest calls Daemon/GetInfo over grpc-web from a browser page at origin and returns the
+// response status and headers, so the test can look at the CORS headers.
+func grpcWebRequest(t *testing.T, client *http.Client, baseURL, origin string) (int, http.Header) {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
+	require.NoError(t, err)
+	req.Header.Set("Origin", origin)
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	req.Header.Set("Content-Type", "application/grpc-web+proto")
+	req.Header.Set("X-Grpc-Web", "1")
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	return resp.StatusCode, resp.Header
 }
 
 func requireCORSHeaders(t *testing.T, h http.Header) {

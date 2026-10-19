@@ -11,10 +11,12 @@ import (
 	"os"
 	"seed/backend/blob"
 	"seed/backend/core"
+	daemon "seed/backend/genproto/daemon/v1alpha"
 	"seed/backend/hmnet"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/sqlite/sqlitex"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -28,6 +30,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -313,6 +316,32 @@ func TestHTTPListenAddress(t *testing.T) {
 	}
 }
 
+// TestGRPCListenAddress: -http.loopback is the whole locked-down mode, so the plain gRPC
+// listener (no authentication at all) follows it as well. The desktop talks grpc-web over the
+// HTTP port, so a loopback gRPC bind costs it nothing; same-machine clients keep working.
+func TestGRPCListenAddress(t *testing.T) {
+	for _, all := range []bool{false, true} {
+		cfg := makeTestConfig(t)
+		cfg.HTTP.Loopback = !all
+		cfg.PublicOnly = true
+		app := makeTestApp(t, "alice", cfg, false)
+
+		addr := app.GRPCListener.Addr().(*net.TCPAddr)
+		if all {
+			require.True(t, addr.IP.IsUnspecified())
+		} else {
+			require.Equal(t, "127.0.0.1", addr.IP.String())
+		}
+
+		conn, err := grpc.NewClient(net.JoinHostPort("127.0.0.1", strconv.Itoa(addr.Port)), grpc.WithTransportCredentials(insecure.NewCredentials()))
+		require.NoError(t, err)
+		defer conn.Close()
+		info, err := daemon.NewDaemonClient(conn).GetInfo(t.Context(), &daemon.GetInfoRequest{})
+		require.NoError(t, err)
+		require.NotEmpty(t, info.PeerId)
+	}
+}
+
 // TestHTTPBrowserServer runs the real daemon for the Electron regression, with
 // ephemeral ports and storage. It is opt-in and exits when the harness closes stdin.
 func TestHTTPBrowserServer(t *testing.T) {
@@ -388,7 +417,9 @@ func TestHTTPGateRoutes(t *testing.T) {
 		rec := httptest.NewRecorder()
 		plain.HTTPServer.Handler.ServeHTTP(rec, req)
 		require.Equal(t, 200, rec.Code)
-		require.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+		// grpc-web's own CORS wrapper answers the page as it always did: origin echoed, credentials allowed.
+		require.Equal(t, "https://example.com", rec.Header().Get("Access-Control-Allow-Origin"))
+		require.Equal(t, "true", rec.Header().Get("Access-Control-Allow-Credentials"))
 	})
 	t.Run("-http.browser-auth gates browser pages with a generated secret", func(t *testing.T) {
 		t.Setenv("SEED_APP_SECRET", "")
@@ -417,6 +448,7 @@ func TestHTTPGateRoutes(t *testing.T) {
 		rec := httptest.NewRecorder()
 		server.HTTPServer.Handler.ServeHTTP(rec, req)
 		require.Equal(t, 200, rec.Code)
-		require.Equal(t, "*", rec.Header().Get("Access-Control-Allow-Origin"))
+		require.Equal(t, "https://hyper.media", rec.Header().Get("Access-Control-Allow-Origin"))
+		require.Equal(t, "true", rec.Header().Get("Access-Control-Allow-Credentials"))
 	})
 }
