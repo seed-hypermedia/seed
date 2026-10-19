@@ -1,10 +1,15 @@
 import * as http from 'http'
+import {BlockList, isIP} from 'net'
 import {handleApiAction, handleApiRequest} from '@shm/shared/api-server'
 import {API_HTTP_PORT, DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {grpcClient} from './grpc-client'
 import * as logger from './logger'
 
 let server: http.Server | null = null
+
+const loopbackAddresses = new BlockList()
+loopbackAddresses.addSubnet('127.0.0.0', 8, 'ipv4')
+loopbackAddresses.addAddress('::1', 'ipv6')
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -41,16 +46,40 @@ export function startApiServer(): Promise<void> {
         res.setHeader(key, value)
       }
 
+      const forbid = () => {
+        res.writeHead(403, {'Content-Type': 'application/json'})
+        res.end(JSON.stringify({error: 'Forbidden'}))
+      }
+
+      // DNS rebinding can point an attacker's hostname at loopback while the browser
+      // still reports same-origin. Require localhost or a literal loopback IP without
+      // resolving DNS; checking the socket peer and Fetch Metadata alone is insufficient.
+      // Require Host so every request undergoes the loopback-host check, including HTTP/1.0.
+      // Treat Host as an authority, never as a URL with userinfo or a path.
+      const authority = req.headers.host
+      if (!authority || /[\s/\\@?#]/.test(authority)) return forbid()
+      let hostname: string
+      try {
+        // The synthetic "http://" scheme lets URL parse a host, optional port, and
+        // bracketed IPv6 address. This only parses text; it makes no request.
+        hostname = new URL(`http://${authority}`).hostname
+      } catch {
+        return forbid()
+      }
+      if (hostname.startsWith('[')) hostname = hostname.slice(1, -1)
+      const ipVersion = isIP(hostname)
+      if (
+        hostname !== 'localhost' &&
+        (!ipVersion || !loopbackAddresses.check(hostname, ipVersion === 4 ? 'ipv4' : 'ipv6'))
+      ) {
+        return forbid()
+      }
+
       // Leaving CORS broad on purpose.
       if (req.method === 'OPTIONS') {
         res.writeHead(204)
         res.end()
         return
-      }
-
-      const forbid = () => {
-        res.writeHead(403, {'Content-Type': 'application/json'})
-        res.end(JSON.stringify({error: 'Forbidden'}))
       }
 
       const site = req.headers['sec-fetch-site']

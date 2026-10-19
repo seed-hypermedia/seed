@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"runtime/debug"
 	daemonapi "seed/backend/api/daemon/v1alpha"
 	telemetryapi "seed/backend/api/telemetry/v1alpha"
@@ -194,6 +195,24 @@ func loopbackOnly(next http.Handler) http.Handler {
 		ip := ap.Addr().Unmap()
 
 		if !ip.IsLoopback() {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		// DNS rebinding can point an attacker's hostname at loopback while the browser
+		// still reports same-origin. Require localhost or a literal loopback IP without
+		// resolving DNS; checking the socket peer and Fetch Metadata alone is insufficient.
+		// Require Host so every request undergoes the loopback-host check, including HTTP/1.0.
+		// The "//" prefix makes url.Parse treat Host as an authority (host plus optional
+		// port), rather than a path or scheme. This only parses text; it makes no request.
+		authority, err := url.Parse("//" + r.Host)
+		if err != nil || authority.Host != r.Host || authority.User != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		host := authority.Hostname()
+		addr, _ := netip.ParseAddr(host)
+		if !strings.EqualFold(host, "localhost") && !addr.Unmap().IsLoopback() {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}

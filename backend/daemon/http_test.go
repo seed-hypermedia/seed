@@ -25,6 +25,94 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
+// TestSecurity_LoopbackOnlyHost covers DNS rebinding through a loopback connection (#1259).
+func TestSecurity_LoopbackOnlyHost(t *testing.T) {
+	t.Parallel()
+
+	handler := loopbackOnly(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	for _, tt := range []struct {
+		host  string
+		local bool
+	}{
+		{"", false},
+		{"localhost", true},
+		{"LOCALHOST:58001", true},
+		{"127.0.0.1", true},
+		{"127.23.45.67:56001", true},
+		{"[::1]", true},
+		{"[0:0:0:0:0:0:0:1]:58001", true},
+		{"[::ffff:127.0.0.1]:56001", true},
+		{"[::ffff:7f17:2d43]", true},
+		{"attacker.example:58001", false},
+		{"localhost.attacker.example", false},
+		{"app.localhost", false},
+		{"192.168.1.2:58001", false},
+		{"[::ffff:192.168.1.2]:58001", false},
+		{"[2001:db8::1]", false},
+		{"attacker.example@localhost", false},
+		{"localhost/attacker.example", false},
+		{"localhost?attacker.example", false},
+		{"localhost#attacker.example", false},
+		{"localhost:bad", false},
+	} {
+		for _, site := range []string{"", "none", "same-origin", "same-site", "cross-site"} {
+			t.Run(tt.host+"/"+site, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/debug/metrics", nil)
+				req.RemoteAddr = "127.0.0.1:12345"
+				req.Host = tt.host
+				if tt.host == "" {
+					// HTTP/1.0 permits an absent Host at the HTTP parser.
+					req.Proto = "HTTP/1.0"
+					req.ProtoMinor = 0
+				}
+				req.Header.Set("Sec-Fetch-Site", site)
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+
+				want := http.StatusForbidden
+				if tt.local && (site == "" || site == "none" || site == "same-origin") {
+					want = http.StatusNoContent
+				}
+				require.Equal(t, want, rec.Code)
+			})
+		}
+	}
+}
+
+// TestSecurity_LoopbackOnlyPeer preserves the peer-IP gate independently of Host.
+func TestSecurity_LoopbackOnlyPeer(t *testing.T) {
+	t.Parallel()
+
+	handler := loopbackOnly(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	for _, tt := range []struct {
+		remote string
+		want   int
+	}{
+		{"127.23.45.67:12345", http.StatusNoContent},
+		{"[::1]:12345", http.StatusNoContent},
+		{"[::ffff:127.0.0.1]:12345", http.StatusNoContent},
+		{"192.168.1.2:12345", http.StatusForbidden},
+		{"[::ffff:192.168.1.2]:12345", http.StatusForbidden},
+		{"invalid", http.StatusBadRequest},
+	} {
+		t.Run(tt.remote, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/debug/grpcui/invoke/test", nil)
+			req.RemoteAddr = tt.remote
+			req.Host = "localhost:58001"
+			req.Header.Set("Origin", "http://localhost:58001")
+			req.Header.Set("Sec-Fetch-Site", "same-origin")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			require.Equal(t, tt.want, rec.Code)
+		})
+	}
+}
+
 func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
 	t.Parallel()
 
