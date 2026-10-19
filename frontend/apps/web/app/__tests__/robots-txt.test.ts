@@ -1,20 +1,28 @@
-import {afterEach, describe, expect, it, vi} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import {buildRobotsTxt} from '../routes/robots[.]txt'
 
-afterEach(() => vi.unstubAllEnvs())
+describe('buildRobotsTxt', () => {
+  it('lets the gateway host be crawled, including /hm/ paths', () => {
+    const body = buildRobotsTxt(true)
+    expect(body).toContain('Allow: /')
+    expect(body).not.toContain('Disallow: /hm/')
+  })
 
-describe.each(['true', 'false'])('buildRobotsTxt with SEED_IS_GATEWAY=%s', (isGateway) => {
-  it('keeps crawlers out of /hm/ while allowing normal site pages', () => {
-    vi.stubEnv('SEED_IS_GATEWAY', isGateway)
-    const body = buildRobotsTxt()
+  it('keeps crawlers out of /hm/ on a site host while allowing normal pages', () => {
+    const body = buildRobotsTxt(false)
     expect(body).toContain('Allow: /')
     expect(body).toContain('Disallow: /hm/')
     expect(body).not.toMatch(/^Disallow: \/$/m)
   })
 
-  it('keeps crawlers out of view-term panels', () => {
-    vi.stubEnv('SEED_IS_GATEWAY', isGateway)
-    const body = buildRobotsTxt()
+  it('keeps the image endpoints crawlable on a site host so link previews keep their images', () => {
+    const body = buildRobotsTxt(false)
+    expect(body).toContain('Allow: /hm/api/content-image')
+    expect(body).toContain('Allow: /hm/api/image/')
+  })
+
+  it.each([true, false])('keeps crawlers out of view-term panels (isGateway=%s)', (isGateway) => {
+    const body = buildRobotsTxt(isGateway)
     expect(body).toContain('Disallow: /*:profile')
     expect(body).toContain('Disallow: /*:followers')
     expect(body).toContain('Disallow: /*:membership')
@@ -22,15 +30,7 @@ describe.each(['true', 'false'])('buildRobotsTxt with SEED_IS_GATEWAY=%s', (isGa
     expect(body).toContain('Disallow: /*:activity')
   })
 
-  it('closes everything to crawlers on a members-only site', () => {
-    vi.stubEnv('SEED_IS_GATEWAY', isGateway)
-    expect(buildRobotsTxt(true)).toBe('User-agent: *\nDisallow: /\n')
-  })
-
-  it('keeps the image endpoints crawlable so link previews keep their images', () => {
-    vi.stubEnv('SEED_IS_GATEWAY', isGateway)
-    const body = buildRobotsTxt()
-    expect(body).toContain('Allow: /hm/api/content-image')
-    expect(body).toContain('Allow: /hm/api/image/')
+  it.each([true, false])('closes everything to crawlers on a members-only deployment (isGateway=%s)', (isGateway) => {
+    expect(buildRobotsTxt(isGateway, true)).toBe('User-agent: *\nDisallow: /\n')
   })
 })
