@@ -10,9 +10,12 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
   test.setTimeout(120000)
   const directory = await mkdtemp(path.join(tmpdir(), 'seed-web-browser-e2e-'))
   let blockedHostRequests = 0
+  let insecurePageRequests = 0
   let trackerRequests = 0
   const server = createServer((request, response) => {
     if (request.headers.host?.startsWith('seed-blocked.test:')) blockedHostRequests++
+    if (request.headers.host?.startsWith('seed-insecure.test:') && /^\/(first|second)$/.test(request.url ?? ''))
+      insecurePageRequests++
     if (request.url === '/fixture-tracker.js') {
       trackerRequests++
       response.setHeader('Content-Type', 'application/javascript')
@@ -358,6 +361,71 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       .toEqual(
         expect.arrayContaining([expect.objectContaining({type: 'browser-location', url: `${origin}/second#section`})]),
       )
+    const pageText = () => guest.evaluate((contents) => contents.executeJavaScript('document.body.innerText'))
+    const eventsSince = (start: number) =>
+      page.evaluate((start) => (window as any).browserTest.events().slice(start), start)
+    const eventCount = () => page.evaluate(() => (window as any).browserTest.events().length)
+    /** Accepts Seed's unencrypted-page warning with a real click and waits for the http page. */
+    const allowInsecure = async (url: string) => {
+      await clickGuest('a[href="seed-browser://allow-insecure"]')
+      await expect.poll(() => guest.evaluate((contents) => contents.getURL())).toBe(url)
+      await expect.poll(pageText).toContain('Article heading')
+    }
+    // A plain http address is tried over https first. The fixture server speaks no TLS, so Seed's
+    // warning follows, and no http request for the page has left the machine.
+    const insecureOrigin = `http://seed-insecure.test:${address.port}`
+    let since = await eventCount()
+    await navigate(`${insecureOrigin}/first`, 10)
+    await expect.poll(pageText).toContain(`seed-insecure.test:${address.port} is not encrypted`)
+    expect(await pageText()).not.toContain('Article heading')
+    expect(insecurePageRequests).toBe(0)
+    expect(await eventsSince(since)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'browser-location',
+          requestId: 10,
+          url: `${insecureOrigin}/first`,
+          insecure: true,
+        }),
+      ]),
+    )
+    // The failed encrypted attempt is not an error the user sees.
+    expect(await eventsSince(since)).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({type: 'browser-load-error'})]),
+    )
+    // Only a real click on the warning continues, and the page is then reported as insecure, so the
+    // pane frames it in red.
+    since = await eventCount()
+    await allowInsecure(`${insecureOrigin}/first`)
+    expect(insecurePageRequests).toBe(1)
+    expect(await eventsSince(since)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({type: 'browser-location', url: `${insecureOrigin}/first`, insecure: true}),
+      ]),
+    )
+    // The origin is remembered for the session: another page on it loads as http at once.
+    since = await eventCount()
+    await navigate(`${insecureOrigin}/second`, 11)
+    expect(await guest.evaluate((contents) => contents.getURL())).toBe(`${insecureOrigin}/second`)
+    expect(insecurePageRequests).toBe(2)
+    expect(await eventsSince(since)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'browser-location',
+          requestId: 11,
+          url: `${insecureOrigin}/second`,
+          insecure: true,
+        }),
+      ]),
+    )
+    // Loopback is a secure context: the test server's own address never shows the warning or the frame.
+    since = await eventCount()
+    await navigate(`${origin}/first`, 12)
+    expect(await eventsSince(since)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({type: 'browser-location', requestId: 12, url: `${origin}/first`, insecure: false}),
+      ]),
+    )
     const reboundUrl = `http://seed-rebinding.test:${address.port}/first`
     // Even a website the user allowed is refused when its hostname resolves to a private address.
     await page.evaluate((input) => (window as any).browserTest.access(input), {
@@ -365,6 +433,9 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       origins: [origin, new URL(reboundUrl).origin].map((origin) => ({origin, level: 'act'})),
     })
     await navigate(reboundUrl, 4)
+    // The plain-http hostname first needs the user's consent, like any other.
+    await expect.poll(pageText).toContain('is not encrypted')
+    await allowInsecure(reboundUrl)
     await expect(command({action: 'snapshot'})).rejects.toThrow('private network')
     const reboundIndex = await guest.evaluate((contents) => contents.navigationHistory.getActiveIndex())
     await navigate(`${origin}/first`, 5)

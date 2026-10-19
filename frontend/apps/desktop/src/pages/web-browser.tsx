@@ -84,6 +84,8 @@ export function WebBrowser() {
   const [savingTrackers, setSavingTrackers] = useState(false)
   const [trackerError, setTrackerError] = useState<string>()
   const [error, setError] = useState<string | null>(null)
+  /** The main process judged the committed page unencrypted; the website is framed in red until it says otherwise. */
+  const [insecure, setInsecure] = useState(false)
   const [favicons, setFavicons] = useState<{url: string; icons: string[]}>({url: '', icons: []})
   const pending = useRef<number>()
   const location = useRef<{url: string; historyIndex: number; title: string}>()
@@ -107,6 +109,7 @@ export function WebBrowser() {
     let createdId: number | undefined
     setError(null)
     setDialogOrigin(undefined)
+    setInsecure(false)
     window.webBrowser
       .create({private: privatePage})
       .then((result) => {
@@ -185,6 +188,8 @@ export function WebBrowser() {
 
   useListenAppEvent('browser-location', (event) => {
     if (event.browserId !== browserId || currentRoute.current.key !== 'web') return
+    // The frame follows what the guest actually shows, whichever request put it there.
+    setInsecure(event.insecure === true)
     if (event.requestId !== undefined && event.requestId !== pending.current) return
     if (pending.current !== undefined && event.requestId === undefined) return
     pending.current = undefined
@@ -386,7 +391,15 @@ export function WebBrowser() {
           </Button>
         </div>
       )}
-      <div ref={container} className="min-h-0 flex-1" />
+      {/* An unencrypted page is never shown without this frame; the warning page carries its own, thicker one. */}
+      <div
+        className="flex min-h-0 flex-1 flex-col"
+        style={insecure && active ? {border: '8px solid #ff0000'} : undefined}
+        data-testid={insecure && active ? 'browser-insecure-frame' : undefined}
+        aria-label={insecure && active ? 'Not secure: this page is not encrypted' : undefined}
+      >
+        <div ref={container} className="min-h-0 flex-1" />
+      </div>
       <AlertDialog open={confirmClear} onOpenChange={setConfirmClear}>
         <AlertDialogContent>
           <AlertDialogTitle>Clear browsing data?</AlertDialogTitle>

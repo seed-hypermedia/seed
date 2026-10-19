@@ -7,6 +7,7 @@ import {DEFAULT_AGENT_SERVER_URL} from './agents-defaults'
 import {getLocalAgentsServerUrl} from './agents-server-process'
 import {browserContentBlocker} from './browser-content-blocker'
 import {browserBlocklist, browserListRefreshInterval} from './browser-blocklist'
+import {insecureOrigins} from './browser-https-policy'
 import {setupBrowserNetworkPolicy} from './browser-network-policy'
 
 /** Dedicated persistent session for untrusted integrated websites. */
@@ -261,6 +262,7 @@ export function hardenGuestWebContents(guest: WebContents) {
 
 /** Clears only website session data, stopping guests before removing their storage. */
 export async function clearBrowserData() {
+  insecureOrigins.normal.clear()
   const browserSession = session.fromPartition(browserPartition)
   await Promise.all(
     webContents

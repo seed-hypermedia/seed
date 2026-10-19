@@ -249,6 +249,34 @@ describe('browser page lifecycle', () => {
     expect(container.textContent).not.toContain('/login')
   })
 
+  it('frames the website in red while the main process reports an unencrypted page', async () => {
+    await attachAndCommit()
+    expect(container.querySelector('[data-testid="browser-insecure-frame"]')).toBeNull()
+    await act(async () =>
+      emit({
+        type: 'browser-location',
+        browserId: 42,
+        url: 'http://insecure.example/',
+        title: 'Plain',
+        historyIndex: 2,
+        insecure: true,
+      }),
+    )
+    const frame = container.querySelector('[data-testid="browser-insecure-frame"]') as HTMLElement
+    expect(frame.style.border).toContain('8px solid')
+    expect(frame.style.border).toMatch(/#ff0000|rgb\(255, 0, 0\)/)
+    expect(frame.contains(sent('web-browser-bounds') && container.querySelector('div.min-h-0.flex-1'))).toBe(true)
+    // Only this guest's pages count, and the frame leaves with the next secure page.
+    await act(async () =>
+      emit({type: 'browser-location', browserId: 99, url: 'https://x.example/', title: '', historyIndex: 0}),
+    )
+    expect(container.querySelector('[data-testid="browser-insecure-frame"]')).not.toBeNull()
+    await act(async () =>
+      emit({type: 'browser-location', browserId: 42, url: 'https://secure.example/', title: 'Safe', historyIndex: 3}),
+    )
+    expect(container.querySelector('[data-testid="browser-insecure-frame"]')).toBeNull()
+  })
+
   it('shows the guest count and saves a per-origin tracker exception from the shield', async () => {
     await attachAndCommit()
     act(() =>

@@ -39,7 +39,8 @@ Discover the tool with `read ~/tools/browser`, then invoke `call` with `tool: "b
 - `scroll` moves through the page with read access. `click`, `type` and `press` require action access. Typing into
   password and other secret fields is refused, and so is typing into or submitting a form that posts to another website.
 - `navigate` opens an HTTP(S) URL on an allowed website, or asks the user first. Agents cannot open Seed links; the user
-  opens those.
+  opens those. A plain `http://` address is tried over https first, like every navigation in the pane; when only
+  unencrypted http answers, the command is refused and the pane shows the user the warning, which only they can accept.
 - `archive` creates an editable desktop draft and saves a Markdown copy in the owner-only `~/memory/private/browser/`
   folder. Images are fetched once and stored locally, so the draft never loads the source site.
 

@@ -1,103 +1,214 @@
 ---
 name: The Seed desktop app
-summary: The Electron app that is a full Hypermedia peer, how its processes fit together, where it keeps its data, how document editing flows, and the blob and metadata editors it adds for inspection.
+summary:
+  The Electron app that is a full Hypermedia peer, how its processes fit together, where it keeps its data, how document
+  editing flows, and the blob and metadata editors it adds for inspection.
 ---
-The Seed desktop app is a browser for the [Hypermedia network](../protocol.md), an editor, and an archive at once. It runs a full node on your machine, so everything you open is kept locally and served to [peers](../protocol/network.md). Everything you write is signed with [keys](../protocol/identity.md) that never leave your device. It runs on macOS, Windows and Linux and is downloadable from seed.hyper.media. <!-- id:PTCFN6-q -->
+
+The Seed desktop app is a browser for the [Hypermedia network](../protocol.md), an editor, and an archive at once. It
+runs a full node on your machine, so everything you open is kept locally and served to [peers](../protocol/network.md).
+Everything you write is signed with [keys](../protocol/identity.md) that never leave your device. It runs on macOS,
+Windows and Linux and is downloadable from seed.hyper.media. <!-- id:PTCFN6-q -->
 
 # Where the code is <!-- id:Qha__h0A -->
 
-`frontend/apps/desktop`, package `@shm/desktop`: Electron 39 with Electron Forge and Vite 6, React 18, tRPC over Electron IPC, React Query, Tailwind. The main process is `src/main.ts`, the preload is `src/preload.ts`, and the renderer starts at `src/root.tsx` and dispatches routes from `src/pages/main.tsx`. The editor is `@shm/editor`. The agents interface is the shared `@shm/ui` agents code. Run it with `./dev run-desktop` after `./dev` has built the [daemon](./daemon.md), or `pnpm desktop` alone. <!-- id:Jy3fR8Ts -->
+`frontend/apps/desktop`, package `@shm/desktop`: Electron 39 with Electron Forge and Vite 6, React 18, tRPC over
+Electron IPC, React Query, Tailwind. The main process is `src/main.ts`, the preload is `src/preload.ts`, and the
+renderer starts at `src/root.tsx` and dispatches routes from `src/pages/main.tsx`. The editor is `@shm/editor`. The
+agents interface is the shared `@shm/ui` agents code. Run it with `./dev run-desktop` after `./dev` has built the
+[daemon](./daemon.md), or `pnpm desktop` alone. <!-- id:Jy3fR8Ts -->
 
 # Processes and ports <!-- id:j9SueGPe -->
 
-The app is four processes. The main process spawns the [daemon](./daemon.md) with `-http.port`, `-grpc.port`, `-p2p.port` and `-data-dir`, waits for `/debug/version`, then starts its own HTTP server and finally a local [agents server](./agents.md). <!-- id:xI63BhMX -->
+The app is four processes. The main process spawns the [daemon](./daemon.md) with `-http.port`, `-grpc.port`,
+`-p2p.port` and `-data-dir`, waits for `/debug/version`, then starts its own HTTP server and finally a local
+[agents server](./agents.md). <!-- id:xI63BhMX -->
 
 <!-- id:JxLy__4e -->
-| Piece <!-- col:JX4ZAaCt --> | Prod <!-- col:xj2r-LGO --> | Dev <!-- col:JvMdkd_A --> <!-- id:kdojOz_K --> |
-| --- | --- | --- |
+
+| Piece <!-- col:JX4ZAaCt -->        | Prod <!-- col:xj2r-LGO -->    | Dev <!-- col:JvMdkd_A --> <!-- id:kdojOz_K -->     |
+| ---------------------------------- | ----------------------------- | -------------------------------------------------- |
 | Daemon P2P / HTTP / gRPC / metrics | 56000 / 56001 / 56002 / 56003 | 58000 / 58001 / 58002 / 58003 <!-- id:pfSgGZBl --> |
-| Desktop API bridge | 56004 | 58004 <!-- id:Uej7oqAh --> |
-| Agents server | 3050 | 3051 <!-- id:p5cNV7sO --> |
-| Electron user data | `Seed` | `Seed-local` <!-- id:b3AXGUKt --> |
+| Desktop API bridge                 | 56004                         | 58004 <!-- id:Uej7oqAh -->                         |
+| Agents server                      | 3050                          | 3051 <!-- id:p5cNV7sO -->                          |
+| Electron user data                 | `Seed`                        | `Seed-local` <!-- id:b3AXGUKt -->                  |
 
-The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on 56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local agents server and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge refuses cross-site browser requests. <!-- id:0UKp_9Fm -->
+The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the
+native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on
+56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local
+agents server and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge
+refuses cross-site browser requests. <!-- id:0UKp_9Fm -->
 
-Two things run once per app in the main process rather than once per window. The sync service, [`src/app-sync.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-sync.ts), keeps a reference-counted list of the resources any window is showing, runs [discovery](../protocol/network.md) for each of them on a loop, polls the daemon's activity feed, and broadcasts React Query invalidations to every window. Its intervals stretch ten times when no window is focused. The notification store described on [Notify](./notify.md) lives there too. Windows also share hover state: pointing at a block or a resource broadcasts `hypermediaHoverIn` over IPC, and every window highlights the elements with the matching `data-blockid` or `data-resourceid`.
+Two things run once per app in the main process rather than once per window. The sync service,
+[`src/app-sync.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-sync.ts), keeps a
+reference-counted list of the resources any window is showing, runs [discovery](../protocol/network.md) for each of them
+on a loop, polls the daemon's activity feed, and broadcasts React Query invalidations to every window. Its intervals
+stretch ten times when no window is focused. The notification store described on [Notify](./notify.md) lives there too.
+Windows also share hover state: pointing at a block or a resource broadcasts `hypermediaHoverIn` over IPC, and every
+window highlights the elements with the matching `data-blockid` or `data-resourceid`.
 
 # Where it keeps things <!-- id:rXZ_ZjIJ -->
 
-User data is Electron's per-platform application-data folder: `~/Library/Application Support/Seed` on macOS, `~/.config/Seed` on Linux, `%APPDATA%\Seed` on Windows. Inside it, `daemon/` is the daemon's data directory with the SQLite database, the device key and the encrypted vault. `drafts/` holds drafts as files. Drafts and navigation state belong to the app, and the daemon does not store them. So drafts do not sync between devices. Published [documents](../protocol/documents.md) and [private documents](../protocol/privacy.md) do sync. In development the folder is `Seed-local`, so a dev app and a production app can run side by side. <!-- id:0v4MONLN -->
+User data is Electron's per-platform application-data folder: `~/Library/Application Support/Seed` on macOS,
+`~/.config/Seed` on Linux, `%APPDATA%\Seed` on Windows. Inside it, `daemon/` is the daemon's data directory with the
+SQLite database, the device key and the encrypted vault. `drafts/` holds drafts as files. Drafts and navigation state
+belong to the app, and the daemon does not store them. So drafts do not sync between devices. Published
+[documents](../protocol/documents.md) and [private documents](../protocol/privacy.md) do sync. In development the folder
+is `Seed-local`, so a dev app and a production app can run side by side. <!-- id:0v4MONLN -->
 
 # How editing works <!-- id:xYheVJy4 -->
 
-Every [document](../protocol/documents.md) goes through the same four states: loading, viewing, editing, publishing. <!-- id:WnDSQNRy -->
-  1. **Loading.** The app asks the local daemon. If the document is not there, the daemon [discovers](../protocol/network.md) it from peers. <!-- id:EsOzXUPo -->
-  2. **Viewing.** Read-only. If you have edit access and left a draft, the app reopens it in editing mode. <!-- id:LTcP2bfE -->
-  3. **Editing.** Autosave writes a draft about half a second after you stop typing. It creates the draft on the first change and updates it after that. Saves queue, so keystrokes during a save are never lost. Cancel discards the draft. <!-- id:rWtPo3Xn -->
-  4. **Publishing.** The draft becomes a signed [change](../change.md) and [ref](../ref.md), published through the daemon. On success the draft is deleted. On failure you are back in editing with the draft intact. <!-- id:0ezsKOhO -->
+Every [document](../protocol/documents.md) goes through the same four states: loading, viewing, editing, publishing.
+<!-- id:WnDSQNRy -->
 
-Switching to an [account](../protocol/identity.md) without [edit access](../protocol/permissions.md) saves the draft and leaves editing. If a newer [version](../protocol/documents.md) is published elsewhere while you edit, the app notes it and does not force it on you. The whole flow is one state machine in `@shm/shared`, shared with the [web app](./web.md). <!-- id:oPC5qmXB -->
+1. **Loading.** The app asks the local daemon. If the document is not there, the daemon
+   [discovers](../protocol/network.md) it from peers. <!-- id:EsOzXUPo -->
+2. **Viewing.** Read-only. If you have edit access and left a draft, the app reopens it in editing mode.
+   <!-- id:LTcP2bfE -->
+3. **Editing.** Autosave writes a draft about half a second after you stop typing. It creates the draft on the first
+   change and updates it after that. Saves queue, so keystrokes during a save are never lost. Cancel discards the draft.
+   <!-- id:rWtPo3Xn -->
+4. **Publishing.** The draft becomes a signed [change](../change.md) and [ref](../ref.md), published through the daemon.
+   On success the draft is deleted. On failure you are back in editing with the draft intact. <!-- id:0ezsKOhO -->
 
-"New" on a document creates a child draft in place: a card with an editable title appears at the bottom of the parent, and opening it goes to the full editor. Every unpublished child draft of the document you are viewing shows as a card there. The parent is not changed until the child publishes, so there is nothing to discard on it. The write is built by `buildInlineDraftWrite` in `@shm/shared` and stored like any other draft.
+Switching to an [account](../protocol/identity.md) without [edit access](../protocol/permissions.md) saves the draft and
+leaves editing. If a newer [version](../protocol/documents.md) is published elsewhere while you edit, the app notes it
+and does not force it on you. The whole flow is one state machine in `@shm/shared`, shared with the [web app](./web.md).
+<!-- id:oPC5qmXB -->
+
+"New" on a document creates a child draft in place: a card with an editable title appears at the bottom of the parent,
+and opening it goes to the full editor. Every unpublished child draft of the document you are viewing shows as a card
+there. The parent is not changed until the child publishes, so there is nothing to discard on it. The write is built by
+`buildInlineDraftWrite` in `@shm/shared` and stored like any other draft.
 
 # The editor
 
-`@shm/editor` ([`frontend/packages/editor`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/editor)) is a TipTap 2 editor over ProseMirror, derived from BlockNote. Its ProseMirror schema is three layers: `blockChildren` (a list with a `listType` of `Group`, `Unordered`, `Ordered` or `Blockquote`) holds `blockNode`s, and each `blockNode` holds one content block (paragraph, heading, image, embed, query and so on) and an optional `blockChildren` of its own. The rendered DOM carries `data-node-type`, `data-content-type` and `data-id` so styles and tests can target blocks without depending on class names. The [block](../protocol/blocks.md) format on the wire is the SDK's `HMBlock`; the conversion both ways lives in the [SDK](../build/sdk.md) (`hmblock-to-editorblock`), and the editor never changes it.
+`@shm/editor` ([`frontend/packages/editor`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/editor))
+is a TipTap 2 editor over ProseMirror, derived from BlockNote. Its ProseMirror schema is three layers: `blockChildren`
+(a list with a `listType` of `Group`, `Unordered`, `Ordered` or `Blockquote`) holds `blockNode`s, and each `blockNode`
+holds one content block (paragraph, heading, image, embed, query and so on) and an optional `blockChildren` of its own.
+The rendered DOM carries `data-node-type`, `data-content-type` and `data-id` so styles and tests can target blocks
+without depending on class names. The [block](../protocol/blocks.md) format on the wire is the SDK's `HMBlock`; the
+conversion both ways lives in the [SDK](../build/sdk.md) (`hmblock-to-editorblock`), and the editor never changes it.
 
-Pasted HTML arrives from ProseMirror's parser as a flat list, so `transformPasted` in `BlockChildren.ts` hands it to `normalizeFragment.ts`, which rebuilds the nested `blockNode` structure before insertion.
+Pasted HTML arrives from ProseMirror's parser as a flat list, so `transformPasted` in `BlockChildren.ts` hands it to
+`normalizeFragment.ts`, which rebuilds the nested `blockNode` structure before insertion.
 
-Typography is one class. `.hm-prose`, defined in `@shm/ui` ([`src/hm-prose.css`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/hm-prose.css)) on top of `@tailwindcss/typography`, sets the font stacks, heading scale and block rhythm in relative units, keyed off the `data-node-type` and `data-content-type` attributes. The same class is applied to the draft editor, the read-only viewer, embeds, comment bodies (`.hm-prose.is-comment`) and the server-rendered HTML on the [web](./web.md), so a document looks the same in all of them. Size modifiers `.hm-prose-sm`, `-base`, `-lg` and `-xl` scale a whole surface.
+Typography is one class. `.hm-prose`, defined in `@shm/ui`
+([`src/hm-prose.css`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/hm-prose.css)) on top
+of `@tailwindcss/typography`, sets the font stacks, heading scale and block rhythm in relative units, keyed off the
+`data-node-type` and `data-content-type` attributes. The same class is applied to the draft editor, the read-only
+viewer, embeds, comment bodies (`.hm-prose.is-comment`) and the server-rendered HTML on the [web](./web.md), so a
+document looks the same in all of them. Size modifiers `.hm-prose-sm`, `-base`, `-lg` and `-xl` scale a whole surface.
 
 # Inspecting the raw data <!-- id:D8QcuKZ1 -->
 
 Two desktop-only surfaces expose the protocol directly. <!-- id:SHBUOTJL -->
-  - **The metadata editor** is a tab on every document. It edits [metadata](../metadata.md) as a form or as JSON and stages patches through the same document machine as the settings panel. Removing a key stages an explicit null, so the published change clears it. Renaming stages a removal and an addition. Lists are disabled because the [attribute operation](../change/op/set-attributes.md) has no list value type yet. <!-- id:5UBaMsXV -->
-  - **The blob editor**, the `raw-blob` route, opens any `ipfs://` [CID](../protocol/blobs.md) that decodes as DAG-CBOR and shows it as DAG-JSON. You can edit it and publish it as a new [blob](../protocol/blobs.md) with a sha2-256 CID. It reads through the daemon's `/ipfs/<cid>.dagjson` route, which searches the network if the blob is not local. Links and bytes are converted back to real IPLD values before encoding, so republishing a blob with links does not corrupt them. <!-- id:ffSy0AEO -->
 
-A blob you publish this way is stored but is not public until a public change, [comment](../protocol/comments.md) or profile links its CID. See [Files](../protocol/files.md). <!-- id:BEwjBgan -->
+- **The metadata editor** is a tab on every document. It edits [metadata](../metadata.md) as a form or as JSON and
+  stages patches through the same document machine as the settings panel. Removing a key stages an explicit null, so the
+  published change clears it. Renaming stages a removal and an addition. Lists are disabled because the
+  [attribute operation](../change/op/set-attributes.md) has no list value type yet. <!-- id:5UBaMsXV -->
+- **The blob editor**, the `raw-blob` route, opens any `ipfs://` [CID](../protocol/blobs.md) that decodes as DAG-CBOR
+  and shows it as DAG-JSON. You can edit it and publish it as a new [blob](../protocol/blobs.md) with a sha2-256 CID. It
+  reads through the daemon's `/ipfs/<cid>.dagjson` route, which searches the network if the blob is not local. Links and
+  bytes are converted back to real IPLD values before encoding, so republishing a blob with links does not corrupt them.
+  <!-- id:ffSy0AEO -->
+
+A blob you publish this way is stored but is not public until a public change, [comment](../protocol/comments.md) or
+profile links its CID. See [Files](../protocol/files.md). <!-- id:BEwjBgan -->
 
 # Working with it <!-- id:80mk_eOH -->
 
 ## CLI <!-- id:QkjOH_65 -->
 
-`seed-cli space dev` [publishes a folder](../build/publish-a-folder.md) into the running dev app under a throwaway key and writes edits made in the app straight back to disk. `./dev hm-sync` runs that loop for this documentation folder. The [CLI](./cli.md) can also read the app's [vault](./vault.md) and keys. See [Keys](../build/keys.md). <!-- id:-80hvupK -->
+`seed-cli space dev` [publishes a folder](../build/publish-a-folder.md) into the running dev app under a throwaway key
+and writes edits made in the app straight back to disk. `./dev hm-sync` runs that loop for this documentation folder.
+The [CLI](./cli.md) can also read the app's [vault](./vault.md) and keys. See [Keys](../build/keys.md).
+<!-- id:-80hvupK -->
 
 ## SDK <!-- id:ycGhDHE7 -->
 
-The renderer publishes through `@seed-hypermedia/client`, the [SDK](../build/sdk.md), against the API bridge. It signs with the daemon's `SignData` RPC, so the private key never enters the renderer. <!-- id:PwxxRj-j -->
+The renderer publishes through `@seed-hypermedia/client`, the [SDK](../build/sdk.md), against the API bridge. It signs
+with the daemon's `SignData` RPC, so the private key never enters the renderer. <!-- id:PwxxRj-j -->
 
 ## Web API <!-- id:N56osENV -->
 
-`http://localhost:56004/api/<Key>` is the local [Seed API](../build/web-api.md). The bundled agents server uses this endpoint. <!-- id:0nrximg2 -->
+`http://localhost:56004/api/<Key>` is the local [Seed API](../build/web-api.md). The bundled agents server uses this
+endpoint. <!-- id:0nrximg2 -->
 
 ## Agents <!-- id:n3tPWtmN -->
 
-The desktop app starts a local [agents server](./agents.md) and shows the agents interface. You can configure hosted or self-hosted agent servers in its place. The chat, tools and [triggers](../agent/triggers.md) are described under [Seed Agents](../agent.md). <!-- id:OQnaBari -->
+The desktop app starts a local [agents server](./agents.md) and shows the agents interface. You can configure hosted or
+self-hosted agent servers in its place. The chat, tools and [triggers](../agent/triggers.md) are described under
+[Seed Agents](../agent.md). <!-- id:OQnaBari -->
 
 ## Notifications
 
-The inbox page reads a local copy of the account's notification state that the main process syncs with the [notify service](./notify.md), signing requests through the daemon. Release builds default to `https://hyper.media/hm/api/notify` (dev builds `https://dev.hyper.media/hm/api/notify`); the vault's notify setting overrides it, and a site's email subscribers come from the notify service its `/hm/api/config` advertises as `notifyServiceUrl` (or the older `notifyServiceHost`). Marking things read works offline and syncs later. [Notify](./notify.md) describes the store and the read-state rules.
+The inbox page reads a local copy of the account's notification state that the main process syncs with the
+[notify service](./notify.md), signing requests through the daemon. Release builds default to
+`https://hyper.media/hm/api/notify` (dev builds `https://dev.hyper.media/hm/api/notify`); the vault's notify setting
+overrides it, and a site's email subscribers come from the notify service its `/hm/api/config` advertises as
+`notifyServiceUrl` (or the older `notifyServiceHost`). Marking things read works offline and syncs later.
+[Notify](./notify.md) describes the store and the read-state rules.
 
 # The web browser
 
-The desktop app can open ordinary websites in a pane beside the sidebar and the agents panel. It is off by default and ships behind the **Integrated Web Browser** toggle in Settings, Advanced. With the toggle off, web links and any website typed into the omnibar open in the system browser, the omnibar itself only resolves Hypermedia addresses, and agents are not offered the `browser` tool. Every link asks the main process at the moment it is opened, so flipping the toggle takes effect in every open window at once. The toggle is also forced off when the bundled Chromium is older than the release policy allows, so an unpatched build never shows websites. The security model, the per-website agent consent and the blocklists are described in the agents service's browser notes (`agents/docs/integrated-browser.md` in the repo).
+The desktop app can open ordinary websites in a pane beside the sidebar and the agents panel. It is off by default and
+ships behind the **Integrated Web Browser** toggle in Settings, Advanced. With the toggle off, web links and any website
+typed into the omnibar open in the system browser, the omnibar itself only resolves Hypermedia addresses, and agents are
+not offered the `browser` tool. Every link asks the main process at the moment it is opened, so flipping the toggle
+takes effect in every open window at once. The toggle is also forced off when the bundled Chromium is older than the
+release policy allows, so an unpatched build never shows websites. The security model, the per-website agent consent and
+the blocklists are described in the agents service's browser notes (`agents/docs/integrated-browser.md` in the repo).
+
+The pane's header shows the page's icon and title, a private-page button, the tracking-protection shield with the number
+of requests blocked, reload, **Open in default browser** and a menu; the address itself is in the omnibar. Websites are
+opened over https first: a plain `http://` address, whether typed, clicked, redirected to, restored from history or
+asked for by an agent, is tried as `https://` before any unencrypted request is sent, so a site that merely redirects to
+https never loads over http. When the encrypted address does not answer (refused, unresolved, a bad certificate, or
+nothing after ten seconds), the pane shows a warning inside a thick red frame that names the host and offers **Show the
+page anyway** or **Go back**. Accepting it, with a real click, allows that origin for the rest of the session (private
+pages keep their own list; **Clear browsing data** forgets both), and the website is then shown inside a red frame for
+as long as the page on screen is http. Loopback addresses such as `http://localhost:3000` are secure contexts and need
+no warning. An agent whose `navigate` command would land on the warning is refused and told that the user has to allow
+the site first.
 
 # Development notes <!-- id:TUREvD9- -->
 
-- `pnpm desktop dev:debug` opens Chrome DevTools Protocol on 9222. Automated drivers use it to screenshot and navigate the dev app. <!-- id:VTL7vY_K -->
-- `./dev 2-run-desktop` starts a second packaged instance on alternative ports with its own user data folder. <!-- id:W42aqIBL -->
-- Unit tests run with `pnpm test:unit`. The end-to-end suite packages the app and drives it with Playwright. Auto-updates on Linux are custom. See the release process in [Contributing](../build/contributing.md). <!-- id:yTka-gfL -->
+- `pnpm desktop dev:debug` opens Chrome DevTools Protocol on 9222. Automated drivers use it to screenshot and navigate
+  the dev app. <!-- id:VTL7vY_K -->
+- `./dev 2-run-desktop` starts a second packaged instance on alternative ports with its own user data folder.
+  <!-- id:W42aqIBL -->
+- Unit tests run with `pnpm test:unit`. The end-to-end suite packages the app and drives it with Playwright.
+  Auto-updates on Linux are custom. See the release process in [Contributing](../build/contributing.md).
+  <!-- id:yTka-gfL -->
 
 # See also <!-- id:CVQjdOA9 -->
 
 <!-- id:PHFBxAlV -->
-- [The daemon](./daemon.md), [The agents service](./agents.md), [The CLI](./cli.md), [The web app](./web.md) <!-- id:IOPgXQO6 -->
-- [Documents](../protocol/documents.md), [Identity](../protocol/identity.md), [Publish a folder](../build/publish-a-folder.md) <!-- id:xg6Cx51h -->
+
+- [The daemon](./daemon.md), [The agents service](./agents.md), [The CLI](./cli.md), [The web app](./web.md)
+  <!-- id:IOPgXQO6 -->
+- [Documents](../protocol/documents.md), [Identity](../protocol/identity.md),
+  [Publish a folder](../build/publish-a-folder.md) <!-- id:xg6Cx51h -->
 
 ## Seed Hosting <!-- id:mW_AKbPg -->
 
-After the first public publication of a new space, an invitation offers **Publish to a Domain**, opening the hosting workflow to choose a free Seed address or a custom domain. **Not now** dismisses the invitation. Desktop and web use the same domain and hosting choices, self-hosting guide, setup-URL form, and completion flow. Self-hosting uses the setup URL without a Seed Hosting login. Space settings has a **Web Domain** page for publishing and removing a web domain. Seed Hosting sign-in uses a four-digit emailed code, or trusted vault verification for eligible new hosting accounts. Logging out of the desktop app also clears its hosting credentials and cached sites, and revokes the hosting session when the service is reachable. <!-- id:zuSNGAlu -->
+After the first public publication of a new space, an invitation offers **Publish to a Domain**, opening the hosting
+workflow to choose a free Seed address or a custom domain. **Not now** dismisses the invitation. Desktop and web use the
+same domain and hosting choices, self-hosting guide, setup-URL form, and completion flow. Self-hosting uses the setup
+URL without a Seed Hosting login. Space settings has a **Web Domain** page for publishing and removing a web domain.
+Seed Hosting sign-in uses a four-digit emailed code, or trusted vault verification for eligible new hosting accounts.
+Logging out of the desktop app also clears its hosting credentials and cached sites, and revokes the hosting session
+when the service is reachable. <!-- id:zuSNGAlu -->
 
-**Change Site Address** and **Transfer Hosting** are available only when the signed-in hosting account owns a site registered to this space and its published URL matches that site's address or custom domain. Self-hosted sites do not expose these controls. A hosting transfer moves management to an existing hosting account; it does not transfer the Seed identity or content permissions. Active paid services must stop before a transfer, and dedicated hosting must stop before a rename. <!-- id:SzMElbvx -->
+**Change Site Address** and **Transfer Hosting** are available only when the signed-in hosting account owns a site
+registered to this space and its published URL matches that site's address or custom domain. Self-hosted sites do not
+expose these controls. A hosting transfer moves management to an existing hosting account; it does not transfer the Seed
+identity or content permissions. Active paid services must stop before a transfer, and dedicated hosting must stop
+before a rename. <!-- id:SzMElbvx -->
 
-Renaming preserves the site identity and custom domains. The desktop updates the space's published URL when it points to the old hosting address; a custom primary domain stays unchanged. Pending publication updates are retained so an interrupted move can be completed without moving the hosting address again. <!-- id:D3mM5LLF -->
+Renaming preserves the site identity and custom domains. The desktop updates the space's published URL when it points to
+the old hosting address; a custom primary domain stays unchanged. Pending publication updates are retained so an
+interrupted move can be completed without moving the hosting address again. <!-- id:D3mM5LLF -->

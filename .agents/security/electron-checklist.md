@@ -5,7 +5,7 @@ Status of `frontend/apps/desktop` against Electron's security recommendations
 
 | #   | Recommendation                                       | Status | Where                                                                                                                                                                |
 | --- | ---------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Only load secure content                             | Yes    | App pages come from the local renderer server; the web pane upgrades http where it can                                                                               |
+| 1   | Only load secure content                             | Yes    | App pages come from the local renderer server; the web pane tries https first and shows plain http only after the user accepts a warning, inside a red frame         |
 | 2   | Do not enable Node integration for remote content    | Yes    | App window: `nodeIntegration: false`; web pane preferences are a fixed allowlist with it off                                                                         |
 | 3   | Enable context isolation                             | Yes    | App window and web pane                                                                                                                                              |
 | 4   | Enable process sandboxing                            | Yes    | Default on; the web pane sets `sandbox: true` explicitly                                                                                                             |

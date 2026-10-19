@@ -3,6 +3,7 @@ import {isIP} from 'node:net'
 import {browserContentBlocker} from './browser-content-blocker'
 import {browserBlocklist, type BrowserBlocklistMatch} from './browser-blocklist'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
+import {httpsVersion, isInsecureUrl} from './browser-https-policy'
 import {assertPublicWebUrl, isPrivateHost} from './browser-url-policy'
 import {isPublicIPAddress, normalizeIPHostname} from './remote-file-security'
 
@@ -161,31 +162,43 @@ export function setupBrowserNetworkPolicy(browserSession: Session) {
   browserSession.webRequest.onCompleted(record)
 }
 
-/** Validates every agent redirect before requesting it; Electron redirect events cannot await DNS. */
+/**
+ * Validates every agent redirect before requesting it; Electron redirect events cannot await DNS.
+ *
+ * Plain http follows the pane's rule: the encrypted address is tried first, and when that fails
+ * (or sends the agent back to http) the command is refused through `insecure.refuse`, which shows
+ * the user the warning; the agent itself can never accept it.
+ */
 export async function navigatePublicBrowser(
   guest: WebContents,
   url: string,
   assertActive: () => void,
   assertAllowed: (url: string) => void = () => {},
+  insecure?: {allows: (url: string) => boolean; refuse: (url: string) => never},
 ): Promise<void> {
   for (let redirects = 0; redirects <= 10; redirects++) {
-    const match = browserBlocklist.match(url)
+    const upgrade = insecure && !insecure.allows(url) ? httpsVersion(url) : undefined
+    const target = upgrade ?? url
+    const match = browserBlocklist.match(target)
     if (match) throw new Error(`Website blocked by ${match.list}: ${match.host}`)
-    assertAllowed(url)
-    await assertPublicWebUrl(url)
+    assertAllowed(target)
+    await assertPublicWebUrl(target)
     assertActive()
-    if (hypermediaUrlToRoute(url)) throw new Error('Native Seed navigation requires a user gesture')
+    if (hypermediaUrlToRoute(target)) throw new Error('Native Seed navigation requires a user gesture')
     let redirect: string | undefined
-    const guard = (event: Electron.Event, target: string, _inPlace: boolean, mainFrame: boolean) => {
+    const guard = (event: Electron.Event, next: string, _inPlace: boolean, mainFrame: boolean) => {
       if (!mainFrame) return
       event.preventDefault()
-      redirect = target
+      redirect = next
     }
     guest.on('will-redirect', guard)
     try {
-      await guest.loadURL(url)
+      await guest.loadURL(target)
     } catch (error) {
-      if (!redirect) throw error
+      if (redirect) {
+        // fall through to the next hop
+      } else if (upgrade) insecure!.refuse(url)
+      else throw error
     } finally {
       guest.off('will-redirect', guard)
     }
@@ -193,6 +206,7 @@ export async function navigatePublicBrowser(
       assertActive()
       return
     }
+    if (upgrade && insecure && !insecure.allows(redirect) && isInsecureUrl(redirect)) insecure.refuse(redirect)
     url = redirect
   }
   throw new Error('Too many browser redirects')

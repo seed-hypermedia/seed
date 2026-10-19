@@ -8,6 +8,13 @@ import {loadBrowserFavicon, readBrowserFavicons} from './app-browser-favicon'
 import {executeBrowserCommand, type BrowserArchive} from './app-browser-agent'
 
 import {isGuestOnPrivateNetwork, navigatePublicBrowser, trackBrowserNetwork} from './browser-network-policy'
+import {
+  HTTPS_ATTEMPT_TIMEOUT_MS,
+  browserInsecurePage,
+  httpsAttempt,
+  insecureOrigins,
+  isInsecureUrl,
+} from './browser-https-policy'
 import {isPrivateHost} from './browser-url-policy'
 import {
   browserUserGesture,
@@ -87,7 +94,21 @@ export function setupWebBrowser(
   const privateGuests = new Set<number>()
   let closingPrivate: Promise<void> | undefined
   let routeRevision = 0
-  const blockedNavigations = new Map<number, (url: string, match: BrowserBlocklistMatch) => void>()
+  /** Per-guest navigation that the renderer and the agent go through, so every entry is judged alike. */
+  const navigations = new Map<
+    number,
+    {
+      showBlocked: (url: string, match: BrowserBlocklistMatch) => void
+      /** Loads a URL the user asked for: https first for plain http, then the warning when that fails. */
+      open: (url: string) => Promise<void>
+      /** Whether the URL may not load as it is: it needs the encrypted attempt or the user's consent. */
+      needsConsent: (url: string) => boolean
+      /** Forgets an encrypted attempt in flight, so its failure shows no warning. */
+      supersede: () => void
+      /** An agent navigation, judged hop by hop, with the same https-first rule. */
+      agentNavigate: (url: string, assertActive: () => void, assertAllowed: (url: string) => void) => Promise<void>
+    }
+  >()
 
   /**
    * Creates the website guest as a main-process-owned view. The app renderer never holds web view
@@ -122,6 +143,7 @@ export function setupWebBrowser(
           await guestSession.clearCache()
           await guestSession.clearAuthCache()
           await guestSession.closeAllConnections()
+          insecureOrigins.private.clear()
         })
         void privateCleanup.catch((error) => console.error('Could not clear private browsing data', error))
       }
@@ -157,6 +179,7 @@ export function setupWebBrowser(
       routeRevision++
       access = undefined
       activeGuests.delete(window)
+      navigations.forEach((navigation) => navigation.supersede())
       guests.forEach((guest) => guest.stop())
       views.forEach((view) => view.setVisible(false))
       guests.forEach((guest) => {
@@ -235,7 +258,10 @@ export function setupWebBrowser(
     const guest = guests.get(parsed.data.browserId)
     if (!guest || guest.isDestroyed()) return
     if (parsed.data.action === 'reload') guest.reload()
-    else guest.stop()
+    else {
+      navigations.get(guest.id)?.supersede()
+      guest.stop()
+    }
   })
 
   host.ipc.handle('browser-agent-access', (event, input: unknown) => {
@@ -304,7 +330,7 @@ export function setupWebBrowser(
             throw new Error('The page moved to a website the user has not allowed. Take a fresh snapshot.')
         },
         // Every hop, including redirects, must stay on websites the user allowed and off private networks.
-        navigate: (url) => navigatePublicBrowser(guest!, url, assertActive, assertAllowed),
+        navigate: (url) => navigations.get(guest!.id)!.agentNavigate(url, assertActive, assertAllowed),
         archive: (page) => {
           if (!archive) throw new Error('Draft creation is unavailable in this window')
           return archive(page, grant!.accountUid)
@@ -317,12 +343,79 @@ export function setupWebBrowser(
 
   function attachGuest(guest: WebContents) {
     guests.set(guest.id, guest)
+    /** A Seed page standing in for a website: the blocklist warning or the unencrypted warning. */
     let blocked: {url: string; page: string} | undefined
+    let insecure: {url: string; page: string} | undefined
+    /** Counts navigations this guest was asked for, so a superseded https attempt stays silent. */
+    let generation = 0
+    let attempt: {generation: number; https: string} | undefined
+    let agentNavigating = false
+    const allowance = () => (privateGuests.has(guest.id) ? insecureOrigins.private : insecureOrigins.normal)
+    const supersede = () => ++generation
     const showBlocked = (url: string, match: BrowserBlocklistMatch) => {
+      supersede()
+      insecure = undefined
       blocked = {url, page: browserBlockedPage(match)}
       void guest.loadURL(blocked.page).catch(() => {})
     }
-    blockedNavigations.set(guest.id, showBlocked)
+    const showInsecure = (url: string) => {
+      supersede()
+      blocked = undefined
+      insecure = {url, page: browserInsecurePage(url)}
+      void guest.loadURL(insecure.page).catch(() => {})
+    }
+    const open = async (url: string) => {
+      const current = supersede()
+      const https = httpsAttempt(url, allowance())
+      if (!https) {
+        attempt = undefined
+        await guest.loadURL(url).catch(() => {
+          // The guest's did-fail-load event supplies the visible error and retry action.
+        })
+        return
+      }
+      // The http request is never sent first: the encrypted address is tried, and only its failure
+      // (refused, unresolved, a bad certificate, or too slow) leads to the warning.
+      attempt = {generation: current, https}
+      const live = () => generation === current && !guest.isDestroyed()
+      const timer = setTimeout(() => {
+        if (!live()) return
+        guest.stop()
+        showInsecure(url)
+      }, HTTPS_ATTEMPT_TIMEOUT_MS)
+      try {
+        await guest.loadURL(https)
+      } catch {
+        if (live()) showInsecure(url)
+      } finally {
+        clearTimeout(timer)
+        if (attempt?.generation === current) attempt = undefined
+      }
+    }
+    navigations.set(guest.id, {
+      showBlocked,
+      open,
+      needsConsent: (url) => httpsAttempt(url, allowance()) !== null,
+      supersede,
+      agentNavigate: async (url, assertActive, assertAllowed) => {
+        agentNavigating = true
+        try {
+          await navigatePublicBrowser(guest, url, assertActive, assertAllowed, {
+            allows: (target) => !httpsAttempt(target, allowance()),
+            refuse: (target) => {
+              showInsecure(target)
+              throw new Error(
+                `${
+                  new URL(target).host
+                } offers no encrypted connection. The user has to allow the insecure site first; the browser pane is asking them now.`,
+              )
+            },
+          })
+        } finally {
+          agentNavigating = false
+        }
+      },
+    })
     trackBrowserNetwork(guest, showBlocked)
     const gesture = browserUserGesture(guest)
     const send = (event: Record<string, unknown>) => {
@@ -372,13 +465,19 @@ export function setupWebBrowser(
       faviconIcons = []
       send({type: 'browser-favicons', url: guest.getURL(), icons: []})
     })
-    const guardNavigation = (event: Electron.Event, url: string, _inPlace?: boolean, mainFrame = true) => {
+    const guardNavigation = (redirect: boolean, event: Electron.Event, url: string, mainFrame: boolean) => {
       if (!mainFrame) return
-      if (url === 'seed-browser://back' || url === 'seed-browser://external') {
+      if (url.startsWith('seed-browser://')) {
         event.preventDefault()
-        if (!blocked || guest.getURL() !== blocked.page || !gesture.consume()) return
+        // The warning pages' buttons: only from the page itself, and only on a real click.
+        const cover = [blocked, insecure].find((page) => page && guest.getURL() === page.page)
+        if (!cover || !gesture.consume()) return
         if (url === 'seed-browser://back') send({type: 'back'})
-        else void shell.openExternal(blocked.url)
+        else if (url === 'seed-browser://external' && cover === blocked) void shell.openExternal(cover.url)
+        else if (url === 'seed-browser://allow-insecure' && cover === insecure) {
+          allowance().allow(cover.url)
+          void open(cover.url)
+        }
         return
       }
       const match = browserBlocklist.match(url)
@@ -401,21 +500,33 @@ export function setupWebBrowser(
           type: 'browser-load-error',
           description: 'This page tried to open a private network address. Type the address yourself to open it.',
         })
+        return
+      }
+      if (httpsAttempt(url, allowance())) {
+        // A link or redirect to plain http: never followed as is. The agent's own navigation loop
+        // judges each of its hops, so it is only stopped here.
+        event.preventDefault()
+        if (agentNavigating) return
+        // An encrypted attempt that sends the user back to plain http has failed; trying again would loop.
+        if (redirect && attempt) showInsecure(url)
+        else void open(url)
       }
     }
-    guest.on('will-navigate', guardNavigation)
-    guest.on('will-redirect', guardNavigation)
+    guest.on('will-navigate', (event, url, _inPlace, mainFrame = true) => guardNavigation(false, event, url, mainFrame))
+    guest.on('will-redirect', (event, url, _inPlace, mainFrame = true) => guardNavigation(true, event, url, mainFrame))
     guest.setWindowOpenHandler(({url}) => {
       if (isWebBrowserEnabled() && gesture.consume() && (/^https?:\/\//.test(url) || hypermediaUrlToRoute(url)))
         openUrl(url)
       return {action: 'deny'}
     })
     const committed = () => {
-      const url = blocked?.page === guest.getURL() ? blocked.url : guest.getURL()
+      const cover = [blocked, insecure].find((page) => page && guest.getURL() === page.page)
+      const url = cover ? cover.url : guest.getURL()
       if (!/^https?:\/\//.test(url)) return
-      if (url === guest.getURL()) blocked = undefined
+      if (!cover) blocked = insecure = undefined
       const requestId = requests.get(guest.id)
       requests.delete(guest.id)
+      // Judged on the committed address, after redirects: an http address that ended on https is secure.
       send({
         type: 'browser-location',
         userInitiated: gesture.allowed(),
@@ -423,6 +534,7 @@ export function setupWebBrowser(
         title: guest.getTitle(),
         historyIndex: guest.navigationHistory.getActiveIndex(),
         requestId,
+        insecure: isInsecureUrl(url),
       })
     }
     guest.on('did-navigate', committed)
@@ -437,7 +549,8 @@ export function setupWebBrowser(
     guest.on('did-start-loading', () => send({type: 'browser-loading', loading: true}))
     guest.on('did-stop-loading', () => send({type: 'browser-loading', loading: false}))
     guest.on('did-fail-load', (_event, errorCode, errorDescription, _url, isMainFrame) => {
-      if (isMainFrame && errorCode !== -3 && !(blocked && _url === blocked.url))
+      // A failed encrypted attempt is not an error the user sees: the warning for the http address follows.
+      if (isMainFrame && errorCode !== -3 && !(blocked && _url === blocked.url) && !attempt)
         send({type: 'browser-load-error', description: errorDescription || 'The page could not be loaded.'})
     })
     guest.on('render-process-gone', () =>
@@ -468,7 +581,7 @@ export function setupWebBrowser(
       faviconRevision++
       nativeTheme.off('updated', updateFavicons)
       guests.delete(guest.id)
-      blockedNavigations.delete(guest.id)
+      navigations.delete(guest.id)
       requests.delete(guest.id)
       if (activeGuests.get(window) === guest) activeGuests.delete(window)
     })
@@ -480,20 +593,23 @@ export function setupWebBrowser(
     if (!parsed.success) return
     const {browserId, requestId, url, historyIndex} = parsed.data
     const guest = guests.get(browserId)
-    if (!guest || guest.isDestroyed()) return
+    const navigation = navigations.get(browserId)
+    if (!guest || guest.isDestroyed() || !navigation) return
     activeGuests.set(window, guest)
     requests.set(browserId, requestId)
     // Check before restoring history too: a back/forward cache hit may make no request.
     const match = browserBlocklist.match(url)
     if (match) {
-      blockedNavigations.get(browserId)?.(url, match)
+      navigation.showBlocked(url, match)
       return
     }
     const entry =
       historyIndex === undefined || historyIndex >= guest.navigationHistory.length()
         ? undefined
         : guest.navigationHistory.getEntryAtIndex(historyIndex)
-    if (entry?.url === url && historyIndex !== undefined) {
+    // A restored http entry is judged again: after the data was cleared, its origin needs consent anew.
+    if (entry?.url === url && historyIndex !== undefined && !navigation.needsConsent(url)) {
+      navigation.supersede()
       if (guest.navigationHistory.getActiveIndex() !== historyIndex) guest.navigationHistory.goToIndex(historyIndex)
       else {
         requests.delete(browserId)
@@ -504,12 +620,11 @@ export function setupWebBrowser(
           url,
           title: guest.getTitle(),
           historyIndex,
+          insecure: isInsecureUrl(url),
         })
       }
     } else {
-      void guest.loadURL(url).catch(() => {
-        // The guest's did-fail-load event supplies the visible error and retry action.
-      })
+      void navigation.open(url)
     }
   })
 }

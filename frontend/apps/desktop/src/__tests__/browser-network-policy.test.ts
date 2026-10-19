@@ -231,3 +231,53 @@ it('refuses agent navigation to a listed host before DNS or loadURL', async () =
   expect(lookup).not.toHaveBeenCalled()
   expect(guest.loadURL).not.toHaveBeenCalled()
 })
+
+it('tries https before an agent http navigation and refuses when only plain http answers', async () => {
+  const {guest} = fixture()
+  vi.mocked(lookup).mockResolvedValue([{address: '93.184.216.34', family: 4}] as never)
+  const refused: string[] = []
+  const insecure = {
+    allows: () => false,
+    refuse: (url: string): never => {
+      refused.push(url)
+      throw new Error(`${url} needs the user's consent`)
+    },
+  }
+  vi.mocked(guest.loadURL).mockResolvedValueOnce(undefined)
+  await navigatePublicBrowser(guest, 'http://example.com/a', () => {}, undefined, insecure)
+  expect(guest.loadURL).toHaveBeenCalledTimes(1)
+  expect(guest.loadURL).toHaveBeenLastCalledWith('https://example.com/a')
+  vi.mocked(guest.loadURL).mockRejectedValueOnce(new Error('ERR_CONNECTION_REFUSED (-102)'))
+  await expect(navigatePublicBrowser(guest, 'http://example.com/b', () => {}, undefined, insecure)).rejects.toThrow(
+    'needs the user',
+  )
+  expect(refused).toEqual(['http://example.com/b'])
+  expect(guest.loadURL).toHaveBeenCalledTimes(2)
+  expect(guest.loadURL).not.toHaveBeenCalledWith('http://example.com/b')
+  // An origin the user accepted the warning for loads as plain http.
+  vi.mocked(guest.loadURL).mockResolvedValueOnce(undefined)
+  await navigatePublicBrowser(guest, 'http://example.com/c', () => {}, undefined, {...insecure, allows: () => true})
+  expect(guest.loadURL).toHaveBeenLastCalledWith('http://example.com/c')
+})
+it('refuses an agent navigation whose encrypted attempt redirects back to plain http', async () => {
+  const {guest} = fixture()
+  vi.mocked(lookup).mockResolvedValue([{address: '93.184.216.34', family: 4}] as never)
+  const refused: string[] = []
+  const insecure = {
+    allows: () => false,
+    refuse: (url: string): never => {
+      refused.push(url)
+      throw new Error('consent')
+    },
+  }
+  vi.mocked(guest.loadURL).mockImplementationOnce(async () => {
+    guest.emit('will-redirect', {preventDefault: vi.fn()}, 'http://example.com/login', false, true)
+    throw new Error('ERR_ABORTED')
+  })
+  await expect(navigatePublicBrowser(guest, 'http://example.com/', () => {}, undefined, insecure)).rejects.toThrow(
+    'consent',
+  )
+  expect(refused).toEqual(['http://example.com/login'])
+  expect(guest.loadURL).toHaveBeenCalledTimes(1)
+  expect(guest.listenerCount('will-redirect')).toBe(0)
+})

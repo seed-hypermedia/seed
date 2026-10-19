@@ -20,6 +20,8 @@ export type AppWindowEvent =
       title: string
       historyIndex: number
       requestId?: number
+      /** The committed page is plain http to a non-loopback host; the pane frames it in red. */
+      insecure?: boolean
     }
   | {type: 'back'}
   | {type: 'forward'}
