@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {CONTENT_IMAGE_POLICY, processImageIfSupported, type ImageProcessingPolicy} from '@shm/ui/image-processing'
 
@@ -7,7 +8,7 @@ export async function fileUpload(file: File, imagePolicy: ImageProcessingPolicy 
   formData.append('file', uploadFile)
   let response: Response
   try {
-    response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+    response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
       method: 'POST',
       body: formData,
     })
