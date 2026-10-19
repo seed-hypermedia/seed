@@ -67,6 +67,7 @@ import {blockToPlainText} from '@shm/shared/content-to-text'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {queryQueryBlock} from '@shm/shared/models/queries'
+import {sortTermToDocumentSort} from '@shm/shared/models/query-block-sort'
 import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {
@@ -4079,7 +4080,8 @@ export function DocumentViewContent({
   )
 }
 
-function DocumentCollection({
+/** Renders a collection with saved settings and temporary reader controls. */
+export function DocumentCollection({
   docId,
   queryBlock,
   canEdit,
@@ -4104,13 +4106,23 @@ function DocumentCollection({
       return []
     }
   }, [docId.path, docId.uid, props?.queryIncludes])
-  const querySort = useMemo(() => {
+  const savedQuerySort = useMemo(() => {
     try {
       return normalizeQuerySort(JSON.parse(props?.querySort || '[]'))
     } catch {
       return []
     }
   }, [props?.querySort])
+  const [viewerSort, setViewerSort] = useState<{
+    documentId: string
+    sort: typeof savedQuerySort | null
+  }>({documentId: docId.id, sort: null})
+  if (viewerSort.documentId !== docId.id) {
+    setViewerSort({documentId: docId.id, sort: null})
+  }
+  const querySort = !canEdit && viewerSort.documentId === docId.id ? viewerSort.sort ?? savedQuerySort : savedQuerySort
+  const serverQuerySort =
+    !canEdit && querySort.some(({term, reverse}) => !sortTermToDocumentSort(term, reverse)) ? savedQuerySort : querySort
   const queryLimit = Number.parseInt(props?.queryLimit || '', 10) || undefined
   const style = (props?.style as 'Card' | 'List' | 'Table') || 'Table'
   const columnCount = props?.columnCount || '3'
@@ -4124,7 +4136,7 @@ function DocumentCollection({
     if (!includes.length) return null
     const filters = viewerFilters.filter((filter) => filter.value.trim())
     return {
-      query: {includes, sort: querySort, limit: queryLimit},
+      query: {includes, sort: serverQuerySort, limit: queryLimit},
       ...((debouncedViewerSearch || filters.length) && {
         viewer: {
           ...(debouncedViewerSearch ? {search: debouncedViewerSearch} : {}),
@@ -4132,7 +4144,7 @@ function DocumentCollection({
         },
       }),
     }
-  }, [debouncedViewerSearch, includes, queryLimit, querySort, viewerFilters])
+  }, [debouncedViewerSearch, includes, queryLimit, serverQuerySort, viewerFilters])
   const query = useQuery(queryQueryBlock(client, queryInput))
   const tableConfig = useMemo<HMQueryTableConfig | undefined>(() => {
     try {
@@ -4162,16 +4174,20 @@ function DocumentCollection({
 
   const handleTableSortingChange = useCallback(
     (sorting: import('@tanstack/react-table').SortingState) => {
-      if (!canEdit) return
+      const sort = sorting.map(({id, desc}) => ({term: id, reverse: desc}))
+      if (!canEdit) {
+        setViewerSort({documentId: docId.id, sort})
+        return
+      }
       beginEditIfNeeded()
       send({
         type: 'collection.query.change',
         props: {
-          querySort: JSON.stringify(sorting.map(({id, desc}) => ({term: id, reverse: desc}))),
+          querySort: JSON.stringify(sort),
         },
       })
     },
-    [canEdit, beginEditIfNeeded, send],
+    [canEdit, docId.id, beginEditIfNeeded, send],
   )
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {

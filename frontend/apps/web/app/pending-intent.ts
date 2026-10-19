@@ -289,6 +289,7 @@ async function runProcessPendingIntent(originHomeId?: UnpackedHypermediaId): Pro
       comment.version = version
       applyOptimisticComment(getQueryClient(), docId, comment)
 
+      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS])

@@ -216,6 +216,7 @@ export default function WebCommenting({
       })
       // Refresh inactive discussion lists too: web does not refetch them on mount.
       invalidateQueries([queryKeys.DOCUMENT_ACTIVITY], {refetchType: 'all'})
+      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY], {refetchType: 'all'})
