@@ -1,6 +1,9 @@
 import {grpcClient} from '@/client.server'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
+import {isOpenPath, requireSignInEnabled} from '@/require-sign-in.server'
 import {withCors} from '@/utils/cors'
+import {withUpstreamFallback} from '@/upstream-reads.server'
+import {isSignedInRequest} from '@/web-session.server'
 import {ActionFunctionArgs, LoaderFunctionArgs} from '@remix-run/node'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {handleApiAction, handleApiRequest} from '@shm/shared/api-server'
@@ -66,15 +69,37 @@ function corsOptions() {
   return withCors(new Response(null, {status: 204}))
 }
 
-export async function loader({request}: LoaderFunctionArgs) {
+// Defense in depth behind the proxy's forward_auth. A daemon token or bearer
+// header is not membership; only the session cookie minted at sign-in (or the
+// box's service secret) is, and the few calls the sign-in flow itself needs
+// stay open.
+function signInRequired(request: Request, key: string): Response | null {
+  if (!requireSignInEnabled()) return null
+  if (isOpenPath(`/api/${key}`, request.method)) return null
+  if (isSignedInRequest(request)) return null
+  return withCors(
+    new Response(JSON.stringify({error: 'Sign in required'}), {
+      status: 401,
+      headers: {'Content-Type': 'application/json'},
+    }),
+  )
+}
+
+export async function loader({request, params}: LoaderFunctionArgs) {
   if (request.method === 'OPTIONS') return corsOptions()
   const cookieToken = await getDaemonAuthToken(request)
   const headerAuth = getBearerAuthorization(request)
   const authorization = headerAuth || (cookieToken ? `Bearer ${cookieToken}` : null)
+  const denied = signInRequired(request, (params['*']?.split('/') || [])[0] || '')
+  if (denied) return denied
   return withDaemonAuthToken(cookieToken, async () => {
     const url = new URL(request.url)
-    const result = await handleApiRequest(url, withAuthorizationHeader(grpcClient, authorization), (pathAndQuery) =>
-      queryDaemon(pathAndQuery, authorization),
+    const client = withAuthorizationHeader(grpcClient, authorization)
+    const result = await handleApiRequest(
+      url,
+      client,
+      (pathAndQuery) => queryDaemon(pathAndQuery, authorization),
+      (key, input, output) => withUpstreamFallback(key, input, output, client),
     )
     return withCors(
       new Response(result.body, {
@@ -90,8 +115,10 @@ export async function action({request, params}: ActionFunctionArgs) {
   const cookieToken = await getDaemonAuthToken(request)
   const headerAuth = getBearerAuthorization(request)
   const authorization = headerAuth || (cookieToken ? `Bearer ${cookieToken}` : null)
+  const key = (params['*']?.split('/') || [])[0] || ''
+  const denied = signInRequired(request, key)
+  if (denied) return denied
   return withDaemonAuthToken(cookieToken, async () => {
-    const key = (params['*']?.split('/') || [])[0] || ''
     const body = new Uint8Array(await request.arrayBuffer())
     const documentRpcRequests = {
       QueryDocuments: QueryDocumentsRequest,

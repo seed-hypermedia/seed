@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"seed/backend/util/sqlite"
@@ -47,6 +48,15 @@ type DomainStore struct {
 	backgroundMu     sync.Mutex
 	backgroundClosed bool
 	backgroundWG     sync.WaitGroup
+
+	// offline disables every network check (isolated nodes); the cache stays readable.
+	offline atomic.Bool
+}
+
+// SetOffline turns network checks on or off. While offline, Start, CheckAllDomains
+// and TrackSiteURL never fetch anything, but cached entries remain readable.
+func (ds *DomainStore) SetOffline(offline bool) {
+	ds.offline.Store(offline)
 }
 
 // NewDomainStore creates a new domain store backed by the given database pool.
@@ -181,6 +191,10 @@ func (ds *DomainStore) CheckDomain(ctx context.Context, domain string) (DomainEn
 
 // CheckAllDomains polls all tracked domains.
 func (ds *DomainStore) CheckAllDomains(ctx context.Context) {
+	if ds.offline.Load() {
+		return
+	}
+
 	entries, err := ds.ListDomains(ctx)
 	if err != nil {
 		ds.log.Warn("FailedToListDomains", zap.Error(err))
@@ -201,6 +215,11 @@ func (ds *DomainStore) CheckAllDomains(ctx context.Context) {
 // It blocks until ctx is canceled.
 func (ds *DomainStore) Start(ctx context.Context) error {
 	const pollInterval = 30 * time.Minute
+
+	if ds.offline.Load() {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
@@ -246,6 +265,10 @@ func (ds *DomainStore) LookupCachedConfig(ctx context.Context, siteURL string) (
 // It is fully non-blocking: all DB and network work happens in a background goroutine,
 // so the caller (e.g. GetSiteURL) is never delayed by domain store operations.
 func (ds *DomainStore) TrackSiteURL(_ context.Context, siteURL string) {
+	if ds.offline.Load() {
+		return
+	}
+
 	domain, err := extractDomain(siteURL)
 	if err != nil {
 		return

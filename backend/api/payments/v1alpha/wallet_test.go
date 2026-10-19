@@ -22,7 +22,40 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+func TestLndhubDisabled(t *testing.T) {
+	ctx := t.Context()
+	u := coretest.NewTester("alice")
+	db := storage.MakeTestMemoryDB(t)
+	ks := keystore.NewMemory()
+	require.NoError(t, ks.StoreKey(ctx, u.Device.PublicKey.String(), u.Device))
+	node, closenode := makeTestPeer(t, u.Device, ks, db)
+	t.Cleanup(closenode)
+
+	srv := NewServer(logging.New("seed/wallet", "debug"), db, node, ks, config.Lndhub{Disabled: true})
+
+	// Everything that would talk to the lndhub server fails with FailedPrecondition.
+	_, err := srv.CreateWallet(ctx, &payments.CreateWalletRequest{Account: u.Device.PublicKey.String()})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	_, err = srv.ImportWallet(ctx, &payments.ImportWalletRequest{})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	_, err = srv.GetWalletBalance(ctx, &payments.WalletRequest{Id: "nope"})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	_, err = srv.CreateInvoice(ctx, &payments.CreateInvoiceRequest{})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	_, err = srv.PayInvoice(ctx, &payments.PayInvoiceRequest{})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+	_, err = srv.ListPaidInvoices(ctx, &payments.ListInvoicesRequest{})
+	require.Equal(t, codes.FailedPrecondition, status.Code(err))
+
+	// Database-only RPCs keep working.
+	wallets, err := srv.ListWallets(ctx, &payments.ListWalletsRequest{})
+	require.NoError(t, err)
+	require.Empty(t, wallets.Wallets)
+}
 
 func TestModifyWallets(t *testing.T) {
 	testutil.Manual(t)
@@ -88,7 +121,7 @@ func makeTestService(t *testing.T, name string) *Server {
 
 	t.Cleanup(cancel)
 
-	return NewServer(logging.New("seed/wallet", "debug"), db, node, ks, false)
+	return NewServer(logging.New("seed/wallet", "debug"), db, node, ks, config.Lndhub{})
 }
 
 func makeTestPeer(t *testing.T, device *core.KeyPair, ks core.KeyStore, db *sqlitex.Pool) (*hmnet.Node, context.CancelFunc) {

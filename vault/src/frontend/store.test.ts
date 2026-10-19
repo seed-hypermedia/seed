@@ -9,6 +9,7 @@ import {code as rawCodec} from 'multiformats/codecs/raw'
 import {CID} from 'multiformats/cid'
 import type {SaveVaultRequest} from '@/api'
 import * as joinedSite from '@shm/shared/publish-default-joined-site'
+import * as sharedPassword from '@shm/ui/components/password-input'
 import {APIError} from './api-client'
 import * as localCrypto from './crypto'
 import * as notificationApi from './notification-api'
@@ -534,6 +535,82 @@ describe('Store', () => {
   })
 
   describe('handleRegisterVerify', () => {
+    test('coalesces automatic and manual verification through session refresh and ignores late submits', async () => {
+      let resolveVerification!: (value: {verified: boolean; userId: string}) => void
+      const verification = new Promise<{verified: boolean; userId: string}>((resolve) => {
+        resolveVerification = resolve
+      })
+      let resolveSession!: () => void
+      const sessionReady = new Promise<void>((resolve) => {
+        resolveSession = resolve
+      })
+      let markSessionStarted!: () => void
+      const sessionStarted = new Promise<void>((resolve) => {
+        markSessionStarted = resolve
+      })
+      const registerVerify = mock(async () => verification)
+      const getSession = mock(async () => {
+        markSessionStarted()
+        await sessionReady
+        return {
+          authenticated: true as const,
+          relyingPartyOrigin: 'https://example.com',
+          userId: 'user-1',
+          email: 'test@example.com',
+          credentials: {},
+        }
+      })
+      const {state, actions, navigator} = createStore(
+        createMockClient({registerVerify, getSession}),
+        createMockBlockstore(),
+      )
+      navigator.setNavigate(mock())
+      const automatic = actions.handleRegisterVerify('1234')
+      const manual = actions.handleRegisterVerify('1234')
+      expect(registerVerify).toHaveBeenCalledTimes(1)
+      resolveVerification({verified: true, userId: 'user-1'})
+      await sessionStarted
+      const duringRefresh = actions.handleRegisterVerify('1234')
+      expect(registerVerify).toHaveBeenCalledTimes(1)
+      expect(state.loading).toBe(true)
+      resolveSession()
+      await Promise.all([automatic, manual, duringRefresh])
+      await actions.handleRegisterVerify('1234')
+      expect(registerVerify).toHaveBeenCalledTimes(1)
+      expect(state.error).toBe('')
+      expect(state.loading).toBe(false)
+    })
+
+    test('allows retry after invalid code and verification after a new challenge', async () => {
+      const registerVerify = mock(async ({code}: {code: string}) => {
+        if (code === '0000') throw new Error('Invalid code')
+        return {verified: true, userId: 'user-1'}
+      })
+      const {state, actions, navigator} = createStore(
+        createMockClient({
+          registerVerify,
+          registerStart: async () => ({message: 'ok', expireTime: 3000, resendAllowedTime: 2500}),
+          getSession: async () => ({
+            authenticated: true,
+            relyingPartyOrigin: 'https://example.com',
+            userId: 'user-1',
+            email: 'test@example.com',
+            credentials: {},
+          }),
+        }),
+        createMockBlockstore(),
+      )
+      navigator.setNavigate(mock())
+      await actions.handleRegisterVerify('0000')
+      expect(state.error).toBe('Invalid code')
+      await actions.handleRegisterVerify('1234')
+      expect(state.error).toBe('')
+      await actions.handleStartRegistration()
+      await actions.handleRegisterVerify('5678')
+      expect(registerVerify).toHaveBeenCalledTimes(3)
+      expect(state.error).toBe('')
+    })
+
     test('calls register verify API with code', async () => {
       let receivedCode = ''
       const client = createMockClient({
@@ -631,6 +708,27 @@ describe('Store', () => {
       await actions.handleSetPassword()
 
       expect(state.error).toContain('too weak')
+    })
+
+    test('accepts a minimal password that meets the checklist', async () => {
+      const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+      state.password = 'Abcdefg1'
+      state.confirmPassword = 'Abcdefg1'
+      expect(sharedPassword.checkPasswordStrength(state.password)).toBe(1)
+
+      await actions.handleSetPassword()
+
+      expect(state.error).not.toContain('too weak')
+    })
+
+    test('explains what is missing when the checklist passes but the strength minimum does not', async () => {
+      const {state, actions} = createStore(createMockClient(), createMockBlockstore())
+      state.password = 'ABCDEFG1'
+      state.confirmPassword = 'ABCDEFG1'
+
+      await actions.handleSetPassword()
+
+      expect(state.error).toBe('Password is too weak. Add a lowercase letter, or make it at least 12 characters.')
     })
   })
 
@@ -1750,6 +1848,7 @@ describe('delegation flow', () => {
     clientId = 'https://example.com',
     redirectUri = 'https://example.com/callback',
     vaultOrigin = 'https://example.com',
+    emailPrevalidation = false,
   ) {
     const keyPair = (await crypto.subtle.generateKey('Ed25519' as unknown as AlgorithmIdentifier, false, [
       'sign',
@@ -1765,6 +1864,7 @@ describe('delegation flow', () => {
     unsignedUrl.searchParams.set('session_key', sessionKeyPrincipal)
     unsignedUrl.searchParams.set('state', state)
     unsignedUrl.searchParams.set('ts', String(ts))
+    if (emailPrevalidation) unsignedUrl.searchParams.set('email_prevalidation', '1')
     const payload = new TextEncoder().encode(unsignedUrl.toString())
     const proof = new Uint8Array(
       await crypto.subtle.sign(
@@ -1864,6 +1964,57 @@ describe('delegation flow', () => {
     expect(store.state.delegationRequest).toBeNull()
     expect(store.state.delegationConsented).toBe(false)
     expect(store.state.error).toBe('')
+  })
+
+  test('sends signed email proof only to opted-in clients and only in the callback fragment', async () => {
+    const signer = blobs.generateNobleKeyPair()
+    const emailProof = {
+      email: 'owner@example.com',
+      host: 'https://example.com',
+      signer: base64.encode(signer.principal),
+      sig: base64.encode(new Uint8Array(64)),
+    }
+    for (const optIn of [false, true]) {
+      const bs = createMockBlockstore()
+      const store = createStore(createMockClient({saveVault: async () => ({success: true})}), bs)
+      const request = await makeSignedDelegationUrl(
+        'https://example.com',
+        'https://example.com/callback',
+        'https://example.com',
+        optIn,
+      )
+      await setupDelegationState(store, request.url, bs)
+      store.state.emailPrevalidation = emailProof
+      expect(await store.actions.completeDelegation()).toBe(true)
+      const callback = new URL(window.location.href)
+      const publicData = cbor.decode<any>(await decompress(base64.decode(callback.searchParams.get('data')!)))
+      expect(publicData.emailPrevalidation).toBeUndefined()
+      expect(callback.searchParams.has('email_prevalidation')).toBe(false)
+      const encoded = new URLSearchParams(callback.hash.slice(1)).get('email_prevalidation')
+      if (optIn) expect(cbor.decode<typeof emailProof>(base64.decode(encoded!))).toEqual(emailProof)
+      else expect(encoded).toBeNull()
+    }
+  })
+
+  test('omits email proof from a different Vault without blocking delegation', async () => {
+    const bs = createMockBlockstore()
+    const store = createStore(createMockClient({saveVault: async () => ({success: true})}), bs)
+    const request = await makeSignedDelegationUrl(
+      'https://example.com',
+      'https://example.com/callback',
+      'https://example.com',
+      true,
+    )
+    await setupDelegationState(store, request.url, bs)
+    const signer = blobs.generateNobleKeyPair()
+    store.state.emailPrevalidation = {
+      email: 'owner@example.com',
+      host: 'https://other-vault.example.com',
+      signer: base64.encode(signer.principal),
+      sig: base64.encode(new Uint8Array(64)),
+    }
+    expect(await store.actions.completeDelegation()).toBe(true)
+    expect(new URL(window.location.href).hash).toBe('')
   })
 
   test('uses the vault notification server URL override during delegation completion', async () => {

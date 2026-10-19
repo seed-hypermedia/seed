@@ -1,6 +1,5 @@
 import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
 import {domainResolver} from '@/grpc-client'
-import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {useExperiments} from '@/models/experiments'
@@ -30,13 +29,14 @@ import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.gener
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {createInspectNavRouteFromRoute, DocumentRoute, FeedRoute, NavRoute} from '@shm/shared/routes'
+import {createInspectNavRouteFromRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
 import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
 import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
 import {AgentActivityDot} from '@shm/ui/agents/activity-dot'
+import {focusExploreSearch} from '@shm/ui/explore-search-focus'
 import {
   agentRouteServerUrl,
   isLocalAgentServer,
@@ -58,7 +58,7 @@ import {LogoutVaultDialog} from '@shm/ui/components/logout-vault-dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {AccountAvatar} from '@shm/ui/account-avatar'
-import {Back, Forward, UploadCloud} from '@shm/ui/icons'
+import {Back, Forward} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
@@ -544,10 +544,8 @@ function AssistantChatButton({
 }
 
 export function PageActionButtons(props: TitleBarProps) {
-  const route = useNavRoute()
   return (
     <TitlebarSection>
-      {route.key == 'document' || route.key == 'feed' ? <DocumentTitlebarButtons route={route} /> : null}
       <ExploreButton />
       <AssistantChatButton assistantOpen={props.assistantOpen} onToggleAssistant={props.onToggleAssistant} />
       <BookmarksPopover />
@@ -611,7 +609,10 @@ function ExploreButton() {
         )}
         aria-current={isActive ? 'page' : undefined}
         aria-label="Explore"
-        onClick={() => navigate({key: 'explore', context: siteId ? {type: 'site', id: siteId} : {type: 'node'}})}
+        onClick={() => {
+          focusExploreSearch()
+          navigate({key: 'explore', context: siteId ? {type: 'site', id: siteId} : {type: 'node'}})
+        }}
       >
         <Search className="size-4" />
       </Button>
@@ -619,28 +620,6 @@ function ExploreButton() {
   )
 }
 
-function DocumentTitlebarButtons({route}: {route: DocumentRoute | FeedRoute}) {
-  const {id} = route
-
-  const publishSite = usePublishSite()
-  const isHomeDoc = !id.path?.length
-  const capability = useSelectedAccountCapability(id)
-  const canEditDoc = roleCanWrite(capability?.role)
-  const entity = useResource(id)
-  const showPublishSiteButton =
-    isHomeDoc && canEditDoc && entity.data?.type == 'document' && !entity.data.document?.metadata.siteUrl
-  return (
-    <TitlebarSection>
-      {showPublishSiteButton ? (
-        <Button variant="default" onClick={() => publishSite.open({id})} size="sm">
-          Publish to Web Domain
-          <UploadCloud className="size-4" />
-        </Button>
-      ) : null}
-      {publishSite.content}
-    </TitlebarSection>
-  )
-}
 export function NavigationButtons() {
   const state = useNavigationState()
   const dispatch = useNavigationDispatch()

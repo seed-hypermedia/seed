@@ -1,0 +1,26 @@
+# documentation: https://github.com/nicholas-fedor/watchtower
+# slogan: Automatic image updates for the Seed site stacks on this server.
+# category: automation
+# tags: seed, watchtower, updates
+
+# Deploy once per server, next to any number of seed-site.yaml stacks. Every SEED_UPDATE_INTERVAL
+# seconds it checks the image tags of containers labelled
+#   com.centurylinklabs.watchtower.enable=true + com.centurylinklabs.watchtower.scope=seed
+# (seed-web and seed-daemon in seed-site.yaml), pulls new digests, recreates those containers and
+# removes the old images. Containers outside the `seed` scope, including other watchtower
+# instances, are left alone. Needs the Docker socket to recreate containers.
+
+services:
+  seed-updater:
+    image: nickfedor/watchtower:latest
+    restart: unless-stopped
+    labels:
+      - com.centurylinklabs.watchtower.scope=seed
+    environment:
+      - WATCHTOWER_SCOPE=seed
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_POLL_INTERVAL=${SEED_UPDATE_INTERVAL:-600}
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

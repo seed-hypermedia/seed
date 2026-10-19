@@ -8,7 +8,6 @@ import {join} from 'path'
 import z from 'zod'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
-// @ts-expect-error ignore import
 import {commentDraftStore} from './app-store.mts'
 import {t} from './app-trpc'
 import {error} from './logger'

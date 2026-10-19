@@ -74,7 +74,7 @@ export function registerQueryCommands(program: Command) {
     .option('--reverse', 'Reverse sort order')
     .option(
       '-w, --where <query>',
-      'Attribute conditions in the Explore grammar: key=value (exact), key!=v, key>=3, key:text (contains), key^text (starts with), has:key, missing:key, path:/x/*, AND/OR/NOT, parentheses',
+      'Attribute conditions in the Explore grammar: key=value (exact), key!=v, key>=3, key:text (contains), key^text (starts with), has:key, missing:key, path:/x/*, AND/OR/NOT, parentheses. Built-ins: $author:<uid>, $created>=2026-09-01, $updated<2026-10-01 (single-quote these in a shell)',
     )
     .option('--filter <json>', 'A raw DocumentFilter as JSON (ANDed with --where)')
     .option('--sort-by <key>', 'With --where / --filter: sort by a user attribute key (dotted for nested)')

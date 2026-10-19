@@ -9,6 +9,7 @@ import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {queryClient} from '@shm/shared/models/query-client'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {FileDropGuard} from '@shm/ui/file-drop-guard'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast, Toaster} from '@shm/ui/toast'
@@ -19,6 +20,7 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {DesktopDocumentMaintenance} from './components/document-maintenance'
 import {DebugDialogs} from './components/debug-dialogs'
+import {DomainPublishingInvitation} from './components/domain-publishing-invitation'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -384,7 +386,10 @@ function MainApp({}: {}) {
                   window.location.reload()
                 }}
               >
-                <NavigationContainer>{mainContent}</NavigationContainer>
+                <NavigationContainer>
+                  {mainContent}
+                  <DomainPublishingInvitation />
+                </NavigationContainer>
 
                 <Toaster />
 
@@ -512,6 +517,7 @@ function ElectronApp() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <FileDropGuard />
     <ElectronApp />
   </React.StrictMode>,
 )

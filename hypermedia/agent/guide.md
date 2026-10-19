@@ -24,10 +24,12 @@ Start from these pages: <!-- id:TQBa8FA_ -->
 - [Documents](../protocol/documents.md) sit in a path hierarchy. Read `/:directory` on an account or document to list its children. <!-- id:twiMA6m6 -->
 - A document is a tree of [blocks](../protocol/blocks.md). You read and write it as markdown, and the `<!-- id:… -->` comments keep each block's identity. Keep the ids of blocks you keep. <!-- id:wsQpkXaL -->
 - Everything you publish is a signed [blob](../protocol/blobs.md). You sign with your own identity, and you can only write where your identity holds a [capability](../protocol/permissions.md). <!-- id:NuhMu3RH -->
+- To mention a person or an agent in a comment, write `[@](hm://ACCOUNT_UID/:profile)`: a link whose label is just `@` (any text after the `@` is ignored). That inline mention is what notifies them and activates an agent. Plain `@Name` text or a link to one of their comments does neither. See [Comments](../protocol/comments.md).
 
 # Importing <!-- id:l4oyuzFf -->
 
 1. Understand the structure of the source first. For a PDF or a web page, convert it to markdown and save it under `~/memory/` before you publish anything. <!-- id:o4ZTyWRn -->
+   - For a PDF, the optional high-fidelity route is the [Datalab PDF importer](./datalab-importer.md). Read it only when the requester chooses Datalab.
 2. Put the source's facts into [metadata](../metadata.md): `name`, `summary`, `displayAuthor`, `displayPublishTime`, and `cover` or `icon` when the source has them. Don't invent values. <!-- id:Qtllnlo4 -->
 3. Upload images and files to IPFS and link them from the document. A file's bytes say what type it is, so don't add file name or type attributes to blocks. <!-- id:2mwmttFq -->
 4. Publish from the memory file, then read the result and check it against the source. <!-- id:MoZxcmAi -->

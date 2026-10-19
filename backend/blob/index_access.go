@@ -2,11 +2,10 @@ package blob
 
 import (
 	"context"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"seed/backend/core"
 	"seed/backend/ipfs"
+	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"time"
@@ -287,48 +286,28 @@ func (idx *Index) GetSpacesByAccount(ctx context.Context, accounts []core.Princi
 		spacesByAccount[account.UnsafeString()] = append(spacesByAccount[account.UnsafeString()], account)
 	}
 
-	accountsJSON, err := encodePrincipalHexJSON(accounts)
-	if err != nil {
-		return nil, err
-	}
+	err := idx.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+		for _, account := range accounts {
+			del, err := DbPublicKeysLookupID(conn, account)
+			if err != nil {
+				return err
+			}
+			// We've never seen this key, so nothing can be delegated to it.
+			if del == 0 {
+				continue
+			}
 
-	err = idx.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		// Query capabilities where any of the accounts is a delegate.
-		// The resource owner (space) is the signer of the capability.
-		// IMPORTANT: 'del' in extra_attrs is stored as the public_keys.id (integer), not the principal.
-		// We look for WRITER role which grants access to private content.
-		// INDEXED BY pins the partial capabilities index: the 'del' value is served
-		// from the index itself (no per-row JSON parse) and the IN list is
-		// bloom-checked before any main-table row is touched. A plain join on
-		// extra_attrs->>'del' cannot seek the expression index (SQLite only matches
-		// indexed expressions against literals/parameters), hence the IN shape.
-		const q = `
-			SELECT DISTINCT pk_del.principal, pk_author.principal
-			FROM structural_blobs sb INDEXED BY capabilities_by_delegate
-			JOIN public_keys pk_del ON pk_del.id = sb.extra_attrs->>'del'
-			JOIN public_keys pk_author ON pk_author.id = sb.author
-			WHERE sb.type = 'Capability'
-			AND sb.extra_attrs->>'del' IN (
-				SELECT pk.id FROM json_each(?) AS j
-				JOIN public_keys pk ON pk.principal = unhex(j.value)
-			)
-			AND sb.extra_attrs->>'role' = 'WRITER'
-		`
-
-		rows, discard, check := sqlitex.Query(conn, q, accountsJSON).All()
-		defer func() {
-			var err error
-			discard(&err)
-		}()
-
-		for row := range rows {
-			account := core.Principal(append([]byte(nil), row.ColumnBytes(0)...))
-			space := core.Principal(append([]byte(nil), row.ColumnBytes(1)...))
-			if len(account) > 0 && len(space) > 0 {
-				spacesByAccount[account.UnsafeString()] = append(spacesByAccount[account.UnsafeString()], space)
+			key := account.UnsafeString()
+			if err := sqlitex.Exec(conn, qWriterSpacesByDelegate(), func(stmt *sqlite.Stmt) error {
+				if space := core.Principal(stmt.ColumnBytes(0)); len(space) > 0 {
+					spacesByAccount[key] = append(spacesByAccount[key], space)
+				}
+				return nil
+			}, del); err != nil {
+				return err
 			}
 		}
-		return check()
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -337,19 +316,22 @@ func (idx *Index) GetSpacesByAccount(ctx context.Context, accounts []core.Princi
 	return spacesByAccount, nil
 }
 
-func encodePrincipalHexJSON(accounts []core.Principal) (string, error) {
-	encoded := make([]string, 0, len(accounts))
-	for _, account := range accounts {
-		encoded = append(encoded, hex.EncodeToString(account))
-	}
-
-	data, err := json.Marshal(encoded)
-	if err != nil {
-		return "", fmt.Errorf("failed to encode account principal list: %w", err)
-	}
-
-	return string(data), nil
-}
+// qWriterSpacesByDelegate lists the spaces that granted a WRITER capability to
+// the given delegate. The space is the signer of the capability, and 'del' in
+// extra_attrs holds the delegate's public_keys.id (integer), not the principal.
+//
+// The delegate must be compared to a bound value: that is the only shape where
+// SQLite seeks the capabilities_by_delegate expression index. Comparing it to a
+// joined column, a subquery or an IN list scans every capability on the node
+// instead, and this query runs on every inbound reconcile round.
+var qWriterSpacesByDelegate = dqb.Str(`
+	SELECT DISTINCT pk.principal
+	FROM structural_blobs sb INDEXED BY capabilities_by_delegate
+	JOIN public_keys pk ON pk.id = sb.author
+	WHERE sb.type = 'Capability'
+	AND sb.extra_attrs->>'del' = :del
+	AND sb.extra_attrs->>'role' = 'WRITER';
+`)
 
 // GetAuthorizedSpacesForPeer computes which spaces a peer can access.
 // It considers:

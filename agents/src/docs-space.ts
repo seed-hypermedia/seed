@@ -15,12 +15,6 @@ import {readFileSync} from 'node:fs'
 /** The authority the knowledge base is written under. */
 export const DOCS_AUTHORITY = 'hyper.media'
 
-/** The Agent Guide every new agent's system prompt embeds. */
-export const AGENT_GUIDE_URL = `hm://${DOCS_AUTHORITY}/agent/guide`
-
-/** Where the Agent Guide used to live. Agents created before the move still embed it. */
-const LEGACY_AGENT_GUIDE_URLS = new Set(['hm://z6Mko5npVz4Bx9Rf4vkRUf2swvb568SDbhLwStaha3HzgrLS/resources/skill'])
-
 const ACCOUNT_PATTERN = /^z[1-9A-HJ-NP-Za-km-z]{40,60}$/
 
 export type DocsSpaceOptions = {
@@ -55,18 +49,17 @@ const DOCS_URL = new RegExp(`^hm://${DOCS_AUTHORITY.replace('.', '\\.')}(?=$|[/?
 
 /** True when a URL names the knowledge base by its domain. */
 export function isDocsUrl(url: string): boolean {
-  return DOCS_URL.test(url) || LEGACY_AGENT_GUIDE_URLS.has(url)
+  return DOCS_URL.test(url)
 }
 
 /**
- * Rewrites `hm://hyper.media/...` to the knowledge base account. The retired Agent Guide URL maps to the current
- * guide. Any other URL, or a docs URL when no account is known, comes back unchanged.
+ * Rewrites `hm://hyper.media/...` to the knowledge base account. Any other URL, or a docs URL when no account is
+ * known, comes back unchanged.
  */
 export function resolveDocsUrl(url: string): string {
-  const docsUrl = LEGACY_AGENT_GUIDE_URLS.has(url) ? AGENT_GUIDE_URL : url
-  if (!DOCS_URL.test(docsUrl)) return url
+  if (!DOCS_URL.test(url)) return url
   const account = docsSpaceAccount()
-  return account ? docsUrl.replace(DOCS_URL, `hm://${account}`) : url
+  return account ? url.replace(DOCS_URL, `hm://${account}`) : url
 }
 
 type LinkedBlockNode = {block: {link?: string; [key: string]: unknown}; children?: LinkedBlockNode[]}

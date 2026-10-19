@@ -20,6 +20,10 @@ import (
 
 // ListPaidInvoices returns the invoices that the wallet represented by walletID has paid.
 func (srv *Server) ListPaidInvoices(ctx context.Context, in *payments.ListInvoicesRequest) (*payments.ListInvoicesResponse, error) {
+	if err := srv.checkEnabled(); err != nil {
+		return nil, err
+	}
+
 	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return nil, err
@@ -67,6 +71,10 @@ func (srv *Server) ListPaidInvoices(ctx context.Context, in *payments.ListInvoic
 
 // ListReceivednvoices returns the incoming invoices that the wallet represented by walletID has received.
 func (srv *Server) ListReceivedInvoices(ctx context.Context, in *payments.ListInvoicesRequest) (*payments.ListInvoicesResponse, error) {
+	if err := srv.checkEnabled(); err != nil {
+		return nil, err
+	}
+
 	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return nil, err
@@ -116,6 +124,10 @@ func (srv *Server) ListReceivedInvoices(ctx context.Context, in *payments.ListIn
 // First an lndhub invoice request is attempted. If it fails, then a P2P its used to transmit the invoice. In that case,
 // Any of the devices associated with the accountID can issue the invoice. The memo field is optional and can be left nil.
 func (srv *Server) RequestLud6Invoice(ctx context.Context, in *payments.RequestLud6InvoiceRequest) (*payments.InvoiceResponse, error) {
+	if err := srv.checkEnabled(); err != nil {
+		return nil, err
+	}
+
 	invoice := &payments.InvoiceResponse{}
 	var err error
 	invoice.Payreq, err = srv.lightningClient.Lndhub.RequestLud6Invoice(ctx, in.URL, in.User, in.Amount, in.Memo)
@@ -175,6 +187,10 @@ func (srv *Server) DecodeInvoice(_ context.Context, in *payments.DecodeInvoiceRe
 
 // CreateInvoice tries to generate an invoice locally.
 func (srv *Server) CreateInvoice(ctx context.Context, in *payments.CreateInvoiceRequest) (*payments.InvoiceResponse, error) {
+	if err := srv.checkEnabled(); err != nil {
+		return nil, err
+	}
+
 	ret := &payments.InvoiceResponse{}
 	wallet, err := srv.GetWallet(ctx, &payments.WalletRequest{Id: in.Id})
 	if in.Id == "" && in.Account != "" {
@@ -211,6 +227,10 @@ func (srv *Server) CreateInvoice(ctx context.Context, in *payments.CreateInvoice
 // If amountSats is provided, the invoice will be paid with that amount. This amount should be equal to the amount on the invoice
 // unless the amount on the invoice is 0.
 func (srv *Server) PayInvoice(ctx context.Context, in *payments.PayInvoiceRequest) (*emptypb.Empty, error) {
+	if err := srv.checkEnabled(); err != nil {
+		return nil, err
+	}
+
 	walletToPay := &payments.Wallet{}
 	var err error
 	var amountToPay int64

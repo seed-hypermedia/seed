@@ -3,7 +3,7 @@
 /* eslint-disable */
 // @ts-nocheck
 
-import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, ChangeVaultEmailStartRequest, ChangeVaultEmailStartResponse, ChangeVaultEmailVerifyRequest, ChangeVaultEmailVerifyResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultEmailRequest, GetVaultEmailResponse, GetVaultNotificationServerRequest, GetVaultNotificationServerResponse, GetVaultPasswordStatusRequest, GetVaultPasswordStatusResponse, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SetVaultMasterPasswordRequest, SetVaultMasterPasswordResponse, SetVaultNotificationServerRequest, SetVaultNotificationServerResponse, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
+import { AddDomainRequest, AuthenticateRequest, AuthenticateResponse, ChangeVaultEmailStartRequest, ChangeVaultEmailStartResponse, ChangeVaultEmailVerifyRequest, ChangeVaultEmailVerifyResponse, CheckDomainRequest, DeleteAllKeysRequest, DeleteKeyRequest, DisconnectVaultRequest, DomainInfo, ExportKeyRequest, ForceReindexRequest, ForceReindexResponse, ForceSyncRequest, GenMnemonicRequest, GenMnemonicResponse, GetDomainRequest, GetInfoRequest, GetVaultEmailPrevalidationRequest, GetVaultEmailPrevalidationResponse, GetVaultEmailRequest, GetVaultEmailResponse, GetVaultNotificationServerRequest, GetVaultNotificationServerResponse, GetVaultPasswordStatusRequest, GetVaultPasswordStatusResponse, GetVaultStatusRequest, GetVaultStatusResponse, ImportKeyRequest, Info, ListDomainsRequest, ListDomainsResponse, ListKeysRequest, ListKeysResponse, NamedKey, RegisterKeyRequest, RemoveDomainRequest, SetVaultMasterPasswordRequest, SetVaultMasterPasswordResponse, SetVaultNotificationServerRequest, SetVaultNotificationServerResponse, SignDataRequest, SignDataResponse, StartVaultConnectionRequest, StartVaultConnectionResponse, StoreBlobsRequest, StoreBlobsResponse, UpdateKeyRequest } from "./daemon_pb";
 import { Empty, MethodKind } from "@bufbuild/protobuf";
 
 /**
@@ -136,6 +136,18 @@ export const Daemon = {
       name: "GetVaultEmail",
       I: GetVaultEmailRequest,
       O: GetVaultEmailResponse,
+      kind: MethodKind.Unary,
+    },
+    /**
+     * Gets the email prevalidation signed by the connected remote vault server.
+     * Services that trust the vault can accept it instead of verifying the email themselves.
+     *
+     * @generated from rpc com.seed.daemon.v1alpha.Daemon.GetVaultEmailPrevalidation
+     */
+    getVaultEmailPrevalidation: {
+      name: "GetVaultEmailPrevalidation",
+      I: GetVaultEmailPrevalidationRequest,
+      O: GetVaultEmailPrevalidationResponse,
       kind: MethodKind.Unary,
     },
     /**

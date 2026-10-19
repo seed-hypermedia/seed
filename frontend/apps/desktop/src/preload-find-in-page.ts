@@ -1,3 +1,4 @@
+import {createRendererIPC} from './preload-ipc'
 import '@sentry/electron/preload'
 import {contextBridge, ipcRenderer} from 'electron'
 import {exposeElectronTRPC} from 'electron-trpc/main'
@@ -40,22 +41,4 @@ ipcRenderer.addListener('find_in_page_result', (_info, payload: FindInPageResult
   dispatchFindInPageResult(payload)
 })
 
-contextBridge.exposeInMainWorld('ipc', {
-  // @ts-expect-error
-  send: (cmd, args) => {
-    ipcRenderer.send(cmd, args)
-  },
-  listen: async (cmd: string, handler: (event: any) => void) => {
-    // @ts-expect-error
-    const innerHandler = (info, payload: any) => {
-      handler({info, payload})
-    }
-    ipcRenderer.addListener(cmd, innerHandler)
-    return () => {
-      ipcRenderer.removeListener(cmd, innerHandler)
-    }
-  },
-  versions: () => {
-    return process.versions
-  },
-})
+contextBridge.exposeInMainWorld('ipc', createRendererIPC(ipcRenderer, true))

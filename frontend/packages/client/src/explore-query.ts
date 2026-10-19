@@ -7,6 +7,8 @@
 //   key~text (contains)  key^text (starts with)                string match
 //   has:key  missing:key                                        presence
 //   in:<space uid | hm:// url>  path:/specs  path:/specs/*      scope
+//   $author:<account uid>                                       any one of the document's authors
+//   $created>=2026-09-01  $updated<2026-10-01T12:00:00Z         creation / last-update time
 //   type:document|block|comment|space|contact                   result type (Explore only)
 //   AND  OR  NOT  ( … )   adjacency is AND                      boolean structure
 //   free words and "quoted phrases"                             full-text terms (Explore only)
@@ -33,11 +35,27 @@ export type ExploreAttributePredicate =
 export type ExploreScopePredicate =
   | {kind: 'scope'; scope: 'space' | 'url'; value: string}
   | {kind: 'scope'; scope: 'path'; value: string; prefix: boolean}
+/** Built-in document timestamps a time predicate can test. */
+export type ExploreTimeField = 'created' | 'updated'
+/** Comparisons a time predicate accepts; equality has no useful meaning against a millisecond clock. */
+export type ExploreTimeComparison = '<' | '<=' | '>' | '>='
+/**
+ * A bound on a document's creation or last-update time. `value` is an ISO date (`2026-09-01`,
+ * compared by whole UTC days) or an ISO date-time (compared exactly).
+ */
+export type ExploreTimePredicate = {
+  kind: 'time'
+  field: ExploreTimeField
+  comparison: ExploreTimeComparison
+  value: string
+}
 /** Leaf predicates in the Explore query AST. */
 export type ExplorePredicate =
   | ExploreAttributePredicate
   | ExploreScopePredicate
   | {kind: 'type'; value: HMExploreResultType}
+  | {kind: 'author'; value: string}
+  | ExploreTimePredicate
 /** Boolean Explore query AST. */
 export type ExploreQueryNode =
   | {kind: 'text'; value: string; phrase: boolean}
@@ -66,6 +84,38 @@ export type ExploreQueryContext = {type: 'node'} | {type: 'site'; url: string}
 type Token = {kind: 'word' | 'quoted' | 'operator' | 'lparen' | 'rparen'; value: string; start: number; end: number}
 const resultTypes = new Set<HMExploreResultType>(['document', 'block', 'comment', 'space', 'contact'])
 const comparisonOperators = new Set(['=', '!=', '<', '<=', '>', '>='])
+const AUTHOR_KEY = '$author'
+const timeKeys = new Map<string, ExploreTimeField>([
+  ['$created', 'created'],
+  ['$updated', 'updated'],
+])
+const timeComparisons = new Set<string>(['<', '<=', '>', '>='])
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * The half-open `[start, end)` range a time predicate selects, as the ISO instants the daemon's
+ * `TimeRange` takes; undefined when the value is not a date. A bare date covers its whole UTC day,
+ * so `$created<=2026-09-01` includes the 1st and `$created>2026-09-01` starts on the 2nd. A
+ * date-time is compared to the millisecond.
+ */
+export function exploreTimeBounds(predicate: ExploreTimePredicate): {start?: string; end?: string} | undefined {
+  const dayOnly = /^\d{4}-\d{2}-\d{2}$/.test(predicate.value)
+  if (!dayOnly && !/^\d{4}-\d{2}-\d{2}T/.test(predicate.value)) return undefined
+  const instant = Date.parse(dayOnly ? `${predicate.value}T00:00:00Z` : predicate.value)
+  if (Number.isNaN(instant)) return undefined
+  const step = dayOnly ? DAY_MS : 1
+  const iso = (ms: number) => new Date(ms).toISOString()
+  switch (predicate.comparison) {
+    case '>=':
+      return {start: iso(instant)}
+    case '>':
+      return {start: iso(instant + step)}
+    case '<':
+      return {end: iso(instant)}
+    case '<=':
+      return {end: iso(instant + step)}
+  }
+}
 
 function diagnostic(
   message: string,
@@ -323,6 +373,23 @@ class ExploreParser {
         predicate: {kind: 'scope', scope: 'path', value: prefix ? value.slice(0, -2) : value, prefix},
       }
     }
+    if (operator.value === ':' && token.value === AUTHOR_KEY) {
+      return {kind: 'predicate', predicate: {kind: 'author', value}}
+    }
+    const timeField = timeKeys.get(token.value)
+    if (timeField) {
+      const predicate: ExploreTimePredicate = {
+        kind: 'time',
+        field: timeField,
+        comparison: operator.value as ExploreTimeComparison,
+        value,
+      }
+      if (timeComparisons.has(operator.value) && exploreTimeBounds(predicate)) return {kind: 'predicate', predicate}
+      this.diagnostics.push(
+        diagnostic(`"${token.value}" takes <, <=, > or >= and a date such as 2026-09-01.`, token.start, valueToken.end),
+      )
+      return {kind: 'text', value: `${token.value}${operator.value}${value}`, phrase: false}
+    }
     if ((token.value === 'has' || token.value === 'missing') && operator.value === ':') {
       return {
         kind: 'predicate',
@@ -372,6 +439,8 @@ function nodePrecedence(node: ExploreQueryNode) {
 
 function serializePredicate(predicate: ExplorePredicate): string {
   if (predicate.kind === 'type') return `type:${predicate.value}`
+  if (predicate.kind === 'author') return `${AUTHOR_KEY}:${predicate.value}`
+  if (predicate.kind === 'time') return `$${predicate.field}${predicate.comparison}${predicate.value}`
   if (predicate.kind === 'scope') {
     if (predicate.scope === 'space' || predicate.scope === 'url') return `in:${predicate.value}`
     const pathPredicate = predicate as Extract<ExploreScopePredicate, {scope: 'path'}>
@@ -441,6 +510,13 @@ function comparisonOperatorJson(operator: ExploreComparisonOperator): HMDocument
 }
 function predicateFilter(predicate: ExplorePredicate): HMDocumentFilter | undefined {
   if (predicate.kind === 'type') return undefined
+  if (predicate.kind === 'author') return {authorMatch: {author: predicate.value}}
+  if (predicate.kind === 'time') {
+    // The parser rejects unparseable dates, so only an AST built by hand can reach this undefined.
+    const bounds = exploreTimeBounds(predicate)
+    if (!bounds) return undefined
+    return {timeRange: {field: predicate.field === 'created' ? 'CREATE_TIME' : 'UPDATE_TIME', ...bounds}}
+  }
   if (predicate.kind === 'scope') {
     if (predicate.scope === 'space') return {spaceMatch: {space: predicate.value}}
     if (predicate.scope === 'url') return {urlMatch: {url: predicate.value, prefix: true}}

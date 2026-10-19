@@ -1,0 +1,9 @@
+{
+  "anyOf": [
+    "left",
+    "center",
+    "right",
+    "justify"
+  ],
+  "description": "Horizontal alignment of a block's text: `left` (the default, also when the key is absent), `center`, `right` or `justify`."
+}

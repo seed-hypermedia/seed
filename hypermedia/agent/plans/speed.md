@@ -8,7 +8,7 @@ Goal: agents should feel **instant**. The reply starts streaming the moment you 
 
 One interactive turn, end to end: <!-- id:wSwP0VdL -->
   1. The signed request lands, the [run](../runs.md) is enqueued, and an executor claims it (`run.dispatch_delay`). <!-- id:eUafDyAu -->
-  2. Turn prep: system prompt resolution, transcript replay build, and Pi session assembly (`provider.request_gap`). <!-- id:9XkH_-bH -->
+  2. Turn prep: system prompt resolution, opening the session's durable store, and importing the log into it (`provider.request_gap`). <!-- id:9XkH_-bH -->
   3. From sending the provider request to the first streamed output (`provider.ttft`). This is the silence the user stares at. <!-- id:hhxoRppP -->
   4. Tool batches: each tool's own span (`tool.<name>`). For `execute`, microVM boot (`exec.boot`) takes most of the time. <!-- id:8gHZQqn- -->
   5. More provider round trips, one per tool batch, each paying step 3 again on a larger context. <!-- id:luNWD3fr -->

@@ -264,7 +264,7 @@ func TestPrivateDocSecurity_GetDocumentChangeLeaksBlob(t *testing.T) {
 //
 // WARNING: this is NOT a regression test. It asserts nothing and ends in a t.Log, so it passes
 // whether or not the vulnerability exists. VULN-5 is still open. Do not read a green CI run here as
-// coverage. See docs/security/audit-log.md.
+// coverage. See .agents/security/audit-log.md.
 func TestPrivateDocSecurity_CreateRefIgnoresVisibility(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()

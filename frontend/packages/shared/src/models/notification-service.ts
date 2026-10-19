@@ -1,5 +1,6 @@
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {base58btc} from 'multiformats/bases/base58'
+import {notifyEndpointUrl} from '../notify-url'
 import type {NotificationMutationAction, NotificationStateSnapshot} from './notification-state'
 
 const DEFAULT_NOTIFICATION_INBOX_LIMIT = 400
@@ -9,10 +10,6 @@ export type NotificationSigner = {
   publicKey: Uint8Array
   sign: (data: Uint8Array) => Promise<Uint8Array>
   accountUid?: string
-}
-
-function normalizeHost(host: string) {
-  return host.replace(/\/$/, '')
 }
 
 /** Returns the account UID: explicit accountUid if set, otherwise derived from the signing key. */
@@ -31,7 +28,7 @@ async function signedNotifPost(host: string, signer: NotificationSigner, payload
   const encoded = cborEncode(unsigned)
   const sig = new Uint8Array(await signer.sign(encoded))
   const body = new Uint8Array(cborEncode({...unsigned, sig}))
-  const res = await fetch(`${normalizeHost(host)}/hm/api/notifications`, {
+  const res = await fetch(notifyEndpointUrl(host, 'notifications'), {
     method: 'POST',
     body,
     headers: {'Content-Type': 'application/cbor'},

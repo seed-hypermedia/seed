@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL, IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {Extension} from '@tiptap/core'
 import {Plugin, PluginKey} from 'prosemirror-state'
@@ -7,6 +8,8 @@ type LocalMediaType = 'image' | 'video' | 'file'
 type FileAttachmentResult = {
   displaySrc?: string
   url?: string
+  mime?: string
+  name?: string
   fileBinary?: Uint8Array | ArrayBuffer
   mediaRef?:
     | string
@@ -17,6 +20,10 @@ type FileAttachmentResult = {
         mime: string
         size: number
       }
+}
+
+function isImageFile(file: File): boolean {
+  return file.type.startsWith('image/') || /\.(heic|heif)$/i.test(file.name)
 }
 
 export const LocalMediaPastePlugin = Extension.create({
@@ -75,7 +82,7 @@ export const handleLocalMediaPastePlugin = (blockNoteEditor: any) =>
         }
 
         for (const file of files) {
-          if (file.type.startsWith('image/')) {
+          if (isImageFile(file)) {
             processMedia(file, view, insertPos, blockNoteEditor, 'image')
             return true
           }
@@ -207,7 +214,7 @@ export function createNodePropsFromAttachmentResult(
   mediaType: LocalMediaType,
 ): Record<string, any> {
   const nodeProps: Record<string, any> = {
-    name: file.name,
+    name: (typeof result.mediaRef === 'object' ? result.mediaRef.name : undefined) || result.name || file.name,
   }
 
   if (mediaType === 'file') {
@@ -247,7 +254,7 @@ async function uploadMedia(file: File) {
   const formData = new FormData()
   formData.append('file', file)
 
-  const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+  const response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
     method: 'POST',
     body: formData,
   })

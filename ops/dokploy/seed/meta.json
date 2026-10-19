@@ -1,0 +1,13 @@
+{
+  "id": "seed",
+  "name": "Seed Hypermedia",
+  "version": "latest",
+  "description": "Self-host one Seed Hypermedia site with its daemon and web app. Includes scoped automatic image updates.",
+  "logo": "seed-icon.svg",
+  "links": {
+    "github": "https://github.com/seed-hypermedia/seed",
+    "website": "https://seed.hyper.media",
+    "docs": "https://seed.hyper.media"
+  },
+  "tags": ["cms", "publishing", "p2p"]
+}

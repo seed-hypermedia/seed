@@ -295,14 +295,17 @@ func TestDaemonCORS(t *testing.T) {
 
 	const fileCID = "bafybeiecq2irw4fl5vunnxo6cegoutv4de63h7n27tekkjtak3jrvrzzhe"
 
-	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
+	// Browser authentication is opt-in; this test covers the gated policy the desktop runs with.
+	cfg := makeTestConfig(t)
+	cfg.HTTP.BrowserAuth = true
+	dmn := makeTestApp(t, "alice", cfg, false)
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(dmn.HTTPListener.Addr().(*net.TCPAddr).Port)
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	t.Run("upload preflight", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/file-upload", nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "POST")
 		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
 
@@ -319,7 +322,7 @@ func TestDaemonCORS(t *testing.T) {
 	t.Run("private network preflight", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/file-upload", nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "POST")
 		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
 		req.Header.Set("Access-Control-Request-Private-Network", "true")
@@ -337,7 +340,7 @@ func TestDaemonCORS(t *testing.T) {
 	t.Run("blob route preflight", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/"+fileCID, nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "GET")
 		req.Header.Set("Access-Control-Request-Headers", "Range")
 
@@ -357,14 +360,14 @@ func TestDaemonCORS(t *testing.T) {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		requireCORSHeaders(t, resp.Header)
+		require.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
 		require.Equal(t, "bytes", resp.Header.Get("Accept-Ranges"))
 	})
 
 	t.Run("vault connect preflight", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/vault-connect", nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "POST")
 		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
 
@@ -384,13 +387,13 @@ func TestDaemonCORS(t *testing.T) {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		requireCORSHeaders(t, resp.Header)
+		require.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
 	})
 
 	t.Run("broad preflight before route matching", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/not-a-cid.dagjson", nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "GET")
 
 		resp, err := client.Do(req)
@@ -406,7 +409,8 @@ func TestDaemonCORS(t *testing.T) {
 func requireCORSHeaders(t *testing.T, h http.Header) {
 	t.Helper()
 
-	require.Equal(t, "*", h.Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "http://localhost:17654", h.Get("Access-Control-Allow-Origin"))
+	require.Contains(t, h.Values("Vary"), "Origin")
 	if methods := h.Get("Access-Control-Allow-Methods"); methods != "*" {
 		require.Contains(t, methods, "OPTIONS")
 		require.Contains(t, methods, "GET")
@@ -3995,6 +3999,7 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	aliceKey := coretest.NewTester("alice").Account
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobKey := coretest.NewTester("bob").Account
+	// The gateway is reached at the machine's LAN address; the default listens on all interfaces.
 	gateway := makeTestApp(t, "carol", makeTestConfig(t), true)
 	gatewayKey := coretest.NewTester("carol").Account
 

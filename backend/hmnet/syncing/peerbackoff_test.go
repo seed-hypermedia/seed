@@ -177,38 +177,41 @@ func TestScopeQuietTracking(t *testing.T) {
 	const scope = blob.IRI("hm://z6MkExample")
 	s := &Service{}
 
-	require.False(t, s.scopeIsQuiet(scope), "unknown scopes must search")
+	require.False(t, s.scopeIsQuiet(scope, true), "unknown scopes must search")
 
-	s.recordWaveYield(scope, true, 0)
-	require.False(t, s.scopeIsQuiet(scope),
+	s.recordWaveYield(scope, true, false, 0)
+	require.False(t, s.scopeIsQuiet(scope, true),
 		"one empty wave is not enough — a dropped peer must not narrow a catch-up")
 
-	s.recordWaveYield(scope, true, 0)
-	require.True(t, s.scopeIsQuiet(scope), "consistently empty means settled")
+	s.recordWaveYield(scope, true, false, 0)
+	require.True(t, s.scopeIsQuiet(scope, true), "consistently empty means settled")
 
 	// Anything arriving puts the full search back immediately.
-	s.recordWaveYield(scope, true, 3)
-	require.False(t, s.scopeIsQuiet(scope))
+	s.recordWaveYield(scope, true, false, 3)
+	require.False(t, s.scopeIsQuiet(scope, true))
 }
 
-// TestScopeQuietIgnoresOneShots: a non-recursive discovery never runs a second
-// wave, so recording it only grows the map.
-func TestScopeQuietIgnoresOneShots(t *testing.T) {
+// TestScopeQuietPerShape: every shape accumulates its own quiet verdict. A
+// one-shot for a link target nobody has must stop sampling 20 peers after two
+// empty waves, and the subscription for the same IRI must not inherit that
+// verdict (or hand its own down).
+func TestScopeQuietPerShape(t *testing.T) {
 	const scope = blob.IRI("hm://z6MkOneShot")
 	s := &Service{}
 
-	s.recordWaveYield(scope, false, 0)
-	s.recordWaveYield(scope, false, 0)
+	s.recordWaveYield(scope, false, false, 0)
+	s.recordWaveYield(scope, false, false, 0)
 
-	require.False(t, s.scopeIsQuiet(scope))
-	require.Empty(t, s.quiet)
+	require.True(t, s.scopeIsQuiet(scope, false), "a one-shot that keeps coming back empty is settled too")
+	require.False(t, s.scopeIsQuiet(scope, true), "the recursive shape keeps its own counter")
+	require.Len(t, s.quiet, 1)
 }
 
 // TestScopeQuietRespectsCap keeps the tracker bounded.
 func TestScopeQuietRespectsCap(t *testing.T) {
 	s := &Service{}
 	for i := range maxQuietScopes + 50 {
-		s.recordWaveYield(blob.IRI(fmt.Sprintf("hm://scope%d", i)), true, 0)
+		s.recordWaveYield(blob.IRI(fmt.Sprintf("hm://scope%d", i)), true, false, 0)
 	}
 	require.Len(t, s.quiet, maxQuietScopes)
 }
@@ -222,12 +225,12 @@ func TestScopeQuietAnyShapeYieldResets(t *testing.T) {
 	const scope = blob.IRI("hm://z6MkYield")
 	s := &Service{}
 
-	s.recordWaveYield(scope, true, 0)
-	s.recordWaveYield(scope, true, 0)
-	require.True(t, s.scopeIsQuiet(scope))
+	s.recordWaveYield(scope, true, false, 0)
+	s.recordWaveYield(scope, true, false, 0)
+	require.True(t, s.scopeIsQuiet(scope, true))
 
-	s.recordWaveYield(scope, false, 3)
-	require.False(t, s.scopeIsQuiet(scope),
+	s.recordWaveYield(scope, false, false, 3)
+	require.False(t, s.scopeIsQuiet(scope, true),
 		"a non-recursive wave that fetched blobs must un-quiet the scope")
 }
 
@@ -390,4 +393,39 @@ func TestMediaSlotRefusesRatherThanQueues(t *testing.T) {
 func TestMediaSlotsLeaveRoomForStructural(t *testing.T) {
 	require.Less(t, mediaSlots, 6, "must leave workers free at the default MaxWorkers=6")
 	require.Positive(t, mediaSlots)
+}
+
+// TestProbeBackoffGrowsOnEmptyExhaustiveWaves: a user-interest probe for an IRI
+// whose exhaustive waves keep coming back empty must back off exponentially
+// instead of re-arming every two minutes for as long as the page is open.
+func TestProbeBackoffGrowsOnEmptyExhaustiveWaves(t *testing.T) {
+	const scope = blob.IRI("hm://z6MkNobodyHasThis")
+	s := &Service{}
+	now := time.Now()
+
+	// First touch arms a probe; the wave runs exhaustive and finds nothing.
+	s.noteUserInterest(scope, now)
+	require.Equal(t, "forced", s.shouldRunExhaustive(scope, false, now))
+	s.recordWaveYield(scope, false, true, 0)
+
+	// Two minutes later the plain interval has elapsed, but one miss doubled it.
+	s.noteUserInterest(scope, now.Add(userProbeMinInterval+time.Second))
+	require.Empty(t, s.forcedExhaustive, "one empty probe must double the interval")
+	s.noteUserInterest(scope, now.Add(2*userProbeMinInterval+time.Second))
+	require.Contains(t, s.forcedExhaustive, scope, "the doubled interval must still fire")
+
+	// Misses saturate at maxProbeMisses; the interval stops growing there.
+	for range maxProbeMisses + 3 {
+		s.recordWaveYield(scope, false, true, 0)
+	}
+	require.Equal(t, uint8(maxProbeMisses), s.probeMisses[scope])
+	delete(s.forcedExhaustive, scope)
+	s.noteUserInterest(scope, now.Add(userProbeMinInterval<<maxProbeMisses-time.Second))
+	require.Empty(t, s.forcedExhaustive, "the capped interval must hold")
+	s.noteUserInterest(scope, now.Add(userProbeMinInterval<<maxProbeMisses+time.Second))
+	require.Contains(t, s.forcedExhaustive, scope)
+
+	// Anything arriving resets the backoff entirely.
+	s.recordWaveYield(scope, false, false, 1)
+	require.NotContains(t, s.probeMisses, scope)
 }

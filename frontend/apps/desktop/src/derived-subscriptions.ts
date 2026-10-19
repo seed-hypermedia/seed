@@ -134,10 +134,13 @@ async function syncDerivedSubscriptions() {
   for (const account of Array.from(desired)) {
     if (!current.has(account)) {
       logger.debug(`DerivedSubscriptions: subscribing to ${account}`)
+      // Async, so the daemon returns once the subscription is saved instead of waiting for the first sync.
+      // On a fresh database nothing is local yet, and waiting would sync the accounts one at a time.
       await grpcClient.subscriptions.subscribe({
         account,
         recursive: true,
         path: '',
+        async: true,
       })
     }
   }

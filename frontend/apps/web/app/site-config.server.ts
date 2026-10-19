@@ -1,6 +1,6 @@
 import {grpcClient} from '@/client.server'
 import {SITE_BASE_URL} from '@shm/shared/constants'
-import {readFileSync} from 'fs'
+import {readFileSync, statSync} from 'fs'
 import fs, {readFile} from 'fs/promises'
 import {join} from 'path'
 import {z} from 'zod'
@@ -53,6 +53,56 @@ try {
   serviceConfig = serviceConfigSchema.parse(serviceConfigJSON)
 } catch (e: any) {}
 
+// Several web processes can serve one data dir, and any of them may write the
+// config (/hm/api/admin, register, bootstrap). Each process re-reads a file
+// when its mtime moves, checked at most once per CONFIG_REFRESH_MS on reads and
+// always before a write, so a write is never based on a stale copy and other
+// processes pick it up within a second.
+const CONFIG_REFRESH_MS = 1000
+const loadedMtimes = new Map<string, number>()
+let lastRefreshCheck = 0
+
+function fileMtime(path: string): number | null {
+  try {
+    return statSync(path).mtimeMs
+  } catch {
+    return null
+  }
+}
+
+for (const path of [configPath, serviceConfigPath]) {
+  const mtime = fileMtime(path)
+  if (mtime !== null) loadedMtimes.set(path, mtime)
+}
+
+async function refreshConfigFromDisk(opts: {force?: boolean} = {}) {
+  const now = Date.now()
+  if (!opts.force && now - lastRefreshCheck < CONFIG_REFRESH_MS) return
+  lastRefreshCheck = now
+  for (const path of serviceConfig ? [serviceConfigPath] : [configPath, serviceConfigPath]) {
+    const mtime = fileMtime(path)
+    if (mtime === null || mtime === loadedMtimes.get(path)) continue
+    try {
+      const data = JSON.parse(await readFile(path, 'utf-8'))
+      if (path === serviceConfigPath) serviceConfig = serviceConfigSchema.parse(data)
+      else singleSiteConfig = siteConfigSchema.parse(data)
+      loadedMtimes.set(path, mtime)
+    } catch (e) {
+      // Keep serving the last good config; the next check retries.
+      console.error(`Failed to reload ${path}:`, e instanceof Error ? e.message : e)
+    }
+  }
+}
+
+/** Write via a temp file and rename, so a concurrent reader never sees a partial file. */
+async function writeJsonAtomic(path: string, value: unknown) {
+  const tmpPath = `${path}.${process.pid}.tmp`
+  await fs.writeFile(tmpPath, JSON.stringify(value))
+  await fs.rename(tmpPath, path)
+  const mtime = fileMtime(path)
+  if (mtime !== null) loadedMtimes.set(path, mtime)
+}
+
 if (serviceConfig) {
   console.log('Service config loaded.')
 } else if (singleSiteConfig) {
@@ -63,6 +113,7 @@ if (serviceConfig) {
 }
 
 export async function getConfig(hostname: string) {
+  await refreshConfigFromDisk()
   // the service config takes precedence over the regular config
   if (serviceConfig) {
     if (hostname === serviceConfig.rootHostname) return serviceConfig.rootConfig
@@ -88,10 +139,12 @@ export async function getConfig(hostname: string) {
 }
 
 export async function getServiceConfig() {
+  await refreshConfigFromDisk()
   return serviceConfig
 }
 
 export async function writeConfig(hostname: string, newConfig: SiteConfig) {
+  await refreshConfigFromDisk({force: true})
   if (serviceConfig) {
     if (hostname === serviceConfig.rootHostname) {
       const newServiceConfig = {
@@ -174,6 +227,7 @@ export async function applyConfigSubscriptions() {
 }
 
 export async function writeCustomDomainConfig(hostname: string, serviceName: string) {
+  await refreshConfigFromDisk({force: true})
   if (!serviceConfig) throw new Error('Service config not loaded')
   await writeServiceConfig({
     ...serviceConfig,
@@ -185,6 +239,7 @@ export async function writeCustomDomainConfig(hostname: string, serviceName: str
 }
 
 export async function rmCustomDomain(hostname: string) {
+  await refreshConfigFromDisk({force: true})
   if (!serviceConfig) throw new Error('Service config not loaded')
   const customDomains = {...serviceConfig.customDomains}
   delete customDomains[hostname]
@@ -195,6 +250,7 @@ export async function rmCustomDomain(hostname: string) {
 }
 
 export async function rmService(name: string) {
+  await refreshConfigFromDisk({force: true})
   if (!serviceConfig) throw new Error('Service config not loaded')
   if (!serviceConfig.namedServices[name]) throw new Error(`Service ${name} not found`)
   const namedServices = {...serviceConfig.namedServices}
@@ -212,12 +268,12 @@ export async function rmService(name: string) {
 }
 
 export async function writeSoloConfig(newConfig: SiteConfig) {
-  await fs.writeFile(configPath, JSON.stringify(newConfig))
+  await writeJsonAtomic(configPath, newConfig)
   singleSiteConfig = newConfig
 }
 
 export async function writeServiceConfig(newConfig: ServiceConfig) {
-  await fs.writeFile(serviceConfigPath, JSON.stringify(newConfig))
+  await writeJsonAtomic(serviceConfigPath, newConfig)
   serviceConfig = newConfig
 }
 
@@ -225,6 +281,8 @@ export async function reloadServiceConfig() {
   const serviceConfigData = await readFile(serviceConfigPath, 'utf-8')
   const serviceConfigJSON = JSON.parse(serviceConfigData)
   serviceConfig = serviceConfigSchema.parse(serviceConfigJSON)
+  const mtime = fileMtime(serviceConfigPath)
+  if (mtime !== null) loadedMtimes.set(serviceConfigPath, mtime)
 }
 
 export function getHostnames() {

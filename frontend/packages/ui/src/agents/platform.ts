@@ -113,7 +113,16 @@ export type AgentsPlatform = {
   /** Registers an isolated local app and returns its integrated-browser URL (desktop only). */
   openAgentApp?: (app: AgentApp) => Promise<string>
   /** Session-bound desktop browser bridge and its visible access controls; absent on the web. */
-  BrowserTools?: React.ComponentType<{serverUrl: string; sessionId: string; accountUid: string; toolEnabled: boolean}>
+  /** Desktop-only browser access for the agent's owner; the component asks before any website is shared. */
+  BrowserTools?: React.ComponentType<{
+    serverUrl: string
+    sessionId: string
+    accountUid: string
+    toolEnabled: boolean
+    agentName?: string
+    isOwner: boolean
+    isPublic: boolean
+  }>
   /** Built-in default agent server URL for this runtime, or null when there is none. */
   defaultServerUrl: () => string | null
   /** Returns a signer whose principal is the given account, used to sign agent actions. */

@@ -172,10 +172,16 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 		return nil, err
 	}
 
+	// One citation per citing block. The query emits a row per link, and a block
+	// edited in later Changes carries its link again under a Ref of the same
+	// document, so rows that share the source, the citing block and the target
+	// collapse. The citing block has to stay in the key: a document that links one
+	// target block from many blocks (a paper citing its bibliography) is one
+	// citation per paragraph, not one per document.
 	seenCitations := make(map[string]bool)
 	uniqueCitations := make([]*documents.Citation, 0, len(resp.Citations))
 	for _, citation := range resp.Citations {
-		key := fmt.Sprintf("%s|%s|%s|%s|%t", citation.Source, citation.SourceType, citation.TargetVersion, citation.TargetFragment, citation.IsExactVersion)
+		key := fmt.Sprintf("%s|%s|%s|%s|%s|%t", citation.Source, citation.SourceType, citation.SourceContext, citation.TargetVersion, citation.TargetFragment, citation.IsExactVersion)
 		if !seenCitations[key] && !slices.Contains(deletedList, citation.Source) {
 			seenCitations[key] = true
 			uniqueCitations = append(uniqueCitations, citation)
@@ -426,20 +432,26 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		return nil, err
 	}
 
-	doc, err := srv.loadDocument(ctx, acc, u.Path, heads, false)
-	if err != nil {
-		return nil, srv.redirectOrError(ctx, iri, heads, err)
-	}
-
-	if doc.Visibility() == blob.VisibilityPrivate {
-		if err := srv.denyPrivateDocument(ctx, acc, u.Path); err != nil {
-			return nil, err
-		}
-	}
-
-	docpb, err := srv.hydrated.get(ctx, string(iri), doc)
+	docpb, ok, err := srv.cachedDocument(ctx, iri, acc, u.Path, heads)
 	if err != nil {
 		return nil, err
+	}
+	if !ok {
+		doc, err := srv.loadDocument(ctx, acc, u.Path, heads, false)
+		if err != nil {
+			return nil, srv.redirectOrError(ctx, iri, heads, err)
+		}
+
+		if doc.Visibility() == blob.VisibilityPrivate {
+			if err := srv.denyPrivateDocument(ctx, acc, u.Path); err != nil {
+				return nil, err
+			}
+		}
+
+		docpb, err = srv.hydrated.get(ctx, string(iri), doc)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &documents.Resource{

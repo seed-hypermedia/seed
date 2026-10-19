@@ -58,6 +58,7 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useInfiniteQuery, useMutation, useQueries, useQuery} from '@tanstack/react-query'
 import {useContext, useEffect, useMemo, useRef, useState} from 'react'
+import {randomUUID} from './random-id'
 
 const AGENT_SERVER_URL_KEY = 'agent-server-url'
 const AGENT_SERVER_URLS_KEY = 'agent-server-urls'
@@ -159,6 +160,15 @@ function applySessionToCaches(serverUrl: string, accountUid: string, session: Se
       return sessions
     }),
   )
+}
+
+/** Narrows a session listing on the server (see `ListSessions` in the protocol). */
+export type SessionListFilter = {
+  /**
+   * Leave out sessions a trigger started. Filtered by the server before paging, so the first page
+   * already holds person-started chats; older servers ignore it, so callers still filter the rows.
+   */
+  excludeTriggered?: boolean
 }
 
 /** Cache key of one agent's paginated top-level session list ({@link useAgentSessions}). */
@@ -1211,7 +1221,7 @@ export function useCreateSigningIdentity(serverUrl: string | undefined, accountU
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateSigningIdentity', label, clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateSigningIdentity', label, clientRequestId: randomUUID()},
       })
     },
     onSuccess(result) {
@@ -1240,7 +1250,7 @@ export function useImportSigningIdentity(serverUrl: string | undefined, accountU
       const res = await sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'ImportSigningIdentity', seed, ...(label ? {label} : {}), clientRequestId: crypto.randomUUID()},
+        action: {_: 'ImportSigningIdentity', seed, ...(label ? {label} : {}), clientRequestId: randomUUID()},
       })
       if (res._ !== 'ImportSigningIdentityResponse') throw new Error('Unexpected ImportSigningIdentity response')
       return res.identity
@@ -1550,7 +1560,7 @@ export function useCreateAgent(serverUrl: string | undefined, accountUid: string
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateAgent', definition, clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateAgent', definition, clientRequestId: randomUUID()},
       })
     },
     onSuccess() {
@@ -1897,9 +1907,13 @@ export function useAgentSessions(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
   agentId: string | undefined,
+  {excludeTriggered = false}: SessionListFilter = {},
 ) {
   return useInfiniteQuery({
-    queryKey: agentSessionsKey(serverUrl, accountUid, agentId),
+    // The filtered list is its own cache entry, still under agentSessionsKey so patches reach it.
+    queryKey: excludeTriggered
+      ? [...agentSessionsKey(serverUrl, accountUid, agentId), 'chats']
+      : agentSessionsKey(serverUrl, accountUid, agentId),
     queryFn: async ({pageParam}: {pageParam?: SessionListCursor}): Promise<AgentSessionsPage> => {
       if (!serverUrl || !accountUid || !agentId) return {sessions: []}
       const res = await sendAgentAction({
@@ -1910,6 +1924,7 @@ export function useAgentSessions(
           agentId,
           includeChildren: false,
           limit: AGENT_SESSIONS_PAGE_SIZE,
+          ...(excludeTriggered ? {excludeTriggered} : {}),
           ...(pageParam ? {cursor: pageParam} : {}),
         },
       })
@@ -2376,7 +2391,7 @@ export function useCreateAgentTrigger(serverUrl: string | undefined, accountUid:
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateAgentTrigger', agentId, trigger, clientRequestId: clientRequestId ?? crypto.randomUUID()},
+        action: {_: 'CreateAgentTrigger', agentId, trigger, clientRequestId: clientRequestId ?? randomUUID()},
       })
     },
     onSuccess(result, {agentId}) {
@@ -2625,10 +2640,15 @@ type AllSessionsPageRef = {serverUrl: string; cursor?: SessionListCursor}
  * invalidations that keep the sidebar current refetch these too; rows are de-duplicated by id
  * because a refetch can shift a session across a page boundary.
  */
-export function useAllAgentSessionPages(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
+export function useAllAgentSessionPages(
+  serverUrls: string[] | undefined,
+  accountUid: string | null | undefined,
+  {excludeTriggered = false}: SessionListFilter = {},
+) {
   const [extraPages, setExtraPages] = useState<AllSessionsPageRef[]>([])
+  const listing = excludeTriggered ? 'chats' : 'all'
   // A different account or server set starts over: cursors from the old list mean nothing here.
-  const scope = `${accountUid ?? ''}|${(serverUrls || []).join(' ')}`
+  const scope = `${accountUid ?? ''}|${(serverUrls || []).join(' ')}|${listing}`
   const scopeRef = useRef(scope)
   if (scopeRef.current !== scope) {
     scopeRef.current = scope
@@ -2643,7 +2663,7 @@ export function useAllAgentSessionPages(serverUrls: string[] | undefined, accoun
   )
   const queries = useQueries({
     queries: pageRefs.map(({serverUrl, cursor}) => ({
-      queryKey: ['agents', 'sessions', serverUrl, accountUid, 'all', cursor ?? 'first'],
+      queryKey: ['agents', 'sessions', serverUrl, accountUid, listing, cursor ?? 'first'],
       queryFn: async (): Promise<{entries: AgentSessionListEntry[]; nextCursor?: SessionListCursor}> => {
         if (!accountUid) return {entries: []}
         const res = await sendAgentAction({
@@ -2653,6 +2673,7 @@ export function useAllAgentSessionPages(serverUrls: string[] | undefined, accoun
             _: 'ListSessions',
             includeChildren: false,
             limit: HOME_SESSIONS_PAGE_SIZE,
+            ...(excludeTriggered ? {excludeTriggered} : {}),
             ...(cursor ? {cursor} : {}),
           },
         })
@@ -3141,7 +3162,7 @@ export function useMessageAgentSession(serverUrl: string | undefined, accountUid
           content,
           // Doubles as the action's idempotency key; unique per send since drafts are stamped
           // fresh by addOptimisticSessionMessage.
-          clientMessageId: messages[0]?.clientMessageId ?? crypto.randomUUID(),
+          clientMessageId: messages[0]?.clientMessageId ?? randomUUID(),
         },
       })
     },
@@ -3501,8 +3522,39 @@ export type AgentRunTreeLiveState = {
 
 const EMPTY_RUN_TREE_LIVE_STATE: AgentRunTreeLiveState = {runs: {}, progress: {}, activity: {}, journal: []}
 
-/** Journal entries kept in memory per run tree. Well above what the activity drawer renders. */
-const RUN_JOURNAL_BUFFER_LIMIT = 500
+/** Journal entries kept in memory per RUN of a tree. Well above what the activity drawer renders. */
+export const RUN_JOURNAL_BUFFER_LIMIT = 500
+
+/**
+ * Appends one journal entry to a tree's buffered journal, bounding the buffer per run.
+ *
+ * The bound is per run, not per tree: a run page or card reads only its own run's entries (and its
+ * descendants'), while the socket replays every run of the tree in creation order. A tree-wide
+ * tail let a long-running sibling evict an earlier run's entire journal — its page then showed no
+ * tool calls, no error inspector, nothing — even though the server had replayed all of it.
+ * Duplicates (same run and seq) are dropped; the replay and the live stream can overlap.
+ */
+export function appendRunJournalEntry(
+  journal: RunJournalEntryInfo[],
+  entry: RunJournalEntryInfo,
+  limit = RUN_JOURNAL_BUFFER_LIMIT,
+): RunJournalEntryInfo[] {
+  let ownCount = 0
+  let oldestOwnIndex = -1
+  for (let index = 0; index < journal.length; index += 1) {
+    const existing = journal[index]!
+    if (existing.runId !== entry.runId) continue
+    // Keyed on (runId, seq): seq is per-run, so it repeats across a tree's runs.
+    if (existing.seq === entry.seq) return journal
+    ownCount += 1
+    if (oldestOwnIndex === -1) oldestOwnIndex = index
+  }
+  // A long workflow journals without bound; the drawer only ever shows the tail of each run.
+  if (ownCount >= limit && oldestOwnIndex !== -1) {
+    return [...journal.slice(0, oldestOwnIndex), ...journal.slice(oldestOwnIndex + 1), entry]
+  }
+  return [...journal, entry]
+}
 
 /**
  * Subscribes to one run tree (`runs/<rootRunId>`).
@@ -3538,12 +3590,8 @@ export function useAgentRunTreeSubscription(
         createdAt: event.createdAt,
       }
       setState((current) => {
-        // Keyed on (runId, seq): seq is per-run, so it repeats across a tree's runs.
-        if (current.journal.some((existing) => existing.runId === entry.runId && existing.seq === entry.seq)) {
-          return current
-        }
-        // A long workflow journals without bound; the drawer only ever shows the tail.
-        return {...current, journal: [...current.journal, entry].slice(-RUN_JOURNAL_BUFFER_LIMIT)}
+        const journal = appendRunJournalEntry(current.journal, entry)
+        return journal === current.journal ? current : {...current, journal}
       })
     } else if (event._ === 'appendPartial' && event.key.startsWith('runs/')) {
       const {runId, patch} = event as {runId: string; patch: AgentWSRunPatch}
@@ -3623,7 +3671,7 @@ export function addOptimisticSessionMessage(
   // exactly this row — text comparison can't do that, since the server re-serializes `content`.
   const messages = (Array.isArray(message) ? message : [message]).map((message) => ({
     ...message,
-    clientMessageId: message.clientMessageId ?? crypto.randomUUID(),
+    clientMessageId: message.clientMessageId ?? randomUUID(),
   }))
   getQueryClient().setQueriesData({queryKey: ['agents', 'session', serverUrl, accountUid, sessionId]}, (old: any) => {
     if (!old || old._ !== 'GetSessionResponse') return old
@@ -3672,7 +3720,7 @@ export function useCreateAgentSession(serverUrl: string | undefined, accountUid:
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: crypto.randomUUID()},
+        action: {_: 'CreateSession', agentId, ...(title ? {title} : {}), clientRequestId: randomUUID()},
       })
     },
     onSuccess() {
@@ -3710,7 +3758,7 @@ export function useCreateAgentSessionOnServer(accountUid: string | null | undefi
           ...(title ? {title} : {}),
           ...(modelOverride ? {modelOverride} : {}),
           ...(thoroughness ? {thoroughness} : {}),
-          clientRequestId: crypto.randomUUID(),
+          clientRequestId: randomUUID(),
         },
       })
     },

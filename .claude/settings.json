@@ -9,7 +9,7 @@
       "Bash(grpcurl -plaintext localhost:*)",
       "Bash(sqlite3 -readonly:*)",
       "Bash(go tool pprof:*)",
-      "Bash(bash docs/security/probes/*)",
+      "Bash(bash .agents/security/probes/*)",
       "Bash(scripts/crawler-load-test.py:*)",
       "Bash(bun scripts/profile-daemon.ts:*)",
       "Bash(gh issue list:*)",

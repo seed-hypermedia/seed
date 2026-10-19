@@ -200,12 +200,12 @@ describe('createDocumentNavRoute', () => {
       })
     })
 
-    test('comments viewTerm + comments panel → comments main + right panel', () => {
+    test('comments viewTerm + comments panel → comments main only', () => {
       const route = createDocumentNavRoute(testDocId, 'comments', 'comments/uid123/tsid456')
       expect(route).toEqual({
         key: 'comments',
         id: testDocId,
-        panel: {key: 'comments', id: testDocId, openComment: 'uid123/tsid456'},
+        panel: null,
       })
     })
 
@@ -1089,4 +1089,18 @@ describe('schemaRouteSchema + inspector draft paths', () => {
     })
     expect(() => navRouteSchema.parse({key: 'raw-blob'})).toThrow()
   })
+})
+
+describe('space settings browser destinations', () => {
+  test('opens the space settings master view on its own domain', () => {
+    expect(routeToHref({key: 'site-settings', id: hmId('owner')}, {originHomeId: hmId('owner')})).toBe('/:settings')
+  })
+  test.each(['identity', 'navigation', 'web-domain'] as const)(
+    'keeps the viewed space and section %s on a gateway',
+    (tab) => {
+      expect(routeToHref({key: 'site-settings', id: hmId('owner'), tab}, {originHomeId: hmId('gateway')})).toBe(
+        `/hm/owner/:settings/${tab}`,
+      )
+    },
+  )
 })

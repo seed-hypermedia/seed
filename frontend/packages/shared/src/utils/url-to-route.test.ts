@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
-import {hmId, unpackHmId} from './entity-id-url'
+import {navStateReducer} from './navigation'
+import {hmId, unpackHmId, routeToHmUrl, routeToUrl} from './entity-id-url'
 import {hypermediaUrlToHref, hypermediaUrlToRoute} from './url-to-route'
 
 describe('hypermediaUrlToRoute', () => {
@@ -205,4 +206,72 @@ describe('hypermediaUrlToHref', () => {
       }),
     ).toBe('hm://uid1/docs/page')
   })
+})
+
+test.each(['identity', 'navigation', 'web-domain', 'agents'] as const)(
+  'restores the settings section %s from a URL',
+  (tab) => {
+    expect(hypermediaUrlToRoute(`hm://uid1/:settings/${tab}`)).toEqual({
+      key: 'site-settings',
+      id: unpackHmId('hm://uid1'),
+      tab,
+    })
+  },
+)
+
+test('round-trips a domain setup Hypermedia deep link', () => {
+  expect(hypermediaUrlToRoute('hm://owner/:settings/web-domain/www.example.com')).toEqual({
+    key: 'site-settings',
+    id: unpackHmId('hm://owner'),
+    tab: 'web-domain',
+    domain: 'www.example.com',
+  })
+})
+
+describe('comment continuation URLs', () => {
+  test.each([
+    'hm://uid1/doc/:comments/author/root?reply=author%2Freply',
+    'hm://uid1/doc?panel=comments%2Fauthor%2Froot&reply=author%2Freply',
+  ])('preserves context and reply target through round trips: %s', (url) => {
+    const route = hypermediaUrlToRoute(url)!
+    const comments = route.key === 'comments' ? route : 'panel' in route ? route.panel : null
+    expect(comments).toMatchObject({key: 'comments', openComment: 'author/root', replyCommentId: 'author/reply'})
+    expect(hypermediaUrlToRoute(routeToHmUrl(route)!)).toEqual(route)
+    expect(routeToHmUrl(hypermediaUrlToRoute(routeToUrl(route, {hostname: 'https://example.com'})!)!)).toEqual(
+      routeToHmUrl(route),
+    )
+  })
+
+  test('prefers main comments when an old URL requests two comment views', () => {
+    expect(hypermediaUrlToRoute('hm://uid1/:comments/root?panel=comments/other&reply=child')).toMatchObject({
+      key: 'comments',
+      openComment: 'root',
+      replyCommentId: 'child',
+      panel: null,
+    })
+  })
+
+  test('ignores a reply target on a root list', () => {
+    const route = hypermediaUrlToRoute('hm://uid1/:comments?reply=child')!
+    expect(route).not.toHaveProperty('replyCommentId')
+    expect(routeToHmUrl(route)).not.toContain('reply=')
+  })
+})
+
+test('navigation never opens two Comments views', () => {
+  const id = hmId('uid1')
+  const state = navStateReducer(
+    {routes: [{key: 'document', id}], routeIndex: 0, lastAction: 'replace'},
+    {
+      type: 'push',
+      route: {
+        key: 'comments',
+        id,
+        openComment: 'root',
+        replyCommentId: 'child',
+        panel: {key: 'comments', id, openComment: 'other'},
+      },
+    },
+  )
+  expect(state.routes[1]).toMatchObject({key: 'comments', openComment: 'root', replyCommentId: 'child', panel: null})
 })

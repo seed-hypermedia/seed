@@ -321,3 +321,43 @@ func TestDiscoverEntity_RequestShapes(t *testing.T) {
 		require.Equal(t, codes.InvalidArgument, st.Code())
 	})
 }
+
+// Breadcrumbs name every document on the path to a result. They are looked up
+// for the results on the page only, and the lookup must behave the same for
+// every keyword query variant: name types or every type, scoped to an account
+// or not.
+func TestSearchEntitiesParentNames(t *testing.T) {
+	t.Parallel()
+
+	svc := newTestServices(t, "alice")
+	kp := svc.me.Account
+	clock := newTestClock()
+	nameOp := func(name string) blob.OpMap {
+		op, err := blob.NewOpSetKey("name", name)
+		require.NoError(t, err)
+		return op
+	}
+
+	createDoc(t, svc, kp, "", 1, clock, nameOp("Develop Seed"))
+	createDoc(t, svc, kp, "/notes", 1, clock, nameOp("Notes"))
+	leaf := createDoc(t, svc, kp, "/notes/insecure", 1, clock, nameOp("Insecure resources"))
+
+	for _, req := range []*entpb.SearchEntitiesRequest{
+		{Query: "Insecure resources"},
+		{Query: "Insecure resources", AccountUid: kp.Principal().String()},
+		{Query: "Insecure resources", IncludeBody: true},
+		{Query: "Insecure resources", IncludeBody: true, AccountUid: kp.Principal().String()},
+	} {
+		res, err := svc.entities.SearchEntities(context.Background(), req)
+		require.NoError(t, err)
+		require.Len(t, res.Entities, 1, "%+v", req)
+		require.Equal(t, leaf.iri(), entityDoc(res.Entities[0].Id), "%+v", req)
+		require.Equal(t, []string{"Develop Seed", "Notes"}, res.Entities[0].ParentNames, "%+v", req)
+	}
+
+	// A home document is its own breadcrumb root: nothing above it.
+	res, err := svc.entities.SearchEntities(context.Background(), &entpb.SearchEntitiesRequest{Query: "Develop Seed"})
+	require.NoError(t, err)
+	require.Len(t, res.Entities, 1)
+	require.Empty(t, res.Entities[0].ParentNames)
+}

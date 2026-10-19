@@ -26,7 +26,11 @@ function createTableSchema(): Schema {
         },
       },
       blockNode: {content: 'blockContent blockChildren?', attrs: {id: {default: ''}}},
-      paragraph: {content: 'inline*', group: 'blockContent', attrs: {revision: {default: ''}}},
+      paragraph: {
+        content: 'inline*',
+        group: 'blockContent',
+        attrs: {revision: {default: ''}, textAlignment: {default: 'left'}},
+      },
       table: {content: 'tableRow+', group: 'blockContent'},
       tableRow: {content: '(tableCell | tableHeader)+', attrs: {id: {default: null}}},
       tableCell: {content: 'paragraph+', attrs: CELL_ATTRS},
@@ -292,5 +296,25 @@ describe('round-trip', () => {
     expect(r0.map((c: any) => c.content?.[0]?.text)).toEqual(['A', 'B'])
     const r1 = blockCells(rows[1])
     expect(r1.map((c: any) => c.content?.[0]?.text)).toEqual(['C', 'D'])
+  })
+
+  it('cell textAlignment survives the round-trip and left is not carried', () => {
+    const original = editorTable(
+      [col('col-0'), col('col-1')],
+      [
+        row('row-0', [
+          {...cell('c00', 'col-0', 'A'), props: {columnId: 'col-0', textAlignment: 'center'}} as any,
+          {...cell('c01', 'col-1', 'B'), props: {columnId: 'col-1', textAlignment: 'left'}} as any,
+        ]),
+      ],
+    )
+
+    const pm = blockToNode(original, schema)
+    expect(pm.firstChild!.firstChild!.firstChild!.firstChild!.attrs.textAlignment).toBe('center')
+
+    const back = nodeToBlock(pm, BLOCK_SCHEMA) as any
+    const cells = blockCells(blockRows(back)[0])
+    expect(cells[0].props).toEqual({columnId: 'col-0', textAlignment: 'center'})
+    expect(cells[1].props).toEqual({columnId: 'col-1'})
   })
 })

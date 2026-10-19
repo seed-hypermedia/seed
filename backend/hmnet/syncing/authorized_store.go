@@ -1,32 +1,20 @@
 package syncing
 
 import (
-	"bytes"
-	"cmp"
 	"seed/backend/core"
 	"seed/backend/hmnet/syncing/rbsr"
-	"seed/backend/util/btree"
 )
-
-type visibilityKey struct {
-	ItemIndex int
-	Space     core.Principal
-}
-
-func (vk visibilityKey) Compare(other visibilityKey) int {
-	x := cmp.Compare(vk.ItemIndex, other.ItemIndex)
-	if x != 0 {
-		return x
-	}
-
-	return bytes.Compare(vk.Space, other.Space)
-}
 
 // authorizedStore wraps an RBSR store with per-item visibility data.
 // It supports deferred authorization filtering via WithFilter.
 type authorizedStore struct {
 	rbsr.Store
-	privateOnly *btree.Map[visibilityKey, struct{}]
+	// privateOnly maps an item's value (its CID key) to the spaces it is
+	// visible to; items absent from it are public. It is keyed by value rather
+	// than by position because both backing stores reorder items (the slice
+	// store sorts at Seal, the tree store on insert), so a loader's row counter
+	// says nothing about where an item ends up.
+	privateOnly map[string][]core.Principal
 	authSet     map[core.PrincipalUnsafeString]struct{}
 }
 
@@ -34,7 +22,7 @@ type authorizedStore struct {
 func newAuthorizedStore() *authorizedStore {
 	return &authorizedStore{
 		Store:       rbsr.NewSliceStore(),
-		privateOnly: btree.New[visibilityKey, struct{}](32, visibilityKey.Compare),
+		privateOnly: make(map[string][]core.Principal),
 	}
 }
 
@@ -43,17 +31,19 @@ func newAuthorizedStore() *authorizedStore {
 func newAuthorizedTreeStore() *authorizedStore {
 	return &authorizedStore{
 		Store:       rbsr.NewTreeStore(),
-		privateOnly: btree.New[visibilityKey, struct{}](32, visibilityKey.Compare),
+		privateOnly: make(map[string][]core.Principal),
 	}
 }
 
-func (s *authorizedStore) SetItemPrivateVisibility(i int, space core.Principal) {
+// SetItemPrivateVisibility records that the item with the given value (the CID
+// key passed to Insert) is private to space. Must be called before the store
+// is shared through WithFilter.
+func (s *authorizedStore) SetItemPrivateVisibility(id string, space core.Principal) {
 	if len(space) == 0 {
 		panic("BUG: SetItemPrivateVisibility called with no spaces")
 	}
 
-	vk := visibilityKey{ItemIndex: i, Space: space}
-	s.privateOnly.Set(vk, struct{}{})
+	s.privateOnly[id] = append(s.privateOnly[id], space)
 }
 
 // RangeFingerprint implements [rbsr.RangeFingerprinter] in a visibility-safe
@@ -64,7 +54,7 @@ func (s *authorizedStore) SetItemPrivateVisibility(i int, space core.Principal) 
 // an unauthorized peer never sees a fingerprint that accounts for blobs it
 // can't read.
 func (s *authorizedStore) RangeFingerprint(start, end int) (rbsr.Fingerprint, error) {
-	if rf, ok := s.Store.(rbsr.RangeFingerprinter); ok && s.privateOnly.Len() == 0 {
+	if rf, ok := s.Store.(rbsr.RangeFingerprinter); ok && len(s.privateOnly) == 0 {
 		return rf.RangeFingerprint(start, end)
 	}
 	return rbsr.FoldFingerprint(s, start, end)
@@ -73,7 +63,7 @@ func (s *authorizedStore) RangeFingerprint(start, end int) (rbsr.Fingerprint, er
 // ForEach iterates over items, applying the filter if set.
 func (s *authorizedStore) ForEach(start, end int, fn func(int, rbsr.Item) bool) error {
 	return s.Store.ForEach(start, end, func(i int, item rbsr.Item) bool {
-		if !s.filter(i) {
+		if !s.filter(item) {
 			return true // skip, continue
 		}
 		return fn(i, item)
@@ -85,9 +75,8 @@ func (s *authorizedStore) ForEach(start, end int, fn func(int, rbsr.Item) bool) 
 //
 // The receiver must be fully built and sealed before this is called: one sealed
 // store is shared across all the peer goroutines of a sync fan-out, and each of
-// them clones it here. The visibility data is shared read-only (see
-// [btree.Map.ReadOnlyView]) rather than copied, because [btree.Map.Copy] writes
-// to its source and would race across those goroutines.
+// them clones it here. The visibility map is shared as is; nothing writes to it
+// once the loader returns, so concurrent reads are safe.
 func (s *authorizedStore) WithFilter(authorizedSpaces []core.Principal) *authorizedStore {
 	var authSet map[core.PrincipalUnsafeString]struct{}
 	if len(authorizedSpaces) > 0 {
@@ -99,34 +88,24 @@ func (s *authorizedStore) WithFilter(authorizedSpaces []core.Principal) *authori
 
 	return &authorizedStore{
 		Store:       s.Store,
-		privateOnly: s.privateOnly.ReadOnlyView(),
+		privateOnly: s.privateOnly,
 		authSet:     authSet,
 	}
 }
 
-func (s *authorizedStore) filter(i int) (ok bool) {
-	// Check if this item has any private visibility records.
-	// Items with no visibility records are public and always pass.
-	var isPrivate bool
-	for k := range s.privateOnly.Seek(visibilityKey{ItemIndex: i}) {
-		if k.ItemIndex != i {
-			// Moved past this item's entries.
-			break
-		}
+// filter reports whether item passes the visibility filter: public items
+// always do, private ones only when one of their spaces is authorized.
+func (s *authorizedStore) filter(item rbsr.Item) bool {
+	spaces, isPrivate := s.privateOnly[string(item.Value)]
+	if !isPrivate {
+		return true
+	}
 
-		isPrivate = true
-
-		if len(s.authSet) == 0 {
-			continue
-		}
-		if _, ok := s.authSet[k.Space.UnsafeString()]; ok {
-			// At least one space from the authorized list matches,
-			// so the filter passes.
+	for _, sp := range spaces {
+		if _, ok := s.authSet[sp.UnsafeString()]; ok {
 			return true
 		}
 	}
 
-	// If item has no private visibility, it's public and passes.
-	// If it has private visibility but none matched authSet, it fails.
-	return !isPrivate
+	return false
 }

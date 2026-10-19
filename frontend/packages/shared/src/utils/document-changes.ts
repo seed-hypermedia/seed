@@ -407,6 +407,11 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
     return false
   }
 
+  // A missing childrenType means 'Group' (hmBlocksToEditorContent and the renderer both default to it), and the
+  // editor reports 'Group' on every childless media/embed block. Documents written outside the editor (SDK, CLI,
+  // agents) omit it, so without this an untouched image counted as an unpublished change.
+  const childrenTypeOf = (attrs: Record<string, unknown>) => attrs.childrenType ?? 'Group'
+
   const attributesToCompare = [
     'childrenType',
     'start',
@@ -436,6 +441,7 @@ function isBlockAttributesEqual(b1: HMBlock, b2: HMBlock): boolean {
       return isQueryEqual(a1.query as HMQuery | undefined, a2.query as HMQuery | undefined)
     }
     if (attr === 'table') return isEqual(a1.table, a2.table)
+    if (attr === 'childrenType') return childrenTypeOf(a1) === childrenTypeOf(a2)
     return (a1[attr] === undefined && a2[attr] === undefined) || a1[attr] === a2[attr]
   }
 

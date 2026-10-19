@@ -50,6 +50,7 @@ export function useCommentNavigation({
           ...route,
           openComment: replyComment.id,
           openCommentVersion: undefined,
+          replyCommentId: undefined,
           isReplying: true,
           ...replyVersionData,
         } as any)
@@ -91,6 +92,7 @@ export function useCommentNavigation({
           ...route,
           openComment: replyComment.id,
           openCommentVersion: undefined,
+          replyCommentId: undefined,
           isReplying: undefined,
           replyCommentVersion: undefined,
           rootReplyCommentVersion: undefined,

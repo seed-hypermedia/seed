@@ -55,6 +55,15 @@ describe('mention ranking', () => {
     expect(results).toHaveLength(1)
     expect(results[0]?.hint).toBe('Home document')
   })
+  it('never matches a query as a scattered subsequence of a title or an account ID', () => {
+    const uid = 'z6MkiCLxoCd1n9pVW' // holds i…o…n in order, as most base58 IDs do
+    const bitcoin = account(uid, 'Debates Watch out, Bitcoin!') // the title holds i…o…n in order too
+    const unnamed = account(uid, uid)
+    const ion = account('agent', 'Ion')
+    expect(rankMentionCandidates([bitcoin, ion], 'ion', [], now).map((c) => c.id.uid)).toEqual(['agent'])
+    expect(rankMentionCandidates([unnamed, ion], 'ion', [], now).map((c) => c.id.uid)).toEqual(['agent'])
+    expect(rankMentionCandidates([bitcoin, ion], 'z6MkiCLx', [], now).map((c) => c.id.uid)).toEqual([uid])
+  })
   it('labels issued contacts without assuming a profile-follow subscription', () => {
     expect(rankMentionCandidates([account('site', 'Site', {issuedContact: true})], '', [], now)[0]?.hint).toBe(
       'Contact',

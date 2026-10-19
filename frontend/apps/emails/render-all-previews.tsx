@@ -63,7 +63,7 @@ const previews: Array<{name: string; result: {subject: string; text: string; htm
   {
     name: 'verification',
     result: await createNotificationVerificationEmail({
-      verificationUrl: 'https://hyper.media/hm/notification-email-verify?token=verify123',
+      verificationUrl: 'https://hyper.media/hm/api/notify/verify-email?token=verify123',
       recipientName: 'First Name',
     }),
   },

@@ -5,48 +5,46 @@ description: 'Cut a production release: tag, wait for CI, write release notes, p
 
 # Run Release
 
-Execute the release process in `docs/releasing.md`. That doc is canonical for the process details;
-this skill is the interactive runbook. Invoking this skill counts as explicit permission to create
-and push the release tag, but confirm the version number with the user before pushing it.
+Execute the release process in `hypermedia/build/releasing.md`. That doc is canonical for the process details; this
+skill is the interactive runbook. Invoking this skill counts as explicit permission to create and push the release tag,
+but confirm the version number with the user before pushing it.
 
 ## Steps
 
-1. **Preflight**: confirm you are on `main`, the working tree is clean, and local `main` matches
-   `origin/main`. Abort and report if not.
-2. **Determine the version** (`YYYY.M.N`, see `docs/releasing.md`): check
-   `git tag --sort=-creatordate | head -5`. If the latest tag is from the current month, increment
-   its last number; otherwise start at `.1` for the current month.
-3. **Verify CI is green for the commit BEFORE tagging.** The release workflows gate on the same
-   `frontend-tests` (Lint, unit tests, e2e), so a red commit means a doomed release run and a
-   re-tag. Check the existing result first — a push to `main` already triggered `Dev - Docker
-   Images` on this exact commit:
+1. **Preflight**: confirm you are on `main`, the working tree is clean, and local `main` matches `origin/main`. Abort
+   and report if not.
+2. **Determine the version** (`YYYY.M.N`, see `hypermedia/build/releasing.md`): check
+   `git tag --sort=-creatordate | head -5`. If the latest tag is from the current month, increment its last number;
+   otherwise start at `.1` for the current month.
+3. **Verify CI is green for the commit BEFORE tagging.** The release workflows gate on the same `frontend-tests` (Lint,
+   unit tests, e2e), so a red commit means a doomed release run and a re-tag. Check the existing result first — a push
+   to `main` already triggered `Dev - Docker Images` on this exact commit:
    `gh run list --workflow "Dev - Docker Images" --branch main --limit 5 --json headSha,status,conclusion,databaseId`
    - Green for the commit → proceed.
    - Red → diagnose with `gh run view <id>`; fix on `main` first, then restart at step 1.
-   - Still running or missing → don't wait for it; releases are often cut in a rush. Instead run
-     the most obvious, fastest checks locally and then tag. In order of cost-effectiveness:
-     - Root `pnpm format:check` (~1 min; the most common release-killer). The root script chains
-       pnpm workspaces, then `agents/`, then `vault/` with `&&` — later groups are masked until
-       earlier ones pass, so only the root script proves all of them.
+   - Still running or missing → don't wait for it; releases are often cut in a rush. Instead run the most obvious,
+     fastest checks locally and then tag. In order of cost-effectiveness:
+     - Root `pnpm format:check` (~1 min; the most common release-killer). The root script chains pnpm workspaces, then
+       `agents/`, then `vault/` with `&&` — later groups are masked until earlier ones pass, so only the root script
+       proves all of them.
      - Unit tests for packages touched since the last green CI run (e.g.
        `cd frontend/apps/desktop && pnpm exec vitest run`; `cd agents && bun test`).
-     - Skip slow suites (e2e, backend, builds) — the release workflow runs full CI anyway; the
-       local pass only exists to avoid tagging a commit that is dead on arrival.
+     - Skip slow suites (e2e, backend, builds) — the release workflow runs full CI anyway; the local pass only exists to
+       avoid tagging a commit that is dead on arrival.
 4. **Confirm** the version and the commit to be tagged with the user.
 5. **Tag and push**: `git tag <version> && git push origin <version>`.
-6. **Wait for the release workflows** (`Release - Desktop App`, `Release - Docker Images`) to go
-   green: `gh run list --workflow release-desktop.yml`, then `gh run watch <run-id>`. Builds take
-   tens of minutes — keep waiting, don't proceed early. If a workflow fails, stop and report.
-7. **Draft release notes** for `<prev-tag>..<version>` following the voice, grouping, and
-   exclusion rules in the `releasenotes` skill, but match the exact format of the last few
-   published releases (`gh release view <prev-tag>`). Key rules from `docs/releasing.md`:
+6. **Wait for the release workflows** (`Release - Desktop App`, `Release - Docker Images`) to go green:
+   `gh run list --workflow release-desktop.yml`, then `gh run watch <run-id>`. Builds take tens of minutes — keep
+   waiting, don't proceed early. If a workflow fails, stop and report.
+7. **Draft release notes** for `<prev-tag>..<version>` following the voice, grouping, and exclusion rules in the
+   `releasenotes` skill, but match the exact format of the last few published releases (`gh release view <prev-tag>`).
+   Key rules from `hypermedia/build/releasing.md`:
    - Very short feature entries; many commits often collapse into one line.
-   - No entries for regressions introduced and fixed since the previous tag — never released,
-     users never saw them.
+   - No entries for regressions introduced and fixed since the previous tag — never released, users never saw them.
    - End with the `**Full Changelog**` compare link.
 8. **Show the draft to the user** and apply their edits, then publish:
-   `gh release edit <version> --notes-file <tmpfile> --prerelease=false --latest`
-   (the workflow creates the release as a prerelease; this promotes it).
-9. **Publish latest.json** so desktop auto-update sees the release:
-   `gh workflow run "Generate latest.json (prod)"` and confirm the run succeeds.
+   `gh release edit <version> --notes-file <tmpfile> --prerelease=false --latest` (the workflow creates the release as a
+   prerelease; this promotes it).
+9. **Publish latest.json** so desktop auto-update sees the release: `gh workflow run "Generate latest.json (prod)"` and
+   confirm the run succeeds.
 10. **Report**: version, release URL, and the state of each step.

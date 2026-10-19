@@ -115,6 +115,11 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	// count as offline backfill instead of live delivery.
 	syncperf.Default.SetSessionStart(time.Now())
 
+	// An isolated node talks to no other node, so the lndhub server is off limits too.
+	if cfg.P2P.Isolated {
+		cfg.Lndhub.Disabled = true
+	}
+
 	a = &App{
 		log:     logging.New("seed/daemon", cfg.LogLevel),
 		Storage: r,
@@ -163,6 +168,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	// cover and folder flag for every document, and the documents server
 	// that also wires this is constructed only later in initGRPC.
 	a.Index.SetDeriveDocFields(documentsv3.DeriveDocFields)
+	a.Index.SetOffline(cfg.P2P.Isolated)
 	a.clean.Add(a.Index.Domains)
 	a.taskMgr.UpdateGlobalState(daemon.State_STARTING)
 
@@ -230,7 +236,7 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 	}
 
 	a.GRPCServer, a.GRPCListener, a.RPC, err = initGRPC(cfg.Base, cfg.GRPC.Port, &a.clean, a.g, a.Storage, a.Index, a.Net,
-		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub.Mainnet, opts.grpc, a.taskMgr, lightEmbedder)
+		a.Syncing, activitySrv, cfg.LogLevel, cfg.Lndhub, opts.grpc, a.taskMgr, lightEmbedder)
 	if err != nil {
 		return nil, err
 	}
@@ -246,15 +252,18 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 		fm = hmnet.NewFileManager(logging.New("seed/file-manager", cfg.LogLevel), a.Index, e, a.Index)
 	}
 
-	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.Base, cfg.HTTP.Port, a.GRPCServer, &a.clean, a.g,
+	a.HTTPServer, a.HTTPListener, err = initHTTP(cfg.Base, cfg.HTTP, a.GRPCServer, &a.clean, a.g,
 		fm, a.Net, a.RPC.Daemon, a.RPC.Telemetry)
 	if err != nil {
 		return nil, err
 	}
 	// Start the domain store poller in the background.
-	a.g.Go(func() error {
-		return a.Index.Domains.Start(ctx)
-	})
+	// An isolated node must not fetch site configs over HTTP either.
+	if !cfg.P2P.Isolated {
+		a.g.Go(func() error {
+			return a.Index.Domains.Start(ctx)
+		})
+	}
 
 	a.setupLogging(ctx, cfg)
 	select {
@@ -391,7 +400,7 @@ func initGRPC(
 	sync *syncing.Service,
 	activity *activity.Server,
 	LogLevel string,
-	isMainnet bool,
+	lndhub config.Lndhub,
 	opts grpcOpts,
 	taskMgr *taskmanager.TaskManager,
 	embedder embeddings.LightEmbedder,
@@ -414,7 +423,7 @@ func initGRPC(
 		grpc.ChainUnaryInterceptor(grpcrecovery.UnaryServerInterceptor(grpcLog)),
 		grpc.ChainStreamInterceptor(grpcrecovery.StreamServerInterceptor(grpcLog)),
 	})...)
-	apis = api.New(cfg, repo, idx, node, sync, activity, LogLevel, isMainnet, taskMgr, embedder)
+	apis = api.New(cfg, repo, idx, node, sync, activity, LogLevel, lndhub, taskMgr, embedder)
 	apis.Register(srv)
 
 	if remoteVault, ok := repo.KeyStore().(*vault.Vault); ok {

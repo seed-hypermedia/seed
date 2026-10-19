@@ -9,6 +9,7 @@ import type {
   MediaBlockProps,
 } from './editor-types'
 import {
+  getSupportedHMQueryFilters,
   isSurrogate,
   type HMAnnotation,
   type HMBlock,
@@ -164,6 +165,12 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     }
   }
 
+  const textAlignment = attributes.textAlignment
+  // Ensure we only assign valid values to textAlignment; anything else falls back to the editor default (`left`).
+  if (textAlignment === 'center' || textAlignment === 'right' || textAlignment === 'justify') {
+    ;(out.props as EditorBlockProps).textAlignment = textAlignment
+  }
+
   // if (block.attributes?.start) {
   //   out.props.start =
   //     typeof block.attributes.start == 'number'
@@ -182,7 +189,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
 
     if ((block as any).attributes) {
       Object.entries((block as any).attributes).forEach(([key, value]) => {
-        if (value !== undefined) {
+        if (value !== undefined && key !== 'textAlignment') {
           if (key == 'width' || key == 'size') {
             if (typeof value == 'number') {
               ;(out.props as any)[key] =
@@ -231,6 +238,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     queryProps.columnCount = String(block.attributes?.columnCount || '')
     queryProps.queryIncludes = JSON.stringify(block.attributes?.query?.includes || [])
     queryProps.querySort = JSON.stringify(block.attributes?.query?.sort || {})
+    queryProps.queryFilters = JSON.stringify(getSupportedHMQueryFilters(block.attributes?.query?.filters))
     queryProps.banner = block.attributes?.banner ? 'true' : 'false'
     queryProps.queryLimit = String(block.attributes?.query?.limit || '')
     if (block.attributes?.table) queryProps.tableConfig = JSON.stringify(block.attributes.table)

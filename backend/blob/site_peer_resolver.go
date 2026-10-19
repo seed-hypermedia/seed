@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -44,11 +45,15 @@ type sitePeerEntry struct {
 // sitePeerResolver resolves siteUrl to peer.ID with TTL-based caching.
 // The underlying LRU cache is thread-safe, so no external synchronization is needed.
 type sitePeerResolver struct {
-	cache        *lru.Cache[string, sitePeerEntry]
-	ttl          time.Duration
-	client       *http.Client
-	domainStore  *DomainStore // optional persistent fallback
+	cache       *lru.Cache[string, sitePeerEntry]
+	ttl         time.Duration
+	client      *http.Client
+	domainStore *DomainStore // optional persistent fallback
+	// offline makes every network fetch fail immediately (isolated nodes).
+	offline atomic.Bool
 }
+
+var errSiteResolverOffline = errors.New("site resolver is offline (-p2p.isolated)")
 
 // newSitePeerResolver creates a new cache for resolving site URLs to peer IDs.
 // size is the maximum number of entries to cache.
@@ -136,6 +141,10 @@ func (e transientError) Unwrap() error {
 func (c *sitePeerResolver) fetchConfig(ctx context.Context, siteURL string) (SiteConfigResponse, error) {
 	const maxRetries = 3
 	const retryDelay = 300 * time.Millisecond
+
+	if c.offline.Load() {
+		return SiteConfigResponse{}, errSiteResolverOffline
+	}
 
 	var lastErr error
 	for attempt := 0; attempt < maxRetries; attempt++ {

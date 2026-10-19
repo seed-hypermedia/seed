@@ -4,7 +4,7 @@ import path from 'path'
  * Resolves the bundled agents-server binary, mirroring {@link ./daemon-path.ts} for the Go daemon.
  *
  * The binary is produced by `agents/scripts/build-binary.ts` (`bun build --compile`) into
- * `plz-out/bin/agents/` alongside the `package.json` it needs at startup, and that whole directory
+ * `plz-out/bin/agents/` alongside its `package.json` and staged `node_modules/`, and that whole directory
  * ships as an `extraResource` — so in a packaged app it sits in `<resources>/agents/`. In
  * development the desktop attaches to an externally run server instead of spawning one (see
  * `agents-server-process.ts`), so the dev path here is only a fallback for locally produced builds.
@@ -23,9 +23,9 @@ export function getAgentsServerBinaryPath(): string {
 /**
  * Directory the agents server must run from.
  *
- * `pi-coding-agent` reads its own `package.json` relative to `cwd` at import time, so the compiled
- * binary only starts when a `package.json` sits next to it — the same arrangement `agents/Dockerfile`
- * relies on. Spawning with this as `cwd` keeps that contract explicit rather than incidental.
+ * The binary runs from its own directory, beside the files it ships with — the same arrangement
+ * `agents/Dockerfile` uses. (The agent runtime no longer reads `package.json` at startup; that
+ * requirement went away with `pi-coding-agent`.)
  */
 export function getAgentsServerWorkingDirectory(): string {
   return path.dirname(getAgentsServerBinaryPath())

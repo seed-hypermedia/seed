@@ -4,7 +4,7 @@ import {useDesktopAuthDialog} from '@/components/desktop-auth-dialog'
 import {grpcClient} from '@/grpc-client'
 import {useMyAccountIds} from '@/models/daemon'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled} from '@/models/experiments'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {useNavigate} from '@/utils/useNavigate'
@@ -35,7 +35,6 @@ function createDaemonSigner(accountUid: string): blobs.Signer {
  */
 function useDesktopOpenUrl() {
   const {externalOpen} = useAppContext()
-  const browserEnabled = useExperiments().data?.webBrowser === true
   const spawn = useNavigate('spawn')
   const push = useNavigate('push')
   return useMemo(() => {
@@ -46,16 +45,15 @@ function useDesktopOpenUrl() {
         if (newWindow) spawn(appRoute)
         else push(appRoute)
       } else if (isHttpUrl(url)) {
-        if (browserEnabled) {
-          ;(newWindow ? spawn : push)({key: 'web', url})
-        } else {
-          externalOpen(url)
-        }
+        void readWebBrowserEnabled().then((browserEnabled) => {
+          if (browserEnabled) (newWindow ? spawn : push)({key: 'web', url})
+          else externalOpen(url)
+        })
       } else {
         toast.error(`Failed to resolve route for "${url}"`)
       }
     }
-  }, [browserEnabled, externalOpen, spawn, push])
+  }, [externalOpen, spawn, push])
 }
 
 /** The desktop sign-in affordance: its own auth dialog, mounted by the caller. */

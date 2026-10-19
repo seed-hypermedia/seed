@@ -2,6 +2,12 @@ import {sentryVitePlugin} from '@sentry/vite-plugin'
 import path from 'path'
 import {defineConfig} from 'vite'
 import tsConfigPaths from 'vite-tsconfig-paths'
+import electronRelease from './electron-release.json'
+import desktopPackage from './package.json'
+
+if (electronRelease.version !== desktopPackage.devDependencies.electron) {
+  throw new Error('Update electron-release.json with the pinned Electron release date before building')
+}
 
 const extensions = ['.web.tsx', '.tsx', '.web.ts', '.ts', '.web.jsx', '.jsx', '.web.js', '.js', '.css', '.json', '.mjs']
 
@@ -11,6 +17,7 @@ export default defineConfig(({command, mode}) => {
   // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
   return {
     define: {
+      __ELECTRON_RELEASE_DATE__: JSON.stringify(electronRelease.releasedAt),
       __SENTRY_DSN__: JSON.stringify(process.env.VITE_DESKTOP_SENTRY_DSN || ''),
       __FORCE_LOADING_WINDOW__: JSON.stringify(process.env.VITE_FORCE_LOADING_WINDOW),
       __SEED_P2P_TESTNET_NAME__: JSON.stringify(process.env.SEED_P2P_TESTNET_NAME || ''),

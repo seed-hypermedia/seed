@@ -265,27 +265,19 @@ SELECT
   ORDER BY ts ASC
 `)
 
-// The CROSS JOIN forces SQLite to drive the query from the (small, deduped) list of
-// genesis blobs using the index on structural_blobs.genesis_blob, instead of scanning
-// every Ref blob in the database.
+// QGetMovedBlocks resolves, for a page of events, the documents sharing their
+// genesis that were moved elsewhere: the redirect target, the old address and
+// whether the target is deleted. The CROSS JOIN drives the query from the
+// (small, deduped) list of genesis blobs, and the pinned partial index holds
+// only redirecting Refs, so the lookup never walks the thousands of blobs an
+// account's documents can share through the home genesis.
 var QGetMovedBlocks = dqb.Str(`
 SELECT
   sb.extra_attrs->>'redirect' AS redirect,
   r.iri,
-  dg.is_deleted,
-  (
-    SELECT json_group_array(
-             json_object(
-               'codec',    b2.codec,
-               'multihash', hex(b2.multihash)
-             )
-           )
-    FROM json_each(dg.heads) AS a
-      JOIN blobs AS b2
-        ON b2.id = a.value
-  ) AS heads
+  dg.is_deleted
   FROM (SELECT DISTINCT value FROM json_each(:genesisBlobJson)) AS g
-  CROSS JOIN structural_blobs sb ON sb.genesis_blob = g.value
+  CROSS JOIN structural_blobs sb INDEXED BY structural_blobs_by_redirect ON sb.genesis_blob = g.value
   JOIN resources r ON r.id = sb.resource
   JOIN document_generations dg ON dg.resource = (SELECT id FROM resources WHERE iri = sb.extra_attrs->>'redirect')
   WHERE sb.type = 'Ref'
@@ -485,17 +477,17 @@ FROM fts_data AS f
 WHERE (f.type = 'profile' OR COALESCE(resolved.is_deleted, document_generations.is_deleted) = False)
 `)
 
-// qKeywordSearch returns FTS5 hits for the given query, filtered to the supplied
-// content types, optional visibility, and optional IRI glob. The CTE applies the
-// cheap per-blob filters (`blobs.size > 0`, visibility) and a sort+LIMIT *before*
-// the expensive cross-table joins, so the post-join work is bounded by the
-// oversample budget regardless of how many FTS rows the MATCH produced. The outer
-// ORDER BY uses the same sort key as the inner one, so the inner top-N is the
-// outer top-N modulo the few outer-only filters (IRI resolution + GLOB).
+// keywordSearchHead is the matched_fts CTE of the keyword search: FTS5 hits
+// for the query, filtered to the supplied content types and optional
+// visibility, sorted and limited *before* the expensive cross-table joins, so
+// the post-join work is bounded by the oversample budget regardless of how
+// many FTS rows the MATCH produced. The tails below order by the same key, so
+// the inner top-N is the outer top-N modulo the few outer-only filters (IRI
+// resolution + GLOB).
 //
 // Args: query, type1, type2, type3, type4, type5, publicOnly, rootDocumentsOnly,
-// oversample, rootDocumentsOnly, iriGlob, limit.
-var qKeywordSearch = dqb.Str(`
+// oversample.
+const keywordSearchHead = `
 WITH RECURSIVE
 matched_fts AS MATERIALIZED (
   SELECT
@@ -548,6 +540,87 @@ matched_fts AS MATERIALIZED (
     fts.rank ASC
   LIMIT ?
 ),
+`
+
+// keywordSearchNamesHead is keywordSearchHead for searches over name types only
+// (title, contact, profile: the mention picker's path).
+//
+// fts.type is UNINDEXED, so the head above applies the type filter by reading
+// the FTS content row of every row the MATCH produced. A two-letter prefix
+// such as "is"* matches 100k rows on a desktop database to keep a few hundred,
+// and from a cold page cache that walk took 10 s. Here the filter is the set of
+// name-type rowids from the fts_index_by_type covering index (18k entries,
+// materialized once per query), tested in memory per matched rowid, and type
+// and blob_id are read from fts_index for the survivors only. Measured on the
+// same database under the vendored SQLite 3.45: "is"* 82 ms -> 34 ms warm and
+// 10 s -> 0.7 s cold, "a"* 555 ms -> 391 ms, at the price of ~2 ms of fixed
+// set-up on rare prefixes.
+//
+// The unary + on fts.rowid is load-bearing: without it the planner may drive
+// from fts_index and probe the FTS table once per rowid, and FTS5 evaluates a
+// prefix MATCH per probe by re-merging every indexed term sharing the prefix
+// (133 s for the same search). The set is not worth building when document or
+// comment rows are requested too: it then covers nearly the whole table and
+// costs more than it saves, so those searches keep keywordSearchHead.
+//
+// Args: same as keywordSearchHead.
+const keywordSearchNamesHead = `
+WITH RECURSIVE
+matched_fts AS MATERIALIZED (
+  SELECT
+    fts.rowid,
+    fts.rank,
+    fi.blob_id,
+    fi.type
+  FROM fts
+  CROSS JOIN fts_index fi ON fi.rowid = fts.rowid
+  JOIN blobs ON blobs.id = fi.blob_id AND blobs.size > 0
+  WHERE fts.raw_content MATCH ?
+    AND +fts.rowid IN (SELECT rowid FROM fts_index WHERE type IN (?, ?, ?, ?, ?))
+    AND (? = 0
+         OR EXISTS (SELECT 1 FROM blob_visibility v WHERE v.id = fi.blob_id AND v.space = 0))
+    AND (? = 0
+         OR EXISTS (
+           SELECT 1
+           FROM structural_blobs root_sb
+           JOIN resources root_r ON root_r.id = root_sb.resource
+           WHERE root_sb.id = fi.blob_id
+             AND root_r.iri GLOB 'hm://*'
+             AND root_r.iri NOT GLOB 'hm://*/*'
+         )
+         OR EXISTS (
+           SELECT 1
+           FROM blob_links root_bl
+           JOIN structural_blobs root_ref ON root_ref.id = root_bl.source
+           JOIN resources root_r ON root_r.id = root_ref.resource
+           WHERE root_bl.target = fi.blob_id
+             AND root_bl.type = 'ref/head'
+             AND root_r.iri GLOB 'hm://*'
+             AND root_r.iri NOT GLOB 'hm://*/*'
+         ))
+    -- See keywordSearchHead: only the newest Profile of an account counts.
+    AND (fi.type != 'profile'
+         OR NOT EXISTS (
+           SELECT 1
+           FROM structural_blobs mine
+           JOIN structural_blobs newer
+             ON newer.type = 'Profile'
+            AND newer.resource = mine.resource
+            AND newer.author = mine.author
+            AND newer.ts > mine.ts
+           WHERE mine.id = fi.blob_id
+         ))
+  ORDER BY
+    (fi.type = 'contact' OR fi.type = 'title' OR fi.type = 'profile') DESC,
+    fts.rank ASC
+  LIMIT ?
+),
+`
+
+// keywordSearchBody follows move redirects for the comment hits in matched_fts,
+// so a comment on a moved document resolves to the address that serves it now.
+// Shared by every variant.
+const keywordSearchBody = `
 latest_document_generations AS (
   SELECT
     dg.resource AS resource,
@@ -601,6 +674,17 @@ effective_comment_resources AS (
   )
   WHERE rn = 1
 )
+`
+
+// keywordSearchTail resolves each matched row to the resource that serves it
+// and applies the outer-only filters. The blob_links/sb_ref/r2 fallback only
+// matters when sb.resource is null and the blob is pointed to by a ref/head
+// edge, a path that never applies to comments (comments always have a
+// resource); gating the join on mf.type != 'comment' skips the per-row index
+// probe entirely for the common comment-heavy path.
+//
+// Args: rootDocumentsOnly, limit.
+const keywordSearchTail = `
 SELECT
     mf.rowid,
     mf.rank
@@ -608,11 +692,32 @@ FROM matched_fts mf
 JOIN fts_index fi ON fi.rowid = mf.rowid
 JOIN structural_blobs sb ON sb.id = mf.blob_id
 LEFT JOIN resources r1 ON r1.id = sb.resource
--- The blob_links/sb_ref/r2 fallback only matters when sb.resource is null and
--- the blob is pointed to by a ref/head edge — a path that never applies to
--- comments (comments always have a resource). Gating the join on
--- mf.type != 'comment' skips the per-row index probe entirely for the common
--- comment-heavy path.
+LEFT JOIN blob_links bl ON bl.target = mf.blob_id AND bl.type = 'ref/head' AND mf.type != 'comment'
+LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
+LEFT JOIN resources r2 ON r2.id = sb_ref.resource
+LEFT JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
+WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) IS NOT NULL
+  AND (? = 0 OR (
+    COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) GLOB 'hm://*'
+    AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) NOT GLOB 'hm://*/*'
+  ))
+ORDER BY
+  (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
+  mf.rank ASC
+LIMIT ?
+`
+
+// keywordSearchTailGlob is keywordSearchTail with the per-row IRI GLOB.
+//
+// Args: rootDocumentsOnly, iriGlob, limit.
+const keywordSearchTailGlob = `
+SELECT
+    mf.rowid,
+    mf.rank
+FROM matched_fts mf
+JOIN fts_index fi ON fi.rowid = mf.rowid
+JOIN structural_blobs sb ON sb.id = mf.blob_id
+LEFT JOIN resources r1 ON r1.id = sb.resource
 LEFT JOIN blob_links bl ON bl.target = mf.blob_id AND bl.type = 'ref/head' AND mf.type != 'comment'
 LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
 LEFT JOIN resources r2 ON r2.id = sb_ref.resource
@@ -627,142 +732,18 @@ ORDER BY
   (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
   mf.rank ASC
 LIMIT ?
-`)
+`
 
-// qKeywordSearchAllIRIs is the same as qKeywordSearch but without the per-row
-// IRI GLOB predicate. Used when the caller passes the catch-all default
-// (`hm://*` or empty), since every resource in our schema has an `hm://` IRI
-// and the GLOB would just be paid for nothing.
-//
-// Args: query, type1, type2, type3, type4, type5, publicOnly, rootDocumentsOnly,
-// oversample, rootDocumentsOnly, limit.
-var qKeywordSearchAllIRIs = dqb.Str(`
-WITH RECURSIVE
-matched_fts AS MATERIALIZED (
-  SELECT
-    fts.rowid,
-    fts.rank,
-    fts.blob_id,
-    fts.type
-  FROM fts
-  JOIN blobs ON blobs.id = fts.blob_id AND blobs.size > 0
-  WHERE fts.raw_content MATCH ?
-    AND fts.type IN (?, ?, ?, ?, ?)
-    AND (? = 0
-         OR EXISTS (SELECT 1 FROM blob_visibility v WHERE v.id = fts.blob_id AND v.space = 0))
-    AND (? = 0
-         OR EXISTS (
-           SELECT 1
-           FROM structural_blobs root_sb
-           JOIN resources root_r ON root_r.id = root_sb.resource
-           WHERE root_sb.id = fts.blob_id
-             AND root_r.iri GLOB 'hm://*'
-             AND root_r.iri NOT GLOB 'hm://*/*'
-         )
-         OR EXISTS (
-           SELECT 1
-           FROM blob_links root_bl
-           JOIN structural_blobs root_ref ON root_ref.id = root_bl.source
-           JOIN resources root_r ON root_r.id = root_ref.resource
-           WHERE root_bl.target = fts.blob_id
-             AND root_bl.type = 'ref/head'
-             AND root_r.iri GLOB 'hm://*'
-             AND root_r.iri NOT GLOB 'hm://*/*'
-         ))
-    -- An account's name is indexed once per Profile blob it ever published, and a
-    -- superseded name is not what the query names today: keep a profile hit only
-    -- when its blob is the newest Profile for that account by that author, the
-    -- same rule GetAccount reads the current profile by.
-    AND (fts.type != 'profile'
-         OR NOT EXISTS (
-           SELECT 1
-           FROM structural_blobs mine
-           JOIN structural_blobs newer
-             ON newer.type = 'Profile'
-            AND newer.resource = mine.resource
-            AND newer.author = mine.author
-            AND newer.ts > mine.ts
-           WHERE mine.id = fts.blob_id
-         ))
-  ORDER BY
-    (fts.type = 'contact' OR fts.type = 'title' OR fts.type = 'profile') DESC,
-    fts.rank ASC
-  LIMIT ?
-),
-latest_document_generations AS (
-  SELECT
-    dg.resource AS resource,
-    da.value AS redirect_iri
-  FROM document_generations dg
-  JOIN document_attributes da ON da.resource = dg.resource AND da.kind = 's'
-  JOIN document_attribute_keys dak ON dak.id = da.key AND dak.key = '$db.redirect'
-  GROUP BY dg.resource
-  HAVING dg.generation = MAX(dg.generation)
-),
--- Only seed the recursive redirect walk with comments whose resource actually
--- has a known redirect entry; see qKeywordSearch above for rationale.
-comment_resource_chain(origin_resource, resource, iri, depth) AS (
-  SELECT DISTINCT
-    sb.resource,
-    sb.resource,
-    resources.iri,
-    0
-  FROM matched_fts mf
-  JOIN structural_blobs sb ON sb.id = mf.blob_id
-  JOIN resources ON resources.id = sb.resource
-  WHERE mf.type = 'comment'
-  AND sb.resource IS NOT NULL
-  AND sb.resource IN (
-    SELECT resource FROM latest_document_generations
-    WHERE redirect_iri IS NOT NULL
-  )
-
-  UNION ALL
-
-  SELECT
-    cr.origin_resource,
-    target.id,
-    target.iri,
-    cr.depth + 1
-  FROM comment_resource_chain cr
-  JOIN latest_document_generations dg ON dg.resource = cr.resource
-  JOIN resources target ON target.iri = dg.redirect_iri
-  WHERE dg.redirect_iri IS NOT NULL
-  AND target.id != cr.resource
-  AND cr.depth < 16
-),
-effective_comment_resources AS (
-  SELECT origin_resource, resource, iri
-  FROM (
-    SELECT
-      cr.*,
-      ROW_NUMBER() OVER (PARTITION BY cr.origin_resource ORDER BY cr.depth DESC) rn
-    FROM comment_resource_chain cr
-  )
-  WHERE rn = 1
+// The keyword search variants: {every content type, name types only} x
+// {per-row IRI GLOB, every IRI}. The GLOB is skipped when the caller passes
+// the catch-all default (`hm://*` or empty): every resource in our schema has
+// an `hm://` IRI, and the predicate would just be paid for nothing.
+var (
+	qKeywordSearch             = dqb.Str(keywordSearchHead + keywordSearchBody + keywordSearchTailGlob)
+	qKeywordSearchAllIRIs      = dqb.Str(keywordSearchHead + keywordSearchBody + keywordSearchTail)
+	qKeywordSearchNames        = dqb.Str(keywordSearchNamesHead + keywordSearchBody + keywordSearchTailGlob)
+	qKeywordSearchNamesAllIRIs = dqb.Str(keywordSearchNamesHead + keywordSearchBody + keywordSearchTail)
 )
-SELECT
-    mf.rowid,
-    mf.rank
-FROM matched_fts mf
-JOIN fts_index fi ON fi.rowid = mf.rowid
-JOIN structural_blobs sb ON sb.id = mf.blob_id
-LEFT JOIN resources r1 ON r1.id = sb.resource
--- See qKeywordSearch above: the ref/head fallback never applies to comments.
-LEFT JOIN blob_links bl ON bl.target = mf.blob_id AND bl.type = 'ref/head' AND mf.type != 'comment'
-LEFT JOIN structural_blobs sb_ref ON sb_ref.id = bl.source
-LEFT JOIN resources r2 ON r2.id = sb_ref.resource
-LEFT JOIN effective_comment_resources ecr ON ecr.origin_resource = sb.resource
-WHERE COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) IS NOT NULL
-  AND (? = 0 OR (
-    COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) GLOB 'hm://*'
-    AND COALESCE(CASE WHEN mf.type = 'comment' THEN ecr.iri END, r1.iri, r2.iri) NOT GLOB 'hm://*/*'
-  ))
-ORDER BY
-  (mf.type = 'contact' OR mf.type = 'title' OR mf.type = 'profile') DESC,
-  mf.rank ASC
-LIMIT ?
-`)
 
 // keywordSearchOversampleFactor is how much more we ask the inner FTS+visibility
 // CTE for than the caller's final limit. Rows can be dropped by the outer
@@ -831,19 +812,34 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 		return nil
 	}
 
+	// Name-type searches filter by type through fts_index instead of the FTS
+	// content rows; see keywordSearchNamesHead.
+	namesOnly := entityTypeDoc == nil && entityTypeComment == nil
+
 	// Skip the per-row IRI GLOB when the caller passes the catch-all default —
 	// every resource has an `hm://` IRI, so the predicate would just be evaluated
 	// for nothing on every joined row.
 	if iriGlob == "" || iriGlob == "hm://*" {
-		if err := sqlitex.Exec(conn, qKeywordSearchAllIRIs(), cb,
+		q := qKeywordSearchAllIRIs
+		if namesOnly {
+			q = qKeywordSearchNamesAllIRIs
+		}
+
+		if err := sqlitex.Exec(conn, q(), cb,
 			query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile,
 			publicOnly, rootDocumentsOnly, oversample, rootDocumentsOnly, limit); err != nil {
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
+
 		return results, nil
 	}
 
-	if err := sqlitex.Exec(conn, qKeywordSearch(), cb,
+	q := qKeywordSearch
+	if namesOnly {
+		q = qKeywordSearchNames
+	}
+
+	if err := sqlitex.Exec(conn, q(), cb,
 		query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile,
 		publicOnly, rootDocumentsOnly, oversample, rootDocumentsOnly, iriGlob, limit); err != nil {
 		return nil, fmt.Errorf("keyword search failed: %w", err)
@@ -1159,16 +1155,24 @@ var qBatchDeletedComments = dqb.Str(`
     WHERE rn = 1;
 `)
 
-var qGetMetadata = dqb.Str(`
-select COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}'), r.iri, pk.principal from document_generations dg
-	INNER JOIN resources r ON r.id = dg.resource
-	INNER JOIN public_keys pk ON pk.id = r.owner
-	WHERE dg.is_deleted = False;`)
-
-var qGetParentsMetadata = dqb.Str(`
-select COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}'), r.iri from document_generations dg
-	INNER JOIN resources r ON r.id = dg.resource
-	WHERE dg.is_deleted = False AND r.iri GLOB :iriGlob;`)
+// qGetParentNames returns the IRI and name of every document in the given JSON
+// array of IRIs that has an alive generation (a NULL name when the document
+// carries no name attribute). SearchEntities asks for the path prefixes of its
+// results to build breadcrumbs; it used to scan every alive document under the
+// search's IRI glob and aggregate all of its attributes as JSON (16.7k rows and
+// 50 ms warm on a desktop database, 15 s on a starved one) for the handful of
+// parents a page of results actually has.
+//
+// Args: iris (JSON array of strings).
+var qGetParentNames = dqb.Str(`
+SELECT r.iri, da.value
+FROM json_each(:iris) j
+CROSS JOIN resources r ON r.iri = j.value
+LEFT JOIN document_attributes da
+  ON da.resource = r.id
+ AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'name')
+WHERE EXISTS (SELECT 1 FROM document_generations dg WHERE dg.resource = r.id AND dg.is_deleted = 0);
+`)
 
 var qGetAccountID = dqb.Str(`
 	SELECT id FROM public_keys WHERE principal = unhex(:principal) LIMIT 1;
@@ -1246,6 +1250,18 @@ func isAccountIRI(iri string) bool {
 	return ok && rest != "" && !strings.Contains(rest, "/")
 }
 
+// iriPathPrefixes lists the IRI of every document on the path to iri, from the
+// account's home document to iri itself: the breadcrumb of a search result.
+func iriPathPrefixes(iri string) []string {
+	breadcrumb := strings.Split(strings.TrimPrefix(iri, "hm://"), "/")
+	prefixes := make([]string, 0, len(breadcrumb))
+	for i := range breadcrumb {
+		prefixes = append(prefixes, "hm://"+strings.Join(breadcrumb[:i+1], "/"))
+	}
+
+	return prefixes
+}
+
 func searchEntityKind(result fullDataSearchResult) entpb.EntityKindFilter {
 	switch result.contentType {
 	case "comment":
@@ -1263,9 +1279,6 @@ func searchEntityKind(result fullDataSearchResult) entpb.EntityKindFilter {
 func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesRequest) (*entpb.SearchEntitiesResponse, error) {
 	type value struct {
 		Value string `json:"v"`
-	}
-	type title struct {
-		Name value `json:"name"`
 	}
 	type icon struct {
 		Icon value `json:"icon"`
@@ -1714,30 +1727,53 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	}
 
 	matchingEntities := []*entpb.Entity{}
-	// Pre-fetch all parent metadata in a single query instead of per-result.
+	// Breadcrumbs: the name of every path prefix of every result on the page,
+	// fetched in one query for just those prefixes.
 	parentTitleMap := make(map[string]string) // iri -> title
-	if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
-		return sqlitex.Exec(conn, qGetParentsMetadata(), func(stmt *sqlite.Stmt) error {
-			var t title
-			if err := json.Unmarshal(stmt.ColumnBytes(0), &t); err != nil {
-				return nil
+	{
+		var parentIRIs []string
+
+		seen := make(map[string]struct{})
+		for _, res := range searchResults {
+			if res.contentType == "contact" {
+				continue
 			}
-			parentTitleMap[stmt.ColumnText(1)] = t.Name.Value
-			return nil
-		}, iriGlob)
-	}); err != nil {
-		return nil, err
+
+			for _, parentIRI := range iriPathPrefixes(res.iri) {
+				if _, ok := seen[parentIRI]; ok {
+					continue
+				}
+
+				seen[parentIRI] = struct{}{}
+				parentIRIs = append(parentIRIs, parentIRI)
+			}
+		}
+
+		if len(parentIRIs) > 0 {
+			irisJSON, err := json.Marshal(parentIRIs)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal parent IRIs: %w", err)
+			}
+
+			if err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
+				return sqlitex.Exec(conn, qGetParentNames(), func(stmt *sqlite.Stmt) error {
+					parentTitleMap[stmt.ColumnText(0)] = stmt.ColumnText(1)
+					return nil
+				}, string(irisJSON))
+			}); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	getParentsFcn := func(match fuzzy.Match) []string {
-		breadcrumb := strings.Split(strings.TrimPrefix(searchResults[match.Index].iri, "hm://"), "/")
 		var parentTitles []string
-		for i := range breadcrumb {
-			parentIRI := "hm://" + strings.Join(breadcrumb[:i+1], "/")
+		for _, parentIRI := range iriPathPrefixes(searchResults[match.Index].iri) {
 			if t, ok := parentTitleMap[parentIRI]; ok && t != match.Str {
 				parentTitles = append(parentTitles, t)
 			}
 		}
+
 		return parentTitles
 	}
 	// Batch pre-fetch deletion status for all comments to avoid N+1 queries.

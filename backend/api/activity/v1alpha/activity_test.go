@@ -1079,3 +1079,79 @@ func insertActivityProfileEventForResource(conn *sqlite.Conn, blobID int64, reso
 	}
 	return sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, genesis_blob, resource, extra_attrs) VALUES (?, 'Profile', ?, 1, ?, ?, '{}');`, nil, blobID, eventTimestampMillis, blobID, resourceID)
 }
+
+// An event-type filter names blob types, served by the main events query, and
+// link types, served by the mentions query. Each query runs only when the
+// filter includes a kind it can serve, and the page is the same either way.
+func TestListEventsRunsOnlyTheLegsTheFilterNames(t *testing.T) {
+	alice := newTestServer(t, "alice")
+	ctx := context.Background()
+
+	author, err := core.DecodePrincipal("z6Mkv1LjkRosErBhmqrkmb5sDxXNs6EzBDSD8ktywpYLLGuC")
+	require.NoError(t, err)
+
+	// One Profile blob event and one comment/Embed mention of its resource.
+	commentTime := time.UnixMilli(500).UTC().Round(blob.ClockPrecision)
+	commentTSID := blob.NewTSID(commentTime, []byte("comment"))
+	commentAttrs := fmt.Sprintf(`{"tsid":%q}`, commentTSID.String())
+	commentHash, err := multihash.Sum([]byte("comment"), multihash.SHA2_256, -1)
+	require.NoError(t, err)
+
+	require.NoError(t, alice.db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (id, principal) VALUES (1, ?);`, nil, []byte(author)); err != nil {
+			return err
+		}
+
+		if err := insertActivityProfileEvent(conn, 1, 1, author.String()+"/p1", 6_000); err != nil {
+			return err
+		}
+
+		if err := sqlitex.Exec(conn, `INSERT INTO blobs (id, multihash, codec, data, size, insert_time) VALUES (10, ?, ?, ?, 1, 10);`, nil, []byte(commentHash), int64(0x71), []byte{1}); err != nil {
+			return err
+		}
+
+		if err := sqlitex.Exec(conn, `INSERT INTO structural_blobs (id, type, ts, author, resource, extra_attrs) VALUES (10, 'Comment', ?, 1, 1, ?);`, nil, commentTime.UnixMilli(), commentAttrs); err != nil {
+			return err
+		}
+
+		return sqlitex.Exec(conn, `INSERT INTO resource_links (source, target, type, is_pinned, extra_attrs) VALUES (10, 1, 'comment/Embed', 0, '{}');`, nil)
+	}))
+
+	list := func(filter ...string) (blobs, mentions int) {
+		page, err := alice.ListEvents(ctx, &activity.ListEventsRequest{PageSize: 10, FilterEventType: filter})
+		require.NoError(t, err)
+		for _, e := range page.Events {
+			if e.GetNewBlob() != nil {
+				blobs++
+			}
+
+			if e.GetNewMention() != nil {
+				mentions++
+			}
+		}
+
+		return blobs, mentions
+	}
+
+	blobs, mentions := list("Profile")
+	require.Equal(t, 1, blobs, "a blob-type filter serves the blob event")
+	require.Equal(t, 0, mentions, "a blob-type filter never yields mentions")
+
+	blobs, mentions = list("comment/Embed")
+	require.Equal(t, 0, blobs, "a link-type filter never yields blob events")
+	require.Equal(t, 1, mentions, "a link-type filter serves the mention")
+
+	blobs, mentions = list("Profile", "comment/Embed")
+	require.Equal(t, 1, blobs, "a mixed filter serves both kinds")
+	require.Equal(t, 1, mentions, "a mixed filter serves both kinds")
+
+	blobs, mentions = list("Ref")
+	require.Zero(t, blobs+mentions, "a blob type absent from the feed yields nothing")
+
+	blobs, mentions = list("doc/Link")
+	require.Zero(t, blobs+mentions, "a link type absent from the feed yields nothing")
+
+	blobs, mentions = list()
+	require.Equal(t, 2, blobs, "no filter serves every blob event (the Profile and the Comment)")
+	require.Equal(t, 1, mentions, "no filter serves the mention too")
+}

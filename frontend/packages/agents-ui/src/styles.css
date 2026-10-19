@@ -1,0 +1,65 @@
+/*
+ * Compiled by scripts/build.mjs into dist/styles.css: Tailwind utilities for exactly the sources
+ * bundled into the package, Seed's palette and prose styles, and base rules scoped to the agents
+ * UI. No preflight and no rules on `*` or `body`, so the host page keeps its own reset and look.
+ *
+ * Dark mode follows a `.dark` ancestor. Dialogs, menus and toasts render in portals on <body>, so
+ * a dark host puts `.dark` on <html> (or another ancestor of body's children).
+ */
+@import 'tailwindcss/theme.css';
+@import '../../ui/src/theme.css';
+@import '../../ui/src/hm-prose.css';
+@import 'tw-animate-css';
+
+@plugin '@tailwindcss/typography';
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant hover-hover {
+  @media (hover: hover) {
+    @slot;
+  }
+}
+
+@tailwind utilities;
+
+@layer base {
+  .seed-agents,
+  .seed-agents *,
+  [data-slot],
+  [data-slot] *,
+  [data-sonner-toaster] * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
+  }
+  .seed-agents {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}
+
+/* From @shm/ui/base.css: Radix scroll areas. */
+[data-slot='scroll-area-viewport'] {
+  width: 100%;
+  border-radius: inherit;
+}
+.scroll-area-full-height [data-slot='scroll-area-viewport'] {
+  height: 100% !important;
+}
+[data-slot='scroll-area-viewport'] > div {
+  max-width: 100% !important;
+  table-layout: fixed !important;
+  width: 100% !important;
+}
+.scroll-area-full-height [data-slot='scroll-area-viewport'] > div {
+  min-width: 100% !important;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+[data-slot='scroll-area-scrollbar'] {
+  z-index: 50;
+}

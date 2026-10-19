@@ -1,5 +1,5 @@
 import {useAppContext} from '@/app-context'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled} from '@/models/experiments'
 import {useNavigate} from '@/utils/useNavigate'
 import {type UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {type NavRoute} from '@shm/shared/routes'
@@ -30,7 +30,6 @@ export function resolveHypermediaRoute(url: string): {
 /** Opens Seed routes natively and web links according to the browser preference. */
 export function useOpenUrl() {
   const {externalOpen} = useAppContext()
-  const browserEnabled = useExperiments().data?.webBrowser === true
 
   const spawn = useNavigate('spawn')
   const push = useNavigate('push')
@@ -45,14 +44,13 @@ export function useOpenUrl() {
           push(appRoute)
         }
       } else if (isHttpUrl(url)) {
-        if (browserEnabled) {
-          ;(newWindow ? spawn : push)({key: 'web', url})
-        } else {
-          externalOpen(url)
-        }
+        void readWebBrowserEnabled().then((browserEnabled) => {
+          if (browserEnabled) (newWindow ? spawn : push)({key: 'web', url})
+          else externalOpen(url)
+        })
       } else {
         toast.error(`Failed to resolve route for "${url}"`)
       }
     }
-  }, [browserEnabled, externalOpen, spawn, push])
+  }, [externalOpen, spawn, push])
 }

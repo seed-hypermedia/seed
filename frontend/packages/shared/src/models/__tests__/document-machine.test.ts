@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from 'vitest'
 import {createActor, fromPromise} from 'xstate'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {
   createDefaultCollectionQueryBlock,
   deriveDocumentType,
@@ -11,6 +12,7 @@ import {
 } from '../document-machine'
 import {
   selectCanEditCurrentRoute,
+  selectIsCollection,
   selectPendingRemoteVersion,
   selectRenderableBlocks,
   selectShouldFocusDraftTitle,
@@ -18,6 +20,7 @@ import {
 } from '../use-document-machine'
 import {HMBlockNode, HMDocument} from '@seed-hypermedia/client/hm-types'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
+import type {ConfirmChildDeletionInput, ConfirmedChildDeletion} from '../../utils/confirmed-child-deletion'
 
 const mockDocumentId = {
   id: 'hm://z6Mktest/doc',
@@ -116,6 +119,84 @@ describe('document collection helpers', () => {
     expect(actor.getSnapshot().context.draftContent).toEqual([])
   })
 
+  describe.each(['document', 'collection'] as const)('discard conversion from %s', (originalType) => {
+    it('keeps the converted type after publishing', async () => {
+      const collectionContent = editorBlocksToHMBlockNodes([createDefaultCollectionQueryBlock('query')])
+      const publishedDocument = {
+        ...mockDocument,
+        content: originalType === 'document' ? collectionContent : [],
+        version: 'converted-version',
+      }
+      const machine = documentMachine.provide({
+        actors: {
+          writeDraft: fromPromise(async () => ({id: 'conversion-draft'})),
+          inspectChildDeletions: fromPromise<ConfirmedChildDeletion[], ConfirmChildDeletionInput>(async () => []),
+          publishDocument: fromPromise(async () => publishedDocument),
+        },
+      })
+      const actor = createActor(machine, {input: {documentId: mockDocumentId, canEdit: true}}).start()
+      try {
+        loadDocument(actor, {...mockDocument, content: originalType === 'collection' ? collectionContent : []})
+        actor.send({
+          type: originalType === 'document' ? 'collection.convertToCollection' : 'collection.convertToDocument',
+        })
+        await vi.waitFor(() => expect(actor.getSnapshot().context.draftCreated).toBe(true))
+        actor.send({type: 'publish.start'})
+        await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+        expect(selectIsCollection(actor.getSnapshot())).toBe(originalType === 'document')
+        expect(selectRenderableBlocks(actor.getSnapshot())).toEqual(publishedDocument.content)
+      } finally {
+        actor.stop()
+      }
+    })
+
+    it.each(['unsaved', 'saved', 'outside editing'] as const)(
+      'restores published content for a %s draft',
+      async (draftState) => {
+        const content = editorBlocksToHMBlockNodes(
+          originalType === 'collection'
+            ? [createDefaultCollectionQueryBlock('published-query')]
+            : [
+                {
+                  id: 'paragraph',
+                  type: 'paragraph',
+                  props: {},
+                  content: [{type: 'text', text: 'Original content', styles: {}}],
+                  children: [],
+                } as EditorBlock,
+              ],
+        )
+        const publishedDocument = {...mockDocument, content}
+        const actor = createTestActor().start()
+        try {
+          loadDocument(actor, publishedDocument)
+          actor.send({
+            type: originalType === 'document' ? 'collection.convertToCollection' : 'collection.convertToDocument',
+          })
+          actor.send({type: 'change', metadata: {name: 'Unpublished title'}})
+          expect(selectIsCollection(actor.getSnapshot())).toBe(originalType !== 'collection')
+          if (draftState !== 'unsaved') {
+            await vi.waitFor(() => expect(actor.getSnapshot().context.draftCreated).toBe(true))
+          }
+          if (draftState === 'outside editing') actor.send({type: 'edit.cancel'})
+
+          actor.send({type: 'edit.discard'})
+          await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+
+          const snapshot = actor.getSnapshot()
+          expect(selectIsCollection(snapshot)).toBe(originalType === 'collection')
+          expect(selectRenderableBlocks(snapshot)).toEqual(content)
+          expect(snapshot.context.document).toEqual(publishedDocument)
+          expect(snapshot.context.draftContent).toBeNull()
+          expect(snapshot.context.metadata).toEqual({})
+          expect(snapshot.context.draftId).toBeNull()
+        } finally {
+          actor.stop()
+        }
+      },
+    )
+  })
+
   it('writes the canonical collection query block when conversion autosaves', async () => {
     const writeInputs: any[] = []
     const machine = documentMachine.provide({
@@ -182,6 +263,47 @@ describe('document collection helpers', () => {
 
     await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
     expect(writeInputs[0].contentOverride).toEqual([])
+    actor.stop()
+  })
+
+  it('keeps the published collection query when the first draft edit is attributes-only', async () => {
+    const writeInputs: any[] = []
+    const machine = documentMachine.provide({
+      actors: {
+        writeDraft: fromPromise<WriteDraftOutput, any>(async ({input}) => {
+          writeInputs.push(input)
+          return {id: 'collection-draft', content: input.contentOverride}
+        }),
+        publishDocument: fromPromise<HMDocument, any>(async () => mockDocument),
+        discardDraft: fromPromise<void, any>(async () => {}),
+      },
+      delays: {autosaveTimeout: 10, saveIndicatorDismiss: 10},
+    })
+    const actor = createActor(machine, {
+      input: {documentId: mockDocumentId, canEdit: true},
+    }).start()
+    const publishedQuery = {
+      block: {
+        id: 'published-query',
+        type: 'Query',
+        attributes: {
+          style: 'Table',
+          query: {
+            includes: [{space: mockDocumentId.uid, path: (mockDocumentId.path || []).join('/'), mode: 'Children'}],
+          },
+        },
+      },
+      children: [],
+    }
+    loadDocument(actor, {...mockDocument, content: [publishedQuery]} as unknown as HMDocument)
+    await vi.waitFor(() => expect(actor.getSnapshot().matches('loaded')).toBe(true))
+    expect(actor.getSnapshot().context.documentType).toBe('collection')
+
+    actor.send({type: 'edit.start'})
+    actor.send({type: 'change', bindingSchemaDrafts: {childAttributesSchema: {type: 'hm://hyper.media/struct'}}})
+
+    await vi.waitFor(() => expect(writeInputs).toHaveLength(1))
+    expect(writeInputs[0].contentOverride).toEqual([expect.objectContaining({id: 'published-query', type: 'query'})])
     actor.stop()
   })
 

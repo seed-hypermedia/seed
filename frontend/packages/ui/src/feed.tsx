@@ -164,6 +164,7 @@ export function Feed({
     filterResource,
     filterAuthors,
     filterEventType,
+    targetBlockId,
   })
 
   // Setup and cleanup observer whenever dependencies change

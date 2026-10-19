@@ -19,7 +19,7 @@ jobs:
       - name: Install Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '22.22.0'
 
       # Configure AWS Credentials
       - name: Configure AWS Credentials
@@ -36,6 +36,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: node scripts/generate-prod-latest.js > .github/latest.json
+
+      - name: Hash assets and sign update manifest
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY_PROD }}
+          MINIMUM_CHROMIUM: ${{ vars.UPDATE_MINIMUM_CHROMIUM_PROD }}
+          CHROMIUM_RELEASED_AT: ${{ vars.UPDATE_CHROMIUM_RELEASED_AT_PROD }}
+        run:
+          node --experimental-strip-types frontend/apps/desktop/scripts/sign-release-manifest.ts .github/latest.json
+          prod
 
       # Upload to S3
       - name: Upload latest.json to S3

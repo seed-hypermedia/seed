@@ -2,9 +2,9 @@
  * Unit tests for the crypto module.
  * Tests key derivation, encryption/decryption, and encoding utilities.
  */
-import {describe, expect, test} from 'bun:test'
 import * as base64 from '@seed-hypermedia/client/base64'
 import * as encryption from '@seed-hypermedia/client/encryption'
+import {describe, expect, test} from 'bun:test'
 import * as crypto from './crypto'
 
 describe('crypto utilities', () => {
@@ -187,5 +187,60 @@ describe('full key derivation flow', () => {
     // Decrypt DEK.
     const decryptedDEK = await crypto.decrypt(encryptedDEK, encryptionKey)
     expect(decryptedDEK).toEqual(dek)
+  })
+})
+
+describe('recovery words', () => {
+  // Official BIP-39 test vector.
+  const vector = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about'.split(
+    ' ',
+  )
+
+  test('generates a valid 12-word phrase', () => {
+    const words = crypto.generateRecoveryWords()
+    expect(words).toHaveLength(crypto.RECOVERY_WORD_COUNT)
+    expect(crypto.isValidRecoveryPhrase(words)).toBe(true)
+    expect(crypto.generateRecoveryWords()).not.toEqual(words)
+  })
+
+  test('rejects unknown words, wrong length, and a failing checksum', () => {
+    expect(crypto.isValidRecoveryPhrase(vector)).toBe(true)
+    expect(crypto.isValidRecoveryPhrase([...vector.slice(0, 11), 'notaword'])).toBe(false)
+    expect(crypto.isValidRecoveryPhrase(vector.slice(0, 11))).toBe(false)
+    // Twelve known words whose checksum doesn't match.
+    expect(crypto.isValidRecoveryPhrase(Array(12).fill('abandon'))).toBe(false)
+  })
+
+  test('derives the same 32-byte secret from the same words, and it unwraps the DEK', async () => {
+    const secret = await crypto.deriveRecoverySecret(vector)
+    expect(secret).toHaveLength(32)
+    expect(await crypto.deriveRecoverySecret([...vector])).toEqual(secret)
+    expect(await crypto.deriveRecoverySecret(crypto.generateRecoveryWords())).not.toEqual(secret)
+
+    const dek = crypto.generateDEK()
+    const wrappedDEK = await crypto.encrypt(dek, secret)
+    expect(await crypto.decrypt(wrappedDEK, await crypto.deriveRecoverySecret(vector))).toEqual(dek)
+  })
+
+  test('refuses to derive a secret from an invalid phrase', async () => {
+    await expect(crypto.deriveRecoverySecret(Array(12).fill('abandon'))).rejects.toThrow()
+  })
+
+  test('reads the words back from the recovery document', () => {
+    const document = crypto.formatRecoveryDocument(vector, 'user@example.com')
+    expect(document).toContain('Account: user@example.com')
+    expect(crypto.parseRecoveryDocument(document)).toEqual(vector)
+    // Survives Windows line endings, indentation and capitalization from manual edits.
+    const edited = ['', 'Hypermedia recovery words', ...vector.map((word, i) => `  ${i + 1}.  ${word.toUpperCase()}`)]
+    expect(crypto.parseRecoveryDocument(edited.join('\r\n'))).toEqual(vector)
+  })
+
+  test('rejects documents that are not a complete recovery document', () => {
+    const document = crypto.formatRecoveryDocument(vector, 'user@example.com')
+    expect(crypto.parseRecoveryDocument(vector.join(' '))).toBeNull()
+    expect(crypto.parseRecoveryDocument(document.replace('Hypermedia recovery words', 'Notes'))).toBeNull()
+    expect(crypto.parseRecoveryDocument(document.replace('\n7. abandon', ''))).toBeNull()
+    expect(crypto.parseRecoveryDocument(`${document}\n3. zoo`)).toBeNull()
+    expect(crypto.parseRecoveryDocument(`${document}\n13. zoo`)).toBeNull()
   })
 })

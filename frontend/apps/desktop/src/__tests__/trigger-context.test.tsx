@@ -5,7 +5,8 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import type {AgentSessionTriggerContext} from '@shm/ui/agents/client'
 
 const navigate = vi.hoisted(() => vi.fn())
-vi.mock('@shm/ui/agents/navigation', () => ({useNavigate: () => navigate}))
+const openUrl = vi.hoisted(() => vi.fn())
+vi.mock('@shm/ui/agents/navigation', () => ({useNavigate: () => navigate, useOpenUrl: () => openUrl}))
 
 vi.mock('@shm/shared/models/entity', () => ({
   useAccount: () => ({data: null}),
@@ -32,6 +33,7 @@ let root: Root
 beforeEach(() => {
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
   navigate.mockClear()
+  openUrl.mockClear()
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)

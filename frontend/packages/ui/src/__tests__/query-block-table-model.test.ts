@@ -1,12 +1,13 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
+import {filterQueryBlockDocuments, getQueryBlockFilterOptions} from '@shm/shared/models/query-block-filter'
 import {describe, expect, it} from 'vitest'
 import {
   buildQueryTableColumns,
   filterQueryTableItems,
   getDocumentTags,
-  getQueryTableAccountIds,
   getQuerySortColumns,
+  getQueryTableAccountIds,
   inferAttributeType,
   moveQueryTableColumn,
   queryTableItemMatchesSearch,
@@ -38,7 +39,6 @@ describe('query block table model', () => {
     expect(columns.map((column) => [column.id, column.defaultVisible])).toEqual([
       ['title', true],
       ['space', false],
-      ['tags', true],
       ['updated', true],
       ['children', true],
       ['comments', true],
@@ -67,6 +67,63 @@ describe('query block table model', () => {
     expect(getDocumentTags(item('Two', {tags: ['one', 'two'], type: 'Collection'}))).toEqual(['one', 'two'])
   })
 
+  it('keeps filter attributes and their types when the displayed results are empty', () => {
+    const columns = buildQueryTableColumns([], {
+      'metadata:priority': {type: 'number', values: ['2', '5']},
+      'metadata:status': {type: 'text', values: ['Done', 'Ready']},
+    })
+
+    expect(columns.slice(-2)).toEqual([
+      {id: 'metadata:priority', label: 'Priority', type: 'number', defaultVisible: false},
+      {id: 'metadata:status', label: 'Status', type: 'text', defaultVisible: false},
+    ])
+  })
+
+  it('matches individual list values and includes missing attributes for IS NOT', () => {
+    const items = [
+      item('Both', {tags: ['Red', 'Blue']}),
+      item('Blue', {tags: ['Blue']}),
+      item('Missing', {}),
+      item('Null', {tags: null}),
+      item('Empty', {tags: []}),
+    ]
+
+    expect(
+      filterQueryTableItems(items, [{columnId: 'tags', operator: 'equals', value: 'red'}]).map(
+        (result) => result.metadata.name,
+      ),
+    ).toEqual(['Both'])
+    expect(
+      filterQueryTableItems(items, [{columnId: 'tags', operator: 'notEquals', value: 'red'}]).map(
+        (result) => result.metadata.name,
+      ),
+    ).toEqual(['Blue', 'Missing', 'Null', 'Empty'])
+  })
+
+  it('does not apply an IS NOT condition until a value is selected', () => {
+    const items = [item('One', {status: 'Done'}), item('Two', {})]
+    expect(filterQueryTableItems(items, [{columnId: 'metadata:status', operator: 'notEquals', value: ''}])).toEqual(
+      items,
+    )
+  })
+
+  it('uses the same equality rules as the collection request for all available values', () => {
+    const items = [
+      item('Strings', {tags: ['null', '[object Object]', 'Red,Blue'], enabled: false, priority: 0}),
+      item('Non-scalars', {tags: [null, {}, ['Red', 'Blue']]}),
+      item('Tags', {tags: 'Red, Blue'}),
+      item('Missing', {}),
+    ]
+    for (const [columnId, {values}] of Object.entries(getQueryBlockFilterOptions(items))) {
+      for (const value of values) {
+        for (const operator of ['equals', 'notEquals'] as const) {
+          const filters = [{columnId, operator, value}]
+          expect(filterQueryTableItems(items, filters)).toEqual(filterQueryBlockDocuments(items, {filters}))
+        }
+      }
+    }
+  })
+
   it('offers every predefined column and only visible custom columns for sorting', () => {
     const columns = buildQueryTableColumns([item('One', {status: 'Ready', priority: 2})])
 
@@ -75,7 +132,6 @@ describe('query block table model', () => {
     ).toEqual([
       'title',
       'space',
-      'tags',
       'updated',
       'children',
       'comments',

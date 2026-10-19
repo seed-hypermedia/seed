@@ -1,0 +1,32 @@
+manifestVersion: 1
+id: seed-site
+storage:
+  dataRoot: data
+environment:
+  - name: SEED_BASE_URL
+    services:
+      - web
+    note: Set the public HTTPS URL before registering. Use the URL configured for your tunnel or reverse proxy.
+category: social
+name: Seed Site
+version: '2026.10.2'
+tagline: A peer-to-peer site for hypermedia.
+description: >-
+  Register in the Seed desktop app using <SEED_BASE_URL>/hm/register?secret=<the password Umbrel shows>. The root page
+  returns 404 until the site is registered. The site is LAN-only until you expose it with Cloudflare Tunnel or a similar
+  service; set SEED_BASE_URL to that public URL in the app settings before registering. This app supports amd64 only.
+releaseNotes: ''
+developer: Seed Hypermedia
+website: https://seed.hyper.media
+dependencies: []
+repo: https://github.com/seed-hypermedia/seed
+support: https://github.com/seed-hypermedia/seed/issues
+port: 3567
+icon: https://cdn.jsdelivr.net/gh/horacioh/seed@custom-images/ops/umbrel/seed-site/icon.png
+gallery: []
+path: ''
+deterministicPassword: true
+defaultUsername: ''
+defaultPassword: ''
+submitter: Seed Hypermedia
+submission: https://github.com/horacioh/seed/pull/39

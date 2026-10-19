@@ -1,6 +1,10 @@
 import {grpcClient} from '@/client.server'
 import {daemonAuthClearCookie, daemonAuthSetCookie} from '@/daemon-auth.server'
+import {requireSignInEnabled} from '@/require-sign-in.server'
+import {resolveMemberAccount} from '@/site-membership.server'
 import {withCors} from '@/utils/cors'
+import {signWebSession, webSessionClearCookie, webSessionSecret, webSessionSetCookie} from '@/web-session.server'
+import {principalToString} from '@shm/shared/blobs'
 import {AuthenticateRequest} from '@shm/shared/client/grpc-types'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {ActionFunctionArgs} from '@remix-run/node'
@@ -35,6 +39,7 @@ export async function action({request}: ActionFunctionArgs) {
     if (request.method === 'DELETE') {
       const headers = new Headers()
       headers.append('Set-Cookie', await daemonAuthClearCookie())
+      headers.append('Set-Cookie', webSessionClearCookie())
       return withCors(new Response(null, {status: 204, headers}))
     }
 
@@ -49,8 +54,22 @@ export async function action({request}: ActionFunctionArgs) {
     if (!expireTime) {
       return withCors(new Response('Authenticate response missing expire_time', {status: 502}))
     }
+    const expiresAt = Math.floor(expireTime.getTime() / 1000)
     const headers = new Headers()
-    headers.append('Set-Cookie', await daemonAuthSetCookie(result.bearerToken, Math.floor(expireTime.getTime() / 1000)))
+    if (requireSignInEnabled()) {
+      // The daemon mints a token for any key it has seen a blob from, so
+      // membership is decided here, before any cookie leaves the server.
+      const secret = webSessionSecret()
+      if (!secret) {
+        return withCors(new Response('Sign-in is not configured on this site', {status: 503}))
+      }
+      const account = await resolveMemberAccount(principalToString(authRequest.account))
+      if (!account) {
+        return withCors(new Response('This account is not a member of this site', {status: 403}))
+      }
+      headers.append('Set-Cookie', webSessionSetCookie(signWebSession({account, exp: expiresAt}, secret), expiresAt))
+    }
+    headers.append('Set-Cookie', await daemonAuthSetCookie(result.bearerToken, expiresAt))
 
     return withCors(new Response(null, {status: 204, headers}))
   } catch (error) {

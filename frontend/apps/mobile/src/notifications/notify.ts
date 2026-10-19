@@ -11,23 +11,25 @@ import {
   type NotificationSigner,
 } from '@shm/shared/models/notification-service'
 import type {NotificationMutationAction, NotificationStateSnapshot} from '@shm/shared/models/notification-state'
+import {HOSTED_NOTIFY_SERVICE_URL, normalizeNotifyServiceUrl} from '@shm/shared/notify-url'
 import {fetchSiteConfig} from '../client/site-config'
 import {getCurrentServer} from '../store/server-store'
 import {getVaultManager} from '../vault'
 
-export const DEFAULT_NOTIFY_HOST = 'https://notify.seed.hyper.media'
+export const DEFAULT_NOTIFY_HOST = HOSTED_NOTIFY_SERVICE_URL
 
 /**
  * Desktop-parity resolution order: vault-synced notificationServerUrl →
- * the connected server's announced notifyServiceHost → the public default.
+ * the connected server's announced notify service → the public default.
  */
 export async function resolveNotifyHost(): Promise<string> {
   const manager = await getVaultManager()
-  const vaultUrl = manager.getNotificationServerUrl()
+  const vaultUrl = normalizeNotifyServiceUrl(manager.getNotificationServerUrl())
   if (vaultUrl) return vaultUrl
   try {
     const config = await fetchSiteConfig(getCurrentServer().url)
-    if (config.notifyServiceHost) return config.notifyServiceHost
+    const announced = normalizeNotifyServiceUrl(config.notifyServiceUrl || config.notifyServiceHost)
+    if (announced) return announced
   } catch {
     // The server may be unreachable or have no config — fall through.
   }

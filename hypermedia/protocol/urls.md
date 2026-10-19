@@ -39,7 +39,7 @@ A path segment beginning with `:` after the document path selects a view of the 
 | suffix <!-- col:zvOkSMbZ --> | shows <!-- col:EN9M9UTm --> | notes <!-- col:yPWuXlns --> <!-- id:hHX1Vr6g --> |
 | --- | --- | --- |
 | `/:directory` | the documents under this path | listing via [`Query`](../query.md); reserved but unimplemented in daemon discovery <!-- id:_XZPpsw7 --> |
-| `/:comments` | the discussion | `/:comments/<uid>/<tsid>` opens one comment <!-- id:JBzA6ClQ --> |
+| `/:comments` | the discussion | `/:comments/<uid>/<tsid>` opens one comment; `?panel=comments/<uid>/<tsid>` opens it in the side panel instead <!-- id:JBzA6ClQ --> |
 | `/:activity` | the activity feed | `/:activity/comments`, `/versions`, `/citations` filter it <!-- id:H0vhpJEl --> |
 | `/:collaborators` | who may [write](./permissions.md) here | <!-- id:3LQrMFfp --> |
 | `/:attributes` | the metadata as attributes | `/:metadata` is accepted for old links <!-- id:Yg_h-f9E --> |
@@ -53,6 +53,8 @@ The [agents runtime](../agent.md)'s [`read`](../agent/read.md) verb accepts `/:d
 # Comments and other records <!-- id:MTAqFeRT -->
 
 A [comment](./comments.md)'s identity is `<author uid>/<tsid>`, and its address is `hm://<author uid>/<tsid>`. The record lives in its author's space. The document it is about may be in another space. On the web it is usually shown in context as `https://<site>/<doc path>/:comments/<author uid>/<tsid>`, with `?v=<comment cid>` pinning one edit of the comment. Contacts are addressed the same way by TSID. [Capabilities](./permissions.md) have no URL, and the API lists them. The daemon's link indexer also understands `hm://c/<cid>`, a link to one exact comment blob, but the apps do not produce that form today. <!-- id:SGCNi-zq -->
+
+The apps and the web server read a comment's place on the page from the URL. `/<doc path>/:comments/<uid>/<tsid>` shows the discussion as the main view with that comment highlighted, and "Copy comment link" always produces this form. `/<doc path>?panel=comments/<uid>/<tsid>` shows the document as the main view with the discussion in the side panel. The two combine. Replying from the main view rewrites the path form, and replying from the side panel rewrites the `panel` parameter. Older links still parse: `/:discussions` means `/:comments`, `?panel=comment/<uid>/<tsid>` means `?panel=comments/…`, and `?panel=discussions/<block id>` opens the discussion of one block. The parser is `createDocumentNavRoute` in [`frontend/packages/shared/src/routes.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/shared/src/routes.ts).
 
 # Web URLs and hm URLs <!-- id:Q6dkury9 -->
 

@@ -146,6 +146,7 @@ import {AgentsNoAccountPage} from './no-account'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {NewSessionComposer} from './new-session-composer'
 import {type AgentsRichEditorSubmitHandle} from './platform'
+import {randomUUID} from './random-id'
 
 function AgentDetailPage({
   agentId,
@@ -858,7 +859,8 @@ function sameModelRefs(a: AgentModelRef[], b: AgentModelRef[]): boolean {
 
 function agentPromptToBlocks(prompt: AgentDefinition['systemPrompt']): HMBlockNode[] {
   if (Array.isArray(prompt)) return prompt as HMBlockNode[]
-  return markdownBlockNodesToHMBlockNodes(parseMarkdown(prompt || '').tree)
+  // Display path: a prompt that happens to start with a broken `---` block still has to render.
+  return markdownBlockNodesToHMBlockNodes(parseMarkdown(prompt || '', {strictFrontmatter: false}).tree)
 }
 
 /**
@@ -2495,7 +2497,7 @@ function AgentTriggersTab({
   }
 
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 pb-4">
       {isLoading ? <SizableText color="muted">Loading triggers…</SizableText> : null}
       {!isLoading && !triggers.length ? (
         <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-6">
@@ -2656,7 +2658,7 @@ function CreateAgentTriggerDialog({
   )
   const [continuation, setContinuation] = useState<TriggerContinuation>({kind: 'newThread'})
   const agentTools = useAgentTools(input.serverUrl, input.selectedAccountId, input.agentId)
-  const createRequestId = useRef(crypto.randomUUID())
+  const createRequestId = useRef(randomUUID())
   const createRequestKey = useRef('')
 
   async function handleCreateTrigger() {
@@ -2672,7 +2674,7 @@ function CreateAgentTriggerDialog({
       }
       const requestKey = JSON.stringify(trigger)
       if (createRequestKey.current && createRequestKey.current !== requestKey) {
-        createRequestId.current = crypto.randomUUID()
+        createRequestId.current = randomUUID()
       }
       createRequestKey.current = requestKey
       const result = await createTrigger.mutateAsync({

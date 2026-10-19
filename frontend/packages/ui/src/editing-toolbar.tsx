@@ -20,7 +20,7 @@ import {pathNameify} from '@shm/shared/utils/path'
 import {Check, ChevronRight, Clock, Copy, FileDiff, Pencil, Trash, X} from 'lucide-react'
 import React, {forwardRef, useState} from 'react'
 import {Button} from './button'
-import {Input} from './components/input'
+import {PathInput} from './path-input'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
@@ -136,7 +136,7 @@ export function PublishPopoverBody({
   }
 
   const buildPath = () => {
-    const slug = pathNameify((renameSegment ?? '').trim())
+    const slug = renameSegment ?? ''
     const parent = (effectivePath ?? []).slice(0, -1)
     return {slug, path: [...parent, slug]}
   }
@@ -151,7 +151,7 @@ export function PublishPopoverBody({
     send({type: 'rename.retry', path})
   }
 
-  const currentSlug = pathNameify((renameSegment ?? '').trim())
+  const currentSlug = renameSegment ?? ''
   const unchanged = !isFirstPublish && currentSlug === (docId.path?.at(-1) ?? '')
   const canCommitRename = !committing && currentSlug.length > 0 && !unchanged
 
@@ -173,10 +173,10 @@ export function PublishPopoverBody({
         {renameActive ? (
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <Input
+              <PathInput
                 autoFocus
                 value={renameSegment ?? ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRenameSegment(e.target.value)}
+                onValueChange={setRenameSegment}
                 onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.select()}
                 onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                   if (e.key === 'Enter' && canCommitRename) {
@@ -400,6 +400,8 @@ export function PublishButtonWithPopover({
   unpublishedChildCount?: number
 } & EditingToolbarCallbacks) {
   const draftId = useDocumentSelector(selectDraftId)
+  const publishedDoc = useDocumentSelector(selectDocument)
+  const isUnpublishedDraft = !!draftId && !publishedDoc?.version
   const changeCount = useUnpublishedChangeCount()
   const effectiveUnpublishedChildCount = Math.max(unpublishedChildCount, getUnpublishedChildCount?.() ?? 0)
   const canPublish = canPublishDocument({
@@ -415,7 +417,7 @@ export function PublishButtonWithPopover({
   if (draftId) {
     editingTrailingItems.push({
       key: 'discard-changes',
-      label: 'Discard Changes',
+      label: isUnpublishedDraft ? 'Delete Draft' : 'Discard Changes',
       icon: <Trash className="size-4" />,
       variant: 'destructive' as const,
       onClick: () => {
@@ -428,7 +430,10 @@ export function PublishButtonWithPopover({
     })
   }
 
-  const allItems = [...existingMenuItems, ...editingTrailingItems]
+  const allItems = [
+    ...existingMenuItems.filter((item) => !isUnpublishedDraft || item.key !== 'delete'),
+    ...editingTrailingItems,
+  ]
 
   const publishNow = () => {
     if (!canPublish) return

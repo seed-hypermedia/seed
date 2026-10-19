@@ -117,6 +117,18 @@ describe('local media paste helpers', () => {
     })
   })
 
+  it('uses the normalized attachment name after local conversion', () => {
+    const file = new File(['heic'], 'camera.heic', {type: 'image/heic'})
+
+    expect(
+      createNodePropsFromAttachmentResult(
+        file,
+        {url: 'ipfs://cid', displaySrc: '', name: 'camera.webp', mime: 'image/webp'},
+        'image',
+      ),
+    ).toMatchObject({name: 'camera.webp'})
+  })
+
   it('maps web comment mediaRef results to draft media node props', () => {
     const file = new File(['image'], 'paste.png', {type: 'image/png'})
     const mediaRef = {

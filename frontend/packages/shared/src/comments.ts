@@ -132,3 +132,44 @@ export function useCommentGroups(comments?: Array<HMComment>, targetCommentId?: 
     [comments, targetCommentId],
   )
 }
+
+/** Restores a reply chain and groups the branches outside it under their parents. */
+export function getCommentContinuation(comments: HMComment[] | undefined, contextId: string, replyCommentId?: string) {
+  const byId = new Map(comments?.map((comment) => [comment.id, comment]))
+  const chain: HMComment[] = []
+  const visited = new Set<string>()
+  let current = byId.get(replyCommentId || contextId)
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id)
+    chain.unshift(current)
+    if (current.id === contextId) {
+      const remaining = comments?.filter((comment) => !visited.has(comment.id))
+      const branches = chain.flatMap((parent) => {
+        const groups = getCommentGroups(remaining, parent.id)
+        return groups.length ? [{parent, groups}] : []
+      })
+      return {chain, branches}
+    }
+    current = current.replyParent ? byId.get(current.replyParent) : undefined
+  }
+  return null
+}
+
+/** Shows submitted roots before list refresh, without restoring acknowledged roots that were removed. */
+export function getSubmittedCommentGroups(
+  groups: HMCommentGroup[] | undefined,
+  submittedRoots: HMComment[],
+  acknowledgedRoots: ReadonlySet<string>,
+): HMCommentGroup[] {
+  const rootGroups = [...(groups ?? [])]
+  for (const submittedRoot of submittedRoots) {
+    const index = rootGroups.findIndex((group) => group.comments.some((comment) => comment.id === submittedRoot.id))
+    if (index < 0 && acknowledgedRoots.has(submittedRoot.id)) continue
+    const group =
+      index >= 0
+        ? rootGroups.splice(index, 1)[0]!
+        : {id: submittedRoot.id, type: 'commentGroup' as const, comments: [submittedRoot], moreCommentsCount: 0}
+    rootGroups.unshift(group)
+  }
+  return rootGroups
+}

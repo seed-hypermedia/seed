@@ -14,6 +14,25 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Pi Durable sessions. `pi_entry_id` is the durable transcript entry a session event was
+  // projected from: an interrupted projection resumes after the highest id, and events without one
+  // are the ones a turn still has to import into the session's durable conversation.
+  // `session_durable_files` holds each session's durable store (see durable-session.ts).
+  `ALTER TABLE session_events ADD COLUMN pi_entry_id INTEGER;
+  CREATE TABLE session_durable_files (
+      session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+      file TEXT NOT NULL,
+      seq INTEGER NOT NULL,
+      data BLOB NOT NULL,
+      PRIMARY KEY (session_id, file, seq)
+  );`,
+  // Top-level session listings (per agent, and account-wide) walked the whole NULL-parent bucket of
+  // sessions_by_parent and temp-b-tree-sorted it (35–90 ms per page on production): the stat1 row
+  // averages 6 rows per parent, but NULL holds every top-level session on the server. These serve
+  // `parent_session_id IS NULL ORDER BY updated_at DESC, id DESC` directly, and the first one also
+  // answers GetAgent's top-level session COUNT.
+  `CREATE INDEX IF NOT EXISTS sessions_top_by_agent ON sessions (agent_id, parent_session_id, updated_at DESC, id DESC);
+  CREATE INDEX IF NOT EXISTS sessions_top_by_time ON sessions (parent_session_id, updated_at DESC, id DESC);`,
   // A trigger-launched workflow's child sessions were recorded nowhere as the firing's: the firing
   // adopts the first one as its session (so it carries "Triggered by" and appears on the trigger's
   // page) and any later child of the same firing nests under that first one.

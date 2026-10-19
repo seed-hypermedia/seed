@@ -17,8 +17,10 @@ import {
 import {
   createInspectNavRoute,
   DocumentPanelRoute,
+  extractRefs,
   findContentBlock,
   getBlockText,
+  getDraftMentionRefs,
   getDraftNodesOutline,
   getMetadataName,
   getNodesOutline,
@@ -44,6 +46,7 @@ import type {
   DocumentContentProps,
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
+import {CONTENT_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage, processImageIfSupported} from './image-processing'
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {parseExploreQuery, type HMExploreResultType} from '@shm/shared/explore'
 import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
@@ -59,9 +62,12 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
+import {useMentionNames} from '@shm/shared/models/inline-mentions'
+import {blockToPlainText} from '@shm/shared/content-to-text'
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {queryQueryBlock} from '@shm/shared/models/queries'
+import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {
   documentMachine,
@@ -116,6 +122,7 @@ import {
   FilePen,
   FileText,
   Grid3X3,
+  LayoutGrid,
   List as ListIcon,
   MoreHorizontal,
   Pencil,
@@ -195,9 +202,11 @@ import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-mess
 import {PanelLayout} from './panel-layout'
 import {PrivateBadge} from './private-badge'
 import {QueryBlockContent} from './query-block-content'
+import {buildSlotItems} from './query-block-draft-items'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {SiteHeader} from './site-header'
 import {Spinner} from './spinner'
+import {Tooltip} from './tooltip'
 import {toast} from './toast'
 import {useBlockScroll} from './use-block-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
@@ -821,6 +830,8 @@ function getActiveView(routeKey: string): ActiveView {
 }
 
 export interface CommentEditorProps {
+  /** Called after the comment is published successfully. */
+  onCommentSubmitted?: (comment: HMComment) => void
   docId: UnpackedHypermediaId
   quotingBlockId?: string
   /** Codepoint range within the quoted block. Absent ⇒ whole-block quote. */
@@ -2016,7 +2027,7 @@ function DocumentBody({
   const changeCover = useCallback(
     async (file: File) => {
       if (!fileUpload) return
-      const cid = await fileUpload(file)
+      const cid = await fileUpload(await processImage(file, COVER_IMAGE_POLICY))
       beginEditIfNeeded()
       send({type: 'change', metadata: {cover: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`}})
     },
@@ -2097,6 +2108,7 @@ function DocumentBody({
     route.key === 'comments'
       ? {
           openComment: route.openComment,
+          replyCommentId: route.replyCommentId,
           targetBlockId: route.targetBlockId,
           blockId: route.blockId,
           blockRange: route.blockRange,
@@ -2242,6 +2254,14 @@ function DocumentBody({
 
   const breadcrumbResults = useResources(resourceFetchIds, {subscribed: true})
 
+  const focusedBlock = useMemo(
+    () => (routeBlockRef && document.content ? findContentBlock(document.content, routeBlockRef)?.block : null),
+    [routeBlockRef, document.content],
+  )
+  const focusedBlockMentionNames = useMentionNames(
+    useMemo(() => (focusedBlock ? extractRefs([{block: focusedBlock, children: []}]) : []), [focusedBlock]),
+  )
+
   const breadcrumbs = useMemo((): BreadcrumbEntry[] | undefined => {
     if (isHomeDoc) return undefined
     const lastIdx = breadcrumbIds.length - 1
@@ -2338,18 +2358,16 @@ function DocumentBody({
     }
 
     // Append block text when a block is focused
-    if (routeBlockRef && document.content) {
-      const blockNode = findContentBlock(document.content, routeBlockRef)
-      if (blockNode?.block) {
-        let text = getBlockText(blockNode.block)
-        const routeId = 'id' in route && typeof route.id === 'object' ? route.id : null
-        const blockRange = routeId?.blockRange ?? null
-        if (blockRange && typeof blockRange.start === 'number' && typeof blockRange.end === 'number') {
-          text = text.slice(blockRange.start, blockRange.end)
-        }
-        const truncated = text.length > 40 ? text.slice(0, 40) + '…' : text
-        if (truncated) items.push({label: `"${truncated}"`})
-      }
+    if (focusedBlock) {
+      const routeId = 'id' in route && typeof route.id === 'object' ? route.id : null
+      const blockRange = routeId?.blockRange ?? null
+      const range =
+        blockRange && typeof blockRange.start === 'number' && typeof blockRange.end === 'number'
+          ? {start: blockRange.start, end: blockRange.end}
+          : undefined
+      const text = blockToPlainText(focusedBlock, focusedBlockMentionNames, range)
+      const truncated = text.length > 40 ? text.slice(0, 40) + '…' : text
+      if (truncated) items.push({label: `"${truncated}"`})
     }
 
     return items
@@ -2365,8 +2383,8 @@ function DocumentBody({
     existingDraft,
     ctx.metadata?.name,
     activeView,
-    routeBlockRef,
-    document.content,
+    focusedBlock,
+    focusedBlockMentionNames,
     route,
   ])
 
@@ -3085,6 +3103,7 @@ function DocumentBody({
               contentMaxWidth={contentMaxWidth}
               targetDomain={siteUrl}
               openComment={commentsPanelTarget.openComment}
+              replyCommentId={panelRoute?.key === 'comments' ? panelRoute.replyCommentId : undefined}
               targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
               blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
               blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
@@ -3418,6 +3437,7 @@ function CommentsPanelContent({
         contentMaxWidth={contentMaxWidth}
         targetDomain={targetDomain}
         openComment={openComment}
+        replyCommentId={panelRoute.replyCommentId}
         targetBlockId={panelRoute.targetBlockId}
         blockId={panelRoute.blockId}
         blockRange={panelRoute.blockRange}
@@ -4068,6 +4088,7 @@ function DocumentCollection({
   queryBlock: EditorBlock | null
   canEdit: boolean
 }) {
+  const {DraftSlot} = useQueryBlockDrafts()
   const client = useUniversalClient()
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
@@ -4153,10 +4174,11 @@ function DocumentCollection({
     [canEdit, beginEditIfNeeded, send],
   )
 
-  return (
-    <div className="w-full px-5 pt-4 pb-8">
-      <div className="border-border bg-background overflow-hidden rounded-xl border">
-        <div className="border-border flex flex-wrap items-center justify-end gap-3 border-b px-5 py-4">
+  const renderContent = (slot: QueryBlockDraftSlotData | null) => {
+    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
+    return (
+      <QueryBlockContent
+        toolbarActions={
           <div className="flex items-center gap-2">
             <Tabs
               value={style}
@@ -4172,44 +4194,57 @@ function DocumentCollection({
                   List
                 </TabsTrigger>
                 <TabsTrigger value="Card">
-                  <Grid3X3 />
+                  <LayoutGrid />
                   Cards
                 </TabsTrigger>
               </TabsList>
             </Tabs>
             <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Query settings">
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </PopoverTrigger>
+              <Tooltip content="Query settings">
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="Query settings">
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+              </Tooltip>
               <PopoverContent align="end" className="w-80">
                 <CollectionQuerySettings props={props} onChange={updateQueryProps} />
               </PopoverContent>
             </Popover>
           </div>
-        </div>
-        <QueryBlockContent
-          items={query.data?.results ?? []}
-          style={style}
-          columnCount={columnCount}
-          banner={banner}
-          accountsMetadata={query.data?.accountsMetadata ?? {}}
-          interactionSummaries={query.data?.interactionSummaries ?? {}}
-          isDiscovering={query.isLoading}
-          tableConfig={tableConfig}
-          onTableConfigChange={handleTableConfigChange}
-          tableSorting={querySort.map(({term, reverse}) => ({id: term, desc: reverse}))}
-          onTableSortingChange={handleTableSortingChange}
-          navigateCards
-          viewerSearch={viewerSearch}
-          onViewerSearchChange={setViewerSearch}
-          viewerFilters={viewerFilters}
-          onViewerFiltersChange={setViewerFilters}
-          totalMatches={query.data?.totalMatches}
-          isUpdating={query.isFetching && !query.isLoading}
-          viewerQueryApplied={query.data?.totalMatches !== undefined}
-        />
+        }
+        items={query.data?.results ?? []}
+        style={style}
+        columnCount={columnCount}
+        banner={bannerContent ? false : banner}
+        bannerContent={bannerContent}
+        prependItems={prependItems}
+        tableDrafts={tableDrafts}
+        onCreateDocument={slot?.onCreateDraft}
+        accountsMetadata={query.data?.accountsMetadata ?? {}}
+        interactionSummaries={query.data?.interactionSummaries ?? {}}
+        isDiscovering={query.isLoading}
+        tableConfig={tableConfig}
+        onTableConfigChange={handleTableConfigChange}
+        tableSorting={querySort.map(({term, reverse}) => ({id: term, desc: reverse}))}
+        onTableSortingChange={handleTableSortingChange}
+        navigateCards
+        viewerSearch={viewerSearch}
+        onViewerSearchChange={setViewerSearch}
+        viewerFilters={viewerFilters}
+        onViewerFiltersChange={setViewerFilters}
+        totalMatches={query.data?.totalMatches}
+        filterOptions={query.data?.filterOptions}
+        isUpdating={query.isFetching && !query.isLoading}
+        viewerQueryApplied={query.data?.totalMatches !== undefined}
+      />
+    )
+  }
+
+  return (
+    <div className="w-full px-5 pt-4 pb-8">
+      <div className="border-border bg-background overflow-hidden rounded-xl border">
+        {DraftSlot ? <DraftSlot targetId={docId}>{renderContent}</DraftSlot> : renderContent(null)}
       </div>
     </div>
   )
@@ -4308,6 +4343,7 @@ function MainContent({
   showCollapsed: boolean
   discussionsParams?: {
     openComment?: string
+    replyCommentId?: string
     targetBlockId?: string
     blockId?: string
     blockRange?: import('@seed-hypermedia/client/hm-types').BlockRange | null
@@ -4491,6 +4527,7 @@ function MainContent({
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
           openComment={discussionsParams?.openComment}
+          replyCommentId={discussionsParams?.replyCommentId}
           targetBlockId={discussionsParams?.targetBlockId}
           blockId={discussionsParams?.blockId}
           blockRange={discussionsParams?.blockRange}
@@ -4635,20 +4672,31 @@ function ContentViewWithOutline({
   // existingDraftContent may arrive in HMBlockNode[] or
   // EditorBlock[] shape. Pick the outline builder that matches.
   const outlineSource = existingDraftContent ?? document.content ?? []
-  const outline = useMemo(() => {
-    const first = outlineSource[0] as any
-    const isEditorFormat = first != null && 'type' in first && !('block' in first)
-    return isEditorFormat
-      ? getDraftNodesOutline(outlineSource as any, docId)
-      : getNodesOutline(outlineSource as any, docId)
-  }, [outlineSource, docId])
+  const firstOutlineBlock = outlineSource[0] as any
+  const isEditorFormat = firstOutlineBlock != null && 'type' in firstOutlineBlock && !('block' in firstOutlineBlock)
+  const outlineMentionNames = useMentionNames(
+    useMemo(
+      () => (isEditorFormat ? getDraftMentionRefs(outlineSource as any) : extractRefs(outlineSource)),
+      [outlineSource, isEditorFormat],
+    ),
+  )
+  const outline = useMemo(
+    () =>
+      isEditorFormat
+        ? getDraftNodesOutline(outlineSource as any, docId, undefined, outlineMentionNames)
+        : getNodesOutline(outlineSource, docId, undefined, outlineMentionNames),
+    [outlineSource, isEditorFormat, docId, outlineMentionNames],
+  )
   const handleFileAttachment = useMemo<DocumentContentProps['handleFileAttachment'] | undefined>(() => {
     if (!fileUpload) return undefined
     return async (file: File) => {
-      const cid = await fileUpload(file)
+      const attachment = await processImageIfSupported(file, CONTENT_IMAGE_POLICY)
+      const cid = await fileUpload(attachment)
       return {
         url: cid.startsWith('ipfs://') ? cid : `ipfs://${cid}`,
         displaySrc: '',
+        mime: attachment.type,
+        name: attachment.name,
       }
     }
   }, [fileUpload])

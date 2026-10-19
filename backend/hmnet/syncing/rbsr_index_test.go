@@ -5,11 +5,13 @@ import (
 	"testing"
 
 	"seed/backend/blob"
+	"seed/backend/core"
 	"seed/backend/hmnet/syncing/rbsr"
 	"seed/backend/util/colx"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -177,4 +179,91 @@ func TestLoadIndexedScopes_ClientPathMatchesLegacy(t *testing.T) {
 	exotic := DiscoveryKey{IRI: blob.IRI(base), BlobTypes: "Comment"}
 	_, err := loadIndexedScopes(ctx, db, colx.HashSet[DiscoveryKey]{exotic: {}}, newAuthorizedTreeStore())
 	require.ErrorIs(t, err, errScopeNotRepresentable)
+}
+
+// TestRbsrIndex_PrivateVisibilityFollowsItemsNotRows pins the loader end of the
+// visibility fix: the store query returns rows ordered one way (it used to sort
+// by timestamp then multihash) while the stores order items by timestamp then
+// CID bytes, and the two disagree for blobs sharing a timestamp but not a
+// codec — every media blob of a private document, since non-structural blobs
+// all sit at timestamp 0. Whatever order the rows arrive in, an unauthorized
+// peer must see every public blob and none of the private ones.
+func TestRbsrIndex_PrivateVisibilityFollowsItemsNotRows(t *testing.T) {
+	t.Parallel()
+	db, base := oracleFixture(t)
+	dkey := DiscoveryKey{IRI: blob.IRI(base), Recursive: true}
+	scopeID := materializeFixtureScope(t, db, dkey)
+	space := generatePrincipal(t)
+	ctx := context.Background()
+
+	// Two private media blobs with no structural row: a raw one (codec 0x55)
+	// whose multihash sorts after the dag-pb one's (codec 0x70), so the
+	// multihash order is the reverse of the CID-key order.
+	rawHash, dagHash := []byte{0x12, 0x00}, []byte{0x11, 0x00}
+	require.NoError(t, db.WithTx(ctx, func(conn *sqlite.Conn) error {
+		if err := sqlitex.Exec(conn, `INSERT INTO public_keys (principal) VALUES (?)`, nil, []byte(space)); err != nil {
+			return err
+		}
+
+		spaceID := conn.LastInsertRowID()
+		for _, q := range []struct {
+			sql  string
+			args []any
+		}{
+			{`INSERT INTO blobs (id, multihash, codec, size) VALUES (80, ?, 85, 1)`, []any{rawHash}},
+			{`INSERT INTO blobs (id, multihash, codec, size) VALUES (81, ?, 112, 1)`, []any{dagHash}},
+			{`INSERT INTO blob_visibility (id, space) VALUES (80, ?)`, []any{spaceID}},
+			{`INSERT INTO blob_visibility (id, space) VALUES (81, ?)`, []any{spaceID}},
+			{`INSERT INTO rbsr_item (scope, blob) VALUES (?, 80)`, []any{scopeID}},
+			{`INSERT INTO rbsr_item (scope, blob) VALUES (?, 81)`, []any{scopeID}},
+		} {
+			if err := sqlitex.Exec(conn, q.sql, nil, q.args...); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}))
+
+	private := map[string]bool{
+		cid.NewCidV1(85, rawHash).KeyString():  true,
+		cid.NewCidV1(112, dagHash).KeyString(): true,
+	}
+
+	for _, backend := range []struct {
+		name string
+		new  func() *authorizedStore
+	}{
+		{"slice", newAuthorizedStore},
+		{"tree", newAuthorizedTreeStore},
+	} {
+		t.Run(backend.name, func(t *testing.T) {
+			store := backend.new()
+			require.NoError(t, db.WithSave(ctx, func(conn *sqlite.Conn) error {
+				return buildStoreFromScopes(conn, []int64{scopeID}, store)
+			}))
+			require.NoError(t, store.Seal())
+
+			values := func(st *authorizedStore) map[string]bool {
+				out := map[string]bool{}
+				require.NoError(t, st.ForEach(0, st.Size(), func(_ int, item rbsr.Item) bool {
+					out[string(item.Value)] = true
+					return true
+				}))
+				return out
+			}
+
+			unauthorized := values(store.WithFilter(nil))
+			require.Len(t, unauthorized, store.Size()-len(private), "an unauthorized peer must see every public blob")
+			for key := range private {
+				require.NotContains(t, unauthorized, key, "a private blob must never be advertised to an unauthorized peer")
+			}
+
+			authorized := values(store.WithFilter([]core.Principal{space}))
+			require.Len(t, authorized, store.Size())
+			for key := range private {
+				require.Contains(t, authorized, key)
+			}
+		})
+	}
 }

@@ -145,6 +145,12 @@ CREATE INDEX sessions_by_agent ON sessions (agent_id, updated_at DESC);
 
 CREATE INDEX sessions_by_parent ON sessions (parent_session_id, created_at);
 
+-- Top-level listings: `parent_session_id IS NULL ORDER BY updated_at DESC, id DESC`, per agent and
+-- account-wide, without sorting every top-level session on the server.
+CREATE INDEX sessions_top_by_agent ON sessions (agent_id, parent_session_id, updated_at DESC, id DESC);
+
+CREATE INDEX sessions_top_by_time ON sessions (parent_session_id, updated_at DESC, id DESC);
+
 -- A continuation edge: an agent carried a conversation from the predecessor into a fresh
 -- successor session (continue_session). Distinct from parent/child (delegation that returns):
 -- the successor becomes the foreground conversation. The manifest is the successor's exact
@@ -203,10 +209,24 @@ CREATE TABLE session_events (
     seq INTEGER NOT NULL,
     event_cbor BLOB NOT NULL,
     created_at INTEGER NOT NULL,
+    -- Durable transcript entry (Pi Durable) this event was projected from; NULL for events written
+    -- by anything else, which a turn imports into the session's durable conversation.
+    pi_entry_id INTEGER,
     UNIQUE (session_id, seq)
 ) WITHOUT ROWID;
 
 CREATE INDEX session_events_by_created ON session_events (created_at DESC);
+
+-- A session's Pi Durable store: the model-facing transcript and the checkpoints of a turn in
+-- flight, in Pi Durable's own append-only JSONL files. A file is its rows concatenated in `seq`
+-- order; an append is one inserted row. Rebuilt from session_events when missing.
+CREATE TABLE session_durable_files (
+    session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+    file TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    data BLOB NOT NULL,
+    PRIMARY KEY (session_id, file, seq)
+);
 
 CREATE TABLE runs (
     id TEXT PRIMARY KEY,

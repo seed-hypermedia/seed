@@ -64,6 +64,13 @@ export function getLinkAttrsFromElement(element: HTMLElement): false | Record<st
 
   const href = element.getAttribute('data-hm-link') || element.getAttribute('href')
   if (!href) return false
+  // Clipboard and drag HTML share this schema parser, including Seed-looking attributes.
+  // Use the browser URL parser so whitespace and character references cannot hide a script scheme.
+  try {
+    if (['javascript:', 'vbscript:', 'data:'].includes(new URL(href, 'https://seed.invalid').protocol)) return false
+  } catch {
+    return false
+  }
 
   const attrs: Record<string, string> = {
     href,
@@ -185,8 +192,8 @@ export const Link = Mark.create<LinkOptions>({
     }
 
     return [
-      {tag: 'a[data-hm-link]:not([data-inline-embed]):not([href *= "javascript:" i])', getAttrs},
-      {tag: 'a[href]:not([data-inline-embed]):not([href *= "javascript:" i])', getAttrs},
+      {tag: 'a[data-hm-link]:not([data-inline-embed])', getAttrs},
+      {tag: 'a[href]:not([data-inline-embed])', getAttrs},
       {tag: 'span.link:not([data-inline-embed])', getAttrs},
     ]
   },

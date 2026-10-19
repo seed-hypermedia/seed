@@ -24,7 +24,7 @@ const MAX_LIST_ITEMS = 10_000
  * the target's whole citation fan-out before applying its LIMIT) must bound
  * this: unbounded enumeration of a hot document held the daemon's small read
  * pool and took production down on 2026-08-11 — see
- * docs/daemon-saturation-incident.md.
+ * hypermedia/apps/daemon.md, "Load and the read pool".
  */
 export async function listAllPages<TResponse, TItem>(
   fetchPage: (pageToken: string) => Promise<TResponse>,

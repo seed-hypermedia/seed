@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     // "target": "ESNext",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
     "module": "commonjs",
     "baseUrl": ".",
     "allowJs": true,
@@ -9,6 +9,7 @@
     "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
@@ -17,6 +18,8 @@
     "incremental": true,
     "plugins": [],
     "paths": {
+      // @electron/fuses exposes types through exports; bridge the legacy node resolver.
+      "@electron/fuses": ["../../../node_modules/@electron/fuses/dist/index"],
       "@/*": ["./src/*"],
       "@shm/ui": ["../../packages/ui/src/index.tsx"],
       "@shm/ui/*": ["../../packages/ui/src/*"],

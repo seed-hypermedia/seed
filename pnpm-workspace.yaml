@@ -17,23 +17,28 @@ packages:
 # an existing lockfile (frozen) is unaffected.
 minimumReleaseAge: 1440
 
-# image-size has no patched release. It is only pulled into the macOS packaging
-# toolchain by appdmg and does not process user-controlled images in Seed.
 auditConfig:
   ignoreGhsas:
+    # Tiptap 3.30.4 fix backported to our pinned Tiptap 2 package.
+    # Security CI verifies CJS/ESM behavior in tiptap-merge-attributes.test.cjs.
+    - GHSA-cp6q-959q-f8rh
+    # braces has no released fix for recursive AST exhaustion. The pinned 3.0.3
+    # dependency is patched locally with parse/walker depth limits; security CI
+    # exercises the installed patch in scripts/security/braces-depth.test.cjs.
+    - GHSA-vfj7-8cjw-p6xm
     # extract-zip has no patched release. The dependency is patched locally
     # with the upstream fix to reject a symlink at an archive entry's leaf path.
     # It is only used by the desktop packaging toolchain with trusted archives.
     - GHSA-7pqw-9j4j-h8q3
     - GHSA-jmr9-qjv8-65gv
   ignoreCves:
+    # The CNA rejected this sprintf-js CVE; GitHub still lists the stale advisory.
+    # https://cveawg.mitre.org/api/cve/CVE-2026-97058
+    - CVE-2026-97058
     # Remix 2 is coupled to React Router 6, which has no patched release.
     # The notify app cannot move to React Router 7 independently of Remix.
     - CVE-2026-53666
-    - CVE-2026-53668
     - CVE-2026-53669
-    - CVE-2025-71329
-    - CVE-2025-71330
 # trustPolicy: "no-downgrade"
 # Blocks installation if a package's trust level has decreased compared to its
 # previous release (e.g. was provenance-attested, now unsigned).

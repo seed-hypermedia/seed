@@ -15,19 +15,15 @@ import {
 import {renderToMjml} from '@faire/mjml-react/utils/renderToMjml'
 import {HMBlockNode, HMComment, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getMentionNotificationTitle, getNotificationDocumentName} from '@shm/shared/models/notification-titles'
-import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import mjml2html from 'mjml'
 import {MJMLParseResults} from 'mjml-core'
 import React from 'react'
 import {EmailContent, QuotedContent} from './components/EmailContent'
 import {EmailFooter} from './components/EmailFooter'
 import {EmailHeader} from './components/EmailHeader'
+import {buildEmailSettingsUrl, getNotifyEmailOrigin} from './notify-links'
 
 type GroupedNotifications = Record<Notification['reason'], Record<string, FullNotification[]>>
-
-function getNotifyServiceHost() {
-  return (NOTIFY_SERVICE_HOST || 'https://hyper.media').replace(/\/$/, '')
-}
 
 /** System font stack used across all email templates. */
 const SYSTEM_FONT_FAMILY =
@@ -646,7 +642,7 @@ export async function createNotificationsEmail(
 
     firstNotification.accountMeta,
   )
-  const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${opts.adminToken}`
+  const notifSettingsUrl = buildEmailSettingsUrl(getNotifyEmailOrigin(), opts.adminToken)
   const batchSiteUrl = extractOrigin(firstNotification.notif.url)
 
   const text = `${baseNotifsSubject}
@@ -864,7 +860,7 @@ export async function createDesktopNotificationsEmail(
   const subject = sorted.length === 1 ? firstText : `${sorted.length} new notifications`
   const preview = sorted.length === 1 ? firstText : `${firstText} and ${sorted.length - 1} more`
 
-  const notifSettingsUrl = `${getNotifyServiceHost()}/hm/email-notifications?token=${opts.adminToken}`
+  const notifSettingsUrl = buildEmailSettingsUrl(getNotifyEmailOrigin(), opts.adminToken)
   const desktopSiteUrl = extractOrigin(first.notif.url)
 
   const textLines = sorted

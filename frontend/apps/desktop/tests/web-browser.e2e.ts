@@ -1,14 +1,29 @@
 import {test, expect, _electron} from '@playwright/test'
 import {build} from 'esbuild'
+import {FiltersEngine} from '@ghostery/adblocker'
 import {createServer} from 'node:http'
-import {mkdtemp, writeFile, rm} from 'node:fs/promises'
+import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 
 test('embedded Chromium preserves history, routes Seed links, and isolates website privileges', async () => {
-  test.setTimeout(60000)
+  test.setTimeout(120000)
   const directory = await mkdtemp(path.join(tmpdir(), 'seed-web-browser-e2e-'))
+  let blockedHostRequests = 0
+  let trackerRequests = 0
   const server = createServer((request, response) => {
+    if (request.headers.host?.startsWith('seed-blocked.test:')) blockedHostRequests++
+    if (request.url === '/fixture-tracker.js') {
+      trackerRequests++
+      response.setHeader('Content-Type', 'application/javascript')
+      response.end('window.trackerLoaded = true')
+      return
+    }
+    if (request.url === '/tracking') {
+      response.setHeader('Content-Type', 'text/html')
+      response.end('<h1>Tracking fixture</h1><script src="/fixture-tracker.js"></script>')
+      return
+    }
     if (request.url === '/icons/site.svg') {
       if (!request.headers.cookie?.includes('icon-session=allowed')) {
         response.writeHead(401)
@@ -60,9 +75,16 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       <meta name="description" content="Fixture description">
       <article><h1>Article heading</h1><p>Archive this <strong>content</strong>.</p><p style="display:none">hidden-secret</p></article>
       <input id="remember" aria-label="Remember" value="initial">
-      <input type="password" value="password-secret">
+      <input type="password" aria-label="Password" value="password-secret">
+      <p style="opacity:0">opacity-secret</p>
+      <p style="position:absolute;left:-9999px">offscreen-secret</p>
+      <p style="font-size:1px">tiny-secret</p>
+      <p style="color:transparent">transparent-secret</p>
+      <span style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)">clip-secret</span>
+      <form action="https://collector.example/submit"><input aria-label="Leak"></form>
       <a id="next" href="/redirect">Next</a>
       <a id="seed" href="hm://alice/docs">Seed document</a>
+      <button id="fullscreen" onclick="document.documentElement.requestFullscreen().then(() => window.fullscreenResult = 'allowed', () => window.fullscreenResult = 'denied')">Fullscreen</button>
       <a id="popup" href="/popup" target="_blank">Popup</a>`)
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -89,26 +111,32 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       platform: 'node',
       external: ['electron'],
     })
+    await writeFile(html, `<html><body><div id="browser" style="width:900px;height:600px"></div></body></html>`)
+    await mkdir(path.join(directory, 'profile/browser'), {recursive: true})
     await writeFile(
-      html,
-      `<html><body><webview id="browser" partition="persist:seed-web-browser" src="about:blank" allowpopups style="width:900px;height:600px"></webview></body></html>`,
+      path.join(directory, 'profile/browser/blocklist.json'),
+      JSON.stringify({checkedAt: Date.now(), hosts: ['seed-blocked.test']}),
     )
-    electron = await _electron.launch({args: [main, '--fixture', html, preload, path.join(directory, 'profile')]})
+    const engine = FiltersEngine.parse('/fixture-tracker.js$script', {loadCosmeticFilters: false})
+    await writeFile(
+      path.join(directory, 'profile/browser/content-blocker.json'),
+      JSON.stringify({checkedAt: Date.now(), engine: Buffer.from(engine.serialize()).toString('base64')}),
+    )
+    electron = await _electron.launch({
+      args: [main, '--fixture', html, preload, path.join(directory, 'profile')],
+      env: {...process.env, SEED_FIXTURE_DATA_DIR: path.join(directory, 'profile')},
+    })
     const page = await electron.firstWindow()
-    await expect
-      .poll(() =>
-        page.evaluate(() => {
-          try {
-            return (document.getElementById('browser') as Electron.WebviewTag).getWebContentsId()
-          } catch {
-            return null
-          }
-        }),
-      )
-      .toBeTruthy()
-    const browserId = await page.evaluate(() =>
-      (document.getElementById('browser') as Electron.WebviewTag).getWebContentsId(),
-    )
+    // Electron 44 hands Playwright the window before loadFile commits; wait for the fixture page.
+    await page.waitForURL(/index\.html$/)
+    await page.waitForFunction(() => typeof (window as any).browserTest !== 'undefined')
+    // The app page never holds a web view: it asks the main process for a guest and places it.
+    const browserId: number = await page.evaluate(async () => {
+      const {browserId} = await (window as any).browserTest.create()
+      ;(window as any).browserTest.bounds({browserId, visible: true, bounds: {x: 0, y: 40, width: 900, height: 560}})
+      return browserId
+    })
+    expect(await page.evaluate(() => document.querySelector('webview'))).toBeNull()
     const navigate = async (url: string, requestId: number, historyIndex?: number) => {
       await page.evaluate((input) => (window as any).browserTest.navigate(input), {
         browserId,
@@ -142,16 +170,51 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
     const command = (input: Record<string, unknown>) =>
       page.evaluate((input) => (window as any).browserTest.execute(input), {connectionId, command: input})
     await expect(command({action: 'snapshot'})).rejects.toThrow('Browser access is paused')
+    const grant = {connectionId, browserId, accountUid: 'fixture-account', enabled: true}
+    await page.evaluate((input) => (window as any).browserTest.access(input), grant)
+    // A connection alone is not permission: the user has to allow this website.
+    await expect(command({action: 'snapshot'})).rejects.toThrow('has not allowed browser access')
     await page.evaluate((input) => (window as any).browserTest.access(input), {
-      connectionId,
-      browserId,
-      accountUid: 'fixture-account',
-      enabled: true,
+      ...grant,
+      origins: [{origin, level: 'act'}],
+    })
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [{origin, level: 'read'}],
+    })
+    const readSnapshot = await command({action: 'snapshot'})
+    await command({action: 'screenshot', document: readSnapshot.document})
+    await command({action: 'scroll', document: readSnapshot.document, y: 0})
+    await expect(command({action: 'click', document: readSnapshot.document, ref: 'e1'})).rejects.toThrow(
+      'allowed reading this website but not acting on it',
+    )
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [{origin, level: 'act'}],
     })
     const snapshot = await command({action: 'snapshot'})
     expect(snapshot.text).toContain('Article heading')
-    expect(JSON.stringify(snapshot)).not.toContain('password-secret')
-    expect(JSON.stringify(snapshot)).not.toContain('hidden-secret')
+    for (const secret of [
+      'password-secret',
+      'hidden-secret',
+      'opacity-secret',
+      'offscreen-secret',
+      'tiny-secret',
+      'transparent-secret',
+      'clip-secret',
+    ])
+      expect(JSON.stringify(snapshot)).not.toContain(secret)
+    const ref = (name: string) => snapshot.elements.find((element: any) => element.name === name).ref
+    await expect(
+      command({action: 'type', document: snapshot.document, ref: ref('Password'), text: 'guess'}),
+    ).rejects.toThrow('Password fields are for the user')
+    await expect(
+      command({action: 'type', document: snapshot.document, ref: ref('Leak'), text: 'secret'}),
+    ).rejects.toThrow('submits to another website')
+    const otherOrigin = origin.replace('127.0.0.1', 'localhost')
+    await expect(
+      command({action: 'navigate', document: snapshot.document, url: `${otherOrigin}/first`}),
+    ).rejects.toThrow("needs the user's approval")
     expect(await guest.evaluate((contents) => contents.executeJavaScript('typeof window.__seedBrowser'))).toBe(
       'undefined',
     )
@@ -244,12 +307,47 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       await guest.evaluate((contents) => contents.executeJavaScript("document.querySelector('#remember').value")),
     ).toBe('saved')
     await navigate(`${origin}/second`, 3, secondIndex)
-    await guest.evaluate((contents) => contents.executeJavaScript("document.querySelector('#seed').click()"))
+    await guest.evaluate((contents) =>
+      contents.executeJavaScript("document.querySelector('#seed').click(); document.querySelector('#popup').click()"),
+    )
+    expect(await page.evaluate(() => (window as any).browserTest.events())).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({type: 'browser-open-url'})]),
+    )
+    const clickGuest = async (selector: string) => {
+      await guest.evaluate(async (contents, target) => {
+        const point = await contents.executeJavaScript(
+          `(() => { const rect = document.querySelector(${JSON.stringify(
+            target,
+          )}).getBoundingClientRect(); return {x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2)} })()`,
+        )
+        contents.sendInputEvent({type: 'mouseDown', ...point, button: 'left', clickCount: 1})
+        contents.sendInputEvent({type: 'mouseUp', ...point, button: 'left', clickCount: 1})
+      }, selector)
+    }
+    // A denied fullscreen request may reject or simply never settle; what matters is that nothing
+    // went fullscreen and the view kept its place under Seed's header.
+    await clickGuest('#fullscreen')
+    // Not awaited inside the page: a denied request can stay pending forever.
+    await guest.evaluate((contents) =>
+      contents.executeJavaScript('void document.documentElement.requestFullscreen().catch(() => {}); 0', true),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    expect(await guest.evaluate((contents) => contents.executeJavaScript('window.fullscreenResult'))).not.toBe(
+      'allowed',
+    )
+    expect(await guest.evaluate((contents) => contents.executeJavaScript('!!document.fullscreenElement'))).toBe(false)
+    expect(await electron.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0]!.isFullScreen())).toBe(false)
+    expect(
+      await electron.evaluate(({BrowserWindow}) =>
+        BrowserWindow.getAllWindows()[0]!.contentView.children.at(-1)!.getBounds(),
+      ),
+    ).toEqual({x: 0, y: 40, width: 900, height: 560})
+    await clickGuest('#seed')
     await expect
       .poll(() => page.evaluate(() => (window as any).browserTest.events()))
       .toEqual(expect.arrayContaining([expect.objectContaining({type: 'browser-open-url', url: 'hm://alice/docs'})]))
     expect(await guest.evaluate((contents) => contents.getURL())).toBe(`${origin}/second`)
-    await guest.evaluate((contents) => contents.executeJavaScript("document.querySelector('#popup').click()"))
+    await clickGuest('#popup')
     await expect
       .poll(() => page.evaluate(() => (window as any).browserTest.events()))
       .toEqual(expect.arrayContaining([expect.objectContaining({type: 'browser-open-url', url: `${origin}/popup`})]))
@@ -260,8 +358,119 @@ test('embedded Chromium preserves history, routes Seed links, and isolates websi
       .toEqual(
         expect.arrayContaining([expect.objectContaining({type: 'browser-location', url: `${origin}/second#section`})]),
       )
+    const reboundUrl = `http://seed-rebinding.test:${address.port}/first`
+    // Even a website the user allowed is refused when its hostname resolves to a private address.
+    await page.evaluate((input) => (window as any).browserTest.access(input), {
+      ...grant,
+      origins: [origin, new URL(reboundUrl).origin].map((origin) => ({origin, level: 'act'})),
+    })
+    await navigate(reboundUrl, 4)
+    await expect(command({action: 'snapshot'})).rejects.toThrow('private network')
+    const reboundIndex = await guest.evaluate((contents) => contents.navigationHistory.getActiveIndex())
+    await navigate(`${origin}/first`, 5)
+    expect((await command({action: 'snapshot'})).url).toBe(`${origin}/first`)
+    await navigate(reboundUrl, 6, reboundIndex)
+    await expect(command({action: 'snapshot'})).rejects.toThrow('private network')
+    const blockedUrl = `http://seed-blocked.test:${address.port}/first`
+    await navigate(blockedUrl, 7)
+    await expect
+      .poll(() => guest.evaluate((contents) => contents.executeJavaScript('document.body.innerText')))
+      .toContain('seed-blocked.test was flagged by OpenPhish')
+    expect(await guest.evaluate((contents) => contents.executeJavaScript('document.body.innerText'))).not.toContain(
+      'Article heading',
+    )
+    expect(blockedHostRequests).toBe(0)
+    // A main-process load bypasses will-navigate and must still be stopped by webRequest.
+    await navigate(`${origin}/first`, 8)
+    await guest.evaluate((contents, url) => contents.loadURL(url).catch(() => {}), blockedUrl)
+    await expect
+      .poll(() => guest.evaluate((contents) => contents.executeJavaScript('document.body.innerText')))
+      .toContain('seed-blocked.test was flagged by OpenPhish')
+    expect(blockedHostRequests).toBe(0)
+    await navigate(`${origin}/tracking`, 9)
+    await expect
+      .poll(() => page.evaluate(() => (window as any).browserTest.events()))
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'browser-blocked-count',
+            browserId,
+            url: `${origin}/tracking`,
+            count: 1,
+            allowed: false,
+          }),
+        ]),
+      )
+    expect(trackerRequests).toBe(0)
+    await page.evaluate((input) => (window as any).browserTest.allowTrackers(input), {browserId, origin, allowed: true})
+    await expect
+      .poll(() => guest.evaluate((contents) => contents.executeJavaScript('window.trackerLoaded === true')))
+      .toBe(true)
+    expect(trackerRequests).toBe(1)
+    await expect
+      .poll(() => page.evaluate(() => (window as any).browserTest.events()))
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'browser-blocked-count',
+            browserId,
+            url: `${origin}/tracking`,
+            count: 0,
+            allowed: true,
+          }),
+        ]),
+      )
+    const beforeToggle = await page.evaluate(() => (window as any).browserTest.events().length)
+    await page.evaluate((input) => (window as any).browserTest.allowTrackers(input), {
+      browserId,
+      origin,
+      allowed: false,
+    })
+    await expect
+      .poll(() => guest.evaluate((contents) => contents.executeJavaScript('document.readyState')))
+      .toBe('complete')
+    await expect
+      .poll(() => page.evaluate((start) => (window as any).browserTest.events().slice(start), beforeToggle))
+      .toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({type: 'browser-blocked-count', browserId, count: 1, allowed: false}),
+        ]),
+      )
+    expect(trackerRequests).toBe(1)
+    await page.addScriptTag({url: `${origin}/fixture-tracker.js`})
+    expect(await page.evaluate(() => (window as any).trackerLoaded)).toBe(true)
+    expect(trackerRequests).toBe(2)
     await page.evaluate(() => (window as any).browserTest.hide())
     await expect(command({action: 'snapshot'})).rejects.toThrow('Browser access is paused')
+
+    const privateId = await page.evaluate(() =>
+      (window as any).browserTest.create({private: true}).then((guest: any) => guest.browserId),
+    )
+    const privateGuest = await electron.evaluateHandle(({webContents}, id) => webContents.fromId(id)!, privateId)
+    await privateGuest.evaluate(async (contents, url) => {
+      await contents.loadURL(url)
+      await contents.executeJavaScript("document.cookie = 'private-only=secret; Path=/'")
+    }, `${origin}/private`)
+    expect(await privateGuest.evaluate((contents) => contents.session.isPersistent())).toBe(false)
+    expect(await privateGuest.evaluate((contents) => contents.executeJavaScript('document.cookie'))).toContain(
+      'private-only=secret',
+    )
+    expect(await guest.evaluate((contents) => contents.session.cookies.get({name: 'private-only'}))).toEqual([])
+    await page.evaluate((browserId) => (window as any).browserTest.destroy({browserId}), privateId)
+    expect(await electron.evaluate(({webContents}, id) => webContents.fromId(id) === undefined, privateId)).toBe(true)
+    const reopenedId = await page.evaluate(() =>
+      (window as any).browserTest.create({private: true}).then((guest: any) => guest.browserId),
+    )
+    const reopened = await electron.evaluateHandle(({webContents}, id) => webContents.fromId(id)!, reopenedId)
+    expect(await reopened.evaluate((contents) => contents.session.cookies.get({}))).toEqual([])
+    await reopened.evaluate((contents, url) => contents.loadURL(url), `${origin}/private`)
+    expect(await reopened.evaluate((contents) => contents.executeJavaScript('document.cookie'))).not.toContain(
+      'private-only',
+    )
+    await page.evaluate(() => (window as any).browserTest.hide())
+    await expect
+      .poll(() => electron!.evaluate(({webContents}, id) => webContents.fromId(id) === undefined, reopenedId))
+      .toBe(true)
   } finally {
     await electron?.close()
     await new Promise<void>((resolve) => server.close(() => resolve()))

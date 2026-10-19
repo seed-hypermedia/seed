@@ -1,21 +1,289 @@
 package storage
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 	"math"
+	"math/big"
 	"net/url"
 	"os"
+	"seed/backend/storage/dbext"
+	"seed/backend/util/dqb"
 	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 	"seed/backend/util/sqlitedbg"
+	"slices"
 	"strconv"
 	"sync/atomic"
 	"testing"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 )
 
 var sqliteTestMemoryDBCounter atomic.Uint64
+
+func TestUvarintEncode(t *testing.T) {
+	require.NoError(t, dbext.LoadExtensions())
+	conn, err := sqlite.OpenConn(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
+
+	values := []int64{0, 1, 85, 112, 113, math.MaxInt64}
+	for bit := 7; bit < 63; bit += 7 {
+		values = append(values, 1<<bit-1, 1<<bit, 1<<bit+1)
+	}
+
+	for _, value := range values {
+		t.Run(strconv.FormatInt(value, 10), func(t *testing.T) {
+			var encoded []byte
+
+			require.NoError(t, sqlitex.Exec(conn, "SELECT uvarint_encode(?), typeof(uvarint_encode(?))", func(stmt *sqlite.Stmt) error {
+				encoded = stmt.ColumnBytes(0)
+				require.Equal(t, "blob", stmt.ColumnText(1))
+				return nil
+			}, value, value))
+			var expected [binary.MaxVarintLen64]byte
+
+			n := binary.PutUvarint(expected[:], uint64(value))
+			require.Equal(t, expected[:n], encoded)
+		})
+	}
+
+	for _, value := range []any{nil, int64(-1), "113", 113.0, []byte{113}} {
+		err := sqlitex.Exec(conn, "SELECT uvarint_encode(?)", nil, value)
+		require.ErrorContains(t, err, "requires a nonnegative INTEGER")
+	}
+
+	// SQLite concatenation produces TEXT; cast back to BLOB to retain binary
+	// CIDs, including zero bytes in identity multihashes.
+	for _, hashType := range []uint64{0, 0x12} {
+		for _, codec := range []uint64{cid.Raw, cid.DagProtobuf, cid.DagCBOR, 0x0129} {
+			prefix := cid.Prefix{Version: 1, Codec: codec, MhType: hashType, MhLength: -1}
+			want, err := prefix.Sum([]byte{0, 1, 0, 255})
+			require.NoError(t, err)
+			var got []byte
+
+			require.NoError(t, sqlitex.Exec(conn, "SELECT CAST(uvarint_encode(1) || uvarint_encode(?) || ? AS BLOB)", func(stmt *sqlite.Stmt) error {
+				got = stmt.ColumnBytes(0)
+				return nil
+			}, codec, []byte(want.Hash())))
+			require.Equal(t, want.Bytes(), got)
+			parsed, err := cid.Cast(got)
+			require.NoError(t, err)
+			require.Equal(t, want, parsed)
+		}
+	}
+}
+
+func TestRBSRSum(t *testing.T) {
+	require.NoError(t, dbext.LoadExtensions())
+	conn, err := sqlite.OpenConn(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
+	require.NoError(t, sqlitex.Exec(conn, dqb.Str("CREATE TABLE hashes (value BLOB)")(), nil))
+
+	one := make([]byte, 32)
+	one[0] = 1
+	maxValue := bytes.Repeat([]byte{0xff}, 32)
+	almostMax := slices.Clone(maxValue)
+	almostMax[0]--
+	digest := sha256.Sum256([]byte("a precomputed hash"))
+	randomValues := make([][]byte, 257)
+	for i := range randomValues {
+		hash := sha256.Sum256([]byte(strconv.Itoa(i)))
+		randomValues[i] = hash[:]
+	}
+
+	tests := []struct {
+		name   string
+		values [][]byte
+	}{
+		{"empty", nil},
+		{"zero", [][]byte{make([]byte, 32)}},
+		{"single", [][]byte{digest[:]}},
+		{"multiple", [][]byte{digest[:], one, maxValue}},
+		{"overflow to zero", [][]byte{maxValue, one}},
+		{"overflow with remainder", [][]byte{maxValue, almostMax, one}},
+		{"many hashes", randomValues},
+	}
+	// Exercise every byte boundary, including all 64-bit limb boundaries.
+	for boundary := 1; boundary < 32; boundary++ {
+		value := make([]byte, 32)
+		copy(value, bytes.Repeat([]byte{0xff}, boundary))
+		tests = append(tests, struct {
+			name   string
+			values [][]byte
+		}{fmt.Sprintf("carry through %d bytes", boundary), [][]byte{value, one}})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reversed := slices.Clone(tt.values)
+			slices.Reverse(reversed)
+			for _, values := range [][][]byte{tt.values, reversed} {
+				require.NoError(t, sqlitex.Exec(conn, dqb.Str("DELETE FROM hashes")(), nil))
+				for _, value := range values {
+					require.NoError(t, sqlitex.Exec(conn, dqb.Str("INSERT INTO hashes VALUES (?)")(), nil, value))
+				}
+
+				rows := 0
+				require.NoError(t, sqlitex.Exec(conn, dqb.Str("SELECT rbsr_sum(value) FROM hashes")(), func(stmt *sqlite.Stmt) error {
+					rows++
+					require.Equal(t, sqlite.SQLITE_BLOB, stmt.ColumnType(0))
+					require.Equal(t, rbsrSumReference(values), stmt.ColumnBytes(0))
+					return nil
+				}))
+				require.Equal(t, 1, rows)
+			}
+		})
+	}
+
+	t.Run("caller deduplicates input", func(t *testing.T) {
+		require.NoError(t, sqlitex.Exec(conn, dqb.Str("DELETE FROM hashes")(), nil))
+		for _, value := range [][]byte{one, maxValue, one, maxValue} {
+			require.NoError(t, sqlitex.Exec(conn, dqb.Str("INSERT INTO hashes VALUES (?)")(), nil, value))
+		}
+
+		// Only deduplicated rows may reach rbsr_sum; duplicates are outside its contract.
+		require.NoError(t, sqlitex.Exec(conn, dqb.Str("SELECT rbsr_sum(value) FROM (SELECT DISTINCT value FROM hashes)")(), func(stmt *sqlite.Stmt) error {
+			require.Equal(t, rbsrSumReference([][]byte{one, maxValue}), stmt.ColumnBytes(0))
+			return nil
+		}))
+	})
+}
+
+// rbsrSumReference uses arbitrary-precision arithmetic, independently of the
+// C accumulator's bytewise carry implementation.
+func rbsrSumReference(values [][]byte) []byte {
+	sum := new(big.Int)
+	for _, value := range values {
+		bigEndian := slices.Clone(value)
+		slices.Reverse(bigEndian)
+		sum.Add(sum, new(big.Int).SetBytes(bigEndian))
+	}
+
+	sum.Mod(sum, new(big.Int).Lsh(big.NewInt(1), 256))
+	out := sum.FillBytes(make([]byte, 32))
+	slices.Reverse(out)
+	return binary.LittleEndian.AppendUint64(out, uint64(len(values)))
+}
+
+func TestRBSRSumGroups(t *testing.T) {
+	pool, err := OpenSQLite(sqliteTestMemoryURI(t), 0, 2)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, pool.Close()) })
+	conn, release, err := pool.WriteConn(t.Context())
+	require.NoError(t, err)
+	defer release()
+	require.NoError(t, sqlitex.Exec(conn, dqb.Str("CREATE TABLE hashes (id INTEGER, value BLOB)")(), nil))
+	values := [][]byte{make([]byte, 32), bytes.Repeat([]byte{0xff}, 32), make([]byte, 32)}
+	values[0][0] = 1
+	values[2][31] = 2
+	for id, value := range values {
+		require.NoError(t, sqlitex.Exec(conn, dqb.Str("INSERT INTO hashes VALUES (?, ?)")(), nil, id, value))
+	}
+
+	rows := 0
+	require.NoError(t, sqlitex.Exec(conn, dqb.Str(`
+		SELECT id % 2, rbsr_sum(value), rbsr_sum(value) FILTER (WHERE id = 0)
+		FROM hashes GROUP BY id % 2 ORDER BY id % 2
+	`)(), func(stmt *sqlite.Stmt) error {
+		group := stmt.ColumnInt(0)
+
+		want := [][]byte{values[0], values[2]}
+		if group == 1 {
+			want = [][]byte{values[1]}
+		}
+
+		require.Equal(t, rbsrSumReference(want), stmt.ColumnBytes(1))
+
+		var filtered [][]byte
+
+		if group == 0 {
+			filtered = [][]byte{values[0]}
+		}
+
+		require.Equal(t, rbsrSumReference(filtered), stmt.ColumnBytes(2))
+		rows++
+		return nil
+	}))
+	require.Equal(t, 2, rows)
+}
+
+func TestRBSRSumInvalidInput(t *testing.T) {
+	require.NoError(t, dbext.LoadExtensions())
+	conn, err := sqlite.OpenConn(":memory:")
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, conn.Close()) })
+	for _, tt := range []struct {
+		name  string
+		value any
+	}{
+		{"null", nil},
+		{"integer", 32},
+		{"real", 32.0},
+		{"text", string(bytes.Repeat([]byte{'a'}, 32))},
+		{"empty blob", []byte{}},
+		{"short blob", make([]byte, 31)},
+		{"long blob", make([]byte, 33)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := sqlitex.Exec(conn, dqb.Str("SELECT rbsr_sum(?)")(), nil, tt.value)
+			require.ErrorContains(t, err, "rbsr_sum requires a 32-byte BLOB")
+			// Fail after a valid row has already allocated the state.
+			err = sqlitex.Exec(conn, dqb.Str(`
+				SELECT rbsr_sum(value) FROM
+				(SELECT zeroblob(32) AS value UNION ALL SELECT ?)
+			`)(), nil, tt.value)
+			require.ErrorContains(t, err, "rbsr_sum requires a 32-byte BLOB")
+			// Reusing the connection and statement must not retain the failed state.
+			require.NoError(t, sqlitex.Exec(conn, dqb.Str(`
+				SELECT rbsr_sum(value) FROM
+				(SELECT zeroblob(32) AS value UNION ALL SELECT ?)
+			`)(), func(stmt *sqlite.Stmt) error {
+				require.Equal(t, rbsrSumReference([][]byte{make([]byte, 32), bytes.Repeat([]byte{1}, 32)}), stmt.ColumnBytes(0))
+				return nil
+			}, bytes.Repeat([]byte{1}, 32)))
+		})
+	}
+
+	for _, query := range []string{"SELECT rbsr_sum()", "SELECT rbsr_sum(zeroblob(32), zeroblob(32))"} {
+		require.ErrorContains(t, sqlitex.Exec(conn, dqb.Str(query)(), nil), "wrong number of arguments")
+	}
+}
+
+func TestRBSRSumRegistration(t *testing.T) {
+	// Repeated loading matches opening multiple storage pools in one process.
+	for range 2 {
+		require.NoError(t, dbext.LoadExtensions())
+	}
+
+	check := func(conn *sqlite.Conn) error {
+		return sqlitex.Exec(conn, dqb.Str("SELECT rbsr_sum(value) FROM (SELECT zeroblob(32) AS value WHERE 0)")(), func(stmt *sqlite.Stmt) error {
+			require.Equal(t, sqlite.SQLITE_BLOB, stmt.ColumnType(0))
+			require.Equal(t, make([]byte, 40), stmt.ColumnBytes(0))
+			return nil
+		})
+	}
+	conn, err := sqlite.OpenConn(":memory:")
+	require.NoError(t, err)
+	require.NoError(t, check(conn))
+	require.NoError(t, conn.Close())
+	pool, err := OpenSQLite(sqliteTestMemoryURI(t), 0, 3)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, pool.Close()) })
+	require.NoError(t, pool.ForWrite(check))
+	readers := 0
+	require.NoError(t, pool.ForEachRead(func(conn *sqlite.Conn) error {
+		readers++
+		return check(conn)
+	}))
+	require.Equal(t, 3, readers)
+}
 
 func sqliteTestMemoryURI(t testing.TB) string {
 	t.Helper()

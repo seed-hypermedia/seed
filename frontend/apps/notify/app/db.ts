@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3'
+import {Database, type Statement} from 'bun:sqlite'
 import crypto from 'crypto'
 import {join} from 'path'
 
@@ -65,54 +65,54 @@ type DBNotificationEmailVerificationRow = {
   createdAt: string
 }
 
-let db: Database.Database
+let db: Database
 
 // Prepared statements - initialized after db is ready
-let stmtInsertEmail: Database.Statement
-let stmtInsertSubscription: Database.Statement
-let stmtGetSubscription: Database.Statement
-let stmtGetSubscriptionsForAccount: Database.Statement
-let stmtGetEmailSubscribersForAccount: Database.Statement
-let stmtSetNotifierStatus: Database.Statement
-let stmtGetNotifierStatus: Database.Statement
-let stmtUpdateSubscription: Database.Statement
-let stmtGetEmail: Database.Statement
-let stmtGetEmailWithToken: Database.Statement
-let stmtGetSubscriptionsForEmail: Database.Statement
-let stmtSetEmailUnsubscribed: Database.Statement
-let stmtGetAllEmails: Database.Statement
-let stmtEnsureEmail: Database.Statement
-let stmtUpsertSubscription: Database.Statement
-let stmtGetNotificationConfig: Database.Statement
-let stmtGetAllNotificationConfigs: Database.Statement
-let stmtGetNotificationConfigsForEmail: Database.Statement
-let stmtUpsertNotificationConfig: Database.Statement
-let stmtDeleteNotificationConfigForAccountEmail: Database.Statement
-let stmtDeleteNotificationConfigForAccount: Database.Statement
-let stmtGetNotificationEmailVerificationForAccount: Database.Statement
-let stmtGetNotificationEmailVerificationByToken: Database.Statement
-let stmtUpsertNotificationEmailVerification: Database.Statement
-let stmtDeleteNotificationEmailVerificationForAccount: Database.Statement
-let stmtMarkNotificationConfigVerified: Database.Statement
-let stmtGetNotificationReadState: Database.Statement
-let stmtUpsertNotificationReadState: Database.Statement
-let stmtGetNotificationReadEvents: Database.Statement
-let stmtUpsertNotificationReadEvent: Database.Statement
-let stmtDeleteNotificationReadEventsForAccount: Database.Statement
-let stmtPruneNotificationReadEvents: Database.Statement
-let stmtInsertNotification: Database.Statement
-let stmtGetNotificationsPage: Database.Statement
-let stmtGetNotificationsFirstPage: Database.Statement
-let stmtGetAllNotificationsForAccount: Database.Statement
-let stmtRegisterInboxAccount: Database.Statement
-let stmtGetInboxRegisteredAccounts: Database.Statement
-let stmtIsInboxRegistered: Database.Statement
+let stmtInsertEmail: Statement
+let stmtInsertSubscription: Statement
+let stmtGetSubscription: Statement
+let stmtGetSubscriptionsForAccount: Statement
+let stmtGetEmailSubscribersForAccount: Statement
+let stmtSetNotifierStatus: Statement
+let stmtGetNotifierStatus: Statement
+let stmtUpdateSubscription: Statement
+let stmtGetEmail: Statement
+let stmtGetEmailWithToken: Statement
+let stmtGetSubscriptionsForEmail: Statement
+let stmtSetEmailUnsubscribed: Statement
+let stmtGetAllEmails: Statement
+let stmtEnsureEmail: Statement
+let stmtUpsertSubscription: Statement
+let stmtGetNotificationConfig: Statement
+let stmtGetAllNotificationConfigs: Statement
+let stmtGetNotificationConfigsForEmail: Statement
+let stmtUpsertNotificationConfig: Statement
+let stmtDeleteNotificationConfigForAccountEmail: Statement
+let stmtDeleteNotificationConfigForAccount: Statement
+let stmtGetNotificationEmailVerificationForAccount: Statement
+let stmtGetNotificationEmailVerificationByToken: Statement
+let stmtUpsertNotificationEmailVerification: Statement
+let stmtDeleteNotificationEmailVerificationForAccount: Statement
+let stmtMarkNotificationConfigVerified: Statement
+let stmtGetNotificationReadState: Statement
+let stmtUpsertNotificationReadState: Statement
+let stmtGetNotificationReadEvents: Statement
+let stmtUpsertNotificationReadEvent: Statement
+let stmtDeleteNotificationReadEventsForAccount: Statement
+let stmtPruneNotificationReadEvents: Statement
+let stmtInsertNotification: Statement
+let stmtGetNotificationsPage: Statement
+let stmtGetNotificationsFirstPage: Statement
+let stmtGetAllNotificationsForAccount: Statement
+let stmtRegisterInboxAccount: Statement
+let stmtGetInboxRegisteredAccounts: Statement
+let stmtIsInboxRegistered: Statement
 
 export async function initDatabase(): Promise<void> {
   const dbFilePath = join(process.env.DATA_DIR || process.cwd(), 'web-db.sqlite')
   console.log('Init DB data file:', dbFilePath)
   db = new Database(dbFilePath)
-  let version: number = db.pragma('user_version', {simple: true}) as number
+  let version = (db.query('PRAGMA user_version').get() as {user_version: number}).user_version
   console.log('Init DB at version:', version)
   if (version === 0) {
     // Initial migration.

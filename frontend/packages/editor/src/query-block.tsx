@@ -5,8 +5,9 @@ import {
   HMQueryTableConfig,
   UnpackedHypermediaId,
   normalizeQuerySort,
+  parseHMQueryFiltersJSON,
 } from '@seed-hypermedia/client/hm-types'
-import {entityQueryPathToHmIdPath} from '@shm/shared'
+import {entityQueryPathToHmIdPath, useRenderResourceStack} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
@@ -19,6 +20,7 @@ import {SelectField, SwitchField} from '@shm/ui/form-fields'
 import {Pencil, Search, Trash} from '@shm/ui/icons'
 import {LazyViewportMount} from '@shm/ui/lazy-viewport-mount'
 import {QueryBlockContent} from '@shm/ui/query-block-content'
+import {buildSlotItems} from '@shm/ui/query-block-draft-items'
 import {useQueryBlockFrontendPerf} from '@shm/ui/query-block-frontend-perf'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -31,11 +33,17 @@ import {selectBlockNodeById} from './block-utils'
 import {BlockSelectionWrapper} from './block-selection-wrapper'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
-import {buildSlotItems} from './query-block-draft-items'
 import {useQuerySearchInput} from './query-search-context'
 import {HMBlockSchema} from './schema'
+import {QueryAccountFilterInput} from './query-account-filter-input'
 
-import {defaultQueryIncludes, defaultQuerySort, getQueryBlockInput} from './query-block-input'
+import {
+  defaultQueryFilters,
+  defaultQueryIncludes,
+  defaultQuerySort,
+  getQueryBlockInput,
+  resolveQueryIncludes,
+} from './query-block-input'
 
 export const QueryBlock = createReactBlockSpec({
   type: 'query',
@@ -56,6 +64,9 @@ export const QueryBlock = createReactBlockSpec({
     },
     querySort: {
       default: defaultQuerySort,
+    },
+    queryFilters: {
+      default: defaultQueryFilters,
     },
     banner: {
       default: 'false',
@@ -88,27 +99,50 @@ export const QueryBlock = createReactBlockSpec({
 
 type HMQueryBlockIncludes = HMBlockQuery['attributes']['query']['includes']
 type HMQueryBlockSort = NonNullable<HMBlockQuery['attributes']['query']['sort']>
+type HMQueryBlockFilters = NonNullable<HMBlockQuery['attributes']['query']['filters']>
+
+function parseQueryFilters(rawFilters: string | undefined): HMQueryBlockFilters {
+  return parseHMQueryFiltersJSON(rawFilters || defaultQueryFilters)
+}
 
 function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSchema>) {
   const client = useUniversalClient()
+  const renderStack = useRenderResourceStack()
+  // The document this block sits in: an include with an empty space targets it.
+  const container = [...renderStack].reverse().find((resource) => resource.kind === 'document')?.id ?? null
+  const containerKey = container ? `${container.uid}/${(container.path ?? []).join('/')}` : ''
   const queryIncludes: HMQueryBlockIncludes = useMemo(() => {
     return JSON.parse(block.props.queryIncludes || defaultQueryIncludes)
   }, [block.props.queryIncludes])
+  // Resolved for reading only; the settings UI edits and saves the raw includes.
+  const resolvedIncludes: HMQueryBlockIncludes = useMemo(
+    () => resolveQueryIncludes(queryIncludes, container),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [queryIncludes, containerKey],
+  )
 
   const querySort = useMemo(() => {
     return normalizeQuerySort(JSON.parse(block.props.querySort || defaultQuerySort))
   }, [block.props.querySort])
 
+  const queryFilters: HMQueryBlockFilters = useMemo(() => {
+    return parseQueryFilters(block.props.queryFilters)
+  }, [block.props.queryFilters])
+
   const banner = block.props.banner === 'true'
   const queryTargetId = useMemo<UnpackedHypermediaId | null>(() => {
-    const include = queryIncludes?.[0]
+    const include = resolvedIncludes?.[0]
     if (!include?.space) return null
     return hmId(include.space, {
       path: entityQueryPathToHmIdPath(include.path),
       latest: true,
     })
-  }, [queryIncludes])
-  const baseQueryBlockInput = useMemo(() => getQueryBlockInput(block.props), [block.props])
+  }, [resolvedIncludes])
+  const baseQueryBlockInput = useMemo(
+    () => getQueryBlockInput(block.props, container),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [block.props, containerKey],
+  )
   const [viewerSearch, setViewerSearch] = useState('')
   const [viewerFilters, setViewerFilters] = useState<NonNullable<NonNullable<HMQueryBlockInput['viewer']>['filters']>>(
     [],
@@ -162,12 +196,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const {DraftSlot} = useQueryBlockDrafts()
 
   const renderContent = (slot: QueryBlockDraftSlotData | null) => {
-    const {prependItems, bannerContent} = buildSlotItems(
-      slot,
-      style === 'Table' ? 'List' : style,
-      banner,
-      sortedItems.length > 0,
-    )
+    const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, sortedItems.length > 0)
     return (
       <QueryBlockContent
         items={sortedItems}
@@ -178,7 +207,9 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         itemContributors={itemContributors}
         interactionSummaries={interactionSummaries}
         isDiscovering={queryBlock.isLoading}
+        onCreateDocument={slot?.onCreateDraft}
         prependItems={prependItems}
+        tableDrafts={tableDrafts}
         bannerContent={bannerContent}
         // Unlike a standalone embed card (which IS the selectable block),
         // the cards inside a query block are not individually selectable —
@@ -200,6 +231,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         viewerFilters={viewerFilters}
         onViewerFiltersChange={setViewerFilters}
         totalMatches={queryBlock.data?.totalMatches}
+        filterOptions={queryBlock.data?.filterOptions}
         isUpdating={queryBlock.isFetching && !queryBlock.isLoading}
         viewerQueryApplied={queryBlock.data?.totalMatches !== undefined}
       />
@@ -238,7 +270,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
             queryDocName={queryBlock.data?.queryTargetName || ''}
             queryIncludes={queryIncludes}
             querySort={querySort}
-            style={style}
+            queryFilters={queryFilters}
             banner={banner}
             // @ts-expect-error
             block={block}
@@ -272,6 +304,7 @@ function QuerySettings({
   onValuesChange,
   queryIncludes,
   querySort,
+  queryFilters,
   editor,
   banner,
   beginEditIfNeeded,
@@ -280,6 +313,7 @@ function QuerySettings({
   block: EditorQueryBlock
   queryIncludes: HMQueryBlockIncludes
   querySort: HMQueryBlockSort
+  queryFilters: HMQueryBlockFilters
   banner: boolean
   onValuesChange: ({id, props}: {id: UnpackedHypermediaId | null; props: EditorQueryBlock['props']}) => void
   editor: BlockNoteEditor<HMBlockSchema>
@@ -342,6 +376,23 @@ function QuerySettings({
     }
   }, [popoverState.open, editor, block.id])
 
+  const authorFilters = queryFilters.filter((filter) => filter.type === 'Author')
+
+  const saveFilters = (filters: HMQueryBlockFilters) => {
+    const queryFilters = JSON.stringify(filters)
+    queueMicrotask(() => {
+      onValuesChange({
+        id: null,
+        props: {
+          queryFilters,
+        } as EditorQueryBlock['props'],
+      })
+    })
+  }
+
+  const updateAuthorFilters = (uids: string[]) => {
+    saveFilters(uids.map((uid) => ({type: 'Author' as const, uid})))
+  }
   return (
     <>
       <div className="relative flex justify-end py-1">
@@ -418,6 +469,11 @@ function QuerySettings({
                   {label: 'Show only Direct Children', value: 'Children'},
                   {label: 'Show all Descendants', value: 'AllDescendants'},
                 ]}
+              />
+
+              <QueryAccountFilterInput
+                selectedUids={authorFilters.map((filter) => filter.uid)}
+                onSelectedUidsChange={updateAuthorFilters}
               />
 
               <SelectField

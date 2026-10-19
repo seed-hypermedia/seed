@@ -244,7 +244,10 @@ export function DocumentTools({
             icon: MessagesSquare,
             active: activeTab == 'comments',
             count: commentsCount,
-            route: {key: 'comments', id: idWithoutBlock, panel: panelFor()},
+            route:
+              currentPanel?.key === 'comments'
+                ? {...currentPanel, key: 'comments', id: currentPanel.id ?? idWithoutBlock, panel: null}
+                : {key: 'comments', id: idWithoutBlock, panel: panelFor()},
           },
           {
             label: 'Citations',

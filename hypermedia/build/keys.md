@@ -14,6 +14,8 @@ The account id is the [principal](../principal.md): the 32-byte public key with 
 seed-cli key derive "word1 word2 … word12"     # prints the account id, stores nothing
 ```
 
+A known pair, used by the repository's tests, checks an implementation of the derivation: the twelve words `parrot midnight lion defense ski senior trouble slice chase spot history awkward` with no passphrase give the account `z6Mkm3c7LJn7vJ7XZQZHKNufnG6v9mCsVwLoG6v8ngY7aXq8`.
+
 # Where keys live <!-- id:SBHnrprQ -->
 
 <!-- id:T2g6R2Uh -->
@@ -26,7 +28,7 @@ seed-cli key derive "word1 word2 … word12"     # prints the account id, stores
 
 **The [vault](../apps/vault.md)** is an encrypted JSON envelope. The state is XChaCha20-Poly1305 encrypted under a data key, and that key is wrapped by a 32-byte secret held in the OS keychain (service `seed-hypermedia-vault-secret-v2`, account `local`). The desktop app's vault is at `~/Library/Application Support/Seed/daemon/vault.json` on macOS and `~/.config/Seed/daemon/vault.json` on Linux (`Seed-dev` for a development build). A bare daemon keeps it under its data directory, `~/.mtt/vault.json` by default. The CLI finds it in this order: `--vault <path>`, `vaultPath` in `~/.seed/config.json`, `SEED_VAULT_PATH`, then those well-known places. The CLI never writes a vault. <!-- id:_-W97BdO -->
 
-**The keyring** holds one JSON record per service, mapping key names to base64 of the 68-byte libp2p Ed25519 protobuf (a 4-byte header, the 32-byte seed, the 32-byte public key). macOS uses `security` and Linux uses `secret-tool`. The CLI's keyring code does not support Windows. <!-- id:UH63EivA -->
+**The keyring** holds one record per service under the account name `parentCollection`: a JSON map from key name to base64 of the 68-byte libp2p Ed25519 protobuf (a 4-byte header, the 32-byte seed, the 32-byte public key). The daemon stores that record as `go-keyring-base64:<base64 of the JSON>`. The CLI reads both that form and plain JSON, and writes the daemon's form. macOS uses `security` and Linux uses `secret-tool`. The CLI's keyring code does not support Windows. <!-- id:UH63EivA -->
 
 When a key exists in both, the vault wins, because a migrated daemon archives its keyring record and the keyring copy is stale by definition. <!-- id:xkt3UdnI -->
 

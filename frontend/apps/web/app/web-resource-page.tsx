@@ -35,7 +35,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
-import {FileCode2, FileInput} from 'lucide-react'
+import {FileCode2, FileInput, Globe} from 'lucide-react'
 import {blobBuilderMenuItems} from '@shm/ui/schema/blob-menu-items'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
@@ -68,7 +68,8 @@ import {restoreWebDocumentVersion} from './document-edit/web-restore-document-ve
 import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
-import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
+import {openWebDomainSettings} from './models/domain-publishing'
+import {useCreateSpaceDialog, useHasExistingSpace, usePublishSpaceDraft} from './web-create-space-dialog'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {WebDocumentPrefetch} from './web-document-prefetch'
 import {useWebDocumentDestinationDialog} from './web-move-document-dialog'
@@ -180,6 +181,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const {origin, originHomeId, experiments} = useUniversalAppContext()
   const route = useNavRoute()
   const navigate = useNavigate()
+  const publishSpaceDraft = usePublishSpaceDraft()
   const replaceRoute = useNavigate('replace')
   const userKeyPair = useLocalKeyPair()
   const editProfileDialog = useAppDialog(EditProfileDialog)
@@ -349,7 +351,10 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     if (!!signingAccountId && !canEdit && capabilitiesLoading) return undefined
     if (draftQueryEnabled && !draftQuery.isSuccess && !draftQuery.isError) return undefined
     if (!effectiveCanEdit) return false
-    if (draftQuery.isLoading || draftQuery.isFetching) return undefined
+    // Keep the current draft mounted during background refreshes. Autosave
+    // invalidates this query, and treating that refetch as an initial load
+    // temporarily replaced the editor with the draft-shell spinner.
+    if (draftQuery.isLoading) return undefined
     const d = draftData
     if (!d || isDraftStale) return false
     return {id: d.draftId, metadata: d.metadata as HMExistingDraft['metadata']}
@@ -363,7 +368,6 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     draftQuery.isError,
     effectiveCanEdit,
     draftQuery.isLoading,
-    draftQuery.isFetching,
     draftData,
     isDraftStale,
   ])
@@ -371,7 +375,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     placeholderDraftId && !draftData && isReservedLazyDraftId(placeholderDraftId) ? placeholderDraftId : null
   const useLocalDraftShell = shouldUseLocalWebDraftShell({
     placeholderDraftId,
-    isDraftLoading: draftQuery.isInitialLoading || draftQuery.isFetching,
+    isDraftLoading: draftQuery.isInitialLoading,
     hasDraft: !!draftData && !isDraftStale,
     isReservedDraft: !!reservedDraftId,
   })
@@ -485,15 +489,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       onPublishIntercept: () => {
         const isSpaceDraft = isSpaceHomeDraft || isPendingSpace
         if (!isSpaceDraft || !placeholderDraftId) return false
-        void setPendingIntent({type: 'publish-draft', draftId: placeholderDraftId}).then(() => {
-          if (userKeyPair) {
-            void processPendingIntent(originHomeId ?? undefined).then((result) => {
-              if (result.type === 'publish-draft') window.location.assign(result.spaceUrl)
-            })
-          } else {
+        if (userKeyPair) void publishSpaceDraft(placeholderDraftId)
+        else {
+          void setPendingIntent({type: 'publish-draft', draftId: placeholderDraftId}).then(() => {
             createAccount({source: 'join'})
-          }
-        })
+          })
+        }
         return true
       },
     }),
@@ -501,6 +502,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       origin,
       originHomeId,
       navigate,
+      publishSpaceDraft,
       replaceRoute,
       docId,
       route,
@@ -668,8 +670,32 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     }
   }, [docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
-    () => [...webMenuItems, moveMenuItem, deleteMenuItem, ...schemaBuilderMenuItems].filter(Boolean) as MenuItemType[],
-    [deleteMenuItem, moveMenuItem, webMenuItems, schemaBuilderMenuItems],
+    () =>
+      [
+        ...webMenuItems,
+        isHomeTarget && effectiveCanEdit && signingAccountId === docId.uid && !placeholderDraftId
+          ? {
+              key: 'web-domain',
+              label: 'Web Domain',
+              icon: <Globe className="size-4" />,
+              onClick: () => openWebDomainSettings(hmId(docId.uid), signingAccountId),
+            }
+          : null,
+        moveMenuItem,
+        deleteMenuItem,
+        ...schemaBuilderMenuItems,
+      ].filter(Boolean) as MenuItemType[],
+    [
+      deleteMenuItem,
+      moveMenuItem,
+      webMenuItems,
+      schemaBuilderMenuItems,
+      isHomeTarget,
+      effectiveCanEdit,
+      signingAccountId,
+      docId.uid,
+      placeholderDraftId,
+    ],
   )
 
   // Inline subscribe box for non-members

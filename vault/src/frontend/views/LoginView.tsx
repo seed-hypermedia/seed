@@ -1,20 +1,17 @@
-import {Divider} from '@/frontend/components/Divider'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
-import {PasswordInput} from '@/frontend/components/PasswordInput'
+import {OptionCard} from '@/frontend/components/OptionCard'
 import {Button} from '@/frontend/components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
-import type React from 'react'
-import {useEffect, useState} from 'react'
+import {Fingerprint, Lock} from 'lucide-react'
 
 /**
- * Sign in view for existing users.
+ * Sign in passkey or password options for an existing user.
  */
 export function LoginView() {
   const {
     email,
-    password,
     loading,
     error,
     passkeySupported,
@@ -27,23 +24,6 @@ export function LoginView() {
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
-  const hasPasskeyOption = passkeySupported && userHasPasskey
-  const [showPasswordForm, setShowPasswordForm] = useState(false)
-
-  // The password form is shown directly when there's no passkey to try,
-  // and otherwise behind a fallback the user can reveal — or that appears
-  // automatically when a passkey attempt fails.
-  const passwordVisible = userHasPassword && (!hasPasskeyOption || showPasswordForm)
-
-  useEffect(() => {
-    if (error && userHasPassword) setShowPasswordForm(true)
-  }, [error, userHasPassword])
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    actions.handleLogin()
-  }
-
   // This view needs flow state that lives only in memory (the email and
   // credential flags from preLogin, or from a remembered session). On a fresh
   // page load without either — e.g. reloading /login while logged out — none
@@ -55,11 +35,13 @@ export function LoginView() {
     return <navigation.HashNavigate to="/" replace />
   }
 
+  const connectingDesktop = vaultConnectionRequest && !vaultConnectionRequest.siteName
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-center">
-          {vaultConnectionRequest && !vaultConnectionRequest.siteName ? (
+        <CardTitle className="text-left text-xl">
+          {connectingDesktop ? (
             'Connect your desktop app'
           ) : (
             <>
@@ -67,8 +49,8 @@ export function LoginView() {
             </>
           )}
         </CardTitle>
-        <CardDescription className="text-center">
-          {vaultConnectionRequest && !vaultConnectionRequest.siteName ? (
+        <CardDescription className="text-left">
+          {connectingDesktop ? (
             `Sign in to ${email} to continue connecting this vault.`
           ) : (
             <>
@@ -79,48 +61,32 @@ export function LoginView() {
           )}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
         <ErrorMessage message={error} />
 
-        {hasPasskeyOption && (
-          <>
-            <Button onClick={actions.handlePasskeyLogin} loading={loading} className="w-full">
-              Sign in with passkey
-            </Button>
-            {userHasPassword && !passwordVisible && (
-              <Button
-                variant="ghost"
-                className="mt-2 w-full"
-                disabled={loading}
-                onClick={() => setShowPasswordForm(true)}
-              >
-                Sign in with Password
-              </Button>
-            )}
-            {passwordVisible && <Divider>or</Divider>}
-          </>
-        )}
+        {passkeySupported && userHasPasskey ? (
+          <OptionCard
+            icon={Fingerprint}
+            title="Sign in with passkey"
+            disabled={loading}
+            onClick={actions.handlePasskeyLogin}
+          />
+        ) : null}
 
-        {passwordVisible && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <input type="text" name="username" value={email} autoComplete="username" className="hidden" readOnly />
-            <PasswordInput
-              id="password"
-              label="Password"
-              value={password}
-              onChange={actions.setPassword}
-              autoComplete="current-password"
-              autoFocus={!hasPasskeyOption || showPasswordForm}
-            />
-
-            <Button type="submit" loading={loading} className="w-full">
-              Sign in
-            </Button>
-          </form>
-        )}
+        {userHasPassword ? (
+          <OptionCard
+            icon={Lock}
+            title="Sign in with password"
+            disabled={loading}
+            onClick={() => {
+              actions.setError('')
+              navigate('/login/password')
+            }}
+          />
+        ) : null}
 
         <Button
-          variant="ghost"
+          variant="link"
           className="mt-4 w-full"
           onClick={() => {
             // A locked-but-authenticated session would bounce straight back

@@ -5,6 +5,7 @@ import * as React from 'react'
 
 import {cn} from './utils'
 
+/** Seed's shared button with variants and a disabled loading state. */
 export const Button = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<'button'> &
@@ -20,8 +21,8 @@ export const Button = React.forwardRef<
       ref={ref}
       data-slot="button"
       className={cn(buttonVariants({variant, size, className}))}
-      disabled={loading || props.disabled}
       {...props}
+      disabled={loading || props.disabled}
     >
       {asChild ? (
         children

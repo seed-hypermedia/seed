@@ -16,8 +16,18 @@ import {useActions, useAppState} from '@/frontend/store'
  * with resident passkeys can sign in without typing their email.
  */
 export function PreLoginView() {
-  const {email, loading, error, passkeySupported, session, sessionChecked, delegationRequest, vaultConnectionRequest} =
-    useAppState()
+  const {
+    email,
+    inviteOnly,
+    inviteCode,
+    loading,
+    error,
+    passkeySupported,
+    session,
+    sessionChecked,
+    delegationRequest,
+    vaultConnectionRequest,
+  } = useAppState()
   const actions = useActions()
   const autoSubmittedRef = useRef(false)
   const [emailTouched, setEmailTouched] = useState(false)
@@ -107,6 +117,29 @@ export function PreLoginView() {
               autoComplete="username webauthn"
             />
             {showEmailError ? <p className="text-destructive text-sm">That doesn't look like a valid email</p> : null}
+          </div>
+
+          {inviteOnly && (
+            <div className="space-y-2">
+              <Label htmlFor="invite">Invitation code</Label>
+              <Input
+                id="invite"
+                name="invite"
+                type="text"
+                placeholder="Paste your invitation code"
+                value={inviteCode}
+                onChange={(e) => actions.setInviteCode(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="text-muted-foreground text-sm">
+                This vault is invite-only. A code is required to create a new account; existing accounts sign in as
+                usual.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-2">
             <p className="text-muted-foreground text-sm">
               By continuing, you agree to our{' '}
               <a

@@ -24,6 +24,7 @@ import {AssistantPanelProvider} from './assistant-panel-state'
 import {SiteContextPublisher} from './site-context-bridge'
 import {WebDocumentMaintenance} from './document-maintenance'
 import {WebAssistantHost} from './web-assistant-host'
+import {WebDomainHost} from './components/web-domain-host'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {writeableStateStream} from '@shm/shared/utils/stream'
@@ -177,6 +178,7 @@ export const Providers = (props: {children: any}) => {
           <AssistantPanelProvider>
             <WebAssistantHost>
               <WebDocumentMaintenance>{props.children}</WebDocumentMaintenance>
+              <WebDomainHost />
             </WebAssistantHost>
           </AssistantPanelProvider>
         </ReadOnlyViewerProvider>
@@ -299,7 +301,7 @@ export function getOptimizedImageUrl(cid: string, size?: OptimizedImageSize) {
 const WEB_EXPERIMENTS = {developerMode: true} as const
 
 export function WebSiteProvider(props: {
-  originHomeId: UnpackedHypermediaId
+  originHomeId?: UnpackedHypermediaId
   children: React.ReactNode
   siteHost?: string
   origin?: string
@@ -359,9 +361,23 @@ export function WebSiteProvider(props: {
       isInternalNav.current = false
       return
     }
-    // Location changed externally (browser back/forward) — sync initialRoute
-    if (props.initialRoute) {
-      navigation.dispatch({type: 'replace', route: props.initialRoute})
+    // Query-only transitions can skip the loader. Read the live URL so Back
+    // and Forward restore the reply target instead of the stale loader route.
+    const hmPath = routerPathname.startsWith('/hm/')
+      ? routerPathname
+      : props.originHomeId
+        ? `/hm/${props.originHomeId.uid}${routerPathname === '/' ? '' : routerPathname}`
+        : null
+    const route = hmPath ? hypermediaUrlToRoute(`${props.origin}${hmPath}${routerSearch}${routerLocation.hash}`) : null
+    const params = new URLSearchParams(routerSearch)
+    const panelParam = params.get('panel')
+    if (route?.key === 'comments' && /^(comments?|discussions)(\/|$)/.test(panelParam || '')) {
+      params.delete('panel')
+      const search = params.toString()
+      navigate(`${routerPathname}${search ? `?${search}` : ''}${routerLocation.hash}`, {replace: true})
+    }
+    if (route || props.initialRoute) {
+      navigation.dispatch({type: 'replace', route: route || props.initialRoute!})
     }
   }, [routerPathname, routerSearch])
 

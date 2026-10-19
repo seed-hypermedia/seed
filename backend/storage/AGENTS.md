@@ -6,6 +6,6 @@
   that file.
 - After schema or migration changes, run `./dev gen //backend/...` from the repository root.
 - Validate schema/migration changes against full CI locally before pushing:
-  `npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p`. See `docs/local-ci-with-agent-ci.md`.
+  `npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p`. See `hypermedia/build/local-ci.md`.
 - Be careful to introduce new migrations where a reindex is required and embeddings need to be re-computed. CPU-only
   servers will take longer to process them again, consuming a lot of CPU along the way.

@@ -40,7 +40,12 @@ function logDaemonAuthError(error: unknown) {
   console.error(error)
 }
 
-async function ensureDaemonAuth(): Promise<void> {
+/**
+ * Resolves once the daemon session cookie for the current local key is in
+ * place (or immediately when there is no local key). Exported so a page can
+ * wait for it before a full-document navigation that the sign-in gate checks.
+ */
+export async function ensureDaemonAuth(): Promise<void> {
   const kp = keyPairStore.get()
   if (!kp) {
     resetDaemonAuthState()

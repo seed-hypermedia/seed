@@ -40,20 +40,19 @@ import {grpcClient} from './app-grpc'
 import {createAppMenu} from './app-menu'
 import {initPaths} from './app-paths'
 import {
-  AppWindow,
   closeLoadingWindow,
   createLoadingWindow,
   deleteWindowsState,
   getAllWindows,
+  getAppWindowPolicy,
   getFocusedWindow,
-  getLastFocusedWindow,
-  getWindowNavState,
 } from './app-windows'
 import autoUpdate from './auto-update'
 import {startMainDaemon, subscribeDaemonState} from './daemon'
 import {startLocalAgentsServer, stopLocalAgentsServer} from './agents-server-process'
 import {startApiServer, stopApiServer} from './app-http-server'
 import {startLocalServer, stopLocalServer} from './local-server'
+import {installAppSessionGuards, openAppExternalLink} from './app-window-security'
 import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
@@ -270,18 +269,6 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
 app.whenReady().then(async () => {
   logger.debug('[MAIN]: Seed ready')
 
-  // Memory profiler mode - opens dedicated profiler window
-  if (isProfilerEnabled()) {
-    logger.info('[MAIN]: Memory profiler mode enabled')
-    createProfilerWindow()
-    setupProfilerQuitHandler()
-  }
-
-  // Register memory monitor resource counters
-  memoryMonitor.registerResourceCounter('windows', () => getAllWindows().size)
-  memoryMonitor.registerResourceCounter('subscriptions', getSubscriptionCount)
-  memoryMonitor.registerResourceCounter('discoveryStreams', getDiscoveryStreamCount)
-
   // Every packaged build serves its renderer from a local http server, never file://: iframes
   // (embeds) need it, and so does the app's own HM API on API_HTTP_PORT, which forbids cross-site
   // requests — a file:// renderer is cross-site to it, so a NODE_ENV=test package (package:test,
@@ -297,20 +284,19 @@ app.whenReady().then(async () => {
     }
   }
 
-  // Remove X-Frame-Options header to allow embeds
-  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
-    const responseHeaders = details.responseHeaders || {}
+  installAppSessionGuards(session.defaultSession, getAppWindowPolicy())
 
-    // Remove X-Frame-Options from our app responses to allow embeds
-    if (details.url.includes('localhost') || details.url.includes('127.0.0.1')) {
-      delete responseHeaders['X-Frame-Options']
-      delete responseHeaders['x-frame-options']
-    }
+  // Memory profiler mode - opens dedicated profiler window
+  if (isProfilerEnabled()) {
+    logger.info('[MAIN]: Memory profiler mode enabled')
+    createProfilerWindow()
+    setupProfilerQuitHandler()
+  }
 
-    callback({
-      responseHeaders,
-    })
-  })
+  // Register memory monitor resource counters
+  memoryMonitor.registerResourceCounter('windows', () => getAllWindows().size)
+  memoryMonitor.registerResourceCounter('subscriptions', getSubscriptionCount)
+  memoryMonitor.registerResourceCounter('discoveryStreams', getDiscoveryStreamCount)
 
   // Check if app was launched after update
   const isRelaunchAfterUpdate = process.argv.includes('--relaunch-after-update')
@@ -496,45 +482,7 @@ function initializeIpcHandlers() {
   })
 
   ipcMain.on('new_window', () => {
-    // Get the focused window's properties to copy them to the new window
-    const focusedWindow = getLastFocusedWindow()
-    let selectedIdentity: AppWindow['selectedIdentity'] = null
-    let accessoryWidth: AppWindow['accessoryWidth'] | undefined = undefined
-    let sidebarLocked: AppWindow['sidebarLocked'] | undefined = undefined
-    let sidebarWidth: AppWindow['sidebarWidth'] | undefined = undefined
-    let width: number | undefined = undefined
-    let height: number | undefined = undefined
-
-    if (focusedWindow) {
-      const focusedWindowId = Array.from(getAllWindows().entries()).find(([_, window]) => window === focusedWindow)?.[0]
-
-      if (focusedWindowId) {
-        // Use in-memory windowNavState instead of persisted windowsState
-        // to get the most current state values
-        const windowNavState = getWindowNavState()
-        const focusedWindowState = windowNavState[focusedWindowId]
-        selectedIdentity = focusedWindowState?.selectedIdentity || null
-        accessoryWidth = focusedWindowState?.accessoryWidth
-        sidebarLocked = focusedWindowState?.sidebarLocked
-        sidebarWidth = focusedWindowState?.sidebarWidth
-
-        // Only get dimensions if window is in a valid state (not fullscreen/maximized/minimized)
-        if (!focusedWindow.isFullScreen() && !focusedWindow.isMaximized() && !focusedWindow.isMinimized()) {
-          const bounds = focusedWindow.getBounds()
-          width = bounds.width
-          height = bounds.height
-        }
-      }
-    }
-
-    trpc.createAppWindow({
-      routes: [defaultRoute],
-      selectedIdentity,
-      accessoryWidth,
-      sidebarLocked,
-      sidebarWidth,
-      bounds: width !== undefined && height !== undefined ? {width, height} : undefined,
-    })
+    trpc.createAppWindow({routes: [defaultRoute]})
   })
 
   ipcMain.on('minimize_window', (_event, _info) => {
@@ -589,7 +537,10 @@ function initializeIpcHandlers() {
   ipcMain.on('export-document', saveMarkdownFile)
   ipcMain.on('quit_app', () => app.quit())
   ipcMain.on('open_path', (event, path) => shell.openPath(path))
-  ipcMain.on('open-external-link', (_event, linkUrl) => shell.openExternal(linkUrl))
+  ipcMain.on('open-external-link', (event, linkUrl) => {
+    if (event.senderFrame !== event.sender.mainFrame) return
+    void openAppExternalLink(event.sender, linkUrl, getAppWindowPolicy()).catch(logger.warn)
+  })
   ipcMain.on('open-directory', (_event, directory) => shell.openPath(directory))
   ipcMain.handle('pick-key-import-file', async () => {
     const focusedWindow = getFocusedWindow()

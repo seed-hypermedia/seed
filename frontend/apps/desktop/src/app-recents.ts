@@ -8,7 +8,6 @@ import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {z} from 'zod'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
-// @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 

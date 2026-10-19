@@ -1,4 +1,4 @@
-import type * as api from '@/api'
+import * as api from '@/api'
 import {code as cborCodec} from '@ipld/dag-cbor'
 import * as base64 from '@seed-hypermedia/client/base64'
 import * as encryption from '@seed-hypermedia/client/encryption'
@@ -6,7 +6,9 @@ import * as keyfile from '@seed-hypermedia/client/keyfile'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import * as hmauth from '@shm/shared/hmauth'
+import {normalizeNotifyServiceUrl, notifyServiceOrigin} from '@shm/shared/notify-url'
 import * as joinedSite from '@shm/shared/publish-default-joined-site'
+import * as sharedPassword from '@shm/ui/components/password-input'
 import * as webauthn from '@simplewebauthn/browser'
 import {CID} from 'multiformats/cid'
 import {code as rawCodec} from 'multiformats/codecs/raw'
@@ -28,6 +30,7 @@ export interface SessionInfo {
   credentials?: {
     password?: true
     passkey?: true
+    recoveryWords?: true
   }
 }
 
@@ -58,10 +61,46 @@ export function getPendingFlowPath(
   return '/'
 }
 
+/**
+ * The site's sign-in page with an invitation attached. The site starts the
+ * delegation from there and sends the person back to the vault, which creates
+ * the account and completes that delegation, so the invitee ends up signed in
+ * to the site. `webBaseUrl` is '' when the site is this same origin.
+ */
+export function siteInviteSignInUrl(inviteCode: string, inviteEmail: string, webBaseUrl = ''): string {
+  const site = (webBaseUrl || window.location.origin).replace(/\/$/, '')
+  const params = new URLSearchParams({invite: inviteCode})
+  if (inviteEmail) params.set('email', inviteEmail)
+  return `${site}/hm/sign-in?${params.toString()}`
+}
+
+/**
+ * Where the invited-user flow stands once `?invite=` is in the URL:
+ * `checking` while the code is looked up, `valid`/`invalid` after, `failed`
+ * when the lookup itself could not complete (network, server error).
+ */
+export type InviteStatus = 'none' | 'checking' | 'valid' | 'invalid' | 'failed'
+
 /** Creates the initial state for the store. */
-function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBaseUrl = '') {
+function initialState(
+  backendHttpBaseUrl = '',
+  notificationServerUrl = '',
+  webBaseUrl = '',
+  inviteOnly = false,
+  relyingPartyName = '',
+) {
   return {
     email: '',
+    /** Whether the server requires an invitation code to create an account. */
+    inviteOnly,
+    /** Human-readable relying-party name from the server config ('' = unknown). */
+    relyingPartyName,
+    /** Invitation code from `?invite=` in the URL or pasted by the user. */
+    inviteCode: '',
+    /** Email the invitation is scoped to, from `?email=` or the lookup. */
+    inviteEmail: '',
+    /** Result of looking the invitation up; `none` outside the invited flow. */
+    inviteStatus: 'none' as InviteStatus,
     password: '',
     passwordSalt: '',
     confirmPassword: '',
@@ -84,6 +123,10 @@ function initialState(backendHttpBaseUrl = '', notificationServerUrl = '', webBa
     vaultLoaded: false,
     selectedAccountIndex: -1,
     creatingAccount: false,
+    /** Recovery words shown during password sign-up, until the recovery credential is saved. */
+    recoveryWords: [] as string[],
+    /** Wrong passwords or recovery words entered since the last successful sign-in. */
+    failedSignInAttempts: 0,
     newEmail: '', // For email change flow.
     sessionChecked: false,
     /** Active delegation request parsed from URL params. Null when not in delegation flow. */
@@ -203,6 +246,20 @@ function getNotificationRegistrationErrorMessage(error: unknown) {
   return getErrorMessage(error, 'Your account was created, but notification registration failed.')
 }
 
+/**
+ * The notify server as handed to a site on sign-in: its origin only. Every site version can use
+ * that (older web builds append `/hm/api/notifications`, which notify still serves on its origin).
+ */
+function notifyServerUrlForCallback(notificationServerUrl: string): string {
+  const normalized = normalizeNotifyServiceUrl(notificationServerUrl)
+  if (!normalized) return ''
+  try {
+    return notifyServiceOrigin(normalized)
+  } catch {
+    return normalized
+  }
+}
+
 function normalizeNotificationServerUrl(notificationServerUrl: string) {
   const trimmedNotificationServerUrl = notificationServerUrl.trim()
   if (!trimmedNotificationServerUrl) {
@@ -298,6 +355,17 @@ async function encryptVaultConnectPayload(
   return base64.encode(await localCrypto.encrypt(encodedPayload, decodedSecret))
 }
 
+/** sessionStorage key for recovery words that were shown but not yet saved as a credential. */
+const RECOVERY_WORDS_STORAGE_KEY = 'vault-pending-recovery-words'
+
+function clearStoredRecoveryWords() {
+  try {
+    sessionStorage.removeItem(RECOVERY_WORDS_STORAGE_KEY)
+  } catch {
+    // Storage unavailable: nothing was stored.
+  }
+}
+
 function clearCurrentURLFragment() {
   if (typeof window === 'undefined' || !window.location.hash || typeof window.history?.replaceState !== 'function') {
     return
@@ -311,6 +379,14 @@ function clearCurrentURLFragment() {
 /** Creates actions bound to a specific state proxy and client. */
 function createActions(state: AppState, client: api.ClientInterface, navigator: Navigator, blockstore: Blockstore) {
   let pendingVaultLoad: Promise<void> | null = null
+  let registrationVerificationPending = false
+  let registrationVerified = false
+
+  /** Registration request field carrying the invitation code, when one is set. */
+  function inviteField(): {invite?: string} {
+    const invite = state.inviteCode.trim()
+    return invite ? {invite} : {}
+  }
 
   async function ensurePasswordSalt() {
     if (state.passwordSalt) {
@@ -384,6 +460,15 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     delete state.profileLoadStates[principal]
   }
 
+  /** Count a wrong password or recovery phrase. 5 failed
+   * attempts sends the user to the no-recovery options. */
+  function recordFailedSignIn() {
+    state.failedSignInAttempts++
+    if (state.failedSignInAttempts >= 5) {
+      navigator.go('/login/no-recovery')
+    }
+  }
+
   async function uploadAvatar(avatarFile: File): Promise<string> {
     const data = new Uint8Array(await avatarFile.arrayBuffer())
     const cid = CID.createV1(rawCodec, await sha256.digest(data))
@@ -435,6 +520,32 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     }
   }
 
+  /**
+   * Best-effort report of the vault's public account IDs to the server, so
+   * the admin API can answer membership checks. Never blocks the UI.
+   */
+  async function syncVaultAccounts() {
+    const userId = state.session?.userId
+    const rpOrigin = state.relyingPartyOrigin
+    if (!state.vaultData || !userId || !rpOrigin) {
+      return
+    }
+    try {
+      // Each claim is signed by the account key so the server can verify possession.
+      const accounts = await Promise.all(
+        state.vaultData.accounts.map(async (account) => {
+          const kp = blobs.nobleKeyPairFromSeed(account.seed)
+          const uid = blobs.principalToString(kp.principal)
+          const message = new TextEncoder().encode(api.vaultAccountClaimMessage(rpOrigin, userId, uid))
+          return {uid, createTime: account.createTime, signature: base64.encode(await kp.sign(message))}
+        }),
+      )
+      await client.syncVaultAccounts({accounts})
+    } catch (error) {
+      console.warn('Failed to sync vault accounts:', error)
+    }
+  }
+
   async function hydrateVaultData(serverData?: api.GetVaultResponse) {
     if (!state.decryptedDEK) {
       return
@@ -470,6 +581,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     state.vaultVersion = vaultResponse.version ?? 0
     state.vaultLoaded = true
+    void syncVaultAccounts()
   }
 
   async function ensureVaultLoaded(serverData?: api.GetVaultResponse) {
@@ -517,11 +629,93 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
   const actions = {
     resetState() {
-      Object.assign(state, initialState(state.backendHttpBaseUrl, state.notificationServerUrl, state.webBaseUrl))
+      Object.assign(
+        state,
+        initialState(
+          state.backendHttpBaseUrl,
+          state.notificationServerUrl,
+          state.webBaseUrl,
+          state.inviteOnly,
+          state.relyingPartyName,
+        ),
+      )
     },
 
+    /** Set the email being signed in with. Anything typed or shown for the previous email is cleared. */
     setEmail(email: string) {
       state.email = email
+      state.password = ''
+      state.error = ''
+      state.failedSignInAttempts = 0
+    },
+
+    setInviteCode(inviteCode: string) {
+      state.inviteCode = inviteCode
+    },
+
+    /**
+     * Read the invitation code and email from `?invite=&email=` in the URL
+     * (the link the admin API hands out). Returns whether a code was found;
+     * the caller then runs `checkInvitation`. No-op when the parameter is absent.
+     */
+    parseInviteFromUrl(url: URL | string): boolean {
+      const parsedURL = typeof url === 'string' ? new URL(url) : url
+      const invite = (parsedURL.searchParams.get('invite') ?? '').trim()
+      if (!invite) {
+        return false
+      }
+      state.inviteCode = invite
+      state.inviteStatus = 'checking'
+      const email = (parsedURL.searchParams.get('email') ?? '').trim()
+      if (email) {
+        state.inviteEmail = email
+        state.email = email
+      }
+      return true
+    },
+
+    /**
+     * Look the invitation up on the server. The email it is scoped to wins
+     * over whatever the link carried; an unknown or used code makes the
+     * invited screen show a message instead of a form.
+     */
+    async checkInvitation() {
+      const code = state.inviteCode.trim()
+      if (!code) {
+        state.inviteStatus = 'none'
+        return
+      }
+      state.inviteStatus = 'checking'
+      try {
+        const invitation = await client.getInvitation({code})
+        state.inviteEmail = invitation.email
+        state.email = invitation.email
+        state.inviteStatus = 'valid'
+      } catch (e) {
+        state.inviteStatus = e instanceof APIError && e.statusCode === 404 ? 'invalid' : 'failed'
+      }
+    },
+
+    /** Invited user accepted: start registration for the invitation's email. */
+    // The invitation link reached the person's inbox, so it already proves
+    // the address: create the account at once, no second emailed code.
+    async handleInvitedContinue() {
+      if (state.inviteStatus !== 'valid' || !state.inviteEmail) {
+        return
+      }
+      state.email = state.inviteEmail
+      state.error = ''
+      state.loading = true
+      try {
+        await client.registerInvited({email: state.email, invite: state.inviteCode.trim()})
+        registrationVerified = true
+        await actions.checkSession()
+        navigator.go('/auth/choose')
+      } catch (e) {
+        state.error = (e as Error).message || 'Registration failed'
+      } finally {
+        state.loading = false
+      }
     },
 
     setReturnToPath(path: string) {
@@ -648,7 +842,8 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.loading = true
 
       try {
-        const data = await client.registerStart({email: state.email})
+        const data = await client.registerStart({email: state.email, ...inviteField()})
+        registrationVerified = false
         state.verificationExpireTime = data.expireTime
         state.resendAllowedTime = data.resendAllowedTime
         navigator.go('/verify/pending')
@@ -660,16 +855,22 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
     },
 
     async handleRegisterVerify(code: string) {
+      // Code completion and form submission may fire before the view rerenders.
+      // Keep a consumed challenge closed until registration starts a new one.
+      if (registrationVerificationPending || registrationVerified) return
+      registrationVerificationPending = true
       state.loading = true
       state.error = ''
 
       try {
-        await client.registerVerify({code})
+        await client.registerVerify({code, ...inviteField()})
+        registrationVerified = true
         await actions.checkSession()
         navigator.go('/auth/choose')
       } catch (e) {
         state.error = (e as Error).message || 'Verification failed'
       } finally {
+        registrationVerificationPending = false
         state.loading = false
       }
     },
@@ -682,8 +883,13 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         return
       }
 
-      if (localCrypto.checkPasswordStrength(state.password) === 0) {
-        state.error = 'Password is too weak. Use at least 8 characters with mixed case, numbers, and symbols.'
+      if (localCrypto.getPasswordRules(state.password).some((rule) => !rule.met)) {
+        state.error =
+          'Password is too weak. Use at least 8 characters, one uppercase letter, and one number or special character.'
+        return
+      }
+      if (sharedPassword.checkPasswordStrength(state.password) === 0) {
+        state.error = 'Password is too weak. Add a lowercase letter, or make it at least 12 characters.'
         return
       }
 
@@ -704,11 +910,78 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         state.passwordSalt = salt
         state.decryptedDEK = dek
         await actions.loadVaultData()
-        navigator.go('/profile/create')
+        navigator.go('/recovery')
         await actions.checkSession()
       } catch (e) {
         console.error('Registration error:', e)
         state.error = (e as Error).message || 'Registration failed. Please try again.'
+      } finally {
+        state.loading = false
+      }
+    },
+
+    /**
+     * Load the current user's recovery words, generating them on first visit. They stay in
+     * sessionStorage until the recovery credential is saved, so a refresh shows the same words.
+     */
+    prepareRecoveryWords() {
+      if (state.recoveryWords.length > 0) return
+      const userId = state.session?.userId ?? ''
+      try {
+        const stored = JSON.parse(sessionStorage.getItem(RECOVERY_WORDS_STORAGE_KEY) ?? 'null') as {
+          userId: string
+          words: string[]
+        } | null
+        if (stored?.userId === userId && localCrypto.isValidRecoveryPhrase(stored.words)) {
+          state.recoveryWords = stored.words
+          return
+        }
+      } catch {
+        // Storage unavailable or corrupt: fall through and generate fresh words.
+      }
+      const words = localCrypto.generateRecoveryWords()
+      try {
+        sessionStorage.setItem(RECOVERY_WORDS_STORAGE_KEY, JSON.stringify({userId, words}))
+      } catch {
+        // Without storage a refresh shows new words, which is still safe as none are saved yet.
+      }
+      state.recoveryWords = words
+    },
+
+    /**
+     * Seal the vault with the recovery words by registering the secret credential they derive, so
+     * the words can unlock the vault later. Runs when the user downloads the words, or when they
+     * confirm they saved them.
+     */
+    async saveRecoveryCredential(nextPath?: string) {
+      if (!state.decryptedDEK) {
+        state.error = 'Your vault is locked. Unlock it and try again.'
+        return
+      }
+      state.error = ''
+      state.loading = true
+      try {
+        const secret = await localCrypto.deriveRecoverySecret(state.recoveryWords)
+        const [authKey, wrappedDEK] = await Promise.all([
+          localCrypto.deriveSecretCredentialAuthKey(secret),
+          localCrypto.encrypt(state.decryptedDEK, secret),
+        ])
+        await client.addSecretCredential({
+          authKey: base64.encode(authKey),
+          wrappedDEK: base64.encode(wrappedDEK),
+          purpose: 'recovery',
+        })
+        // Keep the session in step, so the reminder to save recovery words goes away.
+        if (state.session?.credentials) state.session.credentials.recoveryWords = true
+        // While the user stays on the step, keep the recovery words.
+        if (nextPath) {
+          navigator.go(nextPath)
+          clearStoredRecoveryWords()
+          state.recoveryWords = []
+        }
+      } catch (e) {
+        console.error('Failed to save recovery credential:', e)
+        state.error = "We couldn't save your recovery words. Check your connection and try again."
       } finally {
         state.loading = false
       }
@@ -823,13 +1096,71 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
         const dek = await localCrypto.decrypt(base64.decode(passwordCredential.wrappedDEK), encryptionKey)
         state.passwordSalt = passwordCredential.salt
+        state.failedSignInAttempts = 0
         state.decryptedDEK = dek
         await actions.loadVaultData(vaultData)
 
         await actions.checkSession()
       } catch (e) {
         console.error('Login error:', e)
-        state.error = (e as Error).message || 'Sign in failed. Check your password and try again.'
+        if (e instanceof APIError && e.statusCode === 401) {
+          state.error = 'Incorrect password, please try again.'
+          recordFailedSignIn()
+        } else {
+          state.error = (e as Error).message || 'Sign in failed. Check your password and try again.'
+        }
+      } finally {
+        state.loading = false
+      }
+    },
+
+    /**
+     * Sign in with recovery words after forgetting the password.
+     */
+    async handleRecoveryLogin(words: string[]) {
+      state.error = ''
+      if (!localCrypto.isValidRecoveryPhrase(words)) {
+        state.error = "These words don't form a recovery phrase. Check each word and their order."
+        recordFailedSignIn()
+        return
+      }
+
+      state.loading = true
+      try {
+        const secret = await localCrypto.deriveRecoverySecret(words)
+        const authKey = await localCrypto.deriveSecretCredentialAuthKey(secret)
+        const {credentialId} = await client.loginRecovery({email: state.email, authKey: base64.encode(authKey)})
+
+        const vaultData = await client.getVault({})
+        if (!isVaultDataResponse(vaultData)) {
+          throw new Error('Vault data was not returned.')
+        }
+        const credential = vaultData.credentials.find(
+          (candidate) => candidate.kind === 'secret' && candidate.credentialId === credentialId,
+        )
+        if (!credential) {
+          throw new Error('No recovery credential found for this account.')
+        }
+
+        const dek = await localCrypto.decrypt(base64.decode(credential.wrappedDEK), secret)
+        state.failedSignInAttempts = 0
+        // Once unlocked, show the account picker next, unless another flow is pending, which
+        // takes priority. The picker continues to where the user was headed before signing in.
+        const next = state.returnToPath
+        state.returnToPath =
+          next && next !== '/' ? `/login/recovered?next=${encodeURIComponent(next)}` : '/login/recovered'
+        state.decryptedDEK = dek
+        await actions.loadVaultData(vaultData)
+
+        await actions.checkSession()
+      } catch (e) {
+        console.error('Recovery login error:', e)
+        if (e instanceof APIError && e.statusCode === 401) {
+          state.error = "These recovery words don't match this account. Check each word and their order."
+          recordFailedSignIn()
+        } else {
+          state.error = (e as Error).message || 'Recovery failed. Please try again.'
+        }
       } finally {
         state.loading = false
       }
@@ -1252,6 +1583,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })
 
         state.vaultVersion++
+        void syncVaultAccounts()
       } catch (e) {
         console.error('Failed to save vault:', e)
         state.error = getVaultSaveErrorMessage(e)
@@ -1916,7 +2248,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           capabilityCid: encoded.cid,
           profile: encodedProfile.decoded,
           profileCid: encodedProfile.cid,
-          notifyServerUrl: getEffectiveNotificationServerUrl(),
+          notifyServerUrl: notifyServerUrlForCallback(getEffectiveNotificationServerUrl()),
         }
         const compressedCallbackData = await (async () => {
           const stream = new CompressionStream('gzip')
@@ -1946,6 +2278,16 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         })()
         callbackUrl.searchParams.set(hmauth.PARAM_DATA, base64.encode(compressedCallbackData))
         callbackUrl.searchParams.set(hmauth.PARAM_STATE, state.delegationRequest.state)
+        // This reusable proof must never reach HTTP requests, server logs, or referrers.
+        // Only clients signing the opt-in can consume and immediately clear the fragment.
+        if (state.delegationRequest.emailPrevalidation) {
+          const emailProof = hmauth.parseEmailPrevalidation(state.emailPrevalidation, configuredVaultOrigin)
+          if (emailProof) {
+            callbackUrl.hash = new URLSearchParams({
+              [hmauth.PARAM_EMAIL_PREVALIDATION]: base64.encode(new Uint8Array(cbor.encode(emailProof))),
+            }).toString()
+          }
+        }
 
         state.delegationRequest = null
         state.delegationConsented = false
@@ -1987,6 +2329,9 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       state.vaultLoaded = false
       state.selectedAccountIndex = -1
       state.email = ''
+      state.recoveryWords = []
+      state.failedSignInAttempts = 0
+      clearStoredRecoveryWords()
       navigator.go('/')
     },
   }
@@ -2005,6 +2350,9 @@ export type StoreActions = ReturnType<typeof createActions>
  * @param blockstore - The IPFS blockstore used for blob storage.
  * @param backendHttpBaseUrl - Daemon base URL used for IPFS-backed assets.
  * @param notificationServerUrl - Notification server URL shown in the footer.
+ * @param webBaseUrl - Public web reader base URL ('' = same origin).
+ * @param inviteOnly - Whether the server requires an invitation code to create an account.
+ * @param relyingPartyName - Human-readable relying-party name shown on the invited-user screen.
  */
 export function createStore(
   client: api.ClientInterface,
@@ -2012,8 +2360,12 @@ export function createStore(
   backendHttpBaseUrl = '',
   notificationServerUrl = '',
   webBaseUrl = '',
+  inviteOnly = false,
+  relyingPartyName = '',
 ) {
-  const state = proxy<AppState>(initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl))
+  const state = proxy<AppState>(
+    initialState(backendHttpBaseUrl, notificationServerUrl, webBaseUrl, inviteOnly, relyingPartyName),
+  )
 
   // Default navigator prevents crashes before router is connected
   let navigate = (path: string) => {

@@ -45,6 +45,31 @@ describe('Search.getData', () => {
     expect(result.nextPageToken).toBe('next-token')
   })
 
+  it('maps profile hits and home document title hits to the account without a version', async () => {
+    const grpcClient = {
+      entities: {
+        searchEntities: vi.fn().mockResolvedValue({
+          nextPageToken: '',
+          entities: [
+            {id: `hm://${account}`, content: 'Clerk', type: 'profile', icon: '', parentNames: []},
+            {id: `hm://${account}?v=head&l`, content: 'Clerk', type: 'title', icon: '', parentNames: []},
+            {id: `hm://${account}/notes?v=head&l`, content: 'Notes', type: 'title', icon: '', parentNames: ['Clerk']},
+            {id: `hm://${account}?v=head&l#block`, content: 'Clerk', type: 'title', icon: '', parentNames: []},
+          ],
+        }),
+      },
+    } as any
+
+    const result = await Search.getData(grpcClient, {query: 'clerk'}, (() => Promise.resolve(null)) as any)
+
+    expect(result.entities.map((e) => [e.type, e.id.id, e.id.version ?? null])).toEqual([
+      ['profile', `hm://${account}`, null],
+      ['profile', `hm://${account}`, null],
+      ['document', `hm://${account}/notes`, 'head'],
+      ['document', `hm://${account}`, 'head'],
+    ])
+  })
+
   it('maps comment hits to their containing document and keeps the comment id for focus', async () => {
     const grpcClient = {
       entities: {

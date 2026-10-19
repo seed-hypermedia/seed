@@ -1,3 +1,4 @@
+import {notifyEndpointUrl} from '../notify-url'
 import {useMutation, UseMutationOptions} from '@tanstack/react-query'
 
 export type SubscribePayload = {
@@ -10,7 +11,7 @@ export type SubscribePayload = {
 }
 
 async function subscribeToNotifications({notifyServiceHost, ...payload}: SubscribePayload): Promise<void> {
-  const response = await fetch(`${notifyServiceHost}/hm/api/public-subscribe`, {
+  const response = await fetch(notifyEndpointUrl(notifyServiceHost, 'public-subscribe'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

@@ -289,4 +289,45 @@ describe('web assistant panel', () => {
     // The page is still there and was never remounted.
     expect(container.querySelector('[data-testid="page"]')).not.toBeNull()
   })
+
+  it('never takes over a narrow viewport on its own: a restored open preference waits for the header', () => {
+    // A previous (wide) visit left the panel open; arriving on a phone must show the page, not the panel.
+    window.localStorage.setItem('seed.assistant.open', '1')
+    mockState.isMobile = true
+    act(() => root.render(<App />))
+    expect(controls!.isOpen).toBe(true) // The preference survives for a wider window…
+    expect(controls!.openedByReader).toBe(false)
+    expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).toBeNull() // …but nothing covers the page.
+    expect(document.body.style.overflow).toBe('')
+    // The header button reads closed, and one tap opens the panel instead of closing the invisible one.
+    expect(headerToggle?.isOpen).toBe(false)
+    act(() => headerToggle!.toggle())
+    expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).not.toBeNull()
+    expect(headerToggle?.isOpen).toBe(true)
+    act(() => headerToggle!.toggle())
+    expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).toBeNull()
+    expect(window.localStorage.getItem('seed.assistant.open')).toBe('0')
+  })
+
+  it('an auto-opened panel does not take over the page when the window shrinks; a reader-opened one does', () => {
+    autoOpenAvailable = true
+    act(() => root.render(<App />))
+    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
+    expect(controls!.openedByReader).toBe(false)
+
+    mockState.isMobile = true
+    act(() => root.render(<App />))
+    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).toBeNull()
+
+    // Opened on purpose on a wide window, the panel stays with the reader when the window narrows.
+    mockState.isMobile = false
+    act(() => root.render(<App />))
+    act(() => controls!.close())
+    act(() => controls!.open())
+    expect(controls!.openedByReader).toBe(true)
+    mockState.isMobile = true
+    act(() => root.render(<App />))
+    expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).not.toBeNull()
+  })
 })

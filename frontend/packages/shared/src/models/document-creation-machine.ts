@@ -52,11 +52,18 @@ type Context = {
   error: unknown
 }
 
-function defaultDestination(context: Context): UnpackedHypermediaId {
-  const resolution = context.resolution!
-  if (resolution.currentIsCollection) return context.input.currentId
+/** Selects the parent where contextual document creation must occur. */
+export function resolveDocumentCreationDestination(
+  currentId: UnpackedHypermediaId,
+  resolution: DocumentCreationResolutionInput,
+): UnpackedHypermediaId {
+  if (resolution.currentIsCollection) return currentId
   if (resolution.parentIsCollection && resolution.canEditParent && resolution.parentId) return resolution.parentId
-  return context.input.currentId
+  return currentId
+}
+
+function defaultDestination(context: Context): UnpackedHypermediaId {
+  return resolveDocumentCreationDestination(context.input.currentId, context.resolution!)
 }
 
 function schemaApplies(context: Context): boolean {

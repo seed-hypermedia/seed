@@ -1,0 +1,262 @@
+# Seed Enterprise Edition: a single-tenant, web-only Seed stack locked down for
+# private use. One VPS runs caddy, the web app, a daemon with NO peer-to-peer
+# connectivity, the identity vault (invite-only), and optionally notify (email)
+# and agents. Every page requires sign-in (enforced by the Caddyfile that
+# deploy.ts generates). Nothing leaves the box except email (through the
+# operator's SMTP account or the Seed hosting email relay) and, when agents
+# are enabled, model-provider calls.
+#
+# Fetched by deploy.ts when config.json has `"profile": "enterprise"`.
+# Compose profiles: `notify`, `agents`, `metrics` — enabled through
+# COMPOSE_PROFILES, which deploy.ts derives from config.json.
+networks:
+  internal_network:
+    driver: bridge # the default
+services:
+  proxy:
+    container_name: seed-proxy
+    image: caddy:2
+    user: '${SEED_UID}:${SEED_GID}'
+    depends_on:
+      - seed-daemon
+      - seed-web
+      - seed-vault
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    restart: unless-stopped
+    networks:
+      - internal_network
+    environment:
+      - 'SEED_SITE_HOSTNAME=${SEED_SITE_HOSTNAME}'
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/proxy/data:/data:z
+      - ${SEED_SITE_WORKSPACE}/proxy/config:/config:z
+      - ${SEED_SITE_WORKSPACE}/proxy/CaddyFile:/etc/caddy/Caddyfile:z
+
+  seed-web:
+    container_name: seed-web
+    image: ${SEED_WEB_IMAGE:-seedhypermedia/web:${SEED_SITE_TAG:-latest}}
+    user: '${SEED_UID}:${SEED_GID}'
+    depends_on:
+      - seed-daemon
+      - seed-vault
+    networks:
+      - internal_network
+    # No published port: the proxy is the only door, and it reaches the web app
+    # over the internal network.
+    restart: unless-stopped
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/web:/data:rw,z
+    environment:
+      - 'NODE_ENV=production'
+      - 'SEED_BASE_URL=${SEED_SITE_HOSTNAME}'
+      - 'DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}'
+      - 'PORT=${SEED_SITE_LOCAL_PORT:-3000}'
+      - 'DATA_DIR=/data'
+      - 'SEED_IS_GATEWAY=false'
+      - 'SEED_ENABLE_STATISTICS=false'
+      - 'SEED_SIGNING_ENABLED=true'
+      - 'SEED_IDENTITY_ENABLED=true'
+      # The vault is proxied under the same origin at /vault; the web app also
+      # talks to it directly for the membership check at sign-in.
+      - 'SEED_IDENTITY_DEFAULT_ORIGIN=${SEED_SITE_HOSTNAME}'
+      - 'SEED_VAULT_INTERNAL_URL=http://seed-vault:3000'
+      - 'SEED_VAULT_ADMIN_SECRET=${SEED_VAULT_ADMIN_SECRET}'
+      # Every page requires a session; the proxy asks /hm/api/session.
+      - 'SEED_REQUIRE_SIGN_IN=1'
+      - 'SEED_SESSION_SECRET=${SEED_SESSION_SECRET}'
+      # The agents service presents this instead of a session cookie.
+      - 'SEED_SERVICE_SECRET=${SEED_SERVICE_SECRET}'
+      # The daemon is isolated, so other spaces' public content (an embed of an
+      # external document, the agents' guide) is read from this mainnet node's
+      # HTTP API instead. Only ids the daemon has never seen go there; empty
+      # keeps every read on the box.
+      - 'SEED_UPSTREAM_API_URL=${SEED_UPSTREAM_API_URL}'
+      # The site's own <site>/hm/api/notify and <site>/hm/api/agents; empty
+      # when the notify / agents profiles are off. SEED_HOST_URL is empty on
+      # purpose: no Seed Hosting integration.
+      - 'NOTIFY_SERVICE_HOST=${SEED_NOTIFY_HOST}'
+      - 'SEED_AGENT_SERVER_URL=${SEED_AGENTS_HOST}'
+      - 'SEED_HOST_URL='
+
+  seed-daemon:
+    container_name: seed-daemon
+    image: ${SEED_SITE_IMAGE:-seedhypermedia/site:${SEED_SITE_TAG:-latest}}
+    user: '${SEED_UID}:${SEED_GID}'
+    restart: unless-stopped
+    # No published ports on purpose: the daemon is reachable only from the other
+    # containers on the internal network. There is no libp2p listener to expose.
+    networks:
+      - internal_network
+    environment:
+      - 'SEED_P2P_TESTNET_NAME=${SEED_P2P_TESTNET_NAME}'
+      - 'SEED_LOG_LEVEL=${SEED_LOG_LEVEL:-info}'
+      # No telemetry.
+      - 'SENTRY_DSN='
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/daemon:/data:rw,z
+      # The monitoring export is what the `metrics` profile mounts into
+      # Prometheus and Grafana; harmless when the profile is off.
+      - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana:/exported_grafana:rw,z
+      - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/prometheus:/exported_prometheus:rw,z
+    # The hostname positional must stay LAST: flag parsing stops at the first
+    # non-flag argument. -p2p.isolated implies no bootstrap, a deny-all
+    # connection gater, no peer exchange and no domain poller; the explicit
+    # flags after it are belt and braces for older images.
+    command:
+      'sh -c "(rsync -rlt /monitoring/prometheus/ /exported_prometheus 2>&1 || echo ''[warn] monitoring/prometheus
+      export failed — check directory permissions'') && (rsync -rlt /monitoring/grafana/ /exported_grafana 2>&1 || echo
+      ''[warn] monitoring/grafana export failed — check directory permissions'') && seed-daemon -data-dir=/data
+      -keystore-dir=/data/keys -p2p.port=56000 -p2p.listen-addrs=/ip4/127.0.0.1/tcp/56000
+      --http.port=${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001} -grpc.port=56002 -p2p.isolated=true -lndhub.disabled=true
+      -p2p.bootstrap-peers=none -p2p.no-relay=true -syncing.no-discovery=true -syncing.no-pull=true
+      -p2p.testnet-name=${SEED_P2P_TESTNET_NAME} ${SEED_SITE_HOSTNAME}"'
+
+  seed-vault:
+    container_name: seed-vault
+    image: ${SEED_VAULT_IMAGE:-seedhypermedia/vault:${SEED_SITE_TAG:-latest}}
+    user: '${SEED_UID}:${SEED_GID}'
+    depends_on:
+      - seed-daemon
+    restart: unless-stopped
+    networks:
+      - internal_network
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/vault:/data:rw,z
+    environment:
+      - 'NODE_ENV=production'
+      - 'SEED_VAULT_HTTP_PORT=3000'
+      - 'SEED_VAULT_DB_PATH=/data/vault.sqlite'
+      # WebAuthn relying party = the site itself; the vault lives at /vault.
+      - 'SEED_VAULT_RP_ID=${SEED_SITE_DNS}'
+      - 'SEED_VAULT_RP_NAME=${SEED_SITE_NAME}'
+      - 'SEED_VAULT_RP_ORIGIN=${SEED_SITE_HOSTNAME}'
+      - 'SEED_VAULT_WEB_BASE_URL=${SEED_SITE_HOSTNAME}'
+      # Public /ipfs access goes through the proxy; gRPC-web stays internal.
+      - 'SEED_VAULT_BACKEND_HTTP_BASE_URL=${SEED_SITE_HOSTNAME}'
+      - 'SEED_VAULT_BACKEND_GRPC_BASE_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}'
+      - 'SEED_VAULT_INVITE_ONLY=true'
+      - 'SEED_VAULT_ADMIN_SECRET=${SEED_VAULT_ADMIN_SECRET}'
+      # Set-but-empty means "no notify server" (unset would mean the hosted one).
+      - 'SEED_VAULT_DEFAULT_NOTIFY_SERVER=${SEED_NOTIFY_HOST}'
+      - 'SEED_VAULT_SMTP_HOST=${SEED_SMTP_HOST}'
+      # The vault's mailer speaks STARTTLS (Bun has no implicit TLS).
+      - 'SEED_VAULT_SMTP_PORT=${SEED_SMTP_PORT:-587}'
+      - 'SEED_VAULT_SMTP_USER=${SEED_SMTP_USER}'
+      - 'SEED_VAULT_SMTP_PASSWORD=${SEED_SMTP_PASSWORD}'
+      - 'SEED_VAULT_SMTP_SENDER=${SEED_SMTP_SENDER}'
+      # The Seed hosting email relay wins over SMTP when set; the instance then
+      # needs no SMTP account.
+      - 'SEED_VAULT_EMAIL_RELAY_URL=${SEED_EMAIL_RELAY_URL}'
+      - 'SEED_VAULT_EMAIL_RELAY_TOKEN=${SEED_EMAIL_RELAY_TOKEN}'
+
+  seed-notify:
+    container_name: seed-notify
+    image: ${SEED_NOTIFY_IMAGE:-seedhypermedia/notify:${SEED_SITE_TAG:-latest}}
+    user: '${SEED_UID}:${SEED_GID}'
+    profiles:
+      - notify
+    depends_on:
+      - seed-daemon
+    restart: unless-stopped
+    networks:
+      - internal_network
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/notify:/data:rw,z
+    environment:
+      - 'DAEMON_HTTP_URL=http://seed-daemon:${SEED_SITE_BACKEND_GRPCWEB_PORT:-56001}'
+      - 'PORT=3000'
+      - 'DATA_DIR=/data'
+      - 'SEED_BASE_URL=${SEED_SITE_HOSTNAME}'
+      # Its public base URL, <site>/hm/api/notify: the proxy routes that prefix
+      # (and the legacy /hm/api/<leaf> API paths) here; email links are built
+      # from its origin.
+      - 'NOTIFY_SERVICE_HOST=${SEED_NOTIFY_HOST}'
+      - 'NOTIFY_SMTP_HOST=${SEED_SMTP_HOST}'
+      # STARTTLS, like the vault: Bun's implicit TLS (465) is unreliable.
+      - 'NOTIFY_SMTP_PORT=${SEED_SMTP_PORT:-587}'
+      - 'NOTIFY_SMTP_USER=${SEED_SMTP_USER}'
+      - 'NOTIFY_SMTP_PASSWORD=${SEED_SMTP_PASSWORD}'
+      - 'NOTIFY_SENDER=${SEED_SMTP_SENDER}'
+      # Same relay as the vault; wins over SMTP when set.
+      - 'NOTIFY_EMAIL_RELAY_URL=${SEED_EMAIL_RELAY_URL}'
+      - 'NOTIFY_EMAIL_RELAY_TOKEN=${SEED_EMAIL_RELAY_TOKEN}'
+      # Trust the vault (same origin as the site) to prevalidate emails.
+      - 'NOTIFY_TRUSTED_PREVALIDATORS=${SEED_SITE_HOSTNAME}'
+      - 'NOTIFY_SENTRY_DSN='
+      # Defaults to a Seed team address otherwise.
+      - 'SEED_DEV_ADMIN_EMAIL=${SEED_CONTACT_EMAIL}'
+
+  seed-agents:
+    container_name: seed-agents
+    image: ${SEED_AGENTS_IMAGE:-seedhypermedia/agents:${SEED_SITE_TAG:-latest}}
+    user: '${SEED_UID}:${SEED_GID}'
+    profiles:
+      - agents
+    depends_on:
+      - seed-daemon
+      - seed-web
+    restart: unless-stopped
+    networks:
+      - internal_network
+    volumes:
+      - ${SEED_SITE_WORKSPACE}/agents:/data:rw,z
+    environment:
+      - 'SEED_AGENTS_HTTP_PORT=3050'
+      - 'SEED_AGENTS_DB_PATH=/data/agents.sqlite'
+      - 'SEED_AGENTS_DATA_DIR=/data'
+      # Agents talk to this site, never to hyper.media. The site is
+      # members-only; the service secret lets this service read it.
+      - 'SEED_AGENTS_HM_SERVER_URL=${SEED_SITE_HOSTNAME}'
+      # `hm://hyper.media/...` links (the Agent Guide's) name the Seed knowledge base
+      # space; reads of it go to the upstream node through the web app.
+      - 'SEED_AGENTS_DOCS_ACCOUNT=${SEED_AGENTS_DOCS_ACCOUNT:-z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB}'
+      - 'SEED_AGENTS_HM_SERVER_SECRET=${SEED_SERVICE_SECRET}'
+      # Sandboxed code execution needs /dev/kvm; `agents_kvm` in config.json
+      # injects the device and sets this to "microsandbox".
+      - 'SEED_AGENTS_EXEC_BACKEND=${SEED_AGENTS_EXEC_BACKEND}'
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    container_name: prometheus
+    profiles:
+      - metrics
+    depends_on:
+      - seed-daemon
+    networks:
+      - internal_network
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    volumes:
+      - prometheus-data:/prometheus
+      - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml:ro,z
+
+  grafana:
+    image: grafana/grafana:main
+    restart: unless-stopped
+    container_name: grafana
+    depends_on:
+      - prometheus
+    profiles:
+      - metrics
+    networks:
+      - internal_network
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana/dashboards:/etc/grafana/dashboards:ro,z
+      - ${SEED_SITE_MONITORING_WORKDIR:-./monitoring}/grafana/provisioning:/etc/grafana/provisioning:ro,z
+    environment:
+      GF_LOG_MODE: console
+      GF_PATHS_PROVISIONING: '/etc/grafana/provisioning'
+      GF_SERVER_HTTP_PORT: ${SEED_SITE_MONITORING_PORT:-3001}
+      GF_SERVER_PROTOCOL: 'http'
+      GF_SERVER_DOMAIN: ${SEED_SITE_DNS:-localhost:3001}
+      GF_SERVER_ROOT_URL: ${SEED_SITE_HOSTNAME:-http}/.metrics
+      GF_SERVER_SERVE_FROM_SUB_PATH: True
+
+volumes:
+  grafana-data: {}
+  prometheus-data: {}

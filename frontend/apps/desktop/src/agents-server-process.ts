@@ -85,7 +85,9 @@ export function getLocalAgentsServerUrl(): string | null {
 /** Returns true when a healthy agents server answers at `url`. */
 async function isAgentsServerHealthy(url: string): Promise<boolean> {
   try {
-    const response = await fetch(`${url}/agents/api/health`, {
+    // A canonical base (`…/hm/api/agents`) serves `/health`; an origin serves the legacy path.
+    const healthUrl = url.endsWith('/hm/api/agents') ? `${url}/health` : `${url}/agents/api/health`
+    const response = await fetch(healthUrl, {
       signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     })
     if (!response.ok) return false
@@ -202,7 +204,7 @@ async function spawnAgentsServer(): Promise<string> {
   log.info('Starting local agents server', {binaryPath, port, args})
 
   const child = spawn(binaryPath, args, {
-    // pi-coding-agent resolves its package.json against cwd at import time; see agents-server-path.ts.
+    // Run from the binary's own directory, beside the files it ships with; see agents-server-path.ts.
     cwd: getAgentsServerWorkingDirectory(),
     env: {...process.env},
     stdio: 'pipe',

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"seed/backend/config"
 	"seed/backend/core"
 	payments "seed/backend/genproto/payments/v1alpha"
 	"seed/backend/hmnet"
@@ -22,10 +23,13 @@ import (
 	"github.com/ipfs/go-cid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 var (
+	errLndhubDisabled        = status.Error(codes.FailedPrecondition, "lndhub disabled")
 	errAlreadyLndhubgoWallet = errors.New("Only one lndhub.go wallet is allowed and we already had one")
 	supportedWallets         = []string{lndhubsql.LndhubWalletType, lndhubsql.LndhubGoWalletType}
 	validCredentials         = regexp.MustCompile(`([A-Za-z0-9_\-\.]+):\/\/([0-9A-Za-z]+):([0-9a-f]+)@https:\/\/([A-Za-z0-9_\-\.]+)\/?$`)
@@ -41,6 +45,17 @@ type Server struct {
 	net             *hmnet.Node
 	log             *zap.Logger
 	ks              core.KeyStore
+	// disabled makes every lndhub-backed call fail with errLndhubDisabled.
+	disabled bool
+}
+
+// checkEnabled is the guard for every RPC that would talk to the lndhub server.
+func (srv *Server) checkEnabled() error {
+	if srv.disabled {
+		return errLndhubDisabled
+	}
+
+	return nil
 }
 
 // Credentials struct holds all we need to connect to different lightning nodes (lndhub, LND, core-lightning, ...).
@@ -53,10 +68,11 @@ type Credentials struct {
 }
 
 // NewServer is the constructor of the wallet service.
-func NewServer(log *zap.Logger, db *sqlitex.Pool, net *hmnet.Node, ks core.KeyStore, mainnet bool) *Server {
+func NewServer(log *zap.Logger, db *sqlitex.Pool, net *hmnet.Node, ks core.KeyStore, cfg config.Lndhub) *Server {
 	lndhubDomain := "ln.testnet.seed.hyper.media"
 	lnaddressDomain := "ln.testnet.seed.hyper.media"
-	if mainnet {
+
+	if cfg.Mainnet {
 		//lndhubDomain is the domain for internal lndhub calls.
 		lndhubDomain = "ln.seed.hyper.media"
 		lnaddressDomain = "ln.seed.hyper.media"
@@ -66,11 +82,18 @@ func NewServer(log *zap.Logger, db *sqlitex.Pool, net *hmnet.Node, ks core.KeySt
 		lightningClient: lnclient{
 			Lndhub: lndhub.NewClient(&http.Client{}, db, lndhubDomain, lnaddressDomain),
 		},
-		net: net,
-		log: log,
-		ks:  ks,
+		net:      net,
+		log:      log,
+		ks:       ks,
+		disabled: cfg.Disabled,
 	}
 	srv.net.SetInvoicer(srv)
+
+	if srv.disabled {
+		log.Info("LndhubDisabled", zap.String("reason", "-lndhub.disabled: skipping the startup wallet check, payment RPCs will fail with FailedPrecondition"))
+		return srv
+	}
+
 	keys, err := srv.ks.ListKeys(context.Background())
 	if err != nil {
 		log.Warn("Could not list keys to check opt-in wallets", zap.Error(err))
@@ -253,6 +276,10 @@ func (srv *Server) P2PInvoiceRequest(_ context.Context, _ core.Principal, _ Invo
 // CreateWallet creates a seed wallet from a set of mnemonic words. (usually the same as the
 // account). If the account was set with a password, then the same password has to be inserted here.
 func (srv *Server) CreateWallet(ctx context.Context, in *payments.CreateWalletRequest) (ret *payments.Wallet, err error) {
+	if err := srv.checkEnabled(); err != nil {
+		return nil, err
+	}
+
 	kp, err := srv.ks.GetKey(ctx, in.Account)
 	if err != nil {
 		return ret, fmt.Errorf("Problems with provided account: %w", err)
@@ -284,6 +311,10 @@ func (srv *Server) CreateWallet(ctx context.Context, in *payments.CreateWalletRe
 // ImportWallet returns the wallet actually inserted on success. The credentials are stored
 // in plain text at the moment.
 func (srv *Server) ImportWallet(ctx context.Context, in *payments.ImportWalletRequest) (*payments.Wallet, error) {
+	if err := srv.checkEnabled(); err != nil {
+		return nil, err
+	}
+
 	ret := &payments.Wallet{}
 	creds, err := DecodeCredentialsURL(in.CredentialsUrl)
 	if err != nil {
@@ -418,6 +449,10 @@ func (srv *Server) RemoveWallet(ctx context.Context, in *payments.WalletRequest)
 // GetWalletBalance tries to contact the wallet's address to get the
 // current balance in Satoshis.
 func (srv *Server) GetWalletBalance(ctx context.Context, in *payments.WalletRequest) (*payments.GetWalletBalanceResponse, error) {
+	if err := srv.checkEnabled(); err != nil {
+		return nil, err
+	}
+
 	ret := &payments.GetWalletBalanceResponse{}
 	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
@@ -545,6 +580,10 @@ func (srv *Server) ExportWallet(ctx context.Context, in *payments.WalletRequest)
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
 func (srv *Server) UpdateLNAddress(ctx context.Context, nickname, walletID string) error {
+	if err := srv.checkEnabled(); err != nil {
+		return err
+	}
+
 	conn, release, err := srv.pool.ReadConn(ctx)
 	if err != nil {
 		return err
@@ -622,6 +661,10 @@ func (srv *Server) GetWallet(ctx context.Context, in *payments.WalletRequest) (*
 // Since it is a user operation, if the login is a CID, then user must provide a token representing
 // the pubkey whose private counterpart created the signature provided in password (like in create).
 func (srv *Server) GetLnAddress(ctx context.Context, walletID string) (string, error) {
+	if err := srv.checkEnabled(); err != nil {
+		return "", err
+	}
+
 	lnaddress, err := srv.lightningClient.Lndhub.GetLnAddress(ctx, walletID)
 	if err != nil {
 		srv.log.Debug("couldn't get lnaddress", zap.Error(err))

@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL, MAX_FILE_SIZE_B, MAX_FILE_SIZE_MB} from '@shm/shared/constants'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {Button} from '@shm/ui/button'
@@ -5,6 +6,7 @@ import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {useFileUrl} from '@shm/ui/get-file-url'
 import {Upload} from '@shm/ui/icons'
+import {IMAGE_FILE_ACCEPT} from '@shm/ui/image-processing'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
@@ -345,7 +347,7 @@ function MediaForm({
         const formData = new FormData()
         // @ts-ignore
         formData.append('file', files[0])
-        const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
+        const response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
           method: 'POST',
           body: formData,
         })
@@ -488,7 +490,9 @@ function MediaForm({
                     id={'file-upload' + block.id}
                     type="file"
                     multiple
-                    accept={mediaType !== 'file' ? `${mediaType}/*` : undefined}
+                    accept={
+                      mediaType === 'image' ? IMAGE_FILE_ACCEPT : mediaType !== 'file' ? `${mediaType}/*` : undefined
+                    }
                     style={{
                       display: 'none',
                     }}

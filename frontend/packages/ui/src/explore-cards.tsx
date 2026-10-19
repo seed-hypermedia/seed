@@ -8,7 +8,7 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {useRouteLink} from '@shm/shared/routing'
 import {formattedDate, formattedDateMedium} from '@shm/shared/utils/date'
 import {activitySlugToFilter, hmId} from '@shm/shared/utils/entity-id-url'
-import {GitBranch, MessageSquare} from 'lucide-react'
+import {GitCompareArrows, MessageSquare} from 'lucide-react'
 import {FacePile} from './face-pile'
 import {HMIcon} from './hm-icon'
 import {AccountAvatar} from './account-avatar'
@@ -97,7 +97,7 @@ export function ExploreDocumentCard({document, spaceName}: {document: HMDocument
                   {...citationsLink}
                   className="text-muted-foreground hover:bg-muted hover:text-foreground flex items-center gap-1 px-2.5 py-1 text-xs transition-colors"
                 >
-                  <GitBranch className="size-3.5" aria-hidden />
+                  <GitCompareArrows className="size-3.5" aria-hidden />
                   {citations}
                 </a>
               </Tooltip>

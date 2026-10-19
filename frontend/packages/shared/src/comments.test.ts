@@ -1,6 +1,6 @@
 import {HMComment} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, test} from 'vitest'
-import {getCommentGroups} from './comments'
+import {getCommentGroups, getCommentContinuation, getSubmittedCommentGroups} from './comments'
 
 // Only the fields getCommentGroups reads.
 function comment(id: string, replyParent: string, updateTime: string): HMComment {
@@ -60,5 +60,45 @@ describe('getCommentGroups', () => {
     // though the rendered chain (just the root) is untouched.
     const withFreshBranchReply = [...oldThread, ...newerThread, comment('old-b1', 'old-b', '2026-07-20T16:00:00Z')]
     expect(getCommentGroups(withFreshBranchReply).map((g) => g.id)).toEqual(['old', 'newer'])
+  })
+})
+
+describe('getCommentContinuation', () => {
+  const comments = [
+    comment('c', '', ''),
+    comment('r1', 'c', ''),
+    comment('r2', 'r1', ''),
+    comment('sibling', 'c', ''),
+    comment('branch', 'r1', ''),
+  ]
+  test('restores the selected chain and keeps other branches once', () => {
+    const result = getCommentContinuation(comments, 'c', 'r2')!
+    expect(result.chain.map((c) => c.id)).toEqual(['c', 'r1', 'r2'])
+    expect(result.branches.map((b) => [b.parent.id, b.groups.map((g) => g.id)])).toEqual([
+      ['c', ['sibling']],
+      ['r1', ['branch']],
+    ])
+  })
+  test('uses context as target without a continuation', () => {
+    expect(getCommentContinuation(comments, 'c')!.chain.map((c) => c.id)).toEqual(['c'])
+  })
+  test('rejects missing, unrelated, and cyclic targets', () => {
+    expect(getCommentContinuation(comments, 'r1', 'sibling')).toBeNull()
+    expect(getCommentContinuation(comments, 'c', 'missing')).toBeNull()
+    expect(getCommentContinuation([...comments, comment('loop', 'loop', '')], 'c', 'loop')).toBeNull()
+  })
+})
+
+describe('getSubmittedCommentGroups', () => {
+  const root = comment('new', '', '')
+  test('shows a submitted root before the server list loads', () => {
+    expect(getSubmittedCommentGroups(undefined, [root], new Set()).map((g) => g.id)).toEqual(['new'])
+  })
+  test('does not restore a deleted root after the server acknowledged it', () => {
+    expect(getSubmittedCommentGroups([], [root], new Set(['new']))).toEqual([])
+  })
+  test('keeps a submitted root only once and before other groups', () => {
+    const groups = getCommentGroups([comment('old', '', ''), root])
+    expect(getSubmittedCommentGroups(groups, [root, root], new Set()).map((g) => g.id)).toEqual(['new', 'old'])
   })
 })

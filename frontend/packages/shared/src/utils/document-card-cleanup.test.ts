@@ -5,6 +5,7 @@ import {
   appendDraftCardToEditorBlocks,
   applyDocumentCardCleanupToBlockNodes,
   getDirectChildrenLosingReferences,
+  getRemovedChildReferenceTargets,
   planDeletedDocumentCardEmbedCleanup,
   planDocumentCardAppend,
   planDocumentCardMoveOperations,
@@ -682,6 +683,14 @@ describe('getDirectChildrenLosingReferences', () => {
       'hm://parent/site/child',
       'hm://parent/site/button',
     ])
+  })
+})
+
+describe('getRemovedChildReferenceTargets', () => {
+  it('keeps a removed stale HM target for redirect-aware publication inspection', () => {
+    const movedParent = unpackHmId('hm://parent/new-parent')!
+    const staleCard = embedCard('child', 'hm://parent/old-parent/child')
+    expect(getRemovedChildReferenceTargets(movedParent, [staleCard], [])).toEqual(['hm://parent/old-parent/child'])
   })
 })
 

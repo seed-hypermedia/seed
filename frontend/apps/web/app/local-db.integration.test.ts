@@ -13,6 +13,8 @@ global.window = {
 // Mock the origin variable that local-db.ts uses
 ;(global as any).origin = TEST_ORIGIN
 
+import * as base64 from '@seed-hypermedia/client/base64'
+import * as blobs from '@shm/shared/blobs'
 import {indexedDB} from 'fake-indexeddb'
 import 'fake-indexeddb/auto'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -251,6 +253,103 @@ describe('local-db integration', () => {
     })
   })
 
+  describe('delegated email prevalidation', () => {
+    function proof() {
+      return {
+        email: 'person@example.com',
+        host: 'https://vault.example.com',
+        signer: base64.encode(blobs.generateNobleKeyPair().principal),
+        sig: base64.encode(new Uint8Array(64).fill(7)),
+      }
+    }
+
+    it('persists optional proof with the delegated identity and clears it when that identity is replaced', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        const emailPrevalidation = proof()
+        await writeLocalKeys(await generateEd25519KeyPair(), {
+          delegatedAccountUid: 'account-1',
+          capabilityCid: 'capability-1',
+          vaultUrl: 'https://vault.example.com/vault/delegate',
+          emailPrevalidation,
+        })
+        expect((await getStoredLocalKeys())?.emailPrevalidation).toEqual(emailPrevalidation)
+        await writeLocalKeys(await generateEd25519KeyPair(), {
+          delegatedAccountUid: 'account-2',
+          capabilityCid: 'capability-2',
+          vaultUrl: 'https://vault.example.com/vault/delegate',
+        })
+        expect((await getStoredLocalKeys())?.emailPrevalidation).toBeUndefined()
+        expect(
+          await requestToPromise(db.transaction('keys-01').objectStore('keys-01').get('emailPrevalidation')),
+        ).toBeUndefined()
+      } finally {
+        db.close()
+      }
+    })
+
+    it('deletes persisted proof together with local keys on logout', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        await writeLocalKeys(await generateEd25519KeyPair(), {
+          delegatedAccountUid: 'account-1',
+          capabilityCid: 'capability-1',
+          vaultUrl: 'https://vault.example.com',
+          emailPrevalidation: proof(),
+        })
+        await deleteLocalKeys()
+        expect(await getStoredLocalKeys()).toBeNull()
+        expect(
+          await requestToPromise(db.transaction('keys-01').objectStore('keys-01').get('emailPrevalidation')),
+        ).toBeUndefined()
+      } finally {
+        db.close()
+      }
+    })
+
+    it.each(['wrong-origin', 'missing-delegation', 'missing-capability'])(
+      'does not store proof with %s',
+      async (kind) => {
+        const db = await resetDB(indexedDB)
+        try {
+          await writeLocalKeys(await generateEd25519KeyPair(), {
+            delegatedAccountUid: kind === 'missing-delegation' ? undefined : 'account-1',
+            capabilityCid: kind === 'missing-capability' ? undefined : 'capability-1',
+            vaultUrl: kind === 'wrong-origin' ? 'https://other-vault.example.com' : 'https://vault.example.com',
+            emailPrevalidation: proof(),
+          })
+          expect((await getStoredLocalKeys())?.emailPrevalidation).toBeUndefined()
+          expect(
+            await requestToPromise(db.transaction('keys-01').objectStore('keys-01').get('emailPrevalidation')),
+          ).toBeUndefined()
+        } finally {
+          db.close()
+        }
+      },
+    )
+
+    it('revalidates stored proof origin on reload', async () => {
+      const db = await resetDB(indexedDB)
+      try {
+        await writeLocalKeys(await generateEd25519KeyPair(), {
+          delegatedAccountUid: 'account-1',
+          capabilityCid: 'capability-1',
+          vaultUrl: 'https://vault.example.com',
+          emailPrevalidation: proof(),
+        })
+        await requestToPromise(
+          db
+            .transaction('keys-01', 'readwrite')
+            .objectStore('keys-01')
+            .put('https://other-vault.example.com', 'vaultUrl'),
+        )
+        expect((await getStoredLocalKeys())?.emailPrevalidation).toBeUndefined()
+      } finally {
+        db.close()
+      }
+    })
+  })
+
   describe('email notifications', () => {
     it('should default to false when not set', async () => {
       const db = await resetDB(indexedDB)
@@ -481,6 +580,13 @@ describe('local-db integration', () => {
         await setPendingIntent(intent)
         const stored = await getPendingIntent()
         expect(stored).toEqual(intent)
+        intent.commentRoute = {
+          key: 'document',
+          id: intent.docId,
+          panel: {key: 'comments', id: intent.docId, openComment: 'root', replyCommentId: 'parent'},
+        }
+        await setPendingIntent(intent)
+        expect(await getPendingIntent()).toEqual(intent)
       } finally {
         db.close()
       }

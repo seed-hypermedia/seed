@@ -29,8 +29,8 @@ func TestAuthorizedStoreWithFilterConcurrent(t *testing.T) {
 
 	const itemCount = 60
 
-	// Visibility by item index, mirroring what loadRBSRStore builds: every
-	// third blob is public, the rest are private to one of the two spaces.
+	// Visibility by item, mirroring what loadRBSRStore builds: every third
+	// blob is public, the rest are private to one of the two spaces.
 	visibleTo := func(i int, authorized []core.Principal) bool {
 		var owner core.Principal
 		switch i % 3 {
@@ -73,12 +73,13 @@ func TestAuthorizedStoreWithFilterConcurrent(t *testing.T) {
 			for i := range itemCount {
 				// Ascending timestamps keep the sealed order equal to the
 				// insertion order, so the indices below are deterministic.
-				require.NoError(t, store.Insert(int64(i+1), fmt.Appendf(nil, "blob-%03d", i)))
+				id := fmt.Sprintf("blob-%03d", i)
+				require.NoError(t, store.Insert(int64(i+1), []byte(id)))
 				switch i % 3 {
 				case 1:
-					store.SetItemPrivateVisibility(i, spaceA)
+					store.SetItemPrivateVisibility(id, spaceA)
 				case 2:
-					store.SetItemPrivateVisibility(i, spaceB)
+					store.SetItemPrivateVisibility(id, spaceB)
 				}
 			}
 			require.NoError(t, store.Seal())
@@ -147,4 +148,50 @@ func generatePrincipal(t *testing.T) core.Principal {
 	kp, err := core.GenerateKeyPair(core.Ed25519, rand.Reader)
 	require.NoError(t, err)
 	return kp.Principal()
+}
+
+// TestAuthorizedStoreVisibilityFollowsReorderedItems is the regression test for
+// visibility attached by row position. Loaders insert rows in the query's
+// order while both backing stores keep items in Item.Compare order, so an
+// item's final position is not its insertion index; a position-keyed record
+// landed on whichever item ended up there instead. The private item must stay
+// hidden from an unauthorized peer whatever order it was inserted in.
+func TestAuthorizedStoreVisibilityFollowsReorderedItems(t *testing.T) {
+	t.Parallel()
+
+	space := generatePrincipal(t)
+
+	for _, backend := range []struct {
+		name string
+		new  func() *authorizedStore
+	}{
+		{"slice", newAuthorizedStore},
+		{"tree", newAuthorizedTreeStore},
+	} {
+		t.Run(backend.name, func(t *testing.T) {
+			t.Parallel()
+
+			store := backend.new()
+			// Same timestamp, inserted in descending value order: sealing
+			// reverses them, so "c" goes in first and ends up last.
+			for _, id := range []string{"c", "b", "a"} {
+				require.NoError(t, store.Insert(0, []byte(id)))
+			}
+
+			store.SetItemPrivateVisibility("c", space)
+			require.NoError(t, store.Seal())
+
+			values := func(st *authorizedStore) []string {
+				var out []string
+
+				require.NoError(t, st.ForEach(0, st.Size(), func(_ int, item rbsr.Item) bool {
+					out = append(out, string(item.Value))
+					return true
+				}))
+				return out
+			}
+			require.Equal(t, []string{"a", "b"}, values(store.WithFilter(nil)))
+			require.Equal(t, []string{"a", "b", "c"}, values(store.WithFilter([]core.Principal{space})))
+		})
+	}
 }

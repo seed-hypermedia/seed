@@ -14,15 +14,19 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
 
   return {
     preLogin: notImplemented('preLogin'),
+    registerInvited: notImplemented('registerInvited'),
     login: notImplemented('login'),
+    loginRecovery: notImplemented('loginRecovery'),
     logout: notImplemented('logout'),
     getSession: notImplemented('getSession'),
     getAccount: notImplemented('getAccount'),
     getConfig: notImplemented('getConfig'),
     registerStart: notImplemented('registerStart'),
     registerVerify: notImplemented('registerVerify'),
+    getInvitation: notImplemented('getInvitation'),
     getVault: notImplemented('getVault'),
     saveVault: notImplemented('saveVault'),
+    syncVaultAccounts: async () => ({success: true}),
     addPassword: notImplemented('addPassword'),
     changePassword: notImplemented('changePassword'),
     addSecretCredential: notImplemented('addSecretCredential'),
@@ -47,7 +51,9 @@ export function createMockClient(overrides: Partial<api.ClientInterface> = {}): 
 export function createSuccessMockClient(overrides: Partial<api.ClientInterface> = {}): api.ClientInterface {
   return {
     preLogin: async () => ({exists: false}),
+    registerInvited: async () => ({verified: true, userId: 'user-1'}),
     login: async () => ({success: true, userId: 'user-1'}),
+    loginRecovery: async () => ({success: true, userId: 'user-1', credentialId: 'recovery-credential'}),
     logout: async () => ({success: true}),
     getSession: async () => ({
       authenticated: false,
@@ -58,6 +64,8 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       backendHttpBaseUrl: 'https://daemon.example.com',
       notificationServerUrl: 'https://notify.example.com',
       webBaseUrl: 'https://web.example.com',
+      inviteOnly: false,
+      relyingPartyName: 'Test Vault',
     }),
     registerStart: async () => ({
       message: 'ok',
@@ -68,8 +76,10 @@ export function createSuccessMockClient(overrides: Partial<api.ClientInterface> 
       verified: true,
       userId: 'user-1',
     }),
+    getInvitation: async () => ({email: 'invited@example.com', valid: true}),
     getVault: async () => ({encryptedData: '', version: 0, credentials: []}),
     saveVault: async () => ({success: true}),
+    syncVaultAccounts: async () => ({success: true}),
     addPassword: async () => ({success: true}),
     changePassword: async () => ({success: true}),
     addSecretCredential: async () => ({success: true, credentialId: 'secret-credential'}),

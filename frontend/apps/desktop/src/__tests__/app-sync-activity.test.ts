@@ -97,8 +97,6 @@ describe('activity event processing', () => {
       [queryKeys.SEARCH],
       [queryKeys.ACTIVITY_FEED],
       [queryKeys.FEED],
-      [queryKeys.LIBRARY],
-      [queryKeys.SITE_LIBRARY],
       [queryKeys.LIST_ROOT_DOCUMENTS],
       [queryKeys.ROOT_DOCUMENTS],
     ]
@@ -133,7 +131,7 @@ describe('activity event processing', () => {
   })
 
   describe('processEvents integration', () => {
-    it('ripples profile invalidations across account, collaborators, search, feed, and library', async () => {
+    it('ripples profile invalidations across account, collaborators, search, and feed', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Profile', 'hm://z6MkProfileUser')])
       // Blanket [ACCOUNT] prefix catches aliases (A→B means [ACCOUNT, A] stores B's data)
@@ -142,11 +140,9 @@ describe('activity event processing', () => {
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_COLLABORATORS])
       // Mention picker and global search show account names — invalidate so they refetch
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SEARCH])
-      // Feed/library rows display author names/avatars derived from the profile
+      // Feed rows display author names/avatars derived from the profile
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.FEED])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIBRARY])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ROOT_DOCUMENTS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
     })
@@ -163,13 +159,10 @@ describe('activity event processing', () => {
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_COLLABORATORS])
     })
 
-    it('targets site-library invalidation for child Ref events', async () => {
+    it('leaves the root-document caches alone for child Ref events', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Ref', 'hm://z6MkOwner/doc?v=abc')])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.QUERY_BLOCK])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIBRARY])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY, 'z6MkOwner'])
-      expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
       expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.LIST_ROOT_DOCUMENTS])
       expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
@@ -179,15 +172,44 @@ describe('activity event processing', () => {
     it('invalidates root-document caches for root Ref events', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Ref', 'hm://z6MkOwner?v=abc')])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY, 'z6MkOwner'])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ROOT_DOCUMENTS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
+    })
+
+    it('does not invalidate search for a plain Ref (new document / new version)', async () => {
+      const {processEvents} = await loadModule()
+      processEvents([makeBlobEvent('Ref', 'hm://z6MkOwner/doc?v=abc', 'z6MkOwner', JSON.stringify({generation: 1}))])
+      expect(appInvalidateQueriesMock).not.toHaveBeenCalledWith([queryKeys.SEARCH])
+    })
+
+    it('invalidates search for a tombstone Ref (deleted document)', async () => {
+      const {processEvents} = await loadModule()
+      processEvents([
+        makeBlobEvent(
+          'Ref',
+          'hm://z6MkOwner/doc',
+          'z6MkOwner',
+          JSON.stringify({tombstone: true, generation: 1779287923338}),
+        ),
+      ])
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SEARCH])
+    })
+
+    it('invalidates search only once for a batch with several tombstone Refs', async () => {
+      const {processEvents} = await loadModule()
+      processEvents([
+        makeBlobEvent('Ref', 'hm://z6MkOwner/a', 'z6MkOwner', JSON.stringify({tombstone: true})),
+        makeBlobEvent('Ref', 'hm://z6MkOwner/b', 'z6MkOwner', JSON.stringify({tombstone: true})),
+      ])
+      const searchCalls = appInvalidateQueriesMock.mock.calls.filter(
+        (call) => Array.isArray(call[0]) && call[0].length === 1 && call[0][0] === queryKeys.SEARCH,
+      )
+      expect(searchCalls).toHaveLength(1)
     })
 
     it('falls back to broad listing invalidations for malformed Ref resources', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Ref', 'not-an-hm-url')])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ROOT_DOCUMENTS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ROOT_DOCUMENTS])
     })
@@ -236,9 +258,8 @@ describe('activity event processing', () => {
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACCOUNT])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIST_ACCOUNTS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_COLLABORATORS])
-      // Ref → listing caches
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIBRARY])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY, 'z6MkOwner'])
+      // Ref → collection caches
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.QUERY_BLOCK])
       // Comment → comment caches
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_COMMENTS])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_DISCUSSION])
@@ -261,7 +282,7 @@ describe('activity event processing', () => {
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.DOCUMENT_COLLABORATORS, 'z6MkOwner'])
     })
 
-    it('invalidates CONTACTS, collaborators, search, library, and feed for Contact events', async () => {
+    it('invalidates CONTACTS, collaborators, search, and feed for Contact events', async () => {
       const {processEvents} = await loadModule()
       processEvents([makeBlobEvent('Contact', 'hm://z6MkOwner', 'z6MkContactAuthor')])
       // Targeted: this author's following list
@@ -270,10 +291,8 @@ describe('activity event processing', () => {
       // Blanket: covers site members (useSiteMembers) + follower lists for all subjects,
       // since the contact's subject pubkey row id in extraAttrs isn't a usable uid.
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.CONTACTS_SUBJECT])
-      // Contacts carry display-name aliases shown in mention picker and library
+      // Contacts carry display-name aliases shown in the mention picker
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SEARCH])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.LIBRARY])
-      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.SITE_LIBRARY])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACTIVITY_FEED])
       expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.FEED])
     })
@@ -318,6 +337,26 @@ describe('activity event processing', () => {
 
       unsubscribeA()
       unsubscribeB()
+    })
+
+    it('processes the first events that arrive after an empty feed', async () => {
+      vi.useFakeTimers()
+      const grpcClient = await getGrpcClientMock()
+      // A fresh database has no events on the first poll.
+      grpcClient.activityFeed.listEvents
+        .mockResolvedValueOnce({events: []})
+        .mockResolvedValue({events: [makeBlobEvent('Profile', 'hm://z6MkProfileUser')]})
+      grpcClient.entities.discoverEntity.mockReturnValue(new Promise(() => {}))
+
+      const {subscribe} = await loadModule()
+      const unsubscribe = subscribe({id: {id: 'hm://z6MkOwner/doc', uid: 'z6MkOwner', path: ['doc']}} as any)
+
+      await vi.advanceTimersByTimeAsync(1_100)
+
+      expect(appInvalidateQueriesMock).toHaveBeenCalledWith([queryKeys.ACCOUNT])
+
+      unsubscribe()
+      vi.useRealTimers()
     })
   })
 })

@@ -1,12 +1,5 @@
-import {grpcClient} from '@/grpc-client'
 import {client} from '@/trpc'
-import {toPlainMessage} from '@bufbuild/protobuf'
-import {
-  HMBlockNodeSchema,
-  HMComment,
-  HMCommentDraftSchema,
-  UnpackedHypermediaId,
-} from '@seed-hypermedia/client/hm-types'
+import {HMCommentDraftSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useQuery} from '@tanstack/react-query'
 
@@ -42,25 +35,4 @@ export function useCommentDraft(
     ...comment,
     data: comment.data ? HMCommentDraftSchema.parse(comment.data) : undefined,
   }
-}
-
-export function useComments(commentIds: UnpackedHypermediaId[] = []) {
-  return useQuery({
-    queryKey: [queryKeys.COMMENTS_BATCH],
-    queryFn: async function () {
-      const res = await grpcClient.comments.batchGetComments({
-        ids: commentIds.map((c) => c.id),
-      })
-      return res.comments.map((comment) => {
-        const plain = toPlainMessage(comment)
-        return {
-          ...plain,
-          content: plain.content.map((blockNode) => {
-            const parsed = HMBlockNodeSchema.safeParse(blockNode)
-            return parsed.success ? parsed.data : blockNode
-          }),
-        } as HMComment
-      })
-    },
-  })
 }

@@ -2,22 +2,40 @@ import appError from '@/errors'
 import {getPageWebContents, setupWebBrowser} from './app-web-browser'
 import {createBrowserArchiveDraft} from './app-drafts'
 import {isWebBrowserEnabled} from './app-experiments'
-import {frameNavigationOpensExternally} from './frame-navigation'
 import type {AppWindowEvent} from '@/utils/window-events'
 import {getRouteWindowType} from '@/utils/window-types'
+import {API_HTTP_URL, DAEMON_FILE_URL, DAEMON_HTTP_URL, DEFAULT_DESKTOP_AGENTS_URL} from '@shm/shared/constants'
 import {defaultRoute, type NavRoute} from '@shm/shared/routes'
 import type {NavState} from '@shm/shared/utils/navigation'
-import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen, shell} from 'electron'
+import {BrowserWindow, WebContentsView, app, globalShortcut, nativeTheme, screen} from 'electron'
 import path from 'node:path'
 import {z} from 'zod'
 import {markAppWindowBlurred, markAppWindowFocused} from './app-focus'
 import {updateRecentRoute} from './app-recents'
 import {getAppTheme, shouldUseDarkColors} from './app-settings'
 import {appStore} from './app-store.mjs'
-import {getDaemonState, subscribeDaemonState} from './daemon'
+import type {AppWindowPolicy} from './app-window-policy'
+import {installWindowGuards} from './app-window-security'
+import {daemonAppSecret, getDaemonState, subscribeDaemonState} from './daemon'
 import {childLogger, debug, info, isQuietNodeLogsEnabled, warn} from './logger'
 import {logWindowClose, logWindowOpen} from './memory-profiler-window'
 import {mergeWindowNavState, resolveSelectedIdentityForWindow, type WindowNavState} from './utils/account-selection'
+
+/** Resolve the app's exact origin after its local server has started. */
+export function getAppWindowPolicy(): AppWindowPolicy {
+  const serverPort = (global as typeof globalThis & {localServerPort?: number}).localServerPort
+  const appURL = MAIN_WINDOW_VITE_DEV_SERVER_URL || (serverPort ? `http://localhost:${serverPort}` : null)
+  return {
+    appOrigin: appURL ? new URL(appURL).origin : null,
+    daemonOrigin: new URL(DAEMON_HTTP_URL).origin,
+    fileOrigin: new URL(DAEMON_FILE_URL).origin,
+    connectOrigins: [API_HTTP_URL, DEFAULT_DESKTOP_AGENTS_URL].map((url) => new URL(url).origin),
+    development: !!MAIN_WINDOW_VITE_DEV_SERVER_URL,
+  }
+}
+
+/** Reusable guards; implementation is separate to avoid booting the app in fixtures. */
+export {installWindowGuards} from './app-window-security'
 
 const quietNodeLogs = isQuietNodeLogsEnabled()
 
@@ -183,6 +201,13 @@ const appWindowSchema = z.object({
   selectedIdentity: z.string().nullable().optional(),
   assistantOpen: z.boolean().optional(),
   assistantSessionId: z.string().nullable().optional(),
+})
+
+/** Window creation input leaves layout values unset so the focused window can supply them. */
+export const createAppWindowInputSchema = appWindowSchema.partial().extend({
+  routes: z.array(z.any()),
+  routeIndex: z.number().default(0),
+  id: z.string().optional(),
 })
 
 export type AppWindow = z.infer<typeof appWindowSchema>
@@ -397,6 +422,11 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     }
   }
 
+  // Read the source before constructing a window, which can change focus.
+  const sourceWindow = getLastFocusedWindow()
+  const sourceWindowId = Array.from(allWindows.entries()).find(([, window]) => window === sourceWindow)?.[0]
+  const sourceState = sourceWindowId ? windowNavState[sourceWindowId] : undefined
+
   const windowId = input.id || `window.${windowIdCount++}.${Date.now()}`
   const initActiveRoute = initRoutes[initRouteIndex]
   const windowType = getRouteWindowType(initActiveRoute)
@@ -482,7 +512,10 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       preload: path.join(__dirname, 'preload.js'),
       disableDialogs: true,
       spellcheck: true,
-      webviewTag: true,
+      // Electron's defaults, stated so the static scan and readers see them.
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
     },
     minWidth: windowType.minWidth,
     minHeight: windowType.minHeight,
@@ -503,63 +536,18 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     browserWindow.webContents.on('console-message', (event) => logRendererConsoleMessage(windowLogger, event))
   }
 
-  // Handle links from embedded content (Twitter, YouTube, etc.) that try to open new windows
-  browserWindow.webContents.setWindowOpenHandler(({url, frameName, features}) => {
-    // Log for debugging
-    debug('Window open request', {url, frameName, features})
-
-    // Route website links according to the saved browser preference.
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      if (isWebBrowserEnabled()) browserWindow.webContents.send('appWindowEvent', {type: 'open_web_url', url})
-      else shell.openExternal(url)
-    }
-
-    // The URL is handled above, so no unmanaged child window is needed.
-    return {action: 'deny'}
+  installWindowGuards(browserWindow, {
+    ...getAppWindowPolicy(),
+    // With the experimental web pane on, website links from the app open inside Seed instead of
+    // the OS browser; the guard still requires a real click first.
+    openInApp: (url, contents) => {
+      if (!isWebBrowserEnabled() || !/^https?:\/\//.test(url)) return false
+      contents.send('appWindowEvent', {type: 'open_web_url', url})
+      return true
+    },
   })
 
-  // Handle navigation attempts within the main frame
-  browserWindow.webContents.on('will-navigate', (event, url) => {
-    // Allow navigation for the main app (localhost in dev, file:// in production)
-    const appUrl = new URL(browserWindow.webContents.getURL())
-    const targetUrl = new URL(url)
-    if (targetUrl.origin === appUrl.origin && targetUrl.pathname === appUrl.pathname) {
-      return
-    }
-
-    // Keep the privileged app frame on its own page.
-    event.preventDefault()
-    if (isWebBrowserEnabled() && /^https?:\/\//.test(url)) {
-      browserWindow.webContents.send('appWindowEvent', {type: 'open_web_url', url})
-    } else {
-      shell.openExternal(url)
-    }
-  })
-
-  // Handle navigation in frames (for iframe content like YouTube embeds)
-  browserWindow.webContents.on('will-frame-navigate', (event) => {
-    const {url, isMainFrame} = event
-    if (isMainFrame || !frameNavigationOpensExternally(url)) return
-    // A website other than an allowed embed: keep it out of the app's frames.
-    event.preventDefault()
-    shell.openExternal(url)
-  })
-
-  // Additional handler for any child windows that might slip through
-  browserWindow.webContents.on('did-create-window', (childWindow, details) => {
-    // Log for debugging
-    debug('Child window created', {url: details.url})
-
-    // Get the URL and open it externally
-    if (details.url) {
-      shell.openExternal(details.url)
-    }
-
-    // Close the child window immediately
-    childWindow.close()
-  })
-
-  const focusedSelectedIdentity = lastFocusedWindowId ? windowNavState[lastFocusedWindowId]?.selectedIdentity : null
+  const focusedSelectedIdentity = sourceState?.selectedIdentity
   const selectedIdentity = resolveSelectedIdentityForWindow({
     availableAccountIds,
     inputSelectedIdentity: input.selectedIdentity,
@@ -570,9 +558,9 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   const initNavState: WindowNavState = {
     routes: initRoutes,
     routeIndex: initRouteIndex,
-    sidebarLocked: typeof input.sidebarLocked === 'boolean' ? input.sidebarLocked : true,
-    sidebarWidth: input.sidebarWidth || 15,
-    accessoryWidth: input.accessoryWidth || 20,
+    sidebarLocked: input.sidebarLocked ?? sourceState?.sidebarLocked ?? true,
+    sidebarWidth: input.sidebarWidth ?? sourceState?.sidebarWidth ?? 15,
+    accessoryWidth: input.accessoryWidth ?? sourceState?.accessoryWidth ?? 20,
     selectedIdentity,
     assistantOpen: input.assistantOpen || false,
     assistantSessionId: input.assistantSessionId || null,
@@ -581,8 +569,17 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
   windowNavState[windowId] = initNavState
 
   browserWindow.webContents.ipc.on('initWindow', (e) => {
+    // Only the app's top-level renderer receives the daemon credential.
+    const rendererURL = MAIN_WINDOW_VITE_DEV_SERVER_URL
+      ? new URL(MAIN_WINDOW_VITE_DEV_SERVER_URL).origin
+      : `http://localhost:${(global as any).localServerPort}`
+    const trustedFrame =
+      e.senderFrame === browserWindow.webContents.mainFrame &&
+      !!e.senderFrame?.url &&
+      new URL(e.senderFrame.url).origin === rendererURL
     e.returnValue = {
       windowType,
+      daemonAppSecret: trustedFrame ? daemonAppSecret : undefined,
       navState: windowNavState[windowId],
       daemonState: getDaemonState(),
       windowId,
@@ -791,9 +788,9 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     if (serverPort) {
       browserWindow.loadURL(`http://localhost:${serverPort}/${MAIN_WINDOW_VITE_NAME}/index.html`)
     } else {
-      // Fallback to file:// if server not available (embeds won't work)
-      browserWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`))
-      warn('[APP-WINDOWS]: Local server not available, using file:// protocol - embeds will not work')
+      // The app CSP and origin checks require the local HTTP server.
+      browserWindow.close()
+      throw new Error('Cannot load the app without its local renderer server')
     }
   }
 

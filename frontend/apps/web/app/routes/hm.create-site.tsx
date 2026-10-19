@@ -1,6 +1,7 @@
 import {logout, redirectToVaultSignIn, SPACE_EXISTS_BODY, SPACE_EXISTS_TITLE, useLocalKeyPair} from '@/auth'
 import {createSpaceHomeDraft} from '@/document-edit/web-create-space-draft'
 import {makeWebFileUpload} from '@/document-edit/web-image-upload'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {webUniversalClient} from '@/universal-client'
 import {useHasExistingSpace} from '@/web-create-space-dialog'
 import {useNavigate} from '@remix-run/react'
@@ -11,7 +12,10 @@ import {createSpaceMetadata} from '@shm/ui/create-space-platform'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {useEffect, useMemo, useState} from 'react'
+import {useEffect, useState} from 'react'
+
+const uploadSiteCover = makeWebFileUpload(webUniversalClient, COVER_IMAGE_POLICY)
+const uploadSiteIcon = makeWebFileUpload(webUniversalClient, AVATAR_IMAGE_POLICY)
 
 /**
  * Track the visual viewport height and size the panel to it for mobile form.
@@ -58,7 +62,6 @@ export default function CreateSiteRoute() {
   const userKeyPair = useLocalKeyPair()
   const accountUid = userKeyPair?.delegatedAccountUid ?? userKeyPair?.id ?? null
   const [busy, setBusy] = useState(false)
-  const fileUpload = useMemo(() => makeWebFileUpload(webUniversalClient), [])
 
   // When signed in, check whether this account already has a space.
   const existingSpace = useHasExistingSpace(accountUid, webUniversalClient)
@@ -78,9 +81,9 @@ export default function CreateSiteRoute() {
       // Upload cover/logo to IPFS and reference the resulting CIDs
       // in the metadata, mirroring the web draft image flow.
       const [coverCid, logoCid, faviconCid] = await Promise.all([
-        state.cover ? fileUpload(state.cover) : Promise.resolve(undefined),
-        state.logo ? fileUpload(state.logo) : Promise.resolve(undefined),
-        state.favicon ? fileUpload(state.favicon) : Promise.resolve(undefined),
+        state.cover ? uploadSiteCover(state.cover) : Promise.resolve(undefined),
+        state.logo ? uploadSiteIcon(state.logo) : Promise.resolve(undefined),
+        state.favicon ? uploadSiteIcon(state.favicon) : Promise.resolve(undefined),
       ])
       const metadata = createSpaceMetadata(state, {coverCid, logoCid, faviconCid})
       const {webPath} = await createSpaceHomeDraft(metadata, accountUid)

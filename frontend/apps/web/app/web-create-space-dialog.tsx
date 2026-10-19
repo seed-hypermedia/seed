@@ -1,8 +1,9 @@
 import {useLocalKeyPair} from '@/auth'
 import {createSpaceHomeDraft} from '@/document-edit/web-create-space-draft'
 import {makeWebFileUpload} from '@/document-edit/web-image-upload'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {useNavigate} from '@remix-run/react'
-import {useUniversalClient} from '@shm/shared'
+import {useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Dialog, DialogSideContent, DialogTitle} from '@shm/ui/components/dialog'
@@ -13,6 +14,23 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useQuery} from '@tanstack/react-query'
 import {useCallback, useMemo, useState} from 'react'
+import {setPendingIntent} from './local-db'
+
+/** Publishes a signed-in account's home draft while keeping app-level dialogs mounted. */
+export function usePublishSpaceDraft() {
+  const navigate = useNavigate()
+  const {originHomeId} = useUniversalAppContext()
+  return useCallback(
+    async (draftId: string) => {
+      await setPendingIntent({type: 'publish-draft', draftId})
+      const {processPendingIntent} = await import('./pending-intent')
+      const result = await processPendingIntent(originHomeId ?? undefined)
+      // A document reload would discard the invitation opened by publication.
+      if (result.type === 'publish-draft') navigate(result.spaceUrl)
+    },
+    [navigate, originHomeId],
+  )
+}
 
 /** Whether the account already has a space, plus the site's canonical URL. */
 export type ExistingSpaceInfo = {exists: boolean; siteUrl: string | null}
@@ -68,15 +86,16 @@ function CreateSpaceFlow({onClose}: {onClose: () => void}) {
   const client = useUniversalClient()
   const accountUid = userKeyPair?.delegatedAccountUid ?? userKeyPair?.id ?? null
   const [busy, setBusy] = useState(false)
-  const fileUpload = useMemo(() => makeWebFileUpload(client), [client])
+  const coverUpload = useMemo(() => makeWebFileUpload(client, COVER_IMAGE_POLICY), [client])
+  const avatarUpload = useMemo(() => makeWebFileUpload(client, AVATAR_IMAGE_POLICY), [client])
 
   async function handleComplete(state: CreateSpaceFormState) {
     setBusy(true)
     try {
       const [coverCid, logoCid, faviconCid] = await Promise.all([
-        state.cover ? fileUpload(state.cover) : Promise.resolve(undefined),
-        state.logo ? fileUpload(state.logo) : Promise.resolve(undefined),
-        state.favicon ? fileUpload(state.favicon) : Promise.resolve(undefined),
+        state.cover ? coverUpload(state.cover) : Promise.resolve(undefined),
+        state.logo ? avatarUpload(state.logo) : Promise.resolve(undefined),
+        state.favicon ? avatarUpload(state.favicon) : Promise.resolve(undefined),
       ])
       const metadata = createSpaceMetadata(state, {coverCid, logoCid, faviconCid})
       const {webPath} = await createSpaceHomeDraft(metadata, accountUid)

@@ -4,7 +4,8 @@
  * VITE_DESKTOP_* for the dev app on 58000–58004, which must never be touched). The packaged
  * build comes from `pnpm package:e2e`, which bakes the same ports in.
  */
-import {_electron as electron, type ElectronApplication, type Page} from '@playwright/test'
+import {type ElectronApplication, type Page} from '@playwright/test'
+import {launchPackagedApp} from '../../test/launch-packaged-app'
 import * as fs from 'fs'
 import * as os from 'os'
 import * as path from 'path'
@@ -59,7 +60,7 @@ export async function launchStoryApp(opts: {fresh?: boolean; shots?: string} = {
     // Its own renderer static-server port, clear of a production app on the default 17654.
     SEED_LOCAL_SERVER_PORT: '58106',
   })
-  const app = await electron.launch({executablePath: APP_EXECUTABLE, args: [], env, timeout: 90_000})
+  const app = await launchPackagedApp({executablePath: APP_EXECUTABLE, args: [], env, timeout: 90_000})
   app.process().stderr?.on('data', (d) => {
     const t = String(d)
     if (/EADDRINUSE|panic|FATAL/.test(t)) console.log('[app!]', t.trim().slice(0, 300))
