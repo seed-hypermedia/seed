@@ -1,5 +1,5 @@
 /**
- * One playground session: the simulated world, its undo history, the mission game and the sync
+ * One playground session: the simulated world, its undo history, the loaded use case and the sync
  * run, with every change applied through `dispatch`. It is the state behind `/api/playground`.
  */
 import {DerivedView, deriveView} from './derive'
@@ -39,15 +39,6 @@ import {
   validatePlacement,
   validateState,
 } from './model'
-import {
-  MissionAction,
-  MissionCheck,
-  MissionProgress,
-  evaluateMission,
-  findMission,
-  missionProgress,
-  missions,
-} from './quests'
 
 export class PlaygroundError extends Error {
   status: number
@@ -62,12 +53,8 @@ export type PlaygroundStorage = {
   save(text: string): void
 }
 
-export type GameState = {
-  active: string | null
-  completed: string[]
-  hints: number
-  feedback: 'complete' | 'incomplete' | null
-}
+/** Which use case the world was loaded from, and whether it has been changed since. */
+export type PresetView = {id: string | null; modified: boolean}
 
 export type SyncRun = {
   key: string
@@ -79,21 +66,6 @@ export type SyncRun = {
   done: boolean
 }
 
-export type MissionView = {
-  id: string
-  title: string
-  chapter: string
-  xp: number
-  story: string
-  rule: string
-  scope: string
-  key: string
-  action: MissionAction
-  target: string | null
-  checks: MissionCheck[]
-  hints: string[]
-}
-
 export type ScenarioView = {id: string; title: string; description: string}
 
 export type Selection = {type: string; id: string}
@@ -101,16 +73,13 @@ export type Selection = {type: string; id: string}
 /** Hints for the client about where to look after an action. The server keeps no UI state. */
 export type UiHint = {
   select?: Selection
-  tab?: string
-  view?: string
-  scope?: string
   controls?: Record<string, string>
 }
 
 export type Snapshot = {
   state: LabState
   derived: DerivedView
-  game: GameState & {progress: MissionProgress; missions: MissionView[]}
+  preset: PresetView
   sync: {run: SyncRun | null}
   history: {canUndo: boolean; canRedo: boolean}
   scenarios: ScenarioView[]
@@ -164,7 +133,7 @@ type GroupType = keyof Groups
 
 export class PlaygroundSession {
   state: LabState = initialState()
-  game: GameState = {active: null, completed: [], hints: 0, feedback: null}
+  preset: PresetView = {id: 'start', modified: false}
   run: SyncRun | null = null
   private undoStack: LabState[] = []
   private redoStack: LabState[] = []
@@ -190,7 +159,7 @@ export class PlaygroundSession {
       const saved: unknown = JSON.parse(text)
       if (!isRecord(saved) || saved.version !== SAVE_VERSION) return
       const state = validateState(saved.state)
-      const game = this.sanitizeGame(saved.game)
+      const preset = this.sanitizePreset(saved.preset)
       const history = (list: unknown): LabState[] => {
         if (!Array.isArray(list)) return []
         const out: LabState[] = []
@@ -204,7 +173,7 @@ export class PlaygroundSession {
         return out
       }
       this.state = state
-      this.game = game
+      this.preset = preset
       this.undoStack = history(saved.undo)
       this.redoStack = history(saved.redo)
     } catch {
@@ -218,24 +187,17 @@ export class PlaygroundSession {
       JSON.stringify({
         version: SAVE_VERSION,
         state: this.state,
-        game: this.game,
+        preset: this.preset,
         undo: this.undoStack,
         redo: this.redoStack,
       }),
     )
   }
 
-  private sanitizeGame(raw: unknown): GameState {
-    if (!isRecord(raw)) return {active: null, completed: [], hints: 0, feedback: null}
-    const completed = Array.isArray(raw.completed)
-      ? Array.from(new Set(raw.completed.filter((id): id is string => typeof id === 'string' && !!findMission(id))))
-      : []
-    return {
-      active: typeof raw.active === 'string' && findMission(raw.active) ? raw.active : null,
-      completed,
-      hints: Number.isSafeInteger(raw.hints) ? Math.max(0, Math.min(raw.hints as number, 2)) : 0,
-      feedback: raw.feedback === 'complete' || raw.feedback === 'incomplete' ? raw.feedback : null,
-    }
+  private sanitizePreset(raw: unknown): PresetView {
+    if (!isRecord(raw)) return {id: null, modified: true}
+    const id = typeof raw.id === 'string' && scenarios.some((x) => x.id === raw.id) ? raw.id : null
+    return {id, modified: raw.modified !== false}
   }
 
   // ---- snapshot ----
@@ -244,24 +206,7 @@ export class PlaygroundSession {
     return {
       state: this.state,
       derived: deriveView(this.state),
-      game: {
-        ...this.game,
-        progress: missionProgress(this.game.completed),
-        missions: missions.map((m) => ({
-          id: m.id,
-          title: m.title,
-          chapter: m.chapter,
-          xp: m.xp,
-          story: m.story,
-          rule: m.rule,
-          scope: m.scope,
-          key: m.key,
-          action: m.action,
-          target: m.target ?? null,
-          checks: evaluateMission(m.id, this.state),
-          hints: m.hints,
-        })),
-      },
+      preset: this.preset,
       sync: {run: this.run},
       history: {canUndo: this.undoStack.length > 0, canRedo: this.redoStack.length > 0},
       scenarios: scenarios.map(({id, title, description}) => ({id, title, description})),
@@ -283,6 +228,7 @@ export class PlaygroundSession {
     this.undoStack.push(clone(this.state))
     if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
     this.redoStack.length = 0
+    this.preset = {...this.preset, modified: true}
   }
 
   /** Run a mutation atomically: the state only changes when the result validates. */
@@ -295,6 +241,7 @@ export class PlaygroundSession {
       this.undoStack.push(before)
       if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
       this.redoStack.length = 0
+      this.preset = {...this.preset, modified: true}
       return result
     } catch (e) {
       this.state = before
@@ -419,48 +366,27 @@ export class PlaygroundSession {
                 : `${name(key)}’s device is offline. Retained bytes stay; authority knowledge goes stale.`,
         }
       }
-      case 'reset': {
-        this.remember()
-        this.state = initialState()
-        this.game = {...this.game, active: null, feedback: null}
-        this.resetRun()
-        return {message: 'Lab reset to initial fixture.', ui: {select: {type: 'resource', id: 'lab'}, scope: 'all'}}
-      }
-      case 'loadScenario': {
-        const id = field(body, 'id')
-        const scenario = scenarios.find((x) => x.id === id)
-        if (!scenario) throw new PlaygroundError('Unknown scenario.')
-        const before = clone(this.state)
-        try {
-          this.state = initialState()
-          this.game = {...this.game, active: null, feedback: null}
-          this.resetRun()
-          const result = scenario.load(this)
-          validateState(this.state)
-          this.undoStack.push(before)
-          if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
-          this.redoStack.length = 0
-          return result
-        } catch (e) {
-          this.state = before
-          throw e instanceof PlaygroundError ? e : new PlaygroundError(e instanceof Error ? e.message : String(e))
-        }
-      }
+      case 'reset':
+        return this.loadScenario('start')
+      case 'loadScenario':
+        return this.loadScenario(field(body, 'id'))
       case 'undo': {
         const previous = this.undoStack.pop()
         if (!previous) throw new PlaygroundError('Nothing to undo.')
         this.redoStack.push(clone(this.state))
         this.state = previous
+        this.preset = {...this.preset, modified: true}
         this.resetRun()
-        return {message: 'Undid the last experiment edit.'}
+        return {message: 'Undid the last change.'}
       }
       case 'redo': {
         const next = this.redoStack.pop()
         if (!next) throw new PlaygroundError('Nothing to redo.')
         this.undoStack.push(clone(this.state))
         this.state = next
+        this.preset = {...this.preset, modified: true}
         this.resetRun()
-        return {message: 'Redid the experiment edit.'}
+        return {message: 'Redid the change.'}
       }
       case 'import': {
         const raw = isRecord(body.state)
@@ -472,52 +398,12 @@ export class PlaygroundSession {
         const state = validateState(raw)
         this.remember()
         this.state = state
-        this.game = {...this.game, active: null, feedback: null}
+        this.preset = {id: null, modified: true}
         this.resetRun()
         return {
-          message: 'Loaded the imported experiment. Every access decision was recomputed.',
-          ui: {select: {type: 'resource', id: state.resources[0]!.id}, scope: 'all'},
+          message: 'Loaded the imported world. Every access decision was recomputed.',
+          ui: {select: {type: 'resource', id: state.resources[0]!.id}},
         }
-      }
-      case 'startMission': {
-        const id = field(body, 'id')
-        const m = findMission(id)
-        if (!m) throw new PlaygroundError('Unknown mission.')
-        this.remember()
-        this.state = m.setup()
-        this.game = {...this.game, active: m.id, hints: 0, feedback: null}
-        this.resetRun()
-        const owner = findResource(this.state, m.scope)?.owner ?? 'alice'
-        return {
-          message: 'Mission loaded. Read the goal, change the world, then check your solution.',
-          ui: {
-            select: {type: 'resource', id: m.scope},
-            scope: m.scope,
-            view: 'authority',
-            tab: 'graph',
-            controls: {issuer: owner, recipient: m.key, scope: m.scope, role: 'reader'},
-          },
-        }
-      }
-      case 'checkMission': {
-        const m = findMission(this.game.active)
-        if (!m) throw new PlaygroundError('No active mission.')
-        const solved = evaluateMission(m.id, this.state).every((c) => c.passed)
-        if (solved && !this.game.completed.includes(m.id)) this.game.completed.push(m.id)
-        this.game.feedback = solved ? 'complete' : 'incomplete'
-        return {}
-      }
-      case 'leaveMission': {
-        this.game = {...this.game, active: null, feedback: null}
-        return {
-          message: 'Free play. The current world is preserved; mission progress is saved on this node.',
-          ui: {scope: 'all'},
-        }
-      }
-      case 'hint': {
-        if (!this.game.active) throw new PlaygroundError('No active mission.')
-        this.game.hints = Math.min(2, this.game.hints + 1)
-        return {}
       }
       case 'syncBegin': {
         const key = field(body, 'key')
@@ -538,6 +424,28 @@ export class PlaygroundSession {
       }
       default:
         throw new PlaygroundError(`Unknown action "${type}".`, 404)
+    }
+  }
+
+  // ---- use cases ----
+
+  private loadScenario(id: string): Omit<DispatchResult, 'snapshot'> {
+    const scenario = scenarios.find((x) => x.id === id)
+    if (!scenario) throw new PlaygroundError('Unknown use case.')
+    const before = clone(this.state)
+    try {
+      this.state = initialState()
+      this.resetRun()
+      const result = scenario.load(this)
+      validateState(this.state)
+      this.undoStack.push(before)
+      if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
+      this.redoStack.length = 0
+      this.preset = {id, modified: false}
+      return result
+    } catch (e) {
+      this.state = before
+      throw e instanceof PlaygroundError ? e : new PlaygroundError(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -701,13 +609,17 @@ export class PlaygroundSession {
       const reissuing = !!id && s.grants.some((g) => g.id === id)
       const role = field(data, 'role')
       if (!isRole(role)) throw new PlaygroundError('Choose a valid role.')
-      const fields = {
-        from: field(data, 'from'),
-        to: field(data, 'to'),
-        resource: field(data, 'resource'),
-        role,
-        proof: optionalField(data, 'proof')?.trim() || null,
-      }
+      const from = field(data, 'from')
+      const resource = field(data, 'resource')
+      // Without an explicit proof, use the admin grant the issuer holds on that resource. The
+      // owner's own root anchor is the one grant that correctly has no proof.
+      const proof =
+        'proof' in data
+          ? optionalField(data, 'proof')?.trim() || null
+          : routes(s, from, resource).find((g) => g.role === 'admin' && g.proof !== null)?.id ??
+            routes(s, from, resource).find((g) => g.role === 'admin')?.id ??
+            null
+      const fields = {from, to: field(data, 'to'), resource, role, proof}
       const revoked = data.revoked === true || data.revoked === 'true'
       if (role === 'admin' && revoked)
         throw new PlaygroundError('Admin grants cannot be revoked. Choose active or change the fixture role.')
@@ -732,11 +644,19 @@ export class PlaygroundSession {
 
     if (type === 'revocation') {
       const editing = !!id && s.revocations.some((v) => v.id === id)
+      const target = field(data, 'target')
+      const targetGrant = findGrant(s, target)
+      const resource = optionalField(data, 'resource') ?? targetGrant?.resource
+      if (!resource) throw new PlaygroundError('Choose the grant to revoke.')
+      const author = field(data, 'author')
       const v: Omit<LabRevocation, 'id'> = {
-        resource: field(data, 'resource'),
-        author: field(data, 'author'),
-        target: field(data, 'target'),
-        proof: optionalField(data, 'proof')?.trim() ?? '',
+        resource,
+        author,
+        target,
+        proof:
+          'proof' in data
+            ? optionalField(data, 'proof')?.trim() ?? ''
+            : routes(s, author, resource).find((g) => g.role === 'admin')?.id ?? '',
       }
       const rid = this.act((s) => {
         const obj: LabRevocation = {id: editing ? id! : `rev${s.serial++}`, ...v}
@@ -747,7 +667,7 @@ export class PlaygroundSession {
       })
       return {
         message: 'World updated. Decisions recomputed; experiment saved on this node.',
-        ui: {select: {type: 'revocation', id: rid}, view: 'blobs'},
+        ui: {select: {type: 'revocation', id: rid}},
       }
     }
 
@@ -770,13 +690,14 @@ export class PlaygroundSession {
       })
       return {
         message: 'World updated. Decisions recomputed; experiment saved on this node.',
-        ui: {select: {type: 'change', id: cid}, view: 'blobs'},
+        ui: {select: {type: 'change', id: cid}},
       }
     }
 
     if (isNodeKind(type)) {
       const editing = !!id && s.statements.some((v) => v.id === id)
-      const seq = Number(data.seq)
+      const seq =
+        data.seq == null || data.seq === '' ? Math.max(0, ...s.statements.map((v) => v.seq)) + 1 : Number(data.seq)
       if (!Number.isSafeInteger(seq) || seq < 0) throw new PlaygroundError('Enter a whole number sequence.')
       const v: Omit<LabStatement, 'id'> = {
         resource: field(data, 'resource'),
@@ -787,8 +708,19 @@ export class PlaygroundSession {
       const prev = optionalField(data, 'prev')?.trim()
       if (prev) v.prev = prev
       if (type === 'snapshot') {
-        v.state = parse(data.state, 'AUTHORITATIVE STATE')
-        v.text = typeof v.state === 'string' ? v.state : JSON.stringify(v.state)
+        // Plain text is the common case. JSON is accepted when it parses.
+        const raw = data.state ?? data.text ?? ''
+        let parsed: unknown = raw
+        if (typeof raw === 'string') {
+          try {
+            parsed = JSON.parse(raw)
+          } catch {
+            parsed = raw.trim()
+          }
+        }
+        if (parsed === '') throw new PlaygroundError('Enter the snapshot content.')
+        v.state = parsed
+        v.text = typeof parsed === 'string' ? parsed : JSON.stringify(parsed)
       }
       if (type === 'redirect') v.target = field(data, 'target')
       if (type === 'changes' || type === 'changes-snapshot') {
@@ -806,7 +738,7 @@ export class PlaygroundSession {
       })
       return {
         message: 'World updated. Decisions recomputed; experiment saved on this node.',
-        ui: {select: {type: 'statement', id: vid}, view: 'blobs'},
+        ui: {select: {type: 'statement', id: vid}},
       }
     }
 
@@ -919,8 +851,15 @@ export class PlaygroundSession {
   }
 }
 
-/** Free-play recipes. Each starts from a clean fixture and leaves the world in a telling state. */
+/** The use cases. Each starts from the fixture and leaves the world as a preset of blobs. */
 const scenarios: Scenario[] = [
+  {
+    id: 'start',
+    title: 'The starting world',
+    description:
+      'Alice owns a lab with a private child and a public dispatch. Bob reads the lab, Carol writes it, Atlas hosts it.',
+    load: () => ({message: 'Starting world loaded.', ui: {select: {type: 'resource', id: 'lab'}}}),
+  },
   {
     id: 'routes',
     title: 'Two routes, one revoke',
@@ -930,7 +869,7 @@ const scenarios: Scenario[] = [
       revoke(p.state, 'alice', 'g4')
       return {
         message: 'Bob’s g4 is revoked. His new independent reader route survives.',
-        ui: {select: {type: 'grant', id: g.id}, tab: 'graph'},
+        ui: {select: {type: 'grant', id: g.id}},
       }
     },
   },
@@ -943,7 +882,7 @@ const scenarios: Scenario[] = [
       revoke(p.state, 'alice', 'g5')
       return {
         message: 'Carol’s v2 is retained but ineligible. Selected version rolls back to Alice’s v1.',
-        ui: {tab: 'graph'},
+        ui: {select: {type: 'statement', id: 'v2'}},
       }
     },
   },
@@ -957,7 +896,7 @@ const scenarios: Scenario[] = [
       issue(p.state, 'alice', 'carol', 'lab', 'writer')
       return {
         message: 'Carol’s new writer route makes old v2 eligible again. This is a tentative policy tradeoff.',
-        ui: {tab: 'graph'},
+        ui: {select: {type: 'statement', id: 'v2'}},
       }
     },
   },
@@ -973,7 +912,7 @@ const scenarios: Scenario[] = [
       return {
         message:
           'Bob retains v2 offline. Reconnect and start sync to learn the revocation; no fresh content will be served.',
-        ui: {tab: 'sync', controls: {'sync-key': 'bob', 'sync-resource': 'lab'}},
+        ui: {select: {type: 'key', id: 'bob'}, controls: {'sync-key': 'bob', 'sync-resource': 'lab'}},
       }
     },
   },
@@ -986,7 +925,7 @@ const scenarios: Scenario[] = [
       issue(p.state, 'bob', 'bot', 'lab', 'admin')
       return {
         message: `Bob and Copy bot now have permanent admin proofs. Try revoking ${g.id} in the inspector.`,
-        ui: {select: {type: 'grant', id: g.id}, tab: 'graph'},
+        ui: {select: {type: 'grant', id: g.id}},
       }
     },
   },
@@ -1000,7 +939,7 @@ const scenarios: Scenario[] = [
       p.beginSync('bob', 'lab')
       return {
         message: 'Atlas has no private custody. Bob remains authorized, but this source cannot serve him.',
-        ui: {tab: 'sync', controls: {'sync-key': 'bob', 'sync-resource': 'lab'}},
+        ui: {select: {type: 'key', id: 'host'}, controls: {'sync-key': 'bob', 'sync-resource': 'lab'}},
       }
     },
   },
@@ -1015,7 +954,7 @@ const scenarios: Scenario[] = [
       return {
         message:
           'Bob has direct child access, with no read authority on Research lab. Atlas also needs child custody before sync.',
-        ui: {tab: 'inspect', controls: {'inspect-key': 'bob', inspected: 'notes'}},
+        ui: {select: {type: 'key', id: 'bob'}, controls: {'sync-key': 'bob', 'sync-resource': 'notes'}},
       }
     },
   },
@@ -1037,7 +976,7 @@ const scenarios: Scenario[] = [
       return {
         message:
           'Explicit snapshot copied to Public dispatch with provenance. Bot can no longer read the source, so future copying stops. The destination copy survives.',
-        ui: {select: {type: 'resource', id: 'public'}, tab: 'graph'},
+        ui: {select: {type: 'resource', id: 'public'}},
       }
     },
   },
@@ -1054,7 +993,7 @@ const scenarios: Scenario[] = [
       revoke(p.state, 'alice', 'g4')
       return {
         message: 'OpenScope captured revision 1. Bob’s read route is now revoked. Step again to hit the live fence.',
-        ui: {tab: 'sync', controls: {'sync-key': 'bob', 'sync-resource': 'lab'}},
+        ui: {select: {type: 'grant', id: 'g4'}, controls: {'sync-key': 'bob', 'sync-resource': 'lab'}},
       }
     },
   },

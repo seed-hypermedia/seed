@@ -6,7 +6,6 @@ import appJs from './static/app.mjs?raw'
 import editorJs from './static/editor.mjs?raw'
 import indexHtml from './static/index.html?raw'
 import styleCss from './static/style.css?raw'
-import topologyJs from './static/topology.mjs?raw'
 import uiJs from './static/ui.mjs?raw'
 
 export type PlaygroundAsset = {body: string; contentType: string}
@@ -18,6 +17,5 @@ export const playgroundAssets: Record<string, PlaygroundAsset> = {
   'style.css': {body: styleCss, contentType: 'text/css; charset=utf-8'},
   'app.mjs': {body: appJs, contentType: JS},
   'editor.mjs': {body: editorJs, contentType: JS},
-  'topology.mjs': {body: topologyJs, contentType: JS},
   'ui.mjs': {body: uiJs, contentType: JS},
 }

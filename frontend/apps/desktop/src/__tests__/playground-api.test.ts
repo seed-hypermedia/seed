@@ -56,7 +56,7 @@ describe('playground HTTP surface', () => {
     expect(get('/hm/playground/app.mjs').body).not.toContain('./model.mjs')
   })
 
-  test('the snapshot carries the fixture, derived facts, missions and scenarios', () => {
+  test('the snapshot carries the fixture, derived facts, the use case and the scenarios', () => {
     const {snapshot} = client()
     const snap = snapshot()
     expect(snap.state.keys.map((k) => k.id)).toEqual(['alice', 'bob', 'carol', 'host', 'bot'])
@@ -69,9 +69,9 @@ describe('playground HTTP surface', () => {
     expect(snap.derived.adminRoute.alice!.lab).toBe('g1')
     expect(snap.derived.adminRoute.bob!.lab).toBeNull()
     expect(snap.derived.records.some((r) => r.type === 'grant' && r.id === 'g4')).toBe(true)
-    expect(snap.game.missions.length).toBe(8)
-    expect(snap.game.progress.rank).toBe('Key apprentice')
-    expect(snap.scenarios.length).toBe(9)
+    expect(snap.preset).toEqual({id: 'start', modified: false})
+    expect(snap.scenarios.length).toBe(10)
+    expect(snap.scenarios[0]!.id).toBe('start')
     expect(snap.history).toEqual({canUndo: false, canRedo: false})
   })
 
@@ -130,13 +130,13 @@ describe('playground HTTP surface', () => {
     expect(reissued.snapshot.state.grants.find((g) => g.id === 'g4')?.role).toBe('reader')
     expect(reissued.snapshot.derived.access.bob!.lab!.write).toBe(true)
 
-    const badJson = act({
+    const empty = act({
       type: 'saveObject',
       objectType: 'snapshot',
-      data: {resource: 'lab', author: 'alice', seq: 9, state: '{not json'},
+      data: {resource: 'lab', author: 'alice', seq: 9, state: '  '},
     })
-    expect(badJson.status).toBe(400)
-    expect(badJson.error).toMatch(/valid JSON/)
+    expect(empty.status).toBe(400)
+    expect(empty.error).toMatch(/content/)
 
     const badNode = act({
       type: 'saveObject',
@@ -175,23 +175,42 @@ describe('playground HTTP surface', () => {
     expect(dup.snapshot.derived.access.alice![copy.id]!.admin).toBe(true)
   })
 
-  test('missions award XP once and keep progress across a new mission', () => {
+  test('the use case tracks what was loaded and whether it changed', () => {
     const {act} = client()
-    const started = act({type: 'startMission', id: 'one-wire'})
-    expect(started.snapshot.game.active).toBe('one-wire')
-    expect(started.ui?.select).toEqual({type: 'resource', id: 'lab'})
-    expect(act({type: 'checkMission'}).snapshot.game.feedback).toBe('incomplete')
-    act({type: 'revoke', actor: 'alice', grant: 'g4'})
-    const checked = act({type: 'checkMission'})
-    expect(checked.snapshot.game.feedback).toBe('complete')
-    expect(checked.snapshot.game.progress.xp).toBe(175)
-    expect(act({type: 'checkMission'}).snapshot.game.progress.xp).toBe(175)
-    expect(act({type: 'hint'}).snapshot.game.hints).toBe(1)
-    const next = act({type: 'startMission', id: 'first-contact'})
-    expect(next.snapshot.game.completed).toEqual(['one-wire'])
-    expect(next.snapshot.game.hints).toBe(0)
-    expect(next.snapshot.derived.access.bob!.lab!.read).toBe(false)
-    expect(act({type: 'leaveMission'}).snapshot.game.active).toBeNull()
+    const loaded = act({type: 'loadScenario', id: 'routes'})
+    expect(loaded.snapshot.preset).toEqual({id: 'routes', modified: false})
+    expect(loaded.ui?.select?.type).toBe('grant')
+    expect(act({type: 'revoke', actor: 'alice', grant: 'g5'}).snapshot.preset).toEqual({id: 'routes', modified: true})
+    expect(act({type: 'undo'}).snapshot.preset.modified).toBe(true)
+    expect(act({type: 'reset'}).snapshot.preset).toEqual({id: 'start', modified: false})
+    expect(act({type: 'loadScenario', id: 'nope'}).status).toBe(400)
+  })
+
+  test('the editor fills in proofs and sequence numbers when the form leaves them out', () => {
+    const {act, snapshot} = client()
+    const granted = act({
+      type: 'saveObject',
+      objectType: 'capability',
+      data: {from: 'alice', to: 'bot', resource: 'notes', role: 'writer'},
+    })
+    expect(granted.status).toBe(200)
+    const gid = granted.ui!.select!.id
+    expect(snapshot().state.grants.find((g) => g.id === gid)?.proof).toBe('g2')
+    expect(snapshot().derived.access.bot!.notes!.write).toBe(true)
+    const revoked = act({type: 'saveObject', objectType: 'revocation', data: {target: gid, author: 'alice'}})
+    expect(revoked.status).toBe(200)
+    const rev = snapshot().state.revocations.at(-1)!
+    expect(rev).toMatchObject({target: gid, resource: 'notes', proof: 'g2'})
+    expect(snapshot().derived.access.bot!.notes!.write).toBe(false)
+    const noted = act({
+      type: 'saveObject',
+      objectType: 'snapshot',
+      data: {resource: 'lab', author: 'carol', text: 'Plain text content'},
+    })
+    expect(noted.status).toBe(200)
+    const v = snapshot().state.statements.find((x) => x.id === noted.ui!.select!.id)!
+    expect(v).toMatchObject({seq: 3, text: 'Plain text content', state: 'Plain text content'})
+    expect(snapshot().derived.resources.lab!.selected).toBe(v.id)
   })
 
   test('a sync run steps through the protocol and commits the replica', () => {
@@ -268,16 +287,15 @@ describe('playground HTTP surface', () => {
     expect(malformed.status).toBe(400)
   })
 
-  test('the world, game and history survive a restart through storage', () => {
+  test('the world, use case and history survive a restart through storage', () => {
     const storage = memoryStorage()
     const first = client(storage)
-    first.act({type: 'startMission', id: 'one-wire'})
+    first.act({type: 'loadScenario', id: 'admin'})
     first.act({type: 'revoke', actor: 'alice', grant: 'g4'})
-    first.act({type: 'checkMission'})
     expect(storage.text).toBeTruthy()
     const second = client(storage)
     const snap = second.snapshot()
-    expect(snap.game.completed).toEqual(['one-wire'])
+    expect(snap.preset).toEqual({id: 'admin', modified: true})
     expect(snap.derived.grants.g4!.status).toBe('revoked')
     expect(snap.history.canUndo).toBe(true)
     expect(second.act({type: 'undo'}).snapshot.derived.grants.g4!.status).toBe('valid')

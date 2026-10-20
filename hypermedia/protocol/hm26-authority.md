@@ -65,4 +65,4 @@ A removed principal keeps one narrow right: after authenticating as the delegate
 
 # Working with it
 
-The [HM26 playground](../apps/playground.md) in the desktop app implements this page as a simulator with missions and free play, and its API answers the questions in the table above for any world you build. Today's daemon implements none of it; see [Permissions](./permissions.md) for what ships. Nothing on this page changes a blob format, and the [roadmap](./roadmap.md) stays the record of what is decided.
+The [HM26 playground](../apps/playground.md) in the desktop app implements this page as a simulator. Each use case in it is a preset of blobs, and its API answers the questions in the table above for any world you build from one. Today's daemon implements none of it; see [Permissions](./permissions.md) for what ships. Nothing on this page changes a blob format, and the [roadmap](./roadmap.md) stays the record of what is decided.

@@ -18,7 +18,6 @@ import {
   validatePlacement,
   validateState,
 } from '../playground/model'
-import {evaluateMission, missionProgress, missions} from '../playground/quests'
 import {worldRecords} from '../playground/records'
 
 describe('HM26 playground model', () => {
@@ -215,71 +214,5 @@ describe('HM26 playground model', () => {
     expect(r.refs.map((r) => r.type + ':' + r.id)).toEqual(['key:alice', 'key:bob', 'resource:lab', 'grant:g1'])
     expect(records.filter((r) => r.type === 'device').length).toBe(s.keys.length)
     expect(records.filter((r) => r.type === 'policy').length).toBe(s.resources.length)
-  })
-})
-
-describe('HM26 playground missions', () => {
-  test('every puzzle starts unsolved and checks real model state', () => {
-    for (const m of missions) {
-      expect(
-        evaluateMission(m.id, m.setup()).every((c) => c.passed),
-        m.id,
-      ).toBe(false)
-    }
-  })
-
-  test('first-contact requires least privilege and a completed replica sync', () => {
-    const s = missions[0]!.setup()
-    issue(s, 'alice', 'bob', 'lab', 'reader')
-    expect(evaluateMission('first-contact', s).every((c) => c.passed)).toBe(false)
-    completeSync(s, 'bob', 'lab')
-    expect(evaluateMission('first-contact', s).every((c) => c.passed)).toBe(true)
-    issue(s, 'alice', 'bob', 'lab', 'writer')
-    expect(evaluateMission('first-contact', s).every((c) => c.passed)).toBe(false)
-  })
-
-  test('puzzle solutions cover independent scopes, immutable reissue and exact revoke', () => {
-    const setup = (id: string): LabState => missions.find((m) => m.id === id)!.setup()
-    const child = setup('own-scope')
-    issue(child, 'alice', 'bob', 'notes', 'reader')
-    issue(child, 'alice', 'host', 'notes', 'reader')
-    completeSync(child, 'bob', 'notes')
-    expect(evaluateMission('own-scope', child).every((c) => c.passed)).toBe(true)
-    const reissued = setup('new-signature')
-    reissueCapability(reissued, 'g4', {role: 'writer'})
-    expect(evaluateMission('new-signature', reissued).every((c) => c.passed)).toBe(true)
-    const cut = setup('one-wire')
-    revoke(cut, 'alice', 'g4')
-    expect(evaluateMission('one-wire', cut).every((c) => c.passed)).toBe(true)
-  })
-
-  test('advanced missions test rollback, redirect isolation, tombstone history and offline bytes', () => {
-    const setup = (id: string): LabState => missions.find((m) => m.id === id)!.setup()
-    const roll = setup('rollback')
-    revoke(roll, 'alice', 'g5')
-    expect(evaluateMission('rollback', roll).every((c) => c.passed)).toBe(true)
-    for (const kind of ['redirect', 'tombstone'] as const) {
-      const s = setup(kind)
-      s.statements.push({
-        id: 'puzzle-node',
-        kind,
-        resource: 'lab',
-        author: 'alice',
-        seq: 10,
-        ...(kind === 'redirect' ? {target: 'notes'} : {}),
-      })
-      if (kind === 'tombstone') completeSync(s, 'bob', 'lab')
-      expect(evaluateMission(kind, s).every((c) => c.passed)).toBe(true)
-    }
-    const offline = setup('offline')
-    completeSync(offline, 'bob', 'lab')
-    offline.devices.bob!.online = false
-    revoke(offline, 'alice', 'g4')
-    expect(evaluateMission('offline', offline).every((c) => c.passed)).toBe(true)
-  })
-
-  test('mission score counts each solved mission once', () => {
-    expect(missionProgress(['first-contact', 'first-contact']).xp).toBe(100)
-    expect(missionProgress(missions.map((m) => m.id)).rank).toBe('Proof engineer')
   })
 })

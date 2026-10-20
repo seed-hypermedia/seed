@@ -3,378 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#090e10" />
-    <title>HM26 Playground — Authority Arcade</title>
+    <meta name="theme-color" content="#0b1113" />
+    <title>HM26 playground</title>
     <link rel="stylesheet" href="/hm/playground/style.css" />
   </head>
   <body>
     <header>
-      <a class="brand" href="/hm/playground/" aria-label="HM26 playground home"
-        >◈ <b>HM26</b><span>/ PLAYGROUND</span></a
-      >
-      <div class="header-right">
-        <span class="dot"></span> <span id="node-status">LOCAL SEED NODE</span> <span class="pill">DRAFT POLICY</span
-        ><button id="import">↑ Import JSON</button
-        ><input type="file" id="import-file" accept="application/json,.json" hidden /><button id="reset" class="quiet">
-          ↺ Reset lab
-        </button>
+      <a class="brand" href="/hm/playground/">HM26 <span>playground</span></a>
+      <label class="preset-pick"
+        >Use case
+        <select id="preset" aria-label="Use case"></select>
+      </label>
+      <span id="preset-state" class="muted"></span>
+      <div class="header-actions">
+        <button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button
+        ><button id="export">Export</button><button id="import">Import</button
+        ><input type="file" id="import-file" accept="application/json,.json" hidden />
       </div>
     </header>
-    <div class="shell">
-      <aside>
-        <div class="eyebrow">CONTROL SURFACE</div>
-        <nav>
-          <button data-tab="missions" class="active">⌁ <span>Mission control</span><small>01</small></button
-          ><button data-tab="graph">⌘ <span>World map</span><small>02</small></button
-          ><button data-tab="raw">≡ <span>Raw data ledger</span><small>03</small></button
-          ><button data-tab="inspect">⌕ <span>Access inspector</span><small>04</small></button
-          ><button data-tab="sync">⇄ <span>Sync observatory</span><small>05</small></button
-          ><button data-tab="workflows">⚡ <span>Free play recipes</span><small>06</small></button>
-        </nav>
-        <div class="aside-bottom">
-          <div class="eyebrow">THE RULE THAT MATTERS</div>
-          <p>A connection is not authority.<br />A follow is not a grant.<br />A path is not a permission.</p>
-          <div class="aside-line"></div>
-          <a id="guide-link" href="https://hyper.media/protocol/hm26-authority" target="_blank" rel="noreferrer"
-            >↗ The authority model</a
-          ><a id="parent-link" href="https://hyper.media/protocol/roadmap" target="_blank" rel="noreferrer"
-            >↗ Where HM26 is going</a
-          ><a id="sync-link" href="https://hyper.media/apps/playground" target="_blank" rel="noreferrer"
-            >↗ Playground guide and API</a
-          ><small>Educational model · synthetic IDs<br />No real keys or network writes</small>
-        </div>
-      </aside>
-      <main>
-        <div class="intro">
-          <div>
-            <div class="eyebrow lime">A PUZZLE SANDBOX FOR HM26</div>
-            <h1>Authority<span> / </span>Arcade</h1>
-            <p>Solve the access puzzle. Inspect the proof. Keep every signed record.</p>
-          </div>
-          <div class="revision"><span class="dot"></span> AUTHORITY REVISION <b id="rev">001</b></div>
-        </div>
-        <div class="stats" id="stats"></div>
-        <div id="toast" role="status" aria-live="polite"></div>
-        <div id="mission-banner"></div>
-        <section id="missions" class="tab">
-          <div class="mission-welcome">
+    <main>
+      <p id="preset-note" class="preset-note"></p>
+      <div id="toast" role="status" aria-live="polite"></div>
+      <div class="columns">
+        <section class="world" aria-label="World">
+          <div class="section-head">
+            <h2>Blobs</h2>
             <div>
-              <span class="eyebrow">LEARN BY CHANGING THE WORLD</span>
-              <h2>Eight missions. One permission engine.</h2>
-              <p>
-                Start with a locked-out laptop. Work up to revocation, redirects, and offline knowledge. Every objective
-                is checked by the Seed app's own playground API against the simulated data.
-              </p>
-              <button id="free-play" class="primary">Open free play →</button>
-            </div>
-            <div id="player-progress"></div>
-          </div>
-          <div class="entity-primer">
-            <div>
-              <span class="primer-key">⌕</span><b>KEY / who</b>
-              <p>A principal that signs. A connection or a follow grants it nothing.</p>
-            </div>
-            <div>
-              <span class="primer-cap">◇</span><b>CAPABILITY / may do</b>
-              <p>An immutable signed grant. Reissue to change authority; revoke an exact reader/writer grant.</p>
-            </div>
-            <div>
-              <span class="primer-resource">▱</span><b>RESOURCE / on what</b>
-              <p>A stable original node CID. Placement and ownership are shown separately.</p>
+              <button id="add-key">+ Key</button><button id="add-resource">+ Resource</button
+              ><button id="add-blob" class="primary">+ Blob</button>
             </div>
           </div>
-          <div class="mission-section-title">
-            <h2>Choose your next puzzle</h2>
-            <p>Each mission starts a fresh world. Export the lab JSON first to keep a free-play experiment.</p>
-          </div>
-          <div id="mission-grid"></div>
-          <details class="rules-reference">
-            <summary>Read the rules before you play</summary>
-            <div>
-              <p>
-                <b>Reader → writer → irrevocable admin.</b> Writer includes read. Admin includes read/write and
-                grant/revoke. Admin chains are permanent.
-              </p>
-              <p>
-                <b>Exact scope.</b> A grant on a parent never authorizes a child. Independent valid grants combine;
-                revoking one does not ban a key.
-              </p>
-              <p>
-                <b>Sync has two sides.</b> The reader and the hosting principal each need their own authority. Offline
-                cached bytes cannot be recalled.
-              </p>
-              <p>
-                <b>This is a draft-policy simulator.</b> Current-standing writer rollback, native redirect/tombstone
-                behavior and apply execution retain the limits described in the linked guides.
-              </p>
-            </div>
-          </details>
+          <div id="keys" class="keys"></div>
+          <div id="resources"></div>
         </section>
-        <section id="raw" class="tab" hidden>
-          <div class="panel">
-            <div class="panel-head">
-              <div>
-                <span class="eyebrow">FLAT / SEARCHABLE / LINKABLE</span>
-                <h2>The raw-data ledger</h2>
-              </div>
-              <span id="record-count" class="pill"></span>
-            </div>
-            <div class="ledger-controls">
-              <label
-                >SEARCH RECORDS<input
-                  id="ledger-search"
-                  type="search"
-                  placeholder="ID, signer, resource, or raw field…" /></label
-              ><label
-                >RECORD TYPE<select id="ledger-type">
-                  <option value="all">All records</option>
-                  <option value="key">Keys</option>
-                  <option value="resource">Resources</option>
-                  <option value="grant">Capabilities</option>
-                  <option value="statement">Node statements</option>
-                  <option value="change">Changes</option>
-                  <option value="revocation">Revocations</option>
-                  <option value="policy">Policies</option>
-                  <option value="device">Device replicas</option>
-                  <option value="offer">Outbox offers</option>
-                  <option value="meta">World metadata</option>
-                </select></label
-              >
-            </div>
-            <p class="ledger-explainer">
-              One row per record, exactly as the playground API stores it. Select an ID to expand its JSON. Follow
-              references to jump to related records; copy a record link to reopen the ledger at that row.
-            </p>
-            <div class="table-wrap">
-              <table class="ledger-table">
-                <thead>
-                  <tr>
-                    <th>ID / TYPE</th>
-                    <th>RECORD</th>
-                    <th>SIGNER / OWNER</th>
-                    <th>EXACT SCOPE</th>
-                    <th>STATUS</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="ledger-rows"></tbody>
-              </table>
-            </div>
-          </div>
-        </section>
-        <section id="graph" class="tab" hidden>
-          <div class="lab-actions">
-            <div>
-              <strong>Build the world</strong><span id="link-status">Every change is saved on this Seed node.</span>
-            </div>
-            <div class="action-buttons">
-              <button id="undo" disabled>↶ Undo</button><button id="redo" disabled>↷ Redo</button
-              ><button id="add-key">+ Key</button><button id="add-resource">+ Resource</button
-              ><button id="add-blob" class="primary">+ Blob / capability</button>
-            </div>
-          </div>
-          <div class="quick-guide">
-            <span><b>1</b> Add keys and resources</span><span><b>2</b> Select a shape to inspect authority</span
-            ><span><b>3</b> Export the lab JSON to keep or share your experiment</span>
-          </div>
-          <div class="workspace">
-            <div class="panel graph-panel">
-              <div class="panel-head">
-                <div>
-                  <span class="eyebrow">01 / TOPOLOGY</span>
-                  <h2>Who grants what to whom?</h2>
-                </div>
-                <div class="segmented">
-                  <button id="authority-view" class="active">Capabilities</button
-                  ><button id="placement-view">Placement</button><button id="blobs-view">Blobs</button>
-                </div>
-              </div>
-              <div class="graph-toolbar typed-legend">
-                <span><i class="key-symbol"></i> KEY / signer</span
-                ><span><i class="cap-symbol"></i> CAPABILITY / authority</span
-                ><span><i class="resource-symbol"></i> RESOURCE / scope</span>
-              </div>
-              <div id="graph-canvas" tabindex="0" aria-label="Resource-scoped authority map"></div>
-              <div id="object-picker" class="object-picker"></div>
-              <div class="graph-footer">
-                <span id="graph-note">Solid lines carry authority. Dotted lines show exact scope.</span
-                ><button id="fit" class="quiet">⤢ Reset view</button>
-              </div>
-            </div>
-            <div class="panel detail-panel">
-              <div class="panel-head">
-                <span class="eyebrow">SELECT → INSPECT → EXPERIMENT</span><span class="lime">⌁</span>
-              </div>
-              <div id="details"></div>
-            </div>
-          </div>
-          <div class="panel grant-panel">
-            <div>
-              <span class="eyebrow">SIGN AN EXPERIMENT</span>
-              <h2>Issue a new immutable grant</h2>
-            </div>
-            <form id="grant-form">
-              <label>ISSUING KEY<select id="issuer"></select></label
-              ><label>RECIPIENT<select id="recipient"></select></label
-              ><label>EXACT RESOURCE<select id="scope"></select></label
-              ><label
-                >ROLE<select id="role">
-                  <option value="reader">reader</option>
-                  <option value="writer">writer</option>
-                  <option value="admin">irrevocable-admin</option>
-                </select></label
-              ><button class="primary">+ Issue grant</button>
-            </form>
-          </div>
-        </section>
-        <section id="inspect" class="tab" hidden>
-          <div class="panel">
-            <div class="panel-head">
-              <div>
-                <span class="eyebrow">02 / EFFECTIVE ACCESS</span>
-                <h2>Ask what a key can do.</h2>
-              </div>
-              <select id="inspect-key" aria-label="Principal to inspect"></select>
-            </div>
-            <div class="notice">
-              Exact scopes, independent grant union. Public read does not reveal the membership roster. Select a row to
-              inspect its proof.
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>RESOURCE</th>
-                    <th>READ</th>
-                    <th>WRITE</th>
-                    <th>GRANT / REVOKE</th>
-                    <th>SYNC VIA ATLAS</th>
-                    <th>ROSTER</th>
-                  </tr>
-                </thead>
-                <tbody id="matrix"></tbody>
-              </table>
-            </div>
-            <div id="proof" class="proof"></div>
-          </div>
-          <div class="two-col">
-            <div class="panel padded">
-              <span class="eyebrow">IDENTITY ≠ TRANSPORT</span>
-              <h2>One key at a time</h2>
-              <p>
-                Every decision here uses the selected principal. Sharing a device or byte store never combines users’
-                permissions.
-              </p>
-            </div>
-            <div class="panel padded">
-              <span class="eyebrow">INTEREST ≠ AUTHORITY</span>
-              <h2>Children need their own grants</h2>
-              <p>
-                “Field notes” sits inside “Research lab,” but a lab grant does not permit child reads, metadata
-                listings, or sync.
-              </p>
-            </div>
-          </div>
-        </section>
-        <section id="sync" class="tab" hidden>
-          <div class="panel">
-            <div class="panel-head">
-              <div>
-                <span class="eyebrow">03 / SYNC OBSERVATORY</span>
-                <h2>Watch each trust boundary.</h2>
-              </div>
-              <span class="pill">SIMULATED PEER RPC</span>
+        <aside class="inspector">
+          <div id="details" class="details"></div>
+          <section class="sync" aria-label="Sync">
+            <div class="section-head">
+              <h2>Sync</h2>
+              <span id="rev" class="muted"></span>
             </div>
             <div class="sync-controls">
-              <label>ACTIVE PRINCIPAL<select id="sync-key"></select></label
-              ><label>RESOURCE<select id="sync-resource"></select></label><button id="online">● Online</button
-              ><button id="follow">◉ Following</button><button id="start-sync" class="primary">▶ Start sync</button
-              ><button id="step-sync">Step →</button><button id="auto-sync">Auto play</button>
-            </div>
-            <div class="network" id="network"></div>
-            <div class="sync-body">
-              <div>
-                <div class="eyebrow">PACKET / TRANSACTION TRACE</div>
-                <div id="trace" aria-live="polite"></div>
-              </div>
-              <div class="sync-side">
-                <div class="eyebrow">LOCAL REPLICA</div>
-                <div id="replica"></div>
-                <div class="aside-line"></div>
-                <div class="eyebrow">WRITE / DELIVERY</div>
-                <label>AUTHOR<select id="edit-key"></select></label
-                ><label
-                  >SNAPSHOT CONTENT<input
-                    id="edit-text"
-                    value="A new observation from the field"
-                    maxlength="160" /></label
-                ><button id="publish" class="primary">Sign local statement</button
-                ><button id="deliver">Deliver queued offers</button>
-                <div id="outbox"></div>
-              </div>
-            </div>
-          </div>
-          <div class="panel padded">
-            <div class="eyebrow">TRY THIS WHILE A TRANSFER IS OPEN</div>
-            <h2>A frozen view is not an access lease.</h2>
-            <p>
-              Start Bob’s sync, step past OpenScope, then revoke his reader grant in the graph. The next step rejects
-              the stale view before sending more data. Already received bytes remain retained.
-            </p>
-            <button id="revoke-sync">Revoke this principal’s reader / writer routes as the owner</button>
-          </div>
-        </section>
-        <section id="workflows" class="tab" hidden>
-          <div class="panel-head standalone">
-            <div>
-              <span class="eyebrow">04 / GUIDED EXPERIMENTS</span>
-              <h2>Small changes. Strange consequences.</h2>
-            </div>
-            <span class="muted">Each experiment starts from a clean fixture</span>
-          </div>
-          <div id="scenario-grid"></div>
-          <div class="panel padded">
-            <div class="eyebrow">BRING ANOTHER KEY</div>
-            <h2>Build your own workflow</h2>
-            <form id="key-form" class="inline-form">
               <label
-                >PRINCIPAL NAME<input id="key-name" placeholder="e.g. Recovery device" maxlength="35" required /></label
-              ><button class="primary">+ Create simulated key</button>
-            </form>
-            <p>
-              Keys are labels in this model, not cryptographic keypairs. Use the grant composer to delegate an admin,
-              add a service principal, or build independent read routes.
-            </p>
-          </div>
-        </section>
-        <footer>
-          <span>HM26 / EXPERIMENTAL AUTHORITY ENGINE · SERVED BY THE SEED APP</span
-          ><span>Exact CID scope · Permanent admin proofs · Live access fences</span
-          ><span
-            ><a id="api-link" href="/api/playground" target="_blank" rel="noreferrer">↗ /api/playground</a
-            ><button id="export">↓ Export lab JSON</button></span
-          >
-        </footer>
-      </main>
-    </div>
+                >Key
+                <select id="sync-key"></select></label
+              ><label
+                >Resource
+                <select id="sync-resource"></select></label
+              ><button id="online"></button><button id="run-sync" class="primary">Run sync</button
+              ><button id="step-sync">Step</button>
+            </div>
+            <div id="replica" class="muted"></div>
+            <div id="trace"></div>
+          </section>
+        </aside>
+      </div>
+      <footer>
+        <a href="https://hyper.media/protocol/hm26-authority" target="_blank" rel="noreferrer">The authority model</a>
+        <a href="https://hyper.media/apps/playground" target="_blank" rel="noreferrer">Playground guide and API</a>
+        <a href="/api/playground" target="_blank" rel="noreferrer">/api/playground</a>
+        <span class="muted">Simulated keys and CIDs. Nothing here touches the network.</span>
+      </footer>
+    </main>
     <dialog id="editor-dialog" aria-labelledby="editor-title">
       <form id="object-form" class="editor-form">
         <div class="editor-head">
-          <div>
-            <span class="eyebrow">EXPERIMENT EDITOR</span>
-            <h2 id="editor-title">Add a blob</h2>
-          </div>
+          <h2 id="editor-title">Add a blob</h2>
           <button type="button" id="close-editor" aria-label="Close editor">×</button>
-        </div>
-        <div class="editor-help">
-          Signed capabilities are immutable. Reissue creates a new record; a separate revocation controls the old
-          reader/writer grant.
         </div>
         <div id="editor-fields"></div>
         <p id="editor-error" role="alert"></p>
         <div class="editor-footer">
-          <button type="button" id="cancel-editor">Cancel</button
-          ><button class="primary" id="save-object">Save experiment</button>
+          <button type="button" id="cancel-editor">Cancel</button><button class="primary" id="save-object">Save</button>
         </div>
       </form>
     </dialog>

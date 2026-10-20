@@ -1,8 +1,8 @@
 ---
 name: The HM26 playground
-summary: A simulator for the tentative HM26 authority and sync design that the desktop app serves from its own API server at /hm/playground, with the model, the HTTP API, the missions, and the limits of what it proves.
+summary: A simulator for the tentative HM26 authority and sync design that the desktop app serves from its own API server at /hm/playground, with the use cases, the editor, the HTTP API, and the limits of what it proves.
 ---
-The HM26 playground is a small game and free-play simulator for the [HM26](../protocol/roadmap.md) authority and sync design. It lives inside the [desktop app](./desktop.md): the app's own API server serves the page at `/hm/playground` and keeps the simulated world behind `/api/playground`. Keys, CIDs, signatures and peers are simulated. Nothing it does touches the [daemon](./daemon.md), a real [capability](../protocol/permissions.md) or the network. It exists so the team can try the rules in [The HM26 authority model](../protocol/hm26-authority.md) by hand before any of them ship.
+The HM26 playground is a simulator for the [HM26](../protocol/roadmap.md) authority and sync design. It lives inside the [desktop app](./desktop.md): the app's own API server serves the page at `/hm/playground` and keeps the simulated world behind `/api/playground`. Keys, CIDs, signatures and peers are simulated. Nothing it does touches the [daemon](./daemon.md), a real [capability](../protocol/permissions.md) or the network. It exists so the team can try the rules in [The HM26 authority model](../protocol/hm26-authority.md) by hand before any of them ship.
 
 # Open it
 
@@ -13,13 +13,15 @@ Run the desktop app in development and open the page in a browser:
 open http://localhost:58004/hm/playground/
 ```
 
-A packaged app serves it on its production API port, so `http://localhost:56004/hm/playground/`. In the app, **View → HM26 Playground** opens the same URL in your default browser. The world is saved on the node after every change, in `playground/world.json` inside the app's user data folder, so the page can be closed and reopened and the experiment is still there. Undo history, mission progress and the open sync run survive a restart too. Each browser remembers only its own view state: the open tab, the selected object and the dropdown values.
+A packaged app serves it on its production API port, so `http://localhost:56004/hm/playground/`. In the app, **View → HM26 Playground** opens the same URL in your default browser. The world is saved on the node after every change, in `playground/world.json` inside the app's user data folder, so the page can be closed and reopened and the experiment is still there. Undo history, the loaded use case and the open sync run survive a restart too. Each browser remembers only its own selection and sync dropdowns.
 
 # What it shows
 
-The page has six surfaces. **Mission control** is eight puzzles with hints and experience points. Every objective is a predicate the API evaluates against the actual world, so a mission is solved only when the model says the world has the property. **World map** draws authority by exact resource scope: a circular node is a key, an angular amber ticket is an immutable capability, a green folder is a resource, and every grant reads left to right as issuer, capability, recipient inside its resource. The map has a placement view, which shows the folder tree, and a blobs view, which shows every retained statement. **Raw data ledger** is a flat list of every record with its stored JSON and links to the records it references. **Access inspector** is a read, write, admin and sync matrix for one key with the grant chain that explains each cell. **Sync observatory** steps a reader through authentication, control evidence, a frozen scope, reconciliation, fetch, commit and watch, and shows what a device retains. **Free play recipes** load nine prepared worlds: two routes with one revoke, the writer rollback, regrant and revival, an offline reader, permanent delegation, the custody boundary, child sharing, copy then cut access, and a view interrupted by a revocation.
+The page is one view. The **use case** dropdown at the top loads a preset of blobs: the starting world, two routes with one revoke, the writer rollback, regrant and revival, an offline reader, permanent delegation, the custody boundary, child sharing, copy then cut access, and a view interrupted by a revocation. Each use case starts from the same fixture, Alice's lab with a private child and a public dispatch, and leaves the world in the state its name describes. The page says when the loaded world has been changed since.
 
-Capabilities cannot be edited or deleted. Reissuing a capability appends a new grant with a `reissuedFrom` note and leaves the original intact. The old grant stops working only through a separate revocation, and admin grants cannot be revoked at all. The other objects, keys, resources, node statements, changes and revocations, can be edited and removed as fixture changes. Undo covers everything.
+The **blobs** column lists every key, then every resource with the grants, revocations and node statements on it, each with the status the API derived: a grant is valid, revoked or invalid, a statement is selected, older or ineligible. Selecting anything shows its details on the right: its fields, the facts derived from it, and a read, write, admin and sync table for the keys on that resource, or for that key on every resource. Selecting a row of the table names the grants that explain it. The **sync** panel runs a reader's sync through the host, one step or to the end, and shows what the device retains afterwards.
+
+Adding a blob opens a short form with one blob type at a time: a key, a resource, a capability, a revocation, a node statement or a resource policy. The form asks only for what the model needs. Proofs come from the admin grant the signer holds on the resource, and sequence numbers follow the last statement. Capabilities cannot be edited or deleted. Reissuing a capability appends a new grant with a `reissuedFrom` note and leaves the original intact. The old grant stops working only through a separate revocation, and admin grants cannot be revoked at all. Keys, resources, node statements and revocations can be edited and removed as fixture changes. Undo covers everything.
 
 # The rules it simulates
 
@@ -42,7 +44,7 @@ The API is JSON over HTTP on the desktop app's API port. It is the same server t
 
 | Request | What it does |
 | --- | --- |
-| `GET /api/playground` | The snapshot: the world, the derived facts, the game, the open sync run, undo availability, the scenarios. |
+| `GET /api/playground` | The snapshot: the world, the derived facts, the loaded use case, the open sync run, undo availability, the use cases. |
 | `POST /api/playground/actions` | One action as a JSON object with a `type`. The reply carries the new snapshot, a message for the user, and a hint about what to select next. |
 | `GET /api/playground/export` | The world as a downloadable JSON file. |
 | `GET /hm/playground/` | The page and its assets. |
@@ -59,15 +61,14 @@ Actions and their fields:
 | `publish` | `author`, `resource`, `text` | Sign a new snapshot statement and queue an offer. |
 | `deliver` | `author` | Deliver the author's queued offers; only `INDEXED` is a receipt. |
 | `createKey` | `name`, `note` | Add a simulated key with an online device. |
-| `saveObject` | `objectType`, `id`, `data` | Create or edit a `key`, `resource`, `policy`, `capability`, `revocation`, `change` or a node kind. A capability with an `id` is reissued. |
+| `saveObject` | `objectType`, `id`, `data` | Create or edit a `key`, `resource`, `policy`, `capability`, `revocation`, `change` or a node kind. A capability with an `id` is reissued. A capability or revocation without a `proof` gets the signer's admin grant on the resource. A statement without a `seq` follows the last one. |
 | `duplicate` | `objectType`, `id` | Copy an object. A resource copy gets its own root anchor and statement. |
 | `remove` | `objectType`, `id` | Remove an object. Removing a key or resource removes what depends on it. |
 | `setDevice` | `key`, `online`, `follow` | Toggle a device. |
-| `reset` | | Return to the starting fixture. |
-| `loadScenario` | `id` | Load one of the free-play recipes. |
+| `reset` | | Load the starting world. |
+| `loadScenario` | `id` | Load one of the use cases. The snapshot's `preset` says which one is loaded and whether it changed since. |
 | `undo`, `redo` | | Walk the history. Fifty steps are kept. |
 | `import` | `state` | Replace the world with a validated export. |
-| `startMission`, `checkMission`, `leaveMission`, `hint` | `id` for start | Play a mission. Experience is awarded once per mission. |
 | `syncBegin`, `syncStep`, `syncReset` | `key`, `resource` for begin | Run a sync one step at a time. |
 
 Every action validates the whole world before it is kept. A rejected action answers 400 with an `error` and leaves the world as it was. The world file is written atomically after every accepted action.
@@ -86,12 +87,11 @@ curl -s -X POST http://localhost:58004/api/playground/actions \
 Everything is under `frontend/apps/desktop/src/playground/`.
 
 - `model.ts`: the evaluator. Grant validity, access, selection, issue, revoke, publish, sync steps, placement, renditions and the validation of an untrusted world.
-- `quests.ts`: the eight missions as fixtures and predicates.
 - `records.ts`: the flat ledger with references.
 - `derive.ts`: the derived view the snapshot carries.
-- `session.ts`: the session: actions, undo and redo, the mission game, the sync run, the free-play recipes, and persistence through a storage interface.
+- `session.ts`: the session: actions, undo and redo, the sync run, the use cases, and persistence through a storage interface.
 - `api.ts`: the HTTP handler, pure over a request shape, and the file storage.
-- `assets.ts` and `static/`: the page. Vite inlines the static files into the main-process bundle, so nothing is copied at packaging time.
+- `assets.ts` and `static/`: the page, one script plus the blob editor. Vite inlines the static files into the main-process bundle, so nothing is copied at packaging time.
 
 The handler is mounted in `app-http-server.ts`, and the menu item is in `app-menu.ts`. The tests are `src/__tests__/playground-model.test.ts` and `src/__tests__/playground-api.test.ts`. Run them with:
 

@@ -2,7 +2,7 @@
  * The HTTP surface of the HM26 playground, mounted on the desktop app's API server:
  *
  *   GET  /hm/playground/            the page and its assets
- *   GET  /api/playground            the current snapshot (world, derived facts, game, sync run)
+ *   GET  /api/playground            the current snapshot (world, derived facts, use case, sync run)
  *   POST /api/playground/actions    one action, answered with the new snapshot
  *   GET  /api/playground/export     the world as a downloadable JSON file
  *

@@ -58,7 +58,7 @@ Two desktop-only surfaces expose the protocol directly. <!-- id:SHBUOTJL -->
 
 A blob you publish this way is stored but is not public until a public change, [comment](../protocol/comments.md) or profile links its CID. See [Files](../protocol/files.md). <!-- id:BEwjBgan -->
 
-A third surface is not about today's data at all. **The HM26 playground**, `/hm/playground` on the API bridge port and **View → HM26 Playground** in the menu, simulates the proposed [HM26 authority model](../protocol/hm26-authority.md) with puzzles and a free-play world, so the rules can be tried before the daemon implements them. See [The HM26 playground](./playground.md).
+A third surface is not about today's data at all. **The HM26 playground**, `/hm/playground` on the API bridge port and **View → HM26 Playground** in the menu, loads a use case, a preset of simulated blobs, and lets you edit it and sync it under the proposed [HM26 authority model](../protocol/hm26-authority.md), so the rules can be tried before the daemon implements them. See [The HM26 playground](./playground.md).
 
 # Working with it <!-- id:80mk_eOH -->
 
