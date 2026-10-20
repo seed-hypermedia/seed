@@ -12755,7 +12755,6 @@ type WriteAppFolder = {app: string; blobs: CollectedBlob[]; files: number; bytes
 async function resolveWriteAppFolder(
   context: AgentServicePiToolContext,
   value: unknown,
-  _dryRun: boolean,
 ): Promise<WriteAppFolder | undefined> {
   if (value === undefined) return undefined
   if (typeof value !== 'string' || !value.trim()) {
@@ -14422,7 +14421,7 @@ export async function executeWriteVerb(
     // A document app: options.app names a memory folder (or one HTML file) that becomes the
     // document's app. Its files are published as a UnixFS folder in the same publish as the
     // change, and the document's `app` attribute points at the folder (see document-apps.md).
-    const appFolder = await resolveWriteAppFolder(context, options.app, dryRun)
+    const appFolder = await resolveWriteAppFolder(context, options.app)
     const metadata: Record<string, unknown> | undefined =
       isRecord(options.metadata) || appFolder
         ? {...(isRecord(options.metadata) ? options.metadata : {}), ...(appFolder ? {app: appFolder.app} : {})}

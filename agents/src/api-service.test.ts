@@ -6263,7 +6263,10 @@ describe('api service', () => {
           }),
         )
         if (response._ !== 'InvokeSessionToolResponse') throw new Error('Unexpected response')
-        return {...(response.output as Record<string, unknown> | undefined), error: response.error}
+        return {...(response.output as Record<string, unknown> | undefined), error: response.error} as Record<
+          string,
+          unknown
+        >
       }
 
       const address = `hm://${signerPublicKey}/counter`
