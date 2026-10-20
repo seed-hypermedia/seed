@@ -1,6 +1,12 @@
-import type {Session, WebContents} from 'electron'
-import {describe, expect, it, vi} from 'vitest'
-import {installAppSessionGuards} from '../app-window-security'
+import {shell, type BrowserWindow, type Session, type WebContents} from 'electron'
+import {EventEmitter} from 'node:events'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {
+  installAppSessionGuards,
+  installWindowGuards,
+  openAppExternalLink,
+  recentInputWindow,
+} from '../app-window-security'
 import type {AppWindowPolicy} from '../app-window-policy'
 
 vi.mock('electron', () => ({shell: {openExternal: vi.fn()}}))
@@ -101,4 +107,57 @@ it('changes response headers only at the exact app origin', () => {
       expect(result).toEqual({'x-FRAME-options': ['DENY']})
     }
   }
+})
+
+describe('openAppExternalLink', () => {
+  function appWindow(activated: boolean) {
+    const contents = Object.assign(new EventEmitter(), {
+      getURL: () => `${policy.appOrigin}/index.html`,
+      isDestroyed: () => false,
+      mainFrame: {},
+      executeJavaScriptInIsolatedWorld: vi.fn().mockResolvedValue(activated),
+      setWindowOpenHandler: vi.fn(),
+    })
+    installWindowGuards({webContents: contents} as unknown as BrowserWindow, policy)
+    return contents as unknown as WebContents & EventEmitter
+  }
+  const url = 'https://example.com/article'
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.mocked(shell.openExternal).mockClear()
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('opens with live activation and refuses with none, reporting the outcome', async () => {
+    await expect(openAppExternalLink(appWindow(true), url, policy)).resolves.toBe(true)
+    expect(shell.openExternal).toHaveBeenCalledWith(url)
+    await expect(openAppExternalLink(appWindow(false), url, policy)).resolves.toBe(false)
+    await expect(openAppExternalLink(appWindow(false), url, policy, true, true)).resolves.toBe(false)
+    expect(shell.openExternal).toHaveBeenCalledTimes(1)
+  })
+
+  it('lets an app-initiated open follow the last click or key press for a minute', async () => {
+    const contents = appWindow(false)
+    contents.emit('input-event', {}, {type: 'mouseMove'})
+    await expect(openAppExternalLink(contents, url, policy, true, true)).resolves.toBe(false)
+    contents.emit('input-event', {}, {type: 'keyDown'})
+    vi.advanceTimersByTime(recentInputWindow - 1000)
+    await expect(openAppExternalLink(contents, url, policy, true, true)).resolves.toBe(true)
+    // Page-driven opens (navigation, window.open) still need live activation.
+    await expect(openAppExternalLink(contents, url, policy)).resolves.toBe(false)
+    vi.advanceTimersByTime(2000)
+    await expect(openAppExternalLink(contents, url, policy, true, true)).resolves.toBe(false)
+    expect(shell.openExternal).toHaveBeenCalledTimes(1)
+  })
+
+  it('still rejects bad links and foreign pages after recent input', async () => {
+    const contents = appWindow(false)
+    contents.emit('input-event', {}, {type: 'mouseDown'})
+    await expect(openAppExternalLink(contents, 'file:///etc/passwd', policy, true, true)).resolves.toBe(false)
+    await expect(openAppExternalLink(contents, 'not a url', policy, true, true)).resolves.toBe(false)
+    ;(contents as any).getURL = () => 'https://evil.example/'
+    await expect(openAppExternalLink(contents, url, policy, true, true)).resolves.toBe(false)
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
 })

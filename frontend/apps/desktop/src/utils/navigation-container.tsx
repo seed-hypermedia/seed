@@ -18,6 +18,7 @@ import {isHttpUrl} from '@shm/shared/utils/navigation'
 import {NavAction, NavContextProvider, NavState, navStateReducer, useNavRoute} from '@shm/shared/utils/navigation'
 import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {toast} from '@shm/ui/toast'
 import {useStream} from '@shm/shared/use-stream'
 import {ReactQueryDevtoolsPanel} from '@tanstack/react-query-devtools'
 import {ReactNode, useRef} from 'react'
@@ -72,6 +73,9 @@ window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
   if (event.type === 'open_web_url') {
     const route = hypermediaUrlToRoute(event.url) || {key: 'web' as const, url: event.url}
     navigation.dispatch({type: 'push', route})
+  }
+  if (event.type === 'external_open_refused') {
+    toast.error('Seed could not open that link. Open it from the omnibar again.')
   }
   if (event.type === 'back') {
     navigation.dispatch({type: 'pop'})

@@ -539,7 +539,15 @@ function initializeIpcHandlers() {
   ipcMain.on('open_path', (event, path) => shell.openPath(path))
   ipcMain.on('open-external-link', (event, linkUrl) => {
     if (event.senderFrame !== event.sender.mainFrame) return
-    void openAppExternalLink(event.sender, linkUrl, getAppWindowPolicy()).catch(logger.warn)
+    const sender = event.sender
+    // The omnibar resolves an address over the network before opening it, so the Enter or click
+    // that started this may be older than Chromium's transient activation; recent input counts.
+    void openAppExternalLink(sender, linkUrl, getAppWindowPolicy(), true, true)
+      .then((opened) => {
+        if (opened || sender.isDestroyed()) return
+        sender.send('appWindowEvent', {type: 'external_open_refused', url: typeof linkUrl === 'string' ? linkUrl : ''})
+      })
+      .catch(logger.warn)
   })
   ipcMain.on('open-directory', (_event, directory) => shell.openPath(directory))
   ipcMain.handle('pick-key-import-file', async () => {

@@ -7,6 +7,8 @@ export type AppWindowEvent =
   | import('../browser-content-blocker').BrowserBlockedCount
   | {type: 'browser-favicons'; browserId: number; url: string; icons: string[]}
   | {type: 'open_web_url'; url: string}
+  /** The main process would not open this link outside Seed: no recent user input backed it. */
+  | {type: 'external_open_refused'; url: string}
   | {type: 'experiments_changed'}
   | {type: 'browser-open-url'; browserId: number; url: string}
   | {type: 'browser-title'; browserId: number; title: string}

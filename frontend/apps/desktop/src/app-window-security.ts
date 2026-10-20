@@ -12,32 +12,58 @@ async function hasMainFrameActivation(contents: WebContents, expectedURL: string
   }
 }
 
-/** Open a renderer link only from the app's main frame with live user activation. */
+/** How long after the user's last click or key press an app-initiated open may still follow. */
+export const recentInputWindow = 60_000
+const lastInput = new WeakMap<WebContents, number>()
+
+/** Whether the user pressed a key or button in this window within `recentInputWindow`. */
+function hadRecentInput(contents: WebContents, expectedURL: string): boolean {
+  const at = lastInput.get(contents)
+  return (
+    at !== undefined &&
+    Date.now() - at <= recentInputWindow &&
+    !contents.isDestroyed() &&
+    contents.getURL() === expectedURL
+  )
+}
+
+/**
+ * Open a renderer link only from the app's main frame, and only for the user: with live
+ * activation, or (`afterRecentInput`, for the app's own explicit opens such as the omnibar, whose
+ * address lookup can outlast Chromium's five-second activation) within a minute of the last click
+ * or key press. Returns whether the link was opened, in Seed or outside it.
+ */
 export async function openAppExternalLink(
   contents: WebContents,
   value: string,
   policy: AppWindowPolicy,
   allowMailto = true,
-): Promise<void> {
-  if (typeof value !== 'string') return
+  afterRecentInput = false,
+): Promise<boolean> {
+  if (typeof value !== 'string') return false
   let url: URL
   try {
     url = new URL(value)
   } catch {
-    return
+    return false
   }
-  if (!parseWebURL(value) && !(allowMailto && url.protocol === 'mailto:')) return
+  if (!parseWebURL(value) && !(allowMailto && url.protocol === 'mailto:')) return false
   const sourceURL = contents.getURL()
-  if (!policy.appOrigin || parseWebURL(sourceURL)?.origin !== policy.appOrigin) return
-  if (await hasMainFrameActivation(contents, sourceURL)) {
-    if (policy.openInApp?.(url.href, contents)) return
-    await shell.openExternal(url.href)
-  }
+  if (!policy.appOrigin || parseWebURL(sourceURL)?.origin !== policy.appOrigin) return false
+  const activated =
+    (await hasMainFrameActivation(contents, sourceURL)) || (afterRecentInput && hadRecentInput(contents, sourceURL))
+  if (!activated) return false
+  if (policy.openInApp?.(url.href, contents)) return true
+  await shell.openExternal(url.href)
+  return true
 }
 
 /** Install the same navigation guards on app windows and the hostile-page fixture. */
 export function installWindowGuards(window: BrowserWindow, policy: AppWindowPolicy): void {
   const contents = window.webContents
+  contents.on('input-event', (_event, input) => {
+    if (['mouseDown', 'keyDown', 'rawKeyDown', 'touchStart'].includes(input.type)) lastInput.set(contents, Date.now())
+  })
   contents.setWindowOpenHandler(({url, disposition, referrer}) => {
     // Disposition/referrer are filters, not evidence of a gesture. Electron 39
     // has no userGesture field here, so also check Chromium's isolated-world
