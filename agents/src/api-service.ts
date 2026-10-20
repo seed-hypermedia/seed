@@ -4897,6 +4897,7 @@ export class Service {
           new APIError(403, 'Browser access is only available in interactive runs started by the agent owner'),
         ),
       db: this.#db,
+      browserPrivacy: this.#browserPrivacy,
       accountId,
       agentId: session.agentId,
       definition,
@@ -6727,6 +6728,7 @@ export class Service {
     }
     const piToolContext: AgentServicePiToolContext = {
       db: this.#db,
+      browserPrivacy: this.#browserPrivacy,
       accountId: run.accountId,
       agentId: run.agentId,
       definition,
@@ -7417,6 +7419,7 @@ export class Service {
         return this.#browserTools.execute(JSON.stringify([accountId, sessionId]), command, owner)
       },
       db: this.#db,
+      browserPrivacy: this.#browserPrivacy,
       accountId,
       agentId: session.agentId,
       definition,
@@ -12248,6 +12251,11 @@ type WriteToolContext = {
 export type AgentServicePiToolContext = WriteToolContext & {
   /** Executes commands only in this session's explicitly connected desktop window. */
   browser?: (command: api.BrowserCommand) => Promise<Record<string, unknown>>
+  /**
+   * The service's one privacy projection. Its scans are incremental per session and run, so a
+   * fresh instance per read would rescan every transcript it touches.
+   */
+  browserPrivacy: BrowserPrivacy
   web: WebToolsConfig
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
@@ -12876,7 +12884,7 @@ function readThreadAddress(
     context.agentId,
   )
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
-  if (!agentMemory.hasOwnerAccess() && new BrowserPrivacy(context.db).sessionIsPrivate(sessionId)) return privateStub()
+  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.sessionIsPrivate(sessionId)) return privateStub()
   const fromSeq = Number.isInteger(options.fromSeq) ? Number(options.fromSeq) : undefined
   const toSeq = Number.isInteger(options.toSeq) ? Number(options.toSeq) : undefined
   const limit = Math.max(1, Math.min(1_000, Number.isInteger(options.limit) ? Number(options.limit) : 200))
@@ -12924,7 +12932,7 @@ function readThreadAddress(
 function readRunAddress(context: AgentServicePiToolContext, runId: string): Record<string, unknown> {
   const run = runs.getRun(context.db, context.accountId, runId)
   if (!run) throw new APIError(404, `No run ${runId}`)
-  if (!agentMemory.hasOwnerAccess() && new BrowserPrivacy(context.db).runIsPrivate(runId)) return privateStub()
+  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.runIsPrivate(runId)) return privateStub()
   return {
     summary: `Run ${run.id} (${run.kind}) is ${run.status}.`,
     ...runInfoFromRecord(run),
@@ -13641,7 +13649,7 @@ const THREAD_SEARCH_EVENTS_PER_SESSION = 25
  */
 function threadsListing(context: AgentServicePiToolContext, options: Record<string, unknown>): Record<string, unknown> {
   const visible = (sessionId: string) =>
-    agentMemory.hasOwnerAccess() || !new BrowserPrivacy(context.db).sessionIsPrivate(sessionId)
+    agentMemory.hasOwnerAccess() || !context.browserPrivacy.sessionIsPrivate(sessionId)
   const limit = boundedInteger(options.limit, 25, 1, 100)
   const agentId = context.agentId
   const query = typeof options.query === 'string' ? options.query.trim().toLowerCase() : ''

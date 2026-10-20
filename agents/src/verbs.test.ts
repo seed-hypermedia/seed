@@ -8,10 +8,12 @@ import {unpackHmId} from '@seed-hypermedia/client'
 import {CID} from 'multiformats/cid'
 import * as apisvc from '@/api-service'
 import {executeCallVerb, executeReadVerb, executeWriteVerb, type AgentServicePiToolContext} from '@/api-service'
+import * as cbor from '@/cbor'
 import {decode as cborDecode, encode as cborEncode} from '@/cbor'
 import {LAMBDA_RESULT_PREFIX} from '@/code-exec'
 import * as toolDocs from '@/tool-documents'
 import * as agentMemory from '@/agent-memory'
+import {BrowserPrivacy} from '@/browser-privacy'
 import * as sqlite from '@/sqlite'
 import type {CodeExecutor} from '@/code-exec'
 
@@ -56,6 +58,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
   } as unknown as CodeExecutor
   return {
     db,
+    browserPrivacy: new BrowserPrivacy(db),
     accountId: 'test-account',
     agentId: 'test-agent',
     definition: {name: 'Test', systemPrompt: '', modelProvider: 'p', model: 'm'} as never,
@@ -1236,6 +1239,64 @@ describe('thread listing and search', () => {
     expect((scoped.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2', 'thread:s1'])
     const byAgent = await executeReadVerb(context, {address: 'thread:', options: {agentId: 'other-agent'}})
     expect((byAgent.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2', 'thread:s1'])
+  })
+
+  test('reader listings and thread reads scan each transcript once through the shared privacy projection', async () => {
+    const context = makeContext()
+    const now = Date.now()
+    const sessions = 6
+    const eventsPerSession = 40
+    const encoded = cborEncode({type: 'message', role: 'assistant', content: 'Ordinary public text.'})
+    context.db.transaction(() => {
+      for (let index = 0; index < sessions; index++) {
+        const id = `thread-${index}`
+        context.db.run(
+          `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, 'test-account', 'test-agent', `Thread ${index}`, 'system', 'idle', now, now + index],
+        )
+        for (let seq = 1; seq <= eventsPerSession; seq++)
+          context.db.run(
+            `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+            [`${id}-${seq}`, id, seq, encoded, now],
+          )
+      }
+      context.db.run(
+        `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ['browser-thread', 'test-account', 'test-agent', 'Browsing', 'system', 'idle', now, now + sessions],
+      )
+      context.db.run(
+        `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+        [
+          'browser-1',
+          'browser-thread',
+          1,
+          cborEncode({type: 'tool_call', id: 'c', name: 'call', input: {tool: 'browser', input: {action: 'snapshot'}}}),
+          now,
+        ],
+      )
+    })()
+    const decode = spyOn(cbor, 'decode')
+    try {
+      const reader = () => agentMemory.withOwnerAccess(false, () => executeReadVerb(context, {address: 'thread:'}))
+      const first = await reader()
+      const threads = (first.threads as Array<{thread: string}>).map((t) => t.thread)
+      expect(threads).toHaveLength(sessions)
+      expect(threads).not.toContain('thread:browser-thread')
+      const scanned = decode.mock.calls.length
+      expect(scanned).toBeGreaterThanOrEqual(sessions * eventsPerSession)
+      decode.mockClear()
+      expect((await reader()).threads).toEqual(first.threads)
+      const transcript = await agentMemory.withOwnerAccess(false, () =>
+        executeReadVerb(context, {address: 'thread:thread-0', options: {limit: 1}}),
+      )
+      expect(transcript.sessionId).toBe('thread-0')
+      // The second listing and the thread read reuse the first scan: no transcript is decoded again.
+      expect(decode.mock.calls.length).toBeLessThan(eventsPerSession)
+    } finally {
+      decode.mockRestore()
+    }
   })
 })
 
