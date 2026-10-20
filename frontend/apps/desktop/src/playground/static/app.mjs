@@ -380,7 +380,7 @@ function renderDetails() {
     )}${kv(
       'Audience',
       o.public ? 'PUBLIC' : 'PRIVATE',
-    )}<p>ResourcePolicy is a tentative separate signed fact; its runtime schema is not yet published.</p><button id="edit-object">Edit resource policy</button>${permissionsPanel(
+    )}<p>ResourcePolicy is a tentative separate signed fact; its runtime schema is not yet published. <a href="https://hyper.media/protocol/hm26-authority#b4HgY4uP" target="_blank" rel="noreferrer">What a resource policy is</a>.</p><button id="edit-object">Edit resource policy</button>${permissionsPanel(
       scope,
     )}`
   } else {
