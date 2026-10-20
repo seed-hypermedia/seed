@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
+	"path"
 	"seed/backend/blob"
 	"seed/backend/ipfs"
 	"strconv"
@@ -19,6 +21,7 @@ import (
 	"github.com/ipfs/boxo/files"
 	"github.com/ipfs/boxo/ipld/merkledag"
 	unixfile "github.com/ipfs/boxo/ipld/unixfs/file"
+	uio "github.com/ipfs/boxo/ipld/unixfs/io"
 	"github.com/ipfs/go-block-format"
 	"github.com/ipfs/go-cid"
 	ipld "github.com/ipfs/go-ipld-format"
@@ -118,6 +121,22 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A UnixFS directory is a folder of files: `/ipfs/{cid}/{path}` walks into it the way an
+	// IPFS gateway would, and a folder itself serves its index.html. Document apps publish
+	// a folder with an index.html and reference the folder's CID from document metadata.
+	n, entryName, err := fm.resolveUnixFSPath(ctx, n, r.PathValue("path"))
+	if err != nil {
+		status := http.StatusNotFound
+		if errors.Is(err, context.DeadlineExceeded) {
+			status = http.StatusRequestTimeout
+		} else if errors.Is(err, errBadPath) {
+			status = http.StatusBadRequest
+		}
+
+		http.Error(w, fmt.Sprintf("Could not resolve %s inside %s: %v", r.PathValue("path"), cidStr, err), status)
+		return
+	}
+
 	// If the CID is not a UnixFS file we want to return the raw bytes.
 	// Otherwise we assemble the file and return it as a file.
 	var response io.Reader
@@ -154,8 +173,8 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 		size = int64(len(n.RawData()))
 	}
 
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("ETag", cidStr)
+	w.Header().Set("Content-Type", contentTypeForEntry(entryName))
+	w.Header().Set("ETag", n.Cid().String())
 	w.Header().Set("Cache-Control", fm.cacheControlForCID(ctx, cid))
 
 	if filename := r.URL.Query().Get("filename"); filename != "" {
@@ -228,6 +247,80 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := io.Copy(w, response); err != nil {
 		fm.log.Warn("GetFile: failed to write response in full", zap.Error(err), zap.String("cid", cidStr))
+	}
+}
+
+var errBadPath = errors.New("invalid path")
+
+// resolveUnixFSPath walks subPath through UnixFS directories starting at root. A directory
+// at the end of the walk resolves to its index.html. The returned name is the entry's file
+// name when a directory was walked, and empty when root itself is the file.
+func (fm *FileManager) resolveUnixFSPath(ctx context.Context, root ipld.Node, subPath string) (ipld.Node, string, error) {
+	node := root
+	name := ""
+	for _, segment := range strings.Split(subPath, "/") {
+		if segment == "" {
+			continue
+		}
+
+		if segment == "." || segment == ".." {
+			return nil, "", errBadPath
+		}
+
+		dir, err := uio.NewDirectoryFromNode(fm.dagService, node)
+		if err != nil {
+			return nil, "", fmt.Errorf("%s is not a directory", name)
+		}
+
+		child, err := dir.Find(ctx, segment)
+		if err != nil {
+			return nil, "", err
+		}
+
+		node = child
+		name = segment
+	}
+
+	if dir, err := uio.NewDirectoryFromNode(fm.dagService, node); err == nil {
+		child, err := dir.Find(ctx, "index.html")
+		if err != nil {
+			return nil, "", fmt.Errorf("directory has no index.html: %w", err)
+		}
+
+		node = child
+		name = "index.html"
+	}
+
+	return node, name, nil
+}
+
+// contentTypeForEntry names the media type of a file served from inside a UnixFS directory.
+// A bare file keeps the opaque type it always had; a file reached by name is typed by its
+// extension so browsers render pages, scripts and styles.
+func contentTypeForEntry(name string) string {
+	if name == "" {
+		return "application/octet-stream"
+	}
+
+	switch ext := strings.ToLower(path.Ext(name)); ext {
+	case ".html", ".htm":
+		return "text/html; charset=utf-8"
+	case ".js", ".mjs":
+		return "text/javascript; charset=utf-8"
+	case ".css":
+		return "text/css; charset=utf-8"
+	case ".json":
+		return "application/json; charset=utf-8"
+	case ".svg":
+		return "image/svg+xml"
+	case ".wasm":
+		return "application/wasm"
+	default:
+		if t := mime.TypeByExtension(ext); t != "" {
+			return t
+		}
+
+		return "application/octet-stream"
 	}
 }
 
