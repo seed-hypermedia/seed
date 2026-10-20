@@ -44,8 +44,16 @@ beforeEach(() => {
   state.access.mockResolvedValue(undefined)
   state.execute.mockResolvedValue({draftId: 'archive-draft', summary: 'Created draft'})
   window.browserAgent = {access: state.access, execute: state.execute}
-  state.send.mockImplementation(({action, signal}) => {
-    if (action._ !== 'PollSessionBrowser') return Promise.resolve({_: 'SessionBrowserResponse'})
+  state.send.mockImplementation(serve(() => Promise.resolve({_: 'SessionBrowserResponse'})))
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+})
+/** The signed API: polls wait for `deliver`, every other action is answered by `respond`. */
+const serve =
+  (respond: (action: {_: string}) => Promise<unknown>) =>
+  ({action, signal}: {action: {_: string}; signal: AbortSignal}) => {
+    if (action._ !== 'PollSessionBrowser') return respond(action)
     return new Promise((resolve, reject) => {
       const abort = () => reject(new Error('Cancelled'))
       signal.addEventListener('abort', abort, {once: true})
@@ -54,11 +62,7 @@ beforeEach(() => {
         resolve(response)
       }
     })
-  })
-  container = document.createElement('div')
-  document.body.appendChild(container)
-  root = createRoot(container)
-})
+  }
 afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
@@ -270,4 +274,40 @@ it('logs denied navigation without running the command, and reports clipboard fa
   expect(container.querySelector('details')?.textContent).toContain('navigate · https://other.example · refused')
   await act(async () => button('Copy log').click())
   expect(container.textContent).toContain('Unable to copy log')
+})
+
+it('stays connected when the server has already timed out a slow command', async () => {
+  await allowThisWebsite()
+  state.send.mockImplementation(
+    serve((action) =>
+      action._ === 'ResolveSessionBrowser'
+        ? Promise.reject(new Error('Browser request is no longer pending'))
+        : Promise.resolve({_: 'SessionBrowserResponse'}),
+    ),
+  )
+  const command = {action: 'archive', document: 'observed'}
+  await act(async () => deliver({_: 'SessionBrowserResponse', request: {id: 'slow', command}}))
+  expect(state.execute).toHaveBeenCalledTimes(1)
+  expect(container.textContent).toContain('Browser connected to https://example.com')
+  expect(state.status).toHaveBeenLastCalledWith('connected')
+  // The loop went on to the next poll and still runs commands.
+  await act(async () => deliver({_: 'SessionBrowserResponse', request: {id: 'next', command}}))
+  expect(state.execute).toHaveBeenCalledTimes(2)
+  expect(state.access).toHaveBeenLastCalledWith(expect.objectContaining({enabled: true}))
+})
+
+it('disconnects when the server refuses an answer for any other reason', async () => {
+  await allowThisWebsite()
+  state.send.mockImplementation(
+    serve((action) =>
+      action._ === 'ResolveSessionBrowser'
+        ? Promise.reject(new Error('Browser connection is no longer active'))
+        : Promise.resolve({_: 'SessionBrowserResponse'}),
+    ),
+  )
+  const command = {action: 'snapshot'}
+  await act(async () => deliver({_: 'SessionBrowserResponse', request: {id: 'one', command}}))
+  expect(container.textContent).toContain('Browser connection is no longer active')
+  expect(state.status).toHaveBeenCalledWith('unavailable')
+  expect(button('Reconnect')).toBeDefined()
 })

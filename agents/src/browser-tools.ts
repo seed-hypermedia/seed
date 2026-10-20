@@ -6,12 +6,48 @@ type Connection = {
   lease: ReturnType<typeof setTimeout>
   queue: api.BrowserRequest[]
   poll?: (request?: api.BrowserRequest) => void
-  pending: Map<string, {resolve: (output: Record<string, unknown>) => void; reject: (error: Error) => void}>
+  pending: Map<
+    string,
+    {until: number; resolve: (output: Record<string, unknown>) => void; reject: (error: Error) => void}
+  >
+}
+
+/** A desktop that neither polls nor answers for this long has gone away. */
+const LEASE_MS = 60000
+/** Slack between a command's deadline and the lease that must outlive it. */
+const LEASE_GRACE_MS = 15000
+
+/**
+ * How long the desktop may take to answer a command. Archiving localizes up to twenty images, each
+ * with its own fetch and upload timeouts, and navigation first waits for the user to approve the
+ * website and then for the page to load; the quick commands only touch the current page.
+ */
+export function browserCommandDeadlineMs(command: api.BrowserCommand): number {
+  return command.action === 'archive' || command.action === 'navigate' ? 120000 : 45000
+}
+
+type BrowserToolsOptions = {
+  /** Overrides the per-command deadline (tests). */
+  deadline?: (command: api.BrowserCommand) => number
+  /** Overrides the idle lease (tests). */
+  leaseMs?: number
 }
 
 /** In-memory signed-session relay. Commands are never replayed after delivery or reconnection. */
 export class BrowserTools {
   #connections = new Map<string, Connection>()
+  readonly #deadline: (command: api.BrowserCommand) => number
+  readonly #leaseMs: number
+
+  constructor(options: BrowserToolsOptions = {}) {
+    this.#deadline = options.deadline ?? browserCommandDeadlineMs
+    this.#leaseMs = options.leaseMs ?? LEASE_MS
+  }
+
+  #renewLease(scope: string, connection: Connection, ms = this.#leaseMs): void {
+    clearTimeout(connection.lease)
+    connection.lease = setTimeout(() => this.#close(scope), ms)
+  }
 
   /** Connects one authenticated actor/window; a second window cannot silently take over. */
   connect(scope: string, actor: string, id: string): void {
@@ -26,7 +62,7 @@ export class BrowserTools {
       actor,
       queue: [],
       pending: new Map(),
-      lease: setTimeout(() => this.#close(scope), 60000),
+      lease: setTimeout(() => this.#close(scope), this.#leaseMs),
     }
     this.#connections.set(scope, connection)
   }
@@ -42,8 +78,8 @@ export class BrowserTools {
   async poll(scope: string, actor: string, id: string): Promise<api.BrowserRequest | undefined> {
     const connection = this.#get(scope, actor, id)
     if (connection.poll) throw new Error('A browser poll is already pending')
-    clearTimeout(connection.lease)
-    connection.lease = setTimeout(() => this.#close(scope), 60000)
+    // While the desktop runs a command it does not poll, so a delivered command carries its own lease.
+    this.#renewLease(scope, connection, connection.pending.size ? this.#pendingLeaseMs(connection) : undefined)
     const queued = connection.queue.shift()
     if (queued) return queued
     return new Promise((resolve) => {
@@ -51,10 +87,7 @@ export class BrowserTools {
       connection.poll = (request) => {
         clearTimeout(heartbeat)
         connection.poll = undefined
-        if (request) {
-          clearTimeout(connection.lease)
-          connection.lease = setTimeout(() => this.#close(scope), 60000)
-        }
+        if (request) this.#renewLease(scope, connection, this.#pendingLeaseMs(connection))
         resolve(request)
       }
     })
@@ -75,6 +108,7 @@ export class BrowserTools {
       )
     if (connection.pending.size >= 8) return Promise.reject(new Error('Too many browser commands pending'))
     const request = {id: crypto.randomUUID(), command}
+    const deadlineMs = this.#deadline(command)
     return new Promise((resolve, reject) => {
       const deadline = setTimeout(() => {
         connection.queue = connection.queue.filter((item) => item.id !== request.id)
@@ -84,8 +118,9 @@ export class BrowserTools {
             'Browser command timed out; its outcome may be unknown. Inspect the page before retrying an action.',
           ),
         )
-      }, 45000)
+      }, deadlineMs)
       connection.pending.set(request.id, {
+        until: Date.now() + deadlineMs,
         resolve: (output) => {
           clearTimeout(deadline)
           resolve(output)
@@ -96,15 +131,29 @@ export class BrowserTools {
         },
       })
       if (connection.poll) connection.poll(request)
-      else connection.queue.push(request)
+      else {
+        connection.queue.push(request)
+        this.#renewLease(scope, connection, this.#pendingLeaseMs(connection))
+      }
     })
   }
 
-  /** Resolves exactly the pending command owned by this authenticated connection. */
-  resolve(scope: string, actor: string, action: api.ResolveSessionBrowser): void {
+  /** A lease long enough for every pending command to be answered, never shorter than idle. */
+  #pendingLeaseMs(connection: Connection): number {
+    let until = 0
+    for (const pending of connection.pending.values()) until = Math.max(until, pending.until)
+    return Math.max(this.#leaseMs, until - Date.now() + LEASE_GRACE_MS)
+  }
+
+  /**
+   * Resolves exactly the pending command owned by this authenticated connection. An answer to a
+   * command the server already timed out is ignored: the agent was told the outcome is unknown,
+   * and the desktop keeps its connection. Returns whether the answer reached a waiting command.
+   */
+  resolve(scope: string, actor: string, action: api.ResolveSessionBrowser): boolean {
     const connection = this.#get(scope, actor, action.connectionId)
     const pending = connection.pending.get(action.requestId)
-    if (!pending) throw new Error('Browser request is no longer pending')
+    if (!pending) return false
     if (action.error !== undefined && typeof action.error !== 'string') throw new Error('Browser error must be text')
     if (
       action.output !== undefined &&
@@ -116,6 +165,7 @@ export class BrowserTools {
     connection.pending.delete(action.requestId)
     if (action.error) pending.reject(new Error(action.error.slice(0, 2000)))
     else pending.resolve(action.output ?? {})
+    return true
   }
 
   /** Revokes only the matching actor/window, including queued and in-flight commands. */

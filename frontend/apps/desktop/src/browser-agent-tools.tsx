@@ -172,13 +172,20 @@ export function BrowserAgentTools({
             {time, action: request.command.action, origin, outcome: commandError ? 'refused' : 'ok'},
           ])
           setCopyStatus('')
-          await send({
-            _: 'ResolveSessionBrowser',
-            sessionId,
-            connectionId,
-            requestId: request.id,
-            ...(commandError ? {error: commandError} : {output}),
-          })
+          try {
+            await send({
+              _: 'ResolveSessionBrowser',
+              sessionId,
+              connectionId,
+              requestId: request.id,
+              ...(commandError ? {error: commandError} : {output}),
+            })
+          } catch (error) {
+            // A slow command the server already timed out: the agent was told its outcome is unknown,
+            // and the browser stays connected. Current servers ignore the late answer; older ones
+            // refuse it with this message.
+            if (!(error instanceof Error && error.message.includes('no longer pending'))) throw error
+          }
         }
       } catch (error) {
         if (!disposed) {
