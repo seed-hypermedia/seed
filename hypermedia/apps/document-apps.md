@@ -4,7 +4,7 @@ summary: A document whose `app` attribute names a UnixFS folder with an index.ht
 ---
 A **document app** is a [document](../protocol/documents.md) that carries a web app. Its [metadata](../metadata.md) has an `app` attribute, an `ipfs://<cid>` that names a UnixFS folder whose `index.html` is a self-contained app (its own scripts, styles and images beside it, by relative path). When the document is opened in Seed, the app is shown in place of the document body. The folder is a file the document references, so it syncs with the document: share the document and the app arrives with it.
 
-The agent runtime builds such apps on request. The [`apps` tool](../agent.md) takes a folder (or a single HTML file) from agent memory and a `document` address, publishes the folder to IPFS and creates or updates the document with the `app` attribute. The same tool without a document gives a session-private preview in the chat, the way it did before.
+An agent builds such an app with the ordinary [`write` verb](../agent.md): it writes the HTML under its memory and then writes a document with `options.app` naming that folder (or single HTML file). The folder is published to IPFS as a UnixFS directory in the same publish as the document change, and the document's `app` attribute points at it. The write result carries a `seed-app` fence that shows the app running inside the chat, and the document's `hm://` URL is what people share. There is no separate app tool and no app that is not a document.
 
 # What the app may do
 
@@ -19,4 +19,5 @@ The app is untrusted code: once a document is shared, someone else's app runs on
 - **Daemon.** `GET /ipfs/{cid}/{path}` walks a UnixFS directory the way an IPFS gateway does, types entries by extension, and serves a folder as its `index.html` (`backend/hmnet/filemanager.go`). The web app's `/hm/api/file/<cid>/<path>` proxies the same.
 - **Shared.** `@shm/shared/document-app` holds the scheme, the bridge protocol, the client script and the message guard; `directoryToIpfsBlobs` in `@seed-hypermedia/client` builds the folder's blocks.
 - **Desktop.** `app-document-apps.ts` registers the scheme and serves app files from the daemon; `app-window-policy.ts` admits app frames; `DocumentAppView` in `@shm/ui/document-app` embeds the app and answers the bridge.
+- **Chat.** A ```` ```seed-app ```` fence whose body is the document's `hm://` URL embeds the running app in an agent's reply (`DocumentAppEmbed`), the same sandbox and bridge as the document view.
 - **Web.** The web app shows a note to open the document in the desktop app; a sandboxed web embed is a follow-up.
