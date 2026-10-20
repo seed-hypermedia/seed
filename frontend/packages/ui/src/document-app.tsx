@@ -1,8 +1,10 @@
 import {useQueryClient} from '@tanstack/react-query'
 import React from 'react'
+import {cn} from './utils'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryDirectory, queryResource} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
+import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   DOCUMENT_APP_PROTOCOL,
@@ -29,11 +31,14 @@ export function DocumentAppView({
   document,
   cid,
   perspectiveAccountUid,
+  fill = false,
 }: {
   docId: UnpackedHypermediaId
   document: HMDocument
   cid: string
   perspectiveAccountUid?: string | null
+  /** Fill the parent's height instead of the page's viewport share (chat embeds). */
+  fill?: boolean
 }) {
   const client = useUniversalClient()
   const queryClient = useQueryClient()
@@ -112,7 +117,10 @@ export function DocumentAppView({
     )
   }
   return (
-    <section aria-label={title} className="border-border bg-background relative overflow-hidden rounded-lg border">
+    <section
+      aria-label={title}
+      className={cn('border-border bg-background relative overflow-hidden rounded-lg border', fill && 'h-full')}
+    >
       {url ? (
         <iframe
           key={`${docId.id}:${cid}`}
@@ -122,11 +130,14 @@ export function DocumentAppView({
           // Its own origin, so storage is the app's; scripts and forms, nothing that reaches outside.
           sandbox="allow-scripts allow-same-origin allow-forms"
           referrerPolicy="no-referrer"
-          className="block w-full border-0 bg-white"
-          style={{height: 'calc(100vh - 12rem)', minHeight: 480}}
+          className={cn('block w-full border-0 bg-white', fill && 'h-full')}
+          style={fill ? undefined : {height: 'calc(100vh - 12rem)', minHeight: 480}}
         />
       ) : (
-        <div className="text-muted-foreground flex items-center justify-center text-xs" style={{minHeight: 480}}>
+        <div
+          className={cn('text-muted-foreground flex items-center justify-center text-xs', fill && 'h-full')}
+          style={fill ? undefined : {minHeight: 480}}
+        >
           Loading app…
         </div>
       )}
@@ -138,4 +149,29 @@ function requireHmId(value: unknown): UnpackedHypermediaId {
   const id = typeof value === 'string' ? unpackHmId(value) : null
   if (!id) throw new Error('Expected an hm:// URL')
   return id
+}
+
+/**
+ * A document app inside an agent's reply: the ```seed-app fence names the document by its hm://
+ * URL, and the app runs here in the same sandbox, with the same bridge, as on the document page.
+ */
+export function DocumentAppEmbed({url, height = 420}: {url: string; height?: number}) {
+  const id = React.useMemo(() => unpackHmId(url.trim()), [url])
+  const resource = useResource(id, {subscribed: true})
+  const viewer = useSelectedAccountId()
+  const document = resource.data?.type === 'document' ? resource.data.document : null
+  const cid = document ? documentAppCid(document) : null
+  if (!id) return <p className="text-destructive text-xs">Not an hm:// URL: {url}</p>
+  if (!document || !cid) {
+    return (
+      <div className="text-muted-foreground border-border my-2 rounded-lg border p-3 text-xs">
+        {resource.isLoading ? 'Loading app…' : document ? 'This document is not an app.' : `Document not found: ${url}`}
+      </div>
+    )
+  }
+  return (
+    <div className="my-2" style={{height}}>
+      <DocumentAppView docId={id} document={document} cid={cid} perspectiveAccountUid={viewer} fill />
+    </div>
+  )
 }
