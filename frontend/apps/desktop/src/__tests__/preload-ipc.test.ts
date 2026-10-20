@@ -1,7 +1,9 @@
-import {EventEmitter} from 'node:events'
 import type {IpcRenderer} from 'electron'
+import {EventEmitter} from 'node:events'
+import {readdirSync, readFileSync} from 'node:fs'
+import {join} from 'node:path'
 import {afterEach, expect, it, vi} from 'vitest'
-import {createRendererIPC} from '../preload-ipc'
+import {createRendererIPC, SEND_COMMANDS} from '../preload-ipc'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -43,4 +45,34 @@ it('restricts the find overlay to its two send commands', () => {
   bridge.send('find_in_page_cancel')
   bridge.send('quit_app')
   expect(transport.send).toHaveBeenCalledTimes(2)
+})
+
+/** Channel names used as string literals by `pattern` across the desktop sources, excluding tests. */
+function channelsIn(pattern: RegExp, keep: (file: string) => boolean): Set<string> {
+  const root = join(__dirname, '..')
+  const found = new Set<string>()
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, {withFileTypes: true})) {
+      const file = join(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name !== '__tests__' && entry.name !== 'node_modules') walk(file)
+      } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) && keep(file)) {
+        for (const match of Array.from(readFileSync(file, 'utf8').matchAll(pattern))) found.add(match[1]!)
+      }
+    }
+  }
+  walk(root)
+  return found
+}
+
+it('allows every channel the renderer sends, and only channels the main process handles', () => {
+  const sent = channelsIn(/\bipc\.send\??\.?\(\s*['"]([^'"]+)['"]/g, (file) => !file.includes('preload'))
+  const handled = channelsIn(/\b(?:ipcMain\.on|ipc\.on|ipc\.addListener)\(\s*['"]([^'"]+)['"]/g, () => true)
+  expect(sent.size).toBeGreaterThan(10)
+  expect(Array.from(sent).filter((cmd) => !SEND_COMMANDS.has(cmd))).toEqual([])
+  expect(Array.from(SEND_COMMANDS).filter((cmd) => !handled.has(cmd))).toEqual([])
+  const transport = Object.assign(new EventEmitter(), {send: vi.fn()})
+  const bridge = createRendererIPC(transport as unknown as IpcRenderer)
+  sent.forEach((cmd) => bridge.send(cmd, {}))
+  expect(transport.send).toHaveBeenCalledTimes(sent.size)
 })

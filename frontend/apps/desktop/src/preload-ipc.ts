@@ -1,14 +1,20 @@
 import type {IpcRenderer} from 'electron'
 
-// Keep in sync with renderer ipc.send/useIPC and useListen callers. Dedicated
-// preload APIs (imports, exports, updates, onboarding, tRPC) have their own channels.
-const SEND_COMMANDS = new Set([
+// Every channel the renderer sends through ipc.send; preload-ipc.test.ts cross-checks this list
+// against the renderer sources and the main-process handlers. Dedicated preload APIs (imports,
+// exports, updates, onboarding, tRPC) have their own channels.
+export const SEND_COMMANDS: ReadonlySet<string> = new Set([
   'windowNavState',
   'windowAssistantState',
   'focusedWindowAppEvent',
   'broadcastWindowEvent',
+  'invalidate_queries',
   'open_path',
   'open-external-link',
+  'open-directory',
+  'save-file',
+  'open_loading_window',
+  'close_loading_window',
   'maximize_window',
   'close_window',
   'minimize_window',
