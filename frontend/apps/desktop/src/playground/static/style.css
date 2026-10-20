@@ -221,15 +221,11 @@ main {
   margin-bottom: 10px;
 }
 .world,
-.details,
-.sync {
+.details {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 14px;
-}
-.details {
-  margin-bottom: 16px;
 }
 
 /* keys */
@@ -687,46 +683,6 @@ summary {
 }
 details pre {
   margin-top: 8px;
-}
-
-/* sync */
-.sync-controls {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-.sync-controls button {
-  margin: 0;
-}
-#replica {
-  font: 12px var(--mono);
-  margin-bottom: 10px;
-}
-.trace-row {
-  padding: 6px 0 6px 12px;
-  border-left: 2px solid var(--line);
-  font-size: 13px;
-}
-.trace-row b {
-  display: block;
-  font: 600 12px var(--mono);
-}
-.trace-row p {
-  margin: 2px 0 0;
-  color: var(--muted);
-}
-.trace-row.deny {
-  border-left-color: var(--red);
-}
-.trace-row.deny b {
-  color: var(--red);
-}
-.trace-row.warn {
-  border-left-color: var(--orange);
-}
-.trace-row.warn b {
-  color: var(--orange);
 }
 
 /* footer */

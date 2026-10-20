@@ -15,6 +15,7 @@
         <select id="preset" aria-label="Use case"></select>
       </label>
       <span id="preset-state" class="muted"></span>
+      <span id="rev" class="muted"></span>
       <div class="header-actions">
         <button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button
         ><button id="export">Export</button><button id="import">Import</button
@@ -41,24 +42,6 @@
         </section>
         <aside class="inspector">
           <div id="details" class="details"></div>
-          <section class="sync" aria-label="Sync">
-            <div class="section-head">
-              <h2>Sync</h2>
-              <span id="rev" class="muted"></span>
-            </div>
-            <div class="sync-controls">
-              <label
-                >Key
-                <select id="sync-key"></select></label
-              ><label
-                >Resource
-                <select id="sync-resource"></select></label
-              ><button id="online"></button><button id="run-sync" class="primary">Run sync</button
-              ><button id="step-sync">Step</button>
-            </div>
-            <div id="replica" class="muted"></div>
-            <div id="trace"></div>
-          </section>
         </aside>
       </div>
       <footer>

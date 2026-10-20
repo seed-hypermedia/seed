@@ -70,8 +70,7 @@ describe('playground HTTP surface', () => {
     expect(snap.derived.adminRoute.bob!.lab).toBeNull()
     expect(snap.derived.records.some((r) => r.type === 'grant' && r.id === 'g4')).toBe(true)
     expect(snap.preset).toEqual({id: 'start', modified: false})
-    expect(snap.scenarios.length).toBe(10)
-    expect(snap.scenarios[0]!.id).toBe('start')
+    expect(snap.scenarios.map((x) => x.id)).toEqual(['routes', 'admin', 'child', 'rollback', 'revive', 'copy', 'start'])
     expect(snap.history).toEqual({canUndo: false, canRedo: false})
   })
 
@@ -180,7 +179,7 @@ describe('playground HTTP surface', () => {
     const loaded = act({type: 'loadScenario', id: 'routes'})
     expect(loaded.snapshot.preset).toEqual({id: 'routes', modified: false})
     expect(loaded.ui?.select?.type).toBe('grant')
-    expect(act({type: 'revoke', actor: 'alice', grant: 'g5'}).snapshot.preset).toEqual({id: 'routes', modified: true})
+    expect(act({type: 'revoke', actor: 'alice', grant: 'g3'}).snapshot.preset).toEqual({id: 'routes', modified: true})
     expect(act({type: 'undo'}).snapshot.preset.modified).toBe(true)
     expect(act({type: 'reset'}).snapshot.preset).toEqual({id: 'start', modified: false})
     expect(act({type: 'loadScenario', id: 'nope'}).status).toBe(400)
@@ -238,16 +237,31 @@ describe('playground HTTP surface', () => {
     expect(snapshot().state.devices.bob!.cache.lab).toBeUndefined()
   })
 
-  test('scenarios load a telling world from a clean fixture', () => {
+  test('use cases are small worlds that make one point each', () => {
     const {act} = client()
-    const fence = act({type: 'loadScenario', id: 'fence'})
-    expect(fence.status).toBe(200)
-    expect(fence.snapshot.sync.run?.rows.length).toBe(3)
-    expect(fence.snapshot.derived.grants.g4!.status).toBe('revoked')
+    const routes = act({type: 'loadScenario', id: 'routes'})
+    expect(routes.status).toBe(200)
+    expect(routes.snapshot.state.keys.map((k) => k.id)).toEqual(['alice', 'bob'])
+    expect(routes.snapshot.state.grants.length).toBe(3)
+    expect(routes.snapshot.derived.grants.g2!.status).toBe('revoked')
+    expect(routes.snapshot.derived.access.bob!.doc!.read).toBe(true)
+    const admin = act({type: 'loadScenario', id: 'admin'})
+    expect(admin.snapshot.derived.access.carol!.doc!.read).toBe(true)
+    expect(act({type: 'revoke', actor: 'alice', grant: 'g2'}).status).toBe(400)
+    const child = act({type: 'loadScenario', id: 'child'})
+    expect(child.snapshot.derived.access.bob!.notes!.read).toBe(true)
+    expect(child.snapshot.derived.access.bob!.lab!.read).toBe(false)
+    const rollback = act({type: 'loadScenario', id: 'rollback'})
+    expect(rollback.snapshot.derived.resources.doc!.selected).toBe('v1')
     const revive = act({type: 'loadScenario', id: 'revive'})
-    expect(revive.snapshot.derived.resources.lab!.selected).toBe('v2')
-    expect(revive.snapshot.derived.grants.g5!.status).toBe('revoked')
-    expect(act({type: 'loadScenario', id: 'nope'}).status).toBe(400)
+    expect(revive.snapshot.derived.resources.doc!.selected).toBe('v2')
+    expect(revive.snapshot.derived.grants.g2!.status).toBe('revoked')
+    const copy = act({type: 'loadScenario', id: 'copy'})
+    expect(copy.snapshot.derived.access.bot!.src!.read).toBe(false)
+    expect(copy.snapshot.state.statements.some((v) => v.resource === 'dst' && v.author === 'bot')).toBe(true)
+    const full = act({type: 'loadScenario', id: 'start'})
+    expect(full.snapshot.state.keys.length).toBe(5)
+    expect(full.snapshot.history.canUndo).toBe(true)
   })
 
   test('device toggles, publishing and delivery follow custody and authority', () => {
@@ -280,7 +294,7 @@ describe('playground HTTP surface', () => {
     expect(
       b.act({
         type: 'import',
-        state: {...file.state, keys: file.state.keys.filter((k: {id: string}) => k.id !== 'host')},
+        state: {...file.state, keys: []},
       }).status,
     ).toBe(400)
     const malformed = b.handle({method: 'POST', pathname: '/api/playground/actions', body: '{nope'})
@@ -291,14 +305,14 @@ describe('playground HTTP surface', () => {
     const storage = memoryStorage()
     const first = client(storage)
     first.act({type: 'loadScenario', id: 'admin'})
-    first.act({type: 'revoke', actor: 'alice', grant: 'g4'})
+    first.act({type: 'revoke', actor: 'alice', grant: 'g3'})
     expect(storage.text).toBeTruthy()
     const second = client(storage)
     const snap = second.snapshot()
     expect(snap.preset).toEqual({id: 'admin', modified: true})
-    expect(snap.derived.grants.g4!.status).toBe('revoked')
+    expect(snap.derived.grants.g3!.status).toBe('revoked')
     expect(snap.history.canUndo).toBe(true)
-    expect(second.act({type: 'undo'}).snapshot.derived.grants.g4!.status).toBe('valid')
+    expect(second.act({type: 'undo'}).snapshot.derived.grants.g3!.status).toBe('valid')
 
     storage.text = '{"version":1,"state":{"keys":"broken"}}'
     const third = client(storage)

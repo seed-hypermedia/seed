@@ -14,8 +14,6 @@ let snap = null
 let selection = {type: 'resource', id: 'lab'}
 let view = 'blobs'
 const VIEWS = ['blobs', 'authority', 'placement']
-let busy = false
-const pendingControls = {}
 
 const $ = (id) => document.getElementById(id)
 const esc = escapeHTML
@@ -71,22 +69,11 @@ async function api(action, {quiet = false} = {}) {
 function afterAction(data) {
   const ui = data.ui
   if (ui?.select && SELECTION_TYPES.includes(ui.select.type)) selection = {type: ui.select.type, id: ui.select.id}
-  if (ui?.controls) Object.assign(pendingControls, ui.controls)
   if (data.message) toast(data.message)
   render()
 }
 
 // ---- rendering ----
-
-function options(id, items, defaultValue) {
-  const el = $(id)
-  const old = el.value
-  el.innerHTML = items.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')
-  const wanted = pendingControls[id]
-  delete pendingControls[id]
-  const pick = [wanted, old, defaultValue].find((v) => v && items.some((x) => x.id === v)) || items[0]?.id
-  el.value = pick
-}
 
 function render() {
   if (!snap) return
@@ -95,11 +82,8 @@ function render() {
   $('redo').disabled = !snap.history.canRedo
   $('rev').textContent = 'authority revision ' + s.revision
   renderPreset()
-  options('sync-key', s.keys, 'bob')
-  options('sync-resource', s.resources, 'lab')
   renderWorld()
   renderDetails()
-  renderSync()
   saveUI()
 }
 
@@ -377,7 +361,7 @@ function selectedRecord() {
   return null
 }
 
-/** The read, write, admin, sync table: every key on one resource, or one key on every resource. */
+/** The read, write, admin table: every key on one resource, or one key on every resource. */
 function accessTable(resource, key = null) {
   const s = state()
   const rs = key ? s.resources : [res(resource)].filter(Boolean)
@@ -385,7 +369,7 @@ function accessTable(resource, key = null) {
     key ? 'of this key' : 'on this resource'
   }</div><table><thead><tr><th>${
     key ? 'Resource' : 'Key'
-  }</th><th>Read</th><th>Write</th><th>Admin</th><th>Sync</th></tr></thead><tbody>${rs
+  }</th><th>Read</th><th>Write</th><th>Admin</th></tr></thead><tbody>${rs
     .flatMap((r) =>
       (key ? [keyOf(key)] : s.keys).map((k) => {
         const a = access(k.id, r.id)
@@ -393,7 +377,6 @@ function accessTable(resource, key = null) {
           a.read,
           a.write,
           a.admin,
-          a.sync,
         ]
           .map((yes) => `<td class="${yes ? 'yes' : 'no'}">${yes ? 'yes' : 'no'}</td>`)
           .join('')}</tr>`
@@ -438,11 +421,6 @@ function renderDetails() {
         .resources.filter((r) => r.owner === id)
         .map((r) => link('resource', r.id, r.name))
         .join(' ') || 'nothing',
-    )}${kv(
-      'Device',
-      `${state().devices[id]?.online ? 'online' : 'offline'}, ${
-        state().devices[id]?.follow ? 'following' : 'not following'
-      }`,
     )}<div class="detail-actions"><button id="edit-object">Edit</button><button id="grant-to-key" class="primary">+ Grant</button><button id="delete-object" class="danger">Remove</button></div>${accessTable(
       null,
       id,
@@ -541,61 +519,6 @@ function renderDetails() {
     })
 }
 
-// ---- sync ----
-
-function renderSync() {
-  const key = $('sync-key').value
-  const r = $('sync-resource').value
-  const s = state()
-  const d = s.devices[key] || {online: false, cache: {}, knownRevision: 0}
-  const run = snap.sync.run
-  const matches = run && run.key === key && run.resource === r
-  $('online').textContent = d.online ? 'Device online' : 'Device offline'
-  $('online').classList.toggle('warn', !d.online)
-  $('step-sync').disabled = busy
-  $('run-sync').disabled = busy
-  const cached = d.cache[r]
-  $('replica').textContent = cached
-    ? `${name(key)} holds ${cached.id} (${cached.text ?? cached.kind}) ${
-        d.knownRevision === s.revision ? 'with current authority knowledge' : 'with stale authority knowledge'
-      }.`
-    : `${name(key)} holds nothing for ${resourceName(r)}.`
-  $('trace').innerHTML = matches
-    ? run.rows
-        .map(
-          (row, i) =>
-            `<div class="trace-row ${row.kind || ''}"><b>${i + 1}. ${esc(row.title)}</b><p>${esc(
-              row.detail,
-            )}</p></div>`,
-        )
-        .join('') || '<p class="muted">Run started. Step through it or run it to the end.</p>'
-    : '<p class="muted">Run a sync to see each check the host makes before it serves anything.</p>'
-}
-
-async function step() {
-  const key = $('sync-key').value
-  const r = $('sync-resource').value
-  const run = snap.sync.run
-  if (!run || run.done || run.key !== key || run.resource !== r) {
-    const begun = await api({type: 'syncBegin', key, resource: r}, {quiet: true})
-    if (!begun.ok) return toast(begun.error, true)
-    if (run && (run.key !== key || run.resource !== r)) return afterAction(begun)
-  }
-  await api({type: 'syncStep'})
-}
-
-async function runAll() {
-  busy = true
-  renderSync()
-  try {
-    await step()
-    while (snap.sync.run && !snap.sync.run.done) await api({type: 'syncStep'})
-  } finally {
-    busy = false
-    renderSync()
-  }
-}
-
 // ---- controls ----
 
 document.querySelectorAll('[data-view]').forEach((b) => {
@@ -608,17 +531,6 @@ $('preset').onchange = () => {
   const id = $('preset').value
   if (id) api({type: 'loadScenario', id})
 }
-$('online').onclick = () => {
-  const key = $('sync-key').value
-  api({type: 'setDevice', key, online: !state().devices[key]?.online})
-}
-$('run-sync').onclick = runAll
-$('step-sync').onclick = step
-for (const id of ['sync-key', 'sync-resource'])
-  $(id).onchange = () => {
-    renderSync()
-    saveUI()
-  }
 $('undo').onclick = () => api({type: 'undo'})
 $('redo').onclick = () => api({type: 'redo'})
 $('export').onclick = () => {
@@ -661,14 +573,7 @@ $('add-blob').onclick = () => openEditor('capability')
 
 function saveUI() {
   try {
-    localStorage.setItem(
-      UI_KEY,
-      JSON.stringify({
-        selection,
-        view,
-        controls: {'sync-key': $('sync-key').value, 'sync-resource': $('sync-resource').value},
-      }),
-    )
+    localStorage.setItem(UI_KEY, JSON.stringify({selection, view}))
   } catch {
     // Storage can be unavailable; the page works without it.
   }
@@ -685,9 +590,6 @@ function restoreUI() {
   if (ui.selection && SELECTION_TYPES.includes(ui.selection.type) && typeof ui.selection.id === 'string')
     selection = ui.selection
   if (VIEWS.includes(ui.view)) view = ui.view
-  if (ui.controls && typeof ui.controls === 'object')
-    for (const [id, value] of Object.entries(ui.controls))
-      if (['sync-key', 'sync-resource'].includes(id) && typeof value === 'string') pendingControls[id] = value
 }
 
 // ---- boot ----

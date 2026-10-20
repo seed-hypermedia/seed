@@ -70,11 +70,8 @@ export type ScenarioView = {id: string; title: string; description: string}
 
 export type Selection = {type: string; id: string}
 
-/** Hints for the client about where to look after an action. The server keeps no UI state. */
-export type UiHint = {
-  select?: Selection
-  controls?: Record<string, string>
-}
+/** A hint for the client about what to select after an action. The server keeps no UI state. */
+export type UiHint = {select?: Selection}
 
 export type Snapshot = {
   state: LabState
@@ -437,6 +434,7 @@ export class PlaygroundSession {
       this.state = initialState()
       this.resetRun()
       const result = scenario.load(this)
+      normalizeState(this.state)
       validateState(this.state)
       this.undoStack.push(before)
       if (this.undoStack.length > UNDO_LIMIT) this.undoStack.shift()
@@ -851,25 +849,120 @@ export class PlaygroundSession {
   }
 }
 
-/** The use cases. Each starts from the fixture and leaves the world as a preset of blobs. */
+type WorldSpec = {
+  keys: [id: string, name: string, note: string][]
+  resources: {id: string; name: string; owner: string; parent?: string; public?: boolean; segment?: string}[]
+  grants: [id: string, from: string, to: string, resource: string, role: Role, proof: string | null][]
+  statements: [id: string, resource: string, author: string, seq: number, text: string][]
+}
+
+/** A small world with only the blobs a use case is about. */
+function world(spec: WorldSpec): LabState {
+  const s: LabState = {
+    revision: 1,
+    serial: 100,
+    keys: spec.keys.map(([id, name, note]) => ({id, name, note})),
+    resources: spec.resources.map((r) => ({
+      id: r.id,
+      name: r.name,
+      cid: `bafy…${r.id}`,
+      parent: r.parent ?? null,
+      public: r.public ?? false,
+      owner: r.owner,
+      segment: r.segment ?? r.id,
+    })),
+    grants: spec.grants.map(([id, from, to, resource, role, proof]) => ({id, from, to, resource, role, proof})),
+    statements: spec.statements.map(([id, resource, author, seq, text]) => ({
+      id,
+      resource,
+      author,
+      seq,
+      kind: 'snapshot',
+      text,
+      state: text,
+    })),
+    devices: Object.fromEntries(spec.keys.map(([id]) => [id, newDevice()])),
+    outbox: [],
+    events: [],
+    changes: [],
+    revocations: [],
+  }
+  return normalizeState(s)
+}
+
+const alice: [string, string, string] = ['alice', 'Alice', 'Owner']
+const bob: [string, string, string] = ['bob', 'Bob', 'Reader']
+const carol: [string, string, string] = ['carol', 'Carol', 'Writer']
+const oneDoc = (owner = 'alice') => [{id: 'doc', name: 'Notes', owner, segment: 'notes'}]
+
+/** The use cases. Each is a preset of blobs, as small as the point it makes allows. */
 const scenarios: Scenario[] = [
-  {
-    id: 'start',
-    title: 'The starting world',
-    description:
-      'Alice owns a lab with a private child and a public dispatch. Bob reads the lab, Carol writes it, Atlas hosts it.',
-    load: () => ({message: 'Starting world loaded.', ui: {select: {type: 'resource', id: 'lab'}}}),
-  },
   {
     id: 'routes',
     title: 'Two routes, one revoke',
-    description: 'Give Bob two reader grants, then revoke one. Access survives through the independent route.',
+    description:
+      'Alice gives Bob two reader grants on one document, then revokes one. Bob still reads through the other.',
     load: (p) => {
-      const g = issue(p.state, 'alice', 'bob', 'lab', 'reader')
-      revoke(p.state, 'alice', 'g4')
+      p.state = world({
+        keys: [alice, bob],
+        resources: oneDoc(),
+        grants: [
+          ['g1', 'alice', 'alice', 'doc', 'admin', null],
+          ['g2', 'alice', 'bob', 'doc', 'reader', 'g1'],
+          ['g3', 'alice', 'bob', 'doc', 'reader', 'g1'],
+        ],
+        statements: [['v1', 'doc', 'alice', 1, 'Meeting notes']],
+      })
+      revoke(p.state, 'alice', 'g2')
+      return {message: 'g2 is revoked. Bob still reads Notes through g3.', ui: {select: {type: 'grant', id: 'g3'}}}
+    },
+  },
+  {
+    id: 'admin',
+    title: 'Permanent delegation',
+    description:
+      'Alice makes Bob an admin. Bob grants Carol. Neither admin grant can be revoked, only Carol’s reader grant.',
+    load: (p) => {
+      p.state = world({
+        keys: [alice, bob, carol],
+        resources: oneDoc(),
+        grants: [
+          ['g1', 'alice', 'alice', 'doc', 'admin', null],
+          ['g2', 'alice', 'bob', 'doc', 'admin', 'g1'],
+          ['g3', 'bob', 'carol', 'doc', 'reader', 'g2'],
+        ],
+        statements: [['v1', 'doc', 'alice', 1, 'Meeting notes']],
+      })
       return {
-        message: 'Bob’s g4 is revoked. His new independent reader route survives.',
-        ui: {select: {type: 'grant', id: g.id}},
+        message: 'Bob’s admin grant g2 is permanent and proves g3. Try revoking g2: the model refuses.',
+        ui: {select: {type: 'grant', id: 'g2'}},
+      }
+    },
+  },
+  {
+    id: 'child',
+    title: 'Child sharing',
+    description: 'Notes sits inside Lab. Bob has a reader grant on Notes only, so he reads Notes and nothing of Lab.',
+    load: (p) => {
+      p.state = world({
+        keys: [alice, bob],
+        resources: [
+          {id: 'lab', name: 'Lab', owner: 'alice'},
+          {id: 'notes', name: 'Notes', owner: 'alice', parent: 'lab'},
+        ],
+        grants: [
+          ['g1', 'alice', 'alice', 'lab', 'admin', null],
+          ['g2', 'alice', 'alice', 'notes', 'admin', null],
+          ['g3', 'alice', 'bob', 'notes', 'reader', 'g2'],
+        ],
+        statements: [
+          ['v1', 'lab', 'alice', 1, 'Lab overview'],
+          ['v2', 'notes', 'alice', 1, 'Field notes'],
+        ],
+      })
+      return {
+        message: 'Bob reads Notes through g3. Placement under Lab gives him nothing on Lab.',
+        ui: {select: {type: 'key', id: 'bob'}},
       }
     },
   },
@@ -877,11 +970,23 @@ const scenarios: Scenario[] = [
     id: 'rollback',
     title: 'The writer rollback',
     description:
-      'Revoke Carol’s final writer grant. Her selected statement becomes ineligible; Alice’s earlier version wins.',
+      'Carol wrote the newest version. Her writer grant is revoked, so her version is ineligible and Alice’s older one is selected again.',
     load: (p) => {
-      revoke(p.state, 'alice', 'g5')
+      p.state = world({
+        keys: [alice, carol],
+        resources: oneDoc(),
+        grants: [
+          ['g1', 'alice', 'alice', 'doc', 'admin', null],
+          ['g2', 'alice', 'carol', 'doc', 'writer', 'g1'],
+        ],
+        statements: [
+          ['v1', 'doc', 'alice', 1, 'First draft'],
+          ['v2', 'doc', 'carol', 2, 'Carol’s edit'],
+        ],
+      })
+      revoke(p.state, 'alice', 'g2')
       return {
-        message: 'Carol’s v2 is retained but ineligible. Selected version rolls back to Alice’s v1.',
+        message: 'Carol’s v2 is retained but ineligible. The selected version rolls back to Alice’s v1.',
         ui: {select: {type: 'statement', id: 'v2'}},
       }
     },
@@ -890,71 +995,25 @@ const scenarios: Scenario[] = [
     id: 'revive',
     title: 'Regrant, revive',
     description:
-      'A fresh writer grant makes Carol’s old statement eligible again under current-standing authorization.',
+      'The rollback world, then a fresh writer grant for Carol. Her old version is eligible again and selected.',
     load: (p) => {
-      revoke(p.state, 'alice', 'g5')
-      issue(p.state, 'alice', 'carol', 'lab', 'writer')
+      p.state = world({
+        keys: [alice, carol],
+        resources: oneDoc(),
+        grants: [
+          ['g1', 'alice', 'alice', 'doc', 'admin', null],
+          ['g2', 'alice', 'carol', 'doc', 'writer', 'g1'],
+        ],
+        statements: [
+          ['v1', 'doc', 'alice', 1, 'First draft'],
+          ['v2', 'doc', 'carol', 2, 'Carol’s edit'],
+        ],
+      })
+      revoke(p.state, 'alice', 'g2')
+      const g = issue(p.state, 'alice', 'carol', 'doc', 'writer')
       return {
-        message: 'Carol’s new writer route makes old v2 eligible again. This is a tentative policy tradeoff.',
+        message: `${g.id} makes Carol a writer again, so her old v2 is selected again. This is a tentative policy tradeoff.`,
         ui: {select: {type: 'statement', id: 'v2'}},
-      }
-    },
-  },
-  {
-    id: 'offline',
-    title: 'An offline reader',
-    description: 'Sync Bob, take his laptop offline, then revoke. Cached bytes stay; authority knowledge is stale.',
-    load: (p) => {
-      completeSync(p.state, 'bob', 'lab')
-      p.state.devices.bob!.online = false
-      revoke(p.state, 'alice', 'g4')
-      p.beginSync('bob', 'lab')
-      return {
-        message:
-          'Bob retains v2 offline. Reconnect and start sync to learn the revocation; no fresh content will be served.',
-        ui: {select: {type: 'key', id: 'bob'}, controls: {'sync-key': 'bob', 'sync-resource': 'lab'}},
-      }
-    },
-  },
-  {
-    id: 'admin',
-    title: 'Permanent delegation',
-    description: 'Alice delegates admin to Bob. Bob can delegate again; neither admin grant can be revoked.',
-    load: (p) => {
-      const g = issue(p.state, 'alice', 'bob', 'lab', 'admin')
-      issue(p.state, 'bob', 'bot', 'lab', 'admin')
-      return {
-        message: `Bob and Copy bot now have permanent admin proofs. Try revoking ${g.id} in the inspector.`,
-        ui: {select: {type: 'grant', id: g.id}},
-      }
-    },
-  },
-  {
-    id: 'custody',
-    title: 'The custody boundary',
-    description:
-      'Remove Atlas’s reader grant. Bob is still a reader, but cannot sync private content through this host.',
-    load: (p) => {
-      revoke(p.state, 'alice', 'g6')
-      p.beginSync('bob', 'lab')
-      return {
-        message: 'Atlas has no private custody. Bob remains authorized, but this source cannot serve him.',
-        ui: {select: {type: 'key', id: 'host'}, controls: {'sync-key': 'bob', 'sync-resource': 'lab'}},
-      }
-    },
-  },
-  {
-    id: 'child',
-    title: 'Child sharing',
-    description:
-      'Grant Bob just Field notes. He can open that CID without gaining the parent listing or any sibling access.',
-    load: (p) => {
-      revoke(p.state, 'alice', 'g4')
-      issue(p.state, 'alice', 'bob', 'notes', 'reader')
-      return {
-        message:
-          'Bob has direct child access, with no read authority on Research lab. Atlas also needs child custody before sync.',
-        ui: {select: {type: 'key', id: 'bob'}, controls: {'sync-key': 'bob', 'sync-resource': 'notes'}},
       }
     },
   },
@@ -962,39 +1021,39 @@ const scenarios: Scenario[] = [
     id: 'copy',
     title: 'Copy, then cut access',
     description:
-      'Give a bot source read and destination write. Copy once, revoke source access: future copies stop, the prior copy survives.',
+      'A bot reads a private document and writes a public one. It copies once, then loses the reader grant. The copy stays.',
     load: (p) => {
-      const g = issue(p.state, 'alice', 'bot', 'lab', 'reader')
-      issue(p.state, 'alice', 'bot', 'public', 'writer')
-      publish(
-        p.state,
-        'bot',
-        'public',
-        'Explicit copy: ' + (selected(p.state, 'lab')?.text ?? '') + ' [source lab / v2]',
-      )
-      revoke(p.state, 'alice', g.id)
+      p.state = world({
+        keys: [alice, ['bot', 'Copy bot', 'Automation key']],
+        resources: [
+          {id: 'src', name: 'Private notes', owner: 'alice'},
+          {id: 'dst', name: 'Public dispatch', owner: 'alice', public: true},
+        ],
+        grants: [
+          ['g1', 'alice', 'alice', 'src', 'admin', null],
+          ['g2', 'alice', 'alice', 'dst', 'admin', null],
+          ['g3', 'alice', 'bot', 'src', 'reader', 'g1'],
+          ['g4', 'alice', 'bot', 'dst', 'writer', 'g2'],
+        ],
+        statements: [
+          ['v1', 'src', 'alice', 1, 'Secret plan'],
+          ['v2', 'dst', 'alice', 1, 'Hello, public world'],
+        ],
+      })
+      publish(p.state, 'bot', 'dst', 'Copy: ' + (selected(p.state, 'src')?.text ?? ''))
+      revoke(p.state, 'alice', 'g3')
       return {
         message:
-          'Explicit snapshot copied to Public dispatch with provenance. Bot can no longer read the source, so future copying stops. The destination copy survives.',
-        ui: {select: {type: 'resource', id: 'public'}},
+          'The bot copied Secret plan into Public dispatch, then lost g3. The copy survives; no further copies can be made.',
+        ui: {select: {type: 'resource', id: 'dst'}},
       }
     },
   },
   {
-    id: 'fence',
-    title: 'A view interrupted',
+    id: 'start',
+    title: 'Everything at once',
     description:
-      'Open Bob’s read view, revoke his grant mid-transfer, then step. The live fence refuses the next disclosure.',
-    load: (p) => {
-      p.beginSync('bob', 'lab')
-      p.stepSync()
-      p.stepSync()
-      p.stepSync()
-      revoke(p.state, 'alice', 'g4')
-      return {
-        message: 'OpenScope captured revision 1. Bob’s read route is now revoked. Step again to hit the live fence.',
-        ui: {select: {type: 'grant', id: 'g4'}, controls: {'sync-key': 'bob', 'sync-resource': 'lab'}},
-      }
-    },
+      'The full fixture: Alice owns a lab with a private child and a public dispatch. Bob reads the lab, Carol writes it, Atlas hosts it.',
+    load: () => ({message: 'Full fixture loaded.', ui: {select: {type: 'resource', id: 'lab'}}}),
   },
 ]

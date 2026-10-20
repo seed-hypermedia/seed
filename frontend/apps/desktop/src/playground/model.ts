@@ -500,7 +500,6 @@ export function validateState(raw: unknown): LabState {
     }
   }
   if (!s.keys.length || !s.resources.length) throw Error('Keep at least one key and resource in the lab.')
-  if (!s.keys.some((k) => k.id === HOST_KEY)) throw Error('The Atlas host principal is required by the sync simulator.')
   const has = (group: 'keys' | 'resources' | 'grants', id: unknown) =>
     typeof id === 'string' && (s[group] as {id: string}[]).some((x) => x.id === id)
   if (!isRecord(s.devices)) throw Error('Invalid device state.')
