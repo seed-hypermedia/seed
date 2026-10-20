@@ -92,6 +92,36 @@ function isThirdParty(
   return !!topSite && cookieSite(details.url) !== topSite
 }
 
+/** The http(s) URL behind a frame or referrer value; blob: URLs carry their creator's origin. */
+function webUrlOf(value: string | undefined): string | undefined {
+  const url = value?.replace(/^blob:/i, '')
+  return url && /^https?:\/\//i.test(url) ? url : undefined
+}
+
+/**
+ * The web page a sub-request acts for: its frame, or the nearest ancestor with a real URL
+ * (about:blank and about:srcdoc frames inherit theirs), else the referrer or the guest's page.
+ * Undefined means nothing shows which page is responsible.
+ */
+function requestInitiator(details: Electron.OnBeforeRequestListenerDetails): string | undefined {
+  try {
+    for (let frame = details.frame, depth = 0; frame && depth < 32; frame = frame.parent, depth++) {
+      const url = webUrlOf(frame.url)
+      if (url) return url
+    }
+  } catch {
+    // A frame disposed mid-request has no URL to offer.
+  }
+  const guest = details.webContentsId === undefined ? undefined : guests.get(details.webContentsId)?.guest
+  return webUrlOf(details.referrer) ?? webUrlOf(guest?.getURL())
+}
+
+/** Whether a sub-request targets loopback, the local network, link-local or a `.local` name. */
+function isPrivateNetworkTarget(url: string): boolean {
+  const target = url.replace(/^ws(s?):/i, 'http$1:')
+  return /^https?:\/\//i.test(target) && isPrivateHost(target)
+}
+
 /** Filters third-party cookie headers and observes the main-frame peer IP in the browser session. */
 export function setupBrowserNetworkPolicy(browserSession: Session) {
   // Electron keeps only the last listener for each webRequest hook; GPC belongs here too.
@@ -123,11 +153,14 @@ export function setupBrowserNetworkPolicy(browserSession: Session) {
       }
     }
     // Public pages get no sub-requests into localhost or the local network, not even for images.
-    // Main-frame navigations are judged in will-navigate, so typed addresses keep working.
-    const source = details.frame?.url || details.referrer || ''
-    if (details.resourceType !== 'mainFrame' && source && !isPrivateHost(source) && isPrivateHost(details.url)) {
-      callback({cancel: true})
-      return
+    // A request that cannot be traced to a page the user opened at a local address is refused
+    // too. Main-frame navigations are judged in will-navigate, so typed addresses keep working.
+    if (details.resourceType !== 'mainFrame' && isPrivateNetworkTarget(details.url)) {
+      const initiator = requestInitiator(details)
+      if (!initiator || !isPrivateHost(initiator)) {
+        callback({cancel: true})
+        return
+      }
     }
     const state = details.webContentsId === undefined ? undefined : guests.get(details.webContentsId)
     if (state && details.resourceType === 'mainFrame') state.requestId = details.id

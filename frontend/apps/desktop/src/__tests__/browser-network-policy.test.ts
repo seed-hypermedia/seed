@@ -281,3 +281,60 @@ it('refuses an agent navigation whose encrypted attempt redirects back to plain 
   expect(guest.loadURL).toHaveBeenCalledTimes(1)
   expect(guest.listenerCount('will-redirect')).toBe(0)
 })
+
+const privateTargets = [
+  'http://localhost:5000/x',
+  'http://192.168.1.2/x',
+  'http://169.254.1.1/',
+  'http://printer.local/',
+]
+it.each([
+  ['a public page', {frame: {url: 'https://public.example/'}}, true],
+  ['a page opened at a local address', {frame: {url: 'http://localhost:3000/'}}, false],
+  [
+    'an about:srcdoc frame inside a public page',
+    {frame: {url: 'about:srcdoc', parent: {url: 'https://public.example/'}}},
+    true,
+  ],
+  [
+    'an about:blank frame inside a local page',
+    {frame: {url: 'about:blank', parent: {url: 'http://localhost:3000/'}}},
+    false,
+  ],
+  ['a blob: frame of a public page', {frame: {url: 'blob:https://public.example/4f1c'}}, true],
+  ['a blob: frame of a local page', {frame: {url: 'blob:http://127.0.0.1:8080/4f1c'}}, false],
+  ['no frame and a public referrer', {referrer: 'https://public.example/'}, true],
+  ['no frame and a local referrer', {referrer: 'http://localhost:3000/'}, false],
+  ['no frame and no referrer', {}, true],
+])('judges private sub-requests by their initiator: %s', (_label, initiator, cancelled) => {
+  const {handlers} = fixture()
+  for (const url of privateTargets) {
+    const callback = vi.fn()
+    handlers.onBeforeRequest!({id: 9, url, resourceType: 'image', ...initiator}, callback)
+    expect(callback, url).toHaveBeenCalledWith(cancelled ? {cancel: true} : {})
+  }
+  // Public targets are never affected by this rule.
+  const callback = vi.fn()
+  handlers.onBeforeRequest!({id: 9, url: 'https://cdn.example/a.png', resourceType: 'image', ...initiator}, callback)
+  expect(callback).toHaveBeenCalledWith({})
+})
+it('leaves main-frame navigations and public websockets alone, but cancels private websockets', () => {
+  const {guest, handlers} = fixture()
+  const callback = vi.fn()
+  handlers.onBeforeRequest!(
+    {id: 1, url: 'http://localhost:3000/', resourceType: 'mainFrame', webContentsId: guest.id},
+    callback,
+  )
+  expect(callback).toHaveBeenCalledWith({})
+  const frame = {url: 'https://public.example/'}
+  handlers.onBeforeRequest!({id: 2, url: 'wss://public.example/socket', resourceType: 'webSocket', frame}, callback)
+  expect(callback).toHaveBeenLastCalledWith({})
+  handlers.onBeforeRequest!({id: 3, url: 'ws://localhost:3000/socket', resourceType: 'webSocket', frame}, callback)
+  expect(callback).toHaveBeenLastCalledWith({cancel: true})
+  // A guest with no frame attribution answers for its own page.
+  handlers.onBeforeRequest!(
+    {id: 4, url: 'http://localhost:3000/img', resourceType: 'other', webContentsId: guest.id},
+    callback,
+  )
+  expect(callback).toHaveBeenLastCalledWith({cancel: true})
+})
