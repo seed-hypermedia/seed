@@ -7,6 +7,7 @@ import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {ImageOff, Loader2} from 'lucide-react'
 import React from 'react'
 import {renderAsync} from 'pele/lazy'
+import {DiagramView} from '../diagram-view'
 import '../diagram.css'
 import {useAgentMemoryFile, useSessionAttachmentDataUrls} from './models'
 import ReactMarkdown, {defaultUrlTransform, type Components, type ExtraProps} from 'react-markdown'
@@ -331,14 +332,7 @@ function MermaidDiagram({code}: {code: string}) {
       </pre>
     )
   }
-  return (
-    <div
-      className="hm-mermaid my-2 flex justify-center overflow-x-auto [&_svg]:max-w-full"
-      onClick={handleClick}
-      onAuxClick={handleClick}
-      dangerouslySetInnerHTML={{__html: svg}}
-    />
-  )
+  return <DiagramView className="hm-mermaid my-2" onClick={handleClick} onAuxClick={handleClick} svg={svg} />
 }
 
 type PreHastNode = {
