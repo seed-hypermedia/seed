@@ -295,14 +295,17 @@ func TestDaemonCORS(t *testing.T) {
 
 	const fileCID = "bafybeiecq2irw4fl5vunnxo6cegoutv4de63h7n27tekkjtak3jrvrzzhe"
 
-	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
+	// Browser authentication is opt-in; this test covers the gated policy the desktop runs with.
+	cfg := makeTestConfig(t)
+	cfg.HTTP.BrowserAuth = true
+	dmn := makeTestApp(t, "alice", cfg, false)
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(dmn.HTTPListener.Addr().(*net.TCPAddr).Port)
 	client := &http.Client{Timeout: 5 * time.Second}
 
 	t.Run("upload preflight", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/file-upload", nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "POST")
 		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
 
@@ -319,7 +322,7 @@ func TestDaemonCORS(t *testing.T) {
 	t.Run("private network preflight", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/file-upload", nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "POST")
 		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
 		req.Header.Set("Access-Control-Request-Private-Network", "true")
@@ -337,7 +340,7 @@ func TestDaemonCORS(t *testing.T) {
 	t.Run("blob route preflight", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/"+fileCID, nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "GET")
 		req.Header.Set("Access-Control-Request-Headers", "Range")
 
@@ -357,14 +360,14 @@ func TestDaemonCORS(t *testing.T) {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		requireCORSHeaders(t, resp.Header)
+		require.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
 		require.Equal(t, "bytes", resp.Header.Get("Accept-Ranges"))
 	})
 
 	t.Run("vault connect preflight", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/vault-connect", nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "POST")
 		req.Header.Set("Access-Control-Request-Headers", "Content-Type")
 
@@ -384,13 +387,13 @@ func TestDaemonCORS(t *testing.T) {
 		_, _ = io.Copy(io.Discard, resp.Body)
 
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
-		requireCORSHeaders(t, resp.Header)
+		require.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
 	})
 
 	t.Run("broad preflight before route matching", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, baseURL+"/ipfs/not-a-cid.dagjson", nil)
 		require.NoError(t, err)
-		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Origin", "http://localhost:17654")
 		req.Header.Set("Access-Control-Request-Method", "GET")
 
 		resp, err := client.Do(req)
@@ -401,12 +404,72 @@ func TestDaemonCORS(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, resp.StatusCode)
 		requireCORSHeaders(t, resp.Header)
 	})
+
+	t.Run("gated grpc-web request from a foreign origin", func(t *testing.T) {
+		status, header := grpcWebRequest(t, client, baseURL, "https://example.com")
+		require.Equal(t, http.StatusForbidden, status)
+		require.Empty(t, header.Get("Access-Control-Allow-Origin"))
+		require.Empty(t, header.Get("Access-Control-Allow-Credentials"))
+	})
+
+	// The open default (no app secret, no -http.browser-auth) is what servers and containers run,
+	// and what every daemon ran before the gate existed: any origin may preflight and call
+	// grpc-web, and grpc-web's own CORS wrapper echoes the origin with credentials allowed.
+	open := makeTestApp(t, "bob", makeTestConfig(t), false)
+	openURL := "http://127.0.0.1:" + strconv.Itoa(open.HTTPListener.Addr().(*net.TCPAddr).Port)
+
+	t.Run("open preflight from a foreign origin", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodOptions, openURL+"/com.seed.daemon.v1alpha.Daemon/GetInfo", nil)
+		require.NoError(t, err)
+		req.Header.Set("Origin", "https://example.com")
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "Content-Type, X-Grpc-Web")
+
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, _ = io.Copy(io.Discard, resp.Body)
+
+		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
+		require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Headers"))
+		require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Methods"))
+	})
+
+	t.Run("open grpc-web request from a foreign origin", func(t *testing.T) {
+		status, header := grpcWebRequest(t, client, openURL, "https://example.com")
+		require.Equal(t, http.StatusOK, status)
+		require.Equal(t, "https://example.com", header.Get("Access-Control-Allow-Origin"))
+		require.Equal(t, "true", header.Get("Access-Control-Allow-Credentials"))
+		require.Contains(t, header.Values("Vary"), "Origin")
+	})
+}
+
+// grpcWebRequest calls Daemon/GetInfo over grpc-web from a browser page at origin and returns the
+// response status and headers, so the test can look at the CORS headers.
+func grpcWebRequest(t *testing.T, client *http.Client, baseURL, origin string) (int, http.Header) {
+	t.Helper()
+
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
+	require.NoError(t, err)
+	req.Header.Set("Origin", origin)
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	req.Header.Set("Content-Type", "application/grpc-web+proto")
+	req.Header.Set("X-Grpc-Web", "1")
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	return resp.StatusCode, resp.Header
 }
 
 func requireCORSHeaders(t *testing.T, h http.Header) {
 	t.Helper()
 
-	require.Equal(t, "*", h.Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "http://localhost:17654", h.Get("Access-Control-Allow-Origin"))
+	require.Contains(t, h.Values("Vary"), "Origin")
 	if methods := h.Get("Access-Control-Allow-Methods"); methods != "*" {
 		require.Contains(t, methods, "OPTIONS")
 		require.Contains(t, methods, "GET")
@@ -3995,6 +4058,7 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	aliceKey := coretest.NewTester("alice").Account
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobKey := coretest.NewTester("bob").Account
+	// The gateway is reached at the machine's LAN address; the default listens on all interfaces.
 	gateway := makeTestApp(t, "carol", makeTestConfig(t), true)
 	gatewayKey := coretest.NewTester("carol").Account
 

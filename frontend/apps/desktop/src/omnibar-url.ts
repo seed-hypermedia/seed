@@ -27,6 +27,20 @@ function getUrlHostname(url?: string | null): string | null {
   }
 }
 
+/** Parses a typed web address, allowing bare domains while leaving search text and other schemes alone. */
+export function parseBrowserAddress(input: string): string | null {
+  const value = input.trim()
+  const explicitHttp = /^https?:\/\//i.test(value)
+  if (!explicitHttp && (/\s/.test(value) || (!value.includes('.') && !/^localhost(?::|\/|$)/.test(value)))) return null
+  if (!explicitHttp && /^[a-z][a-z\d+.-]*:/i.test(value) && !/^localhost:\d/.test(value)) return null
+  try {
+    const url = new URL(explicitHttp ? value : `${/^localhost(?::|\/|$)/.test(value) ? 'http' : 'https'}://${value}`)
+    return url.hostname && !url.username && !url.password ? url.href : null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Returns the current site's custom domain only when it is actively resolving
  * to the same account as the page shown in the desktop omnibar.
@@ -135,6 +149,24 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   } catch {
     return null
   }
+}
+
+/** Where an address typed into the omnibar goes: a Seed route, the integrated browser, or the system browser. */
+export type OmnibarNavigation = {route: NavRoute} | {externalUrl: string} | null
+
+/**
+ * Hypermedia addresses always resolve to a route. Any other website opens in the integrated browser
+ * while it is on, which the caller answers from the main process, and in the system browser otherwise.
+ */
+export async function resolveOmnibarNavigation(
+  url: string,
+  opts: ResolveOptions & {isWebBrowserEnabled: () => Promise<boolean>},
+): Promise<OmnibarNavigation> {
+  const {isWebBrowserEnabled, ...resolveOpts} = opts
+  const route = await resolveOmnibarUrlToRoute(url, resolveOpts)
+  if (route) return {route}
+  if (!/^https?:\/\//.test(url)) return null
+  return (await isWebBrowserEnabled()) ? {route: {key: 'web', url}} : {externalUrl: url}
 }
 
 /**

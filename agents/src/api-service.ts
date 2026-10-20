@@ -33,6 +33,8 @@ import * as protocol from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
+import {BrowserTools} from '@/browser-tools'
+import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
 import {
   buildLambdaProgram,
@@ -941,6 +943,8 @@ export type WebhookDeliveryResult = {
 
 /** Server-side implementation of the signed Agents action API. */
 export class Service {
+  readonly #browserTools = new BrowserTools()
+  readonly #browserPrivacy: BrowserPrivacy
   readonly #db: Database
   readonly #dataDir: string
   readonly #onEvent?: (event: ServiceEvent) => void
@@ -1032,6 +1036,9 @@ export class Service {
     } = {},
   ) {
     this.#db = db
+    this.#browserPrivacy = new BrowserPrivacy(db)
+    for (const agent of stmt<{state_dir: string}, []>(db, 'SELECT state_dir FROM agents').all())
+      agentMemory.migratePrivateMemory(agent.state_dir)
     this.#dataDir = dataDir
     this.#onEvent = options.onEvent
     this.#providerOAuth = options.providerOAuth ?? new ProviderOAuthManager()
@@ -1046,8 +1053,9 @@ export class Service {
       maxConcurrentModelRuns: options.runQueue?.maxConcurrentModelRuns,
       maxConcurrentWorkflows: options.runQueue?.maxConcurrentWorkflows,
       executors: {
-        agent: (run) => this.#executeAgentRun(run),
-        workflow: (run) => this.#executeWorkflowRun(run),
+        agent: (run) =>
+          agentMemory.withOwnerAccess(Boolean(this.#interactiveOwner(run)), () => this.#executeAgentRun(run)),
+        workflow: (run) => agentMemory.withOwnerAccess(false, () => this.#executeWorkflowRun(run)),
       },
       onRunChanged: (run) => this.#onRunChanged(run),
       onRunFinalized: (run) => this.#onRunFinalized(run),
@@ -1097,6 +1105,9 @@ export class Service {
   /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
   stopRunQueue(): void {
     this.#runQueue.stop()
+    this.#browserTools.close()
+    for (const timer of this.#sessionListSignalTimer.values()) clearTimeout(timer)
+    this.#sessionListSignalTimer.clear()
   }
 
   /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
@@ -1145,13 +1156,21 @@ export class Service {
     const clientProtocol = clientProtocolOf(envelope)
     this.#assertClientProtocol(clientProtocol)
     const verified = await this.#verifyEnvelope(envelope)
-    const response = await this.#dispatch(envelope, verified)
-    return downgradeResponse(response, clientProtocol, {
-      // Viewer-scoped like `ListSessions {agentId}`: a superset of who passes GetAgent's reader check.
-      listAgentSessions: (agentId) =>
-        this.#listSessionPage(verified.accountId, agentId, DEFAULT_SESSION_PAGE_SIZE, undefined, undefined, false)
-          .sessions,
-    })
+    const ownerAccountId = this.#actionAccountId(verified.accountId, envelope.action)
+    const response = await withMemoryErrorsAsync(() =>
+      agentMemory.withOwnerAccess(ownerAccountId === verified.accountId, () =>
+        this.#dispatch(envelope, verified, ownerAccountId),
+      ),
+    )
+    return this.#browserPrivacy.forViewer(
+      downgradeResponse(response, clientProtocol, {
+        // Viewer-scoped like `ListSessions {agentId}`: a superset of who passes GetAgent's reader check.
+        listAgentSessions: (agentId) =>
+          this.#listSessionPage(verified.accountId, agentId, DEFAULT_SESSION_PAGE_SIZE, undefined, undefined, false)
+            .sessions,
+      }),
+      verified.accountId,
+    )
   }
 
   #assertClientProtocol(clientProtocol: number): void {
@@ -1159,9 +1178,11 @@ export class Service {
     if (problem) throw new APIError(problem.status, problem.message, problem.code)
   }
 
-  async #dispatch(envelope: api.SignedActionEnvelope, verified: auth.VerifiedEnvelope): Promise<api.AgentResponse> {
-    const accountId = this.#actionAccountId(verified.accountId, envelope.action)
-
+  async #dispatch(
+    envelope: api.SignedActionEnvelope,
+    verified: auth.VerifiedEnvelope,
+    accountId: string,
+  ): Promise<api.AgentResponse> {
     if (clientProtocolOf(envelope) < 3) {
       const action = envelope.action
       // Older clients cannot render these sources, so their lists simply leave them out; a request that
@@ -1186,6 +1207,35 @@ export class Service {
     }
 
     switch (envelope.action._) {
+      case 'ConnectSessionBrowser':
+      case 'PollSessionBrowser':
+      case 'ResolveSessionBrowser':
+      case 'DisconnectSessionBrowser': {
+        const action = envelope.action
+        const scope = JSON.stringify([accountId, action.sessionId])
+        const actor = JSON.stringify([verified.accountId, verified.signerId])
+        try {
+          if (action._ !== 'DisconnectSessionBrowser') this.#assertPrivateBrowserAgent(accountId, action.sessionId)
+          switch (action._) {
+            case 'ConnectSessionBrowser':
+              this.#browserTools.connect(scope, actor, action.connectionId)
+              break
+            case 'PollSessionBrowser': {
+              const request = await this.#browserTools.poll(scope, actor, action.connectionId)
+              return {_: 'SessionBrowserResponse', ...(request ? {request} : {})}
+            }
+            case 'ResolveSessionBrowser':
+              this.#browserTools.resolve(scope, actor, action)
+              break
+            case 'DisconnectSessionBrowser':
+              this.#browserTools.disconnect(scope, actor, action.connectionId)
+              break
+          }
+          return {_: 'SessionBrowserResponse'}
+        } catch (error) {
+          throw new APIError(400, errorMessage(error))
+        }
+      }
       case 'RegisterSigner':
         return this.#registerSigner(envelope.signer, envelope.action.capability)
       case 'ListAgents':
@@ -1442,15 +1492,15 @@ export class Service {
   }
 
   /**
-   * Resolves an agent-scoped action to the owning account and enforces access once. Three levels:
+   * Resolves an agent-scoped action to the owning account and enforces access once:
    * `reader` (inspect), `chat` (create/message/stop sessions — what public chat grants), and
    * `writer` (everything else that mutates agent-scoped state, including session tools, renames,
-   * deletes, and run control).
+   * deletes, and run control). Browser connections and ownership operations require `owner`.
    */
   #actionAccountId(actorAccountId: string, action: api.UnsignedAgentAction): string {
-    const fromAgent = (agentId: string, level: AgentAccessLevel = 'reader') =>
+    const fromAgent = (agentId: string, level: AgentAccessLevel | 'owner' = 'reader') =>
       this.#requireAgentAccess(actorAccountId, agentId, level).ownerAccountId
-    const fromSession = (sessionId: string, level: AgentAccessLevel = 'reader') => {
+    const fromSession = (sessionId: string, level: AgentAccessLevel | 'owner' = 'reader') => {
       const row = stmt<{agent_id: string}, [string]>(this.#db, `SELECT agent_id FROM sessions WHERE id = ?`).get(
         sessionId,
       )
@@ -1490,9 +1540,15 @@ export class Service {
     const fromUpload = (uploadId: string) => {
       const upload = this.#uploads.get(uploadId)
       if (!upload) throw new APIError(404, 'Upload not found')
-      return upload.target.kind === 'memory'
-        ? fromAgent(upload.target.agentId, 'writer')
-        : fromSession(upload.target.sessionId, 'chat')
+      if (upload.target.kind === 'memory') {
+        const target = upload.target
+        const owner = fromAgent(target.agentId, 'writer')
+        withMemoryErrors(() =>
+          agentMemory.withOwnerAccess(owner === actorAccountId, () => agentMemory.resolveMemoryPath('', target.path)),
+        )
+        return owner
+      }
+      return fromSession(upload.target.sessionId, 'chat')
     }
 
     switch (action._) {
@@ -1538,6 +1594,11 @@ export class Service {
       case 'DeleteSession':
       case 'InvokeSessionTool':
         return fromSession(action.sessionId, 'writer')
+      case 'ConnectSessionBrowser':
+      case 'PollSessionBrowser':
+      case 'ResolveSessionBrowser':
+      case 'DisconnectSessionBrowser':
+        return fromSession(action.sessionId, 'owner')
       case 'MessageSession':
       case 'UploadSessionAttachment':
       case 'StopSession':
@@ -1733,6 +1794,13 @@ export class Service {
         ? `UPDATE agents SET public_read = 1, updated_at = ? WHERE id = ?`
         : `UPDATE agents SET public_read = 0, public_chat = 0, updated_at = ? WHERE id = ?`,
     ).run([Date.now(), agentId])
+    if (publicRead) {
+      for (const session of stmt<{id: string}, [string]>(this.#db, 'SELECT id FROM sessions WHERE agent_id = ?').all(
+        agentId,
+      )) {
+        this.#browserTools.revoke(JSON.stringify([accountId, session.id]))
+      }
+    }
     return {_: 'SetAgentPublicReadResponse', agent: this.#emitPublicAccessChange(accountId, agentId)}
   }
 
@@ -4706,6 +4774,66 @@ export class Service {
     return {sessionId: session.sessionId, title}
   }
 
+  #assertPrivateBrowserAgent(accountId: string, sessionId: string): void {
+    const agent = stmt<{public_read: number}, [string, string]>(
+      this.#db,
+      'SELECT a.public_read FROM agents a JOIN sessions s ON s.agent_id = a.id WHERE s.account_id = ? AND s.id = ?',
+    ).get(accountId, sessionId)
+    if (!agent || agent.public_read) {
+      this.#browserTools.revoke(JSON.stringify([accountId, sessionId]))
+      throw new APIError(
+        400,
+        'Browser access is unavailable for publicly readable agents. Turn off public read before connecting.',
+      )
+    }
+  }
+
+  #interactiveOwner(run: runs.RunRecord): string | undefined {
+    if (
+      run.kind !== 'agent' ||
+      run.origin !== 'user' ||
+      run.queue !== 'interactive' ||
+      run.parentRunId ||
+      run.triggerFiringId ||
+      !run.sessionId
+    )
+      return
+    const input = run.input as {kind?: string; userEventIds?: string[]}
+    if (input?.kind !== 'session-message' || !input.userEventIds?.length) return
+    const session = stmt<{parent_session_id: string | null}, [string]>(
+      this.#db,
+      'SELECT parent_session_id FROM sessions WHERE id = ?',
+    ).get(run.sessionId)
+    if (!session || session.parent_session_id) return
+    for (const id of input.userEventIds) {
+      const row = stmt<{event_cbor: Uint8Array}, [string, string]>(
+        this.#db,
+        'SELECT event_cbor FROM session_events WHERE id = ? AND session_id = ?',
+      ).get(id, run.sessionId)
+      if (!row) return
+      const event = cbor.decode<{
+        type?: string
+        role?: string
+        actor?: string
+        meta?: {accountId?: string; signerId?: string}
+      }>(row.event_cbor)
+      if (event.actor === 'system' || event.actor === 'agent') return
+      if (
+        event.type !== 'message' ||
+        event.role !== 'user' ||
+        event.meta?.accountId !== run.accountId ||
+        !event.meta?.signerId
+      )
+        return
+    }
+    return run.accountId
+  }
+
+  /** Projects owner events for public WebSocket readers as well as collaborator fan-out. */
+  redactForViewer<T>(value: T, viewerAccountId: string): T {
+    return this.#browserPrivacy.forViewer(value, viewerAccountId)
+  }
+
   /**
    * Callables this session's transcript shows as expanded: a read of ~/tools/<name> or a call
    * whose result carried the contract. Scans durable tool_call events only, so the answer is
@@ -4764,7 +4892,12 @@ export class Service {
     this.#syncAgentMcpTools(accountId, session.agentId, definition)
     const mcpPool = this.#createMcpPool(accountId)
     const context: AgentServicePiToolContext = {
+      browser: () =>
+        Promise.reject(
+          new APIError(403, 'Browser access is only available in interactive runs started by the agent owner'),
+        ),
       db: this.#db,
+      browserPrivacy: this.#browserPrivacy,
       accountId,
       agentId: session.agentId,
       definition,
@@ -5383,6 +5516,9 @@ export class Service {
     // stored (a placeholder, a truncated prompt), and the agent has not named this session yet.
     // Once the model or the user names it, the source says so and naming never runs again.
     if (!row || row.title_source !== 'system') return
+    // A title digest of a browser or private-memory session would copy signed-in page content to
+    // another model call. Those sessions keep their provisional title.
+    if (this.#browserPrivacy.sessionIsPrivate(sessionId)) return
     this.#namingSessions.add(sessionId)
     this.#titleAttempts.set(sessionId, (this.#titleAttempts.get(sessionId) ?? 0) + 1)
     const pending = this.#nameSessionWithModel(accountId, sessionId)
@@ -5474,7 +5610,7 @@ export class Service {
     const info = this.#getSessionInfo(accountId, sessionId)
     if (info?.title === title) {
       this.#titleAttempts.delete(sessionId)
-      console.info('[agents/runtime] session titled by model', {sessionId, title})
+      console.info('[agents/runtime] session titled by model', {sessionId, titleLength: title.length})
       this.#emit({type: 'session-change', accountId, session: info})
       this.#emit({
         type: 'account-change',
@@ -6592,6 +6728,7 @@ export class Service {
     }
     const piToolContext: AgentServicePiToolContext = {
       db: this.#db,
+      browserPrivacy: this.#browserPrivacy,
       accountId: run.accountId,
       agentId: run.agentId,
       definition,
@@ -7079,7 +7216,7 @@ export class Service {
     // provider's prompt cache survives.
     const sharedPrompt = seedAssistantSystemPrompt()
     const memoryPrompt =
-      '\n\nYou have a private persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
+      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Readers can browse shared memory. Paths under ~/memory/private/ are owner-only: only root interactive runs started by the owner and direct owner tool actions may access them. Private files are not mounted into code execution; use read and write to edit them. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
     const userActionsPrompt =
       '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
     const continuationPrompt = `\n\n${SESSION_CONTINUATION_PROMPT}`
@@ -7274,7 +7411,15 @@ export class Service {
     endToolSyncSpan()
     const mcpPool = this.#createMcpPool(accountId)
     const seedTools = createAgentServicePiTools({
+      browser: (command) => {
+        const owner = run && this.#interactiveOwner(run)
+        if (!owner)
+          throw new APIError(403, 'Browser access is only available in interactive runs started by the agent owner')
+        this.#assertPrivateBrowserAgent(accountId, sessionId)
+        return this.#browserTools.execute(JSON.stringify([accountId, sessionId]), command, owner)
+      },
       db: this.#db,
+      browserPrivacy: this.#browserPrivacy,
       accountId,
       agentId: session.agentId,
       definition,
@@ -7461,6 +7606,9 @@ export class Service {
      * one turn to the next, and the turn's own requests share one prefix.
      */
     const turnStateMessages = (): piAi.UserMessage[] => {
+      // A reader's turn in a browser or private-memory session must not see the owner's plan or
+      // status text; the private stub stands in for them.
+      const privateHistory = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.sessionIsPrivate(sessionId)
       const blocks = [
         buildSpaceIndex({
           db: this.#db,
@@ -7470,9 +7618,9 @@ export class Service {
           callableTools: enabledCallables,
         }),
         run ? delegationBudgetBlock(this.#delegationStatus(run)) : undefined,
-        planStateBlock(this.#storedSessionPlan(accountId, sessionId)),
+        privateHistory ? undefined : planStateBlock(this.#storedSessionPlan(accountId, sessionId)),
         canContinueSession ? contextUsageBlock(this.#lastPromptTokens(sessionId), model.contextWindow) : undefined,
-        sessionStatusBlock(this.#getSessionInfo(accountId, sessionId)),
+        privateHistory ? undefined : sessionStatusBlock(this.#getSessionInfo(accountId, sessionId)),
         `<current_time>${new Date().toISOString()}</current_time>`,
       ]
       const timestamp = Date.now()
@@ -7694,7 +7842,7 @@ export class Service {
           emitProgress({activity: {phase: 'responding'}})
           streamingLogOpen = true
         }
-        process.stdout.write(delta)
+        if (!this.#browserPrivacy.sessionIsPrivate(sessionId)) process.stdout.write(delta)
         this.#emit({
           type: 'session-partial',
           accountId,
@@ -7720,7 +7868,12 @@ export class Service {
         logRun('tool call start', {
           tool: event.toolName,
           toolCallId: event.toolCallId,
-          input: summarizeForLog(event.args),
+          input:
+            containsPrivateData({toolName: event.toolName, input: event.args}) ||
+            event.toolName === 'browser' ||
+            this.#browserPrivacy.sessionIsPrivate(sessionId)
+              ? '[private]'
+              : summarizeForLog(event.args),
         })
         emitProgress({
           activity: {
@@ -7752,8 +7905,9 @@ export class Service {
           tool: event.toolName,
           toolCallId: event.toolCallId,
           durationMs: startedAt ? Date.now() - startedAt : undefined,
-          result:
-            result?.role === 'toolResult'
+          result: this.#browserPrivacy.sessionIsPrivate(sessionId)
+            ? '[private]'
+            : result?.role === 'toolResult'
               ? summarizeForLog(result.isError ? piToolResultText(result) : piToolResultOutput(result))
               : undefined,
         })
@@ -8168,6 +8322,10 @@ export class Service {
     // Results that arrived for calls the conversation already answered with a placeholder.
     const late: {toolCallId: string; output?: unknown; error?: string; createdAt: number}[] = []
     let appendable = sync.importedSeq > 0
+    // A session that used the browser or private memory is rebuilt from the log on every turn:
+    // the durable conversation would otherwise carry owner-only content into a reader's turn
+    // (or a reader's redacted copy into the owner's). #piMessages redacts by the run's access.
+    if (this.#browserPrivacy.sessionIsPrivate(sessionId)) appendable = false
     let interrupted = false
     for (const event of pending) {
       const value = event.event as {
@@ -8377,12 +8535,14 @@ export class Service {
    * `left` names events to leave out: messages another run will put to the model itself.
    */
   #piMessages(sessionId: string, left: ReadonlySet<string> = new Set()): unknown[] {
+    const privateSession = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.sessionIsPrivate(sessionId)
     const events = stmt<SessionEventRow, [string, number]>(
       this.#db,
       `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
     )
       .all(sessionId, 0)
       .map(sessionEventRowToInfo)
+      .map((event) => (agentMemory.hasOwnerAccess() ? event : this.#browserPrivacy.event(event, privateSession)))
 
     // Pass 1 — index every durable tool_result by call id. Providers require tool results to sit
     // DIRECTLY after the assistant message that made the calls, but the durable event order
@@ -8578,6 +8738,7 @@ export class Service {
       `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at, pi_entry_id) VALUES (?, ?, ?, ?, ?, ?)`,
     ).run([id, sessionId, seq, cbor.encode(event), now, piEntryId ?? null])
     const info = {id, sessionId, seq, event, createdAt: now}
+    this.#browserPrivacy.recordSessionEvent(info)
     this.#recordAgentActivity(agentId, sessionId, event, now)
     // Content stream: every event reaches the open session view immediately.
     this.#emit({type: 'session-event', accountId, agentId, event: info})
@@ -8724,6 +8885,7 @@ export class Service {
   }
 
   #emit(event: ServiceEvent): void {
+    if (event.type === 'run-append') this.#browserPrivacy.recordRunEntry(event.entry)
     const onEvent = this.#onEvent
     if (!onEvent) return
     onEvent(event)
@@ -8759,7 +8921,7 @@ export class Service {
         event.type === 'agent-change'
           ? {...event, accountId: collaborator.account_id, agent: {...event.agent, accessRole: collaborator.role}}
           : {...event, accountId: collaborator.account_id}
-      onEvent(sharedEvent as ServiceEvent)
+      onEvent(this.#browserPrivacy.forViewer(sharedEvent, collaborator.account_id) as ServiceEvent)
     }
   }
 
@@ -9093,7 +9255,7 @@ export class Service {
       return {
         accountId: verified.accountId,
         key,
-        runsReplay: {runs: tree.map(runInfoFromRecord), entries},
+        runsReplay: this.#browserPrivacy.forViewer({runs: tree.map(runInfoFromRecord), entries}, verified.accountId),
         ...(access ? publicReadOf(access) : {}),
       }
     }
@@ -10360,7 +10522,8 @@ function formatMemoryLine(summary: agentMemory.AgentMemorySummary): string {
 
 /** Refreshes one memory line off the prompt path; at most one refresh per state dir in flight. */
 function scheduleMemorySummaryRefresh(stateDir: string): void {
-  const cached = memorySummaryCache.get(stateDir)
+  const summaryKey = `${stateDir}#${agentMemory.hasOwnerAccess() ? 'owner' : 'reader'}`
+  const cached = memorySummaryCache.get(summaryKey)
   if (cached?.refreshing) return
   if (cached) cached.refreshing = true
   void (async () => {
@@ -10374,8 +10537,8 @@ function scheduleMemorySummaryRefresh(stateDir: string): void {
       walkMs < MEMORY_SUMMARY_FREE_WALK_MS
         ? 0
         : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
-    const changed = memorySummaryCache.get(stateDir)?.line !== line
-    memorySummaryCache.set(stateDir, {line, walkedAt: Date.now(), holdMs})
+    const changed = memorySummaryCache.get(summaryKey)?.line !== line
+    memorySummaryCache.set(summaryKey, {line, walkedAt: Date.now(), holdMs})
     // The line is baked into cached space indexes; drop them so the next prompt picks it up. The
     // rest of an index rebuild is a few small SQL reads.
     if (changed) spaceIndexCache.clear()
@@ -10391,7 +10554,8 @@ export function invalidateSpaceIndex(accountId: string, agentId?: string): void 
 }
 
 export function buildSpaceIndex(input: SpaceIndexInput): string {
-  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}`
+  const visibility = agentMemory.hasOwnerAccess() ? 'owner' : 'reader'
+  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}#${visibility}`
   const cached = spaceIndexCache.get(cacheKey)
   if (cached !== undefined) return cached
 
@@ -10421,7 +10585,8 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
   }
 
   let memoryLine: string
-  const cachedSummary = memorySummaryCache.get(input.stateDir)
+  const summaryKey = `${input.stateDir}#${visibility}`
+  const cachedSummary = memorySummaryCache.get(summaryKey)
   if (cachedSummary && Date.now() - cachedSummary.walkedAt < cachedSummary.holdMs) {
     memoryLine = cachedSummary.line
   } else if (cachedSummary && cachedSummary.holdMs > 0) {
@@ -10440,7 +10605,7 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
       walkMs < MEMORY_SUMMARY_FREE_WALK_MS
         ? 0
         : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
-    memorySummaryCache.set(input.stateDir, {line: memoryLine, walkedAt: Date.now(), holdMs})
+    memorySummaryCache.set(summaryKey, {line: memoryLine, walkedAt: Date.now(), holdMs})
   }
 
   const triggers = stmt<{name: string; enabled: number}, [string, string]>(
@@ -12084,6 +12249,13 @@ type WriteToolContext = {
 }
 
 export type AgentServicePiToolContext = WriteToolContext & {
+  /** Executes commands only in this session's explicitly connected desktop window. */
+  browser?: (command: api.BrowserCommand) => Promise<Record<string, unknown>>
+  /**
+   * The service's one privacy projection. Its scans are incremental per session and run, so a
+   * fresh instance per read would rescan every transcript it touches.
+   */
+  browserPrivacy: BrowserPrivacy
   web: WebToolsConfig
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
@@ -12712,6 +12884,7 @@ function readThreadAddress(
     context.agentId,
   )
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
+  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.sessionIsPrivate(sessionId)) return privateStub()
   const fromSeq = Number.isInteger(options.fromSeq) ? Number(options.fromSeq) : undefined
   const toSeq = Number.isInteger(options.toSeq) ? Number(options.toSeq) : undefined
   const limit = Math.max(1, Math.min(1_000, Number.isInteger(options.limit) ? Number(options.limit) : 200))
@@ -12759,6 +12932,7 @@ function readThreadAddress(
 function readRunAddress(context: AgentServicePiToolContext, runId: string): Record<string, unknown> {
   const run = runs.getRun(context.db, context.accountId, runId)
   if (!run) throw new APIError(404, `No run ${runId}`)
+  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.runIsPrivate(runId)) return privateStub()
   return {
     summary: `Run ${run.id} (${run.kind}) is ${run.status}.`,
     ...runInfoFromRecord(run),
@@ -13474,6 +13648,8 @@ const THREAD_SEARCH_EVENTS_PER_SESSION = 25
  * without scanning the whole log history.
  */
 function threadsListing(context: AgentServicePiToolContext, options: Record<string, unknown>): Record<string, unknown> {
+  const visible = (sessionId: string) =>
+    agentMemory.hasOwnerAccess() || !context.browserPrivacy.sessionIsPrivate(sessionId)
   const limit = boundedInteger(options.limit, 25, 1, 100)
   const agentId = context.agentId
   const query = typeof options.query === 'string' ? options.query.trim().toLowerCase() : ''
@@ -13530,7 +13706,7 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
   })
 
   if (!query) {
-    const rows = loadThreads()
+    const rows = loadThreads().filter((row) => visible(row.id))
     return {
       summary: `${rows.length} conversation${
         rows.length === 1 ? '' : 's'
@@ -13546,6 +13722,7 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
        FROM sessions WHERE account_id = ?${agentId ? ' AND agent_id = ?' : ''} ORDER BY updated_at DESC LIMIT 400`,
   )
     .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
+    .filter((row) => visible(row.id))
     .filter((row) => `${row.title ?? ''}\n${row.description ?? ''}`.toLowerCase().includes(query))
   // Content matches: the tail of each of the newest sessions, one snippet per thread. Each tail is
   // an index-ordered read on (session_id, seq); a single `ORDER BY created_at` across all of the
@@ -13561,6 +13738,7 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
     `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
   )
   for (const session of recentSessions) {
+    if (!visible(session.id)) continue
     for (const eventRow of sessionTail.all(session.id, THREAD_SEARCH_EVENTS_PER_SESSION)) {
       let event: {type?: string; content?: unknown}
       try {
@@ -14625,6 +14803,39 @@ export async function executeCallVerb(
     }
   }
   switch (toolName) {
+    case 'browser': {
+      if (!context.browser)
+        throw new APIError(403, 'Browser access is only available in interactive runs started by the agent owner')
+      if (toolInput.action === 'screenshot' && !context.modelAcceptsImages) {
+        throw new APIError(400, 'This model cannot view screenshots. Use snapshot or select a vision-capable model.')
+      }
+      const output = await context.browser(toolInput as api.BrowserCommand)
+      if (toolInput.action === 'archive' && typeof output.markdown === 'string') {
+        const entry = agentMemory.writeMemoryFile(
+          context.stateDir,
+          `private/browser/archive-${crypto.randomUUID()}.md`,
+          output.markdown,
+        )
+        context.onMemoryChange()
+        delete output.markdown
+        output.memoryPath = `~/memory/${entry.path}`
+        output.publishInstructions =
+          'An editable desktop draft and an owner-only private/browser/ memory archive were created; nothing was published. Only the owner can read or publish this archive. Read memoryPath to review or revise the archive. To publish with your available write keys, read ~/tools/write/documents and use write with options.fromPath, preserving the source metadata.'
+      }
+      if (
+        isRecord(output.screenshot) &&
+        typeof output.screenshot.data === 'string' &&
+        output.screenshot.mimeType === 'image/jpeg'
+      ) {
+        const screenshot = output.screenshot
+        delete output.screenshot
+        output.piContent = [
+          {type: 'text', text: JSON.stringify(output)},
+          {type: 'image', data: screenshot.data, mimeType: screenshot.mimeType},
+        ]
+      }
+      return output
+    }
     case 'search':
       return executeAgentServiceSearch(context, toolInput)
     case 'query':

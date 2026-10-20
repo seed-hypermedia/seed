@@ -20,6 +20,8 @@ Before auditing, read:
 - [Audit log](resources/audit-log.md): prior coverage, ruled-out hypotheses, and historical findings.
 - [Audit protocol](resources/protocol.md): safety rules, review passes, reproduction requirements, severity rubric, and
   reporting format. Read the relevant phase before carrying it out.
+- [Electron checklist](resources/electron-checklist.md): the desktop app against Electron's security checklist, for
+  audits that touch the desktop.
 - Applicable repository guidance, including `AGENTS.local.md` when present.
 
 Paths in protocol commands are relative to the repository root. The log contains historical observations, not proof of

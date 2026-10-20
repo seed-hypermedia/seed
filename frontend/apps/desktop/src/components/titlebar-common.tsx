@@ -1,8 +1,9 @@
 import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
+import {useAppContext} from '@/app-context'
 import {domainResolver} from '@/grpc-client'
 import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useNotificationInbox} from '@/models/notification-inbox'
 import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
@@ -12,7 +13,8 @@ import {
   agentTriggerUrl,
   agentUrl,
   isOmnibarRouteUrlShareable,
-  resolveOmnibarUrlToRoute,
+  resolveOmnibarNavigation,
+  parseBrowserAddress,
   selectValidatedOmnibarSiteUrl,
 } from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
@@ -891,6 +893,7 @@ function useCurrentRouteUrl(): {
   const draftTitle = draft?.metadata?.name
 
   return useMemo(() => {
+    if (route.key === 'web') return {displayUrl: route.url, copyableUrl: route.url}
     if (route.key === 'draft') {
       const hostname = validatedSiteUrl || gwUrl
       if (route.editUid) {
@@ -1148,6 +1151,8 @@ function useOmnibarState(currentUrl: string | null) {
  */
 export function Omnibar() {
   const route = useNavRoute()
+  const {experiments} = useUniversalAppContext()
+  const {externalOpen} = useAppContext()
   const navigate = useNavigate()
   const {displayUrl, copyableUrl} = useCurrentRouteUrl()
   const localAgentServerUrl = useLocalAgentServerUrl()
@@ -1186,14 +1191,13 @@ export function Omnibar() {
   // Handle URL navigation - returns true if navigation was synchronous
   const handleUrlNavigation = useCallback(
     async (url: string): Promise<boolean> => {
-      const route = await resolveOmnibarUrlToRoute(url, {domainResolver})
-      if (route) {
-        navigate(route)
-        return true
-      }
-      return false
+      const target = await resolveOmnibarNavigation(url, {domainResolver, isWebBrowserEnabled: readWebBrowserEnabled})
+      if (!target) return false
+      if ('route' in target) navigate(target.route)
+      else externalOpen(target.externalUrl)
+      return true
     },
-    [navigate],
+    [navigate, externalOpen],
   )
 
   // Handle keyboard events
@@ -1202,6 +1206,12 @@ export function Omnibar() {
       if (e.key === 'Escape') {
         blur()
       } else if (e.key === 'Enter') {
+        const webAddress = experiments?.webBrowser ? parseBrowserAddress(inputValue) : null
+        if (webAddress) {
+          e.preventDefault()
+          void handleUrlNavigation(webAddress).then(() => blur())
+          return
+        }
         if (mode === 'focused') {
           e.preventDefault()
           const url = inputValue.trim()
@@ -1235,7 +1245,7 @@ export function Omnibar() {
         searchInputRef.current?.handleArrowDown()
       }
     },
-    [blur, mode, inputValue, handleUrlNavigation],
+    [blur, mode, inputValue, handleUrlNavigation, experiments?.webBrowser],
   )
 
   // Handle click on idle state to focus
