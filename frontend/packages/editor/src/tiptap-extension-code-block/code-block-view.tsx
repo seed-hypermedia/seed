@@ -3,16 +3,10 @@ import {Tooltip} from '@shm/ui/tooltip'
 import {NodeViewProps} from '@tiptap/core'
 import {NodeViewContent} from '@tiptap/react'
 import {Check, ChevronDown, Copy, Eye, EyeOff, X} from 'lucide-react'
-import mermaid from 'mermaid'
+import {renderAsync} from 'pele/lazy'
+import '@shm/ui/diagram.css'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-
-// Initialize mermaid
-mermaid.initialize({
-  startOnLoad: false,
-  theme: 'default',
-  securityLevel: 'loose',
-})
 
 let mermaidRenderId = 0
 
@@ -61,12 +55,11 @@ export const CodeBlockView = ({props, languages}: {props: NodeViewProps; languag
     if (!codeContent.trim()) return
 
     const id = `mermaid-preview-${mermaidRenderId++}`
-    mermaid.render(id, codeContent).then(
+    renderAsync(codeContent, {idPrefix: id}).then(
       ({svg}) => {
         if (!cancelled) setMermaidSvg(svg)
       },
       (error) => {
-        document.getElementById(id)?.remove()
         if (!cancelled) setMermaidError(error instanceof Error ? error.message : 'Invalid diagram')
       },
     )
