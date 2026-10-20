@@ -240,7 +240,7 @@ Besides gRPC-Web, the HTTP port serves a few plain routes. Debug pages answer on
 | `GET /hm/api/config` | `{peerId, addrs, protocolId}`; the web server's version adds the registered account <!-- id:UHwO76Vg --> |
 | `GET /debug/version` | `{branch, commit, date}` <!-- id:d46PimSe --> |
 | `POST /vault-connect` | completes a browser-mediated vault connection with a short-lived token <!-- id:-7ueEP9H --> |
-| `/debug/metrics`, `/debug/pprof/`, `/debug/vars`, `/debug/requests`, `/debug/events`, `/debug/traces`, `/debug/p2p`, `/debug/network`, `/debug/sqlite`, `/debug/grpcui/`, `/debug/journeys`, `/debug/logs`, `/debug/buildinfo` | operator pages, local only <!-- id:gDU2r4sA --> |
+| `/debug/metrics`, `/debug/pprof/`, `/debug/vars`, `/debug/requests`, `/debug/events`, `/debug/traces`, `/debug/p2p`, `/debug/network`, `/debug/sqlite`, `/debug/malloc`, `/debug/grpcui/`, `/debug/journeys`, `/debug/logs`, `/debug/buildinfo` | operator pages, local only <!-- id:gDU2r4sA --> |
 
 # Working with it <!-- id:9QCz8_20 -->
 

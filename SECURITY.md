@@ -19,9 +19,9 @@ or the hosted services.
 
 ## How security work is recorded
 
-- `.agents/security/audit-log.md` is the durable, public record of audit coverage, ruled-out hypotheses and already public
+- `.agents/skills/security-audit/resources/audit-log.md` is the durable, public record of audit coverage, ruled-out hypotheses and already public
   findings. Unfixed findings never go there.
-- `.agents/security/electron-checklist.md` tracks the desktop app against Electron's security checklist.
+- `.agents/skills/security-audit/resources/electron-checklist.md` tracks the desktop app against Electron's security checklist.
 - `frontend/apps/desktop/SECURITY.md` documents the shipped Electron runtime, fuses and entitlements.
 - Fixed vulnerabilities get a GitHub issue at fix time, closed by the fixing pull request. That issue is the disclosure.
 

@@ -26,4 +26,4 @@ Status of `frontend/apps/desktop` against Electron's security recommendations
 | 19  | Check which fuses you can change                     | Yes    | Six fuses set in `forge.config.ts`, read back after packaging                                                                                                        |
 | 20  | Do not expose Electron APIs to untrusted content     | Yes    | The web pane has no preload; the app preload exposes named methods only                                                                                              |
 
-Related: `frontend/apps/desktop/SECURITY.md` (runtime, fuses, entitlements), `.agents/security/audit-log.md`.
+Related: `frontend/apps/desktop/SECURITY.md` (runtime, fuses, entitlements), `.agents/skills/security-audit/resources/audit-log.md`.

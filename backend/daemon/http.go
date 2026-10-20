@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"runtime/debug"
 	daemonapi "seed/backend/api/daemon/v1alpha"
@@ -78,6 +79,14 @@ func initHTTP(
 	// can ask for it with -http.browser-auth. A daemon run by hand keeps the open policy.
 	browserAuth := secret != ""
 	router := &Router{mux: http.NewServeMux()}
+	// A loopback-bound daemon is only ever addressed as localhost, so it checks Host on every
+	// route, ahead of the browser gate: DNS rebinding points an attacker's hostname at 127.0.0.1,
+	// the browser then reports same-origin and sends no Origin, and the gate would take the page
+	// for a non-browser local client. The loopback-only debug routes check Host in every mode.
+	if httpCfg.Loopback {
+		router.Use(loopbackHostMiddleware)
+	}
+
 	// Server daemons (no app secret, or -public-only) serve websites directly: the hosted web app
 	// uploads to the gateway from the browser, from any custom domain. They keep the open policy,
 	// as before. The desktop's daemon (-http.loopback plus SEED_APP_SECRET) authenticates every
@@ -125,6 +134,7 @@ func initHTTP(
 		loopback.HandleNav("/debug/p2p", p2pnet.DebugHandler())
 		loopback.HandleNav("/debug/network", p2pnet.NetworkDebugHandler())
 		loopback.HandleNav("/debug/sqlite", sqlitex.DebugHandler())
+		loopback.HandleNav("/debug/malloc", mallocDebugHandler())
 		grpcUI, err := makeGRPCUIHandler(rpc, clean, g)
 		if err != nil {
 			return nil, nil, err
@@ -228,6 +238,15 @@ func loopbackOnly(next http.Handler) http.Handler {
 			return
 		}
 
+		// DNS rebinding can point an attacker's hostname at loopback while the browser
+		// still reports same-origin. Require localhost or a literal loopback IP without
+		// resolving DNS; checking the socket peer and Fetch Metadata alone is insufficient.
+		// Require Host so every request undergoes the loopback-host check, including HTTP/1.0.
+		if !isLoopbackHost(r.Host) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
 		switch r.Header.Get("Sec-Fetch-Site") {
 		case "", "none", "same-origin":
 			// Fetch Metadata is browser-provided. Missing headers are allowed so
@@ -239,6 +258,34 @@ func loopbackOnly(next http.Handler) http.Handler {
 			return
 		}
 	})
+}
+
+// loopbackHostMiddleware refuses every request whose Host is not localhost or a literal loopback
+// IP. A daemon in -http.loopback mode runs it on every route, ahead of the browser gate (see initHTTP).
+func loopbackHostMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopbackHost(r.Host) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// isLoopbackHost reports whether a Host header names this machine as localhost or a literal
+// loopback IP, parsed without resolving DNS. A missing Host (HTTP/1.0) fails the check.
+// The "//" prefix makes url.Parse treat Host as an authority (host plus optional
+// port), rather than a path or scheme. This only parses text; it makes no request.
+func isLoopbackHost(rawHost string) bool {
+	authority, err := url.Parse("//" + rawHost)
+	if err != nil || authority.Host != rawHost || authority.User != nil {
+		return false
+	}
+
+	host := authority.Hostname()
+	addr, _ := netip.ParseAddr(host)
+	return strings.EqualFold(host, "localhost") || addr.Unmap().IsLoopback()
 }
 
 // The parent supplies the secret only through the environment, never a flag or disk. Without one,

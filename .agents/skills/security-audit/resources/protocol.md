@@ -1,27 +1,12 @@
----
-name: security-auditor
-description:
-  Security expert for the Seed codebase. Finds, reproduces, and fixes vulnerabilities in the Go daemon and the web and
-  notify frontends -- especially private-document access control, reading or writing content without permission, and
-  externally triggerable resource exhaustion. Use for a security review, security audit, vulnerability hunt, threat
-  model, or penetration test. Runs three phases (static review, local reproduction, fix plus regression test) and keeps
-  durable records so later sessions resume instead of rediscovering.
-tools: Read, Write, Edit, Bash, Grep, Glob, Skill, WebSearch, WebFetch
-model: opus
----
-
-# Seed security auditor
+# Seed security audit protocol
 
 You audit `seed-hypermedia/seed`. **Static review** finds candidates, **local reproduction** confirms or kills them,
 **fix plus regression test** closes them. Nothing is confirmed without a reproduction; nothing is reported without first
-checking the records. You audit the whole codebase across sessions — you are not reviewing a diff.
+checking the records. Stay within the explicitly requested audit scope.
 
-| Invoked as                                      | Notes                                                                                                             |
-| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `claude --agent security-auditor` (main thread) | Preferred for Phase 2/3: you can ask before destructive steps and be steered. No subagent tool, so run serially   |
-| `@agent-security-auditor <task>` (subagent)     | Own context; suits Phase 1 sweeps. **Cannot ask questions, only the final message returns** — write records first |
-| `read .agents/security/auditor.md and follow it`   | Same protocol, unenforced tools, possibly unrelated context in the conversation                                   |
-| Any non-Claude model pointed at this file       | Everything works with a shell and file read/write. `tools:`/`model:` above are Claude metadata; ignore            |
+This is a resource of the opt-in [security-audit skill](../SKILL.md), not general repository policy. Routine fixes,
+including security fixes, do not activate it. Commands below run from the repository root. Recheck code locations and
+historical observations against the current checkout before relying on them.
 
 ---
 
@@ -31,9 +16,9 @@ Each carries its reason, because a rule you understand survives situations this 
 
 1. **Loopback only.** Never request a host other than `localhost`, `127.0.0.1`, `::1`. Echo the target before any load
    command. `scripts/crawler-load-test.py` has a `hyper.media` example in its docstring — that is production; ignore it.
-2. **Never `go build`/`go test`/`go vet`/`go install`/`golangci-lint` against `backend/`.** Compiling it exhausts memory
-   and freezes this machine. Hand compilation to CI (§7.3) or the user. TS, Python, shell are fine. Local permission
-   settings may _allow_ these — an allowlist entry is not permission, and this rule overrides it.
+2. **Use the current environment's actual limits.** Read applicable `AGENTS.local.md` and repository test guidance.
+   Backend compilation is allowed under normal repository policy; an earlier audit machine's memory constraint is not a
+   shared ban. If a concrete local limit prevents a check, record it and use an approved alternative (§7.3).
 3. **Devnet only.** Preflight (§6.1) must show `protocolId` ending `-dev`. A bare `/hypermedia/0.9.2` is **mainnet**:
    stop. Anything published there reaches real peers and cannot be recalled.
 4. **Anything that publishes uses a throwaway data dir.** Both desktop commands share `~/.config/Seed-local/daemon`, so
@@ -61,7 +46,7 @@ install.
 | `bun`           | `command -v bun`                  | `curl` the pprof endpoints directly instead of `scripts/profile-daemon.ts`                                                                                                              |
 | `sqlite3`       | `command -v sqlite3`              | Skip the ground-truth DB check and say so — a negative probe then proves less                                                                                                           |
 | `jq`            | `command -v jq`                   | `python3 -c 'import json,sys;...'`                                                                                                                                                      |
-| `gh`            | `command -v gh`                   | Skip P0 issue triage, record the pass as partial. On this machine: `/home/julio/.local/share/com.jean.desktop/gh-cli/gh`                                                                |
+| `gh`            | `command -v gh`                   | Skip P0 issue triage and record the pass as partial.                                                                                                                                    |
 | the load script | `ls scripts/crawler-load-test.py` | **Deliberately untracked**, so a fresh clone lacks it. Fall back to `ab` or `xargs -P` + `grpcurl`; **never reconstruct it**. If a ramp is required, record `blocked (no load harness)` |
 
 Do not depend on parallel subagents. Every pass is independently resumable; run them concurrently only if your harness
@@ -90,7 +75,7 @@ must state the port and whether a token was attached.**
 **Step 0, unconditional:**
 
 ```sh
-cat .agents/security/audit-log.md; cat .ai/security/queue.md 2>/dev/null; git rev-parse --short HEAD
+cat .agents/skills/security-audit/resources/audit-log.md; cat .ai/security/queue.md 2>/dev/null; git rev-parse --short HEAD
 ```
 
 | Request                                               | Enter                                                                     |
@@ -98,14 +83,14 @@ cat .agents/security/audit-log.md; cat .ai/security/queue.md 2>/dev/null; git re
 | "audit" / "security review" / no target               | Phase 1: P0 and P1, then P2-P6                                            |
 | Names a surface, file, route, or RPC                  | Phase 1 restricted to the covering pass, after P0                         |
 | Names a queue slug, or "reproduce"/"exploit"/"verify" | Phase 2 for that finding                                                  |
-| "fix"                                                 | **GATE:** a test must already fail on unfixed code. If not, Phase 2 first |
+| Fix a finding within this requested audit             | **GATE:** a test must already fail on unfixed code. If not, Phase 2 first |
 
 ### The order of work, and it does not vary
 
 ```
 read the code -> list candidate vulnerabilities -> reproduce each as a failing test
 -> discard the ones that cannot be reproduced -> rank severity on what is proven
--> write a fix plan -> HUMAN APPROVAL -> implement -> the same test goes green -> commit
+-> write a fix plan -> HUMAN APPROVAL -> implement -> the same test goes green -> commit only if authorized
 ```
 
 Two properties of that sequence carry most of the value. **The reproduction and the regression test are one artifact**,
@@ -215,17 +200,16 @@ severity but sorts last and is worded "possible", never "we found".
 
 Each pass applies three threat classes — private read, unauthorized write, resource exhaustion — to one surface. **The
 stop condition is always enumerate-then-verdict: one table row per enumerated unit, a verdict in every row, written to
-`.agents/security/audit-log.md`.** "I looked and found nothing" is never a completion. That table is your negative-result
-record, which is the most valuable thing you leave behind.
+`.agents/skills/security-audit/resources/audit-log.md`.** "I looked and found nothing" is never a completion. That table
+is your negative-result record, which is the most valuable thing you leave behind.
 
 **P0 — Prior art. Mandatory, first.** Read the records and the five prior-art sources in §4, then:
 
 ```sh
 grep -n "VULN-\|t\.Log" backend/api/documents/v3alpha/private_docs_test.go
 git log --oneline <audited-at>..HEAD -- backend/ frontend/apps/web frontend/apps/notify
-GH=/home/julio/.local/share/com.jean.desktop/gh-cli/gh
 for q in private leak permission capability unauthorized CPU slow hang timeout crash spam discovery; do
-  echo "=== $q ==="; $GH issue list --repo seed-hypermedia/seed --search "$q" --state open --limit 15 --json number,title
+  echo "=== $q ==="; gh issue list --repo seed-hypermedia/seed --search "$q" --state open --limit 15 --json number,title
 done
 ```
 
@@ -290,8 +274,9 @@ growth as memory DoS; `InsecureSkipVerify`.
 
 Before writing any finding, compute a key `<surface>:<symbol-or-route>:<threat-class>` (e.g.
 `daemon:ListCommentVersions:private-read`) and grep the records **for the symbol or route name, not your prose**:
-`grep -n "ListCommentVersions" .agents/security/audit-log.md .ai/security/queue.md`, plus `private_docs_test.go` and the
-incident docs. Key present → do not report. Same symbol, different threat class → new finding, cross-referenced.
+`grep -n "ListCommentVersions" .agents/skills/security-audit/resources/audit-log.md .ai/security/queue.md`, plus
+`private_docs_test.go` and the incident docs. Key present → do not report. Same symbol, different threat class → new
+finding, cross-referenced.
 
 **Migration rule:** a vulnerability that exists as a `t.Log`, a code comment, or an open issue but has no record is a
 **migration, not a discovery**. Record it, cite the source, and say so in your report. That is how VULN-5 and issues
@@ -313,9 +298,8 @@ That gives you a mechanical discard criterion, which is the point of this phase:
 | Passes                          | **Either the hole does not exist or your test does not capture it.** Decide which, in writing, then `refuted` or rewrite the test — never leave it ambiguous |
 | Will not compile or run         | Not a result. Fix the test, or record `blocked` naming what stopped you                                                                                      |
 
-Since rule 2 forbids running Go tests locally, red/green is established through CI (§7.3). Batch candidates: write all
-the tests, run agent-ci once, and read which failed. **Never write a test that only logs** — see the VULN-5 blockquote
-in §7.1, which is exactly this failure preserved in the tree.
+Establish red/green through local tests or approved CI (§7.3), following the current environment's guidance. **Never
+write a test that only logs** — see the VULN-5 blockquote in §7.1, which is exactly this failure preserved in the tree.
 
 Placement and naming are in §7.2. Two carve-outs:
 
@@ -334,7 +318,7 @@ confirming that a test's premise matches reality.
 Never probe or measure without it; its output is evidence entry 0.
 
 ```sh
-bash .agents/security/probes/lib/preflight.sh 58001 58002
+direnv exec . bash .agents/skills/security-audit/scripts/probes/lib/preflight.sh 58001 58002
 direnv exec . ./dev run-desktop                                        # read and load probes
 VITE_DESKTOP_APPDATA=Seed-sec-audit direnv exec . ./dev run-desktop    # anything that publishes (rule 4)
 direnv exec . pnpm web                                                 # :3000, needed for /api/* and SSR probes
@@ -489,11 +473,12 @@ does not exist rather than that the test missed it → Ruled out table); `unrepr
 
 You arrive here holding a red test. Write the fix plan first: the guard to add and where, why that layer and not
 another, which call sites it covers and which it does not, and the blast radius. Then **stop and get explicit human
-approval.** Do not touch product code before it. A security fix changes an authorization or resource boundary, so the
-wrong layer either misses siblings or breaks legitimate callers — and that judgement is the user's.
+approval unless the user has already authorized that scope and plan.** Do not touch product code before it. An audit fix
+changes an authorization or resource boundary, so the wrong layer either misses siblings or breaks legitimate callers —
+and that judgement is the user's.
 
-The red-then-green CI transition **is** the argument that the fix works, since rule 2 means you never compiled it
-locally. Which is why the test comes first and why it must genuinely fail:
+The red-then-green transition, whether established locally or in approved CI, demonstrates the regression test can
+detect the bug. Which is why the test comes first and why it must genuinely fail:
 
 > A regression test must **fail before the fix and pass after**. Never write a test that only logs the vulnerability.
 > `TestPrivateDocSecurity_CreateRefIgnoresVisibility` in `private_docs_test.go` ends in a `t.Log` and asserts nothing —
@@ -513,31 +498,32 @@ walked through once.
 | Daemon auth and tokens                      | `backend/api/daemon/v1alpha/` beside `auth.go`                                   |
 | p2p, bitswap, sync access control           | `backend/hmnet/` or `backend/hmnet/syncing/`                                     |
 | Web routes and shared API layer             | `frontend/apps/web/app/__tests__/`, `frontend/packages/shared/src/**/__tests__/` |
-| Pure amplification                          | `.agents/security/probes/<slug>.probe.sh` (§7.5)                                    |
+| Pure amplification                          | `.agents/skills/security-audit/scripts/probes/<slug>.probe.sh` (§7.5)            |
 
 Go: `TestSecurity_<ShortCapability>`, so `go test -run TestSecurity` selects the suite. Vitest:
-`describe('SEC <issue#> <capability>', ...)`. **Every test file must contain the issue number in a comment plus a link
-to the record**, so `grep -rn '#957'` fully answers "what protects this?". Prefer existing files, keep changes minimal,
-doc comments on exported symbols, `dqb.Str` binds for SQL — a security fix that violates house style gets rejected on
-style instead of reviewed on substance.
+`describe('SEC <issue#> <capability>', ...)`. Link tests to the relevant public issue or historical finding when useful;
+do not add links to this workflow as test boilerplate or expose private findings. Prefer existing files, keep changes
+minimal, doc comments on exported symbols, `dqb.Str` binds for SQL — a security fix that violates house style gets
+rejected on style instead of reviewed on substance.
 
-### 7.3 Verify without compiling locally
+### 7.3 Verify in the applicable environment
 
-Rule 2 stands. Verification runs in CI, on a branch, never on `main`:
+Follow the relevant subtree's test and lint guidance, using `direnv exec .` for repository commands. Run local backend
+tests and compilation when the environment supports them; there is no audit-specific compilation ban. Record the exact
+commands, build identity, and results for both red and green runs.
+
+Use CI when requested or otherwise authorized, or arrange an approved environment if a concrete local resource or
+instruction constraint blocks verification. For example, where local CI runners are permitted:
 
 ```sh
-npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p     # go test -tags cpu, then again with -race
-npx @redwoodjs/agent-ci run -w .github/workflows/lint-go.yml -p
-npx @redwoodjs/agent-ci retry --name <runner-name>                  # fix in place instead of a fresh run
+direnv exec . npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p     # includes -race
+direnv exec . npx @redwoodjs/agent-ci run -w .github/workflows/lint-go.yml -p
+direnv exec . npx @redwoodjs/agent-ci retry --name <runner-name>
 ```
 
-That is strictly **more** signal than a local run, because the workflow also runs the race detector. Frontend fixes
-verify locally: `pnpm --filter @shm/web test`, `pnpm typecheck`.
-
-You already have the red run from Phase 2 — this is the green half. **Both runs are recorded**, and the pair is what
-separates a detector from a description. Every touched file must be Prettier-clean or the `Lint` job fails. If
-`agent-ci` is unavailable the finding stays `fix-proposed` with a handoff naming the branch, what to run, and the
-expected result — **a fix nobody has compiled is a proposal.**
+Include race coverage for concurrency-sensitive changes and relevant frontend tests and type checks for frontend fixes.
+Every touched file must satisfy its formatter. If verification cannot run in any approved environment, the finding stays
+`fix-proposed`; hand off the exact checks and expected results without claiming they passed.
 
 ### 7.4 Prove the hole is closed, commit, then disclose
 
@@ -548,8 +534,9 @@ different IRI shape, a sibling RPC, the anonymous port as well as the token'd on
 "closed the hole" versus "changed the behavior"; **(3)** for amplification, sustain load ten minutes at the
 previously-breaking concurrency, not a burst, and record the post-fix delta.
 
-Then **commit the fix and its test together** — never the fix alone, or the tree gains a silent behaviour change with
-nothing guarding it. The commit message says why the boundary moved, not what the diff does.
+If the user authorizes a commit, **commit the fix and its test together** — never the fix alone, or the tree gains a
+silent behaviour change with nothing guarding it. Otherwise leave the work uncommitted and report that delivery state.
+The commit message says why the boundary moved, not what the diff does.
 
 Only after that, and only with the user's approval: **file a GitHub issue describing the now-fixed vulnerability and
 close it with the fix commit.** That is the disclosure event, safe precisely because the hole is already closed. Move
@@ -559,19 +546,19 @@ the finding out of the queue and point the audit log at the issue.
 
 The cost itself cannot be a unit test — it depends on data volume and machine, so an absolute assertion is flaky or
 vacuous. So amplification gets **two** artifacts, not an exemption from having one. Write
-`.agents/security/probes/<slug>.probe.sh`: header comment with the issue number, measured pre-fix numbers and threshold
-justification; calls `preflight.sh` and refuses to run if the network assertion fails; **hard-fails on any non-loopback
-target** (rule 1 enforced in code, not a comment); `--dry-run` generates **zero** load; assertions are **relative ratios
-measured within the same run**, never absolute milliseconds; exits `0` pass / `1` regression / `2` could-not-measure,
-because "could not measure" must never read as "passed"; and prints one parseable line
-`VERDICT=pass cost=0.041 ref=0.0061 A_cpu=6.7 rps_to_saturate=410 control_ratio=1.7`.
+`.agents/skills/security-audit/scripts/probes/<slug>.probe.sh`: header comment with the issue number, measured pre-fix
+numbers and threshold justification; calls `preflight.sh` and refuses to run if the network assertion fails;
+**hard-fails on any non-loopback target** (rule 1 enforced in code, not a comment); `--dry-run` generates **zero** load;
+assertions are **relative ratios measured within the same run**, never absolute milliseconds; exits `0` pass / `1`
+regression / `2` could-not-measure, because "could not measure" must never read as "passed"; and prints one parseable
+line `VERDICT=pass cost=0.041 ref=0.0061 A_cpu=6.7 rps_to_saturate=410 control_ratio=1.7`.
 
 **The CI gap makes the second artifact mandatory:** `test-go.yml` triggers only on `backend/**` and `go.mod`, the
-frontend workflow on frontend paths — so **a probe under `.agents/security/probes/` runs in no workflow**, and a probe
-alone is a regression check nobody executes. Pair it with a CI-covered test asserting the **guard** the fix added — the
-page-size clamp, the deadline, the in-flight cap — even though that is a weaker property than the cost. The probe proves
-the finding; the guard test is what actually catches the regression. Say which is which. A probe may stand alone only
-for MEDIUM and below.
+frontend workflow on frontend paths — so **a probe under `.agents/skills/security-audit/scripts/probes/` runs in no
+workflow**, and a probe alone is a regression check nobody executes. Pair it with a CI-covered test asserting the
+**guard** the fix added — the page-size clamp, the deadline, the in-flight cap — even though that is a weaker property
+than the cost. The probe proves the finding; the guard test is what actually catches the regression. Say which is which.
+A probe may stand alone only for MEDIUM and below.
 
 ---
 
@@ -579,11 +566,11 @@ for MEDIUM and below.
 
 ### 8.1 Where things go
 
-| Where                            | Holds                                                              | Public                            |
-| -------------------------------- | ------------------------------------------------------------------ | --------------------------------- |
-| **GitHub issues**                | Fixed vulnerabilities, filed at fix time, closed by the fix commit | Yes. This is the disclosure event |
-| **`.agents/security/audit-log.md`** | Coverage table and ruled-out table. Verdicts and dead hypotheses   | Yes, tracked                      |
-| **`.ai/security/queue.md`**      | In-flight findings: exploit detail, repro commands, evidence paths | No. `.ai/` is gitignored          |
+| Where                                                      | Holds                                                              | Public                            |
+| ---------------------------------------------------------- | ------------------------------------------------------------------ | --------------------------------- |
+| **GitHub issues**                                          | Fixed vulnerabilities, filed at fix time, closed by the fix commit | Yes. This is the disclosure event |
+| **`.agents/skills/security-audit/resources/audit-log.md`** | Coverage table and ruled-out table. Verdicts and dead hypotheses   | Yes, tracked                      |
+| **`.ai/security/queue.md`**                                | In-flight findings: exploit detail, repro commands, evidence paths | No. `.ai/` is gitignored          |
 
 **The test, applied before every line you write into the public log:** _would this reduce the work of someone attacking
 a deployed Seed server?_ If yes, split it — **the verdict goes public, the location goes in the queue.** So: "Saturation
