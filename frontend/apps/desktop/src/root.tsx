@@ -1,4 +1,5 @@
 import {registerDesktopAgentsPlatform} from '@/agents-platform'
+import {registerDesktopDocumentAppPlatform} from '@/document-app-platform'
 import {AppContextProvider} from '@/app-context-provider'
 import {AppIPC} from '@/app-ipc'
 import {cleanupAllEntitySubscriptions} from '@/models/entities'
@@ -179,6 +180,7 @@ registerQueryClient(queryClient)
 
 // Register the desktop adapter for the shared Agents UI, before any agents page renders
 registerDesktopAgentsPlatform()
+registerDesktopDocumentAppPlatform()
 
 // Dev-only: expose the QueryClient on window so we can poke the React Query cache from
 // DevTools (e.g. forcing transient resource errors to verify the document banner).

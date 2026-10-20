@@ -20,6 +20,8 @@ describe('frame URL boundary', () => {
     'https://platform.twitter.com/embed',
     'http://localhost:56001/ipfs/cid',
     'http://localhost:17654/app',
+    `seed-app://${'0'.repeat(40)}/`,
+    `seed-app://${'0'.repeat(40)}/assets/app.js`,
   ])('allows supported frame %s', (url) => {
     expect(isAllowedFrameURL(url, policy)).toBe(true)
   })
@@ -36,6 +38,8 @@ describe('frame URL boundary', () => {
     'file:///youtube.com',
     'javascript:youtube.com',
     'data:text/html,youtube.com',
+    'seed-app://localhost/',
+    'seed-app://youtube.com/',
     'blob:https://youtube.com/id',
     'https://com/',
     'not a URL',
@@ -49,7 +53,7 @@ it('allows only the configured IPFS gateway origin', () => {
   expect(isAllowedFrameURL('https://assets.example/ipfs/cid', gatewayPolicy)).toBe(true)
   expect(isAllowedFrameURL('https://assets.example.evil.test/ipfs/cid', gatewayPolicy)).toBe(false)
   expect(appContentSecurityPolicy(gatewayPolicy)).toContain(
-    "frame-src 'self' http://localhost:56001 https://assets.example",
+    "frame-src 'self' seed-app: http://localhost:56001 https://assets.example",
   )
 })
 
