@@ -65,3 +65,84 @@ describe('origin checks', () => {
     ).rejects.toThrow('not allowed')
   })
 })
+
+describe('form submission guards', () => {
+  /** Runs the injected script against jsdom with the layout APIs it needs stubbed in. */
+  function runInPage(code: string): Record<string, any> {
+    const rect = {x: 10, y: 10, width: 100, height: 20, top: 10, left: 10, right: 110, bottom: 30, toJSON: () => ({})}
+    const style = {
+      display: 'block',
+      visibility: 'visible',
+      opacity: '1',
+      clipPath: 'none',
+      clip: 'auto',
+      overflow: 'visible',
+      color: 'rgb(0, 0, 0)',
+      fontSize: '16px',
+    }
+    const originals = {
+      getComputedStyle: window.getComputedStyle,
+      elementRect: Element.prototype.getBoundingClientRect,
+      rangeRect: Range.prototype.getBoundingClientRect,
+      rangeRects: Range.prototype.getClientRects,
+      scrollIntoView: Element.prototype.scrollIntoView,
+      elementFromPoint: document.elementFromPoint,
+    }
+    let target: Element | null = null
+    window.getComputedStyle = () => style as unknown as CSSStyleDeclaration
+    Element.prototype.getBoundingClientRect = () => rect
+    Range.prototype.getBoundingClientRect = () => rect
+    Range.prototype.getClientRects = () => [rect] as unknown as DOMRectList
+    Element.prototype.scrollIntoView = function () {
+      target = this
+    }
+    document.elementFromPoint = () => target
+    try {
+      return new Function(`return ${code}`)()
+    } finally {
+      window.getComputedStyle = originals.getComputedStyle
+      Element.prototype.getBoundingClientRect = originals.elementRect
+      Range.prototype.getBoundingClientRect = originals.rangeRect
+      Range.prototype.getClientRects = originals.rangeRects
+      Element.prototype.scrollIntoView = originals.scrollIntoView
+      document.elementFromPoint = originals.elementFromPoint
+    }
+  }
+
+  async function clickResult(html: string, name: string) {
+    document.body.innerHTML = html
+    document.querySelector('form')!.addEventListener('submit', (event) => event.preventDefault())
+    const snapshot = runInPage(await injectedScript(commands[0], location.href))
+    expect(snapshot.browserError).toBeUndefined()
+    const ref = snapshot.elements.find((element: {name: string}) => element.name === name)?.ref
+    expect(ref).toBeDefined()
+    return runInPage(await injectedScript({action: 'click', document: snapshot.document, ref}, location.href))
+  }
+
+  it('refuses to click a submit button whose form posts to another website', async () => {
+    const result = await clickResult(
+      '<form action="https://evil.example/collect"><button type="submit">Send</button></form>',
+      'Send',
+    )
+    expect(result.browserError).toContain('submits the form to another website')
+  })
+
+  it('refuses a cross-origin formaction and honours an empty one', async () => {
+    const result = await clickResult(
+      '<form action="/ok"><button type="submit" formaction="https://evil.example/collect">Send</button></form>',
+      'Send',
+    )
+    expect(result.browserError).toContain('submits the form to another website')
+    const emptied = await clickResult(
+      '<form action="https://evil.example/c"><button type="submit" formaction="">Send</button></form>',
+      'Send',
+    )
+    expect(emptied.browserError).toBeUndefined()
+  })
+
+  it('clicks a submit button whose form posts to the page itself', async () => {
+    const result = await clickResult('<form action="/search"><button type="submit">Go</button></form>', 'Go')
+    expect(result.browserError).toBeUndefined()
+    expect(result.summary).toBe('Browser click completed')
+  })
+})

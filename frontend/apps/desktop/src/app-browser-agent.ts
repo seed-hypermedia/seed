@@ -220,15 +220,22 @@ export async function executeBrowserCommand(
       const rect = el.getBoundingClientRect();
       const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
       if (!hit || !(el === hit || el.contains(hit))) throw new Error('Element is covered. Inspect the page before clicking or typing.');
+      // Where a submission goes, per the HTML spec: the button's formaction attribute when it has one,
+      // else the form's action attribute, else the page itself. The IDL properties (button.formAction,
+      // form.action) already fall back to the document URL, which would hide a cross-origin action.
+      const submissionUrl = (form, button) => {
+        const action = button && button.hasAttribute('formaction') ? button.getAttribute('formaction') : form.getAttribute('action');
+        return new URL(action || location.href, document.baseURI);
+      };
       if (command.action === 'click') {
         const submits = (el instanceof HTMLButtonElement || el instanceof HTMLInputElement) && el.form && ['submit', 'image'].includes(el.type);
-        if (submits && new URL(el.formAction || location.href, document.baseURI).origin !== location.origin) throw new Error('This button submits the form to another website. Ask the user to submit it.');
+        if (submits && submissionUrl(el.form, el).origin !== location.origin) throw new Error('This button submits the form to another website. Ask the user to submit it.');
         el.click();
       }
       else {
         if (!(el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) || el.readOnly || (el instanceof HTMLInputElement && !['text','search','email','url','tel','number'].includes(el.type))) throw new Error('Typing requires an editable text input or textarea. Password fields are for the user to fill in.');
         if (el.autocomplete && /(^|\\s)(current-password|new-password|one-time-code|cc-number|cc-csc)(\\s|$)/.test(el.autocomplete)) throw new Error('This field holds a secret. Ask the user to fill it in.');
-        const action = el.form ? new URL(el.form.getAttribute('action') || location.href, document.baseURI) : null;
+        const action = el.form ? submissionUrl(el.form, null) : null;
         if (action && action.origin !== location.origin) throw new Error('This field submits to another website (' + action.origin + '). Ask the user to fill it in.');
         el.focus();
         const setter = Object.getOwnPropertyDescriptor(el instanceof HTMLInputElement ? HTMLInputElement.prototype : HTMLTextAreaElement.prototype, 'value').set;
