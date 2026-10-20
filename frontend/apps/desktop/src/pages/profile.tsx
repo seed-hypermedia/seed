@@ -64,7 +64,7 @@ export default function ProfilePage() {
 
   return (
     <PanelContainer>
-      <MainWrapper scrollable className="w-full">
+      <MainWrapper className="w-full">
         <AccountPage
           accountUid={profile.data.id.uid}
           tab={profileRoute.tab || 'profile'}
