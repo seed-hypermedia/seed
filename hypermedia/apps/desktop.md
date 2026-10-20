@@ -188,6 +188,7 @@ the site first.
 
 <!-- id:PHFBxAlV -->
 
+- [Document apps](./document-apps.md): documents that open as sandboxed web apps, built by agents and shared like any document.
 - [The daemon](./daemon.md), [The agents service](./agents.md), [The CLI](./cli.md), [The web app](./web.md)
   <!-- id:IOPgXQO6 -->
 - [Documents](../protocol/documents.md), [Identity](../protocol/identity.md),
