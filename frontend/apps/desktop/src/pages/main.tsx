@@ -243,7 +243,7 @@ export default function Main({className}: {className?: string}) {
       <WindowTitle />
       <PanelGroup direction="horizontal" autoSaveId="main-assistant" className="min-h-0 flex-1">
         <Panel id="app-content" order={1}>
-          <div className="flex h-full flex-col">
+          <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto]">
             <SidebarContextProvider>
               {titlebar}
               <PanelContent>
@@ -370,7 +370,7 @@ function PanelContent({children}: {children: ReactNode}) {
     <PanelGroup
       ref={ref}
       direction="horizontal"
-      className={cn('flex flex-1 overflow-hidden px-2')}
+      className={cn('flex min-h-0 overflow-hidden px-2')}
       autoSaveId="main"
       storage={ctx.widthStorage}
     >
