@@ -6292,6 +6292,12 @@ describe('api service', () => {
       expect(second.app).not.toBe(first.app)
       expect(publishes.length).toBeGreaterThan(publishesAfterCreate)
 
+      // An HTML file written to memory comes back with the next step, so the model does not stop
+      // at a private path the user cannot open.
+      const wrote = await write({address: '~/memory/apps/game.html', content: '<h1>Game</h1>'})
+      expect(String(wrote.summary)).toContain('Publish it as a document app')
+      expect(String(wrote.summary)).toContain('options.app: "~/memory/apps/game.html"')
+
       // options.app must be a memory path; a folder without an index is refused before publishing.
       await writeMemory('apps/broken/app.js', '1')
       const refused = await write({address, options: {action: 'update', app: 'apps/broken'}})
