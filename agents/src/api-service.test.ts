@@ -6178,6 +6178,138 @@ describe('api service', () => {
     }
   })
 
+  test('write with options.app publishes a memory folder as a document app and revises it in place', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      let signerPublicKey = ''
+      let existingVersion = ''
+      let existingApp = ''
+      const publishes: number[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          publishes.push((init?.body as ArrayBuffer).byteLength)
+          return Response.json(serialize({cids: [`published-${publishes.length}`]}))
+        }
+        if (href.includes('/api/ListChanges')) {
+          return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))
+        }
+        if (href.includes('/api/Resource')) {
+          const resolvedId = unpackHmId(`hm://${signerPublicKey}/counter`)
+          if (!resolvedId) throw new Error('bad target id')
+          if (!existingVersion) return Response.json(serialize({type: 'not-found', id: resolvedId}))
+          return Response.json(
+            serialize({
+              type: 'document',
+              id: resolvedId,
+              document: {
+                content: [{block: {id: 'b1', type: 'Paragraph', text: 'A counter you can share.'}, children: []}],
+                version: existingVersion,
+                account: signerPublicKey,
+                authors: [signerPublicKey],
+                path: '/counter',
+                createTime: '',
+                updateTime: '',
+                metadata: {name: 'Counter', app: existingApp},
+                genesis: existingVersion,
+                visibility: 'PUBLIC',
+              },
+            }),
+          )
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Publisher', clientRequestId: 'publisher'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
+      signerPublicKey = identity.identity.accountId
+      const sessionId = await seedAgentSession(svc, owner, 'App publisher', {
+        tools: ['publish'],
+        signingKeys: [identity.identity.name],
+      })
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('Unexpected response')
+      const writeMemory = async (path: string, content: string) =>
+        svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {_: 'WriteAgentMemoryFile', agentId: session.session.agentId, path, content},
+          }),
+        )
+      await writeMemory(
+        'apps/counter/index.html',
+        '<script src="/.seed/client.js"></script><script src="app.js"></script>',
+      )
+      await writeMemory('apps/counter/app.js', 'seed.context().then(console.log)')
+      // A user-invoked verb leaves the agent's reply turn queued (never run here), so each call
+      // gets a fresh thread on the same agent and memory.
+      const write = async (input: Record<string, unknown>) => {
+        const thread = await svc.message(
+          await apisvc.createSignedEnvelope(owner, {action: {_: 'CreateSession', agentId: session.session.agentId}}),
+        )
+        if (thread._ !== 'CreateSessionResponse') throw new Error('Unexpected response')
+        const response = await svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {_: 'InvokeSessionTool', sessionId: thread.sessionId, verb: 'write', input},
+          }),
+        )
+        if (response._ !== 'InvokeSessionToolResponse') throw new Error('Unexpected response')
+        return {...(response.output as Record<string, unknown> | undefined), error: response.error} as Record<
+          string,
+          unknown
+        >
+      }
+
+      const address = `hm://${signerPublicKey}/counter`
+      const first = await write({
+        address,
+        content: 'A counter you can share.',
+        options: {name: 'Counter', app: '~/memory/apps/counter'},
+      })
+      expect(first.id).toBe(address)
+      expect(first.app).toMatch(/^ipfs:\/\/bafy/)
+      expect(first.appFiles).toBe(2)
+      expect(first.widget).toBe('```seed-app\n' + address + '\n```')
+      expect(String(first.instructions)).toContain('opens as the app')
+      const publishesAfterCreate = publishes.length
+      expect(publishesAfterCreate).toBeGreaterThan(0)
+      existingVersion = String(first.version)
+      existingApp = String(first.app)
+
+      // A new revision: same address, options.action update, only the app changes.
+      await writeMemory('apps/counter/app.js', 'seed.directory(location.href).then(console.log)')
+      const second = await write({address, options: {action: 'update', app: 'apps/counter'}})
+      expect(second.app).toMatch(/^ipfs:\/\/bafy/)
+      expect(second.app).not.toBe(first.app)
+      expect(publishes.length).toBeGreaterThan(publishesAfterCreate)
+
+      // An HTML file written to memory comes back with the next step, so the model does not stop
+      // at a private path the user cannot open.
+      const wrote = await write({address: '~/memory/apps/game.html', content: '<h1>Game</h1>'})
+      expect(String(wrote.summary)).toContain('Publish it as a document app')
+      expect(String(wrote.summary)).toContain('options.app: "~/memory/apps/game.html"')
+
+      // options.app must be a memory path; a folder without an index is refused before publishing.
+      await writeMemory('apps/broken/app.js', '1')
+      const refused = await write({address, options: {action: 'update', app: 'apps/broken'}})
+      expect(String(refused.error)).toMatch(/index\.html/)
+    } finally {
+      globalThis.fetch = originalFetch
+      svc.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('publishes a markdown memory file as a seed document, uploading memory images and updating in place', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

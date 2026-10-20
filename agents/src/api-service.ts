@@ -33,6 +33,7 @@ import * as protocol from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
+import {collectDocumentAppFiles} from '@/document-apps'
 import {BrowserTools} from '@/browser-tools'
 import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
@@ -97,6 +98,7 @@ import {
   assertValidMermaid,
   InvalidMermaidError,
   MarkdownFrontmatterError,
+  directoryToIpfsBlobs,
   fileToIpfsBlobs,
   resolveFileLinksInBlocks,
   describeRedirect,
@@ -12742,6 +12744,48 @@ function memoryPathFromAddress(address: string): string | null {
 }
 
 /** hm://<account>[/path] → {account, path}; null when not an hm address. */
+/** A document app folder resolved from `options.app`, ready to publish beside the document change. */
+type WriteAppFolder = {app: string; blobs: CollectedBlob[]; files: number; bytes: number}
+
+/**
+ * Turns `options.app` (a memory folder with an index.html, or a single HTML file) into the UnixFS
+ * folder the document's `app` attribute will point at. A dry run still builds the folder, so the
+ * CID and file count it reports are the real ones.
+ */
+async function resolveWriteAppFolder(
+  context: AgentServicePiToolContext,
+  value: unknown,
+): Promise<WriteAppFolder | undefined> {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new APIError(400, 'write options.app must be a memory path: a folder with an index.html, or one HTML file')
+  }
+  const {files, bytes} = withMemoryErrors(() => collectDocumentAppFiles(context.stateDir, value.trim()))
+  const folder = await directoryToIpfsBlobs(files)
+  return {app: `ipfs://${folder.cid}`, blobs: folder.blobs, files: files.length, bytes}
+}
+
+/** Adds what the agent needs to know about a published app to a document write result. */
+function withAppResult(result: Record<string, unknown>, folder: WriteAppFolder | undefined): Record<string, unknown> {
+  if (!folder) return result
+  const id = typeof result.id === 'string' ? result.id : undefined
+  return {
+    ...result,
+    app: folder.app,
+    appFiles: folder.files,
+    appBytes: folder.bytes,
+    ...(id
+      ? {
+          widget: '```seed-app\n' + id + '\n```',
+          instructions:
+            'The document now opens as the app in Seed and syncs to anyone it is shared with. Link it in your reply as [Title](' +
+            id +
+            '); to show it running inside the chat, include the widget fence verbatim. Write to the same address with options.app again to publish a new revision.',
+        }
+      : {}),
+  }
+}
+
 function parseHmAddress(address: string): {account: string; path: string} | null {
   const match = /^hm:\/\/([^/?#]+)(\/[^?#]*)?/.exec(address)
   if (!match) return null
@@ -13984,8 +14028,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata'],
-  update: ['name', 'metadata'],
+  document: ['name', 'metadata', 'app'],
+  update: ['name', 'metadata', 'app'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -14279,7 +14323,14 @@ export async function executeWriteVerb(
     }
     const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, memoryPath, content))
     context.onMemoryChange()
-    return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
+    // A memory path is not something a person can open. An HTML file is almost always an app in
+    // the making, and the model that just wrote it is the one that needs to know the next step.
+    const appHint = /\.html?$/i.test(entry.path)
+      ? context.publishEnabled
+        ? ` This is HTML in private memory, which the user cannot open. Publish it as a document app: write hm://<your signing account>/apps/<name> with options.app: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link and the returned widget fence. Never link ~/memory paths.`
+        : ' This is HTML in private memory, which the user cannot open; publishing it as a document app needs the Publish grant.'
+      : ''
+    return {summary: `Wrote ${entry.path} (${entry.size} bytes).${appHint}`, ...entry}
   }
 
   if (address.startsWith('ipfs:')) {
@@ -14374,6 +14425,14 @@ export async function executeWriteVerb(
     if (options.metadata !== undefined && !isRecord(options.metadata)) {
       throw new APIError(400, 'write options.metadata must be an object of document metadata attributes')
     }
+    // A document app: options.app names a memory folder (or one HTML file) that becomes the
+    // document's app. Its files are published as a UnixFS folder in the same publish as the
+    // change, and the document's `app` attribute points at the folder (see document-apps.md).
+    const appFolder = await resolveWriteAppFolder(context, options.app)
+    const metadata: Record<string, unknown> | undefined =
+      isRecord(options.metadata) || appFolder
+        ? {...(isRecord(options.metadata) ? options.metadata : {}), ...(appFolder ? {app: appFolder.app} : {})}
+        : undefined
     const passthrough = isRecord(options.input) ? options.input : {}
     const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
       command,
@@ -14388,27 +14447,35 @@ export async function executeWriteVerb(
     })
     switch (action) {
       case 'document':
-        return writeHypermedia(
-          context,
-          envelope('document.create', {
-            account: hm.account,
-            path: hm.path,
-            ...(typeof options.name === 'string' ? {name: options.name} : {}),
-            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
-            ...(content !== undefined ? {content, format: 'markdown'} : {}),
-          }),
+        return withAppResult(
+          await writeHypermedia(
+            context,
+            envelope('document.create', {
+              account: hm.account,
+              path: hm.path,
+              ...(typeof options.name === 'string' ? {name: options.name} : {}),
+              ...(metadata ? {metadata} : {}),
+              ...(content !== undefined ? {content, format: 'markdown'} : {}),
+            }),
+            appFolder?.blobs,
+          ),
+          appFolder,
         )
       case 'update':
         // The address IS the document being revised ("same address, new version" is the
         // documented contract), so the edit target is filled from it — never a separate option.
-        return writeHypermedia(
-          context,
-          envelope('document.update', {
-            edit: address,
-            ...(typeof options.name === 'string' ? {name: options.name} : {}),
-            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
-            ...(content !== undefined ? {content, format: 'markdown'} : {}),
-          }),
+        return withAppResult(
+          await writeHypermedia(
+            context,
+            envelope('document.update', {
+              edit: address,
+              ...(typeof options.name === 'string' ? {name: options.name} : {}),
+              ...(metadata ? {metadata} : {}),
+              ...(content !== undefined ? {content, format: 'markdown'} : {}),
+            }),
+            appFolder?.blobs,
+          ),
+          appFolder,
         )
       case 'comment':
         return writeHypermedia(
@@ -15010,7 +15077,11 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRunt
   ]
 }
 
-async function writeHypermedia(context: WriteToolContext, raw: unknown): Promise<Record<string, unknown>> {
+async function writeHypermedia(
+  context: WriteToolContext,
+  raw: unknown,
+  extraBlobs: CollectedBlob[] = [],
+): Promise<Record<string, unknown>> {
   const request = normalizeWriteToolRequest(raw)
   if (request.server || request.dev) {
     const requestedServerUrl = optionsToServerUrl({server: request.server, dev: request.dev})
@@ -15046,9 +15117,9 @@ async function writeHypermedia(context: WriteToolContext, raw: unknown): Promise
     case 'comment.delete':
       return writeCommentDelete(client, signer, request)
     case 'document.create':
-      return writeDocumentCreate(client, signer, request)
+      return writeDocumentCreate(client, signer, request, extraBlobs)
     case 'document.update':
-      return writeDocumentUpdate(client, signer, request)
+      return writeDocumentUpdate(client, signer, request, extraBlobs)
     case 'document.delete':
       return writeDocumentDelete(client, signer, request)
     case 'document.fork':

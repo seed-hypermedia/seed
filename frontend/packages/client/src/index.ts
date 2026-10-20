@@ -66,8 +66,15 @@ export type {DomainResolverFn, DomainIdChangedCallback, ResolveOptions, Resolved
 export {resolveIdWithClient} from './resource-read'
 export type {ResolveIdWithClientOptions, ResolvedIdWithClient} from './resource-read'
 
-export {fileToIpfsBlobs, filesToIpfsBlobs, resolveFileLinksInBlocks, hasFileLinks} from './file-to-ipfs'
-export type {CollectedBlob} from './file-to-ipfs'
+export {
+  fileToIpfsBlobs,
+  filesToIpfsBlobs,
+  directoryToIpfsBlobs,
+  normalizeDirectoryFilePath,
+  resolveFileLinksInBlocks,
+  hasFileLinks,
+} from './file-to-ipfs'
+export type {CollectedBlob, IpfsDirectoryFile} from './file-to-ipfs'
 
 export {
   parseMarkdown,

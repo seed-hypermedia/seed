@@ -14,6 +14,7 @@ import type {BrowserCommand} from '@seed-hypermedia/agents-protocol'
 declare global {
   interface Window {
     isWindowMaximized?: boolean
+    documentApps: {open: (input: {id: string; cid: string}) => Promise<string>}
     webBrowser: {
       create: (options?: {private?: boolean}) => Promise<{browserId: number}>
       destroy: (input: {browserId: number}) => Promise<void>
@@ -61,6 +62,10 @@ export type AppInfoType = typeof AppInfo
 contextBridge.exposeInMainWorld('appInfo', AppInfo)
 
 const windowInfo = ipcRenderer.sendSync('initWindow')
+// Document apps: the renderer asks the main process for the page URL of a document's app folder.
+contextBridge.exposeInMainWorld('documentApps', {
+  open: (input: unknown) => ipcRenderer.invoke('document-app-open', input),
+})
 // The web pane: the renderer never holds a web view, it asks the main process for one.
 contextBridge.exposeInMainWorld('webBrowser', {
   create: (options?: {private?: boolean}) => ipcRenderer.invoke('web-browser-create', options ?? {}),
