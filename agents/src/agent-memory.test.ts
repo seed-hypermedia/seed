@@ -14,6 +14,7 @@ import {
   summarizeMemoryTopLevel,
   summarizeMemoryTopLevelAsync,
   writeMemoryFile,
+  hasOwnerAccess,
   withOwnerAccess,
   listMemoryAsync,
   migratePrivateMemory,
@@ -39,6 +40,18 @@ afterEach(() => {
 })
 
 describe('agent memory', () => {
+  test('owner-only memory is closed outside an explicit owner scope', () => {
+    expect(hasOwnerAccess()).toBe(false)
+    expect(withOwnerAccess(true, () => hasOwnerAccess())).toBe(true)
+    expect(withOwnerAccess(false, () => hasOwnerAccess())).toBe(false)
+    withStateDir((stateDir) => {
+      expect(() => writeMemoryFile(stateDir, 'private/secret.md', 'secret')).toThrow('Only the agent owner')
+      withOwnerAccess(true, () => writeMemoryFile(stateDir, 'private/secret.md', 'secret'))
+      expect(() => readMemoryFile(stateDir, 'private/secret.md')).toThrow('Only the agent owner')
+      expect(listMemory(stateDir).entries.map((entry) => entry.path)).toEqual([])
+    })
+  })
+
   test('upgrades legacy private files and browser archives out of the sandbox mount', async () => {
     await withStateDir((stateDir) => {
       const root = memoryRootPath(stateDir)
@@ -51,8 +64,10 @@ describe('agent memory', () => {
       migratePrivateMemory(stateDir)
       expect(fs.existsSync(path.join(root, 'private'))).toBe(false)
       expect(fs.existsSync(path.join(root, 'browser', 'archive-old.md'))).toBe(false)
-      expect(readMemoryFile(stateDir, 'private/old.txt').content).toBe('private before upgrade')
-      expect(readMemoryFile(stateDir, 'private/browser/archive-old.md').content).toBe('legacy browser secret')
+      withOwnerAccess(true, () => {
+        expect(readMemoryFile(stateDir, 'private/old.txt').content).toBe('private before upgrade')
+        expect(readMemoryFile(stateDir, 'private/browser/archive-old.md').content).toBe('legacy browser secret')
+      })
       expect(readMemoryFile(stateDir, 'browser/notes.md').content).toBe('shared notes')
       withOwnerAccess(false, () =>
         expect(listMemory(stateDir).entries.map((entry) => entry.path)).toEqual(['browser', 'browser/notes.md']),
@@ -70,13 +85,15 @@ describe('agent memory', () => {
       fs.writeFileSync(path.join(root, 'browser', 'archive-old.md'), 'secret')
       migratePrivateMemory(stateDir)
       expect(fs.readdirSync(outside)).toEqual([])
-      expect(readMemoryFile(stateDir, 'private/browser/archive-old.md').content).toBe('secret')
+      withOwnerAccess(true, () =>
+        expect(readMemoryFile(stateDir, 'private/browser/archive-old.md').content).toBe('secret'),
+      )
     })
   })
 
   test('private paths are hidden consistently across synchronous and asynchronous memory views', async () => {
     await withStateDir(async (stateDir) => {
-      writeMemoryFile(stateDir, 'private/browser/archive.md', 'secret')
+      withOwnerAccess(true, () => writeMemoryFile(stateDir, 'private/browser/archive.md', 'secret'))
       writeMemoryFile(stateDir, 'shared.txt', 'public')
       expect(fs.existsSync(path.join(memoryRootPath(stateDir), 'private'))).toBe(false)
       await withOwnerAccess(false, async () => {
@@ -100,7 +117,7 @@ describe('agent memory', () => {
           'Only the agent owner',
         )
       })
-      expect(readMemoryFile(stateDir, 'private/browser/archive.md').content).toBe('secret')
+      withOwnerAccess(true, () => expect(readMemoryFile(stateDir, 'private/browser/archive.md').content).toBe('secret'))
     })
   })
 

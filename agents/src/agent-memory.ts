@@ -24,9 +24,13 @@ export function withOwnerAccess<T>(owner: boolean, run: () => T): T {
   return ownerAccess.run(owner, run)
 }
 
-/** Whether the current request or run may access owner-only memory. */
+/**
+ * Whether the current request or run may access owner-only memory. Closed by default: code that
+ * runs outside an explicit `withOwnerAccess(true, …)` scope (a signed action from the agent owner,
+ * an interactive run they started) sees reader memory only.
+ */
 export function hasOwnerAccess(): boolean {
-  return ownerAccess.getStore() !== false
+  return ownerAccess.getStore() === true
 }
 
 /** Identifies a canonical path in the owner-only memory area. */

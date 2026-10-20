@@ -97,15 +97,14 @@ describe('browser callable', () => {
         markdown: '---\nname: Article\nsourceUrl: https://example.com\n---\nArchived content.',
       }),
     })
-    const output = await executeCallVerb(
-      context,
-      {tool: 'browser', input: {action: 'archive', document: 'observed'}},
-      'call-1',
+    // Browser archives land in owner-only memory, so the call runs as the owner's interactive run.
+    const output = await agentMemory.withOwnerAccess(true, () =>
+      executeCallVerb(context, {tool: 'browser', input: {action: 'archive', document: 'observed'}}, 'call-1'),
     )
     expect(output.draftId).toBe('desktop-draft')
     expect(output.markdown).toBeUndefined()
     expect(output.memoryPath).toMatch(/^~\/memory\/private\/browser\/archive-/)
-    const saved = await executeReadVerb(context, {address: output.memoryPath})
+    const saved = await agentMemory.withOwnerAccess(true, () => executeReadVerb(context, {address: output.memoryPath}))
     expect(JSON.stringify(saved)).toContain('Archived content.')
     expect(JSON.stringify(saved)).toContain('sourceUrl')
     expect(output.publishInstructions).toContain('nothing was published')
@@ -891,7 +890,9 @@ describe('space index and touch-expand pins', () => {
   test('owner and reader Space indexes never share private memory summaries', async () => {
     const context = makeContext()
     apisvc.invalidateSpaceIndex(context.accountId, context.agentId)
-    agentMemory.writeMemoryFile(context.stateDir, 'private/secret.md', 'private content')
+    agentMemory.withOwnerAccess(true, () =>
+      agentMemory.writeMemoryFile(context.stateDir, 'private/secret.md', 'private content'),
+    )
     agentMemory.writeMemoryFile(context.stateDir, 'shared.md', 'shared content')
     const index = () =>
       apisvc.buildSpaceIndex({
@@ -901,13 +902,15 @@ describe('space index and touch-expand pins', () => {
         stateDir: context.stateDir,
         callableTools: context.callableTools,
       })
-    const owner = index()
+    const owner = agentMemory.withOwnerAccess(true, index)
     expect(owner).toContain('private/(')
     const reader = agentMemory.withOwnerAccess(false, index)
     expect(reader).not.toContain('private/(')
     expect(reader).toContain('shared.md')
     expect(reader).toContain('search —')
-    expect(index()).toBe(owner)
+    expect(agentMemory.withOwnerAccess(true, index)).toBe(owner)
+    // No scope at all is the reader view, never the owner's.
+    expect(index()).toBe(reader)
   })
 
   test('authored lambda appears in the index and the listing', async () => {
