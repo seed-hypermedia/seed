@@ -35,6 +35,94 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
+// TestSecurity_LoopbackOnlyHost covers DNS rebinding through a loopback connection (#1259).
+func TestSecurity_LoopbackOnlyHost(t *testing.T) {
+	t.Parallel()
+
+	handler := loopbackOnly(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	for _, tt := range []struct {
+		host  string
+		local bool
+	}{
+		{"", false},
+		{"localhost", true},
+		{"LOCALHOST:58001", true},
+		{"127.0.0.1", true},
+		{"127.23.45.67:56001", true},
+		{"[::1]", true},
+		{"[0:0:0:0:0:0:0:1]:58001", true},
+		{"[::ffff:127.0.0.1]:56001", true},
+		{"[::ffff:7f17:2d43]", true},
+		{"attacker.example:58001", false},
+		{"localhost.attacker.example", false},
+		{"app.localhost", false},
+		{"192.168.1.2:58001", false},
+		{"[::ffff:192.168.1.2]:58001", false},
+		{"[2001:db8::1]", false},
+		{"attacker.example@localhost", false},
+		{"localhost/attacker.example", false},
+		{"localhost?attacker.example", false},
+		{"localhost#attacker.example", false},
+		{"localhost:bad", false},
+	} {
+		for _, site := range []string{"", "none", "same-origin", "same-site", "cross-site"} {
+			t.Run(tt.host+"/"+site, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/debug/metrics", nil)
+				req.RemoteAddr = "127.0.0.1:12345"
+				req.Host = tt.host
+				if tt.host == "" {
+					// HTTP/1.0 permits an absent Host at the HTTP parser.
+					req.Proto = "HTTP/1.0"
+					req.ProtoMinor = 0
+				}
+				req.Header.Set("Sec-Fetch-Site", site)
+				rec := httptest.NewRecorder()
+				handler.ServeHTTP(rec, req)
+
+				want := http.StatusForbidden
+				if tt.local && (site == "" || site == "none" || site == "same-origin") {
+					want = http.StatusNoContent
+				}
+				require.Equal(t, want, rec.Code)
+			})
+		}
+	}
+}
+
+// TestSecurity_LoopbackOnlyPeer preserves the peer-IP gate independently of Host.
+func TestSecurity_LoopbackOnlyPeer(t *testing.T) {
+	t.Parallel()
+
+	handler := loopbackOnly(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	for _, tt := range []struct {
+		remote string
+		want   int
+	}{
+		{"127.23.45.67:12345", http.StatusNoContent},
+		{"[::1]:12345", http.StatusNoContent},
+		{"[::ffff:127.0.0.1]:12345", http.StatusNoContent},
+		{"192.168.1.2:12345", http.StatusForbidden},
+		{"[::ffff:192.168.1.2]:12345", http.StatusForbidden},
+		{"invalid", http.StatusBadRequest},
+	} {
+		t.Run(tt.remote, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/debug/grpcui/invoke/test", nil)
+			req.RemoteAddr = tt.remote
+			req.Host = "localhost:58001"
+			req.Header.Set("Origin", "http://localhost:58001")
+			req.Header.Set("Sec-Fetch-Site", "same-origin")
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			require.Equal(t, tt.want, rec.Code)
+		})
+	}
+}
+
 func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
 	t.Parallel()
 
@@ -387,6 +475,7 @@ func TestHTTPGateRoutes(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest("POST", "/com.seed.daemon.v1alpha.Daemon/GetInfo", strings.NewReader("\x00\x00\x00\x00\x00"))
+			req.Host = "localhost:58001"
 			req.Header.Set("Content-Type", "application/grpc-web+proto")
 			req.Header.Set("X-Grpc-Web", "1")
 			req.Header.Set("Origin", tt.origin)
@@ -406,6 +495,42 @@ func TestHTTPGateRoutes(t *testing.T) {
 		})
 	}
 
+	// DNS rebinding (#1259): the page's own hostname resolves to 127.0.0.1, so the browser reports
+	// same-origin and sends no Origin, which the gate reads as a non-browser local client. In
+	// -http.loopback mode only Host gives the page away, on every route, including the public ones.
+	t.Run("a rebound Host is refused on every route ahead of the gate", func(t *testing.T) {
+		for _, path := range []string{"/com.seed.daemon.v1alpha.Daemon/GetInfo", "/ipfs/bafytest", "/hm/api/config", "/debug/version", "/vault-connect", "/debug/metrics"} {
+			for _, host := range []string{"attacker.example:58001", "localhost.attacker.example", "192.168.1.2:58001", ""} {
+				req := httptest.NewRequest("GET", path, nil)
+				req.Host = host
+				req.Header.Set("Sec-Fetch-Site", "same-origin")
+				req.Header.Set("X-Seed-App-Secret", secret)
+				rec := httptest.NewRecorder()
+				app.HTTPServer.Handler.ServeHTTP(rec, req)
+				require.Equal(t, 403, rec.Code, "%s with Host %q", path, host)
+			}
+		}
+
+		for _, host := range []string{"localhost:58001", "127.0.0.1:58001", "[::1]:58001"} {
+			req := httptest.NewRequest("GET", "/debug/version", nil)
+			req.Host = host
+			req.Header.Set("Sec-Fetch-Site", "same-origin")
+			rec := httptest.NewRecorder()
+			app.HTTPServer.Handler.ServeHTTP(rec, req)
+			require.Equal(t, 200, rec.Code, "Host %q", host)
+		}
+	})
+	t.Run("without -http.loopback a server answers any Host", func(t *testing.T) {
+		// Servers sit behind a reverse proxy that forwards the site's hostname; only the
+		// loopback-bound daemon is addressed as localhost alone.
+		t.Setenv("SEED_APP_SECRET", "")
+		server := makeTestApp(t, "alice", makeTestConfig(t), false)
+		req := httptest.NewRequest("GET", "/debug/version", nil)
+		req.Host = "hyper.media"
+		rec := httptest.NewRecorder()
+		server.HTTPServer.Handler.ServeHTTP(rec, req)
+		require.Equal(t, 200, rec.Code)
+	})
 	t.Run("without a secret or -http.browser-auth the daemon keeps the open policy", func(t *testing.T) {
 		t.Setenv("SEED_APP_SECRET", "")
 		plain := makeTestApp(t, "alice", makeTestConfig(t), false)

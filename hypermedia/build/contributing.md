@@ -183,7 +183,7 @@ Corrections are welcome as pull requests, or as [comments](../protocol/comments.
 
 Report security issues by email to [security@hyper.media](mailto:security@hyper.media). Do not open a public issue or pull request about an unfixed vulnerability. This repository is public. <!-- id:c1G7qQ-T -->
 
-Once a vulnerability is fixed, the team discloses it as a GitHub issue closed by the fixing commit. The public record of what has been audited and which hypotheses were ruled out is [`.agents/security/audit-log.md`](https://github.com/seed-hypermedia/seed/blob/main/.agents/security/audit-log.md), and the audit procedure itself is [`.agents/security/auditor.md`](https://github.com/seed-hypermedia/seed/blob/main/.agents/security/auditor.md). The known limits you should design around, such as the unauthenticated local [daemon API](./grpc.md) and non-revocable [capabilities](../protocol/permissions.md), are listed on [Integrity](../protocol/integrity.md). <!-- id:xbymaI9s -->
+See the repository's [security-audit skill](https://github.com/seed-hypermedia/seed/blob/main/.agents/skills/security-audit/SKILL.md) and [audit log](https://github.com/seed-hypermedia/seed/blob/main/.agents/skills/security-audit/resources/audit-log.md) for audit procedures and prior coverage. <!-- id:xbymaI9s -->
 
 # See also <!-- id:-aDpNcBJ -->
 

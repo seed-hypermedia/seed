@@ -74,6 +74,52 @@ describe('classifyCommentNotificationForAccount', () => {
   })
 })
 
+describe('comment reason priority', () => {
+  const baseline = {
+    subscriptionAccountUid: 'alice',
+    commentAuthorUid: 'bob',
+    targetAccountUid: 'alice',
+    targetAuthorUids: ['alice'],
+    isTopLevelComment: true,
+    parentCommentAuthorUid: null,
+    mentionedAccountUids: new Set(['alice']),
+  }
+
+  it('prefers body mention over discussion for both owner and collaborator', () => {
+    expect(classifyCommentNotificationForAccount(baseline)).toBe('mention')
+    expect(
+      classifyCommentNotificationForAccount({
+        ...baseline,
+        targetAccountUid: 'site',
+        targetAuthorUids: ['site', 'alice'],
+      }),
+    ).toBe('mention')
+    expect(
+      classifyNotificationEvent(
+        {
+          type: 'comment',
+          comment: makeCommentWithMention('hm://alice/:profile'),
+          author: {id: {uid: 'bob'}},
+          target: {id: {uid: 'alice'}},
+          targetAuthorUids: ['alice'],
+        } as any,
+        'alice',
+      ),
+    ).toBe('mention')
+  })
+
+  it('preserves reply over mention and self-author suppression', () => {
+    expect(
+      classifyCommentNotificationForAccount({
+        ...baseline,
+        isTopLevelComment: false,
+        parentCommentAuthorUid: 'alice',
+      }),
+    ).toBe('reply')
+    expect(classifyCommentNotificationForAccount({...baseline, commentAuthorUid: 'alice'})).toBeNull()
+  })
+})
+
 describe('getMentionedAccountUid', () => {
   it('returns the uid for direct account mentions', () => {
     expect(getMentionedAccountUid('hm://alice')).toBe('alice')
