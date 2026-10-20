@@ -474,6 +474,103 @@ main {
   font-size: 12px;
 }
 
+/* authority graph */
+.graph-wrap {
+  padding: 8px 4px 0;
+}
+.authority-graph {
+  width: 100%;
+  height: auto;
+  display: block;
+  font-family: var(--mono);
+}
+.authority-graph .edge {
+  stroke: #5b6b70;
+  stroke-width: 1.5;
+}
+.authority-graph .edge.scope {
+  stroke-dasharray: 3 5;
+  opacity: 0.7;
+}
+.authority-graph .edge.revoked,
+.authority-graph .edge.invalid {
+  stroke-dasharray: 4 4;
+  opacity: 0.45;
+}
+.authority-graph marker path {
+  fill: #8fa0a5;
+}
+.authority-graph [data-select] {
+  cursor: pointer;
+}
+.authority-graph text {
+  fill: var(--text);
+  font-size: 12px;
+}
+.authority-graph .sub {
+  fill: var(--muted);
+  font-size: 10px;
+}
+.authority-graph .resource-node rect {
+  fill: var(--panel-2);
+  stroke-width: 1.5;
+}
+.authority-graph .resource-node .name {
+  font-weight: 600;
+  font-size: 13px;
+}
+.authority-graph .ticket-node rect {
+  fill: #211c12;
+  stroke-width: 1.5;
+}
+.authority-graph .ticket-node.role-admin rect {
+  fill: #1a2213;
+}
+.authority-graph .ticket-node .role {
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.authority-graph .ticket-node.revoked rect,
+.authority-graph .ticket-node.invalid rect {
+  stroke-dasharray: 4 3;
+  opacity: 0.6;
+}
+.authority-graph .ticket-node.revoked text {
+  fill: var(--muted);
+}
+.authority-graph .rev-node circle {
+  fill: #2a1414;
+  stroke: var(--red);
+  stroke-width: 1.5;
+}
+.authority-graph .rev-node text {
+  fill: var(--red);
+  font-weight: 700;
+  font-size: 12px;
+}
+.authority-graph .key-node circle {
+  fill: var(--panel-2);
+  stroke: #6f8186;
+  stroke-width: 1.5;
+}
+.authority-graph .key-node .glyph {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.authority-graph .key-node .name {
+  font-size: 12px;
+}
+.authority-graph .is-selected rect,
+.authority-graph .is-selected circle {
+  stroke: var(--accent) !important;
+  stroke-width: 2.5;
+  stroke-dasharray: none;
+  opacity: 1;
+}
+
 /* placement view */
 .tree {
   padding: 4px 0;

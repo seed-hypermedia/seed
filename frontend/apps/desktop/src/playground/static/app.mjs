@@ -224,48 +224,106 @@ function blobsHTML() {
     .join('')
 }
 
-/** Authority: each grant drawn as issuer, capability, recipient inside its exact resource. */
+/**
+ * Authority: one graph. Resources sit along the top, keys along the bottom, and every grant is a
+ * ticket node between them: a line in from its issuer, an arrow out to its recipient, and a dotted
+ * line up to the exact resource it is scoped to. A revoked grant is dashed and carries its
+ * revocation. Everything is positioned here from the snapshot alone.
+ */
 function authorityHTML() {
   const s = state()
   const d = derived()
-  return s.resources
-    .map((r) => {
-      const revs = s.revocations.filter((v) => v.resource === r.id)
-      const flows = s.grants
-        .filter((g) => g.resource === r.id)
-        .map((g) => {
-          const st = grantStatus(g.id)
-          const rev = revs.find((v) => v.target === g.id && d.revocations[v.id]?.valid)
-          return `<div class="flow ${st}">${keyChip(
-            g.from,
-            true,
-          )}<span class="arrow">→</span><button class="ticket role-${g.role}${isSel(
-            'grant',
-            g.id,
-          )}" data-select="grant:${esc(g.id)}">${entityIcon('grant')}<span><b>${esc(g.role)}</b><small>${esc(
-            g.id,
-          )} · ${st}${
-            g.proof ? ' · proof ' + esc(g.proof) : ' · root anchor'
-          }</small></span></button><span class="arrow">→</span>${keyChip(g.to, true)}${
-            rev
-              ? `<button class="rev-mark${isSel('revocation', rev.id)}" data-select="revocation:${esc(
-                  rev.id,
-                )}">${entityIcon('revocation')}${esc(rev.id)}</button>`
-              : '<span></span>'
-          }</div>`
-        })
-        .join('')
-      return `<section class="resource zone${isSel('resource', r.id)}">${resourceHead(
-        r,
-      )}<div class="flow-labels"><span>Issuer</span><span>Capability</span><span>Recipient</span></div>${
-        flows || '<p class="empty">No grants on this resource.</p>'
-      }<div class="zone-foot"><button data-add-grant="${esc(r.id)}">+ Grant on ${esc(
-        r.name,
-      )}</button><span class="muted">A grant here covers only ${esc(
-        r.name,
-      )}, never its children.</span></div></section>`
-    })
+  const W = 960
+  const PAD = 70
+  const PILL = {w: 128, h: 36}
+  const palette = ['#60d8df', '#c6f66b', '#efbb76', '#d29cf0', '#8fd4a8', '#f0a3c0']
+  const color = Object.fromEntries(s.resources.map((r, i) => [r.id, palette[i % palette.length]]))
+  const spread = (n, pad) => (i) => (n === 1 ? W / 2 : pad + (i * (W - 2 * pad)) / (n - 1))
+  const rx = Object.fromEntries(s.resources.map((r, i) => [r.id, spread(s.resources.length, 100)(i)]))
+  const kx = Object.fromEntries(s.keys.map((k, i) => [k.id, spread(s.keys.length, PAD)(i)]))
+  // One lane per resource, with sub-lanes when tickets would overlap.
+  const laneTop = 120
+  const laneGap = PILL.h + 22
+  const pills = []
+  let lane = 0
+  for (const r of s.resources) {
+    const grants = s.grants
+      .filter((g) => g.resource === r.id)
+      .map((g) => ({g, x: kx[g.to]}))
+      .sort((a, b) => a.x - b.x)
+    const rows = []
+    for (const p of grants) {
+      let row = rows.findIndex((last) => p.x - last >= PILL.w + 12)
+      if (row < 0) {
+        row = rows.length
+        rows.push(-Infinity)
+      }
+      rows[row] = p.x
+      pills.push({...p, y: laneTop + (lane + row) * laneGap, color: color[r.id]})
+    }
+    lane += Math.max(1, rows.length)
+  }
+  const ky = laneTop + lane * laneGap + 50
+  const H = ky + 60
+  const RY = 42
+  const sel = (type, id) => (selection.type === type && selection.id === id ? ' is-selected' : '')
+  const line = (x1, y1, x2, y2, cls, extra = '') =>
+    `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="${cls}" ${extra}/>`
+  let edges = ''
+  let nodes = ''
+  for (const {g, x, y, color: c} of pills) {
+    const st = grantStatus(g.id)
+    const rev = s.revocations.find((v) => v.target === g.id && d.revocations[v.id]?.valid)
+    const left = x - PILL.w / 2
+    const bottom = y + PILL.h / 2
+    edges +=
+      line(x, y - PILL.h / 2, rx[g.resource], RY + 18, 'edge scope', `stroke="${c}"`) +
+      line(kx[g.from], ky - 24, left + 14, bottom, 'edge issue ' + st) +
+      line(left + PILL.w - 14, bottom, kx[g.to], ky - 26, 'edge grant ' + st, 'marker-end="url(#arrow)"')
+    nodes += `<g class="ticket-node ${st} role-${g.role}${sel('grant', g.id)}" data-select="grant:${esc(
+      g.id,
+    )}" transform="translate(${left},${y - PILL.h / 2})"><rect width="${PILL.w}" height="${
+      PILL.h
+    }" rx="6" stroke="${c}"/><text x="10" y="15" class="role">${esc(
+      g.role.toUpperCase(),
+    )}</text><text x="10" y="29" class="sub">${esc(g.id)} · ${st}${g.proof ? '' : ' · root'}</text></g>`
+    if (rev)
+      nodes += `<g class="rev-node${sel('revocation', rev.id)}" data-select="revocation:${esc(
+        rev.id,
+      )}" transform="translate(${left + PILL.w - 6},${
+        y - PILL.h / 2 - 6
+      })"><circle r="9"/><text y="4" text-anchor="middle">×</text><title>${esc(rev.id)} revokes ${esc(
+        g.id,
+      )}</title></g>`
+  }
+  const resourceNodes = s.resources
+    .map(
+      (r) =>
+        `<g class="resource-node${sel('resource', r.id)}" data-select="resource:${esc(r.id)}" transform="translate(${
+          rx[r.id] - 80
+        },${RY - 20})"><rect width="160" height="40" rx="6" stroke="${
+          color[r.id]
+        }"/><text x="12" y="17" class="name">${esc(r.name)}</text><text x="12" y="31" class="sub">${esc(
+          d.resources[r.id]?.path || r.cid,
+        )} · ${r.public ? 'public' : 'private'}</text></g>`,
+    )
     .join('')
+  const keyNodes = s.keys
+    .map(
+      (k) =>
+        `<g class="key-node${sel('key', k.id)}" data-select="key:${esc(k.id)}" transform="translate(${
+          kx[k.id]
+        },${ky})"><circle r="18"/><g class="glyph" transform="translate(-9,-9) scale(0.75)"><circle cx="9" cy="9" r="5"/><path d="m12.5 12.5 8 8m-3-3 3-3m-6 0 3-3"/></g><text y="38" text-anchor="middle" class="name">${esc(
+          k.name,
+        )}</text></g>`,
+    )
+    .join('')
+  const scope = selection.type === 'resource' ? selection.id : selectedRecord()?.resource || s.resources[0].id
+  return `<div class="graph-wrap"><svg viewBox="0 0 ${W} ${H}" class="authority-graph" role="img" aria-label="Authority graph"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z"/></marker></defs>${edges}${resourceNodes}${nodes}${keyNodes}</svg></div><div class="zone-foot"><button data-add-grant="${esc(
+    scope,
+  )}">+ Grant on ${esc(
+    resourceName(scope),
+  )}</button><span class="muted">Dotted lines are scope: a grant covers one exact resource. Solid lines run from the issuer through the grant to the recipient.</span></div>`
 }
 
 /** Placement: the folder tree. Nesting is placement only and grants nothing. */
@@ -406,7 +464,7 @@ function renderDetails() {
         : 'A grant never changes. Reissue it to add a new route, or add a revocation to end this one.'
     }</p><div class="detail-actions"><button id="edit-object">Reissue</button>${
       o.role === 'admin' ? '' : '<button id="revoke-object" class="primary">Revoke</button>'
-    }</div>${accessTable(scope)}${fields(o)}`
+    }</div>${fields(o)}`
   } else if (type === 'policy') {
     scope = o.id
     html = `<div class="eyebrow">Resource policy</div><h3>${esc(o.name)}</h3>${kv(
@@ -415,9 +473,7 @@ function renderDetails() {
     )}${kv(
       'Audience',
       o.public ? 'public' : 'private',
-    )}<p class="muted">The one new signed fact HM26 proposes: who the root of a resource is and whether it is public. <a href="https://hyper.media/protocol/hm26-authority#b4HgY4uP" target="_blank" rel="noreferrer">What a resource policy is</a>.</p><div class="detail-actions"><button id="edit-object">Edit</button></div>${accessTable(
-      scope,
-    )}`
+    )}<p class="muted">The one new signed fact HM26 proposes: who the root of a resource is and whether it is public. <a href="https://hyper.media/protocol/hm26-authority#b4HgY4uP" target="_blank" rel="noreferrer">What a resource policy is</a>.</p><div class="detail-actions"><button id="edit-object">Edit</button></div>`
   } else {
     const isNode = type === 'statement'
     const status = isNode
@@ -456,9 +512,9 @@ function renderDetails() {
                 : 'Retained but not eligible: its author cannot write the resource right now.',
           )}</p>`
         : ''
-    }<div class="detail-actions"><button id="edit-object">Edit</button><button id="delete-object" class="danger">Remove</button></div>${accessTable(
-      scope,
-    )}${fields(o)}`
+    }<div class="detail-actions"><button id="edit-object">Edit</button><button id="delete-object" class="danger">Remove</button></div>${fields(
+      o,
+    )}`
   }
   $('details').innerHTML = html
   bindSelections($('details'))
