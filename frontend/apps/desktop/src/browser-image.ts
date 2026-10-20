@@ -1,4 +1,5 @@
 import type {WebContents} from 'electron'
+import {attributeGuestFetch} from './browser-network-policy'
 
 /** Reads an image incrementally, cancelling rejected or oversized response bodies. */
 export async function readBrowserImageResponse(
@@ -42,6 +43,8 @@ export async function fetchBrowserImage(guest: WebContents, url: string, limit: 
   if (!/^https?:\/\//i.test(url)) return null
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 10000)
+  // webRequest sees no frame or referrer for this fetch; the network policy judges it as the page's.
+  const release = attributeGuestFetch(guest, url)
   try {
     const response = await guest.session.fetch(url, {
       credentials: 'include',
@@ -52,6 +55,7 @@ export async function fetchBrowserImage(guest: WebContents, url: string, limit: 
   } catch {
     return null
   } finally {
+    release()
     controller.abort()
     clearTimeout(timer)
   }

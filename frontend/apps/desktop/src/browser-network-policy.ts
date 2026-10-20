@@ -98,12 +98,34 @@ function webUrlOf(value: string | undefined): string | undefined {
   return url && /^https?:\/\//i.test(url) ? url : undefined
 }
 
+// Main-process fetches made for a guest (favicons, archived images) reach webRequest with no
+// frame, referrer or webContentsId, so they announce themselves here before they start. A request
+// matched this way keeps its page across redirects, which reuse the request id.
+type GuestFetch = {page: string; ids: Set<number>}
+const guestFetches = new Map<string, GuestFetch[]>()
+const attributedRequests = new Map<number, string>()
+
+/** Attributes the coming session.fetch of `url` to the guest's current page until released. */
+export function attributeGuestFetch(guest: WebContents, url: string): () => void {
+  const entry: GuestFetch = {page: guest.getURL(), ids: new Set()}
+  guestFetches.set(url, [...(guestFetches.get(url) ?? []), entry])
+  return () => {
+    const remaining = (guestFetches.get(url) ?? []).filter((other) => other !== entry)
+    if (remaining.length) guestFetches.set(url, remaining)
+    else guestFetches.delete(url)
+    entry.ids.forEach((id) => attributedRequests.delete(id))
+  }
+}
+
 /**
  * The web page a sub-request acts for: its frame, or the nearest ancestor with a real URL
- * (about:blank and about:srcdoc frames inherit theirs), else the referrer or the guest's page.
+ * (about:blank and about:srcdoc frames inherit theirs), else the referrer or the guest's page,
+ * else the page of a main-process fetch announced for exactly this URL.
  * Undefined means nothing shows which page is responsible.
  */
 function requestInitiator(details: Electron.OnBeforeRequestListenerDetails): string | undefined {
+  const attributed = attributedRequests.get(details.id)
+  if (attributed) return attributed
   try {
     for (let frame = details.frame, depth = 0; frame && depth < 32; frame = frame.parent, depth++) {
       const url = webUrlOf(frame.url)
@@ -113,7 +135,14 @@ function requestInitiator(details: Electron.OnBeforeRequestListenerDetails): str
     // A frame disposed mid-request has no URL to offer.
   }
   const guest = details.webContentsId === undefined ? undefined : guests.get(details.webContentsId)?.guest
-  return webUrlOf(details.referrer) ?? webUrlOf(guest?.getURL())
+  const known = webUrlOf(details.referrer) ?? webUrlOf(guest?.getURL())
+  if (known || details.frame || details.webContentsId !== undefined) return known
+  const announced = guestFetches.get(details.url)?.[0]
+  const page = announced && webUrlOf(announced.page)
+  if (!page) return
+  announced.ids.add(details.id)
+  attributedRequests.set(details.id, page)
+  return page
 }
 
 /** Whether a sub-request targets loopback, the local network, link-local or a `.local` name. */

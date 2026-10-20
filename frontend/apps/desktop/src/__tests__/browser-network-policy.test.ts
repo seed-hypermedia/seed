@@ -5,6 +5,7 @@ import {afterEach, expect, it, vi} from 'vitest'
 vi.mock('node:dns/promises', () => ({lookup: vi.fn()}))
 import {lookup} from 'node:dns/promises'
 import {
+  attributeGuestFetch,
   isGuestOnPrivateNetwork,
   navigatePublicBrowser,
   setupBrowserNetworkPolicy,
@@ -337,4 +338,31 @@ it('leaves main-frame navigations and public websockets alone, but cancels priva
     callback,
   )
   expect(callback).toHaveBeenLastCalledWith({cancel: true})
+})
+
+it('attributes an announced main-process fetch to its guest page, across redirects, until released', () => {
+  const {guest, handlers} = fixture()
+  const page = 'http://127.0.0.1:5000/first'
+  ;(guest as any).getURL = () => page
+  const icon = 'http://127.0.0.1:5000/icons/site.svg'
+  const request = (id: number, url: string) => {
+    const callback = vi.fn()
+    handlers.onBeforeRequest!({id, url, resourceType: 'other'}, callback)
+    return callback.mock.calls[0]![0]
+  }
+  expect(request(1, icon)).toEqual({cancel: true})
+  const release = attributeGuestFetch(guest, icon)
+  expect(request(2, icon)).toEqual({})
+  // The redirect hop keeps the request id and so the page, even to another local URL.
+  expect(request(2, 'http://127.0.0.1:5000/icons/final.svg')).toEqual({})
+  // Other unattributed requests gain nothing from the announcement.
+  expect(request(3, 'http://127.0.0.1:5000/icons/final.svg')).toEqual({cancel: true})
+  release()
+  expect(request(4, icon)).toEqual({cancel: true})
+  expect(request(2, 'http://127.0.0.1:5000/icons/again.svg')).toEqual({cancel: true})
+  // A guest on a public page cannot reach the local network through its own fetches either.
+  ;(guest as any).getURL = () => 'https://public.example/'
+  const releasePublic = attributeGuestFetch(guest, icon)
+  expect(request(5, icon)).toEqual({cancel: true})
+  releasePublic()
 })
