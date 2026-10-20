@@ -14323,7 +14323,14 @@ export async function executeWriteVerb(
     }
     const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, memoryPath, content))
     context.onMemoryChange()
-    return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
+    // A memory path is not something a person can open. An HTML file is almost always an app in
+    // the making, and the model that just wrote it is the one that needs to know the next step.
+    const appHint = /\.html?$/i.test(entry.path)
+      ? context.publishEnabled
+        ? ` This is HTML in private memory, which the user cannot open. Publish it as a document app: write hm://<your signing account>/apps/<name> with options.app: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link and the returned widget fence. Never link ~/memory paths.`
+        : ' This is HTML in private memory, which the user cannot open; publishing it as a document app needs the Publish grant.'
+      : ''
+    return {summary: `Wrote ${entry.path} (${entry.size} bytes).${appHint}`, ...entry}
   }
 
   if (address.startsWith('ipfs:')) {
