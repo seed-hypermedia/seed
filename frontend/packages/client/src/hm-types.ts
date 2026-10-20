@@ -597,6 +597,14 @@ export const HMDocumentMetadataSchema = z
      * in @shm/ui/agents/space-agents is the reader for this field.
      */
     spaceAgents: z.record(z.unknown()).optional(),
+    /**
+     * A document app: `ipfs://<cid>` of a UnixFS folder whose `index.html` is a self-contained
+     * web app (a bare UnixFS file is accepted and treated as the index). Seed opens the document
+     * as that app, in a sandboxed per-document origin, with a `postMessage` bridge through which
+     * the app reads Hypermedia as the viewer. The folder syncs with the document like any file
+     * it references, so sharing the document shares the app.
+     */
+    app: z.string().optional(),
     layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
     displayPublishTime: z.string().optional(),
     displayAuthor: z.string().optional(),

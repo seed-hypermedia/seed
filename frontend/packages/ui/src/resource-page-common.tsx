@@ -101,6 +101,7 @@ import {
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
+import {DocumentAppView, documentAppCid} from './document-app'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activitySlugToFilter,
@@ -4673,6 +4674,8 @@ function ContentViewWithOutline({
   const isEditing = useDocumentSelector(selectIsEditing)
   const send = useDocumentSend()
   const openUrl = useOpenUrl()
+  // A document app replaces the published body; editing shows the blocks underneath it.
+  const documentApp = isEditing || existingDraftContent ? null : documentAppCid(document)
   const requiredAttrMetadata = useMemo(
     () => ({...document.metadata, ...ctx.metadata}),
     [document.metadata, ctx.metadata],
@@ -4760,31 +4763,40 @@ function ContentViewWithOutline({
               : undefined
           }
         />
-        <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
-          {DocumentContentComponent ? (
-            <DocumentContentComponent
-              blocks={existingDraftContent ?? document.content}
-              resourceId={resourceId}
-              rootChildrenType={rootChildrenType}
-              focusBlockId={resourceId.blockRef ?? undefined}
-              focusBlockRange={resourceId.blockRange ?? undefined}
-              citationFragmentHighlights={citationFragmentHighlights}
-              onCitationFragmentClick={onCitationFragmentClick}
-              blockCitations={blockCitations}
-              onBlockCitationClick={onBlockCitationClick}
-              onBlockCommentClick={onBlockCommentClick}
-              onBlockSelect={onBlockSelect}
-              onTextSelection={onTextSelection}
-              onEditorReady={onEditorReady}
-              draftCursorPosition={existingDraftCursorPosition}
-              perspectiveAccountUid={perspectiveAccountUid}
-              linkExtensionOptions={linkExtensionOptions}
-              isUnpublishedDraft={isUnpublishedDraft}
-              isBlockInPublishedVersion={isBlockInPublishedVersion}
-              handleFileAttachment={handleFileAttachment}
-            />
-          ) : null}
-        </DocumentContentHandoff>
+        {documentApp ? (
+          <DocumentAppView
+            docId={docId}
+            document={document}
+            cid={documentApp}
+            perspectiveAccountUid={perspectiveAccountUid}
+          />
+        ) : (
+          <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
+            {DocumentContentComponent ? (
+              <DocumentContentComponent
+                blocks={existingDraftContent ?? document.content}
+                resourceId={resourceId}
+                rootChildrenType={rootChildrenType}
+                focusBlockId={resourceId.blockRef ?? undefined}
+                focusBlockRange={resourceId.blockRange ?? undefined}
+                citationFragmentHighlights={citationFragmentHighlights}
+                onCitationFragmentClick={onCitationFragmentClick}
+                blockCitations={blockCitations}
+                onBlockCitationClick={onBlockCitationClick}
+                onBlockCommentClick={onBlockCommentClick}
+                onBlockSelect={onBlockSelect}
+                onTextSelection={onTextSelection}
+                onEditorReady={onEditorReady}
+                draftCursorPosition={existingDraftCursorPosition}
+                perspectiveAccountUid={perspectiveAccountUid}
+                linkExtensionOptions={linkExtensionOptions}
+                isUnpublishedDraft={isUnpublishedDraft}
+                isBlockInPublishedVersion={isBlockInPublishedVersion}
+                handleFileAttachment={handleFileAttachment}
+              />
+            ) : null}
+          </DocumentContentHandoff>
+        )}
         {inlineInsert}
         {inlineCards}
       </div>
