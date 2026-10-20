@@ -100,3 +100,15 @@ export async function verifyUpdateAsset(filePath: string, expectedSha256?: strin
   for await (const chunk of createReadStream(filePath)) hash.update(chunk)
   if (hash.digest('hex') !== expectedSha256.toLowerCase()) throw new Error('Update asset SHA-256 mismatch')
 }
+
+/**
+ * Whether a download Chromium reports (its URL chain start) is the manifest asset we requested.
+ * Chromium canonicalises the URL it was given, so the two are compared in their normalised form.
+ */
+export function isUpdateDownload(requestedUrl: string, downloadUrl: string): boolean {
+  try {
+    return new URL(requestedUrl).href === new URL(downloadUrl).href
+  } catch {
+    return false
+  }
+}

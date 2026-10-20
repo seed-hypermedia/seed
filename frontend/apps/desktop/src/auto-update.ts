@@ -9,7 +9,13 @@ import {shutdownDaemonForUpdate} from './daemon'
 import {stopApiServer} from './app-http-server'
 import {stopLocalServer} from './local-server'
 import {updateChromiumPolicy} from './app-experiments'
-import {DEV_UPDATE_PUBLIC_KEY, PROD_UPDATE_PUBLIC_KEY, verifyUpdateAsset, verifyUpdateManifest} from './update-manifest'
+import {
+  DEV_UPDATE_PUBLIC_KEY,
+  isUpdateDownload,
+  PROD_UPDATE_PUBLIC_KEY,
+  verifyUpdateAsset,
+  verifyUpdateManifest,
+} from './update-manifest'
 
 export const checkForUpdates = customAutoUpdates
 
@@ -115,6 +121,8 @@ export class AutoUpdater {
   private checkIntervalMs: number
   private currentUpdateInfo: UpdateInfo | null = null
   private status: UpdateStatus = {type: 'idle'}
+  /** The will-download listener of a download that has not started yet; a new download replaces it. */
+  private pendingDownload: ((event: Electron.Event, item: Electron.DownloadItem) => void) | null = null
 
   constructor(updateUrl: string, checkIntervalMs: number = 600_000) {
     console.log(`[AUTO-UPDATE] AutoUpdater constructor call START`)
@@ -384,8 +392,9 @@ export class AutoUpdater {
       log.info(`[AUTO-UPDATE] Initiating download for: ${downloadUrl}`)
       const onDownload = (_event: Electron.Event, item: Electron.DownloadItem) => {
         // Bind this hash to this request, not to unrelated browser downloads or later updates.
-        if (item.getURLChain()[0] !== downloadUrl) return
+        if (!isUpdateDownload(item.getURLChain()[0] ?? '', downloadUrl)) return
         session.defaultSession.removeListener('will-download', onDownload)
+        if (this.pendingDownload === onDownload) this.pendingDownload = null
         log.info(`[AUTO-UPDATE] Download started for file: ${item?.getFilename() || 'unknown'}`)
         // Set download path
         let filePath: string
@@ -1045,11 +1054,14 @@ ${packageName}
           }
         })
       }
+      if (this.pendingDownload) session.defaultSession.removeListener('will-download', this.pendingDownload)
+      this.pendingDownload = onDownload
       session.defaultSession.on('will-download', onDownload)
       try {
         session.defaultSession.downloadURL(downloadUrl)
       } catch (error) {
         session.defaultSession.removeListener('will-download', onDownload)
+        this.pendingDownload = null
         throw error
       }
     } catch (error) {

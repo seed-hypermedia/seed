@@ -4,7 +4,7 @@ import {mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it, vi} from 'vitest'
-import {canonicalManifest, verifyUpdateAsset, verifyUpdateManifest} from '../update-manifest'
+import {canonicalManifest, isUpdateDownload, verifyUpdateAsset, verifyUpdateManifest} from '../update-manifest'
 
 // Private test keys exist only in memory and never enter the repository or release secrets.
 const {privateKey, publicKey} = generateKeyPairSync('ed25519')
@@ -82,4 +82,30 @@ it('hashes the actual downloaded bytes and rejects a corrupt installer before in
   } finally {
     await rm(directory, {recursive: true, force: true})
   }
+})
+
+describe('isUpdateDownload', () => {
+  it('matches the requested asset in the form Chromium canonicalises it to', () => {
+    const chromium = 'https://github.com/seed-hypermedia/seed/releases/download/v1.2.3/Seed%20Setup.exe'
+    for (const manifest of [
+      chromium,
+      'https://GitHub.com:443/seed-hypermedia/seed/releases/download/v1.2.3/Seed%20Setup.exe',
+      'https://github.com/seed-hypermedia/seed/releases/./download/v1.2.3/Seed Setup.exe',
+    ]) {
+      expect(isUpdateDownload(chromium, manifest), manifest).toBe(true)
+    }
+  })
+
+  it('never claims an unrelated or unparseable download', () => {
+    const manifest = 'https://github.com/seed-hypermedia/seed/releases/download/v1.2.3/Seed.exe'
+    expect(
+      isUpdateDownload('https://github.com/seed-hypermedia/seed/releases/download/v1.2.4/Seed.exe', manifest),
+    ).toBe(false)
+    expect(isUpdateDownload('https://evil.example/Seed.exe', manifest)).toBe(false)
+    expect(isUpdateDownload('http://github.com/seed-hypermedia/seed/releases/download/v1.2.3/Seed.exe', manifest)).toBe(
+      false,
+    )
+    expect(isUpdateDownload('', manifest)).toBe(false)
+    expect(isUpdateDownload(manifest, 'not a url')).toBe(false)
+  })
 })
