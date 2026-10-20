@@ -94,6 +94,7 @@ func initHTTP(
 		loopback.HandleNav("/debug/p2p", p2pnet.DebugHandler())
 		loopback.HandleNav("/debug/network", p2pnet.NetworkDebugHandler())
 		loopback.HandleNav("/debug/sqlite", sqlitex.DebugHandler())
+		loopback.HandleNav("/debug/malloc", mallocDebugHandler())
 		grpcUI, err := makeGRPCUIHandler(rpc, clean, g)
 		if err != nil {
 			return nil, nil, err

@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"seed/backend/util/sqlite"
 )
 
 // DebugHandler returns an HTML handler that renders per-caller statistics for
@@ -23,7 +25,11 @@ func DebugHandler() http.Handler {
 
 type sqlitePage struct {
 	GeneratedAt string
-	Active      []activeRow
+	// Memory is SQLite's heap across every connection in the process, its
+	// peak, the soft limit, and each pooled connection's page cache as
+	// sampled the last time it came back to its pool.
+	Memory memoryView
+	Active []activeRow
 	// BeginContending is the live snapshot of goroutines currently inside
 	// Exec("BEGIN IMMEDIATE ...") at the moment of the page fetch. Under
 	// steady state it is normally empty; during a contention storm it
@@ -55,6 +61,43 @@ type sqlitePage struct {
 	// the SQLiteLeakedTxRepairFailed logs for the offending caller, and treat
 	// acknowledged writes on this daemon as suspect until it is understood.
 	LeakedTxRepairFailures uint64
+}
+
+// memoryView renders the Memory section. Sizes are in MiB.
+type memoryView struct {
+	UsedMB      float64
+	HighwaterMB float64
+	// SoftLimitMB is zero when no limit is set.
+	SoftLimitMB float64
+	Conns       []connMemoryRow
+}
+
+// connMemoryRow is one pooled connection's page cache as of its last return
+// to the pool.
+type connMemoryRow struct {
+	Role    string
+	CacheMB float64
+	Hits    int64
+	Misses  int64
+	// HitPct is Hits/(Hits+Misses). A low value on a reader says the private
+	// cache rarely serves a page twice, so its cache_size budget mostly pays
+	// for memory the kernel's page cache would serve just as well.
+	HitPct float64
+	// Sampled says how long ago the connection last came back to the pool,
+	// or "never".
+	Sampled string
+}
+
+// allConnCacheStats gathers ConnCacheStats across every open pool.
+func allConnCacheStats() []ConnCacheStats {
+	var out []ConnCacheStats
+
+	openPools.Range(func(key, _ any) bool {
+		out = append(out, key.(*Pool).ConnCacheStats()...)
+		return true
+	})
+
+	return out
 }
 
 // aggregateRow renders one entry on the "Aggregate writer-slot utilization"
@@ -263,7 +306,40 @@ func buildSQLitePage() sqlitePage {
 		GeneratedAt:            now.Format(time.RFC3339),
 		LeakedTxRepairs:        LeakedTxRepairs(),
 		LeakedTxRepairFailures: LeakedTxRepairFailures(),
+		Memory: memoryView{
+			UsedMB:      float64(sqlite.MemoryUsed()) / (1 << 20),
+			HighwaterMB: float64(sqlite.MemoryHighwater(false)) / (1 << 20),
+			SoftLimitMB: float64(sqlite.SoftHeapLimit()) / (1 << 20),
+		},
 	}
+	for _, c := range allConnCacheStats() {
+		row := connMemoryRow{
+			Role:    c.Role,
+			CacheMB: float64(c.Stats.UsedBytes) / (1 << 20),
+			Hits:    c.Stats.Hits,
+			Misses:  c.Stats.Misses,
+			Sampled: "never",
+		}
+		if total := c.Stats.Hits + c.Stats.Misses; total > 0 {
+			row.HitPct = 100 * float64(c.Stats.Hits) / float64(total)
+		}
+
+		if !c.SampledAt.IsZero() {
+			row.Sampled = now.Sub(c.SampledAt).Truncate(time.Second).String() + " ago"
+		}
+
+		page.Memory.Conns = append(page.Memory.Conns, row)
+	}
+
+	// Writer first, then the readers holding the most.
+	sort.Slice(page.Memory.Conns, func(i, j int) bool {
+		a, b := page.Memory.Conns[i], page.Memory.Conns[j]
+		if a.Role != b.Role {
+			return a.Role == "write"
+		}
+
+		return a.CacheMB > b.CacheMB
+	})
 
 	for _, a := range snap.Active {
 		age := now.Sub(a.StartedAt)
@@ -652,6 +728,16 @@ var sqliteTpl = template.Must(template.New("sqlite").Funcs(template.FuncMap{
 			return "0"
 		}
 	},
+	"fmtMB": func(v float64) string {
+		switch {
+		case v >= 1024:
+			return strconv.FormatFloat(v/1024, 'f', 2, 64) + " GiB"
+		case v > 0:
+			return strconv.FormatFloat(v, 'f', 1, 64) + " MiB"
+		default:
+			return "0"
+		}
+	},
 	"fmtPct": func(v float64) string {
 		if v <= 0 {
 			return "0"
@@ -697,7 +783,7 @@ th.grp{background:#ececec;text-align:center}
 </style>
 </head><body>
 <h1>SQLite writer health</h1>
-<div class="meta">snapshot: {{.GeneratedAt}} &middot; <a href="/debug/metrics">/debug/metrics</a> &middot; <a href="/debug/network">/debug/network</a>{{if .LeakedTxRepairs}} &middot; <span style="color:#c00">leaked-tx repairs: {{.LeakedTxRepairs}}</span>{{end}}{{if .LeakedTxRepairFailures}} &middot; <span style="color:#c00"><b>leaked-tx repairs FAILED: {{.LeakedTxRepairFailures}}</b> — a connection is in the pool with an open transaction; see SQLiteLeakedTxRepairFailed logs</span>{{end}}</div>
+<div class="meta">snapshot: {{.GeneratedAt}} &middot; <a href="/debug/metrics">/debug/metrics</a> &middot; <a href="/debug/network">/debug/network</a> &middot; <a href="/debug/malloc">/debug/malloc</a>{{if .LeakedTxRepairs}} &middot; <span style="color:#c00">leaked-tx repairs: {{.LeakedTxRepairs}}</span>{{end}}{{if .LeakedTxRepairFailures}} &middot; <span style="color:#c00"><b>leaked-tx repairs FAILED: {{.LeakedTxRepairFailures}}</b> — a connection is in the pool with an open transaction; see SQLiteLeakedTxRepairFailed logs</span>{{end}}</div>
 
 <details class="help"><summary>What this page measures</summary>
 <p>Every call to <code>sqlitex.WithTx</code> opens a real SQLite write transaction via <code>BEGIN IMMEDIATE</code>. Only one such transaction can be in flight at a time across the whole daemon. This page records per-caller wall durations and <code>SQLITE_BUSY</code> counts so we can tell who is holding the writer slot and who is being starved.</p>
@@ -731,6 +817,23 @@ th.grp{background:#ececec;text-align:center}
 </table>
 <p>Color thresholds: yellow ≥ 100 ms, red ≥ 1 s. The busy_timeout itself is 10 s.</p>
 </details>
+
+<h2>Memory</h2>
+<div class="subtitle">SQLite's heap across every connection in the process (<code>sqlite3_memory_used</code>), its peak since start, and the process-wide soft limit (<code>-storage.sqlite-soft-heap-limit</code>; above it page caches recycle their oldest pages instead of growing, nothing fails). Per connection: the page cache as sampled the last time the connection came back to its pool. Each connection owns a private cache of up to <code>cache_size</code>, and in WAL mode a reader drops the whole cache when it starts a read after a commit, so on a busy node these numbers swing. A low hit % on a reader means the private cache rarely serves a page twice and the kernel's page cache would have served the read just as well. Memory SQLite frees stays with glibc until the daemon's periodic <code>malloc_trim</code> returns it; <a href="/debug/malloc">/debug/malloc</a> shows that side.</div>
+<table>
+<thead><tr><th class="num">heap used</th><th class="num">peak</th><th class="num">soft limit</th></tr></thead>
+<tbody><tr><td class="num">{{fmtMB .Memory.UsedMB}}</td><td class="num">{{fmtMB .Memory.HighwaterMB}}</td><td class="num">{{if .Memory.SoftLimitMB}}{{fmtMB .Memory.SoftLimitMB}}{{else}}off{{end}}</td></tr></tbody>
+</table>
+{{if .Memory.Conns}}
+<table>
+<thead><tr><th>conn</th><th class="num">page cache</th><th class="num">hits</th><th class="num">misses</th><th class="num">hit %</th><th>sampled</th></tr></thead>
+<tbody>
+{{range .Memory.Conns}}
+<tr><td>{{.Role}}</td><td class="num">{{fmtMB .CacheMB}}</td><td class="num">{{.Hits}}</td><td class="num">{{.Misses}}</td><td class="num">{{fmtPct .HitPct}}</td><td>{{.Sampled}}</td></tr>
+{{end}}
+</tbody>
+</table>
+{{end}}
 
 <h2>Currently in flight</h2>
 <div class="subtitle">Write transactions that have successfully passed <code>BEGIN IMMEDIATE</code> and are running their user fn (between <code>BEGIN</code> and <code>COMMIT</code>/<code>ROLLBACK</code>). These hold the writer mutex right now.</div>
