@@ -118,6 +118,8 @@ func initHTTP(
 		router.HandleFunc("POST /ipfs/file-upload", ipfsHandler.UploadFile)
 		router.HandleFunc("POST /ipfs/{cid}", ipfsHandler.PutBlob)
 		router.HandleFunc("GET /ipfs/{cid}", ipfsGetHandler(ipfsHandler.GetFile, makeBlobDAGJSONHandler(ipfsHandler)))
+		// A path inside a UnixFS directory (document apps are folders with an index.html).
+		router.HandleFunc("GET /ipfs/{cid}/{path...}", ipfsHandler.GetFile)
 
 		loopback := router.With(loopbackOnly)
 		loopback.HandleNav("GET /debug/metrics", promhttp.Handler())
@@ -404,8 +406,10 @@ func browserGateMiddleware(secret string, allowedOrigin func(string) bool, authe
 			}
 
 			if browser && !appAuthenticated && !bearerAuthenticated {
+				// Content-addressed reads are public: a bare blob, and a path inside a UnixFS
+				// directory, which names content just as precisely as the directory's CID does.
 				cidPath, ipfsPath := strings.CutPrefix(r.URL.Path, "/ipfs/")
-				publicIPFS := r.Method == http.MethodGet && ipfsPath && cidPath != "" && !strings.Contains(cidPath, "/")
+				publicIPFS := r.Method == http.MethodGet && ipfsPath && cidPath != "" && !strings.HasPrefix(cidPath, "/")
 
 				public := r.Method == http.MethodGet && (r.URL.Path == "/hm/api/config" || r.URL.Path == "/debug/version")
 				if !public && !publicIPFS {

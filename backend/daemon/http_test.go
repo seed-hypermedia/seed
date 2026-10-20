@@ -286,7 +286,9 @@ func TestHTTPBrowserGate(t *testing.T) {
 		{name: "put blob", path: "/ipfs/bafytest", site: "cross-site", status: 403},
 		{name: "vault", path: "/vault-connect", site: "cross-site", status: 403},
 		{name: "config post", path: "/hm/api/config", site: "cross-site", status: 403},
-		{name: "ipfs prefix is not public", method: "GET", path: "/ipfs/bafytest/extra", site: "cross-site", status: 403},
+		{name: "public directory entry", method: "GET", path: "/ipfs/bafytest/index.html", site: "cross-site", status: 200},
+		{name: "ipfs prefix alone is not public", method: "GET", path: "/ipfs/", site: "cross-site", status: 403},
+		{name: "ipfs prefix with empty cid is not public", method: "GET", path: "/ipfs//index.html", site: "cross-site", status: 403},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
