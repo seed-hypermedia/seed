@@ -355,6 +355,170 @@ main {
   font-size: 13px;
 }
 
+/* view switch */
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.segmented button {
+  border: 0;
+  border-radius: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.segmented button + button {
+  border-left: 1px solid var(--line);
+}
+.segmented button.active {
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+/* authority view */
+.key-chip.small {
+  padding: 3px 8px;
+  font-size: 12px;
+}
+.flow-labels,
+.flow {
+  display: grid;
+  grid-template-columns: 1fr 20px minmax(180px, 1.4fr) 20px 1fr 90px;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+}
+.flow-labels {
+  padding-bottom: 2px;
+  font: 500 11px var(--mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.flow-labels span:nth-child(2) {
+  grid-column: 3;
+}
+.flow-labels span:nth-child(3) {
+  grid-column: 5;
+}
+.flow {
+  border-top: 1px solid var(--line);
+}
+.flow .arrow {
+  color: var(--muted);
+  text-align: center;
+}
+.flow.revoked .ticket,
+.flow.invalid .ticket {
+  opacity: 0.55;
+}
+.ticket {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border-color: var(--orange);
+  background: #211c12;
+}
+.ticket svg {
+  width: 16px;
+  height: 16px;
+  color: var(--orange);
+  flex: none;
+}
+.ticket b {
+  display: block;
+  font: 600 12px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ticket small {
+  color: var(--muted);
+  font: 11px var(--mono);
+}
+.ticket.role-admin {
+  border-color: var(--accent);
+  background: #1a2213;
+}
+.ticket.role-admin svg {
+  color: var(--accent);
+}
+.ticket.is-selected,
+.rev-mark.is-selected {
+  outline: 2px solid var(--accent);
+}
+.rev-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  font-size: 11px;
+  color: var(--red);
+  border-color: var(--red);
+  margin: 0;
+}
+.rev-mark svg {
+  width: 12px;
+  height: 12px;
+}
+.zone-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+
+/* placement view */
+.tree {
+  padding: 4px 0;
+}
+.children {
+  margin-left: 22px;
+  padding-left: 12px;
+  border-left: 1px dashed var(--line);
+}
+.tree-node {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  margin: 4px 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  font-size: 13px;
+}
+.tree-node.is-selected {
+  border-color: var(--accent);
+}
+.tree-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  font: 14px var(--sans);
+}
+.tree-main svg {
+  width: 18px;
+  height: 18px;
+  color: var(--cyan);
+}
+.tree-main code {
+  color: var(--muted);
+}
+.tree-actions {
+  margin-left: auto;
+}
+
 /* details */
 .eyebrow {
   font: 500 11px var(--mono);
@@ -541,5 +705,12 @@ dialog::backdrop {
   }
   .blob-row code {
     display: none;
+  }
+  .flow-labels,
+  .flow .arrow {
+    display: none;
+  }
+  .flow {
+    grid-template-columns: 1fr;
   }
 }

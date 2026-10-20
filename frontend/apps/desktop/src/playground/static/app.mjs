@@ -12,6 +12,8 @@ const SELECTION_TYPES = ['key', 'resource', 'grant', 'statement', 'change', 'rev
 
 let snap = null
 let selection = {type: 'resource', id: 'lab'}
+let view = 'blobs'
+const VIEWS = ['blobs', 'authority', 'placement']
 let busy = false
 const pendingControls = {}
 
@@ -130,80 +132,175 @@ const isSel = (type, id) => (selection.type === type && selection.id === id ? ' 
 
 function renderWorld() {
   const s = state()
+  document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === view))
+  $('keys').innerHTML = s.keys.map((k) => keyChip(k.id)).join('')
+  $('resources').innerHTML =
+    view === 'authority' ? authorityHTML() : view === 'placement' ? placementHTML() : blobsHTML()
+  bindSelections($('keys'))
+  bindSelections($('resources'))
+  const bind = (attr, fn) =>
+    $('resources')
+      .querySelectorAll(`[data-${attr}]`)
+      .forEach((b) => (b.onclick = () => fn(b.dataset[attr.replace(/-(\w)/g, (_, c) => c.toUpperCase())])))
+  bind('add-grant', (id) => openEditor('capability', {resource: id}))
+  bind('add-child', (id) => openEditor('resource', {parent: id, owner: res(id)?.owner}))
+  bind('add-statement', (id) => openEditor('statement', {resource: id}))
+}
+
+const keyChip = (id, small = false) =>
+  `<button class="key-chip${small ? ' small' : ''}${isSel('key', id)}" data-select="key:${esc(id)}">${entityIcon(
+    'key',
+  )}${esc(name(id))}</button>`
+
+function resourceHead(r) {
+  return `<button class="resource-head" data-select="resource:${esc(r.id)}">${entityIcon('resource')}<b>${esc(
+    r.name,
+  )}</b><code>${esc(derived().resources[r.id]?.path || r.cid)}</code><span class="muted">owner ${esc(
+    name(r.owner),
+  )}</span><span class="tag${r.public ? ' public' : ''}">${r.public ? 'PUBLIC' : 'PRIVATE'}</span></button>`
+}
+
+/** Blobs: every record on each resource, flat, with the status the API derived. */
+function blobsHTML() {
+  const s = state()
   const d = derived()
-  $('keys').innerHTML = s.keys
-    .map(
-      (k) =>
-        `<button class="key-chip${isSel('key', k.id)}" data-select="key:${esc(k.id)}">${entityIcon('key')}${esc(
-          k.name,
-        )}</button>`,
-    )
-    .join('')
   const row = (type, id, label, detail, status, cls = '', dim = false) =>
     `<button class="blob-row${isSel(type, id)}${dim ? ' dim' : ''}" data-select="${type}:${esc(id)}">${entityIcon(
       type,
     )}<code>${esc(id)}</code><span>${label}${
       detail ? ` <span class="muted">${detail}</span>` : ''
     }</span><span class="status ${cls}">${esc(status)}</span></button>`
-  $('resources').innerHTML = s.resources
+  return s.resources
     .map((r) => {
-      const grants = s.grants.filter((g) => g.resource === r.id)
-      const statements = s.statements.filter((v) => v.resource === r.id)
-      const revocations = s.revocations.filter((v) => v.resource === r.id)
-      const changes = s.changes.filter((c) => c.resource === r.id)
       const rows = [
-        ...grants.map((g) => {
-          const st = grantStatus(g.id)
-          return row(
-            'grant',
-            g.id,
-            `${esc(g.role)} for <b>${esc(name(g.to))}</b>`,
-            `issued by ${esc(name(g.from))}${g.proof ? '' : ', root anchor'}`,
-            st,
-            st === 'valid' ? 'good' : st === 'revoked' ? 'bad' : 'warn',
-            st !== 'valid',
-          )
-        }),
-        ...revocations.map((v) =>
-          row(
-            'revocation',
-            v.id,
-            `revokes <b>${esc(v.target)}</b>`,
-            `signed by ${esc(name(v.author))}`,
-            d.revocations[v.id]?.valid ? 'valid' : 'invalid',
-            d.revocations[v.id]?.valid ? 'good' : 'warn',
+        ...s.grants
+          .filter((g) => g.resource === r.id)
+          .map((g) => {
+            const st = grantStatus(g.id)
+            return row(
+              'grant',
+              g.id,
+              `${esc(g.role)} for <b>${esc(name(g.to))}</b>`,
+              `issued by ${esc(name(g.from))}${g.proof ? '' : ', root anchor'}`,
+              st,
+              st === 'valid' ? 'good' : st === 'revoked' ? 'bad' : 'warn',
+              st !== 'valid',
+            )
+          }),
+        ...s.revocations
+          .filter((v) => v.resource === r.id)
+          .map((v) =>
+            row(
+              'revocation',
+              v.id,
+              `revokes <b>${esc(v.target)}</b>`,
+              `signed by ${esc(name(v.author))}`,
+              d.revocations[v.id]?.valid ? 'valid' : 'invalid',
+              d.revocations[v.id]?.valid ? 'good' : 'warn',
+            ),
           ),
-        ),
-        ...statements.map((v) => {
-          const st = d.statements[v.id]?.status || 'INELIGIBLE'
-          return row(
-            'statement',
-            v.id,
-            `${esc(v.kind)} <b>${esc(v.text ?? (v.target ? '→ ' + resourceName(v.target) : ''))}</b>`,
-            `by ${esc(name(v.author))}, seq ${v.seq}`,
-            st.toLowerCase(),
-            st === 'SELECTED' ? 'good' : st === 'OLDER' ? '' : 'warn',
-            st !== 'SELECTED',
-          )
-        }),
-        ...changes.map((c) =>
-          row('change', c.id, `change with ${c.ops.length} ops`, `by ${esc(name(c.author))}`, 'retained'),
-        ),
+        ...s.statements
+          .filter((v) => v.resource === r.id)
+          .map((v) => {
+            const st = d.statements[v.id]?.status || 'INELIGIBLE'
+            return row(
+              'statement',
+              v.id,
+              `${esc(v.kind)} <b>${esc(v.text ?? (v.target ? '→ ' + resourceName(v.target) : ''))}</b>`,
+              `by ${esc(name(v.author))}, seq ${v.seq}`,
+              st.toLowerCase(),
+              st === 'SELECTED' ? 'good' : st === 'OLDER' ? '' : 'warn',
+              st !== 'SELECTED',
+            )
+          }),
+        ...s.changes
+          .filter((c) => c.resource === r.id)
+          .map((c) => row('change', c.id, `change with ${c.ops.length} ops`, `by ${esc(name(c.author))}`, 'retained')),
       ]
-      return `<section class="resource${isSel(
-        'resource',
-        r.id,
-      )}"><button class="resource-head" data-select="resource:${esc(r.id)}">${entityIcon('resource')}<b>${esc(
-        r.name,
-      )}</b><code>${esc(d.resources[r.id]?.path || r.cid)}</code><span class="muted">owner ${esc(
-        name(r.owner),
-      )}</span><span class="tag${r.public ? ' public' : ''}">${r.public ? 'PUBLIC' : 'PRIVATE'}</span></button>${
+      return `<section class="resource${isSel('resource', r.id)}">${resourceHead(r)}${
         rows.join('') || '<p class="empty">No blobs on this resource.</p>'
       }</section>`
     })
     .join('')
-  bindSelections($('keys'))
-  bindSelections($('resources'))
+}
+
+/** Authority: each grant drawn as issuer, capability, recipient inside its exact resource. */
+function authorityHTML() {
+  const s = state()
+  const d = derived()
+  return s.resources
+    .map((r) => {
+      const revs = s.revocations.filter((v) => v.resource === r.id)
+      const flows = s.grants
+        .filter((g) => g.resource === r.id)
+        .map((g) => {
+          const st = grantStatus(g.id)
+          const rev = revs.find((v) => v.target === g.id && d.revocations[v.id]?.valid)
+          return `<div class="flow ${st}">${keyChip(
+            g.from,
+            true,
+          )}<span class="arrow">→</span><button class="ticket role-${g.role}${isSel(
+            'grant',
+            g.id,
+          )}" data-select="grant:${esc(g.id)}">${entityIcon('grant')}<span><b>${esc(g.role)}</b><small>${esc(
+            g.id,
+          )} · ${st}${
+            g.proof ? ' · proof ' + esc(g.proof) : ' · root anchor'
+          }</small></span></button><span class="arrow">→</span>${keyChip(g.to, true)}${
+            rev
+              ? `<button class="rev-mark${isSel('revocation', rev.id)}" data-select="revocation:${esc(
+                  rev.id,
+                )}">${entityIcon('revocation')}${esc(rev.id)}</button>`
+              : '<span></span>'
+          }</div>`
+        })
+        .join('')
+      return `<section class="resource zone${isSel('resource', r.id)}">${resourceHead(
+        r,
+      )}<div class="flow-labels"><span>Issuer</span><span>Capability</span><span>Recipient</span></div>${
+        flows || '<p class="empty">No grants on this resource.</p>'
+      }<div class="zone-foot"><button data-add-grant="${esc(r.id)}">+ Grant on ${esc(
+        r.name,
+      )}</button><span class="muted">A grant here covers only ${esc(
+        r.name,
+      )}, never its children.</span></div></section>`
+    })
+    .join('')
+}
+
+/** Placement: the folder tree. Nesting is placement only and grants nothing. */
+function placementHTML() {
+  const s = state()
+  const d = derived()
+  const node = (r) => {
+    const sel = d.resources[r.id]?.selected
+    const v = sel ? statementOf(sel) : null
+    const children = s.resources.filter((c) => c.parent === r.id)
+    return `<div class="branch"><div class="tree-node${isSel(
+      'resource',
+      r.id,
+    )}"><button class="tree-main" data-select="resource:${esc(r.id)}">${entityIcon('resource')}<b>${esc(
+      r.name,
+    )}</b><code>${r.segment ? esc(r.segment) : 'no name, by CID'}</code></button><span class="muted">owner ${esc(
+      name(r.owner),
+    )} · ${r.public ? 'public' : 'private'}</span>${
+      v
+        ? `<button class="inline" data-select="statement:${esc(v.id)}">${esc(v.id)}: ${esc(v.kind)} ${esc(
+            v.text ?? '',
+          )}</button>`
+        : '<span class="warn">no authorized statement</span>'
+    }<span class="tree-actions"><button class="inline" data-add-child="${esc(
+      r.id,
+    )}">+ Child</button><button class="inline" data-add-statement="${esc(r.id)}">+ Statement</button></span></div>${
+      children.length ? `<div class="children">${children.map(node).join('')}</div>` : ''
+    }</div>`
+  }
+  const roots = s.resources.filter((r) => !r.parent || !res(r.parent))
+  return `<div class="tree">${roots
+    .map(node)
+    .join(
+      '',
+    )}</div><p class="empty">Edit a resource to move it under another parent or rename its path segment. A grant on a parent never reaches a child.</p>`
 }
 
 const kv = (a, b) => `<div class="kv"><span>${a}</span><b>${b}</b></div>`
@@ -445,6 +542,12 @@ async function runAll() {
 
 // ---- controls ----
 
+document.querySelectorAll('[data-view]').forEach((b) => {
+  b.onclick = () => {
+    view = b.dataset.view
+    render()
+  }
+})
 $('preset').onchange = () => {
   const id = $('preset').value
   if (id) api({type: 'loadScenario', id})
@@ -506,6 +609,7 @@ function saveUI() {
       UI_KEY,
       JSON.stringify({
         selection,
+        view,
         controls: {'sync-key': $('sync-key').value, 'sync-resource': $('sync-resource').value},
       }),
     )
@@ -524,6 +628,7 @@ function restoreUI() {
   if (!ui || typeof ui !== 'object') return
   if (ui.selection && SELECTION_TYPES.includes(ui.selection.type) && typeof ui.selection.id === 'string')
     selection = ui.selection
+  if (VIEWS.includes(ui.view)) view = ui.view
   if (ui.controls && typeof ui.controls === 'object')
     for (const [id, value] of Object.entries(ui.controls))
       if (['sync-key', 'sync-resource'].includes(id) && typeof value === 'string') pendingControls[id] = value
