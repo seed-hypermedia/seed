@@ -59,6 +59,7 @@ export function UserToolPalette({
         codeExec: health.data.codeExec,
         codeExecReason: health.data.codeExecReason,
         codeExecReasonCode: health.data.codeExecReasonCode,
+        convert: health.data.convert,
       }
     : undefined
   const callables = agentToolsLoading

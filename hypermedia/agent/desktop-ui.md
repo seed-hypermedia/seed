@@ -53,9 +53,10 @@ Four toggle rows configure the [grant](./grants.md) set. The verbs and authored 
 | Search Seed content | `search` <!-- id:Ux1B0Wz1 --> |
 | Search the web | `web_search` <!-- id:FxqkDPcL --> |
 | Execute code | `execute` <!-- id:SvNchL3a --> |
+| Import documents | `convert`: Datalab conversion of PDFs, office files, EPUBs and images in memory |
 | Publish Seed content | `publish`: signed public documents, comments, and IPFS uploads; private memory is always writable <!-- id:cWfzCnfP --> |
 
-Toggles autosave. Stored definitions are normalized on read (`execute_code` becomes `execute`, the old write-group names become `publish`, names absorbed into verbs are dropped), so the tab shows what the server acts on. Availability comes from the server's health response: `web_search` greys out when no search backend is configured, `execute` when the server reports `codeExec: false`, with targeted help when the cause is fixable locally. Each row's info button opens the exact model-facing description and schemas from the shared registry. The `query` and `attributes` callables have no toggle. See the [roadmap](./roadmap.md). <!-- id:U5HeS5l- -->
+Toggles autosave. Stored definitions are normalized on read (`execute_code` becomes `execute`, the old write-group names become `publish`, names absorbed into verbs are dropped), so the tab shows what the server acts on. Availability comes from the server's health response: `web_search` greys out when no search backend is configured, `execute` when the server reports `codeExec: false`, with targeted help when the cause is fixable locally, `convert` when `convert.available` is false (no key and no relay). Each row's info button opens the exact model-facing description and schemas from the shared registry. The `query` and `attributes` callables have no toggle. See the [roadmap](./roadmap.md). <!-- id:U5HeS5l- -->
 
 With Publish enabled the row expands with **Author as**: the signing identities the agent may sign with, each with its profile icon and name, plus **Grant** (an existing server identity) and **New Account** (generates a key, publishes its [profile](../profile.md), and creates a [home document](../protocol/documents.md) saying it is an agentic account). Identity management is owner-only, enforced by the server as well as hidden in the UI. <!-- id:XKd1IVKy -->
 

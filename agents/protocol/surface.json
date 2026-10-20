@@ -70,6 +70,17 @@
         "uploadId": "string"
       }
     },
+    "ConvertDocument": {
+      "fields": {
+        "_": "\"ConvertDocument\"",
+        "clientRequestId?": "string",
+        "content": "Uint8Array<ArrayBufferLike>",
+        "fileName": "string",
+        "maxPages?": "number",
+        "mode?": "\"accurate\" | \"balanced\" | \"fast\"",
+        "pageRange?": "string"
+      }
+    },
     "CreateAgent": {
       "fields": {
         "_": "\"CreateAgent\"",
@@ -176,6 +187,12 @@
       "fields": {
         "_": "\"GetAgentTrigger\"",
         "triggerId": "string"
+      }
+    },
+    "GetConversion": {
+      "fields": {
+        "_": "\"GetConversion\"",
+        "jobId": "string"
       }
     },
     "GetProviderOAuthStatus": {
@@ -552,6 +569,13 @@
         "entry?": "AgentMemoryEntry"
       }
     },
+    "ConvertDocumentResponse": {
+      "fields": {
+        "_": "\"ConvertDocumentResponse\"",
+        "jobId": "string",
+        "reservedPages": "number"
+      }
+    },
     "CreateAgentResponse": {
       "fields": {
         "_": "\"CreateAgentResponse\"",
@@ -666,6 +690,20 @@
         "sessions": "SessionInfo[]",
         "trigger": "AgentTriggerInfo",
         "webhookSecret?": "string"
+      }
+    },
+    "GetConversionResponse": {
+      "fields": {
+        "_": "\"GetConversionResponse\"",
+        "costCents?": "number",
+        "droppedImages?": "string[]",
+        "error?": "string",
+        "images?": "ConversionImage[]",
+        "jobId": "string",
+        "markdown?": "string",
+        "pageCount?": "number",
+        "parseQualityScore?": "number",
+        "status": "\"complete\" | \"failed\" | \"processing\""
       }
     },
     "GetRunJournalResponse": {
@@ -1309,6 +1347,12 @@
             "type": "\"webhook\""
           }
         }
+      }
+    },
+    "ConversionImage": {
+      "fields": {
+        "content": "Uint8Array<ArrayBufferLike>",
+        "name": "string"
       }
     },
     "FileUploadTarget": {
