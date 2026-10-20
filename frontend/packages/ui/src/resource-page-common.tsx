@@ -3106,11 +3106,15 @@ function DocumentBody({
             header={activityPanelHeader}
           >
             {panelRoute?.key === 'feed' ? (
-              <ActivityContent
-                spaceId={hmId(panelRoute.id?.uid ?? docId.uid)}
-                tab={panelRoute.tab}
-                targetDomain={siteUrl}
-              />
+              // The feed fills its parent's height and clips the rest. A parent without a fixed height lets it grow,
+              // so the sheet scrolls it.
+              <div>
+                <ActivityContent
+                  spaceId={hmId(panelRoute.id?.uid ?? docId.uid)}
+                  tab={panelRoute.tab}
+                  targetDomain={siteUrl}
+                />
+              </div>
             ) : (
               <DiscussionsPageContent
                 docId={commentsPanelTarget.docId}

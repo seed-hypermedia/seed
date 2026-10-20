@@ -21,7 +21,7 @@ import {
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import merge from 'lodash/merge'
 import {CircleAlert, FilePen, Link, Merge, RotateCcw, Trash2, X} from 'lucide-react'
-import {Fragment, useEffect, useMemo, useRef, useState} from 'react'
+import {type ComponentType, Fragment, useEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
 import {AccountAvatar} from './account-avatar'
 import {Button} from './button'
@@ -159,6 +159,7 @@ export function Feed({
   draftVersionEntry,
   targetBlockId,
   routeForEvent,
+  EventCard,
 }: {
   size?: 'sm' | 'md'
   filterResource: HMListEventsParams['filterResource']
@@ -168,6 +169,7 @@ export function Feed({
   draftVersionEntry?: DraftVersionEntry
   targetBlockId?: string
   routeForEvent?: (event: LoadedEvent) => NavRoute | null
+  EventCard?: ComponentType<{event: LoadedEvent; route: NavRoute | null}>
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
@@ -288,9 +290,11 @@ export function Feed({
 
   return (
     <SelectionContent>
-      <div>
+      <div className={EventCard ? 'flex flex-col gap-2 p-3' : undefined}>
         {allEvents.map((e, index) => {
           const route = routeForEvent ? routeForEvent(e) : getEventRoute(e)
+
+          if (EventCard) return <EventCard key={`row-${e.type}-${e.id}-${e.time}`} event={e} route={route} />
 
           if (e.type == 'comment' && e.replyingComment) {
             return (

@@ -5,6 +5,7 @@ import {useNavigate, useNavigationDispatch, useNavigationState} from '@shm/share
 import {AtSign, Clock, Maximize2, Minimize2, X} from 'lucide-react'
 import {type ComponentType, createContext, useCallback, useContext} from 'react'
 import {Button} from './button'
+import {ActivityEventCard, ALL_UPDATES_EVENT_TYPES} from './activity-event-card'
 import {Feed, getActivityEventRoute} from './feed'
 import {Text} from './text'
 import {Tooltip} from './tooltip'
@@ -107,9 +108,11 @@ export function ActivityContent({
   return (
     <Feed
       filterResource={`${spaceId.id}*`}
+      filterEventType={ALL_UPDATES_EVENT_TYPES}
       targetDomain={targetDomain}
       size={size}
       routeForEvent={getActivityEventRoute}
+      EventCard={ActivityEventCard}
     />
   )
 }
