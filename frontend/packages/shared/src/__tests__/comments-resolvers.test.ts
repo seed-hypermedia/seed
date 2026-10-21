@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {createDiscussionsResolver} from '../models/comments-resolvers'
+import {createCommentsByReferenceResolver, createDiscussionsResolver} from '../models/comments-resolvers'
 import {hmId} from '../utils/entity-id-url'
 
 const targetDocId = hmId('z6MkTargetAccount', {path: ['notes', 'layout-problems']})
@@ -156,5 +156,88 @@ describe('createDiscussionsResolver', () => {
 
     expect(result.discussions).toEqual([])
     expect(result.citingDiscussions).toEqual([])
+  })
+})
+
+describe('block discussion references', () => {
+  const blockId = 'selected'
+  const referencedComment = (id: string, fragment: string) =>
+    makeComment({
+      id,
+      targetAccount: targetDocId.uid,
+      targetPath: '/notes/layout-problems',
+      content: [
+        {block: {id: 'quote', type: 'Embed', link: targetDocId.id + '#' + fragment, attributes: {view: 'Content'}}},
+      ],
+    })
+
+  it('includes whole-block and any fragment references even when citations are absent', async () => {
+    const whole = referencedComment('author/whole', blockId)
+    const fragment = referencedComment('author/fragment', blockId + '[79:93]')
+    const otherFragment = referencedComment('author/other-range', blockId + '[0:5]')
+    const unrelated = referencedComment('author/unrelated', 'another-block')
+    const client = makeGrpcClient({
+      listComments: vi.fn().mockResolvedValue({comments: [whole, fragment, otherFragment, unrelated]}),
+    })
+    const result = await createCommentsByReferenceResolver(client)(
+      {...targetDocId, blockRef: blockId, blockRange: {start: 79, end: 93}},
+      blockId,
+    )
+    expect(result.comments.map((c) => c.id)).toEqual([whole.id, fragment.id, otherFragment.id])
+  })
+
+  it('reads later pages and finds nested inline references without matching another document', async () => {
+    const matching = makeComment({
+      id: 'author/inline',
+      content: [
+        {
+          block: {id: 'parent', type: 'Paragraph', text: 'Parent'},
+          children: [
+            {
+              block: {
+                id: 'child',
+                type: 'Paragraph',
+                text: 'reference',
+                annotations: [{type: 'Link', link: targetDocId.id + '#selected[2:6]', starts: [0], ends: [9]}],
+              },
+            },
+          ],
+        },
+      ],
+    })
+    const otherDocument = makeComment({
+      id: 'author/other-document',
+      content: [{block: {id: 'quote', type: 'Embed', link: citingDocId.id + '#selected'}}],
+    })
+    const client = makeGrpcClient({
+      listComments: vi
+        .fn()
+        .mockImplementation(async ({pageToken}) =>
+          pageToken
+            ? {comments: [matching], nextPageToken: ''}
+            : {comments: [otherDocument], nextPageToken: 'page-two'},
+        ),
+    })
+    const result = await createCommentsByReferenceResolver(client)(targetDocId, blockId)
+    expect(result.comments.map((c) => c.id)).toEqual([matching.id])
+  })
+
+  it('keeps available comments when another citation is unavailable and removes duplicate citations', async () => {
+    const comment = referencedComment('author/available', blockId)
+    const client = makeGrpcClient({
+      listCitations: vi.fn().mockResolvedValue({
+        citations: [
+          {source: 'hm://author/missing', sourceType: 'Comment', targetFragment: blockId},
+          {source: 'hm://author/available', sourceType: 'Comment', targetFragment: blockId + '[0:5]'},
+          {source: 'hm://author/available', sourceType: 'Comment', targetFragment: blockId},
+        ],
+      }),
+      getComment: vi.fn().mockImplementation(async ({id}) => {
+        if (id === comment.id) return comment
+        throw new Error('not found')
+      }),
+    })
+    const result = await createCommentsByReferenceResolver(client)(targetDocId, blockId)
+    expect(result.comments.map((c) => c.id)).toEqual([comment.id])
   })
 })

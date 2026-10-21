@@ -13,7 +13,6 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   abbreviateUid,
-  formattedDateMedium,
   getRoutePanel,
   getCommentTargetId,
   getDocumentTitle,
@@ -33,13 +32,12 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {AlertCircle, FileSymlink as FileSymlinkIcon, FileText as FileTextIcon, Globe, Undo2} from 'lucide-react'
 import React, {ReactNode, useCallback, useMemo, useState} from 'react'
 import {toast} from 'sonner'
-import {getBlockNodeById} from './blocks-content-utils'
+import {getBlockFragment, getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
 import {CommentContent, Discussions} from './comments'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
-import {EmbedWrapper, getEmbedDocumentRoute} from './embed-wrapper'
-import {AccountAvatar} from './account-avatar'
-import {DocumentNameLink} from './inline-descriptor'
+import {EmbedWrapper, FragmentEmbedControls, getEmbedDocumentRoute} from './embed-wrapper'
+import {HMIcon} from './hm-icon'
 import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -513,6 +511,7 @@ export function BlockEmbedContent({
 
     const commentContent = (
       <BlockEmbedContentComment
+        key={block.link}
         parentBlockId={parentBlockId}
         depth={depth}
         block={block}
@@ -534,6 +533,7 @@ export function BlockEmbedContent({
 
   const embedContent = (
     <BlockEmbedContentDocument
+      key={block.link}
       id={id}
       depth={depth}
       viewType={block.attributes?.view}
@@ -621,9 +621,7 @@ export function BlockEmbedContentComment({
   depth,
   comment,
   author,
-  isAuthorLoading = false,
   block,
-  targetResource,
   openOnClick = true,
   isStaleVersion = false,
 }: {
@@ -642,10 +640,34 @@ export function BlockEmbedContentComment({
   const currentRoute = useNavRoute()
   const targetDocId = getCommentTargetId(comment)
   const activePanel = getRoutePanel(currentRoute) as DocumentPanelRoute | null
+  const [fragmentExpanded, setFragmentExpanded] = useState(false)
+  const fragment = useMemo(() => {
+    const selectedBlock = id.blockRef ? getBlockNodeById(comment.content, id.blockRef) : null
+    return selectedBlock ? getBlockFragment(selectedBlock, id.blockRange) : null
+  }, [comment.content, id.blockRef, id.blockRange])
+  const collapsed = !!fragment && !fragmentExpanded
+  const displayedComment = useMemo(
+    () => (collapsed ? {...comment, content: [fragment!]} : comment),
+    [collapsed, comment, fragment],
+  )
 
   const route = useMemo(() => {
     if (!targetDocId) return undefined
 
+    if (id.blockRef && typeof id.blockRange?.start === 'number' && typeof id.blockRange?.end === 'number') {
+      return {
+        key: 'comments' as const,
+        id: {...targetDocId, blockRef: id.blockRef, blockRange: id.blockRange},
+        openComment: comment.id,
+        openCommentVersion: id.version || comment.version,
+        blockId: id.blockRef,
+        blockRange: id.blockRange,
+        panel:
+          activePanel?.key === 'activity' || activePanel?.key === 'collaborators' || activePanel?.key === 'directory'
+            ? activePanel
+            : undefined,
+      }
+    }
     if (activePanel) {
       return {
         key: 'document' as const,
@@ -658,9 +680,50 @@ export function BlockEmbedContentComment({
       id: targetDocId,
       openComment: comment.id,
     }
-  }, [targetDocId, activePanel, comment.id])
+  }, [targetDocId, activePanel, comment.id, comment.version, id])
 
-  return (
+  const content = (
+    <CommentContent
+      comment={displayedComment}
+      resourceId={id}
+      zoomBlockRef={fragment && fragmentExpanded ? undefined : id.blockRef}
+      selection={
+        fragment && fragmentExpanded && id.blockRef
+          ? {blockId: id.blockRef, blockRange: id.blockRange || undefined}
+          : undefined
+      }
+      allowHighlight={false}
+      openOnClick={openOnClick}
+    />
+  )
+  const authorName = author?.metadata?.name || abbreviateUid(comment.author) || '?'
+  const nameCharacters = Array.from(authorName)
+  const identity = (
+    <span
+      className={cn(
+        'inline-flex items-center align-baseline font-sans font-medium',
+        collapsed ? 'gap-0.5 text-xs' : 'gap-1 text-sm',
+      )}
+    >
+      <HMIcon
+        id={author?.id || hmId(comment.author)}
+        name={authorName}
+        icon={author?.metadata?.icon}
+        size={collapsed ? 14 : 18}
+      />
+      <Tooltip content={authorName} asChild>
+        <span tabIndex={0}>{nameCharacters.length > 20 ? nameCharacters.slice(0, 20).join('') + '…' : authorName}</span>
+      </Tooltip>
+      {isStaleVersion ? (
+        <Tooltip content="This comment has been edited since it was embedded." asChild>
+          <span tabIndex={0} aria-label="Older comment version">
+            <AlertCircle className="size-3" />
+          </span>
+        </Tooltip>
+      ) : null}
+    </span>
+  )
+  const embed = (
     <EmbedWrapper
       viewType={block.attributes?.view}
       depth={depth || 0}
@@ -669,76 +732,28 @@ export function BlockEmbedContentComment({
       openOnClick={openOnClick}
       route={route}
     >
-      <CommentEmbedHeader
-        comment={comment}
-        author={author}
-        isAuthorLoading={isAuthorLoading}
-        targetResource={targetResource}
-        isStaleVersion={isStaleVersion}
-      />
-      <CommentContent
-        comment={comment}
-        resourceId={id}
-        zoomBlockRef={id.blockRef}
-        allowHighlight={false}
-        openOnClick={openOnClick}
-      />
+      <div
+        className={cn(
+          'embedded-source-content px-2',
+          fragment && 'pr-8',
+          collapsed ? 'comment-fragment-inline text-xs leading-5' : 'flex flex-col gap-1',
+        )}
+      >
+        {identity}
+        {collapsed ? ' ' : null}
+        {collapsed && fragment.block.type === 'Code' ? (
+          <code className="wrap-anywhere whitespace-pre-wrap">{fragment.block.text}</code>
+        ) : (
+          content
+        )}
+      </div>
     </EmbedWrapper>
   )
-}
-
-/** Header for embedded comment showing author info and target document link. */
-function CommentEmbedHeader({
-  comment,
-  author,
-  isAuthorLoading = false,
-  targetResource,
-  isStaleVersion = false,
-}: {
-  comment: HMComment
-  author: HMMetadataPayload | null | undefined
-  isAuthorLoading?: boolean
-  targetResource: HMResource | undefined
-  isStaleVersion?: boolean
-}) {
-  const authorName = author?.metadata?.name || abbreviateUid(comment.author) || '?'
-  const authorIcon = author?.metadata?.icon
+  if (!fragment) return embed
   return (
-    <div className="flex flex-col">
-      <div className="flex flex-wrap justify-between p-3 font-sans">
-        <div className="flex items-center gap-2">
-          <AccountAvatar size={24} id={author?.id || hmId(comment.author)} name={authorName} icon={authorIcon} />
-          <SizableText weight="bold">{authorName}</SizableText>
-          {isAuthorLoading && !author?.metadata?.name ? <Spinner size="small" /> : null}
-          {targetResource && targetResource.type === 'document' ? (
-            <>
-              {' on '}
-              <DocumentNameLink metadata={targetResource.document?.metadata} id={targetResource.id} />
-            </>
-          ) : null}
-        </div>
-        <div className="flex items-center gap-1.5">
-          {comment.createTime ? (
-            <SizableText size="sm" color="muted">
-              {formattedDateMedium(comment.createTime)}
-            </SizableText>
-          ) : null}
-          {JSON.stringify(comment.createTime) !== JSON.stringify(comment.updateTime) ? (
-            <SizableText size="xs" className="text-muted-foreground">
-              (edited)
-            </SizableText>
-          ) : null}
-        </div>
-      </div>
-      {isStaleVersion ? (
-        <div className="mx-3 mb-2 flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-2 py-1 dark:border-blue-600 dark:bg-blue-900/30">
-          <AlertCircle className="size-3 shrink-0 text-blue-600 dark:text-blue-400" />
-          <SizableText size="xs" className="font-sans text-blue-800 dark:text-blue-200">
-            This is an older version — the comment has been edited since it was embedded
-          </SizableText>
-        </div>
-      ) : null}
-    </div>
+    <FragmentEmbedControls expanded={fragmentExpanded} onExpandedChange={setFragmentExpanded} sourceLabel="comment">
+      {embed}
+    </FragmentEmbedControls>
   )
 }
 
@@ -780,6 +795,8 @@ function BlockEmbedContentDocument(props: {
   } = props
   const navigate = useNavigate()
 
+  const [fragmentExpanded, setFragmentExpanded] = useState(false)
+
   const blockRangeStart = props.blockRange && 'start' in props.blockRange ? props.blockRange.start : null
   const blockRangeEnd = props.blockRange && 'end' in props.blockRange ? props.blockRange.end : null
   const blockRangeExpanded = props.blockRange && 'expanded' in props.blockRange ? props.blockRange.expanded : false
@@ -816,6 +833,17 @@ function BlockEmbedContentDocument(props: {
     return res
   }, [props.blockRef, blockRangeStart, blockRangeEnd, blockRangeExpanded, document?.version])
 
+  const fragment = useMemo(() => {
+    const selectedBlock = props.blockRef ? embedData.data.embedBlocks?.[0] : null
+    return selectedBlock ? getBlockFragment(selectedBlock, props.blockRange) : null
+  }, [embedData, props.blockRef, props.blockRange])
+  const collapsed = !!fragment && !fragmentExpanded
+  const displayedBlocks = useMemo(
+    () => (collapsed ? [fragment!] : embedData.data.embedBlocks),
+    [collapsed, fragment, embedData],
+  )
+  const displayedRange = collapsed ? null : props.blockRange
+
   const embedOnBlockSelect = useCallback(
     (blockId: string, opts?: BlockRange & {copyToClipboard?: boolean}): boolean => {
       if (!openOnClick) return false
@@ -843,24 +871,24 @@ function BlockEmbedContentDocument(props: {
       content = (
         <>
           {props.renderDocumentContent({
-            embedBlocks: embedData.data.embedBlocks as HMBlockNode[],
+            embedBlocks: displayedBlocks as HMBlockNode[],
             document,
             id,
             rootChildrenType: props.blockRef ? 'Group' : document?.metadata?.childrenType,
-            blockRef: props.blockRef,
-            blockRange: props.blockRange ?? null,
+            blockRef: collapsed ? null : props.blockRef,
+            blockRange: displayedRange,
           })}
         </>
       )
     } else {
       content = (
         <EmbedContentFallback
-          embedBlocks={embedData.data.embedBlocks as HMBlockNode[]}
+          embedBlocks={displayedBlocks as HMBlockNode[]}
           document={document}
           id={id}
           blockId={blockId}
           blockRef={props.blockRef}
-          blockRange={props.blockRange ?? null}
+          blockRange={displayedRange}
           onCopyBlockLink={(bid) => {
             embedOnBlockSelect(bid, {copyToClipboard: true, start: 0, end: 0})
           }}
@@ -889,7 +917,7 @@ function BlockEmbedContentDocument(props: {
       </ErrorBlock>
     )
   }
-  return (
+  const embed = (
     <EmbedWrapper
       route={{key: 'document', id}}
       viewType={viewType}
@@ -899,8 +927,15 @@ function BlockEmbedContentDocument(props: {
       isRange={!!props.blockRange && ('start' in props.blockRange || 'end' in props.blockRange)}
       openOnClick={openOnClick}
     >
-      {content}
+      {fragment ? <div className="pr-8">{content}</div> : content}
     </EmbedWrapper>
+  )
+  if (!fragment) return embed
+
+  return (
+    <FragmentEmbedControls expanded={fragmentExpanded} onExpandedChange={setFragmentExpanded}>
+      {embed}
+    </FragmentEmbedControls>
   )
 }
 

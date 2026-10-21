@@ -124,10 +124,11 @@ export const MediaContainer = ({
   const [drag, setDrag] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isEmbed = ['embed', 'web-embed'].includes(mediaType)
-  // Card/Link embeds render a self-contained card with its own border+shadow,
-  // so the MediaContainer chrome frame (border + muted bg) would double up.
+  // Populated embeds provide their own card or quote styling. Keep the media
+  // frame for the empty input, without adding another border around the embed.
   const embedView = isEmbed ? (block.props as {view?: string}).view : undefined
-  const isSelfFramedEmbed = embedView === 'Card' || embedView === 'Link'
+  const isSelfFramedEmbed =
+    embedView === 'Card' || embedView === 'Link' || (mediaType === 'embed' && !!(block.props as {url?: string}).url)
   const {canEdit, isEditing, beginEditIfNeeded} = useEditorGate()
 
   const handleDragReplace = async (file: File) => {

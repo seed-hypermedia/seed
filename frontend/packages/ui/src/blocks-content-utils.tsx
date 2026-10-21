@@ -1,4 +1,5 @@
 import {
+  BlockRange,
   HMAccountsMetadata,
   HMBlockImage,
   HMBlockNode,
@@ -32,6 +33,39 @@ export function getBlockNodeById(blocks: Array<HMBlockNode>, blockId: string): H
     return false
   })
   return res || null
+}
+
+/** Extracts a text fragment using codepoint offsets, preserving intersecting annotations. */
+export function getBlockFragment(node: HMBlockNode, range: BlockRange | null): HMBlockNode | null {
+  const {block} = node
+  if (!range || !('start' in range) || !('end' in range)) return null
+  if (block.type !== 'Paragraph' && block.type !== 'Heading' && block.type !== 'Code') return null
+  const {start, end} = range
+  if (typeof start !== 'number' || typeof end !== 'number') return null
+  const characters = Array.from(block.text || '')
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end <= start || end > characters.length) {
+    return null
+  }
+  const text = characters.slice(start, end).join('')
+  if (block.type === 'Code') return {...node, block: {...block, text}, children: []}
+  const annotations = block.annotations?.flatMap((annotation) => {
+    const starts: number[] = []
+    const ends: number[] = []
+    annotation.starts.forEach((annotationStart, index) => {
+      const clippedStart = Math.max(start, annotationStart)
+      const clippedEnd = Math.min(end, annotation.ends[index]!)
+      if (clippedStart < clippedEnd) {
+        starts.push(clippedStart - start)
+        ends.push(clippedEnd - start)
+      }
+    })
+    return starts.length ? [{...annotation, starts, ends}] : []
+  })
+  return {
+    ...node,
+    block: {...block, text, annotations},
+    children: [],
+  }
 }
 
 /** Finds a block node by ID with support for undefined input. */

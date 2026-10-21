@@ -4,10 +4,13 @@ import {getRoutePanel, type DocumentPanelRoute, type DocumentRoute, type NavRout
 import {useRouteLink} from '@shm/shared/routing'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
-import {HTMLAttributes, MouseEvent, PropsWithChildren, useMemo} from 'react'
+import {HTMLAttributes, MouseEvent, PropsWithChildren, ReactNode, useMemo} from 'react'
 import {blockStyles} from './blocks-content-utils'
 import {useHighlighter} from './highlight-context'
 import {cn} from './utils'
+import {ChevronDown, ChevronUp} from 'lucide-react'
+import {Button} from './button'
+import {Tooltip} from './tooltip'
 
 function isInteractiveEmbedClickTarget(event: MouseEvent<HTMLElement>) {
   const target = event.target as HTMLElement | null
@@ -106,5 +109,47 @@ export function EmbedWrapper({
     >
       {children}
     </Wrapper>
+  )
+}
+
+/** Displays a fragment with a caret that expands its source in place. */
+export function FragmentEmbedControls({
+  expanded,
+  onExpandedChange,
+  children,
+  sourceLabel = 'block',
+}: {
+  expanded: boolean
+  onExpandedChange: (expanded: boolean) => void
+  children: ReactNode
+  sourceLabel?: 'block' | 'comment'
+}) {
+  const toggleLabel = expanded ? `Hide full ${sourceLabel}` : `Show full ${sourceLabel}`
+  const Caret = expanded ? ChevronUp : ChevronDown
+  return (
+    <div className="bg-muted/30 relative min-h-8 rounded-sm py-1">
+      {children}
+      <Tooltip content={toggleLabel} asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="iconSm"
+          className={cn(
+            'text-muted-foreground hover:text-foreground active:bg-accent absolute right-1 size-6',
+            expanded ? 'top-1' : 'top-1/2 -translate-y-1/2',
+          )}
+          aria-label={toggleLabel}
+          aria-expanded={expanded}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            onExpandedChange(!expanded)
+          }}
+        >
+          <Caret className="size-3" aria-hidden="true" />
+        </Button>
+      </Tooltip>
+    </div>
   )
 }

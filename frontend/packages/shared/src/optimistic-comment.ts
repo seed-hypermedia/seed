@@ -149,10 +149,15 @@ export function applyOptimisticComment(
 
   // Also update BLOCK_DISCUSSIONS cache when quoting a specific block
   if (quotingTarget) {
-    const blockTargetId = {...targetId, blockRef: quotingTarget.blockId}
-    const blockKey = [queryKeys.BLOCK_DISCUSSIONS, blockTargetId]
-    const prevBlock = qc.getQueryData<HMListCommentsOutput>(blockKey)
-    if (prevBlock) {
+    const cachedBlocks = qc.getQueriesData<HMListCommentsOutput>({
+      queryKey: [queryKeys.BLOCK_DISCUSSIONS],
+      predicate: ({queryKey}) => {
+        const cachedTarget = queryKey[1] as UnpackedHypermediaId | undefined
+        return cachedTarget?.id === targetId.id && cachedTarget.blockRef === quotingTarget.blockId
+      },
+    })
+    for (const [blockKey, prevBlock] of cachedBlocks) {
+      if (!prevBlock) continue
       qc.setQueryData<HMListCommentsOutput>(blockKey, (old) => {
         const comments = [...(old?.comments?.filter((item) => item.id !== comment.id) || []), comment]
         const authors = {...(old?.authors || {})}
