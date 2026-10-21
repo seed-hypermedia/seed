@@ -3104,6 +3104,7 @@ function DocumentBody({
             title={panelRoute?.key === 'activity' && panelRoute.targetBlockId ? 'Citations' : getPanelTitle(panelKey)}
             onClose={handlePanelClose}
             header={activityPanelHeader}
+            resizable={panelRoute?.key === 'feed'}
           >
             {panelRoute?.key === 'feed' ? (
               // The feed fills its parent's height and clips the rest. A parent without a fixed height lets it grow,

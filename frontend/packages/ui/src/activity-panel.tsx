@@ -43,9 +43,10 @@ export function ActivityHeader({
 }) {
   const activeTab = tab ?? 'all-updates'
   return (
-    // The buttons stay pinned top-right. On a narrow panel only the tabs wrap, under the title.
+    // From tablet width up the buttons stay pinned top-right, and on a narrow panel only the tabs wrap, under the title.
+    // On phones they follow the tabs, clear of the page's own options menu in the corner.
     <div className="flex items-start gap-2">
-      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 sm:flex-1">
         <Text weight="semibold" size="lg">
           Activity
         </Text>
