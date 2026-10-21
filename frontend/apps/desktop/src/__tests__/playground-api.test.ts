@@ -144,7 +144,7 @@ describe('playground HTTP surface', () => {
       data: {resource: 'lab', author: 'alice', seq: 9, heads: '', apply: 'x'},
     })
     expect(badNode.status).toBe(200)
-    expect(badNode.message).toMatch(/cannot be evaluated: A changes node needs at least one head/)
+    expect(badNode.message).toMatch(/cannot be evaluated: A changes Ref needs at least one head/)
     const badId = badNode.ui?.select?.id as string
     expect(badNode.snapshot.derived.problems[badId]).toEqual([expect.stringMatching(/at least one head/)])
     expect(badNode.snapshot.derived.statements[badId]?.status).toBe('INVALID')

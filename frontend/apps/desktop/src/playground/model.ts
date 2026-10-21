@@ -339,7 +339,7 @@ export function syncSteps(s: LabState, key: string, resource: string): SyncStep[
     },
     {
       title: 'FetchBlobs',
-      detail: `Fetch ${v?.id || 'missing statement'}, authorized dependencies for the ${
+      detail: `Fetch ${v?.id || 'missing Ref'}, authorized dependencies for the ${
         v?.kind || 'snapshot'
       } variant. Check hash, signature and association origin. Rendition: ${rendition(s, resource).status}.`,
     },
@@ -519,8 +519,7 @@ export function statementProblems(s: LabState, v: LabStatement): string[] {
   const out = nodeProblems(v)
   if (!findKey(s, v.author)) out.push(`The author "${v.author}" does not exist.`)
   if (!findResource(s, v.resource)) out.push(`The resource "${v.resource}" does not exist.`)
-  if (v.prev && !s.statements.some((x) => x.id === v.prev))
-    out.push(`The previous statement "${v.prev}" does not exist.`)
+  if (v.prev && !s.statements.some((x) => x.id === v.prev)) out.push(`The previous Ref "${v.prev}" does not exist.`)
   if (v.kind === 'redirect' && v.target && !findResource(s, v.target))
     out.push(`The redirect target "${v.target}" does not exist.`)
   return out
@@ -552,7 +551,7 @@ export function allProblems(s: LabState): Record<string, string[]> {
 /** Summarize a selected blob without inventing native tombstone/redirect resolution rules. */
 export function rendition(s: LabState, id: string): Rendition {
   const v = selected(s, id)
-  if (!v) return {status: 'missing', text: 'No authorized node statement.'}
+  if (!v) return {status: 'missing', text: 'No authorized Ref.'}
   if (v.kind === 'tombstone')
     return {
       status: 'tombstone',
@@ -663,8 +662,7 @@ export function validateState(raw: unknown): LabState {
       throw Error('Invalid capability references.')
   }
   for (const v of s.statements) {
-    if (!str(v.author) || !str(v.resource) || !Number.isSafeInteger(v.seq) || !str(v.kind))
-      throw Error('Invalid node statement.')
+    if (!str(v.author) || !str(v.resource) || !Number.isSafeInteger(v.seq) || !str(v.kind)) throw Error('Invalid Ref.')
   }
   for (const c of s.changes) {
     if (!str(c.author) || !str(c.resource) || !Array.isArray(c.deps) || !c.deps.every(str) || !Array.isArray(c.ops))
@@ -693,17 +691,17 @@ function normalizeStateShape(s: LabState): void {
 /** What is wrong with the modeled fields of a node variant. Empty when the shape is right. */
 export function nodeProblems(v: Partial<LabStatement>): string[] {
   const out: string[] = []
-  if (!isNodeKind(v.kind)) return [`"${v.kind}" is not a node kind.`]
+  if (!isNodeKind(v.kind)) return [`"${v.kind}" is not a Ref kind.`]
   if (v.kind === 'changes' || v.kind === 'changes-snapshot') {
     if (!Array.isArray(v.heads) || !v.heads.length || !v.heads.every((h) => typeof h === 'string'))
-      out.push('A changes node needs at least one head.')
-    if (typeof v.apply !== 'string' || !v.apply) out.push('A changes node needs an exact apply identifier.')
-    if (v.prev) out.push('A changes node does not take prev.')
+      out.push('A changes Ref needs at least one head.')
+    if (typeof v.apply !== 'string' || !v.apply) out.push('A changes Ref needs an exact apply identifier.')
+    if (v.prev) out.push('A changes Ref does not take prev.')
   }
-  if (v.kind === 'snapshot' && !('state' in v)) out.push('A snapshot needs state.')
-  if (v.kind === 'changes-snapshot' && !('snapshot' in v)) out.push('A changes-snapshot needs a utility snapshot.')
+  if (v.kind === 'snapshot' && !('state' in v)) out.push('A snapshot Ref needs state.')
+  if (v.kind === 'changes-snapshot' && !('snapshot' in v)) out.push('A changes-snapshot Ref needs a utility snapshot.')
   if (v.kind === 'redirect' && (typeof v.target !== 'string' || !v.target))
-    out.push('A redirect needs a target resource.')
+    out.push('A redirect Ref needs a target resource.')
   if (v.kind === 'republish' && (v.prev || v.target || v.heads || 'state' in v || 'snapshot' in v))
     out.push('Republish has no payload and no prev.')
   return out

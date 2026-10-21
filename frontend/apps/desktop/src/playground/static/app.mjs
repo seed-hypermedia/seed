@@ -28,8 +28,7 @@ const statementOf = (id) => state().statements.find((v) => v.id === id)
 const NO_ACCESS = {read: false, write: false, admin: false, level: 0, grants: [], public: false, sync: false}
 const access = (key, resource) => derived().access[key]?.[resource] || NO_ACCESS
 const grantStatus = (id) => derived().grants[id]?.status || 'invalid'
-const renditionOf = (rid) =>
-  derived().resources[rid]?.rendition || {status: 'missing', text: 'No authorized node statement.'}
+const renditionOf = (rid) => derived().resources[rid]?.rendition || {status: 'missing', text: 'No authorized Ref.'}
 /** Why a stored blob cannot be evaluated. The API lists these by id; a clean blob has none. */
 const problemsOf = (id) => derived().problems?.[id] || []
 const problemBox = (id) => {
@@ -363,10 +362,10 @@ function placementHTML() {
         ? `<button class="inline" data-select="statement:${esc(v.id)}">${esc(v.id)}: ${esc(v.kind)} ${esc(
             v.text ?? '',
           )}</button>`
-        : '<span class="warn">no authorized statement</span>'
+        : '<span class="warn">no authorized Ref</span>'
     }<span class="tree-actions"><button class="inline" data-add-child="${esc(
       r.id,
-    )}">+ Child</button><button class="inline" data-add-statement="${esc(r.id)}">+ Statement</button></span></div>${
+    )}">+ Child</button><button class="inline" data-add-statement="${esc(r.id)}">+ Ref</button></span></div>${
       children.length ? `<div class="children">${children.map(node).join('')}</div>` : ''
     }</div>`
   }
@@ -441,10 +440,10 @@ function renderDetails() {
       o.parent ? link('resource', o.parent, resourceName(o.parent)) : 'none',
     )}${kv('Audience', `${o.public ? 'public' : 'private'} ${link('policy', 'policy-' + id, 'policy')}`)}${kv(
       'Selected',
-      v ? link('statement', v, v) : 'no authorized statement',
+      v ? link('statement', v, v) : 'no authorized Ref',
     )}<p class="${r.status === 'tombstone' ? 'warn' : ''}">${esc(
       r.text,
-    )}</p><div class="detail-actions"><button id="edit-object">Edit</button><button id="new-node" class="primary">+ Statement</button><button id="delete-object" class="danger">Remove</button></div>${accessTable(
+    )}</p><div class="detail-actions"><button id="edit-object">Edit</button><button id="new-node" class="primary">+ Ref</button><button id="delete-object" class="danger">Remove</button></div>${accessTable(
       id,
     )}${fields(o)}`
   } else if (type === 'key') {
@@ -494,7 +493,7 @@ function renderDetails() {
           ? 'valid'
           : 'invalid'
         : 'retained'
-    html = `<div class="eyebrow">${esc(isNode ? 'Node statement' : type)}</div><h3>${esc(
+    html = `<div class="eyebrow">${esc(isNode ? 'Ref' : type)}</div><h3>${esc(
       isNode ? o.kind + (o.text ? ': ' + o.text : '') : type === 'revocation' ? 'revokes ' + o.target : id,
     )}</h3>${problemBox(id)}${kv('Signed by', link('key', o.author, name(o.author)))}${kv(
       'Resource',
@@ -517,9 +516,9 @@ function renderDetails() {
       isNode
         ? `<p class="muted">${esc(
             status === 'selected'
-              ? 'This is the statement the resource shows: the highest sequence from a key that can write right now.'
+              ? 'This is the Ref the resource shows: the highest sequence from a key that can write right now.'
               : status === 'older'
-                ? 'Retained. A newer authorized statement is selected.'
+                ? 'Retained. A newer authorized Ref is selected.'
                 : 'Retained but not eligible: its author cannot write the resource right now.',
           )}</p>`
         : ''

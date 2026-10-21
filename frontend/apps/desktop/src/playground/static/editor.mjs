@@ -12,7 +12,7 @@ export function createObjectEditor(ctx) {
     ['resource', 'Resource'],
     ['capability', 'Capability'],
     ['revocation', 'Revocation'],
-    ['statement', 'Node statement'],
+    ['statement', 'Ref'],
     ['policy', 'Resource policy'],
   ]
   const kinds = ['snapshot', 'tombstone', 'redirect']
@@ -180,7 +180,7 @@ export function createObjectEditor(ctx) {
         o.target,
         'A redirect points at another resource. It carries none of its permissions.',
       )
-    return '<p class="note">A tombstone marks the resource as deleted. Earlier statements and grants stay retained.</p>'
+    return '<p class="note">A tombstone marks the resource as deleted. Earlier Refs and grants stay retained.</p>'
   }
 
   function read() {

@@ -15,8 +15,8 @@ This page describes a proposed policy, not shipped behaviour. The [daemon](../ap
 | Multiple grants | Rights are the union of every independently valid grant | Revoking one grant does not ban a key that has another route. |
 | Revocation | A reader or writer grant is revoked by a blob naming the exact grant and a same-scope admin proof. Admin grants and their ancestry are permanent. | Validators build the admin graph without consulting revocations. |
 | Creation | The expected root principal signs the initial node and its resource policy | Delegated creation needs a later rule. |
-| Current writes | Node statements are evaluated against the authority known now | Writer revocation can change which statement is selected. |
-| History reads | Current readers may read the history that currently authorized statements adopt | Other retained bytes are kept but not served. |
+| Current writes | [Refs](../ref.md) are evaluated against the authority known now | Writer revocation can change which Ref is selected. |
+| History reads | Current readers may read the history that currently authorized Refs adopt | Other retained bytes are kept but not served. |
 | Service custody | A host that holds plaintext needs reader rights, and the uploader verifies the host's principal first | A service receives plaintext as a reader, never through transport privilege. |
 
 The settled parts, confirmed in the team's HM26 discussions, are the three roles, that admins may grant admin, that admin grants and their ancestry cannot be revoked, and that only a same-scope admin revokes a reader or writer grant. Issuing or receiving a grant gives no independent right to cancel it.
@@ -27,7 +27,7 @@ A CID authenticates bytes. It does not name a trusted root. A client starts from
 
 The proposal adds one signed fact that the current node and capability formats do not express: a resource policy. It names the resource, the expected root principal, whether the resource is readable by the public, and optionally the admin grant that signs it. The first policy is signed by the root and refers to the root-signed initial node. Later policies keep the resource and root the same and are either root-signed or carry a valid admin proof. Among several, the highest signed timestamp wins, with the binary CID as a tie-break. The root key is an implicit admin of its resource.
 
-Public reading is a policy, not a role and not a grant to an invented key. Making a resource public discloses its then-current blob closure. That disclosure cannot be undone locally: a later private policy stops new versions from being served, but bytes that were public stay public. Public readers never learn the membership roster. They receive only the writer and root evidence needed for the statements they can see.
+Public reading is a policy, not a role and not a grant to an invented key. Making a resource public discloses its then-current blob closure. That disclosure cannot be undone locally: a later private policy stops new versions from being served, but bytes that were public stay public. Public readers never learn the membership roster. They receive only the writer and root evidence needed for the Refs they can see.
 
 # How authority is evaluated
 
@@ -38,13 +38,13 @@ For one resource, within one consistent index revision:
 3. Validate reader and writer grants the same way. A revocation is valid only if its signer is the delegate of the admin proof it names, and its target is a reader or writer grant on the same resource. A target that has not arrived yet keeps the revocation waiting.
 4. A reader or writer grant targeted by a valid revocation is inactive, whatever the arrival order. A revocation is permanent for that grant's CID. A newly issued grant is a new CID and may restore rights.
 5. Union the rights of the valid active grants per principal, and evaluate public reading separately. A cache row records the authority revision it was computed at and never creates authority.
-6. A node statement is a candidate when its signature is valid, its fields are valid, it names the right original node, and its signer can write the resource right now. The highest signed timestamp is selected, with the binary CID as a tie-break. A missing state dependency does not make the older statement current: the newer one is selected and its materialization is marked incomplete. Placement is derived separately and grants nothing.
+6. A Ref is a candidate when its signature is valid, its fields are valid, it names the right original node, and its signer can write the resource right now. The highest signed timestamp is selected, with the binary CID as a tie-break. A missing state dependency does not make the older Ref current: the newer one is selected and its materialization is marked incomplete. Placement is derived separately and grants nothing.
 
 # What writer revocation means for state
 
-This is the biggest open choice, and the proposal makes it visible rather than hiding it. Under current-standing evaluation, revoking Carol's last writer grant makes her statements ineligible. The next authorized candidate wins, which can roll the displayed resource back to an older version. Her bytes stay retained, and a surviving authorized statement may still adopt her changes in its DAG. Granting Carol again can revive her old statements, including one with a high timestamp.
+This is the biggest open choice, and the proposal makes it visible rather than hiding it. Under current-standing evaluation, revoking Carol's last writer grant makes her Refs ineligible. The next authorized candidate wins, which can roll the displayed resource back to an older version. Her bytes stay retained, and a surviving authorized Ref may still adopt her changes in its DAG. Granting Carol again can revive her old Refs, including one with a high timestamp.
 
-An admin who wants a version to survive a revocation publishes an authorized statement that adopts its state. If that rollback and revival behaviour is unacceptable, the alternatives are signed adoption receipts, in which an admin certifies particular statements; a serialized authority cut that writes bind to; or explicit causal revocation semantics. Each adds signed facts or coordination. Wall-clock timestamps and the existing Ref generations cannot prove when an offline edit became authorized, so the proposal does not pretend they can.
+An admin who wants a version to survive a revocation publishes an authorized Ref that adopts its state. If that rollback and revival behaviour is unacceptable, the alternatives are signed adoption receipts, in which an admin certifies particular Refs; a serialized authority cut that writes bind to; or explicit causal revocation semantics. Each adds signed facts or coordination. Wall-clock timestamps and the existing Ref generations cannot prove when an offline edit became authorized, so the proposal does not pretend they can.
 
 # Sync and the live fence
 
