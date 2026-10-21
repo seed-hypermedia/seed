@@ -2,7 +2,7 @@
   "compilerOptions": {
     // "target": "ESNext",
     "lib": ["ES2022", "DOM", "DOM.Iterable", "DOM.AsyncIterable"],
-    "module": "commonjs",
+    "module": "ESNext",
     "baseUrl": ".",
     "allowJs": true,
     "skipLibCheck": true,
@@ -11,7 +11,7 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "esModuleInterop": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",

@@ -98,6 +98,7 @@ test('allows invalid Mermaid code to be corrected', async ({page}) => {
     window.TEST_EDITOR.editor!.updateBlock('test-code', {content: [{type: 'text', text: 'not a diagram', styles: {}}]}),
   )
   await expect(block.getByText('Error:', {exact: false})).toBeVisible()
+  await block.hover()
   await block.getByRole('button', {name: 'Show Code', exact: true}).click()
   await expect(block.locator('pre')).toBeVisible()
   await page.evaluate(
@@ -110,8 +111,13 @@ test('allows invalid Mermaid code to be corrected', async ({page}) => {
 
 test('expands a large diagram, zooms and pans, then restores the inline view', async ({page}) => {
   const source = 'flowchart LR\n' + Array.from({length: 30}, (_, i) => `A${i}[Step ${i}] --> A${i + 1}`).join('\n')
-  await page.evaluate((code) => window.TEST_EDITOR.editor!.updateBlock('test-code', {content: code}), source)
+  await page.evaluate(
+    (code) => window.TEST_EDITOR.editor!.updateBlock('test-code', {content: [{type: 'text', text: code, styles: {}}]}),
+    source,
+  )
   const block = page.locator('[data-id="test-code"]')
+  await expect(block.locator('svg.pele')).toContainText('Step 29')
+  await block.hover()
   const expand = block.getByRole('button', {name: 'Expand diagram'})
   await expand.click()
   const dialog = page.getByRole('dialog', {name: 'Diagram', exact: true})
