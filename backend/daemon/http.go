@@ -211,7 +211,9 @@ func loopbackOnly(next http.Handler) http.Handler {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
+
 		host := authority.Hostname()
+
 		addr, _ := netip.ParseAddr(host)
 		if !strings.EqualFold(host, "localhost") && !addr.Unmap().IsLoopback() {
 			http.Error(w, "forbidden", http.StatusForbidden)
@@ -235,6 +237,7 @@ func authContextMiddleware(auth *daemonapi.Server) func(http.Handler) http.Handl
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := r.Header.Get("Authorization")
+
 			scheme, token, ok := strings.Cut(raw, " ")
 			if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
 				next.ServeHTTP(w, r)
