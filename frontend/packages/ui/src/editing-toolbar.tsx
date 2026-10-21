@@ -329,12 +329,8 @@ export function PublishPopoverBody({
       <div className="flex flex-col gap-2 pt-1">
         <Button
           size="default"
-          variant={publishDisabled ? 'ghost' : 'brand'}
-          className={cn(
-            'h-11 text-base font-semibold',
-            publishDisabled &&
-              'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 disabled:opacity-100 dark:bg-neutral-800 dark:text-neutral-400',
-          )}
+          variant="default"
+          className="h-11 text-base font-semibold"
           disabled={publishDisabled}
           onClick={() => onPublish()}
         >
@@ -365,11 +361,12 @@ const PublishTrigger = forwardRef<HTMLButtonElement, {canPublish: boolean; onCli
       <Button
         ref={ref}
         size="sm"
-        variant={canPublish ? 'green' : 'ghost'}
+        variant={canPublish ? 'default' : 'ghost'}
         className={cn(
           'gap-1.5',
+          // Publish stays clickable without changes (it opens the popover), so it mimics the inactive look.
           !canPublish &&
-            'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-400',
+            'bg-neutral-100 text-neutral-400 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-500',
         )}
         onClick={onClick}
       >
