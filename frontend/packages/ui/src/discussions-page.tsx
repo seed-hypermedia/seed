@@ -124,7 +124,7 @@ export function DiscussionsPageContent({
         <ScrollArea className="min-h-0 flex-1">
           <div className="p-4">{content}</div>
         </ScrollArea>
-        {editor && <div className="bg-background border-border shrink-0 border-t p-3">{editor}</div>}
+        {editor && <div className="bg-background border-border shrink-0 border-t px-3 pt-3 pb-2">{editor}</div>}
       </div>
     )
   }

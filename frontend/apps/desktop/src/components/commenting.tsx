@@ -31,6 +31,7 @@ import {useUniversalClient} from '@shm/shared/routing'
 import {useNavRoute, useNavigation} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Button} from '@shm/ui/button'
+import {CommentAudience} from '@shm/ui/members-facepile'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
@@ -576,6 +577,7 @@ function CommentBoxImpl(props: {
           </Tooltip>
         )}
       />
+      {props.compact && <CommentAudience docId={docId} />}
       {accountIntent.content}
     </>
   )

@@ -1,3 +1,4 @@
+import {CommentAudience} from '@shm/ui/members-facepile'
 import {useCreateAccount} from '@/auth'
 import {reportError} from '@/report-error'
 import {useLocation, useNavigate as useRemixNavigate} from '@remix-run/react'
@@ -523,6 +524,7 @@ export default function WebCommenting({
         siteUid={docId.uid}
         documentId={docId}
       />
+      {compact && <CommentAudience docId={docId} />}
       {createAccountContent}
       {emailNotificationsPromptContent}
     </div>

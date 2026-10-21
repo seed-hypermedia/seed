@@ -3128,6 +3128,10 @@ function DocumentBody({
                   targetDomain={siteUrl}
                 />
               </div>
+            ) : panelRoute?.key === 'collaborators' ? (
+              <div className="p-4">
+                <CollaboratorsPage docId={panelRoute.id ?? docId} />
+              </div>
             ) : (
               <DiscussionsPageContent
                 isPanel
@@ -3409,7 +3413,7 @@ function PanelContentRenderer({
     case 'collaborators':
       return (
         <div className="p-4">
-          <CollaboratorsPage docId={docId} />
+          <CollaboratorsPage docId={panelRoute.id ?? docId} />
         </div>
       )
     case 'feed':
