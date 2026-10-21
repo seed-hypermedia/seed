@@ -1,4 +1,3 @@
-import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import type * as Ast from '@unified-latex/unified-latex-types'
 import {parse as parseLatex} from '@unified-latex/unified-latex-util-parse'
@@ -24,7 +23,7 @@ const uploadToIpfs = async (file: File): Promise<string> => {
     const formData = new FormData()
     formData.append('file', file)
     try {
-      const response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
+      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
         method: 'POST',
         body: formData,
       })
