@@ -76,7 +76,7 @@ export function VaultSecuritySettings({
               label="Email address"
               description={email.address || 'No email set'}
               action={
-                <Button variant="secondary" size="sm" onClick={() => setEmailOpen(true)} disabled={disabled}>
+                <Button variant="outline" size="sm" onClick={() => setEmailOpen(true)} disabled={disabled}>
                   Change
                 </Button>
               }
@@ -114,7 +114,7 @@ export function VaultSecuritySettings({
               action={
                 passkey.actionLabel ? (
                   <Button
-                    variant="secondary"
+                    variant="outline"
                     size="sm"
                     onClick={passkey.onAction}
                     loading={passkey.busy}
@@ -133,7 +133,7 @@ export function VaultSecuritySettings({
               label="Password"
               description={password.isSet ? 'Password is set' : 'No password set'}
               action={
-                <Button variant="secondary" size="sm" onClick={() => setPasswordOpen(true)} disabled={disabled}>
+                <Button variant="outline" size="sm" onClick={() => setPasswordOpen(true)} disabled={disabled}>
                   {password.isSet ? 'Change' : 'Add Password'}
                 </Button>
               }
@@ -149,7 +149,7 @@ export function VaultSecuritySettings({
             label="Notify Server URL"
             description={notify.url || notify.defaultUrl}
             action={
-              <Button variant="secondary" size="sm" onClick={() => setNotifyOpen(true)} disabled={disabled}>
+              <Button variant="outline" size="sm" onClick={() => setNotifyOpen(true)} disabled={disabled}>
                 Change
               </Button>
             }
