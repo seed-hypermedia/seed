@@ -736,6 +736,8 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Settings'
     case 'api-inspector':
       return 'API Inspector'
+    case 'hm26-playground':
+      return 'HM26 Playground'
     case 'query-documents':
       return 'Query Documents'
     case 'explore':

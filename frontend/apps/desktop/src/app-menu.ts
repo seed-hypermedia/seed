@@ -1,9 +1,8 @@
 // this menu is visible on macOS only
 // the keyboard shortcuts apply to every platform
 
-import {BrowserWindow, ipcMain, Menu, MenuItem, shell} from 'electron'
+import {BrowserWindow, ipcMain, Menu, MenuItem} from 'electron'
 import {dispatchFocusedWindowAppEvent, openRoute, trpc} from './app-api'
-import {playgroundUrl} from './app-http-server'
 import {getFocusedWindow} from './app-windows'
 import {checkForUpdates} from './auto-update'
 import {isProfilerEnabled, createProfilerWindow} from './memory-profiler-window'
@@ -191,8 +190,9 @@ export function createAppMenu() {
           id: 'route_hm26_playground',
           label: 'HM26 Playground',
           click: () => {
-            // The playground is a page the app's own API server serves; it opens in the default browser.
-            shell.openExternal(playgroundUrl())
+            openRoute({
+              key: 'hm26-playground',
+            })
           },
         },
         {type: 'separator'},

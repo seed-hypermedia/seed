@@ -54,6 +54,7 @@ var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var SchemaBrowser = lazy(() => import('./schema'))
 var ApiInspector = lazy(() => import('./api-inspector'))
+var HM26Playground = lazy(() => import('./hm26-playground'))
 var QueryDocuments = lazy(() => import('./query-documents'))
 var Explore = lazy(() => import('./explore'))
 var Agents = lazy(() => import('./agents'))
@@ -418,6 +419,11 @@ function getPageComponent(navRoute: NavRoute) {
     case 'api-inspector':
       return {
         PageComponent: ApiInspector,
+        Fallback: BaseLoading,
+      }
+    case 'hm26-playground':
+      return {
+        PageComponent: HM26Playground,
         Fallback: BaseLoading,
       }
     case 'query-documents':

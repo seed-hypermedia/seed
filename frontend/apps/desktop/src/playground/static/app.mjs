@@ -29,6 +29,43 @@ const NO_ACCESS = {read: false, write: false, admin: false, level: 0, grants: []
 const access = (key, resource) => derived().access[key]?.[resource] || NO_ACCESS
 const grantStatus = (id) => derived().grants[id]?.status || 'invalid'
 const renditionOf = (rid) => derived().resources[rid]?.rendition || {status: 'missing', text: 'No authorized Ref.'}
+/** The published HM26 space: thirteen schema pages and the design notes the playground follows. */
+const HM26 = 'https://hyper.media/hm/z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/hm26'
+const SCHEMA_PAGES = {
+  resource: 'resource',
+  change: 'change',
+  revocation: 'revocation',
+  snapshot: 'resource-state',
+  changes: 'resource-changes',
+  'changes-snapshot': 'resource-changes-state',
+  tombstone: 'resource-tombstone',
+  redirect: 'resource-redirect',
+  republish: 'resource-republish',
+}
+/** The HM26 page that defines a blob of this type. Keys and policies have notes, not schemas. */
+function schemaPageOf(type, o) {
+  if (type === 'grant') return o.role === 'admin' ? 'capability-admin' : 'capability-revocable'
+  if (type === 'statement') return SCHEMA_PAGES[o.kind] || 'resource-state'
+  if (type === 'policy') return 'authority-model'
+  if (type === 'key') return 'permissions-guide'
+  return SCHEMA_PAGES[type]
+}
+const hmLink = (page, label = 'hm26/' + page) =>
+  `<a class="hm" href="${HM26}/${page}" data-hm target="_blank" rel="noreferrer">${esc(label)}</a>`
+/**
+ * Open a link. Inside the Seed app the page runs in a frame; the app opens Hypermedia links as
+ * routes when asked. In a plain browser the link opens in a new tab.
+ */
+function openLink(url) {
+  if (window.parent !== window) window.parent.postMessage({type: 'hm26-playground-open', url}, '*')
+  else window.open(url, '_blank', 'noreferrer')
+}
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-hm]')
+  if (!a) return
+  e.preventDefault()
+  openLink(a.href)
+})
 /** Why a stored blob cannot be evaluated. The API lists these by id; a clean blob has none. */
 const problemsOf = (id) => derived().problems?.[id] || []
 const problemBox = (id) => {
@@ -439,15 +476,20 @@ function renderDetails() {
       'Parent',
       o.parent ? link('resource', o.parent, resourceName(o.parent)) : 'none',
     )}${kv('Audience', `${o.public ? 'public' : 'private'} ${link('policy', 'policy-' + id, 'policy')}`)}${kv(
-      'Selected',
-      v ? link('statement', v, v) : 'no authorized Ref',
-    )}<p class="${r.status === 'tombstone' ? 'warn' : ''}">${esc(
+      'Schema',
+      hmLink(schemaPageOf('resource', o)),
+    )}${kv('Selected', v ? link('statement', v, v) : 'no authorized Ref')}<p class="${
+      r.status === 'tombstone' ? 'warn' : ''
+    }">${esc(
       r.text,
     )}</p><div class="detail-actions"><button id="edit-object">Edit</button><button id="new-node" class="primary">+ Ref</button><button id="delete-object" class="danger">Remove</button></div>${accessTable(
       id,
     )}${fields(o)}`
   } else if (type === 'key') {
     html = `<div class="eyebrow">Key</div><h3>${esc(o.name)}</h3><p class="muted">${esc(o.note)}</p>${kv(
+      'Read more',
+      hmLink('permissions-guide'),
+    )}${kv(
       'Owns',
       state()
         .resources.filter((r) => r.owner === id)
@@ -466,9 +508,11 @@ function renderDetails() {
       'Resource',
       link('resource', scope, resourceName(scope)),
     )}${kv('Status', `<span class="${st === 'valid' ? 'good' : st === 'revoked' ? 'bad' : 'warn'}">${st}</span>`)}${kv(
-      'Proof',
-      o.proof ? link('grant', o.proof, o.proof) : st === 'valid' ? 'none, root anchor' : 'none',
-    )}${o.reissuedFrom ? kv('Reissued from', link('grant', o.reissuedFrom, o.reissuedFrom)) : ''}<p class="muted">${
+      'Schema',
+      hmLink(schemaPageOf('grant', o)),
+    )}${kv('Proof', o.proof ? link('grant', o.proof, o.proof) : st === 'valid' ? 'none, root anchor' : 'none')}${
+      o.reissuedFrom ? kv('Reissued from', link('grant', o.reissuedFrom, o.reissuedFrom)) : ''
+    }<p class="muted">${
       o.role === 'admin'
         ? 'Admin grants are permanent. Reissuing adds a second grant and leaves this one intact.'
         : 'A grant never changes. Reissue it to add a new route, or add a revocation to end this one.'
@@ -483,7 +527,9 @@ function renderDetails() {
     )}${kv(
       'Audience',
       o.public ? 'public' : 'private',
-    )}<p class="muted">The one new signed fact HM26 proposes: who the root of a resource is and whether it is public. <a href="https://hyper.media/protocol/hm26-authority#b4HgY4uP" target="_blank" rel="noreferrer">What a resource policy is</a>.</p><div class="detail-actions"><button id="edit-object">Edit</button></div>`
+    )}<p class="muted">The one new signed fact HM26 proposes: who the root of a resource is and whether it is public. <a href="https://hyper.media/protocol/hm26-authority#b4HgY4uP" data-hm target="_blank" rel="noreferrer">What a resource policy is</a>. Proposed in ${hmLink(
+      'authority-model',
+    )}, not a published schema.</p><div class="detail-actions"><button id="edit-object">Edit</button></div>`
   } else {
     const isNode = type === 'statement'
     const status = isNode
@@ -512,7 +558,7 @@ function renderDetails() {
       `<span class="${['selected', 'valid'].includes(status) ? 'good' : status === 'older' ? '' : 'warn'}">${esc(
         status,
       )}</span>`,
-    )}${
+    )}${kv('Schema', hmLink(schemaPageOf(type, o)))}${
       isNode
         ? `<p class="muted">${esc(
             status === 'selected'
@@ -595,6 +641,7 @@ const objectEditor = createObjectEditor({
   resourceName,
   api,
   afterAction,
+  schemaLink: (type, o) => hmLink(schemaPageOf(type, o)),
 })
 const openEditor = objectEditor.open
 $('add-key').onclick = () => openEditor('key')

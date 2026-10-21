@@ -54,6 +54,7 @@ export function createObjectEditor(ctx) {
     const {type, o, exists, reissuing} = editing
     const s = state()
     const scope = o.resource || ctx.scope() || s.resources[0].id
+    const schema = ctx.schemaLink(type === 'capability' ? 'grant' : type, o)
     const owner = ctx.res(scope)?.owner || s.keys[0].id
     $('editor-title').textContent =
       (reissuing ? 'Reissue ' : exists ? 'Edit ' : 'Add ') + types.find((t) => t[0] === type)[1].toLowerCase()
@@ -146,7 +147,7 @@ export function createObjectEditor(ctx) {
         select('Resource', 'f-resource', s.resources, o.id || scope) +
         yesNo('Audience', 'f-public', o.public ?? ctx.res(scope)?.public ?? false)
     }
-    $('editor-fields').innerHTML = html
+    $('editor-fields').innerHTML = html + `<p class="note">Defined by ${schema}.</p>`
     if ($('blob-type'))
       $('blob-type').onchange = () => {
         editing.type = $('blob-type').value
