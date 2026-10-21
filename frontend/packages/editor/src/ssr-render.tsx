@@ -29,6 +29,8 @@ import type {HMBlockChildrenType, HMBlockNode, UnpackedHypermediaId} from '@seed
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
 import {RenderResourceProvider} from '@shm/shared'
+import {ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
+import {ReadOnlyViewer} from './readonly-viewer'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {defaultRoute} from '@shm/shared/routes'
 import {NavContextProvider} from '@shm/shared/utils/navigation'
@@ -328,7 +330,9 @@ function renderReactBlocks(target: Element, blockById: Map<string, EditorBlockLi
                       action chrome (the options button) renders identically. */}
                   <DocumentActionsProvider onCopyLink={() => {}}>
                     <RenderResourceProvider resource={opts.documentId ? {kind: 'document', id: opts.documentId} : null}>
-                      <Render block={block} editor={editorStub} />
+                      <ReadOnlyViewerProvider value={ReadOnlyViewer}>
+                        <Render block={block} editor={editorStub} />
+                      </ReadOnlyViewerProvider>
                     </RenderResourceProvider>
                   </DocumentActionsProvider>
                 </TooltipProvider>

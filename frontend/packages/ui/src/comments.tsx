@@ -50,10 +50,11 @@ import {Bookmark, Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
 import {getBlockNodeById} from './blocks-content-utils'
+import {ContentEmbed} from './content-embed'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {AccountAvatar} from './account-avatar'
-import {BlockQuote, ReplyArrow} from './icons'
+import {ReplyArrow} from './icons'
 import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
@@ -913,7 +914,11 @@ export const Comment = memo(function Comment({
               isSaving={updateCommentMutation.isPending}
             />
           ) : activeViewingVersion ? (
-            <VersionPreview version={activeViewingVersion} onDismiss={() => selectViewingVersion(null)} />
+            <VersionPreview
+              version={activeViewingVersion}
+              selection={selection}
+              onDismiss={() => selectViewingVersion(null)}
+            />
           ) : (
             <CommentContent comment={comment} selection={selection} />
           )}
@@ -1025,6 +1030,8 @@ export function CommentContent({
       blocks={zoomedContent}
       resourceId={focusedId}
       resourceKind="comment"
+      focusBlockId={selection?.blockId}
+      blockRange={selection?.blockRange}
       commentStyle
       textUnit={textUnit}
       layoutUnit={layoutUnit}
@@ -1049,6 +1056,7 @@ function CommentDate({comment}: {comment: HMComment}) {
   return <Timestamp time={comment.createTime} route={destRoute} />
 }
 
+/** Shows the selected document fragment with optional source-block expansion. */
 export function QuotedDocBlock({
   docId,
   blockId,
@@ -1060,34 +1068,12 @@ export function QuotedDocBlock({
   doc: HMDocument
   blockRange?: BlockRange
 }) {
-  const Viewer = useReadOnlyViewer()
-  const blockContent = useMemo(() => {
-    if (!doc.content) return null
-    return getBlockNodeById(doc.content, blockId)
-  }, [doc.content, blockId])
-
-  // Only forward a codepoint range — `{expanded: true}` blockRange variants
-  // should not trigger fragment highlighting.
-  const fragmentRange = blockRange && 'start' in blockRange ? blockRange : undefined
-
   return (
-    <div className="bg-brand-50 dark:bg-brand-950 rounded-lg">
-      <div className="relative flex gap-1 rounded-lg p-2 transition-all duration-200 ease-in-out">
-        <div className="flex-shrink-0 py-1.5">
-          <BlockQuote size={23} />
-        </div>
-        <div className="min-w-0 flex-1">
-          {blockContent && Viewer && (
-            <Viewer
-              blocks={[blockContent]}
-              resourceId={{...docId, blockRef: blockId}}
-              focusBlockId={fragmentRange ? blockId : undefined}
-              blockRange={fragmentRange}
-            />
-          )}
-        </div>
-      </div>
-    </div>
+    <ContentEmbed
+      id={{...docId, blockRef: blockId, blockRange: blockRange || null}}
+      blocks={doc.content}
+      openOnClick={false}
+    />
   )
 }
 
@@ -1240,7 +1226,15 @@ function DeletedCommentPreview({comment}: {comment: HMComment}) {
 }
 
 /** Yellow inline banner showing a previous version of the comment in place of the current content. */
-function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: () => void}) {
+function VersionPreview({
+  version,
+  selection,
+  onDismiss,
+}: {
+  version: HMComment
+  selection?: {blockId?: string; blockRange?: BlockRange}
+  onDismiss: () => void
+}) {
   return (
     <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950">
       <div className="flex items-center justify-between px-3 py-1.5">
@@ -1259,6 +1253,7 @@ function VersionPreview({version, onDismiss}: {version: HMComment; onDismiss: ()
       <div className="px-1 pb-2">
         <CommentContent
           comment={version}
+          selection={selection}
           size="sm"
           openOnClick={false}
           resourceId={commentIdToHmId(version.id, version.version)}

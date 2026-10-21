@@ -13,7 +13,9 @@ import {BIG_INT} from '../constants'
 import {LIST_PAGE_SIZE, listAllPages} from '../list-all-pages'
 import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {getCommentGroups} from '../comments'
-import {hmId, parseFragment, unpackHmId} from '../utils'
+import {extractAllContentRefs} from '../content'
+import {normalizeDate} from '../utils/date'
+import {hmId, parseFragment} from '../utils'
 import {documentMetadataParseAdjustments} from './entity'
 
 /**
@@ -279,75 +281,58 @@ export function createCommentsByReferenceResolver(client: GRPCClient) {
     comments: HMComment[]
     authors: Record<string, HMMetadataPayload>
   }> => {
-    try {
-      // maxPages bounded on purpose: unbounded ListCitations enumeration took
-      // production down on 2026-08-11 (hypermedia/apps/daemon.md, "Load and the read pool").
-      const citations = await listAllPages(
+    // Direct comments are the source of truth for this document. Citation
+    // enumeration is bounded and can omit recent comments on busy documents.
+    const [directComments, citations] = await Promise.all([
+      listAllPages(
+        (pageToken) =>
+          client.comments.listComments({
+            targetAccount: targetId.uid,
+            targetPath: hmIdPathToEntityQueryPath(targetId.path),
+            pageSize: LIST_PAGE_SIZE,
+            pageToken,
+          }),
+        (r) => ({items: r.comments, nextPageToken: r.nextPageToken}),
+      ),
+      // Keep the citation cap: unbounded enumeration can exhaust the daemon's read pool.
+      listAllPages(
         (pageToken) =>
           client.resources.listCitations({
             iri: targetId.id,
             pageSize: LIST_PAGE_SIZE,
             pageToken,
+            reverseOrder: true,
           }),
         (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
         {maxPages: 1},
+      ).catch(() => []),
+    ])
+    const commentsById = new Map<string, HMComment>()
+    const directIds = new Set(directComments.map((c) => c.id))
+    const citedIds = new Set(
+      citations
+        .filter((c) => c.sourceType === 'Comment' && parseFragment(c.targetFragment)?.blockId === blockRef)
+        .map((c) => c.source.slice('hm://'.length))
+        .filter((id) => !directIds.has(id)),
+    )
+    // A deleted or inaccessible citation must not discard every other comment.
+    const citedComments = await mapWithConcurrency(Array.from(citedIds), CITING_LOOKUP_CONCURRENCY, (id) =>
+      client.comments.getComment({id}).catch(() => null),
+    )
+    for (const raw of [...directComments, ...citedComments]) {
+      if (!raw) continue
+      const comment = parseComment(raw)
+      if (!comment) continue
+      const referencesBlock = extractAllContentRefs(comment.content).some(
+        ({refId}) => refId?.id === targetId.id && refId.blockRef === blockRef,
       )
-
-      const commentCitations = citations.filter((m) => {
-        if (m.sourceType != 'Comment') return false
-        const targetFragment = parseFragment(m.targetFragment)
-        if (!targetFragment) return false
-        return targetFragment.blockId == blockRef
-      })
-
-      const commentIds = commentCitations
-        .map((c) => {
-          const id = unpackHmId(c.source)
-          if (!id) return null
-          return `${id.uid}/${id.path}`
-        })
-        .filter((id): id is string => id !== null)
-
-      if (commentIds.length === 0) {
-        return {
-          comments: [],
-          authors: {},
-        }
-      }
-
-      const res = await client.comments.batchGetComments({
-        ids: commentIds,
-      })
-
-      const authorAccounts = new Set<string>()
-
-      const comments: HMComment[] = res.comments
-        .sort((a, b) => {
-          const aTime = a?.updateTime && typeof a?.updateTime == 'string' ? new Date(a?.updateTime).getTime() : 0
-          const bTime = b?.updateTime && typeof b?.updateTime == 'string' ? new Date(b?.updateTime).getTime() : 1
-          return aTime - bTime
-        })
-        .map((c) => {
-          if (c.author && c.author.trim() !== '') {
-            authorAccounts.add(c.author)
-          }
-          return parseComment(c)
-        })
-        .filter((c): c is HMComment => c !== null)
-
-      const authorAccountUids = Array.from(authorAccounts)
-      const authors = authorAccountUids.length > 0 ? await loadAccounts(client, authorAccountUids) : {}
-
-      return {
-        comments,
-        authors,
-      }
-    } catch (e) {
-      console.error(`Failed to load comments by reference for ${targetId.id}#${blockRef}:`, e)
-      return {
-        comments: [],
-        authors: {},
-      }
+      if (referencesBlock) commentsById.set(comment.id, comment)
     }
+    const comments = Array.from(commentsById.values()).sort(
+      (a, b) => (normalizeDate(a.createTime)?.getTime() ?? 0) - (normalizeDate(b.createTime)?.getTime() ?? 0),
+    )
+    const authorUids = Array.from(extractAuthorUids(comments))
+    const authors = authorUids.length ? await loadAccounts(client, authorUids).catch(() => ({})) : {}
+    return {comments, authors}
   }
 }

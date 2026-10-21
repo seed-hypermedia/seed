@@ -224,6 +224,26 @@ describe('applyOptimisticComment', () => {
     expect(blockData?.comments).toHaveLength(1)
   })
 
+  it('updates every cached range of the quoted block and restores each on rollback', () => {
+    const qc = createQueryClient()
+    const comment = makeComment()
+    const targets = [
+      {...docId, blockRef: 'blockXYZ', blockRange: {start: 1, end: 4}},
+      {...docId, blockRef: 'blockXYZ', blockRange: {start: 20, end: 25}, version: 'older'},
+    ]
+    const keys = targets.map((target) => [queryKeys.BLOCK_DISCUSSIONS, target])
+    for (const key of keys) qc.setQueryData(key, {comments: [], authors: {}})
+    const rollback = applyOptimisticComment(qc, docId, comment, authorMetadata, {
+      blockId: 'blockXYZ',
+      range: {start: 1, end: 4},
+    })
+    for (const key of keys) {
+      expect(qc.getQueryData<HMListCommentsOutput>(key)?.comments.map((c) => c.id)).toEqual([comment.id])
+    }
+    rollback()
+    for (const key of keys) expect(qc.getQueryData<HMListCommentsOutput>(key)?.comments).toEqual([])
+  })
+
   it('skips BLOCK_DISCUSSIONS when no quoting block is given', () => {
     const qc = createQueryClient()
     const comment = makeComment()

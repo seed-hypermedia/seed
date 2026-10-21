@@ -4,6 +4,7 @@ import {getContactMetadata, getDocumentTitle} from '@shm/shared/content'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {AccountIdentityName} from '@shm/ui/account-avatar'
 import {useHighlighter} from '@shm/ui/highlight-context'
 import {SizableText} from '@shm/ui/text'
 import {Node} from '@tiptap/core'
@@ -184,7 +185,7 @@ function ContactMention({
 
   return (
     <MentionText selected={selected} {...highlight(highlightId)}>
-      {meta.name.startsWith('@') ? meta.name : `@${meta.name}`}
+      <AccountIdentityName name={meta.name} mention />
     </MentionText>
   )
 }

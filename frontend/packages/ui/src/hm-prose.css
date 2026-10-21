@@ -52,33 +52,36 @@
   --hm-breakout: 60px;
 }
 
-/* The trailing two selectors cover a nested `.hm-prose` (a Mantine internal
- * wrapper inside the desktop comment editor) that would otherwise
- * win the inheritance by being closer to the rendered text. */
-.hm-prose.is-comment,
-.hm-prose .is-comment,
-.hm-prose.is-comment .hm-prose,
-.hm-prose .is-comment .hm-prose {
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    Roboto,
-    'Helvetica Neue',
-    Arial,
-    sans-serif;
-  font-size: 1rem;
+/* Comment typography stops at independent nested prose roots. */
+@scope (.hm-prose) to (.hm-prose:not(.ssr-content-placeholder)) {
+  :scope.is-comment,
+  :scope .is-comment {
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      'Helvetica Neue',
+      Arial,
+      sans-serif;
+    font-size: 1rem;
+  }
 }
 
 /* No breakout in comments or embedded documents — those render in tight
  * columns where a wider block would overflow. The custom property is
  * inherited, so setting it on the subtree root covers all descendants. */
-.hm-prose.is-comment,
-.hm-prose .is-comment,
 .block-embed {
   --hm-breakout: 0px;
+}
+
+@scope (.hm-prose) to (.hm-prose:not(.ssr-content-placeholder)) {
+  :scope.is-comment,
+  :scope .is-comment {
+    --hm-breakout: 0px;
+  }
 }
 
 /* Belt-and-braces: in comments, fully neutralize the breakout layout
@@ -87,23 +90,25 @@
  * alone leaves `position:relative; left:50%; translateX(-50%)` active,
  * which interacts badly with `overflow-x-hidden` on tight column
  * surfaces (comment editor + rendered comments). */
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='code-block']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='image']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='video']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> * > [data-content-type='code-block']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> * > [data-content-type='image']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> * > [data-content-type='video']),
-.hm-prose .is-comment [data-node-type='blockNode']:has(> [data-content-type='code-block']),
-.hm-prose .is-comment [data-node-type='blockNode']:has(> [data-content-type='image']),
-.hm-prose .is-comment [data-node-type='blockNode']:has(> [data-content-type='video']),
-.hm-prose .is-comment [data-node-type='blockNode']:has(> * > [data-content-type='code-block']),
-.hm-prose .is-comment [data-node-type='blockNode']:has(> * > [data-content-type='image']),
-.hm-prose .is-comment [data-node-type='blockNode']:has(> * > [data-content-type='video']) {
-  position: static;
-  left: auto;
-  width: 100%;
-  max-width: 100%;
-  transform: none;
+@scope (.hm-prose) to (.hm-prose:not(.ssr-content-placeholder)) {
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='code-block']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='image']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='video']),
+  :scope.is-comment [data-node-type='blockNode']:has(> * > [data-content-type='code-block']),
+  :scope.is-comment [data-node-type='blockNode']:has(> * > [data-content-type='image']),
+  :scope.is-comment [data-node-type='blockNode']:has(> * > [data-content-type='video']),
+  :scope .is-comment [data-node-type='blockNode']:has(> [data-content-type='code-block']),
+  :scope .is-comment [data-node-type='blockNode']:has(> [data-content-type='image']),
+  :scope .is-comment [data-node-type='blockNode']:has(> [data-content-type='video']),
+  :scope .is-comment [data-node-type='blockNode']:has(> * > [data-content-type='code-block']),
+  :scope .is-comment [data-node-type='blockNode']:has(> * > [data-content-type='image']),
+  :scope .is-comment [data-node-type='blockNode']:has(> * > [data-content-type='video']) {
+    position: static;
+    left: auto;
+    width: 100%;
+    max-width: 100%;
+    transform: none;
+  }
 }
 
 /* Media inside Grid cells should stay constrained to the cell instead
@@ -521,36 +526,38 @@
 /* ---------- Comment variant ----------
  * Comments revert to compact rhythm and tighter line-height; editorial
  * doc spacing is overkill in a threaded comment context. */
-.hm-prose.is-comment {
-  line-height: 1.55;
-}
+@scope (.hm-prose) to (.hm-prose:not(.ssr-content-placeholder)) {
+  :scope.is-comment {
+    line-height: 1.55;
+  }
 
-.hm-prose.is-comment [data-node-type='blockNode'] + [data-node-type='blockNode'] {
-  margin-top: 0.5rem;
-}
+  :scope.is-comment [data-node-type='blockNode'] + [data-node-type='blockNode'] {
+    margin-top: 0.5rem;
+  }
 
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='image']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='video']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='file']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='embed']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='web-embed']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='button']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='math']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='query']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='code-block']) {
-  margin-top: 0.75rem;
-}
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='image']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='video']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='file']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='embed']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='web-embed']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='button']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='math']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='query']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='code-block']) {
+    margin-top: 0.75rem;
+  }
 
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='1']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='2']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='3']) {
-  /* Comments tighten section rhythm. */
-  margin-top: 1rem;
-}
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='4']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='5']),
-.hm-prose.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='6']) {
-  margin-top: 0.75rem;
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='1']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='2']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='3']) {
+    /* Comments tighten section rhythm. */
+    margin-top: 1rem;
+  }
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='4']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='5']),
+  :scope.is-comment [data-node-type='blockNode']:has(> [data-content-type='heading'][data-level='6']) {
+    margin-top: 0.75rem;
+  }
 }
 
 /* Inline color annotations */
