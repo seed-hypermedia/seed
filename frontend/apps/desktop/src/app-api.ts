@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import {parseDeepLink} from '@/utils/deep-links'
 import {getPageWebContents} from './app-web-browser'
 import {setupBrowserSessionPolicy} from './browser-session-policy'
@@ -458,7 +459,7 @@ export const router = t.router({
     let daemonVersion = null
     const errors = []
     try {
-      const daemonVersionReq = await fetch(buildInfoUrl)
+      const daemonVersionReq = await daemonFetch(buildInfoUrl)
       daemonVersion = await daemonVersionReq.text()
     } catch (error: unknown) {
       const e = error as Error

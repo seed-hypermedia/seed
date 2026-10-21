@@ -1,3 +1,4 @@
+import {daemonFetch} from '@shm/shared/daemon-http'
 import * as http from 'http'
 import {BlockList, isIP} from 'net'
 import {handleApiAction, handleApiRequest} from '@shm/shared/api-server'
@@ -18,7 +19,7 @@ const CORS_HEADERS = {
 }
 
 async function queryDaemon<T>(pathAndQuery: string): Promise<T> {
-  const response = await fetch(`${DAEMON_HTTP_URL}${pathAndQuery}`)
+  const response = await daemonFetch(`${DAEMON_HTTP_URL}${pathAndQuery}`)
   if (!response.ok) {
     throw new Error(`Failed to fetch ${pathAndQuery}: ${response.statusText}`)
   }
