@@ -15187,7 +15187,11 @@ async function resolveWriteSigner(
     matches = identities.filter((identity) => identity.profileName === profileName)
     if (matches.length === 0) throw new APIError(400, 'Signer profile name is not enabled for this agent')
   } else if (matches.length > 1) {
-    throw new APIError(400, 'Multiple signing identities are enabled; choose a signer by profileName or publicKey')
+    // Several keys enabled and none chosen: the definition's primary key is the default, so a
+    // plain write (an app, a note) does not fail on an agent that can also sign as others.
+    const primary = matches.filter((identity) => identity.secretName === context.definition.signingKey)
+    if (primary.length === 1) matches = primary
+    else throw new APIError(400, 'Multiple signing identities are enabled; choose a signer by profileName or publicKey')
   }
   if (matches.length > 1) throw new APIError(400, 'Signing profile name is ambiguous; choose by publicKey')
 
