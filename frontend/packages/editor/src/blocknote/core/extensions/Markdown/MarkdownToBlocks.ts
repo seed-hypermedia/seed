@@ -1,4 +1,3 @@
-import {daemonFetch} from '@shm/shared/daemon-http'
 import {DAEMON_FILE_UPLOAD_URL} from '@shm/shared/constants'
 import {DOMParser as ProseMirrorDOMParser} from '@tiptap/pm/model'
 import rehypeStringify from 'rehype-stringify'
@@ -23,7 +22,7 @@ const uploadToIpfs = async (file: File): Promise<string> => {
     formData.append('file', file)
 
     try {
-      const response = await daemonFetch(DAEMON_FILE_UPLOAD_URL, {
+      const response = await fetch(DAEMON_FILE_UPLOAD_URL, {
         method: 'POST',
         body: formData,
       })

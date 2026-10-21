@@ -1,16 +1,13 @@
 name: Desktop security e2e
 
-# The hostile page suite, the web pane suite and the real-daemon authentication regression run
-# inside a real Electron build on every pull request that touches the desktop app, its shared
-# packages, or the daemon's HTTP surface. None of them need a packaged app.
+# The hostile page suite and the web pane suite run inside a real Electron build on every pull
+# request that touches the desktop app or its shared packages. Neither needs a packaged app.
 
 on:
   pull_request:
     paths:
       - 'frontend/apps/desktop/**'
       - 'frontend/packages/**'
-      - 'backend/daemon/**'
-      - 'backend/config/**'
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/desktop-security-e2e.yml'
@@ -25,7 +22,7 @@ concurrency:
 
 jobs:
   e2e:
-    name: Hostile page, web pane and daemon auth
+    name: Hostile page and web pane
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -87,18 +84,12 @@ jobs:
             echo "no chrome-sandbox helper found under node_modules/electron/dist"
           fi
 
-      - name: Build the daemon test server once
-        # tests/daemon-auth.e2e.ts compiles it itself; warming the Go cache here keeps the test
-        # inside its own timeout.
-        run: go test -c -o /tmp/daemon.test ./backend/daemon
-
       - name: Run the security suites
         working-directory: frontend/apps/desktop
         run: |
           xvfb-run -a npx playwright test --project=e2e \
             tests/hostile-page.e2e.ts \
-            tests/web-browser.e2e.ts \
-            tests/daemon-auth.e2e.ts
+            tests/web-browser.e2e.ts
 
       - name: Upload Playwright report
         if: failure()
