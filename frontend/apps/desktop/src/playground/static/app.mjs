@@ -30,10 +30,20 @@ const access = (key, resource) => derived().access[key]?.[resource] || NO_ACCESS
 const grantStatus = (id) => derived().grants[id]?.status || 'invalid'
 const renditionOf = (rid) =>
   derived().resources[rid]?.rendition || {status: 'missing', text: 'No authorized node statement.'}
+/** Why a stored blob cannot be evaluated. The API lists these by id; a clean blob has none. */
+const problemsOf = (id) => derived().problems?.[id] || []
+const problemBox = (id) => {
+  const ps = problemsOf(id)
+  if (!ps.length) return ''
+  return `<div class="problems"><div class="eyebrow">Cannot be evaluated</div><ul>${ps
+    .map((p) => `<li>${esc(p)}</li>`)
+    .join('')}</ul></div>`
+}
 
 function toast(message, error = false) {
   $('toast').textContent = message || ''
   $('toast').classList.toggle('error', error)
+  $('toast').classList.toggle('warning', !error && /cannot be evaluated/.test(message || ''))
 }
 
 // ---- API ----
@@ -141,7 +151,9 @@ function resourceHead(r) {
     r.name,
   )}</b><code>${esc(derived().resources[r.id]?.path || r.cid)}</code><span class="muted">owner ${esc(
     name(r.owner),
-  )}</span><span class="tag${r.public ? ' public' : ''}">${r.public ? 'PUBLIC' : 'PRIVATE'}</span></button>`
+  )}</span><span class="tag${r.public ? ' public' : ''}">${r.public ? 'PUBLIC' : 'PRIVATE'}</span>${
+    problemsOf(r.id).length ? '<span class="tag invalid">INVALID</span>' : ''
+  }</button>`
 }
 
 /** Blobs: every record on each resource, flat, with the status the API derived. */
@@ -199,7 +211,18 @@ function blobsHTML() {
           }),
         ...s.changes
           .filter((c) => c.resource === r.id)
-          .map((c) => row('change', c.id, `change with ${c.ops.length} ops`, `by ${esc(name(c.author))}`, 'retained')),
+          .map((c) => {
+            const bad = problemsOf(c.id).length > 0
+            return row(
+              'change',
+              c.id,
+              `change with ${c.ops.length} ops`,
+              `by ${esc(name(c.author))}`,
+              bad ? 'invalid' : 'retained',
+              bad ? 'warn' : '',
+              bad,
+            )
+          }),
       ]
       return `<section class="resource${isSel('resource', r.id)}">${resourceHead(r)}${
         rows.join('') || '<p class="empty">No blobs on this resource.</p>'
@@ -270,7 +293,9 @@ function authorityHTML() {
       PILL.h
     }" rx="6" stroke="${c}"/><text x="10" y="15" class="role">${esc(
       g.role.toUpperCase(),
-    )}</text><text x="10" y="29" class="sub">${esc(g.id)} · ${st}${g.proof ? '' : ' · root'}</text></g>`
+    )}</text><text x="10" y="29" class="sub">${esc(g.id)} · ${st}${!g.proof && st === 'valid' ? ' · root' : ''}</text>${
+      problemsOf(g.id).length ? `<title>${esc(problemsOf(g.id)[0])}</title>` : ''
+    }</g>`
     if (rev)
       nodes += `<g class="rev-node${sel('revocation', rev.id)}" data-select="revocation:${esc(
         rev.id,
@@ -283,13 +308,21 @@ function authorityHTML() {
   const resourceNodes = s.resources
     .map(
       (r) =>
-        `<g class="resource-node${sel('resource', r.id)}" data-select="resource:${esc(r.id)}" transform="translate(${
-          rx[r.id] - 80
-        },${RY - 20})"><rect width="160" height="40" rx="6" stroke="${
-          color[r.id]
-        }"/><text x="12" y="17" class="name">${esc(r.name)}</text><text x="12" y="31" class="sub">${esc(
-          d.resources[r.id]?.path || r.cid,
-        )} · ${r.public ? 'public' : 'private'}</text></g>`,
+        `<g class="resource-node${sel('resource', r.id)}${
+          problemsOf(r.id).length ? ' invalid' : ''
+        }" data-select="resource:${esc(r.id)}" transform="translate(${rx[r.id] - 80},${
+          RY - 20
+        })"><rect width="160" height="40" rx="6" stroke="${color[r.id]}"/><text x="12" y="17" class="name">${esc(
+          r.name,
+        )}</text><text x="12" y="31" class="sub">${esc(d.resources[r.id]?.path || r.cid)} · ${
+          r.public ? 'public' : 'private'
+        }</text>${
+          problemsOf(r.id).length
+            ? `<g class="bad-badge" transform="translate(154,-6)"><circle r="9"/><text y="4" text-anchor="middle">!</text><title>${esc(
+                problemsOf(r.id)[0],
+              )}</title></g>`
+            : ''
+        }</g>`,
     )
     .join('')
   const keyNodes = s.keys
@@ -318,14 +351,14 @@ function placementHTML() {
     const sel = d.resources[r.id]?.selected
     const v = sel ? statementOf(sel) : null
     const children = s.resources.filter((c) => c.parent === r.id)
-    return `<div class="branch"><div class="tree-node${isSel(
-      'resource',
-      r.id,
-    )}"><button class="tree-main" data-select="resource:${esc(r.id)}">${entityIcon('resource')}<b>${esc(
+    const bad = problemsOf(r.id).length > 0
+    return `<div class="branch"><div class="tree-node${isSel('resource', r.id)}${
+      bad ? ' invalid' : ''
+    }"><button class="tree-main" data-select="resource:${esc(r.id)}">${entityIcon('resource')}<b>${esc(
       r.name,
     )}</b><code>${r.segment ? esc(r.segment) : 'no name, by CID'}</code></button><span class="muted">owner ${esc(
       name(r.owner),
-    )} · ${r.public ? 'public' : 'private'}</span>${
+    )} · ${r.public ? 'public' : 'private'}</span>${bad ? '<span class="bad">invalid placement</span>' : ''}${
       v
         ? `<button class="inline" data-select="statement:${esc(v.id)}">${esc(v.id)}: ${esc(v.kind)} ${esc(
             v.text ?? '',
@@ -400,7 +433,7 @@ function renderDetails() {
     scope = id
     const r = renditionOf(id)
     const v = derived().resources[id]?.selected
-    html = `<div class="eyebrow">Resource</div><h3>${esc(o.name)}</h3>${kv(
+    html = `<div class="eyebrow">Resource</div><h3>${esc(o.name)}</h3>${problemBox(id)}${kv(
       'Owner',
       link('key', o.owner, name(o.owner)),
     )}${kv('Path', esc(derived().resources[id]?.path || ''))}${kv(
@@ -427,7 +460,7 @@ function renderDetails() {
     )}${fields(o)}`
   } else if (type === 'grant') {
     const st = grantStatus(id)
-    html = `<div class="eyebrow">Capability</div><h3>${esc(o.role)} for ${esc(name(o.to))}</h3>${kv(
+    html = `<div class="eyebrow">Capability</div><h3>${esc(o.role)} for ${esc(name(o.to))}</h3>${problemBox(id)}${kv(
       'Issued by',
       link('key', o.from, name(o.from)),
     )}${kv('Granted to', link('key', o.to, name(o.to)))}${kv(
@@ -435,7 +468,7 @@ function renderDetails() {
       link('resource', scope, resourceName(scope)),
     )}${kv('Status', `<span class="${st === 'valid' ? 'good' : st === 'revoked' ? 'bad' : 'warn'}">${st}</span>`)}${kv(
       'Proof',
-      o.proof ? link('grant', o.proof, o.proof) : 'none, root anchor',
+      o.proof ? link('grant', o.proof, o.proof) : st === 'valid' ? 'none, root anchor' : 'none',
     )}${o.reissuedFrom ? kv('Reissued from', link('grant', o.reissuedFrom, o.reissuedFrom)) : ''}<p class="muted">${
       o.role === 'admin'
         ? 'Admin grants are permanent. Reissuing adds a second grant and leaves this one intact.'
@@ -463,7 +496,7 @@ function renderDetails() {
         : 'retained'
     html = `<div class="eyebrow">${esc(isNode ? 'Node statement' : type)}</div><h3>${esc(
       isNode ? o.kind + (o.text ? ': ' + o.text : '') : type === 'revocation' ? 'revokes ' + o.target : id,
-    )}</h3>${kv('Signed by', link('key', o.author, name(o.author)))}${kv(
+    )}</h3>${problemBox(id)}${kv('Signed by', link('key', o.author, name(o.author)))}${kv(
       'Resource',
       link('resource', scope, resourceName(scope)),
     )}${

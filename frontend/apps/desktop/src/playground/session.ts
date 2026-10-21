@@ -16,6 +16,7 @@ import {
   SyncStep,
   access,
   addRootAnchor,
+  allProblems,
   clone,
   completeSync,
   deliver,
@@ -35,8 +36,6 @@ import {
   routes,
   selected,
   syncSteps,
-  validateNodeFields,
-  validatePlacement,
   validateState,
 } from './model'
 
@@ -497,6 +496,15 @@ export class PlaygroundSession {
 
   // ---- object editor ----
 
+  /**
+   * The message after a blob is stored. An invalid blob is kept and reported, never refused: the
+   * point of the playground is to see what the rules do with it.
+   */
+  private saved(id: string, ok = 'World updated. Decisions recomputed; experiment saved on this node.'): string {
+    const problems = allProblems(this.state)[id]
+    return problems ? `Saved ${id}, but it cannot be evaluated: ${problems[0]}` : ok
+  }
+
   private saveObject(body: Record<string, unknown>): Omit<DispatchResult, 'snapshot'> {
     const type = field(body, 'objectType')
     const id = optionalField(body, 'id')
@@ -527,7 +535,7 @@ export class PlaygroundSession {
         return k.id
       })
       return {
-        message: 'World updated. Decisions recomputed; experiment saved on this node.',
+        message: this.saved(kid),
         ui: {select: {type: 'key', id: kid}},
       }
     }
@@ -547,7 +555,6 @@ export class PlaygroundSession {
           public: data.public === true || data.public === 'true',
           cid: optionalField(data, 'cid')?.trim() || old?.cid || `bafy-demo-${s.serial++}`,
         }
-        validatePlacement(s, r)
         if (editing && old) {
           s.resources[s.resources.findIndex((x) => x.id === r.id)] = r
           if (old.owner !== r.owner) {
@@ -583,7 +590,7 @@ export class PlaygroundSession {
         return r.id
       })
       return {
-        message: 'World updated. Decisions recomputed; experiment saved on this node.',
+        message: this.saved(rid),
         ui: {select: {type: 'resource', id: rid}},
       }
     }
@@ -598,7 +605,7 @@ export class PlaygroundSession {
         s.revision++
       })
       return {
-        message: 'World updated. Decisions recomputed; experiment saved on this node.',
+        message: this.saved('policy-' + resource),
         ui: {select: {type: 'policy', id: 'policy-' + resource}},
       }
     }
@@ -633,9 +640,10 @@ export class PlaygroundSession {
         return g.id
       })
       return {
-        message: reissuing
-          ? `Issued ${gid}. Original ${id} is unchanged and retains its independent authority.`
-          : 'World updated. Decisions recomputed; experiment saved on this node.',
+        message: this.saved(
+          gid,
+          reissuing ? `Issued ${gid}. Original ${id} is unchanged and retains its independent authority.` : undefined,
+        ),
         ui: {select: {type: 'grant', id: gid}},
       }
     }
@@ -664,7 +672,7 @@ export class PlaygroundSession {
         return obj.id
       })
       return {
-        message: 'World updated. Decisions recomputed; experiment saved on this node.',
+        message: this.saved(rid),
         ui: {select: {type: 'revocation', id: rid}},
       }
     }
@@ -687,7 +695,7 @@ export class PlaygroundSession {
         return obj.id
       })
       return {
-        message: 'World updated. Decisions recomputed; experiment saved on this node.',
+        message: this.saved(cid),
         ui: {select: {type: 'change', id: cid}},
       }
     }
@@ -726,7 +734,6 @@ export class PlaygroundSession {
         v.apply = optionalField(data, 'apply')?.trim()
       }
       if (type === 'changes-snapshot') v.snapshot = parse(data.snapshot, 'UTILITY SNAPSHOT')
-      validateNodeFields(v)
       const vid = this.act((s) => {
         const obj: LabStatement = {id: editing ? id! : `v${s.serial++}`, ...v}
         if (editing) s.statements[s.statements.findIndex((x) => x.id === obj.id)] = obj
@@ -735,7 +742,7 @@ export class PlaygroundSession {
         return obj.id
       })
       return {
-        message: 'World updated. Decisions recomputed; experiment saved on this node.',
+        message: this.saved(vid),
         ui: {select: {type: 'statement', id: vid}},
       }
     }

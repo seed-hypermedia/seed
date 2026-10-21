@@ -137,12 +137,18 @@ describe('playground HTTP surface', () => {
     expect(empty.status).toBe(400)
     expect(empty.error).toMatch(/content/)
 
+    // A malformed node is stored and reported, not refused.
     const badNode = act({
       type: 'saveObject',
       objectType: 'changes',
       data: {resource: 'lab', author: 'alice', seq: 9, heads: '', apply: 'x'},
     })
-    expect(badNode.status).toBe(400)
+    expect(badNode.status).toBe(200)
+    expect(badNode.message).toMatch(/cannot be evaluated: A changes node needs at least one head/)
+    const badId = badNode.ui?.select?.id as string
+    expect(badNode.snapshot.derived.problems[badId]).toEqual([expect.stringMatching(/at least one head/)])
+    expect(badNode.snapshot.derived.statements[badId]?.status).toBe('INVALID')
+    expect(badNode.snapshot.derived.resources.lab!.selected).not.toBe(badId)
 
     const redirect = act({
       type: 'saveObject',
@@ -210,6 +216,58 @@ describe('playground HTTP surface', () => {
     const v = snapshot().state.statements.find((x) => x.id === noted.ui!.select!.id)!
     expect(v).toMatchObject({seq: 3, text: 'Plain text content', state: 'Plain text content'})
     expect(snapshot().derived.resources.lab!.selected).toBe(v.id)
+  })
+
+  test('invalid blobs are stored and flagged, never refused', () => {
+    const {act} = client()
+    // A child placed under another owner's resource: the path cannot resolve, the blob stays.
+    const crossRoot = act({
+      type: 'saveObject',
+      objectType: 'resource',
+      data: {name: 'Bob folder', owner: 'bob', parent: 'lab', segment: 'bobs'},
+    })
+    expect(crossRoot.status).toBe(200)
+    expect(crossRoot.message).toMatch(/cannot be evaluated: The parent "Research lab" is owned by Alice/)
+    const rid = crossRoot.ui?.select?.id as string
+    expect(crossRoot.snapshot.state.resources.some((r) => r.id === rid && r.parent === 'lab')).toBe(true)
+    expect(crossRoot.snapshot.derived.problems[rid]).toHaveLength(1)
+    expect(crossRoot.snapshot.derived.stats.invalid).toBe(1)
+
+    // A grant whose proof is held by someone else is stored as an invalid route.
+    const badProof = act({
+      type: 'saveObject',
+      objectType: 'capability',
+      data: {from: 'bob', to: 'bob', resource: 'lab', role: 'writer', proof: 'g1'},
+    })
+    expect(badProof.status).toBe(200)
+    const gid = badProof.ui?.select?.id as string
+    expect(badProof.snapshot.derived.grants[gid]?.status).toBe('invalid')
+    expect(badProof.snapshot.derived.problems[gid]).toEqual([expect.stringMatching(/held by Alice, not by the issuer/)])
+    expect(badProof.snapshot.derived.access.bob!.lab!.write).toBe(false)
+
+    // A revocation of an admin grant is kept but does nothing.
+    const noRevoke = act({
+      type: 'saveObject',
+      objectType: 'revocation',
+      data: {target: 'g1', author: 'alice'},
+    })
+    expect(noRevoke.status).toBe(200)
+    expect(noRevoke.message).toMatch(/Admin grants are permanent/)
+    expect(noRevoke.snapshot.derived.access.alice!.lab!.admin).toBe(true)
+
+    // Dangling references survive a reload of the saved world.
+    const dangling = act({
+      type: 'saveObject',
+      objectType: 'snapshot',
+      data: {resource: 'lab', author: 'ghost', state: 'from nobody'},
+    })
+    expect(dangling.status).toBe(200)
+    const vid = dangling.ui?.select?.id as string
+    expect(dangling.snapshot.derived.problems[vid]).toEqual([expect.stringMatching(/author "ghost" does not exist/)])
+    expect(dangling.snapshot.derived.statements[vid]?.status).toBe('INVALID')
+    const again = act({type: 'import', state: dangling.snapshot.state})
+    expect(again.status).toBe(200)
+    expect(Object.keys(again.snapshot.derived.problems).sort()).toEqual([gid, rid, vid, noRevoke.ui?.select?.id].sort())
   })
 
   test('a sync run steps through the protocol and commits the replica', () => {

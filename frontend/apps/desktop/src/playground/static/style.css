@@ -207,6 +207,10 @@ main {
   border-left-color: var(--red);
   color: var(--red);
 }
+#toast.warning {
+  border-left-color: var(--orange);
+  color: var(--orange);
+}
 .columns {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
@@ -295,6 +299,12 @@ main {
 }
 .resource-head .tag.public {
   color: var(--cyan);
+}
+.resource-head .tag.invalid {
+  color: var(--red);
+}
+.resource-head .tag + .tag {
+  margin-left: 8px;
 }
 .blob-row {
   display: grid;
@@ -535,12 +545,14 @@ main {
 .authority-graph .ticket-node.revoked text {
   fill: var(--muted);
 }
-.authority-graph .rev-node circle {
+.authority-graph .rev-node circle,
+.authority-graph .bad-badge circle {
   fill: #2a1414;
   stroke: var(--red);
   stroke-width: 1.5;
 }
-.authority-graph .rev-node text {
+.authority-graph .rev-node text,
+.authority-graph .bad-badge text {
   fill: var(--red);
   font-weight: 700;
   font-size: 12px;
@@ -590,6 +602,9 @@ main {
 }
 .tree-node.is-selected {
   border-color: var(--accent);
+}
+.tree-node.invalid {
+  border-color: var(--red);
 }
 .tree-main {
   display: inline-flex;
@@ -766,4 +781,29 @@ dialog::backdrop {
   .flow {
     grid-template-columns: 1fr;
   }
+}
+
+/* A stored blob the rules cannot evaluate. The API says why; the page only shows it. */
+.problems {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--red);
+  border-left-width: 3px;
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+.problems .eyebrow {
+  color: var(--red);
+}
+.problems ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.problems li {
+  margin: 2px 0;
+}
+.authority-graph .resource-node.invalid rect {
+  stroke: var(--red);
 }

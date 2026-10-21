@@ -13,9 +13,10 @@ import {
   selected,
   syncSteps,
   validGrant,
-  validateNodeFields,
+  nodeProblems,
+  allProblems,
   validRevocation,
-  validatePlacement,
+  placementProblems,
   validateState,
 } from '../playground/model'
 import {worldRecords} from '../playground/records'
@@ -111,18 +112,20 @@ describe('HM26 playground model', () => {
     expect(access(s, 'carol', 'lab').write).toBe(false)
   })
 
-  test('placement optional names, sibling uniqueness and cycle checks', () => {
+  test('placement problems: sibling names, loops and cross-root parents are reported, not refused', () => {
     const s = initialState()
     expect(pathFor(s, 'notes')).toBe('/lab/notes')
     const r = {...s.resources[1]!, id: 'extra'}
-    expect(() => validatePlacement(s, r)).toThrow(/already used/)
+    expect(placementProblems(s, r)).toEqual([expect.stringMatching(/already named "notes"/)])
     r.segment = ''
-    expect(() => validatePlacement(s, r)).not.toThrow()
+    expect(placementProblems(s, r)).toEqual([])
     r.parent = r.id
-    expect(() => validatePlacement(s, r)).toThrow(/cycle/)
+    expect(placementProblems(s, r)).toEqual([expect.stringMatching(/loops/)])
     r.parent = 'lab'
     r.owner = 'bob'
-    expect(() => validatePlacement(s, r)).toThrow(/Cross-root/)
+    expect(placementProblems(s, r)).toEqual([expect.stringMatching(/owned by Alice, a different key/)])
+    r.parent = 'nowhere'
+    expect(placementProblems(s, r)).toEqual([expect.stringMatching(/"nowhere" does not exist/)])
   })
 
   test('signed exact revocation is scoped and cannot remove permanent admin', () => {
@@ -167,16 +170,22 @@ describe('HM26 playground model', () => {
     expect(rendition(s, 'lab').status).toBe('unsupported')
     s.changes[0]!.deps = ['c-root']
     expect(rendition(s, 'lab').status).toBe('invalid')
-    expect(() => validateNodeFields({...v, prev: 'v2'})).toThrow()
-    expect(() => validateNodeFields({kind: 'republish', target: 'notes'})).toThrow()
+    expect(nodeProblems({...v, prev: 'v2'})).toEqual([expect.stringMatching(/does not take prev/)])
+    expect(nodeProblems({kind: 'republish', target: 'notes'})).toEqual([expect.stringMatching(/no payload/)])
+    expect(nodeProblems(v)).toEqual([])
   })
 
-  test('malformed states reject atomically', () => {
+  test('malformed states reject atomically; wrong but well-formed blobs are kept and flagged', () => {
     const s = initialState()
     s.resources[1]!.parent = 'notes'
-    expect(() => validateState(s)).toThrow(/cycle/)
+    expect(() => validateState(s)).not.toThrow()
+    expect(allProblems(s).notes).toEqual([expect.stringMatching(/loops/)])
     s.resources[1]!.parent = 'lab'
     ;(s.grants[0] as unknown as {role: string}).role = 'toString'
+    expect(() => validateState(s)).not.toThrow()
+    expect(allProblems(s).g1).toContainEqual(expect.stringMatching(/not a role/))
+    expect(access(s, 'alice', 'lab').admin).toBe(false)
+    ;(s.grants[0] as unknown as {role: unknown}).role = 7
     expect(() => validateState(s)).toThrow()
     expect(() => validateState({keys: []})).toThrow()
     expect(() => validateState('nope')).toThrow()

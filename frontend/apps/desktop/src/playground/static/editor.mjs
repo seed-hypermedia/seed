@@ -82,7 +82,7 @@ export function createObjectEditor(ctx) {
           'f-parent',
           [{id: '', name: 'None'}, ...s.resources.filter((x) => x.id !== o.id)],
           r.parent || '',
-          'Placement only. A grant on the parent never covers the child.',
+          'Placement only. A grant on the parent never covers the child. A parent with another owner is kept but cannot resolve.',
         ) +
         input('Path name', 'f-segment', r.segment, 'maxlength="60"') +
         yesNo('Audience', 'f-public', r.public)

@@ -1,4 +1,4 @@
-import {LabState, access, isRevoked, selected, validGrant, validRevocation} from './model'
+import {LabState, access, isRevoked, selected, statementProblems, validGrant, validRevocation} from './model'
 
 export const recordTypes = [
   'key',
@@ -104,9 +104,11 @@ export function worldRecords(s: LabState): LedgerRecord[] {
         status:
           selected(s, v.resource)?.id === v.id
             ? 'SELECTED'
-            : access(s, v.author, v.resource).write
-              ? 'OLDER'
-              : 'INELIGIBLE',
+            : statementProblems(s, v).length
+              ? 'INVALID'
+              : access(s, v.author, v.resource).write
+                ? 'OLDER'
+                : 'INELIGIBLE',
         raw: v,
         refs: refs(
           ['key', v.author, key(v.author)],

@@ -194,7 +194,7 @@ export function isRevoked(s: LabState, grantId: string): boolean {
 }
 
 export function validGrant(s: LabState, g: LabGrant | undefined, seen: Set<string> = new Set()): boolean {
-  if (!g || !roles[g.role] || seen.has(g.id) || !findKey(s, g.from) || !findKey(s, g.to)) return false
+  if (!g || !isRole(g.role) || seen.has(g.id) || !findKey(s, g.from) || !findKey(s, g.to)) return false
   if (g.role !== 'admin' && isRevoked(s, g.id)) return false
   if (g.from === findResource(s, g.resource)?.owner && g.to === g.from && g.role === 'admin' && !g.proof) return true
   const p = findGrant(s, g.proof)
@@ -222,10 +222,13 @@ export function access(s: LabState, key: string, resource: string): Access {
   }
 }
 
-/** The selected statement is the highest sequence whose author currently holds writer authority. */
+/**
+ * The selected statement is the highest sequence whose author currently holds writer authority.
+ * A statement that cannot be evaluated (see statementProblems) is never selected.
+ */
 export function selected(s: LabState, resource: string): LabStatement | undefined {
   return s.statements
-    .filter((v) => v.resource === resource && access(s, v.author, resource).write)
+    .filter((v) => v.resource === resource && !statementProblems(s, v).length && access(s, v.author, resource).write)
     .sort((a, b) => b.seq - a.seq)[0]
 }
 
@@ -404,27 +407,146 @@ export function pathFor(s: LabState, id: string, seen: Set<string> = new Set()):
   return prefix + '/' + (r.segment ? encodeURIComponent(r.segment) : '[' + r.id + ']')
 }
 
-/** Enforce the lab's unique-sibling name convention and acyclic placement. */
-export function validatePlacement(s: LabState, r: LabResource): void {
-  if (!findKey(s, r.owner)) throw Error('Choose an existing owner/root key.')
+/**
+ * Why a resource's placement does not resolve: the lab's unique-sibling name convention, acyclic
+ * placement, and one owner per tree. Empty when the placement is fine. The resource is stored
+ * either way; these are shown next to it.
+ */
+export function placementProblems(s: LabState, r: LabResource): string[] {
+  const out: string[] = []
+  if (!findKey(s, r.owner)) out.push(`The owner key "${r.owner}" does not exist.`)
   if (r.segment && (r.segment.includes('/') || r.segment === '.' || r.segment === '..'))
-    throw Error('A path name is one segment: no slash, dot or dot-dot.')
+    out.push('A path name is one segment: no slash, dot or dot-dot.')
   if (
     r.segment &&
     s.resources.some((x) => x.id !== r.id && x.owner === r.owner && x.parent === r.parent && x.segment === r.segment)
   )
-    throw Error('That name is already used beside this resource. Choose a unique sibling name.')
+    out.push(`Another resource beside this one is already named "${r.segment}".`)
   const seen = new Set([r.id])
   let p = r.parent
   while (p) {
-    if (seen.has(p)) throw Error('Placement cannot contain a cycle.')
+    if (seen.has(p)) {
+      out.push('The placement loops: this resource is inside itself.')
+      break
+    }
     seen.add(p)
     const x = findResource(s, p)
-    if (!x) throw Error('Choose an existing parent.')
-    if (x.owner !== r.owner)
-      throw Error('Cross-root placement is unresolved in the draft. Choose a parent with the same owner.')
+    if (!x) {
+      out.push(`The parent "${p}" does not exist.`)
+      break
+    }
+    if (x.owner !== r.owner) {
+      out.push(
+        `The parent "${x.name}" is owned by ${
+          findKey(s, x.owner)?.name || x.owner
+        }, a different key. HM26 does not say how a path crosses from one owner's tree into another's, so this placement cannot be resolved.`,
+      )
+      break
+    }
     p = x.parent
   }
+  return out
+}
+
+/** Why a grant is not a valid route. Empty for a valid or a merely revoked grant. */
+export function grantProblems(s: LabState, g: LabGrant): string[] {
+  const out: string[] = []
+  if (!isRole(g.role)) out.push(`"${g.role}" is not a role. Use reader, writer or admin.`)
+  if (!findKey(s, g.from)) out.push(`The issuer "${g.from}" does not exist.`)
+  if (!findKey(s, g.to)) out.push(`The recipient "${g.to}" does not exist.`)
+  const r = findResource(s, g.resource)
+  if (!r) out.push(`The resource "${g.resource}" does not exist.`)
+  if (g.from === r?.owner && g.to === g.from && g.role === 'admin' && !g.proof) return out
+  if (!g.proof) {
+    out.push(
+      'No proof. Every grant names the admin grant its issuer holds on this resource. Only the owner granting admin to itself goes without one.',
+    )
+    return out
+  }
+  const p = findGrant(s, g.proof)
+  if (!p) out.push(`The proof "${g.proof}" does not exist.`)
+  else {
+    if (p.role !== 'admin') out.push(`The proof ${p.id} is a ${p.role} grant. Only admin grants can issue.`)
+    if (p.to !== g.from) out.push(`The proof ${p.id} is held by ${findKey(s, p.to)?.name || p.to}, not by the issuer.`)
+    if (p.resource !== g.resource) out.push(`The proof ${p.id} covers another resource. Scope is exact.`)
+    if (p.id === g.id || chainReaches(s, p, g.id)) out.push('The proof chain loops back to this grant.')
+    else if (!validGrant(s, p)) out.push(`The proof ${p.id} is itself not valid.`)
+  }
+  return out
+}
+
+function chainReaches(s: LabState, from: LabGrant, id: string, seen: Set<string> = new Set()): boolean {
+  if (seen.has(from.id)) return false
+  seen.add(from.id)
+  const p = findGrant(s, from.proof)
+  if (!p) return false
+  if (p.id === id) return true
+  return chainReaches(s, p, id, seen)
+}
+
+/** Why a revocation does not count. Empty when it is valid. */
+export function revocationProblems(s: LabState, v: LabRevocation): string[] {
+  const out: string[] = []
+  if (!findKey(s, v.author)) out.push(`The author "${v.author}" does not exist.`)
+  const g = findGrant(s, v.target)
+  if (!g) out.push(`The target grant "${v.target}" does not exist.`)
+  else {
+    if (g.role === 'admin') out.push('The target is an admin grant. Admin grants are permanent.')
+    if (v.resource !== g.resource) out.push('The revocation names a different resource than the grant it targets.')
+  }
+  const p = findGrant(s, v.proof)
+  if (!p)
+    out.push(
+      v.proof
+        ? `The proof "${v.proof}" does not exist.`
+        : 'No proof. Name an admin grant the author holds on this resource.',
+    )
+  else {
+    if (p.role !== 'admin') out.push(`The proof ${p.id} is a ${p.role} grant. Only an admin can revoke.`)
+    if (p.to !== v.author)
+      out.push(`The proof ${p.id} is held by ${findKey(s, p.to)?.name || p.to}, not by the author.`)
+    if (g && p.resource !== g.resource) out.push(`The proof ${p.id} covers another resource. Scope is exact.`)
+    if (!validGrant(s, p)) out.push(`The proof ${p.id} is itself not valid.`)
+  }
+  return out
+}
+
+/**
+ * Why a statement cannot be evaluated. Being outranked or unauthorized is not a problem here, and
+ * neither is a change head that has not arrived: the rendition reports that as missing.
+ */
+export function statementProblems(s: LabState, v: LabStatement): string[] {
+  const out = nodeProblems(v)
+  if (!findKey(s, v.author)) out.push(`The author "${v.author}" does not exist.`)
+  if (!findResource(s, v.resource)) out.push(`The resource "${v.resource}" does not exist.`)
+  if (v.prev && !s.statements.some((x) => x.id === v.prev))
+    out.push(`The previous statement "${v.prev}" does not exist.`)
+  if (v.kind === 'redirect' && v.target && !findResource(s, v.target))
+    out.push(`The redirect target "${v.target}" does not exist.`)
+  return out
+}
+
+/** Why a change blob cannot be evaluated. */
+export function changeProblems(s: LabState, c: LabChange): string[] {
+  const out: string[] = []
+  if (!findKey(s, c.author)) out.push(`The author "${c.author}" does not exist.`)
+  if (!findResource(s, c.resource)) out.push(`The resource "${c.resource}" does not exist.`)
+  for (const d of c.deps) if (!s.changes.some((x) => x.id === d)) out.push(`The dependency "${d}" does not exist.`)
+  return out
+}
+
+/** Every record with problems, by id. Records that evaluate cleanly are not listed. */
+export function allProblems(s: LabState): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  const put = (id: string, problems: string[]) => {
+    if (problems.length) out[id] = problems
+  }
+  for (const r of s.resources) put(r.id, placementProblems(s, r))
+  for (const g of s.grants) put(g.id, grantProblems(s, g))
+  for (const v of s.revocations) put(v.id, revocationProblems(s, v))
+  for (const v of s.statements) put(v.id, statementProblems(s, v))
+  for (const c of s.changes) put(c.id, changeProblems(s, c))
+  return out
 }
 
 /** Summarize a selected blob without inventing native tombstone/redirect resolution rules. */
@@ -526,15 +648,14 @@ export function validateState(raw: unknown): LabState {
     if (!str(r.name) || !str(r.cid) || !str(r.segment) || typeof r.public !== 'boolean')
       throw Error('Invalid resource.')
     if (r.parent !== null && !str(r.parent)) throw Error('Invalid resource.')
-    validatePlacement(s, r)
+    if (!str(r.owner)) throw Error('Invalid resource.')
   }
   for (const g of s.grants) {
     if (
-      !has('keys', g.from) ||
-      !has('keys', g.to) ||
-      !has('resources', g.resource) ||
-      !isRole(g.role) ||
-      (g.role === 'admin' && g.revoked) ||
+      !str(g.from) ||
+      !str(g.to) ||
+      !str(g.resource) ||
+      !str(g.role) ||
       (g.proof !== null && !str(g.proof)) ||
       (g.revoked != null && typeof g.revoked !== 'boolean') ||
       (g.reissuedFrom != null && !str(g.reissuedFrom))
@@ -542,23 +663,15 @@ export function validateState(raw: unknown): LabState {
       throw Error('Invalid capability references.')
   }
   for (const v of s.statements) {
-    if (!has('keys', v.author) || !has('resources', v.resource) || !Number.isSafeInteger(v.seq) || !isNodeKind(v.kind))
+    if (!str(v.author) || !str(v.resource) || !Number.isSafeInteger(v.seq) || !str(v.kind))
       throw Error('Invalid node statement.')
-    validateNodeFields(v)
   }
   for (const c of s.changes) {
-    if (
-      !has('keys', c.author) ||
-      !has('resources', c.resource) ||
-      !Array.isArray(c.deps) ||
-      !c.deps.every(str) ||
-      !Array.isArray(c.ops)
-    )
+    if (!str(c.author) || !str(c.resource) || !Array.isArray(c.deps) || !c.deps.every(str) || !Array.isArray(c.ops))
       throw Error('Invalid change blob.')
   }
   for (const v of s.revocations) {
-    if (!has('keys', v.author) || !has('resources', v.resource) || !str(v.target) || !str(v.proof))
-      throw Error('Invalid revocation blob.')
+    if (!str(v.author) || !str(v.resource) || !str(v.target) || !str(v.proof)) throw Error('Invalid revocation blob.')
   }
   for (const j of s.outbox) {
     if (!has('keys', j.author) || !has('resources', j.resource) || !str(j.version) || !str(j.status))
@@ -577,36 +690,33 @@ function normalizeStateShape(s: LabState): void {
   normalizeState(s)
 }
 
-/** Validate the modeled fields of a draft node variant. */
-export function validateNodeFields(v: Partial<LabStatement>): void {
-  if (!isNodeKind(v.kind)) throw Error('Unknown node kind.')
+/** What is wrong with the modeled fields of a node variant. Empty when the shape is right. */
+export function nodeProblems(v: Partial<LabStatement>): string[] {
+  const out: string[] = []
+  if (!isNodeKind(v.kind)) return [`"${v.kind}" is not a node kind.`]
   if (v.kind === 'changes' || v.kind === 'changes-snapshot') {
-    if (
-      !Array.isArray(v.heads) ||
-      !v.heads.length ||
-      !v.heads.every((h) => typeof h === 'string') ||
-      typeof v.apply !== 'string' ||
-      !v.apply
-    )
-      throw Error('Changes nodes require at least one head and an exact apply identifier.')
-    if (v.prev) throw Error('Change-bearing nodes do not accept prev.')
+    if (!Array.isArray(v.heads) || !v.heads.length || !v.heads.every((h) => typeof h === 'string'))
+      out.push('A changes node needs at least one head.')
+    if (typeof v.apply !== 'string' || !v.apply) out.push('A changes node needs an exact apply identifier.')
+    if (v.prev) out.push('A changes node does not take prev.')
   }
-  if (v.kind === 'snapshot' && !('state' in v)) throw Error('A snapshot requires state.')
-  if (v.kind === 'changes-snapshot' && !('snapshot' in v))
-    throw Error('A changes-snapshot requires a utility snapshot.')
+  if (v.kind === 'snapshot' && !('state' in v)) out.push('A snapshot needs state.')
+  if (v.kind === 'changes-snapshot' && !('snapshot' in v)) out.push('A changes-snapshot needs a utility snapshot.')
   if (v.kind === 'redirect' && (typeof v.target !== 'string' || !v.target))
-    throw Error('A redirect requires a target resource.')
+    out.push('A redirect needs a target resource.')
   if (v.kind === 'republish' && (v.prev || v.target || v.heads || 'state' in v || 'snapshot' in v))
-    throw Error('Republish is BaseNode-only; it has no defined payload or prev.')
+    out.push('Republish has no payload and no prev.')
+  return out
 }
 
-/** Reissue a capability as a new immutable record; the original is never changed or revoked. */
+/**
+ * Reissue a capability as a new immutable record; the original is never changed or revoked. The
+ * new grant is stored even when its references do not resolve; the derived view reports why.
+ */
 export function reissueCapability(s: LabState, id: string, fields: Partial<LabGrant>): LabGrant {
   const old = findGrant(s, id)
   if (!old) throw Error('Capability not found.')
   const data = {...old, ...fields}
-  if (!isRole(data.role) || !findKey(s, data.from) || !findKey(s, data.to) || !findResource(s, data.resource))
-    throw Error('Choose existing principals, scope and role.')
   const g: LabGrant = {
     id: `g${s.serial++}`,
     from: data.from,

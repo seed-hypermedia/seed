@@ -3,17 +3,22 @@ import {
   LabState,
   Rendition,
   access,
+  allProblems,
   isRevoked,
   pathFor,
   rendition,
   routes,
   selected,
+  statementProblems,
   validGrant,
   validRevocation,
 } from './model'
 import {LedgerRecord, worldRecords} from './records'
 
 export type GrantStatus = 'valid' | 'revoked' | 'invalid'
+
+/** INVALID: the statement cannot be evaluated. INELIGIBLE: its author cannot write right now. */
+export type StatementStatus = 'SELECTED' | 'OLDER' | 'INELIGIBLE' | 'INVALID'
 
 export type AccessView = {
   read: boolean
@@ -41,12 +46,18 @@ export type DerivedView = {
   resources: Record<string, ResourceView>
   grants: Record<string, {status: GrantStatus}>
   revocations: Record<string, {valid: boolean}>
-  statements: Record<string, {status: 'SELECTED' | 'OLDER' | 'INELIGIBLE'}>
+  statements: Record<string, {status: StatementStatus}>
   access: Record<string, Record<string, AccessView>>
   /** For each key and resource, the id of a valid admin grant held by the key, if any. */
   adminRoute: Record<string, Record<string, string | null>>
+  /**
+   * Why a record cannot be evaluated, by id: a placement that does not resolve, a grant whose
+   * proof is wrong, a statement that names a missing author. Records that evaluate cleanly are
+   * absent. The record itself is still stored; nothing is refused for being wrong.
+   */
+  problems: Record<string, string[]>
   records: LedgerRecord[]
-  stats: {principals: number; resources: number; activeGrants: number; revocations: number}
+  stats: {principals: number; resources: number; activeGrants: number; revocations: number; invalid: number}
 }
 
 export function deriveView(s: LabState): DerivedView {
@@ -66,9 +77,11 @@ export function deriveView(s: LabState): DerivedView {
       status:
         resources[v.resource]?.selected === v.id
           ? 'SELECTED'
-          : access(s, v.author, v.resource).write
-            ? 'OLDER'
-            : 'INELIGIBLE',
+          : statementProblems(s, v).length
+            ? 'INVALID'
+            : access(s, v.author, v.resource).write
+              ? 'OLDER'
+              : 'INELIGIBLE',
     }
   }
   const accessView: DerivedView['access'] = {}
@@ -90,6 +103,7 @@ export function deriveView(s: LabState): DerivedView {
       adminRoute[k.id][r.id] = routes(s, k.id, r.id).find((g) => g.role === 'admin')?.id ?? null
     }
   }
+  const problems = allProblems(s)
   return {
     resources,
     grants,
@@ -97,12 +111,14 @@ export function deriveView(s: LabState): DerivedView {
     statements,
     access: accessView,
     adminRoute,
+    problems,
     records: worldRecords(s),
     stats: {
       principals: s.keys.length,
       resources: s.resources.length,
       activeGrants: s.grants.filter((g) => validGrant(s, g)).length,
       revocations: s.grants.filter((g) => isRevoked(s, g.id)).length,
+      invalid: Object.keys(problems).length,
     },
   }
 }
