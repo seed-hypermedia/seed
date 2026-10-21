@@ -54,6 +54,8 @@ export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListD
 
 export const CommentBox = memo(CommentBoxImpl)
 function CommentBoxImpl(props: {
+  /** Use the compact panel-footer editor. */
+  compact?: boolean
   docId: UnpackedHypermediaId
   backgroundColor?: string
   quotingBlockId?: string
@@ -532,6 +534,7 @@ function CommentBoxImpl(props: {
   return (
     <>
       <CommentEditor
+        compact={props.compact}
         focusOnMount={focusOnMount}
         isReplying={isReplying || !!commentId}
         submitHandleRef={submitHandleRef}
@@ -560,6 +563,8 @@ function CommentBoxImpl(props: {
             <Button
               variant="default"
               size="icon"
+              aria-label="Send comment"
+              className={props.compact ? 'size-12 shrink-0 rounded-full' : undefined}
               onClick={(e) => {
                 e.stopPropagation()
                 handleSubmit(getContent, reset)

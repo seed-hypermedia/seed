@@ -832,6 +832,8 @@ function getActiveView(routeKey: string): ActiveView {
 }
 
 export interface CommentEditorProps {
+  /** Use a compact field with a separate send button in the panel footer. */
+  compact?: boolean
   /** Called after the comment is published successfully. */
   onCommentSubmitted?: (comment: HMComment) => void
   docId: UnpackedHypermediaId
@@ -3128,6 +3130,7 @@ function DocumentBody({
               </div>
             ) : (
               <DiscussionsPageContent
+                isPanel
                 docId={commentsPanelTarget.docId}
                 showTitle={false}
                 showOpenInPanel={false}
@@ -3179,26 +3182,26 @@ function DocumentBody({
   }
 
   // Desktop: use PanelLayout with scrollable main content + optional panel
-  const panelContent = panelKey ? (
-    <ScrollArea className="flex-1">
-      <PanelContentRenderer
-        panelRoute={panelRoute!}
-        docId={docId}
-        document={document}
-        contentMaxWidth={contentMaxWidth}
-        CommentEditor={CommentEditor}
-        siteUrl={siteUrl}
-        fileUpload={fileUpload}
-        draftVersionEntry={draftVersionEntry}
-      />
-    </ScrollArea>
+  const panelContent = panelRoute ? (
+    <PanelContentRenderer
+      panelRoute={panelRoute}
+      docId={docId}
+      document={document}
+      contentMaxWidth={contentMaxWidth}
+      CommentEditor={CommentEditor}
+      siteUrl={siteUrl}
+      fileUpload={fileUpload}
+      draftVersionEntry={draftVersionEntry}
+    />
   ) : null
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
       <PanelLayout
         panelKey={panelKey}
-        panelContent={panelContent}
+        panelContent={
+          panelKey === 'comments' ? panelContent : <ScrollArea className="flex-1">{panelContent}</ScrollArea>
+        }
         onPanelClose={handlePanelClose}
         commentsCount={commentsPanelSummary.data?.comments}
         onCommentsExpand={handleCommentsExpand}
@@ -3470,6 +3473,7 @@ function CommentsPanelContent({
   return (
     <CommentsProvider {...commentsContext} onReplyClick={onReplyClick} onReplyCountClick={onReplyCountClick}>
       <DiscussionsPageContent
+        isPanel
         docId={docId}
         showTitle={false}
         showOpenInPanel={false}

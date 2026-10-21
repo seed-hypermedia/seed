@@ -6,8 +6,11 @@ import {useDocumentComments} from '@shm/shared/models/comments'
 import type {CommentEditorProps} from './resource-page-common'
 import {BlockDiscussions, CommentDiscussions, Discussions} from './comments'
 import {PageLayout} from './page-layout'
+import {ScrollArea} from './components/scroll-area'
 
 export interface DiscussionsPageContentProps {
+  /** Keep the editor below a separately scrolling panel list. */
+  isPanel?: boolean
   docId: UnpackedHypermediaId
   openComment?: string
   replyCommentId?: string
@@ -34,6 +37,7 @@ export interface DiscussionsPageContentProps {
  */
 export function DiscussionsPageContent({
   docId,
+  isPanel = false,
   openComment,
   replyCommentId,
   targetBlockId,
@@ -60,6 +64,7 @@ export function DiscussionsPageContent({
         ? null
         : cloneElement(commentEditor, {
             key: [target?.id || openComment || 'root', targetBlockId || '', JSON.stringify(blockRange)].join(':'),
+            compact: isPanel || commentEditor.props.compact,
             commentId: target?.id || openComment,
             replyCommentVersion: target?.version ?? commentEditor.props.replyCommentVersion,
             rootReplyCommentVersion:
@@ -82,7 +87,7 @@ export function DiscussionsPageContent({
     content = (
       <BlockDiscussions
         targetId={targetId}
-        commentEditor={editor}
+        commentEditor={isPanel ? undefined : editor}
         targetDomain={targetDomain}
         blockRange={blockRange || undefined}
       />
@@ -92,7 +97,7 @@ export function DiscussionsPageContent({
       <CommentDiscussions
         commentId={openComment}
         replyCommentId={replyCommentId}
-        commentEditor={editor}
+        commentEditor={isPanel ? undefined : editor}
         targetId={docId}
         targetDomain={targetDomain}
         isEntirelyHighlighted={!blockId}
@@ -102,7 +107,7 @@ export function DiscussionsPageContent({
   } else {
     content = (
       <>
-        {editor}
+        {!isPanel && editor}
         <Discussions
           targetId={docId}
           targetDomain={targetDomain}
@@ -110,6 +115,17 @@ export function DiscussionsPageContent({
           onCommentDeleted={(id) => setSubmittedRoots((roots) => roots.filter((root) => root.id !== id))}
         />
       </>
+    )
+  }
+
+  if (isPanel) {
+    return (
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="p-4">{content}</div>
+        </ScrollArea>
+        {editor && <div className="bg-background border-border shrink-0 border-t p-3">{editor}</div>}
+      </div>
     )
   }
 

@@ -282,6 +282,7 @@ export function CommentEditor({
   universalClient,
   getDraftMediaBlob,
   hideAvatar,
+  compact = false,
   hideSubmitToolbar,
   submitHandleRef,
   disableTrailingNode,
@@ -344,6 +345,8 @@ export function CommentEditor({
     }
   }>
   getDraftMediaBlob?: (draftId: string, mediaId: string) => Promise<Blob | null>
+  /** Render a compact field with its submit button outside the border. */
+  compact?: boolean
   /** Hide the leading avatar */
   hideAvatar?: boolean
   /** Hide the built-in footer toolbar when submit controls are rendered outside the editor. */
@@ -953,7 +956,7 @@ export function CommentEditor({
   return (
     <>
       <div className="flex w-full items-start gap-2">
-        {hideAvatar ? null : (
+        {hideAvatar || compact ? null : (
           <div className="flex shrink-0 grow-0">
             {account?.metadata ? (
               <LinkIcon id={account.id} metadata={account.metadata} size={32} />
@@ -965,6 +968,7 @@ export function CommentEditor({
         <div
           className={cn(
             'bg-muted border-border dark:border-muted-foreground/20 focus-within:border-ring/60 w-full min-w-0 flex-1 rounded-lg border transition-[filter,border-color,background-color]',
+            compact && 'bg-card rounded-xl',
             isExpanded
               ? ''
               : 'hover:border-black/10 hover:brightness-[1.01] active:brightness-95 dark:hover:border-white/10',
@@ -1031,8 +1035,13 @@ export function CommentEditor({
         >
           <div
             className={cn(
-              'hm-prose is-comment comment-editor max-h-[160px] min-h-20 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',
-              isExpanded ? 'justify-start px-3 pt-1 pb-2' : 'justify-center',
+              'hm-prose is-comment comment-editor w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto',
+              compact ? 'max-h-40 min-h-12' : 'max-h-[160px] min-h-20 md:max-h-full',
+              isExpanded
+                ? 'justify-start px-3 pt-1 pb-2'
+                : compact
+                  ? 'flex items-center justify-center'
+                  : 'justify-center',
             )}
             // marginTop="$1"
 
@@ -1078,7 +1087,7 @@ export function CommentEditor({
               </Button>
             )}
           </div>
-          {!hideSubmitToolbar ? (
+          {!hideSubmitToolbar && (!compact || (isExpanded && isMobile)) ? (
             <div ref={toolbarRef} className={cn('mx-2 mb-2 flex gap-2', isMobile ? 'justify-between' : 'justify-end')}>
               {isExpanded && isMobile && (
                 <div className="flex items-center gap-2">
@@ -1111,16 +1120,11 @@ export function CommentEditor({
                 </div>
               )}
 
-              <div className="flex gap-2">
-                {submitButton({
-                  reset,
-                  disabled: !isExpanded,
-                  getContent,
-                })}
-              </div>
+              {!compact && <div className="flex gap-2">{submitButton({reset, disabled: !isExpanded, getContent})}</div>}
             </div>
           ) : null}
         </div>
+        {compact && !hideSubmitToolbar && submitButton({reset, disabled: !isExpanded, getContent})}
       </div>
 
       {/* Mobile dialogs */}
