@@ -1,7 +1,6 @@
 import {HMCommentDraft, HMListedCommentDraft, HMListedCommentDraftSchema} from '@seed-hypermedia/client/hm-types'
 import {hasBlockContent} from '@shm/shared/content'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import Store from 'electron-store'
 import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
 import {join} from 'path'
@@ -13,17 +12,6 @@ import {commentDraftStore} from './app-store.mts'
 import {t} from './app-trpc'
 import {error} from './logger'
 
-// Define interface for the electron store instance
-interface CommentStore extends Store<Record<string, any>> {
-  get: (key: string) => any
-  set: (key: string, value: any) => void
-  delete: (key: string) => void
-  store: Record<string, any>
-}
-
-// Cast the store to the interface
-const typedCommentStore = commentDraftStore as CommentStore
-
 const commentDraftsDir = join(userDataPath, 'comment-drafts')
 const commentDraftIndexPath = join(commentDraftsDir, 'index.json')
 
@@ -34,12 +22,12 @@ export async function initCommentDrafts() {
 
   if (!(await fs.stat(commentDraftIndexPath).catch(() => false))) {
     // Migrate from old electron-store format to new file-based index
-    const allKeys = Object.keys(typedCommentStore.store || {})
+    const allKeys = Object.keys(commentDraftStore.store || {})
     const newCommentDraftIndex: HMListedCommentDraft[] = []
 
     for (const key of allKeys) {
       if (key.startsWith('Comment-')) {
-        const oldDraft = typedCommentStore.get(key)
+        const oldDraft = commentDraftStore.get(key)
         if (oldDraft && oldDraft.blocks) {
           const draftId = nanoid(10)
           const parts = key.replace('Comment-', '').split('-')
