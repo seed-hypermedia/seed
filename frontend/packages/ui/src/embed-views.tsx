@@ -1,13 +1,8 @@
 import type {HMResource} from '@seed-hypermedia/client/hm-types'
 import {
-  BlockRange,
   HMBlock,
-  HMBlockChildrenType,
   HMBlockEmbed,
-  HMBlockNode,
   HMComment,
-  HMDocument,
-  HMEmbedView,
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
@@ -24,20 +19,17 @@ import {
   useUniversalClient,
 } from '@shm/shared'
 import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
-import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {DocumentPanelRoute} from '@shm/shared/routes'
-import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
-import {AlertCircle, FileSymlink as FileSymlinkIcon, FileText as FileTextIcon, Globe, Undo2} from 'lucide-react'
-import React, {ReactNode, useCallback, useMemo, useState} from 'react'
-import {toast} from 'sonner'
-import {getBlockFragment, getBlockNodeById} from './blocks-content-utils'
+import {useNavRoute} from '@shm/shared/utils/navigation'
+import {AlertCircle, FileSymlink as FileSymlinkIcon, FileText as FileTextIcon, Globe} from 'lucide-react'
+import React, {ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
-import {CommentContent, Discussions} from './comments'
+import {Discussions} from './comments'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
-import {EmbedWrapper, FragmentEmbedControls, getEmbedDocumentRoute} from './embed-wrapper'
-import {HMIcon} from './hm-icon'
+import {EmbedWrapper, getEmbedDocumentRoute} from './embed-wrapper'
+import {ContentEmbed} from './content-embed'
 import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -420,25 +412,12 @@ export function BlockEmbedContent({
   depth,
   parentBlockId,
   openOnClick = true,
-  renderDocumentContent,
 }: BlockContentProps<HMBlockEmbed> & {
   openOnClick?: boolean
-  renderDocumentContent?: (props: {
-    embedBlocks: HMBlockNode[]
-    document: HMDocument | null | undefined
-    id: UnpackedHypermediaId
-    rootChildrenType?: HMBlockChildrenType
-    /** Block id within the embedded document to scroll-anchor / focus-highlight. */
-    blockRef?: string | null
-    /** Codepoint range within `blockRef` to highlight when the link targets a fragment. */
-    blockRange?: import('@seed-hypermedia/client/hm-types').BlockRange | null
-  }) => React.ReactNode
 }) {
-  const [showReferenced, setShowReferenced] = useState(false)
   const renderResourceStack = useRenderResourceStack()
   // Memoize on `block.link` so `id` (and `id.blockRange`) keep a stable reference
-  // across re-renders — otherwise every render hands `BlockEmbedContentDocument`
-  // a fresh `blockRange` prop, re-rendering it needlessly.
+  // across re-renders so the shared content presentation has a stable source.
   const id = useMemo(() => {
     const rawId = unpackHmId(block.link)
     // When the link targets a specific codepoint range we MUST resolve against
@@ -455,7 +434,6 @@ export function BlockEmbedContent({
   const latestCheck = useResource(latestCheckId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
   const comment = resource.data?.type === 'comment' ? resource.data.comment : undefined
-  const commentTargetResource = useResource(getCommentTargetId(comment))
   const author = useAccount(comment?.author, {subscribe: true})
   const candidateKind = comment ? 'comment' : document ? 'document' : null
   const isCyclicEmbed = !!(
@@ -518,7 +496,6 @@ export function BlockEmbedContent({
         id={id}
         comment={comment}
         isLoading={resource.isLoading}
-        targetResource={commentTargetResource.data ?? undefined}
         author={author.data}
         isAuthorLoading={author.isLoading}
         openOnClick={openOnClick}
@@ -531,24 +508,22 @@ export function BlockEmbedContent({
     return commentContent
   }
 
-  const embedContent = (
-    <BlockEmbedContentDocument
+  const embedContent = resource.isLoading ? (
+    <Spinner />
+  ) : document ? (
+    <ContentEmbed
       key={block.link}
       id={id}
-      depth={depth}
+      blocks={document.content}
+      route={{key: 'document', id}}
       viewType={block.attributes?.view}
-      blockId={block.id}
-      blockRef={id.blockRef}
-      blockRange={id.blockRange}
-      isLoading={resource.isLoading}
-      showReferenced={showReferenced}
-      onShowReferenced={setShowReferenced}
-      document={document}
       parentBlockId={parentBlockId}
-      renderOpenButton={() => null}
       openOnClick={openOnClick}
-      renderDocumentContent={renderDocumentContent}
+      rootChildrenType={document.metadata?.childrenType}
+      title={getDocumentTitle(document)}
     />
+  ) : (
+    <ErrorBlock message="Could not load embed" />
   )
 
   if (isDeleted) {
@@ -618,9 +593,9 @@ export function BlockEmbedComments({
 export function BlockEmbedContentComment({
   id,
   parentBlockId,
-  depth,
   comment,
   author,
+  isAuthorLoading = false,
   block,
   openOnClick = true,
   isStaleVersion = false,
@@ -633,24 +608,13 @@ export function BlockEmbedContentComment({
   comment: HMComment
   author: HMMetadataPayload | null | undefined
   isAuthorLoading?: boolean
-  targetResource: HMResource | undefined
+  targetResource?: HMResource
   openOnClick?: boolean
   isStaleVersion?: boolean
 }) {
   const currentRoute = useNavRoute()
   const targetDocId = getCommentTargetId(comment)
   const activePanel = getRoutePanel(currentRoute) as DocumentPanelRoute | null
-  const [fragmentExpanded, setFragmentExpanded] = useState(false)
-  const fragment = useMemo(() => {
-    const selectedBlock = id.blockRef ? getBlockNodeById(comment.content, id.blockRef) : null
-    return selectedBlock ? getBlockFragment(selectedBlock, id.blockRange) : null
-  }, [comment.content, id.blockRef, id.blockRange])
-  const collapsed = !!fragment && !fragmentExpanded
-  const displayedComment = useMemo(
-    () => (collapsed ? {...comment, content: [fragment!]} : comment),
-    [collapsed, comment, fragment],
-  )
-
   const route = useMemo(() => {
     if (!targetDocId) return undefined
 
@@ -682,341 +646,24 @@ export function BlockEmbedContentComment({
     }
   }, [targetDocId, activePanel, comment.id, comment.version, id])
 
-  const content = (
-    <CommentContent
-      comment={displayedComment}
-      resourceId={id}
-      zoomBlockRef={fragment && fragmentExpanded ? undefined : id.blockRef}
-      selection={
-        fragment && fragmentExpanded && id.blockRef
-          ? {blockId: id.blockRef, blockRange: id.blockRange || undefined}
-          : undefined
-      }
-      allowHighlight={false}
-      openOnClick={openOnClick}
-    />
-  )
-  const authorName = author?.metadata?.name || abbreviateUid(comment.author) || '?'
-  const nameCharacters = Array.from(authorName)
-  const identity = (
-    <span
-      className={cn(
-        'inline-flex items-center align-baseline font-sans font-medium',
-        collapsed ? 'gap-0.5 text-xs' : 'gap-1 text-sm',
-      )}
-    >
-      <HMIcon
-        id={author?.id || hmId(comment.author)}
-        name={authorName}
-        icon={author?.metadata?.icon}
-        size={collapsed ? 14 : 18}
-      />
-      <Tooltip content={authorName} asChild>
-        <span tabIndex={0}>{nameCharacters.length > 20 ? nameCharacters.slice(0, 20).join('') + '…' : authorName}</span>
-      </Tooltip>
-      {isStaleVersion ? (
-        <Tooltip content="This comment has been edited since it was embedded." asChild>
-          <span tabIndex={0} aria-label="Older comment version">
-            <AlertCircle className="size-3" />
-          </span>
-        </Tooltip>
-      ) : null}
-    </span>
-  )
-  const embed = (
-    <EmbedWrapper
-      viewType={block.attributes?.view}
-      depth={depth || 0}
+  return (
+    <ContentEmbed
       id={id}
-      parentBlockId={parentBlockId || ''}
-      openOnClick={openOnClick}
+      blocks={comment.content}
       route={route}
-    >
-      <div
-        className={cn(
-          'embedded-source-content px-2',
-          fragment && 'pr-8',
-          collapsed ? 'comment-fragment-inline text-xs leading-5' : 'flex flex-col gap-1',
-        )}
-      >
-        {identity}
-        {collapsed ? ' ' : null}
-        {collapsed && fragment.block.type === 'Code' ? (
-          <code className="wrap-anywhere whitespace-pre-wrap">{fragment.block.text}</code>
-        ) : (
-          content
-        )}
-      </div>
-    </EmbedWrapper>
-  )
-  if (!fragment) return embed
-  return (
-    <FragmentEmbedControls expanded={fragmentExpanded} onExpandedChange={setFragmentExpanded} sourceLabel="comment">
-      {embed}
-    </FragmentEmbedControls>
-  )
-}
-
-/** Internal component rendering embedded document content with block ref/range support. */
-function BlockEmbedContentDocument(props: {
-  depth: number | undefined
-  blockId: string
-  blockRef: string | null
-  blockRange: BlockRange | null
-  isLoading: boolean
-  id: UnpackedHypermediaId
-  document: HMDocument | null | undefined
-  showReferenced: boolean
-  onShowReferenced: (showReference: boolean) => void
-  renderOpenButton: () => React.ReactNode
-  parentBlockId: string | null
-  viewType?: HMEmbedView
-  openOnClick?: boolean
-  renderDocumentContent?: (props: {
-    embedBlocks: HMBlockNode[]
-    document: HMDocument | null | undefined
-    id: UnpackedHypermediaId
-    rootChildrenType?: HMBlockChildrenType
-    blockRef?: string | null
-    blockRange?: BlockRange | null
-  }) => React.ReactNode
-}) {
-  const {
-    id,
-    blockId,
-    isLoading,
-    document,
-    showReferenced,
-    onShowReferenced,
-    renderOpenButton,
-    parentBlockId,
-    viewType,
-    openOnClick,
-  } = props
-  const navigate = useNavigate()
-
-  const [fragmentExpanded, setFragmentExpanded] = useState(false)
-
-  const blockRangeStart = props.blockRange && 'start' in props.blockRange ? props.blockRange.start : null
-  const blockRangeEnd = props.blockRange && 'end' in props.blockRange ? props.blockRange.end : null
-  const blockRangeExpanded = props.blockRange && 'expanded' in props.blockRange ? props.blockRange.expanded : false
-
-  const embedData = useMemo(() => {
-    const selectedBlock =
-      props.blockRef && document?.content ? getBlockNodeById(document.content, props.blockRef) : null
-
-    const embedBlocks = props.blockRef
-      ? selectedBlock
-        ? [
-            {
-              ...selectedBlock,
-              children: blockRangeExpanded ? [...(selectedBlock.children || [])] : [],
-            },
-          ]
-        : null
-      : document?.content
-    let res = {
-      ...document,
-      data: {
-        document,
-        embedBlocks,
-        blockRange:
-          blockRangeStart != null && blockRangeEnd != null && selectedBlock
-            ? {
-                blockId: props.blockRef,
-                start: blockRangeStart,
-                end: blockRangeEnd,
-              }
-            : null,
-      },
-    }
-    return res
-  }, [props.blockRef, blockRangeStart, blockRangeEnd, blockRangeExpanded, document?.version])
-
-  const fragment = useMemo(() => {
-    const selectedBlock = props.blockRef ? embedData.data.embedBlocks?.[0] : null
-    return selectedBlock ? getBlockFragment(selectedBlock, props.blockRange) : null
-  }, [embedData, props.blockRef, props.blockRange])
-  const collapsed = !!fragment && !fragmentExpanded
-  const displayedBlocks = useMemo(
-    () => (collapsed ? [fragment!] : embedData.data.embedBlocks),
-    [collapsed, fragment, embedData],
-  )
-  const displayedRange = collapsed ? null : props.blockRange
-
-  const embedOnBlockSelect = useCallback(
-    (blockId: string, opts?: BlockRange & {copyToClipboard?: boolean}): boolean => {
-      if (!openOnClick) return false
-      if (opts?.copyToClipboard) {
-        toast.error('Error: not implemented')
-        return false
-      }
-      navigate({
-        key: 'document',
-        id: {
-          ...id,
-          blockRef: blockId || null,
-        },
-      })
-      return true
-    },
-    [navigate, id],
-  )
-
-  let content: null | JSX.Element = <ErrorBlock message="Unknown error" />
-  if (isLoading) {
-    content = <Spinner />
-  } else if (embedData.data.embedBlocks) {
-    if (props.renderDocumentContent) {
-      content = (
-        <>
-          {props.renderDocumentContent({
-            embedBlocks: displayedBlocks as HMBlockNode[],
-            document,
-            id,
-            rootChildrenType: props.blockRef ? 'Group' : document?.metadata?.childrenType,
-            blockRef: collapsed ? null : props.blockRef,
-            blockRange: displayedRange,
-          })}
-        </>
-      )
-    } else {
-      content = (
-        <EmbedContentFallback
-          embedBlocks={displayedBlocks as HMBlockNode[]}
-          document={document}
-          id={id}
-          blockId={blockId}
-          blockRef={props.blockRef}
-          blockRange={displayedRange}
-          onCopyBlockLink={(bid) => {
-            embedOnBlockSelect(bid, {copyToClipboard: true, start: 0, end: 0})
-          }}
-          showReferenced={showReferenced}
-          onShowReferenced={onShowReferenced}
-        />
-      )
-    }
-  } else if (props.blockRef) {
-    return (
-      <ErrorBlock message={`Block #${props.blockRef} was not found in this version`}>
-        <div className="flex gap-2 p-4">
-          {id.version ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                onShowReferenced(true)
-              }}
-            >
-              Show Referenced Version
-            </Button>
-          ) : null}
-          {renderOpenButton()}
-        </div>
-      </ErrorBlock>
-    )
-  }
-  const embed = (
-    <EmbedWrapper
-      route={{key: 'document', id}}
-      viewType={viewType}
-      depth={props.depth || 1}
-      id={id}
-      parentBlockId={parentBlockId || ''}
-      isRange={!!props.blockRange && ('start' in props.blockRange || 'end' in props.blockRange)}
+      parentBlockId={parentBlockId}
+      viewType={block.attributes?.view}
       openOnClick={openOnClick}
-    >
-      {fragment ? <div className="pr-8">{content}</div> : content}
-    </EmbedWrapper>
-  )
-  if (!fragment) return embed
-
-  return (
-    <FragmentEmbedControls expanded={fragmentExpanded} onExpandedChange={setFragmentExpanded}>
-      {embed}
-    </FragmentEmbedControls>
-  )
-}
-
-/** Fallback renderer for embedded document content using ReadOnlyViewer instead of BlocksContent. */
-function EmbedContentFallback({
-  embedBlocks,
-  document,
-  id,
-  blockId,
-  blockRef,
-  blockRange,
-  onCopyBlockLink,
-  showReferenced,
-  onShowReferenced,
-}: {
-  embedBlocks: HMBlockNode[]
-  document: HMDocument | null | undefined
-  id: UnpackedHypermediaId
-  blockId: string
-  blockRef: string | null
-  /** Codepoint range to highlight inside `blockRef`. Absent ⇒ whole block. */
-  blockRange?: BlockRange | null
-  onCopyBlockLink?: (blockId: string) => void
-  showReferenced: boolean
-  onShowReferenced: (show: boolean) => void
-}) {
-  const Viewer = useReadOnlyViewer()
-
-  const blocks = useMemo(() => {
-    if (!blockRef && document?.metadata?.name) {
-      // Wrap content in a synthetic heading block (mirrors the old BlockNodeContent heading)
-      const headingBlock: HMBlockNode = {
-        block: {
-          type: 'Heading',
-          id: blockId,
-          text: getDocumentTitle(document) || '',
-          attributes: {childrenType: 'Group'},
-          annotations: [],
-        },
-        children: embedBlocks,
-      }
-      return [headingBlock]
-    }
-    return embedBlocks
-  }, [blockRef, document, blockId, embedBlocks])
-
-  if (!Viewer) return null
-
-  // Only forward a codepoint range — `{expanded: true}` should not highlight.
-  const fragmentRange =
-    blockRange && 'start' in blockRange && 'end' in blockRange && typeof blockRange.start === 'number'
-      ? blockRange
-      : undefined
-
-  return (
-    <>
-      <Viewer
-        blocks={blocks}
-        resourceId={id}
-        onCopyBlockLink={onCopyBlockLink}
-        focusBlockId={blockRef && fragmentRange ? blockRef : undefined}
-        blockRange={fragmentRange}
-      />
-      {showReferenced ? (
-        <div className="flex justify-end">
-          <Tooltip content="The latest reference was not found. Click to try again.">
-            <Button
-              size="sm"
-              variant="destructive"
-              onClick={(e) => {
-                e.stopPropagation()
-                e.preventDefault()
-                onShowReferenced(false)
-              }}
-            >
-              <Undo2 className="size-3" />
-              Back to Reference
-            </Button>
-          </Tooltip>
-        </div>
-      ) : null}
-    </>
+      resourceKind="comment"
+      expandTo="resource"
+      sourceLabel="comment"
+      identity={{
+        id: author?.id || hmId(comment.author),
+        name: author?.metadata?.name,
+        icon: author?.metadata?.icon,
+        loading: isAuthorLoading,
+      }}
+      isStaleVersion={isStaleVersion}
+    />
   )
 }

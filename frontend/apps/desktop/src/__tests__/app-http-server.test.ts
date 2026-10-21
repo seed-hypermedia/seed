@@ -1,7 +1,7 @@
 // @vitest-environment node
 // DNS-rebinding regression coverage for #1259.
 import * as http from 'http'
-import {connect} from 'net'
+import {connect, type AddressInfo} from 'net'
 import {afterAll, beforeAll, describe, expect, it, vi} from 'vitest'
 
 vi.mock('@shm/shared/constants', () => ({API_HTTP_PORT: '0', DAEMON_HTTP_URL: ''}))
@@ -15,13 +15,17 @@ vi.mock('../logger', () => ({info: vi.fn()}))
 import {startApiServer, stopApiServer} from '../app-http-server'
 
 let port: number
+let hostname: string
 let server: http.Server
 
 beforeAll(async () => {
   const listen = vi.spyOn(http.Server.prototype, 'listen')
   await startApiServer()
   server = listen.mock.instances[0] as http.Server
-  port = (server.address() as {port: number}).port
+  const address = server.address() as AddressInfo
+  port = address.port
+  // Connect to the bound address; localhost can resolve differently for clients on Linux.
+  hostname = address.address
   listen.mockRestore()
 })
 
@@ -35,7 +39,7 @@ function request(host: string, headers: http.OutgoingHttpHeaders = {}, method = 
   return new Promise<{status: number; body: string}>((resolve, reject) => {
     const req = http.request(
       {
-        hostname: 'localhost',
+        hostname,
         port,
         path: '/api/test',
         method,
@@ -102,7 +106,7 @@ describe('SEC #1259 local API Host validation', () => {
   it.each(['GET', 'OPTIONS'])('requires Host for HTTP/1.0 %s requests', async (method) => {
     // HTTP/1.1 requires Host at the Node HTTP parser, so use HTTP/1.0.
     const response = await new Promise<string>((resolve, reject) => {
-      const socket = connect({host: 'localhost', port}, () => {
+      const socket = connect({host: hostname, port}, () => {
         socket.end(`${method} /api/test HTTP/1.0\r\n\r\n`)
       })
       let data = ''

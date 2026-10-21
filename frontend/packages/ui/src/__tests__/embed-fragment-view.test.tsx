@@ -23,7 +23,7 @@ const {source, navigated} = vi.hoisted(() => ({
       {block: {id: 'source', type: 'Paragraph', text: 'Before fragment after', attributes: {}, annotations: []}},
     ],
   },
-  navigated: {href: '', route: null as NavRoute | null},
+  navigated: {href: '', route: null as NavRoute | null, newWindow: false},
 }))
 
 vi.mock('@shm/shared/models/entity', () => ({
@@ -55,6 +55,7 @@ vi.mock('@shm/shared/routing', async (importOriginal) => {
           event.preventDefault()
           navigated.href = href || ''
           navigated.route = route
+          navigated.newWindow = event.ctrlKey || event.metaKey || event.shiftKey
         },
       }
     },
@@ -68,6 +69,7 @@ let root: Root
 beforeEach(() => {
   navigated.href = ''
   navigated.route = null
+  navigated.newWindow = false
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -75,9 +77,10 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  window.getSelection()?.removeAllRanges()
 })
 
-function renderFragment(start = 7, end = 15, fallback = false) {
+function renderFragment(start = 7, end = 15) {
   const id = hmId('author', {
     path: ['document'],
     version: 'version-1',
@@ -92,15 +95,6 @@ function renderFragment(start = 7, end = 15, fallback = false) {
           <BlockEmbedContent
             block={{id: 'embed', type: 'Embed', link: packHmId(id), attributes: {view: 'Content'}}}
             parentBlockId={null}
-            renderDocumentContent={
-              fallback
-                ? undefined
-                : ({embedBlocks}) => (
-                    <p>
-                      {embedBlocks.map((node: HMBlockNode) => ('text' in node.block ? node.block.text : '')).join('')}
-                    </p>
-                  )
-            }
           />
         </ReadOnlyViewerProvider>
       </TooltipProvider>,
@@ -110,26 +104,63 @@ function renderFragment(start = 7, end = 15, fallback = false) {
 }
 
 describe('fragment embed interactions', () => {
-  it.each([false, true])(
-    'expands and collapses without navigating, then opens the original fragment link (fallback: %s)',
-    (fallback) => {
-      const id = renderFragment(7, 15, fallback)
-      expect(container.querySelector('p')?.textContent).toBe('fragment')
-      const caret = container.querySelector('button')!
-      expect(caret.closest('a')).toBeNull()
-      act(() => caret.click())
-      expect(container.querySelector('p')?.textContent).toBe('Before fragment after')
-      expect(caret.getAttribute('aria-expanded')).toBe('true')
-      expect(navigated.href).toBe('')
-      act(() => caret.click())
-      expect(container.querySelector('p')?.textContent).toBe('fragment')
-      expect(caret.getAttribute('aria-expanded')).toBe('false')
-      const link = container.querySelector('a')!
-      expect(link.getAttribute('href')).toBe(packHmId(id))
-      act(() => container.querySelector('p')!.click())
-      expect(navigated.href).toBe(packHmId(id))
-    },
-  )
+  it('opens the exact fragment source in a new tab on middle-click', () => {
+    const id = renderFragment()
+    const event = new MouseEvent('auxclick', {bubbles: true, cancelable: true, button: 1})
+    act(() => {
+      container.querySelector('p')!.dispatchEvent(event)
+    })
+    expect(navigated.href).toBe(packHmId(id))
+    expect(navigated.newWindow).toBe(true)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('does not open the source for selected text, nested links, or right-clicks', () => {
+    renderFragment()
+    const paragraph = container.querySelector('p')!
+    const range = document.createRange()
+    range.selectNodeContents(paragraph)
+    window.getSelection()!.addRange(range)
+    act(() => {
+      paragraph.dispatchEvent(new MouseEvent('auxclick', {bubbles: true, cancelable: true, button: 1}))
+    })
+    expect(navigated.href).toBe('')
+    window.getSelection()!.removeAllRanges()
+
+    const nestedLink = document.createElement('a')
+    nestedLink.href = 'https://example.com/nested'
+    nestedLink.textContent = 'Nested source'
+    paragraph.appendChild(nestedLink)
+    const nestedEvent = new MouseEvent('auxclick', {bubbles: true, cancelable: true, button: 1})
+    act(() => {
+      nestedLink.dispatchEvent(nestedEvent)
+    })
+    expect(navigated.href).toBe('')
+    expect(nestedEvent.defaultPrevented).toBe(false)
+
+    act(() => {
+      paragraph.dispatchEvent(new MouseEvent('auxclick', {bubbles: true, cancelable: true, button: 2}))
+    })
+    expect(navigated.href).toBe('')
+  })
+
+  it('expands and collapses without navigating, then opens the original fragment link', () => {
+    const id = renderFragment(7, 15)
+    expect(container.querySelector('p')?.textContent).toBe('fragment')
+    const caret = container.querySelector('button')!
+    expect(caret.closest('a')).toBeNull()
+    act(() => caret.click())
+    expect(container.querySelector('p')?.textContent).toBe('Before fragment after')
+    expect(caret.getAttribute('aria-expanded')).toBe('true')
+    expect(navigated.href).toBe('')
+    act(() => caret.click())
+    expect(container.querySelector('p')?.textContent).toBe('fragment')
+    expect(caret.getAttribute('aria-expanded')).toBe('false')
+    const link = container.querySelector('a')!
+    expect(link.getAttribute('href')).toBe(packHmId(id))
+    act(() => container.querySelector('p')!.click())
+    expect(navigated.href).toBe(packHmId(id))
+  })
 
   it('starts collapsed when an existing embed changes to a different fragment', () => {
     renderFragment()
@@ -166,15 +197,20 @@ function TestCommentViewer({
   blocks,
   focusBlockId,
   blockRange,
+  inlinePrefix,
 }: {
+  inlinePrefix?: React.ReactNode
   blocks: HMBlockNode[]
   focusBlockId?: string
   blockRange?: {start?: number; end?: number}
 }) {
   return (
-    <p data-focus={focusBlockId} data-range={JSON.stringify(blockRange)}>
-      {blocks.map((node) => ('text' in node.block ? node.block.text : '')).join('')}
-    </p>
+    <>
+      {inlinePrefix}
+      <p data-focus={focusBlockId} data-range={JSON.stringify(blockRange)}>
+        {blocks.map((node) => ('text' in node.block ? node.block.text : '')).join('')}
+      </p>
+    </>
   )
 }
 

@@ -49,8 +49,8 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Bookmark, Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
-import {getBlockFragment, getBlockNodeById} from './blocks-content-utils'
-import {FragmentEmbedControls} from './embed-wrapper'
+import {getBlockNodeById} from './blocks-content-utils'
+import {ContentEmbed} from './content-embed'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {AccountAvatar} from './account-avatar'
@@ -1068,51 +1068,12 @@ export function QuotedDocBlock({
   doc: HMDocument
   blockRange?: BlockRange
 }) {
-  const Viewer = useReadOnlyViewer()
-  const blockContent = useMemo(() => {
-    if (!doc.content) return null
-    return getBlockNodeById(doc.content, blockId)
-  }, [doc.content, blockId])
-
-  const fragment = blockContent ? getBlockFragment(blockContent, blockRange || null) : null
-  const fragmentKey = JSON.stringify([docId.id, docId.version, blockId, blockRange])
-  const [fragmentState, setFragmentState] = useState({key: fragmentKey, expanded: false})
-  if (fragmentState.key !== fragmentKey) {
-    setFragmentState({key: fragmentKey, expanded: false})
-  }
-  const expanded = fragmentState.key === fragmentKey && fragmentState.expanded
-  const collapsed = !!fragment && !expanded
-  const fragmentRange = !collapsed && blockRange && 'start' in blockRange ? blockRange : undefined
-  const content = (
-    <div className={cn('embedded-source-content border-l-primary border-l-3 px-2', fragment && 'pr-8')}>
-      <div className="min-w-0">
-        {blockContent && Viewer && (
-          <Viewer
-            blocks={[collapsed ? fragment : blockContent]}
-            className={collapsed ? 'quoted-fragment-content' : undefined}
-            commentStyle={collapsed}
-            resourceId={{...docId, blockRef: blockId, blockRange: blockRange || null}}
-            focusBlockId={fragmentRange ? blockId : undefined}
-            blockRange={fragmentRange}
-          />
-        )}
-      </div>
-    </div>
-  )
-
   return (
-    <div className="rounded-sm">
-      {fragment ? (
-        <FragmentEmbedControls
-          expanded={expanded}
-          onExpandedChange={(expanded) => setFragmentState({key: fragmentKey, expanded})}
-        >
-          {content}
-        </FragmentEmbedControls>
-      ) : (
-        content
-      )}
-    </div>
+    <ContentEmbed
+      id={{...docId, blockRef: blockId, blockRange: blockRange || null}}
+      blocks={doc.content}
+      openOnClick={false}
+    />
   )
 }
 
