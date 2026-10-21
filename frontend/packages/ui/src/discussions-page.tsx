@@ -115,7 +115,7 @@ export function DiscussionsPageContent({
 
   return (
     <div className="p-4">
-      <PageLayout title={showTitle ? 'Discussions' : undefined} contentMaxWidth={contentMaxWidth}>
+      <PageLayout title={showTitle ? 'Comments' : undefined} contentMaxWidth={contentMaxWidth}>
         {content}
       </PageLayout>
     </div>

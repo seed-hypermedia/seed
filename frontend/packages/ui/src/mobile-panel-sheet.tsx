@@ -1,3 +1,4 @@
+import {Maximize} from 'lucide-react'
 import type {ReactNode, PointerEvent as ReactPointerEvent} from 'react'
 import {useCallback, useEffect, useId, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
@@ -11,6 +12,10 @@ export interface MobilePanelSheetProps {
   isOpen: boolean
   /** Panel title */
   title: string
+  /** Optional total shown beside the title. */
+  count?: number
+  /** Open the panel selection in a full-page view. */
+  onExpand?: () => void
   /** Callback when close button is clicked */
   onClose: () => void
   /** Panel content */
@@ -52,7 +57,16 @@ export function resolveSheetSnap({
   return height - partialHeight < fullHeight - height ? 'partial' : 'full'
 }
 
-export function MobilePanelSheet({isOpen, title, onClose, children, header, resizable = false}: MobilePanelSheetProps) {
+export function MobilePanelSheet({
+  isOpen,
+  title,
+  count,
+  onExpand,
+  onClose,
+  children,
+  header,
+  resizable = false,
+}: MobilePanelSheetProps) {
   const titleId = useId()
   const [isVisible, setIsVisible] = useState(false)
   const [dragY, setDragY] = useState(0)
@@ -287,10 +301,26 @@ export function MobilePanelSheet({isOpen, title, onClose, children, header, resi
           <div className="border-border flex shrink-0 items-center border-b px-4 py-2 text-left">
             {header ?? (
               <>
-                <Text id={titleId} weight="semibold" className="flex-1">
+                <Text id={titleId} weight="semibold" className="flex flex-1 items-center gap-2">
                   {title}
+                  {count !== undefined && (
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs font-medium">
+                      {count}
+                    </span>
+                  )}
                 </Text>
 
+                {onExpand && (
+                  <Button
+                    aria-label="Expand comments"
+                    title="Expand comments"
+                    variant="ghost"
+                    size="icon"
+                    onClick={onExpand}
+                  >
+                    <Maximize className="size-4" />
+                  </Button>
+                )}
                 <Button aria-label="Close panel" variant="ghost" size="icon" onClick={onClose} className="shrink-0">
                   <Close className="size-4" />
                 </Button>

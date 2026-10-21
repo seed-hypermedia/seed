@@ -956,7 +956,7 @@ function getPanelTitle(panelKey: string | null): string {
     case 'feed':
       return 'Activity'
     case 'comments':
-      return 'Discussions'
+      return 'Comments'
     case 'directory':
       return 'Sub documents'
     case 'collaborators':
@@ -2183,6 +2183,9 @@ function DocumentBody({
   const siteMembers = useSiteMembers(isLocalOnlyDoc ? null : siteId)
   const directory = useDirectory(isLocalOnlyDoc ? null : docId)
   const interactionSummary = useInteractionSummary(isLocalOnlyDoc ? null : docId)
+  const commentsPanelSummary = useInteractionSummary(
+    !isLocalOnlyDoc && panelKey === 'comments' ? commentsPanelTarget.docId : null,
+  )
   const collaborators = useDocumentCollaborators(isLocalOnlyDoc ? null : docId)
   const peopleCount = useMemo(
     () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
@@ -3067,6 +3070,11 @@ function DocumentBody({
     }
   }
 
+  const handleCommentsExpand = () => {
+    if (panelRoute?.key !== 'comments') return
+    navigate({...panelRoute, id: commentsPanelTarget.docId, panel: null})
+  }
+
   // Activity filter change handler (panel)
   const handleFilterChange = (filter: {filterEventType?: string[]}) => {
     if ((route.key === 'document' || route.key === 'feed') && route.panel?.key === 'activity') {
@@ -3105,6 +3113,8 @@ function DocumentBody({
             onClose={handlePanelClose}
             header={activityPanelHeader}
             resizable={panelRoute?.key === 'feed'}
+            count={panelKey === 'comments' ? commentsPanelSummary.data?.comments : undefined}
+            onExpand={panelKey === 'comments' ? handleCommentsExpand : undefined}
           >
             {panelRoute?.key === 'feed' ? (
               // The feed fills its parent's height and clips the rest. A parent without a fixed height lets it grow,
@@ -3190,6 +3200,8 @@ function DocumentBody({
         panelKey={panelKey}
         panelContent={panelContent}
         onPanelClose={handlePanelClose}
+        commentsCount={commentsPanelSummary.data?.comments}
+        onCommentsExpand={handleCommentsExpand}
         isVersionsPanel={isDocumentVersionsPanelRoute(panelRoute)}
         isCitationsPanel={panelRoute?.key === 'activity' && !!panelRoute.targetBlockId}
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}

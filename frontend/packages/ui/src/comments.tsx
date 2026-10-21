@@ -54,7 +54,6 @@ import {ContentEmbed} from './content-embed'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
 import {AccountAvatar} from './account-avatar'
-import {ReplyArrow} from './icons'
 import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
@@ -408,34 +407,37 @@ export const Discussions = memo(function Discussions({
     panelContent =
       totalCount > 0 ? (
         <>
-          {rootGroups.map((cg) => {
+          {[...rootGroups, ...(discussionsService.data?.citingDiscussions ?? [])].map((group) => {
+            const comment = group.comments[0]
+            if (!comment) return null
+            const isRootComment = !commentId && group.type === 'commentGroup' && !comment.replyParent
+
             return (
-              <div key={cg.id} className={cn('border-border border-b')}>
-                <LazyCommentGroup>
+              <LazyCommentGroup
+                key={group.id}
+                className={isRootComment ? 'border-border bg-card rounded-lg border' : undefined}
+              >
+                {commentId ? (
                   <CommentGroup
-                    commentGroup={cg}
+                    commentGroup={group}
                     highlightedCommentId={submittedRoots.at(-1)?.id}
                     onCommentDeleted={onCommentDeleted}
                     authors={discussionsService.data?.authors}
-                    enableReplies
                     targetDomain={targetDomain}
                   />
-                </LazyCommentGroup>
-              </div>
-            )
-          })}
-          {discussionsService.data?.citingDiscussions?.map((cg) => {
-            return (
-              <div key={cg.id} className={cn('border-border border-b')}>
-                <LazyCommentGroup>
-                  <CommentGroup
-                    commentGroup={cg}
-                    authors={discussionsService.data?.authors}
-                    enableReplies
+                ) : (
+                  <Comment
+                    comment={comment}
+                    authorId={comment.author}
+                    authorMetadata={discussionsService.data?.authors?.[comment.author]?.metadata}
+                    externalTarget={group.type === 'externalCommentGroup' ? group.target : undefined}
+                    highlight={comment.id === submittedRoots.at(-1)?.id}
+                    onCommentDeleted={onCommentDeleted}
                     targetDomain={targetDomain}
+                    isLast
                   />
-                </LazyCommentGroup>
-              </div>
+                )}
+              </LazyCommentGroup>
             )
           })}
         </>
@@ -444,7 +446,7 @@ export const Discussions = memo(function Discussions({
       )
   }
 
-  return <SelectionContent>{panelContent}</SelectionContent>
+  return <div className="flex flex-col gap-2">{panelContent}</div>
 })
 
 export function BlockDiscussions({
@@ -545,7 +547,7 @@ const LAZY_COMMENT_PLACEHOLDER_HEIGHT = 80
  * Unmounts children when scrolled far away to keep memory low.
  * Preserves measured height as placeholder to prevent scroll jumps.
  */
-function LazyCommentGroup({children}: {children: ReactNode}) {
+function LazyCommentGroup({children, className}: {children: ReactNode; className?: string}) {
   const ref = useRef<HTMLDivElement>(null)
   const [isNearViewport, setIsNearViewport] = useState(false)
   const heightRef = useRef(LAZY_COMMENT_PLACEHOLDER_HEIGHT)
@@ -573,7 +575,7 @@ function LazyCommentGroup({children}: {children: ReactNode}) {
   }, [])
 
   return (
-    <div ref={ref} style={isNearViewport ? undefined : {minHeight: heightRef.current}}>
+    <div ref={ref} className={className} style={isNearViewport ? undefined : {minHeight: heightRef.current}}>
       {isNearViewport ? children : null}
     </div>
   )
@@ -924,26 +926,26 @@ export const Comment = memo(function Comment({
           )}
 
           {!isEntirelyHighlighted && !isEditing && (
-            <div className={cn('-ml-1 flex items-center gap-2 py-1', !heading && 'mb-2')}>
+            <div className="-ml-1 flex items-center gap-2 py-1">
               {enableReplies || commentsContext.onReplyClick ? (
                 <Button
                   variant="ghost"
                   size="xs"
                   className={cn(
-                    'text-muted-foreground hover:text-muted-foreground active:text-muted-foreground',
+                    'text-brand hover:text-brand active:text-brand text-sm font-semibold',
                     'plausible-event-name=Reply+Click',
                   )}
                   onClick={() => {
-                    if (commentsContext.onReplyClick) {
-                      commentsContext.onReplyClick(comment)
-                    } else if (replyCount && commentsContext.onReplyCountClick) {
+                    if (replyCount && commentsContext.onReplyCountClick) {
                       commentsContext.onReplyCountClick(comment)
+                    } else if (commentsContext.onReplyClick) {
+                      commentsContext.onReplyClick(comment)
                     }
                   }}
                 >
-                  <ReplyArrow className="size-3" />
-                  {tx('Reply')}
-                  {replyCount && replyCount > 0 ? ` (${replyCount})` : ''}
+                  {replyCount && replyCount > 0
+                    ? `${replyCount} ${tx(replyCount === 1 ? 'reply' : 'replies')}`
+                    : tx('Reply')}
                 </Button>
               ) : null}
             </div>

@@ -1,6 +1,6 @@
 import {PanelSelectionOptions} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {X} from 'lucide-react'
+import {Maximize, X} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Group, Panel} from 'react-resizable-panels'
 import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from './resizable-panels'
@@ -29,6 +29,10 @@ export interface PanelLayoutProps {
   panelContent: React.ReactNode | null
   panelKey: PanelSelectionOptions | null
   onPanelClose: () => void
+  /** Total comments for the document shown in the comments panel. */
+  commentsCount?: number
+  /** Open the current comments selection in the full-page view. */
+  onCommentsExpand?: () => void
   /** True when the activity panel is being used as the shared versions panel. */
   isVersionsPanel?: boolean
   /** True when the activity panel is scoped to one block's citations. */
@@ -55,7 +59,7 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
     case 'activity':
       return 'Document Activity'
     case 'comments':
-      return 'Discussions'
+      return 'Comments'
     case 'directory':
       return 'Sub documents'
     case 'collaborators':
@@ -88,6 +92,8 @@ export function PanelLayout({
   panelContent,
   panelKey,
   onPanelClose,
+  commentsCount,
+  onCommentsExpand,
   isVersionsPanel = false,
   isCitationsPanel = false,
   filterEventType,
@@ -146,14 +152,35 @@ export function PanelLayout({
         >
           <div className="h-full rounded-lg">
             <div className={cn('dark:bg-background flex h-full flex-col bg-white')}>
-              <div className="border-border border-b px-5 py-3">
+              <div
+                className={cn(
+                  'border-border shrink-0 border-b px-5',
+                  panelKey === 'comments' ? 'bg-card box-border flex h-12 flex-col justify-center' : 'py-3',
+                )}
+              >
                 {header ?? (
                   <>
                     <div className="flex items-center justify-between gap-2">
-                      <Text weight="semibold" size="lg" className="flex-1">
+                      <Text weight="semibold" size="lg" className="flex flex-1 items-center gap-2">
                         {title}
+                        {panelKey === 'comments' && commentsCount !== undefined && (
+                          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs font-medium">
+                            {commentsCount}
+                          </span>
+                        )}
                       </Text>
-                      <Button size="icon" onClick={onPanelClose}>
+                      {panelKey === 'comments' && onCommentsExpand && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Expand comments"
+                          title="Expand comments"
+                          onClick={onCommentsExpand}
+                        >
+                          <Maximize className="size-4" />
+                        </Button>
+                      )}
+                      <Button size="icon" aria-label="Close panel" onClick={onPanelClose}>
                         <X className="size-4" />
                       </Button>
                     </div>
@@ -163,7 +190,9 @@ export function PanelLayout({
                   </>
                 )}
               </div>
-              <div className="flex-1 overflow-hidden">{panelContent}</div>
+              <div className={cn('flex-1 overflow-hidden', panelKey === 'comments' && 'bg-background')}>
+                {panelContent}
+              </div>
             </div>
           </div>
         </AnimatedPanel>
