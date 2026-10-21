@@ -6231,9 +6231,17 @@ describe('api service', () => {
       if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
       if (!identity.identity.accountId) throw new Error('missing signing account id')
       signerPublicKey = identity.identity.accountId
+      // A second enabled key: without options.signer the definition's primary key signs.
+      const other = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Other', clientRequestId: 'other'},
+        }),
+      )
+      if (other._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
       const sessionId = await seedAgentSession(svc, owner, 'App publisher', {
         tools: ['publish'],
-        signingKeys: [identity.identity.name],
+        signingKey: identity.identity.name,
+        signingKeys: [identity.identity.name, other.identity.name],
       })
       const session = await svc.message(
         await apisvc.createSignedEnvelope(owner, {action: {_: 'GetSession', sessionId}}),
