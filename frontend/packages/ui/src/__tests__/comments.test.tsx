@@ -3,7 +3,7 @@ import React from 'react'
 import {hmId} from '@shm/shared'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
-import {afterEach, describe, expect, it, vi} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {commentBookmarkTitle, CommentDiscussions} from '../comments'
 import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
@@ -150,6 +150,11 @@ function renderCommentDiscussions(selection?: {blockId: string; blockRange: {sta
     )
   })
 }
+
+beforeEach(() => {
+  // jsdom does not implement the browser scroll API used by thread focus.
+  HTMLElement.prototype.scrollIntoView = vi.fn()
+})
 
 afterEach(() => {
   if (root) {

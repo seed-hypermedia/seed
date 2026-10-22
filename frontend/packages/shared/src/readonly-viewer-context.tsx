@@ -42,3 +42,6 @@ export const ReadOnlyViewerProvider = ReadOnlyViewerContext.Provider
 export function useReadOnlyViewer(): ReadOnlyViewerComponent | undefined {
   return useContext(ReadOnlyViewerContext)
 }
+
+/** Identifies the immediate comment body or composer for compact embed presentation. */
+export const CommentContentContext = createContext(false)

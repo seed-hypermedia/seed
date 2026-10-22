@@ -1,6 +1,6 @@
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {getBlockFragment} from '../blocks-content-utils'
+import {getBlockFragment, getPlainTextQuote} from '../blocks-content-utils'
 
 const node: HMBlockNode = {
   block: {
@@ -57,6 +57,42 @@ describe('getBlockFragment', () => {
         {block: {id: 'image', type: 'Image', text: 'Caption', link: 'ipfs://image', attributes: {}, annotations: []}},
         {start: 0, end: 3},
       ),
+    ).toBeNull()
+  })
+})
+
+describe('getPlainTextQuote', () => {
+  it('removes block and inline formatting without changing source text or annotations', () => {
+    const source: HMBlockNode = {
+      block: {
+        id: 'source',
+        type: 'Heading',
+        text: 'Before 😀bold after',
+        attributes: {textAlignment: 'center'},
+        annotations: 'annotations' in node.block ? node.block.annotations : [],
+      },
+      children: node.children,
+    }
+    const original = structuredClone(source)
+    expect(getPlainTextQuote(source)).toEqual({
+      block: {id: 'source', type: 'Paragraph', text: 'Before 😀bold after', attributes: {}, annotations: []},
+      children: [],
+    })
+    expect(source).toEqual(original)
+  })
+  it('preserves newlines and exact fragment codepoints', () => {
+    const fragment = getBlockFragment(node, {start: 7, end: 12})!
+    expect(getPlainTextQuote(fragment)?.block.text).toBe('😀bold')
+    expect(
+      getPlainTextQuote({block: {id: 'code', type: 'Code', text: 'one\ntwo', attributes: {language: 'js'}}})?.block
+        .text,
+    ).toBe('one\ntwo')
+  })
+  it('does not turn media captions into text quotes', () => {
+    expect(
+      getPlainTextQuote({
+        block: {id: 'image', type: 'Image', link: 'ipfs://image', text: 'Caption', attributes: {}, annotations: []},
+      }),
     ).toBeNull()
   })
 })

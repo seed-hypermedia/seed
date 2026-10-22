@@ -162,7 +162,7 @@ export function FragmentEmbedControls({
   const toggleLabel = expanded ? `Hide full ${sourceLabel}` : `Show full ${sourceLabel}`
   const Caret = expanded ? ChevronUp : ChevronDown
   return (
-    <div className="bg-muted/30 relative min-h-8 rounded-sm py-1">
+    <div className="bg-primary/5 relative min-h-8 rounded-sm py-1">
       {children}
       <Tooltip content={toggleLabel} asChild>
         <Button

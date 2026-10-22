@@ -235,3 +235,28 @@
   --shadow-xl: var(--shadow-xl);
   --shadow-2xl: var(--shadow-2xl);
 }
+
+/* Keep transitions on the target so removing a highlight also fades its color. */
+:is(
+    .hm-prose [data-node-type='blockNode'],
+    [data-resourceid],
+    .ProseMirror td,
+    .ProseMirror th,
+    .highlight-transition,
+    .bn-range-highlight-focus
+  ) {
+  transition: background-color var(--duration-normal) var(--ease-out-smooth);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(
+      .hm-prose [data-node-type='blockNode'],
+      [data-resourceid],
+      .ProseMirror td,
+      .ProseMirror th,
+      .highlight-transition,
+      .bn-range-highlight-focus
+    ) {
+    transition: none;
+  }
+}

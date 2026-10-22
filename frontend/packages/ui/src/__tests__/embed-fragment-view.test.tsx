@@ -6,7 +6,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {BlockEmbedContent} from '../embed-views'
-import {ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
+import {CommentContentContext, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {CommentContent, QuotedDocBlock} from '../comments'
 import type {HMComment, HMDocument} from '@seed-hypermedia/client/hm-types'
 import type {NavRoute} from '@shm/shared'
@@ -80,7 +80,7 @@ afterEach(() => {
   window.getSelection()?.removeAllRanges()
 })
 
-function renderFragment(start = 7, end = 15) {
+function renderFragment(start = 7, end = 15, inComment = true) {
   const id = hmId('author', {
     path: ['document'],
     version: 'version-1',
@@ -90,20 +90,28 @@ function renderFragment(start = 7, end = 15) {
   })
   act(() => {
     root.render(
-      <TooltipProvider>
-        <ReadOnlyViewerProvider value={TestCommentViewer}>
-          <BlockEmbedContent
-            block={{id: 'embed', type: 'Embed', link: packHmId(id), attributes: {view: 'Content'}}}
-            parentBlockId={null}
-          />
-        </ReadOnlyViewerProvider>
-      </TooltipProvider>,
+      <CommentContentContext.Provider value={inComment}>
+        <TooltipProvider>
+          <ReadOnlyViewerProvider value={TestCommentViewer}>
+            <BlockEmbedContent
+              block={{id: 'embed', type: 'Embed', link: packHmId(id), attributes: {view: 'Content'}}}
+              parentBlockId={null}
+            />
+          </ReadOnlyViewerProvider>
+        </TooltipProvider>
+      </CommentContentContext.Provider>,
     )
   })
   return id
 }
 
 describe('fragment embed interactions', () => {
+  it('keeps document embeds expanded outside comments', () => {
+    renderFragment(7, 15, false)
+    expect(container.querySelector('p')?.textContent).toBe('Before fragment after')
+    expect(container.querySelector('button')).toBeNull()
+  })
+
   it('opens the exact fragment source in a new tab on middle-click', () => {
     const id = renderFragment()
     const event = new MouseEvent('auxclick', {bubbles: true, cancelable: true, button: 1})
@@ -214,30 +222,43 @@ function TestCommentViewer({
   )
 }
 
-function renderCommentFragment() {
+function renderCommentFragment(wholeComment = false) {
   const id = hmId('author', {
     path: ['comment'],
     version: 'comment-version',
-    blockRef: 'source',
-    blockRange: {start: 7, end: 15},
+    blockRef: wholeComment ? null : 'source',
+    blockRange: wholeComment ? null : {start: 7, end: 15},
   })
   act(() =>
     root.render(
-      <TooltipProvider>
-        <ReadOnlyViewerProvider value={TestCommentViewer}>
-          <BlockEmbedContent
-            parentBlockId={null}
-            depth={0}
-            block={{id: 'embed', type: 'Embed', link: packHmId(id), attributes: {view: 'Content'}}}
-          />
-        </ReadOnlyViewerProvider>
-      </TooltipProvider>,
+      <CommentContentContext.Provider value={true}>
+        <TooltipProvider>
+          <ReadOnlyViewerProvider value={TestCommentViewer}>
+            <BlockEmbedContent
+              parentBlockId={null}
+              depth={0}
+              block={{id: 'embed', type: 'Embed', link: packHmId(id), attributes: {view: 'Content'}}}
+            />
+          </ReadOnlyViewerProvider>
+        </TooltipProvider>
+      </CommentContentContext.Provider>,
     ),
   )
   return id
 }
 
 describe('comment fragment embeds', () => {
+  it('collapses whole comments and restores the full content when expanded', () => {
+    renderCommentFragment(true)
+    expect(container.querySelector('p')?.textContent).toBe('Before fragment after Another comment paragraph')
+    const caret = container.querySelector('button')!
+    act(() => caret.click())
+    expect(container.querySelector('p')?.textContent).toBe('Before fragment afterAnother comment paragraph')
+    expect(navigated.href).toBe('')
+    act(() => caret.click())
+    expect(container.querySelector('p')?.textContent).toBe('Before fragment after Another comment paragraph')
+  })
+
   it('shows only the comment fragment, expands without selecting the source, and collapses without navigation', () => {
     renderCommentFragment()
     expect(container.querySelector('p')?.textContent).toBe('fragment')
@@ -279,17 +300,19 @@ describe('quoted document fragments above the reply editor', () => {
   function renderQuote(start = 7, end = 15) {
     act(() =>
       root.render(
-        <TooltipProvider>
-          <ReadOnlyViewerProvider value={TestCommentViewer}>
-            <QuotedDocBlock
-              docId={hmId('site', {path: ['document']})}
-              blockId="source"
-              blockRange={{start, end}}
-              doc={source as unknown as HMDocument}
-            />
-            <textarea aria-label="Reply" defaultValue="" />
-          </ReadOnlyViewerProvider>
-        </TooltipProvider>,
+        <CommentContentContext.Provider value={true}>
+          <TooltipProvider>
+            <ReadOnlyViewerProvider value={TestCommentViewer}>
+              <QuotedDocBlock
+                docId={hmId('site', {path: ['document']})}
+                blockId="source"
+                blockRange={{start, end}}
+                doc={source as unknown as HMDocument}
+              />
+              <textarea aria-label="Reply" defaultValue="" />
+            </ReadOnlyViewerProvider>
+          </TooltipProvider>
+        </CommentContentContext.Provider>,
       ),
     )
   }

@@ -687,7 +687,7 @@ export const Comment = memo(function Comment({
       {deleteCommentDialog.content}
       <div
         className={cn(
-          'group relative flex flex-col gap-1 rounded-lg px-3 py-3',
+          'highlight-transition group relative flex flex-col gap-1 rounded-lg px-3 py-3',
           isEntirelyHighlighted && 'bg-highlight',
         )}
       >

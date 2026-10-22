@@ -16,12 +16,13 @@ import {createRoot} from 'react-dom/client'
 import type {HMBlockEmbed, HMBlockNode, HMComment, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {hmId, routeToHref, UniversalAppProvider, writeableStateStream} from '@shm/shared'
 import {NavContextProvider} from '@shm/shared/utils/navigation'
-import {ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
+import {CommentContentContext, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
 import {applyOptimisticComment} from '@shm/shared/optimistic-comment'
 import {trimTrailingEmptyBlocks} from '@shm/shared/comments'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {TooltipProvider} from '@shm/ui/tooltip'
+import {ContentEmbed} from '@shm/ui/content-embed'
 import {BlockEmbedCard, BlockEmbedContent} from '@shm/ui/embed-views'
 import {Comment, QuotedDocBlock} from '@shm/ui/comments'
 import {ReadOnlyViewer} from '../../src/readonly-viewer'
@@ -53,6 +54,37 @@ const blocks: HMBlockNode[] = [
       attributes: {},
       annotations: [],
     },
+    children: [],
+  },
+]
+const previewBlocks: HMBlockNode[] = [
+  {
+    block: {
+      id: 'heading',
+      type: 'Heading',
+      text: 'A large heading becomes a compact quote',
+      attributes: {textAlignment: 'center'},
+      annotations: [{type: 'Bold', starts: [0], ends: [15]}],
+    },
+    children: [],
+  },
+  {
+    block: {
+      id: 'image',
+      type: 'Image',
+      text: 'Tall image preview',
+      link:
+        'data:image/svg+xml,' +
+        encodeURIComponent(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1000"><rect width="600" height="1000" fill="#ccebdc"/><text x="40" y="100" font-size="32" fill="#20543d">Source image</text><rect x="40" y="160" width="520" height="780" rx="16" fill="#67ad89"/></svg>',
+        ),
+      attributes: {},
+      annotations: [],
+    },
+    children: [],
+  },
+  {
+    block: {id: 'video', type: 'Video', link: 'https://www.youtube.com/embed/example', attributes: {autoplay: true}},
     children: [],
   },
 ]
@@ -311,6 +343,9 @@ const queryClient = new QueryClient({defaultOptions: {queries: {retry: false, st
 const cases = [
   ['Document · full', `hm://${account}/field-notes?v=v1`],
   ['Document · block', `hm://${account}/field-notes?v=v1#intro`],
+  ['Heading · block', `hm://${account}/field-notes?v=v1#heading`],
+  ['Image · block', `hm://${account}/field-notes?v=v1#image`],
+  ['Video · block', `hm://${account}/field-notes?v=v1#video`],
   ['Document · fragment', `hm://${account}/field-notes?v=v1#intro[2:63]`],
   ['Comment · whole', `hm://${account}/comment1?v=c1`],
   ['Comment · fragment', `hm://${account}/comment1?v=c1#intro[2:63]`],
@@ -382,23 +417,45 @@ function EmbedGallery() {
                         </DocumentMachineProvider>
                       </section>
                       {cases.map(([label, link]) => (
-                        <section key={label} data-case={label} style={{minWidth: 0}}>
-                          <h2 style={{fontSize: 13, fontWeight: 600, marginBottom: 12}}>{label}</h2>
-                          <BlockEmbedContent
-                            block={{id: label, type: 'Embed', link, attributes: {view: 'Content'}} as HMBlockEmbed}
-                            parentBlockId={null}
+                        <CommentContentContext.Provider
+                          key={label}
+                          value={!['Image · block', 'Video · block'].includes(label)}
+                        >
+                          <section data-case={label} style={{minWidth: 0}}>
+                            <h2 style={{fontSize: 13, fontWeight: 600, marginBottom: 12}}>{label}</h2>
+                            {previewBlocks.some((node) => link.endsWith(`#${node.block.id}`)) ? (
+                              <ContentEmbed
+                                id={hmId(account, {path: ['field-notes'], version: 'v1', blockRef: link.split('#')[1]})}
+                                blocks={previewBlocks}
+                                route={{
+                                  key: 'document',
+                                  id: hmId(account, {
+                                    path: ['field-notes'],
+                                    version: 'v1',
+                                    blockRef: link.split('#')[1],
+                                  }),
+                                }}
+                              />
+                            ) : (
+                              <BlockEmbedContent
+                                block={{id: label, type: 'Embed', link, attributes: {view: 'Content'}} as HMBlockEmbed}
+                                parentBlockId={null}
+                              />
+                            )}
+                          </section>
+                        </CommentContentContext.Provider>
+                      ))}
+                      <CommentContentContext.Provider value={true}>
+                        <section data-case="Reply quote" style={{minWidth: 0}}>
+                          <h2 style={{fontSize: 13, fontWeight: 600, marginBottom: 12}}>Reply quote · fragment</h2>
+                          <QuotedDocBlock
+                            docId={documentId}
+                            doc={document}
+                            blockId="intro"
+                            blockRange={{start: 2, end: 63}}
                           />
                         </section>
-                      ))}
-                      <section data-case="Reply quote" style={{minWidth: 0}}>
-                        <h2 style={{fontSize: 13, fontWeight: 600, marginBottom: 12}}>Reply quote · fragment</h2>
-                        <QuotedDocBlock
-                          docId={documentId}
-                          doc={document}
-                          blockId="intro"
-                          blockRange={{start: 2, end: 63}}
-                        />
-                      </section>
+                      </CommentContentContext.Provider>
                       <section data-case="Account home card" style={{minWidth: 0}}>
                         <h2 style={{fontSize: 13, fontWeight: 600, marginBottom: 12}}>Account home document · card</h2>
                         <BlockEmbedCard

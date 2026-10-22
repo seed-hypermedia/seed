@@ -72,6 +72,10 @@ for (const label of ['Document · fragment', 'Comment · fragment', 'Reply quote
     .evaluate((node) => getComputedStyle(node).fontSize)
   if (size !== '12px') throw new Error(`${label} compact font was ${size}, expected 12px`)
 }
+for (const label of ['Document · block', 'Document · fragment', 'Heading · block', 'Comment · fragment']) {
+  if (await page.locator(`[data-case="${label}"] .ProseMirror :is(strong, em, code, a, h1, h2)`).count())
+    throw new Error(`${label} retained source formatting while collapsed`)
+}
 if (await page.locator('.bn-block-highlight-focus, .bn-range-highlight-focus').count())
   throw new Error('Unselected embeds have a default highlight')
 const commentReferences = page.locator('[data-case="Comment under editing document"] .block-embed')
@@ -81,7 +85,7 @@ for (let index = 0; index < 2; index++) {
   if ((await reference.getByRole('link', {name: 'Open embedded content'}).count()) !== 1)
     throw new Error(`Read-only comment reference ${index} is disabled by the parent editing state`)
   const historyBefore = await page.evaluate(() => history.length)
-  await reference.locator('p').click({position: {x: 2, y: 2}})
+  await reference.locator('.truncate').click({position: {x: 2, y: 2}})
   const navigation = await page.evaluate(() => window.GALLERY_NAVIGATION.at(-1))
   if (
     !navigation?.replace ||
@@ -97,7 +101,7 @@ for (let index = 0; index < 2; index++) {
 await page.evaluate(() => {
   window.GALLERY_NAVIGATION.length = 0
 })
-const fragmentText = commentReferences.nth(1).locator('strong').first()
+const fragmentText = commentReferences.nth(1).locator('p').first()
 const textBox = await fragmentText.boundingBox()
 if (!textBox) throw new Error('Missing fragment text for selection check')
 await page.mouse.move(textBox.x + 1, textBox.y + textBox.height / 2)
@@ -153,20 +157,58 @@ if (!page.url().includes('panel=comments/kept-thread') || !page.url().includes('
 await page.evaluate(() => {
   window.GALLERY_NAVIGATION.length = 0
 })
+for (const label of ['Image · block', 'Video · block']) {
+  await page.locator(`[data-case="${label}"] .embed-media-preview`).click()
+  const target = await page.evaluate(() => window.GALLERY_NAVIGATION.at(-1)?.route?.id?.blockRef)
+  if (target !== (label.startsWith('Image') ? 'image' : 'video')) throw new Error(`${label} did not open source`)
+}
+await page.evaluate(() => {
+  window.GALLERY_NAVIGATION.length = 0
+})
 const documentHostStyles = await textStyles()
 await page.locator('main').evaluate((node) => node.classList.add('comment-editor', 'is-comment', 'hm-prose'))
 const commentHostStyles = await textStyles()
 if (JSON.stringify(documentHostStyles) !== JSON.stringify(commentHostStyles))
   throw new Error('Host comment styles changed embedded typography')
 await page.locator('main').evaluate((node) => node.classList.remove('comment-editor', 'is-comment', 'hm-prose'))
+for (const width of [360, 560, 1000]) {
+  const section = page.locator('[data-case="Image · block"]')
+  await section.evaluate((node, width) => {
+    node.style.width = `${width}px`
+  }, width)
+  const dimensions = await section.locator('.embed-media-container').evaluate((node) => {
+    const preview = node.querySelector('.embed-media-preview').getBoundingClientRect()
+    const image = node.querySelector('img').getBoundingClientRect()
+    return {
+      container: node.getBoundingClientRect().width,
+      preview: preview.width,
+      previewHeight: preview.height,
+      width: image.width,
+      height: image.height,
+    }
+  })
+  const maxWidth =
+    dimensions.container >= 480 ? Math.min(dimensions.container / 2, 400) : Math.min(dimensions.container, 400)
+  if (
+    dimensions.preview > maxWidth + 1 ||
+    dimensions.previewHeight > 240 ||
+    Math.abs(dimensions.width / dimensions.height - 0.6) > 0.01
+  )
+    throw new Error(`Image preview dimensions incorrect: ${JSON.stringify(dimensions)}`)
+  await section.evaluate((node) => {
+    node.style.width = ''
+  })
+}
 await page.screenshot({path: path.join(output, 'wide-collapsed.png'), fullPage: true, animations: 'disabled'})
 await page.setViewportSize({width: 390, height: 844})
 await page.screenshot({path: path.join(output, 'narrow-collapsed.png'), fullPage: true, animations: 'disabled'})
 await page.setViewportSize({width: 1280, height: 1000})
 const expandButtons = page.getByRole('button', {name: /^Show full/})
-if ((await expandButtons.count()) !== 4) throw new Error('Expected four fragment expansion controls')
-for (let index = 0; index < 4; index++) await expandButtons.first().click()
-if ((await page.getByRole('button', {name: /^Hide full/}).count()) !== 4) throw new Error('Fragments did not expand')
+const expansionCount = await expandButtons.count()
+if (expansionCount !== 8) throw new Error(`Expected eight quote controls, got ${expansionCount}`)
+for (let index = 0; index < expansionCount; index++) await expandButtons.first().click()
+if ((await page.getByRole('button', {name: /^Hide full/}).count()) !== expansionCount)
+  throw new Error('Quotes did not expand')
 if (await page.evaluate(() => window.GALLERY_NAVIGATION.length)) throw new Error('Caret triggered navigation')
 await page.locator('[data-case="Document · block"] a[href="https://example.com/source"]').click()
 const navigation = await page.evaluate(() => window.GALLERY_NAVIGATION)

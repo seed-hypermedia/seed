@@ -42,7 +42,7 @@
   font-family: inherit;
   font-size: inherit;
   line-height: inherit;
-  white-space: pre-wrap;
+  white-space: var(--embed-white-space, pre-wrap);
   overflow-wrap: anywhere;
 }
 

@@ -1,5 +1,5 @@
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {ReadOnlyViewerProps} from '@shm/shared/readonly-viewer-context'
+import {CommentContentContext, type ReadOnlyViewerProps} from '@shm/shared/readonly-viewer-context'
 import {getSSREmbedRenderer} from './ssr-embed-renderer'
 import styles from './readonly-viewer.module.css'
 
@@ -54,49 +54,51 @@ export function ReadOnlyViewer(props: ReadOnlyViewerProps) {
   if (typeof window === 'undefined' && !html) return null
 
   return (
-    <EmbedDepthContext.Provider value={depth}>
-      <RenderResourceProvider
-        resource={props.resourceId ? {kind: props.resourceKind ?? 'document', id: props.resourceId} : null}
-      >
-        <div
-          data-highlight-resource={props.resourceId?.id}
-          contentEditable={props.embedded ? false : undefined}
-          suppressContentEditableWarning
-          onDragStart={
-            props.embedded
-              ? (event) => {
-                  event.stopPropagation()
-                  event.preventDefault()
-                }
-              : undefined
-          }
-          style={
-            {
-              '--text-unit': `${props.textUnit ?? (fragment ? 12 : 18)}px`,
-              '--layout-unit': `${props.layoutUnit ?? 24}px`,
-              '--hm-prose-size': `${props.textUnit ?? (fragment ? 12 : props.commentStyle ? 16 : 18)}px`,
-              '--hm-breakout': props.embedded ? '0px' : undefined,
-            } as React.CSSProperties
-          }
-          className={[
-            props.className,
-            'hm-prose',
-            styles.root,
-            fragment ? styles.fragment : '',
-            props.commentStyle ? 'comment-editor is-comment' : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
+    <CommentContentContext.Provider value={!!props.commentStyle || props.resourceKind === 'comment'}>
+      <EmbedDepthContext.Provider value={depth}>
+        <RenderResourceProvider
+          resource={props.resourceId ? {kind: props.resourceKind ?? 'document', id: props.resourceId} : null}
         >
-          {fragment && props.inlinePrefix ? <>{props.inlinePrefix} </> : null}
-          {html != null ? (
-            <div className={styles.content} dangerouslySetInnerHTML={{__html: html}} />
-          ) : (
-            <ReadOnlyViewerContent {...props} blocks={blocks} />
-          )}
-        </div>
-      </RenderResourceProvider>
-    </EmbedDepthContext.Provider>
+          <div
+            data-highlight-resource={props.resourceId?.id}
+            contentEditable={props.embedded ? false : undefined}
+            suppressContentEditableWarning
+            onDragStart={
+              props.embedded
+                ? (event) => {
+                    event.stopPropagation()
+                    event.preventDefault()
+                  }
+                : undefined
+            }
+            style={
+              {
+                '--text-unit': `${props.textUnit ?? (fragment ? 12 : 18)}px`,
+                '--layout-unit': `${props.layoutUnit ?? 24}px`,
+                '--hm-prose-size': `${props.textUnit ?? (fragment ? 12 : props.commentStyle ? 16 : 18)}px`,
+                '--hm-breakout': props.embedded ? '0px' : undefined,
+              } as React.CSSProperties
+            }
+            className={[
+              props.className,
+              'hm-prose',
+              styles.root,
+              fragment ? styles.fragment : '',
+              props.commentStyle ? 'comment-editor is-comment' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            {fragment && props.inlinePrefix ? <>{props.inlinePrefix} </> : null}
+            {html != null ? (
+              <div className={styles.content} dangerouslySetInnerHTML={{__html: html}} />
+            ) : (
+              <ReadOnlyViewerContent {...props} blocks={blocks} />
+            )}
+          </div>
+        </RenderResourceProvider>
+      </EmbedDepthContext.Provider>
+    </CommentContentContext.Provider>
   )
 }
 

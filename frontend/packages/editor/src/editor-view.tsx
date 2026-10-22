@@ -1,3 +1,4 @@
+import {CommentContentContext} from '@shm/shared/readonly-viewer-context'
 import type {MentionThreadContext} from '@shm/shared/models/mention-ranking'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import '@/blocknote/core/style.css'
@@ -31,28 +32,30 @@ export function HyperMediaEditorView({
 }) {
   const editable = editor.isEditable
   return (
-    <BlockNoteView editor={editor} className="hm-prose is-comment draft-editor">
-      {editable && (
-        <>
-          <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
-          <SlashMenuPositioner editor={editor} />
-          <LinkMenuPositioner editor={editor} />
-        </>
-      )}
-      <HyperlinkToolbarPositioner
-        // @ts-expect-error
-        hyperlinkToolbar={HypermediaLinkPreview}
-        editor={editor}
-        // @ts-expect-error
-        openUrl={openUrl}
-      />
-      <MentionMenuPositioner
-        editor={editor}
-        perspectiveAccountUid={perspectiveAccountUid}
-        siteUid={siteUid}
-        documentId={documentId}
-        mentionThread={mentionThread}
-      />
-    </BlockNoteView>
+    <CommentContentContext.Provider value={true}>
+      <BlockNoteView editor={editor} className="hm-prose is-comment draft-editor">
+        {editable && (
+          <>
+            <FormattingToolbarPositioner editor={editor} formattingToolbar={HMFormattingToolbar} />
+            <SlashMenuPositioner editor={editor} />
+            <LinkMenuPositioner editor={editor} />
+          </>
+        )}
+        <HyperlinkToolbarPositioner
+          // @ts-expect-error
+          hyperlinkToolbar={HypermediaLinkPreview}
+          editor={editor}
+          // @ts-expect-error
+          openUrl={openUrl}
+        />
+        <MentionMenuPositioner
+          editor={editor}
+          perspectiveAccountUid={perspectiveAccountUid}
+          siteUid={siteUid}
+          documentId={documentId}
+          mentionThread={mentionThread}
+        />
+      </BlockNoteView>
+    </CommentContentContext.Provider>
   )
 }
