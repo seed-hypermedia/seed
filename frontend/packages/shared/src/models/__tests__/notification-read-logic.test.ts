@@ -1,5 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {
+  countUnreadNotificationsBySite,
+  isNotificationEventRead,
   markAllNotificationsReadInState,
   markNotificationEventReadInState,
   markNotificationEventUnreadInState,
@@ -131,5 +133,33 @@ describe('site-scoped notifications', () => {
     const nextState = reduceNotificationState(withInbox, {type: 'mark-site-read', siteUid: 'site-a'})
     expect(nextState.readState.markAllReadAtMs).toBeNull()
     expect(nextState.readState.readEvents.map((event) => event.eventId)).toEqual(['a-new'])
+  })
+})
+
+describe('unread notifications per site', () => {
+  it('counts only unread notifications, grouped by the site they belong to', () => {
+    const readState: NotificationReadLikeState = {
+      markAllReadAtMs: 1_000,
+      readEvents: [{eventId: 'a-read', eventAtMs: 3_000}],
+    }
+    const counts = countUnreadNotificationsBySite(
+      [
+        notification('a-old', 900, 'site-a'), // under the watermark
+        notification('a-read', 3_000, 'site-a'), // read on its own
+        notification('a-new', 4_000, 'site-a'),
+        notification('b-new', 5_000, 'site-b'),
+        notification('b-newer', 6_000, 'site-b'),
+      ],
+      readState,
+    )
+    expect(counts).toEqual({'site-a': 1, 'site-b': 2})
+  })
+
+  it('reflects a newly read event right away, not a stale lookup of the previous read state', () => {
+    const before: NotificationReadLikeState = {markAllReadAtMs: null, readEvents: []}
+    expect(isNotificationEventRead({readState: before, eventId: 'e', eventAtMs: 1})).toBe(false)
+    const after = markNotificationEventReadInState({readState: before, eventId: 'e', eventAtMs: 1})
+    expect(isNotificationEventRead({readState: after, eventId: 'e', eventAtMs: 1})).toBe(true)
+    expect(isNotificationEventRead({readState: before, eventId: 'e', eventAtMs: 1})).toBe(false)
   })
 })

@@ -5,23 +5,21 @@ import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/m
 import {useExistingDraft} from '@/models/drafts'
 import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {useNotificationInbox} from '@/models/notification-inbox'
-import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
-import {notificationMatchesSite} from '@shm/shared/models/notification-read-logic'
+import {useUnreadNotificationsBySpace} from '@/models/notification-inbox'
 import {
   agentRunUrl,
   agentSessionUrl,
   agentTriggerUrl,
   agentUrl,
   isOmnibarRouteUrlShareable,
-  resolveOmnibarNavigation,
   parseBrowserAddress,
+  resolveOmnibarNavigation,
   selectValidatedOmnibarSiteUrl,
 } from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
-import {pathNameify} from '@/utils/path'
 import {queryDevtoolsOpen, RouteDialog, setQueryDevtoolsOpen} from '@/utils/navigation-container'
+import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -39,10 +37,11 @@ import {
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
+import {AccountAvatar} from '@shm/ui/account-avatar'
+import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
 import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
 import {AgentActivityDot} from '@shm/ui/agents/activity-dot'
-import {focusExploreSearch} from '@shm/ui/explore-search-focus'
 import {
   agentRouteServerUrl,
   isLocalAgentServer,
@@ -51,6 +50,7 @@ import {
   useAgentSession,
   useLocalAgentServerUrl,
 } from '@shm/ui/agents/models'
+import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -62,9 +62,8 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {LogoutVaultDialog} from '@shm/ui/components/logout-vault-dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {focusExploreSearch} from '@shm/ui/explore-search-focus'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {AccountAvatar} from '@shm/ui/account-avatar'
-import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {Back, Forward} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
@@ -150,23 +149,9 @@ function NotificationButton() {
 function NotificationButtonForAccount({accountUid, spaceUid}: {accountUid: string; spaceUid: string}) {
   const navigate = useNavigate()
   const route = useNavRoute()
-  const inbox = useNotificationInbox(accountUid)
-  const readState = useLocalNotificationReadState(accountUid)
   const isActive = isActivityOpen(route)
   const collapse = useCollapseActivity(hmId(spaceUid), route.key === 'feed' ? route.tab : 'to-you')
-
-  const unreadCount = useMemo(() => {
-    if (!inbox.data || !readState.data) return 0
-    return inbox.data.filter(
-      (item) =>
-        notificationMatchesSite(item, spaceUid) &&
-        !isNotificationEventRead({
-          readState: readState.data,
-          eventId: item.feedEventId,
-          eventAtMs: item.eventAtMs,
-        }),
-    ).length
-  }, [inbox.data, readState.data, spaceUid])
+  const unreadCount = useUnreadNotificationsBySpace(accountUid)[spaceUid] ?? 0
 
   return (
     <Tooltip content="Activity" asChild>
@@ -512,17 +497,15 @@ export function AccountProfileButton() {
  * Title bar toggle for the assistant chat panel. Opening it restores the most recently used
  * agent/session (the panel resolves that itself). Styled like the bookmarks button while open.
  */
-function AssistantChatButton({
-  assistantOpen,
-  onToggleAssistant,
-}: Pick<TitleBarProps, 'assistantOpen' | 'onToggleAssistant'>) {
-  // The unread indicator: the agents lists, kept live by one account socket per server mounted
-  // here (the title bar outlives the panel), against this device's read marks.
+function AssistantChatButton() {
+  // The unread indicator: the agents lists, kept live by `AgentActivityConnection` in the window bar, against this
+  // device's read marks.
+  const toggle = useAssistantPanelToggle()
   const agentsAccountUid = useSelectedAgentsAccountId()
   const agentServerUrls = useAgentServerUrls()
   const activity = useAgentActivityIndicator(agentServerUrls.data, agentsAccountUid)
-  if (!onToggleAssistant) return null
-  const isActive = !!assistantOpen
+  if (!toggle) return null
+  const isActive = toggle.isOpen
   const tooltip = activity?.label ?? (isActive ? 'Close Agents' : 'Open Agents')
   return (
     <Tooltip content={tooltip} asChild>
@@ -535,26 +518,41 @@ function AssistantChatButton({
         )}
         aria-pressed={isActive}
         aria-label="Agents"
-        onClick={onToggleAssistant}
+        onClick={toggle.toggle}
       >
         <MessageCircle className="size-4" />
         <AgentActivityDot indicator={activity} />
-        <AgentActivityLiveUpdates serverUrls={agentServerUrls.data} accountUid={agentsAccountUid} />
       </Button>
     </Tooltip>
   )
 }
-
-export function PageActionButtons(props: TitleBarProps) {
+export function PageActionButtons(_props: TitleBarProps) {
   return (
     <TitlebarSection>
       <ExploreButton />
-      <AssistantChatButton assistantOpen={props.assistantOpen} onToggleAssistant={props.onToggleAssistant} />
-      <BookmarksPopover />
-      <NotificationButton />
+      <AgentActivityConnection />
       <AccountProfileButton />
     </TitlebarSection>
   )
+}
+
+/** The space's own tools in its header: Agents, bookmarks and the Activity bell. */
+export function SpaceHeaderTools() {
+  return (
+    <div className="flex items-center gap-1">
+      <AssistantChatButton />
+      <BookmarksPopover />
+      <NotificationButton />
+    </div>
+  )
+}
+
+// Keeps the Agents unread dot live with one connection per agents server. It stays in the window bar, which outlives
+// every page, while the Agents button itself is only in the space header.
+function AgentActivityConnection() {
+  const agentsAccountUid = useSelectedAgentsAccountId()
+  const agentServerUrls = useAgentServerUrls()
+  return <AgentActivityLiveUpdates serverUrls={agentServerUrls.data} accountUid={agentsAccountUid} />
 }
 
 /**
@@ -571,19 +569,19 @@ function ExploreButton() {
     <Tooltip content="Explore" asChild>
       <Button
         className={cn(
-          'window-no-drag h-8 w-8 rounded-full border p-0',
+          'window-no-drag h-8 gap-1.5 rounded-full border px-3',
           isActive
             ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
             : 'border-transparent',
         )}
         aria-current={isActive ? 'page' : undefined}
-        aria-label="Explore"
         onClick={() => {
           focusExploreSearch()
           navigate({key: 'explore', context: siteId ? {type: 'site', id: siteId} : {type: 'node'}})
         }}
       >
         <Search className="size-4" />
+        Explore
       </Button>
     </Tooltip>
   )

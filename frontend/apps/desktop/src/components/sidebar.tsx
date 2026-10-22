@@ -1,3 +1,4 @@
+import {grpcClient} from '@/grpc-client'
 import {useContactList} from '@/models/contacts'
 import {
   isJoinedSiteDragBlocked,
@@ -6,13 +7,12 @@ import {
   reorderJoinedSitesAtEdge,
   useJoinedSiteOrder,
 } from '@/models/joined-site-order'
-import {grpcClient} from '@/grpc-client'
+import {useUnreadNotificationsBySpace} from '@/models/notification-inbox'
 import {useSelectedAccountId} from '@/selected-account'
-import {useCreateSpaceDialog} from './create-space-dialog'
 import {useNavigate} from '@/utils/useNavigate'
-import {HMContactRecord, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+import {HMContactRecord, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {defaultJoinedSiteUid, useRouteLink} from '@shm/shared'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useResource, useResources} from '@shm/shared/models/entity'
@@ -25,7 +25,6 @@ import {UIAvatar} from '@shm/ui/avatar'
 import {Button} from '@shm/ui/button'
 import {
   SidebarContent,
-  SidebarFooter as SidebarFooterLayout,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -40,12 +39,12 @@ import {HMIcon} from '@shm/ui/hm-icon'
 import {CircleOff} from '@shm/ui/icons'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {SizableText} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {cn} from '@shm/ui/utils'
 import {ArrowDown, ArrowUp, ChevronDown, ChevronRight, LayoutList, MoreHorizontal, Settings} from 'lucide-react'
 import React, {memo} from 'react'
 import {CreateDocumentButton} from './create-doc-button'
+import {useCreateSpaceDialog} from './create-space-dialog'
 import {isSiteDocumentsActiveRoute} from './sidebar-active'
 import {GenericSidebarContainer} from './sidebar-base'
 
@@ -164,6 +163,7 @@ function SubscriptionsSection() {
   const siteResources = useResources(siteIds, {subscribed: true})
 
   const accounts = accountList.data?.accounts || []
+  const unreadNotifications = useUnreadNotificationsBySpace(selectedAccountId)
   const sourceOrder = siteSubscribed?.map((contact) => contact.subject) ?? []
   const {order, persistOrder} = useJoinedSiteOrder({
     identityUid: selectedAccountId,
@@ -249,6 +249,7 @@ function SubscriptionsSection() {
                 metadata={metadata}
                 active={isSiteDocumentsActiveRoute(route, id)}
                 isUnread={isUnread}
+                unreadNotifications={unreadNotifications[contact.subject] ?? 0}
                 canLeave={!!selectedAccountId}
                 dropEdge={dropIndicator?.siteUid === contact.subject ? dropIndicator.edge : null}
                 canMoveUp={index > 0}
@@ -270,6 +271,17 @@ function SubscriptionsSection() {
   )
 }
 
+// The red dot a space gets in the sidebar while the account has unread notifications in it.
+function UnreadNotificationsDot({count}: {count: number}) {
+  if (!count) return null
+  return (
+    <>
+      <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-red-500" />
+      <span className="sr-only">{count} unread notifications</span>
+    </>
+  )
+}
+
 /** Sidebar item for a joined site with leave functionality. */
 function JoinedSiteListItem({
   id,
@@ -277,6 +289,7 @@ function JoinedSiteListItem({
   metadata,
   active,
   isUnread,
+  unreadNotifications,
   canLeave = true,
   dropEdge,
   canMoveUp,
@@ -289,6 +302,7 @@ function JoinedSiteListItem({
   metadata: HMMetadata
   active: boolean
   isUnread: boolean
+  unreadNotifications: number
   canLeave?: boolean
   dropEdge: JoinedSiteDropEdge | null
   canMoveUp: boolean
@@ -345,6 +359,7 @@ function JoinedSiteListItem({
         <span className={cn('min-w-0 flex-1 truncate text-left text-sm select-none', isUnread && 'font-bold')}>
           {metadata?.name || 'Untitled'}
         </span>
+        <UnreadNotificationsDot count={unreadNotifications} />
       </SidebarMenuButton>
       <OptionsDropdown
         side="right"
@@ -528,6 +543,7 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
   const route = useNavRoute()
   const active = siteId ? isSiteDocumentsActiveRoute(route, siteId) : false
   const createSpaceDialog = useCreateSpaceDialog()
+  const unreadNotifications = useUnreadNotificationsBySpace(selectedAccountId)[selectedAccountId ?? ''] ?? 0
 
   if (!selectedAccountId) return null
 
@@ -551,7 +567,8 @@ function MySiteSection({selectedAccountId}: {selectedAccountId?: string}) {
               url={document.metadata.icon ? imageUrl(document.metadata.icon) : ''}
               className="shrink-0"
             />
-            <span className="truncate text-sm font-bold select-none">{document.metadata.name}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-bold select-none">{document.metadata.name}</span>
+            <UnreadNotificationsDot count={unreadNotifications} />
           </div>
           <OptionsDropdown
             side="right"

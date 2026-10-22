@@ -200,7 +200,7 @@ function CommentCardBody({comment, replyingComment}: {comment: HMComment; replyi
         // About three lines on desktop and web, two on phones, until "See all" is shown.
         className={cn('relative min-w-0 break-words', !isExpanded && 'max-h-14 overflow-hidden sm:max-h-20')}
         onClickCapture={(event) => {
-          // Images and videos open a larged preview instead of opening the comment.
+          // Images and videos open a larger preview instead of opening the comment.
           const media = (event.target as HTMLElement).closest('img, video')
           const src = media && (media as HTMLImageElement | HTMLVideoElement).currentSrc
           if (!media || !src) return
@@ -231,11 +231,12 @@ function CommentCardBody({comment, replyingComment}: {comment: HMComment; replyi
   )
 }
 
+// The green quote box that shows what the comment is left on.
 function QuoteBox({children}: {children: ReactNode}) {
   return (
-    <p className="border-brand bg-brand-12 text-brand-4 line-clamp-1 rounded-r border-l-2 px-3 py-1.5 text-sm sm:line-clamp-2">
-      {children}
-    </p>
+    <div className="border-brand bg-brand-12 rounded-r border-l-2 px-3 py-1.5">
+      <p className="text-brand-4 line-clamp-1 text-sm sm:line-clamp-2">{children}</p>
+    </div>
   )
 }
 

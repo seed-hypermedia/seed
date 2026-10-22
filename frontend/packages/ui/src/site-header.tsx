@@ -21,9 +21,9 @@ import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout
 import {Lock} from 'lucide-react'
 import {AssistantPanelHeaderButton, AssistantPanelMenuItem} from './assistant-panel-toggle'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
+import {focusExploreSearch} from './explore-search-focus'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
 import {MobileSearch} from './search'
-import {focusExploreSearch} from './explore-search-focus'
 import {Separator} from './separator'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
@@ -94,9 +94,10 @@ function ExploreHeaderButton({siteHomeId}: {siteHomeId: UnpackedHypermediaId}) {
 
   return (
     <Tooltip content="Explore">
-      <Button asChild variant="ghost" size="icon" className="h-8 rounded-full border-1 border-transparent p-0">
-        <a ref={linkRef} aria-label="Explore" {...linkProps}>
+      <Button asChild variant="ghost" className="h-8 gap-1.5 rounded-full border-1 border-transparent px-3">
+        <a ref={linkRef} {...linkProps}>
           <Search className="size-4" />
+          Explore
         </a>
       </Button>
     </Tooltip>
@@ -175,10 +176,12 @@ export function SiteHeader({
         <Menu size={20} />
       </Button>
       {siteHomeId && !IS_DESKTOP ? (
-        <div className="hidden items-center gap-1 md:flex">
+        <div className="hidden items-center gap-4 md:flex">
           <ExploreHeaderButton siteHomeId={siteHomeId} />
-          <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
-          <DocumentMaintenanceTrigger compact />
+          <div className="flex items-center gap-1">
+            <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
+            <DocumentMaintenanceTrigger compact />
+          </div>
         </div>
       ) : null}
     </>
