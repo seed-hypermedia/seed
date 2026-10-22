@@ -470,7 +470,16 @@ func (n *Node) Start(ctx context.Context) (err error) {
 	// Start Hyper Media protocol listener over libp2p.
 	{
 		g.Go(func() error {
-			return n.grpc.Serve(lis)
+			// A context cancelled before this goroutine gets scheduled runs
+			// GracefulStop first, and Serve on a stopped server reports
+			// ErrServerStopped. That is the same clean shutdown as being
+			// stopped after it started, which Serve reports as nil.
+			err := n.grpc.Serve(lis)
+			if errors.Is(err, grpc.ErrServerStopped) {
+				return nil
+			}
+
+			return err
 		})
 
 		g.Go(func() error {
