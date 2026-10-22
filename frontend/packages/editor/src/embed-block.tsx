@@ -406,7 +406,11 @@ const Render = (block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
 }
 
 const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
-  const {canEdit, isEditing} = useEditorGate()
+  const gate = useEditorGate()
+  // Read-only comments and embeds can live inside an actively edited document.
+  const readOnly = editor.renderType === 'viewer' || editor.renderType === 'embed'
+  const canEdit = !readOnly && gate.canEdit
+  const isEditing = !readOnly && gate.isEditing
   const isSelected = useIsBlockSelected(editor, block)
   const isCardView = block.props.view === 'Card'
   const isLinkView = block.props.view === 'Link'

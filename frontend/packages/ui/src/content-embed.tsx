@@ -6,7 +6,8 @@ import type {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import type {NavRoute, RenderResourceKind} from '@shm/shared'
-import {packHmId} from '@shm/shared'
+import {commentIdToHmId, packHmId} from '@shm/shared'
+import {useNavRoute} from '@shm/shared/utils/navigation'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {AlertCircle} from 'lucide-react'
 import {useMemo, useState} from 'react'
@@ -15,6 +16,36 @@ import {getBlockFragment, getBlockNodeById} from './blocks-content-utils'
 import {EmbedWrapper, FragmentEmbedControls} from './embed-wrapper'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
+
+/** Maps the URL selection to an embed, including offsets within a collapsed fragment. */
+export function getContentEmbedHighlight(
+  id: UnpackedHypermediaId,
+  route: NavRoute,
+  resourceKind: RenderResourceKind,
+  collapsed: boolean,
+): {focusBlockId?: string; blockRange?: {start: number; end: number}} {
+  const selectedId =
+    resourceKind === 'comment'
+      ? route.key === 'comments' && route.openComment
+        ? {...commentIdToHmId(route.openComment), blockRef: route.blockId, blockRange: route.blockRange}
+        : null
+      : route.key === 'document' || (route.key === 'comments' && !route.openComment)
+        ? route.id
+        : null
+  if (!selectedId || selectedId.id !== id.id || !selectedId.blockRef) return {}
+  if (collapsed && selectedId.blockRef !== id.blockRef) return {}
+
+  const range = selectedId.blockRange
+  if (range && typeof range.start === 'number' && typeof range.end === 'number') {
+    const offset = collapsed && typeof id.blockRange?.start === 'number' ? id.blockRange.start : 0
+    const limit = collapsed && typeof id.blockRange?.end === 'number' ? id.blockRange.end : Infinity
+    const start = Math.max(range.start, offset)
+    const end = Math.min(range.end, limit)
+    if (end <= start) return {}
+    return {focusBlockId: selectedId.blockRef, blockRange: {start: start - offset, end: end - offset}}
+  }
+  return {focusBlockId: selectedId.blockRef}
+}
 
 /** Content, block, and fragment presentation shared by embeds and reply quotes. */
 export function ContentEmbed({
@@ -47,6 +78,7 @@ export function ContentEmbed({
   isStaleVersion?: boolean
 }) {
   const Viewer = useReadOnlyViewer()
+  const currentRoute = useNavRoute()
   const sourceKey = packHmId(id)
   const [expansion, setExpansion] = useState({sourceKey, expanded: false})
   if (expansion.sourceKey !== sourceKey) {
@@ -70,7 +102,7 @@ export function ContentEmbed({
       expandTo === 'resource' || !!(id.blockRange && 'expanded' in id.blockRange && id.blockRange.expanded)
     return [{...selectedBlock, children: includeChildren ? selectedBlock.children : []}]
   }, [blocks, selectedBlock, id.blockRange, fragment, collapsed, expanded, expandTo])
-  const highlightRange = !collapsed && id.blockRange && 'start' in id.blockRange ? id.blockRange : undefined
+  const highlight = getContentEmbedHighlight(id, currentRoute, resourceKind, collapsed)
   const author = identity ? (
     <span className="inline-flex items-center gap-1 align-baseline">
       <AccountIdentity {...identity} variant={collapsed ? 'compact' : 'regular'} />
@@ -110,8 +142,7 @@ export function ContentEmbed({
             embedded
             presentation={collapsed ? 'fragment' : 'content'}
             inlinePrefix={collapsed ? author : undefined}
-            focusBlockId={!collapsed ? id.blockRef || undefined : undefined}
-            blockRange={highlightRange}
+            {...highlight}
           />
         ) : null}
       </div>

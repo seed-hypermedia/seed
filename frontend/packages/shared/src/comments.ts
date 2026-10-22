@@ -1,4 +1,5 @@
 import {useMemo} from 'react'
+import {normalizeDate} from './utils/date'
 import {HMBlockNode, HMComment, HMCommentGroup} from '@seed-hypermedia/client/hm-types'
 
 /**
@@ -172,4 +173,45 @@ export function getSubmittedCommentGroups(
     rootGroups.unshift(group)
   }
   return rootGroups
+}
+
+/** Resolves the root and all descendants, ordered by creation time, for a selected comment. */
+export function getCommentThread(comments: HMComment[] | undefined, commentId: string) {
+  const byId = new Map(comments?.map((comment) => [comment.id, comment]))
+  let root = byId.get(commentId)
+  if (!root) return null
+  const visited = new Set<string>()
+  while (root.replyParent) {
+    if (visited.has(root.id)) return null
+    visited.add(root.id)
+    const parent = byId.get(root.replyParent)
+    if (!parent) {
+      root = byId.get(root.threadRoot || '') ?? root
+      break
+    }
+    root = parent
+  }
+  const rootId = root.id
+  const descendants = new Set([rootId])
+  // threadRoot also keeps replies visible when an intermediate parent was deleted.
+  for (const comment of comments ?? []) {
+    if (comment.threadRoot === rootId) descendants.add(comment.id)
+  }
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const comment of comments ?? []) {
+      if (comment.replyParent && descendants.has(comment.replyParent) && !descendants.has(comment.id)) {
+        descendants.add(comment.id)
+        changed = true
+      }
+    }
+  }
+  const replies = (comments ?? []).filter((comment) => comment.id !== rootId && descendants.has(comment.id))
+  replies.sort(
+    (a, b) =>
+      (normalizeDate(a.createTime)?.getTime() ?? 0) - (normalizeDate(b.createTime)?.getTime() ?? 0) ||
+      a.id.localeCompare(b.id),
+  )
+  return {root, replies}
 }

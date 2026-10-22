@@ -1,6 +1,6 @@
 import {PanelSelectionOptions} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Maximize, X} from 'lucide-react'
+import {ArrowLeft, Maximize, X} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Group, Panel} from 'react-resizable-panels'
 import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from './resizable-panels'
@@ -33,6 +33,8 @@ export interface PanelLayoutProps {
   commentsCount?: number
   /** Open the current comments selection in the full-page view. */
   onCommentsExpand?: () => void
+  /** Return from the current thread to the document comments. */
+  onCommentsBack?: () => void
   /** True when the activity panel is being used as the shared versions panel. */
   isVersionsPanel?: boolean
   /** True when the activity panel is scoped to one block's citations. */
@@ -94,6 +96,7 @@ export function PanelLayout({
   onPanelClose,
   commentsCount,
   onCommentsExpand,
+  onCommentsBack,
   isVersionsPanel = false,
   isCitationsPanel = false,
   filterEventType,
@@ -161,15 +164,27 @@ export function PanelLayout({
                 {header ?? (
                   <>
                     <div className="flex items-center justify-between gap-2">
+                      {panelKey === 'comments' && onCommentsBack && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="rounded-full"
+                          aria-label="Back to comments"
+                          title="Back to comments"
+                          onClick={onCommentsBack}
+                        >
+                          <ArrowLeft className="size-4" />
+                        </Button>
+                      )}
                       <Text weight="semibold" size="lg" className="flex flex-1 items-center gap-2">
-                        {title}
-                        {panelKey === 'comments' && commentsCount !== undefined && (
+                        {panelKey === 'comments' && onCommentsBack ? 'Thread' : title}
+                        {panelKey === 'comments' && !onCommentsBack && commentsCount !== undefined && (
                           <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs font-medium">
                             {commentsCount}
                           </span>
                         )}
                       </Text>
-                      {panelKey === 'comments' && onCommentsExpand && (
+                      {panelKey === 'comments' && !onCommentsBack && onCommentsExpand && (
                         <Button
                           variant="ghost"
                           size="icon"

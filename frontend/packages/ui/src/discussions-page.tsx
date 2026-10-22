@@ -1,7 +1,12 @@
 import {BlockRange, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmId, useCommentParents} from '@shm/shared'
-import {cloneElement, isValidElement, ReactNode, useEffect, useState} from 'react'
-import {getCommentContinuation} from '@shm/shared/comments'
+import {hmId, packHmId, commentIdToHmId} from '@shm/shared'
+import {cloneElement, isValidElement, ReactNode, useCallback, useEffect, useState} from 'react'
+import {
+  CommentsProvider,
+  useCommentsServiceContext,
+  useCommentDraftReferences,
+} from '@shm/shared/comments-service-provider'
+import {getCommentThread} from '@shm/shared/comments'
 import {useDocumentComments} from '@shm/shared/models/comments'
 import type {CommentEditorProps} from './resource-page-common'
 import {BlockDiscussions, CommentDiscussions, Discussions} from './comments'
@@ -51,24 +56,41 @@ export function DiscussionsPageContent({
 }: DiscussionsPageContentProps) {
   const [submittedRoots, setSubmittedRoots] = useState<HMComment[]>([])
   const comments = useDocumentComments(docId)
-  const continuation = openComment ? getCommentContinuation(comments.data?.comments, openComment, replyCommentId) : null
-  const target = continuation?.chain.at(-1)
-  const parents = useCommentParents(comments.data?.comments, target?.id ?? '')
+  const thread = openComment ? getCommentThread(comments.data?.comments, openComment) : null
+  const root = thread?.root && !thread.root.replyParent ? thread.root : undefined
+  const commentsContext = useCommentsServiceContext()
+  const draftReferences = useCommentDraftReferences()
+  const appendReference = draftReferences?.appendReference
+  const onThreadReplyClick = useCallback(
+    (comment: HMComment) => {
+      if (!root || !appendReference) return
+      appendReference({
+        documentId: docId.id,
+        commentId: root.id,
+        link: packHmId({...commentIdToHmId(comment.id), version: comment.version, latest: null}),
+      })
+    },
+    [docId.id, root?.id, appendReference],
+  )
   useEffect(() => {
     setSubmittedRoots([])
   }, [docId.id, openComment, targetBlockId])
   let editor = commentEditor
   if (isValidElement<CommentEditorProps>(commentEditor)) {
     editor =
-      replyCommentId && !continuation
+      openComment && !root
         ? null
         : cloneElement(commentEditor, {
-            key: [target?.id || openComment || 'root', targetBlockId || '', JSON.stringify(blockRange)].join(':'),
+            key: [
+              root?.id || 'root',
+              targetBlockId || '',
+              JSON.stringify(blockRange),
+              commentEditor.props.focusOnMount ? 'focus' : 'browse',
+            ].join(':'),
             compact: isPanel || commentEditor.props.compact,
-            commentId: target?.id || openComment,
-            replyCommentVersion: target?.version ?? commentEditor.props.replyCommentVersion,
-            rootReplyCommentVersion:
-              target?.threadRootVersion || commentEditor.props.rootReplyCommentVersion || parents?.thread[0]?.version,
+            commentId: root?.id,
+            replyCommentVersion: root?.version,
+            rootReplyCommentVersion: root?.version,
             onCommentSubmitted: (comment: HMComment) => {
               if (!openComment)
                 setSubmittedRoots((roots) => [...roots.filter((root) => root.id !== comment.id), comment])
@@ -79,7 +101,7 @@ export function DiscussionsPageContent({
   // Determine which view to show
   let content: ReactNode
 
-  if (targetBlockId) {
+  if (targetBlockId && !openComment) {
     const targetId = hmId(docId.uid, {
       ...docId,
       blockRef: targetBlockId,
@@ -100,7 +122,7 @@ export function DiscussionsPageContent({
         commentEditor={isPanel ? undefined : editor}
         targetId={docId}
         targetDomain={targetDomain}
-        isEntirelyHighlighted={!blockId}
+        isEntirelyHighlighted={false}
         selection={blockId ? {blockId, blockRange: blockRange || undefined} : undefined}
       />
     )
@@ -118,8 +140,9 @@ export function DiscussionsPageContent({
     )
   }
 
+  let layout: ReactNode
   if (isPanel) {
-    return (
+    layout = (
       <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
         <ScrollArea className="min-h-0 flex-1">
           <div className="p-4">{content}</div>
@@ -127,13 +150,21 @@ export function DiscussionsPageContent({
         {editor && <div className="bg-background border-border shrink-0 border-t px-3 pt-3 pb-2">{editor}</div>}
       </div>
     )
+  } else {
+    layout = (
+      <div className="p-4">
+        <PageLayout title={showTitle ? 'Comments' : undefined} contentMaxWidth={contentMaxWidth}>
+          {content}
+        </PageLayout>
+      </div>
+    )
   }
 
-  return (
-    <div className="p-4">
-      <PageLayout title={showTitle ? 'Comments' : undefined} contentMaxWidth={contentMaxWidth}>
-        {content}
-      </PageLayout>
-    </div>
+  return openComment ? (
+    <CommentsProvider {...commentsContext} onReplyClick={onThreadReplyClick}>
+      {layout}
+    </CommentsProvider>
+  ) : (
+    layout
   )
 }

@@ -2,6 +2,7 @@ import type {MentionThreadContext} from '@shm/shared/models/mention-ranking'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useCommentDraftReferences, type CommentDraftReference} from '@shm/shared/comments-service-provider'
 import {blocksHaveDraftContent} from './comment-editor-draft-content'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useOpenUrl, useUniversalClient, writeableStateStream} from '@shm/shared'
@@ -274,6 +275,7 @@ export function CommentEditor({
   siteUid,
   documentId,
   mentionThread,
+  referenceTarget,
   initialBlocks,
   onContentChange,
   onAvatarPress,
@@ -323,6 +325,8 @@ export function CommentEditor({
   documentId?: UnpackedHypermediaId
   /** Loaded participants in the conversation being replied to. */
   mentionThread?: MentionThreadContext
+  /** Accept document references only for this active comment draft, never inline edits. */
+  referenceTarget?: {documentId: string; commentId?: string}
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => void
   onAvatarPress?: () => void
@@ -388,6 +392,9 @@ export function CommentEditor({
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
+  const [isDraftReady, setIsDraftReady] = useState(false)
+  const draftReferences = useCommentDraftReferences()
+  const insertedReferences = useRef(new WeakSet<CommentDraftReference>())
   const contentChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasLocalEditsRef = useRef(false)
   const isApplyingInitialBlocksRef = useRef(false)
@@ -539,9 +546,14 @@ export function CommentEditor({
 
   // Initialize editor with draft content and rehydrate media
   useEffect(() => {
-    if (!initialBlocks || initialBlocks.length === 0 || isInitializedRef.current || !editor) return
+    if (!editor || isInitializedRef.current) return
+    if (!initialBlocks?.length) {
+      setIsDraftReady(true)
+      return
+    }
     if (hasLocalEditsRef.current) {
       isInitializedRef.current = true
+      setIsDraftReady(true)
       return
     }
 
@@ -608,6 +620,8 @@ export function CommentEditor({
       } catch (error) {
         isApplyingInitialBlocksRef.current = false
         console.error('Failed to initialize editor with draft content:', error)
+      } finally {
+        setIsDraftReady(true)
       }
     }
 
@@ -670,6 +684,37 @@ export function CommentEditor({
       flushContentChange()
     }
   }, [editor, onContentChange])
+
+  useEffect(() => {
+    if (!referenceTarget || !draftReferences || !isDraftReady) return
+    const pending = draftReferences.references.filter(
+      (reference) =>
+        reference.documentId === referenceTarget.documentId &&
+        reference.commentId === referenceTarget.commentId &&
+        !insertedReferences.current.has(reference),
+    )
+    if (!pending.length) return
+    if (!isExpanded) {
+      setIsExpanded(true)
+      return
+    }
+    for (const reference of pending) {
+      const lastBlock = editor.topLevelBlocks.at(-1)
+      if (!lastBlock) continue
+      const embed = {type: 'embed' as const, props: {url: reference.link, view: 'Content' as const}}
+      if (lastBlock.type === 'paragraph' && !lastBlock.content?.length && !lastBlock.children.length) {
+        // Reuse the editor's empty trailing paragraph as the new typing position.
+        editor.insertBlocks([embed], lastBlock, 'before')
+      } else {
+        editor.insertBlocks([embed, {type: 'paragraph', content: []}], lastBlock, 'after')
+      }
+      insertedReferences.current.add(reference)
+      draftReferences.consumeReference(reference)
+    }
+    hasLocalEditsRef.current = true
+    flushContentChange()
+    editor._tiptapEditor.commands.focus('end')
+  }, [draftReferences, referenceTarget?.documentId, referenceTarget?.commentId, isDraftReady, isExpanded, editor])
 
   useEffect(() => {
     if (hasDraftContent && !isExpanded) {

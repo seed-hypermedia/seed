@@ -16,8 +16,6 @@ import {
   getCommentTargetId,
   hmId,
   NavRoute,
-  useCommentGroups,
-  useCommentParents,
   useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
@@ -29,7 +27,7 @@ import {
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
-import {getCommentContinuation, getSubmittedCommentGroups} from '@shm/shared/comments'
+import {getCommentThread, getSubmittedCommentGroups} from '@shm/shared/comments'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {commentToText} from '@shm/shared/content-to-text'
 import {
@@ -89,37 +87,25 @@ export function CommentDiscussions({
     blockRange?: BlockRange
   }
 }) {
-  const route = useNavRoute()
-  const replaceRoute = useNavigate('replace')
   const focusedCommentRef = useRef<HTMLDivElement>(null)
-  const [showParents, setShowParents] = useState(false)
-  const parentsRef = useRef<HTMLDivElement>(null)
 
   // Fetch all comments for the document
   const commentsService = useDocumentComments(targetId)
 
-  const parentThread = useCommentParents(commentsService.data?.comments, commentId ?? '')
-  const commentGroupReplies = useCommentGroups(commentsService.data?.comments, commentId)
-  const continuation = getCommentContinuation(commentsService.data?.comments, commentId ?? '', replyCommentId)
+  const thread = useMemo(
+    () => getCommentThread(commentsService.data?.comments, commentId ?? ''),
+    [commentsService.data?.comments, commentId],
+  )
   const highlightedCommentId = replyCommentId || commentId
-
-  // Subscribe to all authors in this discussion
-  const allAuthorIds = useMemo(() => {
-    const authors = new Set<string>()
-    if (parentThread?.thread) {
-      parentThread.thread.forEach((c) => {
-        if (c.author) authors.add(c.author)
-      })
-    }
-    if (commentGroupReplies.data) {
-      commentGroupReplies.data.forEach((cg) => {
-        cg.comments.forEach((c) => {
-          if (c.author) authors.add(c.author)
-        })
-      })
-    }
-    return Array.from(authors)
-  }, [parentThread?.thread, commentGroupReplies.data])
+  const allAuthorIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [thread?.root, ...(thread?.replies ?? [])].flatMap((comment) => (comment?.author ? [comment.author] : [])),
+        ),
+      ),
+    [thread],
+  )
 
   useHackyAuthorsSubscriptions(allAuthorIds)
 
@@ -152,58 +138,16 @@ export function CommentDiscussions({
   const showDeletedPreview = !!showDeletedContent && isFocusedCommentDeleted && !!deletedLastVersion
   const showDeletedPreviewLoading = !!showDeletedContent && isFocusedCommentDeleted && deletedVersions.isLoading
 
-  // Render parent thread after initial load and adjust scroll
+  const selectedCommentLoaded =
+    thread?.root.id === highlightedCommentId || thread?.replies.some((comment) => comment.id === highlightedCommentId)
   useLayoutEffect(() => {
-    // Only run once when we have parent thread data and haven't shown parents yet
-    if (!parentThread?.thread?.length || showParents) return
+    focusedCommentRef.current?.scrollIntoView({
+      behavior: 'instant',
+      block: highlightedCommentId === thread?.root.id ? 'start' : 'nearest',
+    })
+  }, [highlightedCommentId, thread?.root.id, selectedCommentLoaded, !!focusedComment])
 
-    // Delay to ensure focused comment is rendered first
-    const timer = setTimeout(() => {
-      setShowParents(true)
-    }, 100)
-
-    return () => clearTimeout(timer)
-  }, [parentThread?.thread, showParents, commentId]) // Added commentId as dependency
-
-  useLayoutEffect(() => {
-    if (!showParents && !replyCommentId) return
-
-    focusedCommentRef.current?.scrollIntoView({behavior: 'instant', block: replyCommentId ? 'nearest' : 'start'})
-  }, [showParents, commentId, replyCommentId])
-
-  const commentEditorSlot =
-    replyCommentId && !continuation ? (
-      <div className="flex flex-col gap-2 p-4">
-        <SizableText color="muted" size="sm">
-          The reply target could not be loaded.
-        </SizableText>
-        <Button
-          variant="outline"
-          onClick={() => {
-            if (route.key === 'comments') replaceRoute({...route, replyCommentId: undefined})
-            else {
-              const panel = getRoutePanel(route)
-              if (panel?.key === 'comments')
-                replaceRoute({...route, panel: {...panel, replyCommentId: undefined}} as NavRoute)
-            }
-          }}
-        >
-          Reply to the selected discussion
-        </Button>
-      </div>
-    ) : commentEditor ? (
-      <div className="relative max-h-1/2 py-4">
-        <div
-          className="bg-border absolute w-px"
-          style={{
-            height: isEntirelyHighlighted ? 40 : 56,
-            top: isEntirelyHighlighted ? -16 : -32,
-            left: 26,
-          }}
-        />
-        <div className="px-2 pr-4 pl-3">{commentEditor}</div>
-      </div>
-    ) : null
+  const commentEditorSlot = commentEditor ? <div className="py-4">{commentEditor}</div> : null
 
   if (!commentId) return null
 
@@ -278,60 +222,32 @@ export function CommentDiscussions({
     )
   }
 
-  // Check if there are actual parent comments (more than just the focused comment itself)
-  const hasParents = parentThread?.thread && parentThread.thread.length > 1
-
   return (
     <SelectionContent>
-      {/* Render parent thread above focused comment when ready */}
-      {hasParents && showParents && (
-        <div ref={parentsRef}>
-          {parentThread.thread.slice(0, -1).map((comment, index, list) => (
-            <div key={comment.id} className={cn('p-2', index != list.length - 1 && 'border-border border-b')}>
-              <Comment
-                comment={comment}
-                authorId={comment.author}
-                authorMetadata={commentsService.data?.authors?.[comment.author]?.metadata}
-                targetDomain={targetDomain}
-                isFirst={index === 0}
-                isLast={false}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {(continuation?.chain ?? (focusedComment ? [focusedComment] : [])).map((comment, index, chain) => (
-        <div key={comment.id} ref={comment.id === highlightedCommentId ? focusedCommentRef : undefined} className="p-2">
-          <Comment
-            comment={comment}
-            authorId={comment.author}
-            authorMetadata={commentsService.data?.authors?.[comment.author]?.metadata}
-            targetDomain={targetDomain}
-            isFirst={index === 0 && !(hasParents && showParents)}
-            isLast={index === chain.length - 1}
-            highlight={comment.id === highlightedCommentId}
-            selection={comment.id === highlightedCommentId ? selection : undefined}
-          />
-        </div>
-      ))}
+      <div className="border-border bg-card overflow-hidden rounded-lg border">
+        {[thread?.root ?? focusedComment, ...(thread?.replies ?? [])].map(
+          (comment, index) =>
+            comment && (
+              <div
+                key={comment.id}
+                ref={comment.id === highlightedCommentId ? focusedCommentRef : undefined}
+                className={index ? 'border-border ml-4 border-t' : 'scroll-mt-4 pb-3'}
+              >
+                <Comment
+                  comment={comment}
+                  authorId={comment.author}
+                  authorMetadata={commentsService.data?.authors?.[comment.author]?.metadata}
+                  targetDomain={targetDomain}
+                  highlight={isEntirelyHighlighted && comment.id === highlightedCommentId}
+                  selection={comment.id === highlightedCommentId ? selection : undefined}
+                  threadView
+                  enableReplies={index > 0}
+                />
+              </div>
+            ),
+        )}
+      </div>
       {commentEditorSlot}
-      {(
-        continuation?.branches ?? (focusedComment ? [{parent: focusedComment, groups: commentGroupReplies.data}] : [])
-      ).map(({parent, groups}) => (
-        <div key={parent.id}>
-          {replyCommentId && groups.length > 0 && (
-            <SizableText color="muted" size="sm" className="px-4 py-2">
-              Other replies to “{commentToText({comment: parent, lineBreaks: false}).slice(0, 80)}”
-            </SizableText>
-          )}
-          {groups.map((cg) => (
-            <div key={cg.id} className="p-2">
-              <CommentGroup commentGroup={cg} authors={commentsService.data?.authors} targetDomain={targetDomain} />
-            </div>
-          ))}
-        </div>
-      ))}
     </SelectionContent>
   )
 }
@@ -410,12 +326,11 @@ export const Discussions = memo(function Discussions({
           {[...rootGroups, ...(discussionsService.data?.citingDiscussions ?? [])].map((group) => {
             const comment = group.comments[0]
             if (!comment) return null
-            const isRootComment = !commentId && group.type === 'commentGroup' && !comment.replyParent
 
             return (
               <LazyCommentGroup
                 key={group.id}
-                className={isRootComment ? 'border-border bg-card rounded-lg border' : undefined}
+                className={!commentId ? 'border-border bg-card rounded-lg border' : undefined}
               >
                 {commentId ? (
                   <CommentGroup
@@ -434,7 +349,6 @@ export const Discussions = memo(function Discussions({
                     highlight={comment.id === submittedRoots.at(-1)?.id}
                     onCommentDeleted={onCommentDeleted}
                     targetDomain={targetDomain}
-                    isLast
                   />
                 )}
               </LazyCommentGroup>
@@ -515,8 +429,6 @@ export function BlockDiscussions({
           return (
             <div key={comment.id} className={cn('p-2')}>
               <Comment
-                isFirst
-                isLast
                 key={comment.id}
                 comment={comment}
                 authorId={comment.author}
@@ -603,24 +515,11 @@ export const CommentGroup = memo(function CommentGroup({
 
   return (
     <div className="relative flex flex-col gap-2 p-2">
-      {/* {commentGroup.comments.length > 1 && (
-        <div
-          className="absolute w-px bg-border"
-          style={{
-            height: `calc(100% - ${avatarSize * 2}px)`,
-            top: avatarSize + avatarSize / 2 - 1,
-            left: avatarSize + avatarSize / 2 - 1,
-          }}
-        />
-      )} */}
-
       {commentGroup.comments.map((comment) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
         const isFirstCommentInGroup = !!lastComment && comment === firstComment
         return (
           <Comment
-            isLast={isLastCommentInGroup}
-            isFirst={isFirstCommentInGroup}
             externalTarget={
               isFirstCommentInGroup && commentGroup.type === 'externalCommentGroup' ? commentGroup.target : undefined
             }
@@ -644,13 +543,12 @@ export const CommentGroup = memo(function CommentGroup({
 export const Comment = memo(function Comment({
   comment,
   onCommentDeleted,
-  isFirst = true,
-  isLast = false,
   authorMetadata,
   authorId,
   enableReplies = true,
   defaultExpandReplies = false,
   highlight = false,
+  threadView = false,
   targetDomain,
   heading,
   externalTarget,
@@ -658,13 +556,13 @@ export const Comment = memo(function Comment({
 }: {
   comment: HMComment
   onCommentDeleted?: (commentId: string) => void
-  isFirst?: boolean
-  isLast?: boolean
   authorMetadata?: HMMetadata | null
   authorId?: string | null
   enableReplies?: boolean
   defaultExpandReplies?: boolean
   highlight?: boolean
+  /** Show reply actions without reopening the current thread. */
+  threadView?: boolean
   targetDomain?: string
   heading?: ReactNode
   externalTarget?: HMMetadataPayload
@@ -787,27 +685,25 @@ export const Comment = memo(function Comment({
   return (
     <>
       {deleteCommentDialog.content}
-      <div className={cn('group relative flex gap-1 rounded-lg p-2', isEntirelyHighlighted && 'bg-accent')}>
-        {heading ? null : (
-          <div className="relative mt-0.5 flex min-w-5 flex-col items-center">
-            {isFirst ? null : <div className="bg-border absolute top-[-40px] left-1/2 h-[40px] w-px" />}
-            {authorHmId && (
-              <div className="size-5">
-                <AccountAvatar
-                  id={authorHmId}
-                  name={authorMetadata?.name}
-                  icon={authorMetadata?.icon}
-                  size={20}
-                  siteUid={docId?.uid}
-                />
-              </div>
-            )}
-            {!isLast || (highlight && selection?.blockId) ? <div className="bg-border h-full w-px" /> : null}
-          </div>
+      <div
+        className={cn(
+          'group relative flex flex-col gap-1 rounded-lg px-3 py-3',
+          isEntirelyHighlighted && 'bg-highlight',
         )}
-
-        <div className="flex w-full flex-1 flex-col gap-1">
-          <div className="group flex items-center justify-between gap-2 overflow-hidden pr-2">
+      >
+        <div className="flex min-w-0 items-center gap-1">
+          {!heading && authorHmId ? (
+            <div className="size-5 shrink-0">
+              <AccountAvatar
+                id={authorHmId}
+                name={authorMetadata?.name}
+                icon={authorMetadata?.icon}
+                size={20}
+                siteUid={docId?.uid}
+              />
+            </div>
+          ) : null}
+          <div className="group flex min-w-0 flex-1 items-center justify-between gap-2 overflow-hidden pr-2">
             {heading ? (
               <div className="inline">{heading}</div>
             ) : (
@@ -902,55 +798,55 @@ export const Comment = memo(function Comment({
               ) : null}
             </div>
           </div>
-
-          {isEditing ? (
-            <InlineCommentEditor
-              comment={comment}
-              onCancel={() => setIsEditing(false)}
-              onSave={(newContent) => {
-                updateCommentMutation.mutate(
-                  {comment, newContent, signingAccountId: comment.author},
-                  {onSuccess: () => setIsEditing(false)},
-                )
-              }}
-              isSaving={updateCommentMutation.isPending}
-            />
-          ) : activeViewingVersion ? (
-            <VersionPreview
-              version={activeViewingVersion}
-              selection={selection}
-              onDismiss={() => selectViewingVersion(null)}
-            />
-          ) : (
-            <CommentContent comment={comment} selection={selection} />
-          )}
-
-          {!isEntirelyHighlighted && !isEditing && (
-            <div className="-ml-1 flex items-center gap-2 py-1">
-              {enableReplies || commentsContext.onReplyClick ? (
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  className={cn(
-                    'text-brand hover:text-brand active:text-brand text-sm font-semibold',
-                    'plausible-event-name=Reply+Click',
-                  )}
-                  onClick={() => {
-                    if (replyCount && commentsContext.onReplyCountClick) {
-                      commentsContext.onReplyCountClick(comment)
-                    } else if (commentsContext.onReplyClick) {
-                      commentsContext.onReplyClick(comment)
-                    }
-                  }}
-                >
-                  {replyCount && replyCount > 0
-                    ? `${replyCount} ${tx(replyCount === 1 ? 'reply' : 'replies')}`
-                    : tx('Reply')}
-                </Button>
-              ) : null}
-            </div>
-          )}
         </div>
+
+        {isEditing ? (
+          <InlineCommentEditor
+            comment={comment}
+            onCancel={() => setIsEditing(false)}
+            onSave={(newContent) => {
+              updateCommentMutation.mutate(
+                {comment, newContent, signingAccountId: comment.author},
+                {onSuccess: () => setIsEditing(false)},
+              )
+            }}
+            isSaving={updateCommentMutation.isPending}
+          />
+        ) : activeViewingVersion ? (
+          <VersionPreview
+            version={activeViewingVersion}
+            selection={selection}
+            onDismiss={() => selectViewingVersion(null)}
+          />
+        ) : (
+          <CommentContent comment={comment} selection={selection} />
+        )}
+
+        {!isEntirelyHighlighted && !isEditing && enableReplies && (
+          <div className="flex items-center gap-2 py-1">
+            {commentsContext.onReplyClick ? (
+              <Button
+                variant="ghost"
+                size="xs"
+                className={cn(
+                  'text-brand hover:text-brand active:text-brand px-0 text-sm font-semibold',
+                  'plausible-event-name=Reply+Click',
+                )}
+                onClick={() => {
+                  if (!threadView && replyCount && commentsContext.onReplyCountClick) {
+                    commentsContext.onReplyCountClick(comment)
+                  } else if (commentsContext.onReplyClick) {
+                    commentsContext.onReplyClick(comment)
+                  }
+                }}
+              >
+                {!threadView && replyCount && replyCount > 0
+                  ? `${replyCount} ${tx(replyCount === 1 ? 'reply' : 'replies')}`
+                  : tx('Reply')}
+              </Button>
+            ) : null}
+          </div>
+        )}
       </div>
     </>
   )
@@ -1074,7 +970,7 @@ export function QuotedDocBlock({
     <ContentEmbed
       id={{...docId, blockRef: blockId, blockRange: blockRange || null}}
       blocks={doc.content}
-      openOnClick={false}
+      route={{key: 'document', id: {...docId, blockRef: blockId, blockRange: blockRange || null}}}
     />
   )
 }

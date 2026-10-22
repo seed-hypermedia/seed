@@ -464,6 +464,7 @@ export default function WebCommenting({
     <div className="w-full">
       <CommentEditor
         compact={compact}
+        referenceTarget={{documentId: docId.id, commentId: replyCommentId || undefined}}
         key={`${draftId}-${editorGeneration}`}
         focusOnMount={focusOnMount ?? autoFocus}
         isReplying={isReplyEditor}

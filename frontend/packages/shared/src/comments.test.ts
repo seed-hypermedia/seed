@@ -1,6 +1,6 @@
 import {HMComment} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, test} from 'vitest'
-import {getCommentGroups, getCommentContinuation, getSubmittedCommentGroups} from './comments'
+import {getCommentGroups, getCommentContinuation, getSubmittedCommentGroups, getCommentThread} from './comments'
 
 // Only the fields getCommentGroups reads.
 function comment(id: string, replyParent: string, updateTime: string): HMComment {
@@ -100,5 +100,35 @@ describe('getSubmittedCommentGroups', () => {
   test('keeps a submitted root only once and before other groups', () => {
     const groups = getCommentGroups([comment('old', '', ''), root])
     expect(getSubmittedCommentGroups(groups, [root, root], new Set()).map((g) => g.id)).toEqual(['new', 'old'])
+  })
+})
+
+describe('getCommentThread', () => {
+  const root = {...comment('root', '', ''), createTime: '2026-01-01T00:00:00Z'}
+  const early = {...comment('early', 'root', '2026-10-01T00:00:00Z'), createTime: '2026-01-02T00:00:00Z'}
+  const late = {...comment('late', 'early', ''), createTime: '2026-01-03T00:00:00Z'}
+  const sibling = {...comment('sibling', 'root', ''), createTime: '2026-01-04T00:00:00Z'}
+  test('resolves a direct reply link to its root and sorts every branch by creation, not edit time', () => {
+    const result = getCommentThread([sibling, late, early, root, comment('unrelated', '', '')], 'late')!
+    expect(result.root.id).toBe('root')
+    expect(result.replies.map((reply) => reply.id)).toEqual(['early', 'late', 'sibling'])
+    expect(result.replies[1]?.replyParent).toBe('early')
+  })
+  test('keeps descendants whose parent was deleted using threadRoot', () => {
+    const orphan = {...late, replyParent: 'deleted', threadRoot: 'root'}
+    expect(getCommentThread([root, orphan], 'orphan')).toBeNull()
+    expect(getCommentThread([root, orphan], 'late')?.root).toBe(root)
+    expect(getCommentThread([root, orphan], 'root')?.replies).toEqual([orphan])
+  })
+  test('orders protobuf and ISO timestamps together', () => {
+    const timestampReply = {...late, createTime: {seconds: BigInt(Date.parse('2026-01-03T00:00:00Z') / 1000), nanos: 0}}
+    expect(getCommentThread([root, timestampReply, early], 'root')?.replies.map((reply) => reply.id)).toEqual([
+      'early',
+      'late',
+    ])
+  })
+  test('handles loading, missing targets and cyclic parents', () => {
+    expect(getCommentThread(undefined, 'root')).toBeNull()
+    expect(getCommentThread([comment('a', 'b', ''), comment('b', 'a', '')], 'a')).toBeNull()
   })
 })

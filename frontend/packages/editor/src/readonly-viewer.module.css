@@ -3,6 +3,18 @@
   margin-inline-start: 0;
 }
 
+/* An opening comment embed supplies context; its child content aligns with the comment text. */
+:is(.root:global(.is-comment) > .content, .root:global(.is-comment) > .content > :global(.ssr-content-placeholder))
+  > :global(.ProseMirror)
+  > [data-node-type='blockChildren']
+  > [data-node-type='blockNode']:first-child:has(
+    > [data-content-type='embed'],
+    > :global(.react-renderer) > [data-content-type='embed']
+  )
+  > [data-node-type='blockChildren'] {
+  margin-left: 0;
+}
+
 /* Only the direct fragment's scaffolding is inline. Nested viewers keep their layout. */
 .fragment,
 .fragment > .content,

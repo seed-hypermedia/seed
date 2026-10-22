@@ -3,7 +3,7 @@ import {
   updateComment as createUpdateCommentBlob,
 } from '@seed-hypermedia/client'
 import {useMutation} from '@tanstack/react-query'
-import {createContext, PropsWithChildren, ReactNode, useContext, useMemo} from 'react'
+import {createContext, PropsWithChildren, ReactNode, useContext, useMemo, useCallback, useState} from 'react'
 import {
   HMBlockNode,
   HMComment,
@@ -24,6 +24,40 @@ import {queryKeys} from './models/query-keys'
 import {useUniversalClient} from './routing'
 import {hmId} from './utils/entity-id-url'
 import {entityQueryPathToHmIdPath} from './utils/path-api'
+
+/** A document reference waiting to be inserted in a specific comment draft. */
+export type CommentDraftReference = {
+  documentId: string
+  commentId?: string
+  link: string
+}
+
+const CommentDraftReferencesContext = createContext<{
+  references: CommentDraftReference[]
+  appendReference: (reference: CommentDraftReference) => void
+  consumeReference: (reference: CommentDraftReference) => void
+} | null>(null)
+
+/** Keeps reference requests available until the matching comment editor is ready. */
+export function CommentDraftReferenceProvider({children}: PropsWithChildren) {
+  const [references, setReferences] = useState<CommentDraftReference[]>([])
+  const appendReference = useCallback((reference: CommentDraftReference) => {
+    setReferences((pending) => [...pending, reference])
+  }, [])
+  const consumeReference = useCallback((reference: CommentDraftReference) => {
+    setReferences((pending) => pending.filter((item) => item !== reference))
+  }, [])
+  const value = useMemo(
+    () => ({references, appendReference, consumeReference}),
+    [references, appendReference, consumeReference],
+  )
+  return <CommentDraftReferencesContext.Provider value={value}>{children}</CommentDraftReferencesContext.Provider>
+}
+
+/** Returns the current page's pending comment references, if the page provides them. */
+export function useCommentDraftReferences() {
+  return useContext(CommentDraftReferencesContext)
+}
 
 /** Props passed to the inline comment editor renderer. */
 export type InlineEditCommentProps = {

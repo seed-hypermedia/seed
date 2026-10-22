@@ -238,15 +238,15 @@ function renderCommentFragment() {
 }
 
 describe('comment fragment embeds', () => {
-  it('shows only the comment fragment, expands with the original highlight, and collapses without navigation', () => {
+  it('shows only the comment fragment, expands without selecting the source, and collapses without navigation', () => {
     renderCommentFragment()
     expect(container.querySelector('p')?.textContent).toBe('fragment')
     expect(container.querySelector('p')?.getAttribute('data-focus')).toBeNull()
     const caret = container.querySelector('button')!
     act(() => caret.click())
     expect(container.querySelector('p')?.textContent).toBe('Before fragment afterAnother comment paragraph')
-    expect(container.querySelector('p')?.getAttribute('data-focus')).toBe('source')
-    expect(container.querySelector('p')?.getAttribute('data-range')).toBe('{"start":7,"end":15}')
+    expect(container.querySelector('p')?.getAttribute('data-focus')).toBeNull()
+    expect(container.querySelector('p')?.getAttribute('data-range')).toBeNull()
     expect(navigated.href).toBe('')
     act(() => caret.click())
     expect(container.querySelector('p')?.textContent).toBe('fragment')
@@ -294,7 +294,7 @@ describe('quoted document fragments above the reply editor', () => {
     )
   }
 
-  it('expands the source block with its highlight and preserves the reply during both toggles', () => {
+  it('expands the source block without selecting it and preserves the reply during both toggles', () => {
     renderQuote()
     const reply = container.querySelector('textarea')!
     reply.value = 'My unfinished reply'
@@ -302,7 +302,7 @@ describe('quoted document fragments above the reply editor', () => {
     expect(container.querySelector('p')?.getAttribute('data-focus')).toBeNull()
     act(() => container.querySelector('button')!.click())
     expect(container.querySelector('p')?.textContent).toBe('Before fragment after')
-    expect(container.querySelector('p')?.getAttribute('data-range')).toBe('{"start":7,"end":15}')
+    expect(container.querySelector('p')?.getAttribute('data-range')).toBeNull()
     expect(container.querySelector('textarea')).toBe(reply)
     expect(reply.value).toBe('My unfinished reply')
     act(() => container.querySelector('button')!.click())

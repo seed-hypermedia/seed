@@ -5,7 +5,7 @@ import {act} from 'react-dom/test-utils'
 import type {NavRoute} from '@shm/shared'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {EmbedWrapper} from '../embed-wrapper'
+import {EmbedWrapper, getEmbedDocumentRoute} from '../embed-wrapper'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -120,5 +120,24 @@ describe('EmbedWrapper', () => {
       id: targetId,
       panel: {key: 'comments', id: panelId, openComment: 'source-comment'},
     })
+  })
+})
+
+describe('embed reference routes', () => {
+  it('preserves the active document version and panel when selecting its reference', () => {
+    const id = hmId('alice', {path: ['notes'], latest: true})
+    const panel = {key: 'comments' as const, id, openComment: 'thread'}
+    const route = {key: 'document' as const, id, panel}
+    const reference = hmId('alice', {
+      path: ['notes'],
+      version: 'quoted-version',
+      blockRef: 'block',
+      blockRange: {start: 2, end: 8},
+    })
+    expect(getEmbedDocumentRoute(reference, route)).toEqual({
+      ...route,
+      id: {...id, blockRef: 'block', blockRange: {start: 2, end: 8}},
+    })
+    expect(route.id.blockRef).toBeNull()
   })
 })

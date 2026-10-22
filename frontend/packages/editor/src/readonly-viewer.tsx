@@ -59,6 +59,7 @@ export function ReadOnlyViewer(props: ReadOnlyViewerProps) {
         resource={props.resourceId ? {kind: props.resourceKind ?? 'document', id: props.resourceId} : null}
       >
         <div
+          data-highlight-resource={props.resourceId?.id}
           contentEditable={props.embedded ? false : undefined}
           suppressContentEditableWarning
           onDragStart={

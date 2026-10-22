@@ -1,3 +1,6 @@
+import {useQueryClient} from '@tanstack/react-query'
+import {getCommentThread} from '@shm/shared/comments'
+import {queryDocumentComments} from '@shm/shared/models/queries'
 import type {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
   BlockRange,
@@ -27,6 +30,7 @@ import {
   hmId,
   NavRoute,
   ProfileTab,
+  packHmId,
   replaceRouteDocumentId,
   routeToHref,
   unpackHmId,
@@ -34,6 +38,8 @@ import {
 } from '@shm/shared'
 import {
   CommentsProvider,
+  CommentDraftReferenceProvider,
+  useCommentDraftReferences,
   isRouteEqualToCommentTarget,
   useCommentsServiceContext,
   useHackyAuthorsSubscriptions,
@@ -777,6 +783,40 @@ export function getCitationsTargetId({
   return {...docId, blockRef: null, blockRange: null}
 }
 
+/** Appends a pinned block reference to the active draft without moving the document. */
+export function getBlockCommentDraftReference({
+  route,
+  sourceId,
+  resolvedThreadRootId,
+  version,
+  blockId,
+  blockRange,
+}: {
+  route: Extract<NavRoute, {key: 'document' | 'feed'}>
+  sourceId?: UnpackedHypermediaId
+  resolvedThreadRootId?: string
+  version: string
+  blockId: string
+  blockRange?: BlockRange
+}) {
+  const commentsPanel = route.panel?.key === 'comments' ? route.panel : undefined
+  return {
+    reference: {
+      documentId: (commentsPanel?.id ?? route.id).id,
+      commentId: resolvedThreadRootId || commentsPanel?.openComment,
+      link: packHmId({
+        ...(sourceId ?? route.id),
+        version,
+        latest: null,
+        blockRef: blockId,
+        blockRange: blockRange && 'start' in blockRange && 'end' in blockRange ? blockRange : null,
+      }),
+    },
+    route: commentsPanel ? route : {...route, panel: {key: 'comments' as const, id: route.id}},
+  }
+}
+
+/** Opens the root thread and retains the selected reply for display. */
 export function getCommentReplyPanelRoute({
   docId,
   comment,
@@ -801,7 +841,8 @@ export function getCommentReplyPanelRoute({
   return {
     key: 'comments',
     id: targetRoute || docId,
-    openComment: comment.id,
+    openComment: comment.threadRoot || comment.id,
+    replyCommentId: comment.threadRoot && comment.threadRoot !== comment.id ? comment.id : undefined,
     ...replyVersionData,
   }
 }
@@ -972,7 +1013,16 @@ function getPanelTitle(panelKey: string | null): string {
   }
 }
 
-export function ResourcePage({
+/** Renders a resource with a document-scoped queue for comment references. */
+export function ResourcePage(props: ResourcePageProps) {
+  return (
+    <CommentDraftReferenceProvider key={props.docId.id}>
+      <ResourcePageContent {...props} />
+    </CommentDraftReferenceProvider>
+  )
+}
+
+function ResourcePageContent({
   docId,
   resourceId,
   CommentEditor,
@@ -2529,30 +2579,50 @@ function DocumentBody({
     [route, navigate, scrollToBlock],
   )
 
+  const commentDraftReferences = useCommentDraftReferences()
+  const commentQueryClient = useQueryClient()
+  const commentClient = useUniversalClient()
   const handleBlockCommentClick = useCallback(
-    (blockId?: string | null, blockRangeInput?: BlockRange | undefined, _startCommentingNow?: boolean) => {
+    async (blockId?: string | null, blockRangeInput?: BlockRange | undefined, _startCommentingNow?: boolean) => {
       if (route.key !== 'document' && route.key !== 'feed') return
       if (!blockId) return
-      // Validate blockRange has proper structure
-      const blockRange =
-        blockRangeInput && 'start' in blockRangeInput && 'end' in blockRangeInput ? blockRangeInput : null
-      navigate({
-        ...route,
-        id: {
-          ...route.id,
-          blockRef: blockId,
-          blockRange,
-        },
-        panel: {
-          key: 'comments',
-          id: route.id,
-          targetBlockId: blockId,
-          blockRange,
-          autoFocus: true,
-        },
-      })
+      try {
+        let resolvedThreadRootId: string | undefined
+        if (route.panel?.key === 'comments' && route.panel.openComment) {
+          const comments = await commentQueryClient.ensureQueryData(
+            queryDocumentComments(commentClient, commentsPanelTarget.docId),
+          )
+          const thread = getCommentThread(comments.comments, route.panel.openComment)
+          if (!thread || thread.root.replyParent) {
+            toast.error('The comment thread could not be loaded.')
+            return
+          }
+          resolvedThreadRootId = thread.root.id
+        }
+        const request = getBlockCommentDraftReference({
+          route,
+          sourceId: docId,
+          resolvedThreadRootId,
+          version: document.version,
+          blockId,
+          blockRange: blockRangeInput,
+        })
+        commentDraftReferences?.appendReference(request.reference)
+        if (request.route !== route) navigate(request.route)
+      } catch {
+        toast.error('The comment thread could not be loaded.')
+      }
     },
-    [route, navigate],
+    [
+      route,
+      navigate,
+      docId,
+      document.version,
+      commentDraftReferences?.appendReference,
+      commentQueryClient,
+      commentClient,
+      commentsPanelTarget.docId,
+    ],
   )
 
   // Block select handler (copy block link + navigate to update URL)
@@ -3209,6 +3279,11 @@ function DocumentBody({
         onPanelClose={handlePanelClose}
         commentsCount={commentsPanelSummary.data?.comments}
         onCommentsExpand={handleCommentsExpand}
+        onCommentsBack={
+          panelRoute?.key === 'comments' && panelRoute.openComment && 'panel' in route
+            ? () => replaceRoute({...route, panel: {key: 'comments', id: commentsPanelTarget.docId}})
+            : undefined
+        }
         isVersionsPanel={isDocumentVersionsPanelRoute(panelRoute)}
         isCitationsPanel={panelRoute?.key === 'activity' && !!panelRoute.targetBlockId}
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
@@ -3443,12 +3518,14 @@ function CommentsPanelContent({
 }) {
   const commentsContext = useCommentsServiceContext()
   const route = useNavRoute()
+  const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
 
   const onReplyClick = useCallback(
     (comment: HMComment) => {
       if (!('panel' in route)) return
-      replaceRoute({
+      const navigateThread = openComment === (comment.threadRoot || comment.id) ? replaceRoute : navigate
+      navigateThread({
         ...route,
         panel: getCommentReplyPanelRoute({
           docId,
@@ -3457,13 +3534,14 @@ function CommentsPanelContent({
         }),
       } as NavRoute)
     },
-    [docId, replaceRoute, route],
+    [docId, navigate, openComment, replaceRoute, route],
   )
 
   const onReplyCountClick = useCallback(
     (comment: HMComment) => {
       if (!('panel' in route)) return
-      replaceRoute({
+      const navigateThread = openComment === (comment.threadRoot || comment.id) ? replaceRoute : navigate
+      navigateThread({
         ...route,
         panel: getCommentReplyPanelRoute({
           docId,
@@ -3471,7 +3549,7 @@ function CommentsPanelContent({
         }),
       } as NavRoute)
     },
-    [docId, replaceRoute, route],
+    [docId, navigate, openComment, replaceRoute, route],
   )
 
   return (
@@ -3503,7 +3581,7 @@ function CommentsPanelContent({
               isReplying={panelRoute.isReplying ?? !!openComment}
               replyCommentVersion={panelRoute.replyCommentVersion}
               rootReplyCommentVersion={panelRoute.rootReplyCommentVersion}
-              focusOnMount
+              focusOnMount={!!panelRoute.isReplying}
             />
           ) : undefined
         }

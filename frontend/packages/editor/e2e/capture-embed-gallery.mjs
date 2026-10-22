@@ -35,6 +35,10 @@ await writeFile(
 )
 const browser = await chromium.launch({headless: true})
 const page = await browser.newPage({viewport: {width: 1280, height: 1000}, reducedMotion: 'reduce'})
+await page.route('https://embed-review.test/**', (route) =>
+  route.fulfill({contentType: 'text/html', body: '<html></html>'}),
+)
+await page.goto('https://embed-review.test/initial')
 const errors = []
 page.on('pageerror', (error) => {
   errors.push(error.message)
@@ -68,6 +72,87 @@ for (const label of ['Document · fragment', 'Comment · fragment', 'Reply quote
     .evaluate((node) => getComputedStyle(node).fontSize)
   if (size !== '12px') throw new Error(`${label} compact font was ${size}, expected 12px`)
 }
+if (await page.locator('.bn-block-highlight-focus, .bn-range-highlight-focus').count())
+  throw new Error('Unselected embeds have a default highlight')
+const commentReferences = page.locator('[data-case="Comment under editing document"] .block-embed')
+await commentReferences.first().waitFor()
+for (let index = 0; index < 2; index++) {
+  const reference = commentReferences.nth(index)
+  if ((await reference.getByRole('link', {name: 'Open embedded content'}).count()) !== 1)
+    throw new Error(`Read-only comment reference ${index} is disabled by the parent editing state`)
+  const historyBefore = await page.evaluate(() => history.length)
+  await reference.locator('p').click({position: {x: 2, y: 2}})
+  const navigation = await page.evaluate(() => window.GALLERY_NAVIGATION.at(-1))
+  if (
+    !navigation?.replace ||
+    navigation.route.id.blockRef !== 'intro' ||
+    navigation.route.panel?.openComment !== 'kept-thread'
+  )
+    throw new Error('Read-only comment reference failed to replace navigation with its source')
+  if (index === 1 && navigation.route.id.blockRange?.start !== 2)
+    throw new Error('Read-only comment reference lost its fragment range')
+  if ((await page.evaluate(() => history.length)) !== historyBefore)
+    throw new Error('Read-only comment reference pushed history')
+}
+await page.evaluate(() => {
+  window.GALLERY_NAVIGATION.length = 0
+})
+const fragmentText = commentReferences.nth(1).locator('strong').first()
+const textBox = await fragmentText.boundingBox()
+if (!textBox) throw new Error('Missing fragment text for selection check')
+await page.mouse.move(textBox.x + 1, textBox.y + textBox.height / 2)
+await page.mouse.down()
+await page.mouse.move(textBox.x + textBox.width - 1, textBox.y + textBox.height / 2, {steps: 10})
+await page.mouse.up()
+if (!(await page.evaluate(() => window.getSelection()?.toString()))) throw new Error('Embed text selection was blocked')
+if (await page.evaluate(() => window.GALLERY_NAVIGATION.length)) throw new Error('Selecting embed text navigated')
+await page.evaluate(() => window.getSelection()?.removeAllRanges())
+const hoverTargets = ['Source document', 'Document · full', 'Document · block', 'Document · fragment', 'Reply quote']
+const backgrounds = () =>
+  Promise.all(
+    hoverTargets.map((label) =>
+      page
+        .locator(`[data-case="${label}"] [data-node-type="blockNode"][data-id="intro"]`)
+        .first()
+        .evaluate((node) => getComputedStyle(node).backgroundColor),
+    ),
+  )
+await page.locator('h1').hover()
+const beforeHover = await backgrounds()
+await page.locator('[data-case="Document · fragment"] [data-content-type="embed"]').hover()
+const duringHover = await backgrounds()
+if (duringHover.some((color, index) => color === beforeHover[index]))
+  throw new Error(`Hover missed a source instance: ${JSON.stringify({beforeHover, duringHover})}`)
+const unrelated = await page
+  .locator('[data-case="Comment · whole"] [data-id="intro"]')
+  .first()
+  .evaluate((node) => getComputedStyle(node).backgroundColor)
+if (unrelated !== 'rgba(0, 0, 0, 0)') throw new Error('Hover leaked into an unrelated comment')
+await page.locator('h1').hover()
+if (JSON.stringify(await backgrounds()) !== JSON.stringify(beforeHover)) throw new Error('Hover did not clear on leave')
+const historyLength = await page.evaluate(() => history.length)
+await page.locator('[data-case="Reply quote"] [data-content-type="embed"]').click({position: {x: 2, y: 2}})
+await page.locator('[data-case="Reply quote"] .bn-range-highlight-focus').first().waitFor()
+for (const label of ['Document · full', 'Document · block', 'Document · fragment']) {
+  await page.locator(`[data-case="${label}"] .bn-range-highlight-focus`).first().waitFor()
+}
+if (await page.locator('[data-case="Comment · whole"] .bn-range-highlight-focus').count())
+  throw new Error('Document selection highlighted an unrelated comment')
+const quoteRoute = await page.evaluate(() => window.GALLERY_NAVIGATION.at(-1).route)
+if (quoteRoute.id.blockRef !== 'intro' || quoteRoute.id.blockRange.start !== 2 || quoteRoute.id.blockRange.end !== 63)
+  throw new Error('Quote navigation lost the source fragment')
+if (quoteRoute.panel?.openComment !== 'kept-thread') throw new Error('Quote navigation lost the active thread')
+if ((await page.evaluate(() => history.length)) !== historyLength)
+  throw new Error('Reference click pushed a history entry')
+if (!(await page.evaluate(() => window.GALLERY_NAVIGATION.at(-1).replace)))
+  throw new Error('Reference click did not request replace')
+if (quoteRoute.id.version || !quoteRoute.id.latest)
+  throw new Error('Same-document reference replaced the current version settings')
+if (!page.url().includes('panel=comments/kept-thread') || !page.url().includes('#intro[2:63]'))
+  throw new Error(`Reference URL lost panel or fragment: ${page.url()}`)
+await page.evaluate(() => {
+  window.GALLERY_NAVIGATION.length = 0
+})
 const documentHostStyles = await textStyles()
 await page.locator('main').evaluate((node) => node.classList.add('comment-editor', 'is-comment', 'hm-prose'))
 const commentHostStyles = await textStyles()
@@ -79,9 +164,9 @@ await page.setViewportSize({width: 390, height: 844})
 await page.screenshot({path: path.join(output, 'narrow-collapsed.png'), fullPage: true, animations: 'disabled'})
 await page.setViewportSize({width: 1280, height: 1000})
 const expandButtons = page.getByRole('button', {name: /^Show full/})
-if ((await expandButtons.count()) !== 3) throw new Error('Expected three fragment expansion controls')
-for (let index = 0; index < 3; index++) await expandButtons.first().click()
-if ((await page.getByRole('button', {name: /^Hide full/}).count()) !== 3) throw new Error('Fragments did not expand')
+if ((await expandButtons.count()) !== 4) throw new Error('Expected four fragment expansion controls')
+for (let index = 0; index < 4; index++) await expandButtons.first().click()
+if ((await page.getByRole('button', {name: /^Hide full/}).count()) !== 4) throw new Error('Fragments did not expand')
 if (await page.evaluate(() => window.GALLERY_NAVIGATION.length)) throw new Error('Caret triggered navigation')
 await page.locator('[data-case="Document · block"] a[href="https://example.com/source"]').click()
 const navigation = await page.evaluate(() => window.GALLERY_NAVIGATION)
@@ -151,6 +236,188 @@ await writeFile(
     null,
     2,
   ),
+)
+const threadPage = await browser.newPage({viewport: {width: 1280, height: 800}, reducedMotion: 'reduce'})
+threadPage.on('pageerror', (error) => errors.push(error.message))
+await threadPage.goto('about:blank')
+await threadPage.setContent('<html><body class="bg-background text-foreground"><div id="root"></div></body></html>')
+await threadPage.evaluate(() => {
+  window.THREAD_REVIEW = true
+})
+await threadPage.addStyleTag({content: css})
+await threadPage.addScriptTag({content: js})
+await threadPage.getByText('Root comment', {exact: true}).waitFor()
+await threadPage.getByText('Reply 7:', {exact: false}).waitFor()
+if ((await threadPage.getByRole('button', {name: 'Reply', exact: true}).count()) !== 8)
+  throw new Error('The root must not have a Reply action; all eight replies must retain theirs')
+await threadPage.getByRole('button', {name: 'Back to comments'}).waitFor()
+if (await threadPage.getByRole('button', {name: 'Expand comments'}).count())
+  throw new Error('Thread header retained expand control')
+const threadComposer = threadPage.getByTestId('thread-composer')
+if (
+  (await threadComposer.getAttribute('data-target')) !== 'bafy-gallery-author/comment1' ||
+  (await threadComposer.getAttribute('data-version')) !== 'c1'
+)
+  throw new Error('A selected nested reply or stale route version changed the posting target')
+const editorField = threadComposer.locator('.ProseMirror[contenteditable="true"]')
+await threadComposer.getByRole('button', {name: 'Write a Reply', exact: true}).click()
+await threadPage.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'))
+await threadPage.keyboard.type('Direct reply to root.')
+await threadComposer.getByRole('button', {name: 'Send reply'}).click()
+await threadPage.getByText('Direct reply to root.', {exact: true}).waitFor()
+await editorField.click()
+await threadPage.keyboard.type('Keep my draft.')
+const threadNavigationBefore = await threadPage.evaluate(() => window.GALLERY_NAVIGATION.length)
+const footerBefore = await threadComposer.boundingBox()
+await threadPage.getByRole('button', {name: 'Reply', exact: true}).nth(1).click()
+await threadComposer.locator('.block-embed').waitFor()
+await threadPage.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'))
+await threadPage.getByRole('button', {name: 'Reply', exact: true}).nth(2).click()
+await threadPage.waitForFunction(
+  () => document.querySelectorAll('[data-testid="thread-composer"] .block-embed').length === 2,
+)
+await threadPage.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'))
+await threadPage.keyboard.type('About these replies.')
+if ((await threadPage.evaluate(() => window.GALLERY_NAVIGATION.length)) !== threadNavigationBefore)
+  throw new Error('Quoting a reply navigated away from the root draft')
+const footerAfter = await threadComposer.boundingBox()
+if (Math.abs(footerBefore.y + footerBefore.height - footerAfter.y - footerAfter.height) > 1)
+  throw new Error('Thread composer did not stay at the bottom')
+await threadComposer.getByRole('button', {name: 'Send reply'}).click()
+await threadPage.waitForFunction(() => window.THREAD_SUBMISSIONS?.length === 2)
+const threadSubmissions = await threadPage.evaluate(() => window.THREAD_SUBMISSIONS)
+for (const submitted of threadSubmissions) {
+  if (
+    submitted.replyParent !== 'bafy-gallery-author/comment1' ||
+    submitted.replyParentVersion !== 'c1' ||
+    submitted.threadRootVersion !== 'c1'
+  )
+    throw new Error('A thread submission targeted a reply instead of the root')
+}
+const quotedContent = threadSubmissions[1].content.map((node) => node.block)
+if (quotedContent[0].text !== 'Keep my draft.' || quotedContent.at(-1).text !== 'About these replies.')
+  throw new Error('Quoting a reply replaced draft text or misplaced the cursor')
+if (
+  quotedContent
+    .filter((block) => block.type === 'Embed')
+    .map((block) => block.link)
+    .join('|') !== 'hm://bafy-gallery-author/reply1?v=reply-version-1|hm://bafy-gallery-author/reply2?v=reply-version-2'
+)
+  throw new Error('Quoted replies lost their comment identities or versions')
+await threadPage.getByText('About these replies.', {exact: true}).waitFor()
+const threadText = await threadPage.locator('[data-slot="scroll-area-viewport"]').innerText()
+if (
+  threadText.lastIndexOf('About these replies.') < threadText.lastIndexOf('Direct reply to root.') ||
+  threadText.lastIndexOf('Direct reply to root.') < threadText.lastIndexOf('Reply 7:')
+)
+  throw new Error('New comments did not appear at the end of the thread')
+await threadPage.getByRole('button', {name: 'Back to comments'}).click()
+await threadPage.screenshot({path: path.join(output, 'thread.png'), fullPage: true})
+await threadPage.setViewportSize({width: 900, height: 800})
+await threadPage.screenshot({path: path.join(output, 'thread-narrow.png'), fullPage: true})
+await threadPage.close()
+console.log(
+  'Thread fixture: root-only posting, pinned reply embeds, draft retention, append order, focus, and fixed footer passed',
+)
+const referencePage = await browser.newPage({viewport: {width: 1000, height: 800}})
+referencePage.on('pageerror', (error) => errors.push(error.message))
+await referencePage.route('https://embed-review.test/**', (route) =>
+  route.fulfill({contentType: 'text/html', body: '<html></html>'}),
+)
+await referencePage.goto('https://embed-review.test/reference#keep-this-location')
+await referencePage.setContent('<html><body><div id="root"></div></body></html>')
+await referencePage.evaluate(() => {
+  window.REFERENCE_REVIEW = true
+})
+await referencePage.addStyleTag({content: css})
+await referencePage.addScriptTag({content: js})
+const initialReferenceUrl = referencePage.url()
+const initialHistoryLength = await referencePage.evaluate(() => history.length)
+await referencePage.getByRole('button', {name: 'Comment on block', exact: true}).click()
+await referencePage.waitForFunction(() => document.querySelectorAll('.block-embed').length === 1)
+await referencePage.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'))
+await referencePage.keyboard.type('My added reply')
+await referencePage.getByRole('button', {name: 'Comment on fragment', exact: true}).click()
+await referencePage.waitForFunction(() => document.querySelectorAll('.block-embed').length === 2)
+await referencePage.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'))
+await referencePage.keyboard.type('After fragment')
+await referencePage.getByRole('button', {name: 'Read submission'}).click()
+await referencePage.waitForFunction(() => window.REFERENCE_SUBMISSION)
+const submitted = await referencePage.evaluate(() => window.REFERENCE_SUBMISSION.blockNodes)
+const submittedBlocks = submitted.map((node) => node.block)
+if (submittedBlocks[0].text !== 'Keep my draft') throw new Error('Reference insertion overwrote the saved draft')
+if (
+  submittedBlocks
+    .filter((block) => block.type === 'Embed')
+    .map((block) => block.link)
+    .join('|') !==
+  'hm://bafy-gallery-author/field-notes?v=v1#intro|hm://bafy-gallery-author/field-notes?v=v1#intro[2:15]'
+)
+  throw new Error('Submission lost the block or fragment reference')
+if (
+  submittedBlocks.findIndex((block) => block.text === 'My added reply') >
+  submittedBlocks.findIndex((block) => block.link?.endsWith('[2:15]'))
+)
+  throw new Error('Fragment was not appended after existing draft text')
+if (submittedBlocks.filter((block) => block.text).at(-1).text !== 'After fragment')
+  throw new Error('Focus was not below the appended embed')
+if (
+  referencePage.url() !== initialReferenceUrl ||
+  (await referencePage.evaluate(() => history.length)) !== initialHistoryLength
+)
+  throw new Error('Reference insertion changed the document URL or history')
+await referencePage.getByRole('button', {name: 'Close composer'}).click()
+await referencePage.getByRole('button', {name: 'Comment on block', exact: true}).click()
+await referencePage.waitForFunction(() => document.querySelectorAll('.block-embed').length === 3)
+await referencePage.getByRole('button', {name: 'Switch reply target'}).click()
+await referencePage.getByRole('button', {name: 'Comment on fragment', exact: true}).click()
+await referencePage.waitForFunction(() => document.querySelectorAll('.block-embed').length === 4)
+if ((await referencePage.getByTestId('reply-target').innerText()) !== 'bafy-gallery-author/comment1')
+  throw new Error('Reference insertion changed the reply target')
+await referencePage.waitForFunction(() => {
+  const field = document.querySelector('.comment-editor')
+  return field && field.scrollTop > 0 && document.activeElement?.classList.contains('ProseMirror')
+})
+if (referencePage.url() !== initialReferenceUrl || (await referencePage.evaluate(() => window.scrollY)) !== 0)
+  throw new Error('Focusing the end of the draft moved the page or document reference')
+await referencePage.screenshot({path: path.join(output, 'comment-references.png'), fullPage: true})
+await referencePage.getByRole('button', {name: 'Close composer'}).click()
+await referencePage.evaluate(() => {
+  window.REFERENCE_DRAFT = []
+})
+await referencePage.getByRole('button', {name: 'Comment on block', exact: true}).click()
+await referencePage.waitForFunction(() => document.querySelectorAll('.block-embed').length === 1)
+await referencePage.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'))
+await referencePage.getByRole('button', {name: 'Comment on block', exact: true}).click()
+await referencePage.waitForFunction(() => document.querySelectorAll('.block-embed').length === 2)
+await referencePage.getByRole('button', {name: 'Close composer'}).click()
+await referencePage.evaluate(() => {
+  window.REFERENCE_HYDRATION = true
+  window.REFERENCE_DRAFT = [
+    {block: {id: 'media-text', type: 'Paragraph', text: 'Keep media draft', attributes: {}}},
+    {
+      block: {
+        id: 'saved-file',
+        type: 'File',
+        link: '',
+        attributes: {name: 'saved.txt', mediaRef: JSON.stringify({draftId: 'review', mediaId: 'file1'})},
+      },
+    },
+  ]
+})
+await referencePage.getByRole('button', {name: 'Comment on block', exact: true}).click()
+await referencePage.waitForFunction(() => window.RESOLVE_REFERENCE_MEDIA)
+if (await referencePage.locator('.block-embed').count())
+  throw new Error('Reference inserted before saved media draft was restored')
+await referencePage.getByRole('button', {name: 'Comment on fragment', exact: true}).click()
+await referencePage.evaluate(() => window.RESOLVE_REFERENCE_MEDIA())
+await referencePage.waitForFunction(() => document.querySelectorAll('.block-embed').length === 2)
+await referencePage.getByText('Keep media draft', {exact: true}).waitFor()
+if ((await referencePage.locator('[data-content-type="file"]').count()) !== 1)
+  throw new Error('Reference insertion lost the saved attachment')
+await referencePage.close()
+console.log(
+  'Comment references: append, focus, saved draft, remount, reply target, serialized content, and unchanged URL passed',
 )
 await browser.close()
 console.log(`Gallery artifacts: ${output}`)

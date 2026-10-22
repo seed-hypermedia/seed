@@ -536,6 +536,7 @@ function CommentBoxImpl(props: {
     <>
       <CommentEditor
         compact={props.compact}
+        referenceTarget={{documentId: docId.id, commentId}}
         focusOnMount={focusOnMount}
         isReplying={isReplying || !!commentId}
         submitHandleRef={submitHandleRef}
