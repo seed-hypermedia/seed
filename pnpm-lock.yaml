@@ -203,6 +203,9 @@ patchedDependencies:
   '@tiptap/core@2.0.3':
     hash: b361d98d1d17311f25cd2623c91f75ffb26d8ab76d19f16a48139f46dfb9fc91
     path: patches/@tiptap__core@2.0.3.patch
+  appdmg@0.6.6:
+    hash: b79de5cc1695d87f92549dfb4d17f7e5b17aebb2802c5c18b8180f41eadbcf67
+    path: patches/appdmg@0.6.6.patch
   braces@3.0.3:
     hash: 411c7a2716df27d1e0730797fc85bd5963800936996ac9c692467d88838fc047
     path: patches/braces@3.0.3.patch
@@ -20760,7 +20763,7 @@ snapshots:
 
   anynum@1.0.1: {}
 
-  appdmg@0.6.6:
+  appdmg@0.6.6(patch_hash=b79de5cc1695d87f92549dfb4d17f7e5b17aebb2802c5c18b8180f41eadbcf67):
     dependencies:
       async: 1.5.2
       ds-store: 0.1.6
@@ -22225,7 +22228,7 @@ snapshots:
       debug: 4.4.1
       minimist: 1.2.8
     optionalDependencies:
-      appdmg: 0.6.6
+      appdmg: 0.6.6(patch_hash=b79de5cc1695d87f92549dfb4d17f7e5b17aebb2802c5c18b8180f41eadbcf67)
     transitivePeerDependencies:
       - supports-color
     optional: true
