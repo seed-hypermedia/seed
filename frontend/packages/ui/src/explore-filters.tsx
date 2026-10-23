@@ -156,7 +156,7 @@ export function ExploreTypeMenu({
           </label>
         )
       })}
-      <Button size="sm" variant="brand" className="mt-2 w-full" onClick={() => onApply(draft)}>
+      <Button size="sm" variant="default" className="mt-2 w-full" onClick={() => onApply(draft)}>
         Apply filters
       </Button>
     </div>
@@ -319,7 +319,7 @@ export function ExploreDateMenu({
         </div>
       ) : null}
       <div className="p-2">
-        <Button size="sm" variant="brand" className="w-full" onClick={apply}>
+        <Button size="sm" variant="default" className="w-full" onClick={apply}>
           Apply filters
         </Button>
       </div>
