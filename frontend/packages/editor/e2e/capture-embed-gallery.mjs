@@ -461,6 +461,63 @@ await referencePage.close()
 console.log(
   'Comment references: append, focus, saved draft, remount, reply target, serialized content, and unchanged URL passed',
 )
+{
+  const page = await browser.newPage({viewport: {width: 1280, height: 800}, reducedMotion: 'reduce'})
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.route('https://embed-review.test/**', (route) =>
+    route.fulfill({contentType: 'text/html', body: '<html></html>'}),
+  )
+  await page.goto('https://embed-review.test/main-comments')
+  await page.setContent('<html><body class="bg-background text-foreground"><div id="root"></div></body></html>')
+  await page.evaluate(() => {
+    window.DOCKED_COMMENTS_REVIEW = true
+    window.THREAD_REVIEW = true
+  })
+  await page.addStyleTag({content: css})
+  await page.addScriptTag({content: js})
+  const footer = page.getByTestId('main-comments-footer')
+  const composer = footer.getByTestId('thread-composer')
+  await composer.waitFor()
+  const scroll = page.getByTestId('main-comments-scroll')
+  if (await scroll.getByTestId('thread-composer').count()) throw new Error('Composer is still in the scroll area')
+  await page.getByText('Document header stays visible').waitFor()
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({width, height: 800})
+    const before = await footer.boundingBox()
+    await scroll.evaluate(async (node) => {
+      node.scrollTop = node.scrollHeight
+      await new Promise(requestAnimationFrame)
+    })
+    const after = await footer.boundingBox()
+    if (Math.abs(before.y - after.y) > 1 || Math.abs(after.y + after.height - 800) > 1)
+      throw new Error('Footer moved with the document')
+  }
+  await composer.getByRole('button', {name: 'Write a Reply', exact: true}).click()
+  await page.waitForFunction(() => document.activeElement?.classList.contains('ProseMirror'))
+  await page.keyboard.type('Keep this draft while I quote a reply.')
+  await page.getByRole('button', {name: 'Reply', exact: true}).first().click()
+  await composer.locator('.block-embed').waitFor()
+  if (!(await composer.innerText()).includes('Keep this draft')) throw new Error('Portal lost draft content')
+  await composer.getByRole('button', {name: 'Send reply'}).click()
+  await page.waitForFunction(() => window.THREAD_SUBMISSIONS?.length === 1)
+  const submitted = await page.evaluate(() => window.THREAD_SUBMISSIONS[0])
+  if (submitted.replyParent !== 'bafy-gallery-author/comment1') throw new Error('Posted reply to wrong target')
+  await page
+    .getByRole('link', {name: /Comments/})
+    .locator('.lucide-arrow-up-right')
+    .waitFor()
+  await page.getByRole('link', {name: /Comments/}).click()
+  const route = await page.evaluate(() => window.GALLERY_NAVIGATION.at(-1).route)
+  if (
+    route.key !== 'document' ||
+    route.panel?.key !== 'comments' ||
+    route.panel.openComment !== 'bafy-gallery-author/comment1'
+  )
+    throw new Error('Move-to-panel lost the thread')
+  await page.screenshot({path: path.join(output, 'docked-comments.png')})
+  await page.close()
+}
+console.log('Main Comments: docked composer, draft retention, root posting, and move-to-panel passed')
 await browser.close()
 console.log(`Gallery artifacts: ${output}`)
 if (errors.length) throw new Error(errors.join('\n'))

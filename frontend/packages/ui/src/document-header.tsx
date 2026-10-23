@@ -155,7 +155,7 @@ export function DocumentHeader({
             ) : null}
           </>
         )}
-        <div className={cn('flex flex-col gap-2', !flushByline && 'border-border border-b pb-2 md:pb-4')}>
+        <div className={cn('flex flex-col gap-2', !flushByline && 'pb-2 md:pb-4')}>
           {siteUrl ? <SiteURLButton siteUrl={siteUrl} /> : null}
           <div className="flex flex-1 items-center justify-between gap-3">
             <div className="hidden flex-1 flex-wrap items-center gap-3 md:flex">

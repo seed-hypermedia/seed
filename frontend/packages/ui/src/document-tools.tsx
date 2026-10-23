@@ -1,5 +1,6 @@
-import {HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {HMListDocumentCollaboratorsOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
+  hmId,
   activityFilterToSlug,
   activitySlugToFilter,
   createInspectNavRoute,
@@ -10,6 +11,8 @@ import {
 import type {InspectTab} from '@shm/shared/routes'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {
+  AtSign,
+  MessageCircle,
   FileCode2,
   FileText,
   Folder,
@@ -18,7 +21,6 @@ import {
   Info,
   LucideIcon,
   MessagesSquare,
-  Newspaper,
   Quote,
   Shield,
   Users,
@@ -26,17 +28,48 @@ import {
 import {cloneElement, isValidElement, useRef, useState} from 'react'
 import {PageTab} from './page-tabs'
 import {cn} from './utils'
+import {HMIcon} from './hm-icon'
+import {getCommentAudienceAccountUids} from './members-facepile'
 
+/** Opens a document tool in a panel while preserving the current document or draft. */
+export function getDocumentToolRoute(
+  currentRoute: NavRoute | undefined,
+  id: UnpackedHypermediaId,
+  panel: DocumentPanelRoute,
+): NavRoute {
+  if (currentRoute?.key === 'document' || currentRoute?.key === 'draft' || currentRoute?.key === 'feed') {
+    return {...currentRoute, panel}
+  }
+  if (currentRoute?.key === panel.key) {
+    const {
+      panel: _panel,
+      width: _width,
+      ...selection
+    } = currentRoute as DocumentPanelRoute & {width?: number; panel?: DocumentPanelRoute | null}
+    panel = {...selection, ...panel}
+  }
+  return {
+    key: 'document',
+    id:
+      currentRoute && 'id' in currentRoute && typeof currentRoute.id !== 'string' && currentRoute.id
+        ? currentRoute.id
+        : {...id, version: null, latest: true},
+    panel,
+  }
+}
+
+/** Document tools open right panels; inspector tabs keep their own navigation. */
 export function DocumentTools({
   id,
   activeTab,
   commentsCount = 0,
   citationsCount = 0,
   collabsCount = 0,
+  collaborators,
   metadataCount = 0,
   schemaCid = null,
   activeTabAction,
-  existingDraft,
+  currentRoute,
   currentPanel,
   mode = 'document',
   inspectRoute,
@@ -48,14 +81,17 @@ export function DocumentTools({
   commentsCount?: number
   citationsCount?: number
   collabsCount?: number
+  /** Existing People-list data for the avatar preview. */
+  collaborators?: HMListDocumentCollaboratorsOutput | null
   /** Number of custom (non-built-in) metadata fields shown on the always-visible Attributes tab. */
   metadataCount?: number
   /** The schema CID the document defines (`schemaDefinition`); carried on the `schema` route. */
   schemaCid?: string | null
   /** Rendered immediately to the right of the active tab pill. When no tab is active, rendered as last sibling. */
   activeTabAction?: React.ReactNode
-  existingDraft?: HMExistingDraft | false
-  /** Current panel route — tabs preserve this when navigating */
+  /** Current page route, retained when opening a panel from a document or draft. */
+  currentRoute?: NavRoute
+  /** Current panel route, used for active state and existing thread selection. */
   currentPanel?: DocumentPanelRoute | null
   mode?: 'document' | 'inspect'
   inspectRoute?: InspectRoute | null
@@ -74,6 +110,21 @@ export function DocumentTools({
     showSidebars: boolean
   }
 }) {
+  const peopleAvatars = collaborators ? getCommentAudienceAccountUids(collaborators, !id.path?.length).slice(0, 3) : []
+  const peoplePreview = peopleAvatars.length ? (
+    <span className="flex shrink-0 -space-x-2" aria-hidden="true">
+      {peopleAvatars.map((uid, index) => (
+        <span key={`${uid}-${index}`} className="ring-card rounded-full ring-2" style={{zIndex: 3 - index}}>
+          <HMIcon
+            id={hmId(uid)}
+            name={collaborators?.accounts[uid]?.metadata?.name}
+            icon={collaborators?.accounts[uid]?.metadata?.icon}
+            size={20}
+          />
+        </span>
+      ))}
+    </span>
+  ) : undefined
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
   const [showLabels, setShowLabels] = useState(true)
@@ -103,25 +154,13 @@ export function DocumentTools({
     }
   }, [activeTab, inspectRoute?.inspectTab, mode])
 
-  // Always carry over the current panel so it stays open across tab switches.
-  // Cast needed because each route type has its own panel union (excluding itself)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const panelFor = (): any => currentPanel || undefined
-
-  // Strip blockRef/blockRange for non-content tabs
   const idWithoutBlock = {...id, blockRef: null, blockRange: null}
-
-  const documentRoute: NavRoute = {
-    key: 'document',
-    // Link the Content tab to the latest content at the base path — never pin
-    // the resolved version. `id` here is the RESOLVED document id, which carries
-    // the concrete version even when the current route (e.g. the Attributes tab)
-    // has no `?v=`. Without stripping it, switching to Content would jump to
-    // `/path?v=<resolved>`, pinning the reader to a snapshot and desyncing from
-    // later edits. The sibling view tabs already render version-independent hrefs.
-    id: {...id, version: null, latest: true},
-    panel: panelFor(),
-  }
+  const openPanel = (panel: DocumentPanelRoute) => getDocumentToolRoute(currentRoute, id, panel)
+  const selectedTab = currentPanel
+    ? currentPanel.key === 'activity' && activityFilterToSlug(currentPanel.filterEventType) === 'citations'
+      ? 'citations'
+      : currentPanel.key
+    : activeTab
   const inspectActivityPanelParam =
     inspectRoute?.targetView === 'activity'
       ? (() => {
@@ -138,6 +177,7 @@ export function DocumentTools({
     active: boolean
     route: NavRoute
     bg?: string
+    leading?: React.ReactNode
   }[] =
     mode === 'inspect' && inspectRoute
       ? (
@@ -214,62 +254,41 @@ export function DocumentTools({
         }))
       : [
           {
-            label: 'Content',
-            tooltip: existingDraft ? 'Resume Editing' : 'Open Content',
-            icon: Newspaper,
-            active: activeTab == 'draft' || activeTab == 'content',
-            route: existingDraft
-              ? activeTab === 'draft'
-                ? documentRoute
-                : {
-                    key: 'draft',
-                    id: existingDraft.id,
-                    editPath: id.path || [],
-                    editUid: id.uid,
-                    panel: panelFor(),
-                  }
-              : documentRoute,
-          },
-          {
-            label: 'People',
-            tooltip: 'Open Document Collaborators',
-            icon: Users,
-            active: activeTab == 'collaborators',
-            count: collabsCount,
-            route: {key: 'collaborators', id: idWithoutBlock, panel: panelFor()},
-          },
-          {
             label: 'Comments',
             tooltip: 'Open Document Comments',
-            icon: MessagesSquare,
-            active: activeTab == 'comments',
+            icon: MessageCircle,
+            active: selectedTab === 'comments',
             count: commentsCount,
-            route:
-              currentPanel?.key === 'comments'
-                ? {...currentPanel, key: 'comments', id: currentPanel.id ?? idWithoutBlock, panel: null}
-                : {key: 'comments', id: idWithoutBlock, panel: panelFor()},
+            route: openPanel(currentPanel?.key === 'comments' ? currentPanel : {key: 'comments', id: idWithoutBlock}),
           },
           {
-            label: 'Citations',
+            label: `${collabsCount} ${collabsCount === 1 ? 'person' : 'people'}`,
+            tooltip: 'Open Document Collaborators',
+            icon: Users,
+            active: selectedTab === 'collaborators',
+            leading: peoplePreview,
+            route: openPanel({key: 'collaborators', id: idWithoutBlock}),
+          },
+          {
+            label: 'Mentioned in',
             tooltip: 'Open Document Citations',
-            icon: Quote,
-            active: activeTab == 'citations',
+            icon: AtSign,
+            active: selectedTab === 'citations',
             count: citationsCount,
-            route: {
+            route: openPanel({
               key: 'activity',
               id: idWithoutBlock,
               filterEventType: activitySlugToFilter('citations'),
-              panel: panelFor(),
-            },
+            }),
           },
           {
             label: 'Attributes',
             tooltip: 'Open Document Attributes',
             icon: Info,
-            active: activeTab === 'metadata',
+            active: selectedTab === 'metadata',
             count: metadataCount,
             showZeroCount: true,
-            route: {key: 'metadata', id: idWithoutBlock, panel: panelFor()} as NavRoute,
+            route: openPanel({key: 'metadata', id: idWithoutBlock}),
           },
           // The schema a document defines renders above its body (DocumentSchemaSection), so the
           // tab is not offered; it only shows while the `schema` route itself is open, so that
@@ -297,28 +316,30 @@ export function DocumentTools({
   const tabButtons = (
     <>
       {/* Hidden measurement container with labels always visible */}
-      <div
-        ref={measureRef}
-        className="pointer-events-none absolute flex items-center gap-2 opacity-0 md:gap-4"
-        aria-hidden="true"
-      >
-        {buttons.map((button) => (
-          <PageTab
-            key={button.label}
-            active={button.active}
-            route={button.route}
-            label={button.label}
-            tooltip={button.tooltip}
-            icon={button.icon}
-            count={button.count}
-            showZeroCount={button.showZeroCount}
-            bg={button.bg}
-            showLabel
-            trailingAction={button.active ? activeTabAction : undefined}
-          />
-        ))}
-        {standaloneAction}
-      </div>
+      {mode === 'inspect' && (
+        <div
+          ref={measureRef}
+          className="pointer-events-none absolute flex items-center gap-2 opacity-0 md:gap-4"
+          aria-hidden="true"
+        >
+          {buttons.map((button) => (
+            <PageTab
+              key={button.label}
+              active={button.active}
+              route={button.route}
+              label={button.label}
+              tooltip={button.tooltip}
+              icon={button.icon}
+              count={button.count}
+              showZeroCount={button.showZeroCount}
+              bg={button.bg}
+              showLabel
+              trailingAction={button.active ? activeTabAction : undefined}
+            />
+          ))}
+          {standaloneAction}
+        </div>
+      )}
       {buttons.map((button) => (
         <PageTab
           key={button.label}
@@ -330,7 +351,15 @@ export function DocumentTools({
           count={button.count}
           showZeroCount={button.showZeroCount}
           bg={button.bg}
-          showLabel={showLabels}
+          showLabel={mode === 'document' || showLabels}
+          appearance={mode === 'document' ? 'document-tool' : 'default'}
+          leading={button.leading}
+          moveToPanel={
+            mode === 'document' &&
+            button.active &&
+            'panel' in button.route &&
+            currentRoute?.key === button.route.panel?.key
+          }
           trailingAction={button.active ? activeTabAction : undefined}
         />
       ))}
@@ -353,7 +382,11 @@ export function DocumentTools({
             <div
               {...mainContentProps}
               ref={containerRef}
-              className={cn(mainContentProps.className, 'flex items-center gap-2 p-1 md:gap-4 md:p-2')}
+              className={cn(
+                mainContentProps.className,
+                'flex items-center gap-2 p-1 md:p-2',
+                mode === 'document' ? 'flex-wrap' : 'md:gap-4',
+              )}
             >
               {tabButtons}
             </div>
@@ -370,7 +403,11 @@ export function DocumentTools({
           <div
             {...mainContentProps}
             ref={containerRef}
-            className={cn(mainContentProps.className, 'flex items-center gap-2 p-1 md:gap-4 md:p-2')}
+            className={cn(
+              mainContentProps.className,
+              'flex items-center gap-2 p-1 md:p-2',
+              mode === 'document' ? 'flex-wrap' : 'md:gap-4',
+            )}
           >
             {tabButtons}
           </div>
@@ -381,7 +418,13 @@ export function DocumentTools({
 
   return (
     <div className="flex w-full shrink-0">
-      <div ref={containerRef} className="flex min-w-0 flex-1 items-center gap-2 p-1 md:gap-4 md:p-2">
+      <div
+        ref={containerRef}
+        className={cn(
+          'flex min-w-0 flex-1 items-center gap-2 p-1 md:p-2',
+          mode === 'document' ? 'flex-wrap' : 'md:gap-4',
+        )}
+      >
         {tabButtons}
       </div>
     </div>

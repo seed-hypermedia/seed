@@ -258,12 +258,15 @@ export const Discussions = memo(function Discussions({
   submittedRoots = [],
   onCommentDeleted,
   targetDomain,
+  emptyState,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   submittedRoots?: HMComment[]
   onCommentDeleted?: (commentId: string) => void
   targetDomain?: string
+  /** Optional empty content for the document comments panel. */
+  emptyState?: ReactNode
 }) {
   const discussionsService = useDocumentDiscussions(targetId, commentId)
 
@@ -356,11 +359,11 @@ export const Discussions = memo(function Discussions({
           })}
         </>
       ) : (
-        <NoComments />
+        emptyState ?? <NoComments />
       )
   }
 
-  return <div className="flex flex-col gap-2">{panelContent}</div>
+  return <div className={cn('flex flex-col gap-2', emptyState && 'flex-1')}>{panelContent}</div>
 })
 
 export function BlockDiscussions({

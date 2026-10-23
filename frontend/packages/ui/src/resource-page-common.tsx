@@ -161,7 +161,7 @@ import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './componen
 import {ScrollArea} from './components/scroll-area'
 import {Tabs, TabsList, TabsTrigger} from './components/tabs'
 import {DirectoryPageContent} from './directory-page'
-import {DiscussionsPageContent} from './discussions-page'
+import {CommentsFooterContext, DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {
@@ -202,7 +202,6 @@ import {MembersFacepile} from './members-facepile'
 import {MergedBadge} from './merged-badge'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
-import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {OptionsPanel} from './options-panel'
 import {PageLayout} from './page-layout'
@@ -426,12 +425,6 @@ function CitationFragmentPopover({
       </PopoverContent>
     </Popover>
   )
-}
-
-/** Extract panel route from a view route, stripping top-level-only fields */
-function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
-  const {panel, width, ...params} = route as any
-  return params as DocumentPanelRoute
 }
 
 /** Removes redundant document destinations and orders the remaining menu actions by intent. */
@@ -2039,6 +2032,7 @@ function DocumentBody({
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
   const isCollection = useDocumentSelector(selectIsCollection)
+  const [mainCommentsFooter, setMainCommentsFooter] = useState<HTMLDivElement | null>(null)
   const [pendingDocumentConversion, setPendingDocumentConversion] = useState<'collection' | 'document' | null>(null)
   const collectionQueryBlock = useDocumentSelector(selectCollectionQueryBlock)
   const send = useDocumentSend()
@@ -3014,8 +3008,7 @@ function DocumentBody({
         </div>
       )}
 
-      {/* DocumentTools - scrolls with the page; the border separates document
-          identity above from document body below. Hidden when showActivity is false. */}
+      {/* Document tools scroll with the page and are hidden when showActivity is false. */}
       {showActivity && showDocumentChrome && (
         <div className="px-5 py-1">
           <DocumentTools
@@ -3032,10 +3025,11 @@ function DocumentBody({
                   : activeView
             }
             currentPanel={panelRoute}
-            existingDraft={isEditing || !shouldUseDraftOverlay ? undefined : existingDraft}
+            currentRoute={route}
             commentsCount={interactionSummary.data?.comments || 0}
             citationsCount={interactionSummary.data?.citations || 0}
             collabsCount={peopleCount}
+            collaborators={collaborators.data}
             metadataCount={countCustomMetadataFields(metadata)}
             schemaCid={schemaDefinitionCid(metadata)}
             layoutProps={
@@ -3048,33 +3042,14 @@ function DocumentBody({
                     showSidebars,
                   }
             }
-            activeTabAction={
-              activeView !== 'content' &&
-              activeView !== 'site-profile' &&
-              activeView !== 'all-documents' &&
-              activeView !== 'schema' ? (
-                <OpenInPanelButton
-                  id={docId}
-                  panelRoute={
-                    route.key === activeView
-                      ? extractPanelRoute(route)
-                      : {
-                          key: activeView as Exclude<
-                            ActiveView,
-                            'content' | 'site-profile' | 'all-documents' | 'explore' | 'schema'
-                          >,
-                          id: docId,
-                        }
-                  }
-                />
-              ) : null
-            }
           />
         </div>
       )}
 
       {/* Main content based on activeView */}
-      <div className={cn('flex-1', activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
+      <div
+        className={cn('flex-1', activeView !== 'content' && activeView !== 'comments' && 'pb-60', isMobile && 'px-4')}
+      >
         <DocumentViewContent
           activeView={activeView}
           collection={
@@ -3083,45 +3058,47 @@ function DocumentBody({
             ) : undefined
           }
         >
-          <MainContent
-            docId={docId}
-            resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
-            document={document}
-            activeView={activeView}
-            contentMaxWidth={contentMaxWidth}
-            wrapperProps={wrapperProps}
-            sidebarProps={sidebarProps}
-            mainContentProps={mainContentProps}
-            showSidebars={showSidebars}
-            showCollapsed={showCollapsed}
-            discussionsParams={discussionsParams}
-            suppressCommentEditor={suppressMainCommentEditor}
-            activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
-            onActivityFilterChange={handleMainActivityFilterChange}
-            blockCitations={blockCitations}
-            citationFragmentHighlights={citationFragmentHighlights}
-            onCitationFragmentClick={handleCitationFragmentClick}
-            onBlockCitationClick={handleBlockCitationClick}
-            onBlockCommentClick={handleBlockCommentClick}
-            onBlockSelect={handleBlockSelect}
-            onTextSelection={handleTextSelection}
-            isUnpublishedDraft={isUnpublishedDraft}
-            isBlockInPublishedVersion={isBlockInPublishedVersion}
-            CommentEditor={CommentEditor}
-            directory={directory.data}
-            siteUrl={siteUrl}
-            inlineCards={inlineCards}
-            inlineInsert={inlineInsert}
-            DocumentContentComponent={DocumentContentComponent}
-            onEditorReady={handleEditorReadyWrapped}
-            existingDraftContent={effectiveContent}
-            existingDraftCursorPosition={existingDraftCursorPosition}
-            ssrContentHTML={ssrContentHTML}
-            perspectiveAccountUid={perspectiveAccountUid}
-            linkExtensionOptions={linkExtensionOptions}
-            fileUpload={fileUpload}
-            draftVersionEntry={draftVersionEntry}
-          />
+          <CommentsFooterContext.Provider value={mainCommentsFooter}>
+            <MainContent
+              docId={docId}
+              resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
+              document={document}
+              activeView={activeView}
+              contentMaxWidth={contentMaxWidth}
+              wrapperProps={wrapperProps}
+              sidebarProps={sidebarProps}
+              mainContentProps={mainContentProps}
+              showSidebars={showSidebars}
+              showCollapsed={showCollapsed}
+              discussionsParams={discussionsParams}
+              suppressCommentEditor={suppressMainCommentEditor}
+              activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
+              onActivityFilterChange={handleMainActivityFilterChange}
+              blockCitations={blockCitations}
+              citationFragmentHighlights={citationFragmentHighlights}
+              onCitationFragmentClick={handleCitationFragmentClick}
+              onBlockCitationClick={handleBlockCitationClick}
+              onBlockCommentClick={handleBlockCommentClick}
+              onBlockSelect={handleBlockSelect}
+              onTextSelection={handleTextSelection}
+              isUnpublishedDraft={isUnpublishedDraft}
+              isBlockInPublishedVersion={isBlockInPublishedVersion}
+              CommentEditor={CommentEditor}
+              directory={directory.data}
+              siteUrl={siteUrl}
+              inlineCards={inlineCards}
+              inlineInsert={inlineInsert}
+              DocumentContentComponent={DocumentContentComponent}
+              onEditorReady={handleEditorReadyWrapped}
+              existingDraftContent={effectiveContent}
+              existingDraftCursorPosition={existingDraftCursorPosition}
+              ssrContentHTML={ssrContentHTML}
+              perspectiveAccountUid={perspectiveAccountUid}
+              linkExtensionOptions={linkExtensionOptions}
+              fileUpload={fileUpload}
+              draftVersionEntry={draftVersionEntry}
+            />
+          </CommentsFooterContext.Provider>
         </DocumentViewContent>
         {citationFragmentClick ? (
           <CitationFragmentPopover
@@ -3175,6 +3152,7 @@ function DocumentBody({
         <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
           {documentTopBar}
           {mainPageContent}
+          {activeView === 'comments' && <div ref={setMainCommentsFooter} className="sticky bottom-20 z-10 shrink-0" />}
           {floatingButtonsAction}
         </div>
 
@@ -3302,6 +3280,7 @@ function DocumentBody({
             <div ref={documentTopSentinelRef} className="h-px" aria-hidden="true" />
             {mainPageContent}
           </ScrollArea>
+          {activeView === 'comments' && <div ref={setMainCommentsFooter} className="shrink-0" />}
           {activeView === 'content' ? (
             <Button
               ref={backToTopButtonRef}

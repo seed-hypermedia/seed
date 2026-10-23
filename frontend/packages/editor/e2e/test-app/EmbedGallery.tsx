@@ -1,3 +1,4 @@
+import {DocumentTools} from '@shm/ui/document-tools'
 import './tailwind.css'
 import '../../src/blocknote/core/style.css'
 import '../../src/editor.css'
@@ -7,7 +8,7 @@ import {
   useCommentDraftReferences,
   CommentsProvider,
 } from '@shm/shared/comments-service-provider'
-import {DiscussionsPageContent} from '@shm/ui/discussions-page'
+import {CommentsFooterContext, DiscussionsPageContent} from '@shm/ui/discussions-page'
 import {PanelLayout} from '@shm/ui/panel-layout'
 import {getBlockCommentDraftReference, type CommentEditorProps} from '@shm/ui/resource-page-common'
 import {createMachine} from 'xstate'
@@ -15,7 +16,7 @@ import {DocumentMachineProvider} from '@shm/shared/models/use-document-machine'
 import {createRoot} from 'react-dom/client'
 import type {HMBlockEmbed, HMBlockNode, HMComment, HMDocument} from '@seed-hypermedia/client/hm-types'
 import {hmId, routeToHref, UniversalAppProvider, writeableStateStream} from '@shm/shared'
-import {NavContextProvider} from '@shm/shared/utils/navigation'
+import {NavContextProvider, useNavRoute} from '@shm/shared/utils/navigation'
 import {CommentContentContext, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
 import {applyOptimisticComment} from '@shm/shared/optimistic-comment'
@@ -351,6 +352,77 @@ const cases = [
   ['Comment · fragment', `hm://${account}/comment1?v=c1#intro[2:63]`],
 ] as const
 
+/** Exercises the production document-tool links with the fixture navigation provider. */
+function DocumentToolsReview() {
+  const route = useNavRoute()
+  return (
+    <DocumentTools
+      id={documentId}
+      currentRoute={route}
+      currentPanel={'panel' in route ? route.panel : undefined}
+      commentsCount={4}
+      collabsCount={12}
+      citationsCount={1}
+      collaborators={{
+        publisherUid: account,
+        parentCapabilities: ['reviewer-one', 'reviewer-two'].map((uid) => ({
+          id: uid,
+          accountUid: uid,
+          role: 'writer',
+          grantId: documentId,
+          createTime: {seconds: 0, nanos: 0},
+        })),
+        grantedCapabilities: [],
+        grantedMembers: [],
+        members: [],
+        accounts: Object.fromEntries(
+          [account, 'reviewer-one', 'reviewer-two'].map((uid, index) => [
+            uid,
+            {id: hmId(uid), metadata: {name: ['Alex', 'Gabo', 'Bea'][index]}},
+          ]),
+        ),
+      }}
+    />
+  )
+}
+
+/** Main-section thread with a real editor portaled below the document scroll area. */
+function DockedCommentsReview() {
+  const [footer, setFooter] = useState<HTMLDivElement | null>(null)
+  return (
+    <CommentDraftReferenceProvider>
+      <CommentsProvider
+        onReplyClick={() => {
+          throw new Error('Reply escaped the thread')
+        }}
+      >
+        <div className="flex h-screen min-h-0 flex-col">
+          <div data-testid="main-comments-scroll" className="min-h-0 flex-1 overflow-y-auto">
+            <header className="mx-auto max-w-3xl p-6">
+              <h1>Document header stays visible</h1>
+              <DocumentTools
+                id={documentId}
+                activeTab="comments"
+                currentRoute={{key: 'comments', id: documentId, openComment: comment.id}}
+              />
+            </header>
+            <CommentsFooterContext.Provider value={footer}>
+              <DiscussionsPageContent
+                docId={documentId}
+                openComment={comment.id}
+                showTitle={false}
+                contentMaxWidth={768}
+                commentEditor={<ReviewComposer docId={documentId} />}
+              />
+            </CommentsFooterContext.Provider>
+          </div>
+          <div ref={setFooter} data-testid="main-comments-footer" className="shrink-0" />
+        </div>
+      </CommentsProvider>
+    </CommentDraftReferenceProvider>
+  )
+}
+
 /** Real production embeds, with fixed data at the network provider boundary. */
 function EmbedGallery() {
   return (
@@ -374,7 +446,11 @@ function EmbedGallery() {
           >
             <SelectedAccountContactsProvider>
               <ReadOnlyViewerProvider value={ReadOnlyViewer}>
-                {(window as any).REFERENCE_REVIEW ? (
+                {(window as any).DOCKED_COMMENTS_REVIEW ? (
+                  <DockedCommentsReview />
+                ) : (window as any).DOCUMENT_TOOLS_REVIEW ? (
+                  <DocumentToolsReview />
+                ) : (window as any).REFERENCE_REVIEW ? (
                   <React.StrictMode>
                     <CommentDraftReferenceProvider>
                       <ReferenceReview />
