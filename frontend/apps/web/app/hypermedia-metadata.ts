@@ -29,7 +29,7 @@ export type HypermediaResourceMetadata = {
  */
 export function createResourceMetadata(opts: {
   id: UnpackedHypermediaId
-  document?: HMDocument | null
+  document?: Pick<HMDocument, 'version' | 'authors' | 'metadata' | 'path'> | null
   comment?: HMComment | null
   commentAuthorTitle?: string
 }): HypermediaResourceMetadata {

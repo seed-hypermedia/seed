@@ -305,7 +305,6 @@ export function DocumentCardShell({
   actionDetails?: ReactNode
   actions?: ReactNode
 }) {
-  console.log({badges})
   return (
     <div
       className={cn(

@@ -642,7 +642,9 @@ export async function loadCitationEvent(
       console.warn('Event: Failed to fetch source document metadata', {
         sourceHref,
         sourceTypeLower,
-        error,
+        // The message only: a full ConnectError dump (stack + response metadata) per
+        // missing document flooded the gateway logs, and these misses are expected.
+        error: error instanceof Error ? error.message : String(error),
       })
     }
 
@@ -669,7 +671,9 @@ export async function loadCitationEvent(
       console.warn('Event: Failed to fetch target document metadata', {
         target: event.newMention.target,
         sourceTypeLower,
-        error,
+        // The message only: a full ConnectError dump (stack + response metadata) per
+        // missing document flooded the gateway logs, and these misses are expected.
+        error: error instanceof Error ? error.message : String(error),
       })
     }
 

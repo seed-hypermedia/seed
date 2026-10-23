@@ -157,7 +157,59 @@ function sanitizeBlockNodes(nodes: any[], isNavigationChild: boolean = false): a
   return nodes.map(sanitizeNode).filter((n): n is NonNullable<typeof n> => !!n)
 }
 
+/**
+ * Optional cache of prepared documents, keyed by everything that identifies a
+ * document's content. Off by default; the web server turns it on (see
+ * enablePreparedDocumentCache) because every page render re-fetches the same
+ * documents (the site home, breadcrumbs, embeds) and converting each one to
+ * JSON and validating it with Zod was a top server CPU cost.
+ *
+ * Cached documents are shared between callers, so callers must not mutate them.
+ */
+let preparedDocumentCache: Map<string, HMDocument> | null = null
+let preparedDocumentCacheLimit = 0
+
+/** Reuse prepared documents across calls, holding at most `maxEntries` (oldest evicted first). */
+export function enablePreparedDocumentCache(maxEntries: number) {
+  preparedDocumentCache = new Map()
+  preparedDocumentCacheLimit = maxEntries
+}
+
+/** Turn the prepared-document cache off again (tests). */
+export function disablePreparedDocumentCache() {
+  preparedDocumentCache = null
+}
+
+/**
+ * A document version is the set of its head changes, so (account, path, version)
+ * determines the content; the generation and visibility come from the ref and
+ * are part of the key too.
+ */
+function preparedDocumentKey(apiDoc: Document): string | null {
+  if (!apiDoc.version) return null
+  const gen = apiDoc.generationInfo
+  return `${apiDoc.account}|${apiDoc.path}|${apiDoc.version}|${gen?.genesis ?? ''}|${gen?.generation ?? ''}|${
+    apiDoc.visibility
+  }`
+}
+
 export function prepareHMDocument(apiDoc: Document): HMDocument {
+  const cache = preparedDocumentCache
+  if (!cache) return prepareHMDocumentUncached(apiDoc)
+  const key = preparedDocumentKey(apiDoc)
+  if (key === null) return prepareHMDocumentUncached(apiDoc)
+  const hit = cache.get(key)
+  if (hit) return hit
+  const prepared = prepareHMDocumentUncached(apiDoc)
+  if (cache.size >= preparedDocumentCacheLimit) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
+  cache.set(key, prepared)
+  return prepared
+}
+
+function prepareHMDocumentUncached(apiDoc: Document): HMDocument {
   let docJSON = apiDoc.toJson({
     emitDefaultValues: true,
     enumAsInteger: false,
