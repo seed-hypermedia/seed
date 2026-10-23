@@ -423,6 +423,13 @@ export const apiInspectorRouteSchema = z.object({
 /** Navigation route for the desktop API inspector. */
 export type ApiInspectorRoute = z.infer<typeof apiInspectorRouteSchema>
 
+/** Route schema for the HM26 playground, the authority simulator the desktop app serves itself. */
+export const hm26PlaygroundRouteSchema = z.object({
+  key: z.literal('hm26-playground'),
+})
+/** Navigation route for the HM26 playground. */
+export type HM26PlaygroundRoute = z.infer<typeof hm26PlaygroundRouteSchema>
+
 /** Route for the desktop Query Documents playground. */
 export const queryDocumentsRouteSchema = z.object({
   key: z.literal('query-documents'),
@@ -481,6 +488,7 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   agentSessionRouteSchema,
   agentRunRouteSchema,
   apiInspectorRouteSchema,
+  hm26PlaygroundRouteSchema,
   queryDocumentsRouteSchema,
   exploreRouteSchema,
   feedRouteSchema,

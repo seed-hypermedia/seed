@@ -102,6 +102,12 @@ describe('computeSimpleRouteBreadcrumbs', () => {
     expect(result!.icon).toBeNull()
     expect(result!.windowTitle).toBe('API Inspector')
   })
+  it('hm26-playground', () => {
+    const result = computeSimpleRouteBreadcrumbs('hm26-playground')
+    expect(result).not.toBeNull()
+    expect(result!.items[0].name).toBe('HM26 Playground')
+    expect(result!.windowTitle).toBe('HM26 Playground')
+  })
   it('unknown key -> null', () => {
     expect(computeSimpleRouteBreadcrumbs('document')).toBeNull()
     expect(computeSimpleRouteBreadcrumbs('draft')).toBeNull()

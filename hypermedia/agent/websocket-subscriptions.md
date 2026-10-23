@@ -10,7 +10,7 @@ Endpoint: <!-- id:81Qi_5av -->
 /hm/api/agents/ws
 ```
 
-The legacy path `/agents/ws` stays served for clients holding an origin-only server URL.
+The legacy path `/agents/ws` stays served for clients holding an origin-only server URL. <!-- id:KesH3CSs -->
 
 Local URL (dev; release builds use port 3050): <!-- id:WN40e7Mr -->
 
@@ -122,7 +122,7 @@ Rules: <!-- id:VJd0eD_k -->
   - `sessions/<sessionId>` requires reader access to its agent. <!-- id:c2GU3GL- -->
   - `runs/<rootRunId>` requires reader access to its agent. <!-- id:JQdvUlVm -->
 
-The server fans events out to the owner and collaborator accounts. A public reader's socket is marked with the owner it reads through (`publicReadOf`), and the socket layer forwards the owner's events for that key to it, rewriting `accessRole` on `agents/` change frames to `reader` or `chatter`. A subscriber to `agents/<agentId>` also receives `change` frames whose key is `sessions/<id>` or `account/<ownerId>`, so a client must not drop frames whose key differs from the key it subscribed to.
+The server fans events out to the owner and collaborator accounts. A public reader's socket is marked with the owner it reads through (`publicReadOf`), and the socket layer forwards the owner's events for that key to it, rewriting `accessRole` on `agents/` change frames to `reader` or `chatter`. A subscriber to `agents/<agentId>` also receives `change` frames whose key is `sessions/<id>` or `account/<ownerId>`, so a client must not drop frames whose key differs from the key it subscribed to. <!-- id:ZdulePF1 -->
   - Accepted collaborators receive the agent's live service events under their own account subscription. Pending and revoked collaborators do not. <!-- id:cMdZUdG1 -->
   - A socket may not switch accounts after a successful subscription. <!-- id:JAODdem0 -->
 

@@ -20,6 +20,7 @@ Everything lives in one repository, [github.com/seed-hypermedia/seed](https://gi
 | [Mobile app](./apps/mobile.md) | The Expo app for iOS, Android and web. | `frontend/apps/mobile` | The Seed API of a site. <!-- id:Dlw0ycZV --> |
 | [Explorer](./apps/explorer.md) | A raw-data browser for the network: [documents](./protocol/documents.md), [blobs](./protocol/blobs.md), feeds, an API lab. | `frontend/apps/explore` | The Seed API of a site. <!-- id:3eLF4nKi --> |
 | [Seed Agents](./apps/agents.md) | The agent runtime: a signed action API, sessions, tools and [triggers](./agent/triggers.md). | `agents/` | The Seed API, as a client with delegated keys. <!-- id:tD5uUn5J --> |
+| [HM26 playground](./apps/playground.md) | A simulator for the tentative [HM26](./protocol/hm26-authority.md) authority and sync design, served by the desktop app at `/hm/playground`. | `frontend/apps/desktop/src/playground` | Nothing. Keys, peers and signatures are simulated. <!-- id:hrenJB7b --> |
 
 # The shared packages <!-- id:evdyBAUd -->
 

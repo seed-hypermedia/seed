@@ -84,6 +84,7 @@ const STATIC_WINDOW_TITLES: Partial<Record<NavRoute['key'], string>> = {
   'account-settings': 'Identity Settings',
   'site-settings': 'Space Settings',
   'api-inspector': 'API Inspector',
+  'hm26-playground': 'HM26 Playground',
   'query-documents': 'Query Documents',
   explore: 'Explore',
   agents: 'Agents',
@@ -146,6 +147,12 @@ export function computeSimpleRouteBreadcrumbs(routeKey: string): {
         items: [{name: 'API Inspector', id: null, crumbKey: 'api-inspector'}],
         icon: null,
         windowTitle: 'API Inspector',
+      }
+    case 'hm26-playground':
+      return {
+        items: [{name: 'HM26 Playground', id: null, crumbKey: 'hm26-playground'}],
+        icon: null,
+        windowTitle: 'HM26 Playground',
       }
     default:
       return null

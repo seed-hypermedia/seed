@@ -14,7 +14,7 @@ Notifications are centralized on purpose, for now. The desktop app no longer dis
 | Path <!-- col:qR4XvOrH --> | What it holds <!-- col:ifoNug0S --> <!-- id:tDmG-Goh --> |
 | --- | --- |
 | `app/main.ts` | Boot: opens the database, starts `Bun.serve` and the notifier loops. Bun loads `.env` from the working directory. <!-- id:JPaRGewy --> |
-| `app/routes.ts` | The route table: canonical paths, legacy aliases, CORS preflight. |
+| `app/routes.ts` | The route table: canonical paths, legacy aliases, CORS preflight. <!-- id:g3EixSrS --> |
 | `app/db.ts` | The SQLite schema, migrations and statements. <!-- id:n6NOF2qZ --> |
 | `app/email-notifier.ts` | The loops that read the activity feed, classify events, write inbox rows and send email. <!-- id:oM6DMnjS --> |
 | `app/notification-state.ts` | The unified state API: snapshot and actions. <!-- id:Ai6QJTgG --> |
@@ -43,7 +43,7 @@ Each loop keeps a cursor in the `notifier_status` table. Event ids are derived f
 
 Some pieces exist only in name. `site-doc-update` exists in the payload schema and the `notifyOwnedDocChange` flag exists in the settings, but the notifier has a TODO where document-update delivery should be, so nobody gets document-change email today. Batch-only notifications are not clearly written to the inbox. <!-- id:f42bC6WP -->
 
-The immediate loop advances its cursor in a `finally` block, so a pass that throws part way still marks its events processed. A transient daemon or SMTP failure can therefore drop the notifications in that batch. Inbox rows are written before email is attempted, so an email failure alone loses only the email.
+The immediate loop advances its cursor in a `finally` block, so a pass that throws part way still marks its events processed. A transient daemon or SMTP failure can therefore drop the notifications in that batch. Inbox rows are written before email is attempted, so an email failure alone loses only the email. <!-- id:oMKszosS -->
 
 # Storage <!-- id:5tYConwM -->
 
@@ -61,15 +61,15 @@ One SQLite file, `web-db.sqlite`, in `DATA_DIR` or the working directory. The ta
 
 The watermark design keeps "mark all as read" to one row and makes unread toggling reversible. <!-- id:Ly-Oh-wd -->
 
-## Read state rules
+## Read state rules <!-- id:gMbaHwkp -->
 
-Read state is `{markAllReadAtMs, readEvents}` per account, and the same pure functions in `@shm/shared` (`models/notification-read-logic.ts`) decide it on the server, in the desktop app and in the browser. The rules are chosen so that every device converges on the same answer whatever order the actions arrive in.
-  - An event is read when its time is at or below the watermark, or when it is listed in `readEvents`. An old event that arrives after "mark all as read" is therefore already read.
-  - Merging takes the higher watermark, unions the read events keyed by event id with the later time winning, and then drops every entry at or below the merged watermark. `readEvents` only grows with items read one by one since the last "mark all as read".
-  - Marking an event unread below the watermark lowers the watermark to just before that event and re-lists the loaded events between as explicit reads, so nothing else on screen flips to unread.
-  - Watermarks are wall-clock times from the device that set them. A device with a clock in the future marks more as read than intended. This is the accepted cost of a timestamp watermark.
+Read state is `{markAllReadAtMs, readEvents}` per account, and the same pure functions in `@shm/shared` (`models/notification-read-logic.ts`) decide it on the server, in the desktop app and in the browser. The rules are chosen so that every device converges on the same answer whatever order the actions arrive in. <!-- id:YP-_dYKV -->
+  - An event is read when its time is at or below the watermark, or when it is listed in `readEvents`. An old event that arrives after "mark all as read" is therefore already read. <!-- id:kkhFO5cs -->
+  - Merging takes the higher watermark, unions the read events keyed by event id with the later time winning, and then drops every entry at or below the merged watermark. `readEvents` only grows with items read one by one since the last "mark all as read". <!-- id:qTgiDOEN -->
+  - Marking an event unread below the watermark lowers the watermark to just before that event and re-lists the loaded events between as explicit reads, so nothing else on screen flips to unread. <!-- id:YKIUW5HM -->
+  - Watermarks are wall-clock times from the device that set them. A device with a clock in the future marks more as read than intended. This is the accepted cost of a timestamp watermark. <!-- id:CFMEJvoW -->
 
-Event ids and times are the notifier's own (`feedEventId`, derived from the blob), so duplicate or reordered feed pages never split one notification into two.
+Event ids and times are the notifier's own (`feedEventId`, derived from the blob), so duplicate or reordered feed pages never split one notification into two. <!-- id:wF3NFeWH -->
 
 # The HTTP API <!-- id:pJLQwr0D -->
 
@@ -86,19 +86,20 @@ Every route is canonical under `/hm/api/notify/<leaf>`. The API leaves are also 
 | `unsubscribe` | `/hm/api/unsubscribe` | token; POST is the RFC 8058 one-click unsubscribe, GET unsubscribes and redirects to the settings page <!-- id:xuF-MMYl --> |
 | `verify-email` | none | email link (GET): verifies the notification email, then redirects to the settings page <!-- id:U9FYAb_Z --> |
 | `read-redirect` | none | email link (GET): marks the notification read, then redirects to `redirectTo` (only `http:`/`https:` targets; otherwise the settings page) <!-- id:ZI1Ctfrl --> |
-| `health` | none | GET, `200 {status: "ok", service: "notify", commit}` |
+| `health` | none | GET, `200 {status: "ok", service: "notify", commit}` <!-- id:t8T8X0L_ --> |
 
-**Links in emails.** Email links are built from the origin of `NOTIFY_SERVICE_HOST` (falling back to `SEED_BASE_URL`), so they always point at the site that hosts notify:
+**Links in emails.** Email links are built from the origin of `NOTIFY_SERVICE_HOST` (falling back to `SEED_BASE_URL`), so they always point at the site that hosts notify: <!-- id:co92tZzJ -->
 
-| Link | URL |
+<!-- id:JHwjm9HA -->
+| Link <!-- col:LXBMISx- --> | URL <!-- col:sMsSwqY4 --> <!-- id:-8YsoRyK --> |
 | --- | --- |
-| Unsubscribe and Manage notifications (footer) | `<origin>/hm/email-notifications?token=<adminToken>`, the [web app](./web.md)'s settings page. Never the unsubscribe endpoint: link scanners prefetch body links with GET. |
-| `List-Unsubscribe` header (RFC 8058 one-click POST) | `<origin>/hm/api/notify/unsubscribe?token=<adminToken>` |
-| Open a mention, reply or discussion | `<origin>/hm/api/notify/read-redirect?token=…&accountId=…&eventId=…&eventAtMs=…&redirectTo=<comment url>` |
-| Verify the notification email | `<origin>/hm/api/notify/verify-email?token=<verification token>`, which redirects to `/hm/email-notifications?token=<adminToken>&verification=<result>` |
-| Welcome email's site link | `<origin>` |
+| Unsubscribe and Manage notifications (footer) | `<origin>/hm/email-notifications?token=<adminToken>`, the [web app](./web.md)'s settings page. Never the unsubscribe endpoint: link scanners prefetch body links with GET. <!-- id:AcaQLKVv --> |
+| `List-Unsubscribe` header (RFC 8058 one-click POST) | `<origin>/hm/api/notify/unsubscribe?token=<adminToken>` <!-- id:Sn-90ccM --> |
+| Open a mention, reply or discussion | `<origin>/hm/api/notify/read-redirect?token=…&accountId=…&eventId=…&eventAtMs=…&redirectTo=<comment url>` <!-- id:kp9Iovgi --> |
+| Verify the notification email | `<origin>/hm/api/notify/verify-email?token=<verification token>`, which redirects to `/hm/email-notifications?token=<adminToken>&verification=<result>` <!-- id:eR_KHAML --> |
+| Welcome email's site link | `<origin>` <!-- id:nnCvTBz4 --> |
 
-The redirects use a relative `Location`, so they resolve on the public origin the email pointed at whatever host the proxy forwards to. Links in emails sent before the move to `/hm/api/notify` (the old `/hm/notification-read-redirect` and `/hm/notification-email-verify` pages) no longer work.
+The redirects use a relative `Location`, so they resolve on the public origin the email pointed at whatever host the proxy forwards to. Links in emails sent before the move to `/hm/api/notify` (the old `/hm/notification-read-redirect` and `/hm/notification-email-verify` pages) no longer work. <!-- id:vg4KRZ22 -->
 
 **Email prevalidation.** A vault that has already verified a person's email signs `{email, signer, host}` with its [daemon](./daemon.md)'s key. The notify service accepts that instead of sending a verification email only when the host is in `NOTIFY_TRUSTED_PREVALIDATORS`, and only after fetching the host's `/hm/api/config` and checking that `signerAccountUid` matches the signer. <!-- id:FftEpzmA -->
 
@@ -113,7 +114,7 @@ The redirects use a relative `Location`, so they resolve on the public origin th
 | `SEED_BASE_URL` | The gateway [site](../protocol/sites.md) used for document links when a document's own site is unknown, and the email-link origin when `NOTIFY_SERVICE_HOST` is unset. <!-- id:dUCuD8GL --> |
 | `NOTIFY_SERVICE_HOST` | This service's own public base URL, canonically `https://<site>/hm/api/notify` (an origin-only value is accepted). Email links use its origin. The retired hosted hostnames `notify.seed.hyper.media` and `notify-dev.seed.hyper.media` are rewritten to `https://hyper.media/hm/api/notify` and `https://dev.hyper.media/hm/api/notify`. <!-- id:liIarWt- --> |
 | `NOTIFY_SMTP_HOST`, `NOTIFY_SMTP_PORT`, `NOTIFY_SMTP_USER`, `NOTIFY_SMTP_PASSWORD`, `NOTIFY_SENDER` | Outgoing mail over SMTP, STARTTLS on port 587 by default (465 switches to implicit TLS, which is unreliable under Bun). Without host, user and password (and no relay), emails are logged and dropped. <!-- id:9NBHNLks --> |
-| `NOTIFY_EMAIL_RELAY_URL`, `NOTIFY_EMAIL_RELAY_TOKEN` | The Seed hosting email relay: each email is one `POST <url>` with `Authorization: Bearer <token>` and a JSON body `{to, subject, text, html?}`; the relay sets the sender. Set together, they win over the SMTP variables, so an [enterprise](../build/self-hosting.md) instance needs no SMTP account. A reply other than 2xx fails the send like an SMTP rejection. |
+| `NOTIFY_EMAIL_RELAY_URL`, `NOTIFY_EMAIL_RELAY_TOKEN` | The Seed hosting email relay: each email is one `POST <url>` with `Authorization: Bearer <token>` and a JSON body `{to, subject, text, html?}`; the relay sets the sender. Set together, they win over the SMTP variables, so an [enterprise](../build/self-hosting.md) instance needs no SMTP account. A reply other than 2xx fails the send like an SMTP rejection. <!-- id:kPQbruXE --> |
 | `NOTIFY_TRUSTED_PREVALIDATORS` | [Vault](./vault.md) origins whose email prevalidation is trusted. <!-- id:IYib82x9 --> |
 | `NOTIFY_SENTRY_DSN` | Error reporting. <!-- id:uhMVrRkx --> |
 
@@ -134,15 +135,15 @@ pnpm --filter @shm/notify test   # vitest for the mocked suites, then bun test f
 
 The [desktop app](./desktop.md) keeps a local optimistic notification store and syncs it with `/hm/api/notifications`, signing each request through the [daemon](./daemon.md)'s `SignData` RPC. The notify URL comes from `VITE_NOTIFY_SERVICE_HOST`, `https://hyper.media/hm/api/notify` in release builds. Account settings can override it, and the override is saved in the synced [vault](./vault.md) state. <!-- id:Mip7OfDa -->
 
-The store lives in the main process, in [`frontend/apps/desktop/src/app-notifications.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-notifications.ts), persisted in Electron app storage under the key `NotificationsState-v001`. For every key in the daemon's keystore it holds the last snapshot (inbox, read state, email config), a queue of actions not yet acknowledged, and the time and error of the last sync. A change in the interface is reduced into the local snapshot first, queued, and then synced. A sync fetches the server's snapshot, replays the queue on top, sends `apply-notification-actions` if the queue is not empty, and drops the actions the server applied. The loop runs every 30 seconds while a window is focused and every 5 minutes otherwise, and on demand. The renderer reads the local store over tRPC and never calls the notify service itself. So the desktop app can show state the server has not confirmed yet, and stale state while the service is unreachable. The files `app-notification-config.ts`, `app-notification-inbox.ts` and `app-notification-read-state.ts` next to it are thin tRPC facades over the one store.
+The store lives in the main process, in [`frontend/apps/desktop/src/app-notifications.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-notifications.ts), persisted in Electron app storage under the key `NotificationsState-v001`. For every key in the daemon's keystore it holds the last snapshot (inbox, read state, email config), a queue of actions not yet acknowledged, and the time and error of the last sync. A change in the interface is reduced into the local snapshot first, queued, and then synced. A sync fetches the server's snapshot, replays the queue on top, sends `apply-notification-actions` if the queue is not empty, and drops the actions the server applied. The loop runs every 30 seconds while a window is focused and every 5 minutes otherwise, and on demand. The renderer reads the local store over tRPC and never calls the notify service itself. So the desktop app can show state the server has not confirmed yet, and stale state while the service is unreachable. The files `app-notification-config.ts`, `app-notification-inbox.ts` and `app-notification-read-state.ts` next to it are thin tRPC facades over the one store. <!-- id:SXt6lf7Y -->
 
 ## Web API <!-- id:Pn8BiNdQ -->
 
 A [site](../protocol/sites.md) advertises its notify service in `/hm/api/config` as `notifyServiceUrl` (the canonical base, such as `https://site.com/hm/api/notify`) and, for older clients, `notifyServiceHost` (that base's origin) (see [The web API](../build/web-api.md)), set from `NOTIFY_SERVICE_HOST` on the [web app](./web.md). The web app's `/hm/notifications` page signs requests in the browser with the [session key](../build/sign-in.md) and stores the notify host it learned at sign-in. The [mobile app](./mobile.md) reads the same field and falls back to the hosted service. <!-- id:qiXEWgy5 -->
 
-In the browser the notify host follows the signed-in session, not the page. The [vault](./vault.md) callback carries `notifyServerUrl`, the web app stores it in IndexedDB next to the session key, and [`frontend/apps/web/app/web-notifications.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/web/app/web-notifications.ts) reads it from there. The browser signs the CBOR request with WebCrypto, adds `accountUid` because the session key is a delegate, fetches the snapshot into React Query, reduces each action into the cached snapshot before sending it, and refetches after the server answers. The browser never classifies feed events. It only renders the `NotificationPayload` rows the service persisted.
+In the browser the notify host follows the signed-in session, not the page. The [vault](./vault.md) callback carries `notifyServerUrl`, the web app stores it in IndexedDB next to the session key, and [`frontend/apps/web/app/web-notifications.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/web/app/web-notifications.ts) reads it from there. The browser signs the CBOR request with WebCrypto, adds `accountUid` because the session key is a delegate, fetches the snapshot into React Query, reduces each action into the cached snapshot before sending it, and refetches after the server answers. The browser never classifies feed events. It only renders the `NotificationPayload` rows the service persisted. <!-- id:eH1YAlV5 -->
 
-The web app has a second, older way to turn on email: the unsigned subscribe form in `email-notifications.tsx`, also offered after commenting, which posts JSON to `/hm/api/public-subscribe` and creates a legacy [site](../protocol/sites.md) subscription for the address. It is a separate product path from the signed inbox, with its own token-based settings page (`/hm/email-notifications`, served by the web app, which calls `email-notif-token`).
+The web app has a second, older way to turn on email: the unsigned subscribe form in `email-notifications.tsx`, also offered after commenting, which posts JSON to `/hm/api/public-subscribe` and creates a legacy [site](../protocol/sites.md) subscription for the address. It is a separate product path from the signed inbox, with its own token-based settings page (`/hm/email-notifications`, served by the web app, which calls `email-notif-token`). <!-- id:L2H4w7iB -->
 
 ## SDK <!-- id:yJl1ieUn -->
 
@@ -158,7 +159,7 @@ As of September 2026, the team plans three changes. None of them is built. <!-- 
   - Move subscriptions and read state out of this central server into private peer-to-peer [sync](../protocol/network.md) once [private documents](../protocol/privacy.md) mature. <!-- id:B4Mbt39y -->
   - Restore the link between an email and the [account](../protocol/identity.md) that subscribes. It was dropped in 2025 and later called a mistake. <!-- id:JyQPdkoX -->
   - Replace the legacy [site](../protocol/sites.md) subscriptions with per-site options for document changes, [discussions](../protocol/comments.md), comments and mentions. <!-- id:8985JUGG -->
-  - Email the recipient when someone grants them a writer [capability](../protocol/permissions.md), so "Add as writer" works as an invitation. The notifier does not look at `Capability` blobs today. (The Enterprise Edition covers the invite case differently: the [vault](./vault.md) emails the invitation and grants the writer capability itself.)
+  - Email the recipient when someone grants them a writer [capability](../protocol/permissions.md), so "Add as writer" works as an invitation. The notifier does not look at `Capability` blobs today. (The Enterprise Edition covers the invite case differently: the [vault](./vault.md) emails the invitation and grants the writer capability itself.) <!-- id:j1j_Bxi4 -->
 
 # See also <!-- id:kO84rx1N -->
 

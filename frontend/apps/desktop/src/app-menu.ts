@@ -186,6 +186,15 @@ export function createAppMenu() {
             })
           },
         },
+        {
+          id: 'route_hm26_playground',
+          label: 'HM26 Playground',
+          click: () => {
+            openRoute({
+              key: 'hm26-playground',
+            })
+          },
+        },
         {type: 'separator'},
         {role: 'resetZoom'},
         {role: 'zoomIn'},

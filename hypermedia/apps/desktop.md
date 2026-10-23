@@ -22,7 +22,9 @@ The app is four processes. The main process spawns the [daemon](./daemon.md) wit
 
 The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on 56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local agents server and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge refuses cross-site browser requests. <!-- id:0UKp_9Fm -->
 
-Two things run once per app in the main process rather than once per window. The sync service, [`src/app-sync.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-sync.ts), keeps a reference-counted list of the resources any window is showing, runs [discovery](../protocol/network.md) for each of them on a loop, polls the daemon's activity feed, and broadcasts React Query invalidations to every window. Its intervals stretch ten times when no window is focused. The notification store described on [Notify](./notify.md) lives there too. Windows also share hover state: pointing at a block or a resource broadcasts `hypermediaHoverIn` over IPC, and every window highlights the elements with the matching `data-blockid` or `data-resourceid`.
+The same server serves the [HM26 playground](./playground.md) at `/hm/playground` and its JSON API at `/api/playground`. It is a simulator of the tentative HM26 authority model that runs entirely in the main process and keeps its world in `playground/world.json` under user data. <!-- id:yF59zGzp -->
+
+Two things run once per app in the main process rather than once per window. The sync service, [`src/app-sync.ts`](https://github.com/seed-hypermedia/seed/blob/main/frontend/apps/desktop/src/app-sync.ts), keeps a reference-counted list of the resources any window is showing, runs [discovery](../protocol/network.md) for each of them on a loop, polls the daemon's activity feed, and broadcasts React Query invalidations to every window. Its intervals stretch ten times when no window is focused. The notification store described on [Notify](./notify.md) lives there too. Windows also share hover state: pointing at a block or a resource broadcasts `hypermediaHoverIn` over IPC, and every window highlights the elements with the matching `data-blockid` or `data-resourceid`. <!-- id:FBNvHCOE -->
 
 # Where it keeps things <!-- id:rXZ_ZjIJ -->
 
@@ -38,15 +40,15 @@ Every [document](../protocol/documents.md) goes through the same four states: lo
 
 Switching to an [account](../protocol/identity.md) without [edit access](../protocol/permissions.md) saves the draft and leaves editing. If a newer [version](../protocol/documents.md) is published elsewhere while you edit, the app notes it and does not force it on you. The whole flow is one state machine in `@shm/shared`, shared with the [web app](./web.md). <!-- id:oPC5qmXB -->
 
-"New" on a document creates a child draft in place: a card with an editable title appears at the bottom of the parent, and opening it goes to the full editor. Every unpublished child draft of the document you are viewing shows as a card there. The parent is not changed until the child publishes, so there is nothing to discard on it. The write is built by `buildInlineDraftWrite` in `@shm/shared` and stored like any other draft.
+"New" on a document creates a child draft in place: a card with an editable title appears at the bottom of the parent, and opening it goes to the full editor. Every unpublished child draft of the document you are viewing shows as a card there. The parent is not changed until the child publishes, so there is nothing to discard on it. The write is built by `buildInlineDraftWrite` in `@shm/shared` and stored like any other draft. <!-- id:J7Ii596Q -->
 
-# The editor
+# The editor <!-- id:y_RsE-Ql -->
 
-`@shm/editor` ([`frontend/packages/editor`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/editor)) is a TipTap 2 editor over ProseMirror, derived from BlockNote. Its ProseMirror schema is three layers: `blockChildren` (a list with a `listType` of `Group`, `Unordered`, `Ordered` or `Blockquote`) holds `blockNode`s, and each `blockNode` holds one content block (paragraph, heading, image, embed, query and so on) and an optional `blockChildren` of its own. The rendered DOM carries `data-node-type`, `data-content-type` and `data-id` so styles and tests can target blocks without depending on class names. The [block](../protocol/blocks.md) format on the wire is the SDK's `HMBlock`; the conversion both ways lives in the [SDK](../build/sdk.md) (`hmblock-to-editorblock`), and the editor never changes it.
+`@shm/editor` ([`frontend/packages/editor`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/editor)) is a TipTap 2 editor over ProseMirror, derived from BlockNote. Its ProseMirror schema is three layers: `blockChildren` (a list with a `listType` of `Group`, `Unordered`, `Ordered` or `Blockquote`) holds `blockNode`s, and each `blockNode` holds one content block (paragraph, heading, image, embed, query and so on) and an optional `blockChildren` of its own. The rendered DOM carries `data-node-type`, `data-content-type` and `data-id` so styles and tests can target blocks without depending on class names. The [block](../protocol/blocks.md) format on the wire is the SDK's `HMBlock`; the conversion both ways lives in the [SDK](../build/sdk.md) (`hmblock-to-editorblock`), and the editor never changes it. <!-- id:kSH0IUlM -->
 
-Pasted HTML arrives from ProseMirror's parser as a flat list, so `transformPasted` in `BlockChildren.ts` hands it to `normalizeFragment.ts`, which rebuilds the nested `blockNode` structure before insertion.
+Pasted HTML arrives from ProseMirror's parser as a flat list, so `transformPasted` in `BlockChildren.ts` hands it to `normalizeFragment.ts`, which rebuilds the nested `blockNode` structure before insertion. <!-- id:XsEeH-Vt -->
 
-Typography is one class. `.hm-prose`, defined in `@shm/ui` ([`src/hm-prose.css`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/hm-prose.css)) on top of `@tailwindcss/typography`, sets the font stacks, heading scale and block rhythm in relative units, keyed off the `data-node-type` and `data-content-type` attributes. The same class is applied to the draft editor, the read-only viewer, embeds, comment bodies (`.hm-prose.is-comment`) and the server-rendered HTML on the [web](./web.md), so a document looks the same in all of them. Size modifiers `.hm-prose-sm`, `-base`, `-lg` and `-xl` scale a whole surface.
+Typography is one class. `.hm-prose`, defined in `@shm/ui` ([`src/hm-prose.css`](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/ui/src/hm-prose.css)) on top of `@tailwindcss/typography`, sets the font stacks, heading scale and block rhythm in relative units, keyed off the `data-node-type` and `data-content-type` attributes. The same class is applied to the draft editor, the read-only viewer, embeds, comment bodies (`.hm-prose.is-comment`) and the server-rendered HTML on the [web](./web.md), so a document looks the same in all of them. Size modifiers `.hm-prose-sm`, `-base`, `-lg` and `-xl` scale a whole surface. <!-- id:tDHzqtwa -->
 
 # Inspecting the raw data <!-- id:D8QcuKZ1 -->
 
@@ -55,6 +57,8 @@ Two desktop-only surfaces expose the protocol directly. <!-- id:SHBUOTJL -->
   - **The blob editor**, the `raw-blob` route, opens any `ipfs://` [CID](../protocol/blobs.md) that decodes as DAG-CBOR and shows it as DAG-JSON. You can edit it and publish it as a new [blob](../protocol/blobs.md) with a sha2-256 CID. It reads through the daemon's `/ipfs/<cid>.dagjson` route, which searches the network if the blob is not local. Links and bytes are converted back to real IPLD values before encoding, so republishing a blob with links does not corrupt them. <!-- id:ffSy0AEO -->
 
 A blob you publish this way is stored but is not public until a public change, [comment](../protocol/comments.md) or profile links its CID. See [Files](../protocol/files.md). <!-- id:BEwjBgan -->
+
+A third surface is not about today's data at all. **The HM26 playground**, `/hm/playground` on the API bridge port and **View → HM26 Playground** in the menu, loads a use case, a preset of simulated blobs, and lets you edit it and sync it under the proposed [HM26 authority model](../protocol/hm26-authority.md), so the rules can be tried before the daemon implements them. See [The HM26 playground](./playground.md). <!-- id:7R4W_0Ga -->
 
 # Working with it <!-- id:80mk_eOH -->
 
@@ -74,9 +78,9 @@ The renderer publishes through `@seed-hypermedia/client`, the [SDK](../build/sdk
 
 The desktop app starts a local [agents server](./agents.md) and shows the agents interface. You can configure hosted or self-hosted agent servers in its place. The chat, tools and [triggers](../agent/triggers.md) are described under [Seed Agents](../agent.md). <!-- id:OQnaBari -->
 
-## Notifications
+## Notifications <!-- id:36aQCiwC -->
 
-The inbox page reads a local copy of the account's notification state that the main process syncs with the [notify service](./notify.md), signing requests through the daemon. Release builds default to `https://hyper.media/hm/api/notify` (dev builds `https://dev.hyper.media/hm/api/notify`); the vault's notify setting overrides it, and a site's email subscribers come from the notify service its `/hm/api/config` advertises as `notifyServiceUrl` (or the older `notifyServiceHost`). Marking things read works offline and syncs later. [Notify](./notify.md) describes the store and the read-state rules.
+The inbox page reads a local copy of the account's notification state that the main process syncs with the [notify service](./notify.md), signing requests through the daemon. Release builds default to `https://hyper.media/hm/api/notify` (dev builds `https://dev.hyper.media/hm/api/notify`); the vault's notify setting overrides it, and a site's email subscribers come from the notify service its `/hm/api/config` advertises as `notifyServiceUrl` (or the older `notifyServiceHost`). Marking things read works offline and syncs later. [Notify](./notify.md) describes the store and the read-state rules. <!-- id:H444btBN -->
 
 # Development notes <!-- id:TUREvD9- -->
 
@@ -89,6 +93,7 @@ The inbox page reads a local copy of the account's notification state that the m
 <!-- id:PHFBxAlV -->
 - [The daemon](./daemon.md), [The agents service](./agents.md), [The CLI](./cli.md), [The web app](./web.md) <!-- id:IOPgXQO6 -->
 - [Documents](../protocol/documents.md), [Identity](../protocol/identity.md), [Publish a folder](../build/publish-a-folder.md) <!-- id:xg6Cx51h -->
+- [The HM26 playground](./playground.md), [The HM26 authority model](../protocol/hm26-authority.md) <!-- id:DgnX-Xzm -->
 
 ## Seed Hosting <!-- id:mW_AKbPg -->
 

@@ -72,7 +72,7 @@ export function getFocusedWindow(): BrowserWindow | null | undefined {
 }
 
 // Routes that should prevent duplicate windows
-const SINGLE_INSTANCE_ROUTES = new Set(['contacts', 'settings', 'agents', 'api-inspector'])
+const SINGLE_INSTANCE_ROUTES = new Set(['contacts', 'settings', 'agents', 'api-inspector', 'hm26-playground'])
 
 // Check if a route key should prevent duplicate windows
 function shouldPreventDuplicateWindow(routeKey: string): boolean {
@@ -541,6 +541,8 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
 
     // Only handle iframe navigations, not main frame
     if (!isMainFrame) {
+      // Pages the app serves itself (the HM26 playground on the API port) load in a frame inside the app.
+      if (url.startsWith('http://localhost:') || url.startsWith('http://127.0.0.1:')) return
       // Allow embed domains to load their content
       const allowedEmbedDomains = [
         'youtube.com',

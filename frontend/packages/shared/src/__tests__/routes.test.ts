@@ -366,6 +366,9 @@ describe('navRouteSchema', () => {
   test('parses the api inspector route', () => {
     expect(navRouteSchema.parse({key: 'api-inspector'})).toEqual({key: 'api-inspector'})
   })
+  test('parses the HM26 playground route', () => {
+    expect(navRouteSchema.parse({key: 'hm26-playground'})).toEqual({key: 'hm26-playground'})
+  })
 
   test('parses the query documents route', () => {
     expect(navRouteSchema.parse({key: 'query-documents'})).toEqual({key: 'query-documents'})

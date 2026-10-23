@@ -20,6 +20,8 @@ The team made these decisions in tech syncs and design meetings and recorded the
 
 **Affected pages.** [Documents](./documents.md), [URLs](./urls.md), [Comments](./comments.md), [Ref](../ref.md). <!-- id:fhHgoGgG -->
 
+**Try it.** The authority side of the redesign has a written first policy, [The HM26 authority model](./hm26-authority.md), and a simulator, the [HM26 playground](../apps/playground.md) in the desktop app, so exact-scope grants, permanent admins, revocation and the sync fence can be tried by hand. Both are tentative and change nothing that ships. <!-- id:V8j7-HWR -->
+
 # Home documents become profiles <!-- id:4QzHEyF6 -->
 
 **Where it comes from.** 2026-05-14 tech sync and the HM26 discussions. <!-- id:GHTO4T-V -->
@@ -38,6 +40,7 @@ Today an [account](./identity.md)'s [site](./sites.md) is rooted at its home doc
   - Path-scoped and non-recursive capabilities are being discontinued. Invitations will be to a space's home only. A writer of a space is a writer of the whole space. Non-recursive sharing is being removed from the app immediately. <!-- id:ZR3LLWQz -->
   - A group concept, one capability granting several keys at once, is wanted. The team reviewed Keyhive and UCAN and prefers fewer keys. The idea is a permanode per space whose admins are permanent, with admin removal done by rotating the permanode. <!-- id:iuciCZaZ -->
   - Revocation and an editor or read-only role remain declared in the proto and unbuilt. No date is attached. <!-- id:-DSldTwV -->
+  - The HM26 proposal for all of this, reader, writer and permanent admin on exact resources with admin-only revocation, is written up in [The HM26 authority model](./hm26-authority.md) and simulated in the [HM26 playground](../apps/playground.md). <!-- id:gd_3ZgQb -->
   - The permissions investigation's synthesis, "everything is a grant", proposes one signed statement kind that covers public publishing, private spaces, document sharing, share links and comments. It builds on the observation that the visibility table already behaves like grants to an audience. It is a design record only. Nothing was decided. <!-- id:ehm767Kz -->
 
 **Affected pages.** [Permissions](./permissions.md), [Capability](../capability.md), [Role](../role.md). <!-- id:WDqQGNUs -->
@@ -112,3 +115,5 @@ If a concept page and this page disagree, the concept page describes the code an
 - [Permissions](./permissions.md): today's capabilities. <!-- id:h3Bulcb3 -->
 - [Privacy](./privacy.md): today's private documents. <!-- id:G_EiK-Yy -->
 - [Network](./network.md): today's sync and discovery. <!-- id:fG0dLnMy -->
+
+The [parent and child discussion](./hm26-children.md) compares child-owned parent claims with parent-owned named entries for paths and navigation. Its [research notes](./hm26-children-research.md) collect the evidence and tradeoffs; the recommendation is a proposal, not an adopted protocol rule.

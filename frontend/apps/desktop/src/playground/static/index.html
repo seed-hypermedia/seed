@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b1113" />
+    <title>HM26 playground</title>
+    <link rel="stylesheet" href="/hm/playground/style.css" />
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/hm/playground/">HM26 <span>playground</span></a>
+      <label class="preset-pick"
+        >Use case
+        <select id="preset" aria-label="Use case"></select>
+      </label>
+      <span id="preset-state" class="muted"></span>
+      <span id="rev" class="muted"></span>
+      <div class="header-actions">
+        <button id="undo" disabled>Undo</button><button id="redo" disabled>Redo</button
+        ><button id="export">Export</button><button id="import">Import</button
+        ><input type="file" id="import-file" accept="application/json,.json" hidden />
+      </div>
+    </header>
+    <main>
+      <p id="preset-note" class="preset-note"></p>
+      <div id="toast" role="status" aria-live="polite"></div>
+      <div class="columns">
+        <section class="world" aria-label="World">
+          <div class="section-head">
+            <div class="segmented" role="tablist">
+              <button data-view="blobs" class="active">Blobs</button><button data-view="authority">Authority</button
+              ><button data-view="placement">Placement</button><button data-view="sync">Sync</button>
+            </div>
+            <div>
+              <button id="add-key">+ Key</button><button id="add-resource">+ Resource</button
+              ><button id="add-blob" class="primary">+ Blob</button>
+            </div>
+          </div>
+          <div id="sync-lab" hidden></div>
+          <div id="keys" class="keys"></div>
+          <div id="resources"></div>
+        </section>
+        <aside class="inspector">
+          <div id="details" class="details"></div>
+        </aside>
+      </div>
+      <footer>
+        <a
+          href="https://hyper.media/hm/z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/hm26"
+          data-hm
+          target="_blank"
+          rel="noreferrer"
+          >HM26 schemas and notes</a
+        >
+        <a href="https://hyper.media/protocol/hm26-authority" data-hm target="_blank" rel="noreferrer"
+          >The authority model</a
+        >
+        <a href="https://hyper.media/apps/playground" data-hm target="_blank" rel="noreferrer"
+          >Playground guide and API</a
+        >
+        <a href="/api/playground" target="_blank" rel="noreferrer">/api/playground</a>
+        <span class="muted">Simulated keys and CIDs. Nothing here touches the network.</span>
+      </footer>
+    </main>
+    <dialog id="editor-dialog" aria-labelledby="editor-title">
+      <form id="object-form" class="editor-form">
+        <div class="editor-head">
+          <h2 id="editor-title">Add a blob</h2>
+          <button type="button" id="close-editor" aria-label="Close editor">×</button>
+        </div>
+        <div id="editor-fields"></div>
+        <p id="editor-error" role="alert"></p>
+        <div class="editor-footer">
+          <button type="button" id="cancel-editor">Cancel</button><button class="primary" id="save-object">Save</button>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="/hm/playground/app.mjs"></script>
+  </body>
+</html>

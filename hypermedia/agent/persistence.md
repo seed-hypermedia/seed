@@ -97,7 +97,7 @@ Important columns: <!-- id:OppHXSY2 -->
   - `account_id` <!-- id:oebAwFfP -->
   - `definition_cbor` <!-- id:t9NAtsIu -->
   - `state_dir` <!-- id:SuxIz7up -->
-  - `public_read`, `public_chat`: whether any signed account may read, or chat with, the agent
+  - `public_read`, `public_chat`: whether any signed account may read, or chat with, the agent <!-- id:ngbCAWc5 -->
   - `status` <!-- id:8euzUug0 -->
 
 `definition_cbor` encodes `AgentDefinition`. <!-- id:HGpQYrDd -->
@@ -258,10 +258,10 @@ Important columns: <!-- id:ANfEJZZZ -->
   - `trigger_id` <!-- id:UqkJ_5oc -->
   - `activity_key` <!-- id:r89Qat-g -->
   - `session_id` <!-- id:xrmU1MzV -->
-  - `run_id`: the headless run a `tool` or `script` continuation started
+  - `run_id`: the headless run a `tool` or `script` continuation started <!-- id:d3f7ubYR -->
   - `activity_cbor` <!-- id:k7sPpiN5 -->
-  - `context_cbor`: the snapshot of the trigger's name, prompt, and matched conditions at admission
-  - `body_digest`: a webhook body's digest, so a reused `Idempotency-Key` with a different body is refused
+  - `context_cbor`: the snapshot of the trigger's name, prompt, and matched conditions at admission <!-- id:W_qipipB -->
+  - `body_digest`: a webhook body's digest, so a reused `Idempotency-Key` with a different body is refused <!-- id:01yzh4Om -->
   - `status` <!-- id:s90Evv96 -->
   - `error` <!-- id:bR4PVqOd -->
 
@@ -365,9 +365,9 @@ Used by: <!-- id:1-pLN2bq -->
 
 Same client ID with identical request bytes replays the response. Same client ID with different request bytes returns `409`. <!-- id:xDb-SvJk -->
 
-# Open settings and planner statistics
+# Open settings and planner statistics <!-- id:2OnRulgz -->
 
-`openWithDatabase` sets `journal_mode=WAL`, a 64 MB `cache_size`, a 512 MB `mmap_size`, and `temp_store=MEMORY`, then runs `ANALYZE` on the small planner tables (`PLANNER_STATISTICS_TABLES`: runs, sessions, agents, collaborators, firings, continuations, and friends) at every open, deliberately leaving out `session_events` and `run_journal`. Without statistics the planner chose the account-wide index for per-session run lookups and pinned the server (2026-09-23); the hot queries also pin their index with `INDEXED BY`. Nothing runs `VACUUM`. See [operations](./operations.md).
+`openWithDatabase` sets `journal_mode=WAL`, a 64 MB `cache_size`, a 512 MB `mmap_size`, and `temp_store=MEMORY`, then runs `ANALYZE` on the small planner tables (`PLANNER_STATISTICS_TABLES`: runs, sessions, agents, collaborators, firings, continuations, and friends) at every open, deliberately leaving out `session_events` and `run_journal`. Without statistics the planner chose the account-wide index for per-session run lookups and pinned the server (2026-09-23); the hot queries also pin their index with `INDEXED BY`. Nothing runs `VACUUM`. See [operations](./operations.md). <!-- id:qAJynXLr -->
 
 # Secret encryption <!-- id:Mm3c29X6 -->
 

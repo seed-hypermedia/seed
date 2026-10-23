@@ -52,7 +52,7 @@ type AgentAction = UnsignedAgentAction & {
   5. signer is the account, or a locally authorized signer for it, or presents a delegation: `capability` names a [Capability](../capability.md) blob whose bytes come from `capabilityBlob`, from a delegation this server verified before, or from the HM network; the blob must be issued by `account`, delegate to `signer`, carry role `AGENT` or `WRITER`, not be self-issued, and be under 64 KiB; <!-- id:84U_5iGK -->
   6. action is valid for the transport. <!-- id:1BkfRowE -->
 
-Every verification failure is HTTP 401. A body that is not `application/cbor` is 415, and undecodable CBOR is 400.
+Every verification failure is HTTP 401. A body that is not `application/cbor` is 415, and undecodable CBOR is 400. <!-- id:v5PP0bQm -->
 
 Implementation: <!-- id:siTzEryg -->
   - `agents/src/auth.ts`: shape/signature/authorization. <!-- id:ifLx8GI- -->
@@ -94,8 +94,8 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `CancelProviderOAuth` <!-- id:liu6iRv_ -->
   - `SetSecret` <!-- id:NI0hTFIg -->
   - `GetAgent` <!-- id:Hud0FKeJ -->
-  - `RegisterSigner` (deprecated; delegations now ride in every envelope)
-  - `ImportSigningIdentity`
+  - `RegisterSigner` (deprecated; delegations now ride in every envelope) <!-- id:rOcrpz8z -->
+  - `ImportSigningIdentity` <!-- id:8ZEglu4j -->
   - `UpdateAgent` <!-- id:vAg-7_PX -->
   - `DeleteAgent` <!-- id:qwa__7uq -->
   - `ListAgentTriggers` <!-- id:qe0-cmSS -->
@@ -103,16 +103,16 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `CreateAgentTrigger` <!-- id:e-DLTg3i -->
   - `UpdateAgentTrigger` <!-- id:hkAMZHcp -->
   - `DeleteAgentTrigger` <!-- id:DRLpAMii -->
-  - `CombineAgentTriggers`
+  - `CombineAgentTriggers` <!-- id:R5QNJ3Nq -->
   - `ListAgentMemory` <!-- id:6JNPVeDk -->
-  - `ListAgentMemoryDir`
+  - `ListAgentMemoryDir` <!-- id:Dy7mT9vr -->
   - `ListAgentTools` <!-- id:CdHDZq2J -->
-  - `SaveAgentTool`
-  - `DeleteAgentTool`
-  - `ListMcpServers`
-  - `SetMcpServer`
-  - `DeleteMcpServer`
-  - `RefreshMcpServer`
+  - `SaveAgentTool` <!-- id:7NjlPTHG -->
+  - `DeleteAgentTool` <!-- id:T66xgCmz -->
+  - `ListMcpServers` <!-- id:w4nzT1gD -->
+  - `SetMcpServer` <!-- id:RhVoclo6 -->
+  - `DeleteMcpServer` <!-- id:5VHXcOer -->
+  - `RefreshMcpServer` <!-- id:oBjTYEmw -->
   - `ReadAgentMemoryFile` <!-- id:zURG_ATO -->
   - `WriteAgentMemoryFile` <!-- id:vrAHyHX- -->
   - `DeleteAgentMemoryFile` <!-- id:XQ3Loys4 -->
@@ -123,7 +123,7 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `UpdateSession` <!-- id:AhCWr-hY -->
   - `DeleteSession` <!-- id:vyqpa9m8 -->
   - `GetSession` <!-- id:iszDQeOJ -->
-  - `GetSessionEvent`
+  - `GetSessionEvent` <!-- id:UQnbscLg -->
   - `MessageSession` <!-- id:PPkdIoCy -->
   - `InvokeSessionTool` <!-- id:-HEDVrWa -->
   - `UploadSessionAttachment` <!-- id:sYDub4m5 -->
@@ -157,11 +157,11 @@ type ErrorResponse = {
 
 HTTP status is set on expected API errors (`APIError`, with an optional `code`). Unexpected errors are logged and returned as `500` with `Internal server error: <message>`. <!-- id:pwrb18VG -->
 
-The status map: `401` any envelope or delegation failure; `415` a body that is not `application/cbor`; `400` undecodable CBOR, an unknown action, or invalid input; `403` the actor's access level is too low; `404` the resource does not exist or is not accessible (an agent you cannot read looks identical to one that does not exist); `409` an idempotency key reused with a different body, or a session with a live run; `413` an oversized upload chunk or attachment; `426` a client protocol the server no longer serves.
+The status map: `401` any envelope or delegation failure; `415` a body that is not `application/cbor`; `400` undecodable CBOR, an unknown action, or invalid input; `403` the actor's access level is too low; `404` the resource does not exist or is not accessible (an agent you cannot read looks identical to one that does not exist); `409` an idempotency key reused with a different body, or a session with a live run; `413` an oversized upload chunk or attachment; `426` a client protocol the server no longer serves. <!-- id:zqt66btS -->
 
-# Access levels
+# Access levels <!-- id:GO3attzp -->
 
-An agent has an owner, accepted collaborators with role `reader` or `writer`, and, when `publicRead` or `publicChat` is on, every other signed account as a `reader` or `chatter`. Actions are gated by level: **reader** (any of those), **chat** (every role except `reader`: owner, writer, chatter), **writer** (owner or writer), and **owner**. Reading an agent, its sessions, triggers, memory, and tools is reader level; creating a session, messaging it, invoking a tool as the user, uploading an attachment, stopping or retrying a run is chat level; editing the agent, its triggers, memory, and tools is writer level; collaborators and public access are owner level. State is stored under the owner's account whatever the actor's role; `#actionAccountId` resolves the owner for every action that names an agent, session, trigger, or run. The runtime behind each session is Pi, the model-loop library the server wraps.
+An agent has an owner, accepted collaborators with role `reader` or `writer`, and, when `publicRead` or `publicChat` is on, every other signed account as a `reader` or `chatter`. Actions are gated by level: **reader** (any of those), **chat** (every role except `reader`: owner, writer, chatter), **writer** (owner or writer), and **owner**. Reading an agent, its sessions, triggers, memory, and tools is reader level; creating a session, messaging it, invoking a tool as the user, uploading an attachment, stopping or retrying a run is chat level; editing the agent, its triggers, memory, and tools is writer level; collaborators and public access are owner level. State is stored under the owner's account whatever the actor's role; `#actionAccountId` resolves the owner for every action that names an agent, session, trigger, or run. The runtime behind each session is Pi, the model-loop library the server wraps. <!-- id:lA3WGWPd -->
 
 # Action reference <!-- id:TvquiIFE -->
 
@@ -542,9 +542,9 @@ Actions: <!-- id:bwunosHW -->
   - `ListAgentTriggers {agentId}` returns `{_: 'ListAgentTriggersResponse'; triggers: AgentTriggerInfo[]}`. <!-- id:bXFKEmdY -->
   - `GetAgentTrigger {triggerId}` returns `{_: 'GetAgentTriggerResponse'; trigger: AgentTriggerInfo; sessions: SessionInfo[]; firings: TriggerFiringInfo[]; webhookSecret?: string}` (at most 25 firings; the secret only for writers). <!-- id:zek5I_eN -->
   - `CreateAgentTrigger {agentId, trigger, clientRequestId?}` returns `{_: 'CreateAgentTriggerResponse'; trigger; webhookSecret?}` (the plaintext secret of a new webhook trigger). <!-- id:0u89fDzQ -->
-  - `CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}` merges the other trigger into this one and retires it with `mergedInto`. See [triggers](./triggers.md).
+  - `CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}` merges the other trigger into this one and retires it with `mergedInto`. See [triggers](./triggers.md). <!-- id:EbbGZ4fA -->
 
-Webhook deliveries do not use the signed envelope: `POST /hm/api/agents/webhooks/<triggerId>/<secret>` or `POST /hm/api/agents/webhooks/<triggerId>` (legacy: `/agents/api/webhooks/…`) with `Authorization: Bearer <secret>`, JSON body, answers `202 {accepted, duplicate}`; see [triggers](./triggers.md).
+Webhook deliveries do not use the signed envelope: `POST /hm/api/agents/webhooks/<triggerId>/<secret>` or `POST /hm/api/agents/webhooks/<triggerId>` (legacy: `/agents/api/webhooks/…`) with `Authorization: Bearer <secret>`, JSON body, answers `202 {accepted, duplicate}`; see [triggers](./triggers.md). <!-- id:nTwT4Lcf -->
   - `UpdateAgentTrigger {triggerId, patch}` returns `{_: 'UpdateAgentTriggerResponse'; trigger}`. <!-- id:GD1HRkZ9 -->
   - `DeleteAgentTrigger {triggerId}` returns `{_: 'DeleteAgentTriggerResponse'; triggerId}`. <!-- id:6K2fNfnq -->
 

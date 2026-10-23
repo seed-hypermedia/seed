@@ -26,7 +26,7 @@ Every HTTP action is a signed `SignedActionEnvelope`, described in the [signed A
 The server verifies the [signature](../signature.md) and authorizes the signer for the [account](../protocol/identity.md). <!-- id:mJA0FdHP -->
 
 A signer is authorized when: <!-- id:vI4I2YXO -->
-  - `signer === account`; or
+  - `signer === account`; or <!-- id:DlRrraoE -->
   - the envelope carries `capability` (and usually `capabilityBlob`): a [Capability](../capability.md) issued by `account`, delegating to `signer`, role `AGENT` or `WRITER`, not self-issued, under 64 KiB; a verified delegation is recorded as an `AGENT` authorization; or <!-- id:MFXBbOw6 -->
   - `account_authorizations` has role `OWNER` or `AGENT` for `(account, signer)`. <!-- id:nwMz9Fv- -->
 
