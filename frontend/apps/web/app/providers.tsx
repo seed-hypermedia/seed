@@ -31,11 +31,13 @@ import {writeableStateStream} from '@shm/shared/utils/stream'
 import {useCopyHmLink} from '@shm/ui/use-copy-hm-link'
 import {Spinner} from '@shm/ui/spinner'
 import {toast, Toaster} from '@shm/ui/toast'
+import {NotificationInboxProvider} from '@shm/ui/activity-panel'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {DehydratedState, hydrate, QueryClient, QueryClientProvider, useQueryClient} from '@tanstack/react-query'
 import {createContext, useContext, useEffect, useMemo, useState} from 'react'
 import {keyPairStore} from './auth'
 import {webUniversalClient} from './universal-client'
+import {WebNotificationInboxClientOnly} from './web-notification-inbox'
 import {isPerfEnabled, markNavEnd, markNavStart} from './web-perf-marks'
 
 function WebRecentVisitRecorder() {
@@ -463,7 +465,7 @@ export function WebSiteProvider(props: {
         <NavContextProvider value={navigation}>
           <SiteContextPublisher />
           <WebRecentVisitRecorder />
-          {props.children}
+          <NotificationInboxProvider value={WebNotificationInboxClientOnly}>{props.children}</NotificationInboxProvider>
         </NavContextProvider>
       </SelectedAccountContactsProvider>
     </UniversalAppProvider>

@@ -540,11 +540,14 @@ export function markNotificationEventUnread(input: {
   })
 }
 
-/** Queues a mark-all-read mutation and applies it optimistically in the desktop store. */
-export function markAllNotificationsRead(input: {accountUid: string; markAllReadAtMs: number}) {
+/**
+ * Queues marking every notification of one space read and applies it optimistically to the loaded inbox.
+ * Activity is space-scoped, so a global watermark would also mark other spaces' notifications read.
+ */
+export function markSiteNotificationsRead(input: {accountUid: string; siteUid: string}) {
   return enqueueAction(input.accountUid, {
-    type: 'mark-all-read',
-    markAllReadAtMs: input.markAllReadAtMs,
+    type: 'mark-site-read',
+    siteUid: input.siteUid,
   })
 }
 

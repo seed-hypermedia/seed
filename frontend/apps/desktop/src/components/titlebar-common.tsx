@@ -5,23 +5,21 @@ import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/m
 import {useExistingDraft} from '@/models/drafts'
 import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
-import {useNotificationInbox} from '@/models/notification-inbox'
-import {isNotificationEventRead, useLocalNotificationReadState} from '@/models/notification-read-state'
+import {useUnreadNotificationsBySpace} from '@/models/notification-inbox'
 import {
   agentRunUrl,
   agentSessionUrl,
   agentTriggerUrl,
   agentUrl,
   isOmnibarRouteUrlShareable,
-  resolveOmnibarNavigation,
   parseBrowserAddress,
+  resolveOmnibarNavigation,
   selectValidatedOmnibarSiteUrl,
 } from '@/omnibar-url'
 import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
-import {client} from '@/trpc'
-import {pathNameify} from '@/utils/path'
 import {queryDevtoolsOpen, RouteDialog, setQueryDevtoolsOpen} from '@/utils/navigation-container'
+import {pathNameify} from '@/utils/path'
 import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -29,15 +27,21 @@ import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
-import {queryKeys} from '@shm/shared/models/query-keys'
-import {createInspectNavRouteFromRoute, NavRoute} from '@shm/shared/routes'
+import {
+  createInspectNavRouteFromRoute,
+  getActivityBellTarget,
+  getRouteSpaceUid,
+  isActivityOpen,
+  NavRoute,
+} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {createWebHMUrl, hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/shared/utils/navigation'
+import {AccountAvatar} from '@shm/ui/account-avatar'
+import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
 import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
 import {AgentActivityDot} from '@shm/ui/agents/activity-dot'
-import {focusExploreSearch} from '@shm/ui/explore-search-focus'
 import {
   agentRouteServerUrl,
   isLocalAgentServer,
@@ -46,6 +50,7 @@ import {
   useAgentSession,
   useLocalAgentServerUrl,
 } from '@shm/ui/agents/models'
+import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -57,8 +62,8 @@ import {
 } from '@shm/ui/components/dropdown-menu'
 import {LogoutVaultDialog} from '@shm/ui/components/logout-vault-dialog'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
+import {focusExploreSearch} from '@shm/ui/explore-search-focus'
 import {HMIcon} from '@shm/ui/hm-icon'
-import {AccountAvatar} from '@shm/ui/account-avatar'
 import {Back, Forward} from '@shm/ui/icons'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
@@ -66,9 +71,7 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {useQuery} from '@tanstack/react-query'
 import {
-  Activity,
   Bell,
   Bot,
   ChevronDown,
@@ -135,54 +138,37 @@ export function DocOptionsButton(_props: {
   return null
 }
 
+// The bell belongs to a space, so it only shows on pages inside one.
 function NotificationButton() {
   const accountUid = useSelectedAccountId()
-  if (!accountUid) return null
-  return <NotificationButtonForAccount accountUid={accountUid} />
+  const spaceUid = getRouteSpaceUid(useNavRoute())
+  if (!accountUid || !spaceUid) return null
+  return <NotificationButtonForAccount accountUid={accountUid} spaceUid={spaceUid} />
 }
 
-function NotificationButtonForAccount({accountUid}: {accountUid: string}) {
+function NotificationButtonForAccount({accountUid, spaceUid}: {accountUid: string; spaceUid: string}) {
   const navigate = useNavigate()
   const route = useNavRoute()
-  const inbox = useNotificationInbox(accountUid)
-  const readState = useLocalNotificationReadState(accountUid)
-  const isActive = route.key === 'notifications'
-  const persistedView = useQuery({
-    queryKey: [queryKeys.SETTINGS, 'notifications-view'],
-    queryFn: () => client.appSettings.getSetting.query('notifications-view'),
-  })
-
-  const unreadCount = useMemo(() => {
-    if (!inbox.data || !readState.data) return 0
-    return inbox.data.filter(
-      (item) =>
-        !isNotificationEventRead({
-          readState: readState.data,
-          eventId: item.feedEventId,
-          eventAtMs: item.eventAtMs,
-        }),
-    ).length
-  }, [inbox.data, readState.data])
+  const isActive = isActivityOpen(route)
+  const collapse = useCollapseActivity(hmId(spaceUid), route.key === 'feed' ? route.tab : 'to-you')
+  const unreadCount = useUnreadNotificationsBySpace(accountUid)[spaceUid] ?? 0
 
   return (
-    <Tooltip content="Notifications" asChild>
+    <Tooltip content="Activity" asChild>
       <Button
         className={cn(
           'window-no-drag relative h-8 rounded-full border-1 p-0',
           isActive
-            ? 'cursor-default border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
             : 'border-transparent',
         )}
-        aria-current={isActive ? 'page' : undefined}
-        aria-disabled={isActive || undefined}
-        onClick={
-          isActive
-            ? undefined
-            : () => {
-                const view = persistedView.data === 'unread' ? ('unread' as const) : undefined
-                navigate({key: 'notifications', view})
-              }
-        }
+        aria-label="Activity"
+        aria-pressed={isActive}
+        onClick={() => {
+          const target = getActivityBellTarget(route)
+          if (target === 'collapse') collapse()
+          else if (target) navigate(target)
+        }}
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
@@ -511,17 +497,15 @@ export function AccountProfileButton() {
  * Title bar toggle for the assistant chat panel. Opening it restores the most recently used
  * agent/session (the panel resolves that itself). Styled like the bookmarks button while open.
  */
-function AssistantChatButton({
-  assistantOpen,
-  onToggleAssistant,
-}: Pick<TitleBarProps, 'assistantOpen' | 'onToggleAssistant'>) {
-  // The unread indicator: the agents lists, kept live by one account socket per server mounted
-  // here (the title bar outlives the panel), against this device's read marks.
+function AssistantChatButton() {
+  // The unread indicator: the agents lists, kept live by `AgentActivityConnection` in the window bar, against this
+  // device's read marks.
+  const toggle = useAssistantPanelToggle()
   const agentsAccountUid = useSelectedAgentsAccountId()
   const agentServerUrls = useAgentServerUrls()
   const activity = useAgentActivityIndicator(agentServerUrls.data, agentsAccountUid)
-  if (!onToggleAssistant) return null
-  const isActive = !!assistantOpen
+  if (!toggle) return null
+  const isActive = toggle.isOpen
   const tooltip = activity?.label ?? (isActive ? 'Close Agents' : 'Open Agents')
   return (
     <Tooltip content={tooltip} asChild>
@@ -534,59 +518,41 @@ function AssistantChatButton({
         )}
         aria-pressed={isActive}
         aria-label="Agents"
-        onClick={onToggleAssistant}
+        onClick={toggle.toggle}
       >
         <MessageCircle className="size-4" />
         <AgentActivityDot indicator={activity} />
-        <AgentActivityLiveUpdates serverUrls={agentServerUrls.data} accountUid={agentsAccountUid} />
       </Button>
     </Tooltip>
   )
 }
-
-export function PageActionButtons(props: TitleBarProps) {
+export function PageActionButtons(_props: TitleBarProps) {
   return (
     <TitlebarSection>
       <ExploreButton />
-      <AssistantChatButton assistantOpen={props.assistantOpen} onToggleAssistant={props.onToggleAssistant} />
-      <BookmarksPopover />
-      <NotificationButton />
-      <ActivityFeedButton />
+      <AgentActivityConnection />
       <AccountProfileButton />
     </TitlebarSection>
   )
 }
 
-/**
- * Titlebar Activity Feed button. Inside a space it opens that space's feed.
- * With no space in the route it opens the node wide feed.
- */
-function ActivityFeedButton() {
-  const route = useNavRoute()
-  const navigate = useNavigate()
-  const isActive = route.key === 'feed' || route.key === 'node-feed'
-  const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-  const siteId = routeId?.uid ? hmId(routeId.uid) : null
+/** The space's own tools in its header: Agents, bookmarks and the Activity bell. */
+export function SpaceHeaderTools() {
   return (
-    <Tooltip content="Activity Feed" asChild>
-      <Button
-        className={cn(
-          'window-no-drag h-8 w-8 rounded-full border p-0',
-          isActive
-            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
-            : 'border-transparent',
-        )}
-        aria-current={isActive ? 'page' : undefined}
-        aria-label="Activity Feed"
-        onMouseEnter={() => {
-          import('@shm/ui/feed').catch(() => {})
-        }}
-        onClick={() => navigate(siteId ? {key: 'feed', id: siteId} : {key: 'node-feed'})}
-      >
-        <Activity className="size-4" />
-      </Button>
-    </Tooltip>
+    <div className="flex items-center gap-1">
+      <AssistantChatButton />
+      <BookmarksPopover />
+      <NotificationButton />
+    </div>
   )
+}
+
+// Keeps the Agents unread dot live with one connection per agents server. It stays in the window bar, which outlives
+// every page, while the Agents button itself is only in the space header.
+function AgentActivityConnection() {
+  const agentsAccountUid = useSelectedAgentsAccountId()
+  const agentServerUrls = useAgentServerUrls()
+  return <AgentActivityLiveUpdates serverUrls={agentServerUrls.data} accountUid={agentsAccountUid} />
 }
 
 /**
@@ -603,19 +569,19 @@ function ExploreButton() {
     <Tooltip content="Explore" asChild>
       <Button
         className={cn(
-          'window-no-drag h-8 w-8 rounded-full border p-0',
+          'window-no-drag h-8 gap-1.5 rounded-full border px-3',
           isActive
             ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
             : 'border-transparent',
         )}
         aria-current={isActive ? 'page' : undefined}
-        aria-label="Explore"
         onClick={() => {
           focusExploreSearch()
           navigate({key: 'explore', context: siteId ? {type: 'site', id: siteId} : {type: 'node'}})
         }}
       >
         <Search className="size-4" />
+        Explore
       </Button>
     </Tooltip>
   )
@@ -742,10 +708,6 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Query Documents'
     case 'explore':
       return 'Explore'
-    case 'node-feed':
-      return 'Activity Feed'
-    case 'notifications':
-      return 'Notifications'
     case 'draft':
       return 'Draft'
     default:

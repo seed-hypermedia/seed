@@ -6,8 +6,9 @@ import {describe, expect, it, vi} from 'vitest'
 import {
   getMaxLoadedNotificationEventAtMs,
   markNotificationReadAndNavigate,
+  getNotificationTargetName,
+  notificationAction,
   notificationRouteForPayload,
-  notificationTitle,
 } from '@shm/shared/models/notification-helpers'
 
 function hmId(uid: string, path: string[] | null = null) {
@@ -236,13 +237,17 @@ describe('notifications page helpers', () => {
     expect(classifyNotificationEvent(reply, 'another-account')).toBeNull()
   })
 
-  it('creates route for reply notifications', () => {
+  it('opens reply notifications in the document with Discussions in the right panel', () => {
     const payload = createReplyPayload()
     const route = notificationRouteForPayload(payload)
     expect(route).toEqual({
-      key: 'comments',
+      key: 'document',
       id: expect.objectContaining({uid: 'site', path: ['post']}),
-      openComment: 'comment-version-cid',
+      panel: {
+        key: 'comments',
+        id: expect.objectContaining({uid: 'site', path: ['post']}),
+        openComment: 'comment-version-cid',
+      },
     })
   })
 
@@ -286,9 +291,13 @@ describe('notifications page helpers', () => {
     })
 
     expect(navigate).toHaveBeenCalledWith({
-      key: 'comments',
+      key: 'document',
       id: expect.objectContaining({uid: 'site', path: ['post']}),
-      openComment: 'comment-version-cid',
+      panel: {
+        key: 'comments',
+        id: expect.objectContaining({uid: 'site', path: ['post']}),
+        openComment: 'comment-version-cid',
+      },
     })
 
     await Promise.resolve()
@@ -299,43 +308,23 @@ describe('notifications page helpers', () => {
     consoleError.mockRestore()
   })
 
-  it('includes document name for mention notifications from comment events', () => {
-    const payload = createMentionPayload({eventType: 'comment'})
-    expect(notificationTitle(payload)).toBe('Alice mentioned you in Source Doc')
+  it('words each notification as an action between the author and the document', () => {
+    expect(notificationAction(createMentionPayload())).toBe('mentioned you in')
+    expect(notificationAction(createReplyPayload())).toBe('replied to your comment in')
+    expect(notificationAction(createReplyPayload({reason: 'discussion'}))).toBe('started a discussion on')
   })
 
-  it('falls back to source path when mention source metadata is missing', () => {
-    const payload = createMentionPayload({
-      author: {uid: 'author', name: 'Alice', icon: null},
-      target: {uid: 'source', path: ['fallback-doc'], name: null},
-    })
-    expect(notificationTitle(payload)).toBe('Alice mentioned you in fallback-doc')
-  })
-
-  it('prefers resolved author and target metadata when building notification titles', () => {
-    const payload = createReplyPayload({
-      author: {uid: 'author-2', name: 'Old Name', icon: null},
-      target: {uid: 'site', path: ['post'], name: 'Old Post'},
-    })
+  it('names the target document from its metadata, then its path', () => {
+    expect(getNotificationTargetName(createMentionPayload({eventType: 'comment'}))).toBe('Source Doc')
     expect(
-      notificationTitle(payload, {
-        authorName: 'Updated Name',
-        targetName: 'Updated Post',
-      }),
-    ).toBe('Updated Name replied to your comment in Updated Post')
+      getNotificationTargetName(createMentionPayload({target: {uid: 'source', path: ['fallback-doc'], name: null}})),
+    ).toBe('fallback-doc')
   })
 
-  it('falls back to payload metadata when resolved notification metadata is unavailable', () => {
-    const payload = createReplyPayload({
-      author: {uid: 'author-2', name: 'Stored Name', icon: null},
-      target: {uid: 'site', path: ['post'], name: 'Stored Post'},
-    })
-    expect(
-      notificationTitle(payload, {
-        authorName: null,
-        targetName: undefined,
-      }),
-    ).toBe('Stored Name replied to your comment in Stored Post')
+  it('prefers the resolved document name over the stored one', () => {
+    const payload = createReplyPayload({target: {uid: 'site', path: ['post'], name: 'Stored Post'}})
+    expect(getNotificationTargetName(payload, 'Updated Post')).toBe('Updated Post')
+    expect(getNotificationTargetName(payload, undefined)).toBe('Stored Post')
   })
 
   it('computes mark-all timestamp from latest loaded event', () => {
@@ -431,9 +420,13 @@ describe('notifications page helpers', () => {
     }
     const route = notificationRouteForPayload(payload)
     expect(route).toEqual({
-      key: 'comments',
+      key: 'document',
       id: expect.objectContaining({uid: 'site-owner', path: ['blog-post']}),
-      openComment: 'comment-abc',
+      panel: {
+        key: 'comments',
+        id: expect.objectContaining({uid: 'site-owner', path: ['blog-post']}),
+        openComment: 'comment-abc',
+      },
     })
   })
 

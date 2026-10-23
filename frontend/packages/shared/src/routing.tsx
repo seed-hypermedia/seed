@@ -235,10 +235,6 @@ export function routeToHref(
   if (typeof route !== 'string' && route.key == 'contact') {
     return `/hm/contact/${route.id.uid}`
   }
-  if (typeof route !== 'string' && route.key === 'notifications') {
-    const viewParam = route.view ? `?view=${route.view}` : ''
-    return `/hm/notifications${viewParam}`
-  }
   if (typeof route !== 'string' && route.key === 'agents') {
     return '/hm/agents'
   }
@@ -390,6 +386,7 @@ export function routeToHref(
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTerm += `/${filterSlug}`
     }
+    if (route.key === 'feed' && route.tab === 'to-you') viewTerm += '/to-you'
     // Append openComment to view term path for comments
     if (route.key === 'comments' && route.openComment) {
       viewTerm += `/${route.openComment}`

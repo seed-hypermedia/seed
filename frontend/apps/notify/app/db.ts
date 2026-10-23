@@ -945,11 +945,7 @@ export function replaceNotificationReadState(
 // --- Notification Inbox ---
 
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
-
-function notificationMatchesSite(notification: NotificationPayload, siteUid?: string) {
-  if (!siteUid) return true
-  return notification.target.uid === siteUid
-}
+import {notificationMatchesSite} from '@shm/shared/models/notification-read-logic'
 
 function selectNotificationRows(
   accountId: string,

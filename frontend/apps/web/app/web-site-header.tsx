@@ -90,7 +90,6 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
             document.body.style.overflow = 'auto'
           }
         }}
-        isMainFeedVisible={false}
         wrapperClassName="fixed sm:static"
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={props.rightActions}

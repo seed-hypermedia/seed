@@ -98,15 +98,55 @@ describe('app notification read state', () => {
     const afterEventRead = await read.getLocalState(accountUid)
     expect(afterEventRead.readEvents).toEqual([{eventId: 'event-1', eventAtMs: 1100}])
     expect(afterEventRead.dirty).toBe(true)
+  })
 
-    await read.markAllRead({
-      accountUid,
-      markAllReadAtMs: 1200,
+  it('marks all read within one space only, leaving other spaces unread', async () => {
+    const {read} = await loadCallers()
+    const notification = (feedEventId: string, eventAtMs: number, siteUid: string) => ({
+      feedEventId,
+      eventAtMs,
+      reason: 'reply',
+      eventType: 'comment',
+      author: {uid: 'author-b', name: 'Other', icon: null},
+      target: {uid: siteUid, path: ['post'], name: 'Post'},
+      commentId: 'comment-version',
+      sourceId: null,
+      citationType: null,
     })
+    fetchMock.mockImplementationOnce(() =>
+      jsonResponse({
+        accountId: accountUid,
+        inbox: {
+          notifications: [
+            notification('site-a-new', 3000, 'site-a'),
+            notification('site-b-middle', 2000, 'site-b'),
+            notification('site-a-old', 1000, 'site-a'),
+          ],
+          hasMore: false,
+          oldestEventAtMs: 1000,
+        },
+        config: {
+          accountId: accountUid,
+          email: null,
+          verifiedTime: null,
+          verificationSendTime: null,
+          verificationExpired: false,
+        },
+        readState: {
+          accountId: accountUid,
+          markAllReadAtMs: null,
+          readEvents: [],
+          updatedAt: new Date(0).toISOString(),
+        },
+      }),
+    )
+    await read.syncNow({accountUid, notifyServiceHost: 'https://notify.example'})
+
+    await read.markAllRead({accountUid, siteUid: 'site-a'})
 
     const afterMarkAll = await read.getLocalState(accountUid)
-    expect(afterMarkAll.markAllReadAtMs).toBe(1200)
-    expect(afterMarkAll.readEvents).toEqual([])
+    expect(afterMarkAll.markAllReadAtMs).toBeNull()
+    expect(afterMarkAll.readEvents.map((event) => event.eventId).sort()).toEqual(['site-a-new', 'site-a-old'])
     expect(afterMarkAll.dirty).toBe(true)
   })
 

@@ -202,6 +202,14 @@ vi.mock('../components/auto-updater', async () => {
   }
 })
 
+vi.mock('../components/desktop-notification-inbox', () => ({
+  DesktopNotificationInbox: () => null,
+}))
+
+vi.mock('@shm/ui/activity-panel', () => ({
+  NotificationInboxProvider: ({children}: {children: React.ReactNode}) => children,
+}))
+
 vi.mock('../components/footer', async () => {
   const React = await import('react')
 

@@ -4,7 +4,6 @@ import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {ipc} from '@/ipc'
 import {useDraft} from '@/models/accounts'
-import {useAgentServerUrls, useHasAnyAgent} from '@shm/ui/agents/models'
 import {useConnectPeer} from '@/models/contacts'
 import {useCreateDraft} from '@/models/documents'
 import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
@@ -18,6 +17,10 @@ import {hmId} from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
+import {NotificationInboxProvider} from '@shm/ui/activity-panel'
+import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
+import {useAgentServerUrls, useHasAnyAgent} from '@shm/ui/agents/models'
+import {AssistantPanelToggleContext, type AssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {windowContainerStyles} from '@shm/ui/container'
@@ -26,12 +29,12 @@ import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import React, {lazy, ReactElement, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {lazy, ReactElement, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
-import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
 import {AutoUpdater} from '../components/auto-updater'
+import {DesktopNotificationInbox} from '../components/desktop-notification-inbox'
 import Footer from '../components/footer'
 import {HypermediaHighlight} from '../components/hypermedia-highlight'
 import {AppSidebar} from '../components/sidebar'
@@ -51,7 +54,6 @@ var Contacts = lazy(() => import('./contacts-page'))
 var Contact = lazy(() => import('./contact-page'))
 var Document = lazy(() => import('./desktop-resource'))
 var Feed = lazy(() => import('./desktop-feed'))
-var NodeFeed = lazy(() => import('./desktop-node-feed'))
 var InspectResource = lazy(() => import('./inspect-resource'))
 var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var SchemaBrowser = lazy(() => import('./schema'))
@@ -64,7 +66,6 @@ var AgentDetail = lazy(() => import('@shm/ui/agents/detail'))
 var AgentSession = lazy(() => import('@shm/ui/agents/session'))
 var AgentRun = lazy(() => import('@shm/ui/agents/run'))
 var Profile = lazy(() => import('./profile'))
-var Notifications = lazy(() => import('./notifications'))
 var SiteSettingsEmails = lazy(() => import('./site-settings-emails'))
 
 /**
@@ -146,6 +147,11 @@ export default function Main({className}: {className?: string}) {
       return next
     })
   }, [assistantSessionId, sendAssistantState])
+
+  const assistantPanelToggle = useMemo<AssistantPanelToggle | null>(
+    () => (isAssistantAvailable ? {isOpen: assistantOpen, toggle: handleToggleAssistant} : null),
+    [isAssistantAvailable, assistantOpen, handleToggleAssistant],
+  )
 
   const handleSessionChange = useCallback(
     (sessionId: string | null) => {
@@ -261,7 +267,13 @@ export default function Main({className}: {className?: string}) {
                         root boundary and the whole window — chrome included — becomes a spinner. */}
                     <Suspense fallback={<Fallback />}>
                       {(browserMounted || navR.key === 'web') && <WebBrowser />}
-                      {navR.key !== 'web' && <PageComponent />}
+                      {navR.key !== 'web' && (
+                        <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
+                          <NotificationInboxProvider value={DesktopNotificationInbox}>
+                            <PageComponent />
+                          </NotificationInboxProvider>
+                        </AssistantPanelToggleContext.Provider>
+                      )}
                     </Suspense>
                   </ErrorBoundary>
                 </Panel>
@@ -467,11 +479,6 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: Feed,
         Fallback: DocumentPlaceholder,
       }
-    case 'node-feed':
-      return {
-        PageComponent: NodeFeed,
-        Fallback: BaseLoading,
-      }
     case 'directory':
       return {
         PageComponent: Document,
@@ -521,11 +528,6 @@ function getPageComponent(navRoute: NavRoute) {
       return {
         PageComponent: Document,
         Fallback: DocumentPlaceholder,
-      }
-    case 'notifications':
-      return {
-        PageComponent: Notifications,
-        Fallback: BaseLoading,
       }
     case 'site-settings-emails':
       return {

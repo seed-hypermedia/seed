@@ -2,6 +2,7 @@ import {renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {DesktopDocumentActionsProvider} from '@/components/document-actions-provider'
 import {JoinButton} from '@/components/join-button'
+import {SpaceHeaderTools} from '@/components/titlebar-common'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {useHackyAuthorsSubscriptions} from '@/use-hacky-authors-subscriptions'
 import {useNavigate} from '@/utils/useNavigate'
@@ -138,7 +139,16 @@ export default function DesktopFeedPage() {
         showDeletedContent
       >
         <DesktopDocumentActionsProvider>
-          <FeedPage docId={docId} extraMenuItems={menuItems} rightActions={<JoinButton siteUid={docId.uid} />} />
+          <FeedPage
+            docId={docId}
+            extraMenuItems={menuItems}
+            rightActions={
+              <>
+                <SpaceHeaderTools />
+                <JoinButton siteUid={docId.uid} />
+              </>
+            }
+          />
         </DesktopDocumentActionsProvider>
       </CommentsProvider>
       {copyGatewayContent}

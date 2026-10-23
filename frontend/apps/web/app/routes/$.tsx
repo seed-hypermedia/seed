@@ -128,6 +128,7 @@ function extractViewTermFromPath(pathParts: string[]): {
   path: string[]
   viewTerm: ViewRouteKey | null
   activityFilter?: string
+  feedTab?: string
   commentId?: string
   accountUid?: string
 } {
@@ -165,6 +166,14 @@ function extractViewTermFromPath(pathParts: string[]): {
         path: pathParts.slice(0, -2),
         viewTerm: 'activity',
         activityFilter: pathParts[pathParts.length - 1],
+      }
+    }
+    // :feed/<tab>, the Activity page on a specific tab
+    if (secondToLast === ':feed') {
+      return {
+        path: pathParts.slice(0, -2),
+        viewTerm: 'feed',
+        feedTab: pathParts[pathParts.length - 1],
       }
     }
   }
@@ -446,6 +455,9 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
     }
+    if (extracted.feedTab) {
+      effectivePanelParam = `feed/${extracted.feedTab}`
+    }
     if (extracted.commentId) {
       openComment = extracted.commentId
       isCommentPermalink = true
@@ -465,6 +477,9 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     viewTerm = extracted.viewTerm
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
+    }
+    if (extracted.feedTab) {
+      effectivePanelParam = `feed/${extracted.feedTab}`
     }
     if (extracted.commentId) {
       openComment = extracted.commentId
