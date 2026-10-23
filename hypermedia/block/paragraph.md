@@ -2,7 +2,7 @@
 name: Paragraph Block
 summary: "The default block: a paragraph of text with inline annotations; inside a table row it is a cell and carries the column id."
 ---
-A **paragraph block** is the default block: rich text. It has `text` plus [annotations](./annotation.md) for formatting, links and mentions. Its attributes are the parent-layout pair `childrenType` and `columnCount`, and `columnId`. `columnId` is set only when the paragraph is a cell inside a [table row](./table-row.md), and it names the [table column](./table-column.md) the cell belongs to. <!-- id:AvdJYUyP -->
+A **paragraph block** is the default block: rich text. It has `text` plus [annotations](./annotation.md) for formatting, links and mentions. Its attributes are the parent-layout pair `childrenType` and `columnCount`, `textAlignment` (a [text alignment](./text-alignment.md), omitted for the default `left`), and `columnId`. `columnId` is set only when the paragraph is a cell inside a [table row](./table-row.md), and it names the [table column](./table-column.md) the cell belongs to. <!-- id:AvdJYUyP -->
 
 # See also <!-- id:oIB0zvTp -->
 

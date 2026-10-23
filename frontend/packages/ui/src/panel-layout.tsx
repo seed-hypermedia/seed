@@ -1,7 +1,7 @@
 import {PanelSelectionOptions} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {X} from 'lucide-react'
-import {useRef} from 'react'
+import {useRef, useState} from 'react'
 import {
   ImperativePanelGroupHandle,
   ImperativePanelHandle,
@@ -18,6 +18,16 @@ const DEFAULT_PANEL_PX = 440
 const MAX_OPEN_PERCENT = 30
 const MAX_PANEL_PERCENT = 50
 const MIN_PANEL_PERCENT = 20
+const MIN_PANEL_PX = 250
+
+/**
+ * The panel's minimum size as a percentage of its container. Keeps the panel at least
+ * MIN_PANEL_PX wide, without exceeding the largest size a panel may take.
+ */
+export function getPanelMinPercent(containerWidth: number) {
+  if (!containerWidth) return MIN_PANEL_PERCENT
+  return Math.min(MAX_PANEL_PERCENT, Math.max(MIN_PANEL_PERCENT, (MIN_PANEL_PX / containerWidth) * 100))
+}
 
 export interface PanelLayoutProps {
   children: React.ReactNode
@@ -41,6 +51,8 @@ export interface PanelLayoutProps {
   panelWidth?: number
   /** Callback when panel width changes */
   onPanelWidthChange?: (width: number) => void
+  /** Replaces the default header, for panels with their own controls. */
+  header?: React.ReactNode
 }
 
 function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
@@ -57,6 +69,8 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
       return 'Draft Options'
     case 'metadata':
       return 'Attributes'
+    case 'feed':
+      return 'Activity'
     default:
       return ''
   }
@@ -86,13 +100,25 @@ export function PanelLayout({
   widthStorage,
   panelWidth,
   onPanelWidthChange,
+  header,
 }: PanelLayoutProps) {
   const panelsRef = useRef<ImperativePanelGroupHandle>(null)
   const accessoryPanelRef = useRef<ImperativePanelHandle>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const prevPanelKey = useRef<PanelSelectionOptions | null>(panelKey)
+  const [containerWidth, setContainerWidth] = useState(0)
+  const minPanelPercent = getPanelMinPercent(containerWidth)
 
-  // Always open panel at DEFAULT_PANEL_PX, capped at MAX_PANEL_PERCENT
+  // The minimum is a fixed pixel width, so its percentage follows the container as the window resizes.
+  useIsomorphicLayoutEffect(() => {
+    const container = containerRef.current
+    if (!container || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(([entry]) => setContainerWidth(entry?.contentRect.width ?? 0))
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
+
+  // Always open panel at DEFAULT_PANEL_PX, capped at MAX_OPEN_PERCENT but never below the minimum width
   useIsomorphicLayoutEffect(() => {
     const isOpening = prevPanelKey.current === null && panelKey !== null
 
@@ -101,9 +127,9 @@ export function PanelLayout({
       if (container) {
         const containerWidth = container.getBoundingClientRect().width
         if (containerWidth) {
-          const targetPercent = Math.min(
-            MAX_OPEN_PERCENT,
-            Math.max(MIN_PANEL_PERCENT, (DEFAULT_PANEL_PX / containerWidth) * 100),
+          const targetPercent = Math.max(
+            getPanelMinPercent(containerWidth),
+            Math.min(MAX_OPEN_PERCENT, (DEFAULT_PANEL_PX / containerWidth) * 100),
           )
           accessoryPanelRef.current?.resize(targetPercent)
           onPanelWidthChange?.(targetPercent)
@@ -136,24 +162,28 @@ export function PanelLayout({
               id="accessory"
               ref={accessoryPanelRef}
               maxSize={MAX_PANEL_PERCENT}
-              minSize={MIN_PANEL_PERCENT}
-              defaultSize={panelWidth || MIN_PANEL_PERCENT}
+              minSize={minPanelPercent}
+              defaultSize={Math.max(panelWidth || 0, minPanelPercent)}
               onResize={onPanelWidthChange}
               className="border-l"
             >
               <div className="h-full rounded-lg">
                 <div className={cn('dark:bg-background flex h-full flex-col bg-white')}>
                   <div className="border-border border-b px-5 py-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <Text weight="semibold" size="lg" className="flex-1">
-                        {title}
-                      </Text>
-                      <Button size="icon" onClick={onPanelClose}>
-                        <X className="size-4" />
-                      </Button>
-                    </div>
-                    {showActivityFilters && onFilterChange && (
-                      <FeedFilters filterEventType={filterEventType} onFilterChange={onFilterChange} />
+                    {header ?? (
+                      <>
+                        <div className="flex items-center justify-between gap-2">
+                          <Text weight="semibold" size="lg" className="flex-1">
+                            {title}
+                          </Text>
+                          <Button size="icon" onClick={onPanelClose}>
+                            <X className="size-4" />
+                          </Button>
+                        </div>
+                        {showActivityFilters && onFilterChange && (
+                          <FeedFilters filterEventType={filterEventType} onFilterChange={onFilterChange} />
+                        )}
+                      </>
                     )}
                   </div>
                   <div className="flex-1 overflow-hidden">{panelContent}</div>

@@ -337,17 +337,24 @@ export async function sendAgentAction(input: {
   serverUrl: string
   accountUid: string
   action: AgentAction
+  /** Cancels a window-scoped request, such as a browser long-poll when its panel closes. */
+  signal?: AbortSignal
 }): Promise<AgentsResponse> {
   const envelope = await signAgentAction({accountUid: input.accountUid, action: input.action})
-  return postSignedAgentAction(input.serverUrl, envelope)
+  return postSignedAgentAction(input.serverUrl, envelope, input.signal)
 }
 
 /** Posts an already signed action envelope and decodes the reply, throwing on server errors. */
-export async function postSignedAgentAction(serverUrl: string, envelope: unknown): Promise<AgentsResponse> {
+export async function postSignedAgentAction(
+  serverUrl: string,
+  envelope: unknown,
+  signal?: AbortSignal,
+): Promise<AgentsResponse> {
   const res = await fetch(agentServerEndpoint(serverUrl, 'message'), {
     method: 'POST',
     headers: {'Content-Type': 'application/cbor', Accept: 'application/cbor'},
     body: cbor.encode(envelope) as BodyInit,
+    signal,
   })
   const decoded = cbor.decode<AgentsResponse>(new Uint8Array(await res.arrayBuffer()))
   if (!res.ok || decoded._ === 'Error') {

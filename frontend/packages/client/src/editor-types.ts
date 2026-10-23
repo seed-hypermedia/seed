@@ -1,4 +1,4 @@
-import type {HMBlockChildrenType} from './hm-types'
+import type {HMBlockChildrenType, HMBlockTextAlignment} from './hm-types'
 
 export type EditorBlock =
   | EditorParagraphBlock
@@ -29,7 +29,7 @@ export interface EditorBaseBlock {
 }
 
 export interface EditorBlockProps {
-  // textAlignment?: 'left' | 'center' | 'right'
+  textAlignment?: HMBlockTextAlignment
   childrenType?: HMBlockChildrenType
   columnCount?: string
   level?: number | string

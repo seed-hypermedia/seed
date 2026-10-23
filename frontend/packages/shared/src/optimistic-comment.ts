@@ -12,7 +12,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import type {QueryClient} from '@tanstack/react-query'
 import {queryKeys} from './models/query-keys'
-import type {NavRoute} from './routes'
+import {getRoutePanel, type NavRoute} from './routes'
 
 // ─── Build optimistic comment ───────────────────────────────────────────────
 
@@ -138,7 +138,7 @@ export function applyOptimisticComment(
   const commentsKey = [queryKeys.DOCUMENT_COMMENTS, targetId]
   const prevComments = qc.getQueryData<HMListCommentsOutput>(commentsKey)
   qc.setQueryData<HMListCommentsOutput>(commentsKey, (old) => {
-    const comments = old?.comments ? [...old.comments, comment] : [comment]
+    const comments = [...(old?.comments?.filter((item) => item.id !== comment.id) || []), comment]
     const authors = {...(old?.authors || {})}
     if (authorMetadata && comment.author) {
       authors[comment.author] = authorMetadata
@@ -149,12 +149,17 @@ export function applyOptimisticComment(
 
   // Also update BLOCK_DISCUSSIONS cache when quoting a specific block
   if (quotingTarget) {
-    const blockTargetId = {...targetId, blockRef: quotingTarget.blockId}
-    const blockKey = [queryKeys.BLOCK_DISCUSSIONS, blockTargetId]
-    const prevBlock = qc.getQueryData<HMListCommentsOutput>(blockKey)
-    if (prevBlock) {
+    const cachedBlocks = qc.getQueriesData<HMListCommentsOutput>({
+      queryKey: [queryKeys.BLOCK_DISCUSSIONS],
+      predicate: ({queryKey}) => {
+        const cachedTarget = queryKey[1] as UnpackedHypermediaId | undefined
+        return cachedTarget?.id === targetId.id && cachedTarget.blockRef === quotingTarget.blockId
+      },
+    })
+    for (const [blockKey, prevBlock] of cachedBlocks) {
+      if (!prevBlock) continue
       qc.setQueryData<HMListCommentsOutput>(blockKey, (old) => {
-        const comments = old?.comments ? [...old.comments, comment] : [comment]
+        const comments = [...(old?.comments?.filter((item) => item.id !== comment.id) || []), comment]
         const authors = {...(old?.authors || {})}
         if (authorMetadata && comment.author) {
           authors[comment.author] = authorMetadata
@@ -170,48 +175,57 @@ export function applyOptimisticComment(
 
 // ─── Navigate to comment after publish ──────────────────────────────────────
 
-/**
- * Navigate to the newly published comment, updating the URL to focus it.
- * Returns the previous route for rollback, or null if no navigation was needed.
- *
- * Only 2 route patterns:
- * - `route.key === 'comments'` → main section → set openComment
- * - `route.key === 'document'` + `panel.key === 'comments'` → right panel → set panel.openComment
- */
+/** Return the reply continuation route, or null when submission stays in a root list. */
+export function getCommentSubmissionRoute(
+  route: NavRoute,
+  recordId: string,
+  submittedRoute: NavRoute = route,
+): NavRoute | null {
+  const current = route.key === 'comments' ? route : getRoutePanel(route)
+  const submitted = submittedRoute.key === 'comments' ? submittedRoute : getRoutePanel(submittedRoute)
+  if (
+    current?.key !== 'comments' ||
+    submitted?.key !== 'comments' ||
+    current.id.id !== submitted.id.id ||
+    current.openComment !== submitted.openComment ||
+    current.replyCommentId !== submitted.replyCommentId
+  )
+    return null
+  const replyState = {
+    replyCommentId: recordId,
+    openCommentVersion: undefined,
+    targetBlockId: undefined,
+    blockId: undefined,
+    blockRange: undefined,
+    isReplying: undefined,
+    replyCommentVersion: undefined,
+    rootReplyCommentVersion: undefined,
+  }
+  if (route.key === 'comments' && route.openComment) {
+    return {...route, ...replyState, id: {...route.id, blockRef: null, blockRange: null}}
+  }
+  if ('panel' in route && route.panel?.key === 'comments' && route.panel.openComment) {
+    return {
+      ...route,
+      panel: {
+        ...route.panel,
+        ...replyState,
+        ...(route.panel.id ? {id: {...route.panel.id, blockRef: null, blockRange: null}} : {}),
+      },
+    } as NavRoute
+  }
+  return null
+}
+
+/** Advance the reply target after publication, preserving the surrounding discussion. */
 export function navigateToComment(
   navigate: (route: NavRoute) => void,
   route: NavRoute,
   recordId: string,
+  currentRoute: NavRoute = route,
 ): NavRoute | null {
-  if (route.key === 'comments') {
-    const previousRoute = {...route}
-    navigate({
-      ...route,
-      openComment: recordId,
-      openCommentVersion: undefined,
-      targetBlockId: undefined,
-      isReplying: undefined,
-      replyCommentVersion: undefined,
-      rootReplyCommentVersion: undefined,
-    })
-    return previousRoute
-  }
-
-  if (route.key === 'document' && route.panel?.key === 'comments') {
-    const previousRoute = {...route, panel: {...route.panel}}
-    navigate({
-      ...route,
-      panel: {
-        ...route.panel,
-        openComment: recordId,
-        targetBlockId: undefined,
-        isReplying: undefined,
-        replyCommentVersion: undefined,
-        rootReplyCommentVersion: undefined,
-      },
-    })
-    return previousRoute
-  }
-
-  return null
+  const nextRoute = getCommentSubmissionRoute(currentRoute, recordId, route)
+  if (!nextRoute) return null
+  navigate(nextRoute)
+  return route
 }

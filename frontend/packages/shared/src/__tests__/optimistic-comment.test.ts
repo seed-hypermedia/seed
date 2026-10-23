@@ -7,11 +7,12 @@
  */
 
 import {QueryClient} from '@tanstack/react-query'
-import {describe, expect, it, vi} from 'vitest'
+import {describe, expect, it} from 'vitest'
 import type {HMBlockNode, HMComment, HMListCommentsOutput, HMMetadataPayload} from '@seed-hypermedia/client/hm-types'
+import type {NavRoute} from '../routes'
 import {queryKeys} from '../models/query-keys'
 import {hmId} from '../utils/entity-id-url'
-import {applyOptimisticComment, navigateToComment} from '../optimistic-comment'
+import {applyOptimisticComment, getCommentSubmissionRoute} from '../optimistic-comment'
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -44,118 +45,93 @@ const authorMetadata: HMMetadataPayload = {
 
 // ─── navigateToComment ──────────────────────────────────────────────────────
 
-describe('navigateToComment', () => {
-  it('sets openComment on a comments route', () => {
-    const navigate = vi.fn()
-    const route = {key: 'comments' as const, id: docId}
-    const prev = navigateToComment(navigate, route, commentRecordId)
+describe('getCommentSubmissionRoute', () => {
+  it.each(['document', 'directory'] as const)('inherits the document ID for root submissions in a %s panel', (key) => {
+    const route = {key, id: docId, panel: {key: 'comments'}} as NavRoute
+    expect(getCommentSubmissionRoute(route, commentRecordId)).toBeNull()
+  })
 
-    expect(navigate).toHaveBeenCalledWith({
-      ...route,
-      openComment: commentRecordId,
-      isReplying: undefined,
-      replyCommentVersion: undefined,
-      rootReplyCommentVersion: undefined,
+  it.each(['document', 'directory'] as const)('inherits the document ID for replies in a %s panel', (key) => {
+    const route = {key, id: docId, panel: {key: 'comments', openComment: 'author/root'}} as NavRoute
+    expect(getCommentSubmissionRoute(route, commentRecordId)).toMatchObject({
+      key,
+      id: docId,
+      panel: {key: 'comments', openComment: 'author/root', replyCommentId: commentRecordId},
     })
-    expect(prev).toEqual(route)
   })
 
-  it('sets openComment on a document route with comments panel', () => {
-    const navigate = vi.fn()
-    const panel = {key: 'comments' as const, id: docId}
-    const route = {key: 'document' as const, id: docId, panel}
-    const prev = navigateToComment(navigate, route, commentRecordId)
-
-    expect(navigate).toHaveBeenCalledWith({
-      ...route,
-      panel: {
-        ...panel,
-        openComment: commentRecordId,
-        isReplying: undefined,
-        replyCommentVersion: undefined,
-        rootReplyCommentVersion: undefined,
-      },
-    })
-    expect(prev).toBeTruthy()
+  it('keeps root lists and block discussions in place', () => {
+    expect(getCommentSubmissionRoute({key: 'comments', id: docId}, commentRecordId)).toBeNull()
+    expect(getCommentSubmissionRoute({key: 'comments', id: docId, targetBlockId: 'block'}, commentRecordId)).toBeNull()
+    expect(
+      getCommentSubmissionRoute({key: 'document', id: docId, panel: {key: 'comments', id: docId}}, commentRecordId),
+    ).toBeNull()
   })
 
-  it('returns null for unrelated routes', () => {
-    const navigate = vi.fn()
-    const route = {key: 'library' as const}
-    const prev = navigateToComment(navigate, route, commentRecordId)
-
-    expect(navigate).not.toHaveBeenCalled()
-    expect(prev).toBeNull()
-  })
-
-  it('returns null when document route has a non-comments panel', () => {
-    const navigate = vi.fn()
-    const route = {key: 'document' as const, id: docId, panel: {key: 'activity' as const, id: docId}}
-    const prev = navigateToComment(navigate, route, commentRecordId)
-
-    expect(navigate).not.toHaveBeenCalled()
-    expect(prev).toBeNull()
-  })
-
-  it('preserves non-block route fields and clears targetBlockId when navigating', () => {
-    const navigate = vi.fn()
-    const route = {key: 'comments' as const, id: docId, targetBlockId: 'blk1', width: 400}
-    navigateToComment(navigate, route, commentRecordId)
-
-    const navigatedRoute = navigate.mock.calls[0]![0]
-    expect(navigatedRoute.width).toBe(400)
-    expect(navigatedRoute.openComment).toBe(commentRecordId)
-    expect(navigatedRoute.targetBlockId).toBeUndefined()
-  })
-
-  it('clears targetBlockId on document route panel when navigating to comment', () => {
-    const navigate = vi.fn()
-    const panel = {key: 'comments' as const, id: docId, targetBlockId: 'blk1'}
-    const route = {key: 'document' as const, id: docId, panel}
-    navigateToComment(navigate, route, commentRecordId)
-
-    const navigatedRoute = navigate.mock.calls[0]![0]
-    expect(navigatedRoute.panel.openComment).toBe(commentRecordId)
-    expect(navigatedRoute.panel.targetBlockId).toBeUndefined()
-  })
-
-  it('clears stale reply data on a comments route after posting', () => {
-    const navigate = vi.fn()
+  it('extends the main discussion without replacing its context', () => {
     const route = {
       key: 'comments' as const,
       id: docId,
-      openComment: 'old-comment/id',
-      isReplying: true,
-      replyCommentVersion: 'bafyOldReplyVersion',
-      rootReplyCommentVersion: 'bafyOldRootVersion',
+      openComment: 'author/context',
+      replyCommentId: 'author/previous',
+      openCommentVersion: 'old-version',
+      blockId: 'old-block',
+      blockRange: {start: 1, end: 2},
+      replyCommentVersion: 'old-parent-version',
     }
-    navigateToComment(navigate, route, commentRecordId)
-
-    const navigatedRoute = navigate.mock.calls[0]![0]
-    expect(navigatedRoute.openComment).toBe(commentRecordId)
-    expect(navigatedRoute.isReplying).toBeUndefined()
-    expect(navigatedRoute.replyCommentVersion).toBeUndefined()
-    expect(navigatedRoute.rootReplyCommentVersion).toBeUndefined()
+    const next = getCommentSubmissionRoute(route, commentRecordId)
+    expect(next).toMatchObject({
+      key: 'comments',
+      id: docId,
+      openComment: 'author/context',
+      replyCommentId: commentRecordId,
+    })
+    expect(next).not.toHaveProperty('blockId', 'old-block')
+    expect(next).not.toHaveProperty('replyCommentVersion', 'old-parent-version')
+    expect(route.replyCommentId).toBe('author/previous')
   })
 
-  it('clears stale reply data on a document route with comments panel after posting', () => {
-    const navigate = vi.fn()
-    const panel = {
-      key: 'comments' as const,
+  it.each(['document', 'activity', 'directory'] as const)('extends a panel beside %s', (key) => {
+    const route = {key, id: docId, panel: {key: 'comments' as const, id: docId, openComment: 'author/context'}}
+    expect(getCommentSubmissionRoute(route, commentRecordId)).toMatchObject({
+      key,
       id: docId,
-      openComment: 'old-comment/id',
-      isReplying: true,
-      replyCommentVersion: 'bafyOldReplyVersion',
-      rootReplyCommentVersion: 'bafyOldRootVersion',
-    }
-    const route = {key: 'document' as const, id: docId, panel}
-    navigateToComment(navigate, route, commentRecordId)
+      panel: {openComment: 'author/context', replyCommentId: commentRecordId},
+    })
+  })
 
-    const navigatedRoute = navigate.mock.calls[0]![0]
-    expect(navigatedRoute.panel.openComment).toBe(commentRecordId)
-    expect(navigatedRoute.panel.isReplying).toBeUndefined()
-    expect(navigatedRoute.panel.replyCommentVersion).toBeUndefined()
-    expect(navigatedRoute.panel.rootReplyCommentVersion).toBeUndefined()
+  it('preserves a moved discussion when a delayed publication completes', () => {
+    const submittedRoute = {key: 'comments' as const, id: docId, openComment: 'author/context'}
+    const currentRoute = {
+      key: 'document' as const,
+      id: docId,
+      panel: {key: 'comments' as const, id: docId, openComment: 'author/context'},
+    }
+    expect(getCommentSubmissionRoute(currentRoute, commentRecordId, submittedRoute)).toMatchObject({
+      key: 'document',
+      panel: {openComment: 'author/context', replyCommentId: commentRecordId},
+    })
+  })
+
+  it('does not reopen a discussion after the user leaves during publication', () => {
+    const submittedRoute = {key: 'comments' as const, id: docId, openComment: 'author/context'}
+    expect(
+      getCommentSubmissionRoute({...submittedRoute, openComment: 'author/other'}, commentRecordId, submittedRoute),
+    ).toBeNull()
+    expect(
+      getCommentSubmissionRoute(
+        {...submittedRoute, replyCommentId: 'author/other-target'},
+        commentRecordId,
+        submittedRoute,
+      ),
+    ).toBeNull()
+  })
+
+  it('does not change an unrelated view', () => {
+    expect(getCommentSubmissionRoute({key: 'library'}, commentRecordId)).toBeNull()
+    expect(
+      getCommentSubmissionRoute({key: 'document', id: docId, panel: {key: 'activity', id: docId}}, commentRecordId),
+    ).toBeNull()
   })
 })
 
@@ -165,6 +141,15 @@ describe('applyOptimisticComment', () => {
   function createQueryClient() {
     return new QueryClient({defaultOptions: {queries: {retry: false}}})
   }
+
+  it('replaces the pending version without duplicating a published comment', () => {
+    const qc = createQueryClient()
+    const pending = makeComment({version: 'optimistic-pending'})
+    applyOptimisticComment(qc, docId, pending, authorMetadata)
+    const published = {...pending, version: 'published-cid'}
+    applyOptimisticComment(qc, docId, published, authorMetadata)
+    expect(qc.getQueryData<HMListCommentsOutput>([queryKeys.DOCUMENT_COMMENTS, docId])?.comments).toEqual([published])
+  })
 
   it('appends a comment to the DOCUMENT_COMMENTS cache', () => {
     const qc = createQueryClient()
@@ -237,6 +222,26 @@ describe('applyOptimisticComment', () => {
 
     const blockData = qc.getQueryData<HMListCommentsOutput>(blockKey)
     expect(blockData?.comments).toHaveLength(1)
+  })
+
+  it('updates every cached range of the quoted block and restores each on rollback', () => {
+    const qc = createQueryClient()
+    const comment = makeComment()
+    const targets = [
+      {...docId, blockRef: 'blockXYZ', blockRange: {start: 1, end: 4}},
+      {...docId, blockRef: 'blockXYZ', blockRange: {start: 20, end: 25}, version: 'older'},
+    ]
+    const keys = targets.map((target) => [queryKeys.BLOCK_DISCUSSIONS, target])
+    for (const key of keys) qc.setQueryData(key, {comments: [], authors: {}})
+    const rollback = applyOptimisticComment(qc, docId, comment, authorMetadata, {
+      blockId: 'blockXYZ',
+      range: {start: 1, end: 4},
+    })
+    for (const key of keys) {
+      expect(qc.getQueryData<HMListCommentsOutput>(key)?.comments.map((c) => c.id)).toEqual([comment.id])
+    }
+    rollback()
+    for (const key of keys) expect(qc.getQueryData<HMListCommentsOutput>(key)?.comments).toEqual([])
   })
 
   it('skips BLOCK_DISCUSSIONS when no quoting block is given', () => {

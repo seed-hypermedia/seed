@@ -2,7 +2,7 @@
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {MobilePanelSheet} from '../mobile-panel-sheet'
+import {MobilePanelSheet, resolveSheetSnap} from '../mobile-panel-sheet'
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
@@ -117,5 +117,69 @@ describe('MobilePanelSheet', () => {
     })
 
     expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('resizable MobilePanelSheet', () => {
+  function renderResizable() {
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    act(() => {
+      root!.render(
+        <MobilePanelSheet isOpen title="Activity" onClose={vi.fn()} resizable>
+          <div>Updates</div>
+        </MobilePanelSheet>,
+      )
+    })
+    return document.body.querySelector<HTMLElement>('[data-slot="mobile-panel-sheet"]')!
+  }
+
+  it('opens at about 60% of the screen', () => {
+    const sheet = renderResizable()
+    expect(sheet.dataset.snap).toBe('partial')
+    expect(sheet.style.height).toBe('60dvh')
+  })
+
+  it('toggles between 60% and full height when the handle is tapped', () => {
+    const sheet = renderResizable()
+    const handle = document.body.querySelector('[data-slot="mobile-panel-drag-handle"]')!
+    act(() => handle.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+    expect(sheet.dataset.snap).toBe('full')
+    expect(handle.getAttribute('aria-label')).toBe('Shrink panel')
+    act(() => handle.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+    expect(sheet.dataset.snap).toBe('partial')
+  })
+
+  it('leaves sheets that are not resizable at their fixed height', () => {
+    renderSheet()
+    const sheet = document.body.querySelector<HTMLElement>('[data-slot="mobile-panel-sheet"]')!
+    expect(sheet.dataset.snap).toBeUndefined()
+    expect(sheet.style.height).toBe('')
+  })
+})
+
+describe('resolveSheetSnap', () => {
+  // A 1000px-tall screen: rests at 600px or 960px, and closes 160px below the partial height.
+  const base = {partialHeight: 600, fullHeight: 960, closeDistance: 160}
+
+  it('settles on the nearer resting height after a slow drag', () => {
+    expect(resolveSheetSnap({...base, height: 700, velocity: 0, startSnap: 'partial'})).toBe('partial')
+    expect(resolveSheetSnap({...base, height: 850, velocity: 0, startSnap: 'partial'})).toBe('full')
+    expect(resolveSheetSnap({...base, height: 700, velocity: 0, startSnap: 'full'})).toBe('partial')
+  })
+
+  it('follows a flick even when the drag was short', () => {
+    expect(resolveSheetSnap({...base, height: 620, velocity: 1, startSnap: 'partial'})).toBe('full')
+    expect(resolveSheetSnap({...base, height: 940, velocity: -1, startSnap: 'full'})).toBe('partial')
+  })
+
+  it('closes when flicked down from the partial height', () => {
+    expect(resolveSheetSnap({...base, height: 580, velocity: -1, startSnap: 'partial'})).toBe('close')
+  })
+
+  it('closes when dragged well below the partial height, and springs back otherwise', () => {
+    expect(resolveSheetSnap({...base, height: 400, velocity: 0, startSnap: 'partial'})).toBe('close')
+    expect(resolveSheetSnap({...base, height: 500, velocity: 0, startSnap: 'partial'})).toBe('partial')
   })
 })

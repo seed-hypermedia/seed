@@ -128,7 +128,7 @@ The server fans events out to the owner and collaborator accounts. A public read
 
 # Replay <!-- id:V2Zm4-wC -->
 
-Only durable session events are replayed. Live partials are not persisted and cannot be replayed. <!-- id:Jy3_Xd4u -->
+Only durable session events are replayed. Live partials are not persisted and cannot be replayed. The replay is read in the same step that adds the socket to the session's subscribers, so an event is either in the replay or delivered live, never neither. `GetSession` reads the log last for the same reason: a client adds what its socket delivers to what it fetched. <!-- id:Jy3_Xd4u -->
 
 For `sessions/<id>`, with or without `afterSeq`, the server sends: <!-- id:pSK8r44j -->
   1. `subscribed`; <!-- id:DvtwIk6Y -->
@@ -173,7 +173,7 @@ The server eventually sends: <!-- id:-eigGcgR -->
 }
 ```
 
-The desktop keeps the partial visible on `done` and clears it only when a durable `append` arrives. The Pi-backed runtime emits a fresh partial stream for each assistant turn and appends that turn's durable assistant message at Pi `message_end`, before any following tool execution events. Streamed text before a tool call then settles into the durable event list ahead of the durable `tool_call` row. It does not wait until the whole agent run ends. <!-- id:FPf42YK5 -->
+The desktop keeps the partial visible on `done` and clears it only when a durable `append` arrives. The runtime emits a fresh partial stream for each model response and appends that response's durable assistant message when its entry is committed to the session's [durable store](./durable-sessions.md), before any following tool execution events. Streamed text before a tool call then settles into the durable event list ahead of the durable `tool_call` row. It does not wait until the whole agent run ends. <!-- id:FPf42YK5 -->
 
 # Streaming diagnostics <!-- id:7SQoXZwS -->
 

@@ -9,34 +9,41 @@ import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {focusedComment, parentComment, useCommentParentsMock, useDocumentCommentsMock, onBookmarkToggleMock} =
-  vi.hoisted(() => {
-    const focusedComment = {
-      id: 'alice/comment',
-      version: 'focused-version',
-      author: 'alice',
-      targetAccount: 'alice',
-      targetPath: 'doc',
-      targetVersion: 'document-version',
-      content: [{block: {id: 'text', type: 'Paragraph', text: 'A comment worth saving'}}],
-      createTime: {seconds: 0, nanos: 0},
-      updateTime: {seconds: 0, nanos: 0},
-      visibility: 'PUBLIC',
-    }
-    const parentComment = {...focusedComment, id: 'alice/parent', version: 'parent-version'}
+const {
+  focusedComment,
+  parentComment,
+  useCommentParentsMock,
+  useDocumentCommentsMock,
+  onBookmarkToggleMock,
+  currentRoute,
+} = vi.hoisted(() => {
+  const focusedComment = {
+    id: 'alice/comment',
+    version: 'focused-version',
+    author: 'alice',
+    targetAccount: 'alice',
+    targetPath: 'doc',
+    targetVersion: 'document-version',
+    content: [{block: {id: 'text', type: 'Paragraph', text: 'A comment worth saving'}}],
+    createTime: {seconds: 0, nanos: 0},
+    updateTime: {seconds: 0, nanos: 0},
+    visibility: 'PUBLIC',
+  }
+  const parentComment = {...focusedComment, id: 'alice/parent', version: 'parent-version'}
 
-    return {
-      focusedComment,
-      parentComment,
-      useCommentParentsMock: vi.fn<() => any>(() => null),
-      useDocumentCommentsMock: vi.fn<() => any>(() => ({
-        data: null,
-        error: null,
-        isLoading: true,
-      })),
-      onBookmarkToggleMock: vi.fn(),
-    }
-  })
+  return {
+    focusedComment,
+    parentComment,
+    currentRoute: {value: {key: 'document', panel: null} as any},
+    useCommentParentsMock: vi.fn<() => any>(() => null),
+    useDocumentCommentsMock: vi.fn<() => any>(() => ({
+      data: null,
+      error: null,
+      isLoading: true,
+    })),
+    onBookmarkToggleMock: vi.fn(),
+  }
+})
 
 vi.mock('@shm/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shm/shared')>()
@@ -63,7 +70,18 @@ vi.mock('@shm/shared/document-actions-context', () => ({
 vi.mock('@shm/shared/models/comments', () => ({
   useBlockDiscussions: () => ({data: null, isLoading: false}),
   useCommentReplyCount: () => ({data: 0}),
-  useCommentVersions: () => ({data: null, isLoading: false}),
+  useCommentVersions: () => ({
+    data: {
+      versions: [
+        {
+          ...focusedComment,
+          version: 'old-version',
+          content: [{block: {id: 'text', type: 'Paragraph', text: 'Original fragment text'}}],
+        },
+      ],
+    },
+    isLoading: false,
+  }),
   useDocumentComments: useDocumentCommentsMock,
   useDocumentDiscussions: () => ({data: null, isLoading: false}),
 }))
@@ -83,7 +101,13 @@ vi.mock('@shm/shared/models/entity', () => ({
 }))
 
 vi.mock('@shm/shared/readonly-viewer-context', () => ({
-  useReadOnlyViewer: () => false,
+  useReadOnlyViewer:
+    () =>
+    ({blocks, focusBlockId, blockRange}: any) => (
+      <p data-testid="comment-text" data-focus={focusBlockId} data-range={JSON.stringify(blockRange)}>
+        {blocks.map((node: any) => node.block.text).join('')}
+      </p>
+    ),
 }))
 
 vi.mock('@shm/shared/routes', async (importOriginal) => {
@@ -102,13 +126,13 @@ vi.mock('@shm/shared/utils/navigation', () => ({
   NavContextProvider: ({children}: {children: React.ReactNode}) => children,
   useNavigate: () => vi.fn(),
   useNavigation: () => ({}),
-  useNavRoute: () => ({key: 'document', panel: null}),
+  useNavRoute: () => currentRoute.value,
 }))
 
 let root: Root | null = null
 let container: HTMLDivElement | null = null
 
-function renderCommentDiscussions() {
+function renderCommentDiscussions(selection?: {blockId: string; blockRange: {start: number; end: number}}) {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -119,6 +143,7 @@ function renderCommentDiscussions() {
         <CommentDiscussions
           targetId={hmId('alice', {path: ['doc']})}
           commentId="alice/comment"
+          selection={selection}
           commentEditor={<div data-testid="comment-editor">Editor</div>}
         />
       </TooltipProvider>,
@@ -138,6 +163,7 @@ afterEach(() => {
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
   vi.useRealTimers()
   onBookmarkToggleMock.mockReset()
+  currentRoute.value = {key: 'document', panel: null}
 })
 
 describe('CommentDiscussions', () => {
@@ -211,5 +237,26 @@ describe('commentBookmarkTitle', () => {
     ] as any
 
     expect(commentBookmarkTitle(content, {'hm://alice': 'Alice Example'})).toBe('wdyt Alice Example')
+  })
+})
+
+describe('comment version fragment links', () => {
+  it('highlights the original fragment in the pinned historical comment', () => {
+    currentRoute.value = {
+      key: 'comments',
+      id: hmId('alice', {path: ['doc']}),
+      openComment: focusedComment.id,
+      openCommentVersion: 'old-version',
+    }
+    useDocumentCommentsMock.mockReturnValue({
+      data: {comments: [focusedComment], authors: {}},
+      error: null,
+      isLoading: false,
+    })
+    renderCommentDiscussions({blockId: 'text', blockRange: {start: 9, end: 17}})
+    const content = container?.querySelector('[data-testid="comment-text"]')
+    expect(content?.textContent).toBe('Original fragment text')
+    expect(content?.getAttribute('data-focus')).toBe('text')
+    expect(content?.getAttribute('data-range')).toBe('{"start":9,"end":17}')
   })
 })

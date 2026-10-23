@@ -1,4 +1,6 @@
 import {parseDeepLink} from '@/utils/deep-links'
+import {getPageWebContents} from './app-web-browser'
+import {setupBrowserSessionPolicy} from './browser-session-policy'
 import type {AppWindowEvent} from '@/utils/window-events'
 
 import {DAEMON_HTTP_URL, OS_PROTOCOL_SCHEME} from '@shm/shared/constants'
@@ -110,7 +112,7 @@ ipcMain.on('close_window', (_event, _info) => {
 ipcMain.on('find_in_page_query', (_event, info: {query: string; findNext?: boolean; forward?: boolean}) => {
   const focusedWindow = getFocusedWindow()
   if (!focusedWindow || focusedWindow.webContents.isDestroyed()) return
-  focusedWindow.webContents.findInPage(info.query, {
+  getPageWebContents(focusedWindow).findInPage(info.query, {
     findNext: info.findNext,
     forward: info.forward,
   })
@@ -164,12 +166,15 @@ export function getDefaultStartupRoute(): NavRoute {
 export async function openInitialWindows() {
   const windowsState = getWindowsState()
 
-  const validWindowEntries = Object.entries(windowsState).filter(([windowId, window]) => {
-    if (!window || !Array.isArray(window.routes)) return false
-    if (window.routes.length === 0) return false
-    return window.routes.every((route) => {
-      return navRouteSchema.safeParse(route).success
-    })
+  // Drop history entries whose route no longer exists (a page removed in an update) instead of the whole window.
+  const isValidRoute = (route: unknown) => navRouteSchema.safeParse(route).success
+  const validWindowEntries = Object.entries(windowsState).flatMap(([windowId, window]) => {
+    if (!window || !Array.isArray(window.routes)) return []
+    const routes = window.routes.filter(isValidRoute)
+    if (routes.length === 0) return []
+    // Keep pointing at the same entry, or at the closest earlier one if that entry was dropped.
+    const keptUpToCurrent = window.routes.slice(0, window.routeIndex + 1).filter(isValidRoute).length
+    return [[windowId, {...window, routes, routeIndex: Math.max(0, keptUpToCurrent - 1)}] as const]
   })
   await getFirstAvailableAccount()
   if (!validWindowEntries.length) {
@@ -389,6 +394,9 @@ export const router = t.router({
       }),
     )
     .mutation(async ({input: {webUrl}}) => {
+      // The imported page is untrusted web content: it renders in the web pane's partition with the
+      // same isolation and policies, never in the app's own session.
+      setupBrowserSessionPolicy()
       const webView = new BrowserWindow({
         show: false,
         width: 1200,
@@ -396,6 +404,10 @@ export const router = t.router({
         webPreferences: {
           offscreen: true,
           spellcheck: true,
+          partition: 'persist:seed-web-browser',
+          contextIsolation: true,
+          sandbox: true,
+          nodeIntegration: false,
         },
         icon: process.env.CI
           ? path.resolve(__dirname, '../assets/icons-prod/icon.png')

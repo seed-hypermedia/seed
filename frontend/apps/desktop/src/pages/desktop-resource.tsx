@@ -21,6 +21,7 @@ import {EditingDocToolsRight, useDesktopToolbarCallbacks} from '@/components/edi
 import {useFollowProfileIntent} from '@/components/desktop-intents'
 import {DocumentDestinationDialog} from '@/components/document-destination-dialog'
 import {JoinButton} from '@/components/join-button'
+import {SpaceHeaderTools} from '@/components/titlebar-common'
 import {usePublishSite} from '@/components/publish-site'
 import {SearchInput} from '@/components/search-input'
 import {domainResolver, grpcClient} from '@/grpc-client'
@@ -1308,7 +1309,12 @@ export default function DesktopResourcePage() {
                     existingDraftBindingSchemaDrafts={draftBindingSchemaDrafts(draftData) ?? undefined}
                     existingDraftDeps={draftData?.deps}
                     draftVersionOnDiscardConfirm={draftVersionToolbarCallbacks.onDiscardConfirm}
-                    rightActions={<JoinButton siteUid={docId.uid} />}
+                    rightActions={
+                      <>
+                        <SpaceHeaderTools />
+                        <JoinButton siteUid={docId.uid} />
+                      </>
+                    }
                     onEditProfile={onEditProfile}
                     onFollowClick={followIntent.follow}
                     inspect={inspect}

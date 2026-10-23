@@ -37,6 +37,16 @@ export const HMBlockChildrenTypeSchema = z
   .nullable() // null or missing childrenType means "Group"
 export type HMBlockChildrenType = z.infer<typeof HMBlockChildrenTypeSchema>
 
+/** Horizontal alignment of a block's text. A missing key means `left`, the default. */
+export const HMBlockTextAlignmentSchema = z.union([
+  z.literal('left'),
+  z.literal('center'),
+  z.literal('right'),
+  z.literal('justify'),
+])
+/** One of the four `textAlignment` attribute values. */
+export type HMBlockTextAlignment = z.infer<typeof HMBlockTextAlignmentSchema>
+
 export const HMEmbedViewSchema = z.union([
   z.literal('Content'),
   z.literal('Card'),
@@ -217,6 +227,8 @@ const textBlockProperties = {
 const parentBlockAttributes = {
   childrenType: HMBlockChildrenTypeSchema.optional(),
   columnCount: z.number().optional(),
+  // An unknown value is dropped rather than failing the block, which would turn it into an unknown block.
+  textAlignment: HMBlockTextAlignmentSchema.optional().catch(undefined),
 }
 
 export const HMBlockParagraphSchema = z

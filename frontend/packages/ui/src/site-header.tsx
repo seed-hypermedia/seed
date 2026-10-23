@@ -18,12 +18,12 @@ import {useResponsiveItems} from './use-responsive-items'
 
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Activity, Lock} from 'lucide-react'
+import {Lock} from 'lucide-react'
 import {AssistantPanelHeaderButton, AssistantPanelMenuItem} from './assistant-panel-toggle'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
+import {focusExploreSearch} from './explore-search-focus'
 import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
 import {MobileSearch} from './search'
-import {focusExploreSearch} from './explore-search-focus'
 import {Separator} from './separator'
 import {SiteLogo} from './site-logo'
 import {Tooltip} from './tooltip'
@@ -94,38 +94,10 @@ function ExploreHeaderButton({siteHomeId}: {siteHomeId: UnpackedHypermediaId}) {
 
   return (
     <Tooltip content="Explore">
-      <Button asChild variant="ghost" size="icon" className="h-8 rounded-full border-1 border-transparent p-0">
-        <a ref={linkRef} aria-label="Explore" {...linkProps}>
+      <Button asChild variant="ghost" className="h-8 gap-1.5 rounded-full border-1 border-transparent px-3">
+        <a ref={linkRef} {...linkProps}>
           <Search className="size-4" />
-        </a>
-      </Button>
-    </Tooltip>
-  )
-}
-
-// Site header entry point to the space Activity Feed.
-function FeedHeaderButton({siteHomeId, isActive}: {siteHomeId: UnpackedHypermediaId; isActive: boolean}) {
-  const linkProps = useRouteLink({
-    key: 'feed',
-    id: {...siteHomeId, latest: true, version: null},
-  })
-  return (
-    <Tooltip content="Activity Feed">
-      <Button
-        asChild
-        variant="ghost"
-        size="icon"
-        className={cn('h-8 rounded-full border-1 border-transparent p-0', isActive && 'dark:bg-muted bg-black/5')}
-      >
-        <a
-          aria-label="Activity Feed"
-          aria-current={isActive ? 'page' : undefined}
-          onMouseEnter={() => {
-            import('./feed').catch(() => {})
-          }}
-          {...linkProps}
-        >
-          <Activity className="size-4" />
+          Explore
         </a>
       </Button>
     </Tooltip>
@@ -148,7 +120,6 @@ export function SiteHeader({
   isLatest: _isLatest,
   editNavPane,
   editNavPanePortalRef,
-  isMainFeedVisible = false,
   wrapperClassName,
   notifyServiceHost: _notifyServiceHost,
   routeType,
@@ -170,7 +141,6 @@ export function SiteHeader({
   isLatest?: boolean
   editNavPane?: React.ReactNode
   editNavPanePortalRef?: (node: HTMLDivElement | null) => void
-  isMainFeedVisible: boolean
   wrapperClassName?: string
   notifyServiceHost?: string
   routeType?: NavRoute['key']
@@ -206,11 +176,12 @@ export function SiteHeader({
         <Menu size={20} />
       </Button>
       {siteHomeId && !IS_DESKTOP ? (
-        <div className="hidden items-center gap-1 md:flex">
+        <div className="hidden items-center gap-4 md:flex">
           <ExploreHeaderButton siteHomeId={siteHomeId} />
-          <FeedHeaderButton siteHomeId={siteHomeId} isActive={isMainFeedVisible} />
-          <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
-          <DocumentMaintenanceTrigger compact />
+          <div className="flex items-center gap-1">
+            <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
+            <DocumentMaintenanceTrigger compact />
+          </div>
         </div>
       ) : null}
     </>
@@ -327,7 +298,6 @@ export function SiteHeader({
                         setIsMobileMenuOpen(false)
                       }}
                     />
-                    <MobileFeedLink siteHomeId={siteHomeId} onClick={() => setIsMobileMenuOpen(false)} />
                   </div>
                 )}
                 {!IS_DESKTOP && (
@@ -421,26 +391,6 @@ function MobileMenuOutline({
 
   return (
     <DocumentOutline onActivateBlock={onActivateBlock} outline={outline} id={docId} activeBlockId={docId.blockRef} />
-  )
-}
-
-function MobileFeedLink({siteHomeId, onClick}: {siteHomeId: UnpackedHypermediaId; onClick?: () => void}) {
-  const feedLinkProps = useRouteLink({
-    key: 'feed',
-    id: {...siteHomeId, latest: true, version: null},
-  })
-
-  return (
-    <SmallListItem
-      bold
-      title="Activity Feed"
-      icon={<Activity className="size-4" />}
-      {...feedLinkProps}
-      onClick={(e) => {
-        feedLinkProps.onClick?.(e)
-        onClick?.()
-      }}
-    />
   )
 }
 

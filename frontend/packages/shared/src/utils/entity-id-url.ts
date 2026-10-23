@@ -90,7 +90,7 @@ export type ViewRouteKey =
   | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
-export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
+export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options' | 'feed'
 
 function extractInspectPrefixFromUrl(url: string): {url: string; isInspect: boolean} {
   const hmInspectMatch = url.match(/^(hm:\/\/)inspect(?:\/(.*))?$/)
@@ -120,12 +120,24 @@ export function extractViewTermFromUrl(url: string): {
   isInspect: boolean
   viewTerm: ViewTerm | null
   activityFilter?: string
+  feedTab?: string
   commentId?: string
   accountUid?: string
   settingsTab?: string
   settingsDomain?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
+
+  // Check for the :feed/to-you pattern (the Activity page on its To you tab)
+  const feedTabMatch = inspectCleanUrl.match(/\/\:feed\/(to-you)(?=[?#]|$)/)
+  if (feedTabMatch) {
+    return {
+      url: inspectCleanUrl.replace(feedTabMatch[0], ''),
+      isInspect,
+      viewTerm: ':feed',
+      feedTab: feedTabMatch[1],
+    }
+  }
 
   // Check for :comments/<comment-id> or :comment/<comment-id> pattern.
   // Comment IDs may be a single segment or a slash-delimited path.
@@ -582,7 +594,7 @@ export function getRoutePanelParam(route: NavRoute): string | null {
     panel = route.panel
   }
 
-  if (!panel) return null
+  if (!panel || (route.key === 'comments' && panel.key === 'comments')) return null
 
   // Priority 1: Encode openComment - most specific
   if (panel.key === 'comments' && panel.openComment) {
@@ -598,6 +610,11 @@ export function getRoutePanelParam(route: NavRoute): string | null {
   if (panel.key === 'activity') {
     const filterSlug = activityFilterToSlug((panel as {filterEventType?: string[]}).filterEventType)
     if (filterSlug) return `activity/${filterSlug}`
+  }
+
+  // The space Activity panel spells out To you. All updates is the bare key
+  if (panel.key === 'feed' && (panel as {tab?: string}).tab === 'to-you') {
+    return 'feed/to-you'
   }
 
   return panel.key as PanelQueryKey
@@ -640,6 +657,7 @@ export function routeToUrl(
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
     })
     return url
   }
@@ -662,6 +680,9 @@ export function routeToUrl(
         viewTermPath = `:activity/${filterSlug}`
       }
     }
+    if (route.key === 'feed' && route.tab === 'to-you') {
+      viewTermPath = ':feed/to-you'
+    }
     // For comments with openComment, put commentId in view term path.
     // On comment permalinks, ?v pins the comment version (not the document version).
     let commentPermalinkVersion: {version: string | null; latest: null} | undefined
@@ -677,6 +698,7 @@ export function routeToUrl(
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,
       panel: effectivePanelParam,
+      reply: getRouteReplyCommentId(route),
     })
   }
   if (route.key === 'schema' && route.id) {
@@ -720,6 +742,15 @@ export function routeToUrl(
   return null
 }
 
+/** Gets the continuation target from the single active Comments view. */
+function getRouteReplyCommentId(route: NavRoute): string | undefined {
+  if (route.key === 'comments') return route.openComment ? route.replyCommentId : undefined
+  if ('panel' in route && route.panel?.key === 'comments' && route.panel.openComment) {
+    return route.panel.replyCommentId
+  }
+  return undefined
+}
+
 /**
  * Serializes an application route into an hm:// URL.
  */
@@ -745,6 +776,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
       version: route.id.version,
       latest: route.id.latest,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
     })
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -766,6 +798,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTermPath = `:activity/${filterSlug}`
     }
+    if (route.key === 'feed' && route.tab === 'to-you') viewTermPath = ':feed/to-you'
     // On comment permalinks, ?v pins the comment version (not the document version).
     let versionQuery: {version?: string | null; latest?: boolean | null} = {
       version: route.id.version,
@@ -781,6 +814,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
     url += getHMQueryString({
       ...versionQuery,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
     })
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -859,6 +893,7 @@ export function createWebHMUrl(
     originHomeId,
     viewTerm,
     panel,
+    reply,
   }: {
     version?: string | null | undefined
     blockRef?: string | null | undefined
@@ -869,6 +904,7 @@ export function createWebHMUrl(
     originHomeId?: UnpackedHypermediaId
     viewTerm?: string | null
     panel?: string | null
+    reply?: string | null
   } = {},
 ) {
   let webPath = `/hm/${uid}`
@@ -888,6 +924,7 @@ export function createWebHMUrl(
     latest: latest ?? null,
     version: latest ? undefined : version,
     panel,
+    reply,
   })
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -899,10 +936,12 @@ function getHMQueryString({
   version,
   latest,
   panel,
+  reply,
 }: {
   version?: string | null
   latest?: boolean | null
   panel?: string | null
+  reply?: string | null
 }) {
   const query: Record<string, string | null> = {}
   if (version) {
@@ -914,6 +953,7 @@ function getHMQueryString({
   if (panel) {
     query.panel = panel
   }
+  if (reply) query.reply = reply
   return serializeQueryString(query)
 }
 

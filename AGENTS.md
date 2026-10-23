@@ -55,16 +55,6 @@ These rules apply while query-block author and publish-date filters remain fork-
 - Never force-push a rebased `custom-images` branch unless those checks pass.
 - Remove this section after the query-filter feature is upstreamed.
 
-## Security audit
-
-- The vulnerability-hunting protocol is `.agents/security/auditor.md`. It is plain markdown and self-contained: point
-  any model at it, or symlink it into a provider's agent directory to launch it as a named agent (for Claude Code:
-  `ln -s ../../.agents/security/auditor.md .claude/agents/security-auditor.md`).
-- Read `.agents/security/audit-log.md` before any security review. It records which surfaces have been audited and which
-  hypotheses were ruled out, so sessions resume instead of rediscovering.
-- Fixed vulnerabilities are disclosed as GitHub issues closed by their fix commit. Detail for unfixed findings stays in
-  `.ai/security/queue.md`, which is gitignored — this repo is public.
-
 ## Workflow
 
 - To cut a release, follow `hypermedia/build/releasing.md` (interactive runbook: `.agents/skills/run-release`).

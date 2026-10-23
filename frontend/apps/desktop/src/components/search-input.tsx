@@ -1,9 +1,10 @@
+import {useAppContext} from '@/app-context'
 import appError from '@/errors'
 import {domainResolver} from '@/grpc-client'
 import {useConnectPeer} from '@/models/contacts'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
-import {agentUrlToRoute, ipfsUrlToRoute} from '@/omnibar-url'
+import {agentUrlToRoute, ipfsUrlToRoute, parseBrowserAddress} from '@/omnibar-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {parseDeepLink} from '@/utils/deep-links'
@@ -495,6 +496,7 @@ function applyViewTermToRoute(
 
 function useURLHandler() {
   const experiments = useExperiments()
+  const {externalOpen} = useAppContext()
   const webQuery = useMutation({
     mutationFn: (input: {webUrl: string}) => client.webQuery.mutate(input),
   })
@@ -594,7 +596,14 @@ function useURLHandler() {
       }
       toast('Importing from the web')
     } else {
-      toast.error('Failed to fetch web link')
+      // Not a Hypermedia document: an ordinary website opens the way any web link does.
+      const webAddress = parseBrowserAddress(cleanUrl)
+      if (!webAddress) {
+        toast.error('Failed to fetch web link')
+        return null
+      }
+      if (await readWebBrowserEnabled()) return {key: 'web', url: webAddress}
+      externalOpen(webAddress)
       return null
     }
     throw new Error('Failed to fetch web link')

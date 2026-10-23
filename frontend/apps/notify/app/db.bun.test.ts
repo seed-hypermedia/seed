@@ -99,7 +99,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = (db.query('PRAGMA user_version').get() as {user_version: number}).user_version
-      expect(version).toBe(10)
+      expect(version).toBe(11)
       db.close()
     })
   })

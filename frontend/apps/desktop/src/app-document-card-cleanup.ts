@@ -20,7 +20,6 @@ import {
   planDocumentCardRewrite,
 } from '@shm/shared/utils/document-card-cleanup'
 import {z} from 'zod'
-// @ts-expect-error ignore import
 import {appStore} from './app-store.mts'
 import {getSigner, seedClient} from './app-client'
 import {grpcClient} from './app-grpc'

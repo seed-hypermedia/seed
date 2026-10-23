@@ -968,6 +968,63 @@ describe('EditorBlock to HMBlock', () => {
       expect((val as HMBlockQuery).attributes.query.filters).toEqual([])
     })
 
+    test('query block ignores unsupported or malformed filters', () => {
+      const editorBlock: EditorQueryBlock = {
+        id: 'foo',
+        type: 'query',
+        children: [],
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+        props: {
+          banner: 'false',
+          queryIncludes: '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
+          querySort: '[]',
+          queryFilters:
+            '[{"type":"Author","uid":"author-a"},{"type":"PublishDate","after":"2026-01-01"},{"type":"Author","uid":42}]',
+          queryLimit: '',
+          style: 'Card',
+          columnCount: '1',
+        },
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect((val as HMBlockQuery).attributes.query.filters).toEqual([{type: 'Author', uid: 'author-a'}])
+    })
+
+    test('query block treats invalid filter JSON as no filters', () => {
+      const editorBlock: EditorQueryBlock = {
+        id: 'foo',
+        type: 'query',
+        children: [],
+        content: [
+          {
+            type: 'text',
+            text: '',
+            styles: {},
+          },
+        ],
+        props: {
+          banner: 'false',
+          queryIncludes: '[{"space": "FOO_SPACE", "path": "", "mode": "Children"}]',
+          querySort: '[]',
+          queryFilters: '{"type":"PublishDate"}',
+          queryLimit: '',
+          style: 'Card',
+          columnCount: '1',
+        },
+      }
+
+      const val = editorBlockToHMBlock(editorBlock)
+
+      expect((val as HMBlockQuery).attributes.query.filters).toEqual([])
+    })
+
     // test('nostr', () => {
     //   const editorBlock: EditorNostrBlock = {
     //     id: 'foo',
@@ -1855,5 +1912,63 @@ describe('EditorBlock to HMBlock', () => {
       expect(cols.map((c) => c.block?.id)).toEqual(['col-0'])
       expect(rows.map((r) => r.block?.id)).toEqual(['row-0'])
     })
+  })
+})
+
+describe('textAlignment', () => {
+  function paragraph(props: EditorBlock['props']): EditorBlock {
+    return {
+      id: 'align',
+      type: 'paragraph',
+      children: [],
+      props,
+      content: [{type: 'text', text: 'Aligned', styles: {}}],
+    }
+  }
+
+  test.each(['center', 'right', 'justify'] as const)('writes %s as the textAlignment attribute', (textAlignment) => {
+    const result = editorBlockToHMBlock(paragraph({textAlignment}))
+    expect((result as any).attributes).toEqual({textAlignment})
+  })
+
+  test('omits the default left alignment', () => {
+    const result = editorBlockToHMBlock(paragraph({textAlignment: 'left'}))
+    expect((result as any).attributes).toEqual({})
+    expect('textAlignment' in (result as any).attributes).toBe(false)
+  })
+
+  test('keeps alignment next to childrenType on a heading', () => {
+    const editorBlock: EditorHeadingBlock = {
+      id: 'heading',
+      type: 'heading',
+      children: [],
+      props: {level: 2, textAlignment: 'center', childrenType: 'Ordered'},
+      content: [{type: 'text', text: 'Title', styles: {}}],
+    }
+    expect((editorBlockToHMBlock(editorBlock) as any).attributes).toEqual({
+      childrenType: 'Ordered',
+      textAlignment: 'center',
+    })
+  })
+
+  test.each(['center', 'right', 'justify'] as const)('%s survives editor -> HM -> editor', (textAlignment) => {
+    const [node] = editorBlocksToHMBlockNodes([paragraph({textAlignment})])
+    const [editorBlock] = hmBlocksToEditorContent([node!])
+    expect(editorBlock!.props.textAlignment).toBe(textAlignment)
+  })
+
+  test('an unaligned document converts to identical blocks after a round trip', () => {
+    const original: HMBlockNode[] = [
+      {block: {id: 'p1', type: 'Paragraph', text: 'Plain', annotations: [], attributes: {}}},
+      {block: {id: 'h1', type: 'Heading', text: 'Title', annotations: [], attributes: {childrenType: 'Unordered'}}},
+    ]
+    const editorBlocks = hmBlocksToEditorContent(original)
+    // The editor fills in its default (`left`) for every block it loads.
+    const withDefaults = editorBlocks.map((b) => ({
+      ...b,
+      props: {...b.props, textAlignment: 'left' as const},
+    })) as EditorBlock[]
+    const roundTripped = editorBlocksToHMBlockNodes(withDefaults)
+    expect(roundTripped.map((n) => n.block)).toEqual(original.map((n) => n.block))
   })
 })

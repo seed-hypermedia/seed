@@ -33,6 +33,25 @@ const initial = {
   visibility: 'PUBLIC' as const,
 }
 
+it('creates a browser archive as an editable, account-listed draft with source metadata', async () => {
+  const {prepareBrowserArchive} = await import('../app-browser-agent')
+  const archive = await prepareBrowserArchive({
+    url: 'https://example.com/article',
+    title: 'Article',
+    metadata: {author: 'Original author'},
+    html: '<p>Saved article content.</p>',
+  })
+  const created = await drafts.createBrowserArchiveDraft(archive, 'account')
+  const api = drafts.draftsApi.createCaller({})
+  expect(await api.get(created.id)).toMatchObject({
+    id: created.id,
+    metadata: {name: 'Article', sourceUrl: 'https://example.com/article', sourceAuthor: 'Original author'},
+    deps: [],
+  })
+  expect((await api.listAccount('account')).map((draft) => draft.id)).toContain(created.id)
+  expect(JSON.stringify((await api.get(created.id))?.content)).toContain('Saved article content.')
+})
+
 it('CAS rejects a concurrent edit without losing the new content', async () => {
   const api = drafts.draftsApi.createCaller({})
   await api.write(initial)

@@ -82,6 +82,28 @@ The desktop app starts a local [agents server](./agents.md) and shows the agents
 
 The inbox page reads a local copy of the account's notification state that the main process syncs with the [notify service](./notify.md), signing requests through the daemon. Release builds default to `https://hyper.media/hm/api/notify` (dev builds `https://dev.hyper.media/hm/api/notify`); the vault's notify setting overrides it, and a site's email subscribers come from the notify service its `/hm/api/config` advertises as `notifyServiceUrl` (or the older `notifyServiceHost`). Marking things read works offline and syncs later. [Notify](./notify.md) describes the store and the read-state rules. <!-- id:H444btBN -->
 
+# The web browser
+
+The desktop app can open ordinary websites in a pane beside the sidebar and the agents panel. It is off by default and
+ships behind the **Integrated Web Browser** toggle in Settings, Advanced. With the toggle off, web links and any website
+typed into the omnibar open in the system browser, the omnibar itself only resolves Hypermedia addresses, and agents are
+not offered the `browser` tool. Every link asks the main process at the moment it is opened, so flipping the toggle
+takes effect in every open window at once. The toggle is also forced off when the bundled Chromium is older than the
+release policy allows, so an unpatched build never shows websites. The security model, the per-website agent consent and
+the blocklists are described in the agents service's browser notes (`agents/docs/integrated-browser.md` in the repo).
+
+The pane's header shows the page's icon and title, a private-page button, the tracking-protection shield with the number
+of requests blocked, reload, **Open in default browser** and a menu; the address itself is in the omnibar. Websites are
+opened over https first: a plain `http://` address, whether typed, clicked, redirected to, restored from history or
+asked for by an agent, is tried as `https://` before any unencrypted request is sent, so a site that merely redirects to
+https never loads over http. When the encrypted address does not answer (refused, unresolved, a bad certificate, or
+nothing after ten seconds), the pane shows a warning inside a thick red frame that names the host and offers **Show the
+page anyway** or **Go back**. Accepting it, with a real click, allows that origin for the rest of the session (private
+pages keep their own list; **Clear browsing data** forgets both), and the website is then shown inside a red frame for
+as long as the page on screen is http. Loopback addresses such as `http://localhost:3000` are secure contexts and need
+no warning. An agent whose `navigate` command would land on the warning is refused and told that the user has to allow
+the site first.
+
 # Development notes <!-- id:TUREvD9- -->
 
 - `pnpm desktop dev:debug` opens Chrome DevTools Protocol on 9222. Automated drivers use it to screenshot and navigate the dev app. <!-- id:VTL7vY_K -->

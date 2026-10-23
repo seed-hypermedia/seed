@@ -103,6 +103,7 @@ import {SigningIdentityIcon} from './signing-identity-icon'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {activityConditions, getSeedTool} from '@seed-hypermedia/agents-protocol'
 import {
+  AGENT_BROWSER_TOOL,
   AGENT_EXECUTE_TOOL,
   AGENT_PUBLISH_GRANT,
   AGENT_SEARCH_TOOL,
@@ -1507,10 +1508,16 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
 
 // Reading, memory, publishing, delegation, and plans are verbs — always on, not configuration.
 // What the user toggles here is the CALLABLE tool set dispatched through the call verb.
-const AGENT_TOOL_OPTIONS: {names: string[]; title: string; infoTool?: string}[] = [
+const AGENT_TOOL_OPTIONS: {names: string[]; title: string; description?: string; infoTool?: string}[] = [
   {names: [AGENT_SEARCH_TOOL], title: 'Search Seed content'},
   {names: [AGENT_WEB_SEARCH_TOOL], title: 'Search the web'},
   {names: [AGENT_EXECUTE_TOOL], title: 'Execute code'},
+  {
+    names: [AGENT_BROWSER_TOOL],
+    title: 'Use the integrated browser',
+    description:
+      'Let this agent read and act on websites you open in Seed. You still allow each website, and actions on it, when the agent asks.',
+  },
   // The publish grant is not a registry tool — publishing runs through the always-on `write`
   // verb, so its info dialog shows the write verb's model-facing contract.
   {names: [AGENT_PUBLISH_GRANT], title: 'Publish Seed content', infoTool: 'write'},
@@ -1756,6 +1763,11 @@ function AgentToolsTab({
                   <Info className="size-3.5" />
                 </Button>
               </div>
+              {group.description ? (
+                <SizableText size="xs" color="muted" className="pl-7">
+                  {group.description}
+                </SizableText>
+              ) : null}
               {!groupAvailable && note ? (
                 <SizableText size="xs" color="muted" className="pl-7">
                   {note}{' '}

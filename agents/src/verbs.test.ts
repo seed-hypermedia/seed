@@ -1,5 +1,5 @@
 import {Database} from 'bun:sqlite'
-import {afterEach, describe, expect, mock, test} from 'bun:test'
+import {afterEach, describe, expect, mock, spyOn, test} from 'bun:test'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -8,10 +8,12 @@ import {unpackHmId} from '@seed-hypermedia/client'
 import {CID} from 'multiformats/cid'
 import * as apisvc from '@/api-service'
 import {executeCallVerb, executeReadVerb, executeWriteVerb, type AgentServicePiToolContext} from '@/api-service'
+import * as cbor from '@/cbor'
 import {decode as cborDecode, encode as cborEncode} from '@/cbor'
 import {LAMBDA_RESULT_PREFIX} from '@/code-exec'
 import * as toolDocs from '@/tool-documents'
 import * as agentMemory from '@/agent-memory'
+import {BrowserPrivacy} from '@/browser-privacy'
 import * as sqlite from '@/sqlite'
 import type {CodeExecutor} from '@/code-exec'
 
@@ -56,6 +58,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
   } as unknown as CodeExecutor
   return {
     db,
+    browserPrivacy: new BrowserPrivacy(db),
     accountId: 'test-account',
     agentId: 'test-agent',
     definition: {name: 'Test', systemPrompt: '', modelProvider: 'p', model: 'm'} as never,
@@ -78,6 +81,55 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
     ...overrides,
   }
 }
+
+describe('browser callable', () => {
+  test('discovers the contract through the normal tool documents', async () => {
+    const context = makeContext({callableTools: ['browser']})
+    const listing = await executeReadVerb(context, {address: '~/tools/'})
+    expect(JSON.stringify(listing)).toContain('browser')
+    const contract = await executeReadVerb(context, {address: '~/tools/browser'})
+    expect(JSON.stringify(contract)).toContain('editable local Seed draft')
+  })
+
+  test('archives privately without requiring or invoking publication', async () => {
+    const context = makeContext({
+      callableTools: ['browser'],
+      publishEnabled: false,
+      browser: async () => ({
+        draftId: 'desktop-draft',
+        markdown: '---\nname: Article\nsourceUrl: https://example.com\n---\nArchived content.',
+      }),
+    })
+    // Browser archives land in owner-only memory, so the call runs as the owner's interactive run.
+    const output = await agentMemory.withOwnerAccess(true, () =>
+      executeCallVerb(context, {tool: 'browser', input: {action: 'archive', document: 'observed'}}, 'call-1'),
+    )
+    expect(output.draftId).toBe('desktop-draft')
+    expect(output.markdown).toBeUndefined()
+    expect(output.memoryPath).toMatch(/^~\/memory\/private\/browser\/archive-/)
+    const saved = await agentMemory.withOwnerAccess(true, () => executeReadVerb(context, {address: output.memoryPath}))
+    expect(JSON.stringify(saved)).toContain('Archived content.')
+    expect(JSON.stringify(saved)).toContain('sourceUrl')
+    expect(output.publishInstructions).toContain('nothing was published')
+  })
+
+  test('delivers private screenshots as model image content and respects tool grants', async () => {
+    const browser = mock(async () => ({
+      summary: 'Captured page',
+      screenshot: {mimeType: 'image/jpeg', data: 'image-base64'},
+    }))
+    const context = makeContext({callableTools: ['browser'], browser, modelAcceptsImages: true})
+    const output = await executeCallVerb(
+      context,
+      {tool: 'browser', input: {action: 'screenshot', document: 'observed'}},
+      'call-1',
+    )
+    expect(output.screenshot).toBeUndefined()
+    expect(output.piContent).toContainEqual({type: 'image', mimeType: 'image/jpeg', data: 'image-base64'})
+    await executeCallVerb({...context, callableTools: []}, {tool: 'browser', input: {action: 'snapshot'}}, 'call-2')
+    expect(browser).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('read verb', () => {
   test('reads and lists memory addresses, including dir fallback without trailing slash', async () => {
@@ -796,39 +848,72 @@ describe('call verb', () => {
 
 describe('space index and touch-expand pins', () => {
   test('index stays under budget, lists tools and memory, and caches until invalidated', async () => {
-    const context = makeContext()
-    await executeWriteVerb(context, {address: '~/memory/notes/a.md', content: 'x'})
-    const index = apisvc.buildSpaceIndex({
-      db: context.db,
-      accountId: 'test-account',
-      agentId: 'test-agent',
-      stateDir: context.stateDir,
-      callableTools: context.callableTools,
-    })
-    expect(index.length).toBeLessThanOrEqual(2048)
-    expect(index).toContain('<space>')
-    expect(index).toContain('search —')
-    expect(index).toContain('notes/(1)')
+    // Exercise the cheap-walk branch deterministically; slow filesystem scheduling otherwise
+    // selects the intentional stale-summary cooldown instead of the invalidation behavior.
+    const clock = spyOn(performance, 'now').mockReturnValue(0)
+    try {
+      const context = makeContext()
+      await executeWriteVerb(context, {address: '~/memory/notes/a.md', content: 'x'})
+      const index = apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: 'test-account',
+        agentId: 'test-agent',
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+      expect(index.length).toBeLessThanOrEqual(2048)
+      expect(index).toContain('<space>')
+      expect(index).toContain('search —')
+      expect(index).toContain('notes/(1)')
 
-    // Cached: a memory write without invalidation returns the same bytes; invalidation refreshes.
-    await executeWriteVerb(context, {address: '~/memory/notes/b.md', content: 'y'})
-    const stale = apisvc.buildSpaceIndex({
-      db: context.db,
-      accountId: 'test-account',
-      agentId: 'test-agent',
-      stateDir: context.stateDir,
-      callableTools: context.callableTools,
-    })
-    expect(stale).toBe(index)
-    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
-    const fresh = apisvc.buildSpaceIndex({
-      db: context.db,
-      accountId: 'test-account',
-      agentId: 'test-agent',
-      stateDir: context.stateDir,
-      callableTools: context.callableTools,
-    })
-    expect(fresh).toContain('notes/(2)')
+      // Cached: a memory write without invalidation returns the same bytes; invalidation refreshes.
+      await executeWriteVerb(context, {address: '~/memory/notes/b.md', content: 'y'})
+      const stale = apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: 'test-account',
+        agentId: 'test-agent',
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+      expect(stale).toBe(index)
+      apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+      const fresh = apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: 'test-account',
+        agentId: 'test-agent',
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+      expect(fresh).toContain('notes/(2)')
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  test('owner and reader Space indexes never share private memory summaries', async () => {
+    const context = makeContext()
+    apisvc.invalidateSpaceIndex(context.accountId, context.agentId)
+    agentMemory.withOwnerAccess(true, () =>
+      agentMemory.writeMemoryFile(context.stateDir, 'private/secret.md', 'private content'),
+    )
+    agentMemory.writeMemoryFile(context.stateDir, 'shared.md', 'shared content')
+    const index = () =>
+      apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: context.accountId,
+        agentId: context.agentId,
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+    const owner = agentMemory.withOwnerAccess(true, index)
+    expect(owner).toContain('private/(')
+    const reader = agentMemory.withOwnerAccess(false, index)
+    expect(reader).not.toContain('private/(')
+    expect(reader).toContain('shared.md')
+    expect(reader).toContain('search —')
+    expect(agentMemory.withOwnerAccess(true, index)).toBe(owner)
+    // No scope at all is the reader view, never the owner's.
+    expect(index()).toBe(reader)
   })
 
   test('authored lambda appears in the index and the listing', async () => {
@@ -1154,6 +1239,64 @@ describe('thread listing and search', () => {
     expect((scoped.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2', 'thread:s1'])
     const byAgent = await executeReadVerb(context, {address: 'thread:', options: {agentId: 'other-agent'}})
     expect((byAgent.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2', 'thread:s1'])
+  })
+
+  test('reader listings and thread reads scan each transcript once through the shared privacy projection', async () => {
+    const context = makeContext()
+    const now = Date.now()
+    const sessions = 6
+    const eventsPerSession = 40
+    const encoded = cborEncode({type: 'message', role: 'assistant', content: 'Ordinary public text.'})
+    context.db.transaction(() => {
+      for (let index = 0; index < sessions; index++) {
+        const id = `thread-${index}`
+        context.db.run(
+          `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, 'test-account', 'test-agent', `Thread ${index}`, 'system', 'idle', now, now + index],
+        )
+        for (let seq = 1; seq <= eventsPerSession; seq++)
+          context.db.run(
+            `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+            [`${id}-${seq}`, id, seq, encoded, now],
+          )
+      }
+      context.db.run(
+        `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ['browser-thread', 'test-account', 'test-agent', 'Browsing', 'system', 'idle', now, now + sessions],
+      )
+      context.db.run(
+        `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+        [
+          'browser-1',
+          'browser-thread',
+          1,
+          cborEncode({type: 'tool_call', id: 'c', name: 'call', input: {tool: 'browser', input: {action: 'snapshot'}}}),
+          now,
+        ],
+      )
+    })()
+    const decode = spyOn(cbor, 'decode')
+    try {
+      const reader = () => agentMemory.withOwnerAccess(false, () => executeReadVerb(context, {address: 'thread:'}))
+      const first = await reader()
+      const threads = (first.threads as Array<{thread: string}>).map((t) => t.thread)
+      expect(threads).toHaveLength(sessions)
+      expect(threads).not.toContain('thread:browser-thread')
+      const scanned = decode.mock.calls.length
+      expect(scanned).toBeGreaterThanOrEqual(sessions * eventsPerSession)
+      decode.mockClear()
+      expect((await reader()).threads).toEqual(first.threads)
+      const transcript = await agentMemory.withOwnerAccess(false, () =>
+        executeReadVerb(context, {address: 'thread:thread-0', options: {limit: 1}}),
+      )
+      expect(transcript.sessionId).toBe('thread-0')
+      // The second listing and the thread read reuse the first scan: no transcript is decoded again.
+      expect(decode.mock.calls.length).toBeLessThan(eventsPerSession)
+    } finally {
+      decode.mockRestore()
+    }
   })
 })
 

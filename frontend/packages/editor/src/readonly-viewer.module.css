@@ -1,0 +1,58 @@
+/* Each viewer owns its root group, including viewers nested inside other blocks. */
+.root > .content :global(.ProseMirror) > [data-node-type='blockChildren'] {
+  margin-inline-start: 0;
+}
+
+/* Only the direct fragment's scaffolding is inline. Nested viewers keep their layout. */
+.fragment,
+.fragment > .content,
+.fragment > .content > :global(.ssr-content-placeholder),
+.fragment > .content > :global(.ProseMirror),
+.fragment > .content > :global(.ssr-content-placeholder) > :global(.ProseMirror),
+.fragment
+  > .content
+  > :is(:global(.ProseMirror), :global(.ssr-content-placeholder) > :global(.ProseMirror))
+  > [data-node-type='blockChildren'],
+.fragment
+  > .content
+  > :is(:global(.ProseMirror), :global(.ssr-content-placeholder) > :global(.ProseMirror))
+  > [data-node-type='blockChildren']
+  > [data-node-type='blockNode'],
+.fragment
+  > .content
+  > :is(:global(.ProseMirror), :global(.ssr-content-placeholder) > :global(.ProseMirror))
+  > [data-node-type='blockChildren']
+  > [data-node-type='blockNode']
+  > :is([data-content-type='paragraph'], [data-content-type='heading']) {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.root.fragment:global(.hm-prose) {
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--hm-prose-size);
+  line-height: 1.25rem;
+}
+
+/* Surrounding editors cannot treat this viewer's first paragraph as their nested child. */
+.root
+  > .content
+  :global(.ProseMirror)
+  > [data-node-type='blockChildren']
+  > [data-node-type='blockNode']:first-child:not(:has(> [data-content-type='heading'])) {
+  margin-top: 0;
+}
+
+/* The server serializer's wrapper belongs to this viewer, not a new resource. */
+.root > .content > :global(.ssr-content-placeholder) {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  --hm-breakout: inherit;
+}

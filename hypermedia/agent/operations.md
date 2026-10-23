@@ -267,7 +267,7 @@ agents/data/agents.sqlite-wal
 agents/data/agents/<agentId>/
 ```
 
-SQLite is authoritative for everything except bytes on disk. An agent's state directory is created with the agent and holds its `memory/` filesystem (the `~/memory/` half of its [Space](./space.md)) plus session-private [attachments](./attachment.md). It is removed with the agent. See [persistence](./persistence.md). Staged chunked uploads live under the data dir until they are committed or expire. <!-- id:dWWK_HDM -->
+SQLite is authoritative for everything except bytes on disk. An agent's state directory is created with the agent and holds its `memory/` filesystem (the `~/memory/` half of its [Space](./space.md)) plus session-private [attachments](./attachment.md). It is removed with the agent. Each session's [durable store](./durable-sessions.md) is in the database, not in this directory. See [persistence](./persistence.md). Staged chunked uploads live under the data dir until they are committed or expire. <!-- id:dWWK_HDM -->
 
 # HTTP endpoints <!-- id:oTx-eqES -->
 
@@ -433,7 +433,7 @@ Run, runtime, and script diagnostics: <!-- id:0OVrLoWY -->
   - `[agents/workflow] continued as new run` <!-- id:fH-VDeMa -->
   - `[agents/workflow] run paused on its time budget` <!-- id:u0b-olQJ -->
 
-Server model execution goes through the Pi SDK. The old manual OpenAI stream logs are not emitted on the primary Pi-backed path. Use durable session events (via `GetSession` or the desktop session page), WebSocket partial logs, and mocked tests for current runtime diagnosis. Add Seed-level Pi runtime diagnostics before production if real-provider troubleshooting needs more visibility. <!-- id:KNt6k5MM -->
+Server model execution goes through pi-ai and Pi Durable. Use durable session events (via `GetSession` or the desktop session page), the `[agents/runtime]` run lines, WebSocket partial logs, and mocked tests for runtime diagnosis. A run that picked up a turn left by an earlier process logs `resuming the durable turn an earlier process left unfinished`, and its `agent run finished` line carries `resumed: true`. A session's durable store is plain JSONL inside the `session_durable_files` table: `SELECT CAST(data AS TEXT) FROM session_durable_files WHERE session_id = ? AND file = 'main.jsonl' ORDER BY seq` prints its main file. <!-- id:KNt6k5MM -->
 
 Server WebSocket logs: <!-- id:LFKybXaZ -->
   - `[agents/ws] open` <!-- id:J0oO3TLG -->
@@ -484,7 +484,7 @@ Desktop signing omits `undefined` recursively before signing. If the error comes
 Follow the log chain: <!-- id:y_nHvnuv -->
   1. Desktop should show `[agents/ws] subscribed event` for `sessions/<sessionId>`. <!-- id:D8kYyYQL -->
   2. The session should be set to `streaming` after `MessageSession`. <!-- id:TdzBvw7L -->
-  3. Server should then show `[agents/ws] publish partial` and `[agents/ws] send partial` when Pi emits text deltas. <!-- id:_ipbPc0H -->
+  3. Server should then show `[agents/ws] publish partial` and `[agents/ws] send partial` when the harness commits streamed text. <!-- id:_ipbPc0H -->
   4. Desktop should show `[agents/ws] partial event` and `[agents/ui] rendering streaming assistant partial`. <!-- id:NzvqNL8D -->
   5. The final assistant message should appear as a durable event in the desktop session page after refresh. <!-- id:CT2Cuh_P -->
 

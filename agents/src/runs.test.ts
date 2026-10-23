@@ -369,6 +369,45 @@ describe('runs queue', () => {
   })
 })
 
+describe('runs queued behind a turn', () => {
+  test('run in the order they were queued, even when queued within the same millisecond', async () => {
+    const db = createDb()
+    createSession(db, 'session-1')
+    const started: string[] = []
+    let releaseBlocker = () => {}
+    const blockerGate = new Promise<void>((resolve) => {
+      releaseBlocker = resolve
+    })
+    const queue = new runs.RunQueue(db, {
+      executors: {
+        agent: async (run) => {
+          started.push(run.id)
+          if (run.id === 'run-blocker') await blockerGate
+          return {type: 'succeeded', output: null}
+        },
+      },
+      pollIntervalMs: 5,
+    })
+    track(db, queue)
+    queue.enqueue(agentSpec({id: 'run-blocker', sessionId: 'session-1'}))
+    while (started.length === 0) await new Promise((resolve) => setTimeout(resolve, 2))
+    // Two follow-ups queued in one millisecond. Their ids sort opposite to the order they arrived
+    // in (run ids are random UUIDs), so only insertion order can tell which came first.
+    const realNow = Date.now
+    const frozen = realNow() + 1_000
+    Date.now = () => frozen
+    try {
+      queue.enqueue(agentSpec({id: 'run-zz-first', sessionId: 'session-1'}))
+      queue.enqueue(agentSpec({id: 'run-aa-second', sessionId: 'session-1'}))
+    } finally {
+      Date.now = realNow
+    }
+    releaseBlocker()
+    await queue.awaitIdle()
+    expect(started).toEqual(['run-blocker', 'run-zz-first', 'run-aa-second'])
+  })
+})
+
 describe('session run lookups', () => {
   test('per-session listings use runs_by_session, not the account index', () => {
     // Without statistics the planner rated runs_by_account and runs_by_session alike and chose the

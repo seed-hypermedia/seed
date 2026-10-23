@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"runtime/debug"
 	daemonapi "seed/backend/api/daemon/v1alpha"
 	telemetryapi "seed/backend/api/telemetry/v1alpha"
@@ -93,6 +94,7 @@ func initHTTP(
 		loopback.HandleNav("/debug/p2p", p2pnet.DebugHandler())
 		loopback.HandleNav("/debug/network", p2pnet.NetworkDebugHandler())
 		loopback.HandleNav("/debug/sqlite", sqlitex.DebugHandler())
+		loopback.HandleNav("/debug/malloc", mallocDebugHandler())
 		grpcUI, err := makeGRPCUIHandler(rpc, clean, g)
 		if err != nil {
 			return nil, nil, err
@@ -198,6 +200,26 @@ func loopbackOnly(next http.Handler) http.Handler {
 			return
 		}
 
+		// DNS rebinding can point an attacker's hostname at loopback while the browser
+		// still reports same-origin. Require localhost or a literal loopback IP without
+		// resolving DNS; checking the socket peer and Fetch Metadata alone is insufficient.
+		// Require Host so every request undergoes the loopback-host check, including HTTP/1.0.
+		// The "//" prefix makes url.Parse treat Host as an authority (host plus optional
+		// port), rather than a path or scheme. This only parses text; it makes no request.
+		authority, err := url.Parse("//" + r.Host)
+		if err != nil || authority.Host != r.Host || authority.User != nil {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		host := authority.Hostname()
+
+		addr, _ := netip.ParseAddr(host)
+		if !strings.EqualFold(host, "localhost") && !addr.Unmap().IsLoopback() {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
 		switch r.Header.Get("Sec-Fetch-Site") {
 		case "", "none", "same-origin":
 			// Fetch Metadata is browser-provided. Missing headers are allowed so
@@ -215,6 +237,7 @@ func authContextMiddleware(auth *daemonapi.Server) func(http.Handler) http.Handl
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			raw := r.Header.Get("Authorization")
+
 			scheme, token, ok := strings.Cut(raw, " ")
 			if !ok || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
 				next.ServeHTTP(w, r)

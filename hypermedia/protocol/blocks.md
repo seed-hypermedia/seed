@@ -33,6 +33,7 @@ Inside a signed Change, attributes sit at the top level of the block map. The [S
 Two attributes exist on every block that can have children. <!-- id:1GIO2fft -->
   - `childrenType` sets how the children are laid out. The [children type](../block/children-type.md) values are `Group` (the default, also when the key is absent or null), `Ordered`, `Unordered`, `Blockquote` and `Grid`. So a list is a property of the parent block. The bullet belongs to the block above the items. <!-- id:3lFuYqIR -->
   - `columnCount` sets the number of columns of a `Grid`. <!-- id:FzlPjJlS -->
+  - `textAlignment` aligns the block's own text: `left`, `center`, `right` or `justify`, see [text alignment](../block/text-alignment.md). The key is omitted for the default `left`. Unlike the two above, it is about the block itself, not its children. <!-- id:foRiuGpp -->
 
 # Annotations <!-- id:J0Hq4KQP -->
 

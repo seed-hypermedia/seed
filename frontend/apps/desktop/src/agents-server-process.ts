@@ -204,7 +204,7 @@ async function spawnAgentsServer(): Promise<string> {
   log.info('Starting local agents server', {binaryPath, port, args})
 
   const child = spawn(binaryPath, args, {
-    // pi-coding-agent resolves its package.json against cwd at import time; see agents-server-path.ts.
+    // Run from the binary's own directory, beside the files it ships with; see agents-server-path.ts.
     cwd: getAgentsServerWorkingDirectory(),
     env: {...process.env},
     stdio: 'pipe',

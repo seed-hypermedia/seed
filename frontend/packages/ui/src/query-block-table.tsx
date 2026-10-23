@@ -186,6 +186,8 @@ export function QueryBlockTable({
       onColumnSizingChange?.(next)
     },
     columnResizeMode: 'onChange',
+    // Activity is a server sort, not a visible table column.
+    manualSorting: activeSorting[0]?.id === 'activity',
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   })

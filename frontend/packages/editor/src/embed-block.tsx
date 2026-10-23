@@ -53,7 +53,6 @@ import {selectBlockNodeById} from './block-utils'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
 import {useDraftActions} from './draft-actions-context'
-import {EmbedEditorView} from './embed-editor'
 import {transformEmbedNode} from './hm-link-preview'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
@@ -620,22 +619,7 @@ function EditorEmbedContent({
     return <BlockEmbedLink block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
 
   // if (block.attributes.view === 'Content') // content is the default
-  return (
-    <BlockEmbedContent
-      block={block}
-      parentBlockId={parentBlockId}
-      openOnClick={openOnClick}
-      renderDocumentContent={({embedBlocks, id, blockRef, blockRange, rootChildrenType}) => (
-        <EmbedEditorView
-          blocks={embedBlocks}
-          id={id}
-          focusBlockId={blockRef ?? undefined}
-          blockRange={blockRange ?? undefined}
-          rootChildrenType={rootChildrenType}
-        />
-      )}
-    />
-  )
+  return <BlockEmbedContent block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
 }
 
 export const EmbedLauncherInput = ({

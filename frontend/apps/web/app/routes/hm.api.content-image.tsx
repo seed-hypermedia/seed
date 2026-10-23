@@ -63,6 +63,7 @@ function DocumentCard({
   const context = (parentNames.length > 4 ? [parentNames[0], '…', ...parentNames.slice(-2)] : parentNames).join(' / ')
   const domain = document.metadata.siteUrl ? hostnameStripProtocol(document.metadata.siteUrl) : ''
   const titleSize = cover ? (title.length > 70 ? 52 : 64) : title.length > 100 ? 60 : title.length > 70 ? 64 : 76
+  const backgroundLogoHeight = 840 * 1.3
   return (
     <div
       style={{
@@ -75,8 +76,22 @@ function DocumentCard({
         fontFamily: 'Inter',
         padding: '60px 64px 44px',
         borderBottom: `12px solid ${colors.green}`,
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
+      <div
+        style={{
+          display: 'flex',
+          position: 'absolute',
+          right: -132,
+          bottom: -240,
+          opacity: 0.1,
+          color: colors.green,
+        }}
+      >
+        <SeedLogo className="" width={(backgroundLogoHeight * 19) / 26} height={backgroundLogoHeight} />
+      </div>
       <div
         style={{
           display: 'flex',
@@ -225,9 +240,8 @@ function DocumentCard({
             </span>
           )}
         </div>
-        <div style={{display: 'flex', alignItems: 'center', gap: 10, color: colors.green, flexShrink: 0}}>
-          <SeedLogo width={19} height={26} />
-          <span style={{fontSize: 22, fontWeight: 700, letterSpacing: -0.5}}>Seed Hypermedia</span>
+        <div style={{display: 'flex', alignItems: 'center', color: colors.green, flexShrink: 0}}>
+          <SeedLogo className="" width={(44 * 19) / 26} height={44} />
         </div>
       </div>
     </div>

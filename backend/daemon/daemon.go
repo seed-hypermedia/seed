@@ -35,6 +35,7 @@ import (
 	"seed/backend/util/pprofx"
 	"seed/backend/util/syncperf"
 
+	"seed/backend/util/sqlite"
 	"seed/backend/util/sqlite/sqlitex"
 
 	"github.com/ipfs/boxo/exchange"
@@ -120,6 +121,11 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 		cfg.Lndhub.Disabled = true
 	}
 
+	// Process-wide, so it belongs with the daemon config rather than with the
+	// store, which main opens before Load and which knows nothing about flags.
+	// Zero clears any earlier limit, so the flag is authoritative.
+	sqlite.SetSoftHeapLimit(cfg.Storage.SQLiteSoftHeapLimit)
+
 	a = &App{
 		log:     logging.New("seed/daemon", cfg.LogLevel),
 		Storage: r,
@@ -150,6 +156,10 @@ func Load(ctx context.Context, cfg config.Config, r *storage.Store, oo ...Option
 			})
 		}
 	}(a)
+
+	// Detached from a.g like the backfill below: it has nothing to report and
+	// stops with the errgroup's context either way.
+	go runMallocTrim(ctx)
 
 	tp := trace.NewTracerProvider(
 		trace.WithSampler(trace.AlwaysSample()),

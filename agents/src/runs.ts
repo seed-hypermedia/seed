@@ -440,6 +440,17 @@ export class RunQueue {
     if (!title) throw new Error('Run title is required')
     const now = Date.now()
     const id = spec.id ?? crypto.randomUUID()
+    // A session's runs are claimed oldest first, and the order is what decides which queued run
+    // takes which message. Two runs queued in the same millisecond would otherwise fall back to
+    // their random ids and could run in either order, so a session's runs get strictly increasing
+    // timestamps.
+    const sessionNewest = spec.sessionId
+      ? stmt<{created_at: number | null}, [string]>(
+          this.#db,
+          `SELECT MAX(created_at) AS created_at FROM runs WHERE session_id = ?`,
+        ).get(spec.sessionId)?.created_at ?? null
+      : null
+    const createdAt = sessionNewest !== null && sessionNewest >= now ? sessionNewest + 1 : now
     let rootRunId = id
     let depth = 0
     if (spec.parentRunId) {
@@ -480,7 +491,7 @@ export class RunQueue {
       spec.notBefore ?? null,
       spec.queue,
       spec.budget ? cbor.encode(spec.budget) : null,
-      now,
+      createdAt,
       now,
     ])
     const run = this.#getRunAnyAccount(id)

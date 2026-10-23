@@ -120,7 +120,7 @@ export function DocumentNameLink({
   const name = draft?.metadata?.name ?? liveMetadata?.name ?? metadata?.name
   return (
     <a
-      className="self-inline ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted rounded p-[2px] font-sans text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10"
+      className="ring-px ring-border bg-background text-foreground hover:text-foreground dark:hover:bg-muted mx-0.5 my-0.5 inline-block max-w-full truncate rounded px-1.5 py-0.5 align-middle font-sans text-sm ring hover:bg-black/5 active:bg-black/5 dark:active:bg-white/10"
       {...linkProps}
     >
       {name || fallback}

@@ -1,12 +1,16 @@
-import {BlockRange, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmId} from '@shm/shared'
-import {ReactNode} from 'react'
+import {BlockRange, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId, useCommentParents} from '@shm/shared'
+import {cloneElement, isValidElement, ReactNode, useEffect, useState} from 'react'
+import {getCommentContinuation} from '@shm/shared/comments'
+import {useDocumentComments} from '@shm/shared/models/comments'
+import type {CommentEditorProps} from './resource-page-common'
 import {BlockDiscussions, CommentDiscussions, Discussions} from './comments'
 import {PageLayout} from './page-layout'
 
 export interface DiscussionsPageContentProps {
   docId: UnpackedHypermediaId
   openComment?: string
+  replyCommentId?: string
   targetBlockId?: string
   blockId?: string
   blockRange?: BlockRange | null
@@ -31,6 +35,7 @@ export interface DiscussionsPageContentProps {
 export function DiscussionsPageContent({
   docId,
   openComment,
+  replyCommentId,
   targetBlockId,
   blockId,
   blockRange,
@@ -40,6 +45,32 @@ export function DiscussionsPageContent({
   showTitle = true,
   contentMaxWidth,
 }: DiscussionsPageContentProps) {
+  const [submittedRoots, setSubmittedRoots] = useState<HMComment[]>([])
+  const comments = useDocumentComments(docId)
+  const continuation = openComment ? getCommentContinuation(comments.data?.comments, openComment, replyCommentId) : null
+  const target = continuation?.chain.at(-1)
+  const parents = useCommentParents(comments.data?.comments, target?.id ?? '')
+  useEffect(() => {
+    setSubmittedRoots([])
+  }, [docId.id, openComment, targetBlockId])
+  let editor = commentEditor
+  if (isValidElement<CommentEditorProps>(commentEditor)) {
+    editor =
+      replyCommentId && !continuation
+        ? null
+        : cloneElement(commentEditor, {
+            key: [target?.id || openComment || 'root', targetBlockId || '', JSON.stringify(blockRange)].join(':'),
+            commentId: target?.id || openComment,
+            replyCommentVersion: target?.version ?? commentEditor.props.replyCommentVersion,
+            rootReplyCommentVersion:
+              target?.threadRootVersion || commentEditor.props.rootReplyCommentVersion || parents?.thread[0]?.version,
+            onCommentSubmitted: (comment: HMComment) => {
+              if (!openComment)
+                setSubmittedRoots((roots) => [...roots.filter((root) => root.id !== comment.id), comment])
+              commentEditor.props.onCommentSubmitted?.(comment)
+            },
+          })
+  }
   // Determine which view to show
   let content: ReactNode
 
@@ -51,7 +82,7 @@ export function DiscussionsPageContent({
     content = (
       <BlockDiscussions
         targetId={targetId}
-        commentEditor={commentEditor}
+        commentEditor={editor}
         targetDomain={targetDomain}
         blockRange={blockRange || undefined}
       />
@@ -60,7 +91,8 @@ export function DiscussionsPageContent({
     content = (
       <CommentDiscussions
         commentId={openComment}
-        commentEditor={commentEditor}
+        replyCommentId={replyCommentId}
+        commentEditor={editor}
         targetId={docId}
         targetDomain={targetDomain}
         isEntirelyHighlighted={!blockId}
@@ -70,8 +102,13 @@ export function DiscussionsPageContent({
   } else {
     content = (
       <>
-        {commentEditor}
-        <Discussions targetId={docId} targetDomain={targetDomain} />
+        {editor}
+        <Discussions
+          targetId={docId}
+          targetDomain={targetDomain}
+          submittedRoots={submittedRoots}
+          onCommentDeleted={(id) => setSubmittedRoots((roots) => roots.filter((root) => root.id !== id))}
+        />
       </>
     )
   }

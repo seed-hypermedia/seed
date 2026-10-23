@@ -3,6 +3,7 @@ import {
   canShowRestoreVersionButton,
   getDraftVersionInsertIndex,
   getLatestDocUpdateVersion,
+  getActivityEventRoute,
   getEventNavigationRoute,
   isSelectedDocUpdateVersion,
   RESTORE_VERSION_ACTION_BUTTON_CLASS,
@@ -152,5 +153,34 @@ describe('restore version action helpers', () => {
         hasRestoreAction: true,
       }),
     ).toBe(false)
+  })
+})
+
+describe('getActivityEventRoute', () => {
+  const target = {
+    id: 'hm://space/notes',
+    uid: 'space',
+    path: ['notes'],
+    version: null,
+    blockRef: null,
+    blockRange: null,
+    hostname: null,
+    scheme: null,
+  }
+
+  it('opens a comment in its document with Discussions in the right panel', () => {
+    const event = {type: 'comment', target: {id: target}, comment: {id: 'author/comment'}} as any
+    expect(getActivityEventRoute(event)).toEqual({
+      key: 'document',
+      id: target,
+      panel: {key: 'comments', id: target, openComment: 'author/comment'},
+    })
+  })
+
+  it('opens a document update as the document itself, with no panel', () => {
+    const event = {type: 'doc-update', docId: target, document: {version: 'v1'}} as any
+    const route = getActivityEventRoute(event)
+    expect(route).toMatchObject({key: 'document', id: {uid: 'space', path: ['notes'], version: 'v1'}})
+    expect(route && 'panel' in route ? route.panel : undefined).toBeUndefined()
   })
 })

@@ -5,6 +5,7 @@ import {useAccount} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {AccountProfileForm, type AccountProfileFormValues} from '@shm/ui/components/account-profile-form'
 import {DialogTitle} from '@shm/ui/components/dialog'
+import {AVATAR_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
@@ -22,7 +23,7 @@ export function EditProfileDialog({onClose, input}: {onClose: () => void; input:
   async function handleSubmit({name, imageFile}: AccountProfileFormValues) {
     let iconUri = metadata?.icon || ''
     if (imageFile) {
-      const cid = await fileUpload(imageFile)
+      const cid = await fileUpload(imageFile, AVATAR_IMAGE_POLICY)
       iconUri = `ipfs://${cid}`
     }
 

@@ -15,14 +15,51 @@ import {
   agentTriggerUrl,
   isOmnibarRouteUrlShareable,
   agentUrl,
+  resolveOmnibarNavigation,
   resolveOmnibarUrlToHypermediaUrl,
   resolveOmnibarUrlToRoute,
+  parseBrowserAddress,
   selectValidatedOmnibarSiteUrl,
 } from '../omnibar-url'
 
 describe('omnibar url resolution', () => {
+  it('accepts full URLs and bare domains without turning search text or unsafe schemes into websites', () => {
+    expect(parseBrowserAddress(' example.com/path?q=seed#section ')).toBe('https://example.com/path?q=seed#section')
+    expect(parseBrowserAddress('https://example.com/path')).toBe('https://example.com/path')
+    expect(parseBrowserAddress('localhost:3000/page')).toBe('http://localhost:3000/page')
+    for (const value of [
+      'some search text',
+      'a document.txt',
+      'javascript:location.href',
+      'file:///tmp/test.html',
+      'hm://alice/docs',
+      'https://user:password@example.com',
+    ]) {
+      expect(parseBrowserAddress(value)).toBeNull()
+    }
+  })
   beforeEach(() => {
     resolveHypermediaUrlMock.mockReset()
+  })
+
+  it('sends a website typed into the omnibar to the integrated browser when on, else to the system browser', async () => {
+    resolveHypermediaUrlMock.mockResolvedValue(null)
+    const off = {isWebBrowserEnabled: async () => false}
+    const on = {isWebBrowserEnabled: async () => true}
+    await expect(resolveOmnibarNavigation('https://example.com/page', off)).resolves.toEqual({
+      externalUrl: 'https://example.com/page',
+    })
+    await expect(resolveOmnibarNavigation('https://example.com/page', on)).resolves.toEqual({
+      route: {key: 'web', url: 'https://example.com/page'},
+    })
+    // Not a web address at all: nothing to open.
+    await expect(resolveOmnibarNavigation('some search text', off)).resolves.toBeNull()
+    // A Hypermedia address resolves either way, and a site that resolves to a document is never a web route.
+    await expect(resolveOmnibarNavigation('hm://uid1/docs', off)).resolves.toMatchObject({route: {key: 'document'}})
+    resolveHypermediaUrlMock.mockResolvedValue({hmId: unpackHmId('hm://uid1/path'), panel: null})
+    await expect(resolveOmnibarNavigation('https://example.com/path', off)).resolves.toMatchObject({
+      route: {key: 'document'},
+    })
   })
 
   it('returns hm urls unchanged when they are already parseable', async () => {

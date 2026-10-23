@@ -648,6 +648,72 @@ func (conn *Conn) LastInsertRowID() int64 {
 	return int64(C.sqlite3_last_insert_rowid(conn.conn))
 }
 
+// MemoryUsed reports the bytes of heap memory SQLite holds right now across
+// every connection in the process: page caches, sorters, prepared statements
+// and schemas. It is the number the soft heap limit compares against.
+//
+// https://www.sqlite.org/c3ref/memory_highwater.html
+func MemoryUsed() int64 {
+	return int64(C.sqlite3_memory_used())
+}
+
+// MemoryHighwater reports the largest value MemoryUsed has reached since the
+// process started or since the mark was last reset, and resets the mark when
+// reset is true.
+func MemoryHighwater(reset bool) int64 {
+	var r C.int
+	if reset {
+		r = 1
+	}
+	return int64(C.sqlite3_memory_highwater(r))
+}
+
+// SoftHeapLimit reports the process-wide soft heap limit in bytes, or zero
+// when there is none.
+func SoftHeapLimit() int64 {
+	return int64(C.sqlite3_soft_heap_limit64(-1))
+}
+
+// SetSoftHeapLimit caps the heap memory SQLite tries to hold across the whole
+// process. Above the limit every page cache recycles its oldest pages instead
+// of growing, so a connection keeps its full cache_size budget until the
+// process total crosses the cap, and no allocation ever fails because of it.
+// Zero removes the limit. It returns the previous limit.
+//
+// https://www.sqlite.org/c3ref/hard_heap_limit64.html
+func SetSoftHeapLimit(n int64) int64 {
+	return int64(C.sqlite3_soft_heap_limit64(C.sqlite3_int64(n)))
+}
+
+// CacheStats describes one connection's page cache: the bytes it holds right
+// now and the lifetime counts of page reads served from it versus read from
+// the database file.
+type CacheStats struct {
+	UsedBytes int64
+	Hits      int64
+	Misses    int64
+}
+
+// CacheStats reports the page cache usage of this connection, its TEMP
+// database included. Like every other method it must not run concurrently
+// with a statement on the same connection.
+//
+// https://www.sqlite.org/c3ref/db_status.html
+func (conn *Conn) CacheStats() CacheStats {
+	conn.count++
+	return CacheStats{
+		UsedBytes: conn.dbStatus(C.SQLITE_DBSTATUS_CACHE_USED),
+		Hits:      conn.dbStatus(C.SQLITE_DBSTATUS_CACHE_HIT),
+		Misses:    conn.dbStatus(C.SQLITE_DBSTATUS_CACHE_MISS),
+	}
+}
+
+func (conn *Conn) dbStatus(op C.int) int64 {
+	var cur, hi C.int
+	C.sqlite3_db_status(conn.conn, op, &cur, &hi, 0)
+	return int64(cur)
+}
+
 // ExtendedErrCode returns sqlite3_extended_errcode for the most recent
 // error on this conn. Use immediately after an error return from Exec,
 // Step, etc — the extended code reflects the latest call.

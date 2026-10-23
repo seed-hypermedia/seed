@@ -50,6 +50,8 @@ vi.mock('electron', async () => {
   }
 })
 vi.mock('../errors', () => ({default: vi.fn()}))
+vi.mock('../app-web-browser', () => ({setupWebBrowser: vi.fn(), getPageWebContents: vi.fn()}))
+vi.mock('../app-window-security', () => ({installWindowGuards: vi.fn()}))
 vi.mock('../app-focus', () => ({markAppWindowFocused: vi.fn(), markAppWindowBlurred: vi.fn()}))
 vi.mock('../app-recents', () => ({updateRecentRoute: vi.fn()}))
 vi.mock('../app-settings', () => ({getAppTheme: () => 'light', shouldUseDarkColors: () => false}))

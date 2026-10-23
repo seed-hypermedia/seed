@@ -25,7 +25,7 @@ import {
 } from '@shm/shared/models/notification-state'
 import {
   isNotificationEventRead,
-  markNotificationEventReadInState,
+  markNotificationsReadInState,
   type NotificationReadLikeState,
 } from '@shm/shared/models/notification-read-logic'
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
@@ -124,36 +124,6 @@ function isReadStateMutation(action: NotificationMutationAction) {
   )
 }
 
-function markSiteNotificationsRead(
-  readState: NotificationStateSnapshot['readState'],
-  notifications: NotificationPayload[],
-): NotificationStateSnapshot['readState'] {
-  let nextReadState = readState
-
-  for (const notification of notifications) {
-    if (
-      isNotificationEventRead({
-        readState: nextReadState,
-        eventId: notification.feedEventId,
-        eventAtMs: notification.eventAtMs,
-      })
-    ) {
-      continue
-    }
-
-    nextReadState = {
-      ...nextReadState,
-      ...markNotificationEventReadInState({
-        readState: nextReadState,
-        eventId: notification.feedEventId,
-        eventAtMs: notification.eventAtMs,
-      }),
-    }
-  }
-
-  return nextReadState
-}
-
 function compactNotificationReadState(
   readState: NotificationStateSnapshot['readState'],
   notifications: NotificationPayload[],
@@ -227,7 +197,7 @@ export async function applyNotificationActionsForAccount(
     if (action.type === 'mark-site-read') {
       nextState = {
         ...nextState,
-        readState: markSiteNotificationsRead(
+        readState: markNotificationsReadInState(
           nextState.readState,
           getAllNotifications(accountId, {siteUid: action.siteUid}),
         ),
