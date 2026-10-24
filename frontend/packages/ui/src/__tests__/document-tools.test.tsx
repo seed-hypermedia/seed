@@ -44,7 +44,9 @@ describe('DocumentTools', () => {
       root.render(<DocumentTools id={hmId('alice', {path: ['doc']})} metadataCount={0} />)
     })
 
-    const attributesTabs = container.querySelectorAll('[data-label="Attributes"]')
+    const attributesTabs = Array.from(container.querySelectorAll('[data-label="Attributes"]')).filter(
+      (tab) => !tab.closest('[aria-hidden="true"]'),
+    )
     expect(attributesTabs).toHaveLength(1)
     expect(Array.from(attributesTabs).every((tab) => tab.getAttribute('data-count') === '0')).toBe(true)
     expect(Array.from(attributesTabs).every((tab) => tab.getAttribute('data-show-zero-count') === 'true')).toBe(true)

@@ -11,7 +11,6 @@ import {
 import type {InspectTab} from '@shm/shared/routes'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {
-  AtSign,
   MessageCircle,
   FileCode2,
   FileText,
@@ -135,11 +134,10 @@ export function DocumentTools({
     const updateLabelVisibility = () => {
       if (!containerRef.current || !measureRef.current) return
 
-      const containerWidth = containerRef.current.offsetWidth
-      const measuredWidth = measureRef.current.offsetWidth
-
-      // Add some padding for safety
-      setShowLabels(measuredWidth + 20 <= containerWidth)
+      const container = containerRef.current
+      const style = getComputedStyle(container)
+      const availableWidth = container.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+      setShowLabels(measureRef.current.offsetWidth <= availableWidth)
     }
 
     updateLabelVisibility()
@@ -148,6 +146,7 @@ export function DocumentTools({
       updateLabelVisibility()
     })
     resizeObserver.observe(containerRef.current)
+    resizeObserver.observe(measureRef.current)
 
     return () => {
       resizeObserver.disconnect()
@@ -270,9 +269,9 @@ export function DocumentTools({
             route: openPanel({key: 'collaborators', id: idWithoutBlock}),
           },
           {
-            label: 'Mentioned in',
-            tooltip: 'Open Document Citations',
-            icon: AtSign,
+            label: 'Connections',
+            tooltip: 'Open Document Connections',
+            icon: GitGraph,
             active: selectedTab === 'citations',
             count: citationsCount,
             route: openPanel({
@@ -316,12 +315,8 @@ export function DocumentTools({
   const tabButtons = (
     <>
       {/* Hidden measurement container with labels always visible */}
-      {mode === 'inspect' && (
-        <div
-          ref={measureRef}
-          className="pointer-events-none absolute flex items-center gap-2 opacity-0 md:gap-4"
-          aria-hidden="true"
-        >
+      <div className="pointer-events-none invisible absolute h-0 w-0 overflow-hidden" aria-hidden="true">
+        <div ref={measureRef} className={cn('flex w-max items-center gap-2', mode === 'inspect' && 'md:gap-4')}>
           {buttons.map((button) => (
             <PageTab
               key={button.label}
@@ -334,12 +329,20 @@ export function DocumentTools({
               showZeroCount={button.showZeroCount}
               bg={button.bg}
               showLabel
+              appearance={mode === 'document' ? 'document-tool' : 'default'}
+              leading={button.leading}
+              moveToPanel={
+                mode === 'document' &&
+                button.active &&
+                'panel' in button.route &&
+                currentRoute?.key === button.route.panel?.key
+              }
               trailingAction={button.active ? activeTabAction : undefined}
             />
           ))}
           {standaloneAction}
         </div>
-      )}
+      </div>
       {buttons.map((button) => (
         <PageTab
           key={button.label}
@@ -351,7 +354,12 @@ export function DocumentTools({
           count={button.count}
           showZeroCount={button.showZeroCount}
           bg={button.bg}
-          showLabel={mode === 'document' || showLabels}
+          showLabel={showLabels}
+          collapsedCount={
+            mode === 'document' && 'panel' in button.route && button.route.panel?.key === 'collaborators'
+              ? collabsCount
+              : undefined
+          }
           appearance={mode === 'document' ? 'document-tool' : 'default'}
           leading={button.leading}
           moveToPanel={

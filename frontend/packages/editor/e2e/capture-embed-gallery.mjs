@@ -518,6 +518,181 @@ console.log(
   await page.close()
 }
 console.log('Main Comments: docked composer, draft retention, root posting, and move-to-panel passed')
+
+{
+  const mobile = await browser.newPage({viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true})
+  mobile.on('pageerror', (error) => errors.push(error.message))
+  await mobile.route('https://embed-review.test/**', (route) =>
+    route.fulfill({contentType: 'text/html', body: '<html></html>'}),
+  )
+  await mobile.goto('https://embed-review.test/mobile')
+  await mobile.setContent(
+    '<html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body class="bg-background text-foreground"><div id="root"></div></body></html>',
+  )
+  await mobile.evaluate(() => {
+    window.MOBILE_COMMENTS_REVIEW = true
+    window.THREAD_REVIEW = true
+  })
+  await mobile.addStyleTag({content: css})
+  await mobile.addScriptTag({content: js})
+  const opener = mobile.getByRole('button', {name: 'Open mobile comments'})
+  await opener.click()
+  const sheet = mobile.getByRole('dialog')
+  await sheet.waitFor()
+  await mobile.waitForFunction(
+    () =>
+      document.querySelector('[data-slot="mobile-panel-sheet"]').getBoundingClientRect().top <
+      window.innerHeight * 0.35 + 1,
+  )
+  const composer = sheet.getByTestId('thread-composer')
+  const bounds = await composer.boundingBox()
+  if (!bounds || bounds.y + bounds.height > 845) throw new Error('Mobile composer is clipped')
+  await mobile.keyboard.press('Tab')
+  if (!(await sheet.evaluate((node) => node.contains(document.activeElement))))
+    throw new Error('Focus escaped the drawer')
+  await mobile.getByRole('button', {name: 'Expand panel', exact: true}).click()
+  await mobile.waitForFunction(
+    () => document.querySelector('[data-slot="mobile-panel-sheet"]').getBoundingClientRect().top < 42,
+  )
+  await mobile.screenshot({path: path.join(output, 'mobile-comments.png')})
+  await mobile.getByRole('button', {name: 'Close panel', exact: true}).click()
+  await sheet.waitFor({state: 'detached'})
+  await mobile.waitForFunction(() => document.activeElement?.textContent === 'Open mobile comments')
+  if (await mobile.evaluate(() => document.body.style.position === 'fixed'))
+    throw new Error('Body scroll stayed locked')
+  await opener.click()
+  await sheet.waitFor()
+  await mobile.keyboard.press('Escape')
+  await sheet.waitFor({state: 'detached'})
+  await mobile.close()
+}
+console.log('Mobile drawer: composer visibility, resize, focus, animated close, Escape, and scroll restoration passed')
+
+{
+  const page = await browser.newPage({viewport: {width: 480, height: 900}, reducedMotion: 'reduce'})
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.route('https://embed-review.test/**', (route) =>
+    route.fulfill({contentType: 'text/html', body: '<html></html>'}),
+  )
+  await page.goto('https://embed-review.test/connections')
+  await page.setContent('<html><body class="bg-background text-foreground"><div id="root"></div></body></html>')
+  await page.evaluate(() => {
+    window.CONNECTIONS_REVIEW = true
+  })
+  await page.addStyleTag({content: css})
+  await page.addScriptTag({content: js})
+  const row = page.getByRole('button', {name: /Notes on shared context/})
+  await row.waitFor()
+  if ((await row.getAttribute('aria-expanded')) !== 'false') throw new Error('Connections did not start collapsed')
+  if (await page.getByRole('link', {name: 'Go to location'}).count())
+    throw new Error('Closed connection exposed source links')
+  if (!(await row.textContent().then((text) => text.includes('3 links'))))
+    throw new Error('Connection deduplication failed')
+  for (const name of ['connections-header', 'attributes-header', 'activity-header']) {
+    const height = await page
+      .getByTestId(name)
+      .locator(':scope > *')
+      .first()
+      .evaluate((node) => node.getBoundingClientRect().height)
+    if (height !== 48) throw new Error(name + ' height is ' + height)
+  }
+  await row.click()
+  await page.waitForFunction(() => document.querySelectorAll('a').length >= 3)
+  const locations = page.getByRole('link', {name: 'Go to location'})
+  if ((await locations.count()) !== 3) throw new Error('Missing source previews')
+  await page.locator('[data-node-type="blockNode"]').first().waitFor()
+  await page
+    .getByText('The second paragraph remains visible when the complete resource is expanded.', {exact: true})
+    .waitFor()
+  if (await page.getByText('This source item is unavailable.', {exact: false}).count())
+    throw new Error('Source preview failed')
+  if (
+    !(await locations
+      .first()
+      .getAttribute('href')
+      .then((href) => href.includes('#intro')))
+  )
+    throw new Error('Source link lost block reference')
+  await page.screenshot({path: path.join(output, 'connections.png'), fullPage: true})
+  await row.click()
+  if (await locations.count()) throw new Error('Collapsed source remains interactive')
+  await page.close()
+}
+console.log(
+  'Connections: grouped source documents, collapsed defaults, exact source blocks, location links, and 48px headers passed',
+)
+
+{
+  const page = await browser.newPage({viewport: {width: 1280, height: 800}})
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.route('https://embed-review.test/**', (route) =>
+    route.fulfill({contentType: 'text/html', body: '<html></html>'}),
+  )
+  await page.goto('https://embed-review.test/tools')
+  await page.setContent(
+    '<html><body class="bg-background text-foreground"><div id="root" style="width:320px"></div></body></html>',
+  )
+  await page.evaluate(() => {
+    window.DOCUMENT_TOOLS_REVIEW = true
+  })
+  await page.addStyleTag({content: css})
+  await page.addScriptTag({content: js})
+  const comments = page.getByRole('link', {name: /Comments/})
+  await comments.waitFor()
+  await page.waitForFunction(() => document.querySelector('a[data-tab="document"] .sr-only'))
+  const labelIsCollapsed = () =>
+    comments.evaluate((link) =>
+      [...link.querySelectorAll('span')].find((span) => span.textContent === 'Comments')?.classList.contains('sr-only'),
+    )
+  if (!(await labelIsCollapsed())) throw new Error('Wide viewport prevented container-based collapse')
+  const people = page.getByRole('link', {name: /12 people/})
+  if (
+    !(await people
+      .locator('span[aria-hidden="true"]')
+      .last()
+      .textContent()
+      .then((text) => text === '12'))
+  )
+    throw new Error('People count disappeared when labels collapsed')
+  await page.locator('#root').evaluate((node) => {
+    node.style.width = '800px'
+  })
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('a[data-tab="document"]')].some(
+      (link) =>
+        !link.closest('[aria-hidden="true"]') &&
+        [...link.querySelectorAll('span')].some(
+          (span) => span.textContent === 'Comments' && !span.classList.contains('sr-only'),
+        ),
+    ),
+  )
+  await page.setViewportSize({width: 700, height: 800})
+  await page.locator('#root').evaluate((node) => {
+    node.style.width = '680px'
+  })
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('a[data-tab="document"]')].some(
+      (link) =>
+        !link.closest('[aria-hidden="true"]') &&
+        [...link.querySelectorAll('span')].some(
+          (span) => span.textContent === 'Comments' && !span.classList.contains('sr-only'),
+        ),
+    ),
+  )
+  if (await labelIsCollapsed()) throw new Error('Viewport media query still hides labels that fit')
+  await page.locator('#root').evaluate((node) => {
+    node.style.width = '320px'
+  })
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('a[data-tab="document"]')].some(
+      (link) => !link.closest('[aria-hidden="true"]') && link.querySelector('.sr-only'),
+    ),
+  )
+  if (await page.evaluate(() => document.documentElement.scrollWidth > innerWidth))
+    throw new Error('Measurement row caused overflow')
+  await page.close()
+}
+console.log('Document tools: labels follow container width, keep counts, and restore below the old viewport breakpoint')
 await browser.close()
 console.log(`Gallery artifacts: ${output}`)
 if (errors.length) throw new Error(errors.join('\n'))

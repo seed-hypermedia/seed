@@ -8,6 +8,7 @@ import {Button} from './button'
 import {ActivityEventCard, ALL_UPDATES_EVENT_TYPES} from './activity-event-card'
 import {Feed, getActivityEventRoute} from './feed'
 import {Text} from './text'
+import {PanelHeader} from './panel-header'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
@@ -42,6 +43,31 @@ export function ActivityHeader({
   onClose?: () => void
 }) {
   const activeTab = tab ?? 'all-updates'
+  const tabs = (
+    <div className="flex items-center gap-1" role="tablist" aria-label="Activity">
+      {activityTabs.map(({value, label, Icon}) => (
+        <Button
+          key={value}
+          size="sm"
+          variant="outline"
+          role="tab"
+          aria-selected={activeTab === value}
+          className={cn('rounded-full', activeTab === value && 'border-brand bg-brand-12 text-brand-4')}
+          onClick={() => onTabChange(value)}
+        >
+          <Icon className="size-3.5" aria-hidden />
+          {label}
+        </Button>
+      ))}
+    </div>
+  )
+  if (onClose)
+    return (
+      <>
+        <PanelHeader title="Activity" onExpand={onExpand} onClose={onClose} />
+        <div className="border-border shrink-0 border-b px-4 py-2 md:px-5">{tabs}</div>
+      </>
+    )
   return (
     // From tablet width up the buttons stay pinned top-right, and on a narrow panel only the tabs wrap, under the title.
     // On phones they follow the tabs, clear of the page's own options menu in the corner.
@@ -50,22 +76,7 @@ export function ActivityHeader({
         <Text weight="semibold" size="lg">
           Activity
         </Text>
-        <div className="flex items-center gap-1" role="tablist" aria-label="Activity">
-          {activityTabs.map(({value, label, Icon}) => (
-            <Button
-              key={value}
-              size="sm"
-              variant="outline"
-              role="tab"
-              aria-selected={activeTab === value}
-              className={cn('rounded-full', activeTab === value && 'border-brand bg-brand-12 text-brand-4')}
-              onClick={() => onTabChange(value)}
-            >
-              <Icon className="size-3.5" aria-hidden />
-              {label}
-            </Button>
-          ))}
-        </div>
+        {tabs}
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {onExpand ? (

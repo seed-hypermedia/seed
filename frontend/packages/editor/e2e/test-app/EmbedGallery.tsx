@@ -1,3 +1,7 @@
+import {ConnectionsPanel} from '@shm/ui/connections-panel'
+import {PanelHeader} from '@shm/ui/panel-header'
+import {ActivityHeader} from '@shm/ui/activity-panel'
+import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {DocumentTools} from '@shm/ui/document-tools'
 import './tailwind.css'
 import '../../src/blocknote/core/style.css'
@@ -310,6 +314,36 @@ const referenceComment: HMBlockNode[] = ['', '[2:63]'].map((range, index) => ({
 }))
 const client = {
   request: async (method: string, params: any) => {
+    if (method === 'ListCitations')
+      return {
+        citations: [
+          {
+            source: documentId.id,
+            sourceType: 'Ref',
+            sourceContext: 'intro',
+            sourceBlob: {cid: 'v1', author: account, createTime: '2026-10-20T10:00:00Z'},
+          },
+          {
+            source: documentId.id,
+            sourceType: 'Ref',
+            sourceContext: 'intro',
+            sourceBlob: {cid: 'v1', author: account, createTime: '2026-10-20T10:00:00Z'},
+          },
+          {
+            source: documentId.id,
+            sourceType: 'Ref',
+            sourceContext: 'detail',
+            sourceBlob: {cid: 'v1', author: account, createTime: '2026-10-20T10:00:00Z'},
+          },
+          {
+            source: `hm://${account}/comment1`,
+            sourceType: 'Comment',
+            sourceDocument: documentId.id,
+            sourceContext: 'intro',
+            sourceBlob: {cid: 'c1', author: account, createTime: '2026-10-20T10:00:00Z'},
+          },
+        ],
+      }
     if (method === 'ListComments') return {comments: threadComments, authors: {[account]: {metadata: {name}}}}
     if (method === 'Account') return {id: hmId(account), metadata: {name}}
     if (method === 'AccountContacts') return []
@@ -423,6 +457,57 @@ function DockedCommentsReview() {
   )
 }
 
+/** Mobile drawer with real comment scrolling and composer. */
+function MobileCommentsReview() {
+  const [open, setOpen] = useState(false)
+  return (
+    <CommentDraftReferenceProvider>
+      <CommentsProvider>
+        <button onClick={() => setOpen(true)}>Open mobile comments</button>
+        <div className="h-screen">Document behind the drawer</div>
+        {open && (
+          <MobilePanelSheet
+            isOpen
+            resizable
+            scrollContent={false}
+            title="Comments"
+            count={12}
+            onClose={() => setOpen(false)}
+          >
+            <DiscussionsPageContent
+              isPanel
+              docId={documentId}
+              openComment={comment.id}
+              showTitle={false}
+              commentEditor={<ReviewComposer docId={documentId} />}
+            />
+          </MobilePanelSheet>
+        )}
+      </CommentsProvider>
+    </CommentDraftReferenceProvider>
+  )
+}
+
+/** Connections with duplicate citations and both document and comment source items. */
+function ConnectionsReview() {
+  return (
+    <div className="mx-auto flex h-screen max-w-lg flex-col">
+      <div data-testid="connections-header">
+        <PanelHeader title="Connections" count={1} onClose={() => {}} onExpand={() => {}} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <ConnectionsPanel docId={documentId} />
+      </div>
+      <div data-testid="attributes-header">
+        <PanelHeader title="Attributes" onClose={() => {}} />
+      </div>
+      <div data-testid="activity-header">
+        <ActivityHeader tab="all-updates" onTabChange={() => {}} onClose={() => {}} />
+      </div>
+    </div>
+  )
+}
+
 /** Real production embeds, with fixed data at the network provider boundary. */
 function EmbedGallery() {
   return (
@@ -446,7 +531,11 @@ function EmbedGallery() {
           >
             <SelectedAccountContactsProvider>
               <ReadOnlyViewerProvider value={ReadOnlyViewer}>
-                {(window as any).DOCKED_COMMENTS_REVIEW ? (
+                {(window as any).CONNECTIONS_REVIEW ? (
+                  <ConnectionsReview />
+                ) : (window as any).MOBILE_COMMENTS_REVIEW ? (
+                  <MobileCommentsReview />
+                ) : (window as any).DOCKED_COMMENTS_REVIEW ? (
                   <DockedCommentsReview />
                 ) : (window as any).DOCUMENT_TOOLS_REVIEW ? (
                   <DocumentToolsReview />

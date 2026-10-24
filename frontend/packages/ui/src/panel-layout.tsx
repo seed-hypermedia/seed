@@ -1,12 +1,10 @@
 import {PanelSelectionOptions} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {ArrowLeft, Maximize, X} from 'lucide-react'
 import {useRef, useState} from 'react'
 import {Group, Panel} from 'react-resizable-panels'
 import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from './resizable-panels'
-import {Button} from './button'
 import {FeedFilters} from './feed-filters'
-import {Text} from './text'
+import {PanelHeader} from './panel-header'
 import {cn} from './utils'
 
 const DEFAULT_PANEL_PX = 440
@@ -155,56 +153,20 @@ export function PanelLayout({
         >
           <div className="h-full rounded-lg">
             <div className={cn('dark:bg-background flex h-full flex-col bg-white')}>
-              <div
-                className={cn(
-                  'border-border shrink-0 border-b px-5',
-                  panelKey === 'comments' ? 'bg-card box-border flex h-12 flex-col justify-center' : 'py-3',
-                )}
-              >
-                {header ?? (
-                  <>
-                    <div className="flex items-center justify-between gap-2">
-                      {panelKey === 'comments' && onCommentsBack && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="rounded-full"
-                          aria-label="Back to comments"
-                          title="Back to comments"
-                          onClick={onCommentsBack}
-                        >
-                          <ArrowLeft className="size-4" />
-                        </Button>
-                      )}
-                      <Text weight="semibold" size="lg" className="flex flex-1 items-center gap-2">
-                        {panelKey === 'comments' && onCommentsBack ? 'Thread' : title}
-                        {panelKey === 'comments' && !onCommentsBack && commentsCount !== undefined && (
-                          <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-xs font-medium">
-                            {commentsCount}
-                          </span>
-                        )}
-                      </Text>
-                      {panelKey === 'comments' && !onCommentsBack && onCommentsExpand && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Expand comments"
-                          title="Expand comments"
-                          onClick={onCommentsExpand}
-                        >
-                          <Maximize className="size-4" />
-                        </Button>
-                      )}
-                      <Button size="icon" aria-label="Close panel" onClick={onPanelClose}>
-                        <X className="size-4" />
-                      </Button>
-                    </div>
-                    {showActivityFilters && onFilterChange && (
-                      <FeedFilters filterEventType={filterEventType} onFilterChange={onFilterChange} />
-                    )}
-                  </>
-                )}
-              </div>
+              {header ?? (
+                <PanelHeader
+                  title={panelKey === 'comments' && onCommentsBack ? 'Thread' : title}
+                  count={panelKey === 'comments' && !onCommentsBack ? commentsCount : undefined}
+                  onBack={panelKey === 'comments' ? onCommentsBack : undefined}
+                  onExpand={panelKey === 'comments' && !onCommentsBack ? onCommentsExpand : undefined}
+                  onClose={onPanelClose}
+                />
+              )}
+              {!header && showActivityFilters && onFilterChange && (
+                <div className="border-border shrink-0 border-b px-5">
+                  <FeedFilters filterEventType={filterEventType} onFilterChange={onFilterChange} />
+                </div>
+              )}
               <div className={cn('flex-1 overflow-hidden', panelKey === 'comments' && 'bg-background')}>
                 {panelContent}
               </div>

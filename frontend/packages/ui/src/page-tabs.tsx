@@ -38,6 +38,8 @@ export interface PageTabProps extends Omit<ButtonProps, 'variant' | 'asChild'> {
   tooltip?: string
   /** Optional count badge (e.g., comments count) */
   count?: number
+  /** Count shown when labels are collapsed and the full label already includes it. */
+  collapsedCount?: number
   /** Whether to render the count when it is zero. */
   showZeroCount?: boolean
   /** Optional icon component from lucide-react */
@@ -72,6 +74,7 @@ export function PageTab({
   tooltip,
   count,
   showZeroCount = false,
+  collapsedCount,
   icon: Icon,
   active = false,
   showLabel = true,
@@ -89,9 +92,16 @@ export function PageTab({
   const linkContent = (
     <>
       {leading || (Icon && <Icon className={cn('size-4', documentTool && 'text-muted-foreground')} />)}
-      {label && showLabel ? (
-        <span className={cn('truncate text-sm', !documentTool && 'hidden md:block')}>{label}</span>
+      {label && (showLabel || documentTool) ? (
+        <span className={cn('truncate text-sm', documentTool ? !showLabel && 'sr-only' : 'hidden md:block')}>
+          {label}
+        </span>
       ) : null}
+      {documentTool && !showLabel && collapsedCount !== undefined && (
+        <span className="text-sm tabular-nums" aria-hidden="true">
+          {collapsedCount}
+        </span>
+      )}
       {count || (showZeroCount && count === 0) ? (
         <span
           className={cn(
