@@ -10,7 +10,7 @@ import {
 import {queryAPI} from '@/models'
 import {saveWebDomainReturn, setWebDomainRequest, takeWebDomainReturn} from '@/models/domain-publishing'
 import {getSiteMembershipStatus, processPendingIntent, type SiteMembershipStatus} from '@/pending-intent'
-import {webUniversalClient} from '@/universal-client'
+import {ensureDaemonAuth, webUniversalClient} from '@/universal-client'
 import {useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {useUniversalAppContext} from '@shm/shared'
@@ -132,6 +132,9 @@ export default function AuthCallbackRoute() {
           emailPrevalidation: result.emailPrevalidation,
         })
 
+        // Wait for the site cookie before loading any protected destination.
+        await ensureDaemonAuth()
+
         // Cleanup delegation markers.
         await deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL)
         await deleteAuthState(AUTH_STATE_DELEGATION_RETURN_URL)
@@ -176,10 +179,18 @@ export default function AuthCallbackRoute() {
         if (successVariant) nextUrl.searchParams.set('vault_success', successVariant)
         if (existingSpaceUrl) nextUrl.searchParams.set('vault_space_url', existingSpaceUrl)
         if (existingSpaceDraftId) nextUrl.searchParams.set('vault_draft_id', existingSpaceDraftId)
-        navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {
-          replace: true,
-          state: intentResult.type === 'comment' ? {submittedComment: intentResult.comment} : undefined,
-        })
+        const destination = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
+        if (hostingReturn || intentResult.type !== 'none') {
+          // Pending workflows can carry dialogs, optimistic results, or publication prompts in memory.
+          navigate(destination, {
+            replace: true,
+            state: intentResult.type === 'comment' ? {submittedComment: intentResult.comment} : undefined,
+          })
+        } else {
+          // Ordinary sign-in starts with the persisted identity and a fresh query cache.
+          // A client transition can retain the signed-out header/account queries.
+          window.location.replace(destination)
+        }
       } catch (err) {
         await saveWebDomainReturn()
         const message = err instanceof Error ? err.message : String(err)
