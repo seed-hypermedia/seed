@@ -5,26 +5,24 @@ import {Button} from './button'
 import {toast} from './toast'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {documentAppContent, createDocumentAppAccess} from '@shm/shared/document-app-content'
+import {DocumentAppPermissionPrompt, DocumentAppPermissionSettings} from './document-app-permissions'
 import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction,
-} from './components/alert-dialog'
+  appPermissionStorageKey,
+  readAppPermissionGrants,
+  type AppPermissionRequest,
+  type AppPermissionDecision,
+  type AppPermissionGrant,
+} from '@shm/shared/document-app-permissions'
+import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {documentAppStorage, mountDocumentApp} from '@shm/shared/document-app-sandbox'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {DocumentAppPlatform} from '@shm/shared/document-app'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {queryAccount, queryResource} from '@shm/shared/models/queries'
-import {useUniversalClient, useOpenUrl} from '@shm/shared/routing'
+import {queryAccount} from '@shm/shared/models/queries'
+import {useUniversalClient, useOpenUrl, useUniversalAppContext} from '@shm/shared/routing'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
-  DOCUMENT_APP_PROTOCOL,
   documentAppRuntime,
   parseDocumentAppLink,
   createDocumentAppMessageListener,
@@ -42,7 +40,7 @@ export function documentAppCid(document: Pick<HMDocument, 'metadata'> | null | u
 
 /**
  * A document app in place of the document body. Each platform isolates its frame and
- * answers SDK calls through the host. Full viewer authority requires an app-session grant.
+ * answers SDK calls through the host with independent read, signing and publication approvals.
  */
 type DocumentAppViewProps = {
   docId: UnpackedHypermediaId
@@ -51,18 +49,47 @@ type DocumentAppViewProps = {
   perspectiveAccountUid?: string | null
   /** Fill the main view without a border or document margins. */
   fill?: boolean
-  /** Delegate the revoke control to the host navigation instead of an inline toolbar. */
-  onAccountAccessChange?: (revoke: (() => void) | null) => void
+  /** Put the permission manager in host navigation instead of the inline toolbar. */
+  onAccountAccessChange?: (manage: (() => void) | null) => void
 }
 
 type AppContentHandler = (method: string, params: unknown, signal: AbortSignal) => Promise<unknown>
 type AppRuntimeProps = DocumentAppViewProps & {content: AppContentHandler}
 
-/** Render a document app with the platform's isolated runtime. */
+/** Render only approved launches, then gate each data or signing capability independently. */
 export function DocumentAppView(props: DocumentAppViewProps) {
   const account = useSelectedAccountId()
   return (
-    <DocumentAppSession key={JSON.stringify([props.docId.id, props.document.version, props.cid, account])} {...props} />
+    <DocumentAppLaunch key={JSON.stringify([props.docId.id, props.document.version, props.cid, account])} {...props} />
+  )
+}
+
+function DocumentAppLaunch(props: DocumentAppViewProps) {
+  const account = useSelectedAccountId()
+  const contacts = useSelectedAccountContacts()
+  const {originHomeId} = useUniversalAppContext()
+  const platform = getDocumentAppPlatform()
+  const [accepted, setAccepted] = React.useState(false)
+  const known =
+    props.docId.uid === account ||
+    contacts.data?.some((contact) => contact.subject === props.docId.uid && contact.subscribe?.site) ||
+    (platform && 'loadAppHtml' in platform && originHomeId?.uid === props.docId.uid)
+  if (known || accepted) return <DocumentAppSession {...props} />
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="border-border bg-background flex max-w-md flex-col gap-4 rounded-xl border p-6 shadow-sm">
+        <h2 className="text-lg font-semibold">Run {props.document.metadata?.name || 'this app'}?</h2>
+        <p className="text-muted-foreground text-sm">
+          This app is from a site you haven’t joined. Apps can show misleading screens, use device resources and open
+          links.
+        </p>
+        <p className="text-sm">
+          Seed will ask before sharing your account identity, reading content or saved app data, or signing anything.
+          Joining is optional.
+        </p>
+        <Button onClick={() => setAccepted(true)}>Run app</Button>
+      </div>
+    </div>
   )
 }
 
@@ -72,38 +99,113 @@ function DocumentAppSession(props: DocumentAppViewProps) {
   const openUrl = useOpenUrl()
   const queryClient = useQueryClient()
   const profile = useQuery(queryAccount(client, account))
-  const [approval, setApproval] = React.useState(false)
-  const [granted, setGranted] = React.useState(false)
-  const finishApproval = React.useRef<((accepted: boolean) => void) | null>(null)
+  const documentId = hmId(props.docId.uid, {path: props.docId.path}).id
+  const key = appPermissionStorageKey(account, documentId)
+  const source = React.useRef(Symbol())
+  const initial = React.useMemo(() => {
+    try {
+      return readAppPermissionGrants(window.localStorage, key)
+    } catch {
+      return []
+    }
+  }, [key])
+  const [grants, setGrants] = React.useState<AppPermissionGrant[]>(initial)
+  const [settings, setSettings] = React.useState(false)
+  const [approval, setApproval] = React.useState<{
+    id: string
+    request: AppPermissionRequest
+    finish: (decision: AppPermissionDecision) => void
+  } | null>(null)
   const access = React.useMemo(
     () =>
       createDocumentAppAccess(
-        (signal) =>
-          new Promise<boolean>((resolve) => {
+        (request, signal) =>
+          new Promise<AppPermissionDecision>((resolve) => {
             signal.throwIfAborted()
-            const finish = (accepted: boolean) => {
+            let finished = false
+            const finish = (decision: AppPermissionDecision) => {
+              if (finished) return
+              finished = true
               signal.removeEventListener('abort', cancel)
-              finishApproval.current = null
-              setApproval(false)
-              resolve(accepted)
+              setApproval(null)
+              resolve(decision)
             }
-            const cancel = () => finish(false)
-            finishApproval.current = finish
+            const cancel = () => finish('deny')
             signal.addEventListener('abort', cancel, {once: true})
-            setApproval(true)
+            setApproval({id: crypto.randomUUID(), request, finish})
           }),
-        setGranted,
+        (saved) => {
+          setGrants(saved)
+          try {
+            window.localStorage.setItem(key, JSON.stringify(saved))
+            window.dispatchEvent(
+              new CustomEvent('seed-app-permissions-changed', {detail: {key, source: source.current}}),
+            )
+          } catch {
+            toast.error('Could not save this permission. It will last only while this app is open.')
+          }
+        },
+        initial,
       ),
-    [],
+    [key, initial],
   )
-  React.useLayoutEffect(() => () => access.revoke(), [access])
+  React.useLayoutEffect(() => {
+    access.start()
+    return () => access.close()
+  }, [access])
   React.useEffect(() => {
-    props.onAccountAccessChange?.(granted ? access.revoke : null)
+    const refresh = (event: Event) => {
+      if (
+        event instanceof StorageEvent
+          ? event.key !== key && event.key !== null
+          : (event as CustomEvent).detail?.key !== key || (event as CustomEvent).detail?.source === source.current
+      )
+        return
+      let saved: AppPermissionGrant[] = []
+      try {
+        saved = readAppPermissionGrants(window.localStorage, key)
+      } catch {}
+      access.replace(saved)
+      setGrants(saved)
+    }
+    window.addEventListener('storage', refresh)
+    window.addEventListener('seed-app-permissions-changed', refresh)
+    return () => {
+      window.removeEventListener('storage', refresh)
+      window.removeEventListener('seed-app-permissions-changed', refresh)
+    }
+  }, [key, access])
+  React.useEffect(() => {
+    props.onAccountAccessChange?.(() => setSettings(true))
     return () => props.onAccountAccessChange?.(null)
-  }, [props.onAccountAccessChange, granted, access])
+  }, [props.onAccountAccessChange])
   const content = React.useCallback<AppContentHandler>(
     async (method, params, signal) => {
       signal.throwIfAborted()
+      const context: DocumentAppContext = {
+        protocol: 1,
+        document: documentId,
+        version: props.document.version,
+        account,
+        app: props.cid,
+      }
+      if (method === 'storage.get' || method === 'storage.set') {
+        const authorized = access.signal(signal)
+        if (method === 'storage.get')
+          await access.authorize(
+            {
+              kind: 'read',
+              type: 'AppState',
+              title: 'Read this app’s saved data',
+              resource: `${documentId}#app-state`,
+              details: {key: (params as {key?: unknown})?.key},
+              warning: 'Saved data may contain information shared during earlier visits.',
+            },
+            authorized,
+          )
+        authorized.throwIfAborted()
+        return documentAppStorage(window.localStorage, context, method, params as Record<string, unknown>)
+      }
       if (method === 'open') {
         try {
           const link = parseDocumentAppLink(params)
@@ -126,13 +228,7 @@ function DocumentAppSession(props: DocumentAppViewProps) {
         client,
         access,
         visibility: props.document.visibility,
-        context: {
-          protocol: 1,
-          document: hmId(props.docId.uid, {path: props.docId.path}).id,
-          version: props.document.version,
-          account,
-          app: props.cid,
-        },
+        context,
       })
       if (
         ['comments.create', 'publish', 'publishDocument'].includes(method) ||
@@ -144,16 +240,16 @@ function DocumentAppSession(props: DocumentAppViewProps) {
       }
       return result
     },
-    [account, client, queryClient, access, props.docId, props.document, props.cid, openUrl],
+    [account, client, queryClient, access, documentId, props.document, props.cid, openUrl],
   )
   const platform = getDocumentAppPlatform()
+  const name = props.document.metadata?.name || 'This app'
   return (
     <div className={cn('flex flex-col', props.fill ? 'h-full min-h-0' : 'gap-2')}>
-      {granted && !props.onAccountAccessChange && (
-        <div className="flex items-center justify-between gap-3 text-sm">
-          <span>Account access enabled</span>
-          <Button variant="outline" size="sm" onClick={() => access.revoke()}>
-            Revoke access
+      {!props.onAccountAccessChange && (
+        <div className="flex justify-end">
+          <Button variant="ghost" size="sm" onClick={() => setSettings(true)}>
+            App permissions
           </Button>
         </div>
       )}
@@ -164,33 +260,23 @@ function DocumentAppSession(props: DocumentAppViewProps) {
           <LegacyDocumentAppView {...props} content={content} />
         )}
       </div>
-      <AlertDialog
-        open={approval}
-        onOpenChange={(open) => {
-          if (!open) finishApproval.current?.(false)
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Give this app full account access?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {props.document.metadata?.name || 'This app'} will act as{' '}
-              {profile.data?.metadata?.name || 'your selected account'}. It can read everything this account can access,
-              create, edit and delete content, grant permissions, and sign any data without asking again while this app
-              is open.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <p className="text-sm">
-            Only allow apps you trust. Access ends when you revoke it, close the app, switch accounts, or load a
-            different app revision. This stops future calls; signatures, published changes and permissions already
-            issued remain valid. Signing keys stay in Seed.
-          </p>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => finishApproval.current?.(false)}>Deny</AlertDialogCancel>
-            <AlertDialogAction onClick={() => finishApproval.current?.(true)}>Allow full access</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {approval && (
+        <DocumentAppPermissionPrompt
+          key={approval.id}
+          request={approval.request}
+          appName={name}
+          accountName={profile.data?.metadata?.name || (account ? 'your selected account' : 'a signed-out visitor')}
+          onDecision={approval.finish}
+        />
+      )}
+      <DocumentAppPermissionSettings
+        open={settings}
+        onOpenChange={setSettings}
+        appName={name}
+        grants={grants}
+        onRemove={(index) => access.remove(index)}
+        onReset={() => access.revoke()}
+      />
     </div>
   )
 }
@@ -229,15 +315,7 @@ function SandboxDocumentAppView({
           context: {protocol: 1, document: id, version, account, app: cid},
           storage: window.localStorage,
           content,
-          profile: async () => {
-            const profile = await queryClient.fetchQuery(queryAccount(client, account))
-            return account ? {id: account, name: profile?.metadata?.name || null} : null
-          },
-          resource: async () => ({
-            type: 'document',
-            id: hmId(docId.uid, {path: docId.path, version}),
-            document: resourceDocument,
-          }),
+          hostHandlesReads: true,
           onClose: (reason) => {
             if (!controller.signal.aborted) setError(reason)
           },
@@ -288,33 +366,24 @@ function LegacyDocumentAppView({docId, document, cid, fill = false, content}: Ap
   React.useEffect(() => {
     if (!platform) return
     let cancelled = false
+    let launchUrl: string | undefined
     setUrl(null)
     setError('')
     platform
       .resolveAppUrl({id: docId.id, cid, account})
       .then((resolved) => {
+        launchUrl = resolved
         if (!cancelled) setUrl(resolved)
+        else void platform.closeAppUrl?.(resolved)
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err))
       })
     return () => {
       cancelled = true
+      if (launchUrl) void platform.closeAppUrl?.(launchUrl)
     }
   }, [platform, docId.id, cid, account])
-
-  const context = React.useMemo<DocumentAppContext>(
-    () => ({
-      protocol: DOCUMENT_APP_PROTOCOL,
-      document: docId.id,
-      version: document.version ?? null,
-      account,
-      app: cid,
-    }),
-    [docId.id, document.version, account, cid],
-  )
-  const contextRef = React.useRef(context)
-  contextRef.current = context
 
   React.useLayoutEffect(() => {
     if (!url) return
@@ -322,35 +391,8 @@ function LegacyDocumentAppView({docId, document, cid, fill = false, content}: Ap
     const origin = documentAppOrigin(url)
     const handle = async (request: DocumentAppRequest): Promise<unknown> => {
       const params = (request.params ?? {}) as Record<string, unknown>
-      switch (request.method) {
-        case 'hm.parseMarkdown':
-        case 'hm.validateContent':
-        case 'comments.create':
-          return content(request.method, params, controller.signal)
-        case 'context':
-          return contextRef.current
-        case 'runtime':
-          return documentAppRuntime('desktop')
-        case 'storage.get':
-        case 'storage.set':
-          return documentAppStorage(window.localStorage, contextRef.current, request.method, params)
-        case 'profile': {
-          const uid = contextRef.current.account
-          const profile = await queryClient.fetchQuery(queryAccount(client, uid))
-          return uid ? {id: uid, name: profile?.metadata?.name || null} : null
-        }
-        case 'resource': {
-          const id = requireHmId(params.url)
-          if (id.path?.length === 1 && id.path[0] === ':profile' && id.uid === contextRef.current.account) {
-            const profile = await queryClient.fetchQuery(queryAccount(client, id.uid))
-            return {id: id.uid, name: profile?.metadata?.name || null}
-          }
-          if (id.id === docId.id) return queryClient.fetchQuery(queryResource(client, id))
-          return content(request.method, params, controller.signal)
-        }
-        default:
-          return content(request.method, params, controller.signal)
-      }
+      if (request.method === 'runtime') return documentAppRuntime('desktop')
+      return content(request.method, params, controller.signal)
     }
     const listener = createDocumentAppMessageListener({frame: () => frame.current, origin, handle})
     window.addEventListener('message', listener)
@@ -386,7 +428,7 @@ function LegacyDocumentAppView({docId, document, cid, fill = false, content}: Ap
           onLoad={() => setNavigation((value) => value + 1)}
           title={title}
           src={url}
-          // Native storage is isolated by document, bundle and viewer; seed.storage survives code updates.
+          // Fresh native origin per launch; persistent state is gated through seed.storage.
           sandbox="allow-scripts allow-same-origin allow-forms"
           referrerPolicy="no-referrer"
           className={cn('block w-full border-0 bg-white', fill && 'h-full')}
@@ -402,12 +444,6 @@ function LegacyDocumentAppView({docId, document, cid, fill = false, content}: Ap
       )}
     </section>
   )
-}
-
-function requireHmId(value: unknown): UnpackedHypermediaId {
-  const id = typeof value === 'string' ? unpackHmId(value) : null
-  if (!id) throw new Error('Expected an hm:// URL')
-  return id
 }
 
 /**

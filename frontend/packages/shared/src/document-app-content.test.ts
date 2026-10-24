@@ -3,6 +3,7 @@ import {createChangeOps} from '@seed-hypermedia/client'
 import {decode, encode} from '@ipld/dag-cbor'
 import {base58btc} from 'multiformats/bases/base58'
 import {createDocumentAppAccess, documentAppContent, DOCUMENT_APP_SIGNING_HELPERS} from './document-app-content'
+import type {AppPermissionDecision} from './document-app-permissions'
 import {DOCUMENT_APP_SIGNING_HELPER_NAMES} from './document-app'
 import type {UniversalClient} from './universal-client'
 
@@ -16,7 +17,12 @@ async function fixture() {
     async (data: Uint8Array) => new Uint8Array(await crypto.subtle.sign('Ed25519', keys.privateKey, data)),
   )
   const publish = vi.fn(async (_payload: unknown) => ({cids: ['published-cid']}))
-  const approve = vi.fn(async () => true)
+  const approve = vi.fn(
+    async (
+      _request: import('./document-app-permissions').AppPermissionRequest,
+      _signal: AbortSignal,
+    ): Promise<AppPermissionDecision> => 'once',
+  )
   const request = vi.fn(async (..._args: unknown[]): Promise<unknown> => null)
   const options = {
     context: {
@@ -97,7 +103,7 @@ describe('mini-app content and signing', () => {
     await expect(
       documentAppContent({
         ...options,
-        access: createDocumentAppAccess(async () => false),
+        access: createDocumentAppAccess(async () => 'deny'),
         method: 'comments.create',
         params: {content},
       }),
@@ -123,7 +129,7 @@ describe('mini-app content and signing', () => {
         params: {content},
         access: createDocumentAppAccess(async () => {
           controller.abort()
-          return true
+          return 'once'
         }),
       }),
     ).rejects.toThrow()
@@ -145,7 +151,7 @@ describe('mini-app content and signing', () => {
     await expect(documentAppContent({...options, method: 'comments.create', params: {content}})).rejects.toThrow()
     expect(publish).not.toHaveBeenCalled()
   })
-  it('grants once for all reads, publishing and raw signing, then requires approval after revocation', async () => {
+  it('prompts independently for reads, publishing and raw signing', async () => {
     const {options, approve, keys, request, publish} = await fixture()
     const call = (method: string, params = {}) => documentAppContent({...options, method, params})
     await call('permissions.request')
@@ -167,11 +173,11 @@ describe('mini-app content and signing', () => {
     }
     await call('publish', {input: {blobs: [{data: signed.data, cid: signed.cid}]}})
     expect(publish).toHaveBeenCalledTimes(1)
-    expect(approve).toHaveBeenCalledTimes(1)
+    expect(approve).toHaveBeenCalledTimes(6)
     await call('permissions.revoke')
-    approve.mockResolvedValueOnce(false)
+    approve.mockResolvedValueOnce('deny')
     await expect(call('signer.sign', {data: message})).rejects.toThrow('denied')
-    expect(approve).toHaveBeenCalledTimes(2)
+    expect(approve).toHaveBeenCalledTimes(7)
   })
 
   it('creates and publishes a real document Change and Ref with the selected account', async () => {
@@ -202,7 +208,7 @@ describe('mini-app content and signing', () => {
     }
     expect((decode(result.blobs[1]!.data) as Record<string, unknown>).path).toBe('/created-by-app')
     await documentAppContent({...options, method: 'publish', params: {input: {blobs: result.blobs}}})
-    expect(publish).toHaveBeenCalledWith({blobs: result.blobs})
+    expect(publish).toHaveBeenCalledWith(structuredClone({blobs: result.blobs}))
     expect(Object.keys(DOCUMENT_APP_SIGNING_HELPERS)).toEqual([...DOCUMENT_APP_SIGNING_HELPER_NAMES])
   })
 
@@ -258,21 +264,8 @@ describe('mini-app content and signing', () => {
     ).rejects.toThrow()
   })
 
-  it('coalesces simultaneous permission requests and discards reads completed after revocation', async () => {
+  it('discards reads completed after revocation', async () => {
     const {options, request} = await fixture()
-    let accept!: (value: boolean) => void
-    const approve = vi.fn(
-      () =>
-        new Promise<boolean>((resolve) => {
-          accept = resolve
-        }),
-    )
-    options.access = createDocumentAppAccess(approve)
-    const first = documentAppContent({...options, method: 'permissions.request', params: {}})
-    const second = documentAppContent({...options, method: 'permissions.request', params: {}})
-    expect(approve).toHaveBeenCalledTimes(1)
-    accept(true)
-    await Promise.all([first, second])
     request.mockImplementationOnce(async () => {
       options.access.revoke()
       return null
@@ -280,5 +273,69 @@ describe('mini-app content and signing', () => {
     await expect(
       documentAppContent({...options, method: 'request', params: {key: 'Account', input: 'other'}}),
     ).rejects.toThrow('revoked')
+  })
+  it('classifies actual SDK bytes and allows publishing only the exact approved envelopes', async () => {
+    const {options, content, approve, publish} = await fixture()
+    approve.mockResolvedValue('type-site')
+    await documentAppContent({...options, method: 'comments.create', params: {content}})
+    expect(approve.mock.calls[0]?.[0]).toMatchObject({kind: 'sign', type: 'Comment', site: options.context.account})
+    expect(approve).toHaveBeenCalledTimes(1)
+    await documentAppContent({...options, method: 'comments.create', params: {content}})
+    expect(approve).toHaveBeenCalledTimes(1)
+    approve.mockResolvedValue('deny')
+    const blob = (publish.mock.calls[0]![0] as {blobs: {data: Uint8Array}[]}).blobs[0]!
+    const unsigned = {...(decode(blob.data) as Record<string, unknown>), sig: new Uint8Array(64)}
+    // Calling the raw signer with a real comment gets the same classification as a helper.
+    await documentAppContent({...options, method: 'signer.sign', params: {data: encode(unsigned)}})
+    for (const mutated of [
+      {...unsigned, type: 'Capability'},
+      {...unsigned, extra: 'hidden'},
+      {...unsigned, signer: new Uint8Array(34)},
+      {...unsigned, id: 'arbitrary-record'},
+    ]) {
+      await expect(
+        documentAppContent({...options, method: 'signer.sign', params: {data: encode(mutated)}}),
+      ).rejects.toThrow('denied')
+    }
+    const changed = encode({...unsigned, path: '/different', sig: new Uint8Array(64)})
+    await expect(
+      documentAppContent({
+        ...options,
+        method: 'request',
+        params: {key: 'PublishBlobs', input: {blobs: [{data: changed}]}},
+      }),
+    ).rejects.toThrow('denied')
+    expect(approve.mock.calls.at(-1)?.[0]).toMatchObject({kind: 'publish'})
+    expect(publish).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not disclose identity, own content or redirect targets without the corresponding read approval', async () => {
+    const {options, approve, request} = await fixture()
+    approve.mockResolvedValue('deny')
+    for (const method of ['context', 'profile', 'signer.getPublicKey']) {
+      await expect(documentAppContent({...options, method, params: {}})).rejects.toThrow('denied')
+    }
+    await expect(
+      documentAppContent({...options, method: 'resource', params: {url: options.context.document}}),
+    ).rejects.toThrow('denied')
+    expect(request).not.toHaveBeenCalled()
+    approve.mockResolvedValueOnce('resource')
+    request.mockResolvedValueOnce({
+      type: 'document',
+      id: {uid: options.context.account, path: ['private']},
+      document: {account: options.context.account, path: '/private'},
+    })
+    await expect(
+      documentAppContent({...options, method: 'resource', params: {url: options.context.document}}),
+    ).rejects.toThrow('denied')
+    expect(request).toHaveBeenCalledWith(
+      'Resource',
+      expect.objectContaining({version: options.context.version}),
+      expect.anything(),
+    )
+    expect(approve.mock.calls.at(-1)?.[0]).toMatchObject({
+      kind: 'read',
+      resource: `hm://${options.context.account}/private`,
+    })
   })
 })

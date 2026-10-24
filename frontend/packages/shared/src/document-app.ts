@@ -9,10 +9,10 @@ import type {DOCUMENT_APP_SIGNING_HELPERS} from './document-app-content'
 import type {PublishDocumentInput} from './universal-client'
 
 /**
- * Document apps run untrusted HTML through a host-owned SDK. Desktop uses a document/bundle/viewer
+ * Document apps run untrusted HTML through a host-owned SDK. Desktop uses a fresh launch
  * origin; web uses an opaque sandbox on the Seed host. Portable state goes through
- * viewer/document-scoped storage. Content helpers have no authority; writing and signing
- * uses full account access granted in Seed, with keys retained by the host.
+ * viewer/document-scoped storage. Content helpers have no authority; reads, writing and signing
+ * require host-owned, scoped approvals. Keys stay in the host.
  */
 
 /** The URL scheme the desktop serves app folders under: `seed-app://<document host>/<file>`. */
@@ -25,7 +25,7 @@ export const DOCUMENT_APP_CLIENT_PATH = '/.seed/client.js'
 export const DOCUMENT_APP_PROTOCOL = 1
 
 /** Version of the SDK contract, independent of the transport envelope version. */
-export const DOCUMENT_APP_SDK_VERSION = '1.1.0'
+export const DOCUMENT_APP_SDK_VERSION = '1.2.0'
 
 /** Largest request an app may send, including binary data. */
 export const DOCUMENT_APP_MAX_REQUEST_BYTES = 8 * 1024 * 1024
@@ -149,7 +149,11 @@ export type DocumentAppSDK = {
   storage: {get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<null>}
   resource(url: string): Promise<unknown>
   directory(url: string, options?: {all?: boolean}): Promise<unknown>
-  permissions: {request(): Promise<{account: string; document: string; app: string}>; revoke(): Promise<null>}
+  /** Inspect remembered rules or revoke them; operations themselves trigger consent. */
+  permissions: {
+    request(): Promise<{grants: import('./document-app-permissions').AppPermissionGrant[]}>
+    revoke(): Promise<null>
+  }
   signer: HMSigner
   request<K extends HMRequest['key']>(
     key: K,
@@ -193,7 +197,7 @@ export async function documentAppRuntime(platform: 'web' | 'desktop') {
       maxKeys: 64,
     },
     limits: {maxRequestBytes: DOCUMENT_APP_MAX_REQUEST_BYTES, maxPendingRequests: 32},
-    authority: 'full-account-session',
+    authority: 'scoped-app-permissions',
   } as const
 }
 
@@ -237,17 +241,6 @@ export function parseDocumentAppReference(value: unknown): string | null {
   if (typeof value !== 'string') return null
   const cid = value.startsWith('ipfs://') ? value.slice('ipfs://'.length) : value
   return /^[a-z2-7]{20,}$/i.test(cid) && !cid.includes('/') ? cid : null
-}
-
-/**
- * The host of an app's origin, derived from the document it belongs to. Hostnames are
- * case-insensitive and account ids are not, so the id is hashed rather than embedded.
- * Callers pass a hex SHA-256 of the canonical `hm://` id; this keeps the host well-formed.
- */
-export function documentAppHostFromDigest(hexDigest: string): string {
-  const host = hexDigest.toLowerCase().slice(0, 40)
-  if (!/^[0-9a-f]{40}$/.test(host)) throw new Error('A document app host is 40 hex characters of the id digest')
-  return host
 }
 
 /** Whether a URL is a document app page, and nothing else, by its scheme and host shape. */
@@ -398,6 +391,8 @@ export function createDocumentAppMessageListener(options: {
 export type DocumentAppPlatform = (
   | {
       /** Resolves the page URL for a document's app folder, registering it with the host if needed. */
+      /** Release an app launch and its native storage when the frame closes. */
+      closeAppUrl?: (url: string) => Promise<void>
       resolveAppUrl: (input: {id: string; cid: string; account: string | null}) => Promise<string>
     }
   | {

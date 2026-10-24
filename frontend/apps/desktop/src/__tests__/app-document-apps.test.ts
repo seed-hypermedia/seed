@@ -1,8 +1,10 @@
+import {EventEmitter} from 'node:events'
+import {ipcMain, type Session} from 'electron'
 import {describe, expect, it, vi} from 'vitest'
 
 vi.mock('electron', () => ({ipcMain: {handle: vi.fn()}, protocol: {registerSchemesAsPrivileged: vi.fn()}}))
 
-import {documentAppHost, handleDocumentAppRequest, openDocumentApp} from '../app-document-apps'
+import {handleDocumentAppRequest, openDocumentApp, installDocumentAppProtocol} from '../app-document-apps'
 
 const cid = 'bafybeibowhl2ypujel2qrmcps2qy2szwv3ruyjqliqejr6jg4kil437y3e'
 const docId = 'hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/apps/counter'
@@ -15,8 +17,8 @@ describe('document app origins', () => {
     const b = openDocumentApp(apps, {id: docId, cid: newer, account: 'alice'})
     const otherViewer = openDocumentApp(apps, {id: docId, cid, account: 'bob'})
     expect(new Set([a, b, otherViewer]).size).toBe(3)
-    expect(openDocumentApp(apps, {id: docId, cid, account: 'alice'})).toBe(a)
-    expect(a).toBe(`seed-app://${documentAppHost(docId, cid, 'alice')}/`)
+    expect(openDocumentApp(apps, {id: docId, cid, account: 'alice'})).not.toBe(a)
+    expect(a).toMatch(/^seed-app:\/\/[a-f0-9]{40}\/$/)
     expect(openDocumentApp(apps, {id: docId, cid, account: null})).not.toBe(a)
     const fetchFile = vi.fn(async (bundle: string, path: string) => new Response(`${bundle}:${path}`))
     const options = {apps, frameAncestors: [], fetchFile}
@@ -93,5 +95,36 @@ describe('handleDocumentAppRequest', () => {
     })
     const res = await handleDocumentAppRequest({method: 'GET', url}, options)
     expect(res.status).toBe(502)
+  })
+})
+
+describe('desktop app launch cleanup', () => {
+  it('only releases owned launches and clears every remaining origin when the owner closes', async () => {
+    vi.mocked(ipcMain.handle).mockClear()
+    const handle = vi.fn()
+    const clearStorageData = vi.fn(async () => {})
+    installDocumentAppProtocol({protocol: {handle}, clearStorageData} as unknown as Session, () => [])
+    const handlers = new Map(vi.mocked(ipcMain.handle).mock.calls)
+    const open = handlers.get('document-app-open')!
+    const close = handlers.get('document-app-close')!
+    const mainFrame = {}
+    const sender = Object.assign(new EventEmitter(), {id: 1, mainFrame})
+    const event = {sender, senderFrame: mainFrame} as unknown as Electron.IpcMainInvokeEvent
+    const first = open(event, {id: docId, cid, account: 'alice'})
+    const second = open(event, {id: docId, cid, account: 'alice'})
+    expect(sender.listenerCount('destroyed')).toBe(1)
+    expect(() => open({...event, senderFrame: {} as Electron.WebFrameMain}, {id: docId, cid, account: null})).toThrow(
+      'Invalid app host',
+    )
+    const serve = handle.mock.calls[0]![1]
+    expect((await serve({method: 'GET', url: `${first}.seed/client.js`})).status).toBe(200)
+    close({...event, sender: {...sender, id: 2}} as unknown as Electron.IpcMainInvokeEvent, first)
+    expect(clearStorageData).not.toHaveBeenCalled()
+    close(event, first)
+    expect((await serve({method: 'GET', url: `${first}.seed/client.js`})).status).toBe(404)
+    expect(clearStorageData).toHaveBeenCalledWith({origin: first.slice(0, -1)})
+    sender.emit('destroyed')
+    expect((await serve({method: 'GET', url: `${second}.seed/client.js`})).status).toBe(404)
+    expect(clearStorageData).toHaveBeenCalledTimes(2)
   })
 })

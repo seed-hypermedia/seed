@@ -76,7 +76,7 @@ const runnerScript = String.raw`
         const message = {type: 'seed-call', id, method, params}
         if (messageSize(message) > SEED_MAX_BYTES)
           return reject(new Error('Request too large'))
-        const timeout = ['context', 'profile', 'storage.get', 'storage.set', 'hm.parseMarkdown', 'hm.validateContent', 'hm.unpackHmId'].includes(method) ? setTimeout(() => {
+        const timeout = ['storage.set', 'hm.parseMarkdown', 'hm.validateContent', 'hm.unpackHmId'].includes(method) ? setTimeout(() => {
           pending.delete(id)
           reject(new Error('Request expired'))
         }, 5000) : undefined
@@ -145,14 +145,17 @@ export function mountDocumentApp({
   resource,
   profile,
   content,
+  hostHandlesReads = true,
   onClose = () => {},
 }: {
   container: HTMLElement
   html: string
   context: DocumentAppContext
   storage: Storage
-  resource: (url: string) => Promise<unknown>
-  profile: () => Promise<{id: string; name: string | null} | null>
+  resource?: (url: string) => Promise<unknown>
+  profile?: () => Promise<{id: string; name: string | null} | null>
+  /** Delegate identity, document and local-state reads to the host permission controller. */
+  hostHandlesReads?: boolean
   content?: (method: string, params: unknown, signal: AbortSignal) => Promise<unknown>
   onClose?: (reason: string) => void
 }) {
@@ -236,7 +239,10 @@ export function mountDocumentApp({
       if (++requestCount > 100) throw new Error('Request rate exceeded')
       const params = data.params
       if (!params || typeof params !== 'object' || Array.isArray(params)) throw new Error('Invalid parameters')
-      if (data.method === 'context') {
+      if (hostHandlesReads && ['context', 'profile', 'storage.get', 'storage.set', 'resource'].includes(data.method)) {
+        if (!content) throw new Error('App permission controller unavailable.')
+        reply.result = await content(data.method, params, controller.signal)
+      } else if (data.method === 'context') {
         reply.result = context
       } else if (data.method === 'runtime') {
         reply.result = await documentAppRuntime('web')
@@ -246,9 +252,9 @@ export function mountDocumentApp({
         data.method === 'profile' ||
         (data.method === 'resource' && context.account && params.url === `hm://${context.account}/:profile`)
       ) {
-        reply.result = await profile()
+        reply.result = await profile?.()
       } else if (data.method === 'resource' && params.url === context.document) {
-        reply.result = await resource(params.url)
+        reply.result = await resource?.(params.url)
       } else {
         if (!content) throw new Error('Account access is not available.')
         reply.result = await content(data.method, params, controller.signal)

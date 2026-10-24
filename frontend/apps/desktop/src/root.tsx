@@ -183,6 +183,7 @@ registerDesktopAgentsPlatform()
 // Document apps on desktop: the main process serves the app folder under its own scheme.
 setDocumentAppPlatform({
   resolveAppUrl: (input) => window.documentApps.open(input),
+  closeAppUrl: (url) => window.documentApps.close(url),
   openExternalUrl: (url) => ipc.send?.('open-external-link', url),
 })
 

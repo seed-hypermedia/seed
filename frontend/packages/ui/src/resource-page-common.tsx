@@ -127,7 +127,7 @@ import {
   Grid3X3,
   Info,
   MessagesSquare,
-  ShieldOff,
+  ShieldCheck,
   Users,
   LayoutGrid,
   List as ListIcon,
@@ -2028,8 +2028,8 @@ function DocumentBody({
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
   const documentApp = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentAppCid(document) : null
-  const [revokeAppAccess, setRevokeAppAccess] = useState<(() => void) | null>(null)
-  const onAppAccessChange = useCallback((revoke: (() => void) | null) => setRevokeAppAccess(() => revoke), [])
+  const [manageAppPermissions, setManageAppPermissions] = useState<(() => void) | null>(null)
+  const onAppAccessChange = useCallback((revoke: (() => void) | null) => setManageAppPermissions(() => revoke), [])
   const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
@@ -2765,12 +2765,12 @@ function DocumentBody({
       unorderedItems.push(
         ...getDocumentAppPanelMenuItems(docId, (panel) => replaceRoute({...route, panel} as NavRoute)),
       )
-      if (revokeAppAccess)
+      if (manageAppPermissions)
         unorderedItems.push({
-          key: 'app-revoke',
-          label: 'Revoke account access',
-          icon: <ShieldOff className="size-4" />,
-          onClick: revokeAppAccess,
+          key: 'app-permissions',
+          label: 'App permissions',
+          icon: <ShieldCheck className="size-4" />,
+          onClick: manageAppPermissions,
         })
     } else unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
@@ -2791,7 +2791,7 @@ function DocumentBody({
     docId,
     route,
     replaceRoute,
-    revokeAppAccess,
+    manageAppPermissions,
     optionsMenuItems,
     extraMenuItems,
     citationFragmentToggleMenuItem,

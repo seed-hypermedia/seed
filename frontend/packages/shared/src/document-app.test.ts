@@ -8,7 +8,6 @@ import {
   DOCUMENT_APP_MAX_REQUEST_BYTES,
   createDocumentAppMessageListener,
   documentAppContentSecurityPolicy,
-  documentAppHostFromDigest,
   documentAppOrigin,
   isDocumentAppURL,
   parseDocumentAppReference,
@@ -30,10 +29,7 @@ describe('document app references and origins', () => {
     expect(parseDocumentAppReference(42)).toBeNull()
   })
 
-  it('derives a well-formed host and recognizes app URLs by it', () => {
-    const digest = 'ABCDEF0123456789'.repeat(4)
-    expect(documentAppHostFromDigest(digest)).toBe(digest.toLowerCase().slice(0, 40))
-    expect(() => documentAppHostFromDigest('nope')).toThrow()
+  it('recognizes well-formed app URLs', () => {
     expect(isDocumentAppURL(`seed-app://${host}/`)).toBe(true)
     expect(isDocumentAppURL(`seed-app://${host}/assets/app.js`)).toBe(true)
     expect(isDocumentAppURL('seed-app://localhost/')).toBe(false)
@@ -164,6 +160,6 @@ describe('document app navigation and runtime contract', () => {
     expect(desktop.sdkDigest).toBe(web.sdkDigest)
     expect(web.methods).toEqual([...DOCUMENT_APP_METHODS])
     expect(web.storage).toMatchObject({scope: 'viewer/document', persistence: 'device-only', synced: false})
-    expect(web.authority).toBe('full-account-session')
+    expect(web.authority).toBe('scoped-app-permissions')
   })
 })

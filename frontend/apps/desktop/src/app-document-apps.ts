@@ -1,19 +1,19 @@
 import {ipcMain, protocol, type Session} from 'electron'
-import {createHash} from 'node:crypto'
+import {randomBytes} from 'node:crypto'
 import {DAEMON_HTTP_URL} from '@shm/shared/constants'
 import {
   DOCUMENT_APP_CLIENT_PATH,
   DOCUMENT_APP_CLIENT_SCRIPT,
   DOCUMENT_APP_SCHEME,
-  documentAppHostFromDigest,
   documentAppResponseHeaders,
   parseDocumentAppReference,
 } from '@shm/shared/document-app'
 
 /**
  * Serves document apps: `seed-app://<host>/<file>` is a file from the app folder of one
- * document, fetched from the daemon by the folder's CID. The host is derived from the document
- * id, bundle CID and selected viewer. Opening another revision cannot replace this origin's code.
+ * document, fetched from the daemon by the folder's CID, with a fresh unpredictable origin
+ * for each launch, bound to the document, bundle and selected viewer.
+ * Native storage cannot identify the viewer or silently carry private data into the next launch.
  *
  * The renderer registers a document's current app with `document-app-open` and embeds the URL
  * it gets back. Only files inside that folder are ever served from that origin, plus the bridge
@@ -32,15 +32,6 @@ export function registerDocumentAppScheme() {
 
 type RegisteredApp = {id: string; cid: string; account: string | null}
 
-/** Immutable code and viewer identity; portable state is separately keyed by viewer and document. */
-export function documentAppHost(id: string, cid: string, account: string | null): string {
-  return documentAppHostFromDigest(
-    createHash('sha256')
-      .update(JSON.stringify([id, cid, account]))
-      .digest('hex'),
-  )
-}
-
 /** Registers an immutable bundle/viewer origin and returns the page URL to embed. */
 export function openDocumentApp(apps: Map<string, RegisteredApp>, input: unknown): string {
   const value = input as Partial<RegisteredApp> | null
@@ -49,7 +40,7 @@ export function openDocumentApp(apps: Map<string, RegisteredApp>, input: unknown
   const cid = parseDocumentAppReference(value.cid)
   if (!cid) throw new Error('A document app needs a folder CID')
   if (value.account !== null && typeof value.account !== 'string') throw new Error('An app viewer is required')
-  const host = documentAppHost(value.id, cid, value.account)
+  const host = randomBytes(20).toString('hex')
   apps.set(host, {id: value.id, cid, account: value.account})
   return `${DOCUMENT_APP_SCHEME}://${host}/`
 }
@@ -121,11 +112,35 @@ function fetchAppFile(cid: string, path: string): Promise<Response> {
 /** Installs the scheme handler on a session and the IPC the renderer registers apps through. */
 export function installDocumentAppProtocol(session: Session, getFrameAncestors: () => string[]) {
   const apps = new Map<string, RegisteredApp>()
+  const owners = new Map<string, number>()
+  const watched = new Set<number>()
+  const release = (host: string) => {
+    apps.delete(host)
+    owners.delete(host)
+    void session.clearStorageData({origin: `${DOCUMENT_APP_SCHEME}://${host}`}).catch(() => {})
+  }
   session.protocol.handle(DOCUMENT_APP_SCHEME, (request) =>
     handleDocumentAppRequest(request, {apps, frameAncestors: getFrameAncestors(), fetchFile: fetchAppFile}),
   )
   ipcMain.handle('document-app-open', (event, input: unknown) => {
     if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid app host')
-    return openDocumentApp(apps, input)
+    const url = openDocumentApp(apps, input)
+    const host = new URL(url).hostname
+    const senderId = event.sender.id
+    if (!watched.has(senderId)) {
+      watched.add(senderId)
+      event.sender.once('destroyed', () => {
+        for (const [key, owner] of Array.from(owners)) if (owner === senderId) release(key)
+        watched.delete(senderId)
+      })
+    }
+    owners.set(host, senderId)
+    return url
+  })
+  ipcMain.handle('document-app-close', (event, url: string) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid app host')
+    const host = new URL(url).hostname
+    if (owners.get(host) !== event.sender.id) return
+    release(host)
   })
 }

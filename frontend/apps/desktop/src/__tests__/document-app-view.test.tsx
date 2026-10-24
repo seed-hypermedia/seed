@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => {
     getSigner,
     publish,
     account: 'viewer',
+    joined: true,
+    originHomeId: null as null | {uid: string},
     client: {request, getSigner, publish},
     queryClient: {
       fetchQuery: (options: {queryFn: () => Promise<unknown>}) => options.queryFn(),
@@ -20,7 +22,16 @@ const mocks = vi.hoisted(() => {
     },
   }
 })
-vi.mock('@shm/shared/routing', () => ({useUniversalClient: () => mocks.client, useOpenUrl: () => mocks.openUrl}))
+vi.mock('@shm/shared/routing', () => ({
+  useUniversalClient: () => mocks.client,
+  useOpenUrl: () => mocks.openUrl,
+  useUniversalAppContext: () => ({originHomeId: mocks.originHomeId}),
+}))
+vi.mock('@shm/shared/models/contacts', () => ({
+  useSelectedAccountContacts: () => ({
+    data: mocks.joined ? [{subject: 'z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj', subscribe: {site: true}}] : [],
+  }),
+}))
 vi.mock('@shm/shared/models/entity', () => ({useSelectedAccountId: () => mocks.account, useResource: vi.fn()}))
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => mocks.queryClient,
@@ -33,6 +44,7 @@ import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@seed-hypermedia/client'
 import {base58btc} from 'multiformats/bases/base58'
 import {decode} from '@ipld/dag-cbor'
+import {appPermissionStorageKey} from '@shm/shared/document-app-permissions'
 
 const cid = 'bafybeibowhl2ypujel2qrmcps2qy2szwv3ruyjqliqejr6jg4kil437y3e'
 const host = 'c'.repeat(40)
@@ -48,6 +60,8 @@ let container: HTMLDivElement
 beforeEach(() => {
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
   mocks.account = 'viewer'
+  mocks.joined = true
+  mocks.originHomeId = null
   mocks.openUrl.mockReset()
   mocks.request.mockReset()
   mocks.getSigner.mockReset()
@@ -63,8 +77,52 @@ afterEach(() => {
   setDocumentAppPlatform(null)
 })
 
+function button(label: string): HTMLButtonElement {
+  const found = Array.from(window.document.querySelectorAll('button')).find((button) => button.textContent === label)
+  expect(found, `button: ${label}`).toBeDefined()
+  return found!
+}
+async function click(label: string) {
+  await act(async () => button(label).click())
+}
+async function send(method: string, params = {}) {
+  const frame = container.querySelector('iframe')!
+  await act(async () =>
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        source: frame.contentWindow,
+        origin: `seed-app://${host}`,
+        data: {seedApp: 1, id: crypto.randomUUID(), method, params},
+      }),
+    ),
+  )
+}
+
 describe('DocumentAppView', () => {
-  it('grants full account access once, signs a comment and arbitrary data, then revokes access', async () => {
+  it('asks before running on an unfamiliar site, without requiring a join', async () => {
+    mocks.joined = false
+    const resolveAppUrl = vi.fn(async () => `seed-app://${host}/`)
+    setDocumentAppPlatform({resolveAppUrl})
+    await act(async () => root.render(<DocumentAppView docId={docId} document={document} cid={cid} />))
+    expect(resolveAppUrl).not.toHaveBeenCalled()
+    expect(container.textContent).toContain('Joining is optional')
+    await click('Run app')
+    expect(resolveAppUrl).toHaveBeenCalledTimes(1)
+    expect(container.querySelector('iframe')).not.toBeNull()
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('runs a same-site web app without a join or launch prompt', async () => {
+    mocks.joined = false
+    mocks.originHomeId = {uid: docId.uid}
+    const loadAppHtml = vi.fn(() => new Promise<string>(() => {}))
+    setDocumentAppPlatform({loadAppHtml})
+    await act(async () => root.render(<DocumentAppView docId={docId} document={document} cid={cid} />))
+    expect(loadAppHtml).toHaveBeenCalledTimes(1)
+    expect(container.textContent).not.toContain('Run app')
+  })
+
+  it('offers comment scopes while keeping raw signing and reading separate; remembers by app ID across updates', async () => {
     const keys = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify'])
     const principal = new Uint8Array([
       0xed,
@@ -77,140 +135,105 @@ describe('DocumentAppView', () => {
     )
     mocks.getSigner.mockReturnValue({getPublicKey: async () => principal, sign})
     mocks.publish.mockResolvedValue({cids: ['comment-version']})
-    setDocumentAppPlatform({resolveAppUrl: async () => `seed-app://${host}/`})
-    await act(async () => {
-      root.render(<DocumentAppView docId={docId} document={{...document, version: cid}} cid={cid} />)
-    })
-    const frame = container.querySelector('iframe')!
-    const posted = vi.spyOn(frame.contentWindow!, 'postMessage')
+    const closeAppUrl = vi.fn(async () => {})
+    setDocumentAppPlatform({resolveAppUrl: async () => `seed-app://${host}/`, closeAppUrl})
+    await act(async () =>
+      root.render(<DocumentAppView docId={docId} document={{...document, version: cid}} cid={cid} />),
+    )
     const params = {
       content: [{block: {id: 'message', type: 'Paragraph', text: 'Reviewed message', attributes: {}, annotations: []}}],
     }
-    const send = (id: string) =>
-      act(async () => {
-        window.dispatchEvent(
-          new MessageEvent('message', {
-            source: frame.contentWindow,
-            origin: `seed-app://${host}`,
-            data: {seedApp: 1, id, method: 'comments.create', params},
-          }),
-        )
-      })
-    await send('first')
+    await send('comments.create', params)
+    await vi.waitFor(() =>
+      expect(window.document.querySelector('[role="alertdialog"]')?.textContent).toContain('Post a public comment'),
+    )
     expect(sign).not.toHaveBeenCalled()
-    const confirm = Array.from(window.document.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Allow full access',
-    )!
-    await act(async () => {
-      confirm.click()
-    })
+    expect(window.document.body.textContent).toContain('Reviewed message')
+    await act(async () => (window.document.querySelector('input[value="type-site"]') as HTMLInputElement).click())
+    await click('Allow comments on this site')
     await vi.waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
-    const blob = decode(mocks.publish.mock.calls[0]![0].blobs[0].data) as Record<string, unknown>
-    expect(blob.path).toBe('/apps/counter')
-    expect((blob.version as unknown[]).map(String)).toEqual([cid])
-    expect(mocks.getSigner).toHaveBeenCalledWith(mocks.account)
-    expect(JSON.stringify(blob.body)).toContain('Reviewed message')
-    expect(posted).toHaveBeenCalledWith(
-      expect.objectContaining({id: 'first', result: {commentId: expect.any(String), version: 'comment-version'}}),
+    expect(
+      (decode(new Uint8Array(mocks.publish.mock.calls[0]![0].blobs[0].data)) as Record<string, unknown>).path,
+    ).toBe('/apps/counter')
+    await send('comments.create', params)
+    await vi.waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(2))
+    expect(window.document.querySelector('[role="alertdialog"]')).toBeNull()
+    await send('hm.signBlob', {input: {type: 'UnknownAppAction', choice: 'yes'}})
+    await vi.waitFor(() => expect(window.document.body.textContent).toContain('Sign unrecognized data'))
+    await act(async () => (window.document.querySelector('input[value="all"]') as HTMLInputElement).click())
+    expect(button('Allow any signing').disabled).toBe(true)
+    await click('Deny')
+    expect(sign).toHaveBeenCalledTimes(2)
+    await send('context')
+    expect(window.document.body.textContent).toContain('Identify your account')
+    await click('Deny')
+    await act(async () =>
+      root.render(<DocumentAppView docId={docId} document={{...document, version: `${cid}.${cid}`}} cid={cid} />),
+    )
+    expect(closeAppUrl).toHaveBeenCalled()
+    await send('comments.create', params)
+    await vi.waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(3))
+    expect(window.document.querySelector('[role="alertdialog"]')).toBeNull()
+    await click('App permissions')
+    expect(window.document.querySelector('[role="dialog"]')?.textContent).toContain('Allow comments on this site')
+    await click('Reset all to ask')
+    expect(window.localStorage.getItem(appPermissionStorageKey(mocks.account, docId.id))).toBe('[]')
+  })
+
+  it('cancels pending consent when the account changes', async () => {
+    setDocumentAppPlatform({resolveAppUrl: async () => `seed-app://${host}/`})
+    await act(async () => root.render(<DocumentAppView docId={docId} document={document} cid={cid} />))
+    await send('profile')
+    expect(window.document.body.textContent).toContain('Identify your account')
+    mocks.account = 'another-viewer'
+    await act(async () => root.render(<DocumentAppView docId={docId} document={document} cid={cid} />))
+    expect(window.document.querySelector('[role="alertdialog"]')).toBeNull()
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('applies revocation from another window before returning an in-flight read', async () => {
+    const key = appPermissionStorageKey(mocks.account, docId.id)
+    window.localStorage.setItem(key, JSON.stringify([{kind: 'read', scope: 'all'}]))
+    setDocumentAppPlatform({resolveAppUrl: async () => `seed-app://${host}/`})
+    await act(async () => root.render(<DocumentAppView docId={docId} document={document} cid={cid} />))
+    const frame = container.querySelector('iframe')!
+    const posted = vi.spyOn(frame.contentWindow!, 'postMessage')
+    let finish!: (value: unknown) => void
+    mocks.request.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+    )
+    await send('profile')
+    expect(mocks.request).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      window.localStorage.removeItem(key)
+      window.dispatchEvent(new StorageEvent('storage', {key}))
+      finish({type: 'account', metadata: {name: 'Must not escape'}})
+    })
+    expect(posted).toHaveBeenLastCalledWith(
+      expect.objectContaining({error: 'App permissions changed.'}),
       `seed-app://${host}`,
     )
-    await act(async () => {
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          source: frame.contentWindow,
-          origin: `seed-app://${host}`,
-          data: {seedApp: 1, id: 'raw', method: 'signer.sign', params: {data: new Uint8Array([1, 2, 3])}},
-        }),
-      )
-    })
-    await vi.waitFor(() =>
-      expect(posted).toHaveBeenCalledWith(
-        expect.objectContaining({id: 'raw', result: expect.any(Uint8Array)}),
-        `seed-app://${host}`,
-      ),
-    )
-    expect(window.document.querySelector('[role="alertdialog"]')).toBeNull()
-    const revoke = Array.from(container.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Revoke access',
-    )!
-    await act(async () => {
-      revoke.click()
-    })
-    const signatures = sign.mock.calls.length
-    await send('after-revoke')
-    expect(window.document.querySelector('[role="alertdialog"]')?.textContent).toContain(
-      'Give this app full account access?',
-    )
-    expect(sign).toHaveBeenCalledTimes(signatures)
+    expect(JSON.stringify(posted.mock.calls)).not.toContain('Must not escape')
+    await send('profile')
+    expect(window.document.body.textContent).toContain('Identify your account')
   })
 
-  it('requires host confirmation and revokes a pending comment when the account changes', async () => {
-    setDocumentAppPlatform({resolveAppUrl: async () => `seed-app://${host}/`})
-    await act(async () => {
-      root.render(<DocumentAppView docId={docId} document={document} cid={cid} />)
-    })
-    const frame = container.querySelector('iframe')!
-    const params = {
-      content: [
-        {block: {id: 'message', type: 'Paragraph', text: 'Hello from the mini app', attributes: {}, annotations: []}},
-      ],
-    }
-    await act(async () => {
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          source: frame.contentWindow,
-          origin: `seed-app://${host}`,
-          data: {seedApp: 1, id: 'post', method: 'comments.create', params},
-        }),
-      )
-    })
-    expect(window.document.querySelector('[role="alertdialog"]')?.textContent).toContain(
-      'Give this app full account access?',
-    )
-    expect(mocks.getSigner).not.toHaveBeenCalled()
-    mocks.account = 'another-viewer'
-    await act(async () => {
-      root.render(<DocumentAppView docId={docId} document={document} cid={cid} />)
-    })
-    expect(window.document.querySelector('[role="alertdialog"]')).toBeNull()
-    expect(mocks.getSigner).not.toHaveBeenCalled()
-    expect(mocks.publish).not.toHaveBeenCalled()
-  })
-
-  it('fills the main view without a border and delegates revocation to the breadcrumb menu', async () => {
+  it('fills the main view and opens permission settings from the breadcrumb menu', async () => {
     const accessChanged = vi.fn()
-    mocks.getSigner.mockReturnValue({getPublicKey: async () => new Uint8Array(), sign: vi.fn()})
     setDocumentAppPlatform({resolveAppUrl: async () => `seed-app://${host}/`})
-    await act(async () => {
+    await act(async () =>
       root.render(
         <DocumentAppView docId={docId} document={document} cid={cid} fill onAccountAccessChange={accessChanged} />,
-      )
-    })
+      ),
+    )
     const frame = container.querySelector('iframe')!
-    expect(frame.style.height).toBe('')
     expect(frame.classList.contains('h-full')).toBe(true)
     expect(container.querySelector('section')!.classList.contains('border')).toBe(false)
-    await act(async () => {
-      window.dispatchEvent(
-        new MessageEvent('message', {
-          source: frame.contentWindow,
-          origin: `seed-app://${host}`,
-          data: {seedApp: 1, id: 'grant', method: 'permissions.request'},
-        }),
-      )
-    })
-    const confirm = Array.from(window.document.querySelectorAll('button')).find(
-      (button) => button.textContent === 'Allow full access',
-    )!
-    await act(async () => {
-      confirm.click()
-    })
-    expect(accessChanged).toHaveBeenLastCalledWith(expect.any(Function))
-    expect(container.textContent).not.toContain('Account access enabled')
-    await act(async () => {
-      accessChanged.mock.calls.at(-1)![0]()
-    })
-    expect(accessChanged).toHaveBeenLastCalledWith(null)
+    expect(container.textContent).not.toContain('App permissions')
+    await act(async () => accessChanged.mock.calls.at(-1)![0]())
+    expect(window.document.querySelector('[role="dialog"]')?.textContent).toContain('App permissions')
   })
 
   it('opens document references through Seed without requesting account access', async () => {
@@ -247,7 +270,11 @@ describe('DocumentAppView', () => {
 
   it('explains itself where no platform can run apps', async () => {
     await act(async () => {
-      root.render(<DocumentAppView docId={docId} document={document} cid={cid} perspectiveAccountUid="viewer" />)
+      root.render(
+        <React.StrictMode>
+          <DocumentAppView docId={docId} document={document} cid={cid} perspectiveAccountUid="viewer" />
+        </React.StrictMode>,
+      )
     })
     expect(container.textContent).toContain('Open it in the Seed desktop app')
     expect(container.querySelector('iframe')).toBeNull()
@@ -257,7 +284,11 @@ describe('DocumentAppView', () => {
     const resolveAppUrl = vi.fn(async () => `seed-app://${host}/`)
     setDocumentAppPlatform({resolveAppUrl})
     await act(async () => {
-      root.render(<DocumentAppView docId={docId} document={document} cid={cid} perspectiveAccountUid="viewer" />)
+      root.render(
+        <React.StrictMode>
+          <DocumentAppView docId={docId} document={document} cid={cid} perspectiveAccountUid="viewer" />
+        </React.StrictMode>,
+      )
     })
     await vi.waitFor(async () => {
       await act(async () => {})
@@ -274,10 +305,11 @@ describe('DocumentAppView', () => {
     const send = (data: unknown, origin = `seed-app://${host}`) =>
       act(async () => {
         window.dispatchEvent(new MessageEvent('message', {data, origin, source}))
-        await new Promise((resolve) => setTimeout(resolve, 0))
       })
 
     await send({seedApp: 1, id: 'ctx', method: 'context'})
+    expect(posted).not.toHaveBeenCalled()
+    await click('Allow once')
     expect(posted).toHaveBeenCalledWith(
       {
         seedApp: 1,
@@ -289,8 +321,10 @@ describe('DocumentAppView', () => {
 
     await send({seedApp: 1, id: 'save', method: 'storage.set', params: {key: 'notes', value: ['hello']}})
     await send({seedApp: 1, id: 'read', method: 'storage.get', params: {key: 'notes'}})
+    await click('Allow once')
     expect(posted).toHaveBeenLastCalledWith({seedApp: 1, id: 'read', result: ['hello']}, `seed-app://${host}`)
     await send({seedApp: 1, id: 'escape', method: 'storage.get', params: {key: 'notes', account: 'other'}})
+    await click('Allow once')
     expect(posted).toHaveBeenLastCalledWith(
       {seedApp: 1, id: 'escape', error: 'Unknown storage parameter'},
       `seed-app://${host}`,
@@ -298,6 +332,7 @@ describe('DocumentAppView', () => {
 
     mocks.request.mockResolvedValueOnce({type: 'account', metadata: {name: 'Eric'}})
     await send({seedApp: 1, id: 'profile', method: 'profile'})
+    await click('Allow once')
     expect(mocks.request).toHaveBeenLastCalledWith('Account', 'viewer', expect.anything())
     expect(posted).toHaveBeenLastCalledWith(
       {seedApp: 1, id: 'profile', result: {id: 'viewer', name: 'Eric'}},
@@ -306,6 +341,7 @@ describe('DocumentAppView', () => {
 
     mocks.request.mockResolvedValueOnce({type: 'account', metadata: {name: 'Eric'}})
     await send({seedApp: 1, id: 'profile-url', method: 'resource', params: {url: 'hm://viewer/:profile'}})
+    await click('Allow once')
     expect(posted).toHaveBeenLastCalledWith(
       {seedApp: 1, id: 'profile-url', result: {id: 'viewer', name: 'Eric'}},
       `seed-app://${host}`,
@@ -313,6 +349,7 @@ describe('DocumentAppView', () => {
 
     mocks.request.mockResolvedValueOnce({type: 'document', id: docId, document})
     await send({seedApp: 1, id: 'res', method: 'resource', params: {url: docId.id}})
+    await click('Allow once')
     expect(mocks.request).toHaveBeenCalledWith('Resource', expect.objectContaining({id: docId.id}), expect.anything())
     expect(posted).toHaveBeenLastCalledWith(
       expect.objectContaining({id: 'res', result: expect.anything()}),

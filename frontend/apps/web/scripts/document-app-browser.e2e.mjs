@@ -59,6 +59,7 @@ for (const engine of (process.env.APP_TEST_BROWSERS || 'chromium,firefox,webkit'
         async ({account, document: id, revision, html}) => {
           window.session?.destroy()
           window.session = window.mountDocumentApp({
+            hostHandlesReads: false,
             container: window.document.querySelector('#app'),
             html,
             context: {protocol: 1, account, document: id, version: revision, app: revision},
@@ -72,6 +73,42 @@ for (const engine of (process.env.APP_TEST_BROWSERS || 'chromium,firefox,webkit'
       )
       return page.frames().find((frame) => frame.url().includes('/hm/app-runner'))
     }
+    await t.test('production defaults gate identity, own documents and saved state through the host', async () => {
+      await page.evaluate(async () => {
+        window.session?.destroy()
+        window.readCalls = []
+        window.session = window.mountDocumentApp({
+          container: document.querySelector('#app'),
+          html: '<p>Permission test</p>',
+          storage: localStorage,
+          context: {protocol: 1, account: 'Alice', document: 'hm://alice/app', version: 'v1', app: 'v1'},
+          profile: async () => {
+            throw new Error('Bypassed profile gate')
+          },
+          resource: async () => {
+            throw new Error('Bypassed document gate')
+          },
+          content: async (method) => {
+            window.readCalls.push(method)
+            throw new Error('App permission denied.')
+          },
+        })
+        await window.session.ready
+      })
+      const frame = page.frames().find((frame) => frame.url().includes('/hm/app-runner'))
+      const results = await frame.evaluate(async () => {
+        const results = await Promise.allSettled([
+          seed.context(),
+          seed.profile(),
+          seed.storage.get('private'),
+          seed.resource('hm://alice/app'),
+        ])
+        return results.map((result) => (result.status === 'rejected' ? result.reason.message : 'LEAKED'))
+      })
+      assert.deepEqual(results, Array(4).fill('App permission denied.'))
+      assert.deepEqual(await page.evaluate(() => window.readCalls), ['context', 'profile', 'storage.get', 'resource'])
+      assert.equal((await frame.evaluate(() => seed.runtime())).authority, 'scoped-app-permissions')
+    })
     await t.test(
       'storage belongs to viewer and resource, survives revisions, and cannot choose another namespace',
       async () => {
@@ -189,6 +226,7 @@ for (const engine of (process.env.APP_TEST_BROWSERS || 'chromium,firefox,webkit'
           window.session.destroy()
           window.links = []
           window.session = window.mountDocumentApp({
+            hostHandlesReads: false,
             container: document.querySelector('#app'),
             storage: localStorage,
             context: {protocol: 1, account: 'Alice', document: 'hm://alice/app', version: 'v1', app: 'v1'},
@@ -204,7 +242,7 @@ for (const engine of (process.env.APP_TEST_BROWSERS || 'chromium,firefox,webkit'
         })
         const frame = page.frames().find((frame) => frame.url().includes('/hm/app-runner'))
         const runtime = await frame.evaluate(() => seed.runtime())
-        assert.equal(runtime.sdkVersion, '1.1.0')
+        assert.equal(runtime.sdkVersion, '1.2.0')
         assert.match(runtime.sdkDigest, /^[a-f0-9]{64}$/)
         assert.equal(runtime.storage.synced, false)
         assert.equal(
@@ -233,6 +271,7 @@ for (const engine of (process.env.APP_TEST_BROWSERS || 'chromium,firefox,webkit'
           crypto.subtle.verify('Ed25519', keys.publicKey, new Uint8Array(sig), new Uint8Array(data))
         window.accountCalls = []
         window.session = window.mountDocumentApp({
+          hostHandlesReads: false,
           container: document.querySelector('#app'),
           storage: localStorage,
           context: {protocol: 1, account: 'Alice', document: 'hm://alice/apps/hello', version: 'v1', app: 'v1'},
@@ -298,6 +337,7 @@ for (const engine of (process.env.APP_TEST_BROWSERS || 'chromium,firefox,webkit'
           window.contentCalls = []
           window.approvalAborted = false
           window.session = window.mountDocumentApp({
+            hostHandlesReads: false,
             container: document.querySelector('#app'),
             storage: localStorage,
             context: {protocol: 1, account: 'Alice', document: 'hm://alice/apps/hello', version: 'v1', app: 'v1'},
@@ -342,6 +382,7 @@ for (const engine of (process.env.APP_TEST_BROWSERS || 'chromium,firefox,webkit'
           window.resolveRead = resolve
         })
         window.session = window.mountDocumentApp({
+          hostHandlesReads: false,
           container: document.querySelector('#app'),
           storage: localStorage,
           context: {protocol: 1, account: 'Alice', document: 'hm://alice/apps/hello', version: 'v1', app: 'v1'},
