@@ -14,7 +14,7 @@ import type {BrowserCommand} from '@seed-hypermedia/agents-protocol'
 declare global {
   interface Window {
     isWindowMaximized?: boolean
-    documentApps: {open: (input: {id: string; cid: string}) => Promise<string>}
+    documentApps: {open: (input: {id: string; cid: string; account: string | null}) => Promise<string>}
     webBrowser: {
       create: (options?: {private?: boolean}) => Promise<{browserId: number}>
       destroy: (input: {browserId: number}) => Promise<void>

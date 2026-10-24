@@ -1,6 +1,8 @@
 import {
   DOCUMENT_APP_API_SCRIPT,
+  DOCUMENT_APP_LINK_SCRIPT,
   DOCUMENT_APP_MAX_REQUEST_BYTES,
+  documentAppRuntime,
   documentAppMessageSize,
   type DocumentAppContext,
 } from './document-app'
@@ -33,6 +35,7 @@ export function documentAppRunnerHTML(origin: string): string {
     ';\n' +
     runnerScript
       .replace('SEED_API_FACTORY', DOCUMENT_APP_API_SCRIPT)
+      .replace('SEED_LINK_SCRIPT', DOCUMENT_APP_LINK_SCRIPT)
       .replace('SEED_MESSAGE_SIZE', documentAppMessageSize.toString())
       .replace('SEED_MAX_BYTES', String(DOCUMENT_APP_MAX_REQUEST_BYTES)) +
     '</script></body></html>'
@@ -85,6 +88,7 @@ const runnerScript = String.raw`
       writable: false,
       configurable: false,
     })
+    SEED_LINK_SCRIPT
     window.addEventListener(
       'pagehide',
       () => {
@@ -234,6 +238,8 @@ export function mountDocumentApp({
       if (!params || typeof params !== 'object' || Array.isArray(params)) throw new Error('Invalid parameters')
       if (data.method === 'context') {
         reply.result = context
+      } else if (data.method === 'runtime') {
+        reply.result = await documentAppRuntime('web')
       } else if (data.method === 'storage.get' || data.method === 'storage.set') {
         reply.result = documentAppStorage(storage, context, data.method, params)
       } else if (

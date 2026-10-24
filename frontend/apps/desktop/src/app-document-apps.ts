@@ -13,7 +13,7 @@ import {
 /**
  * Serves document apps: `seed-app://<host>/<file>` is a file from the app folder of one
  * document, fetched from the daemon by the folder's CID. The host is derived from the document
- * id, so the origin (and its storage) belongs to the document, not to one revision of the app.
+ * id, bundle CID and selected viewer. Opening another revision cannot replace this origin's code.
  *
  * The renderer registers a document's current app with `document-app-open` and embeds the URL
  * it gets back. Only files inside that folder are ever served from that origin, plus the bridge
@@ -30,22 +30,27 @@ export function registerDocumentAppScheme() {
   ])
 }
 
-type RegisteredApp = {id: string; cid: string}
+type RegisteredApp = {id: string; cid: string; account: string | null}
 
-/** The host of a document's app origin. */
-export function documentAppHost(id: string): string {
-  return documentAppHostFromDigest(createHash('sha256').update(id).digest('hex'))
+/** Immutable code and viewer identity; portable state is separately keyed by viewer and document. */
+export function documentAppHost(id: string, cid: string, account: string | null): string {
+  return documentAppHostFromDigest(
+    createHash('sha256')
+      .update(JSON.stringify([id, cid, account]))
+      .digest('hex'),
+  )
 }
 
-/** Registers (or re-points) a document's app and returns the page URL to embed. */
+/** Registers an immutable bundle/viewer origin and returns the page URL to embed. */
 export function openDocumentApp(apps: Map<string, RegisteredApp>, input: unknown): string {
   const value = input as Partial<RegisteredApp> | null
   if (!value || typeof value.id !== 'string' || !value.id.startsWith('hm://'))
     throw new Error('A document id is required')
   const cid = parseDocumentAppReference(value.cid)
   if (!cid) throw new Error('A document app needs a folder CID')
-  const host = documentAppHost(value.id)
-  apps.set(host, {id: value.id, cid})
+  if (value.account !== null && typeof value.account !== 'string') throw new Error('An app viewer is required')
+  const host = documentAppHost(value.id, cid, value.account)
+  apps.set(host, {id: value.id, cid, account: value.account})
   return `${DOCUMENT_APP_SCHEME}://${host}/`
 }
 

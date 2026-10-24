@@ -2,6 +2,7 @@ import {useQuery, useQueryClient} from '@tanstack/react-query'
 import React from 'react'
 import {cn} from './utils'
 import {Button} from './button'
+import {toast} from './toast'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {documentAppContent, createDocumentAppAccess} from '@shm/shared/document-app-content'
 import {
@@ -19,11 +20,13 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {DocumentAppPlatform} from '@shm/shared/document-app'
 import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryAccount, queryResource} from '@shm/shared/models/queries'
-import {useUniversalClient} from '@shm/shared/routing'
+import {useUniversalClient, useOpenUrl} from '@shm/shared/routing'
 import {useResource, useSelectedAccountId} from '@shm/shared/models/entity'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {
   DOCUMENT_APP_PROTOCOL,
+  documentAppRuntime,
+  parseDocumentAppLink,
   createDocumentAppMessageListener,
   documentAppOrigin,
   getDocumentAppPlatform,
@@ -66,6 +69,7 @@ export function DocumentAppView(props: DocumentAppViewProps) {
 function DocumentAppSession(props: DocumentAppViewProps) {
   const account = useSelectedAccountId()
   const client = useUniversalClient()
+  const openUrl = useOpenUrl()
   const queryClient = useQueryClient()
   const profile = useQuery(queryAccount(client, account))
   const [approval, setApproval] = React.useState(false)
@@ -99,6 +103,22 @@ function DocumentAppSession(props: DocumentAppViewProps) {
   }, [props.onAccountAccessChange, granted, access])
   const content = React.useCallback<AppContentHandler>(
     async (method, params, signal) => {
+      signal.throwIfAborted()
+      if (method === 'open') {
+        try {
+          const link = parseDocumentAppLink(params)
+          if (link.url.startsWith('hm://')) await openUrl(link.url, link.newWindow)
+          else {
+            const platform = getDocumentAppPlatform()
+            if (!platform?.openExternalUrl) throw new Error('This host cannot open web links. Update Seed.')
+            await platform.openExternalUrl(link.url, link.newWindow)
+          }
+          return null
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Unable to open link')
+          throw error
+        }
+      }
       const result = await documentAppContent({
         method,
         params,
@@ -124,7 +144,7 @@ function DocumentAppSession(props: DocumentAppViewProps) {
       }
       return result
     },
-    [account, client, queryClient, access, props.docId, props.document, props.cid],
+    [account, client, queryClient, access, props.docId, props.document, props.cid, openUrl],
   )
   const platform = getDocumentAppPlatform()
   return (
@@ -162,7 +182,8 @@ function DocumentAppSession(props: DocumentAppViewProps) {
           </AlertDialogHeader>
           <p className="text-sm">
             Only allow apps you trust. Access ends when you revoke it, close the app, switch accounts, or load a
-            different app revision. Signing keys stay in Seed.
+            different app revision. This stops future calls; signatures, published changes and permissions already
+            issued remain valid. Signing keys stay in Seed.
           </p>
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => finishApproval.current?.(false)}>Deny</AlertDialogCancel>
@@ -270,7 +291,7 @@ function LegacyDocumentAppView({docId, document, cid, fill = false, content}: Ap
     setUrl(null)
     setError('')
     platform
-      .resolveAppUrl({id: docId.id, cid})
+      .resolveAppUrl({id: docId.id, cid, account})
       .then((resolved) => {
         if (!cancelled) setUrl(resolved)
       })
@@ -280,7 +301,7 @@ function LegacyDocumentAppView({docId, document, cid, fill = false, content}: Ap
     return () => {
       cancelled = true
     }
-  }, [platform, docId.id, cid])
+  }, [platform, docId.id, cid, account])
 
   const context = React.useMemo<DocumentAppContext>(
     () => ({
@@ -308,6 +329,8 @@ function LegacyDocumentAppView({docId, document, cid, fill = false, content}: Ap
           return content(request.method, params, controller.signal)
         case 'context':
           return contextRef.current
+        case 'runtime':
+          return documentAppRuntime('desktop')
         case 'storage.get':
         case 'storage.set':
           return documentAppStorage(window.localStorage, contextRef.current, request.method, params)
@@ -363,7 +386,7 @@ function LegacyDocumentAppView({docId, document, cid, fill = false, content}: Ap
           onLoad={() => setNavigation((value) => value + 1)}
           title={title}
           src={url}
-          // Its own origin, so storage is the app's; scripts and forms, nothing that reaches outside.
+          // Native storage is isolated by document, bundle and viewer; seed.storage survives code updates.
           sandbox="allow-scripts allow-same-origin allow-forms"
           referrerPolicy="no-referrer"
           className={cn('block w-full border-0 bg-white', fill && 'h-full')}

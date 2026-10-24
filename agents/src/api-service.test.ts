@@ -6258,16 +6258,11 @@ describe('api service', () => {
         '<script src="/.seed/client.js"></script><script src="app.js"></script>',
       )
       await writeMemory('apps/counter/app.js', 'seed.context().then(console.log)')
-      // A user-invoked verb leaves the agent's reply turn queued (never run here), so each call
-      // gets a fresh thread on the same agent and memory.
+      // Deterministic callers can reuse the same session without starting a model turn.
       const write = async (input: Record<string, unknown>) => {
-        const thread = await svc.message(
-          await apisvc.createSignedEnvelope(owner, {action: {_: 'CreateSession', agentId: session.session.agentId}}),
-        )
-        if (thread._ !== 'CreateSessionResponse') throw new Error('Unexpected response')
         const response = await svc.message(
           await apisvc.createSignedEnvelope(owner, {
-            action: {_: 'InvokeSessionTool', sessionId: thread.sessionId, verb: 'write', input},
+            action: {_: 'InvokeSessionTool', sessionId, verb: 'write', input, continueAgent: false},
           }),
         )
         if (response._ !== 'InvokeSessionToolResponse') throw new Error('Unexpected response')
@@ -6281,11 +6276,19 @@ describe('api service', () => {
       const first = await write({
         address,
         content: 'A counter you can share.',
-        options: {name: 'Counter', app: '~/memory/apps/counter'},
+        options: {name: 'Counter', app: '~/memory/apps/counter', appTarget: 'desktop'},
       })
+      expect(first.error).toBeUndefined()
       expect(first.id).toBe(address)
       expect(first.app).toMatch(/^ipfs:\/\/bafy/)
       expect(first.appFiles).toBe(2)
+      expect(first.appValidation).toMatchObject({
+        bundle: first.app,
+        syntax: 'passed',
+        target: 'desktop',
+        runtimeTested: false,
+        interactionTested: false,
+      })
       expect(first.widget).toBeUndefined()
       expect(String(first.instructions)).toContain('Chat app embeds are temporarily disabled')
       expect(String(first.instructions)).toContain('opens as the app')
@@ -6296,7 +6299,7 @@ describe('api service', () => {
 
       // A new revision: same address, options.action update, only the app changes.
       await writeMemory('apps/counter/app.js', 'seed.directory(location.href).then(console.log)')
-      const second = await write({address, options: {action: 'update', app: 'apps/counter'}})
+      const second = await write({address, options: {action: 'update', app: 'apps/counter', appTarget: 'desktop'}})
       expect(second.app).toMatch(/^ipfs:\/\/bafy/)
       expect(second.app).not.toBe(first.app)
       expect(publishes.length).toBeGreaterThan(publishesAfterCreate)
@@ -6306,6 +6309,27 @@ describe('api service', () => {
       const wrote = await write({address: '~/memory/apps/game.html', content: '<h1>Game</h1>'})
       expect(String(wrote.summary)).toContain('Publish it as a document app')
       expect(String(wrote.summary)).toContain('options.app: "~/memory/apps/game.html"')
+
+      const beforeInvalid = publishes.length
+      await writeMemory('apps/invalid.html', '<script>const broken = {</script>')
+      const invalid = await write({address, options: {action: 'update', app: 'apps/invalid.html'}})
+      expect(String(invalid.error)).toContain('syntax error')
+      expect(publishes.length).toBe(beforeInvalid)
+      const preview = await write({address, dryRun: true, options: {action: 'update', app: 'apps/game.html'}})
+      expect(preview.dryRun).toBe(true)
+      expect(String(preview.instructions)).toContain('has not been published')
+      expect(publishes.length).toBe(beforeInvalid)
+      const afterWrites = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (afterWrites._ !== 'GetSessionResponse') throw new Error('Unexpected response')
+      expect(afterWrites.events.filter((event) => (event.event as {role?: string}).role === 'assistant')).toHaveLength(
+        0,
+      )
+      expect(
+        db.query<{count: number}, [string]>('SELECT COUNT(*) AS count FROM runs WHERE session_id = ?').get(sessionId)
+          ?.count,
+      ).toBe(0)
 
       // options.app must be a memory path; a folder without an index is refused before publishing.
       await writeMemory('apps/broken/app.js', '1')

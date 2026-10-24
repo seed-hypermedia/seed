@@ -209,6 +209,32 @@ export const SyncDoc = durable.defineDoc<SyncState>({
 /** A transcript entry written from the Seed log rather than produced by the harness. */
 export const ReplayEntry = durable.defineEntry('seed.replay')
 
+/** Serialize JSONL commits through their complete sidecar/marker writes and drain before close. */
+export async function openSessionStorage(
+  db: Database,
+  sessionId: string,
+  onFailure: (error: unknown) => void = () => {},
+) {
+  const storage = await durableJsonl.JsonlStorage.open('', sessionFileSystem(db, sessionId, onFailure), CONTEXT)
+  // JsonlStorage prepares its sequence before asynchronous sidecar writes. Concurrent commits
+  // can prepare the same sequence and append markers out of order, corrupting the next reopen.
+  const commit = storage.commit.bind(storage)
+  const close = storage.close.bind(storage)
+  let tail: Promise<unknown> = Promise.resolve()
+  let closing = false
+  storage.commit = (writes, context) => {
+    if (closing) return Promise.reject(new Error('Session storage is closed'))
+    const result = tail.then(() => commit(writes, context))
+    tail = result.catch(() => {})
+    return result
+  }
+  storage.close = (context) => {
+    closing = true
+    return tail.then(() => close(context))
+  }
+  return storage
+}
+
 /** Opens (creating it when absent) the durable store of one session and a harness over it. */
 export async function openSessionHarness(options: {
   db: Database
@@ -222,10 +248,10 @@ export async function openSessionHarness(options: {
   // a running turn) leaves the session unable to commit, and nothing would ever settle what is
   // waiting on it. Closing the harness fails those waiters, so the turn ends with an error.
   let harness: durable.Harness | undefined
-  const storage = await durableJsonl.JsonlStorage.open(
-    '',
-    sessionFileSystem(options.db, options.sessionId, () => void harness?.close(CONTEXT).catch(() => {})),
-    CONTEXT,
+  const storage = await openSessionStorage(
+    options.db,
+    options.sessionId,
+    () => void harness?.close(CONTEXT).catch(() => {}),
   )
   harness = await durable.Harness.open(
     storage,

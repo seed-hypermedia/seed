@@ -9,7 +9,7 @@ import type {DOCUMENT_APP_SIGNING_HELPERS} from './document-app-content'
 import type {PublishDocumentInput} from './universal-client'
 
 /**
- * Document apps run untrusted HTML through a host-owned SDK. Desktop uses a per-document
+ * Document apps run untrusted HTML through a host-owned SDK. Desktop uses a document/bundle/viewer
  * origin; web uses an opaque sandbox on the Seed host. Portable state goes through
  * viewer/document-scoped storage. Content helpers have no authority; writing and signing
  * uses full account access granted in Seed, with keys retained by the host.
@@ -23,6 +23,9 @@ export const DOCUMENT_APP_CLIENT_PATH = '/.seed/client.js'
 
 /** Version of the request/response envelope; bumped only for incompatible changes. */
 export const DOCUMENT_APP_PROTOCOL = 1
+
+/** Version of the SDK contract, independent of the transport envelope version. */
+export const DOCUMENT_APP_SDK_VERSION = '1.1.0'
 
 /** Largest request an app may send, including binary data. */
 export const DOCUMENT_APP_MAX_REQUEST_BYTES = 8 * 1024 * 1024
@@ -46,6 +49,8 @@ export const DOCUMENT_APP_SIGNING_HELPER_NAMES = [
 
 /** Bridge operations for reads, writes, signing, helpers and local state. */
 export const DOCUMENT_APP_METHODS = [
+  'runtime',
+  'open',
   'context',
   'profile',
   'resource',
@@ -82,6 +87,9 @@ export function documentAppMessageSize(value: unknown): number {
 
 /** The same portable SDK surface is injected into desktop and opaque web runtimes. */
 export const DOCUMENT_APP_API_SCRIPT = `(call) => Object.freeze({
+  runtime: () => call('runtime'),
+  open: (url, options) => call('open', {url, newWindow: !!options?.newWindow}),
+  stringify: (value, space = 2) => JSON.stringify(value, (_key, item) => typeof item === 'bigint' ? item.toString() : item instanceof Uint8Array ? Array.from(item) : item, space),
   context: () => call('context'),
   profile: () => call('profile'),
   storage: Object.freeze({get: (key) => call('storage.get', {key}), set: (key, value) => call('storage.set', {key, value})}),
@@ -128,8 +136,14 @@ export type DocumentAppContext = {
   app: string
 }
 
-/** The portable, asynchronous SDK installed as `window.seed` in document apps. */
+/** The portable SDK installed as `window.seed` in document apps. */
 export type DocumentAppSDK = {
+  /** Discover the running host contract before using newer APIs. */
+  runtime(): Promise<Awaited<ReturnType<typeof documentAppRuntime>>>
+  /** Open HM content in Seed, or an explicit HTTP(S) address on its original server. */
+  open(url: string, options?: {newWindow?: boolean}): Promise<null>
+  /** Display bridge values containing BigInt or binary bytes as JSON; not a signing serialization. */
+  stringify(value: unknown, space?: number): string | undefined
   context(): Promise<DocumentAppContext>
   profile(): Promise<{id: string; name: string | null} | null>
   storage: {get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<null>}
@@ -160,6 +174,63 @@ export type DocumentAppSDK = {
     }): Promise<{commentId: string; version: string}>
   }
 }
+
+/** Host-owned capability manifest, fingerprinted from the actual SDK implementation. */
+export async function documentAppRuntime(platform: 'web' | 'desktop') {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(DOCUMENT_APP_API_SCRIPT))
+  return {
+    sdkVersion: DOCUMENT_APP_SDK_VERSION,
+    sdkDigest: Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(''),
+    protocol: DOCUMENT_APP_PROTOCOL,
+    platform,
+    methods: [...DOCUMENT_APP_METHODS],
+    storage: {
+      scope: 'viewer/document',
+      persistence: 'device-only',
+      synced: false,
+      maxKeyLength: 128,
+      maxValueBytes: 16384,
+      maxKeys: 64,
+    },
+    limits: {maxRequestBytes: DOCUMENT_APP_MAX_REQUEST_BYTES, maxPendingRequests: 32},
+    authority: 'full-account-session',
+  } as const
+}
+
+/** Validate navigation at the host boundary; never admit executable or local-file schemes. */
+export function parseDocumentAppLink(params: unknown): {url: string; newWindow: boolean} {
+  if (!params || typeof params !== 'object' || Array.isArray(params)) throw new Error('Invalid link parameters')
+  const value = params as Record<string, unknown>
+  if (Object.keys(value).some((key) => key !== 'url' && key !== 'newWindow')) throw new Error('Unknown link parameter')
+  if (typeof value.url !== 'string' || value.url.length > 8192) throw new Error('Expected an hm:// or HTTP(S) URL')
+  if (value.newWindow !== undefined && typeof value.newWindow !== 'boolean') throw new Error('Invalid newWindow option')
+  const url = value.url.trim()
+  const parsed = new URL(url)
+  if (
+    !['hm:', 'https:', 'http:'].includes(parsed.protocol) ||
+    !parsed.hostname ||
+    parsed.username ||
+    parsed.password ||
+    /[\u0000-\u0020\u007f]/.test(url)
+  )
+    throw new Error('Expected an hm:// or HTTP(S) URL without credentials')
+  return {url: parsed.protocol + url.slice(url.indexOf(':') + 1), newWindow: value.newWindow === true}
+}
+
+/** Route ordinary document anchors through the host instead of navigating the sandbox. */
+export const DOCUMENT_APP_LINK_SCRIPT = `;(() => {
+  const openLink = (event) => {
+    if (event.defaultPrevented || (event.type === 'auxclick' ? event.button !== 1 : event.button !== 0)) return;
+    const anchor = event.composedPath().find((node) => node instanceof HTMLAnchorElement);
+    const url = anchor?.getAttribute('href');
+    if (!url || !/^(hm|https?):\\/\\//i.test(url)) return;
+    event.preventDefault();
+    window.seed.open(url, {newWindow: anchor.target === '_blank' || event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1})
+      .catch((error) => window.dispatchEvent(new CustomEvent('seed-link-error', {detail: {url, message: error.message}})));
+  };
+  document.addEventListener('click', openLink);
+  document.addEventListener('auxclick', openLink);
+})();`
 
 /** Extracts the folder CID from an `app` metadata value (`ipfs://<cid>` or a bare CID). */
 export function parseDocumentAppReference(value: unknown): string | null {
@@ -264,6 +335,7 @@ export const DOCUMENT_APP_CLIENT_SCRIPT = `(() => {
       host.postMessage({seedApp: ${DOCUMENT_APP_PROTOCOL}, id, method, params}, '*');
     });
   window.seed = (${DOCUMENT_APP_API_SCRIPT})(call);
+  ${DOCUMENT_APP_LINK_SCRIPT}
 })();
 `
 
@@ -323,15 +395,19 @@ export function createDocumentAppMessageListener(options: {
 }
 
 /** How the host app turns a document app into a page URL it can embed. */
-export type DocumentAppPlatform =
+export type DocumentAppPlatform = (
   | {
       /** Resolves the page URL for a document's app folder, registering it with the host if needed. */
-      resolveAppUrl: (input: {id: string; cid: string}) => Promise<string>
+      resolveAppUrl: (input: {id: string; cid: string; account: string | null}) => Promise<string>
     }
   | {
       /** Fetches an authorized, revision-pinned HTML entry point for the opaque web sandbox. */
       loadAppHtml: (input: {id: string; cid: string; version: string}, signal: AbortSignal) => Promise<string>
     }
+) & {
+  /** Open an explicit web address without rewriting its server to the current HM gateway. */
+  openExternalUrl?: (url: string, newWindow: boolean) => void
+}
 
 let platform: DocumentAppPlatform | null = null
 

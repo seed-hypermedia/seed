@@ -43,3 +43,53 @@ describe('document app folders', () => {
     expect(() => apps.collectDocumentAppFiles(dir, 'apps/missing')).toThrow()
   })
 })
+
+describe('document app validation', () => {
+  const bundle = (source: string) => [{path: 'index.html', content: new TextEncoder().encode(source)}]
+  test('refuses the missing-brace failure before publication without running app code', () => {
+    expect(() =>
+      apps.validateDocumentApp(
+        bundle(
+          '<script>globalThis.DO_NOT_RUN = true; button.onclick = async () => { try { await fetch("x") } catch (e) {} );</script>',
+        ),
+      ),
+    ).toThrow('syntax error')
+    expect((globalThis as any).DO_NOT_RUN).toBeUndefined()
+    const checked = apps.validateDocumentApp(
+      bundle(
+        '<script src="/.seed/client.js"></script><script>button.onclick = async () => { try { await seed.open("hm://alice/doc") } catch (e) {} };</script>',
+      ),
+    )
+    expect(checked).toMatchObject({
+      syntax: 'passed',
+      scripts: 1,
+      runtimeTested: false,
+      interactionTested: false,
+      storage: 'device-only',
+    })
+    expect(checked.sdk.methods).toContain('open')
+  })
+  test('makes runtime compatibility explicit, permitting bundled desktop assets only when requested', () => {
+    const files = [
+      ...bundle('<script src="app.js"></script>'),
+      {path: 'app.js', content: new TextEncoder().encode('console.log(1)')},
+    ]
+    expect(() => apps.validateDocumentApp(files)).toThrow('external asset')
+    expect(apps.validateDocumentApp(files, 'desktop').target).toBe('desktop')
+    expect(() =>
+      apps.validateDocumentApp(bundle('<script src="https://cdn.example/a.js"></script>'), 'desktop'),
+    ).toThrow('unresolved')
+    expect(() => apps.validateDocumentApp(bundle('<script type="module">import x from "./x.js"</script>'))).toThrow(
+      'module',
+    )
+    expect(() => apps.validateDocumentApp(bundle('<style>@import "remote.css";</style>'))).toThrow('CSS')
+    expect(() => apps.validateDocumentApp(bundle('<img src="logo.png">'))).toThrow('external asset')
+    expect(() => apps.validateDocumentApp(bundle('<script>seed.context()</script>'))).toThrow('include')
+    expect(
+      apps.validateDocumentApp(bundle('<style>body {background:url("data:image/png;base64,AAA")}</style>')).syntax,
+    ).toBe('passed')
+    expect(apps.validateDocumentApp(bundle('<script>localStorage.getItem("x")</script>')).warnings[0]).toContain(
+      'device only',
+    )
+  })
+})

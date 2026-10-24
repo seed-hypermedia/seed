@@ -33,7 +33,7 @@ import * as protocol from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
-import {collectDocumentAppFiles} from '@/document-apps'
+import {collectDocumentAppFiles, validateDocumentApp} from '@/document-apps'
 import {BrowserTools} from '@/browser-tools'
 import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
@@ -1440,6 +1440,7 @@ export class Service {
           envelope.action.sessionId,
           envelope.action.verb,
           envelope.action.input,
+          envelope.action.continueAgent,
         )
       case 'MessageSession':
         return this.#messageSession(
@@ -4874,7 +4875,9 @@ export class Service {
     sessionId: string,
     verb: string,
     input: unknown,
+    continueAgent = true,
   ): Promise<api.InvokeSessionToolResponse> {
+    if (typeof continueAgent !== 'boolean') throw new APIError(400, 'continueAgent must be a boolean')
     if (verb !== 'read' && verb !== 'write' && verb !== 'call') {
       throw new APIError(400, 'verb must be read, write, or call')
     }
@@ -4966,30 +4969,32 @@ export class Service {
       },
       Date.now(),
     )
-    // A user's tool run is conversation, not a silent side-play: the agent takes a turn over the
+    // Unless continueAgent is false, the agent takes a turn over the
     // updated log, exactly as it would after a typed message — which is also what names a session
     // this action just started (titling keys off run activity). Dispatched in the background so
     // the tool result returns immediately; the agent's turn streams over the session WS.
-    const queuedBehindAnotherTurn = runs.sessionHasLiveRun(this.#db, sessionId)
-    this.#runQueue.enqueue({
-      accountId,
-      kind: 'agent',
-      origin: 'user',
-      agentId: session.agentId,
-      sessionId,
-      title: `Respond to user ${verb}`,
-      budget: this.#delegationBudgetForSession(accountId, session.agentId, sessionId),
-      input: {
-        kind: 'session-message',
-        userEventIds: [callEvent.id, resultEvent.id],
-        queuedBehindAnotherTurn,
-      },
-      queue: 'interactive',
-      // The user is watching this thread: fail fast rather than holding the session lock through
-      // retry backoff, same reasoning as interactive message turns. They have Retry.
-      maxAttempts: 1,
-      dispatch: true,
-    })
+    if (continueAgent) {
+      const queuedBehindAnotherTurn = runs.sessionHasLiveRun(this.#db, sessionId)
+      this.#runQueue.enqueue({
+        accountId,
+        kind: 'agent',
+        origin: 'user',
+        agentId: session.agentId,
+        sessionId,
+        title: `Respond to user ${verb}`,
+        budget: this.#delegationBudgetForSession(accountId, session.agentId, sessionId),
+        input: {
+          kind: 'session-message',
+          userEventIds: [callEvent.id, resultEvent.id],
+          queuedBehindAnotherTurn,
+        },
+        queue: 'interactive',
+        // The user is watching this thread: fail fast rather than holding the session lock through
+        // retry backoff, same reasoning as interactive message turns. They have Retry.
+        maxAttempts: 1,
+        dispatch: true,
+      })
+    }
     return {
       _: 'InvokeSessionToolResponse',
       sessionId,
@@ -12745,7 +12750,13 @@ function memoryPathFromAddress(address: string): string | null {
 
 /** hm://<account>[/path] → {account, path}; null when not an hm address. */
 /** A document app folder resolved from `options.app`, ready to publish beside the document change. */
-type WriteAppFolder = {app: string; blobs: CollectedBlob[]; files: number; bytes: number}
+type WriteAppFolder = {
+  app: string
+  blobs: CollectedBlob[]
+  files: number
+  bytes: number
+  validation: ReturnType<typeof validateDocumentApp>
+}
 
 /**
  * Turns `options.app` (a memory folder with an index.html, or a single HTML file) into the UnixFS
@@ -12755,14 +12766,16 @@ type WriteAppFolder = {app: string; blobs: CollectedBlob[]; files: number; bytes
 async function resolveWriteAppFolder(
   context: AgentServicePiToolContext,
   value: unknown,
+  target: unknown,
 ): Promise<WriteAppFolder | undefined> {
   if (value === undefined) return undefined
   if (typeof value !== 'string' || !value.trim()) {
     throw new APIError(400, 'write options.app must be a memory path: a folder with an index.html, or one HTML file')
   }
   const {files, bytes} = withMemoryErrors(() => collectDocumentAppFiles(context.stateDir, value.trim()))
+  const validation = validateDocumentApp(files, target)
   const folder = await directoryToIpfsBlobs(files)
-  return {app: `ipfs://${folder.cid}`, blobs: folder.blobs, files: files.length, bytes}
+  return {validation, app: `ipfs://${folder.cid}`, blobs: folder.blobs, files: files.length, bytes}
 }
 
 /** Adds what the agent needs to know about a published app to a document write result. */
@@ -12774,12 +12787,15 @@ function withAppResult(result: Record<string, unknown>, folder: WriteAppFolder |
     app: folder.app,
     appFiles: folder.files,
     appBytes: folder.bytes,
+    appValidation: {...folder.validation, bundle: folder.app},
     ...(id
       ? {
           instructions:
-            'The document now opens as the app in Seed and syncs to anyone it is shared with. Link it in your reply as [Title](' +
+            (result.dryRun
+              ? 'Dry run: this bundle has not been published. Proposed document: [Title]('
+              : 'The document now opens as the app in Seed and syncs to anyone it is shared with. Link it in your reply as [Title](') +
             id +
-            '); apps open in the full document view. Chat app embeds are temporarily disabled. Write to the same address with options.app again to publish a new revision.',
+            '); apps open in the full document view. Chat app embeds are temporarily disabled. Scripts were syntax-checked, but the app was not opened or interaction-tested by this tool. State in seed.storage stays on this device; only app code syncs. Use seed.open(hmUrl) or ordinary hm:// anchors for content links. Check seed.runtime() in the target host before relying on newer SDK methods. Write to the same address with options.app again to publish a new revision.',
         }
       : {}),
   }
@@ -14027,8 +14043,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata', 'app'],
-  update: ['name', 'metadata', 'app'],
+  document: ['name', 'metadata', 'app', 'appTarget'],
+  update: ['name', 'metadata', 'app', 'appTarget'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -14427,7 +14443,7 @@ export async function executeWriteVerb(
     // A document app: options.app names a memory folder (or one HTML file) that becomes the
     // document's app. Its files are published as a UnixFS folder in the same publish as the
     // change, and the document's `app` attribute points at the folder (see document-apps.md).
-    const appFolder = await resolveWriteAppFolder(context, options.app)
+    const appFolder = await resolveWriteAppFolder(context, options.app, options.appTarget)
     const metadata: Record<string, unknown> | undefined =
       isRecord(options.metadata) || appFolder
         ? {...(isRecord(options.metadata) ? options.metadata : {}), ...(appFolder ? {app: appFolder.app} : {})}

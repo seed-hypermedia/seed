@@ -1,6 +1,10 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
   DOCUMENT_APP_CLIENT_SCRIPT,
+  DOCUMENT_APP_METHODS,
+  DOCUMENT_APP_SDK_VERSION,
+  documentAppRuntime,
+  parseDocumentAppLink,
   DOCUMENT_APP_MAX_REQUEST_BYTES,
   createDocumentAppMessageListener,
   documentAppContentSecurityPolicy,
@@ -130,5 +134,36 @@ describe('createDocumentAppMessageListener', () => {
     expect(handle).not.toHaveBeenCalled()
     expect(contentWindow.postMessage).not.toHaveBeenCalled()
     expect(stranger.postMessage).not.toHaveBeenCalled()
+  })
+})
+
+describe('document app navigation and runtime contract', () => {
+  it('preserves explicit servers, document versions and block references', () => {
+    for (const url of ['hm://alice/doc?v=revision#block', 'https://private.example/hm/alice/doc?v=revision#block']) {
+      expect(parseDocumentAppLink({url, newWindow: true})).toEqual({url, newWindow: true})
+    }
+    expect(parseDocumentAppLink({url: ' HM://alice/doc '})).toEqual({url: 'hm://alice/doc', newWindow: false})
+    for (const url of [
+      'javascript:alert(1)',
+      'data:text/html,hi',
+      'file:///etc/passwd',
+      'https://user:password@example.com',
+      '/relative',
+      'https://exa\nmple.com',
+    ]) {
+      expect(() => parseDocumentAppLink({url})).toThrow()
+    }
+    expect(() => parseDocumentAppLink({url: 'hm://alice/doc', newWindow: 'yes'})).toThrow()
+    expect(() => parseDocumentAppLink({url: 'hm://alice/doc', account: 'someone'})).toThrow()
+  })
+  it('reports the implementation fingerprint and honest persistence semantics', async () => {
+    const web = await documentAppRuntime('web')
+    const desktop = await documentAppRuntime('desktop')
+    expect(web.sdkVersion).toBe(DOCUMENT_APP_SDK_VERSION)
+    expect(web.sdkDigest).toMatch(/^[a-f0-9]{64}$/)
+    expect(desktop.sdkDigest).toBe(web.sdkDigest)
+    expect(web.methods).toEqual([...DOCUMENT_APP_METHODS])
+    expect(web.storage).toMatchObject({scope: 'viewer/document', persistence: 'device-only', synced: false})
+    expect(web.authority).toBe('full-account-session')
   })
 })

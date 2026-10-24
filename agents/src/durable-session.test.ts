@@ -1086,6 +1086,26 @@ describe('sessionFileSystem', () => {
     return read.ok ? new TextDecoder().decode(read.value) : read.error.code
   }
 
+  test('concurrent commits remain monotonic and reopen after draining on close', async () => {
+    const db = open()
+    const store = await durableSession.openSessionStorage(db, 's1')
+    const commits = Array.from({length: 20}, () => store.commit([], durableSession.CONTEXT))
+    const closed = store.close(durableSession.CONTEXT)
+    expect((await Promise.all(commits)).map(Number)).toEqual(Array.from({length: 20}, (_, index) => index + 1))
+    await closed
+    await expect(store.commit([], durableSession.CONTEXT)).rejects.toThrow('closed')
+    const reopened = await durableSession.openSessionStorage(db, 's1')
+    expect(Number(await reopened.commit([], durableSession.CONTEXT))).toBe(21)
+    await reopened.close(durableSession.CONTEXT)
+    const journal = await text(durableSession.sessionFileSystem(db, 's1'), 'main.jsonl')
+    expect(
+      journal
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line).seq),
+    ).toEqual(Array.from({length: 21}, (_, index) => index + 1))
+  })
+
   test('files are appended to, replaced, truncated, renamed and removed, each within its session', async () => {
     const db = open()
     const one = durableSession.sessionFileSystem(db, 's1')

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => {
   const getSigner = vi.fn()
   const publish = vi.fn()
   return {
+    openUrl: vi.fn(),
     request,
     getSigner,
     publish,
@@ -19,7 +20,7 @@ const mocks = vi.hoisted(() => {
     },
   }
 })
-vi.mock('@shm/shared/routing', () => ({useUniversalClient: () => mocks.client}))
+vi.mock('@shm/shared/routing', () => ({useUniversalClient: () => mocks.client, useOpenUrl: () => mocks.openUrl}))
 vi.mock('@shm/shared/models/entity', () => ({useSelectedAccountId: () => mocks.account, useResource: vi.fn()}))
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => mocks.queryClient,
@@ -47,6 +48,7 @@ let container: HTMLDivElement
 beforeEach(() => {
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
   mocks.account = 'viewer'
+  mocks.openUrl.mockReset()
   mocks.request.mockReset()
   mocks.getSigner.mockReset()
   mocks.publish.mockReset()
@@ -211,6 +213,33 @@ describe('DocumentAppView', () => {
     expect(accessChanged).toHaveBeenLastCalledWith(null)
   })
 
+  it('opens document references through Seed without requesting account access', async () => {
+    const external = vi.fn()
+    setDocumentAppPlatform({resolveAppUrl: async () => `seed-app://${host}/`, openExternalUrl: external})
+    await act(async () => root.render(<DocumentAppView docId={docId} document={document} cid={cid} />))
+    const frame = container.querySelector('iframe')!
+    const send = async (url: string) =>
+      act(async () => {
+        window.dispatchEvent(
+          new MessageEvent('message', {
+            source: frame.contentWindow,
+            origin: `seed-app://${host}`,
+            data: {seedApp: 1, id: 'open', method: 'open', params: {url, newWindow: true}},
+          }),
+        )
+      })
+    const reference = `${docId.id}?v=v2#block123`
+    await send(reference)
+    expect(mocks.openUrl).toHaveBeenCalledWith(reference, true)
+    await send('https://private.example/hm/alice/doc?v=rev#block')
+    expect(external).toHaveBeenCalledWith('https://private.example/hm/alice/doc?v=rev#block', true)
+    await send('javascript:alert(1)')
+    expect(mocks.openUrl).toHaveBeenCalledTimes(1)
+    expect(external).toHaveBeenCalledTimes(1)
+    expect(window.document.body.textContent).not.toContain('Give this app full account access?')
+    expect(mocks.getSigner).not.toHaveBeenCalled()
+  })
+
   it('reads the app CID from metadata', () => {
     expect(documentAppCid(document)).toBe(cid)
     expect(documentAppCid({metadata: {name: 'Plain'}} as HMDocument)).toBeNull()
@@ -234,7 +263,7 @@ describe('DocumentAppView', () => {
       await act(async () => {})
       expect(container.querySelector('iframe')).not.toBeNull()
     })
-    expect(resolveAppUrl).toHaveBeenCalledWith({id: docId.id, cid})
+    expect(resolveAppUrl).toHaveBeenCalledWith({id: docId.id, cid, account: mocks.account})
     const frame = container.querySelector('iframe')!
     expect(frame.getAttribute('src')).toBe(`seed-app://${host}/`)
     expect(frame.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin allow-forms')

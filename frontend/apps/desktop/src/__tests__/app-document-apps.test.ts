@@ -8,25 +8,38 @@ const cid = 'bafybeibowhl2ypujel2qrmcps2qy2szwv3ruyjqliqejr6jg4kil437y3e'
 const docId = 'hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/apps/counter'
 
 describe('document app origins', () => {
-  it('derives one stable host per document and refuses bad registrations', () => {
+  it('pins bundle revisions and partitions native storage origins by viewer', async () => {
     const apps = new Map()
-    const url = openDocumentApp(apps, {id: docId, cid: `ipfs://${cid}`})
-    expect(url).toBe(`seed-app://${documentAppHost(docId)}/`)
-    expect(documentAppHost(docId)).toMatch(/^[0-9a-f]{40}$/)
-    expect(documentAppHost(docId)).not.toBe(documentAppHost(docId + '-other'))
-    // A new revision keeps the origin, so the app's storage survives an update.
-    expect(openDocumentApp(apps, {id: docId, cid: 'bafybeiecq2irw4fl5vunnxo6cegoutv4de63h7n27tekkjtak3jrvrzzhe'})).toBe(
-      url,
-    )
-    expect(() => openDocumentApp(apps, {id: 'https://x', cid})).toThrow()
-    expect(() => openDocumentApp(apps, {id: docId, cid: 'ipfs://bafy/../etc'})).toThrow()
+    const newer = 'bafybeiecq2irw4fl5vunnxo6cegoutv4de63h7n27tekkjtak3jrvrzzhe'
+    const a = openDocumentApp(apps, {id: docId, cid, account: 'alice'})
+    const b = openDocumentApp(apps, {id: docId, cid: newer, account: 'alice'})
+    const otherViewer = openDocumentApp(apps, {id: docId, cid, account: 'bob'})
+    expect(new Set([a, b, otherViewer]).size).toBe(3)
+    expect(openDocumentApp(apps, {id: docId, cid, account: 'alice'})).toBe(a)
+    expect(a).toBe(`seed-app://${documentAppHost(docId, cid, 'alice')}/`)
+    expect(openDocumentApp(apps, {id: docId, cid, account: null})).not.toBe(a)
+    const fetchFile = vi.fn(async (bundle: string, path: string) => new Response(`${bundle}:${path}`))
+    const options = {apps, frameAncestors: [], fetchFile}
+    // Old views keep their code for late assets and reloads, even after another revision/viewer opens.
+    for (const [url, expected] of [
+      [a, cid],
+      [b, newer],
+      [otherViewer, cid],
+      [a, cid],
+    ]) {
+      const response = await handleDocumentAppRequest({method: 'GET', url: `${url}assets/app.js`}, options)
+      expect(await response.text()).toBe(`${expected}:assets/app.js`)
+    }
+    expect(() => openDocumentApp(apps, {id: 'https://x', cid, account: null})).toThrow()
+    expect(() => openDocumentApp(apps, {id: docId, cid: 'ipfs://bafy/../etc', account: null})).toThrow()
+    expect(() => openDocumentApp(apps, {id: docId, cid})).toThrow('viewer')
   })
 })
 
 describe('handleDocumentAppRequest', () => {
   function setup() {
     const apps = new Map()
-    const url = openDocumentApp(apps, {id: docId, cid})
+    const url = openDocumentApp(apps, {id: docId, cid, account: null})
     const fetchFile = vi.fn(async (_cid: string, path: string) => {
       if (path === '' || path === 'index.html')
         return new Response('<h1>hi</h1>', {headers: {'content-type': 'text/html; charset=utf-8'}})

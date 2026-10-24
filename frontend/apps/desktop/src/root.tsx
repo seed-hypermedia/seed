@@ -181,7 +181,10 @@ registerQueryClient(queryClient)
 // Register the desktop adapter for the shared Agents UI, before any agents page renders
 registerDesktopAgentsPlatform()
 // Document apps on desktop: the main process serves the app folder under its own scheme.
-setDocumentAppPlatform({resolveAppUrl: (input) => window.documentApps.open(input)})
+setDocumentAppPlatform({
+  resolveAppUrl: (input) => window.documentApps.open(input),
+  openExternalUrl: (url) => ipc.send?.('open-external-link', url),
+})
 
 // Dev-only: expose the QueryClient on window so we can poke the React Query cache from
 // DevTools (e.g. forcing transient resource errors to verify the document banner).

@@ -14,6 +14,7 @@
         "@seed-hypermedia/agents-protocol": "file:./protocol",
         "@seed-hypermedia/client": "file:../frontend/packages/client",
         "@shm/shared": "file:../frontend/packages/shared",
+        "acorn": "8.16.0",
         "linkedom": "0.18.12",
         "mermaid": "^11.4.0",
         "microsandbox": "0.6.8",

@@ -182,6 +182,49 @@ for (const engine of (process.env.APP_TEST_BROWSERS || 'chromium,firefox,webkit'
       )
       assert.match(await frame.evaluate(() => seed.directory('hm://alice').catch((e) => e.message)), /not available/)
     })
+    await t.test(
+      'anchors and SDK navigation leave the frame through the host, preserving explicit servers',
+      async () => {
+        await page.evaluate(async () => {
+          window.session.destroy()
+          window.links = []
+          window.session = window.mountDocumentApp({
+            container: document.querySelector('#app'),
+            storage: localStorage,
+            context: {protocol: 1, account: 'Alice', document: 'hm://alice/app', version: 'v1', app: 'v1'},
+            html: '<a id="hm" href="hm://alice/doc?v=version#block"><span>Document</span></a><a id="web" target="_blank" href="https://private.example/hm/alice/doc?v=version#block">Website</a>',
+            profile: async () => null,
+            resource: async () => ({}),
+            content: async (method, params) => {
+              window.links.push({method, params})
+              return null
+            },
+          })
+          await window.session.ready
+        })
+        const frame = page.frames().find((frame) => frame.url().includes('/hm/app-runner'))
+        const runtime = await frame.evaluate(() => seed.runtime())
+        assert.equal(runtime.sdkVersion, '1.1.0')
+        assert.match(runtime.sdkDigest, /^[a-f0-9]{64}$/)
+        assert.equal(runtime.storage.synced, false)
+        assert.equal(
+          await frame.evaluate(() => seed.stringify({ts: 123n, bytes: new Uint8Array([1, 2])}, 0)),
+          '{"ts":"123","bytes":[1,2]}',
+        )
+        await frame.locator('#hm span').click()
+        await frame.locator('#web').click()
+        await frame.locator('#hm').click({modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control']})
+        await frame.locator('#hm').click({button: 'middle'})
+        await page.waitForFunction(() => window.links.length === 4)
+        assert.deepEqual(await page.evaluate(() => window.links), [
+          {method: 'open', params: {url: 'hm://alice/doc?v=version#block', newWindow: false}},
+          {method: 'open', params: {url: 'https://private.example/hm/alice/doc?v=version#block', newWindow: true}},
+          {method: 'open', params: {url: 'hm://alice/doc?v=version#block', newWindow: true}},
+          {method: 'open', params: {url: 'hm://alice/doc?v=version#block', newWindow: true}},
+        ])
+        assert.match(frame.url(), /hm\/app-runner/)
+      },
+    )
     await t.test('account SDK transports binary signatures, blob payloads and bigint document results', async () => {
       await page.evaluate(async () => {
         window.session.destroy()
