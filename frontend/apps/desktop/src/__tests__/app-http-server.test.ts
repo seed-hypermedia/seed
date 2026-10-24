@@ -9,6 +9,7 @@ vi.mock('@shm/shared/api-server', () => ({
   handleApiRequest: async () => ({status: 200, headers: {}, body: 'local API'}),
   handleApiAction: async () => ({status: 200, headers: {}, body: 'local API'}),
 }))
+vi.mock('../app-paths', () => ({userDataPath: '/unused-playground-test'}))
 vi.mock('../grpc-client', () => ({grpcClient: {}}))
 vi.mock('../logger', () => ({info: vi.fn()}))
 

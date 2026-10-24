@@ -25,6 +25,7 @@ function getPlayground(): PlaygroundHandler {
   return playground
 }
 
+/** Returns the local playground address served by the desktop API bridge. */
 export function playgroundUrl(): string {
   return `http://localhost:${API_HTTP_PORT}${PLAYGROUND_PAGE_PATH}/`
 }
