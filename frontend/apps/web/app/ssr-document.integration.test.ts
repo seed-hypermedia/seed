@@ -269,6 +269,32 @@ describe('SSR Document Rendering with React Query Hydration', () => {
     expect(html).not.toContain('animate-spin')
   }, 30000)
 
+  it('gives apps the main view while keeping breadcrumbs and hiding document chrome', async () => {
+    const {ResourcePage} = await import('@shm/ui/resource-page-common')
+    const testDocument = createTestDocument('Underlying document body')
+    testDocument.metadata.app = 'ipfs://bafybeibowhl2ypujel2qrmcps2qy2szwv3ruyjqliqejr6jg4kil437y3e'
+    const docId = hmId(TEST_UID, {version: TEST_VERSION})
+    const queryClient = createHydratedQueryClient(docId, testDocument)
+    const html = renderToString(
+      withProviders(
+        queryClient,
+        createElement(ResourcePage, {
+          docId,
+          DocumentContentComponent: () => createElement('div', null, 'DOCUMENT_EDITOR'),
+          pageFooter: createElement('footer', null, 'DOCUMENT_FOOTER'),
+        }),
+      ),
+    )
+    expect(html).toContain('data-document-app-main')
+    expect(html).toContain('aria-label="Breadcrumb"')
+    expect(html).toContain('Open options')
+    expect(html).not.toContain('DOCUMENT_EDITOR')
+    expect(html).not.toContain('DOCUMENT_FOOTER')
+    expect(html).not.toContain('<h1')
+    expect(html).not.toContain('/:comments')
+    expect(html).not.toContain('/:attributes')
+  })
+
   it('should render spinner when QueryClient cache is NOT hydrated', async () => {
     // Import after mocks are set up
     const {ResourcePage} = await import('@shm/ui/resource-page-common')

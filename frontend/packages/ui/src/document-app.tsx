@@ -46,8 +46,10 @@ type DocumentAppViewProps = {
   document: HMDocument
   cid: string
   perspectiveAccountUid?: string | null
-  /** Fill the parent's height instead of the page's viewport share (chat embeds). */
+  /** Fill the main view without a border or document margins. */
   fill?: boolean
+  /** Delegate the revoke control to the host navigation instead of an inline toolbar. */
+  onAccountAccessChange?: (revoke: (() => void) | null) => void
 }
 
 type AppContentHandler = (method: string, params: unknown, signal: AbortSignal) => Promise<unknown>
@@ -91,6 +93,10 @@ function DocumentAppSession(props: DocumentAppViewProps) {
     [],
   )
   React.useLayoutEffect(() => () => access.revoke(), [access])
+  React.useEffect(() => {
+    props.onAccountAccessChange?.(granted ? access.revoke : null)
+    return () => props.onAccountAccessChange?.(null)
+  }, [props.onAccountAccessChange, granted, access])
   const content = React.useCallback<AppContentHandler>(
     async (method, params, signal) => {
       const result = await documentAppContent({
@@ -122,8 +128,8 @@ function DocumentAppSession(props: DocumentAppViewProps) {
   )
   const platform = getDocumentAppPlatform()
   return (
-    <div className={cn('flex flex-col gap-2', props.fill && 'h-full')}>
-      {granted && (
+    <div className={cn('flex flex-col', props.fill ? 'h-full min-h-0' : 'gap-2')}>
+      {granted && !props.onAccountAccessChange && (
         <div className="flex items-center justify-between gap-3 text-sm">
           <span>Account access enabled</span>
           <Button variant="outline" size="sm" onClick={() => access.revoke()}>
@@ -232,7 +238,7 @@ function SandboxDocumentAppView({
   return (
     <section
       aria-label={resourceDocument.metadata?.name || 'App'}
-      className={cn('border-border relative overflow-hidden rounded-lg border', fill && 'h-full')}
+      className={cn('relative overflow-hidden', fill ? 'h-full' : 'border-border rounded-lg border')}
     >
       {error ? (
         <p role="alert" className="text-destructive p-3 text-sm">
@@ -348,7 +354,7 @@ function LegacyDocumentAppView({docId, document, cid, fill = false, content}: Ap
   return (
     <section
       aria-label={title}
-      className={cn('border-border bg-background relative overflow-hidden rounded-lg border', fill && 'h-full')}
+      className={cn('bg-background relative overflow-hidden', fill ? 'h-full' : 'border-border rounded-lg border')}
     >
       {url ? (
         <iframe

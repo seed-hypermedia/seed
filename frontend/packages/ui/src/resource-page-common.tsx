@@ -125,6 +125,10 @@ import {
   FilePen,
   FileText,
   Grid3X3,
+  Info,
+  MessagesSquare,
+  ShieldOff,
+  Users,
   LayoutGrid,
   List as ListIcon,
   MoreHorizontal,
@@ -429,11 +433,50 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
+/** Document tabs remain available as panels while the app owns the main view. */
+export function getDocumentAppPanelMenuItems(
+  id: UnpackedHypermediaId,
+  openPanel: (panel: DocumentPanelRoute) => void,
+): MenuItemType[] {
+  const target = {...id, blockRef: null, blockRange: null}
+  return [
+    {
+      key: 'app-people',
+      label: 'People',
+      icon: <Users className="size-4" />,
+      onClick: () => openPanel({key: 'collaborators', id: target}),
+    },
+    {
+      key: 'app-comments',
+      label: 'Comments',
+      icon: <MessagesSquare className="size-4" />,
+      onClick: () => openPanel({key: 'comments', id: target}),
+    },
+    {
+      key: 'app-citations',
+      label: 'Citations',
+      icon: <Quote className="size-4" />,
+      onClick: () => openPanel({key: 'activity', id: target, filterEventType: activitySlugToFilter('citations')}),
+    },
+    {
+      key: 'app-attributes',
+      label: 'Attributes',
+      icon: <Info className="size-4" />,
+      onClick: () => openPanel({key: 'metadata', id: target}),
+    },
+  ]
+}
+
 /** Removes redundant document destinations and orders the remaining menu actions by intent. */
 export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
   const hiddenKeys = new Set(['metadata', 'directory', 'all-documents'])
   const visibleItems = items.filter((item) => !hiddenKeys.has(item.key))
   const itemOrder = [
+    'app-people',
+    'app-comments',
+    'app-citations',
+    'app-attributes',
+    'app-revoke',
     'new',
     'add-raw-field',
     'options',
@@ -1662,7 +1705,7 @@ export function PageShell({
         'dark:bg-background flex max-h-full flex-col bg-white',
         // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
         // On mobile: natural height for document scrolling
-        isMobile ? 'min-h-dvh' : 'h-dvh',
+        isMobile ? 'min-h-dvh has-[[data-document-app-main]]:h-dvh' : 'h-dvh',
       )}
     >
       <SiteHeader
@@ -1984,6 +2027,9 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  const documentApp = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentAppCid(document) : null
+  const [revokeAppAccess, setRevokeAppAccess] = useState<(() => void) | null>(null)
+  const onAppAccessChange = useCallback((revoke: (() => void) | null) => setRevokeAppAccess(() => revoke), [])
   const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
@@ -2715,7 +2761,18 @@ function DocumentBody({
   })
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
-    unorderedItems.push(citationFragmentToggleMenuItem)
+    if (documentApp) {
+      unorderedItems.push(
+        ...getDocumentAppPanelMenuItems(docId, (panel) => replaceRoute({...route, panel} as NavRoute)),
+      )
+      if (revokeAppAccess)
+        unorderedItems.push({
+          key: 'app-revoke',
+          label: 'Revoke account access',
+          icon: <ShieldOff className="size-4" />,
+          onClick: revokeAppAccess,
+        })
+    } else unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
     if (addRawFieldMenuItem) unorderedItems.push(addRawFieldMenuItem)
@@ -2730,6 +2787,11 @@ function DocumentBody({
     }
     return orderDocumentMenuItems(unorderedItems)
   }, [
+    documentApp,
+    docId,
+    route,
+    replaceRoute,
+    revokeAppAccess,
     optionsMenuItems,
     extraMenuItems,
     citationFragmentToggleMenuItem,
@@ -2814,7 +2876,8 @@ function DocumentBody({
         {documentContentAction}
       </>
     ) : null
-  const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
+  const floatingButtonsAction =
+    activeView === 'content' && !documentApp && !documentContentAction ? floatingButtons : null
 
   // The bar always states where you are, so a home document is its own single crumb.
   const spaceBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
@@ -2837,7 +2900,19 @@ function DocumentBody({
   )
 
   // Main page content (used in both mobile and desktop layouts)
-  const mainPageContent = (
+  const mainPageContent = documentApp ? (
+    <div data-document-app-main className="min-h-0 flex-1">
+      {documentConversionDialog}
+      <DocumentAppView
+        docId={docId}
+        document={document}
+        cid={documentApp}
+        perspectiveAccountUid={perspectiveAccountUid}
+        onAccountAccessChange={onAppAccessChange}
+        fill
+      />
+    </div>
+  ) : (
     <div
       className={cn(
         'flex flex-col',
@@ -3093,7 +3168,10 @@ function DocumentBody({
   if (isMobile) {
     return (
       <>
-        <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
+        <div
+          className={cn('relative flex flex-1 flex-col', documentApp ? 'h-full min-h-0 overflow-hidden' : 'pb-20')}
+          ref={elementRef}
+        >
           {documentTopBar}
           {mainPageContent}
           {floatingButtonsAction}
@@ -3102,7 +3180,12 @@ function DocumentBody({
         {mobilePanelOpen && (
           <MobilePanelSheet
             isOpen={mobilePanelOpen}
-            title={panelRoute?.key === 'activity' && panelRoute.targetBlockId ? 'Citations' : getPanelTitle(panelKey)}
+            title={
+              panelRoute?.key === 'activity' &&
+              (panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations')
+                ? 'Citations'
+                : getPanelTitle(panelKey)
+            }
             onClose={handlePanelClose}
             header={activityPanelHeader}
             resizable={panelRoute?.key === 'feed'}
@@ -3117,6 +3200,17 @@ function DocumentBody({
                   targetDomain={siteUrl}
                 />
               </div>
+            ) : panelRoute && panelRoute.key !== 'comments' ? (
+              <PanelContentRenderer
+                panelRoute={panelRoute}
+                docId={docId}
+                document={document}
+                contentMaxWidth={contentMaxWidth}
+                CommentEditor={CommentEditor}
+                siteUrl={siteUrl}
+                fileUpload={fileUpload}
+                draftVersionEntry={draftVersionEntry}
+              />
             ) : (
               <DiscussionsPageContent
                 docId={commentsPanelTarget.docId}
@@ -3192,24 +3286,31 @@ function DocumentBody({
         panelContent={panelContent}
         onPanelClose={handlePanelClose}
         isVersionsPanel={isDocumentVersionsPanelRoute(panelRoute)}
-        isCitationsPanel={panelRoute?.key === 'activity' && !!panelRoute.targetBlockId}
+        isCitationsPanel={
+          panelRoute?.key === 'activity' &&
+          (!!panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations')
+        }
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
         header={activityPanelHeader}
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
-          <ScrollArea
-            ref={documentScrollAreaRef}
-            id="scroll-page-wrapper"
-            className="min-h-0 flex-1"
-            viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
-            fillViewportContent
-          >
-            <div ref={documentTopSentinelRef} className="h-px" aria-hidden="true" />
-            {mainPageContent}
-          </ScrollArea>
-          {activeView === 'content' ? (
+          {documentApp ? (
+            mainPageContent
+          ) : (
+            <ScrollArea
+              ref={documentScrollAreaRef}
+              id="scroll-page-wrapper"
+              className="min-h-0 flex-1"
+              viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+              fillViewportContent
+            >
+              <div ref={documentTopSentinelRef} className="h-px" aria-hidden="true" />
+              {mainPageContent}
+            </ScrollArea>
+          )}
+          {activeView === 'content' && !documentApp ? (
             <Button
               ref={backToTopButtonRef}
               type="button"
@@ -4700,9 +4801,6 @@ function ContentViewWithOutline({
   const isEditing = useDocumentSelector(selectIsEditing)
   const send = useDocumentSend()
   const openUrl = useOpenUrl()
-  // A document app replaces the published body; editing shows the blocks underneath it.
-  // existingDraftContent also carries published blocks, so it does not indicate a draft.
-  const documentApp = isEditing || isUnpublishedDraft ? null : documentAppCid(document)
   const requiredAttrMetadata = useMemo(
     () => ({...document.metadata, ...ctx.metadata}),
     [document.metadata, ctx.metadata],
@@ -4790,40 +4888,31 @@ function ContentViewWithOutline({
               : undefined
           }
         />
-        {documentApp ? (
-          <DocumentAppView
-            docId={docId}
-            document={document}
-            cid={documentApp}
-            perspectiveAccountUid={perspectiveAccountUid}
-          />
-        ) : (
-          <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
-            {DocumentContentComponent ? (
-              <DocumentContentComponent
-                blocks={existingDraftContent ?? document.content}
-                resourceId={resourceId}
-                rootChildrenType={rootChildrenType}
-                focusBlockId={resourceId.blockRef ?? undefined}
-                focusBlockRange={resourceId.blockRange ?? undefined}
-                citationFragmentHighlights={citationFragmentHighlights}
-                onCitationFragmentClick={onCitationFragmentClick}
-                blockCitations={blockCitations}
-                onBlockCitationClick={onBlockCitationClick}
-                onBlockCommentClick={onBlockCommentClick}
-                onBlockSelect={onBlockSelect}
-                onTextSelection={onTextSelection}
-                onEditorReady={onEditorReady}
-                draftCursorPosition={existingDraftCursorPosition}
-                perspectiveAccountUid={perspectiveAccountUid}
-                linkExtensionOptions={linkExtensionOptions}
-                isUnpublishedDraft={isUnpublishedDraft}
-                isBlockInPublishedVersion={isBlockInPublishedVersion}
-                handleFileAttachment={handleFileAttachment}
-              />
-            ) : null}
-          </DocumentContentHandoff>
-        )}
+        <DocumentContentHandoff ssrContentHTML={ssrContentHTML} editorMounted={!!DocumentContentComponent}>
+          {DocumentContentComponent ? (
+            <DocumentContentComponent
+              blocks={existingDraftContent ?? document.content}
+              resourceId={resourceId}
+              rootChildrenType={rootChildrenType}
+              focusBlockId={resourceId.blockRef ?? undefined}
+              focusBlockRange={resourceId.blockRange ?? undefined}
+              citationFragmentHighlights={citationFragmentHighlights}
+              onCitationFragmentClick={onCitationFragmentClick}
+              blockCitations={blockCitations}
+              onBlockCitationClick={onBlockCitationClick}
+              onBlockCommentClick={onBlockCommentClick}
+              onBlockSelect={onBlockSelect}
+              onTextSelection={onTextSelection}
+              onEditorReady={onEditorReady}
+              draftCursorPosition={existingDraftCursorPosition}
+              perspectiveAccountUid={perspectiveAccountUid}
+              linkExtensionOptions={linkExtensionOptions}
+              isUnpublishedDraft={isUnpublishedDraft}
+              isBlockInPublishedVersion={isBlockInPublishedVersion}
+              handleFileAttachment={handleFileAttachment}
+            />
+          ) : null}
+        </DocumentContentHandoff>
         {inlineInsert}
         {inlineCards}
       </div>

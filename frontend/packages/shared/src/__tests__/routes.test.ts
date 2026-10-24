@@ -110,6 +110,16 @@ describe('createDocumentNavRoute', () => {
   })
 
   describe('simple panel keys', () => {
+    test('attributes panel survives URL navigation', () => {
+      const route: NavRoute = {key: 'document', id: testDocId, panel: {key: 'metadata', id: testDocId}}
+      expect(createDocumentNavRoute(testDocId, null, 'metadata')).toEqual(route)
+      expect(hypermediaUrlToRoute(routeToUrl(route)!)).toMatchObject({
+        key: 'document',
+        id: {id: testDocId.id},
+        panel: {key: 'metadata', id: {id: testDocId.id}},
+      })
+    })
+
     test('collaborators panel', () => {
       const route = createDocumentNavRoute(testDocId, null, 'collaborators')
       expect(route).toEqual({

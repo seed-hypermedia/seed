@@ -1,7 +1,6 @@
 import {resolveHypermediaRoute, useClickNavigate, useOpenUrl} from './navigation'
 import {getAgentsPlatform} from './platform'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {DocumentAppEmbed} from '../document-app'
 import {useResource} from '@shm/shared/models/entity'
 import {hmId, routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
@@ -412,7 +411,7 @@ function mermaidSourceFromPre(node: unknown): string | null {
   return fenceSourceFromPre(node, 'mermaid')
 }
 
-/** The hm:// URL inside a ```seed-app fence: a document app to run inside the reply. */
+/** The hm:// URL inside a legacy app fence, opened in the full document view. */
 export function documentAppUrlFromFence(source: string): string | null {
   const url = source.trim()
   return /^hm:\/\/[^\s]+$/.test(url) ? url : null
@@ -500,7 +499,8 @@ export function Markdown({children, enableGfm = true}: {children: string; enable
       const appSource = fenceSourceFromPre(node, 'seed-app')
       if (appSource !== null) {
         const url = documentAppUrlFromFence(appSource)
-        if (url) return <DocumentAppEmbed url={url} />
+        // App execution in chat is temporarily disabled; old transcripts still open the full app.
+        if (url) return <MarkdownLink href={url}>Open app</MarkdownLink>
       }
       return <pre className="bg-background/50 my-2 overflow-x-auto rounded p-2 text-xs">{children}</pre>
     },

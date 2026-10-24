@@ -12776,11 +12776,10 @@ function withAppResult(result: Record<string, unknown>, folder: WriteAppFolder |
     appBytes: folder.bytes,
     ...(id
       ? {
-          widget: '```seed-app\n' + id + '\n```',
           instructions:
             'The document now opens as the app in Seed and syncs to anyone it is shared with. Link it in your reply as [Title](' +
             id +
-            '); to show it running inside the chat, include the widget fence verbatim. Write to the same address with options.app again to publish a new revision.',
+            '); apps open in the full document view. Chat app embeds are temporarily disabled. Write to the same address with options.app again to publish a new revision.',
         }
       : {}),
   }
@@ -14327,7 +14326,7 @@ export async function executeWriteVerb(
     // the making, and the model that just wrote it is the one that needs to know the next step.
     const appHint = /\.html?$/i.test(entry.path)
       ? context.publishEnabled
-        ? ` The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Publish it as a document app now: write hm://<your signing account>/apps/<name> with options.app: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link and the returned widget fence. Do not link the ~/memory path.`
+        ? ` The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Publish it as a document app now: write hm://<your signing account>/apps/<name> with options.app: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link. Do not link the ~/memory path.`
         : ' The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Publishing it as a document app needs the Publish grant.'
       : ''
     return {summary: `Wrote ${entry.path} (${entry.size} bytes).${appHint}`, ...entry}

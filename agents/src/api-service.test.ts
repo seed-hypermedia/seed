@@ -6286,7 +6286,8 @@ describe('api service', () => {
       expect(first.id).toBe(address)
       expect(first.app).toMatch(/^ipfs:\/\/bafy/)
       expect(first.appFiles).toBe(2)
-      expect(first.widget).toBe('```seed-app\n' + address + '\n```')
+      expect(first.widget).toBeUndefined()
+      expect(String(first.instructions)).toContain('Chat app embeds are temporarily disabled')
       expect(String(first.instructions)).toContain('opens as the app')
       const publishesAfterCreate = publishes.length
       expect(publishesAfterCreate).toBeGreaterThan(0)

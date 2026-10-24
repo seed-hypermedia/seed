@@ -175,6 +175,42 @@ describe('DocumentAppView', () => {
     expect(mocks.publish).not.toHaveBeenCalled()
   })
 
+  it('fills the main view without a border and delegates revocation to the breadcrumb menu', async () => {
+    const accessChanged = vi.fn()
+    mocks.getSigner.mockReturnValue({getPublicKey: async () => new Uint8Array(), sign: vi.fn()})
+    setDocumentAppPlatform({resolveAppUrl: async () => `seed-app://${host}/`})
+    await act(async () => {
+      root.render(
+        <DocumentAppView docId={docId} document={document} cid={cid} fill onAccountAccessChange={accessChanged} />,
+      )
+    })
+    const frame = container.querySelector('iframe')!
+    expect(frame.style.height).toBe('')
+    expect(frame.classList.contains('h-full')).toBe(true)
+    expect(container.querySelector('section')!.classList.contains('border')).toBe(false)
+    await act(async () => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          source: frame.contentWindow,
+          origin: `seed-app://${host}`,
+          data: {seedApp: 1, id: 'grant', method: 'permissions.request'},
+        }),
+      )
+    })
+    const confirm = Array.from(window.document.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Allow full access',
+    )!
+    await act(async () => {
+      confirm.click()
+    })
+    expect(accessChanged).toHaveBeenLastCalledWith(expect.any(Function))
+    expect(container.textContent).not.toContain('Account access enabled')
+    await act(async () => {
+      accessChanged.mock.calls.at(-1)![0]()
+    })
+    expect(accessChanged).toHaveBeenLastCalledWith(null)
+  })
+
   it('reads the app CID from metadata', () => {
     expect(documentAppCid(document)).toBe(cid)
     expect(documentAppCid({metadata: {name: 'Plain'}} as HMDocument)).toBeNull()
