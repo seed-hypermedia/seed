@@ -1,16 +1,18 @@
+import type {
+  HMBlockNode,
+  HMRequest,
+  HMPublishBlobsInput,
+  HMPublishBlobsOutput,
+  HMSigner,
+} from '@seed-hypermedia/client/hm-types'
+import type {DOCUMENT_APP_SIGNING_HELPERS} from './document-app-content'
+import type {PublishDocumentInput} from './universal-client'
+
 /**
- * Document apps: a document whose `app` metadata attribute names a UnixFS folder with an
- * `index.html`. Seed opens the document as that app, in a sandboxed origin of its own, and the
- * app talks to Seed only through the `postMessage` bridge defined here.
- *
- * The app is untrusted code: once a document is shared, anyone's app runs on the viewer's
- * machine next to the viewer's data. So the app gets no network, no daemon, no secret, and no
- * access to the Seed window. What it gets is `window.seed` (from {@link DOCUMENT_APP_CLIENT_PATH}),
- * whose calls the embedding Seed window answers with the viewer's own client, so the app reads
- * exactly what the viewer can read, nothing more.
- *
- * The origin is per document, not per revision, so an app's `localStorage` survives the author
- * publishing a new version, while two documents never share state.
+ * Document apps run untrusted HTML through a host-owned SDK. Desktop uses a per-document
+ * origin; web uses an opaque sandbox on the Seed host. Portable state goes through
+ * viewer/document-scoped storage. Content helpers have no authority; writing and signing
+ * uses full account access granted in Seed, with keys retained by the host.
  */
 
 /** The URL scheme the desktop serves app folders under: `seed-app://<document host>/<file>`. */
@@ -22,11 +24,85 @@ export const DOCUMENT_APP_CLIENT_PATH = '/.seed/client.js'
 /** Version of the request/response envelope; bumped only for incompatible changes. */
 export const DOCUMENT_APP_PROTOCOL = 1
 
-/** Largest request an app may send, in JSON bytes. */
-export const DOCUMENT_APP_MAX_REQUEST_BYTES = 64 * 1024
+/** Largest request an app may send, including binary data. */
+export const DOCUMENT_APP_MAX_REQUEST_BYTES = 8 * 1024 * 1024
 
-/** The methods an app may call. Reads only; every one answers from the viewer's perspective. */
-export const DOCUMENT_APP_METHODS = ['context', 'resource', 'directory'] as const
+/** Signing helpers available through the app SDK; each uses the current account. */
+export const DOCUMENT_APP_SIGNING_HELPER_NAMES = [
+  'createComment',
+  'updateComment',
+  'deleteComment',
+  'createDocumentBlobs',
+  'createVersionRef',
+  'createRedirectRef',
+  'createTombstoneRef',
+  'createCapability',
+  'createContact',
+  'updateContact',
+  'deleteContact',
+  'signDocumentChange',
+  'signBlob',
+] as const
+
+/** Bridge operations for reads, writes, signing, helpers and local state. */
+export const DOCUMENT_APP_METHODS = [
+  'context',
+  'profile',
+  'resource',
+  'directory',
+  'storage.get',
+  'storage.set',
+  'hm.parseMarkdown',
+  'hm.validateContent',
+  'hm.unpackHmId',
+  'comments.create',
+  'permissions.request',
+  'permissions.revoke',
+  'request',
+  'publish',
+  'publishDocument',
+  'signer.getPublicKey',
+  'signer.sign',
+  ...DOCUMENT_APP_SIGNING_HELPER_NAMES.map((name) => `hm.${name}` as const),
+] as const
+
+/** Count UTF-8 metadata and actual binary bytes without expanding typed arrays into JSON entries. */
+export function documentAppMessageSize(value: unknown): number {
+  let binaryBytes = 0
+  const json = JSON.stringify(value, (_key, item) => {
+    if (ArrayBuffer.isView(item) || item instanceof ArrayBuffer) {
+      binaryBytes += item.byteLength
+      return null
+    }
+    if (typeof item === 'bigint') return item.toString()
+    return item
+  })
+  return new TextEncoder().encode(json).byteLength + binaryBytes
+}
+
+/** The same portable SDK surface is injected into desktop and opaque web runtimes. */
+export const DOCUMENT_APP_API_SCRIPT = `(call) => Object.freeze({
+  context: () => call('context'),
+  profile: () => call('profile'),
+  storage: Object.freeze({get: (key) => call('storage.get', {key}), set: (key, value) => call('storage.set', {key, value})}),
+  resource: (url) => call('resource', {url}),
+  directory: (url, options) => call('directory', {url, all: !!options?.all}),
+  permissions: Object.freeze({request: () => call('permissions.request'), revoke: () => call('permissions.revoke')}),
+  request: (key, input) => call('request', {key, input}),
+  publish: (input) => call('publish', {input}),
+  publishDocument: (input) => call('publishDocument', {input}),
+  signer: Object.freeze({getPublicKey: () => call('signer.getPublicKey'), sign: (data) => call('signer.sign', {data})}),
+  hm: Object.freeze({
+    parseMarkdown: (markdown) => call('hm.parseMarkdown', {markdown}),
+    validateContent: (content) => call('hm.validateContent', {content}),
+    unpackHmId: (url) => call('hm.unpackHmId', {url}),
+    ...Object.fromEntries(${JSON.stringify(
+      DOCUMENT_APP_SIGNING_HELPER_NAMES,
+    )}.map((name) => [name, (input) => call('hm.' + name, {input})])),
+  }),
+  comments: Object.freeze({create: (input) => call('comments.create', input)}),
+})`
+
 export type DocumentAppMethod = (typeof DOCUMENT_APP_METHODS)[number]
 
 export type DocumentAppRequest = {
@@ -50,6 +126,39 @@ export type DocumentAppContext = {
   account: string | null
   /** The app folder's CID. */
   app: string
+}
+
+/** The portable, asynchronous SDK installed as `window.seed` in document apps. */
+export type DocumentAppSDK = {
+  context(): Promise<DocumentAppContext>
+  profile(): Promise<{id: string; name: string | null} | null>
+  storage: {get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<null>}
+  resource(url: string): Promise<unknown>
+  directory(url: string, options?: {all?: boolean}): Promise<unknown>
+  permissions: {request(): Promise<{account: string; document: string; app: string}>; revoke(): Promise<null>}
+  signer: HMSigner
+  request<K extends HMRequest['key']>(
+    key: K,
+    input: Extract<HMRequest, {key: K}>['input'],
+  ): Promise<Extract<HMRequest, {key: K}>['output']>
+  publish(input: HMPublishBlobsInput): Promise<HMPublishBlobsOutput>
+  publishDocument(input: Omit<PublishDocumentInput, 'signerAccountUid'>): Promise<{document: string}>
+  hm: {
+    parseMarkdown(markdown: string): Promise<HMBlockNode[]>
+    validateContent(content: HMBlockNode[]): Promise<HMBlockNode[]>
+    unpackHmId(url: string): Promise<import('@seed-hypermedia/client/hm-types').UnpackedHypermediaId | null>
+  } & {
+    [K in keyof typeof DOCUMENT_APP_SIGNING_HELPERS]: (
+      input: Parameters<(typeof DOCUMENT_APP_SIGNING_HELPERS)[K]>[0],
+    ) => ReturnType<(typeof DOCUMENT_APP_SIGNING_HELPERS)[K]>
+  }
+  comments: {
+    create(input: {
+      content: HMBlockNode[]
+      target?: string
+      version?: string
+    }): Promise<{commentId: string; version: string}>
+  }
 }
 
 /** Extracts the folder CID from an `app` metadata value (`ipfs://<cid>` or a bare CID). */
@@ -144,21 +253,17 @@ export const DOCUMENT_APP_CLIENT_SCRIPT = `(() => {
     if ('error' in data) entry.reject(new Error(String(data.error)));
     else entry.resolve(data.result);
   });
-  const call = (method, params) =>
+  const messageSize = ${documentAppMessageSize.toString()};
+  const call = (method, params = {}) =>
     new Promise((resolve, reject) => {
       if (!host) return reject(new Error('This app is not embedded in Seed'));
+      if (pending.size >= 32) return reject(new Error('Too many pending requests'));
+      if (messageSize(params) > ${DOCUMENT_APP_MAX_REQUEST_BYTES}) return reject(new Error('Request too large'));
       const id = String(++counter) + '.' + Math.random().toString(36).slice(2);
       pending.set(id, {resolve, reject});
       host.postMessage({seedApp: ${DOCUMENT_APP_PROTOCOL}, id, method, params}, '*');
     });
-  window.seed = Object.freeze({
-    /** Where this app runs: its document, the version shown, and the viewer's account. */
-    context: () => call('context'),
-    /** A document or comment by hm:// URL, as the viewer sees it. */
-    resource: (url) => call('resource', {url}),
-    /** The documents under an hm:// URL: direct children, or every descendant with {all: true}. */
-    directory: (url, options) => call('directory', {url, all: !!(options && options.all)}),
-  });
+  window.seed = (${DOCUMENT_APP_API_SCRIPT})(call);
 })();
 `
 
@@ -172,7 +277,7 @@ export function parseDocumentAppRequest(data: unknown): DocumentAppRequest | nul
     return null
   let size = 0
   try {
-    size = JSON.stringify(message.params ?? null).length
+    size = documentAppMessageSize(message.params ?? null)
   } catch {
     return null
   }
@@ -218,17 +323,24 @@ export function createDocumentAppMessageListener(options: {
 }
 
 /** How the host app turns a document app into a page URL it can embed. */
-export type DocumentAppPlatform = {
-  /** Resolves the page URL for a document's app folder, registering it with the host if needed. */
-  resolveAppUrl: (input: {id: string; cid: string}) => Promise<string>
-}
+export type DocumentAppPlatform =
+  | {
+      /** Resolves the page URL for a document's app folder, registering it with the host if needed. */
+      resolveAppUrl: (input: {id: string; cid: string}) => Promise<string>
+    }
+  | {
+      /** Fetches an authorized, revision-pinned HTML entry point for the opaque web sandbox. */
+      loadAppHtml: (input: {id: string; cid: string; version: string}, signal: AbortSignal) => Promise<string>
+    }
 
 let platform: DocumentAppPlatform | null = null
 
+/** Install the platform's document-app runtime. */
 export function setDocumentAppPlatform(next: DocumentAppPlatform | null) {
   platform = next
 }
 
+/** Return the current platform's document-app runtime. */
 export function getDocumentAppPlatform(): DocumentAppPlatform | null {
   return platform
 }

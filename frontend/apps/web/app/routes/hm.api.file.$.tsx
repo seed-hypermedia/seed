@@ -45,7 +45,12 @@ async function loadFile(params: Record<string, string | undefined>, request: Req
     }
 
     // Stream the response body directly
-    const responseHeaders: Record<string, string> = {}
+    // Raw uploads must not execute with the Seed site's authority when opened directly.
+    const responseHeaders: Record<string, string> = {
+      'Content-Security-Policy':
+        "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'",
+      'X-Content-Type-Options': 'nosniff',
+    }
 
     // Forward relevant headers from the daemon response
     const cacheControl = response.headers.get('cache-control')

@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
   DOCUMENT_APP_CLIENT_SCRIPT,
+  DOCUMENT_APP_MAX_REQUEST_BYTES,
   createDocumentAppMessageListener,
   documentAppContentSecurityPolicy,
   documentAppHostFromDigest,
@@ -67,7 +68,12 @@ describe('parseDocumentAppRequest', () => {
     expect(parseDocumentAppRequest({seedApp: 1, id: '', method: 'context'})).toBeNull()
     expect(parseDocumentAppRequest({seedApp: 1, id: 'r1', method: 'write'})).toBeNull()
     expect(
-      parseDocumentAppRequest({seedApp: 1, id: 'r1', method: 'resource', params: {url: 'x'.repeat(70000)}}),
+      parseDocumentAppRequest({
+        seedApp: 1,
+        id: 'r1',
+        method: 'resource',
+        params: {url: 'x'.repeat(DOCUMENT_APP_MAX_REQUEST_BYTES)},
+      }),
     ).toBeNull()
     expect(parseDocumentAppRequest('nope')).toBeNull()
   })

@@ -4701,7 +4701,8 @@ function ContentViewWithOutline({
   const send = useDocumentSend()
   const openUrl = useOpenUrl()
   // A document app replaces the published body; editing shows the blocks underneath it.
-  const documentApp = isEditing || existingDraftContent ? null : documentAppCid(document)
+  // existingDraftContent also carries published blocks, so it does not indicate a draft.
+  const documentApp = isEditing || isUnpublishedDraft ? null : documentAppCid(document)
   const requiredAttrMetadata = useMemo(
     () => ({...document.metadata, ...ctx.metadata}),
     [document.metadata, ctx.metadata],

@@ -2,6 +2,8 @@
   "name": "seed",
   "private": true,
   "scripts": {
+    "app-demo": "node scripts/document-app-demo/server.mjs",
+    "app-demo:test": "node --test scripts/document-app-demo/demo.test.mjs",
     "test": "pnpm web:test && pnpm shared:test && pnpm desktop:test:unit",
     "hypermedia:check": "node scripts/hypermedia/check.mjs",
     "hypermedia:dev": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts dev",
