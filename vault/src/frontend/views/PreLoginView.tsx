@@ -1,3 +1,4 @@
+import {EnterprisePreLoginView} from './EnterprisePreLoginView'
 import {WebAuthnAbortService} from '@simplewebauthn/browser'
 import type React from 'react'
 import {useEffect, useRef, useState} from 'react'
@@ -16,6 +17,11 @@ import {useActions, useAppState} from '@/frontend/store'
  * with resident passkeys can sign in without typing their email.
  */
 export function PreLoginView() {
+  const {inviteOnly} = useAppState()
+  return inviteOnly ? <EnterprisePreLoginView /> : <PublicPreLoginView />
+}
+
+function PublicPreLoginView() {
   const {
     email,
     inviteOnly,

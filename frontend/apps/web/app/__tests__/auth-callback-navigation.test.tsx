@@ -6,6 +6,8 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const mocks = vi.hoisted(() => ({
+  enterprise: false,
+  returnUrl: '/private?view=recent#notes',
   handleCallback: vi.fn(),
   ensureDaemonAuth: vi.fn(),
   publish: vi.fn(),
@@ -23,7 +25,7 @@ vi.mock('@/auth-session', () => ({handleCallback: mocks.handleCallback, clearSes
 vi.mock('@/local-db', () => ({
   AUTH_STATE_DELEGATION_RETURN_URL: 'return',
   AUTH_STATE_DELEGATION_VAULT_URL: 'vault',
-  getAuthState: async (key: string) => (key === 'return' ? '/private?view=recent#notes' : '/vault/delegate'),
+  getAuthState: async (key: string) => (key === 'return' ? mocks.returnUrl : '/vault/delegate'),
   deleteAuthState: vi.fn().mockResolvedValue(null),
   writeLocalKeys: mocks.writeLocalKeys,
 }))
@@ -38,7 +40,10 @@ vi.mock('@/universal-client', () => ({
   ensureDaemonAuth: mocks.ensureDaemonAuth,
   webUniversalClient: {publish: mocks.publish},
 }))
-vi.mock('@remix-run/react', () => ({useNavigate: () => mocks.navigate}))
+vi.mock('@remix-run/react', () => ({
+  useNavigate: () => mocks.navigate,
+  useLoaderData: () => ({requireSignIn: mocks.enterprise}),
+}))
 vi.mock('@seed-hypermedia/client', () => ({createSeedClient: vi.fn()}))
 vi.mock('@shm/shared', () => ({useUniversalAppContext: () => ({origin: 'https://site.example'})}))
 vi.mock('@shm/shared/constants', () => ({WEB_IDENTITY_ORIGIN: ''}))
@@ -51,7 +56,6 @@ vi.mock('@shm/shared/blobs', () => ({
   createProfileAlias: async () => ({cid: 'reverse-profile', data: new Uint8Array()}),
 }))
 vi.mock('@shm/ui/button', () => ({Button: ({children}: React.PropsWithChildren) => <button>{children}</button>}))
-vi.mock('@shm/ui/spinner', () => ({Spinner: () => <span>Loading</span>}))
 vi.mock('@shm/ui/text', () => ({SizableText: ({children}: React.PropsWithChildren) => <span>{children}</span>}))
 vi.mock('lucide-react', () => ({XCircle: () => null}))
 
@@ -64,6 +68,8 @@ describe('sign-in destination navigation', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.enterprise = false
+    mocks.returnUrl = '/private?view=recent#notes'
     vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true)
     // jsdom cannot navigate documents; observe the navigation boundary instead.
     const location = {
@@ -124,6 +130,28 @@ describe('sign-in destination navigation', () => {
     })
     expect(container.textContent).toContain("We couldn't sign you in")
     expect(mocks.replace).not.toHaveBeenCalled()
+  })
+
+  it('uses one stable enterprise loader while the site session is pending', async () => {
+    mocks.enterprise = true
+    mocks.ensureDaemonAuth.mockImplementation(() => new Promise(() => {}))
+    await act(async () => root.render(<AuthCallbackRoute />))
+    expect(container.querySelectorAll('[role="status"]')).toHaveLength(1)
+    expect(container.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe('Signing in')
+    expect(container.textContent).toBe('')
+    expect(mocks.replace).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['/hm/sign-in?next=%2Fnotes%3Fview%3Drecent%23section', '/notes?view=recent&vault_success=welcome-back#section'],
+    ['/hm/sign-in?next=https%3A%2F%2Fexternal.example', '/?vault_success=welcome-back'],
+  ])('finishes an older enterprise return URL directly and safely: %s', async (returnUrl, destination) => {
+    mocks.enterprise = true
+    mocks.returnUrl = returnUrl
+    mocks.ensureDaemonAuth.mockResolvedValue(undefined)
+    await act(async () => root.render(<AuthCallbackRoute />))
+    expect(mocks.replace).toHaveBeenCalledWith(destination)
+    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 
   it('restores a hosting dialog without discarding it during navigation', async () => {

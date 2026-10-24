@@ -1,5 +1,14 @@
 import {json, LinksFunction, LoaderFunctionArgs} from '@remix-run/node'
-import {isRouteErrorResponse, Links, Meta, Outlet, Scripts, useRouteLoaderData, useRouteError} from '@remix-run/react'
+import {
+  isRouteErrorResponse,
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  useRouteLoaderData,
+  useRouteError,
+  useLocation,
+} from '@remix-run/react'
 import * as Sentry from '@sentry/remix'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {
@@ -22,6 +31,10 @@ import {FileDropGuard} from '@shm/ui/file-drop-guard'
 import '@shm/editor/editor-styles'
 import sonnerStyles from 'sonner/dist/styles.css?url'
 import {Providers} from './providers'
+import {useLocalKeyPairLoaded} from './auth'
+import {isOpenPath} from './require-sign-in'
+import {requireSignInEnabled} from './require-sign-in.server'
+import {SignInLoading} from '@shm/ui/spinner'
 import slashMenuStyles from './slash-menu.css?url'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
@@ -68,7 +81,7 @@ export async function loader({request}: LoaderFunctionArgs) {
     process.env.SEED_HOST_URL ||
     process.env.VITE_SEED_HOST_URL ||
     (isProd ? 'https://host.seed.hyper.media' : SEED_HOST_URL)
-  const result = {isProd, enableStats, domain, siteHost, seedHostUrl}
+  const result = {isProd, enableStats, domain, siteHost, seedHostUrl, requireSignIn: requireSignInEnabled()}
 
   return json(result)
 }
@@ -189,5 +202,11 @@ export function ErrorBoundary({}: {}) {
 // Sentry HOC is safe here - withSentry returns a component, doesn't invoke hooks
 // The wrapped component will be used by Remix for routing
 export default withSentry(function App() {
+  const data = useRouteLoaderData<typeof loader>('root')
+  const {pathname} = useLocation()
+  const identityLoaded = useLocalKeyPairLoaded()
+  // Private pages must not paint a signed-out header or start account queries
+  // before the persisted identity is ready after the callback's full navigation.
+  if (data?.requireSignIn && !isOpenPath(pathname) && !identityLoaded) return <SignInLoading />
   return <Outlet />
 })

@@ -1,3 +1,6 @@
+import {json} from '@remix-run/node'
+import {requireSignInEnabled} from '@/require-sign-in.server'
+import {safeNextPath, SIGN_IN_PATH} from '@/require-sign-in'
 import {keyPairStore} from '@/auth'
 import * as authSession from '@/auth-session'
 import {
@@ -11,13 +14,13 @@ import {queryAPI} from '@/models'
 import {saveWebDomainReturn, setWebDomainRequest, takeWebDomainReturn} from '@/models/domain-publishing'
 import {getSiteMembershipStatus, processPendingIntent, type SiteMembershipStatus} from '@/pending-intent'
 import {ensureDaemonAuth, webUniversalClient} from '@/universal-client'
-import {useNavigate} from '@remix-run/react'
+import {useLoaderData, useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {useUniversalAppContext} from '@shm/shared'
 import * as blobs from '@shm/shared/blobs'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
-import {Spinner} from '@shm/ui/spinner'
+import {SignInLoading, Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {XCircle} from 'lucide-react'
 import {useEffect, useState} from 'react'
@@ -25,7 +28,13 @@ import {useEffect, useState} from 'react'
 const inFlightAuthCallbacks = new Map<string, Promise<void>>()
 const completedAuthCallbacks = new Set<string>()
 
+/** Exposes only the deployment mode needed to preserve the public callback UI. */
+export function loader() {
+  return json({requireSignIn: requireSignInEnabled()})
+}
+
 export default function AuthCallbackRoute() {
+  const {requireSignIn} = useLoaderData<typeof loader>()
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const {origin, originHomeId} = useUniversalAppContext()
@@ -171,7 +180,11 @@ export default function AuthCallbackRoute() {
           successVariant = isReturning ? 'welcome-back' : 'login'
         }
 
-        const nextUrl = new URL(targetUrl, window.location.origin)
+        let nextUrl = new URL(targetUrl, window.location.origin)
+        // Also finish requests started before direct enterprise return URLs were introduced.
+        if (requireSignIn && !hostingReturn && intentResult.type === 'none' && nextUrl.pathname === SIGN_IN_PATH) {
+          nextUrl = new URL(safeNextPath(nextUrl.searchParams.get('next')), window.location.origin)
+        }
         if (hostingReturn) {
           setWebDomainRequest(hostingReturn)
           successVariant = null
@@ -208,7 +221,9 @@ export default function AuthCallbackRoute() {
     })
     inFlightAuthCallbacks.set(callbackKey, authPromise)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin, navigate])
+  }, [origin, navigate, requireSignIn])
+
+  if (requireSignIn && !error) return <SignInLoading />
 
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">

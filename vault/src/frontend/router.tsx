@@ -1,3 +1,4 @@
+import {SignInLoading} from '@shm/ui/spinner'
 import {useEffect, useRef, type FormEvent} from 'react'
 import {createBrowserRouter, Outlet, useLocation} from 'react-router-dom'
 import {Divider} from './components/Divider'
@@ -245,7 +246,8 @@ const VAULT_REFRESH_POLL_MS = 15_000
 /** Application shell shared across all vault routes. */
 export function RootLayout() {
   const actions = useActions()
-  const isUnlocked = !!useAppState().decryptedDEK
+  const {decryptedDEK, inviteOnly, sessionChecked} = useAppState()
+  const isUnlocked = !!decryptedDEK
 
   useEffect(() => {
     void actions.checkSession().catch((error) => {
@@ -269,6 +271,8 @@ export function RootLayout() {
     return () => window.clearInterval(intervalId)
   }, [isUnlocked, actions])
 
+  if (inviteOnly && !sessionChecked) return <SignInLoading />
+
   return (
     <>
       <Header />
@@ -291,16 +295,17 @@ function InviteViaSiteSignIn() {
   useEffect(() => {
     window.location.replace(target)
   }, [target])
-  return (
-    <div className="w-full max-w-lg">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-left text-xl">Opening your invitation</CardTitle>
-          <CardDescription className="text-left">Taking you to the site to set up your account…</CardDescription>
-        </CardHeader>
-      </Card>
-    </div>
-  )
+  return <SignInLoading />
+}
+
+/** Starts the site delegation before unlocking an enterprise vault opened directly. */
+function EnterpriseSiteSignIn() {
+  const {webBaseUrl} = useAppState()
+  useEffect(() => {
+    const site = webBaseUrl || window.location.origin
+    window.location.replace(new URL('/hm/sign-in', site).toString())
+  }, [webBaseUrl])
+  return <SignInLoading />
 }
 
 function RootView() {
@@ -318,6 +323,10 @@ function RootView() {
 
   if (!sessionChecked) {
     return null
+  }
+
+  if (inviteOnly && !delegationRequest && !vaultConnectionRequest && !returnToPath && !inviteCode) {
+    return <EnterpriseSiteSignIn />
   }
 
   if (session?.authenticated) {
