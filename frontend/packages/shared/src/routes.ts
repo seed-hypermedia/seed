@@ -4,7 +4,7 @@ import {
   unpackedHmIdSchema,
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 import type {SiteProfileTab, ViewRouteKey} from './utils/entity-id-url'
 import {
   activityFilterToSlug,

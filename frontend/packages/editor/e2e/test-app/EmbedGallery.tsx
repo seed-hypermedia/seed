@@ -393,7 +393,13 @@ function DocumentToolsReview() {
     <DocumentTools
       id={documentId}
       currentRoute={route}
-      currentPanel={'panel' in route ? route.panel : undefined}
+      currentPanel={
+        route.key === 'document'
+          ? route.panel?.key === 'comments'
+            ? {...route.panel, id: route.panel.id ?? route.id}
+            : route.panel
+          : undefined
+      }
       commentsCount={4}
       collabsCount={12}
       citationsCount={1}

@@ -20,7 +20,7 @@ import {encode as cborEncode} from '@ipld/dag-cbor'
 import {createNotificationVerificationEmail} from '@shm/emails/notifier'
 import {NOTIFY_TRUSTED_PREVALIDATORS} from '@shm/shared/constants'
 import {base58btc} from 'multiformats/bases/base58'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 
 const emailPrevalidationSchema = z.object({
   email: z.string(),

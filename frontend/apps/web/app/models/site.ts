@@ -9,7 +9,7 @@ import {getDocAttributeChanges} from '@shm/shared/utils/document-changes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {getNavigationChanges} from '@shm/shared/utils/navigation-changes'
 import {useMutation} from '@tanstack/react-query'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 
 const siteConfigSchema = z.object({
   registeredAccountUid: z.string().nullish(),

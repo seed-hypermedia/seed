@@ -1,7 +1,7 @@
 import {mkdirSync, readFileSync, renameSync, statSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {isIP} from 'node:net'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 import starter from './browser-blocklist-starter.json'
 
 /** Maximum decoded bytes accepted from a threat feed. */

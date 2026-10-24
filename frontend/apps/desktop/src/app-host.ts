@@ -1,6 +1,6 @@
 import {hmId, queryKeys} from '@shm/shared'
 import {SEED_HOST_URL} from '@shm/shared/constants'
-import z from 'zod/v3'
+import z from 'zod'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
 import {appStore} from './app-store.mts'

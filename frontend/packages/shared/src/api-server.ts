@@ -5,7 +5,7 @@ import {APIParams, APIQueries, APIActions} from './api'
 import {deserializeQueryString} from './input-querystring'
 import type {GRPCClient} from './grpc-client'
 import type {QueryDaemonFn} from './api-types'
-import {zodToJsonSchema} from 'zod-to-json-schema'
+import {z} from 'zod'
 
 export type ApiResponse = {
   status: number
@@ -79,33 +79,19 @@ function listAPISchemaDefinitions(): APISchemaDefinition[] {
   return apiSchemaDefinitionsCache
 }
 
-function createJSONSchema(definitionName: string, schema: any, key: string, direction: 'input' | 'output') {
-  const jsonSchema = withoutNumberCoercionWarnings(() =>
-    zodToJsonSchema(schema, {
-      name: definitionName,
-    }),
-  )
+function createJSONSchema(definitionName: string, schema: z.ZodType, key: string, direction: 'input' | 'output') {
+  const metadata = z.registry<{id: string}>()
+  metadata.add(schema, {id: definitionName})
+  const jsonSchema = z.toJSONSchema(schema, {
+    target: 'draft-7',
+    metadata,
+    // Describe accepted wire values, as the previous converter did, including
+    // schemas that transform strings or numbers during parsing.
+    io: 'input',
+    unrepresentable: 'any',
+  })
   applyJSONSchemaOverrides(jsonSchema, key, definitionName, direction)
   return jsonSchema
-}
-
-function withoutNumberCoercionWarnings<T>(buildSchema: () => T): T {
-  const originalWarn = console.warn
-  console.warn = (...args: any[]) => {
-    if (
-      args[0] === 'Value must be a number or a string that can be converted to a number' &&
-      typeof args[1] === 'undefined'
-    ) {
-      return
-    }
-    originalWarn(...args)
-  }
-
-  try {
-    return buildSchema()
-  } finally {
-    console.warn = originalWarn
-  }
 }
 
 function applyJSONSchemaOverrides(jsonSchema: any, key: string, definitionName: string, direction: 'input' | 'output') {
@@ -114,7 +100,7 @@ function applyJSONSchemaOverrides(jsonSchema: any, key: string, definitionName: 
     return
   }
 
-  // zod-to-json-schema cannot infer the binary shape from z.custom refinements.
+  // JSON Schema cannot infer the binary shape from z.custom refinements.
   if (key === 'PublishBlobs' && direction === 'input') {
     const blobProperties = rootDefinition.properties?.blobs?.items?.properties
     if (blobProperties) {

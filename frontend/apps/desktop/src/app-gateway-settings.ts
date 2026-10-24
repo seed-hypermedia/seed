@@ -1,6 +1,6 @@
 import {DEFAULT_GATEWAY_URL, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import z from 'zod/v3'
+import z from 'zod'
 import {appInvalidateQueries} from './app-invalidation'
 import {handleNotifyServiceHostChanged} from './app-notification-read-state'
 import {appStore} from './app-store.mts'

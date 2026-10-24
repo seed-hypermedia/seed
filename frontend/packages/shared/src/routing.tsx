@@ -1,7 +1,7 @@
 import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import {createContext, useContext} from 'react'
-import z from 'zod/v3'
+import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
 import type {NavRoute} from './routes'
 import type {LanguagePack} from './translation'

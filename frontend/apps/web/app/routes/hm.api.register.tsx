@@ -3,7 +3,7 @@ import {parseRequest} from '@/request'
 import {getConfig, writeConfig} from '@/site-config.server'
 import type {ActionFunction} from '@remix-run/node'
 import {json} from '@remix-run/node'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 
 const registerSchema = z.object({
   registrationSecret: z.string(),

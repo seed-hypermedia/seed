@@ -4,7 +4,7 @@ import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'
 import type {WebContents} from 'electron'
 import {randomUUID} from 'node:crypto'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 import {localizeBrowserArchiveImages} from './browser-archive-images'
 
 const documentToken = z.string().min(1).max(100)

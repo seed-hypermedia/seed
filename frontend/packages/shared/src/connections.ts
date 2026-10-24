@@ -47,5 +47,5 @@ export function groupDocumentConnections(
     const key = JSON.stringify([source.id, sourceId.blockRef])
     if (!group.sources.has(key)) group.sources.set(key, {id: sourceId, citation, isComment})
   }
-  return [...groups.values()].map(({id, sources}) => ({id, sources: [...sources.values()]}))
+  return Array.from(groups.values()).map(({id, sources}) => ({id, sources: Array.from(sources.values())}))
 }

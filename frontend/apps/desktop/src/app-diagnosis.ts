@@ -2,7 +2,7 @@ import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {appendFile, exists, mkdirp, move, rmdir, writeFile} from 'fs-extra'
 import open from 'open'
 import {dirname} from 'path'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
 
