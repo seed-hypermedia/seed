@@ -62,7 +62,7 @@ An `EDITOR` role is reserved in the proto as a comment and does not exist in dat
 
 ## Path scope <!-- id:Td0aihIG -->
 
-Scope is by path segment, always recursive. A capability at `/team` covers `/team`, `/team/notes` and `/team/notes/2026`. It does not cover `/teammates`, because matching splits on `/`. The `no_recursive` request flag and the `is_exact` response field exist in the API but do nothing. The daemon rejects `no_recursive` and always reports `is_exact` as false. The HM26 direction has dropped non-recursive grants altogether; see the end of this page. <!-- id:YTKYFw57 -->
+Scope is by path segment, always recursive. A capability at `/team` covers `/team`, `/team/notes` and `/team/notes/2026`. It does not cover `/teammates`, because matching splits on `/`. The `no_recursive` request flag and the `is_exact` response field exist in the API but do nothing. The daemon rejects `no_recursive` and always reports `is_exact` as false. The proposed direction has dropped non-recursive grants altogether; see the end of this page. <!-- id:YTKYFw57 -->
 
 ## The authorization rule <!-- id:JxRtSA4- -->
 
@@ -184,7 +184,7 @@ An external agent using the seed-cli skill should hold its own key and get a sco
 Design direction as of September 2026. None of it is code: <!-- id:kMkQmM7X -->
   - **Revocation.** The `RevokeCapability` RPC is a TODO in the proto and a shaped project in the team's plans. Until it exists, the mitigation is to grant narrowly (WRITER on a path, to a key you control) and to treat a lost delegate key as permanent. <!-- id:78IJ4eZp -->
   - **EDITOR and read roles.** Reserved in the proto. The sharing-permissions product work (August 2026) asks for read grants, share links and invitations, which the current roles cannot express. <!-- id:bp6cUIfn -->
-  - **HM26.** The node and resource redesign drops path-scoped grants in favour of invitations at the space level, discontinues the non-recursive flag, treats capabilities as a special category of resource, and wants a group concept so one grant can name several keys. Existing sub-document grants would not migrate. See [Roadmap](./roadmap.md). <!-- id:EhB-HPsr -->
+  - **Resource model proposal.** The node and resource redesign drops path-scoped grants in favour of invitations at the space level, discontinues the non-recursive flag, treats capabilities as a special category of resource, and wants a group concept so one grant can name several keys. Existing sub-document grants would not migrate. See [Roadmap](./roadmap.md). <!-- id:EhB-HPsr -->
   - **Trust beyond grants.** Team essays describe contextual trust rooted in communities, with no global PGP-style web. None of it is specified yet. <!-- id:K3H2OcX3 -->
 
 # See also <!-- id:UsfnKGWX -->

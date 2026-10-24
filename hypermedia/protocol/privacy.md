@@ -80,7 +80,7 @@ The [Seed API](../build/web-api.md) on a site returns private resources only to 
 
 # Where this is going <!-- id:KkHkvjI3 -->
 
-As of September 2026 the direction is Phase 2 of private documents: read and write grants on private documents, inheritance for children of private documents, anyone-with-the-link access, and invitations to people who have no account yet. The HM26 node redesign gives private documents optional names instead of random paths. The team has also stated that without encryption, reading and syncing are the same permission. That shapes how sync permissions will be expressed. See [Roadmap](./roadmap.md) and [Permissions](./permissions.md). <!-- id:LB8RpOVO -->
+As of September 2026 the direction is Phase 2 of private documents: read and write grants on private documents, inheritance for children of private documents, anyone-with-the-link access, and invitations to people who have no account yet. The proposed node redesign gives private documents optional names instead of random paths. The team has also stated that without encryption, reading and syncing are the same permission. That shapes how sync permissions will be expressed. See [Roadmap](./roadmap.md) and [Permissions](./permissions.md). <!-- id:LB8RpOVO -->
 
 # See also <!-- id:ZEH1bUk9 -->
 
