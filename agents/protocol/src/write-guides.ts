@@ -152,7 +152,97 @@ Use \`options.action: "update"\` at the existing document address. Supplying \`c
 
 ## Apps
 
-A document can be an app: a self-contained web page that Seed opens in place of the document body, sandboxed, and that syncs to anyone the document is shared with. When someone asks for an app, a game, a tool or a widget, write the HTML under \`~/memory/apps/<name>/index.html\` (prefer one self-contained HTML file for web and desktop compatibility), then write a document with \`options.app\` naming that folder or file. The folder is published with the document and its \`app\` attribute points at it. The document's \`hm://\` URL opens the full app view and is the link to give people. App embeds inside chat are temporarily disabled; do not emit widget fences. Never offer a \`~/memory\` path as a link: it is private to you. Write to the same address again with \`options.app\` (and \`options.action: "update"\`) to publish a new revision.
+Read \`~/tools/write/apps\` before building a document app. Durable app data uses schema-bound Seed resources; create the data model and resources before the HTML.
+
+## Typed documents
+
+Any metadata key is allowed: \`options.metadata\` is merged into the document's metadata as given (\`{surname: "Smith"}\` becomes a \`surname\` attribute). Three keys bind documents to Hypermedia schemas:
+
+- \`attributesSchema\` — the type this document conforms to: the \`hm://\` URL of a schema document (or an \`ipfs://\` schema CID) whose struct describes the document's attributes.
+- \`childAttributesSchema\` — the type every direct child of this document conforms to, unless a child sets its own \`attributesSchema\`.
+- \`schemaDefinition\` — this document defines a type: the \`ipfs://<cid>\` of a schema blob (publish it first with \`write ipfs://\` and \`options.schema: "schema"\`; see \`~/tools/write/ipfs\`).
+
+Conformance is advisory: a document that violates its type still publishes, and the result says so beside the id — \`schema\` ({schema, via, required, missing, violations}) and \`warnings\`, one line per violation (a \`schemaDefinition\` that is not a valid schema warns too). A \`dryRun\` reports the same, so check before publishing. A \`read\` of a typed document returns the same \`schema\` block.
+
+\`\`\`json
+{"address":"hm://ACCOUNT_UID/people/bob","content":"Bob is a person.","options":{"name":"Bob","metadata":{"surname":"Smith","born":"1990-01-01","attributesSchema":"hm://ACCOUNT_UID/types/person"}},"dryRun":true}
+\`\`\`
+
+Every hm:// link in document content is resolved before publishing. Use \`options.skipLinkCheck: true\` only when a linked resource is about to be created. Read the resulting document before citing block-level links because publishing can change block IDs.`,
+  },
+  apps: {
+    summary: 'Build schema-first apps backed by Seed resources, then publish and test their UI.',
+    markdown: `# Building apps with Seed data
+
+**Default: model first, resources second, UI third.** A request such as “build me a task tracker” means a working app backed by Seed data, not a browser-local demo. Use existing types and collections where suitable. Stateless calculators need no invented schema; local-only primary data requires an explicit user request.
+
+1. Infer the entities, fields and interactions from the user's specifications. Identify the intended data owner/space and visibility using the current context. Distinguish a shared collection from per-user collections. A selected viewer is the signer, not automatically the data owner. Verify write authority for the intended user(s); do not ship a collection only the authoring agent can edit. If required authority is unavailable, explain the specific missing access rather than substituting local storage or creating broad capabilities.
+2. Read ~/tools/write/ipfs. Publish each needed HM schema with write ipfs:// and options.schema: "schema"; bind the returned CID to a type document via metadata.schemaDefinition. These are Hypermedia schemas (type/properties/value/required), not JSON Schema. Reuse existing schemas without overwriting them.
+3. Read ~/tools/write/documents. Create required parent documents, then a data collection with childAttributesSchema pointing to the type document. Store each independently editable record as a document with attributesSchema, structured metadata fields and optional body content. Do not pack the whole database into a JSON string, one localStorage entry or a comment thread. Schema conformance is advisory in today's document API: fix dry-run/read-back schema warnings before calling it valid.
+4. Put the real collection/type HM URLs in app document metadata (for example dataRoot and taskType). Build the HTML against these resources through seed.directory, seed.resource and seed.publishDocument. Keep the URLs stable across app revisions and preserve existing records. Respect collection visibility and runtime protocol capabilities; do not silently publish private records publicly. UI permission approval is separate from having protocol write authority.
+5. Exercise create → read → edit → read-back against the actual target, then reopen with local app state empty. Verify the same record through an ordinary Seed document/attributes view. Test deletion/archive and denied/error states where offered. A second host reading the same resource is sync evidence; browser refresh alone is not. Report which checks ran. Never report local state as Seed persistence, and never fall back to local-only saves when permission is denied or Seed is unavailable.
+
+Local storage (including seed.storage) is optional for filters, theme, dismissed tips and temporary unsaved drafts. Durable tasks, notes, inventory and progress belong in Seed resources. Migrating an older local-only app requires an explicit import: preserve the original data until published records are read back successfully; do not discard or silently upload existing local private data.
+
+## Example: task schema and collection
+
+Adapt the fields/statuses to the requested tracker. Publish this schema with options.schema: "schema", then a type document at hm://DATA_OWNER/types/task with schemaDefinition: "ipfs://<returned CID>". Create parents first. Create hm://DATA_OWNER/tasks with childAttributesSchema: "hm://DATA_OWNER/types/task"; choose its privacy deliberately. Bind the app's metadata.dataRoot and metadata.taskType to those real URLs. DATA_OWNER is the intended data space, not a guessed viewer or agent account.
+
+\`\`\`json
+{"type":"hm://hyper.media/struct","properties":{"name":{"value":{"type":"hm://hyper.media/string"},"required":true},"status":{"value":{"anyOf":["todo","doing","done","archived"]},"required":true},"attributesSchema":{"value":{"type":"hm://hyper.media/url"},"required":true}}}
+\`\`\`
+
+The following data adapter uses the bridge's real protobuf change shapes. Pass the configured collection/type URLs and, when required, the appropriate writer capability CID for the selected viewer. Create parents and verify access during setup; never embed a secret or an agent signing key. Get configuration by reading the app document returned by seed.context().document. Use the initial resource only for configuration; mutable task reads use unversioned HM URLs.
+
+\`\`\`js
+async function createTaskData(seed, {dataRoot, taskType, capability}) {
+  const root = await seed.resource(dataRoot)
+  if (root.type !== 'document') throw new Error('Task collection is unavailable')
+  const collection = root.id
+  const path = root.document.path
+  const visibility = root.document.visibility === 'PRIVATE' ? 2 : 1
+  const statuses = ['todo', 'doing', 'done', 'archived']
+  return {
+    async list() {
+      const rows = await seed.directory(dataRoot)
+      return rows.filter(row => row.metadata.attributesSchema === taskType)
+    },
+    async create(name) {
+      name = name.trim()
+      if (!name) throw new Error('A task needs a name')
+      const taskPath = path + '/task-' + crypto.randomUUID()
+      const result = await seed.publishDocument({
+        account: collection.uid, path: taskPath, visibility, capability,
+        changes: Object.entries({name, status: 'todo', attributesSchema: taskType}).map(([key, value]) => ({
+          op: {case: 'setMetadata', value: {key, value}},
+        })),
+      })
+      return seed.resource(result.document)
+    },
+    async setStatus(taskUrl, status) {
+      if (!statuses.includes(status)) throw new Error('Invalid task status')
+      const current = await seed.resource(taskUrl)
+      if (current.type !== 'document' || current.id.uid !== collection.uid ||
+          current.document.path.slice(0, current.document.path.lastIndexOf('/')) !== path ||
+          current.document.metadata.attributesSchema !== taskType) throw new Error('Not a task in this collection')
+      const doc = current.document
+      await seed.publishDocument({
+        account: current.id.uid, path: doc.path,
+        baseVersion: doc.version, genesis: doc.genesis, generation: doc.generationInfo?.generation,
+        visibility: doc.visibility === 'PRIVATE' ? 2 : 1, capability,
+        changes: [{op: {case: 'setMetadata', value: {key: 'status', value: status}}}],
+      })
+      return seed.resource(taskUrl)
+    },
+  }
+}
+\`\`\`
+
+Use setStatus(taskUrl, "archived") for recoverable removal in this example. Do not recreate a document to edit it: preserve its genesis/generation and use its current baseVersion. Show read-only/sign-in/access-denied states rather than suggesting Any signing as a fix for missing writer authority. Disable duplicate submits, preserve input on rejection, and display a saved state only after successful publication/read-back. If read-back or indexing is pending, say so; do not create a second record blindly. For a real task tracker, also link each record to its Seed document with an hm:// anchor so its data remains usable outside the app.
+
+## Apps
+
+A document can be an app: a self-contained web page that Seed opens in place of the document body, sandboxed, and that syncs to anyone the document is shared with. After setting up its data model and Seed resources, write the HTML under \`~/memory/apps/<name>/index.html\` (prefer one self-contained HTML file for web and desktop compatibility), then write a document with \`options.app\` naming that folder or file. The folder is published with the document and its \`app\` attribute points at it. The document's \`hm://\` URL opens the full app view and is the link to give people. App embeds inside chat are temporarily disabled; do not emit widget fences. Never offer a \`~/memory\` path as a link: it is private to you. Write to the same address again with \`options.app\` (and \`options.action: "update"\`) to publish a new revision.
 
 \`\`\`json
 {"address":"hm://SIGNER_UID/apps/counter","content":"A counter you can share.","options":{"name":"Counter","app":"~/memory/apps/counter","signer":{"publicKey":"SIGNER_UID"}}}
@@ -170,7 +260,7 @@ SDK calls return promises except \`seed.stringify(value)\`, a display-only JSON 
 
 - \`await seed.context()\` → \`{protocol: 1, document: "hm://ACCOUNT/path", version, account: "VIEWER_UID" | null, app: "BUNDLE_CID"}\`. The viewer ID is \`account\`, not \`viewer\`; the document author is not necessarily the viewer.
 - \`await seed.profile()\` → \`{id: "VIEWER_UID", name: "Display name" | null}\`, or \`null\` when signed out. For a greeting, use \`const profile = await seed.profile(); heading.textContent = profile?.name ? "Hello, " + profile.name + "!" : "Hello, friend!"\`. Do not invent a profile schema or treat every SDK error as being signed out; show an error separately.
-- \`await seed.storage.get("key")\` → saved JSON value, or \`null\`. \`await seed.storage.set("key", value)\` saves JSON. State belongs to the viewer and canonical document HMID, persists across code revisions, and is separate for other documents/viewers. **It is saved on this device only: not synced, backed up, encrypted, or shared by this API.** Say "Saved on this device" in the app. Only real HM content writes create synced/shared data. Preserve existing storage keys and migrate deliberately on update. Native \`localStorage\` is unavailable on web and starts fresh on each desktop launch; use the broker for durable state. Saved-data reads require approval. Limits: 64 keys, 128 characters/key, 16 KiB/value.
+- **Optional local UI state only:** \`await seed.storage.get("key")\` → saved JSON value, or \`null\`. \`await seed.storage.set("key", value)\` saves JSON. State belongs to the viewer and canonical document HMID, persists across code revisions, and is separate for other documents/viewers. **It is saved on this device only: not synced, backed up, encrypted, or shared by this API.** Say "Saved on this device" in the app. Only real HM content writes create synced/shared data. Preserve existing storage keys and migrate deliberately on update. Native \`localStorage\` is unavailable on web and starts fresh on each desktop launch; use the broker only for local UI preferences or temporary unsaved drafts. Primary app data belongs in schema-bound Seed resources. Saved-data reads require approval. Limits: 64 keys, 128 characters/key, 16 KiB/value.
 - \`await seed.resource((await seed.context()).document)\` reads the displayed app document after read approval. \`seed.resource("hm://VIEWER_UID/:profile")\` is a compatibility alias for the selected viewer's profile; prefer \`seed.profile()\`.
 - \`await seed.hm.parseMarkdown(markdown)\` returns valid HM block nodes with IDs and annotations. \`seed.hm.validateContent(blockNodes)\` validates structured content; \`seed.hm.unpackHmId(url)\` parses an HM URL. These helpers do not sign or publish.
 
@@ -190,21 +280,7 @@ The same APIs work on web and desktop, subject to those independent approvals:
 
 Use click handlers for actions rather than form submission. Disable Submit while pending, preserve input on errors/denial, and only clear it on success. Calls awaiting trust stay pending until the viewer decides; at most 32 requests may be pending, with 8 MiB per request including binary bytes. Do not try to export keys, read another app's local state, or access parent DOM/cookies. Advanced Any signing includes lasting permission grants and arbitrary signatures. Do not push users toward broad trust to make an app work. Revocation stops further operations and late results; it cannot recall completed signatures, published writes or capabilities already granted. The sandbox does not guarantee data cannot leave through navigation. Verify the rendered app and SDK calls before claiming they work.
 
-## Typed documents
-
-Any metadata key is allowed: \`options.metadata\` is merged into the document's metadata as given (\`{surname: "Smith"}\` becomes a \`surname\` attribute). Three keys bind documents to Hypermedia schemas:
-
-- \`attributesSchema\` — the type this document conforms to: the \`hm://\` URL of a schema document (or an \`ipfs://\` schema CID) whose struct describes the document's attributes.
-- \`childAttributesSchema\` — the type every direct child of this document conforms to, unless a child sets its own \`attributesSchema\`.
-- \`schemaDefinition\` — this document defines a type: the \`ipfs://<cid>\` of a schema blob (publish it first with \`write ipfs://\` and \`options.schema: "schema"\`; see \`~/tools/write/ipfs\`).
-
-Conformance is advisory: a document that violates its type still publishes, and the result says so beside the id — \`schema\` ({schema, via, required, missing, violations}) and \`warnings\`, one line per violation (a \`schemaDefinition\` that is not a valid schema warns too). A \`dryRun\` reports the same, so check before publishing. A \`read\` of a typed document returns the same \`schema\` block.
-
-\`\`\`json
-{"address":"hm://ACCOUNT_UID/people/bob","content":"Bob is a person.","options":{"name":"Bob","metadata":{"surname":"Smith","born":"1990-01-01","attributesSchema":"hm://ACCOUNT_UID/types/person"}},"dryRun":true}
-\`\`\`
-
-Every hm:// link in document content is resolved before publishing. Use \`options.skipLinkCheck: true\` only when a linked resource is about to be created. Read the resulting document before citing block-level links because publishing can change block IDs.`,
+`,
   },
   comments: {
     summary: 'Create comments and replies, then update or delete existing comment records.',

@@ -65,7 +65,8 @@ describe('document app validation', () => {
       scripts: 1,
       runtimeTested: false,
       interactionTested: false,
-      storage: 'device-only',
+      localState: 'device-only',
+      dataPersistenceTested: false,
     })
     expect(checked.sdk.methods).toContain('open')
   })
@@ -91,5 +92,19 @@ describe('document app validation', () => {
     expect(apps.validateDocumentApp(bundle('<script>localStorage.getItem("x")</script>')).warnings[0]).toContain(
       'device only',
     )
+  })
+  test('warns about broker-local state without claiming it validates the app data layer', () => {
+    const checked = apps.validateDocumentApp(
+      bundle('<script src="/.seed/client.js"></script><script>seed.storage.set("tasks", [])</script>'),
+    )
+    expect(checked.warnings).toContain(
+      'Local state is device only. Store durable app data in schema-bound Seed resources; reserve seed.storage for UI preferences or temporary unsaved drafts. Read ~/tools/write/apps. Static validation cannot verify persistence.',
+    )
+    expect(checked.dataPersistenceTested).toBe(false)
+    const connected = apps.validateDocumentApp(
+      bundle('<script src="/.seed/client.js"></script><script>seed.publishDocument({})</script>'),
+    )
+    expect(connected.dataPersistenceTested).toBe(false)
+    expect(connected.warnings).toEqual([])
   })
 })

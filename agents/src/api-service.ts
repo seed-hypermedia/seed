@@ -12795,7 +12795,7 @@ function withAppResult(result: Record<string, unknown>, folder: WriteAppFolder |
               ? 'Dry run: this bundle has not been published. Proposed document: [Title]('
               : 'The document now opens as the app in Seed and syncs to anyone it is shared with. Link it in your reply as [Title](') +
             id +
-            '); apps open in the full document view. Chat app embeds are temporarily disabled. Scripts were syntax-checked, but the app was not opened or interaction-tested by this tool. State in seed.storage stays on this device; only app code syncs. Use seed.open(hmUrl) or ordinary hm:// anchors for content links. Check seed.runtime() in the target host before relying on newer SDK methods. Write to the same address with options.app again to publish a new revision.',
+            '); apps open in the full document view. Chat app embeds are temporarily disabled. Scripts were syntax-checked, but the app was not opened or interaction-tested by this tool. Durable app data must use schema-bound Seed resources configured before the UI (read ~/tools/write/apps). This tool has not verified data persistence: test create/read/update and reopen with local state empty. seed.storage is only for optional local UI preferences or temporary drafts; it does not sync. Use seed.open(hmUrl) or ordinary hm:// anchors for content links. Check seed.runtime() in the target host before relying on newer SDK methods. Write to the same address with options.app again to publish a new revision.',
         }
       : {}),
   }
@@ -14342,7 +14342,7 @@ export async function executeWriteVerb(
     // the making, and the model that just wrote it is the one that needs to know the next step.
     const appHint = /\.html?$/i.test(entry.path)
       ? context.publishEnabled
-        ? ` The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Publish it as a document app now: write hm://<your signing account>/apps/<name> with options.app: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link. Do not link the ~/memory path.`
+        ? ` The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Before publishing, follow ~/tools/write/apps: set up schemas and Seed resources for durable user data, then connect the UI. Publish it as a document app: write hm://<your signing account>/apps/<name> with options.app: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link. Do not link the ~/memory path.`
         : ' The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Publishing it as a document app needs the Publish grant.'
       : ''
     return {summary: `Wrote ${entry.path} (${entry.size} bytes).${appHint}`, ...entry}

@@ -190,6 +190,7 @@ describe('read verb', () => {
       'triggers',
       'ipfs',
       'documents',
+      'apps',
       'comments',
       'capabilities',
       'contacts',

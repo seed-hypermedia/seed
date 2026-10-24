@@ -6286,6 +6286,8 @@ describe('api service', () => {
         bundle: first.app,
         syntax: 'passed',
         target: 'desktop',
+        dataPersistenceTested: false,
+        localState: 'device-only',
         runtimeTested: false,
         interactionTested: false,
       })

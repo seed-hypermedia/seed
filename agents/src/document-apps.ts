@@ -24,8 +24,10 @@ export function validateDocumentApp(files: IpfsDirectoryFile[], target: unknown 
         `App script syntax error in ${filename}: ${error instanceof Error ? error.message : String(error)}`,
       )
     }
-    if (/\b(localStorage|sessionStorage|indexedDB)\b|document\.cookie/.test(source))
-      warnings.add('Use seed.storage for portable viewer/document state. It is saved on this device only, not synced.')
+    if (/\b(localStorage|sessionStorage|indexedDB)\b|document\.cookie|\bseed\s*\.\s*storage\b/.test(source))
+      warnings.add(
+        'Local state is device only. Store durable app data in schema-bound Seed resources; reserve seed.storage for UI preferences or temporary unsaved drafts. Read ~/tools/write/apps. Static validation cannot verify persistence.',
+      )
   }
   for (const file of files) {
     const source = new TextDecoder().decode(file.content)
@@ -85,7 +87,8 @@ export function validateDocumentApp(files: IpfsDirectoryFile[], target: unknown 
     target,
     runtimeTested: false,
     interactionTested: false,
-    storage: 'device-only',
+    localState: 'device-only',
+    dataPersistenceTested: false,
     sdk: {version: DOCUMENT_APP_SDK_VERSION, methods: [...DOCUMENT_APP_METHODS]},
     warnings: [...warnings],
   }
