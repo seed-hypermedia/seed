@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {
   pagePermissionScopes,
+  pageReadRequest,
   pagePermissionStorageKey,
   createDocumentPageAccess,
   readPagePermissionGrants,
@@ -88,5 +89,23 @@ describe('page permission rules', () => {
   it('offers no misleading narrow scope for unrecognized signatures or unbounded reads', () => {
     expect(pagePermissionScopes({...comment, type: 'raw'})).toEqual(['once', 'all'])
     expect(pagePermissionScopes({kind: 'read', type: 'Query', title: '', details: {}})).toEqual(['once', 'all'])
+  })
+  it('derives query space only from bounded inclusions or restrictive predicates', () => {
+    expect(pageReadRequest('Query', {includes: [{space: 'alice'}, {space: 'alice'}]}).site).toBe('alice')
+    for (const includes of [[], [{space: ''}], [{space: 'alice'}, {space: 'bob'}]])
+      expect(pageReadRequest('Query', {includes}).site).toBeUndefined()
+    expect(
+      pageReadRequest('QueryDocuments', {
+        filter: {or: {filters: [{spaceMatch: {space: 'alice'}}, {spaceMatch: {space: 'alice'}}]}},
+      }).site,
+    ).toBe('alice')
+    for (const filter of [
+      undefined,
+      {},
+      {not: {filter: {spaceMatch: {space: 'alice'}}}},
+      {or: {filters: [{spaceMatch: {space: 'alice'}}, {exists: {key: 'name'}}]}},
+      {spaceMatch: {space: 'alice'}, or: {filters: []}},
+    ])
+      expect(pageReadRequest('QueryDocuments', {filter}).site).toBeUndefined()
   })
 })

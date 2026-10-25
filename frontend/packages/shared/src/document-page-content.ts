@@ -7,6 +7,8 @@ import {
   HMPublishBlobsInputSchema,
   HMRequestSchema,
   type HMDocument,
+  type HMQueryResult,
+  type HMQueryDocumentsOutput,
   type HMSigner,
   type HMRequest,
 } from '@seed-hypermedia/client/hm-types'
@@ -130,9 +132,15 @@ export async function documentPageContent({
     authorized.throwIfAborted()
     return result
   }
+  const pageSpace = hm.unpackHmId(context.document)?.uid
+  const authorizeRead = async (key: HMRequest['key'], input: unknown) => {
+    const permission = pageReadRequest(key, input)
+    if (!pageSpace || permission.site !== pageSpace) await access.authorize(permission, authorized)
+    authorized.throwIfAborted()
+  }
   const request = (async (key: HMRequest['key'], input: HMRequest['input']) => {
     if (key === 'PublishBlobs') return publish(HMPublishBlobsInputSchema.parse(input))
-    await access.authorize(pageReadRequest(key, input), authorized)
+    await authorizeRead(key, input)
     authorized.throwIfAborted()
     const result = await client.request(key, input, {signal: authorized})
     authorized.throwIfAborted()
@@ -143,7 +151,19 @@ export async function documentPageContent({
       const path = resolved.document?.path?.split('/').filter(Boolean) ?? resolved.id?.path ?? []
       const requested = input as {uid: string; path?: string[]}
       if (uid && hm.packBaseId(uid, path) !== hm.packBaseId(requested.uid, requested.path || [])) {
-        await access.authorize(pageReadRequest(key, {uid, path}), authorized)
+        await authorizeRead(key, {uid, path})
+      }
+    }
+    const querySite = pageReadRequest(key, input).site
+    if (key === 'Query' && querySite && result) {
+      for (const item of (result as HMQueryResult).results) {
+        if (item.id.uid !== querySite) await authorizeRead('ResourceMetadata', item.id)
+      }
+    }
+    if (key === 'QueryDocuments' && querySite && result) {
+      for (const item of (result as HMQueryDocumentsOutput).documents || []) {
+        if (item.account !== querySite)
+          await authorizeRead('ResourceMetadata', {uid: item.account, path: item.path?.split('/').filter(Boolean)})
       }
     }
     authorized.throwIfAborted()

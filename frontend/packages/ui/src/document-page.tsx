@@ -93,8 +93,8 @@ function DocumentPageLaunch(props: DocumentPageViewProps) {
           links.
         </p>
         <p className="text-sm">
-          Seed will ask before sharing your account identity, reading content or saved page data, or signing anything.
-          Joining is optional.
+          This page can read content in its own space that you can access. Seed will ask before reading other spaces,
+          sharing your account identity or saved page data, or signing anything. Joining is optional.
         </p>
         <Button onClick={() => setAccepted(true)}>Run page</Button>
       </div>

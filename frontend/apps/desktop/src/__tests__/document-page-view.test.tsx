@@ -193,7 +193,7 @@ describe('DocumentPageView', () => {
     await click('Page permissions')
     expect(window.document.querySelector('[role="dialog"]')?.textContent).toContain('Allow comments on this site')
     expect(window.document.querySelector('[role="dialog"]')?.textContent).toContain('Allow all reading')
-    await click('Reset all to ask')
+    await click('Reset additional permissions')
     expect(window.localStorage.getItem(pagePermissionStorageKey(mocks.account, docId.id))).toBe('[]')
   })
 
@@ -372,6 +372,15 @@ describe('DocumentPageView', () => {
         window.dispatchEvent(new MessageEvent('message', {data, origin, source}))
       })
 
+    mocks.request.mockResolvedValueOnce({type: 'document', document: {account: docId.uid, path: '/tasks'}})
+    await send({seedPage: 1, id: 'own-space', method: 'resource', params: {url: `hm://${docId.uid}/tasks`}})
+    expect(posted).toHaveBeenLastCalledWith(
+      {seedPage: 1, id: 'own-space', result: {type: 'document', document: {account: docId.uid, path: '/tasks'}}},
+      `seed-page://${host}`,
+    )
+    expect(window.document.querySelector('[role="dialog"]')).toBeNull()
+    posted.mockClear()
+
     await send({seedPage: 1, id: 'ctx', method: 'context'})
     expect(posted).not.toHaveBeenCalled()
     await click('Allow once')
@@ -414,7 +423,7 @@ describe('DocumentPageView', () => {
 
     mocks.request.mockResolvedValueOnce({type: 'document', id: docId, document})
     await send({seedPage: 1, id: 'res', method: 'resource', params: {url: docId.id}})
-    await click('Allow once')
+    expect(window.document.querySelector('[role="dialog"]')).toBeNull()
     expect(mocks.request).toHaveBeenCalledWith('Resource', expect.objectContaining({id: docId.id}), expect.anything())
     expect(posted).toHaveBeenLastCalledWith(
       expect.objectContaining({id: 'res', result: expect.anything()}),

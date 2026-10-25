@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {createChangeOps} from '@seed-hypermedia/client'
+import {createChangeOps, unpackHmId} from '@seed-hypermedia/client'
 import {decode, encode} from '@ipld/dag-cbor'
 import {base58btc} from 'multiformats/bases/base58'
 import {createDocumentPageAccess, documentPageContent, DOCUMENT_PAGE_SIGNING_HELPERS} from './document-page-content'
@@ -309,21 +309,19 @@ describe('custom HTML page content and signing', () => {
     expect(publish).toHaveBeenCalledTimes(2)
   })
 
-  it('does not disclose identity, own content or redirect targets without the corresponding read approval', async () => {
+  it('allows its own space but still gates viewer identity and cross-space redirect targets', async () => {
     const {options, approve, request} = await fixture()
     approve.mockResolvedValue('deny')
     for (const method of ['context', 'profile', 'signer.getPublicKey']) {
       await expect(documentPageContent({...options, method, params: {}})).rejects.toThrow('denied')
     }
-    await expect(
-      documentPageContent({...options, method: 'resource', params: {url: options.context.document}}),
-    ).rejects.toThrow('denied')
     expect(request).not.toHaveBeenCalled()
-    approve.mockResolvedValueOnce('resource')
+    await documentPageContent({...options, method: 'resource', params: {url: options.context.document}})
+    expect(approve).toHaveBeenCalledTimes(3)
     request.mockResolvedValueOnce({
       type: 'document',
-      id: {uid: options.context.account, path: ['private']},
-      document: {account: options.context.account, path: '/private'},
+      id: {uid: 'other', path: ['private']},
+      document: {account: 'other', path: '/private'},
     })
     await expect(
       documentPageContent({...options, method: 'resource', params: {url: options.context.document}}),
@@ -335,7 +333,89 @@ describe('custom HTML page content and signing', () => {
     )
     expect(approve.mock.calls.at(-1)?.[0]).toMatchObject({
       kind: 'read',
-      resource: `hm://${options.context.account}/private`,
+      resource: 'hm://other/private',
     })
+  })
+  it('allows same-space documents and bounded queries for another viewer without grants, but keeps signing gated', async () => {
+    const {options, approve, request, content, sign} = await fixture()
+    options.context.document = 'hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/pages/test'
+    approve.mockResolvedValue('deny')
+    for (const [method, params] of [
+      ['resource', {url: 'hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/private-record'}],
+      ['resource', {url: 'hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/:profile'}],
+      [
+        'request',
+        {
+          key: 'ResourceMetadata',
+          input: unpackHmId('hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/types/task'),
+        },
+      ],
+      ['directory', {url: 'hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/tasks', all: true}],
+      [
+        'request',
+        {
+          key: 'QueryDocuments',
+          input: {
+            filter: {
+              and: {
+                filters: [
+                  {spaceMatch: {space: 'z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj'}},
+                  {exists: {key: 'status'}},
+                ],
+              },
+            },
+          },
+        },
+      ],
+    ] as const)
+      await documentPageContent({...options, method, params})
+    expect(approve).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledTimes(5)
+    expect(options.access.snapshot()).toEqual([])
+    options.access.revoke()
+    await documentPageContent({
+      ...options,
+      method: 'resource',
+      params: {url: 'hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/another'},
+    })
+    expect(approve).not.toHaveBeenCalled()
+    for (const [method, params] of [
+      ['resource', {url: `hm://${options.context.account}/private-record`}],
+      ['directory', {url: 'hm://other/tasks'}],
+      ['request', {key: 'Query', input: {includes: []}}],
+      [
+        'request',
+        {
+          key: 'Query',
+          input: {
+            includes: [
+              {space: 'z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj', path: '', mode: 'Children'},
+              {space: 'other', path: '', mode: 'Children'},
+            ],
+          },
+        },
+      ],
+      ['request', {key: 'QueryDocuments', input: {}}],
+      ['comments.create', {content}],
+    ] as const)
+      await expect(documentPageContent({...options, method, params})).rejects.toThrow('denied')
+    expect(sign).not.toHaveBeenCalled()
+  })
+
+  it('checks unexpected cross-space query results before disclosing them and discards revoked reads', async () => {
+    const {options, approve, request} = await fixture()
+    approve.mockResolvedValue('deny')
+    request.mockResolvedValueOnce({results: [{id: {uid: 'other', path: ['private']}}]})
+    await expect(
+      documentPageContent({...options, method: 'directory', params: {url: options.context.document}}),
+    ).rejects.toThrow('denied')
+    expect(approve.mock.calls[0]?.[0]).toMatchObject({site: 'other'})
+    request.mockImplementationOnce(async () => {
+      options.access.revoke()
+      return null
+    })
+    await expect(
+      documentPageContent({...options, method: 'resource', params: {url: options.context.document}}),
+    ).rejects.toThrow('revoked')
   })
 })

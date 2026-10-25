@@ -207,8 +207,11 @@ export function DocumentPagePermissionSettings({
             <h3 className="text-sm font-semibold">
               {kind === 'read' ? 'Reading' : kind === 'sign' ? 'Signing' : 'Publishing'}
             </h3>
+            {kind === 'read' && <p className="text-sm">Reading this page’s own space is allowed by default.</p>}
             {!grants.some((grant) => grant.kind === kind) && (
-              <p className="text-muted-foreground text-sm">Ask every time</p>
+              <p className="text-muted-foreground text-sm">
+                {kind === 'read' ? 'Ask for other reads' : 'Ask every time'}
+              </p>
             )}
             {grants.map(
               (grant, index) =>
@@ -230,7 +233,7 @@ export function DocumentPagePermissionSettings({
           Revoking stops future requests. Data already shared, signatures and published changes cannot be recalled.
         </p>
         <Button variant="outline" onClick={onReset} disabled={!grants.length}>
-          Reset all to ask
+          Reset additional permissions
         </Button>
       </DialogContent>
     </Dialog>

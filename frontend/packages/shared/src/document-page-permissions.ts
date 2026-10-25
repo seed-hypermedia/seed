@@ -4,7 +4,7 @@ import {base58btc} from 'multiformats/bases/base58'
 import {ipldToDagJson} from '@seed-hypermedia/client/dag-json'
 import {HM_SCHEMAS} from '@seed-hypermedia/client/schema-registry.generated'
 import {validate} from '@seed-hypermedia/client/schema-engine'
-import {packBaseId, type HMRequest} from '@seed-hypermedia/client/hm-types'
+import {packBaseId, type HMRequest, type HMDocumentFilter, type HMQuery} from '@seed-hypermedia/client/hm-types'
 
 /** A host-derived request. Pages never choose its kind, type, or permission scope. */
 export type PagePermissionRequest = {
@@ -272,6 +272,18 @@ export function pageSignatureRequest(data: Uint8Array, principal: Uint8Array): P
   }
 }
 
+/** Derive a space only when the query predicate guarantees every result belongs to it. */
+function querySpace(filter?: HMDocumentFilter): string | undefined {
+  if (!filter || Object.keys(filter).length !== 1) return undefined
+  if (filter.spaceMatch) return filter.spaceMatch.space || undefined
+  if (filter.and) return filter.and.filters.map(querySpace).find(Boolean)
+  if (filter.or) {
+    const spaces = filter.or.filters.map(querySpace)
+    return spaces.length && spaces[0] && spaces.every((space) => space === spaces[0]) ? spaces[0] : undefined
+  }
+  return undefined
+}
+
 /** Site scopes are available only for APIs whose read boundary is explicit and enforceable. */
 export function pageReadRequest(key: HMRequest['key'], input: unknown): PagePermissionRequest {
   const object = input as Record<string, unknown> | null
@@ -291,10 +303,21 @@ export function pageReadRequest(key: HMRequest['key'], input: unknown): PagePerm
       kind: 'read',
       type: key,
       title: 'Read an account profile',
+      site: input as string,
       resource: `hm://${input}/:profile`,
       details: input,
     }
-  // Search, citations, comments and generic queries can reveal data beyond their starting site.
+  if (key === 'Query' || key === 'QueryDocuments') {
+    const includes = key === 'Query' ? (input as HMQuery).includes : []
+    const site =
+      key === 'QueryDocuments'
+        ? querySpace((input as {filter?: HMDocumentFilter}).filter)
+        : includes.length && includes[0]?.space && includes.every((include) => include.space === includes[0]!.space)
+          ? includes[0].space
+          : undefined
+    return {kind: 'read', type: key, title: 'Read documents', site, details: input}
+  }
+  // Search, citations and comments can reveal data beyond their starting site.
   return {
     kind: 'read',
     type: key,
