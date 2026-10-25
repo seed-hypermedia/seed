@@ -86,17 +86,17 @@ func isValidIriFilter(s string) bool {
 	return validIriFilterRe.MatchString(s)
 }
 
-func (srv *Server) publicOnlyForIRIGlob(ctx context.Context, iriGlob string) (bool, error) {
-	if !srv.cfg.PublicOnly {
+func (srv *Server) shouldFilterPrivateForIRIGlob(ctx context.Context, iriGlob string) (bool, error) {
+	if !srv.cfg.ServerMode {
 		return false, nil
 	}
 
 	iriRaw := strings.TrimSuffix(iriGlob, "*")
-	return srv.publicOnlyForEntity(ctx, strings.TrimSuffix(iriRaw, "/"))
+	return srv.shouldFilterPrivateForEntity(ctx, strings.TrimSuffix(iriRaw, "/"))
 }
 
-func (srv *Server) publicOnlyForEntity(ctx context.Context, entityID string) (bool, error) {
-	if !srv.cfg.PublicOnly {
+func (srv *Server) shouldFilterPrivateForEntity(ctx context.Context, entityID string) (bool, error) {
+	if !srv.cfg.ServerMode {
 		return false, nil
 	}
 
@@ -485,7 +485,7 @@ WHERE (f.type = 'profile' OR COALESCE(resolved.is_deleted, document_generations.
 // the inner top-N is the outer top-N modulo the few outer-only filters (IRI
 // resolution + GLOB).
 //
-// Args: query, type1, type2, type3, type4, type5, publicOnly, rootDocumentsOnly,
+// Args: query, type1, type2, type3, type4, type5, filterPrivate, rootDocumentsOnly,
 // oversample.
 const keywordSearchHead = `
 WITH RECURSIVE
@@ -762,7 +762,7 @@ const keywordSearchMinOversample = 200
 
 // keywordSearch performs minimal FTS search returning SearchResultMap.
 // This is a standalone function (not Server method) used for hybrid search.
-func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[string]bool, iriGlob string, publicOnly, rootDocumentsOnly bool) (llm.SearchResultMap, error) {
+func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[string]bool, iriGlob string, filterPrivate, rootDocumentsOnly bool) (llm.SearchResultMap, error) {
 	results := make(llm.SearchResultMap)
 	var entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile interface{}
 	supportedType := false
@@ -827,7 +827,7 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 
 		if err := sqlitex.Exec(conn, q(), cb,
 			query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile,
-			publicOnly, rootDocumentsOnly, oversample, rootDocumentsOnly, limit); err != nil {
+			filterPrivate, rootDocumentsOnly, oversample, rootDocumentsOnly, limit); err != nil {
 			return nil, fmt.Errorf("keyword search failed: %w", err)
 		}
 
@@ -841,7 +841,7 @@ func keywordSearch(conn *sqlite.Conn, query string, limit int, contentTypes map[
 
 	if err := sqlitex.Exec(conn, q(), cb,
 		query, entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile,
-		publicOnly, rootDocumentsOnly, oversample, rootDocumentsOnly, iriGlob, limit); err != nil {
+		filterPrivate, rootDocumentsOnly, oversample, rootDocumentsOnly, iriGlob, limit); err != nil {
 		return nil, fmt.Errorf("keyword search failed: %w", err)
 	}
 
@@ -1395,7 +1395,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 	} else {
 		iriGlob = "hm://*"
 	}
-	publicOnly, err := srv.publicOnlyForIRIGlob(ctx, iriGlob)
+
+	filterPrivate, err := srv.shouldFilterPrivateForIRIGlob(ctx, iriGlob)
 	if err != nil {
 		return nil, err
 	}
@@ -1430,13 +1431,13 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		wg.Add(2)
 		go func() {
 			defer wg.Done()
-			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold, publicOnly, rootDocumentsOnly)
+			semanticResults, semanticErr = srv.embedder.SemanticSearch(ctx, query, resultsLmit*3, contentTypes, iriGlob, semanticThreshold, filterPrivate, rootDocumentsOnly)
 		}()
 		go func() {
 			defer wg.Done()
 			keywordErr = srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 				var err error
-				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob, publicOnly, rootDocumentsOnly)
+				keywordResults, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit*3, contentTypes, iriGlob, filterPrivate, rootDocumentsOnly)
 				return err
 			})
 		}()
@@ -1460,7 +1461,8 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Semantic-only search. Any failure is surfaced to the caller since there
 		// is no keyword leg to fall back to.
 		var err error
-		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold, publicOnly, rootDocumentsOnly)
+
+		winners, err = srv.embedder.SemanticSearch(ctx, query, resultsLmit*2, contentTypes, iriGlob, semanticThreshold, filterPrivate, rootDocumentsOnly)
 		if err != nil {
 			return nil, fmt.Errorf("semantic search failed: %w", err)
 		}
@@ -1469,7 +1471,7 @@ func (srv *Server) SearchEntities(ctx context.Context, in *entpb.SearchEntitiesR
 		// Keyword only search:
 		err := srv.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			var err error
-			winners, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit, contentTypes, iriGlob, publicOnly, rootDocumentsOnly)
+			winners, err = keywordSearch(conn, ftsStrKeySearch, resultsLmit, contentTypes, iriGlob, filterPrivate, rootDocumentsOnly)
 			return err
 		})
 		if err != nil {
@@ -2178,7 +2180,8 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 	resp := &entpb.ListEntityMentionsResponse{}
 	var genesisBlobIDs []string
 	var deletedList []string
-	publicOnly, err := srv.publicOnlyForEntity(ctx, in.Id)
+
+	filterPrivate, err := srv.shouldFilterPrivateForEntity(ctx, in.Id)
 	if err != nil {
 		return nil, err
 	}
@@ -2264,7 +2267,7 @@ func (srv *Server) ListEntityMentions(ctx context.Context, in *entpb.ListEntityM
 			})
 
 			return nil
-		}, eid, publicOnly, cursor.BlobID, in.PageSize); err != nil {
+		}, eid, filterPrivate, cursor.BlobID, in.PageSize); err != nil {
 			return err
 		}
 
@@ -2368,7 +2371,7 @@ JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb3 ON pb3.id = blobs.id
 WHERE resource_links.target = :target
 AND structural_blobs.type IN ('Change')
-AND (:publicOnly = 0 OR pb3.id IS NOT NULL)
+AND (:filterPrivate = 0 OR pb3.id IS NOT NULL)
 )
 SELECT
     (SELECT iri FROM redirect_ancestors WHERE depth = 0) AS source_iri,
@@ -2395,7 +2398,7 @@ JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
 WHERE blobs.id %s :blob_id
 AND structural_blobs.type IN ('Comment')
-AND (:publicOnly = 0 OR pb.id IS NOT NULL)
+AND (:filterPrivate = 0 OR pb.id IS NOT NULL)
 GROUP BY source_iri, link_id, target_version, target_fragment
 
 UNION ALL
@@ -2423,7 +2426,7 @@ LEFT JOIN resources ON resources.id = structural_blobs.resource
 LEFT JOIN public_blobs pb2 ON pb2.id = blobs.id
 JOIN changes ON (((changes.genesis_blob = structural_blobs.genesis_blob OR changes.id = structural_blobs.genesis_blob) AND structural_blobs.type = 'Ref') OR (changes.id = structural_blobs.id AND structural_blobs.type = 'Comment'))
 AND blobs.id %s :blob_id
-AND (:publicOnly = 0 OR pb2.id IS NOT NULL)
+AND (:filterPrivate = 0 OR pb2.id IS NOT NULL)
 GROUP BY resources.iri, changes.link_id, target_version, target_fragment
 ORDER BY blobs.id %s
 LIMIT :page_size + 1;

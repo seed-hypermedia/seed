@@ -122,7 +122,7 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			w.WriteHeader(http.StatusRequestTimeout)
-		} else if blob.IsPublicOnlyDenied(err) {
+		} else if blob.IsServerModeDenied(err) {
 			w.WriteHeader(http.StatusNotFound)
 		} else if ipld.IsNotFound(err) {
 			w.WriteHeader(http.StatusNotFound)

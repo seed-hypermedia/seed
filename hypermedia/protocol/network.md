@@ -33,7 +33,7 @@ IPv6 listening is off for now. The `-p2p.listen-addrs` flag replaces this set, a
 
 Most desktop nodes sit behind NAT. The daemon enables hole punching and AutoNAT. Unless told otherwise, it assumes it is **not** publicly reachable. It asks one of two fixed Seed relay servers for a circuit-relay reservation, and keeps at most two relay connections. Relays are never discovered from the network. The two addresses are compiled in. The daemon itself is never a relay for others. The relay is a separate small program in the repository. <!-- id:zLvDN-Vk -->
 
-A site runs with `-p2p.no-relay=true -p2p.force-reachability-public=true`, so it never uses a relay and always answers direct dials. Current reachability is shown on the loopback-only `/debug/p2p` page. <!-- id:5a2izYC9 -->
+A site runs with `-p2p.no-relay=true -p2p.force-reachability-public=true`, so it never uses a relay and always answers direct dials. Current reachability is shown on the `/debug/p2p` page, under the daemon's API admission policy. <!-- id:5a2izYC9 -->
 
 # Finding peers <!-- id:626I71gy -->
 
@@ -153,7 +153,7 @@ If step 5 finds nothing anywhere, the run ends with an empty version and no erro
 
 ## Ports <!-- id:yH9-GRd7 -->
 
-The daemon has three listeners: libp2p, an HTTP server (which carries gRPC-web, `/ipfs`, `/hm/api/config` and the loopback-only `/debug/*` pages) and a plain gRPC server. Both HTTP and gRPC bind all interfaces, including non-loopback ones. Every Seed deployment picks its own port block: <!-- id:r5mn0pmN -->
+The daemon has three listeners: libp2p, an HTTP server (which carries gRPC-web, `/ipfs`, `/hm/api/config` and `/debug/*`) and a plain gRPC server. Both HTTP and gRPC bind all interfaces, with runtime peer admission in default mode. Server mode trusts deployment networking instead. Every Seed deployment picks its own port block: <!-- id:r5mn0pmN -->
 
 <!-- id:3eZQEvYE -->
 | Deployment <!-- col:xSsqC6jm --> | libp2p <!-- col:FlGdXj3L --> | HTTP (gRPC-web, `/ipfs`, `/debug`) <!-- col:VNwbp64X --> | gRPC <!-- col:e909sAB3 --> | Other <!-- col:Orb2hlMs --> <!-- id:EIljUu9Y --> |
@@ -191,7 +191,7 @@ Every flag can also be set as an environment variable with the `SEED_` prefix (`
 | `-syncing.exhaustive-wave-interval` | 10m | how often a recursive scope runs a full-width wave <!-- id:JtFDmPYH --> |
 | `-syncing.no-pull` | false | do not run the scheduler, so neither `DiscoverEntity` tasks nor subscription reruns execute; the one-shot discovery inside `Subscribe`, the file gateway and push still reach the network <!-- id:Ian9qsQl --> |
 | `-syncing.no-discovery` | false | discovery errors; the file gateway serves local blobs only <!-- id:FHUBDoCZ --> |
-| `-public-only` | false | serve only public data over HTTP and gRPC (what hosted sites run) <!-- id:fPjzahjC --> |
+| `-server-mode` | false | trust the deployment network and filter anonymous private reads (what hosted sites run); keep daemon API ports private <!-- id:fPjzahjC --> |
 
 `-syncing.allow-push`, `-syncing.refresh-interval`, `-syncing.smart` and `-syncing.no-sync-back` are parsed and have no effect. <!-- id:z4l0WCEN -->
 
@@ -247,7 +247,7 @@ For deep integration the daemon's gRPC surface (plain gRPC on its gRPC port, or 
   - `Resources.PushResourcesToPeer(addrs, resources)`. Its `recursive` field is ignored today. <!-- id:0Shqcv40 -->
   - `Daemon.GetInfo` for your own peer id and protocol id. <!-- id:bgeUY0Z- -->
 
-The peer-to-peer services `P2P` and `Syncing` are also re-exported locally behind a `target-peer` metadata key, so a local client can run `ListSpaces` or `ReconcileBlobs` against a remote peer through your daemon. A local daemon's API has no authentication. Keep it on localhost or behind a firewall, and run public servers with `-public-only`. The [gRPC guide](../build/grpc.md) has the catalogue. <!-- id:ceErZghv -->
+The peer-to-peer services `P2P` and `Syncing` are also re-exported locally behind a `target-peer` metadata key, so a local client can run `ListSpaces` or `ReconcileBlobs` against a remote peer through your daemon. Default mode trusts local tools after peer admission, requires explicit configuration for remote API peers, and checks HTTP Host, browser metadata and exact origins. Hosted servers run with `-server-mode` on a trusted deployment network: keep daemon API ports private and proxy only the public `/ipfs/*` routes. The [gRPC guide](../build/grpc.md) has the catalogue. <!-- id:ceErZghv -->
 
 ```sh <!-- id:FZrOsxuq -->
 grpcurl -plaintext localhost:56002 com.seed.networking.v1alpha.Networking/ListPeers

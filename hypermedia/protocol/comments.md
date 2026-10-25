@@ -61,7 +61,7 @@ A mention is an inline embed: an `Embed` annotation over a placeholder character
 
 # Visibility <!-- id:ssv4avsM -->
 
-A comment carries its own [visibility](./privacy.md). By convention it copies its target's: clients set `Private` when commenting on a private document. A private comment is visible in two spaces, the author's and the target's. Over [peer](./network.md) sync, the comment goes to peers authenticated as either account, as a [WRITER](./permissions.md) in either space, or as either space's [site](./sites.md) server. On a public-only node, HTTP serves it only to the target space's owner and root-level writers, so that node may refuse the author. Its visibility passes on to the [file](./files.md) blobs it links, such as attached images, and to nothing else. Private documents are still changing. [Privacy](./privacy.md) has the current state. <!-- id:7ostaq12 -->
+A comment carries its own [visibility](./privacy.md). By convention it copies its target's: clients set `Private` when commenting on a private document. A private comment is visible in two spaces, the author's and the target's. Over [peer](./network.md) sync, the comment goes to peers authenticated as either account, as a [WRITER](./permissions.md) in either space, or as either space's [site](./sites.md) server. On a server-mode node, HTTP serves it only to the target space's owner and root-level writers, so that node may refuse the author. Its visibility passes on to the [file](./files.md) blobs it links, such as attached images, and to nothing else. Private documents are still changing. [Privacy](./privacy.md) has the current state. <!-- id:7ostaq12 -->
 
 # No moderation yet <!-- id:NKZMUR_g -->
 

@@ -9,30 +9,31 @@ import (
 	"github.com/ipfs/go-cid"
 )
 
-var publicOnlyCtxKey = ctxkey.New("blob.PublicOnly", false)
+var serverModeCtxKey = ctxkey.New("blob.ServerMode", false)
 
-// PublicOnlyDeniedError indicates that a blob exists locally but is not public.
-type PublicOnlyDeniedError struct {
+// ServerModeDeniedError indicates that a blob exists locally but is not public.
+type ServerModeDeniedError struct {
 	CID cid.Cid
 }
 
 // Error implements the error interface.
-func (e PublicOnlyDeniedError) Error() string {
+func (e ServerModeDeniedError) Error() string {
 	return fmt.Sprintf("blob %s is not public", e.CID)
 }
 
-// WithPublicOnly sets the public only context value to true.
-func WithPublicOnly(ctx context.Context) context.Context {
-	return publicOnlyCtxKey.WithValue(ctx, true)
+// WithServerMode enables server-mode blob visibility checks.
+func WithServerMode(ctx context.Context) context.Context {
+	return serverModeCtxKey.WithValue(ctx, true)
 }
 
-// IsPublicOnly returns true if the context indicates only public blobs should be accessed.
-func IsPublicOnly(ctx context.Context) bool {
-	return publicOnlyCtxKey.Value(ctx)
+// IsServerMode reports whether the context requests server-mode blob visibility checks.
+func IsServerMode(ctx context.Context) bool {
+	return serverModeCtxKey.Value(ctx)
 }
 
-// IsPublicOnlyDenied reports whether err means a blob was rejected by PublicOnly.
-func IsPublicOnlyDenied(err error) bool {
-	var target PublicOnlyDeniedError
+// IsServerModeDenied reports whether err means a blob was rejected by ServerMode.
+func IsServerModeDenied(err error) bool {
+	var target ServerModeDeniedError
+
 	return errors.As(err, &target)
 }

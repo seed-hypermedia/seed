@@ -27,7 +27,10 @@ Both gRPC and HTTP bind all interfaces, so other machines can reach them unless 
 | Flag <!-- col:9aAQ-i5K --> | Default <!-- col:k2MWOcv4 --> | Meaning <!-- col:WdP1mgRz --> <!-- id:oDc0TVDL --> |
 | --- | --- | --- |
 | `-data-dir` | `~/.mtt` | Where everything is stored. The desktop app passes its own data directory. <!-- id:ypeA1_vg --> |
-| `-public-only` | false | Serve only public data in the APIs and over HTTP. Hosted sites and [gateways](../protocol/sites.md) use this mode. <!-- id:3vWzc_PR --> |
+| `-server-mode` | false | Trust the deployment network and filter anonymous private reads. Hosted sites and [gateways](../protocol/sites.md) use this mode; the Docker image sets `SEED_SERVER_MODE=true`. <!-- id:3vWzc_PR --> |
+| `-api.allowed-peers` | empty | Additional trusted API peers, as IP addresses or CIDRs, for remote access in default mode. Loopback peers are admitted by default. |
+| `-api.allowed-hosts` | empty | Additional exact HTTP hostnames accepted in default mode. |
+| `-api.allowed-origins` | empty | Additional exact browser origins accepted in default mode. |
 | `-keystore-dir` | empty | Use a file-based keystore in place of the OS keychain or vault. It is marked insecure. Sites use it inside their container. <!-- id:7a5pl9E4 --> |
 | `-p2p.testnet-name` | empty | Joins a named testnet in place of mainnet by adding a suffix to the protocol id. <!-- id:7Km4dzez --> |
 | `-p2p.no-relay` | false | Disables circuit relay. <!-- id:RD91Y6T8 --> |
@@ -61,11 +64,13 @@ Most of the daemon's resident memory is C heap, not Go. Every pooled connection 
 Besides gRPC-web, the HTTP port serves the [file](../protocol/files.md) gateway and a few utility routes. <!-- id:jRtCZj9l -->
   - `GET /ipfs/<cid>` returns a file or block. If the node does not have it, the daemon searches the network for up to a minute. `GET /ipfs/<cid>.dagjson` decodes a DAG-CBOR [blob](../protocol/blobs.md) and pretty-prints it. It is the quickest way to inspect a [change](../change.md), [ref](../ref.md) or [comment](../comment.md). `POST /ipfs/file-upload` chunks a file into UnixFS and returns its [CID](../protocol/blobs.md). `POST /ipfs/<cid>` stores one raw block. Both uploads accept up to 150 MiB and require no authentication. See [Files](../protocol/files.md). <!-- id:Uv2WP0An -->
   - `GET /hm/api/config` on the daemon returns its peer id, addresses and protocol id. The [web app](./web.md)'s version of the same route adds the registered account. <!-- id:sVOzWC8O -->
-  - `GET /debug/version` reports the build. The other `/debug/*` pages answer only to loopback callers that send no cross-site fetch header. They cover metrics, pprof, the p2p and network reports, the SQLite pool and its memory, the C allocator and an embedded grpcui. <!-- id:5j98RxA2 -->
+  - `GET /debug/version` reports the build. All `/debug/*` pages share the ordinary API admission policy. They cover metrics, pprof, the p2p and network reports, the SQLite pool and its memory, the C allocator and an embedded grpcui. <!-- id:5j98RxA2 -->
 
 # Authentication, plainly <!-- id:-A2Y41QE -->
 
-The local gRPC and HTTP API has no authentication. Whoever can reach the port can read everything the node holds and can write as any key the node keeps, because signing happens inside the daemon. Bearer tokens exist, but they only widen reads on a public-only node. They never gate writes. The mitigations are deliberate and simple. Keep the ports on localhost or behind a firewall. Run any daemon that faces the internet with `-public-only` behind the [web app](./web.md). Sites are deployed this way. [Integrity](../protocol/integrity.md) spells out what is verified and what is trusted. <!-- id:2ImcyxRS -->
+In default mode, the daemon admits loopback API peers and trusts local tools after admission: they can read everything it holds and write as any key it keeps, because signing happens inside the daemon. Remote access requires explicit configuration with `-api.allowed-peers` (IP/CIDR). HTTP also checks `Host`, browser fetch metadata and exact origins; media and frames without `Origin` use the exact `Referer` origin. `-api.allowed-hosts` and `-api.allowed-origins` opt in additional hostnames and browser origins. Admitting a peer grants daemon-level access, so configure only trusted callers. <!-- id:2ImcyxRS -->
+
+Server mode (`-server-mode`, or `SEED_SERVER_MODE=true`) trusts the deployment network instead of applying default-mode ingress checks. Keep the daemon's HTTP and gRPC API ports private, behind the [web app](./web.md), and proxy only the public `/ipfs/*` routes. Anonymous private reads are filtered; authorized bearer callers may read private content. Bearer tokens never gate writes. The Docker image enables server mode through its environment. [Integrity](../protocol/integrity.md) explains the trust model.
 
 # Working with it <!-- id:C41oDiC6 -->
 

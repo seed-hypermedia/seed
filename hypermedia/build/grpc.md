@@ -57,19 +57,19 @@ grpcurl -plaintext localhost:56002 com.seed.daemon.v1alpha.Daemon/GetInfo
 }
 ```
 
-`grpcurl … describe com.seed.documents.v3alpha.Documents` prints a service's RPCs and message types. The HTTP port carries the same services as [gRPC-Web](https://github.com/grpc/grpc-web), which is what the browser-based clients use. The desktop app and the web server both connect with `@connectrpc/connect` transports to the HTTP port, never to the raw gRPC port. The daemon also embeds a [grpcui](https://github.com/fullstorydev/grpcui) at `http://localhost:<http-port>/debug/grpcui/`, reachable only from the same machine. <!-- id:VSFr5IT3 -->
+`grpcurl … describe com.seed.documents.v3alpha.Documents` prints a service's RPCs and message types. The HTTP port carries the same services as [gRPC-Web](https://github.com/grpc/grpc-web), which is what the browser-based clients use. The desktop app and the web server both connect with `@connectrpc/connect` transports to the HTTP port, never to the raw gRPC port. The daemon also embeds a [grpcui](https://github.com/fullstorydev/grpcui) at `http://localhost:<http-port>/debug/grpcui/`, protected by the same admission policy as the ordinary API. <!-- id:VSFr5IT3 -->
 
 Message definitions live in the repository under `proto/`, one folder per service family, and generated clients are committed beside them: Go under `backend/genproto` and TypeScript under `frontend/packages/shared/src/client/.generated`. The TypeScript package exposes `createGRPCClient(transport)` with one property per service. After editing a proto file, `./dev gen` regenerates both. <!-- id:R6ZNPlbM -->
 
-# There is no authentication <!-- id:3Nue2Gcl -->
+# API admission and trust <!-- id:3Nue2Gcl -->
 
-The daemon's API has no authentication or authorization of its own. Anyone who can reach the gRPC or HTTP port can list keys, sign arbitrary bytes with any stored key, export keys, delete keys, store blobs, create [refs](../ref.md) and [capabilities](../protocol/permissions.md) with any registered key, force a reindex, and read everything the daemon holds. Both ports bind all network interfaces, and the HTTP port answers any origin. <!-- id:4SSdtRrf -->
+In default mode, the daemon admits loopback peers to its gRPC and HTTP APIs. Once admitted, a local tool is trusted: it can list keys, sign arbitrary bytes with stored keys, export or delete keys, store blobs, create [refs](../ref.md) and [capabilities](../protocol/permissions.md), force a reindex, and read everything the daemon holds. Remote callers require explicit `-api.allowed-peers` IP/CIDR entries. HTTP additionally validates `Host`, browser fetch metadata and exact browser origins; use `-api.allowed-hosts` for additional exact hostnames and `-api.allowed-origins` for additional exact origins. These settings admit trusted callers, not restricted accounts. <!-- id:4SSdtRrf -->
 
 Write RPCs check the **signing key**. Every write takes a `signing_key_name`. The daemon loads that key from its own store and checks that it may write to the target space and path. It never asks whether the caller may write. [Comments](../protocol/comments.md) skip even that check: anyone may comment on anything. <!-- id:azQnlNR4 -->
 
-The one piece of caller identity is the bearer token. `Daemon.Authenticate` proves possession of an account key and returns a token valid for thirty days. The HTTP middleware accepts it as `Authorization: Bearer <token>`. It has one use. When the daemon runs with `-public-only`, [private](../protocol/privacy.md) content is hidden from anonymous requests and shown to authenticated callers who may write the space. Without that flag, the token changes nothing. The plain gRPC port ignores it entirely. <!-- id:2ZbFPpFN -->
+`Daemon.Authenticate` proves possession of an account key and returns a bearer token valid for thirty days. The HTTP middleware accepts it as `Authorization: Bearer <token>`. In server mode (`-server-mode` or `SEED_SERVER_MODE=true`), [private](../protocol/privacy.md) content is hidden from anonymous requests and shown to authorized bearer callers. In default mode, admitted callers already have full read access. The plain gRPC port ignores the bearer token. <!-- id:2ZbFPpFN -->
 
-The protection comes from how you deploy the daemon. No setting adds it. A desktop app's daemon is reachable only on the local machine. A site's daemon publishes only its libp2p port outside the container network. Its HTTP and gRPC ports are reachable by the web server alone, and the reverse proxy forwards only `/ipfs/*` to it. If you run a daemon yourself, keep the two API ports behind a firewall or bound to a private interface. [Integrity](../protocol/integrity.md) puts this in the larger picture of what the protocol does and does not verify. <!-- id:TEErbvtS -->
+Server mode trusts the deployment network and bypasses default-mode ingress checks. A site's daemon publishes only its libp2p port outside the container network; its HTTP and gRPC API ports stay private, reachable by trusted deployment services, and the reverse proxy forwards only `/ipfs/*` to it. The Docker image enables this mode through `SEED_SERVER_MODE=true`, even when Compose passes no mode flag. Keep both API ports behind a firewall or on a private interface. [Integrity](../protocol/integrity.md) puts this in the larger trust model. <!-- id:TEErbvtS -->
 
 # Conventions <!-- id:Vz0vDuSz -->
 
@@ -87,7 +87,7 @@ The protection comes from how you deploy the daemon. No setting adds it. A deskt
 | `InvalidArgument` | unparsable principal, id, version or page token; a missing required field <!-- id:0NF3j4pG --> |
 | `NotFound` | unknown key name, document, version or tracked domain <!-- id:eMe9EPRd --> |
 | `FailedPrecondition` | the path holds a redirect; a Ref with a different genesis and no higher generation; discovery disabled; vault not connected <!-- id:CN_GoRhE --> |
-| `PermissionDenied` | the signing key may not write there; private content on a public-only node; a capability whose signer is not the account <!-- id:EisdCLVd --> |
+| `PermissionDenied` | the signing key may not write there; unauthorized private read in server mode; a capability whose signer is not the account <!-- id:EisdCLVd --> |
 | `Unauthenticated` | a bearer token that is malformed, expired or unknown (HTTP `401`) <!-- id:E2bbm9Dz --> |
 | `Unavailable` | `StoreBlobs` during a reindex, retry later; syncing disabled <!-- id:_h0IAYut --> |
 | `Unimplemented` | see the catalogue <!-- id:IguL-1Ui --> |
@@ -224,11 +224,11 @@ Lightning wallets through a hosted [lndhub](https://github.com/getAlby/lndhub.go
 
 ## Telemetry <!-- id:lyJqnO5U -->
 
-`RecordCheckpoints` appends client-side timing checkpoints to an in-memory buffer shown on the daemon's `/debug/journeys` page. The proto comment claims it is loopback-only. In fact it is registered on the public server like everything else. <!-- id:I_r7KSmW -->
+`RecordCheckpoints` appends client-side timing checkpoints to an in-memory buffer shown on the daemon's `/debug/journeys` page. It shares the ordinary API admission policy rather than a separate service-specific gate. <!-- id:I_r7KSmW -->
 
 # The daemon's own HTTP routes <!-- id:4yiGAfrt -->
 
-Besides gRPC-Web, the HTTP port serves a few plain routes. Debug pages answer only to the local machine and refuse browser requests from another origin, so `curl` works and an iframe does not. <!-- id:ZT0v5LAc -->
+Besides gRPC-Web, the HTTP port serves a few plain routes. They all share the API admission policy: local tools, same-origin browsers and explicitly trusted callers in default mode; trusted deployment networking in server mode. <!-- id:ZT0v5LAc -->
 
 <!-- id:Q2BFX_6k -->
 | Route <!-- col:eDku4ask --> | Purpose <!-- col:01HhnQQy --> <!-- id:NT3eoZE5 --> |

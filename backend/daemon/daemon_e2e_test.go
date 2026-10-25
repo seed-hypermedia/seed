@@ -48,6 +48,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 )
@@ -295,7 +297,9 @@ func TestDaemonCORS(t *testing.T) {
 
 	const fileCID = "bafybeiecq2irw4fl5vunnxo6cegoutv4de63h7n27tekkjtak3jrvrzzhe"
 
-	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
+	cfg := makeTestConfig(t)
+	cfg.ServerMode = true
+	dmn := makeTestApp(t, "alice", cfg, false)
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(dmn.HTTPListener.Addr().(*net.TCPAddr).Port)
 	client := &http.Client{Timeout: 5 * time.Second}
 
@@ -418,14 +422,134 @@ func requireCORSHeaders(t *testing.T, h http.Header) {
 	}
 }
 
-func TestDaemonLoopbackOnlyFetchMetadata(t *testing.T) {
+func TestDaemonAPIAdmission(t *testing.T) {
+	t.Parallel()
+	addresses, err := net.InterfaceAddrs()
+	require.NoError(t, err)
+	var remoteIP string
+
+	for _, address := range addresses {
+		ip, _, err := net.ParseCIDR(address.String())
+		if err == nil && ip.To4() != nil && !ip.IsLoopback() {
+			remoteIP = ip.String()
+			break
+		}
+	}
+
+	for _, tt := range []struct {
+		name    string
+		remote  bool
+		trusted bool
+		server  bool
+		allowed bool
+	}{
+		{name: "local tools", allowed: true},
+		{name: "untrusted LAN", remote: true},
+		{name: "configured remote", remote: true, trusted: true, allowed: true},
+		{name: "server container network", remote: true, server: true, allowed: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.remote && remoteIP == "" {
+				t.Skip("no nonloopback IPv4 interface")
+			}
+
+			cfg := makeTestConfig(t)
+			cfg.ServerMode = tt.server
+
+			cfg.P2P.Isolated = true
+			if tt.trusted {
+				cfg.APIAllowedPeers = remoteIP
+			}
+
+			dmn := makeTestApp(t, "alice", cfg, false, func(o *options) {
+				o.grpc.extraServices = append(o.grpc.extraServices, func(s grpc.ServiceRegistrar) {
+					grpc_health_v1.RegisterHealthServer(s, health.NewServer())
+				})
+			})
+
+			host := "127.0.0.1"
+			if tt.remote {
+				host = remoteIP
+			}
+
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			conn, err := grpc.NewClient(net.JoinHostPort(host, strconv.Itoa(dmn.GRPCListener.Addr().(*net.TCPAddr).Port)), grpc.WithTransportCredentials(insecure.NewCredentials()))
+			require.NoError(t, err)
+			defer conn.Close()
+			client := grpc_health_v1.NewHealthClient(conn)
+
+			check, err := client.Check(ctx, &grpc_health_v1.HealthCheckRequest{})
+			if tt.allowed {
+				require.NoError(t, err)
+				require.Equal(t, grpc_health_v1.HealthCheckResponse_SERVING, check.Status)
+			} else {
+				require.Error(t, err)
+				require.Equal(t, codes.Unavailable, status.Code(err))
+			}
+
+			watch, err := client.Watch(ctx, &grpc_health_v1.HealthCheckRequest{})
+			if err == nil {
+				check, err = watch.Recv()
+			}
+
+			if tt.allowed {
+				require.NoError(t, err)
+				require.Equal(t, grpc_health_v1.HealthCheckResponse_SERVING, check.Status)
+			} else {
+				require.Error(t, err)
+				require.Equal(t, codes.Unavailable, status.Code(err))
+			}
+
+			transport := &http.Transport{}
+			defer transport.CloseIdleConnections()
+			httpClient := &http.Client{Transport: transport, Timeout: 5 * time.Second}
+			baseURL := "http://" + net.JoinHostPort(host, strconv.Itoa(dmn.HTTPListener.Addr().(*net.TCPAddr).Port))
+			for _, path := range []string{"/debug/buildinfo", "/debug/grpcui/", "/hm/api/config", daemon.Daemon_GetInfo_FullMethodName} {
+				req, err := http.NewRequest(http.MethodGet, baseURL+path, nil)
+				require.NoError(t, err)
+
+				if path == daemon.Daemon_GetInfo_FullMethodName {
+					req, err = http.NewRequest(http.MethodPost, baseURL+path, strings.NewReader("\x00\x00\x00\x00\x00"))
+					require.NoError(t, err)
+					req.Header.Set("Content-Type", "application/grpc-web+proto")
+					req.Header.Set("X-Grpc-Web", "1")
+				}
+
+				if tt.server {
+					req.Host = "seed-daemon:56001"
+					req.Header.Set("Origin", "https://site.example")
+					req.Header.Set("Sec-Fetch-Site", "cross-site")
+				}
+
+				resp, err := httpClient.Do(req)
+				require.NoError(t, err)
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, resp.Body.Close())
+				require.NoError(t, err)
+
+				if tt.allowed {
+					require.Equal(t, http.StatusOK, resp.StatusCode, "%s: %s", path, body)
+
+					if path == daemon.Daemon_GetInfo_FullMethodName {
+						require.Contains(t, string(body), "grpc-status: 0")
+					}
+				} else {
+					require.Equal(t, http.StatusForbidden, resp.StatusCode, path)
+				}
+			}
+		})
+	}
+}
+
+func TestDaemonAPIFetchMetadata(t *testing.T) {
 	t.Parallel()
 
 	dmn := makeTestApp(t, "alice", makeTestConfig(t), false)
 	baseURL := "http://127.0.0.1:" + strconv.Itoa(dmn.HTTPListener.Addr().(*net.TCPAddr).Port)
 	client := &http.Client{Timeout: 5 * time.Second}
 
-	t.Run("public version endpoint allows cross-site browser requests", func(t *testing.T) {
+	t.Run("version endpoint shares the browser policy", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodGet, baseURL+"/debug/version", nil)
 		require.NoError(t, err)
 		req.Header.Set("Sec-Fetch-Site", "cross-site")
@@ -435,7 +559,7 @@ func TestDaemonLoopbackOnlyFetchMetadata(t *testing.T) {
 		defer resp.Body.Close()
 		_, _ = io.Copy(io.Discard, resp.Body)
 
-		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
 
 	t.Run("cross-site browser request is rejected", func(t *testing.T) {
@@ -3995,7 +4119,11 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	aliceKey := coretest.NewTester("alice").Account
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobKey := coretest.NewTester("bob").Account
-	gateway := makeTestApp(t, "carol", makeTestConfig(t), true)
+	// Site resolution reaches this test gateway through its nonloopback IP.
+	// Keep unrestricted local reads for this sync test, but admit that HTTP peer.
+	gatewayCfg := makeTestConfig(t)
+	gatewayCfg.APIAllowedPeers = getLocalIP(t)
+	gateway := makeTestApp(t, "carol", gatewayCfg, true)
 	gatewayKey := coretest.NewTester("carol").Account
 
 	var gatewayURL string
@@ -5551,7 +5679,7 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 	})
 }
 
-func TestPublicOnlyGetPrivateDocument(t *testing.T) {
+func TestServerModeGetPrivateDocument(t *testing.T) {
 	// Private document creation is disabled for users (0f897c776); this test exercises
 	// what happens to private documents that exist, so it opts back in.
 	documentsimpl.EnablePrivateDocumentCreationForTests()
@@ -5559,9 +5687,9 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Create a single server with PublicOnly=true.
+	// Create a single server with ServerMode=true.
 	cfg := makeTestConfig(t)
-	cfg.Base.PublicOnly = true
+	cfg.Base.ServerMode = true
 	alice := makeTestApp(t, "alice", cfg, true)
 
 	// Create a private document.
@@ -5585,7 +5713,7 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 		Path:    privateDoc.Path,
 		Version: privateDoc.Version,
 	})
-	require.Error(t, err, "GetDocument for private doc with version should fail when PublicOnly=true")
+	require.Error(t, err, "GetDocument for private doc with version should fail when ServerMode=true")
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
@@ -5595,7 +5723,7 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 		Account: privateDoc.Account,
 		Path:    privateDoc.Path,
 	})
-	require.Error(t, err, "GetDocument for private doc without version should fail when PublicOnly=true")
+	require.Error(t, err, "GetDocument for private doc without version should fail when ServerMode=true")
 	st, ok = status.FromError(err)
 	require.True(t, ok)
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
@@ -5605,13 +5733,13 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 	_, err = alice.RPC.DocumentsV3.GetResource(ctx, &documents.GetResourceRequest{
 		Iri: resourceURL,
 	})
-	require.Error(t, err, "GetResource for private doc should fail when PublicOnly=true")
+	require.Error(t, err, "GetResource for private doc should fail when ServerMode=true")
 	st, ok = status.FromError(err)
 	require.True(t, ok)
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
 
 	// Try to fetch the private document blob over the public /ipfs route.
-	// PublicOnly must not serve private blobs even when the server already has the CID.
+	// ServerMode must not serve private blobs even when the server already has the CID.
 	{
 		port := alice.HTTPListener.Addr().(*net.TCPAddr).Port
 		resp, err := http.Get("http://127.0.0.1:" + strconv.Itoa(port) + "/ipfs/" + privateDoc.Version)
@@ -5642,7 +5770,7 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error should be PermissionDenied")
 
 	// Search for the private document content.
-	// It should NOT be returned because PublicOnly=true.
+	// It should NOT be returned because ServerMode=true.
 	searchRes, err := alice.RPC.Entities.SearchEntities(ctx, &entities.SearchEntitiesRequest{
 		Query: "Secret",
 	})
@@ -5666,7 +5794,7 @@ func TestPublicOnlyGetPrivateDocument(t *testing.T) {
 	}
 }
 
-func TestPublicOnlyAuthenticatedPrivateBlobBlockstoreMethods(t *testing.T) {
+func TestServerModeAuthenticatedPrivateBlobBlockstoreMethods(t *testing.T) {
 	// Private document creation is disabled for users (0f897c776); this test exercises
 	// what happens to private documents that exist, so it opts back in.
 	documentsimpl.EnablePrivateDocumentCreationForTests()
@@ -5675,7 +5803,7 @@ func TestPublicOnlyAuthenticatedPrivateBlobBlockstoreMethods(t *testing.T) {
 	ctx := context.Background()
 
 	cfg := makeTestConfig(t)
-	cfg.Base.PublicOnly = true
+	cfg.Base.ServerMode = true
 	alice := makeTestApp(t, "alice", cfg, true)
 	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))
 
@@ -5695,29 +5823,29 @@ func TestPublicOnlyAuthenticatedPrivateBlobBlockstoreMethods(t *testing.T) {
 	privateCID, err := cid.Decode(privateDoc.Version)
 	require.NoError(t, err)
 
-	publicOnlyAuthCtx := blob.WithPublicOnly(blob.WithAuthenticatedCaller(ctx, aliceKey.Principal()))
+	serverModeAuthCtx := blob.WithServerMode(blob.WithAuthenticatedCaller(ctx, aliceKey.Principal()))
 
-	blk, err := alice.Index.Get(publicOnlyAuthCtx, privateCID)
+	blk, err := alice.Index.Get(serverModeAuthCtx, privateCID)
 	require.NoError(t, err)
 	require.Equal(t, privateCID, blk.Cid())
 
-	ok, err := alice.Index.Has(publicOnlyAuthCtx, privateCID)
+	ok, err := alice.Index.Has(serverModeAuthCtx, privateCID)
 	require.NoError(t, err)
 	require.True(t, ok)
 
-	size, err := alice.Index.GetSize(publicOnlyAuthCtx, privateCID)
+	size, err := alice.Index.GetSize(serverModeAuthCtx, privateCID)
 	require.NoError(t, err)
 	require.Equal(t, len(blk.RawData()), size)
 }
 
-func TestPublicOnlyGetRemotePublicBlob(t *testing.T) {
+func TestServerModeGetRemotePublicBlob(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 
 	alice := makeTestApp(t, "alice", makeTestConfig(t), true)
 	bobCfg := makeTestConfig(t)
-	bobCfg.Base.PublicOnly = true
+	bobCfg.Base.ServerMode = true
 	bob := makeTestApp(t, "bob", bobCfg, true)
 
 	aliceKey := must.Do2(alice.Storage.KeyStore().GetKey(ctx, "main"))

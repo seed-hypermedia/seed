@@ -57,16 +57,16 @@ allows, otherwise in order.
 Devnet desktop dev (`direnv exec . ./dev run-desktop`, network `dev`): daemon HTTP **58001** (grpc-web, `/ipfs/*`,
 `/hm/api/*`, `/debug/*`), daemon gRPC **58002**, p2p 58000, desktop local API 58004, web app 3000, notify 3060. Data dir
 `~/.config/Seed-local/daemon`, SQLite at `db/db.sqlite`. Packaged mainnet is 56001/56002 — if you see those, rule 3
-applies. `/debug/*` is gated by `loopbackOnly` + a `Sec-Fetch-Site` check (`backend/daemon/http.go:187-213`); a missing
-header is allowed, so `curl` works and a cross-origin browser does not.
+applies. In default mode, `apiAccess` (`backend/daemon/access.go`) gates all HTTP routes and native gRPC peers. HTTP
+also validates Host, Fetch Metadata and exact origins; admitted headerless local tools still work.
 
 ### The linchpin fact
 
-`blob.WithAuthenticatedCaller` and `blob.IsPublicOnly` are set **only** by HTTP middleware
-(`backend/daemon/http.go:70-71`, `:215-234`, `:236-247`). So **port 58002 is always anonymous and never PublicOnly** —
-bearer tokens are ignored there, and any check reading the request _context_ rather than `srv.cfg` silently no-ops.
-Probing 58002 without a token and concluding "no authorization" is a category error. **Every unauthorized-read claim
-must state the port and whether a token was attached.**
+`blob.WithAuthenticatedCaller` and the `blob.IsServerMode` context marker are set **only** by HTTP middleware
+(`backend/daemon/http.go`). So **port 58002 is always anonymous and has no server-mode context marker** — bearer tokens
+are ignored there, and any check reading the request _context_ rather than `srv.cfg` silently no-ops. Probing 58002
+without a token and concluding "no authorization" is a category error. **Every unauthorized-read claim must state the
+port and whether a token was attached.**
 
 ---
 
@@ -113,18 +113,18 @@ Announce your pass list before starting; repeat it in the handoff (§8.3).
 
 A finding must name the guard that should have applied. The real ones:
 
-| Guard                                                          | Where                                                                  | Protects                       |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------ |
-| `publicOnlyMiddleware`                                         | `backend/daemon/http.go:236-247`                                       | PublicOnly on the HTTP context |
-| `authContextMiddleware`                                        | `backend/daemon/http.go:215-234`                                       | Bearer → authenticated caller  |
-| `loopbackOnly`                                                 | `backend/daemon/http.go:187-213`                                       | The `/debug/*` group           |
-| `isPublicOnlyFor`, `denyPrivateDocument`, `denyPrivateComment` | `backend/api/documents/v3alpha/documents.go:3004-3032`                 | Per-RPC private reads          |
-| `applyListVisibilityFilter`                                    | `backend/api/documents/v3alpha/documents.go:2979-2989`                 | Listing SQL                    |
-| `checkWriteAccess`                                             | `backend/api/documents/v3alpha/documents.go:2966-2977`                 | Document mutations             |
-| `isValidWriter`, `IsValidWriter`                               | `backend/blob/index.go:1178-1226`, `:1037-1064`                        | Capability checks              |
-| `Index.CanPeerAccessCID`                                       | `backend/blob/index_access.go:57-99`                                   | Bitswap block requests         |
-| `authorizedStore`                                              | `backend/hmnet/syncing/authorized_store.go:50-132`                     | RBSR set reconciliation        |
-| `adminSecret`, `availableRegistrationSecret`                   | `frontend/apps/web/app/routes/hm.api.admin.tsx`, `hm.api.register.tsx` | Web admin actions              |
+| Guard                                                          | Where                                                                  | Protects                             |
+| -------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------ |
+| `serverModeMiddleware`                                         | `backend/daemon/http.go`                                               | ServerMode on the HTTP context       |
+| `authContextMiddleware`                                        | `backend/daemon/http.go:215-234`                                       | Bearer → authenticated caller        |
+| `apiAccess`                                                    | `backend/daemon/access.go`                                             | Default-mode HTTP and gRPC admission |
+| `isServerModeFor`, `denyPrivateDocument`, `denyPrivateComment` | `backend/api/documents/v3alpha/documents.go`                           | Per-RPC private reads                |
+| `applyListVisibilityFilter`                                    | `backend/api/documents/v3alpha/documents.go:2979-2989`                 | Listing SQL                          |
+| `checkWriteAccess`                                             | `backend/api/documents/v3alpha/documents.go:2966-2977`                 | Document mutations                   |
+| `isValidWriter`, `IsValidWriter`                               | `backend/blob/index.go:1178-1226`, `:1037-1064`                        | Capability checks                    |
+| `Index.CanPeerAccessCID`                                       | `backend/blob/index_access.go:57-99`                                   | Bitswap block requests               |
+| `authorizedStore`                                              | `backend/hmnet/syncing/authorized_store.go:50-132`                     | RBSR set reconciliation              |
+| `adminSecret`, `availableRegistrationSecret`                   | `frontend/apps/web/app/routes/hm.api.admin.tsx`, `hm.api.register.tsx` | Web admin actions                    |
 
 The two gates disagree by design: the blockstore fails **closed** on unknown visibility
 (`backend/blob/blockstore.go:715-729`), `CanPeerAccessCID` fails **open** (`backend/blob/index_access.go:80-83`). Any
@@ -162,7 +162,7 @@ the label with the criterion that failed** (`Confidence: MEDIUM (H2 failed -- Ge
 - **H1** complete traced path from an external entry point to the sink, every hop cited.
 - **H2** no unread hops — no unresolved interface impl, no unread middleware, no unread SQL (queries live in `dqb.Str`).
 - **H3** guard named and proven absent or bypassable on this path.
-- **H4** precondition named exactly (e.g. "`-public-only` is set, i.e. any gateway or hosted site").
+- **H4** precondition named exactly (e.g. "`-server-mode` or `SEED_SERVER_MODE=true` is set, as in the Docker image").
 - **H5** not already covered: no _asserting_ test (`grep -rn '<Method>' backend/**/*_test.go`) and no existing record
   (§5.5). A `t.Log` is not coverage.
 
@@ -192,7 +192,7 @@ reproduction routinely reveals that the reachable impact is narrower, or wider, 
 | **INFO**     | Smells and TODOs, in a separate capped list                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 Modifiers, applied once, arithmetic shown (`HIGH (base MEDIUM, +1 unauthenticated)`): **+1** affects hosted/gateway
-defaults (`-public-only`); **+1** no capability, account, or invite required; **−1** reachable only inside the desktop
+defaults (`-server-mode`); **+1** no capability, account, or invite required; **−1** reachable only inside the desktop
 app against the local user's own data. Never exceed CRITICAL or fall below LOW. A LOW-confidence finding keeps its
 severity but sorts last and is worded "possible", never "we found".
 
@@ -225,10 +225,10 @@ session does not re-triage it.
 Highest yield per token and the only pass that scales with churn rather than repo size.
 
 **P2 — Private-document access control (daemon).** `grep -n "^func (srv \*Server)" backend/api/documents/v3alpha/*.go` →
-one row per method; columns: returns resource data?, gate consulted (`srv.cfg.PublicOnly` / `isPublicOnlyFor` /
-`blob.IsPublicOnly` / `applyListVisibilityFilter` / capability / **none**), asserting test?, verdict. Proven-real traps:
+one row per method; columns: returns resource data?, gate consulted (`srv.cfg.ServerMode` / `isServerModeFor` /
+`blob.IsServerMode` / `applyListVisibilityFilter` / capability / **none**), asserting test?, verdict. Proven-real traps:
 the `GetResource` snapshot branch taking a version CID or comment TSID, where the private check happens after decode and
-only for some types; every `*PublicOnly` query variant (confirm the non-variant is unreachable when PublicOnly is set);
+only for some types; every `*ServerMode` query variant (confirm the non-variant is unreachable when ServerMode is set);
 pagination cursors revealing skipped private rows; `grep -rn "VisibilityPublic" backend/` for hardcoded visibility on a
 write path; activity, capability, and comment-version RPCs, which historically had no filter at all.
 
@@ -325,19 +325,21 @@ direnv exec . pnpm web                                                 # :3000, 
 ```
 
 It hard-fails on: daemon unreachable; `protocolId` missing or not ending `-dev` (rule 3). It reports the build, the real
-`-data-dir` and `-public-only` state from the daemon's argv, and an idle CPU baseline with read-pool size `P`. Two
-warnings you must act on: `mprocs.yaml` sets `SEED_LOG_ONLY=seed/vault-merge`, silencing most subsystems — raise them
-live with `curl -s -X POST http://127.0.0.1:58001/debug/logs -d '{"subsystem":"seed/syncing","level":"debug"}'`; and
-measure only from a quiescent daemon, since a post-restart window or a mid-reindex manufactures both false positives and
-false negatives.
+`-data-dir` and explicit `-server-mode` state from the daemon's argv (check `SEED_SERVER_MODE` separately), and an idle
+CPU baseline with read-pool size `P`. Two warnings you must act on: `mprocs.yaml` sets `SEED_LOG_ONLY=seed/vault-merge`,
+silencing most subsystems — raise them live with
+`curl -s -X POST http://127.0.0.1:58001/debug/logs -d '{"subsystem":"seed/syncing","level":"debug"}'`; and measure only
+from a quiescent daemon, since a post-restart window or a mid-reindex manufactures both false positives and false
+negatives.
 
 ### 6.2 The debug surface
 
-All on 58001, loopback only, always enabled. `/debug/metrics` (Prometheus — the source for cost deltas);
-`/debug/pprof/{profile,heap,allocs,goroutine,block,mutex,trace}` (block rate and mutex fraction pre-enabled at startup);
-`/debug/sqlite` (**the source for `hold_p99`**, plus writer contention and slowest ops); `/debug/network` (sync and
-discovery latency percentiles, bandwidth by protocol and HTTP tag); `/debug/traces`, `/debug/journeys`; `/debug/grpcui/`
-(invoke any RPC without `grpcurl`); `/debug/vars`, `/debug/buildinfo`, `/debug/version`, `/debug/pprof/cmdline`.
+All on 58001, always enabled under the ordinary API admission policy. `/debug/metrics` (Prometheus — the source for cost
+deltas); `/debug/pprof/{profile,heap,allocs,goroutine,block,mutex,trace}` (block rate and mutex fraction pre-enabled at
+startup); `/debug/sqlite` (**the source for `hold_p99`**, plus writer contention and slowest ops); `/debug/network`
+(sync and discovery latency percentiles, bandwidth by protocol and HTTP tag); `/debug/traces`, `/debug/journeys`;
+`/debug/grpcui/` (invoke any RPC without `grpcurl`); `/debug/vars`, `/debug/buildinfo`, `/debug/version`,
+`/debug/pprof/cmdline`.
 
 ```sh
 curl -s "http://127.0.0.1:58001/debug/buildinfo?format=json"
@@ -420,7 +422,7 @@ Put a **unique marker string** in the fixture so every probe is a literal `grep`
 | 8   | Every web `/api/<key>` (`curl -s http://localhost:3000/api/schema \| jq -r '.definitions[].key'`)                                                        | No marker                                                                |
 | 9   | Web SSR: the document URL plus `:comments`, `:activity`, `?v=`, `/inspect/`                                                                              | No marker                                                                |
 | 10  | A second devnet peer, bitswap fetch by CID                                                                                                               | Must not obtain the marker — `CanPeerAccessCID` is under test            |
-| 11  | Restart with `-public-only`, same data dir, re-run 2-9                                                                                                   | Where the VULN-1..7 family lives                                         |
+| 11  | Restart with `-server-mode`, same data dir, re-run 2-9                                                                                                   | Where the VULN-1..7 family lives                                         |
 | 12  | **Ground truth**: read-only SQLite query for the marker                                                                                                  | Proves it is stored, so a miss above means "not served", not "not there" |
 
 Rows 1 and 12 are the negative controls: without 1, "denied everywhere" may mean your capability setup silently failed;
@@ -431,7 +433,7 @@ this wrong writes fixtures into a different daemon and every probe then correctl
 mainnet keyrings are separate; keep flags identical on every command. A bearer token needs the principal already in
 `public_keys`, so `Unauthenticated: principal is not known` is **not** an authz result — have it sign one blob first.
 Assertions have a ±5 minute window; `InvalidArgument: timestamp out of range` is a clock problem. And **a path-scoped
-WRITER is denied private reads while a root-scoped one succeeds** (see `TestPrivateDocSecurity_PublicOnly...` and issue
+WRITER is denied private reads while a root-scoped one succeeds** (see `TestPrivateDocSecurity_ServerMode...` and issue
 #618) — use root scope for the control leg or your harness will look like a fix.
 
 ### 6.5 Unauthorized write: a 200 is not evidence
@@ -452,7 +454,7 @@ fails** (`control-failed` — a harness bug, and continuing produces a false `re
 preconditions did not claim (`prereq-mismatch` — re-file with corrected preconditions rather than forcing the claim);
 reproduction needs a remote host or mainnet (`out-of-scope`, no budget applies); reproduction needs product-code changes
 to create the vulnerable condition (`requires-code-modification` → refute as unreachable, unless it is a **config**
-change that is a real deployment mode like `-public-only`); or three runs give CV ≥ 0.30 with the variance source
+change that is a real deployment mode like `-server-mode`); or three runs give CV ≥ 0.30 with the variance source
 unidentified (`measurement-unstable` — that can neither confirm nor refute).
 
 **At half the budget**, write what you tried, what is left, and a `next-attempt-hint` into the queue — the cheapest

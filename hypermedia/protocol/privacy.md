@@ -33,14 +33,14 @@ A second known gap: the daemon's own `CreateRef` RPC publishes version and tombs
 
 ## Who may read private content over HTTP <!-- id:WVM-iNfP -->
 
-On a desktop [daemon](../apps/daemon.md), the local API hides nothing. Every local caller sees every blob. Visibility is enforced only when the daemon runs with the `-public-only` flag, as hosted [sites](./sites.md) and gateways do. <!-- id:ofQB_uNE -->
+In default mode, the [daemon](../apps/daemon.md) trusts local tools after peer admission, so admitted callers can read every blob. Loopback peers are admitted by default; remote access requires explicit configuration. HTTP also checks `Host`, browser metadata and exact browser origins. Visibility filtering applies in server mode (`-server-mode` or `SEED_SERVER_MODE=true`), as hosted [sites](./sites.md) and gateways run. Server mode trusts the deployment network: keep daemon API ports private and proxy only the public `/ipfs/*` routes. <!-- id:ofQB_uNE -->
 
-On a public-only node, a request must carry a bearer token minted by the daemon (see [Identity](./identity.md)), and private content is served when the token's principal: <!-- id:cckJb-G0 -->
+On a server-mode node, a private read request must carry a bearer token minted by the daemon (see [Identity](./identity.md)), and private content is served when the token's principal: <!-- id:cckJb-G0 -->
   - is the space owner, or <!-- id:GntVQvhc -->
   - holds a [WRITER or AGENT](./permissions.md) [capability](../capability.md) scoped to the **root** of the space, or <!-- id:rwwGSEZV -->
   - is an AGENT of a key that holds such a root grant. <!-- id:GVNNcPsq -->
 
-A WRITER scoped to a sub-path can write there but is denied private reads there. This asymmetry comes from how the read predicate is written, and it is a tracked issue. In public-only mode, even the owner's own daemon denies its own private document to an unauthenticated HTTP request. The [Seed web app](../apps/web.md) forwards the visitor's cookie as that bearer token on every daemon call. <!-- id:XdSIhVyZ -->
+A WRITER scoped to a sub-path can write there but is denied private reads there. This asymmetry comes from how the read predicate is written, and it is a tracked issue. In server mode, even the owner's own daemon denies its own private document to an unauthenticated HTTP request. The [Seed web app](../apps/web.md) forwards the visitor's cookie as that bearer token on every daemon call. <!-- id:XdSIhVyZ -->
 
 ## How peers are gated <!-- id:COGK2cRq -->
 

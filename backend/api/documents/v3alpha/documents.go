@@ -51,7 +51,7 @@ const (
 	maxQueryDocumentsPageSize      = 1000
 	maxQueryDocumentSorts          = 16
 	maxRedirectHops                = 5 // Matches MAX_REDIRECT_HOPS in frontend/packages/shared/src/redirects.ts.
-	publicOnlyListVisibilityFilter = `dg.visibility IS NOT 'Private'`
+	serverModeListVisibilityFilter = `dg.visibility IS NOT 'Private'`
 	indexedAttributeString         = "s"
 	indexedAttributeBool           = "b"
 	indexedAttributeInt            = "i"
@@ -347,7 +347,7 @@ func autocompleteAccount(account string) (core.Principal, error) {
 
 type attributeAutocompleteQueries struct {
 	all           dqb.LazyQuery
-	publicOnly    dqb.LazyQuery
+	serverMode    dqb.LazyQuery
 	authenticated dqb.LazyQuery
 }
 
@@ -366,20 +366,20 @@ const attributeAutocompleteEligibleDocuments = `
 func newAttributeAutocompleteQueries(body string) attributeAutocompleteQueries {
 	return attributeAutocompleteQueries{
 		all:           dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, "") + body),
-		publicOnly:    dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, " AND "+publicOnlyListVisibilityFilter) + body),
+		serverMode:    dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, " AND "+serverModeListVisibilityFilter) + body),
 		authenticated: dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, " AND "+authenticatedListVisibilityFilter) + body),
 	}
 }
 
 func (srv *Server) attributeAutocompleteQuery(ctx context.Context, queries attributeAutocompleteQueries, account core.Principal) (dqb.LazyQuery, []any) {
 	args := []any{[]byte(account)}
-	if !srv.cfg.PublicOnly {
+	if !srv.cfg.ServerMode {
 		return queries.all, args
 	}
 	if caller, ok := blob.GetAuthenticatedCaller(ctx); ok {
 		return queries.authenticated, append(args, []byte(caller))
 	}
-	return queries.publicOnly, args
+	return queries.serverMode, args
 }
 
 var attributeAutocompleteNameQueries = newAttributeAutocompleteQueries(`
@@ -1232,7 +1232,7 @@ func (srv *Server) loadDocumentForChange(ctx context.Context, identity blob.IRI,
 			if source != identity && state.Visibility == blob.VisibilityPrivate {
 				// A redirect must not become a read primitive for a private document. The prepared
 				// change would carry the target's genesis and heads, which no read RPC on a
-				// public-only node discloses.
+				// server-mode node discloses to anonymous callers.
 				targetNS, targetPath, err := source.SpacePath()
 				if err != nil {
 					return nil, err
@@ -1417,10 +1417,10 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 		qb := baseDocumentsQuery()
 
-		if publicOnly, err := srv.isPublicOnlyFor(ctx, ns, in.DirectoryPath); err != nil {
+		if filterPrivate, err := srv.shouldFilterPrivate(ctx, ns, in.DirectoryPath); err != nil {
 			return nil, err
-		} else if publicOnly {
-			qb.Where(publicOnlyListVisibilityFilter)
+		} else if filterPrivate {
+			qb.Where(serverModeListVisibilityFilter)
 		}
 
 		qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
@@ -2144,8 +2144,8 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	)
 	{
 		var (
-			accountIRI blob.IRI
-			publicOnly bool
+			accountIRI    blob.IRI
+			filterPrivate bool
 		)
 		if in.Account != "" {
 			ns, err := core.DecodePrincipal(in.Account)
@@ -2153,7 +2153,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 				return nil, fmt.Errorf("failed to decode account: %w", err)
 			}
 
-			publicOnly, err = srv.isPublicOnlyFor(ctx, ns, "")
+			filterPrivate, err = srv.shouldFilterPrivate(ctx, ns, "")
 			if err != nil {
 				return nil, err
 			}
@@ -2169,8 +2169,8 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		if in.Account == "" {
 			qb.Where("r.iri GLOB 'hm://*'")
 		} else {
-			if publicOnly {
-				qb.Where(publicOnlyListVisibilityFilter)
+			if filterPrivate {
+				qb.Where(serverModeListVisibilityFilter)
 			}
 
 			qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
@@ -3304,7 +3304,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 }
 
 func (srv *Server) applyListVisibilityFilter(ctx context.Context, qb *dqb.SelectQuery, args *colx.Slice[any]) {
-	if !srv.cfg.PublicOnly {
+	if !srv.cfg.ServerMode {
 		return
 	}
 	if caller, ok := blob.GetAuthenticatedCaller(ctx); ok {
@@ -3312,11 +3312,11 @@ func (srv *Server) applyListVisibilityFilter(ctx context.Context, qb *dqb.Select
 		args.Append([]byte(caller))
 		return
 	}
-	qb.Having(publicOnlyListVisibilityFilter)
+	qb.Having(serverModeListVisibilityFilter)
 }
 
 func (srv *Server) canReadPrivate(ctx context.Context, account core.Principal, path string) (bool, error) {
-	if !srv.cfg.PublicOnly {
+	if !srv.cfg.ServerMode {
 		return true, nil
 	}
 
@@ -3328,8 +3328,8 @@ func (srv *Server) canReadPrivate(ctx context.Context, account core.Principal, p
 	return srv.idx.IsValidWriter(ctx, account, "", caller)
 }
 
-func (srv *Server) isPublicOnlyFor(ctx context.Context, account core.Principal, path string) (bool, error) {
-	if !srv.cfg.PublicOnly {
+func (srv *Server) shouldFilterPrivate(ctx context.Context, account core.Principal, path string) (bool, error) {
+	if !srv.cfg.ServerMode {
 		return false, nil
 	}
 
@@ -3338,22 +3338,24 @@ func (srv *Server) isPublicOnlyFor(ctx context.Context, account core.Principal, 
 }
 
 func (srv *Server) denyPrivateDocument(ctx context.Context, account core.Principal, path string) error {
-	publicOnly, err := srv.isPublicOnlyFor(ctx, account, path)
+	filterPrivate, err := srv.shouldFilterPrivate(ctx, account, path)
 	if err != nil {
 		return err
 	}
-	if publicOnly {
+
+	if filterPrivate {
 		return status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
 	}
 	return nil
 }
 
 func (srv *Server) denyPrivateComment(ctx context.Context, account core.Principal, path string) error {
-	publicOnly, err := srv.isPublicOnlyFor(ctx, account, path)
+	filterPrivate, err := srv.shouldFilterPrivate(ctx, account, path)
 	if err != nil {
 		return err
 	}
-	if publicOnly {
+
+	if filterPrivate {
 		return status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
 	}
 	return nil
