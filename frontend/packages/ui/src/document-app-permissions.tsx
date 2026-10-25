@@ -134,7 +134,7 @@ export function DocumentAppPermissionPrompt({
             <summary className="cursor-pointer text-sm font-medium">Allow more like this…</summary>
             <div className="mt-3 flex flex-col gap-3">
               {scopes
-                .filter((scope) => scope !== 'once' && scope !== 'all')
+                .filter((scope) => scope !== 'once')
                 .map((scope) => (
                   <label key={scope} className="flex cursor-pointer items-start gap-3 text-sm">
                     <input
@@ -148,20 +148,6 @@ export function DocumentAppPermissionPrompt({
                     <span>{appPermissionLabel(scope, request)}</span>
                   </label>
                 ))}
-              <details>
-                <summary className="text-muted-foreground cursor-pointer text-sm">Advanced trust</summary>
-                <label className="mt-3 flex cursor-pointer items-start gap-3 text-sm">
-                  <input
-                    className="mt-1"
-                    type="radio"
-                    name="app-scope"
-                    value="all"
-                    checked={choice === 'all'}
-                    onChange={() => setChoice('all')}
-                  />
-                  <span>{appPermissionLabel('all', request)}</span>
-                </label>
-              </details>
               <p className="text-muted-foreground text-xs">
                 Remembered for this account and app, including future app updates. Change this in App permissions.
               </p>
