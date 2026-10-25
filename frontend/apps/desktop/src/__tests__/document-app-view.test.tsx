@@ -149,7 +149,11 @@ describe('DocumentAppView', () => {
     )
     expect(sign).not.toHaveBeenCalled()
     expect(window.document.body.textContent).toContain('Reviewed message')
+    expect(window.document.body.textContent).toContain('Allow this request only.')
     await act(async () => (window.document.querySelector('input[value="type-site"]') as HTMLInputElement).click())
+    expect(window.document.body.textContent).toContain(
+      'This app can sign future requests of this type on this site without asking again.',
+    )
     await click('Allow comments on this site')
     await vi.waitFor(() => expect(mocks.publish).toHaveBeenCalledTimes(1))
     expect(
@@ -161,12 +165,24 @@ describe('DocumentAppView', () => {
     await send('hm.signBlob', {input: {type: 'UnknownAppAction', choice: 'yes'}})
     await vi.waitFor(() => expect(window.document.body.textContent).toContain('Sign unrecognized data'))
     await act(async () => (window.document.querySelector('input[value="all"]') as HTMLInputElement).click())
-    expect(button('Allow any signing').disabled).toBe(true)
+    expect(window.document.querySelector('input[type="checkbox"]')).toBeNull()
+    expect(button('Allow any signing').disabled).toBe(false)
+    expect(window.document.body.textContent).toContain(
+      'This app can sign anything as your account, including lasting account permissions, without asking again.',
+    )
     await click('Deny')
     expect(sign).toHaveBeenCalledTimes(2)
     await send('context')
     expect(window.document.body.textContent).toContain('Identify your account')
-    await click('Deny')
+    await act(async () => (window.document.querySelector('input[value="all"]') as HTMLInputElement).click())
+    expect(window.document.querySelector('input[type="checkbox"]')).toBeNull()
+    expect(button('Allow all reading').disabled).toBe(false)
+    expect(window.document.body.textContent).toContain(
+      'This app can read everything available to your account without asking again.',
+    )
+    await click('Allow all reading')
+    await send('context')
+    expect(window.document.querySelector('[role="alertdialog"]')).toBeNull()
     await act(async () =>
       root.render(<DocumentAppView docId={docId} document={{...document, version: `${cid}.${cid}`}} cid={cid} />),
     )
@@ -176,6 +192,7 @@ describe('DocumentAppView', () => {
     expect(window.document.querySelector('[role="alertdialog"]')).toBeNull()
     await click('App permissions')
     expect(window.document.querySelector('[role="dialog"]')?.textContent).toContain('Allow comments on this site')
+    expect(window.document.querySelector('[role="dialog"]')?.textContent).toContain('Allow all reading')
     await click('Reset all to ask')
     expect(window.localStorage.getItem(appPermissionStorageKey(mocks.account, docId.id))).toBe('[]')
   })

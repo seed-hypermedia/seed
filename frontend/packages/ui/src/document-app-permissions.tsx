@@ -39,7 +39,7 @@ function PermissionTarget({site, resource}: {site?: string; resource?: string}) 
   ) : null
 }
 
-/** Seed-owned action review, with narrow defaults and explicit, independent escalation. */
+/** Seed-owned action review with narrow defaults and an explanation of the selected policy. */
 export function DocumentAppPermissionPrompt({
   request,
   appName,
@@ -52,8 +52,23 @@ export function DocumentAppPermissionPrompt({
   onDecision: (decision: AppPermissionDecision) => void
 }) {
   const [choice, setChoice] = React.useState<AppPermissionDecision>('once')
-  const [trustAll, setTrustAll] = React.useState(false)
   const scopes = appPermissionScopes(request)
+  const policyDescription =
+    choice === 'once'
+      ? 'Allow this request only.'
+      : choice === 'resource'
+        ? 'This app can read this resource without asking again.'
+        : choice === 'site'
+          ? 'This app can read content on this site without asking again.'
+          : choice === 'all'
+            ? request.kind === 'read'
+              ? 'This app can read everything available to your account without asking again.'
+              : request.kind === 'sign'
+                ? 'This app can sign anything as your account, including lasting account permissions, without asking again.'
+                : 'This app can publish any data without asking again.'
+            : `This app can ${request.kind === 'sign' ? 'sign' : 'publish'} future requests of this type${
+                choice === 'type-site' ? ' on this site' : ' on any site'
+              } without asking again.`
   const Icon = request.kind === 'read' ? Eye : request.kind === 'sign' ? PenLine : Upload
   const details = request.details as {
     payload?: {body?: {text?: string; children?: unknown[]}[]}
@@ -125,10 +140,7 @@ export function DocumentAppPermissionPrompt({
               checked={choice === 'once'}
               onChange={() => setChoice('once')}
             />
-            <span className="text-sm">
-              <span className="font-medium">Only this time</span>
-              <span className="text-muted-foreground block">Keep asking before the next request.</span>
-            </span>
+            <span className="text-sm font-medium">Only this time</span>
           </label>
           <details className="border-border rounded-lg border p-3">
             <summary className="cursor-pointer text-sm font-medium">Allow more like this…</summary>
@@ -148,32 +160,15 @@ export function DocumentAppPermissionPrompt({
                     <span>{appPermissionLabel(scope, request)}</span>
                   </label>
                 ))}
-              <p className="text-muted-foreground text-xs">
-                Remembered for this account and app, including future app updates. Change this in App permissions.
-              </p>
             </div>
           </details>
         </fieldset>
-        {choice === 'all' && (
-          <label className="bg-destructive/5 border-destructive/30 flex items-start gap-3 rounded-lg border p-3 text-sm">
-            <input
-              className="mt-1"
-              type="checkbox"
-              checked={trustAll}
-              onChange={(event) => setTrustAll(event.target.checked)}
-            />
-            <span>
-              {request.kind === 'sign'
-                ? 'I trust this app and its future updates to sign anything, including lasting account permissions.'
-                : request.kind === 'read'
-                  ? 'I trust this app and its future updates with everything this account can read.'
-                  : 'I trust this app and its future updates to publish data without asking.'}
-            </span>
-          </label>
-        )}
+        <p className="text-sm" aria-live="polite">
+          {policyDescription}
+        </p>
         <AlertDialogFooter>
           <AlertDialogCancel onClick={() => onDecision('deny')}>Deny</AlertDialogCancel>
-          <AlertDialogAction disabled={choice === 'all' && !trustAll} onClick={() => onDecision(choice)}>
+          <AlertDialogAction onClick={() => onDecision(choice)}>
             {appPermissionLabel(choice, request)}
           </AlertDialogAction>
         </AlertDialogFooter>
