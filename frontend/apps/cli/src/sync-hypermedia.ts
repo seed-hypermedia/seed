@@ -274,7 +274,7 @@ async function dev(args: string[]) {
         if (behind === 0) console.log(`The published site on ${server} matches this folder.`)
         else
           console.log(
-            `⚠ The published site on ${server} (hm://${key.accountId}) is BEHIND this folder: ${result.created.length} to create, ${result.moved.length} to move, ${result.updated.length} to update. Run \`pnpm hypermedia:push\` (signs with the main key) to publish it.`,
+            `⚠ The published site on ${server} (hm://${key.accountId}) is BEHIND this folder: ${result.created.length} to create, ${result.moved.length} to move, ${result.updated.length} to update. Production docs follow Seed releases. Keep edits in hypermedia/ and publish through the tagged release workflow; direct production edits are prohibited.`,
           )
       } catch (err) {
         console.log(`Could not compare with ${server}: ${(err as Error).message}`)

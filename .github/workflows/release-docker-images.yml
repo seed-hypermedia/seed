@@ -358,11 +358,11 @@ jobs:
           cache-to: type=gha,mode=max,scope=docker-site-release
 
   # The released hypermedia/ tree becomes the developer docs on hyper.media once the
-  # site image is out. Only a real release (a tag, or a manual run from main) publishes;
-  # a branch run of this workflow builds branch images and leaves the docs alone.
+  # site image is out. Only a release tag publishes production documentation;
+  # branch runs (including main) leave the production docs alone.
   publish-hypermedia:
     needs: [docker-site]
-    if: github.ref_type == 'tag' || github.ref_name == 'main'
+    if: github.ref_type == 'tag'
     uses: ./.github/workflows/sync-hypermedia.yml
     with:
       target: production
