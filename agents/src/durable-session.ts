@@ -33,6 +33,7 @@
  */
 
 import type {Database} from 'bun:sqlite'
+import * as fs from 'node:fs'
 import * as chordContext from '@earendil-works/chord/context'
 import type * as piAi from '@earendil-works/pi-ai'
 import * as durable from '@earendil-works/pi-durable'
@@ -209,19 +210,60 @@ export const SyncDoc = durable.defineDoc<SyncState>({
 /** A transcript entry written from the Seed log rather than produced by the harness. */
 export const ReplayEntry = durable.defineEntry('seed.replay')
 
-/** Serialize JSONL commits through their complete sidecar/marker writes and drain before close. */
+// Survive hot reloads: a second module instance must not reopen a live writer.
+const storesKey = Symbol.for('seed.agents.open-durable-stores')
+const shared = globalThis as typeof globalThis & {[storesKey]?: Map<Database | string, Set<string>>}
+const openStores = (shared[storesKey] ??= new Map())
+
+/** Serialize commits and recover known sequence corruption from the canonical log, retaining damaged files. */
 export async function openSessionStorage(
   db: Database,
   sessionId: string,
   onFailure: (error: unknown) => void = () => {},
+  onRecovery: (archive: string) => void = () => {},
 ) {
-  const storage = await durableJsonl.JsonlStorage.open('', sessionFileSystem(db, sessionId, onFailure), CONTEXT)
+  const database = db.filename === ':memory:' || !db.filename ? db : fs.realpathSync(db.filename)
+  let sessions = openStores.get(database)
+  if (!sessions) openStores.set(database, (sessions = new Set()))
+  if (sessions.has(sessionId))
+    throw new Error('Session durable storage is already open; wait for its current turn to close.')
+  sessions.add(sessionId)
+  const release = () => {
+    sessions.delete(sessionId)
+    if (!sessions.size) openStores.delete(database)
+  }
+  let storage: durableJsonl.JsonlStorage
+  try {
+    try {
+      storage = await durableJsonl.JsonlStorage.open('', sessionFileSystem(db, sessionId, onFailure), CONTEXT)
+    } catch (error) {
+      if (
+        !(error instanceof durableJsonl.JsonlCorruptionError) ||
+        error.message !== 'Commit sequence does not strictly increase in main.jsonl' ||
+        !stmt(db, 'SELECT 1 FROM session_events WHERE session_id = ? LIMIT 1').get(sessionId)
+      )
+        throw error
+      // Duplicate sequence numbers cannot safely be reassigned to sidecar ordinals. Preserve the
+      // original files, then use the existing lost-store path to import messages and completed tools.
+      const archive = `recovery-${crypto.randomUUID()}/`
+      db.transaction(() => {
+        stmt(db, `UPDATE session_durable_files SET file = ? || file WHERE session_id = ? AND instr(file, '/') = 0`).run(
+          [archive, sessionId],
+        )
+      })()
+      onRecovery(archive)
+      storage = await durableJsonl.JsonlStorage.open('', sessionFileSystem(db, sessionId, onFailure), CONTEXT)
+    }
+  } catch (error) {
+    release()
+    throw error
+  }
   // JsonlStorage prepares its sequence before asynchronous sidecar writes. Concurrent commits
   // can prepare the same sequence and append markers out of order, corrupting the next reopen.
   const commit = storage.commit.bind(storage)
   const close = storage.close.bind(storage)
   let tail: Promise<unknown> = Promise.resolve()
-  let closing = false
+  let closing: Promise<void> | undefined
   storage.commit = (writes, context) => {
     if (closing) return Promise.reject(new Error('Session storage is closed'))
     const result = tail.then(() => commit(writes, context))
@@ -229,8 +271,8 @@ export async function openSessionStorage(
     return result
   }
   storage.close = (context) => {
-    closing = true
-    return tail.then(() => close(context))
+    closing ??= tail.then(() => close(context)).finally(release)
+    return closing
   }
   return storage
 }
@@ -252,26 +294,35 @@ export async function openSessionHarness(options: {
     options.db,
     options.sessionId,
     () => void harness?.close(CONTEXT).catch(() => {}),
+    (archive) =>
+      options.onReport(
+        new Error(`Rebuilding runtime state from the conversation log; corrupt journal preserved under ${archive}`),
+      ),
   )
-  harness = await durable.Harness.open(
-    storage,
-    {
-      models: options.models,
-      registry: options.registry,
-      onReport: options.onReport,
-      settings: {
-        // Seed never replaces history with a summary: a conversation that outgrows its context is
-        // carried into a successor session by the agent (`continue_session`).
-        compaction: {enabled: false},
-        // Retry policy belongs to the run queue: interactive turns fail fast, background runs ride
-        // the queue's backoff. Only a single request's transient failures are retried in place.
-        retry: {enabled: false},
-        stream: {maxRetries: PROVIDER_REQUEST_MAX_RETRIES},
+  try {
+    harness = await durable.Harness.open(
+      storage,
+      {
+        models: options.models,
+        registry: options.registry,
+        onReport: options.onReport,
+        settings: {
+          // Seed never replaces history with a summary: a conversation that outgrows its context is
+          // carried into a successor session by the agent (`continue_session`).
+          compaction: {enabled: false},
+          // Retry policy belongs to the run queue: interactive turns fail fast, background runs ride
+          // the queue's backoff. Only a single request's transient failures are retried in place.
+          retry: {enabled: false},
+          stream: {maxRetries: PROVIDER_REQUEST_MAX_RETRIES},
+        },
       },
-    },
-    CONTEXT,
-  )
-  return harness
+      CONTEXT,
+    )
+    return harness
+  } catch (error) {
+    await storage.close(CONTEXT)
+    throw error
+  }
 }
 
 /**

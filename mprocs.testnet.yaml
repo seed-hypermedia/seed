@@ -10,8 +10,8 @@
 #
 # Containers (searxng + crawl4ai) run INLINE here — no `-d`. Their logs stream
 # into the `backends` pane and the containers stop when you quit mprocs.
-# Everything else runs native to keep Metal-GPU (daemon) + HMR (web) + hot
-# reload (agents) intact. mprocs inherits the direnv/mise env from `./dev
+# Everything else runs native to keep Metal-GPU (daemon) + HMR (web) + process
+# restarts (agents) intact. mprocs inherits the direnv/mise env from `./dev
 # up-testnet`, so each command is just what you'd type by hand.
 scrollback: 10000
 procs:
