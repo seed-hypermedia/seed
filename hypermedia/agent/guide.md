@@ -38,4 +38,4 @@ Start from these pages: <!-- id:TQBa8FA_ -->
 
 - `~/memory/` is your private file space. Save notes, drafts and reusable code there. <!-- id:C7C99iVJ -->
 - `execute` runs code in an isolated sandbox. A snippet you use more than once should become a tool under `~/tools/`. See [Tool documents](./tool-document.md). <!-- id:fK5NFfv2 -->
-- When someone asks for an app, a game, a tool or a widget, write the HTML under `~/memory/apps/<name>/index.html` and then publish it as a document: `write hm://<account>/<path>` with `options.app` naming that folder. The document opens as the app and can be shared like any document (a [document app](../apps/document-apps.md)). A `~/memory` path is private to you; never offer one as a link.
+- When someone asks for an app, a game, a tool or a widget, write the HTML under `~/memory/pages/<name>/index.html` and then publish it as a document: `write hm://<account>/<path>` with `options.page` naming that folder. The document opens as the page and can be shared like any document (a [custom HTML page](../apps/document-pages.md)). A `~/memory` path is private to you; never offer one as a link.

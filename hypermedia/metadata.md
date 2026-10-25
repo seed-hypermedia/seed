@@ -19,7 +19,9 @@ Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -
 | `siteUrl` | URL | the web address a space is published at; set on the home document when a site is registered, see [Sites](./protocol/sites.md) <!-- id:AyiR8yjR --> |
 | `agentServerUrl` | URL | the agents server a space advertises to its readers (an http(s) origin); clients viewing the space connect to it beside their own servers, see [Environments](./agent/environments.md) <!-- id:Y7jh1Rjp --> |
 | `spaceAgents` | map | the agents the space publishes to readers, as `{[agentId]: order}`; each id is an agent on `agentServerUrl`, and a removed agent leaves a null behind. Names and icons are read from the agent itself, so renaming one never strands a stale copy in a signed document <!-- id:_WXOlj66 --> |
-| `app` | `ipfs://` | a [document app](./apps/document-apps.md): a UnixFS folder whose `index.html` is a self-contained web app that Seed opens in place of the document body, sandboxed, with a bridge to read Hypermedia as the viewer |
+| `type` | URL | the resource type; custom HTML pages declare [hm://hyper.media/page](./page.md) <!-- id:3-HON7jT --> |
+| `inputSchema` | URL | a published HM struct defining a custom HTML page's URL input; see [Page input](./page-input.md) <!-- id:lGfreYXM --> |
+| `html` | `ipfs://` | a [custom HTML page](./apps/document-pages.md): a UnixFS folder whose `index.html` is a self-contained HTML page that Seed opens in place of the document body, sandboxed, with a bridge to read Hypermedia as the viewer |
 | `displayPublishTime` | string | the publication date shown to readers, when it differs from the change history <!-- id:0GpDlsoW --> |
 | `displayAuthor` | string | an author byline shown to readers <!-- id:EErr-5X_ --> |
 | `showOutline` | boolean | whether to show the document outline <!-- id:lWBPOths --> |

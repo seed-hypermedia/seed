@@ -122,7 +122,7 @@ func (fm *FileManager) GetFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// A UnixFS directory is a folder of files: `/ipfs/{cid}/{path}` walks into it the way an
-	// IPFS gateway would, and a folder itself serves its index.html. Document apps publish
+	// IPFS gateway would, and a folder itself serves its index.html. Custom HTML pages publish
 	// a folder with an index.html and reference the folder's CID from document metadata.
 	n, entryName, err := fm.resolveUnixFSPath(ctx, n, r.PathValue("path"))
 	if err != nil {

@@ -53,7 +53,7 @@ import {startLocalAgentsServer, stopLocalAgentsServer} from './agents-server-pro
 import {startApiServer, stopApiServer} from './app-http-server'
 import {startLocalServer, stopLocalServer} from './local-server'
 import {installAppSessionGuards, openAppExternalLink} from './app-window-security'
-import {installDocumentAppProtocol, registerDocumentAppScheme} from './app-document-apps'
+import {installDocumentPageProtocol, registerDocumentPageScheme} from './app-document-pages'
 import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
@@ -135,8 +135,8 @@ contextMenu({
 
 Menu.setApplicationMenu(createAppMenu())
 
-// Document apps get an origin of their own; a privileged scheme must be declared before ready.
-registerDocumentAppScheme()
+// Custom HTML pages get an origin of their own; a privileged scheme must be declared before ready.
+registerDocumentPageScheme()
 
 if (IS_PROD_DESKTOP) {
   if (squirrelStartup) {
@@ -289,7 +289,7 @@ app.whenReady().then(async () => {
   }
 
   installAppSessionGuards(session.defaultSession, getAppWindowPolicy())
-  installDocumentAppProtocol(session.defaultSession, () => {
+  installDocumentPageProtocol(session.defaultSession, () => {
     const origin = getAppWindowPolicy().appOrigin
     return origin ? [origin] : []
   })

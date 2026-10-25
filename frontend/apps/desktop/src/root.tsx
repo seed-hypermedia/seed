@@ -1,5 +1,5 @@
 import {registerDesktopAgentsPlatform} from '@/agents-platform'
-import {setDocumentAppPlatform} from '@shm/shared/document-app'
+import {setDocumentPagePlatform} from '@shm/shared/document-page'
 import {AppContextProvider} from '@/app-context-provider'
 import {AppIPC} from '@/app-ipc'
 import {cleanupAllEntitySubscriptions} from '@/models/entities'
@@ -180,10 +180,10 @@ registerQueryClient(queryClient)
 
 // Register the desktop adapter for the shared Agents UI, before any agents page renders
 registerDesktopAgentsPlatform()
-// Document apps on desktop: the main process serves the app folder under its own scheme.
-setDocumentAppPlatform({
-  resolveAppUrl: (input) => window.documentApps.open(input),
-  closeAppUrl: (url) => window.documentApps.close(url),
+// Custom HTML pages on desktop: the main process serves the HTML folder under its own scheme.
+setDocumentPagePlatform({
+  resolvePageUrl: (input) => window.documentPages.open(input),
+  closePageUrl: (url) => window.documentPages.close(url),
   openExternalUrl: (url) => ipc.send?.('open-external-link', url),
 })
 

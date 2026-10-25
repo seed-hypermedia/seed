@@ -272,7 +272,8 @@ describe('SSR Document Rendering with React Query Hydration', () => {
   it('gives apps the main view while keeping breadcrumbs and hiding document chrome', async () => {
     const {ResourcePage} = await import('@shm/ui/resource-page-common')
     const testDocument = createTestDocument('Underlying document body')
-    testDocument.metadata.app = 'ipfs://bafybeibowhl2ypujel2qrmcps2qy2szwv3ruyjqliqejr6jg4kil437y3e'
+    testDocument.metadata.type = 'hm://hyper.media/page'
+    testDocument.metadata.html = 'ipfs://bafybeibowhl2ypujel2qrmcps2qy2szwv3ruyjqliqejr6jg4kil437y3e'
     const docId = hmId(TEST_UID, {version: TEST_VERSION})
     const queryClient = createHydratedQueryClient(docId, testDocument)
     const html = renderToString(
@@ -285,7 +286,7 @@ describe('SSR Document Rendering with React Query Hydration', () => {
         }),
       ),
     )
-    expect(html).toContain('data-document-app-main')
+    expect(html).toContain('data-document-page-main')
     expect(html).toContain('aria-label="Breadcrumb"')
     expect(html).toContain('Open options')
     expect(html).not.toContain('DOCUMENT_EDITOR')

@@ -33,7 +33,7 @@ import * as protocol from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
-import {collectDocumentAppFiles, validateDocumentApp} from '@/document-apps'
+import {collectDocumentPageFiles, validateDocumentPage} from '@/document-pages'
 import {BrowserTools} from '@/browser-tools'
 import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
@@ -134,7 +134,7 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {compileExploreQuery, parseExploreQuery} from '@seed-hypermedia/client/explore-query'
 import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
-import {validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
+import {validate as validateSchema, resolveSchema, STRUCT_URL} from '@seed-hypermedia/client/schema-engine'
 import {
   blobSchemaRef,
   checkDocumentSchema,
@@ -7223,7 +7223,7 @@ export class Service {
     // provider's prompt cache survives.
     const sharedPrompt = seedAssistantSystemPrompt()
     const memoryPrompt =
-      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Readers can browse shared memory. Paths under ~/memory/private/ are owner-only: only root interactive runs started by the owner and direct owner tool actions may access them. Private files are not mounted into code execution; use read and write to edit them. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. The Memory view shows files as they are: text as text, images as images, an HTML file as its source code. Nothing in memory ever runs. An app, a game or a widget the user can actually use exists only once it is published as a document app (`write` an hm:// document with options.app); a memory link to an HTML file hands them source code, not an app. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
+      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Readers can browse shared memory. Paths under ~/memory/private/ are owner-only: only root interactive runs started by the owner and direct owner tool actions may access them. Private files are not mounted into code execution; use read and write to edit them. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. The Memory view shows files as they are: text as text, images as images, an HTML file as its source code. Nothing in memory ever runs. A page, a game or a widget the user can actually use exists only once it is published as a custom HTML page (`write` an hm:// document with options.page); a memory link to an HTML file hands them source code, not a page. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
     const userActionsPrompt =
       '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
     const continuationPrompt = `\n\n${SESSION_CONTINUATION_PROMPT}`
@@ -12749,53 +12749,63 @@ function memoryPathFromAddress(address: string): string | null {
 }
 
 /** hm://<account>[/path] → {account, path}; null when not an hm address. */
-/** A document app folder resolved from `options.app`, ready to publish beside the document change. */
-type WriteAppFolder = {
-  app: string
+/** A custom HTML page folder resolved from `options.page`, ready to publish beside the document change. */
+type WritePageFolder = {
+  html: string
+  inputSchema: string
   blobs: CollectedBlob[]
   files: number
   bytes: number
-  validation: ReturnType<typeof validateDocumentApp>
+  validation: ReturnType<typeof validateDocumentPage>
 }
 
 /**
- * Turns `options.app` (a memory folder with an index.html, or a single HTML file) into the UnixFS
- * folder the document's `app` attribute will point at. A dry run still builds the folder, so the
+ * Turns `options.page` (a memory folder with an index.html, or a single HTML file) into the UnixFS
+ * folder the document's `html` attribute will point at. A dry run still builds the folder, so the
  * CID and file count it reports are the real ones.
  */
-async function resolveWriteAppFolder(
+async function resolveWritePageFolder(
   context: AgentServicePiToolContext,
   value: unknown,
   target: unknown,
-): Promise<WriteAppFolder | undefined> {
+): Promise<WritePageFolder | undefined> {
   if (value === undefined) return undefined
   if (typeof value !== 'string' || !value.trim()) {
-    throw new APIError(400, 'write options.app must be a memory path: a folder with an index.html, or one HTML file')
+    throw new APIError(400, 'write options.page must be a memory path: a folder with an index.html, or one HTML file')
   }
-  const {files, bytes} = withMemoryErrors(() => collectDocumentAppFiles(context.stateDir, value.trim()))
-  const validation = validateDocumentApp(files, target)
+  const {files, bytes} = withMemoryErrors(() => collectDocumentPageFiles(context.stateDir, value.trim()))
+  const validation = validateDocumentPage(files, target)
   const folder = await directoryToIpfsBlobs(files)
-  return {validation, app: `ipfs://${folder.cid}`, blobs: folder.blobs, files: files.length, bytes}
+  return {
+    validation,
+    inputSchema: 'hm://hyper.media/page-input',
+    html: `ipfs://${folder.cid}`,
+    blobs: folder.blobs,
+    files: files.length,
+    bytes,
+  }
 }
 
-/** Adds what the agent needs to know about a published app to a document write result. */
-function withAppResult(result: Record<string, unknown>, folder: WriteAppFolder | undefined): Record<string, unknown> {
+/** Adds what the agent needs to know about a published page to a document write result. */
+function withPageResult(result: Record<string, unknown>, folder: WritePageFolder | undefined): Record<string, unknown> {
   if (!folder) return result
   const id = typeof result.id === 'string' ? result.id : undefined
   return {
     ...result,
-    app: folder.app,
-    appFiles: folder.files,
-    appBytes: folder.bytes,
-    appValidation: {...folder.validation, bundle: folder.app},
+    html: folder.html,
+    resourceType: 'hm://hyper.media/page',
+    inputSchema: folder.inputSchema,
+    pageFiles: folder.files,
+    pageBytes: folder.bytes,
+    pageValidation: {...folder.validation, bundle: folder.html},
     ...(id
       ? {
           instructions:
             (result.dryRun
               ? 'Dry run: this bundle has not been published. Proposed document: [Title]('
-              : 'The document now opens as the app in Seed and syncs to anyone it is shared with. Link it in your reply as [Title](') +
+              : 'The document now opens as the page in Seed and syncs to anyone it is shared with. Link it in your reply as [Title](') +
             id +
-            '); apps open in the full document view. Chat app embeds are temporarily disabled. Scripts were syntax-checked, but the app was not opened or interaction-tested by this tool. Durable app data must use schema-bound Seed resources configured before the UI (read ~/tools/write/apps). This tool has not verified data persistence: test create/read/update and reopen with local state empty. seed.storage is only for optional local UI preferences or temporary drafts; it does not sync. Use seed.open(hmUrl) or ordinary hm:// anchors for content links. Check seed.runtime() in the target host before relying on newer SDK methods. Write to the same address with options.app again to publish a new revision.',
+            '); pages open in the full document view. Chat page embeds are temporarily disabled. Scripts were syntax-checked, but the page was not opened or interaction-tested by this tool. Durable page data must use schema-bound Seed resources configured before the UI (read ~/tools/write/pages). This tool has not verified data persistence: test create/read/update and reopen with local state empty. seed.storage is only for optional local UI preferences or temporary drafts; it does not sync. Use seed.open(hmUrl) or ordinary hm:// anchors for content links. Check seed.runtime() in the target host before relying on newer SDK methods. Write to the same address with options.page again to publish a new revision.',
         }
       : {}),
   }
@@ -14043,8 +14053,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata', 'app', 'appTarget'],
-  update: ['name', 'metadata', 'app', 'appTarget'],
+  document: ['name', 'metadata', 'page', 'pageTarget'],
+  update: ['name', 'metadata', 'page', 'pageTarget'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -14340,12 +14350,12 @@ export async function executeWriteVerb(
     context.onMemoryChange()
     // A memory path is not something a person can open. An HTML file is almost always an app in
     // the making, and the model that just wrote it is the one that needs to know the next step.
-    const appHint = /\.html?$/i.test(entry.path)
+    const pageHint = /\.html?$/i.test(entry.path)
       ? context.publishEnabled
-        ? ` The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Before publishing, follow ~/tools/write/apps: set up schemas and Seed resources for durable user data, then connect the UI. Publish it as a document app: write hm://<your signing account>/apps/<name> with options.app: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link. Do not link the ~/memory path.`
-        : ' The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Publishing it as a document app needs the Publish grant.'
+        ? ` The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Before publishing, follow ~/tools/write/pages: set up schemas and Seed resources for durable user data, then connect the UI. Publish it as a custom HTML page: write hm://<your signing account>/pages/<name> with options.page: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link. Do not link the ~/memory path.`
+        : ' The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Publishing it as a custom HTML page needs the Publish grant.'
       : ''
-    return {summary: `Wrote ${entry.path} (${entry.size} bytes).${appHint}`, ...entry}
+    return {summary: `Wrote ${entry.path} (${entry.size} bytes).${pageHint}`, ...entry}
   }
 
   if (address.startsWith('ipfs:')) {
@@ -14440,14 +14450,41 @@ export async function executeWriteVerb(
     if (options.metadata !== undefined && !isRecord(options.metadata)) {
       throw new APIError(400, 'write options.metadata must be an object of document metadata attributes')
     }
-    // A document app: options.app names a memory folder (or one HTML file) that becomes the
-    // document's app. Its files are published as a UnixFS folder in the same publish as the
-    // change, and the document's `app` attribute points at the folder (see document-apps.md).
-    const appFolder = await resolveWriteAppFolder(context, options.app, options.appTarget)
+    // A custom HTML page: options.page names a memory folder (or one HTML file) that becomes the
+    // document's HTML page. Its files are published as a UnixFS folder in the same publish as the
+    // change, and the document's `html` attribute points at the folder (see document-pages.md).
+    const pageFolder = await resolveWritePageFolder(context, options.page, options.pageTarget)
+    let pageInputSchema = isRecord(options.metadata) ? options.metadata.inputSchema : undefined
+    if (pageFolder && pageInputSchema === undefined && action === 'update') {
+      const id = unpackHmId(address)
+      if (!id) throw new APIError(400, 'Invalid page address')
+      const existing = await createSeedClient(context.hmServerUrl).request('Resource', id)
+      if (existing.type !== 'document')
+        throw new APIError(400, 'Read the existing page before updating its input contract.')
+      pageInputSchema = existing.document.metadata.inputSchema
+    }
     const metadata: Record<string, unknown> | undefined =
-      isRecord(options.metadata) || appFolder
-        ? {...(isRecord(options.metadata) ? options.metadata : {}), ...(appFolder ? {app: appFolder.app} : {})}
+      isRecord(options.metadata) || pageFolder
+        ? {
+            ...(isRecord(options.metadata) ? options.metadata : {}),
+            ...(pageFolder
+              ? {
+                  type: 'hm://hyper.media/page',
+                  html: pageFolder.html,
+                  inputSchema: pageInputSchema ?? 'hm://hyper.media/page-input',
+                }
+              : {}),
+          }
         : undefined
+    if (pageFolder) {
+      const ref = metadata?.inputSchema
+      if (typeof ref !== 'string' || !/^(hm|ipfs):\/\//.test(ref))
+        throw new APIError(400, 'A page inputSchema must reference a published HM schema.')
+      const contract = await loadSchemaRef(createSeedClient(context.hmServerUrl), ref)
+      if (!contract || resolveSchema(contract.schema, {}, contract.registry).schema.type !== STRUCT_URL)
+        throw new APIError(400, 'A page inputSchema must resolve to an HM struct schema.')
+      pageFolder.inputSchema = ref
+    }
     const passthrough = isRecord(options.input) ? options.input : {}
     const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
       command,
@@ -14462,7 +14499,7 @@ export async function executeWriteVerb(
     })
     switch (action) {
       case 'document':
-        return withAppResult(
+        return withPageResult(
           await writeHypermedia(
             context,
             envelope('document.create', {
@@ -14472,14 +14509,14 @@ export async function executeWriteVerb(
               ...(metadata ? {metadata} : {}),
               ...(content !== undefined ? {content, format: 'markdown'} : {}),
             }),
-            appFolder?.blobs,
+            pageFolder?.blobs,
           ),
-          appFolder,
+          pageFolder,
         )
       case 'update':
         // The address IS the document being revised ("same address, new version" is the
         // documented contract), so the edit target is filled from it — never a separate option.
-        return withAppResult(
+        return withPageResult(
           await writeHypermedia(
             context,
             envelope('document.update', {
@@ -14488,9 +14525,9 @@ export async function executeWriteVerb(
               ...(metadata ? {metadata} : {}),
               ...(content !== undefined ? {content, format: 'markdown'} : {}),
             }),
-            appFolder?.blobs,
+            pageFolder?.blobs,
           ),
-          appFolder,
+          pageFolder,
         )
       case 'comment':
         return writeHypermedia(

@@ -1,4 +1,5 @@
 import * as z from 'zod'
+import {pageParamsFromUrl, pageParamsQuery} from './page-input'
 
 // Signing abstraction: each platform provides its own implementation
 export type HMSigner = {
@@ -25,6 +26,8 @@ export const unpackedHmIdSchema = z.object({
   hostname: z.string().nullable(),
   scheme: z.string().nullable(),
   latest: z.boolean().nullable().optional(),
+  /** JSON-encoded custom HTML page input, excluded from canonical resource identity. */
+  pageParams: z.record(z.string()).optional(),
   // deprecated:
   targetDocUid: z.string().nullable().optional(),
   targetDocPath: z.array(z.string()).nullable().optional(),
@@ -597,14 +600,12 @@ export const HMDocumentMetadataSchema = z
      * in @shm/ui/agents/space-agents is the reader for this field.
      */
     spaceAgents: z.record(z.unknown()).optional(),
-    /**
-     * A document app: `ipfs://<cid>` of a UnixFS folder whose `index.html` is a self-contained
-     * web app (a bare UnixFS file is accepted and treated as the index). Seed opens the document
-     * as that app, in a sandboxed per-document origin, with a `postMessage` bridge through which
-     * the app reads Hypermedia as the viewer. The folder syncs with the document like any file
-     * it references, so sharing the document shares the app.
-     */
-    app: z.string().optional(),
+    /** Resource type; custom HTML pages use hm://hyper.media/page. */
+    type: z.string().optional(),
+    /** UnixFS folder whose index.html runs as an isolated custom HTML page. */
+    html: z.string().optional(),
+    /** Published HM struct schema describing the page's URL input. */
+    inputSchema: z.string().optional(),
     layout: z.union([z.literal('Seed/Experimental/Newspaper'), z.literal('')]).optional(),
     displayPublishTime: z.string().optional(),
     displayAuthor: z.string().optional(),
@@ -2542,12 +2543,13 @@ export function packBaseId(uid: string, path?: string[] | null) {
 }
 
 export function packHmId(hmId: UnpackedHypermediaId): string {
-  const {path, version, latest, blockRef, blockRange, uid} = hmId
+  const {path, version, latest, blockRef, blockRange, uid, pageParams} = hmId
   if (!uid) throw new Error('uid is required')
   let responseUrl = packBaseId(uid, path)
   responseUrl += getHMQueryString({
     version,
     latest,
+    pageParams,
   })
   if (blockRef) {
     responseUrl += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -2559,7 +2561,9 @@ export function getHMQueryString({
   version,
   latest,
   panel,
+  pageParams,
 }: {
+  pageParams?: Record<string, string>
   version?: string | null
   latest?: boolean | null
   panel?: string | null
@@ -2574,7 +2578,9 @@ export function getHMQueryString({
   if (panel) {
     query.panel = panel
   }
-  return serializeHmQueryString(query)
+  const base = serializeHmQueryString(query)
+  const input = pageParamsQuery(pageParams)
+  return base + (input ? (base ? '&' : '?') + input : '')
 }
 
 export function serializeBlockRange(range: BlockRange | null | undefined): string {
@@ -2712,6 +2718,7 @@ export function unpackHmId(hypermediaId?: string): UnpackedHypermediaId | null {
     hostname: hostname || null,
     latest,
     scheme: parsed.scheme,
+    ...(pageParamsFromUrl(hypermediaId) ? {pageParams: pageParamsFromUrl(hypermediaId)} : {}),
   }
 }
 

@@ -411,8 +411,8 @@ function mermaidSourceFromPre(node: unknown): string | null {
   return fenceSourceFromPre(node, 'mermaid')
 }
 
-/** The hm:// URL inside a legacy app fence, opened in the full document view. */
-export function documentAppUrlFromFence(source: string): string | null {
+/** The hm:// URL inside a legacy page fence, opened in the full document view. */
+export function documentPageUrlFromFence(source: string): string | null {
   const url = source.trim()
   return /^hm:\/\/[^\s]+$/.test(url) ? url : null
 }
@@ -496,11 +496,11 @@ export function Markdown({children, enableGfm = true}: {children: string; enable
     pre: ({children, node}) => {
       const mermaidSource = mermaidSourceFromPre(node)
       if (mermaidSource !== null) return <MermaidDiagram code={mermaidSource} />
-      const appSource = fenceSourceFromPre(node, 'seed-app')
-      if (appSource !== null) {
-        const url = documentAppUrlFromFence(appSource)
-        // App execution in chat is temporarily disabled; old transcripts still open the full app.
-        if (url) return <MarkdownLink href={url}>Open app</MarkdownLink>
+      const pageSource = fenceSourceFromPre(node, 'seed-page')
+      if (pageSource !== null) {
+        const url = documentPageUrlFromFence(pageSource)
+        // HTML page execution in chat is temporarily disabled; page fences open the full page.
+        if (url) return <MarkdownLink href={url}>Open page</MarkdownLink>
       }
       return <pre className="bg-background/50 my-2 overflow-x-auto rounded p-2 text-xs">{children}</pre>
     },

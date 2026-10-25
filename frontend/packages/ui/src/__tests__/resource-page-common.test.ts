@@ -19,7 +19,7 @@ import {
   getOldVersionEditBlockedToastOptions,
   getCitationsTargetId,
   orderDocumentMenuItems,
-  getDocumentAppPanelMenuItems,
+  getDocumentPagePanelMenuItems,
   BACK_TO_TOP_SCROLL_OFFSET,
   getBlockCitationsPanelRoute,
 } from '../resource-page-common'
@@ -63,11 +63,11 @@ describe('orderDocumentMenuItems', () => {
   })
 })
 
-describe('document app panel menu', () => {
-  it('keeps every document tab reachable without replacing the app or targeting a fragment', () => {
+describe('custom HTML page panel menu', () => {
+  it('keeps every document tab reachable without replacing the page or targeting a fragment', () => {
     const open = vi.fn()
     const id = {...hmId('alice', {path: ['app'], version: 'v1'}), blockRef: 'block1'}
-    const items = orderDocumentMenuItems(getDocumentAppPanelMenuItems(id, open))
+    const items = orderDocumentMenuItems(getDocumentPagePanelMenuItems(id, open))
     expect(items.map((item) => item.label)).toEqual(['People', 'Comments', 'Citations', 'Attributes'])
     for (const item of items) item.onClick?.({} as never)
     expect(open.mock.calls.map(([panel]) => panel.key)).toEqual(['collaborators', 'comments', 'activity', 'metadata'])

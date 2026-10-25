@@ -6178,7 +6178,7 @@ describe('api service', () => {
     }
   })
 
-  test('write with options.app publishes a memory folder as a document app and revises it in place', async () => {
+  test('write with options.page publishes a memory folder as a custom HTML page and revises it in place', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch
     const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
@@ -6186,7 +6186,8 @@ describe('api service', () => {
       const owner = blobs.generateNobleKeyPair()
       let signerPublicKey = ''
       let existingVersion = ''
-      let existingApp = ''
+      let existingHtml = ''
+      let existingInputSchema = 'hm://hyper.media/page-input'
       const publishes: number[] = []
       globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
         const href = url instanceof Request ? url.url : String(url)
@@ -6213,7 +6214,12 @@ describe('api service', () => {
                 path: '/counter',
                 createTime: '',
                 updateTime: '',
-                metadata: {name: 'Counter', app: existingApp},
+                metadata: {
+                  name: 'Counter',
+                  type: 'hm://hyper.media/page',
+                  html: existingHtml,
+                  inputSchema: existingInputSchema,
+                },
                 genesis: existingVersion,
                 visibility: 'PUBLIC',
               },
@@ -6238,7 +6244,7 @@ describe('api service', () => {
         }),
       )
       if (other._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
-      const sessionId = await seedAgentSession(svc, owner, 'App publisher', {
+      const sessionId = await seedAgentSession(svc, owner, 'Page publisher', {
         tools: ['publish'],
         signingKey: identity.identity.name,
         signingKeys: [identity.identity.name, other.identity.name],
@@ -6254,10 +6260,10 @@ describe('api service', () => {
           }),
         )
       await writeMemory(
-        'apps/counter/index.html',
-        '<script src="/.seed/client.js"></script><script src="app.js"></script>',
+        'pages/counter/index.html',
+        '<script src="/.seed/client.js"></script><script src="page.js"></script>',
       )
-      await writeMemory('apps/counter/app.js', 'seed.context().then(console.log)')
+      await writeMemory('pages/counter/page.js', 'seed.context().then(console.log)')
       // Deterministic callers can reuse the same session without starting a model turn.
       const write = async (input: Record<string, unknown>) => {
         const response = await svc.message(
@@ -6276,14 +6282,21 @@ describe('api service', () => {
       const first = await write({
         address,
         content: 'A counter you can share.',
-        options: {name: 'Counter', app: '~/memory/apps/counter', appTarget: 'desktop'},
+        options: {
+          name: 'Counter',
+          page: '~/memory/pages/counter',
+          pageTarget: 'desktop',
+          metadata: {inputSchema: 'hm://hyper.media/example/person'},
+        },
       })
       expect(first.error).toBeUndefined()
       expect(first.id).toBe(address)
-      expect(first.app).toMatch(/^ipfs:\/\/bafy/)
-      expect(first.appFiles).toBe(2)
-      expect(first.appValidation).toMatchObject({
-        bundle: first.app,
+      expect(first.resourceType).toBe('hm://hyper.media/page')
+      expect(first.inputSchema).toBe('hm://hyper.media/example/person')
+      expect(first.html).toMatch(/^ipfs:\/\/bafy/)
+      expect(first.pageFiles).toBe(2)
+      expect(first.pageValidation).toMatchObject({
+        bundle: first.html,
         syntax: 'passed',
         target: 'desktop',
         dataPersistenceTested: false,
@@ -6292,32 +6305,45 @@ describe('api service', () => {
         interactionTested: false,
       })
       expect(first.widget).toBeUndefined()
-      expect(String(first.instructions)).toContain('Chat app embeds are temporarily disabled')
-      expect(String(first.instructions)).toContain('opens as the app')
+      expect(String(first.instructions)).toContain('Chat page embeds are temporarily disabled')
+      expect(String(first.instructions)).toContain('opens as the page')
       const publishesAfterCreate = publishes.length
       expect(publishesAfterCreate).toBeGreaterThan(0)
+      const invalidContract = await write({
+        address,
+        options: {
+          action: 'update',
+          page: '~/memory/pages/counter',
+          pageTarget: 'desktop',
+          metadata: {inputSchema: 'hm://hyper.media/string'},
+        },
+      })
+      expect(String(invalidContract.error)).toContain('HM struct')
+      expect(publishes.length).toBe(publishesAfterCreate)
       existingVersion = String(first.version)
-      existingApp = String(first.app)
+      existingHtml = String(first.html)
+      existingInputSchema = String(first.inputSchema)
 
-      // A new revision: same address, options.action update, only the app changes.
-      await writeMemory('apps/counter/app.js', 'seed.directory(location.href).then(console.log)')
-      const second = await write({address, options: {action: 'update', app: 'apps/counter', appTarget: 'desktop'}})
-      expect(second.app).toMatch(/^ipfs:\/\/bafy/)
-      expect(second.app).not.toBe(first.app)
+      // A new revision: same address, options.action update, only the page changes.
+      await writeMemory('pages/counter/page.js', 'seed.directory(location.href).then(console.log)')
+      const second = await write({address, options: {action: 'update', page: 'pages/counter', pageTarget: 'desktop'}})
+      expect(second.html).toMatch(/^ipfs:\/\/bafy/)
+      expect(second.html).not.toBe(first.html)
+      expect(second.inputSchema).toBe(first.inputSchema)
       expect(publishes.length).toBeGreaterThan(publishesAfterCreate)
 
       // An HTML file written to memory comes back with the next step, so the model does not stop
       // at a private path the user cannot open.
-      const wrote = await write({address: '~/memory/apps/game.html', content: '<h1>Game</h1>'})
-      expect(String(wrote.summary)).toContain('Publish it as a document app')
-      expect(String(wrote.summary)).toContain('options.app: "~/memory/apps/game.html"')
+      const wrote = await write({address: '~/memory/pages/game.html', content: '<h1>Game</h1>'})
+      expect(String(wrote.summary)).toContain('Publish it as a custom HTML page')
+      expect(String(wrote.summary)).toContain('options.page: "~/memory/pages/game.html"')
 
       const beforeInvalid = publishes.length
-      await writeMemory('apps/invalid.html', '<script>const broken = {</script>')
-      const invalid = await write({address, options: {action: 'update', app: 'apps/invalid.html'}})
+      await writeMemory('pages/invalid.html', '<script>const broken = {</script>')
+      const invalid = await write({address, options: {action: 'update', page: 'pages/invalid.html'}})
       expect(String(invalid.error)).toContain('syntax error')
       expect(publishes.length).toBe(beforeInvalid)
-      const preview = await write({address, dryRun: true, options: {action: 'update', app: 'apps/game.html'}})
+      const preview = await write({address, dryRun: true, options: {action: 'update', page: 'pages/game.html'}})
       expect(preview.dryRun).toBe(true)
       expect(String(preview.instructions)).toContain('has not been published')
       expect(publishes.length).toBe(beforeInvalid)
@@ -6333,9 +6359,9 @@ describe('api service', () => {
           ?.count,
       ).toBe(0)
 
-      // options.app must be a memory path; a folder without an index is refused before publishing.
-      await writeMemory('apps/broken/app.js', '1')
-      const refused = await write({address, options: {action: 'update', app: 'apps/broken'}})
+      // options.page must be a memory path; a folder without an index is refused before publishing.
+      await writeMemory('pages/broken/page.js', '1')
+      const refused = await write({address, options: {action: 'update', page: 'pages/broken'}})
       expect(String(refused.error)).toMatch(/index\.html/)
     } finally {
       globalThis.fetch = originalFetch

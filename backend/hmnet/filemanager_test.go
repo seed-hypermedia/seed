@@ -234,7 +234,7 @@ func createFile0toBound(bound uint) ([]byte, error) {
 	return []byte(b.String()), nil
 }
 
-// A document app is a UnixFS folder with an index.html: the gateway walks into the folder by
+// A custom HTML page is a UnixFS folder with an index.html: the gateway walks into the folder by
 // path, types entries by extension, and serves the folder itself as its index.html.
 func TestGetDirectoryEntries(t *testing.T) {
 	server := makeManager(t, akey)

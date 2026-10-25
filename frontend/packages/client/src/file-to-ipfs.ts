@@ -84,8 +84,8 @@ export type IpfsDirectoryFile = {path: string; content: Uint8Array}
 /**
  * Builds a UnixFS directory from files, the way `ipfs add -r` does, so the folder's root CID
  * resolves at `/ipfs/<cid>/<path>` on any gateway and in the Seed daemon. Nested paths create
- * nested directories. Document apps publish such a folder (with an `index.html`) and reference
- * the root CID from the document's `app` metadata attribute.
+ * nested directories. Custom HTML pages publish such a folder (with an `index.html`) and reference
+ * the root CID from the document's `html` metadata attribute.
  *
  * Returns the root directory CID and every block that must be published alongside.
  */

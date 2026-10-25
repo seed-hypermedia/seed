@@ -14,7 +14,7 @@ import type {BrowserCommand} from '@seed-hypermedia/agents-protocol'
 declare global {
   interface Window {
     isWindowMaximized?: boolean
-    documentApps: {
+    documentPages: {
       open: (input: {id: string; cid: string; account: string | null}) => Promise<string>
       close: (url: string) => Promise<void>
     }
@@ -65,10 +65,10 @@ export type AppInfoType = typeof AppInfo
 contextBridge.exposeInMainWorld('appInfo', AppInfo)
 
 const windowInfo = ipcRenderer.sendSync('initWindow')
-// Document apps: the renderer asks the main process for the page URL of a document's app folder.
-contextBridge.exposeInMainWorld('documentApps', {
-  open: (input: unknown) => ipcRenderer.invoke('document-app-open', input),
-  close: (url: string) => ipcRenderer.invoke('document-app-close', url),
+// Custom HTML pages: the renderer asks the main process for the page URL of a document's HTML folder.
+contextBridge.exposeInMainWorld('documentPages', {
+  open: (input: unknown) => ipcRenderer.invoke('document-page-open', input),
+  close: (url: string) => ipcRenderer.invoke('document-page-close', url),
 })
 // The web pane: the renderer never holds a web view, it asks the main process for one.
 contextBridge.exposeInMainWorld('webBrowser', {

@@ -19,7 +19,7 @@ async function loadFile(params: Record<string, string | undefined>, request: Req
   const [CID, ...rest] = params['*']?.split('/') ?? []
 
   if (!CID) return new Response('No CID provided', {status: 400})
-  // A path after the CID names a file inside a UnixFS folder (a document app's folder, say);
+  // A path after the CID names a file inside a UnixFS folder (a custom HTML page's folder, say);
   // the daemon walks the folder, so the path passes through untouched.
   const subPath = rest.filter(Boolean).map(encodeURIComponent).join('/')
   const ipfsPath = `/ipfs/${CID}${subPath ? `/${subPath}` : ''}`

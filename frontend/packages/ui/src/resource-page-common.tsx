@@ -102,7 +102,7 @@ import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {ActivityContent, ActivityHeader} from './activity-panel'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
-import {DocumentAppView, documentAppCid} from './document-app'
+import {DocumentPageView, documentPageCid} from './document-page'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activitySlugToFilter,
@@ -433,8 +433,8 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
-/** Document tabs remain available as panels while the app owns the main view. */
-export function getDocumentAppPanelMenuItems(
+/** Document tabs remain available as panels while the page owns the main view. */
+export function getDocumentPagePanelMenuItems(
   id: UnpackedHypermediaId,
   openPanel: (panel: DocumentPanelRoute) => void,
 ): MenuItemType[] {
@@ -1705,7 +1705,7 @@ export function PageShell({
         'dark:bg-background flex max-h-full flex-col bg-white',
         // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
         // On mobile: natural height for document scrolling
-        isMobile ? 'min-h-dvh has-[[data-document-app-main]]:h-dvh' : 'h-dvh',
+        isMobile ? 'min-h-dvh has-[[data-document-page-main]]:h-dvh' : 'h-dvh',
       )}
     >
       <SiteHeader
@@ -2027,9 +2027,9 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
-  const documentApp = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentAppCid(document) : null
-  const [manageAppPermissions, setManageAppPermissions] = useState<(() => void) | null>(null)
-  const onAppAccessChange = useCallback((revoke: (() => void) | null) => setManageAppPermissions(() => revoke), [])
+  const documentPage = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentPageCid(document) : null
+  const [managePagePermissions, setManagePagePermissions] = useState<(() => void) | null>(null)
+  const onPageAccessChange = useCallback((revoke: (() => void) | null) => setManagePagePermissions(() => revoke), [])
   const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
@@ -2761,16 +2761,16 @@ function DocumentBody({
   })
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
-    if (documentApp) {
+    if (documentPage) {
       unorderedItems.push(
-        ...getDocumentAppPanelMenuItems(docId, (panel) => replaceRoute({...route, panel} as NavRoute)),
+        ...getDocumentPagePanelMenuItems(docId, (panel) => replaceRoute({...route, panel} as NavRoute)),
       )
-      if (manageAppPermissions)
+      if (managePagePermissions)
         unorderedItems.push({
-          key: 'app-permissions',
-          label: 'App permissions',
+          key: 'page-permissions',
+          label: 'Page permissions',
           icon: <ShieldCheck className="size-4" />,
-          onClick: manageAppPermissions,
+          onClick: managePagePermissions,
         })
     } else unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
@@ -2787,11 +2787,11 @@ function DocumentBody({
     }
     return orderDocumentMenuItems(unorderedItems)
   }, [
-    documentApp,
+    documentPage,
     docId,
     route,
     replaceRoute,
-    manageAppPermissions,
+    managePagePermissions,
     optionsMenuItems,
     extraMenuItems,
     citationFragmentToggleMenuItem,
@@ -2877,7 +2877,7 @@ function DocumentBody({
       </>
     ) : null
   const floatingButtonsAction =
-    activeView === 'content' && !documentApp && !documentContentAction ? floatingButtons : null
+    activeView === 'content' && !documentPage && !documentContentAction ? floatingButtons : null
 
   // The bar always states where you are, so a home document is its own single crumb.
   const spaceBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
@@ -2900,15 +2900,21 @@ function DocumentBody({
   )
 
   // Main page content (used in both mobile and desktop layouts)
-  const mainPageContent = documentApp ? (
-    <div data-document-app-main className="min-h-0 flex-1">
+  const mainPageContent = documentPage ? (
+    <div data-document-page-main className="min-h-0 flex-1">
       {documentConversionDialog}
-      <DocumentAppView
+      <DocumentPageView
         docId={docId}
         document={document}
-        cid={documentApp}
+        cid={documentPage}
+        inputParams={route.key === 'document' ? route.id.pageParams : undefined}
+        onInputNavigate={(pageParams, mode) => {
+          const next = {...route, id: {...docId, pageParams}} as NavRoute
+          if (mode === 'replace') replaceRoute(next)
+          else navigate(next)
+        }}
         perspectiveAccountUid={perspectiveAccountUid}
-        onAccountAccessChange={onAppAccessChange}
+        onAccountAccessChange={onPageAccessChange}
         fill
       />
     </div>
@@ -3169,7 +3175,7 @@ function DocumentBody({
     return (
       <>
         <div
-          className={cn('relative flex flex-1 flex-col', documentApp ? 'h-full min-h-0 overflow-hidden' : 'pb-20')}
+          className={cn('relative flex flex-1 flex-col', documentPage ? 'h-full min-h-0 overflow-hidden' : 'pb-20')}
           ref={elementRef}
         >
           {documentTopBar}
@@ -3296,7 +3302,7 @@ function DocumentBody({
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
-          {documentApp ? (
+          {documentPage ? (
             mainPageContent
           ) : (
             <ScrollArea
@@ -3310,7 +3316,7 @@ function DocumentBody({
               {mainPageContent}
             </ScrollArea>
           )}
-          {activeView === 'content' && !documentApp ? (
+          {activeView === 'content' && !documentPage ? (
             <Button
               ref={backToTopButtonRef}
               type="button"

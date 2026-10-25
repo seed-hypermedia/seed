@@ -163,6 +163,12 @@
         "type": "hm://hyper.media/string"
       },
       "description": "Comma-separated tags kept from an external import (e.g. WordPress)."
+    },
+    "type": {
+      "value": {
+        "type": "hm://hyper.media/hm-url"
+      },
+      "description": "Resource type, for example hm://hyper.media/page for a custom HTML page."
     }
   },
   "values": {
