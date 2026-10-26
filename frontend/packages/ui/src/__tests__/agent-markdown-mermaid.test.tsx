@@ -2,22 +2,14 @@
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {
-  encodeMermaidClickTargets,
-  Markdown,
-  MarkdownAssetContext,
-  resolveTranscriptLinkTarget,
-} from '../agents/markdown'
+import {Markdown, MarkdownAssetContext, resolveTranscriptLinkTarget} from '../agents/markdown'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const renderDiagram = vi.fn()
 const openUrl = vi.fn()
 const clickNavigate = vi.fn()
-vi.mock('mermaid', () => ({
-  default: {
-    initialize: vi.fn(),
-    render: (...args: unknown[]) => renderDiagram(...args),
-  },
+vi.mock('pele/lazy', () => ({
+  renderAsync: (...args: unknown[]) => renderDiagram(...args),
 }))
 vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: null})}))
 vi.mock('../agents/models', () => ({
@@ -39,6 +31,8 @@ describe('Markdown mermaid fences', () => {
 
   beforeEach(() => {
     vi.useFakeTimers()
+    // jsdom has no canvas; Pele uses its built-in text measurement fallback.
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
     container = document.createElement('div')
     document.body.appendChild(container)
     root = createRoot(container)
@@ -51,6 +45,7 @@ describe('Markdown mermaid fences', () => {
     act(() => root.unmount())
     container.remove()
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   function render(markdown: string) {
@@ -72,7 +67,10 @@ describe('Markdown mermaid fences', () => {
     // Before the debounce fires, the source shows as a plain code block.
     expect(container.querySelector('pre')?.textContent).toContain('graph TD')
     await settle()
-    expect(renderDiagram).toHaveBeenCalledWith(expect.any(String), 'graph TD\n  A --> B\n')
+    expect(renderDiagram).toHaveBeenCalledWith(
+      'graph TD\n  A --> B\n',
+      expect.objectContaining({idPrefix: expect.any(String)}),
+    )
     expect(container.querySelector('svg[data-diagram="yes"]')).toBeTruthy()
     expect(container.querySelector('pre')).toBeNull()
     // The clickable-node hover styles install once into the document head.
@@ -115,17 +113,11 @@ describe('Markdown mermaid fences', () => {
 
   it('routes diagram anchors: hm:// and https open via the platform, ~/memory lands on the Memory tab', async () => {
     renderDiagram.mockResolvedValue({
-      svg: '<svg><a href="https://mermaid-link.invalid/?to=hm%3A%2F%2Fz6MkAbc%2Fnotes"><g>doc</g></a><a href="https://example.com"><g>web</g></a><a href="~/memory/plan.md"><g>mem</g></a><a href="javascript:alert(1)"><g>evil</g></a></svg>',
+      svg: '<svg><a href="hm://z6MkAbc/notes"><g>doc</g></a><a href="https://example.com"><g>web</g></a><a href="~/memory/plan.md"><g>mem</g></a><a href="javascript:alert(1)"><g>evil</g></a></svg>',
     })
     renderWithScope('```mermaid\ngraph TD\n  A --> B\n  click A "hm://z6MkAbc/notes"\n```')
     await settle()
-    // The click target reaches mermaid pre-encoded so DOMPurify keeps the anchor.
-    expect(renderDiagram).toHaveBeenCalledWith(
-      expect.any(String),
-      expect.stringContaining('click A "https://mermaid-link.invalid/?to=hm%3A%2F%2Fz6MkAbc%2Fnotes"'),
-    )
-
-    clickAnchor('https://mermaid-link.invalid/?to=hm%3A%2F%2Fz6MkAbc%2Fnotes')
+    clickAnchor('hm://z6MkAbc/notes')
     expect(openUrl).toHaveBeenLastCalledWith('hm://z6MkAbc/notes', false)
     clickAnchor('https://example.com')
     expect(openUrl).toHaveBeenLastCalledWith('https://example.com', false)
@@ -139,6 +131,54 @@ describe('Markdown mermaid fences', () => {
     clickAnchor('javascript:alert(1)')
     expect(openUrl).not.toHaveBeenCalled()
     expect(clickNavigate).not.toHaveBeenCalled()
+  })
+
+  it('keeps app links usable with the real Pele renderer', async () => {
+    const pele = await vi.importActual<typeof import('pele/lazy')>('pele/lazy')
+    renderDiagram.mockImplementation(pele.renderAsync)
+    renderWithScope(
+      '```mermaid\ngraph TD\n A[Document] --> B[Memory]\n click A "hm://z6MkAbc/notes"\n click B "~/memory/plan.md"\n```',
+    )
+    await settle()
+
+    clickAnchor('hm://z6MkAbc/notes')
+    expect(openUrl).toHaveBeenLastCalledWith('hm://z6MkAbc/notes', false)
+    clickAnchor('~/memory/plan.md')
+    expect(clickNavigate).toHaveBeenCalledWith(
+      {key: 'agent', agentId: 'agent-1', serverUrl: 'https://srv.example', tab: 'memory', memoryPath: 'plan.md'},
+      expect.anything(),
+    )
+  })
+
+  it('recovers from incomplete source with the real Pele renderer', async () => {
+    const pele = await vi.importActual<typeof import('pele/lazy')>('pele/lazy')
+    renderDiagram.mockImplementation(pele.renderAsync)
+    render('```mermaid\ngraph TD\n A -->\n```')
+    await settle()
+    expect(container.querySelector('pre')?.textContent).toContain('A -->')
+
+    render(DIAGRAM)
+    await settle()
+    expect(container.querySelector('pre')).toBeNull()
+    expect(container.querySelector('svg')).toBeTruthy()
+  })
+
+  it('ignores a render that finishes after its source has changed', async () => {
+    let finishFirst!: (value: {svg: string}) => void
+    renderDiagram.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishFirst = resolve
+      }),
+    )
+    render(DIAGRAM)
+    await settle()
+    renderDiagram.mockResolvedValue({svg: '<svg><text>Current</text></svg>'})
+    render('```mermaid\ngraph TD\n C --> D\n```')
+    await settle()
+    await act(async () => {
+      finishFirst({svg: '<svg><text>Old</text></svg>'})
+    })
+    expect(container.textContent).toBe('Current')
   })
 
   it('intercepts app-routable markdown links but leaves plain web links to the browser', async () => {
@@ -174,27 +214,6 @@ describe('Markdown mermaid fences', () => {
       {key: 'agent', agentId: 'agent-1', serverUrl: 'https://srv.example', tab: 'memory', memoryPath: 'plans/q3.md'},
       expect.anything(),
     )
-  })
-})
-
-describe('encodeMermaidClickTargets', () => {
-  it('proxies hm:// and ipfs:// click targets, leaving other lines and labels alone', () => {
-    const encoded = encodeMermaidClickTargets(
-      'graph TD\n  A["see hm://z6Mk/inline"] --> B\n  click A "hm://z6Mk/doc" "tip"\n  click B "https://x.test"\n',
-    )
-    expect(encoded).toContain('click A "https://mermaid-link.invalid/?to=hm%3A%2F%2Fz6Mk%2Fdoc" "tip"')
-    expect(encoded).toContain('A["see hm://z6Mk/inline"]')
-    expect(encoded).toContain('click B "https://x.test"')
-  })
-
-  it('round-trips through resolveTranscriptLinkTarget, decoded or not', () => {
-    expect(resolveTranscriptLinkTarget('https://mermaid-link.invalid/?to=hm%3A%2F%2Fz6Mk%2Fdoc', 'https://gw')).toEqual(
-      {kind: 'open', url: 'hm://z6Mk/doc'},
-    )
-    expect(resolveTranscriptLinkTarget('https://mermaid-link.invalid/?to=hm://z6Mk/doc', 'https://gw')).toEqual({
-      kind: 'open',
-      url: 'hm://z6Mk/doc',
-    })
   })
 })
 

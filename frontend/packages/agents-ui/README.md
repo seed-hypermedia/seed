@@ -104,6 +104,6 @@ direnv exec . pnpm --filter @seed-hypermedia/agents-ui test
 direnv exec . pnpm --filter @seed-hypermedia/agents-ui build
 ```
 
-The build writes `dist/`: native ESM (Seed's editor, Mermaid and KaTeX in lazy chunks), declarations for the public API
+The build writes `dist/`: native ESM (Seed's editor, Pele and KaTeX in lazy chunks), declarations for the public API
 plus the agents protocol's types, and `styles.css` with fonts as separate files. It fails if a declaration refers to a
 private workspace package, so the published types always resolve. The source package is private; publish `dist/`.

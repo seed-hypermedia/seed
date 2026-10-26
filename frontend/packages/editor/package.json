@@ -59,7 +59,7 @@
     "katex": "0.16.42",
     "linkifyjs": "4.1.1",
     "lowlight": "3.1.0",
-    "mermaid": "^11.4.0",
+    "pele": "1.6.0",
     "multiformats": "^13.3.2",
     "nanoid": "5.1.16",
     "prosemirror-state": "1.4.4",
