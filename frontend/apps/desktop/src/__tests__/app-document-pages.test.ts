@@ -44,7 +44,9 @@ describe('handleDocumentPageRequest', () => {
     const url = openDocumentPage(pages, {id: docId, cid, account: null})
     const fetchFile = vi.fn(async (_cid: string, path: string) => {
       if (path === '' || path === 'index.html')
-        return new Response('<h1>hi</h1>', {headers: {'content-type': 'text/html; charset=utf-8'}})
+        return new Response('<h1>hi</h1>', {
+          headers: {'content-type': 'text/plain; charset=utf-8', 'content-security-policy': 'sandbox'},
+        })
       if (path === 'assets/page.js') return new Response('1', {headers: {'content-type': 'text/javascript'}})
       return new Response('nope', {status: 404})
     })
@@ -61,6 +63,9 @@ describe('handleDocumentPageRequest', () => {
     expect(index.headers.get('content-security-policy')).toContain("default-src 'self'")
     expect(index.headers.get('content-security-policy')).toContain('frame-ancestors http://localhost:17654')
     expect(fetchFile).toHaveBeenLastCalledWith(cid, '')
+
+    const explicitIndex = await handleDocumentPageRequest({method: 'GET', url: `${url}index.html`}, options)
+    expect(explicitIndex.headers.get('content-type')).toBe('text/html; charset=utf-8')
 
     const script = await handleDocumentPageRequest({method: 'GET', url: `${url}assets/page.js`}, options)
     expect(script.status).toBe(200)

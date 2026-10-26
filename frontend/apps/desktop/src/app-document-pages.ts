@@ -91,12 +91,14 @@ export async function handleDocumentPageRequest(
     return new Response(error instanceof Error ? error.message : 'Page file unavailable', {status: 502})
   }
   if (!upstream.ok) return new Response(null, {status: upstream.status === 404 ? 404 : 502})
+  // The daemon serves HTML as inert text. Restore its type only inside this isolated page origin.
+  const contentType =
+    url.pathname.endsWith('/') || /\.html?$/i.test(segments.at(-1) ?? '')
+      ? 'text/html; charset=utf-8'
+      : upstream.headers.get('content-type') || 'application/octet-stream'
   return new Response(request.method === 'HEAD' ? null : upstream.body, {
     status: 200,
-    headers: documentPageResponseHeaders(
-      upstream.headers.get('content-type') || 'application/octet-stream',
-      options.frameAncestors,
-    ),
+    headers: documentPageResponseHeaders(contentType, options.frameAncestors),
   })
 }
 

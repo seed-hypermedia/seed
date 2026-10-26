@@ -266,7 +266,9 @@ func TestGetDirectoryEntries(t *testing.T) {
 	res := makeRequest(t, "GET", "/ipfs/"+dirCID, nil, router)
 	require.Equal(t, http.StatusOK, res.Code)
 	require.Equal(t, "<h1>App</h1>", res.Body.String())
-	require.Equal(t, "text/html; charset=utf-8", res.Header().Get("Content-Type"))
+	require.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
+	require.Equal(t, "sandbox", res.Header().Get("Content-Security-Policy"))
+	require.Equal(t, "nosniff", res.Header().Get("X-Content-Type-Options"))
 
 	res = makeRequest(t, "GET", "/ipfs/"+dirCID+"/index.html", nil, router)
 	require.Equal(t, http.StatusOK, res.Code)
@@ -291,10 +293,10 @@ func TestGetDirectoryEntries(t *testing.T) {
 	res = makeRequest(t, "GET", "/ipfs/"+dirCID+"/index.html/deeper", nil, router)
 	require.Equal(t, http.StatusNotFound, res.Code, "a file has no entries")
 
-	// A bare file is served as before: opaque bytes, no index lookup.
+	// A bare file is typed by its bytes, with no index lookup.
 	fileCID := addFile("plain").Cid().String()
 	res = makeRequest(t, "GET", "/ipfs/"+fileCID, nil, router)
 	require.Equal(t, http.StatusOK, res.Code)
 	require.Equal(t, "plain", res.Body.String())
-	require.Equal(t, "application/octet-stream", res.Header().Get("Content-Type"))
+	require.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
 }
