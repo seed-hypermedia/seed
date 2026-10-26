@@ -8,7 +8,7 @@ import {
 } from '@/db'
 import type {Email, NotificationConfigRow} from '@/db'
 import {corsJson} from '@/utils/cors'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 
 /** Reads the email's settings and subscriptions for the admin token in `?token=`. */
 export async function GET(request: Request) {

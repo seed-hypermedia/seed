@@ -1,4 +1,4 @@
-import z from 'zod'
+import z from 'zod/v3'
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 

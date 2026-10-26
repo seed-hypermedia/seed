@@ -11,7 +11,7 @@ import {serialize} from 'superjson'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {
   AGENTS_PROTOCOL_HEADER,
   AGENTS_PROTOCOL_VERSION,
@@ -11955,9 +11955,14 @@ describe('mcp servers', () => {
     let seenAuth: string | undefined
     const mcpServer = await startTestMcpServer({
       tools: (server) => {
-        server.tool('forecast', 'Forecast for a city.', {city: z.string()}, async ({city}) => ({
-          content: [{type: 'text', text: `Sunny in ${city}`}],
-        }))
+        ;(server.tool as any)(
+          'forecast',
+          'Forecast for a city.',
+          {city: z.string()} as any,
+          async ({city}: {city: string}) => ({
+            content: [{type: 'text', text: `Sunny in ${city}`}],
+          }),
+        )
       },
       onRequest: (req) => {
         seenAuth = req.headers['authorization'] as string | undefined
@@ -12094,10 +12099,15 @@ describe('mcp servers', () => {
     const originalFetch = globalThis.fetch
     const mcpServer = await startTestMcpServer({
       tools: (server) => {
-        server.tool('forecast', 'Forecast for a city.', {city: z.string()}, async ({city}) => ({
-          content: [{type: 'text', text: `Sunny in ${city}`}],
-          structuredContent: {city, tempC: 24},
-        }))
+        ;(server.tool as any)(
+          'forecast',
+          'Forecast for a city.',
+          {city: z.string()} as any,
+          async ({city}: {city: string}) => ({
+            content: [{type: 'text', text: `Sunny in ${city}`}],
+            structuredContent: {city, tempC: 24},
+          }),
+        )
       },
     })
     try {

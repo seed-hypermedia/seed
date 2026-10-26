@@ -2,7 +2,7 @@ import {setSubscription} from '@/db'
 import {sendNotificationWelcomeEmail} from '@/emails'
 import {requestAPI} from '@/notify-request'
 import {corsJson} from '@/utils/cors'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 
 export function GET() {
   return corsJson({})

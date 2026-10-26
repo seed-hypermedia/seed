@@ -9,7 +9,7 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect, useRef} from 'react'
-import z from 'zod'
+import z from 'zod/v3'
 
 // MANUAL SYNC WITH SEED REPO
 

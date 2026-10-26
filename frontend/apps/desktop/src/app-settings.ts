@@ -1,5 +1,5 @@
 import {nativeTheme} from 'electron'
-import z from 'zod'
+import z from 'zod/v3'
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 import {broadcastUseDarkColors} from './app-windows'

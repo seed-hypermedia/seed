@@ -2,7 +2,7 @@ import {FiltersEngine, Request} from '@ghostery/adblocker'
 import type {Session, WebContents} from 'electron'
 import {mkdirSync, readFileSync, renameSync, statSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {browserListRefreshInterval, readBrowserFeed} from './browser-blocklist'
 import bundled from './browser-filter-lists/engine.json'
 

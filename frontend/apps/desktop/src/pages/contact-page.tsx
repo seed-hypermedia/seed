@@ -31,7 +31,7 @@ import {ArrowUpRight, ChevronDown, ChevronRight, ChevronUp, Pencil, ShieldCheck,
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 
 export default function ContactPage() {
   const route = useNavRoute()
@@ -386,7 +386,7 @@ function ContactFormDialog({
     setFocus,
     formState: {errors},
   } = useForm<z.infer<typeof SaveContactSchema>>({
-    resolver: zodResolver(SaveContactSchema),
+    resolver: zodResolver(SaveContactSchema as any),
     defaultValues: {
       name: input.name || '',
     },

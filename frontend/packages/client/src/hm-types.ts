@@ -1,4 +1,4 @@
-import * as z from 'zod'
+import * as z from 'zod/v3'
 
 // Signing abstraction: each platform provides its own implementation
 export type HMSigner = {

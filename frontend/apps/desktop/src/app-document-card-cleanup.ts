@@ -19,7 +19,7 @@ import {
   planDocumentCardRemoval,
   planDocumentCardRewrite,
 } from '@shm/shared/utils/document-card-cleanup'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {appStore} from './app-store.mts'
 import {getSigner, seedClient} from './app-client'
 import {grpcClient} from './app-grpc'

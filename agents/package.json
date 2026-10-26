@@ -41,7 +41,7 @@
     "react": "^19",
     "react-dom": "^19",
     "turndown": "7.2.4",
-    "zod": "3.25.76"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@connectrpc/connect-web": "1.4.0",

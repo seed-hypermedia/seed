@@ -1,7 +1,7 @@
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
 import {Bell, Settings, X} from 'lucide-react'
 import {FormEvent, ReactNode, useMemo, useState} from 'react'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {Button} from './button'
 import {Input} from './components/input'
 import {Label} from './components/label'

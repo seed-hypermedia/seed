@@ -6,7 +6,7 @@
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js'
 import * as http from 'node:http'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 
 /** `onRequest` lets a test inspect headers; `connects()` counts initialize handshakes. */
 export async function startTestMcpServer(options: {
@@ -27,7 +27,7 @@ export async function startTestMcpServer(options: {
     const server = new McpServer({name: 'test-mcp', version: '1.0.0'})
     if (options.tools) options.tools(server)
     else {
-      server.tool('echo', 'Echoes back text', {text: z.string()}, async ({text}) => ({
+      ;(server.tool as any)('echo', 'Echoes back text', {text: z.string()} as any, async ({text}: {text: string}) => ({
         content: [{type: 'text', text: `echo: ${text}`}],
       }))
     }
