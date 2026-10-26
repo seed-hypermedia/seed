@@ -138,6 +138,42 @@ describe('Store', () => {
   })
 
   describe('handlePreLogin', () => {
+    test('sign-in never sends email for an unknown account', async () => {
+      const registerStart = mock(async () => ({message: 'ok', expireTime: 1, resendAllowedTime: 1}))
+      const {state, actions} = createStore(
+        createMockClient({preLogin: async () => ({exists: false}), registerStart}),
+        createMockBlockstore(),
+      )
+      state.email = 'new@example.com'
+      await actions.handlePreLogin({signInOnly: true})
+      expect(registerStart).not.toHaveBeenCalled()
+      expect(state.error).toContain('Create account')
+    })
+
+    test('registration lookup rejection and changed email never reveal the invitation step', async () => {
+      let resolve!: (value: {exists: false}) => void
+      const answer = new Promise<{exists: false}>((r) => {
+        resolve = r
+      })
+      const {state, actions} = createStore(createMockClient({preLogin: async () => answer}), createMockBlockstore())
+      state.email = 'first@example.com'
+      const pending = actions.handlePreLogin({checkRegistration: true})
+      actions.setEmail('second@example.com')
+      resolve({exists: false})
+      expect(await pending).toBe(false)
+      const rejected = createStore(
+        createMockClient({
+          preLogin: async () => {
+            throw new Error('server rejected')
+          },
+        }),
+        createMockBlockstore(),
+      )
+      rejected.state.email = 'new@example.com'
+      expect(await rejected.actions.handlePreLogin({checkRegistration: true})).not.toBe(true)
+      expect(rejected.state.error).toBeTruthy()
+    })
+
     test('navigates to verify-pending when user does not exist', async () => {
       const client = createMockClient({
         preLogin: async () => ({exists: false}),

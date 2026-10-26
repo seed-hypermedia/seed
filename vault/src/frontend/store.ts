@@ -807,14 +807,29 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async handlePreLogin() {
+    async handlePreLogin({
+      signInOnly = false,
+      checkRegistration = false,
+    }: {signInOnly?: boolean; checkRegistration?: boolean} = {}) {
       state.error = ''
       state.loading = true
 
+      const email = state.email.trim().toLowerCase()
+      state.email = email
       try {
-        const data = await client.preLogin({email: state.email})
+        const data = await client.preLogin({email})
+        // Ignore an answer for an address the user changed while the lookup was pending.
+        if (state.email !== email) return false
         const hasPassword = data.credentials?.password ?? false
         const hasPasskey = data.credentials?.passkey ?? false
+
+        // Signing in must never send registration email or create an account.
+        if (signInOnly && (!data.exists || (!hasPassword && !hasPasskey))) {
+          state.error = 'No sign-in method found for this email. Check the address or choose Create account.'
+          return false
+        }
+
+        if (checkRegistration && (!data.exists || (!hasPassword && !hasPasskey))) return true
 
         if (data.exists) {
           state.userHasPassword = hasPassword
@@ -830,8 +845,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         } else {
           await actions.handleStartRegistration()
         }
-      } catch (_e) {
-        state.error = 'Connection failed. Please try again.'
+      } catch (e) {
+        if (state.email === email) {
+          state.error = e instanceof APIError ? e.message : 'Connection failed. Please try again.'
+        }
       } finally {
         state.loading = false
       }

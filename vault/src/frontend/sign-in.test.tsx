@@ -82,7 +82,7 @@ async function renderSignIn({lockedAt}: {lockedAt?: string} = {}) {
     rtl.fireEvent.change(emailInput, {target: {value: 'user@example.com'}})
   })
   await rtl.act(async () => {
-    rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Send code'}))
+    rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Continue'}))
   })
   await rtl.waitFor(() => {
     expect(window.location.pathname).toBe('/vault/login')
@@ -232,7 +232,7 @@ describe('sign in with password', () => {
     await rtl.act(async () => {
       rtl.fireEvent.change(emailInput, {target: {value: 'other@example.com'}})
     })
-    await click(rtl.screen.getByRole('button', {name: 'Send code'}))
+    await click(rtl.screen.getByRole('button', {name: 'Continue'}))
     await click(await rtl.screen.findByText('Sign in with password'))
     expect(((await rtl.screen.findByLabelText('Password')) as HTMLInputElement).value).toBe('')
   })

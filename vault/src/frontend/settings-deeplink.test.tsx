@@ -138,7 +138,7 @@ describe('desktop deep link to /settings', () => {
       rtl.fireEvent.change(emailInput, {target: {value: 'user@example.com'}})
     })
     await rtl.act(async () => {
-      rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Send code'}))
+      rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Continue'}))
     })
 
     await rtl.waitFor(() => {

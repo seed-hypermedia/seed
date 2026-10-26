@@ -18,6 +18,7 @@ import {useActions, useAppState} from '@/frontend/store'
 export function PreLoginView() {
   const {
     email,
+    relyingPartyName,
     inviteOnly,
     inviteCode,
     loading,
@@ -31,6 +32,9 @@ export function PreLoginView() {
   const actions = useActions()
   const autoSubmittedRef = useRef(false)
   const [emailTouched, setEmailTouched] = useState(false)
+  const [creatingAccount, setCreatingAccount] = useState(false)
+  const [registrationEmail, setRegistrationEmail] = useState('')
+  const needsInvitation = creatingAccount && inviteOnly && registrationEmail === email && !!registrationEmail
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
   const showEmailError = emailTouched && email.trim().length > 0 && !emailValid
@@ -53,7 +57,7 @@ export function PreLoginView() {
       !autoSubmittedRef.current
     ) {
       autoSubmittedRef.current = true
-      actions.handlePreLogin()
+      actions.handlePreLogin({signInOnly: true})
     }
   }, [sessionChecked, session, delegationRequest, email, loading, actions])
 
@@ -71,14 +75,29 @@ export function PreLoginView() {
       setEmailTouched(true)
       return
     }
-    await actions.handlePreLogin()
+    const accepted = await actions.handlePreLogin({
+      signInOnly: !creatingAccount,
+      checkRegistration: creatingAccount && inviteOnly && !needsInvitation,
+    })
+    if (accepted) setRegistrationEmail(email.trim().toLowerCase())
   }
 
   return (
     <Card>
       <CardHeader>
-        <StepIndicator currentStep={1} />
-        {vaultConnectionRequest?.siteName ? (
+        {creatingAccount && <StepIndicator currentStep={1} />}
+        {creatingAccount ? (
+          <>
+            <CardTitle className="text-left text-xl">Create your account</CardTitle>
+            <CardDescription className="text-left">
+              {inviteOnly
+                ? needsInvitation
+                  ? 'Enter the invitation code for this email.'
+                  : 'Enter your email to get started.'
+                : 'We’ll verify your email before you choose a password or passkey.'}
+            </CardDescription>
+          </>
+        ) : vaultConnectionRequest?.siteName ? (
           <>
             <CardTitle className="text-left text-xl">Sign in to join {vaultConnectionRequest.siteName}</CardTitle>
             <CardDescription className="text-left">Enter the email linked to your Hypermedia identity.</CardDescription>
@@ -92,8 +111,10 @@ export function PreLoginView() {
           </>
         ) : (
           <>
-            <CardTitle className="text-left text-xl">What's your email?</CardTitle>
-            <CardDescription className="text-left">We'll send a verification code.</CardDescription>
+            <CardTitle className="text-left text-xl">
+              {relyingPartyName ? `Sign in to ${relyingPartyName}` : 'Sign in'}
+            </CardTitle>
+            <CardDescription className="text-left">Use your password or passkey.</CardDescription>
           </>
         )}
       </CardHeader>
@@ -109,7 +130,11 @@ export function PreLoginView() {
               type="email"
               placeholder="Enter your email"
               value={email}
-              onChange={(e) => actions.setEmail(e.target.value)}
+              onChange={(e) => {
+                setRegistrationEmail('')
+                actions.setInviteCode('')
+                actions.setEmail(e.target.value)
+              }}
               onBlur={() => setEmailTouched(true)}
               aria-invalid={showEmailError}
               className={showEmailError ? 'border-destructive focus-visible:border-destructive' : undefined}
@@ -119,7 +144,7 @@ export function PreLoginView() {
             {showEmailError ? <p className="text-destructive text-sm">That doesn't look like a valid email</p> : null}
           </div>
 
-          {inviteOnly && (
+          {needsInvitation && (
             <div className="space-y-2">
               <Label htmlFor="invite">Invitation code</Label>
               <Input
@@ -133,33 +158,39 @@ export function PreLoginView() {
                 spellCheck={false}
               />
               <p className="text-muted-foreground text-sm">
-                This vault is invite-only. A code is required to create a new account; existing accounts sign in as
-                usual.
+                An invitation is required to create an account. You do not need one to sign in.
               </p>
             </div>
           )}
 
-          <div className="space-y-2">
-            <p className="text-muted-foreground text-sm">
-              By continuing, you agree to our{' '}
-              <a
-                href="https://hyper.media/terms"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary underline hover:opacity-80"
-              >
-                Terms and Privacy Policy
-              </a>
-              .
-            </p>
-          </div>
+          {creatingAccount && (!inviteOnly || needsInvitation) && (
+            <div className="space-y-2">
+              <p className="text-muted-foreground text-sm">
+                By continuing, you agree to our{' '}
+                <a
+                  href="https://hyper.media/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline hover:opacity-80"
+                >
+                  Terms and Privacy Policy
+                </a>
+                .
+              </p>
+            </div>
+          )}
 
-          <Button type="submit" loading={loading} disabled={!emailValid} className="w-full">
-            Send code
+          <Button
+            type="submit"
+            loading={loading}
+            disabled={!emailValid || (needsInvitation && !inviteCode.trim())}
+            className="w-full"
+          >
+            Continue
           </Button>
         </form>
 
-        {passkeySupported && (
+        {!creatingAccount && passkeySupported && (
           <p className="text-muted-foreground mt-4 text-center text-sm">
             <button
               type="button"
@@ -171,6 +202,21 @@ export function PreLoginView() {
             </button>
           </p>
         )}
+        <div className="mt-6 border-t pt-4 text-center">
+          <Button
+            type="button"
+            variant="link"
+            disabled={loading}
+            onClick={() => {
+              actions.setError('')
+              actions.setInviteCode('')
+              setRegistrationEmail('')
+              setCreatingAccount(!creatingAccount)
+            }}
+          >
+            {creatingAccount ? 'Already have an account? Sign in' : 'Create account'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   )

@@ -268,19 +268,55 @@ describe('invite-only registration', () => {
     expect(registerStart).not.toHaveBeenCalled()
   })
 
-  test('pre-login screen without a link keeps the invite input and the invite-only hint', async () => {
+  test('invitation input appears only after the server accepts a new registration email', async () => {
+    let resolveEmail!: (value: {exists: false}) => void
+    const lookup = new Promise<{exists: false}>((resolve) => {
+      resolveEmail = resolve
+    })
+    const preLogin = mock(async () => lookup)
+    const registerStart = registerStartMock()
     const client = createMockClient({
       getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      preLogin,
+      registerStart,
     })
     setWindowUrl('http://localhost/vault')
     await renderApp(client)
+    const input = await rtl.screen.findByLabelText('Enter your email to continue')
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    expect(rtl.screen.queryByText(/verification code/)).toBeNull()
+    await rtl.act(async () => rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Create account'})))
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    await rtl.act(async () => rtl.fireEvent.change(input, {target: {value: invitedEmail}}))
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    await rtl.act(async () => rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Continue'})))
+    expect(preLogin).toHaveBeenCalledWith({email: invitedEmail})
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    await rtl.act(async () => resolveEmail({exists: false}))
+    const invitation = await rtl.screen.findByLabelText('Invitation code')
+    expect(registerStart).not.toHaveBeenCalled()
+    await rtl.act(async () => rtl.fireEvent.change(invitation, {target: {value: inviteCode}}))
+    await rtl.act(async () => rtl.fireEvent.change(input, {target: {value: 'changed@example.com'}}))
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+  })
 
-    await rtl.screen.findByLabelText('Enter your email to continue')
-    rtl.screen.getByLabelText('Invitation code')
-    rtl.screen.getByText(/This vault is invite-only. A code is required to create a new account/)
-    rtl.screen.getByText('Send code')
-    rtl.screen.getByText(/Terms and Privacy Policy/)
-    expect(rtl.screen.queryByText("You've been invited")).toBeNull()
+  test('an existing account on the creation path goes to sign-in without asking for an invitation', async () => {
+    const registerStart = registerStartMock()
+    const client = createMockClient({
+      getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      preLogin: async () => ({exists: true, credentials: {password: true}, salt: 'salt'}),
+      registerStart,
+    })
+    setWindowUrl('http://localhost/vault')
+    await renderApp(client)
+    await rtl.act(async () => rtl.fireEvent.click(await rtl.screen.findByRole('button', {name: 'Create account'})))
+    await rtl.act(async () =>
+      rtl.fireEvent.change(rtl.screen.getByLabelText('Enter your email to continue'), {target: {value: invitedEmail}}),
+    )
+    await rtl.act(async () => rtl.fireEvent.click(rtl.screen.getByRole('button', {name: 'Continue'})))
+    await rtl.screen.findByText('Sign in with password')
+    expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
+    expect(registerStart).not.toHaveBeenCalled()
   })
 
   test('pre-login screen hides the invite input when the vault is open', async () => {

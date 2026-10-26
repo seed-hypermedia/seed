@@ -34,7 +34,7 @@ describe('delegation registration loop', () => {
     setWindowUrl('http://localhost/')
   })
 
-  test('does not restart registration when pending verification fails back into the delegation flow', async () => {
+  test('a delegation with an unknown email never starts registration implicitly', async () => {
     const registerStart = mock(async () => ({
       message: 'ok',
       expireTime: Date.now() + 15 * 60 * 1000,
@@ -77,13 +77,13 @@ describe('delegation registration loop', () => {
     })
 
     await rtl.waitFor(() => {
-      expect(window.location.pathname).toBe('/vault/verify/pending')
+      expect(rtl.screen.getByText(/No sign-in method found/)).toBeTruthy()
     })
 
-    expect(registerStart).toHaveBeenCalledTimes(1)
+    expect(registerStart).not.toHaveBeenCalled()
   })
 
-  test('auto-submits matching delegation email once across rerenders', async () => {
+  test('checks matching delegation email once across rerenders without sending email', async () => {
     const registerStart = mock(async () => ({
       message: 'ok',
       expireTime: Date.now() + 15 * 60 * 1000,
@@ -117,14 +117,13 @@ describe('delegation registration loop', () => {
     )
     const rendered = rtl.render(view)
 
-    await rtl.waitFor(() => {
-      expect(registerStart).toHaveBeenCalledTimes(1)
-    })
+    await rtl.screen.findByText(/No sign-in method found/)
+    expect(registerStart).not.toHaveBeenCalled()
 
     rendered.rerender(view)
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    expect(registerStart).toHaveBeenCalledTimes(1)
+    expect(registerStart).not.toHaveBeenCalled()
   })
 
   test('does not auto-submit manually typed email in delegation flow', async () => {
