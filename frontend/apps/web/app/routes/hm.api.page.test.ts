@@ -34,6 +34,15 @@ describe('same-origin page routes', () => {
     expect(policy).toContain("frame-ancestors 'self'")
     expect(await response.text()).toContain('const HOST_ORIGIN = "https://seed.example"')
   })
+  it('pins the runner to the public https origin when a proxy terminates TLS', async () => {
+    const response = runner({
+      ...args(),
+      request: new Request('http://web:3000/hm/page-runner', {
+        headers: {Host: 'web:3000', 'X-Forwarded-Host': 'staging.hyper.media', 'X-Forwarded-Proto': 'https'},
+      }),
+    })
+    expect(await response.text()).toContain('const HOST_ORIGIN = "https://staging.hyper.media"')
+  })
   it('requires the enterprise session before resolving private page content', async () => {
     mocks.gated = true
     expect((await loader(args())).status).toBe(401)
