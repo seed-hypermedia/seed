@@ -127,7 +127,7 @@ The site services under `/hm/api/*` define a site: `GET /hm/api/config` (above),
 
 # Where this is going <!-- id:FDKsYfXW -->
 
-As of September 2026, the open items around sites are the canonical-URL and robots policy for search engines, exposing subscriptions and domain management through the public API as well as gRPC, and the broader HM26 direction on the [roadmap](./roadmap.md). In that direction a site's authority over a space becomes an explicit, signed relationship instead of a `siteUrl` string plus an HTTPS lookup. <!-- id:Wlc_KMNW -->
+As of September 2026, the open items around sites are the canonical-URL and robots policy for search engines, exposing subscriptions and domain management through the public API as well as gRPC, and the broader resource-model direction on the [roadmap](./roadmap.md). In that direction a site's authority over a space becomes an explicit, signed relationship instead of a `siteUrl` string plus an HTTPS lookup. <!-- id:Wlc_KMNW -->
 
 # See also <!-- id:S_PCOiHH -->
 

@@ -261,7 +261,7 @@ grpcurl -plaintext -d '{"id":"hm://ACC/notes/foo"}' localhost:56002 \
 
 # Where this is going <!-- id:KowfZ7Nb -->
 
-As of September 2026 the network layer is stable, and two things are open. First, routing. With no DHT, a fresh install can only reach content held by a gateway, a site server or a peer it was told about. A delegated-routing server or a real provider system is the next step, and unused code hooks exist for both. Second, the team wants to narrow discovery toward explicit trust relationships (sites you joined, contacts, subscriptions) and stop sampling twenty peers. The team also wants to expose subscriptions through the public API as well as gRPC. The HM26 redesign notes on the [roadmap](./roadmap.md) touch both. <!-- id:KKqDkzn8 -->
+As of September 2026 the network layer is stable, and two things are open. First, routing. With no DHT, a fresh install can only reach content held by a gateway, a site server or a peer it was told about. A delegated-routing server or a real provider system is the next step, and unused code hooks exist for both. Second, the team wants to narrow discovery toward explicit trust relationships (sites you joined, contacts, subscriptions) and stop sampling twenty peers. The team also wants to expose subscriptions through the public API as well as gRPC. The proposed redesign notes on the [roadmap](./roadmap.md) touch both. <!-- id:KKqDkzn8 -->
 
 # See also <!-- id:69ZiysmY -->
 

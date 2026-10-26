@@ -1,8 +1,8 @@
 # Desktop runtime and packaging
 
-Electron 44.5.1 bundles Chromium 152.0.7977.130 and Node 24.21.0 (released 2026-09-29). It requires macOS 13 or newer.
+Electron 44.9.1 bundles Chromium 152.0.7977.167 and Node 24.22.0 (released 2026-10-20). It requires macOS 13 or newer.
 Update `electron-release.json` alongside the desktop Electron pin and root pnpm override; rebuilding alone must not
-reset the browser's age. Source: https://releases.electronjs.org/release/v44.5.1.
+reset the browser's age. Source: https://releases.electronjs.org/release/v44.9.1.
 
 Every package disables RunAsNode, NODE_OPTIONS and Node CLI inspection, and enables cookie encryption, embedded ASAR
 integrity and loading only from ASAR. Forge flips fuses before signing, then reads them back in `postPackage`. To check
