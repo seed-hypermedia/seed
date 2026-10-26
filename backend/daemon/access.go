@@ -11,60 +11,22 @@ import (
 )
 
 // apiAccess admits callers at the network boundary, before HTTP routing or RPC
-// dispatch. Server deployments instead rely on their private network boundary.
+// dispatch. Default (desktop) mode trusts local processes with daemon authority,
+// including signing with stored keys, so local tools need no per-launch app secret.
+// Loopback admission is a network boundary, not isolation between OS users.
+// Browsers need independent Host and origin checks because hostile websites can
+// reach loopback services. Listeners remain wildcard-bound; admission is enforced
+// at runtime. Server mode bypasses these ingress checks and trusts deployment
+// networking instead; private-read filtering is a separate policy.
 type apiAccess struct {
 	server  bool
-	peers   []netip.Prefix
-	hosts   map[string]bool
 	origins map[string]bool
 }
 
 func newAPIAccess(cfg config.Base) (*apiAccess, error) {
-	a := &apiAccess{server: cfg.ServerMode, hosts: map[string]bool{}, origins: map[string]bool{}}
+	a := &apiAccess{server: cfg.ServerMode, origins: map[string]bool{}}
 	if a.server {
 		return a, nil
-	}
-
-	for _, raw := range strings.Split(cfg.APIAllowedPeers, ",") {
-		raw = strings.TrimSpace(raw)
-		if raw == "" {
-			continue
-		}
-
-		prefix, err := netip.ParsePrefix(raw)
-		if err != nil {
-			addr, err := netip.ParseAddr(raw)
-			if err != nil || addr.Zone() != "" {
-				return nil, fmt.Errorf("invalid api.allowed-peers entry %q", raw)
-			}
-
-			addr = addr.Unmap()
-			prefix = netip.PrefixFrom(addr, addr.BitLen())
-		}
-
-		if prefix.Addr().Is4In6() {
-			if prefix.Bits() < 96 {
-				return nil, fmt.Errorf("invalid mapped IPv4 api.allowed-peers prefix %q", raw)
-			}
-
-			prefix = netip.PrefixFrom(prefix.Addr().Unmap(), prefix.Bits()-96)
-		}
-
-		a.peers = append(a.peers, prefix.Masked())
-	}
-
-	for _, raw := range strings.Split(cfg.APIAllowedHosts, ",") {
-		raw = strings.TrimSpace(raw)
-		if raw == "" {
-			continue
-		}
-
-		u, err := url.Parse("//" + raw)
-		if err != nil || u.Host != raw || u.User != nil || u.Hostname() != raw || strings.ContainsAny(raw, ":/?#\\*") {
-			return nil, fmt.Errorf("invalid api.allowed-hosts hostname %q", raw)
-		}
-
-		a.hosts[strings.ToLower(raw)] = true
 	}
 
 	for _, raw := range strings.Split(cfg.APIAllowedOrigins, ",") {
@@ -85,18 +47,7 @@ func newAPIAccess(cfg config.Base) (*apiAccess, error) {
 }
 
 func (a *apiAccess) allowsIP(ip netip.Addr) bool {
-	ip = ip.Unmap()
-	if ip.IsLoopback() {
-		return true
-	}
-
-	for _, prefix := range a.peers {
-		if prefix.Contains(ip) {
-			return true
-		}
-	}
-
-	return false
+	return ip.Unmap().IsLoopback()
 }
 
 func (a *apiAccess) middleware(next http.Handler) http.Handler {
@@ -127,7 +78,7 @@ func (a *apiAccess) middleware(next http.Handler) http.Handler {
 		host := authority.Hostname()
 
 		addr, _ := netip.ParseAddr(host)
-		if !strings.EqualFold(host, "localhost") && !a.hosts[strings.ToLower(host)] && !a.allowsIP(addr) {
+		if !strings.EqualFold(host, "localhost") && !addr.Unmap().IsLoopback() {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
@@ -150,6 +101,8 @@ func (a *apiAccess) middleware(next http.Handler) http.Handler {
 			scheme = "https"
 		}
 
+		// The same-origin case preserves grpcui POSTs. Explicit origins admit the
+		// desktop renderer on its separate port, without widening peer or Host access.
 		trustedOrigin := origin != "" && (origin == scheme+"://"+r.Host || a.origins[origin])
 		if origin != "" && !trustedOrigin {
 			http.Error(w, "forbidden", http.StatusForbidden)

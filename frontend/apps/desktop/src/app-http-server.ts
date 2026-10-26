@@ -39,7 +39,14 @@ function readBody(req: http.IncomingMessage): Promise<Uint8Array> {
   })
 }
 
-/** Starts the desktop API with socket, Host, and browser-origin admission checks. */
+/**
+ * Starts the desktop API, trusting admitted local processes with full API access.
+ * Loopback is a network boundary, not isolation between OS users; local tools
+ * need no per-launch app secret. Host and browser-origin checks independently
+ * protect against hostile websites reaching loopback, including DNS rebinding.
+ * Keep this policy aligned with the daemon's default-mode ingress policy. The
+ * desktop bridge always enforces it; the daemon's server-mode bypass is separate.
+ */
 export function startApiServer(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (server) {
@@ -50,28 +57,6 @@ export function startApiServer(): Promise<void> {
     const allowedPeers = new BlockList()
     allowedPeers.addSubnet('127.0.0.0', 8, 'ipv4')
     allowedPeers.addAddress('::1', 'ipv6')
-    for (const entry of (process.env.SEED_API_ALLOWED_PEERS || '')
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean)) {
-      const [address, prefix, extra] = entry.split('/')
-      if (!address || !isIP(address) || extra !== undefined) throw new Error(`Invalid allowed peer: ${entry}`)
-      const normalized = normalizeAddress(address)
-      const family = isIP(normalized) === 4 ? 'ipv4' : 'ipv6'
-      if (prefix === undefined) {
-        allowedPeers.addAddress(normalized, family)
-      } else {
-        if (!/^\d+$/.test(prefix)) throw new Error(`Invalid allowed peer: ${entry}`)
-        const bits = Number(prefix) - (isIP(address) === 6 && family === 'ipv4' ? 96 : 0)
-        allowedPeers.addSubnet(normalized, bits, family)
-      }
-    }
-    const allowedHosts = new Set(
-      (process.env.SEED_API_ALLOWED_HOSTS || '')
-        .split(',')
-        .map((value) => value.trim().toLowerCase())
-        .filter(Boolean),
-    )
     const allowedOrigins = new Set(
       (process.env.SEED_API_ALLOWED_ORIGINS || '')
         .split(',')
@@ -120,7 +105,6 @@ export function startApiServer(): Promise<void> {
       const ipVersion = isIP(hostname)
       if (
         hostname !== 'localhost' &&
-        !allowedHosts.has(hostname) &&
         (!ipVersion || !allowedPeers.check(hostname, ipVersion === 4 ? 'ipv4' : 'ipv6'))
       ) {
         return forbid()
@@ -156,6 +140,8 @@ export function startApiServer(): Promise<void> {
         case undefined:
         case 'none':
         case 'same-origin':
+          // Headerless tools still pass peer/Host admission; any supplied browser
+          // source was checked above. Same-site alone never establishes trust.
           break
         case 'same-site':
         case 'cross-site':
@@ -206,6 +192,8 @@ export function startApiServer(): Promise<void> {
     // which we don't want to do at the moment.
 
     const port = Number(API_HTTP_PORT)
+    // Keep admission at the request boundary instead of coupling policy to the
+    // bind address. The peer gate above restricts this wildcard listener to loopback.
     server.listen(port, () => {
       logger.info(`[API-SERVER]: Started on http://localhost:${port}`)
       resolve()

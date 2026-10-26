@@ -148,12 +148,8 @@ func TestSecurity_APIBrowserAdmission(t *testing.T) {
 		{name: "trusted remote renderer", cfg: config.Base{APIAllowedOrigins: "https://app.example"}, origin: "https://app.example", site: "cross-site", want: http.StatusNoContent},
 		{name: "origin cannot admit peer", cfg: config.Base{APIAllowedOrigins: "https://app.example"}, peer: "100.64.1.3:12345", origin: "https://app.example", site: "cross-site", want: http.StatusForbidden},
 		{name: "origin cannot admit rebound Host", cfg: config.Base{APIAllowedOrigins: "https://app.example"}, host: "evil.example", origin: "https://app.example", site: "same-origin", want: http.StatusForbidden},
-		{name: "unconfigured remote tool", peer: "100.64.1.3:12345", want: http.StatusForbidden},
-		{name: "configured remote tool", cfg: config.Base{APIAllowedPeers: "100.64.1.3"}, peer: "100.64.1.3:12345", host: "100.64.1.3:58001", want: http.StatusNoContent},
-		{name: "configured remote CIDR", cfg: config.Base{APIAllowedPeers: "100.64.1.0/24", APIAllowedHosts: "seed.tail.example"}, peer: "100.64.1.3:12345", host: "seed.tail.example:58001", want: http.StatusNoContent},
-		{name: "outside configured CIDR", cfg: config.Base{APIAllowedPeers: "100.64.1.0/24"}, peer: "100.64.2.3:12345", want: http.StatusForbidden},
-		{name: "Host cannot admit peer", cfg: config.Base{APIAllowedHosts: "seed.tail.example"}, peer: "100.64.1.3:12345", host: "seed.tail.example", want: http.StatusForbidden},
-		{name: "mapped configured peer", cfg: config.Base{APIAllowedPeers: "::ffff:100.64.1.0/120"}, peer: "[::ffff:100.64.1.3]:12345", host: "[::ffff:100.64.1.3]:58001", want: http.StatusNoContent},
+		{name: "remote tool", peer: "100.64.1.3:12345", want: http.StatusForbidden},
+		{name: "mapped remote peer", peer: "[::ffff:100.64.1.3]:12345", host: "[::ffff:100.64.1.3]:58001", want: http.StatusForbidden},
 		{name: "server container networking", cfg: config.Base{ServerMode: true}, peer: "172.20.0.3:12345", host: "seed-daemon:56001", origin: "https://public.example", site: "cross-site", want: http.StatusNoContent},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

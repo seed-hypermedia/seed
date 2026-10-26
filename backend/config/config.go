@@ -25,10 +25,6 @@ type Base struct {
 	ServerMode         bool
 	KeystoreDir        string // If set, use file-based keystore instead of OS keychain (insecure, for testing)
 	VaultMemorySecrets bool   // If set, the vault keeps its secrets in memory instead of the OS keychain (for testing)
-	// APIAllowedPeers adds trusted IPs or CIDRs to the default loopback API peers.
-	APIAllowedPeers string
-	// APIAllowedHosts adds exact hostnames for default-mode HTTP access.
-	APIAllowedHosts string
 	// APIAllowedOrigins adds exact browser origins for default-mode HTTP access.
 	APIAllowedOrigins string
 }
@@ -47,8 +43,6 @@ func (c *Base) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.DataDir, "data-dir", c.DataDir, "Path to a directory where to store node data")
 	fs.StringVar(&c.LogLevel, "log-level", c.LogLevel, "Log verbosity debug | info | warning | error")
 	fs.BoolVar(&c.ServerMode, "server-mode", c.ServerMode, "Trust deployment networking for API access; restrict private reads to authorized callers")
-	fs.StringVar(&c.APIAllowedPeers, "api.allowed-peers", c.APIAllowedPeers, "Additional trusted API peer IPs or CIDRs, comma-separated (default mode only)")
-	fs.StringVar(&c.APIAllowedHosts, "api.allowed-hosts", c.APIAllowedHosts, "Additional exact HTTP hostnames, comma-separated (default mode only)")
 	fs.StringVar(&c.APIAllowedOrigins, "api.allowed-origins", c.APIAllowedOrigins, "Trusted browser origins, comma-separated (default mode only)")
 	fs.StringVar(&c.KeystoreDir, "keystore-dir", c.KeystoreDir, "Directory for file-based keystore (insecure, for testing only)")
 	fs.BoolVar(&c.VaultMemorySecrets, "vault-memory-secrets", c.VaultMemorySecrets, "Keep vault secrets in memory instead of the OS keychain, keys don't survive a restart (for testing only)")

@@ -57,16 +57,19 @@ allows, otherwise in order.
 Devnet desktop dev (`direnv exec . ./dev run-desktop`, network `dev`): daemon HTTP **58001** (grpc-web, `/ipfs/*`,
 `/hm/api/*`, `/debug/*`), daemon gRPC **58002**, p2p 58000, desktop local API 58004, web app 3000, notify 3060. Data dir
 `~/.config/Seed-local/daemon`, SQLite at `db/db.sqlite`. Packaged mainnet is 56001/56002 — if you see those, rule 3
-applies. In default mode, `apiAccess` (`backend/daemon/access.go`) gates all HTTP routes and native gRPC peers. HTTP
-also validates Host, Fetch Metadata and exact origins; admitted headerless local tools still work.
+applies. In default mode, `apiAccess` (`backend/daemon/access.go`) admits only loopback socket peers for all HTTP routes
+and native gRPC. HTTP requires the Host hostname to be exactly `localhost` or a literal loopback IP and checks Fetch
+Metadata and exact origins. `api.allowed-origins` registers trusted origins, including the desktop renderer's, without
+widening peer or Host admission; admitted headerless local tools still work.
 
 ### The linchpin fact
 
-`blob.WithAuthenticatedCaller` and the `blob.IsServerMode` context marker are set **only** by HTTP middleware
-(`backend/daemon/http.go`). So **port 58002 is always anonymous and has no server-mode context marker** — bearer tokens
-are ignored there, and any check reading the request _context_ rather than `srv.cfg` silently no-ops. Probing 58002
-without a token and concluding "no authorization" is a category error. **Every unauthorized-read claim must state the
-port and whether a token was attached.**
+HTTP middleware (`backend/daemon/http.go`) establishes bearer caller identity and the server-mode blob context. Native
+gRPC on **58002** ignores bearer metadata and does not receive that HTTP context automatically. Configuration-based RPC
+guards still apply, and individual RPCs may set the blob context themselves: `GetDocumentChange` does so in
+`backend/api/documents/v3alpha/dochistory.go`. **Every unauthorized-read claim must state the mode, port and whether a
+token was attached.** In default mode, admitted local tools have full private-read access; denial probes require server
+mode, and authorized bearer controls require HTTP/gRPC-Web on **58001**.
 
 ---
 
@@ -113,22 +116,22 @@ Announce your pass list before starting; repeat it in the handoff (§8.3).
 
 A finding must name the guard that should have applied. The real ones:
 
-| Guard                                                          | Where                                                                  | Protects                             |
-| -------------------------------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------ |
-| `serverModeMiddleware`                                         | `backend/daemon/http.go`                                               | ServerMode on the HTTP context       |
-| `authContextMiddleware`                                        | `backend/daemon/http.go:215-234`                                       | Bearer → authenticated caller        |
-| `apiAccess`                                                    | `backend/daemon/access.go`                                             | Default-mode HTTP and gRPC admission |
-| `isServerModeFor`, `denyPrivateDocument`, `denyPrivateComment` | `backend/api/documents/v3alpha/documents.go`                           | Per-RPC private reads                |
-| `applyListVisibilityFilter`                                    | `backend/api/documents/v3alpha/documents.go:2979-2989`                 | Listing SQL                          |
-| `checkWriteAccess`                                             | `backend/api/documents/v3alpha/documents.go:2966-2977`                 | Document mutations                   |
-| `isValidWriter`, `IsValidWriter`                               | `backend/blob/index.go:1178-1226`, `:1037-1064`                        | Capability checks                    |
-| `Index.CanPeerAccessCID`                                       | `backend/blob/index_access.go:57-99`                                   | Bitswap block requests               |
-| `authorizedStore`                                              | `backend/hmnet/syncing/authorized_store.go:50-132`                     | RBSR set reconciliation              |
-| `adminSecret`, `availableRegistrationSecret`                   | `frontend/apps/web/app/routes/hm.api.admin.tsx`, `hm.api.register.tsx` | Web admin actions                    |
+| Guard                                                                                | Where                                                                  | Protects                             |
+| ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------ |
+| `serverModeMiddleware`                                                               | `backend/daemon/http.go`                                               | ServerMode on the HTTP context       |
+| `authContextMiddleware`                                                              | `backend/daemon/http.go`                                               | Bearer → authenticated caller        |
+| `apiAccess`                                                                          | `backend/daemon/access.go`                                             | Default-mode HTTP and gRPC admission |
+| `canReadPrivate`, `shouldFilterPrivate`, `denyPrivateDocument`, `denyPrivateComment` | `backend/api/documents/v3alpha/documents.go`                           | Per-RPC private reads                |
+| `applyListVisibilityFilter`                                                          | `backend/api/documents/v3alpha/documents.go`                           | Listing SQL                          |
+| `checkWriteAccess`                                                                   | `backend/api/documents/v3alpha/documents.go`                           | Document mutations                   |
+| `isValidWriter`, `IsValidWriter`                                                     | `backend/blob/index.go`                                                | Capability checks                    |
+| `Index.CanPeerAccessCID`                                                             | `backend/blob/index_access.go`                                         | Bitswap block requests               |
+| `authorizedStore`                                                                    | `backend/hmnet/syncing/authorized_store.go`                            | RBSR set reconciliation              |
+| `adminSecret`, `availableRegistrationSecret`                                         | `frontend/apps/web/app/routes/hm.api.admin.tsx`, `hm.api.register.tsx` | Web admin actions                    |
 
-The two gates disagree by design: the blockstore fails **closed** on unknown visibility
-(`backend/blob/blockstore.go:715-729`), `CanPeerAccessCID` fails **open** (`backend/blob/index_access.go:80-83`). Any
-new check must state its default.
+The two gates disagree by design: the blockstore fails **closed** on unknown visibility (`qBlobsGet` in
+`backend/blob/blockstore.go`), `CanPeerAccessCID` fails **open** on an empty visibility-space set
+(`backend/blob/index_access.go`). Any new check must state its default.
 
 **Prior art, read in P0:** `backend/api/documents/v3alpha/private_docs_test.go` (VULN-1..7 — **a vulnerability
 documented only by a `t.Log` is OPEN**; VULN-5 is exactly that); the incident records, which were removed from the tree
@@ -225,12 +228,13 @@ session does not re-triage it.
 Highest yield per token and the only pass that scales with churn rather than repo size.
 
 **P2 — Private-document access control (daemon).** `grep -n "^func (srv \*Server)" backend/api/documents/v3alpha/*.go` →
-one row per method; columns: returns resource data?, gate consulted (`srv.cfg.ServerMode` / `isServerModeFor` /
-`blob.IsServerMode` / `applyListVisibilityFilter` / capability / **none**), asserting test?, verdict. Proven-real traps:
-the `GetResource` snapshot branch taking a version CID or comment TSID, where the private check happens after decode and
-only for some types; every `*ServerMode` query variant (confirm the non-variant is unreachable when ServerMode is set);
-pagination cursors revealing skipped private rows; `grep -rn "VisibilityPublic" backend/` for hardcoded visibility on a
-write path; activity, capability, and comment-version RPCs, which historically had no filter at all.
+one row per method; columns: returns resource data?, gate consulted (`srv.cfg.ServerMode` / `canReadPrivate` /
+`shouldFilterPrivate` / `blob.IsServerMode` / `applyListVisibilityFilter` / capability / **none**), asserting test?,
+verdict. Proven-real traps: the `GetResource` snapshot branch taking a version CID or comment TSID, where the private
+check happens after decode and only for some types; every `*ServerMode` query variant (confirm the non-variant is
+unreachable when ServerMode is set); pagination cursors revealing skipped private rows;
+`grep -rn "VisibilityPublic" backend/` for hardcoded visibility on a write path; activity, capability, and
+comment-version RPCs, which historically had no filter at all.
 
 **P3 — Frontend read/write without permission.** Enumerate every exported `loader`/`action` in both Remix apps
 (`grep -rn "export \(async function\|const\) \(loader\|action\)" frontend/apps/web/app frontend/apps/notify/app`) → one
@@ -324,7 +328,8 @@ VITE_DESKTOP_APPDATA=Seed-sec-audit direnv exec . ./dev run-desktop    # anythin
 direnv exec . pnpm web                                                 # :3000, needed for /api/* and SSR probes
 ```
 
-It hard-fails on: daemon unreachable; `protocolId` missing or not ending `-dev` (rule 3). It reports the build, the real
+It hard-fails on: daemon unreachable; `protocolId` missing or containing no hyphen (the bare mainnet ID). It accepts
+other named testnets too, so separately verify that `protocolId` ends in `-dev` (rule 3). It reports the build, the real
 `-data-dir` and explicit `-server-mode` state from the daemon's argv (check `SEED_SERVER_MODE` separately), and an idle
 CPU baseline with read-pool size `P`. Two warnings you must act on: `mprocs.yaml` sets `SEED_LOG_ONLY=seed/vault-merge`,
 silencing most subsystems — raise them live with
@@ -395,7 +400,8 @@ scripts/crawler-load-test.py --base http://localhost:3000 --stages 2,4,8,16 \
 
 ### 6.4 Access control: the control leg is not optional
 
-Three identities, no browser or vault needed — the daemon's key RPCs are unauthenticated:
+Run the denial matrix below with **server mode enabled** (`-server-mode` or `SEED_SERVER_MODE=true`) on the throwaway
+devnet daemon. Its key RPCs do not authenticate callers, so three identities need no browser or vault:
 
 ```sh
 G=127.0.0.1:58002
@@ -410,23 +416,26 @@ mk sec-carol   # UNAUTHORIZED: known to the daemon, holds nothing
 
 Put a **unique marker string** in the fixture so every probe is a literal `grep`, not a judgement call. Then:
 
-| #   | Surface                                                                                                                                                  | Expect                                                                   |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| 1   | **Authorized control**: Bob's token, grpc-web on **58001**                                                                                               | **Must return the marker.** If not, the harness is broken — stop         |
-| 2   | Anonymous, native gRPC 58002                                                                                                                             | Denied — but this port is anonymous by design (§2)                       |
-| 3   | Anonymous, grpc-web on 58001                                                                                                                             | Denied                                                                   |
-| 4   | Carol's valid token                                                                                                                                      | Denied                                                                   |
-| 5   | Siblings: `ListDocumentChanges`, `GetDocumentChange`, `GetRef`, `ListRefs`, `GetCommentReplyCount`, `ListCommentVersions`, `GetResource` by comment TSID | Denied or not-found                                                      |
-| 6   | Listings across `page_size`: `ListDocuments`, `ListDirectory`, `QueryDocuments`, `ListRootDocuments`                                                     | No marker; page counts must not reveal skipped private rows              |
-| 7   | `GET /ipfs/<cid>` and `.dagjson`, with and without each token                                                                                            | Anonymous must not return the marker                                     |
-| 8   | Every web `/api/<key>` (`curl -s http://localhost:3000/api/schema \| jq -r '.definitions[].key'`)                                                        | No marker                                                                |
-| 9   | Web SSR: the document URL plus `:comments`, `:activity`, `?v=`, `/inspect/`                                                                              | No marker                                                                |
-| 10  | A second devnet peer, bitswap fetch by CID                                                                                                               | Must not obtain the marker — `CanPeerAccessCID` is under test            |
-| 11  | Restart with `-server-mode`, same data dir, re-run 2-9                                                                                                   | Where the VULN-1..7 family lives                                         |
-| 12  | **Ground truth**: read-only SQLite query for the marker                                                                                                  | Proves it is stored, so a miss above means "not served", not "not there" |
+| #   | Surface                                                                                                                                                  | Expect                                                                        |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1   | **Authorized control**: Bob's token, grpc-web on **58001**                                                                                               | **Must return the marker.** If not, the harness is broken — stop              |
+| 2   | Anonymous, native gRPC 58002                                                                                                                             | Denied — but this port is anonymous by design (§2)                            |
+| 3   | Anonymous, grpc-web on 58001                                                                                                                             | Denied                                                                        |
+| 4   | Carol's valid token, grpc-web on 58001                                                                                                                   | Denied                                                                        |
+| 5   | Siblings: `ListDocumentChanges`, `GetDocumentChange`, `GetRef`, `ListRefs`, `GetCommentReplyCount`, `ListCommentVersions`, `GetResource` by comment TSID | Denied or not-found                                                           |
+| 6   | Listings across `page_size`: `ListDocuments`, `ListDirectory`, `QueryDocuments`, `ListRootDocuments`                                                     | No marker; page counts must not reveal skipped private rows                   |
+| 7   | `GET /ipfs/<cid>` and `.dagjson`, with and without each token                                                                                            | Anonymous must not return the marker                                          |
+| 8   | Every web `/api/<key>` (`curl -s http://localhost:3000/api/schema \| jq -r '.definitions[].key'`)                                                        | No marker                                                                     |
+| 9   | Web SSR: the document URL plus `:comments`, `:activity`, `?v=`, `/inspect/`                                                                              | No marker                                                                     |
+| 10  | A second devnet peer, bitswap fetch by CID                                                                                                               | Must not obtain the marker — `CanPeerAccessCID` is under test                 |
+| 11  | Default-mode control: restart with `-server-mode=false`, same data dir; read the private document anonymously over 58001 and 58002                       | Admitted local reads return the marker; restore server mode for denial probes |
+| 12  | **Ground truth**: read-only SQLite query for the marker                                                                                                  | Proves it is stored, so a miss above means "not served", not "not there"      |
 
 Rows 1 and 12 are the negative controls: without 1, "denied everywhere" may mean your capability setup silently failed;
 without 12, an absent marker may mean the document was never created.
+
+Use anonymous or unauthorized callers for the denial probes in rows 5–9; an authorized HTTP bearer read may succeed.
+Native gRPC ignores bearer tokens, so it cannot substitute for the HTTP/gRPC-Web authorized control.
 
 **Pitfalls, each of which costs real time.** `seed-cli` targets the **web server**, `grpcurl` the **daemon** — getting
 this wrong writes fixtures into a different daemon and every probe then correctly reports "not found". Devnet and

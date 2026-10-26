@@ -439,13 +439,11 @@ func TestDaemonAPIAdmission(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
 		remote  bool
-		trusted bool
 		server  bool
 		allowed bool
 	}{
 		{name: "local tools", allowed: true},
 		{name: "untrusted LAN", remote: true},
-		{name: "configured remote", remote: true, trusted: true, allowed: true},
 		{name: "server container network", remote: true, server: true, allowed: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -457,9 +455,6 @@ func TestDaemonAPIAdmission(t *testing.T) {
 			cfg.ServerMode = tt.server
 
 			cfg.P2P.Isolated = true
-			if tt.trusted {
-				cfg.APIAllowedPeers = remoteIP
-			}
 
 			dmn := makeTestApp(t, "alice", cfg, false, func(o *options) {
 				o.grpc.extraServices = append(o.grpc.extraServices, func(s grpc.ServiceRegistrar) {
@@ -4119,18 +4114,13 @@ func TestPrivateDocumentsSync(t *testing.T) {
 	aliceKey := coretest.NewTester("alice").Account
 	bob := makeTestApp(t, "bob", makeTestConfig(t), true)
 	bobKey := coretest.NewTester("bob").Account
-	// Site resolution reaches this test gateway through its nonloopback IP.
-	// Keep unrestricted local reads for this sync test, but admit that HTTP peer.
-	gatewayCfg := makeTestConfig(t)
-	gatewayCfg.APIAllowedPeers = getLocalIP(t)
-	gateway := makeTestApp(t, "carol", gatewayCfg, true)
+	gateway := makeTestApp(t, "carol", makeTestConfig(t), true)
 	gatewayKey := coretest.NewTester("carol").Account
 
 	var gatewayURL string
 	{
 		port := gateway.HTTPListener.Addr().(*net.TCPAddr).Port
-		ip := getLocalIP(t)
-		gatewayURL = "http://" + ip + ":" + strconv.Itoa(port)
+		gatewayURL = "http://127.0.0.1:" + strconv.Itoa(port)
 	}
 
 	// Create Alice's home document with siteUrl pointing to the gateway.
@@ -4330,18 +4320,6 @@ func TestPrivateDocumentsSync(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, bobSecret.Version, gatewayGotDoc.Version, "Gateway must have Bob's private document")
 	}
-}
-
-func getLocalIP(t *testing.T) string {
-	addrs, err := net.InterfaceAddrs()
-	require.NoError(t, err)
-	for _, addr := range addrs {
-		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-			return ipnet.IP.String()
-		}
-	}
-	t.Fatal("no local IP found")
-	return ""
 }
 
 func pushDocuments(t *testing.T, src, dst *App, resources ...string) {

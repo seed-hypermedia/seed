@@ -136,7 +136,7 @@ Everything above about DNS, the install directory, `seed-deploy` and backups sti
 | --- | --- | --- | --- |
 | `seed-proxy` | `caddy:2` | 80, 443, 443/udp | TLS, then reverse proxy with the sign-in gate <!-- id:iIX_7yUo --> |
 | `seed-web` | `seedhypermedia/web` | none | the web app with `SEED_REQUIRE_SIGN_IN=1`, signing and identity enabled, a session secret, and the vault's internal address for the membership check at sign-in <!-- id:vcVzeB0S --> |
-| `seed-daemon` | `seedhypermedia/site` | none | the daemon with `-p2p.isolated` (no bootstrap, a deny-all connection gater, no peer exchange), `-lndhub.disabled`, no discovery, no pull, no relay, listening on loopback only, on a private network named `ent-<your-domain>` <!-- id:q8ChJINS --> |
+| `seed-daemon` | `seedhypermedia/site` | none | the daemon with `-p2p.isolated` (no bootstrap, a deny-all connection gater, no peer exchange), `-lndhub.disabled`, no discovery, no pull, no relay, libp2p listening on loopback only, on a private network named `ent-<your-domain>` <!-- id:q8ChJINS --> |
 | `seed-vault` | `seedhypermedia/vault` | none | the [identity vault](../apps/vault.md), invite-only, served at `/vault` on the site's own origin <!-- id:edY-0Yxh --> |
 | `seed-notify` | `seedhypermedia/notify` | none | optional, compose profile `notify`, served by the site itself under `/hm/api/notify`, open (signed requests and email tokens are its credentials) <!-- id:-epLLDvA --> |
 | `seed-agents` | `seedhypermedia/agents` | none | optional, compose profile `agents`, served by the site itself under `/hm/api/agents`, for members only <!-- id:ih7fSiBc --> |

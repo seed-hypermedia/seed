@@ -153,7 +153,7 @@ If step 5 finds nothing anywhere, the run ends with an empty version and no erro
 
 ## Ports <!-- id:yH9-GRd7 -->
 
-The daemon has three listeners: libp2p, an HTTP server (which carries gRPC-web, `/ipfs`, `/hm/api/config` and `/debug/*`) and a plain gRPC server. Both HTTP and gRPC bind all interfaces, with runtime peer admission in default mode. Server mode trusts deployment networking instead. Every Seed deployment picks its own port block: <!-- id:r5mn0pmN -->
+The daemon has three listeners: libp2p, an HTTP server (which carries gRPC-web, `/ipfs`, `/hm/api/config` and `/debug/*`) and a plain gRPC server. Both HTTP and gRPC bind wildcard addresses, with runtime admission allowing only loopback socket peers in default mode. Server mode trusts deployment networking instead. Every Seed deployment picks its own port block: <!-- id:r5mn0pmN -->
 
 <!-- id:3eZQEvYE -->
 | Deployment <!-- col:xSsqC6jm --> | libp2p <!-- col:FlGdXj3L --> | HTTP (gRPC-web, `/ipfs`, `/debug`) <!-- col:VNwbp64X --> | gRPC <!-- col:e909sAB3 --> | Other <!-- col:Orb2hlMs --> <!-- id:EIljUu9Y --> |
@@ -220,7 +220,7 @@ Every flag can also be set as an environment variable with the `SEED_` prefix (`
 
 ## Debug pages and metrics <!-- id:BYh0isvq -->
 
-On the daemon's HTTP port, reachable only from the same machine: `/debug/p2p` (JSON dump of libp2p, Bitswap and the connection manager, including reachability), `/debug/network` (an HTML report of discovery phases, reconciliation, Bitswap outcomes and the inbound limiter), `/debug/metrics` (Prometheus) and `/debug/grpcui/` (an embedded gRPC console). The sync outcome labels there are `ok`, `preempted`, `protocol_mismatch`, `dial_failed`, `auth_failed`, `putmany_failed` and `rpc_error` per peer, and `connected`, `dht`, `notfound` and `error` per discovery. <!-- id:gWdN_dcN -->
+On the daemon's HTTP port, under the ordinary API admission policy: `/debug/p2p` (JSON dump of libp2p, Bitswap and the connection manager, including reachability), `/debug/network` (an HTML report of discovery phases, reconciliation, Bitswap outcomes and the inbound limiter), `/debug/metrics` (Prometheus) and `/debug/grpcui/` (an embedded gRPC console). Default mode admits only loopback socket peers; server mode relies on private deployment networking. The sync outcome labels there are `ok`, `preempted`, `protocol_mismatch`, `dial_failed`, `auth_failed`, `putmany_failed` and `rpc_error` per peer, and `connected`, `dht`, `notfound` and `error` per discovery. <!-- id:gWdN_dcN -->
 
 # Working with the network <!-- id:56Wwc-GS -->
 
@@ -247,7 +247,7 @@ For deep integration the daemon's gRPC surface (plain gRPC on its gRPC port, or 
   - `Resources.PushResourcesToPeer(addrs, resources)`. Its `recursive` field is ignored today. <!-- id:0Shqcv40 -->
   - `Daemon.GetInfo` for your own peer id and protocol id. <!-- id:bgeUY0Z- -->
 
-The peer-to-peer services `P2P` and `Syncing` are also re-exported locally behind a `target-peer` metadata key, so a local client can run `ListSpaces` or `ReconcileBlobs` against a remote peer through your daemon. Default mode trusts local tools after peer admission, requires explicit configuration for remote API peers, and checks HTTP Host, browser metadata and exact origins. Hosted servers run with `-server-mode` on a trusted deployment network: keep daemon API ports private and proxy only the public `/ipfs/*` routes. The [gRPC guide](../build/grpc.md) has the catalogue. <!-- id:ceErZghv -->
+The peer-to-peer services `P2P` and `Syncing` are also re-exported locally behind a `target-peer` metadata key, so a local client can run `ListSpaces` or `ReconcileBlobs` against a remote peer through your daemon. Default mode admits only loopback socket peers and trusts local tools after admission. HTTP requires the Host hostname to be exactly `localhost` or a literal loopback IP and checks browser metadata and exact origins. Hosted servers run with `-server-mode` on a trusted deployment network: keep daemon API ports private and proxy only the public `/ipfs/*` routes. Server mode does not change P2P visibility rules. The [gRPC guide](../build/grpc.md) has the catalogue. <!-- id:ceErZghv -->
 
 ```sh <!-- id:FZrOsxuq -->
 grpcurl -plaintext localhost:56002 com.seed.networking.v1alpha.Networking/ListPeers

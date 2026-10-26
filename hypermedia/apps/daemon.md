@@ -19,7 +19,7 @@ Other binaries beside the daemon: `monitord` (health checks of sites), `relayd` 
 | HTTP | `-http.port` | 55001 | gRPC-web for every service, `/ipfs/*`, `/hm/api/config`, `/debug/*` <!-- id:G7uKQa9- --> |
 | gRPC | `-grpc.port` | 55002 | the same services over plain gRPC <!-- id:H9V6rMI- --> |
 
-Both gRPC and HTTP bind all interfaces, so other machines can reach them unless a firewall blocks them. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
+Both gRPC and HTTP bind wildcard addresses. In default mode, runtime admission accepts only loopback socket peers; server mode bypasses admission and relies on deployment networking. The [desktop app](./desktop.md) passes its own ports, listed on its page. A daemon you run yourself keeps the 55000 defaults. Every flag can also be set as an environment variable with the `SEED_` prefix, so `-p2p.port` is `SEED_P2P_PORT`. `SEED_DAEMON_FLAGS` prepends extra flags. <!-- id:a_qAaLbm -->
 
 # Flags that matter to operators <!-- id:qKo2ROZg -->
 
@@ -28,8 +28,6 @@ Both gRPC and HTTP bind all interfaces, so other machines can reach them unless 
 | --- | --- | --- |
 | `-data-dir` | `~/.mtt` | Where everything is stored. The desktop app passes its own data directory. <!-- id:ypeA1_vg --> |
 | `-server-mode` | false | Trust the deployment network and filter anonymous private reads. Hosted sites and [gateways](../protocol/sites.md) use this mode; the Docker image sets `SEED_SERVER_MODE=true`. <!-- id:3vWzc_PR --> |
-| `-api.allowed-peers` | empty | Additional trusted API peers, as IP addresses or CIDRs, for remote access in default mode. Loopback peers are admitted by default. |
-| `-api.allowed-hosts` | empty | Additional exact HTTP hostnames accepted in default mode. |
 | `-api.allowed-origins` | empty | Additional exact browser origins accepted in default mode. |
 | `-keystore-dir` | empty | Use a file-based keystore in place of the OS keychain or vault. It is marked insecure. Sites use it inside their container. <!-- id:7a5pl9E4 --> |
 | `-p2p.testnet-name` | empty | Joins a named testnet in place of mainnet by adding a suffix to the protocol id. <!-- id:7Km4dzez --> |
@@ -68,7 +66,7 @@ Besides gRPC-web, the HTTP port serves the [file](../protocol/files.md) gateway 
 
 # Authentication, plainly <!-- id:-A2Y41QE -->
 
-In default mode, the daemon admits loopback API peers and trusts local tools after admission: they can read everything it holds and write as any key it keeps, because signing happens inside the daemon. Remote access requires explicit configuration with `-api.allowed-peers` (IP/CIDR). HTTP also checks `Host`, browser fetch metadata and exact origins; media and frames without `Origin` use the exact `Referer` origin. `-api.allowed-hosts` and `-api.allowed-origins` opt in additional hostnames and browser origins. Admitting a peer grants daemon-level access, so configure only trusted callers. <!-- id:2ImcyxRS -->
+In default mode, the daemon admits only loopback socket peers and trusts local tools after admission: they can read everything it holds and write as any key it keeps, because signing happens inside the daemon. HTTP requires the Host hostname to be exactly `localhost` or a literal loopback IP and checks browser fetch metadata and exact origins; media and frames without `Origin` use the exact `Referer` origin. `-api.allowed-origins` registers additional trusted browser origins, including the desktop renderer's origin, without widening peer or Host admission. <!-- id:2ImcyxRS -->
 
 Server mode (`-server-mode`, or `SEED_SERVER_MODE=true`) trusts the deployment network instead of applying default-mode ingress checks. Keep the daemon's HTTP and gRPC API ports private, behind the [web app](./web.md), and proxy only the public `/ipfs/*` routes. Anonymous private reads are filtered; authorized bearer callers may read private content. Bearer tokens never gate writes. The Docker image enables server mode through its environment. [Integrity](../protocol/integrity.md) explains the trust model.
 

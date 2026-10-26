@@ -1,6 +1,6 @@
 ---
 name: Privacy
-summary: Hypermedia has a per-blob visibility model that keeps private documents and comments off public nodes and away from unauthorized peers, and this page says exactly what holds today, including that the daemon has private document creation switched off.
+summary: Hypermedia's per-blob visibility model restricts delivery and serving of private documents and comments. This page describes today's read rules and the gate on private document creation.
 ---
 Most Hypermedia content is public by design: signed, content-addressed, and free to copy. For content that should stay private, the protocol has a visibility model. A [document](./documents.md) or [comment](./comments.md) can be marked private. Nodes then hand its [blobs](./blobs.md) only to peers and readers who can prove they belong to the [space](./identity.md). This page describes what the daemon does today. The feature is still changing, and part of it is switched off. <!-- id:JW-UMOhs -->
 
@@ -33,7 +33,7 @@ A second known gap: the daemon's own `CreateRef` RPC publishes version and tombs
 
 ## Who may read private content over HTTP <!-- id:WVM-iNfP -->
 
-In default mode, the [daemon](../apps/daemon.md) trusts local tools after peer admission, so admitted callers can read every blob. Loopback peers are admitted by default; remote access requires explicit configuration. HTTP also checks `Host`, browser metadata and exact browser origins. Visibility filtering applies in server mode (`-server-mode` or `SEED_SERVER_MODE=true`), as hosted [sites](./sites.md) and gateways run. Server mode trusts the deployment network: keep daemon API ports private and proxy only the public `/ipfs/*` routes. <!-- id:ofQB_uNE -->
+In default mode, the [daemon](../apps/daemon.md) admits only loopback socket peers and trusts local tools after admission, so admitted callers can read every blob. HTTP requires the Host hostname to be exactly `localhost` or a literal loopback IP and checks browser metadata and exact origins. Visibility filtering applies in server mode (`-server-mode` or `SEED_SERVER_MODE=true`), as hosted [sites](./sites.md) and gateways run. Server mode trusts the deployment network: keep daemon API ports private and proxy only the public `/ipfs/*` routes. <!-- id:ofQB_uNE -->
 
 On a server-mode node, a private read request must carry a bearer token minted by the daemon (see [Identity](./identity.md)), and private content is served when the token's principal: <!-- id:cckJb-G0 -->
   - is the space owner, or <!-- id:GntVQvhc -->
@@ -44,7 +44,7 @@ A WRITER scoped to a sub-path can write there but is denied private reads there.
 
 ## How peers are gated <!-- id:COGK2cRq -->
 
-Peer-to-peer delivery is the only place with real access control. It has two layers. <!-- id:mgaHufcC -->
+Peer-to-peer delivery uses separate authentication and authorization rules, independent of server mode. It has two layers. <!-- id:mgaHufcC -->
   - **Peer authentication.** A [peer](./network.md) proves it holds an account by signing an ephemeral capability naming the account and the server's peer, fresh within one minute. The server remembers that proof in memory for the connection. <!-- id:tDVMmEf5 -->
   - **Authorization.** A private blob is served to a peer only if one of these holds: the peer is allowlisted for an in-flight push; it is authenticated as the space owner; it is the server the space names in its home document's `siteUrl` (resolved by fetching that site's `/hm/api/config` and comparing the peer ID); or it is authenticated as an account holding a **WRITER** capability for the space, at any path. <!-- id:VG44C2tX -->
 

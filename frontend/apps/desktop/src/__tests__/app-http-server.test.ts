@@ -30,8 +30,6 @@ async function startServer() {
 }
 
 beforeAll(async () => {
-  vi.stubEnv('SEED_API_ALLOWED_PEERS', '100.64.0.0/10, 2001:db8:1234::/48, ::ffff:192.0.2.10, ::ffff:198.51.100.0/120')
-  vi.stubEnv('SEED_API_ALLOWED_HOSTS', 'seed.tail.example')
   vi.stubEnv('SEED_API_ALLOWED_ORIGINS', 'https://trusted.example')
   vi.stubGlobal('localServerPort', 17655)
   await startServer()
@@ -105,7 +103,12 @@ describe('SEC #1259 local API Host validation', () => {
     'localhost:',
     '127.1',
     '2130706433',
-    'seed.tail.example.attacker.example',
+    '100.64.23.1:58004',
+    '[::ffff:100.64.23.1]:58004',
+    '[2001:db8:1234::1]',
+    '192.0.2.10',
+    '198.51.100.42',
+    'seed.tail.example:58004',
   ])('rejects nonlocal or malformed authority %s despite same-origin metadata', async (host) => {
     expect((await request(host, {'Sec-Fetch-Site': 'same-origin'})).status).toBe(403)
   })
@@ -250,20 +253,6 @@ describe('SEC #1259 local API Host validation', () => {
     expect((await request('localhost', {'Sec-Fetch-Site': 'cross-site'}, 'OPTIONS')).status).toBe(403)
   })
 
-  it.each([
-    '100.64.23.1:58004',
-    '[::ffff:100.64.23.1]:58004',
-    '[2001:db8:1234::1]',
-    '192.0.2.10',
-    '198.51.100.42',
-    'seed.tail.example:58004',
-  ])('admits explicitly configured Host %s', async (host) => {
-    expect((await request(host)).status).toBe(200)
-    expect(
-      (await request(host, {Origin: 'https://attacker.example', 'Sec-Fetch-Site': 'same-site'}, 'POST')).status,
-    ).toBe(403)
-  })
-
   const nonlocalAddress = Object.values(networkInterfaces())
     .flat()
     .find((address) => address?.family === 'IPv4' && !address.internal)?.address
@@ -271,25 +260,11 @@ describe('SEC #1259 local API Host validation', () => {
     'filters real nonloopback socket peers independently of Host and forwarded headers',
     async () => {
       const peer = nonlocalAddress!
-      await closeServer()
-      const originalPeers = process.env.SEED_API_ALLOWED_PEERS!
-      vi.stubEnv('SEED_API_ALLOWED_PEERS', '')
-      await startServer()
-      try {
+      for (const method of ['GET', 'POST', 'OPTIONS']) {
         expect(
-          (await request('localhost', {'X-Forwarded-For': '127.0.0.1', Forwarded: 'for=127.0.0.1'}, 'GET', peer))
+          (await request('localhost', {'X-Forwarded-For': '127.0.0.1', Forwarded: 'for=127.0.0.1'}, method, peer))
             .status,
         ).toBe(403)
-        await closeServer()
-        vi.stubEnv('SEED_API_ALLOWED_PEERS', `${peer}/32`)
-        await startServer()
-        expect((await request(peer, {}, 'POST', peer)).status).toBe(200)
-        expect((await request('attacker.example', {}, 'POST', peer)).status).toBe(403)
-        expect((await request(peer, {Origin: 'https://attacker.example'}, 'OPTIONS', peer)).status).toBe(403)
-      } finally {
-        await closeServer()
-        vi.stubEnv('SEED_API_ALLOWED_PEERS', originalPeers)
-        await startServer()
       }
     },
   )

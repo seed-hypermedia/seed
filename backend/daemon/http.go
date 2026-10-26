@@ -64,6 +64,9 @@ func initHTTP(
 	telemetrySrv *telemetryapi.Server,
 ) (srv *http.Server, lis net.Listener, err error) {
 	router := &Router{mux: http.NewServeMux()}
+	// Admit every route before CORS/preflight handling, including grpc-web and
+	// debug pages. grpcui invokes RPCs over bufconn, so its authority must come
+	// from admitting the original HTTP caller here, not its internal RPC peer.
 	router.Use(
 		access.middleware,
 		openCORSMiddleware,
