@@ -193,6 +193,58 @@ function eventRows(db: Database, sessionId: string): {type: string; role?: strin
 }
 
 describe('durable sessions', () => {
+  test('a competing service boot cannot reopen a journal while its provider request is in flight', async () => {
+    const h = await createSession()
+    const started = Promise.withResolvers<void>()
+    const reply = Promise.withResolvers<Response>()
+    let requests = 0
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      requests += 1
+      if (requests === 1) {
+        started.resolve()
+        return reply.promise
+      }
+      return textReply('contender', 'A second runtime must not request this answer.')
+    }) as unknown as typeof fetch
+    const active = h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Hello'}]})
+    await started.promise
+
+    // Hot reload used to construct another Service before binding its HTTP port. Its boot sweep
+    // requeues this still-live run; without the writer guard, Pi resumes its task and two runtime
+    // instances append commits with independently cached sequence numbers to the same journal.
+    const contender = new apisvc.Service(h.db, h.dataDir, {})
+    cleanups.push(() => contender.stopRunQueue())
+    try {
+      await contender.awaitQueueIdle()
+      expect(requests).toBe(1)
+      const run = h.db
+        .query<{error_cbor: Uint8Array}, [string]>('SELECT error_cbor FROM runs WHERE session_id = ?')
+        .get(h.sessionId)
+      expect(cbor.decode<{message: string}>(run!.error_cbor).message).toContain('already open')
+    } finally {
+      reply.resolve(textReply('original', 'Hello'))
+      // The boot sweep still changes the run record, so the original caller can see the
+      // contender's error. Here we verify the narrower journal-ownership guarantee.
+      await active.catch(() => {})
+    }
+
+    const main = Buffer.concat(
+      storeRows(h)
+        .filter((row) => row.file === 'main.jsonl')
+        .sort((a, b) => a.seq - b.seq)
+        .map((row) => row.data),
+    )
+      .toString()
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as {seq: number})
+    expect(main.map((marker) => marker.seq)).toEqual(main.map((_, index) => index + 1))
+    await durableEntries(h)
+    expect(storeRows(h).some((row) => row.file.startsWith('recovery-'))).toBe(false)
+  })
+
   test('a session appends its turns to one durable conversation and keeps the prompt prefix byte-stable', async () => {
     const h = await createSession()
     const requests: ChatMessage[][] = []
