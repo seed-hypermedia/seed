@@ -93,7 +93,7 @@ overrides:
   cookie@<0.7.0: 0.7.0
   jsondiffpatch@<0.7.6: 0.7.6
   qs@>=6.7.0 <=6.14.1: 6.16.0
-  markdown-it@>=13.0.0 <14.1.1: 14.3.3
+  markdown-it@<14.3.3: 14.3.3
   ajv@<6.14.0: 6.14.0
   ajv@>=7.0.0-alpha.0 <8.18.0: 8.18.0
   file-type@>=13.0.0 <21.3.1: 21.3.2
@@ -140,7 +140,6 @@ overrides:
   dompurify@<3.4.9: 3.4.17
   dompurify@>=3.0.0 <=3.4.7: 3.4.17
   dompurify@<=3.4.6: 3.4.17
-  markdown-it@<=14.1.1: 14.3.3
   '@opentelemetry/core@<2.8.0': 2.8.0
   '@opentelemetry/sdk-trace-base@<2.7.0': 2.7.0
   hono@<4.12.34: 4.13.11
@@ -1626,15 +1625,15 @@ importers:
       lowlight:
         specifier: 3.1.0
         version: 3.1.0
-      mermaid:
-        specifier: 11.16.1
-        version: 11.16.1
       multiformats:
         specifier: ^13.3.2
         version: 13.4.2
       nanoid:
         specifier: 5.1.16
         version: 5.1.16
+      pele:
+        specifier: 1.6.0
+        version: 1.6.0
       prosemirror-state:
         specifier: 1.4.4
         version: 1.4.4
@@ -1901,9 +1900,6 @@ importers:
       lucide-react:
         specifier: ^0.511.0
         version: 0.511.0(react@18.2.0)
-      mermaid:
-        specifier: 11.16.1
-        version: 11.16.1
       multiformats:
         specifier: ^13.4.1
         version: 13.4.2
@@ -1913,6 +1909,9 @@ importers:
       nostr-tools:
         specifier: 1.16.0
         version: 1.16.0(typescript@5.8.3)
+      pele:
+        specifier: 1.6.0
+        version: 1.6.0
       react-day-picker:
         specifier: ^9.8.1
         version: 9.13.0(react@18.2.0)
@@ -11549,6 +11548,10 @@ packages:
 
   peek-stream@1.1.3:
     resolution: {integrity: sha512-FhJ+YbOSBb9/rIl2ZeE/QHEsWn7PqNYt8ARAY3kIgNGOk13g9FGyIY6JIl/xB/3TFRVoTv5as0l11weORrTekA==}
+
+  pele@1.6.0:
+    resolution: {integrity: sha512-VfAiVItsOGlGhvnBfphdT28VCG7mXMZxQNOwAGsCtxI2ztbUsT39MraEOYjsapLxVETkdUZscm0DdotYDQMLdw==}
+    engines: {node: '>=20'}
 
   pend@1.2.0:
     resolution: {integrity: sha512-F3asv42UuXchdzt+xXqfW1OGlVBe+mxa2mqI0pg5yAHZPvFmY3Y6drSf/GQ1A86WgWEN9Kzh/WrgKa6iGcHXLg==}
@@ -26921,6 +26924,8 @@ snapshots:
       buffer-from: 1.1.2
       duplexify: 3.7.1
       through2: 2.0.5
+
+  pele@1.6.0: {}
 
   pend@1.2.0: {}
 
