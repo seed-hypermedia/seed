@@ -1,0 +1,126 @@
+diff --git a/v3/types.cjs b/v3/types.cjs
+index 11ed4dfc4745f9af1f1501874576b78b77d294ef..2b6de7f78642c420dfd6e01920529700cc6acd49 100644
+--- a/v3/types.cjs
++++ b/v3/types.cjs
+@@ -1790,6 +1790,7 @@ class ZodArray extends ZodType {
+                     exact: true,
+                     message: def.exactLength.message,
+                 });
++                if (tooBig) return parseUtil_js_1.INVALID;
+                 status.dirty();
+             }
+         }
+@@ -1816,7 +1817,7 @@ class ZodArray extends ZodType {
+                     exact: false,
+                     message: def.maxLength.message,
+                 });
+-                status.dirty();
++                return parseUtil_js_1.INVALID;
+             }
+         }
+         if (ctx.common.async) {
+@@ -2843,7 +2844,7 @@ class ZodSet extends ZodType {
+                     exact: false,
+                     message: def.maxSize.message,
+                 });
+-                status.dirty();
++                return parseUtil_js_1.INVALID;
+             }
+         }
+         const valueType = this._def.valueType;
+diff --git a/v3/types.js b/v3/types.js
+index 40b11c0f01b2af54e0ed48e198607bd8836d9a63..f3ab9beeb89969c643d48c7d9664e04a0298738e 100644
+--- a/v3/types.js
++++ b/v3/types.js
+@@ -1769,6 +1769,7 @@ export class ZodArray extends ZodType {
+                     exact: true,
+                     message: def.exactLength.message,
+                 });
++                if (tooBig) return INVALID;
+                 status.dirty();
+             }
+         }
+@@ -1795,7 +1796,7 @@ export class ZodArray extends ZodType {
+                     exact: false,
+                     message: def.maxLength.message,
+                 });
+-                status.dirty();
++                return INVALID;
+             }
+         }
+         if (ctx.common.async) {
+@@ -2814,7 +2815,7 @@ export class ZodSet extends ZodType {
+                     exact: false,
+                     message: def.maxSize.message,
+                 });
+-                status.dirty();
++                return INVALID;
+             }
+         }
+         const valueType = this._def.valueType;
+diff --git a/v4/core/schemas.cjs b/v4/core/schemas.cjs
+index 7c77d2b5af031e086d535f4b2e1898cec17eda29..04b4628d0fda9b677eb10bfb017d0cf250ae3774 100644
+--- a/v4/core/schemas.cjs
++++ b/v4/core/schemas.cjs
+@@ -104,6 +104,28 @@ exports.$ZodType = core.$constructor("$ZodType", (inst, def) => {
+             return payload;
+         };
+         inst._zod.run = (payload, ctx) => {
++            // Reject an oversized constrained collection before allocating per-element issues.
++            // Backport of colinhacks/zod@a0ebf970 for the bundled v4 runtime.
++            const value = payload.value;
++            const size = def.type === "array" && Array.isArray(value) ? value.length
++                : def.type === "set" && value instanceof Set ? value.size
++                : def.type === "map" && value instanceof Map ? value.size : -1;
++            if (size >= 0 && !ctx?.skipChecks && ctx?.direction !== "backward") {
++                for (const ch of checks) {
++                    const d = ch._zod.def;
++                    // A preceding custom check may rewrite the value.
++                    if (!/_(length|size)$|_equals$/.test(d.check)) break;
++                    const max = d.maximum ?? d.length ?? d.size;
++                    if (max >= 0 && size > max && ch._zod.def.when?.(payload)) {
++                        const start = payload.issues.length;
++                        ch._zod.check(payload);
++                        if (payload.issues.length > start) {
++                            payload.issues[start].continue = false;
++                            return payload;
++                        }
++                    }
++                }
++            }
+             const result = inst._zod.parse(payload, ctx);
+             if (result instanceof Promise) {
+                 if (ctx.async === false)
+diff --git a/v4/core/schemas.js b/v4/core/schemas.js
+index 692ce1fc2d0e138b51b5af2bafe0e2b4a279c0bc..f696444403784d804d08ac6a0ead4c6b29eea50a 100644
+--- a/v4/core/schemas.js
++++ b/v4/core/schemas.js
+@@ -74,6 +74,28 @@ export const $ZodType = /*@__PURE__*/ core.$constructor("$ZodType", (inst, def)
+             return payload;
+         };
+         inst._zod.run = (payload, ctx) => {
++            // Reject an oversized constrained collection before allocating per-element issues.
++            // Backport of colinhacks/zod@a0ebf970 for the bundled v4 runtime.
++            const value = payload.value;
++            const size = def.type === "array" && Array.isArray(value) ? value.length
++                : def.type === "set" && value instanceof Set ? value.size
++                : def.type === "map" && value instanceof Map ? value.size : -1;
++            if (size >= 0 && !ctx?.skipChecks && ctx?.direction !== "backward") {
++                for (const ch of checks) {
++                    const d = ch._zod.def;
++                    // A preceding custom check may rewrite the value.
++                    if (!/_(length|size)$|_equals$/.test(d.check)) break;
++                    const max = d.maximum ?? d.length ?? d.size;
++                    if (max >= 0 && size > max && ch._zod.def.when?.(payload)) {
++                        const start = payload.issues.length;
++                        ch._zod.check(payload);
++                        if (payload.issues.length > start) {
++                            payload.issues[start].continue = false;
++                            return payload;
++                        }
++                    }
++                }
++            }
+             const result = inst._zod.parse(payload, ctx);
+             if (result instanceof Promise) {
+                 if (ctx.async === false)

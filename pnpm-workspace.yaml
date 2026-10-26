@@ -19,6 +19,9 @@ minimumReleaseAge: 1440
 
 auditConfig:
   ignoreGhsas:
+    # Collection size checks are backported to pinned Zod 3 and its bundled v4
+    # runtime. Security CI tests installed CJS/ESM parsers before accepting this.
+    - GHSA-mrhx-c7xc-m3w5
     # Tiptap 3.30.4 fix backported to our pinned Tiptap 2 package.
     # Security CI verifies CJS/ESM behavior in tiptap-merge-attributes.test.cjs.
     - GHSA-cp6q-959q-f8rh

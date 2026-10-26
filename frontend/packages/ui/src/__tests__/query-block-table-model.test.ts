@@ -49,16 +49,21 @@ describe('query block table model', () => {
     ])
   })
 
-  it('discovers custom metadata fields as table columns', () => {
+  it('discovers custom metadata fields without exposing built-in page metadata', () => {
     const columns = buildQueryTableColumns([
-      item('One', {status: 'Ready', priority: 2, type: 'Collection'}),
+      item('One', {
+        status: 'Ready',
+        priority: 2,
+        type: 'hm://hyper.media/page',
+        html: 'ipfs://bundle',
+        inputSchema: 'hm://hyper.media/page-input',
+      }),
       item('Two', {status: 'Draft', priority: 5}),
     ])
 
-    expect(columns.slice(-3)).toEqual([
+    expect(columns.filter((column) => column.id.startsWith('metadata:'))).toEqual([
       {id: 'metadata:priority', label: 'Priority', type: 'number', defaultVisible: false},
       {id: 'metadata:status', label: 'Status', type: 'text', defaultVisible: false},
-      {id: 'metadata:type', label: 'Type', type: 'text', defaultVisible: false},
     ])
   })
 
