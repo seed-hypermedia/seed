@@ -7,6 +7,8 @@ FROM base AS build
 COPY frontend/packages/shared ./frontend/packages/shared/
 COPY frontend/packages/client ./frontend/packages/client/
 COPY agents/package.json agents/bunfig.toml agents/bun.lock ./agents/
+# `patchedDependencies` in package.json names files under patches/; install fails without them.
+COPY agents/patches ./agents/patches/
 COPY agents/protocol ./agents/protocol/
 RUN cd agents && bun install --frozen-lockfile --production
 # The bundle keeps `microsandbox` external (napi binding + `msb` + libkrunfw cannot live inside
