@@ -162,7 +162,7 @@ The catalogue is in [the Seed API guide](../build/web-api.md). The daemon's gRPC
 
 # Where this is going <!-- id:KjgTP5YT -->
 
-As of September 2026 the team is designing a successor blob layout (working name HM26). In that layout a document's state could also be published as a snapshot with a Ref to the previous state, and the same Ref mechanism would address [schemas](../schema.md) and other resources. None of it ships. The daemon implements the model on this page. The dated notes are in [Roadmap](./roadmap.md). <!-- id:7mhOeWst -->
+As of September 2026 the team is designing a successor blob layout. In that layout a document's state could also be published as a snapshot with a Ref to the previous state, and the same Ref mechanism would address [schemas](../schema.md) and other resources. None of it ships. The daemon implements the model on this page. The dated notes are in [Roadmap](./roadmap.md). <!-- id:7mhOeWst -->
 
 # See also <!-- id:4OidKq_I -->
 

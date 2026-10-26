@@ -31,19 +31,18 @@ Four TypeScript packages sit under the apps, in `frontend/packages/`. <!-- id:Vu
 
 The dependency direction is client, then shared, then ui, then editor. The vault and the agents service consume `client` and `shared` through Bun `file:` dependencies, which copy the packages at install time. A watcher script reinstalls them during development. <!-- id:YLWb2fg1 -->
 
-# Shared embed presentation
+# Shared embed presentation <!-- id:fl7ChPJ- -->
 
-Web and desktop use the same content embed components in documents, comments, and discussion quotes. The host owns editing controls and navigation services. It must not supply a different body renderer or override embed typography.
+Web and desktop use the same content embed components in documents, comments, and discussion quotes. The host owns editing controls and navigation services. It must not supply a different body renderer or override embed typography. <!-- id:kJLquXPn -->
+  - `@shm/ui/embed-views` loads resources and resolves versions and routes. Card, Link, and Comments display modes retain their existing shared components. <!-- id:QhqTqoz4 -->
+  - `@shm/ui/content-embed` owns block selection, fragment selection, expansion state, and author placement. A document fragment expands to its block. A comment fragment expands to the whole comment. A source or range change resets expansion. <!-- id:-SGzra6i -->
+  - `@shm/ui/embed-wrapper` owns the source action, green rule, and caret control. Links within the content remain separate from the source link. `QuotedDocBlock` uses the same presentation with source navigation disabled. <!-- id:R2Ae5xvh -->
+  - `@shm/editor/readonly-viewer` owns block conversion, highlights, content typography, gallery behavior, and the browser/server rendering contract. `EmbedEditorView` is a compatibility adapter. The shared context avoids a UI-to-editor dependency. Browser and server implementations both limit nested embed depth. <!-- id:9G0Fqd18 -->
+  - `@shm/ui/account-avatar` owns compact and regular author identity. Inline profile mentions share the name primitive and retain their inline link behavior. An account home document remains a document card; it is not a separate profile-card type. <!-- id:UyYftm2Q -->
 
-- `@shm/ui/embed-views` loads resources and resolves versions and routes. Card, Link, and Comments display modes retain their existing shared components.
-- `@shm/ui/content-embed` owns block selection, fragment selection, expansion state, and author placement. A document fragment expands to its block. A comment fragment expands to the whole comment. A source or range change resets expansion.
-- `@shm/ui/embed-wrapper` owns the source action, green rule, and caret control. Links within the content remain separate from the source link. `QuotedDocBlock` uses the same presentation with source navigation disabled.
-- `@shm/editor/readonly-viewer` owns block conversion, highlights, content typography, gallery behavior, and the browser/server rendering contract. `EmbedEditorView` is a compatibility adapter. The shared context avoids a UI-to-editor dependency. Browser and server implementations both limit nested embed depth.
-- `@shm/ui/account-avatar` owns compact and regular author identity. Inline profile mentions share the name primitive and retain their inline link behavior. An account home document remains a document card; it is not a separate profile-card type.
+Full document and comment typography are intentional content variants. Compact fragments use the same small text style in every host. Renderer roots isolate typography from surrounding comment styles. This isolation uses CSS `@scope`, supported by Chrome 118+, Safari 17.4+, and Firefox 146+. <!-- id:5Ef-fu54 -->
 
-Full document and comment typography are intentional content variants. Compact fragments use the same small text style in every host. Renderer roots isolate typography from surrounding comment styles. This isolation uses CSS `@scope`, supported by Chrome 118+, Safari 17.4+, and Firefox 146+.
-
-For a repeatable visual review, run `direnv exec . node frontend/packages/editor/e2e/capture-embed-gallery.mjs`. It builds production components with fixed resource data and writes an interactive HTML file, screenshots, and browser check results to an OS temporary directory. It does not start a server or replace tests in the running web and desktop apps.
+For a repeatable visual review, run `direnv exec . node frontend/packages/editor/e2e/capture-embed-gallery.mjs`. It builds production components with fixed resource data and writes an interactive HTML file, screenshots, and browser check results to an OS temporary directory. It does not start a server or replace tests in the running web and desktop apps. <!-- id:5Isu4itX -->
 
 # Ports at a glance <!-- id:tPJXAO-z -->
 
@@ -65,6 +64,7 @@ A daemon started on its own, without the desktop app, defaults to 55000, 55001 a
 
 # See also <!-- id:OZLxqZdp -->
 
+<!-- id:WzZnVWti -->
 - [Building on Hypermedia](./build.md), for using these programs from your own code. <!-- id:c6L_X3Dv -->
 - [Self-hosting](./build/self-hosting.md), for running a site. <!-- id:dhRFEU6- -->
 - [Contributing](./build/contributing.md), for developing them. <!-- id:6S0cZ3WH -->
@@ -72,4 +72,4 @@ A daemon started on its own, without the desktop app, defaults to 55000, 55001 a
 - [Seed Agents](./agent.md), what the agents service runs. <!-- id:rXMWvQ23 -->
 - [The protocol](./protocol.md), what the daemon implements. <!-- id:zIQ4sfQN -->
 
-A [custom HTML page](./apps/document-pages.md) is not a component but a kind of document: one whose `html` metadata names a UnixFS folder that the desktop opens as a sandboxed HTML page.
+A [custom HTML page](./apps/document-pages.md) is not a component but a kind of document: one whose `html` metadata names a UnixFS folder that the desktop opens as a sandboxed HTML page. <!-- id:ILbF8ZHi -->

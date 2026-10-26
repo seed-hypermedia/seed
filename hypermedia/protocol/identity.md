@@ -132,7 +132,7 @@ As of September 2026 these are directions the team is exploring. None of them is
   - Domains as a second identity vector next to the key, with both saved in links and contacts and a warning when they disagree. Today the only binding is the site's `registeredAccountUid`. <!-- id:9xSg5R-K -->
   - Session keys scoped to a target instead of full AGENT delegations. <!-- id:tSoLgBPx -->
   - Capability revocation, which would make rotation meaningful; see [Permissions](./permissions.md). <!-- id:Eyyt7wpH -->
-  - The HM26 redesign folds home documents and profiles into nodes owned by the space; see [Roadmap](./roadmap.md). <!-- id:op7GGmzk -->
+  - The proposed redesign folds home documents and profiles into nodes owned by the space; see [Roadmap](./roadmap.md). <!-- id:op7GGmzk -->
 
 # See also <!-- id:Ugn0v_W9 -->
 

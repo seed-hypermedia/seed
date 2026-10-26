@@ -21,7 +21,7 @@ Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -
 | `spaceAgents` | map | the agents the space publishes to readers, as `{[agentId]: order}`; each id is an agent on `agentServerUrl`, and a removed agent leaves a null behind. Names and icons are read from the agent itself, so renaming one never strands a stale copy in a signed document <!-- id:_WXOlj66 --> |
 | `type` | URL | the resource type; custom HTML pages declare [hm://hyper.media/page](./page.md) <!-- id:3-HON7jT --> |
 | `inputSchema` | URL | a published HM struct defining a custom HTML page's URL input; see [Page input](./page-input.md) <!-- id:lGfreYXM --> |
-| `html` | `ipfs://` | a [custom HTML page](./apps/document-pages.md): a UnixFS folder whose `index.html` is a self-contained HTML page that Seed opens in place of the document body, sandboxed, with a bridge to read Hypermedia as the viewer |
+| `html` | `ipfs://` | a [custom HTML page](./apps/document-pages.md): a UnixFS folder whose `index.html` is a self-contained HTML page that Seed opens in place of the document body, sandboxed, with a bridge to read Hypermedia as the viewer <!-- id:ADUXjCCE --> |
 | `displayPublishTime` | string | the publication date shown to readers, when it differs from the change history <!-- id:0GpDlsoW --> |
 | `displayAuthor` | string | an author byline shown to readers <!-- id:EErr-5X_ --> |
 | `showOutline` | boolean | whether to show the document outline <!-- id:lWBPOths --> |

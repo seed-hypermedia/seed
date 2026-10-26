@@ -6,7 +6,7 @@ The concept pages on this site describe what the Seed [daemon](../apps/daemon.md
 
 The team made these decisions in tech syncs and design meetings and recorded them on the team site. The process is slow on purpose. A change to permanent data goes through a written proposal, argumentation, and a decision "by technical extenuation". The team prefers to solve problems at the application layer whenever the permanent data can stay as it is. <!-- id:v-XBgRBp -->
 
-# The node and resource redesign (HM26) <!-- id:EbZXct8V -->
+# The node and resource redesign <!-- id:EbZXct8V -->
 
 **Where it comes from.** August and September 2026 tech syncs. <!-- id:4D-PNd-r -->
 
@@ -22,7 +22,7 @@ The team made these decisions in tech syncs and design meetings and recorded the
 
 # Home documents become profiles <!-- id:4QzHEyF6 -->
 
-**Where it comes from.** 2026-05-14 tech sync and the HM26 discussions. <!-- id:GHTO4T-V -->
+**Where it comes from.** 2026-05-14 tech sync and the resource-model discussions. <!-- id:GHTO4T-V -->
 
 Today an [account](./identity.md)'s [site](./sites.md) is rooted at its home document, the document at the empty path. Its `siteUrl` attribute names the server that publishes it. The direction is to move that role onto the [profile](../profile.md). Home documents and profiles would become nodes anchored to a fixed, hard-coded node ID under an empty parent, writable only by the space owner. The profile blob would get a deterministic timestamp so multiple devices converge. A new app version would upgrade existing accounts automatically. <!-- id:rFgb84sn -->
 
