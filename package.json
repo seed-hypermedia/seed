@@ -287,7 +287,8 @@
       "braces@3.0.3": "patches/braces@3.0.3.patch",
       "http-cache-semantics@4.3.0": "patches/http-cache-semantics@4.3.0.patch",
       "@tiptap/core@2.0.3": "patches/@tiptap__core@2.0.3.patch",
-      "appdmg@0.6.6": "patches/appdmg@0.6.6.patch"
+      "appdmg@0.6.6": "patches/appdmg@0.6.6.patch",
+      "@electron/notarize@2.5.0": "patches/@electron__notarize@2.5.0.patch"
     }
   },
   "devDependencies": {
