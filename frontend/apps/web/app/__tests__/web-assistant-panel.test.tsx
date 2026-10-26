@@ -109,18 +109,30 @@ describe('web assistant panel', () => {
   it('renders the page alone until the panel is opened, then adds the divider and aside without remounting the page', () => {
     act(() => root.render(<App />))
     expect(container.querySelector('[data-testid="page"]')).not.toBeNull()
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBeNull()
     const mountsAtStart = mountCount // StrictMode mounts twice in dev; what matters is no change later.
 
     act(() => controls!.open())
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).not.toBeNull()
     expect(container.querySelector('[role="separator"][aria-orientation="vertical"]')).not.toBeNull()
     expect(container.querySelector('[data-testid="panel-content"]')).not.toBeNull()
     expect(mountCount).toBe(mountsAtStart)
 
     act(() => controls!.close())
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBeNull()
     expect(mountCount).toBe(mountsAtStart)
+  })
+
+  it('keeps a focus position when Enter closes the web assistant separator', () => {
+    act(() => root.render(<App />))
+    act(() => controls!.open())
+    const separator = container.querySelector<HTMLElement>('[role="separator"]')!
+    separator.focus()
+    act(() => {
+      separator.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true, cancelable: true}))
+    })
+    expect(controls!.isOpen).toBe(false)
+    expect(document.activeElement).toBe(separator.parentElement)
   })
 
   it('persists open state and the selected session, and restores them on the next mount', () => {
@@ -140,7 +152,7 @@ describe('web assistant panel', () => {
     expect(controls!.isOpen).toBe(true)
     expect(controls!.sessionId).toBe('https://agents.example | s-1')
     expect(controls!.agentId).toBe('https://agents.example | docs')
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).not.toBeNull()
 
     // Clearing the choice clears the stored key too, so a stale agent does not come back later.
     act(() => controls!.setAgentId(null))
@@ -211,7 +223,7 @@ describe('web assistant panel', () => {
     publishSiteContext(null)
     act(() => root.render(<App />))
     act(() => controls!.open())
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).not.toBeNull()
     expect(container.querySelector('[data-testid="panel-content"]')).toBeNull()
     act(() => publishSiteContext(fakeSiteContext('document')))
     expect(container.querySelector('[data-testid="panel-content"]')).not.toBeNull()
@@ -220,7 +232,7 @@ describe('web assistant panel', () => {
   it('keeps the same panel element across a page change', () => {
     act(() => root.render(<App />))
     act(() => controls!.open())
-    const aside = container.querySelector('[data-testid="web-assistant-panel"]')
+    const aside = container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')
     expect(aside).not.toBeNull()
     // A route change: a new page publishes fresh contexts and the outlet re-renders.
     mockState.pathname = '/another-document'
@@ -228,22 +240,22 @@ describe('web assistant panel', () => {
       publishSiteContext(fakeSiteContext('document'))
       root.render(<App />)
     })
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBe(aside)
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBe(aside)
     expect(container.querySelector('[data-testid="panel-content"]')).not.toBeNull()
   })
 
   it('offers the site header a toggle for a signed-in reader, which opens and closes the panel', () => {
     act(() => root.render(<App />))
     expect(headerToggle?.isOpen).toBe(false)
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBeNull()
 
     act(() => headerToggle!.toggle())
     expect(headerToggle?.isOpen).toBe(true)
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).not.toBeNull()
 
     act(() => headerToggle!.toggle())
     expect(headerToggle?.isOpen).toBe(false)
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBeNull()
   })
 
   it('offers the site header no toggle to a signed-out visitor', () => {
@@ -258,7 +270,7 @@ describe('web assistant panel', () => {
     mockState.keyPair = null
     act(() => root.render(<App />))
     expect(controls!.isOpen).toBe(true) // The preference survives for the next sign-in…
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull() // …but nothing renders.
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBeNull() // …but nothing renders.
 
     // Narrow viewports get no full-screen panel either.
     mockState.isMobile = true
@@ -269,14 +281,14 @@ describe('web assistant panel', () => {
     // Signing in surfaces the panel exactly as the preference left it.
     mockState.keyPair = {id: 'reader'}
     act(() => root.render(<App />))
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).not.toBeNull()
   })
 
   it('takes the whole screen on narrow viewports, with a way back to the page', () => {
     mockState.isMobile = true
     act(() => root.render(<App />))
     act(() => controls!.open())
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBeNull()
     const full = container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')
     expect(full).not.toBeNull()
     expect(full?.querySelector('[data-testid="panel-content"]')).not.toBeNull()
@@ -312,12 +324,12 @@ describe('web assistant panel', () => {
   it('an auto-opened panel does not take over the page when the window shrinks; a reader-opened one does', () => {
     autoOpenAvailable = true
     act(() => root.render(<App />))
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).not.toBeNull()
     expect(controls!.openedByReader).toBe(false)
 
     mockState.isMobile = true
     act(() => root.render(<App />))
-    expect(container.querySelector('[data-testid="web-assistant-panel"]')).toBeNull()
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBeNull()
     expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).toBeNull()
 
     // Opened on purpose on a wide window, the panel stays with the reader when the window narrows.

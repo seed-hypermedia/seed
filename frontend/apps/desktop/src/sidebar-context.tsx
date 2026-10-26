@@ -12,10 +12,6 @@ type SidebarContextValue = {
   sidebarWidthPx: StateStream<number | null>
   onSidebarResize: (width: number) => void
   onSidebarWidthPxChange: (width: number) => void
-  widthStorage: {
-    getItem: (name: string) => string
-    setItem: (name: string, value: string) => void
-  }
 }
 
 export const SidebarContext = createContext<SidebarContextValue | null>(null)
@@ -68,39 +64,12 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           }
         }
         function onSidebarResize(width: number) {
+          if (width <= 0) return
           dispatch({type: 'sidebarWidth', value: width})
           setSidebarWidth(width)
         }
         function onSidebarWidthPxChange(width: number) {
           setSidebarWidthPx(width)
-        }
-
-        const widthStorage = {
-          getItem(name: string) {
-            try {
-              if (state?.sidebarLocked) {
-                return '0'
-              }
-              return String(state?.sidebarWidth || 0)
-            } catch (e) {
-              console.error('Error getting sidebar width from storage', {e})
-              return '0'
-            }
-          },
-          setItem(name: string, value: string) {
-            try {
-              const data = JSON.parse(value)
-              // Extract the first value from the layout array which represents the sidebar width percentage
-              const sidebarWidth = data['page,sidebar']?.layout[0]
-
-              if (typeof sidebarWidth === 'number') {
-                dispatch({type: 'sidebarWidth', value: sidebarWidth})
-                setSidebarWidth(sidebarWidth)
-              }
-            } catch (e) {
-              console.error('Error setting sidebar width in storage', {e})
-            }
-          },
         }
 
         return {
@@ -112,7 +81,6 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
           onCloseSidebar,
           onSidebarResize,
           onSidebarWidthPxChange,
-          widthStorage,
         }
       }, [])}
     >

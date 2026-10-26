@@ -1,3 +1,4 @@
+import {transitionPanel} from '@shm/ui/resizable-panels'
 import {useAssistantPanel} from '@/assistant-panel-state'
 import {useLocalKeyPair} from '@/auth'
 import {clientLazy, ClientOnly} from '@/client-lazy'
@@ -87,10 +88,19 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   const isMobile = !!media.xs
   const [width, setWidth] = usePanelWidth()
   const [dragging, setDragging] = useState(false)
+  const groupRef = useRef<HTMLDivElement>(null)
+  const asideRef = useRef<HTMLElement>(null)
+  const cancelMotion = useRef<(() => void) | undefined>(undefined)
+  const returnFocus = useRef<HTMLElement | null>(null)
+  const [shown, setShown] = useState(false)
+  const [hasOpened, setHasOpened] = useState(false)
+  const wasOpenedByReader = useRef(false)
+  const previousMobile = useRef(isMobile)
   const dragStart = useRef<{x: number; width: number} | null>(null)
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
+      cancelMotion.current?.()
       event.preventDefault()
       dragStart.current = {x: event.clientX, width}
       event.currentTarget.setPointerCapture?.(event.pointerId)
@@ -115,6 +125,40 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   const showSidePanel = !!keyPair && panel.isOpen && !isMobile
   const showFullScreen = !!keyPair && panel.isOpen && isMobile && panel.openedByReader
   const visible = showSidePanel || showFullScreen
+  useEffect(() => {
+    const group = groupRef.current
+    const aside = asideRef.current
+    if (!group || !aside) return
+    aside.inert = !showSidePanel
+    if (!showSidePanel && aside.contains(document.activeElement)) {
+      if (returnFocus.current?.isConnected) returnFocus.current.focus()
+      else {
+        group.tabIndex = -1
+        group.focus({preventScroll: true})
+      }
+    }
+    const explicit = panel.openedByReader || wasOpenedByReader.current
+    const resized = previousMobile.current !== isMobile
+    wasOpenedByReader.current = panel.openedByReader
+    previousMobile.current = isMobile
+    if (showSidePanel === shown) return
+    if (showSidePanel) {
+      returnFocus.current = document.activeElement as HTMLElement
+      setHasOpened(true)
+    }
+    if (isMobile || !keyPair || !explicit || resized) {
+      cancelMotion.current?.()
+      setShown(showSidePanel)
+    } else {
+      cancelMotion.current = transitionPanel(
+        group,
+        () => setShown(showSidePanel),
+        () => {},
+        'width',
+      )
+    }
+  }, [showSidePanel, shown, isMobile, keyPair, panel.openedByReader])
+  useEffect(() => () => cancelMotion.current?.(), [])
 
   // The site header's Agents button. Offered only to a signed-in reader, for the same reason the
   // panel itself is; the header additionally checks that the space names an agents server. It
@@ -128,7 +172,10 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   )
 
   return (
-    <div className={cn('flex w-full flex-row items-stretch', dragging && 'cursor-col-resize select-none')}>
+    <div
+      ref={groupRef}
+      className={cn('flex w-full flex-row items-stretch', dragging && 'cursor-col-resize select-none')}
+    >
       {keyPair ? (
         <ClientOnly>
           <SiteContextScope>
@@ -141,28 +188,53 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
       <AssistantPanelToggleContext.Provider value={headerToggle}>
         <div className="min-w-0 flex-1">{children}</div>
       </AssistantPanelToggleContext.Provider>
-      {showSidePanel ? (
-        <>
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize agents panel"
-            className={cn('panel-resize-handle visible sticky top-0 h-dvh shrink-0 self-start', dragging && 'active')}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUp}
-            onPointerCancel={handlePointerUp}
-          />
-          <aside
-            aria-label="Agents"
-            data-testid="web-assistant-panel"
-            className="bg-background border-border sticky top-0 flex h-dvh shrink-0 flex-col self-start overflow-hidden border-l"
-            style={{width}}
-          >
-            <PanelBody showClose />
-          </aside>
-        </>
-      ) : null}
+      <>
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize agents panel"
+          aria-hidden={!showSidePanel || undefined}
+          aria-valuemin={MIN_WIDTH_PX}
+          aria-valuemax={Math.max(
+            MIN_WIDTH_PX,
+            typeof window === 'undefined' ? MIN_WIDTH_PX : window.innerWidth * MAX_WIDTH_FRACTION,
+          )}
+          aria-valuenow={width}
+          tabIndex={showSidePanel ? 0 : -1}
+          style={{visibility: showSidePanel ? undefined : 'hidden'}}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Enter') return
+            event.preventDefault()
+            cancelMotion.current?.()
+            if (event.key === 'Enter') {
+              const group = groupRef.current!
+              group.tabIndex = -1
+              group.focus({preventScroll: true})
+              panel.close()
+            } else setWidth(width + (event.key === 'ArrowLeft' ? 10 : -10))
+          }}
+          className={cn('panel-resize-handle visible sticky top-0 h-dvh shrink-0 self-start', dragging && 'active')}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        />
+        <aside
+          ref={asideRef}
+          data-panel-width
+          aria-hidden={!showSidePanel || undefined}
+          aria-label="Agents"
+          data-testid="web-assistant-panel"
+          className="bg-background border-border sticky top-0 flex h-dvh shrink-0 flex-col self-start overflow-hidden"
+          style={{width: shown ? width : 0}}
+        >
+          {keyPair && !isMobile && (showSidePanel || hasOpened) ? (
+            <div className="h-full border-l">
+              <PanelBody showClose />
+            </div>
+          ) : null}
+        </aside>
+      </>
       {showFullScreen ? <FullScreenPanel onBack={panel.close} /> : null}
     </div>
   )

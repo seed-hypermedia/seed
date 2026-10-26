@@ -169,8 +169,8 @@ vi.mock('react-resizable-panels', async () => {
 
   return {
     Panel: ({children}: {children: React.ReactNode}) => React.createElement('div', {'data-testid': 'panel'}, children),
-    PanelGroup,
-    PanelResizeHandle: () => React.createElement('div', {'data-testid': 'panel-resize-handle'}),
+    Group: PanelGroup,
+    Separator: () => React.createElement('div', {'data-testid': 'panel-resize-handle'}),
   }
 })
 

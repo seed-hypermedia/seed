@@ -1,8 +1,8 @@
 import {useSidebarContext} from '@/sidebar-context'
 import {useStream} from '@shm/shared/use-stream'
 import useMedia from '@shm/ui/use-media'
-import {ReactNode, useEffect, useLayoutEffect, useRef} from 'react'
-import {ImperativePanelHandle, Panel, PanelResizeHandle} from 'react-resizable-panels'
+import {ReactNode, useLayoutEffect, useRef} from 'react'
+import {AnimatedPanel, PanelSeparator} from '@shm/ui/resizable-panels'
 
 export function GenericSidebarContainer({
   children,
@@ -15,86 +15,34 @@ export function GenericSidebarContainer({
   const isLocked = useStream(ctx.isLocked)
 
   const sidebarWidth = useStream(ctx.sidebarWidth)
-  const ref = useRef<ImperativePanelHandle>(null)
   const panelContentRef = useRef<HTMLDivElement>(null)
-  const prevIsLocked = useRef<boolean | undefined>(undefined)
   const media = useMedia()
-
-  // Enforce 250px minimum when locking sidebar open.
-  // useEffect (not useLayoutEffect) so it runs after Panel's own layout-effect
-  // registration completes — avoids "Panel size not found" assertion when the
-  // imperative ref is invoked before the PanelGroup has the panel in its map.
-  useEffect(() => {
-    const isOpening = prevIsLocked.current === false && isLocked === true
-    const isInitialMount = prevIsLocked.current === undefined && isLocked === true
-
-    const panel = ref.current
-    if (!panel) return
-
-    const safeResize = (pct: number) => {
-      try {
-        panel.resize(pct)
-      } catch (error) {
-        console.log('[250px constraint] Panel operation failed (panel not ready yet):', error)
-      }
-    }
-    const safeExpand = () => {
-      try {
-        panel.expand()
-      } catch (error) {
-        console.log('[250px constraint] Panel operation failed (panel not ready yet):', error)
-      }
-    }
-    const safeCollapse = () => {
-      try {
-        panel.collapse()
-      } catch (error) {
-        console.log('[250px constraint] Panel operation failed (panel not ready yet):', error)
-      }
-    }
-
-    if (isLocked && (isOpening || isInitialMount)) {
-      // Use requestAnimationFrame to ensure layout is complete before measuring
-      requestAnimationFrame(() => {
-        const containerWidth = window.innerWidth
-        const storedPercent = sidebarWidth || 15
-        const pixelValue = (storedPercent / 100) * containerWidth
-
-        if (pixelValue < 250) {
-          const newPercent = Math.min(30, (250 / containerWidth) * 100)
-          // console.log('[250px constraint] Adjusting to:', newPercent)
-          safeResize(newPercent)
-          ctx.onSidebarResize(newPercent)
-        }
-        safeExpand()
-      })
-    } else if (isLocked && !isOpening && !isInitialMount) {
-      safeResize(sidebarWidth || 15)
-      safeExpand()
-    } else if (!isLocked) {
-      safeCollapse()
-    }
-
-    prevIsLocked.current = isLocked
-  }, [isLocked, sidebarWidth, ctx])
 
   // When window shrinks past the breakpoint, close the sidebar (and restore it when growing back)
   const prevMediaGtSm = useRef(media.gtSm)
   const wasLockedBeforeCollapse = useRef(false)
+  const responsiveTarget = useRef<boolean | undefined>(undefined)
+  const expandedSize = `${Math.min(30, Math.max(sidebarWidth || 15, (250 / window.innerWidth) * 100))}%`
   useLayoutEffect(() => {
     if (prevMediaGtSm.current && !media.gtSm) {
       if (isLocked) {
         wasLockedBeforeCollapse.current = true
+        responsiveTarget.current = false
         ctx.onCloseSidebar()
       }
     } else if (!prevMediaGtSm.current && media.gtSm) {
       if (wasLockedBeforeCollapse.current) {
         wasLockedBeforeCollapse.current = false
+        responsiveTarget.current = true
         ctx.onLockSidebarOpen()
       }
     }
     prevMediaGtSm.current = media.gtSm
   }, [media.gtSm])
+
+  useLayoutEffect(() => {
+    if (responsiveTarget.current === isLocked) responsiveTarget.current = undefined
+  }, [isLocked])
 
   useLayoutEffect(() => {
     const element = panelContentRef.current
@@ -125,28 +73,23 @@ export function GenericSidebarContainer({
 
   return (
     <>
-      <Panel
-        defaultSize={sidebarWidth}
-        minSize={10}
-        maxSize={30}
-        ref={ref}
-        collapsible
+      <AnimatedPanel
+        open={!!isLocked}
+        keepMounted
+        animate={responsiveTarget.current !== isLocked}
+        defaultSize={expandedSize}
+        openSize={expandedSize}
+        minSize="10%"
+        maxSize="30%"
         id="sidebar"
-        order={1}
         className="h-full"
-        onResize={(size) => {
-          ctx.onSidebarResize(size)
-        }}
       >
-        <div
-          ref={panelContentRef}
-          className="relative flex h-full w-full flex-col transition-all duration-200 ease-in-out"
-        >
+        <div ref={panelContentRef} className="relative flex h-full w-full flex-col">
           <div className="flex-1 overflow-y-auto pb-8">{children}</div>
           {footer ? <div className="w-full items-end">{footer({isVisible: isLocked})}</div> : null}
         </div>
-      </Panel>
-      {isLocked ? <PanelResizeHandle className="panel-resize-handle" /> : null}
+      </AnimatedPanel>
+      <PanelSeparator open={!!isLocked} />
     </>
   )
 }

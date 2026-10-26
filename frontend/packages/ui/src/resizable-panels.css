@@ -1,0 +1,25 @@
+:root {
+  --panel-motion-duration: 200ms;
+  --panel-motion-out: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* App-owned open/close motion; v4 places flex-grow on the outer panel. */
+[data-group][data-panel-motion='flex-grow'] > [data-panel] {
+  transition: flex-grow var(--panel-motion-duration) var(--panel-motion-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-group][data-panel-motion='flex-grow'] > [data-panel] {
+    transition: none;
+  }
+}
+
+[data-panel-motion='width'] > [data-panel-width] {
+  transition: width var(--panel-motion-duration) var(--panel-motion-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-panel-motion='width'] > [data-panel-width] {
+    transition: none;
+  }
+}

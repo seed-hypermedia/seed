@@ -15,7 +15,6 @@ import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {hmId} from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
-import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {NotificationInboxProvider} from '@shm/ui/activity-panel'
 import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
@@ -24,14 +23,15 @@ import {AssistantPanelToggleContext, type AssistantPanelToggle} from '@shm/ui/as
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
 import {windowContainerStyles} from '@shm/ui/container'
+import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from '@shm/ui/resizable-panels'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {lazy, ReactElement, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {lazy, ReactElement, ReactNode, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
-import {ImperativePanelGroupHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
+import {Group, Panel} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
 import {AutoUpdater} from '../components/auto-updater'
 import {DesktopNotificationInbox} from '../components/desktop-notification-inbox'
@@ -120,6 +120,7 @@ export default function Main({className}: {className?: string}) {
   useListenAppEvent('create_new_document', () => {
     void createNewDocument()
   })
+  const assistantLayout = useSavedPanelLayout('main-assistant', ['app-content', 'assistant'])
   const initNavState = (window as any).initNavState
   const [assistantOpen, setAssistantOpen] = useState(initNavState?.assistantOpen || false)
   const [assistantSessionId, setAssistantSessionId] = useState<string | null>(initNavState?.assistantSessionId || null)
@@ -247,14 +248,24 @@ export default function Main({className}: {className?: string}) {
   return (
     <div className={cn(windowContainerStyles, 'p-0', className)}>
       <WindowTitle />
-      <PanelGroup direction="horizontal" autoSaveId="main-assistant" className="min-h-0 flex-1">
-        <Panel id="app-content" order={1}>
+      <Group
+        orientation="horizontal"
+        className="min-h-0 flex-1"
+        onLayoutChanged={(layout, meta) => {
+          assistantLayout.onLayoutChanged(layout, meta)
+          if (meta.isUserInteraction && layout.assistant === 0 && assistantOpen) {
+            setAssistantOpen(false)
+            sendAssistantState(false, assistantSessionId)
+          }
+        }}
+      >
+        <Panel id="app-content">
           <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto]">
             <SidebarContextProvider>
               {titlebar}
               <PanelContent>
                 {sidebar}
-                <Panel id="page" order={2} className="pl-1">
+                <Panel id="page" className="pl-1">
                   <ErrorBoundary
                     resetKeys={[routeKey]}
                     FallbackComponent={RootAppError}
@@ -287,15 +298,19 @@ export default function Main({className}: {className?: string}) {
             </SidebarContextProvider>
           </div>
         </Panel>
-        {shouldRenderAssistantPanel && (
-          <>
-            <PanelResizeHandle className="panel-resize-handle" />
-            <Panel id="assistant" order={2} minSize={15} maxSize={40} defaultSize={25} className="border-l">
-              <AssistantPanel initialSessionId={assistantSessionId} onSessionChange={handleSessionChange} />
-            </Panel>
-          </>
-        )}
-      </PanelGroup>
+        <PanelSeparator open={shouldRenderAssistantPanel} onCollapse={handleToggleAssistant} />
+        <AnimatedPanel
+          id="assistant"
+          open={shouldRenderAssistantPanel}
+          keepMounted={isAssistantAvailable}
+          minSize="15%"
+          maxSize="40%"
+          defaultSize={`${assistantLayout.expanded?.assistant ?? 25}%`}
+          className="border-l"
+        >
+          <AssistantPanel initialSessionId={assistantSessionId} onSessionChange={handleSessionChange} />
+        </AnimatedPanel>
+      </Group>
     </div>
   )
 }
@@ -342,9 +357,6 @@ function ConfirmConnectionDialog() {
 
 function PanelContent({children}: {children: ReactNode}) {
   const ctx = useSidebarContext()
-  const isLocked = useStream(ctx.isLocked)
-  const sidebarWidth = useStream(ctx.sidebarWidth)
-  const ref = useRef<ImperativePanelGroupHandle>(null)
 
   useListenAppEvent('toggle_sidebar', () => {
     const activeEl = document.activeElement
@@ -363,31 +375,20 @@ function PanelContent({children}: {children: ReactNode}) {
     ctx.onToggleMenuLock()
   })
 
-  useEffect(() => {
-    const panelGroup = ref.current
-    if (panelGroup) {
-      if (isLocked && sidebarWidth && sidebarWidth > 0) {
-        panelGroup.setLayout([sidebarWidth, 100 - sidebarWidth])
-      } else {
-        if (isLocked && sidebarWidth && sidebarWidth === 0) {
-          panelGroup.setLayout([15, 85])
-        } else {
-          panelGroup.setLayout([0, 100])
-        }
-      }
-    }
-  }, [sidebarWidth, isLocked])
-
   return (
-    <PanelGroup
-      ref={ref}
-      direction="horizontal"
+    <Group
+      orientation="horizontal"
       className={cn('flex min-h-0 overflow-hidden px-2')}
-      autoSaveId="main"
-      storage={ctx.widthStorage}
+      onLayoutChanged={(layout, meta) => {
+        if (!meta.isUserInteraction) return
+        const width = (meta.requestedLayout ?? layout).sidebar
+        if (width && width > 0) ctx.onSidebarResize(width)
+        if (layout.sidebar === 0) ctx.onCloseSidebar()
+        else ctx.onLockSidebarOpen()
+      }}
     >
       {children}
-    </PanelGroup>
+    </Group>
   )
 }
 
