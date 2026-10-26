@@ -1,6 +1,6 @@
 import {createHash, createPublicKey, verify} from 'node:crypto'
 import {createReadStream} from 'node:fs'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {chromiumPolicySchema} from './app-chromium-age'
 
 import {canonicalManifest, UPDATE_SIGNATURE_REQUIRED} from './update-signing'

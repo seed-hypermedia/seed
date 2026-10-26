@@ -1,7 +1,7 @@
 import {parseEmailPrevalidation, type EmailPrevalidation} from '@shm/shared/hmauth'
 import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {HMBlockNodeSchema, unpackedHmIdSchema} from '@seed-hypermedia/client/hm-types'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {navRouteSchema, type NavRoute} from '@shm/shared/routes'
 
 function upgradeStore(db: IDBDatabase, storeName: string, options?: IDBObjectStoreParameters): IDBObjectStore | null {

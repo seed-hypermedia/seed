@@ -1,6 +1,6 @@
 import {getSiteEmailSubscribers} from '@shm/shared/models/notification-service'
 import {normalizeNotifyServiceUrl} from '@shm/shared/notify-url'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {buildDesktopSigner, getNotifyServiceHostDefault} from './app-notifications'
 import {t} from './app-trpc'
 

@@ -1,4 +1,4 @@
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import * as hm from '@seed-hypermedia/client'
 import {signBlob} from '@seed-hypermedia/client/signed-blob'
 import {

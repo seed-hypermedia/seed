@@ -23,7 +23,7 @@
         "react": "^19",
         "react-dom": "^19",
         "turndown": "7.2.4",
-        "zod": "3.25.76",
+        "zod": "4.6.6",
       },
       "devDependencies": {
         "@connectrpc/connect-web": "1.4.0",
@@ -41,12 +41,13 @@
     },
   },
   "patchedDependencies": {
-    "zod@3.25.76": "patches/zod@3.25.76.patch",
+    "zod@4.6.6": "patches/zod@4.6.6.patch",
   },
   "overrides": {
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "react": "19.2.4",
     "react-dom": "19.2.4",
+    "zod": "4.6.6",
   },
   "packages": {
     "@antfu/install-pkg": ["@antfu/install-pkg@2.1.0", "", { "dependencies": { "package-manager-detector": "^1.8.0", "tinyexec": "^1.3.1" } }, "sha512-sdg9NxU3zR4Mnawfbc/x6GB5Wf17WYud5qOuEuxXjaKpYpMkISSJEjItGebXJ2bQ4DIcly4NYH23mtkGJjvKUw=="],
@@ -329,7 +330,7 @@
 
     "@seed-hypermedia/agents-protocol": ["@seed-hypermedia/agents-protocol@file:protocol", {}],
 
-    "@seed-hypermedia/client": ["@seed-hypermedia/client@file:../frontend/packages/client", { "dependencies": { "@ipld/dag-cbor": "^9.2.5", "@noble/ciphers": "^2.1.1", "@noble/curves": "^2.0.1", "blockstore-core": "^5.0.2", "cheerio": "^1.2.0", "core-js": "^3.48.0", "hash-wasm": "^4.12.0", "ipfs-unixfs-importer": "^15.3.2", "multiformats": "^13.4.1", "superjson": "2.2.1", "yaml": "^2.6.0" }, "devDependencies": { "tsup": "^8.5.1", "typescript": "5.8.3", "vitest": "0.34.2", "zod": "3.25.76" }, "peerDependencies": { "pdfjs-dist": "^4.2.67", "zod": ">=3.20.0" }, "optionalPeers": ["pdfjs-dist"] }],
+    "@seed-hypermedia/client": ["@seed-hypermedia/client@file:../frontend/packages/client", { "dependencies": { "@ipld/dag-cbor": "^9.2.5", "@noble/ciphers": "^2.1.1", "@noble/curves": "^2.0.1", "@noble/hashes": "^2.0.1", "blockstore-core": "^5.0.2", "cborg": "^4.5.8", "cheerio": "^1.2.0", "core-js": "^3.48.0", "hash-wasm": "^4.12.0", "ipfs-unixfs-importer": "^15.3.2", "multiformats": "^13.4.1", "superjson": "2.2.1", "yaml": "^2.6.0" }, "devDependencies": { "tsup": "^8.5.1", "typescript": "5.8.3", "vitest": "4.1.8", "zod": "4.6.6" }, "peerDependencies": { "pdfjs-dist": "^4.2.67", "zod": "^4.6.6" }, "optionalPeers": ["pdfjs-dist"] }],
 
     "@shm/shared": ["@shm/shared@file:../frontend/packages/shared", { "dependencies": { "@bufbuild/protobuf": "1.10.0", "@connectrpc/connect-web": "1.4.0", "@ipld/dag-cbor": "^9.2.5", "@noble/curves": "^2.0.1", "@noble/hashes": "^2.0.1", "@seed-hypermedia/client": "workspace:*", "@tanstack/react-query": "^4.36.1", "@types/lodash": "4.17.0", "@xstate/react": "4.1.3", "cborg": "^4.5.8", "cheerio": "^1.0.0", "katex": "0.16.9", "lodash": "4.18.1", "lowlight": "3.1.0", "multiformats": "^13.4.1", "nanoid": "^5.1.16", "react-tweet": "3.2.0", "superjson": "2.2.1", "xstate": "5.19.2", "zod-to-json-schema": "3.25.1" }, "devDependencies": { "typescript": "5.8.3", "vitest": "4.1.8" }, "peerDependencies": { "react": ">=18.2.0 <20" } }],
 
@@ -1249,7 +1250,7 @@
 
     "yargs-parser": ["yargs-parser@21.1.1", "", {}, "sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw=="],
 
-    "zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
+    "zod": ["zod@4.6.6", "", {}, "sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA=="],
 
     "zod-to-json-schema": ["zod-to-json-schema@3.25.1", "", { "peerDependencies": { "zod": "^3.25 || ^4" } }, "sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA=="],
 
@@ -1261,7 +1262,7 @@
 
     "@multiformats/dns/@libp2p/interface": ["@libp2p/interface@3.2.2", "", { "dependencies": { "@multiformats/dns": "^1.0.6", "@multiformats/multiaddr": "^13.0.1", "main-event": "^1.0.1", "multiformats": "^13.4.0", "progress-events": "^1.1.0", "uint8arraylist": "^2.4.8" } }, "sha512-IU78g6uF8Ls0//4v9VE1rL5Jvy+i6I8LI/DssojFICbaDJSkL59Sn5XRfHrY5OCxTnUnUxnWK7pHz/3+UZcRNQ=="],
 
-    "@shm/shared/@seed-hypermedia/client": ["@seed-hypermedia/client@file:../frontend/packages/client", { "dependencies": { "@ipld/dag-cbor": "^9.2.5", "@noble/ciphers": "^2.1.1", "@noble/curves": "^2.0.1", "blockstore-core": "^5.0.2", "cheerio": "^1.2.0", "core-js": "^3.48.0", "hash-wasm": "^4.12.0", "ipfs-unixfs-importer": "^15.3.2", "multiformats": "^13.4.1", "superjson": "2.2.1", "yaml": "^2.6.0" }, "devDependencies": { "tsup": "^8.5.1", "typescript": "5.8.3", "vitest": "0.34.2", "zod": "3.25.76" }, "peerDependencies": { "pdfjs-dist": "^4.2.67", "zod": ">=3.20.0" }, "optionalPeers": ["pdfjs-dist"] }],
+    "@shm/shared/@seed-hypermedia/client": ["@seed-hypermedia/client@file:../frontend/packages/client", {}],
 
     "body-parser/content-type": ["content-type@2.1.0", "", {}, "sha512-mj7UPXE0jaqaOsukNZRUEfEi2AcL7C/vwmwcHV0O97eO1E1pxBZuyjlZrx5seTaNBg1U6+o35wpa35Qfcc+7ag=="],
 

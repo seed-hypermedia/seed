@@ -41,7 +41,7 @@ import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
 import {ReactElement, useEffect, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
 import {useWXRImportDialog} from './wxr-import-dialog'
 
@@ -545,7 +545,7 @@ function ImportURLForm({onSubmit, defaultUrl}: {onSubmit: (url: string) => void;
     setFocus,
     formState: {errors},
   } = useForm<ImportURLFields>({
-    resolver: zodResolver(ImportURLSchema),
+    resolver: zodResolver(ImportURLSchema as any),
     defaultValues: {
       url: defaultUrl,
     },

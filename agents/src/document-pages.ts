@@ -1,6 +1,6 @@
 import type {IpfsDirectoryFile} from '@seed-hypermedia/client'
 import * as hm from '@seed-hypermedia/client'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import * as memory from '@/agent-memory'
 import * as acorn from 'acorn'
 import * as html from 'linkedom'

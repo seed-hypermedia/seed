@@ -168,7 +168,7 @@ import {
   ProviderOAuthManager,
 } from './provider-oauth'
 import {CID} from 'multiformats/cid'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as nodeCrypto from 'node:crypto'
@@ -17023,7 +17023,7 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
 function parseWriteJsonBlocks(rawContent: unknown): HMBlockNode[] {
   const parsed =
     typeof rawContent === 'string' ? JSON.parse(normalizeWriteContent(rawContent, 'Document content')) : rawContent
-  return z.array(HMBlockNodeSchema).parse(parsed) as HMBlockNode[]
+  return z.array(HMBlockNodeSchema as any).parse(parsed) as HMBlockNode[]
 }
 
 function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId = ''): DocumentOperation[] {

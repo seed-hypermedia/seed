@@ -1,4 +1,4 @@
-import * as z from 'zod'
+import * as z from 'zod/v3'
 import {pageParamsFromUrl, pageParamsQuery} from './page-input'
 
 // Signing abstraction: each platform provides its own implementation

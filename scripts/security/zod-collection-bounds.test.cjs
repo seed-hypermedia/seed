@@ -1,5 +1,5 @@
 'use strict'
-// GHSA-mrhx-c7xc-m3w5: backport the upstream size gate without migrating Seed to Zod 4.
+// GHSA-mrhx-c7xc-m3w5: verify Zod 4 and the patched v3 compatibility runtime used by Seed.
 // https://github.com/colinhacks/zod/commit/a0ebf970f2d752e5f58527cd2942ff48be4f46bd
 const assert = require('node:assert/strict')
 const {test} = require('node:test')

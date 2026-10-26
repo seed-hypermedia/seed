@@ -3,7 +3,7 @@ import {SITE_BASE_URL} from '@shm/shared/constants'
 import {readFileSync, statSync} from 'fs'
 import fs, {readFile} from 'fs/promises'
 import {join} from 'path'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 
 export const adminSecret = process.env.SERVICE_ADMIN_SECRET
 

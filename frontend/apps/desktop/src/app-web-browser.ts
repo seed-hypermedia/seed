@@ -1,7 +1,7 @@
 import type {BrowserWindow, WebContents} from 'electron'
 import {WebContentsView, nativeTheme, shell} from 'electron'
 import {browserBlocklist, browserBlockedPage, type BrowserBlocklistMatch} from './browser-blocklist'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {browserContentBlocker} from './browser-content-blocker'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {loadBrowserFavicon, readBrowserFavicons} from './app-browser-favicon'

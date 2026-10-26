@@ -1,4 +1,4 @@
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import release from '../electron-release.json'
 
 declare const __ELECTRON_RELEASE_DATE__: string

@@ -1,4 +1,4 @@
-import z from 'zod'
+import z from 'zod/v3'
 
 export const NotificationAuthorSchema = z.object({
   uid: z.string(),

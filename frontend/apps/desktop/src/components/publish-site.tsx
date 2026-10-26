@@ -27,7 +27,7 @@ import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 
 import {
   AlertDialogAction,
@@ -215,7 +215,7 @@ export function SeedHostLogin({
     handleSubmit,
     formState: {errors},
   } = useForm<LoginFields>({
-    resolver: zodResolver(LoginSchema),
+    resolver: zodResolver(LoginSchema as any),
     defaultValues: {email: email || ''},
   })
   async function sendCode(email: string) {
@@ -340,7 +340,7 @@ function SeedHostRegisterSubdomain({
     setFocus,
     formState: {errors},
   } = useForm<RegisterSubdomainFields>({
-    resolver: zodResolver(RegisterSubdomainSchema),
+    resolver: zodResolver(RegisterSubdomainSchema as any),
     defaultValues: {
       subdomain,
     },
@@ -514,7 +514,7 @@ function SeedHostRegisterCustomDomain({
     setFocus,
     formState: {errors},
   } = useForm<RegisterCustomDomainFields>({
-    resolver: zodResolver(RegisterCustomDomainSchema),
+    resolver: zodResolver(RegisterCustomDomainSchema as any),
   })
   const entity = useResource({...id, version: null, latest: true})
   const [localPendingDomain, setPendingDomain] = useState<{

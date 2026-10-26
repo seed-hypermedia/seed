@@ -1,4 +1,4 @@
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {decode, encode} from '@ipld/dag-cbor'
 import {base58btc} from 'multiformats/bases/base58'
 import {ipldToDagJson} from '@seed-hypermedia/client/dag-json'

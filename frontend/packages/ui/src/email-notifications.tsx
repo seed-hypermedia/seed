@@ -2,7 +2,7 @@ import {zodResolver} from '@hookform/resolvers/zod'
 import {useTxString} from '@shm/shared/translation'
 import {useEffect} from 'react'
 import {Control, useController, useForm} from 'react-hook-form'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {Button} from './button'
 import {FormCheckbox, FormInput} from './form-input'
 import {FormField} from './forms'
@@ -35,7 +35,7 @@ export function UIEmailNotificationsForm({
     setFocus,
     formState: {errors},
   } = useForm<z.infer<typeof emailNotificationsSchema>>({
-    resolver: zodResolver(emailNotificationsSchema),
+    resolver: zodResolver(emailNotificationsSchema as any),
     defaultValues: {
       email: '',
       notifyOwnedDocChange: true,

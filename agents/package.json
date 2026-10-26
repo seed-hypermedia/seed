@@ -21,7 +21,8 @@
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "@seed-hypermedia/client": "file:../frontend/packages/client"
+    "@seed-hypermedia/client": "file:../frontend/packages/client",
+    "zod": "4.6.6"
   },
   "dependencies": {
     "@earendil-works/chord": "1.2.0",
@@ -42,7 +43,7 @@
     "react": "^19",
     "react-dom": "^19",
     "turndown": "7.2.4",
-    "zod": "3.25.76"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@connectrpc/connect-web": "1.4.0",
@@ -58,6 +59,6 @@
     "typescript": "5.8.3"
   },
   "patchedDependencies": {
-    "zod@3.25.76": "patches/zod@3.25.76.patch"
+    "zod@4.6.6": "patches/zod@4.6.6.patch"
   }
 }

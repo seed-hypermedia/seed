@@ -1,4 +1,4 @@
-import {z} from 'zod'
+import {z} from 'zod/v3'
 
 /**
  * Reserved query param key for non-object inputs (string, number, boolean).

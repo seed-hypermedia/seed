@@ -3,7 +3,7 @@
  */
 
 import {type HMBlockNode, HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import type {DocumentOperation} from '@seed-hypermedia/client'
 
 /**

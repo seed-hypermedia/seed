@@ -2,7 +2,7 @@ import {zodResolver} from '@hookform/resolvers/zod'
 import {useTxString} from '@shm/shared/translation'
 import {useEffect, useRef, useState} from 'react'
 import {Control, FieldValues, Path, useController, useForm} from 'react-hook-form'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {Button} from './button'
 import {Field} from './form-fields'
 import {FormError, FormInput} from './form-input'
@@ -29,7 +29,7 @@ export function EditProfileForm({
 }) {
   const tx = useTxString()
   const form = useForm<SiteMetaFields>({
-    resolver: zodResolver(siteMetaSchema),
+    resolver: zodResolver(siteMetaSchema as any),
     defaultValues: defaultValues || {
       name: '',
       icon: null,
