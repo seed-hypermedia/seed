@@ -27,17 +27,17 @@ Prompts accept the same rich Seed [block](../protocol/blocks.md) format as agent
 | --- | --- | --- |
 | `document-comment` | a new comment appears on a resource | `resource`, optional `author` <!-- id:6QPvQAAG --> |
 | `user-mention` | a comment or document mentions one of the listed accounts | `mentionedAccounts[]`, optional `resourcePrefix` <!-- id:tQpu4TSH --> |
-| `comment-reply` | a comment replies directly to a comment by one of the listed accounts; an account's reply to itself never matches | `repliedToAccounts[]`, optional `resourcePrefix` |
-| `document-author-comment` | a comment appears on a document one of the listed accounts authored; the author's own comments never match | `documentAuthors[]`, optional `resourcePrefix` |
+| `comment-reply` | a comment replies directly to a comment by one of the listed accounts; an account's reply to itself never matches | `repliedToAccounts[]`, optional `resourcePrefix` <!-- id:jlCK6tbO --> |
+| `document-author-comment` | a comment appears on a document one of the listed accounts authored; the author's own comments never match | `documentAuthors[]`, optional `resourcePrefix` <!-- id:mf2zxBhI --> |
 | `site-update` | new activity appears under a resource prefix | `resourcePrefix`, optional `eventTypes[]` (`doc-update`, `comment`) <!-- id:fyoQw9B_ --> |
-| `activity` | any one of its conditions matches; the event fires the trigger once however many conditions match | `conditions[]`, each `{id, source}` where `source` is one of the four activity sources above |
+| `activity` | any one of its conditions matches; the event fires the trigger once however many conditions match | `conditions[]`, each `{id, source}` where `source` is one of the four activity sources above <!-- id:awQJs1x6 --> |
 | `schedule` | a clock says so | `schedule`: `{kind: 'interval', every, unit}`, `{kind: 'weekly', daysOfWeek, timeOfDay, timezone}`, or `{kind: 'once', runAt, timezone?}` <!-- id:oXlkndG5 --> |
 | `webhook` | something POSTs JSON to the trigger's delivery URL | none; the secret is created with the trigger <!-- id:-P02QGwG --> |
 | `run-completed` | a run of this account reaches a terminal status | optional `agentId`, `status` (`succeeded`, `failed`, `canceled`), `titleMatch` <!-- id:4JzuZ8WZ --> |
 
-A `user-mention` input still accepts the legacy singular `mentionedAccount` and turns it into the list. An empty list is rejected. Creating an agent with a signing identity also creates one enabled `activity` trigger, named "Mentions, replies, and comments for <agent>", with three conditions that follow that identity: a `user-mention`, a `comment-reply`, and a `document-author-comment`. That is why mentioning an agent's [account](../protocol/identity.md) in a comment, replying to it, or commenting on a document it published summons it. <!-- id:0m8OvinP -->
+A `user-mention` input still accepts the legacy singular `mentionedAccount` and turns it into the list. An empty list is rejected. Creating an agent with a signing identity also creates one enabled `activity` trigger, named "Mentions, replies, and comments for \<agent>", with three conditions that follow that identity: a `user-mention`, a `comment-reply`, and a `document-author-comment`. That is why mentioning an agent's [account](../protocol/identity.md) in a comment, replying to it, or commenting on a document it published summons it. <!-- id:0m8OvinP -->
 
-Each condition of an `activity` trigger has a stable `id`. A firing records which conditions matched (`matchedConditions`), and a session the firing started shows them. Two triggers can be merged into one with `CombineAgentTriggers`: the survivor takes the union of both condition lists, keeps both histories and deduplication claims, and the other is retired with `mergedInto` set; a retired trigger cannot be edited or re-enabled. `UpdateAgentTrigger` accepts an `expectedUpdatedAt` so two editors cannot silently overwrite each other. Compound sources need protocol 3; an older client sees neither them nor reply triggers and gets a typed `protocol_too_old` error when it touches one (see the [signed API](./signed-api.md)).
+Each condition of an `activity` trigger has a stable `id`. A firing records which conditions matched (`matchedConditions`), and a session the firing started shows them. Two triggers can be merged into one with `CombineAgentTriggers`: the survivor takes the union of both condition lists, keeps both histories and deduplication claims, and the other is retired with `mergedInto` set; a retired trigger cannot be edited or re-enabled. `UpdateAgentTrigger` accepts an `expectedUpdatedAt` so two editors cannot silently overwrite each other. Compound sources need protocol 3; an older client sees neither them nor reply triggers and gets a typed `protocol_too_old` error when it touches one (see the [signed API](./signed-api.md)). <!-- id:2RZmc9Te -->
 
 ## Continuations <!-- id:SAHaWbYq -->
 
@@ -96,7 +96,7 @@ The agent page's **Triggers** tab lists triggers. Each one opens in an editable 
   - the source and its form: a **When any of these happen** list of conditions with **Add condition** and a per-condition type menu (mention, reply to account, comment on account's document, comment on a document, site update), document autocomplete for comment conditions, account and site autocomplete, and interval, weekly, and one-time schedule forms; run-completed is shown only on triggers that already use it <!-- id:JJha9v1A -->
   - the prompt in the block editor <!-- id:anUmCwS4 -->
   - the continuation choice: **Start a thread (model handles it)**, **Call a tool (no model)**, **Run a script (no model)**, or **Wake a parked run**, with a tool picker fed by the agent's tools, a JSON input template, a script editor, a signal field for `wake`, and the on-failure toggle <!-- id:CdsHU--l -->
-  - **Combine with another trigger**, and a **Combined** badge on a retired trigger
+  - **Combine with another trigger**, and a **Combined** badge on a retired trigger <!-- id:VdlOvvV9 -->
   - operational metadata: created, updated, last checked, last fired, last error <!-- id:VMDh9Iw3 -->
   - **Firings** with status, event summary, error, a link to the thread, and an inline run card for headless runs <!-- id:XHZ8P3WK -->
 
@@ -119,7 +119,7 @@ There are six actions, all scoped to the account through the owning agent: <!-- 
   - `CreateAgentTrigger {agentId, trigger, clientRequestId?}` <!-- id:UNaF32tJ -->
   - `UpdateAgentTrigger {triggerId, patch, expectedUpdatedAt?}`: the optional timestamp refuses a stale edit. <!-- id:f18H8tDf -->
   - `DeleteAgentTrigger {triggerId}` <!-- id:LgMQdOP3 -->
-  - `CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}`: merges the other trigger's conditions, firings, and claims into this one and retires the other with `mergedInto`.
+  - `CombineAgentTriggers {triggerId, otherTriggerId, expectedUpdatedAt, otherExpectedUpdatedAt, useOtherAction?}`: merges the other trigger's conditions, firings, and claims into this one and retires the other with `mergedInto`. <!-- id:HwXBs7E9 -->
 
 Deleting a trigger detaches its runs and removes its firings. Sessions it created are kept. Details are in the [signed API](./signed-api.md). <!-- id:JMPdcC4g -->
 

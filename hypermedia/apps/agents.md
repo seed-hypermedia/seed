@@ -16,7 +16,7 @@ The same build runs in three places. The desktop app ships it as a compiled bina
 | `src/main.ts` | Startup, the HTTP routes and the WebSocket server. <!-- id:Y0Xw5Kqi --> |
 | `src/config.ts` | Every flag and its environment variable; the top code comment is the configuration reference. <!-- id:2V09w8mX --> |
 | `src/api-service.ts` | The signed action handlers, by far the largest file. <!-- id:WgUneRMx --> |
-| `src/durable-session.ts` | The per-session [Pi Durable store](../agent/durable-sessions.md) the model turn runs on. |
+| `src/durable-session.ts` | The per-session [Pi Durable store](../agent/durable-sessions.md) the model turn runs on. <!-- id:5dMbNOWF --> |
 | `src/auth.ts` | Envelope signature checks and capability-based authorization. <!-- id:IKVKS0ev --> |
 | `src/runs.ts`, `src/workflow-*.ts` | The run queue and the workflow engine. <!-- id:Jy_5I5KZ --> |
 | `src/activity-monitor.ts`, `src/activity-triggers.ts`, `src/schedule-*.ts` | [Trigger](../agent/triggers.md) monitors. <!-- id:FzH_JMtW --> |

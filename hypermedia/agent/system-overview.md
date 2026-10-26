@@ -111,7 +111,7 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 - Session create, get, list, message, stop, retry, and delete. <!-- id:D2RZH2GQ -->
 - Cross-agent session listing (`ListSessions`) with composite keyset pagination. <!-- id:8iuaH3pW -->
 - Model execution through pi-ai for OpenAI-compatible, Anthropic, and Google provider mappings. See [model providers](./model-providers.md). <!-- id:lAWFWbOd -->
-- A Pi Durable store per session: the model reads provider responses exactly as they arrived, the prompt prefix stays byte-stable across turns, and a turn cut off by a restart continues from its last checkpoint. See [durable sessions](./durable-sessions.md).
+- A Pi Durable store per session: the model reads provider responses exactly as they arrived, the prompt prefix stays byte-stable across turns, and a turn cut off by a restart continues from its last checkpoint. See [durable sessions](./durable-sessions.md). <!-- id:91VoweVI -->
 - Text streaming translated from the store's committed partials into Seed WebSocket partials. <!-- id:NSfbrCwb -->
 - Durable user, assistant, error, and tool events, each carrying its actor. <!-- id:98lUOPrW -->
 - The verbs, registered as the only tools of the turn's harness. Callables are dispatched through `call` and never exposed to the provider. <!-- id:w4i5NWLg -->
@@ -155,7 +155,7 @@ See the [roadmap](./roadmap.md) for what is planned. <!-- id:ycSmp720 -->
 - [Signed API](./signed-api.md) <!-- id:-Alet1OC -->
 - [WebSocket subscriptions](./websocket-subscriptions.md) <!-- id:wcs36GWm -->
 - [Persistence](./persistence.md) <!-- id:y2-XofLJ -->
-- [Durable sessions](./durable-sessions.md)
+- [Durable sessions](./durable-sessions.md) <!-- id:epLSXKau -->
 - [Tools](./tools.md) <!-- id:pt_odyHy -->
 - [Security](./security.md) <!-- id:AOXXb80e -->
 - [Agents service](../apps/agents.md) <!-- id:qeaCNGql -->

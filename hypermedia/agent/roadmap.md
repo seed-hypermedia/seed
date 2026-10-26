@@ -9,7 +9,7 @@ This is the only forward-looking page for [Seed Agents](../agent.md). It lists w
 These parts are complete enough to build on: <!-- id:hpRRD8nC -->
   - a standalone Bun service with a signed CBOR HTTP API and signed WebSocket subscriptions ([signed API](./signed-api.md), [WebSocket subscriptions](./websocket-subscriptions.md)); <!-- id:mEkaxXr_ -->
   - SQLite persistence behind a schema gate, and encrypted provider secrets; <!-- id:6cCtPCVH -->
-  - registry-driven [model providers](./model-providers.md) (OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI, Ollama, custom) executing through pi-ai 1.0, with reasoning levels and ChatGPT subscription sign-in;
+  - registry-driven [model providers](./model-providers.md) (OpenAI, Anthropic, Google, OpenRouter, DeepSeek, Groq, xAI, Ollama, custom) executing through pi-ai 1.0, with reasoning levels and ChatGPT subscription sign-in; <!-- id:orDltsRy -->
   - a [Pi Durable store](./durable-sessions.md) per session: provider-exact transcripts, a byte-stable prompt prefix, and turns that continue from their last checkpoint after a restart; <!-- id:52B0wkkI -->
   - agents, sessions, collaborators, public read, and public chat; <!-- id:f5NzuVU6 -->
   - the [runs](./runs.md) tree as dispatch queue, with leases, boot-sweep recovery, fair-share ordering across accounts, and cancellation over subtrees; <!-- id:wHKDBm26 -->
@@ -67,8 +67,8 @@ A [plan](./plan.md) [step](./step.md) closes when the model says so, or when eve
 
 - **Grants for `query` and `attributes`.** Both callables exist in the registry. The app's Tools tab offers only search, web search, execute, and publish, and an agent created from the app stores exactly that list in its [grants](./grants.md). The UI normalizer also drops the two names when it resaves. Only an agent whose `tools` array is undefined gets them. Either add the toggles or make them ungated. <!-- id:xFWO-fi7 -->
 - **Idempotency for an interrupted `ctx.call`.** A call journaled without a result re-executes on resume. That is fine for reads and a hazard for writes. <!-- id:lm_AQRfE -->
-- **Steering a running turn.** A message sent while a turn runs waits for the next turn. Pi Durable's inbox can hand it to the running turn at the next tool boundary.
-- **Forks.** A person branching from an earlier point of a conversation maps onto a fork of the durable conversation. Nothing uses it yet.
+- **Steering a running turn.** A message sent while a turn runs waits for the next turn. Pi Durable's inbox can hand it to the running turn at the next tool boundary. <!-- id:EC5-QQmX -->
+- **Forks.** A person branching from an earlier point of a conversation maps onto a fork of the durable conversation. Nothing uses it yet. <!-- id:fvG17Ayh -->
 - **WebSocket protocol v2.** Heartbeat, explicit unsubscribe, CBOR server events, subscription limits, backpressure, reconnect cursors, metrics. Agent-run text partials remain ephemeral across a disconnect. <!-- id:CeAzSzD2 -->
 - **Provider and secret lifecycle.** Providers can be deleted. Secret rotation and a general secret-deletion action do not exist. <!-- id:hKIB9nP3 -->
 - **Streaming subscription regression tests** for the `omitUndefined` signing fix and CRLF SSE parsing. <!-- id:Wyvsdbd1 -->

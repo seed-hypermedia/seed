@@ -55,7 +55,7 @@ The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` in `.env.vars`, so the dev serve
 | --- | --- |
 | server base | `http://localhost:3051` <!-- id:0JDepxKs --> |
 | health | `http://localhost:3051/hm/api/agents/health` <!-- id:5IM7m_SR --> |
-| perf | `http://localhost:3051/api/perf` and `/api/perf/sessions/<sessionId>` |
+| perf | `http://localhost:3051/api/perf` and `/api/perf/sessions/<sessionId>` <!-- id:kcALtaWq --> |
 | signed API | `POST http://localhost:3051/hm/api/agents/message` <!-- id:hhM3PRG8 --> |
 | WebSocket | `ws://localhost:3051/hm/api/agents/ws` <!-- id:omAL0PAD --> |
 | latency snapshot | `http://localhost:3051/api/perf` <!-- id:zM2v1hz1 --> |
@@ -65,7 +65,7 @@ The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` in `.env.vars`, so the dev serve
 The service, in `agents/`: <!-- id:I1toG_st -->
   - `src/main.ts`: the Bun HTTP and WebSocket server, CORS, the webhook route, health and version, live event fan-out. <!-- id:6Mgrjc3y -->
   - `src/api-service.ts`: the heart of the service: action dispatch, persistence operations, the model turn on Pi Durable (`#runPiAgent`), the verb implementations, the Space index, trigger firing, subscription verification. <!-- id:3mdc_Y9h -->
-  - `src/durable-session.ts`: the per-session Pi Durable store: the file system that keeps it in the database, how a harness is opened over it, the sync document, and the tracker that turns committed partials into text deltas. See [durable sessions](./durable-sessions.md).
+  - `src/durable-session.ts`: the per-session Pi Durable store: the file system that keeps it in the database, how a harness is opened over it, the sync document, and the tracker that turns committed partials into text deltas. See [durable sessions](./durable-sessions.md). <!-- id:5hgrcO27 -->
   - `src/auth.ts`: signed envelope verification, the five-minute timestamp window, [capability](../protocol/permissions.md)-based delegation. <!-- id:o3piFt7L -->
   - `src/cbor.ts`: [DAG-CBOR](../protocol/blobs.md) request and response helpers and the protocol version header. <!-- id:rfRSsgr7 -->
   - `src/config.ts`: every environment variable and CLI flag, with defaults. <!-- id:LswE9nei -->
@@ -97,7 +97,7 @@ Shared Hypermedia behaviour the service reuses from [`@seed-hypermedia/client`](
 
 The whole service suite runs from `agents/` with `bun test`: <!-- id:QcZ8YChE -->
   - `api-service.test.ts`: the big one: actions, ownership, sessions, delegation, obligations, plans. <!-- id:v1WA7PUZ -->
-  - `durable-session.test.ts`: the durable session runtime: one conversation across turns, the byte-stable prompt prefix, a turn resumed from its checkpoint after a process death, a lost store rebuilt from the log.
+  - `durable-session.test.ts`: the durable session runtime: one conversation across turns, the byte-stable prompt prefix, a turn resumed from its checkpoint after a process death, a lost store rebuilt from the log. <!-- id:Bad3WLee -->
   - `verbs.test.ts`: the five verbs: address dispatch, touch-expand, promotion, user-invoked verbs. <!-- id:IEq07SB6 -->
   - `tool-documents.test.ts`: CIDs, builtin materialization, lambda authoring validation. <!-- id:1H4sSkuE -->
   - `runs.test.ts`, `run-time.test.ts`: queue claiming, leases, sweeps, parks and wakes. <!-- id:caikMvwb -->

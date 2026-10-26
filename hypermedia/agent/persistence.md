@@ -97,7 +97,7 @@ Important columns: <!-- id:OppHXSY2 -->
   - `account_id` <!-- id:oebAwFfP -->
   - `definition_cbor` <!-- id:t9NAtsIu -->
   - `state_dir` <!-- id:SuxIz7up -->
-  - `public_read`, `public_chat`: whether any signed account may read, or chat with, the agent
+  - `public_read`, `public_chat`: whether any signed account may read, or chat with, the agent <!-- id:bR2JwOTR -->
   - `status` <!-- id:8euzUug0 -->
 
 `definition_cbor` encodes `AgentDefinition`. <!-- id:HGpQYrDd -->
@@ -258,10 +258,10 @@ Important columns: <!-- id:ANfEJZZZ -->
   - `trigger_id` <!-- id:UqkJ_5oc -->
   - `activity_key` <!-- id:r89Qat-g -->
   - `session_id` <!-- id:xrmU1MzV -->
-  - `run_id`: the headless run a `tool` or `script` continuation started
+  - `run_id`: the headless run a `tool` or `script` continuation started <!-- id:7YSpiFUR -->
   - `activity_cbor` <!-- id:k7sPpiN5 -->
-  - `context_cbor`: the snapshot of the trigger's name, prompt, and matched conditions at admission
-  - `body_digest`: a webhook body's digest, so a reused `Idempotency-Key` with a different body is refused
+  - `context_cbor`: the snapshot of the trigger's name, prompt, and matched conditions at admission <!-- id:fSLM683o -->
+  - `body_digest`: a webhook body's digest, so a reused `Idempotency-Key` with a different body is refused <!-- id:2lL7K56C -->
   - `status` <!-- id:s90Evv96 -->
   - `error` <!-- id:bR4PVqOd -->
 
@@ -288,7 +288,7 @@ Important columns: <!-- id:bbrswilN -->
   - `seq` <!-- id:b9TA_zNM -->
   - `event_cbor` <!-- id:yIGBDyrA -->
   - `created_at` <!-- id:QbWGSPxU -->
-  - `pi_entry_id`: the entry of the session's [durable store](./durable-sessions.md) this event was projected from, or NULL for an event anything else wrote
+  - `pi_entry_id`: the entry of the session's [durable store](./durable-sessions.md) this event was projected from, or NULL for an event anything else wrote <!-- id:8gwpEAQM -->
 
 `seq` is monotonic per session. Events are returned by `GetSession` and replayed on session WebSocket subscriptions. <!-- id:Z2L22h8_ -->
 
@@ -366,9 +366,9 @@ Used by: <!-- id:1-pLN2bq -->
 
 Same client ID with identical request bytes replays the response. Same client ID with different request bytes returns `409`. <!-- id:xDb-SvJk -->
 
-# Open settings and planner statistics
+# Open settings and planner statistics <!-- id:VGWqFzrf -->
 
-`openWithDatabase` sets `journal_mode=WAL`, a 64 MB `cache_size`, a 512 MB `mmap_size`, and `temp_store=MEMORY`, then runs `ANALYZE` on the small planner tables (`PLANNER_STATISTICS_TABLES`: runs, sessions, agents, collaborators, firings, continuations, and friends) at every open, deliberately leaving out `session_events` and `run_journal`. Without statistics the planner chose the account-wide index for per-session run lookups and pinned the server (2026-09-23); the hot queries also pin their index with `INDEXED BY`. Nothing runs `VACUUM`. See [operations](./operations.md).
+`openWithDatabase` sets `journal_mode=WAL`, a 64 MB `cache_size`, a 512 MB `mmap_size`, and `temp_store=MEMORY`, then runs `ANALYZE` on the small planner tables (`PLANNER_STATISTICS_TABLES`: runs, sessions, agents, collaborators, firings, continuations, and friends) at every open, deliberately leaving out `session_events` and `run_journal`. Without statistics the planner chose the account-wide index for per-session run lookups and pinned the server (2026-09-23); the hot queries also pin their index with `INDEXED BY`. Nothing runs `VACUUM`. See [operations](./operations.md). <!-- id:afAY8b18 -->
 
 # Secret encryption <!-- id:Mm3c29X6 -->
 
@@ -394,13 +394,13 @@ It returns events with `seq > afterSeq`. <!-- id:TiBn9vUJ -->
 
 Session WebSocket subscriptions use the same replay logic when `afterSeq` is supplied. <!-- id:PuvZNhfL -->
 
-# Durable session stores
+# Durable session stores <!-- id:1hLIXcmi -->
 
-Each session has a [Pi Durable](./durable-sessions.md) store, kept in the `session_durable_files` table. Its columns are `session_id`, `file`, `seq`, and `data`. The store is Pi Durable's own set of append-only JSONL files, and each file is the `data` of its rows read in `seq` order. An append inserts one row. A file that has collected many rows is rewritten as one row the next time it is read, which is once per turn. The rows reference `sessions` with `ON DELETE CASCADE`.
+Each session has a [Pi Durable](./durable-sessions.md) store, kept in the `session_durable_files` table. Its columns are `session_id`, `file`, `seq`, and `data`. The store is Pi Durable's own set of append-only JSONL files, and each file is the `data` of its rows read in `seq` order. An append inserts one row. A file that has collected many rows is rewritten as one row the next time it is read, which is once per turn. The rows reference `sessions` with `ON DELETE CASCADE`. <!-- id:DTWUpd64 -->
 
-The store holds the exact provider messages of the conversation, the system prompt as the model last saw it, and the checkpoints of a turn in flight. The log in `session_events` stays the canonical record. The two are tied together by `session_events.pi_entry_id` on one side and the store's `seed.sync` document on the other. A store that is missing is rebuilt from the log on the session's next turn. What is lost with it is the provider-exact transcript and any turn that was in flight.
+The store holds the exact provider messages of the conversation, the system prompt as the model last saw it, and the checkpoints of a turn in flight. The log in `session_events` stays the canonical record. The two are tied together by `session_events.pi_entry_id` on one side and the store's `seed.sync` document on the other. A store that is missing is rebuilt from the log on the session's next turn. What is lost with it is the provider-exact transcript and any turn that was in flight. <!-- id:WXHg7ar_ -->
 
-Deleting a session deletes its store. A backup of the database includes every store.
+Deleting a session deletes its store. A backup of the database includes every store. <!-- id:Wu9rrQqz -->
 
 # Transaction policy <!-- id:vdysksJ3 -->
 
@@ -422,6 +422,6 @@ Do not hold write transactions during provider or tool network calls. <!-- id:Oi
 - [Signed API](./signed-api.md) <!-- id:Axl4bTkZ -->
 - [Runs](./runs.md) <!-- id:Rk2fkzzC -->
 - [Log](./log.md) <!-- id:Aa-ObMEx -->
-- [Durable sessions](./durable-sessions.md)
+- [Durable sessions](./durable-sessions.md) <!-- id:LAZPp-8q -->
 - [Security](./security.md) <!-- id:7k0_A0Pk -->
 - [Operations](./operations.md) <!-- id:shyewYK8 -->
