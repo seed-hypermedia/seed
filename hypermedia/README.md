@@ -31,6 +31,7 @@ A `*.schema.json` beside a page is the schema that page defines. The sync encode
 - Write for technical readers, but open each concept page with plain sentences and link every concept the first time it appears.
 - No em-dashes, no filler, simple words. [Contributing](./build/contributing.md) has the details.
 - Don't add `<!-- id:… -->` comments by hand. The sync assigns them.
+- The dev loop keeps existing Markdown byte-for-byte when its content, metadata and explicit identities already match the app. Starting the dev stack or pushing a file edit must not produce formatting-only diffs. Handwritten blocks without IDs are matched by position, including in files that already have IDs. An explicit `space export` or `hypermedia:pull` still writes the canonical form; use it when you need persistent IDs for moving pages or linking to blocks.
 
 ## Checks and tools
 
@@ -63,6 +64,8 @@ The folder never names a key. Absolute links to the docs space and schema bindin
 `push` checks every schema against the lockfile, publishes the schema blobs, then publishes each page. An existing document is updated block by block, and unchanged documents publish nothing. A page renamed in git publishes as a move. A document whose file is gone is deleted. `--keep-stale` skips this. Nothing publishes while any relative link in the folder is broken.
 
 `./dev hm-sync` (the `hm-sync` pane of `./dev up`) publishes the folder into the desktop dev app's daemon under a throwaway key in `hypermedia/.dev/`, and writes every document you publish in the app straight back to its file. While it runs, the app is the writer and git is where you commit. See [Publish a folder](./build/publish-a-folder.md).
+
+You can switch branches while the launcher stays open. Sync pauses during Git operations or unresolved conflicts, then reconciles the dev site with the new checkout and resumes. File changes and app exports run in sequence, with checkout and content checks before publishing or writing. A checkout that removes the documentation directory pauses sync until the documents return. Both directions use the polling interval, so replacing directories does not lose a filesystem watcher. `--no-watch` deliberately disables reconciliation: on a branch change it pauses instead of exporting the old site into the new checkout.
 
 ## See also
 
