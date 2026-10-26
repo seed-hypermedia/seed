@@ -445,6 +445,27 @@ describe('createRouteFromInspectNavRoute', () => {
 describe('routeToHref', () => {
   const originHome = hmId('uid1')
 
+  test.each(['panel', 'expanded'] as const)('reply hrefs preserve selection in %s links', (layout) => {
+    const id = hmId('uid1', {path: ['doc']})
+    const thread = {key: 'comments' as const, id, openComment: 'author/root', replyCommentId: 'author/reply'}
+    const route = layout === 'expanded' ? thread : {key: 'document' as const, id, panel: thread}
+    expect(routeToHref(route, {originHomeId: originHome})).toBe(
+      layout === 'expanded'
+        ? '/doc/:comments/author/root?reply=author/reply'
+        : '/doc?panel=comments/author/root&reply=author/reply',
+    )
+  })
+
+  test('desktop hrefs retain the panel and selected reply', () => {
+    const id = hmId('uid1', {path: ['doc']})
+    expect(
+      routeToHref(
+        {key: 'document', id, panel: {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'}},
+        {hmUrlHref: true},
+      ),
+    ).toBe('hm://uid1/doc?panel=comments/root&reply=reply')
+  })
+
   test('comments route generates view-term href', () => {
     const href = routeToHref({key: 'comments', id: hmId('uid1')}, {originHomeId: originHome})
     expect(href).toBe('/:comments')

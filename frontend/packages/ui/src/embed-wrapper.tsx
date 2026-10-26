@@ -26,6 +26,21 @@ function isInteractiveEmbedClickTarget(event: MouseEvent<HTMLElement>) {
 
 /** Builds a document route for an embed while retaining the currently active panel. */
 export function getEmbedDocumentRoute(id: UnpackedHypermediaId, currentRoute: NavRoute): DocumentRoute {
+  if (currentRoute.key === 'comments' && currentRoute.openComment) {
+    return {
+      key: 'document',
+      id:
+        currentRoute.id.id === id.id && id.blockRef
+          ? {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange}
+          : id,
+      panel: {
+        key: 'comments',
+        id: currentRoute.id,
+        openComment: currentRoute.openComment,
+        replyCommentId: currentRoute.replyCommentId,
+      },
+    }
+  }
   if (currentRoute.key === 'document' && currentRoute.id.id === id.id && id.blockRef) {
     return {...currentRoute, id: {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange}}
   }

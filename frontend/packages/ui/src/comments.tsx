@@ -27,7 +27,7 @@ import {
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
-import {getCommentThread, getSubmittedCommentGroups} from '@shm/shared/comments'
+import {getCommentThread, getSubmittedCommentGroups, sortCommentGroupsByCreation} from '@shm/shared/comments'
 import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {commentToText} from '@shm/shared/content-to-text'
 import {
@@ -60,6 +60,7 @@ import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {cn} from './utils'
+import {useCommentsScroll} from './use-comments-scroll'
 
 /** Return a normalized 50-character snapshot for a comment bookmark title. */
 export function commentBookmarkTitle(content: HMBlockNode[], resolvedNames?: Readonly<Record<string, string>>): string {
@@ -231,6 +232,7 @@ export function CommentDiscussions({
                   highlight={isEntirelyHighlighted && comment.id === highlightedCommentId}
                   selection={comment.id === highlightedCommentId ? selection : undefined}
                   threadView
+                  threadRootId={thread?.root.id}
                   enableReplies={index > 0}
                 />
               </div>
@@ -248,6 +250,7 @@ export const Discussions = memo(function Discussions({
   onCommentDeleted,
   targetDomain,
   emptyState,
+  scrollKey,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
@@ -256,6 +259,8 @@ export const Discussions = memo(function Discussions({
   targetDomain?: string
   /** Optional empty content for the document comments panel. */
   emptyState?: ReactNode
+  /** Retain root reading position for this document and layout. */
+  scrollKey?: string
 }) {
   const discussionsService = useDocumentDiscussions(targetId, commentId)
 
@@ -295,6 +300,28 @@ export const Discussions = memo(function Discussions({
     submittedRoots,
     acknowledgedRoots.current,
   )
+  const groups = sortCommentGroupsByCreation([...rootGroups, ...(discussionsService.data?.citingDiscussions ?? [])])
+  const {listRef, hasNewComments, scrollToBottom, heights} = useCommentsScroll(
+    scrollKey ?? targetId.id,
+    groups.map((group) => group.id),
+    !!scrollKey && (!!discussionsService.data || !!submittedRoots.length),
+    submittedRoots.at(-1)?.id,
+  )
+  const previousIds = useRef<Set<string>>()
+  const [newCommentIds, setNewCommentIds] = useState<Set<string>>(new Set())
+  const groupIds = groups.map((group) => group.id).join('\n')
+  useEffect(() => {
+    if (!discussionsService.data && !submittedRoots.length) return
+    const ids = new Set(groups.map((group) => group.id))
+    const added = Array.from(ids).filter((id) => previousIds.current && !previousIds.current.has(id))
+    previousIds.current = ids
+    if (added.length) setNewCommentIds((current) => new Set([...Array.from(current), ...added]))
+  }, [groupIds, !!discussionsService.data])
+  useEffect(() => {
+    if (!newCommentIds.size) return
+    const timer = setTimeout(() => setNewCommentIds(new Set()), 3000)
+    return () => clearTimeout(timer)
+  }, [newCommentIds])
   let panelContent = null
   if (!submittedRoots.length && discussionsService.isLoading && !discussionsService.data) {
     panelContent = (
@@ -315,19 +342,21 @@ export const Discussions = memo(function Discussions({
     panelContent =
       totalCount > 0 ? (
         <>
-          {[...rootGroups, ...(discussionsService.data?.citingDiscussions ?? [])].map((group) => {
+          {groups.map((group) => {
             const comment = group.comments[0]
             if (!comment) return null
 
             return (
               <LazyCommentGroup
                 key={group.id}
+                commentId={group.id}
+                heights={heights}
                 className={!commentId ? 'border-border bg-card rounded-lg border' : undefined}
               >
                 {commentId ? (
                   <CommentGroup
                     commentGroup={group}
-                    highlightedCommentId={submittedRoots.at(-1)?.id}
+                    highlightedCommentId={newCommentIds.has(group.id) ? group.id : undefined}
                     onCommentDeleted={onCommentDeleted}
                     authors={discussionsService.data?.authors}
                     targetDomain={targetDomain}
@@ -338,7 +367,7 @@ export const Discussions = memo(function Discussions({
                     authorId={comment.author}
                     authorMetadata={discussionsService.data?.authors?.[comment.author]?.metadata}
                     externalTarget={group.type === 'externalCommentGroup' ? group.target : undefined}
-                    highlight={comment.id === submittedRoots.at(-1)?.id}
+                    highlight={newCommentIds.has(group.id)}
                     onCommentDeleted={onCommentDeleted}
                     targetDomain={targetDomain}
                   />
@@ -352,7 +381,18 @@ export const Discussions = memo(function Discussions({
       )
   }
 
-  return <div className={cn('flex flex-col gap-2', emptyState && 'flex-1')}>{panelContent}</div>
+  return (
+    <div ref={listRef} className={cn('flex flex-col gap-2', emptyState && 'flex-1')}>
+      {panelContent}
+      {hasNewComments && (
+        <div className="sticky bottom-2 flex justify-center">
+          <Button size="sm" onClick={scrollToBottom}>
+            New comments
+          </Button>
+        </div>
+      )}
+    </div>
+  )
 })
 
 export function BlockDiscussions({
@@ -451,10 +491,20 @@ const LAZY_COMMENT_PLACEHOLDER_HEIGHT = 80
  * Unmounts children when scrolled far away to keep memory low.
  * Preserves measured height as placeholder to prevent scroll jumps.
  */
-function LazyCommentGroup({children, className}: {children: ReactNode; className?: string}) {
+function LazyCommentGroup({
+  children,
+  className,
+  commentId,
+  heights,
+}: {
+  children: ReactNode
+  className?: string
+  commentId: string
+  heights: Map<string, number>
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const [isNearViewport, setIsNearViewport] = useState(false)
-  const heightRef = useRef(LAZY_COMMENT_PLACEHOLDER_HEIGHT)
+  const heightRef = useRef(heights.get(commentId) ?? LAZY_COMMENT_PLACEHOLDER_HEIGHT)
 
   useEffect(() => {
     const el = ref.current
@@ -468,6 +518,7 @@ function LazyCommentGroup({children, className}: {children: ReactNode; className
         } else {
           if (el.offsetHeight > 0) {
             heightRef.current = el.offsetHeight
+            heights.set(commentId, el.offsetHeight)
           }
           setIsNearViewport(false)
         }
@@ -475,11 +526,26 @@ function LazyCommentGroup({children, className}: {children: ReactNode; className
       {rootMargin: '600px'},
     )
     observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
+    const resize = new ResizeObserver(() => {
+      if (el.offsetHeight > 0) {
+        heightRef.current = el.offsetHeight
+        heights.set(commentId, el.offsetHeight)
+      }
+    })
+    resize.observe(el)
+    return () => {
+      observer.disconnect()
+      resize.disconnect()
+    }
+  }, [commentId, heights])
 
   return (
-    <div ref={ref} className={className} style={isNearViewport ? undefined : {minHeight: heightRef.current}}>
+    <div
+      ref={ref}
+      data-comment-id={commentId}
+      className={className}
+      style={isNearViewport ? undefined : {minHeight: heightRef.current}}
+    >
       {isNearViewport ? children : null}
     </div>
   )
@@ -540,6 +606,7 @@ export const Comment = memo(function Comment({
   enableReplies = true,
   highlight = false,
   threadView = false,
+  threadRootId,
   targetDomain,
   heading,
   externalTarget,
@@ -553,6 +620,8 @@ export const Comment = memo(function Comment({
   highlight?: boolean
   /** Show reply actions without reopening the current thread. */
   threadView?: boolean
+  /** Resolved thread root, including replies that have not completed server sync. */
+  threadRootId?: string
   targetDomain?: string
   heading?: ReactNode
   externalTarget?: HMMetadataPayload
@@ -750,6 +819,7 @@ export const Comment = memo(function Comment({
                     className="text-muted-foreground hover-hover:opacity-0 hover-hover:group-hover:opacity-100 transition-opacity duration-200 ease-in-out"
                     onClick={() => {
                       if (!docId) return
+                      const rootId = comment.threadRoot || threadRootId || comment.id
                       const routeLatest =
                         currentRoute.key === 'document' ||
                         currentRoute.key === 'comments' ||
@@ -762,7 +832,9 @@ export const Comment = memo(function Comment({
                           hostname: targetDomain ?? null,
                           latest: routeLatest ?? null,
                         },
-                        commentId: commentIdToHmId(comment.id),
+                        commentId: commentIdToHmId(rootId),
+                        replyCommentId: rootId !== comment.id ? comment.id : undefined,
+                        commentView: currentRoute.key === 'comments' ? 'expanded' : 'panel',
                         gatewayUrl: appOrigin ?? undefined,
                       })
                     }}

@@ -102,7 +102,7 @@ export default function WebCommenting({
   // Resolve reply parent from commentId when explicit version props aren't provided
   const commentsService = useDocumentComments(docId)
   const resolvedReply = useMemo(() => {
-    const id = replyCommentIdProp || commentId
+    const id = commentId || replyCommentIdProp
     if (!id) return null
     const comment = commentsService.data?.comments?.find((c) => c.id === id)
     if (!comment) return null
@@ -113,7 +113,7 @@ export default function WebCommenting({
     }
   }, [replyCommentIdProp, commentId, commentsService.data?.comments])
 
-  const replyCommentId = replyCommentIdProp || resolvedReply?.replyCommentId
+  const replyCommentId = commentId || replyCommentIdProp || resolvedReply?.replyCommentId
   const replyCommentVersion = replyCommentVersionProp || resolvedReply?.replyCommentVersion
   const rootReplyCommentVersion = rootReplyCommentVersionProp || resolvedReply?.rootReplyCommentVersion
   const isReplyEditor = isReplying || !!replyCommentId || !!commentId

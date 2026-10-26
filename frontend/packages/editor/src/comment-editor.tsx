@@ -698,7 +698,19 @@ export function CommentEditor({
       setIsExpanded(true)
       return
     }
+    let didInsert = false
     for (const reference of pending) {
+      // A URL can be opened again after this editor remounts with its saved draft.
+      // Consume that request without duplicating an embed already in the content.
+      const existing = crawlEditorBlocks(
+        editor.topLevelBlocks as EditorBlock[],
+        (block) => block.type === 'embed' && block.props.url === reference.link,
+      )
+      if (existing.length) {
+        insertedReferences.current.add(reference)
+        draftReferences.consumeReference(reference)
+        continue
+      }
       const lastBlock = editor.topLevelBlocks.at(-1)
       if (!lastBlock) continue
       const embed = {type: 'embed' as const, props: {url: reference.link, view: 'Content' as const}}
@@ -710,7 +722,9 @@ export function CommentEditor({
       }
       insertedReferences.current.add(reference)
       draftReferences.consumeReference(reference)
+      didInsert = true
     }
+    if (!didInsert) return
     hasLocalEditsRef.current = true
     flushContentChange()
     editor._tiptapEditor.commands.focus('end')

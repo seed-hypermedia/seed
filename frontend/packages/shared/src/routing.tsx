@@ -9,9 +9,8 @@ import type {UniversalClient} from './universal-client'
 import {
   activityFilterToSlug,
   getRoutePanelParam,
-  hmIdToURL,
+  getRouteReplyCommentId,
   hypermediaUrlToRoute,
-  idToUrl,
   isViewTermPath,
   routeToHmUrl,
   routeToUrl,
@@ -402,6 +401,10 @@ export function routeToHref(
       const separator = href.includes('?') ? '&' : '?'
       href += `${separator}panel=${panelParam}`
     }
+    const replyCommentId = getRouteReplyCommentId(route)
+    if (replyCommentId) {
+      href += `${href.includes('?') ? '&' : '?'}reply=${replyCommentId}`
+    }
     // Append block fragment if present
     if (route.id.blockRef) {
       href += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -415,19 +418,12 @@ export function routeToHref(
   if (typeof route == 'string') {
     href = route
   } else if (docRoute && docId) {
-    const panelParam = getRoutePanelParam(docRoute)
     href = options?.hmUrlHref
-      ? hmIdToURL(docId)
-      : idToUrl(
-          {
-            ...docId,
-            hostname: options?.origin || null,
-          },
-          {
-            originHomeId: options?.originHomeId,
-            panel: panelParam,
-          },
-        )
+      ? routeToHmUrl(docRoute) ?? undefined
+      : routeToUrl(docRoute, {
+          hostname: options?.origin || null,
+          originHomeId: options?.originHomeId,
+        }) ?? undefined
   }
   return href
 }

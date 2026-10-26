@@ -148,6 +148,7 @@ afterEach(() => {
   container = null
   useDocumentCommentsMock.mockReturnValue({data: null, error: null, isLoading: true})
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+  Reflect.deleteProperty(navigator, 'clipboard')
   onBookmarkToggleMock.mockReset()
   currentRoute.value = {key: 'document', panel: null}
 })
@@ -166,6 +167,53 @@ describe('CommentDiscussions', () => {
 
     expect(scrollIntoView).toHaveBeenCalledWith({behavior: 'instant', block: 'start'})
   })
+
+  it.each(['panel', 'expanded'] as const)(
+    'copies optimistic replies within their resolved root in %s links',
+    async (layout) => {
+      let copied = ''
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: async (text: string) => {
+            copied = text
+          },
+        },
+      })
+      const id = hmId('alice', {path: ['doc']})
+      const thread = {key: 'comments', id, openComment: focusedComment.id}
+      currentRoute.value = layout === 'expanded' ? thread : {key: 'document', id, panel: thread}
+      const reply = {
+        ...focusedComment,
+        id: 'bob/reply',
+        author: 'bob',
+        replyParent: focusedComment.id,
+        threadRootVersion: focusedComment.version,
+      }
+      useDocumentCommentsMock.mockReturnValue({
+        data: {comments: [focusedComment, reply], authors: {}},
+        error: null,
+        isLoading: false,
+      })
+      renderCommentDiscussions()
+      const buttons = Array.from(container!.querySelectorAll<HTMLButtonElement>('button')).filter((button) =>
+        button.querySelector('.lucide-link'),
+      )
+      expect(buttons).toHaveLength(2)
+      await act(async () => buttons[1]!.click())
+      const url = new URL(copied)
+      expect(url.searchParams.get('reply')).toBe(reply.id)
+      if (layout === 'panel') {
+        expect(url.pathname).toBe('/hm/alice/doc')
+        expect(url.searchParams.get('panel')).toBe(`comments/${focusedComment.id}`)
+      } else {
+        expect(url.pathname).toBe(`/hm/alice/doc/:comments/${focusedComment.id}`)
+        expect(url.searchParams.has('panel')).toBe(false)
+      }
+      await act(async () => buttons[0]!.click())
+      expect(new URL(copied).searchParams.has('reply')).toBe(false)
+    },
+  )
 
   it('bookmarks a comment snapshot from the comment header', () => {
     useDocumentCommentsMock.mockReturnValue({

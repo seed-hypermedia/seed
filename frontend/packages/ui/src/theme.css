@@ -260,3 +260,36 @@
     transition: none;
   }
 }
+
+/* Thread navigation keeps the editor still while content enters from the navigation direction. */
+.comments-view[data-comments-view='thread'] {
+  animation: comments-enter-thread var(--duration-normal) var(--ease-out-smooth);
+}
+.comments-view[data-comments-view='roots'] {
+  animation: comments-return-roots var(--duration-normal) var(--ease-out-smooth);
+}
+@keyframes comments-enter-thread {
+  from {
+    opacity: 0;
+    transform: translateX(2rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes comments-return-roots {
+  from {
+    opacity: 0;
+    transform: translateX(-2rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .comments-view {
+    animation: none !important;
+  }
+}

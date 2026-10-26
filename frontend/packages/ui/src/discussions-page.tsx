@@ -9,6 +9,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react'
 import {
@@ -84,6 +85,22 @@ export function DiscussionsPageContent({
     },
     [docId.id, root?.id, appendReference],
   )
+  const appliedReply = useRef<string>()
+  const selectedReply = thread?.replies.find((comment) => comment.id === replyCommentId)
+  useEffect(() => {
+    const selection = replyCommentId ? `${docId.id}:${root?.id}:${replyCommentId}` : undefined
+    if (!selection) {
+      appliedReply.current = undefined
+      return
+    }
+    if (!selectedReply || !root || !appendReference || appliedReply.current === selection) return
+    appliedReply.current = selection
+    appendReference({
+      documentId: docId.id,
+      commentId: root.id,
+      link: packHmId({...commentIdToHmId(selectedReply.id), version: selectedReply.version, latest: null}),
+    })
+  }, [docId.id, root?.id, replyCommentId, selectedReply, appendReference])
   useEffect(() => {
     setSubmittedRoots([])
   }, [docId.id, openComment, targetBlockId])
@@ -104,6 +121,8 @@ export function DiscussionsPageContent({
             replyCommentVersion: root?.version,
             rootReplyCommentVersion: root?.version,
             onCommentSubmitted: (comment: HMComment) => {
+              // Submission selects the new reply; it is not a request to quote it again.
+              if (root) appliedReply.current = `${docId.id}:${root.id}:${comment.id}`
               if (!openComment)
                 setSubmittedRoots((roots) => [...roots.filter((root) => root.id !== comment.id), comment])
               commentEditor.props.onCommentSubmitted?.(comment)
@@ -126,7 +145,7 @@ export function DiscussionsPageContent({
         replyCommentId={replyCommentId}
         targetId={docId}
         targetDomain={targetDomain}
-        isEntirelyHighlighted={false}
+        isEntirelyHighlighted
         selection={blockId ? {blockId, blockRange: blockRange || undefined} : undefined}
       />
     )
@@ -134,6 +153,7 @@ export function DiscussionsPageContent({
     content = (
       <>
         <Discussions
+          scrollKey={`${docId.id}:${isPanel ? 'panel' : 'expanded'}`}
           targetId={docId}
           targetDomain={targetDomain}
           submittedRoots={submittedRoots}
@@ -143,6 +163,19 @@ export function DiscussionsPageContent({
       </>
     )
   }
+
+  const hasEnteredThread = useRef(!!openComment)
+  if (openComment) hasEnteredThread.current = true
+  const direction = openComment ? 'thread' : hasEnteredThread.current ? 'roots' : undefined
+  content = (
+    <div
+      key={openComment || targetBlockId || 'roots'}
+      className="comments-view flex min-h-0 flex-1 flex-col"
+      data-comments-view={direction}
+    >
+      {content}
+    </div>
+  )
 
   let layout: ReactNode
   if (isPanel) {
@@ -173,12 +206,13 @@ export function DiscussionsPageContent({
     )
   }
 
-  return openComment ? (
-    <CommentsProvider {...commentsContext} onReplyClick={onThreadReplyClick}>
+  return (
+    <CommentsProvider
+      {...commentsContext}
+      onReplyClick={openComment ? onThreadReplyClick : commentsContext.onReplyClick}
+    >
       {layout}
     </CommentsProvider>
-  ) : (
-    layout
   )
 }
 

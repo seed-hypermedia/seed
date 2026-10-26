@@ -1387,6 +1387,37 @@ describe('buildCopyLinkUrl', () => {
     ).toContain('/hm/z6MkOwner/doc-path?panel=comments/z6MkAuthor/tsid123')
   })
 
+  test.each(['panel', 'expanded'] as const)(
+    'reply copy links preserve %s layout and roundtrip the root and reply',
+    (commentView) => {
+      const url = buildCopyLinkUrl({
+        id: hmId('owner', {path: ['doc'], version: 'old-document'}),
+        commentId: hmId('author', {path: ['root']}),
+        replyCommentId: 'other/reply',
+        commentView,
+        gatewayUrl: 'https://gateway.example',
+      })
+      expect(url).toBe(
+        commentView === 'panel'
+          ? 'https://gateway.example/hm/owner/doc?panel=comments/author/root&reply=other/reply'
+          : 'https://gateway.example/hm/owner/doc/:comments/author/root?reply=other/reply',
+      )
+      const route = hypermediaUrlToRoute(url)!
+      const comments = route.key === 'comments' ? route : 'panel' in route ? route.panel : null
+      expect(comments).toMatchObject({openComment: 'author/root', replyCommentId: 'other/reply'})
+    },
+  )
+
+  test('expanded root links retain site context and omit a reply selection', () => {
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('owner', {hostname: 'https://site.example', path: ['doc']}),
+        commentId: hmId('author', {path: ['root']}),
+        commentView: 'expanded',
+      }),
+    ).toBe('https://site.example/doc/:comments/author/root')
+  })
+
   test('comment link ignores commentVersion (on commentId) even when present', () => {
     const commentId = hmId('z6MkAuthor', {path: ['tsid123'], version: 'cVer'})
     expect(

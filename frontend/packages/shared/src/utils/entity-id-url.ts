@@ -252,6 +252,7 @@ export function isSiteProfileTab(value: string | null | undefined): value is Sit
   return !!value && (SITE_PROFILE_TABS as readonly string[]).includes(value)
 }
 
+/** Builds a site URL with optional view, panel, reply, and content selection. */
 export function createSiteUrl({
   path,
   hostname,
@@ -261,6 +262,7 @@ export function createSiteUrl({
   blockRange,
   viewTerm,
   panel,
+  reply,
 }: {
   path: string[] | null | undefined
   hostname: string
@@ -270,6 +272,7 @@ export function createSiteUrl({
   blockRange?: BlockRange | null
   viewTerm?: string | null
   panel?: string | null
+  reply?: string | null
 }) {
   let res = hostname
   if (path && path.length) {
@@ -278,7 +281,7 @@ export function createSiteUrl({
   if (viewTerm) {
     res += '/' + viewTerm
   }
-  res += getHMQueryString({latest, version, panel})
+  res += getHMQueryString({latest, version, panel, reply})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -349,6 +352,10 @@ export function createCommentUrl({
 export type CopyLinkInput = {
   id: UnpackedHypermediaId
   commentId?: UnpackedHypermediaId | null
+  /** Reply to select within the root identified by commentId. */
+  replyCommentId?: string
+  /** Layout to retain when copying a comment from a thread. */
+  commentView?: 'panel' | 'expanded'
   gatewayUrl?: string | null
 }
 
@@ -361,6 +368,7 @@ export type CopyLinkInput = {
  * - `input.id.hostname` set → site-style URL via `createSiteUrl`.
  * - `input.id.hostname` unset → gateway URL via `createWebHMUrl`.
  * - `input.commentId` present → opens the comment panel on the latest document.
+ *   `commentView` retains the expanded layout and `replyCommentId` selects a reply.
  *   Comment block and fragment links retain the main comment route.
  *   Copied comment links do not pin document or comment versions.
  * - If `blockRef` is present on `input.id` and `blockRange` is `undefined`,
@@ -368,7 +376,7 @@ export type CopyLinkInput = {
  *   pass `{expanded: false}` or `{start,end}` to override.
  */
 export function buildCopyLinkUrl(input: CopyLinkInput): string {
-  const {id, commentId, gatewayUrl} = input
+  const {id, commentId, gatewayUrl, replyCommentId, commentView} = input
   const effectiveRange: BlockRange | null | undefined =
     id.blockRef && (id.blockRange === undefined || id.blockRange === null) ? {expanded: true} : id.blockRange
   const siteHostname =
@@ -391,7 +399,10 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
     })
   }
 
-  const panel = commentId ? `comments/${commentId.uid}${commentId.path?.[0] ? `/${commentId.path[0]}` : ''}` : undefined
+  const commentPath = commentId ? `${commentId.uid}${commentId.path?.[0] ? `/${commentId.path[0]}` : ''}` : undefined
+  const panel = commentPath && commentView !== 'expanded' ? `comments/${commentPath}` : undefined
+  const viewTerm = commentPath && commentView === 'expanded' ? `:comments/${commentPath}` : undefined
+  const reply = commentId ? replyCommentId : undefined
 
   if (siteHostname) {
     return createSiteUrl({
@@ -402,6 +413,8 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
       blockRef: id.blockRef,
       blockRange: effectiveRange,
       panel,
+      viewTerm,
+      reply,
     })
   }
 
@@ -410,6 +423,8 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
     blockRef: id.blockRef,
     blockRange: effectiveRange,
     panel,
+    viewTerm,
+    reply,
     latest: id.latest,
     path: id.path,
     hostname: gatewayUrl ?? undefined,
@@ -746,7 +761,7 @@ export function routeToUrl(
 }
 
 /** Gets the continuation target from the single active Comments view. */
-function getRouteReplyCommentId(route: NavRoute): string | undefined {
+export function getRouteReplyCommentId(route: NavRoute): string | undefined {
   if (route.key === 'comments') return route.openComment ? route.replyCommentId : undefined
   if ('panel' in route && route.panel?.key === 'comments' && route.panel.openComment) {
     return route.panel.replyCommentId

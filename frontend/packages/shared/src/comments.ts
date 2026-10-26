@@ -1,5 +1,5 @@
 import {normalizeDate} from './utils/date'
-import {HMBlockNode, HMComment, HMCommentGroup} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMComment, HMCommentGroup, HMExternalCommentGroup} from '@seed-hypermedia/client/hm-types'
 
 /**
  * Removes trailing empty blocks from comment content before publishing.
@@ -103,15 +103,27 @@ export function getSubmittedCommentGroups(
 ): HMCommentGroup[] {
   const rootGroups = [...(groups ?? [])]
   for (const submittedRoot of submittedRoots) {
-    const index = rootGroups.findIndex((group) => group.comments.some((comment) => comment.id === submittedRoot.id))
-    if (index < 0 && acknowledgedRoots.has(submittedRoot.id)) continue
-    const group =
-      index >= 0
-        ? rootGroups.splice(index, 1)[0]!
-        : {id: submittedRoot.id, type: 'commentGroup' as const, comments: [submittedRoot], moreCommentsCount: 0}
-    rootGroups.unshift(group)
+    if (rootGroups.some((group) => group.comments.some((comment) => comment.id === submittedRoot.id))) continue
+    if (acknowledgedRoots.has(submittedRoot.id)) continue
+    rootGroups.push({
+      id: submittedRoot.id,
+      type: 'commentGroup',
+      comments: [submittedRoot],
+      moreCommentsCount: 0,
+    })
   }
   return rootGroups
+}
+
+/** Orders root and citing discussions by creation time without changing activity feeds or the source list. */
+export function sortCommentGroupsByCreation<T extends HMCommentGroup | HMExternalCommentGroup>(
+  groups: readonly T[],
+): T[] {
+  return [...groups].sort(
+    (a, b) =>
+      (normalizeDate(a.comments[0]?.createTime)?.getTime() ?? 0) -
+        (normalizeDate(b.comments[0]?.createTime)?.getTime() ?? 0) || a.id.localeCompare(b.id),
+  )
 }
 
 /** Resolves the root and all descendants, ordered by creation time, for a selected comment. */

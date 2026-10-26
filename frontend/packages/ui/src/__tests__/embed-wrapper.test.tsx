@@ -124,6 +124,23 @@ describe('EmbedWrapper', () => {
 })
 
 describe('embed reference routes', () => {
+  it('moves an expanded thread into the panel while selecting document content', () => {
+    const id = hmId('alice', {path: ['notes'], latest: true})
+    const reference = hmId('alice', {
+      path: ['notes'],
+      version: 'quoted-version',
+      blockRef: 'block',
+      blockRange: {start: 2, end: 8},
+    })
+    expect(
+      getEmbedDocumentRoute(reference, {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'}),
+    ).toEqual({
+      key: 'document',
+      id: {...id, blockRef: 'block', blockRange: {start: 2, end: 8}},
+      panel: {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'},
+    })
+  })
+
   it('preserves the active document version and panel when selecting its reference', () => {
     const id = hmId('alice', {path: ['notes'], latest: true})
     const panel = {key: 'comments' as const, id, openComment: 'thread'}
