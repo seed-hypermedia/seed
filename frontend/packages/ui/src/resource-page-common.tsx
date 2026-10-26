@@ -113,6 +113,7 @@ import {
 } from '@shm/shared/models/use-document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getExpandedDocumentPanel, getRoutePanel} from '@shm/shared/routes'
+import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {ActivityContent, ActivityHeader} from './activity-panel'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {DocumentPageView, documentPageCid} from './document-page'
@@ -136,7 +137,6 @@ import {useQuery} from '@tanstack/react-query'
 import {
   ArrowUp,
   Braces,
-  FilePen,
   FileText,
   Grid3X3,
   Info,
@@ -152,6 +152,7 @@ import {
   Plus,
   Quote,
   Search,
+  Settings,
   Table as TableIcon,
   Trash,
 } from 'lucide-react'
@@ -218,7 +219,7 @@ import {MergedBadge} from './merged-badge'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
-import {OptionsPanel} from './options-panel'
+import {SpaceSettingsPanel} from './space-settings-panel'
 import {PageLayout} from './page-layout'
 import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
 import {PanelLayout} from './panel-layout'
@@ -1089,7 +1090,7 @@ function getPanelTitle(panelKey: string | null): string {
     case 'all-documents':
       return 'All Documents'
     case 'options':
-      return 'Document Options'
+      return 'Space settings'
     default:
       return 'Panel'
   }
@@ -2340,6 +2341,8 @@ function DocumentBody({
 
   const homeDraftOverride = useIsHomeDraftOverride()
   const isHomeDoc = homeDraftOverride ?? !docId.path?.length
+  // Space Settings is the owner's to change, so only the owner is offered it.
+  const {isSiteOwner} = useIsSiteOwner(isHomeDoc ? docId.uid : undefined)
   const draftVisibility = shouldUseDraftOverlay && existingDraft ? existingDraftVisibility : undefined
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
@@ -2856,19 +2859,22 @@ function DocumentBody({
       },
     }
   }, [docId, navigate, route.key, experiments?.developerTools])
-  const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
-    // An agent has its own Settings tab; the document's settings panel is not offered.
-    if (!canEditCurrentRoute || isAgentDocument) return null
+  // Space Settings replaced the old per-document options panel. It belongs to the
+  // space rather than the document, so it is offered on the home document only,
+  // to the owner, and only where the full settings page exists to continue into.
+  // An agent has its own Settings tab, so it isn't offered there.
+  const spaceSettingsMenuItem = useMemo<MenuItemType | null>(() => {
+    if (!IS_DESKTOP || !isHomeDoc || !isSiteOwner || isAgentDocument) return null
     return {
       key: 'options',
-      label: 'Document Settings',
-      icon: <FilePen className="size-4" />,
+      label: 'Space settings',
+      icon: <Settings className="size-4" />,
       onClick: () => {
         const newPanel = panelKey === 'options' ? null : {key: 'options' as const}
         replaceRoute({...route, panel: newPanel} as any)
       },
     }
-  }, [canEditCurrentRoute, isAgentDocument, panelKey, route, replaceRoute])
+  }, [isHomeDoc, isSiteOwner, isAgentDocument, panelKey, route, replaceRoute])
   // On the Attributes page, a field outside the attributes schema is added from the options menu.
   const addRawFieldMenuItem = useMemo<MenuItemType | null>(() => {
     if (!canEditCurrentRoute || route.key !== 'metadata') return null
@@ -2943,7 +2949,7 @@ function DocumentBody({
         })
     } else unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
-    if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
+    if (spaceSettingsMenuItem) unorderedItems.push(spaceSettingsMenuItem)
     // An agent's tab bar has no Attributes tab; the options menu opens that panel instead.
     if (isAgentDocument && !documentPage)
       unorderedItems.push({
@@ -2978,7 +2984,7 @@ function DocumentBody({
     extraMenuItems,
     citationFragmentToggleMenuItem,
     inspectMenuItem,
-    documentOptionsMenuItem,
+    spaceSettingsMenuItem,
     isAgentDocument,
     addRawFieldMenuItem,
     convertToCollectionMenuItem,
@@ -3673,7 +3679,7 @@ function PanelContentRenderer({
 }) {
   switch (panelRoute.key) {
     case 'options':
-      return <DocumentOptionsPanel docId={docId} fileUpload={fileUpload} />
+      return <DocumentSpaceSettingsPanel docId={docId} />
     case 'metadata':
       return (
         <div className="px-4">
@@ -3820,35 +3826,23 @@ function CommentsPanelContent({
   )
 }
 
-function DocumentOptionsPanel({
-  docId,
-  fileUpload,
-}: {
-  docId: UnpackedHypermediaId
-  fileUpload?: (file: File) => Promise<string>
-}) {
+function DocumentSpaceSettingsPanel({docId}: {docId: UnpackedHypermediaId}) {
   const ctx = useDocumentSelector(selectContext)
   const send = useDocumentSend()
+  const navigate = useNavigate()
   const {beginEditIfNeeded} = useEditorGate()
-  const homeDraftOverride = useIsHomeDraftOverride()
-  const isHomeDoc = homeDraftOverride ?? !docId.path?.length
 
   const metadata = {...(ctx.document?.metadata || {}), ...ctx.metadata}
-  // draftId may not exist yet when the panel is opened in read mode. Fall back
-  // to docId.id so form field HTML ids remain stable and unique.
-  const formId = ctx.draftId ?? docId.id
 
   return (
-    <OptionsPanel
-      draftId={formId}
-      metadata={metadata as any}
-      isHomeDoc={isHomeDoc}
-      fileUpload={fileUpload}
+    <SpaceSettingsPanel
+      metadata={metadata as HMMetadata}
       onMetadata={(newMetadata) => {
         if (!newMetadata) return
         beginEditIfNeeded()
         send({type: 'change', metadata: newMetadata})
       }}
+      onOpenFullSettings={() => navigate({key: 'site-settings', id: hmId(docId.uid)})}
     />
   )
 }
