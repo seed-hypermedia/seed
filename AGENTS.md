@@ -70,6 +70,19 @@ These rules apply while query-block author and publish-date filters remain fork-
   start with `mise.toml`, then pin the same exact version in CI, Dockerfiles, and other consumers that do not use mise;
   do not use floating versions in those consumers.
 
+## Required checks before completion
+
+- After any repository change, run all of these commands from the repository root before reporting the task complete:
+  `direnv exec . sh -c 'pnpm typecheck && pnpm test && pnpm format:write && pnpm audit'`
+- Run these checks after the final change, not after every intermediate edit.
+- All four commands must pass. If a command fails, correct the cause and run the required checks again.
+- Review changes made by `pnpm format:write`. If it changes code, run typecheck and tests again against the final files.
+- Do not skip checks because a change appears small or unrelated.
+- If a check cannot run or a failure remains unresolved, report the command, the cause, and the task as incomplete. Do
+  not claim that all checks passed.
+- Include the check results in the final response.
+- These checks are required in addition to checks specified by subtree instructions.
+
 ## Local CI
 
 - Validate changes with [agent-ci](https://agent-ci.dev) before pushing. Full guide: `hypermedia/build/local-ci.md`.
@@ -111,7 +124,6 @@ These rules apply while query-block author and publish-date filters remain fork-
   - Prefer layout scales that follow a consistent rhythm.
   - Do not use random pixel values for spacing or sizing.
   - Use parent `gap` for flex/grid spacing instead of child margins when possible.
-- Run relevant tests, type checks, and linters for touched areas before finishing.
 - Before every commit, make sure the files you touched are Prettier-formatted (`pnpm format:write` in the touched
   packages, or `./node_modules/.bin/prettier --ignore-unknown --write <files>` from the repo root). CI's `Lint` job runs
   `prettier --check` across every package plus `agents/` and `vault/`; one unformatted file fails it and blocks the web
