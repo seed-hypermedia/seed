@@ -115,8 +115,8 @@ describe('editing-toolbar publish disabled states', () => {
     try {
       const publishTrigger = findButtonByText(container, 'Publish')
       expect(publishTrigger).toBeTruthy()
-      expect(publishTrigger?.className).toContain('bg-neutral-100')
-      expect(publishTrigger?.className).toContain('text-neutral-500')
+      expect(publishTrigger?.classList.contains('bg-neutral-100')).toBe(true)
+      expect(publishTrigger?.classList.contains('text-neutral-400')).toBe(true)
     } finally {
       cleanup(root, container)
     }
@@ -148,8 +148,9 @@ describe('editing-toolbar publish disabled states', () => {
     try {
       const publishTrigger = findButtonByText(container, 'Publish')
       expect(publishTrigger).toBeTruthy()
-      expect(publishTrigger?.className).not.toContain('bg-neutral-100')
-      expect(publishTrigger?.className).not.toContain('text-neutral-500')
+      expect(publishTrigger?.classList.contains('bg-neutral-100')).toBe(false)
+      expect(publishTrigger?.classList.contains('text-neutral-400')).toBe(false)
+      expect(publishTrigger?.classList.contains('bg-green-700')).toBe(true)
     } finally {
       cleanup(root, container)
     }
@@ -207,8 +208,8 @@ describe('editing-toolbar publish disabled states', () => {
       const publishButton = findButtonByText(container, 'Publish: Make it live now')
       expect(publishButton).toBeTruthy()
       expect(publishButton?.disabled).toBe(true)
-      expect(publishButton?.className).toContain('bg-neutral-100')
-      expect(publishButton?.className).toContain('text-neutral-500')
+      expect(publishButton?.classList.contains('disabled:bg-neutral-100')).toBe(true)
+      expect(publishButton?.classList.contains('disabled:text-neutral-400')).toBe(true)
     } finally {
       cleanup(root, container)
     }
