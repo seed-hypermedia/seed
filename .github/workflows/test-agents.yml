@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - 'agents/**'
+      - 'scripts/watch-file-deps.ts'
+      - 'scripts/watch-file-deps.test.mjs'
       - '.github/workflows/test-agents.yml'
     branches-ignore:
       - 'renovate/**'
@@ -28,7 +30,7 @@ jobs:
         run: git fetch --no-tags --depth=1 origin "${{ github.base_ref || 'main' }}"
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: "1.3.10"
+          bun-version: '1.3.10'
       - name: Cache Bun install
         uses: actions/cache@v4
         with:
@@ -44,6 +46,7 @@ jobs:
         run: |
           if [ "${{ matrix.task }}" = "test" ]; then
             bun test
+            node --test ../scripts/watch-file-deps.test.mjs
           elif [ "${{ matrix.task }}" = "check" ]; then
             bun run check
           elif [ "${{ matrix.task }}" = "protocol" ]; then

@@ -193,6 +193,58 @@ function eventRows(db: Database, sessionId: string): {type: string; role?: strin
 }
 
 describe('durable sessions', () => {
+  test('a competing service boot cannot reopen a journal while its provider request is in flight', async () => {
+    const h = await createSession()
+    const started = Promise.withResolvers<void>()
+    const reply = Promise.withResolvers<Response>()
+    let requests = 0
+    globalThis.fetch = mock(async (url: string | URL | Request) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      requests += 1
+      if (requests === 1) {
+        started.resolve()
+        return reply.promise
+      }
+      return textReply('contender', 'A second runtime must not request this answer.')
+    }) as unknown as typeof fetch
+    const active = h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Hello'}]})
+    await started.promise
+
+    // Hot reload used to construct another Service before binding its HTTP port. Its boot sweep
+    // requeues this still-live run; without the writer guard, Pi resumes its task and two runtime
+    // instances append commits with independently cached sequence numbers to the same journal.
+    const contender = new apisvc.Service(h.db, h.dataDir, {})
+    cleanups.push(() => contender.stopRunQueue())
+    try {
+      await contender.awaitQueueIdle()
+      expect(requests).toBe(1)
+      const run = h.db
+        .query<{error_cbor: Uint8Array}, [string]>('SELECT error_cbor FROM runs WHERE session_id = ?')
+        .get(h.sessionId)
+      expect(cbor.decode<{message: string}>(run!.error_cbor).message).toContain('already open')
+    } finally {
+      reply.resolve(textReply('original', 'Hello'))
+      // The boot sweep still changes the run record, so the original caller can see the
+      // contender's error. Here we verify the narrower journal-ownership guarantee.
+      await active.catch(() => {})
+    }
+
+    const main = Buffer.concat(
+      storeRows(h)
+        .filter((row) => row.file === 'main.jsonl')
+        .sort((a, b) => a.seq - b.seq)
+        .map((row) => row.data),
+    )
+      .toString()
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line) as {seq: number})
+    expect(main.map((marker) => marker.seq)).toEqual(main.map((_, index) => index + 1))
+    await durableEntries(h)
+    expect(storeRows(h).some((row) => row.file.startsWith('recovery-'))).toBe(false)
+  })
+
   test('a session appends its turns to one durable conversation and keeps the prompt prefix byte-stable', async () => {
     const h = await createSession()
     const requests: ChatMessage[][] = []
@@ -290,8 +342,11 @@ describe('durable sessions', () => {
     const beforeRestart = eventRows(h.db, h.sessionId)
     expect(beforeRestart.map((row) => row.type)).toEqual(['message', 'message', 'tool_call'])
 
-    // "Restart": a fresh service over the same database and data directory sweeps the run back
-    // into the queue and adopts the turn the dead process left in the durable store.
+    // A real process death loses its open handles. Give the restarted process an independent
+    // connection with exactly the persisted bytes, so the intentionally hung old task cannot write to it.
+    h.db = Database.deserialize(h.db.serialize())
+    if (!sqlite.openWithDatabase(h.db).ok) throw new Error('unexpected schema mismatch')
+    cleanups.push(() => sqlite.closeDatabase(h.db))
     const restarted = new apisvc.Service(h.db, h.dataDir, {})
     cleanups.push(() => restarted.stopRunQueue())
     await restarted.awaitQueueIdle()
@@ -438,6 +493,78 @@ describe('durable sessions', () => {
     expect(JSON.stringify(retry)).not.toContain('boom')
     const types = eventRows(h.db, h.sessionId).map((row) => row.type)
     expect(types).toEqual(['message', 'message', 'tool_call', 'tool_result', 'error', 'message'])
+  })
+
+  test('retry archives a corrupt journal and restores history without repeating completed tools', async () => {
+    const h = await createSession()
+    const providerRequests: ChatMessage[][] = []
+    let resourceReads = 0
+    let providerHealthy = false
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (href.includes('/api/Resource')) {
+        resourceReads += 1
+        return notesDocumentResponse()
+      }
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      providerRequests.push(providerMessages(init))
+      if (providerRequests.length === 1) {
+        return toolCallReply('chat-1', 'call-read', 'read', {address: 'hm://z6Mkdoc/notes'})
+      }
+      return providerHealthy ? textReply('chat-ok', 'It says: Durable notes.') : new Response('boom', {status: 500})
+    }) as unknown as typeof fetch
+
+    // The model reads the document, then the provider fails for good (every client-side retry too).
+    await expect(
+      h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'What do the notes say?'}]}),
+    ).rejects.toThrow()
+    const readsBeforeRetry = resourceReads
+    const requestsBeforeRetry = providerRequests.length
+
+    const files = durableSession.sessionFileSystem(h.db, h.sessionId)
+    await files.appendFile(
+      'main.jsonl',
+      JSON.stringify({format: 1, type: 'commit', seq: 1, writes: []}) + '\n',
+      durableSession.CONTEXT,
+    )
+    const originalRows = storeRows(h)
+    const beforeEvents = h.db
+      .query<{id: string; event_cbor: Uint8Array}, [string]>(
+        'SELECT id, event_cbor FROM session_events WHERE session_id = ? ORDER BY seq',
+      )
+      .all(h.sessionId)
+    providerHealthy = true
+    const retried = await h.send({_: 'RetrySession', sessionId: h.sessionId})
+    expect(retried._).toBe('RetrySessionResponse')
+
+    // The retry asks the model once, with the call and its result in place, and says why it is
+    // being asked again. The read itself is not repeated.
+    expect(providerRequests).toHaveLength(requestsBeforeRetry + 1)
+    expect(resourceReads).toBe(readsBeforeRetry)
+    const retry = providerRequests.at(-1) ?? []
+    const toolResult = retry.find((message) => message.role === 'tool')
+    expect(toolResult?.tool_call_id).toBe('call-read')
+    expect(String(toolResult?.content)).toContain('Durable notes')
+    expect(retry.filter((message) => String(message.content).includes('What do the notes say?'))).toHaveLength(1)
+    expect(JSON.stringify(retry)).not.toContain('boom')
+    const types = eventRows(h.db, h.sessionId).map((row) => row.type)
+    expect(types).toEqual(['message', 'message', 'tool_call', 'tool_result', 'error', 'message'])
+    const archives = storeRows(h).filter((row) => row.file.startsWith('recovery-'))
+    expect(
+      archives
+        .map((row) => ({...row, file: row.file.slice(row.file.indexOf('/') + 1)}))
+        .sort((a, b) => a.file.localeCompare(b.file) || a.seq - b.seq),
+    ).toEqual(originalRows.sort((a, b) => a.file.localeCompare(b.file) || a.seq - b.seq))
+    expect(
+      h.db
+        .query<{id: string; event_cbor: Uint8Array}, [string]>(
+          'SELECT id, event_cbor FROM session_events WHERE session_id = ? ORDER BY seq',
+        )
+        .all(h.sessionId)
+        .slice(0, beforeEvents.length),
+    ).toEqual(beforeEvents)
+    await durableEntries(h)
+    expect(storeRows(h).filter((row) => row.file.startsWith('recovery-'))).toHaveLength(archives.length)
   })
 
   test('stopping a streaming turn keeps the text that was already streamed', async () => {
@@ -798,6 +925,9 @@ describe('durable sessions', () => {
       .catch(() => {})
     await toolStarted
     h.service.stopRunQueue()
+    h.db = Database.deserialize(h.db.serialize())
+    if (!sqlite.openWithDatabase(h.db).ok) throw new Error('unexpected schema mismatch')
+    cleanups.push(() => sqlite.closeDatabase(h.db))
     // The run does not come back: it failed across the restart, and another run opens the store.
     h.db.run(`UPDATE runs SET status = 'failed', lease_owner = NULL, finished_at = ? WHERE session_id = ?`, [
       Date.now(),
@@ -1061,8 +1191,8 @@ describe('harnessResultText', () => {
 })
 
 describe('sessionFileSystem', () => {
-  const open = () => {
-    const db = new Database(':memory:', {create: true, strict: true})
+  const open = (filename = ':memory:') => {
+    const db = new Database(filename, {create: true, strict: true})
     if (!sqlite.openWithDatabase(db).ok) throw new Error('unexpected schema mismatch')
     cleanups.push(() => sqlite.closeDatabase(db))
     const now = Date.now()
@@ -1085,6 +1215,69 @@ describe('sessionFileSystem', () => {
     const read = await files.readBinaryFile(file, durableSession.CONTEXT)
     return read.ok ? new TextDecoder().decode(read.value) : read.error.code
   }
+
+  test('concurrent commits remain monotonic and reopen after draining on close', async () => {
+    const db = open()
+    const store = await durableSession.openSessionStorage(db, 's1')
+    const commits = Array.from({length: 20}, () => store.commit([], durableSession.CONTEXT))
+    const closed = store.close(durableSession.CONTEXT)
+    expect((await Promise.all(commits)).map(Number)).toEqual(Array.from({length: 20}, (_, index) => index + 1))
+    await closed
+    await expect(store.commit([], durableSession.CONTEXT)).rejects.toThrow('closed')
+    const reopened = await durableSession.openSessionStorage(db, 's1')
+    expect(Number(await reopened.commit([], durableSession.CONTEXT))).toBe(21)
+    await reopened.close(durableSession.CONTEXT)
+    const journal = await text(durableSession.sessionFileSystem(db, 's1'), 'main.jsonl')
+    expect(
+      journal
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line).seq),
+    ).toEqual(Array.from({length: 21}, (_, index) => index + 1))
+  })
+
+  test('rejects a second writer and releases ownership only after close drains', async () => {
+    const db = open()
+    const first = await durableSession.openSessionStorage(db, 's1')
+    await expect(durableSession.openSessionStorage(db, 's1')).rejects.toThrow('already open')
+    const other = await durableSession.openSessionStorage(db, 's2')
+    const pending = first.commit([], durableSession.CONTEXT)
+    const closing = first.close(durableSession.CONTEXT)
+    await expect(durableSession.openSessionStorage(db, 's1')).rejects.toThrow('already open')
+    await pending
+    await closing
+    const reopened = await durableSession.openSessionStorage(db, 's1')
+    expect(Number(await reopened.commit([], durableSession.CONTEXT))).toBe(2)
+    await reopened.close(durableSession.CONTEXT)
+    await other.close(durableSession.CONTEXT)
+  })
+
+  test('separate connections to the same database cannot open competing writers', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'durable-writer-test-'))
+    cleanups.push(() => fs.rmSync(dir, {recursive: true, force: true}))
+    const file = path.join(dir, 'agents.sqlite')
+    const db = open(file)
+    const other = new Database(file)
+    cleanups.push(() => other.close())
+    const writer = await durableSession.openSessionStorage(db, 's1')
+    await expect(durableSession.openSessionStorage(other, 's1')).rejects.toThrow('already open')
+    await writer.close(durableSession.CONTEXT)
+    const next = await durableSession.openSessionStorage(other, 's1')
+    await next.close(durableSession.CONTEXT)
+  })
+
+  test('does not discard malformed journals or recover without a canonical log', async () => {
+    const db = open()
+    const files = durableSession.sessionFileSystem(db, 's1')
+    for (const data of [
+      'invalid json\n',
+      [1, 1].map((seq) => JSON.stringify({format: 1, type: 'commit', seq, writes: []})).join('\n') + '\n',
+    ]) {
+      await files.writeFile('main.jsonl', data, durableSession.CONTEXT)
+      await expect(durableSession.openSessionStorage(db, 's1')).rejects.toThrow()
+      expect(await text(files, 'main.jsonl')).toBe(data)
+    }
+  })
 
   test('files are appended to, replaced, truncated, renamed and removed, each within its session', async () => {
     const db = open()
