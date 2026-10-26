@@ -25,9 +25,12 @@
 // modules participate in an import cycle through the barrel, and loading
 // ./schema first hits a TDZ error inside createReactBlockSpec.
 import {getBlockNoteExtensions, mergeCSSClasses} from './blocknote'
-import type {HMBlockChildrenType, HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockChildrenType, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {DocumentActionsProvider} from '@shm/shared/document-actions-context'
+import {RenderResourceProvider} from '@shm/shared'
+import {ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
+import {ReadOnlyViewer} from './readonly-viewer'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {defaultRoute} from '@shm/shared/routes'
 import {NavContextProvider} from '@shm/shared/utils/navigation'
@@ -74,6 +77,8 @@ export type SSRRenderOpts = {
    * document's contentWidth setting). Media blocks with absolute pixel
    * widths compute their percentage size against it. */
   editorWidth?: number
+  /** The document being rendered. Query blocks with an empty source target it, as in the live editor. */
+  documentId?: UnpackedHypermediaId
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +152,8 @@ export function renderDocumentToHTML(blocks: HMBlockNode[], opts: SSRRenderOpts)
       if (embedDepth >= 3) return null
       embedDepth++
       try {
-        return renderUncached(embedBlocks, {...opts, cacheKey: undefined, rootChildrenType})
+        // An embed is a different document; its empty-source queries resolve on the client.
+        return renderUncached(embedBlocks, {...opts, cacheKey: undefined, documentId: undefined, rootChildrenType})
       } finally {
         embedDepth--
       }
@@ -323,7 +329,11 @@ function renderReactBlocks(target: Element, blockById: Map<string, EditorBlockLi
                   {/* Mirrors the web page's provider for anonymous readers so
                       action chrome (the options button) renders identically. */}
                   <DocumentActionsProvider onCopyLink={() => {}}>
-                    <Render block={block} editor={editorStub} />
+                    <RenderResourceProvider resource={opts.documentId ? {kind: 'document', id: opts.documentId} : null}>
+                      <ReadOnlyViewerProvider value={ReadOnlyViewer}>
+                        <Render block={block} editor={editorStub} />
+                      </ReadOnlyViewerProvider>
+                    </RenderResourceProvider>
                   </DocumentActionsProvider>
                 </TooltipProvider>
               </NavContextProvider>

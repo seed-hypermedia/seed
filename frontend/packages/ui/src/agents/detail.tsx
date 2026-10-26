@@ -103,6 +103,7 @@ import {SigningIdentityIcon} from './signing-identity-icon'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {activityConditions, getSeedTool} from '@seed-hypermedia/agents-protocol'
 import {
+  AGENT_BROWSER_TOOL,
   AGENT_EXECUTE_TOOL,
   AGENT_PUBLISH_GRANT,
   AGENT_SEARCH_TOOL,
@@ -145,6 +146,7 @@ import {AgentsNoAccountPage} from './no-account'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {NewSessionComposer} from './new-session-composer'
 import {type AgentsRichEditorSubmitHandle} from './platform'
+import {randomUUID} from './random-id'
 
 function AgentDetailPage({
   agentId,
@@ -857,7 +859,8 @@ function sameModelRefs(a: AgentModelRef[], b: AgentModelRef[]): boolean {
 
 function agentPromptToBlocks(prompt: AgentDefinition['systemPrompt']): HMBlockNode[] {
   if (Array.isArray(prompt)) return prompt as HMBlockNode[]
-  return markdownBlockNodesToHMBlockNodes(parseMarkdown(prompt || '').tree)
+  // Display path: a prompt that happens to start with a broken `---` block still has to render.
+  return markdownBlockNodesToHMBlockNodes(parseMarkdown(prompt || '', {strictFrontmatter: false}).tree)
 }
 
 /**
@@ -1505,10 +1508,16 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
 
 // Reading, memory, publishing, delegation, and plans are verbs — always on, not configuration.
 // What the user toggles here is the CALLABLE tool set dispatched through the call verb.
-const AGENT_TOOL_OPTIONS: {names: string[]; title: string; infoTool?: string}[] = [
+const AGENT_TOOL_OPTIONS: {names: string[]; title: string; description?: string; infoTool?: string}[] = [
   {names: [AGENT_SEARCH_TOOL], title: 'Search Seed content'},
   {names: [AGENT_WEB_SEARCH_TOOL], title: 'Search the web'},
   {names: [AGENT_EXECUTE_TOOL], title: 'Execute code'},
+  {
+    names: [AGENT_BROWSER_TOOL],
+    title: 'Use the integrated browser',
+    description:
+      'Let this agent read and act on websites you open in Seed. You still allow each website, and actions on it, when the agent asks.',
+  },
   // The publish grant is not a registry tool — publishing runs through the always-on `write`
   // verb, so its info dialog shows the write verb's model-facing contract.
   {names: [AGENT_PUBLISH_GRANT], title: 'Publish Seed content', infoTool: 'write'},
@@ -1754,6 +1763,11 @@ function AgentToolsTab({
                   <Info className="size-3.5" />
                 </Button>
               </div>
+              {group.description ? (
+                <SizableText size="xs" color="muted" className="pl-7">
+                  {group.description}
+                </SizableText>
+              ) : null}
               {!groupAvailable && note ? (
                 <SizableText size="xs" color="muted" className="pl-7">
                   {note}{' '}
@@ -2492,7 +2506,7 @@ function AgentTriggersTab({
   }
 
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pr-1 pb-4">
       {isLoading ? <SizableText color="muted">Loading triggers…</SizableText> : null}
       {!isLoading && !triggers.length ? (
         <div className="border-border flex flex-col gap-2 rounded-xl border border-dashed p-6">
@@ -2653,7 +2667,7 @@ function CreateAgentTriggerDialog({
   )
   const [continuation, setContinuation] = useState<TriggerContinuation>({kind: 'newThread'})
   const agentTools = useAgentTools(input.serverUrl, input.selectedAccountId, input.agentId)
-  const createRequestId = useRef(crypto.randomUUID())
+  const createRequestId = useRef(randomUUID())
   const createRequestKey = useRef('')
 
   async function handleCreateTrigger() {
@@ -2669,7 +2683,7 @@ function CreateAgentTriggerDialog({
       }
       const requestKey = JSON.stringify(trigger)
       if (createRequestKey.current && createRequestKey.current !== requestKey) {
-        createRequestId.current = crypto.randomUUID()
+        createRequestId.current = randomUUID()
       }
       createRequestKey.current = requestKey
       const result = await createTrigger.mutateAsync({

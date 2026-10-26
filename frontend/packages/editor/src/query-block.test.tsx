@@ -1,9 +1,8 @@
 import {InlineDraftCard} from '@shm/ui/inline-draft-card'
-import {NewDocumentCard} from '@shm/ui/new-document-card'
 import {NewDocumentListItem} from '@shm/ui/new-document-list-item'
 import {isValidElement, ReactNode} from 'react'
 import {describe, expect, it, vi} from 'vitest'
-import {buildSlotItems} from './query-block-draft-items'
+import {buildSlotItems} from '@shm/ui/query-block-draft-items'
 
 function makeSlot(overrides: Partial<Parameters<typeof buildSlotItems>[0]> = {}) {
   return {
@@ -34,10 +33,10 @@ describe('buildSlotItems', () => {
     expect(result.bannerContent).toBeUndefined()
   })
 
-  it('keeps the new document card when banner mode has no banner to render yet', () => {
+  it('leaves empty results to the shared empty state', () => {
     const result = buildSlotItems(makeSlot(), 'Card', true, false)
 
-    expect(elementTypes(result.prependItems)).toEqual([NewDocumentCard])
+    expect(result.prependItems).toBeUndefined()
   })
 
   it('keeps the new document list item because list query blocks do not render banners', () => {

@@ -202,6 +202,15 @@ export function AgentRichMessageComposer({
 
   return (
     <div className={frameClassName}>
+      {voiceChat && accountId ? (
+        <VoiceButton
+          serverUrl={serverUrl}
+          accountUid={accountId}
+          sessionId={sessionId}
+          startSession={onToolStartSession}
+          onSessionStarted={onToolSessionStarted}
+        />
+      ) : null}
       {attachmentUpload ? (
         <div className="px-3 pt-2">
           <div className="text-muted-foreground mb-1 flex items-center justify-between gap-2 text-[11px]">
@@ -219,13 +228,6 @@ export function AgentRichMessageComposer({
         </div>
       ) : null}
       <div className="flex items-end gap-2 px-3 py-2">
-        {/* Voice needs a session to join and a platform whose local server runs the speech
-            pipeline (desktop); drafts and the web show nothing here. */}
-        {voiceChat && sessionId && accountId ? (
-          <div className="flex shrink-0 pb-1">
-            <VoiceButton serverUrl={serverUrl} accountUid={accountId} sessionId={sessionId} />
-          </div>
-        ) : null}
         {/* The compact chat sizing is desktop-only: iOS Safari zooms the whole page whenever a
             focused field is under 16px, so phones get 16px in the composer instead. */}
         <div

@@ -127,8 +127,8 @@ func (srv *Server) GetDocumentChange(ctx context.Context, in *documents.GetDocum
 		return nil, status.Errorf(codes.InvalidArgument, "failed to decode change ID '%s': %v", in.Id, err)
 	}
 
-	if srv.cfg.PublicOnly {
-		ctx = blob.WithPublicOnly(ctx)
+	if srv.cfg.ServerMode {
+		ctx = blob.WithServerMode(ctx)
 	}
 
 	blk, err := srv.idx.Get(ctx, c)

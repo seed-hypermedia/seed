@@ -1,5 +1,14 @@
 import {json, LinksFunction, LoaderFunctionArgs} from '@remix-run/node'
-import {isRouteErrorResponse, Links, Meta, Outlet, Scripts, useRouteLoaderData, useRouteError} from '@remix-run/react'
+import {
+  isRouteErrorResponse,
+  Links,
+  Meta,
+  Outlet,
+  Scripts,
+  useRouteLoaderData,
+  useRouteError,
+  useLocation,
+} from '@remix-run/react'
 import * as Sentry from '@sentry/remix'
 import {captureRemixErrorBoundaryError, withSentry} from '@sentry/remix'
 import {
@@ -7,6 +16,7 @@ import {
   LIGHTNING_API_URL,
   NOTIFY_SERVICE_HOST,
   SEED_AGENT_SERVER_URL,
+  SEED_HOST_URL,
   SEED_ASSET_HOST,
   SITE_BASE_URL,
   WEB_IDENTITY_ENABLED,
@@ -14,12 +24,17 @@ import {
   WEB_IS_GATEWAY,
 } from '@shm/shared/constants'
 import {SizableText} from '@shm/ui/text'
+import {FileDropGuard} from '@shm/ui/file-drop-guard'
 // Eager editor document styles: the server-rendered document HTML uses the
 // editor's hashed CSS-module classes, which must be styled before the lazy
 // editor chunk loads (see @shm/editor/ssr-render).
 import '@shm/editor/editor-styles'
 import sonnerStyles from 'sonner/dist/styles.css?url'
 import {Providers} from './providers'
+import {useLocalKeyPairLoaded} from './auth'
+import {isOpenPath} from './require-sign-in'
+import {requireSignInEnabled} from './require-sign-in.server'
+import {SignInLoading} from '@shm/ui/spinner'
 import slashMenuStyles from './slash-menu.css?url'
 import globalStyles from './styles.css?url'
 import localTailwindStyles from './tailwind.css?url'
@@ -62,14 +77,18 @@ export async function loader({request}: LoaderFunctionArgs) {
   // Get siteHost for window.ENV injection
   const siteHost = url.hostname
 
-  const result = {isProd, enableStats, domain, siteHost}
+  const seedHostUrl =
+    process.env.SEED_HOST_URL ||
+    process.env.VITE_SEED_HOST_URL ||
+    (isProd ? 'https://host.seed.hyper.media' : SEED_HOST_URL)
+  const result = {isProd, enableStats, domain, siteHost, seedHostUrl, requireSignIn: requireSignInEnabled()}
 
   return json(result)
 }
 
 export function Layout({children}: {children: React.ReactNode}) {
   const data = useRouteLoaderData<typeof loader>('root')
-  const {isProd = false, enableStats = false, domain = '', siteHost = ''} = data || {}
+  const {isProd = false, enableStats = false, domain = '', siteHost = '', seedHostUrl = SEED_HOST_URL} = data || {}
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -95,7 +114,9 @@ export function Layout({children}: {children: React.ReactNode}) {
               ENABLE_EMAIL_NOTIFICATIONS,
               SEED_ASSET_HOST,
               NOTIFY_SERVICE_HOST,
-              SEED_AGENT_SERVER_URL,
+              // Empty (not absent) so the client keeps "no agent server" instead of its default.
+              SEED_AGENT_SERVER_URL: SEED_AGENT_SERVER_URL ?? '',
+              SEED_HOST_URL: seedHostUrl,
             })}`,
           }}
         />
@@ -111,6 +132,7 @@ export function Layout({children}: {children: React.ReactNode}) {
         ) : null}
       </head>
       <body className="bg-muted min-h-screen font-sans antialiased">
+        <FileDropGuard />
         <Providers>{children}</Providers>
 
         {/* Note: Removed Remix's <ScrollRestoration /> because it interferes with
@@ -180,5 +202,11 @@ export function ErrorBoundary({}: {}) {
 // Sentry HOC is safe here - withSentry returns a component, doesn't invoke hooks
 // The wrapped component will be used by Remix for routing
 export default withSentry(function App() {
+  const data = useRouteLoaderData<typeof loader>('root')
+  const {pathname} = useLocation()
+  const identityLoaded = useLocalKeyPairLoaded()
+  // Private pages must not paint a signed-out header or start account queries
+  // before the persisted identity is ready after the callback's full navigation.
+  if (data?.requireSignIn && !isOpenPath(pathname) && !identityLoaded) return <SignInLoading />
   return <Outlet />
 })

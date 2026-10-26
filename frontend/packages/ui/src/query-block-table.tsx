@@ -1,14 +1,16 @@
+import {type QueryBlockDraftSlotData} from '@shm/shared/query-block-drafts-context'
+import {InlineDraftListItem} from './inline-draft-list-item'
 import {HMDocumentInfo, type HMQueryTableConfig} from '@seed-hypermedia/client/hm-types'
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
 import {
-  type ColumnDef,
-  type SortingState,
   flexRender,
   getCoreRowModel,
   getSortedRowModel,
   useReactTable,
+  type ColumnDef,
+  type SortingState,
 } from '@tanstack/react-table'
-import {ChevronDown, ChevronUp, ChevronsUpDown, FileText, MessageSquare, Share2} from 'lucide-react'
+import {ChevronDown, ChevronUp, ChevronsUpDown, FileText, Grid3X3, MessageSquare, GitCompareArrows} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from './components/table'
 import {FacePile} from './face-pile'
@@ -28,6 +30,8 @@ const ROW_CHUNK = 25
 
 export interface QueryBlockTableProps {
   items: HMDocumentInfo[]
+  /** Drafts rendered before published rows, with actions in the last column. */
+  tableDrafts?: QueryBlockDraftSlotData
   descriptors: QueryTableColumn[]
   context: QueryTableValueContext
   sorting?: SortingState
@@ -46,6 +50,7 @@ export interface QueryBlockTableProps {
 
 export function QueryBlockTable({
   items,
+  tableDrafts,
   descriptors,
   context,
   sorting,
@@ -66,8 +71,9 @@ export function QueryBlockTable({
     columnSizingRef.current = columnSizing ?? {}
   }, [columnSizing])
 
+  // Clamp rather than reset.
   useEffect(() => {
-    setVisibleCount(Math.min(items.length, INITIAL_ROWS))
+    setVisibleCount((count) => Math.min(Math.max(count, INITIAL_ROWS), items.length))
   }, [items])
 
   useEffect(() => {
@@ -134,7 +140,7 @@ export function QueryBlockTable({
               ) : descriptor.id === 'comments' ? (
                 <MessageSquare className="size-4" />
               ) : (
-                <Share2 className="size-4" />
+                <GitCompareArrows className="size-4" />
               )
             return (
               <span className="inline-flex items-center gap-1">
@@ -180,11 +186,15 @@ export function QueryBlockTable({
       onColumnSizingChange?.(next)
     },
     columnResizeMode: 'onChange',
+    // Activity is a server sort, not a visible table column.
+    manualSorting: activeSorting[0]?.id === 'activity',
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   })
 
-  if (items.length === 0) {
+  const hasDrafts = !!tableDrafts?.drafts.length
+
+  if (items.length === 0 && !hasDrafts) {
     return (
       <div className="text-muted-foreground flex h-28 items-center justify-center rounded-md border text-sm">
         No documents found.
@@ -194,7 +204,7 @@ export function QueryBlockTable({
 
   return (
     <div className="border-border max-w-full overflow-x-auto overscroll-x-contain rounded-b-md border-x border-b">
-      <Table className="table-fixed" style={{width: '100%', minWidth: table.getTotalSize()}}>
+      <Table className="table-fixed" style={{width: '100%', minWidth: table.getTotalSize() + (hasDrafts ? 48 : 0)}}>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
             <TableRow key={group.id}>
@@ -252,10 +262,27 @@ export function QueryBlockTable({
                   />
                 </TableHead>
               ))}
+              {hasDrafts ? (
+                <TableHead className="bg-background sticky right-0 z-20 w-12">
+                  <span className="sr-only">Draft actions</span>
+                </TableHead>
+              ) : null}
             </TableRow>
           ))}
         </TableHeader>
         <TableBody>
+          {tableDrafts?.drafts.map(({draft, autoFocus}) => (
+            <InlineDraftListItem
+              key={`draft-${draft.id}`}
+              draft={draft}
+              autoFocus={autoFocus}
+              tableColumns={table.getVisibleLeafColumns().map((column) => ({id: column.id, size: column.getSize()}))}
+              onOpenDraft={tableDrafts.onOpenDraft!}
+              onDeleteDraft={tableDrafts.onDeleteDraft!}
+              onMoveDraft={tableDrafts.onMoveDraft}
+              onUpdateDraftName={tableDrafts.onUpdateDraftName!}
+            />
+          ))}
           {table
             .getRowModel()
             .rows.slice(0, visibleCount)
@@ -272,6 +299,7 @@ export function QueryBlockTable({
                     </div>
                   </TableCell>
                 ))}
+                {hasDrafts ? <TableCell className="bg-background sticky right-0 z-10 w-12" /> : null}
               </TableRow>
             ))}
         </TableBody>
@@ -286,10 +314,15 @@ function TitleCell({item}: {item: HMDocumentInfo}) {
   return (
     <a
       {...linkProps}
-      className="block truncate font-medium hover:underline"
+      className="flex items-center gap-2 font-medium hover:underline"
       title={getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}
     >
-      {getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}
+      {item.isCollection ? (
+        <Grid3X3 aria-label="Collection" className="size-4 shrink-0" />
+      ) : (
+        <FileText aria-label="Document" className="size-4 shrink-0" />
+      )}
+      <span className="truncate">{getMetadataName(item.metadata) || item.path.at(-1) || 'Untitled'}</span>
     </a>
   )
 }

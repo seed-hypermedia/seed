@@ -81,7 +81,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react'
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import React, {Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
   ContextUsageMeter,
   ContinuationHandoffCard,
@@ -101,7 +101,7 @@ import {
   encodeAssistantSessionRef,
   type AssistantSessionRef,
 } from './assistant-session-ref'
-import {AgentProtocolError, AgentServerError, type AgentInfo} from './client'
+import {AgentProtocolError, AgentServerError, type AgentInfo, type SessionInfo} from './client'
 import {describeAgentError} from './errors'
 import {useAssistantWindowContextLines} from './assistant-window-context'
 import {
@@ -110,13 +110,18 @@ import {
   SubSessionHeader,
   TERMINAL_RUN_STATUSES,
 } from './rich-message-composer'
-import type {AgentsRichEditorSubmitHandle} from './platform'
+import {getAgentsPlatform, type AgentsRichEditorSubmitHandle} from './platform'
 import {RunRecordCard, SessionRunCard} from './run-card'
 import {DelayedSpinner, SessionModelBadge} from './header'
 import {SessionSummaryBanner} from './session-children'
 import {NewSessionComposer} from './new-session-composer'
 import {AgentSessionsFeed, type AgentSessionsFeedProblem} from './sessions-feed'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
+
+/** Whether a trigger, not a person, opened this session. The server stamps the trigger on the row. */
+function isTriggeredSession(session: SessionInfo): boolean {
+  return session.startedByTrigger !== undefined
+}
 
 /**
  * Assistant sidebar.
@@ -154,7 +159,10 @@ export function AssistantPanel({
   const serverUrls = useAgentServerUrls()
   const localServerUrl = useLocalAgentServerUrl()
   const agentQueries = useAgentLists(serverUrls.data, accountUid)
-  const ownSessions = useAllAgentSessionPages(serverUrls.data, accountUid)
+  // Trigger-started sessions are left out (see the list below). The server filters them before
+  // paging; filtering only here made the panel page through ~100 empty pages on an account whose
+  // triggers fire often, showing "No chats yet" until it reached a person's chat.
+  const ownSessions = useAllAgentSessionPages(serverUrls.data, accountUid, {excludeTriggered: true})
   const navigate = useNavigate()
 
   const spaceAgents = useSpaceAgents(accountUid)
@@ -351,16 +359,24 @@ export function AssistantPanel({
 
   // The list: every agent's chats, or the chosen agent's own paged list — filtered on the server,
   // so a quiet agent is not found by paging through everyone else's.
-  const agentSessionPages = useAgentSessions(filterAgent?.serverUrl, accountUid, filterAgent?.agent.id)
+  //
+  // Sessions a trigger started are left out on both paths: the panel is the user's own
+  // conversations with their agents, and a scheduled or event-driven run is not one of those. They
+  // stay reachable from the agent's page, whose feed shows every session with a "Triggered by" chip.
+  // The server drops them before paging; the filter here only covers servers too old to.
+  const agentSessionPages = useAgentSessions(filterAgent?.serverUrl, accountUid, filterAgent?.agent.id, {
+    excludeTriggered: true,
+  })
   const listEntries = useMemo<AgentSessionListEntry[]>(() => {
     if (selection.filterPending) return []
-    if (!filterAgent) return allSessions
+    if (!filterAgent) return allSessions.filter((entry) => !isTriggeredSession(entry.session))
     const seen = new Set<string>()
     const entries: AgentSessionListEntry[] = []
     for (const page of agentSessionPages.data?.pages ?? []) {
       for (const session of page.sessions) {
         if (seen.has(session.id)) continue
         seen.add(session.id)
+        if (isTriggeredSession(session)) continue
         entries.push({serverUrl: filterAgent.serverUrl, session, agent: filterAgent.agent})
       }
     }
@@ -844,6 +860,7 @@ function AssistantSessionChat({
   onOpenSession?: (sessionId: string) => void
 }) {
   const {serverUrl, sessionId} = sessionRef
+  const BrowserTools = getAgentsPlatform().BrowserTools
   const navigate = useNavigate()
   const session = useAgentSession(serverUrl, accountUid, sessionId)
   // Resume the socket after the last loaded event: without afterSeq the server replays the whole
@@ -1129,6 +1146,20 @@ function AssistantSessionChat({
           </div>
         </div>
 
+        {BrowserTools && accountUid && !readOnly ? (
+          <Suspense fallback={null}>
+            <BrowserTools
+              key={`${serverUrl}/${sessionId}/${accountUid}`}
+              toolEnabled={!!agent && (!agent.definition.tools || agent.definition.tools.includes('browser'))}
+              agentName={agent?.definition.name}
+              isOwner={agent?.accessRole === 'owner'}
+              isPublic={!!agent?.publicRead}
+              serverUrl={serverUrl}
+              sessionId={sessionId}
+              accountUid={accountUid}
+            />
+          </Suspense>
+        ) : null}
         <SessionRunCard
           compact
           serverUrl={serverUrl}

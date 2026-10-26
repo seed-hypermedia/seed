@@ -14,7 +14,7 @@ export type SearchResultItem = {
   parentNames: string[]
   versionTime?: string
   searchQuery: string
-  type: 'document' | 'contact' | 'comment'
+  type: 'document' | 'profile' | 'contact' | 'comment'
 }
 
 export type SearchPayload = {

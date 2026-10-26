@@ -121,9 +121,13 @@ try {
   const before = await action({_: 'GetVoiceSettings'})
   assert(before.available === true, 'GetVoiceSettings.available should be true')
   assert(before.deepgramApiKey === 'none', `deepgram key source should start as none, got ${before.deepgramApiKey}`)
-  const set = await action({_: 'SetVoiceSettings', deepgramApiKey: ACCOUNT_DEEPGRAM_KEY})
+  const set = await action({
+    _: 'SetVoiceSettings',
+    deepgramApiKey: ACCOUNT_DEEPGRAM_KEY,
+    cartesiaApiKey: 'smoke-invalid-cartesia',
+  })
   assert(set.deepgramApiKey === 'account', `deepgram key source should be account after set, got ${set.deepgramApiKey}`)
-  assert(set.cartesiaApiKey === 'none', `cartesia key source should stay none, got ${set.cartesiaApiKey}`)
+  assert(set.cartesiaApiKey === 'account', `cartesia key source should be account, got ${set.cartesiaApiKey}`)
   console.log('[smoke] voice settings: none → account')
 
   // In production the worker registers at boot, long before any mic click; here it is racing us,
@@ -138,7 +142,7 @@ try {
   const voiceSession = await action({_: 'CreateVoiceSession', sessionId})
   assert(voiceSession._ === 'CreateVoiceSessionResponse', `unexpected ${voiceSession._}`)
   const room = voiceSession.room as string
-  assert(room === `seed-voice-${sessionId}`, `unexpected room ${room}`)
+  assert(room.startsWith(`seed-voice-${sessionId}-`), `unexpected room ${room}`)
   assert(typeof voiceSession.token === 'string' && (voiceSession.token as string).split('.').length === 3, 'no JWT')
   assert((voiceSession.url as string).startsWith('ws://'), `unexpected url ${voiceSession.url}`)
   console.log(`[smoke] CreateVoiceSession → room ${room}, identity ${voiceSession.identity}`)
@@ -153,8 +157,8 @@ try {
   const roomConfig = (await internal('room-config', {room})) as Record<string, unknown>
   assert(roomConfig.sessionId === sessionId, 'room-config sessionId mismatch')
   assert(roomConfig.deepgramApiKey === ACCOUNT_DEEPGRAM_KEY, 'room-config should carry the account Deepgram key')
-  assert(roomConfig.cartesiaApiKey === 'your-cartesia-api-key', 'room-config should fall back to the server key')
-  console.log('[smoke] room-config carries the per-account key and the server placeholder')
+  assert(roomConfig.cartesiaApiKey === 'smoke-invalid-cartesia', 'room-config should carry the account Cartesia key')
+  console.log('[smoke] room-config carries the per-account speech keys')
 
   const turnRes = await fetch(`${apiBase}/agents/api/voice/turn`, {
     method: 'POST',

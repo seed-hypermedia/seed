@@ -62,7 +62,7 @@ An `EDITOR` role is reserved in the proto as a comment and does not exist in dat
 
 ## Path scope <!-- id:Td0aihIG -->
 
-Scope is by path segment, always recursive. A capability at `/team` covers `/team`, `/team/notes` and `/team/notes/2026`. It does not cover `/teammates`, because matching splits on `/`. The `no_recursive` request flag and the `is_exact` response field exist in the API but do nothing. The daemon rejects `no_recursive` and always reports `is_exact` as false. The HM26 direction has dropped non-recursive grants altogether; see the end of this page. <!-- id:YTKYFw57 -->
+Scope is by path segment, always recursive. A capability at `/team` covers `/team`, `/team/notes` and `/team/notes/2026`. It does not cover `/teammates`, because matching splits on `/`. The `no_recursive` request flag and the `is_exact` response field exist in the API but do nothing. The daemon rejects `no_recursive` and always reports `is_exact` as false. The proposed direction has dropped non-recursive grants altogether; see the end of this page. <!-- id:YTKYFw57 -->
 
 ## The authorization rule <!-- id:JxRtSA4- -->
 
@@ -117,7 +117,7 @@ Now: <!-- id:ALgjD0pf -->
   - A Ref signed by **bobLaptop** for the same path: the direct lookup misses. The agent lookup finds `Cap2` (delegate bobLaptop, issuer bob), and bob holds `Cap1` from alice on a breadcrumb. Indexed. <!-- id:0c8x2z6s -->
   - A Ref signed by **bob** for `hm://alice/blog`: no breadcrumb matches `/team`. Not indexed. It is stashed (next section). If Alice later grants Bob a root WRITER capability, the stashed Ref is retried and lands. <!-- id:TEkfm2QN -->
   - If bobLaptop delegated a further AGENT key, bobLaptopScript, its Refs under `hm://alice/team` would fail. Alice never issued anything to bobLaptop, so the inner lookup has nothing to find. <!-- id:oTIACEiB -->
-  - Bob asks Alice's public-only site for a private document under `/team` with a bearer token. Denied, because private reads need a root-scoped grant; see [Privacy](./privacy.md). <!-- id:eKLtHnTS -->
+  - Bob asks Alice's server-mode site for a private document under `/team` with a bearer token. Denied, because private reads need a root-scoped grant; see [Privacy](./privacy.md). <!-- id:eKLtHnTS -->
 
 ## The stash <!-- id:R9HlkcZA -->
 
@@ -142,7 +142,7 @@ What exists in code today: <!-- id:81qBa4vR -->
   2. **Profile aliases**: a key may declare "I am really account X", accepted only if X issued it an AGENT capability. See [Identity](./identity.md). <!-- id:3JULU_K6 -->
   3. **Contacts**: public naming and follow flags with no permission effect and no signer validation. <!-- id:80OBnH9u -->
   4. **Peer and site trust for delivery**: the server named in a space's `siteUrl`, and peers that authenticate as a WRITER, may receive that space's private blobs. <!-- id:m6ufd9Zf -->
-  5. **Bearer identity over HTTP** for reading private content on public-only nodes. <!-- id:KoG640ys -->
+  5. **Bearer identity over HTTP** for reading private content on server-mode nodes. <!-- id:KoG640ys -->
 
 What does not exist in code: trust scores, transitive trust through contacts, friend-of-friend reads, reputation, endorsements, contact-based moderation or spam filtering, key rotation or recovery, revocation, expiry, an EDITOR or read-only role. The phrase "web of trust" does not appear in the daemon or the SDK. The code audit found a capability system of owner-issued grants, plus an unrelated public address book. No code path lets one user's trust in another change what a third party may read or write. <!-- id:jhiOpTff -->
 
@@ -184,7 +184,7 @@ An external agent using the seed-cli skill should hold its own key and get a sco
 Design direction as of September 2026. None of it is code: <!-- id:kMkQmM7X -->
   - **Revocation.** The `RevokeCapability` RPC is a TODO in the proto and a shaped project in the team's plans. Until it exists, the mitigation is to grant narrowly (WRITER on a path, to a key you control) and to treat a lost delegate key as permanent. <!-- id:78IJ4eZp -->
   - **EDITOR and read roles.** Reserved in the proto. The sharing-permissions product work (August 2026) asks for read grants, share links and invitations, which the current roles cannot express. <!-- id:bp6cUIfn -->
-  - **HM26.** The node and resource redesign drops path-scoped grants in favour of invitations at the space level, discontinues the non-recursive flag, treats capabilities as a special category of resource, and wants a group concept so one grant can name several keys. Existing sub-document grants would not migrate. See [Roadmap](./roadmap.md). <!-- id:EhB-HPsr -->
+  - **Resource model proposal.** The node and resource redesign drops path-scoped grants in favour of invitations at the space level, discontinues the non-recursive flag, treats capabilities as a special category of resource, and wants a group concept so one grant can name several keys. Existing sub-document grants would not migrate. See [Roadmap](./roadmap.md). <!-- id:EhB-HPsr -->
   - **Trust beyond grants.** Team essays describe contextual trust rooted in communities, with no global PGP-style web. None of it is specified yet. <!-- id:K3H2OcX3 -->
 
 # See also <!-- id:UsfnKGWX -->

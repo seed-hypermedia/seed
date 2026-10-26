@@ -8,6 +8,11 @@ import {callableToolRegistry} from '@seed-hypermedia/agents-protocol'
 export const AGENT_SEARCH_TOOL = callableToolRegistry.search.name
 export const AGENT_WEB_SEARCH_TOOL = callableToolRegistry.web_search.name
 export const AGENT_EXECUTE_TOOL = callableToolRegistry.execute.name
+/**
+ * The integrated browser: lets the agent read and act on websites open in the owner's Seed window.
+ * Opt-in per agent (not in DEFAULT_AGENT_TOOLS); the owner still consents per website at run time.
+ */
+export const AGENT_BROWSER_TOOL = callableToolRegistry.browser.name
 /** Pseudo-grant: signed public publishing (hm:// documents/comments, IPFS uploads). */
 export const AGENT_PUBLISH_GRANT = 'publish'
 
@@ -32,7 +37,8 @@ export function normalizeStoredAgentTools(tools: string[]): string[] {
     if (tool === 'execute_code' || tool === AGENT_EXECUTE_TOOL) normalized.add(AGENT_EXECUTE_TOOL)
     else if (tool === AGENT_PUBLISH_GRANT || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
       normalized.add(AGENT_PUBLISH_GRANT)
-    else if (tool === AGENT_SEARCH_TOOL || tool === AGENT_WEB_SEARCH_TOOL) normalized.add(tool)
+    else if (tool === AGENT_SEARCH_TOOL || tool === AGENT_WEB_SEARCH_TOOL || tool === AGENT_BROWSER_TOOL)
+      normalized.add(tool)
     // Everything else was absorbed into the always-on verbs and is inert.
   }
   return Array.from(normalized)

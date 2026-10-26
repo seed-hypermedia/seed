@@ -150,7 +150,10 @@ export const useDocumentLayout = (
       showCollapsed: layoutState.showCollapsed,
       contentMaxWidth,
       sidebarProps: {
-        className: `document-aside flex-1 w-full pt-4 ${layoutState.showCollapsed ? 'px-2' : 'pr-10 pl-4'}`,
+        // Empty sidebars balance the layout without blocking block action buttons.
+        className: `document-aside flex-1 w-full pt-4 empty:pointer-events-none ${
+          layoutState.showCollapsed ? 'px-2' : 'pr-10 pl-4'
+        }`,
         style: {
           maxWidth: layoutState.showCollapsed ? 40 : 280,
         },

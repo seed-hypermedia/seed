@@ -1,13 +1,33 @@
 import * as blobs from '@shm/shared/blobs'
-import {cleanup, render, screen} from '@testing-library/react'
+import {act, cleanup, render, screen} from '@testing-library/react'
 import {afterEach, describe, expect, test} from 'bun:test'
-import {MemoryRouter} from 'react-router-dom'
+import {MemoryRouter, useLocation} from 'react-router-dom'
 import {StoreContext, createStore} from '@/frontend/store'
 import {createMockBlockstore, createMockClient} from '@/frontend/test-utils'
 import {DelegateView} from './DelegateView'
 
-function renderDelegateView({siteName, accountNames}: {siteName?: string; accountNames: string[]}) {
+function RouteLocation() {
+  return <output data-testid="route">{useLocation().pathname}</output>
+}
+
+function renderDelegateView({
+  siteName,
+  accountNames,
+  emailPrevalidation,
+  credentials,
+  inviteOnly = false,
+}: {
+  siteName?: string
+  inviteOnly?: boolean
+  accountNames: string[]
+  emailPrevalidation?: boolean
+  credentials?: {password?: true; recoveryWords?: true}
+}) {
   const store = createStore(createMockClient(), createMockBlockstore())
+  store.state.inviteOnly = inviteOnly
+  if (credentials) {
+    store.state.session = {authenticated: true, relyingPartyOrigin: 'https://vault.example.com', credentials}
+  }
 
   const accounts = accountNames.map((name, index) => {
     const kp = blobs.generateNobleKeyPair()
@@ -21,6 +41,7 @@ function renderDelegateView({siteName, accountNames}: {siteName?: string; accoun
   store.state.selectedAccountIndex = 0
   store.state.delegationRequest = {
     originalUrl: 'https://vault.example.com/delegate',
+    emailPrevalidation,
     clientId: 'https://site.example.com',
     redirectUri: 'https://site.example.com/callback',
     sessionKeyPrincipal: blobs.principalToString(blobs.generateNobleKeyPair().principal),
@@ -35,6 +56,7 @@ function renderDelegateView({siteName, accountNames}: {siteName?: string; accoun
     <MemoryRouter initialEntries={['/delegate']}>
       <StoreContext.Provider value={store}>
         <DelegateView />
+        <RouteLocation />
       </StoreContext.Provider>
     </MemoryRouter>,
   )
@@ -45,6 +67,31 @@ function renderDelegateView({siteName, accountNames}: {siteName?: string; accoun
 describe('DelegateView', () => {
   afterEach(() => {
     cleanup()
+  })
+
+  test('completing a delegation cannot cancel the outbound callback with a vault redirect', async () => {
+    const store = renderDelegateView({accountNames: ['Bea']})
+    await act(async () => {
+      store.state.delegationRequest = null
+      store.state.loading = false
+    })
+    expect(screen.getByTestId('route').textContent).toBe('/delegate')
+  })
+
+  test('enterprise completion keeps one loading surface until the browser leaves', async () => {
+    const store = renderDelegateView({accountNames: ['Bea'], inviteOnly: true})
+    await act(async () => {
+      store.state.loading = true
+    })
+    const loading = screen.getByRole('status', {name: 'Signing in'})
+    expect(screen.getAllByRole('status', {name: 'Signing in'})).toHaveLength(1)
+    expect(screen.queryByText('Confirm your account')).toBeNull()
+    await act(async () => {
+      store.state.delegationRequest = null
+      store.state.loading = false
+    })
+    expect(screen.getByRole('status', {name: 'Signing in'})).toBe(loading)
+    expect(screen.getByTestId('route').textContent).toBe('/delegate')
   })
 
   test('shows the account reminder and "Continue as" even with a single account', () => {
@@ -71,6 +118,23 @@ describe('DelegateView', () => {
 
     expect(screen.getByText('Ethosfera')).toBeDefined()
     expect(screen.getByText('site.example.com')).toBeDefined()
+  })
+
+  test('discloses verified email sharing only when the client requests it', () => {
+    renderDelegateView({accountNames: ['Bea'], emailPrevalidation: true})
+    expect(screen.getByText('Continuing shares your verified email with site.example.com.')).toBeDefined()
+    cleanup()
+    renderDelegateView({accountNames: ['Bea']})
+    expect(screen.queryByText(/Continuing shares your verified email/)).toBeNull()
+  })
+
+  test('reminds a password user to save recovery words before returning to the site', () => {
+    renderDelegateView({accountNames: ['Bea'], credentials: {password: true}})
+    expect(screen.getByRole('button', {name: 'Save recovery words'})).toBeDefined()
+
+    cleanup()
+    renderDelegateView({accountNames: ['Bea'], credentials: {password: true, recoveryWords: true}})
+    expect(screen.queryByRole('button', {name: 'Save recovery words'})).toBeNull()
   })
 
   test('falls back to the client hostname when no site name is provided', () => {

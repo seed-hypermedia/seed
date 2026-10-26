@@ -4,7 +4,7 @@ import {
   unpackedHmIdSchema,
   type UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import type {SiteProfileTab, ViewRouteKey} from './utils/entity-id-url'
 import {
   activityFilterToSlug,
@@ -92,6 +92,8 @@ const commentsPanelSchema = z.object({
   key: z.literal('comments'),
   id: unpackedHmIdSchema.optional(),
   openComment: z.string().optional(),
+  /** Last comment in the active reply chain. */
+  replyCommentId: z.string().optional(),
 })
 
 const collaboratorsPanelSchema = z.object({
@@ -104,11 +106,25 @@ const directoryPanelSchema = z.object({
   id: unpackedHmIdSchema.optional(),
 })
 
+/** Tabs of the space Activity view. A missing tab means All updates. */
+export const ACTIVITY_TABS = ['to-you', 'all-updates'] as const
+/** One tab of the space Activity view. */
+export type ActivityTab = (typeof ACTIVITY_TABS)[number]
+const activityTabSchema = z.enum(ACTIVITY_TABS)
+
+// The space Activity side panel. `id` is the space home.
+const feedPanelSchema = z.object({
+  key: z.literal('feed'),
+  id: unpackedHmIdSchema.optional(),
+  tab: activityTabSchema.optional(),
+})
+
 // Directory page panel options
 const directoryPagePanelSchema = z.discriminatedUnion('key', [
   activityPanelSchema,
   commentsPanelSchema,
   collaboratorsPanelSchema,
+  feedPanelSchema,
 ])
 
 export const directoryRouteSchema = z.object({
@@ -173,6 +189,7 @@ const collaboratorsPagePanelSchema = z.discriminatedUnion('key', [
   activityPanelSchema,
   commentsPanelSchema,
   directoryPanelSchema,
+  feedPanelSchema,
 ])
 
 export const collaboratorsRouteSchema = z.object({
@@ -187,6 +204,7 @@ const activityPagePanelSchema = z.discriminatedUnion('key', [
   commentsPanelSchema,
   collaboratorsPanelSchema,
   directoryPanelSchema,
+  feedPanelSchema,
 ])
 
 export const documentOptionsRouteSchema = z.object({
@@ -211,6 +229,7 @@ const commentsPagePanelSchema = z.discriminatedUnion('key', [
   commentsPanelSchema,
   collaboratorsPanelSchema,
   directoryPanelSchema,
+  feedPanelSchema,
 ])
 
 export const commentsRouteSchema = z.object({
@@ -218,6 +237,8 @@ export const commentsRouteSchema = z.object({
   id: unpackedHmIdSchema,
   width: z.number().optional(),
   openComment: z.string().optional(),
+  /** Last comment in the active reply chain. */
+  replyCommentId: z.string().optional(),
   /** Version CID of the opened comment to view (an old version from its edit history). */
   openCommentVersion: z.string().optional(),
   targetBlockId: z.string().optional(),
@@ -237,6 +258,7 @@ const metadataPagePanelSchema = z.discriminatedUnion('key', [
   commentsPanelSchema,
   collaboratorsPanelSchema,
   directoryPanelSchema,
+  feedPanelSchema,
 ])
 
 export const metadataRouteSchema = z.object({
@@ -257,6 +279,7 @@ const documentPanelRoute = z.discriminatedUnion('key', [
   collaboratorsRouteSchema,
   documentOptionsRouteSchema,
   metadataRouteSchema,
+  feedPanelSchema,
 ])
 export type DocumentPanelRoute = z.infer<typeof documentPanelRoute>
 export type PanelSelectionOptions = DocumentPanelRoute['key']
@@ -270,20 +293,16 @@ export const documentRouteSchema = z.object({
   panel: documentPanelRoute.nullable().optional(),
 })
 
+// The full-page space Activity view. `id` is the space home.
 export const feedRouteSchema = z.object({
   key: z.literal('feed'),
   id: unpackedHmIdSchema,
+  tab: activityTabSchema.optional(),
   panel: documentPanelRoute.nullable().optional(),
 })
 
 export type DocumentRoute = z.infer<typeof documentRouteSchema>
 export type FeedRoute = z.infer<typeof feedRouteSchema>
-
-// Activity feed across every space this node has synced.
-export const nodeFeedRouteSchema = z.object({
-  key: z.literal('node-feed'),
-})
-export type NodeFeedRoute = z.infer<typeof nodeFeedRouteSchema>
 
 export const draftRouteSchema = z.object({
   key: z.literal('draft'),
@@ -335,6 +354,7 @@ export type AccountSettingsRoute = z.infer<typeof accountSettingsRouteSchema>
 export const siteSettingsTabSchema = z.enum([
   'identity',
   'navigation',
+  'web-domain',
   'members',
   'writers',
   'email-subscribers',
@@ -346,14 +366,10 @@ export const siteSettingsRouteSchema = z.object({
   key: z.literal('site-settings'),
   id: unpackedHmIdSchema,
   tab: siteSettingsTabSchema.optional(),
+  /** The custom domain whose durable setup progress is being viewed. */
+  domain: z.string().optional(),
 })
 export type SiteSettingsRoute = z.infer<typeof siteSettingsRouteSchema>
-
-export const notificationsRouteSchema = z.object({
-  key: z.literal('notifications'),
-  view: z.enum(['all', 'unread']).optional(),
-})
-export type NotificationsRoute = z.infer<typeof notificationsRouteSchema>
 
 /**
  * Route for the site owner's email subscribers page. On web this is the
@@ -455,7 +471,20 @@ export const libraryRouteSchema = z.object({
 })
 export type LibraryRoute = z.infer<typeof libraryRouteSchema>
 
+/** An external website displayed in the experimental desktop browser. */
+export const webRouteSchema = z.object({
+  key: z.literal('web'),
+  url: z
+    .string()
+    .url()
+    .refine((url) => /^https?:\/\//.test(url)),
+  title: z.string().optional(),
+  browserId: z.number().optional(),
+  historyIndex: z.number().int().nonnegative().optional(),
+})
+
 export const navRouteSchema = z.discriminatedUnion('key', [
+  webRouteSchema,
   onboardingRouteSchema,
   libraryRouteSchema,
   contactsRouteSchema,
@@ -465,7 +494,6 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   settingsRouteSchema,
   accountSettingsRouteSchema,
   siteSettingsRouteSchema,
-  notificationsRouteSchema,
   siteSettingsEmailsRouteSchema,
   documentRouteSchema,
   draftRouteSchema,
@@ -481,7 +509,6 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   queryDocumentsRouteSchema,
   exploreRouteSchema,
   feedRouteSchema,
-  nodeFeedRouteSchema,
   allDocumentsRouteSchema,
   inspectRouteSchema,
   inspectIpfsRouteSchema,
@@ -542,10 +569,73 @@ export function getRoutePanel(route: NavRoute): NavRoute | null {
   }
   if (!panel) return null
   // Ensure panel has id from parent route if not set
-  if (routeId && 'id' in panel && !panel.id) {
+  if (routeId && panel.key !== 'options' && !panel.id) {
     return {...panel, id: routeId} as NavRoute
   }
   return panel as NavRoute
+}
+
+/** Parses the tab segment of an Activity URL. */
+export function activityTabFromSlug(slug: string | undefined): ActivityTab | undefined {
+  return slug === 'to-you' ? 'to-you' : undefined
+}
+
+/** The space a route belongs to, or null for pages outside any space. */
+export function getRouteSpaceUid(route: NavRoute): string | null {
+  switch (route.key) {
+    case 'document':
+    case 'feed':
+    case 'directory':
+    case 'collaborators':
+    case 'activity':
+    case 'comments':
+    case 'metadata':
+    case 'all-documents':
+    case 'site-profile':
+    case 'site-settings':
+      return route.id.uid
+    case 'explore':
+      return route.context.type === 'site' ? route.context.id.uid : null
+    default:
+      return null
+  }
+}
+
+type ActivityPanelHostRoute = Extract<
+  NavRoute,
+  {key: 'document' | 'directory' | 'collaborators' | 'activity' | 'comments' | 'metadata'}
+>
+
+function isActivityPanelHost(route: NavRoute): route is ActivityPanelHostRoute {
+  return (
+    route.key === 'document' ||
+    route.key === 'directory' ||
+    route.key === 'collaborators' ||
+    route.key === 'activity' ||
+    route.key === 'comments' ||
+    route.key === 'metadata'
+  )
+}
+
+/** Whether the space Activity view is showing, as the side panel or as the full page. */
+export function isActivityOpen(route: NavRoute): boolean {
+  return route.key === 'feed' || (isActivityPanelHost(route) && route.panel?.key === 'feed')
+}
+
+/**
+ * Where the bell leads from a route. On pages with a right panel it toggles the Activity right panel.
+ * On other space pages it opens the full Activity page. Returns 'collapse' on the full page and null outside any space.
+ */
+export function getActivityBellTarget(route: NavRoute, tab: ActivityTab = 'to-you'): NavRoute | 'collapse' | null {
+  const spaceUid = getRouteSpaceUid(route)
+  if (!spaceUid) return null
+  if (route.key === 'feed') return 'collapse'
+  const spaceId = hmId(spaceUid)
+  if (isActivityPanelHost(route)) {
+    if (route.panel?.key === 'feed') return {...route, panel: null}
+    return {...route, panel: {key: 'feed', id: spaceId, tab}}
+  }
+  return {key: 'feed', id: spaceId, tab}
 }
 
 function replacePanelDocumentId(
@@ -553,6 +643,9 @@ function replacePanelDocumentId(
   targetId: UnpackedHypermediaId,
 ): DocumentPanelRoute | undefined | null {
   if (!panel) return panel
+
+  // The Activity panel shows a space, so it follows the target's space rather than pointing at the document.
+  if (panel.key === 'feed') return {...panel, id: hmId(targetId.uid)}
 
   const nextPanel = 'panel' in panel ? replacePanelDocumentId(panel.panel as DocumentPanelRoute | null, targetId) : null
 
@@ -636,6 +729,11 @@ function createPanelRoute(panelParam: string, docId: UnpackedHypermediaId): Docu
     return {key: 'activity', id: docId, filterEventType}
   }
 
+  // The space Activity panel: "feed" for all updates, "feed/to-you" for notifications.
+  if (panelParam === 'feed' || panelParam.startsWith('feed/')) {
+    return {key: 'feed', id: hmId(docId.uid), tab: activityTabFromSlug(panelParam.slice('feed/'.length))}
+  }
+
   // Check for discussions/BLOCKID format (backward compat)
   if (panelParam.startsWith('discussions/')) {
     const targetBlockId = panelParam.slice('discussions/'.length)
@@ -652,6 +750,8 @@ function createPanelRoute(panelParam: string, docId: UnpackedHypermediaId): Docu
       return {key: 'directory', id: docId}
     case 'collaborators':
       return {key: 'collaborators', id: docId}
+    case 'metadata':
+      return {key: 'metadata', id: docId}
     case 'options':
       return {key: 'options'}
     default:
@@ -673,12 +773,17 @@ export function createDocumentNavRoute(
   openComment?: string | null,
   accountUid?: string | null,
   openCommentVersion?: string | null,
+  replyCommentId?: string | null,
 ): NavRoute {
   // Create properly typed panel route if panelParam provided.
   // Cast needed: each route schema has a narrow panel union (excluding itself),
   // but createPanelRoute returns the broader DocumentPanelRoute.
   // Same pattern used in document-tools.tsx panelFor().
-  const panel = (panelParam ? createPanelRoute(panelParam, docId) : null) as any
+  let panel = (panelParam ? createPanelRoute(panelParam, docId) : null) as any
+  if (viewTerm === 'comments' && panel?.key === 'comments') panel = null
+  if (panel?.key === 'comments' && panel.openComment && replyCommentId) {
+    panel = {...panel, replyCommentId}
+  }
 
   if (isSiteProfileTab(viewTerm)) {
     return {key: 'site-profile', id: docId, accountUid: accountUid || undefined, tab: viewTerm as SiteProfileTab}
@@ -700,14 +805,16 @@ export function createDocumentNavRoute(
       return {key: 'activity', id: docId, filterEventType, panel}
     }
     case 'comments':
-      // /:comments?panel=comments/COMMENT_ID → comments main + comments right panel
-      if (panelParam?.startsWith('comments/') || panelParam?.startsWith('comment/')) {
-        const commentsPanel = panel && panel.key === 'comments' ? panel : null
-        return {key: 'comments', id: docId, panel: commentsPanel}
-      }
       // /:comments/UID/TSID → comments main with openComment
       if (openComment) {
-        return {key: 'comments', id: docId, openComment, openCommentVersion: openCommentVersion || undefined, panel}
+        return {
+          key: 'comments',
+          id: docId,
+          openComment,
+          openCommentVersion: openCommentVersion || undefined,
+          ...(replyCommentId ? {replyCommentId} : {}),
+          panel,
+        }
       }
       // Preserve non-comments panel (e.g. activity, collaborators)
       return {key: 'comments', id: docId, panel}
@@ -716,6 +823,10 @@ export function createDocumentNavRoute(
     case 'collaborators':
       return {key: 'collaborators', id: docId, panel}
     case 'feed':
+      // URL format: /:feed/to-you -> panelParam="feed/to-you", consumed as the page's tab
+      if (panelParam?.startsWith('feed/')) {
+        return {key: 'feed', id: docId, tab: activityTabFromSlug(panelParam.slice('feed/'.length)), panel: null}
+      }
       return {key: 'feed', id: docId, panel}
     case 'all-documents':
       return {key: 'all-documents', id: docId}

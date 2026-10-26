@@ -51,7 +51,7 @@ const (
 	maxQueryDocumentsPageSize      = 1000
 	maxQueryDocumentSorts          = 16
 	maxRedirectHops                = 5 // Matches MAX_REDIRECT_HOPS in frontend/packages/shared/src/redirects.ts.
-	publicOnlyListVisibilityFilter = `dg.visibility IS NOT 'Private'`
+	serverModeListVisibilityFilter = `dg.visibility IS NOT 'Private'`
 	indexedAttributeString         = "s"
 	indexedAttributeBool           = "b"
 	indexedAttributeInt            = "i"
@@ -228,6 +228,7 @@ func (srv *Server) QueryDocuments(ctx context.Context, in *documents.QueryDocume
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	lookup := blob.NewLookupCache(conn)
 	err = sqlitex.ExecTransient(conn, qb.StringTransient(), func(row *sqlite.Stmt) error {
@@ -346,7 +347,7 @@ func autocompleteAccount(account string) (core.Principal, error) {
 
 type attributeAutocompleteQueries struct {
 	all           dqb.LazyQuery
-	publicOnly    dqb.LazyQuery
+	serverMode    dqb.LazyQuery
 	authenticated dqb.LazyQuery
 }
 
@@ -365,20 +366,20 @@ const attributeAutocompleteEligibleDocuments = `
 func newAttributeAutocompleteQueries(body string) attributeAutocompleteQueries {
 	return attributeAutocompleteQueries{
 		all:           dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, "") + body),
-		publicOnly:    dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, " AND "+publicOnlyListVisibilityFilter) + body),
+		serverMode:    dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, " AND "+serverModeListVisibilityFilter) + body),
 		authenticated: dqb.Str(fmt.Sprintf(attributeAutocompleteEligibleDocuments, " AND "+authenticatedListVisibilityFilter) + body),
 	}
 }
 
 func (srv *Server) attributeAutocompleteQuery(ctx context.Context, queries attributeAutocompleteQueries, account core.Principal) (dqb.LazyQuery, []any) {
 	args := []any{[]byte(account)}
-	if !srv.cfg.PublicOnly {
+	if !srv.cfg.ServerMode {
 		return queries.all, args
 	}
 	if caller, ok := blob.GetAuthenticatedCaller(ctx); ok {
 		return queries.authenticated, append(args, []byte(caller))
 	}
-	return queries.publicOnly, args
+	return queries.serverMode, args
 }
 
 var attributeAutocompleteNameQueries = newAttributeAutocompleteQueries(`
@@ -461,7 +462,7 @@ var (
 )
 
 // ListDocumentAttributeNames lists user-defined document attribute names for autocomplete.
-func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents.ListDocumentAttributeNamesRequest) (*documents.ListDocumentAttributeNamesResponse, error) {
+func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents.ListDocumentAttributeNamesRequest) (out *documents.ListDocumentAttributeNamesResponse, err error) {
 	if err := validateAttributePath(in.GetParentPath(), false); err != nil {
 		return nil, err
 	}
@@ -473,7 +474,7 @@ func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents
 	if err != nil {
 		return nil, err
 	}
-	out := &documents.ListDocumentAttributeNamesResponse{}
+	out = &documents.ListDocumentAttributeNamesResponse{}
 	searchPath := attrkey.SearchPath(in.GetParentPath())
 	fullPrefix := strings.Join(append(searchPath, attrkey.SearchKey(in.GetPrefix())), ".")
 	exactParent := strings.Join(in.GetParentPath(), ".")
@@ -486,6 +487,7 @@ func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 	err = sqlitex.ExecTransient(conn, query(), func(row *sqlite.Stmt) error {
 		if len(out.Names) == pageSize {
 			out.NextPageToken = apiutil.EncodePageToken(struct {
@@ -514,7 +516,7 @@ func (srv *Server) ListDocumentAttributeNames(ctx context.Context, in *documents
 }
 
 // ListDocumentAttributeValues lists known values for a user-defined document attribute.
-func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *documents.ListDocumentAttributeValuesRequest) (*documents.ListDocumentAttributeValuesResponse, error) {
+func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *documents.ListDocumentAttributeValuesRequest) (out *documents.ListDocumentAttributeValuesResponse, err error) {
 	if err := validateAttributePath(in.GetPath(), true); err != nil {
 		return nil, err
 	}
@@ -532,7 +534,7 @@ func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *document
 		return nil, err
 	}
 	wantKey := strings.Join(in.GetPath(), ".")
-	out := &documents.ListDocumentAttributeValuesResponse{}
+	out = &documents.ListDocumentAttributeValuesResponse{}
 	var queries attributeAutocompleteQueries
 	var indexedKind string
 	switch in.GetKind() {
@@ -555,6 +557,7 @@ func (srv *Server) ListDocumentAttributeValues(ctx context.Context, in *document
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 	err = sqlitex.ExecTransient(conn, query(), func(row *sqlite.Stmt) error {
 		if len(out.Values) == pageSize {
 			out.NextPageToken = apiutil.EncodePageToken(struct {
@@ -774,6 +777,56 @@ func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], 
 			return "", status.Error(codes.InvalidArgument, "boolean only supports equality comparisons")
 		}
 		return attribute(comparison.Key, "kind = ? AND value "+operator+" ?", kind, operand)
+	case *documents.DocumentFilter_AuthorMatch_:
+		if value.AuthorMatch == nil {
+			return "", status.Error(codes.InvalidArgument, "author_match filter is required")
+		}
+		author, err := core.DecodePrincipal(value.AuthorMatch.Author)
+		if err != nil {
+			return "", status.Errorf(codes.InvalidArgument, "invalid author: %v", err)
+		}
+		args.Append([]byte(author))
+		// dg.authors is the JSON array of public key IDs that contributed to the current generation,
+		// so a co-author matches as well as whoever created the document.
+		return "EXISTS (SELECT 1 FROM json_each(dg.authors) WHERE json_each.value = (SELECT id FROM public_keys WHERE principal = ?))", nil
+	case *documents.DocumentFilter_TimeRange_:
+		if value.TimeRange == nil {
+			return "", status.Error(codes.InvalidArgument, "time_range filter is required")
+		}
+		span := value.TimeRange
+		column := map[documents.DocumentFilter_TimeRange_Field]string{
+			documents.DocumentFilter_TimeRange_CREATE_TIME: "dg.genesis_change_time",
+			documents.DocumentFilter_TimeRange_UPDATE_TIME: "dg.last_change_time",
+		}[span.Field]
+		if column == "" {
+			return "", status.Error(codes.InvalidArgument, "time_range field is required")
+		}
+		for _, bound := range []*timestamppb.Timestamp{span.Start, span.End} {
+			if bound != nil {
+				if err := bound.CheckValid(); err != nil {
+					return "", status.Errorf(codes.InvalidArgument, "invalid time_range bound: %v", err)
+				}
+			}
+		}
+		if span.Start != nil && span.End != nil && span.Start.AsTime().After(span.End.AsTime()) {
+			return "", status.Error(codes.InvalidArgument, "time_range start must not be after end")
+		}
+		// Both columns hold Unix milliseconds, the same values reported as create_time and update_time.
+		// Ceiling both bounds preserves >= start and < end on millisecond timestamps.
+		// Adding just under a millisecond before UnixMilli leaves aligned bounds unchanged.
+		conditions := make([]string, 0, 2)
+		if span.Start != nil {
+			conditions = append(conditions, column+" >= ?")
+			args.Append(span.Start.AsTime().Add(time.Millisecond - time.Nanosecond).UnixMilli())
+		}
+		if span.End != nil {
+			conditions = append(conditions, column+" < ?")
+			args.Append(span.End.AsTime().Add(time.Millisecond - time.Nanosecond).UnixMilli())
+		}
+		if len(conditions) == 0 {
+			return "1", nil
+		}
+		return strings.Join(conditions, " AND "), nil
 	default:
 		return "", status.Error(codes.InvalidArgument, "content filter is required")
 	}
@@ -906,16 +959,13 @@ func (srv *Server) GetDocument(ctx context.Context, in *documents.GetDocumentReq
 		return nil, err
 	}
 
-	// Try to answer from the hydration cache before doing any real work. Only
-	// requests for the current version qualify -- see cachedDocument.
-	if len(heads) == 0 {
-		cached, ok, err := srv.cachedDocument(ctx, iri, ns, in.Path)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			return cached, nil
-		}
+	// Try to answer from the hydration cache before doing any real work.
+	cached, ok, err := srv.cachedDocument(ctx, iri, ns, in.Path, heads)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		return cached, nil
 	}
 
 	doc, err := srv.loadDocument(ctx, ns, in.Path, heads, false)
@@ -954,26 +1004,35 @@ func (srv *Server) redirectOrError(ctx context.Context, iri blob.IRI, heads []ci
 	return err
 }
 
-// cachedDocument tries to answer a GetDocument for the current version straight
-// from the hydration cache, without replaying the document's change log.
+// cachedDocument tries to answer a document read straight from the hydration
+// cache, without replaying the document's change log.
 //
-// The cache is keyed by the document's content-addressed version, and until now
-// that version was only known after loadDocument had already replayed every
-// change -- so even a cache hit paid the full cost, which the production profile
-// showed as ~22% of all daemon CPU. The version is also sitting in the index,
-// one indexed read away, and that same read carries the visibility we need for
-// the private-document check.
+// The cache is keyed by the document's content-addressed version. For the
+// current version (no heads) that version is one indexed read away. For an
+// explicit version the request itself carries it, and those requests are most
+// of the read load: embeds, citations and links all pin a version. In both
+// cases replaying every change only to look up a key we already had is what the
+// production profiles showed as ~20% of all daemon CPU.
 //
-// Only the current version takes this path. An explicit version may belong to
-// an older generation, and visibility is a per-generation attribute, so serving
-// one from here would risk applying the wrong generation's access rules.
+// Access is decided here on every call, from the index, and never from the
+// cached document: visibility is a per-generation attribute, so it is read from
+// the generation the full load would have replayed. ResolveLatest and
+// ResolveVersion share that selection with IterChanges.
 //
 // A miss is always safe: the caller falls through to the full load. A hit can't
-// be stale either, because ResolveLatest reads the very document_generations row
-// that IterChanges derives its replay set from -- if that row were behind, the
-// full load would compute the same version anyway.
-func (srv *Server) cachedDocument(ctx context.Context, iri blob.IRI, ns core.Principal, path string) (*documents.Document, bool, error) {
-	state, err := srv.idx.ResolveLatest(ctx, iri)
+// be stale either, because the resolution reads the very document_generations
+// row that IterChanges derives its replay set from -- if that row were behind,
+// the full load would compute the same version anyway.
+func (srv *Server) cachedDocument(ctx context.Context, iri blob.IRI, ns core.Principal, path string, heads []cid.Cid) (*documents.Document, bool, error) {
+	var (
+		state blob.DocumentState
+		err   error
+	)
+	if len(heads) == 0 {
+		state, err = srv.idx.ResolveLatest(ctx, iri)
+	} else {
+		state, err = srv.idx.ResolveVersion(ctx, iri, heads)
+	}
 	if err != nil {
 		// Any failure here just means no shortcut. We deliberately swallow it
 		// and fall through so the regular load stays responsible for every
@@ -1173,7 +1232,7 @@ func (srv *Server) loadDocumentForChange(ctx context.Context, identity blob.IRI,
 			if source != identity && state.Visibility == blob.VisibilityPrivate {
 				// A redirect must not become a read primitive for a private document. The prepared
 				// change would carry the target's genesis and heads, which no read RPC on a
-				// public-only node discloses.
+				// server-mode node discloses to anonymous callers.
 				targetNS, targetPath, err := source.SpacePath()
 				if err != nil {
 					return nil, err
@@ -1310,7 +1369,7 @@ func (srv *Server) handleDocumentChangeRequest(ctx context.Context, in documentC
 }
 
 // ListDirectory implements Documents API v3.
-func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirectoryRequest) (*documents.ListDirectoryResponse, error) {
+func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirectoryRequest) (out *documents.ListDirectoryResponse, err error) {
 	{
 		if in.Account == "" {
 			return nil, errutil.MissingArgument("account")
@@ -1358,10 +1417,10 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 		qb := baseDocumentsQuery()
 
-		if publicOnly, err := srv.isPublicOnlyFor(ctx, ns, in.DirectoryPath); err != nil {
+		if filterPrivate, err := srv.shouldFilterPrivate(ctx, ns, in.DirectoryPath); err != nil {
 			return nil, err
-		} else if publicOnly {
-			qb.Where(publicOnlyListVisibilityFilter)
+		} else if filterPrivate {
+			qb.Where(serverModeListVisibilityFilter)
 		}
 
 		qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
@@ -1411,7 +1470,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		query = wrapDocumentsQuery(qb, outerOrder)
 	}
 
-	out := &documents.ListDirectoryResponse{
+	out = &documents.ListDirectoryResponse{
 		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
 	}
 
@@ -1420,6 +1479,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	lookup := blob.NewLookupCache(conn)
 
@@ -2019,6 +2079,7 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	lookup := blob.NewLookupCache(conn)
 
@@ -2083,8 +2144,8 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 	)
 	{
 		var (
-			accountIRI blob.IRI
-			publicOnly bool
+			accountIRI    blob.IRI
+			filterPrivate bool
 		)
 		if in.Account != "" {
 			ns, err := core.DecodePrincipal(in.Account)
@@ -2092,7 +2153,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 				return nil, fmt.Errorf("failed to decode account: %w", err)
 			}
 
-			publicOnly, err = srv.isPublicOnlyFor(ctx, ns, "")
+			filterPrivate, err = srv.shouldFilterPrivate(ctx, ns, "")
 			if err != nil {
 				return nil, err
 			}
@@ -2108,8 +2169,8 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		if in.Account == "" {
 			qb.Where("r.iri GLOB 'hm://*'")
 		} else {
-			if publicOnly {
-				qb.Where(publicOnlyListVisibilityFilter)
+			if filterPrivate {
+				qb.Where(serverModeListVisibilityFilter)
 			}
 
 			qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
@@ -2131,6 +2192,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	lookup := blob.NewLookupCache(conn)
 
@@ -2165,7 +2227,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 }
 
 // ListUnreferencedDocuments implements Documents API v3.
-func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.ListUnreferencedDocumentsRequest) (*documents.ListUnreferencedDocumentsResponse, error) {
+func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.ListUnreferencedDocumentsRequest) (out *documents.ListUnreferencedDocumentsResponse, err error) {
 	const enabled = false
 	if !enabled {
 		return nil, status.Error(codes.Unavailable, "unreferenced documents are temporarily disabled")
@@ -2201,6 +2263,7 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 		return nil, err
 	}
 	defer release()
+	defer sqlitex.Save(conn)(&err)
 
 	// The unreferenced section is a publishing aid for public site structure.
 	// Private documents never belong in it, including for their owner.
@@ -2208,7 +2271,7 @@ func (srv *Server) ListUnreferencedDocuments(ctx context.Context, in *documents.
 	query := fmt.Sprintf(qListUnreferencedDocuments, visibility)
 	args := []any{accountIRI + "/", accountIRI + "0", cursor.IRI, in.PageSize + 1}
 
-	out := &documents.ListUnreferencedDocumentsResponse{Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer))}
+	out = &documents.ListUnreferencedDocumentsResponse{Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer))}
 	lookup := blob.NewLookupCache(conn)
 	lastIRI := cursor.IRI
 	rows, discard, check := sqlitex.Query(conn, query, args...).All()
@@ -3241,7 +3304,7 @@ func (srv *Server) checkWriteAccess(ctx context.Context, account core.Principal,
 }
 
 func (srv *Server) applyListVisibilityFilter(ctx context.Context, qb *dqb.SelectQuery, args *colx.Slice[any]) {
-	if !srv.cfg.PublicOnly {
+	if !srv.cfg.ServerMode {
 		return
 	}
 	if caller, ok := blob.GetAuthenticatedCaller(ctx); ok {
@@ -3249,11 +3312,11 @@ func (srv *Server) applyListVisibilityFilter(ctx context.Context, qb *dqb.Select
 		args.Append([]byte(caller))
 		return
 	}
-	qb.Having(publicOnlyListVisibilityFilter)
+	qb.Having(serverModeListVisibilityFilter)
 }
 
 func (srv *Server) canReadPrivate(ctx context.Context, account core.Principal, path string) (bool, error) {
-	if !srv.cfg.PublicOnly {
+	if !srv.cfg.ServerMode {
 		return true, nil
 	}
 
@@ -3265,8 +3328,8 @@ func (srv *Server) canReadPrivate(ctx context.Context, account core.Principal, p
 	return srv.idx.IsValidWriter(ctx, account, "", caller)
 }
 
-func (srv *Server) isPublicOnlyFor(ctx context.Context, account core.Principal, path string) (bool, error) {
-	if !srv.cfg.PublicOnly {
+func (srv *Server) shouldFilterPrivate(ctx context.Context, account core.Principal, path string) (bool, error) {
+	if !srv.cfg.ServerMode {
 		return false, nil
 	}
 
@@ -3275,22 +3338,24 @@ func (srv *Server) isPublicOnlyFor(ctx context.Context, account core.Principal, 
 }
 
 func (srv *Server) denyPrivateDocument(ctx context.Context, account core.Principal, path string) error {
-	publicOnly, err := srv.isPublicOnlyFor(ctx, account, path)
+	filterPrivate, err := srv.shouldFilterPrivate(ctx, account, path)
 	if err != nil {
 		return err
 	}
-	if publicOnly {
+
+	if filterPrivate {
 		return status.Errorf(codes.PermissionDenied, "access to private documents is not allowed")
 	}
 	return nil
 }
 
 func (srv *Server) denyPrivateComment(ctx context.Context, account core.Principal, path string) error {
-	publicOnly, err := srv.isPublicOnlyFor(ctx, account, path)
+	filterPrivate, err := srv.shouldFilterPrivate(ctx, account, path)
 	if err != nil {
 		return err
 	}
-	if publicOnly {
+
+	if filterPrivate {
 		return status.Errorf(codes.PermissionDenied, "access to private comments is not allowed")
 	}
 	return nil

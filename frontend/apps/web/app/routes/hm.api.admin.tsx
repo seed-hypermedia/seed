@@ -10,7 +10,7 @@ import {
 } from '@/site-config.server'
 import {ActionFunction, json} from '@remix-run/node'
 import {randomBytes} from 'crypto'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 
 const AdminActionCreateService = z
   .object({

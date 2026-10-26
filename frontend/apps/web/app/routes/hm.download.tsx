@@ -1,5 +1,5 @@
 import downloadBg from '@/assets/download-bg.png'
-import {loadSiteResource, SiteDocumentPayload} from '@/loaders'
+import {loadSiteResourceWithContent, SiteDocumentPayload} from '@/loaders'
 import {defaultPageMeta} from '@/meta'
 import {PageFooter} from '@/page-footer'
 import {NavigationLoadingContent, WebSiteProvider} from '@/providers'
@@ -9,12 +9,13 @@ import {WebSiteHeader} from '@/web-site-header'
 import {unwrap} from '@/wrapping'
 import {getDaemonAuthToken, withDaemonAuthToken} from '@/daemon-auth.server'
 import {useLoaderData} from '@remix-run/react'
+import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {Button} from '@shm/ui/button'
 import {Download, Linux, Macos, Win32} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
 import {useEffect, useState} from 'react'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {Container} from '../ui/container'
 
 async function isArm64(): Promise<boolean | null> {
@@ -89,7 +90,7 @@ export const loader = async ({request}: {request: Request}) => {
   const stableRelease = await loadUpstreamRelease()
   const authToken = await getDaemonAuthToken(request)
   return withDaemonAuthToken(authToken, () =>
-    loadSiteResource(parsedRequest, hmId(registeredAccountUid, {path: [], latest: true}), {
+    loadSiteResourceWithContent(parsedRequest, hmId(registeredAccountUid, {path: [], latest: true}), {
       stableRelease,
     }),
   )
@@ -98,7 +99,7 @@ export const loader = async ({request}: {request: Request}) => {
 export const meta = defaultPageMeta('Download Seed Hypermedia')
 
 export default function DownloadPage() {
-  const data = unwrap<SiteDocumentPayload & {stableRelease: z.infer<typeof releaseSchema>}>(useLoaderData())
+  const data = unwrap<SiteDocumentPayload<HMDocument> & {stableRelease: z.infer<typeof releaseSchema>}>(useLoaderData())
   const {stableRelease, originHomeId, siteHost, homeMetadata, id, document, origin} = data
   //   const os = getOS();
   const [platform, setPlatform] = useState<Awaited<ReturnType<typeof getPlatform>> | undefined>(undefined)

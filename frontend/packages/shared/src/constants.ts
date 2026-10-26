@@ -1,4 +1,5 @@
 /// <reference types="vite/client" />
+import {normalizeNotifyServiceUrl} from './notify-url'
 
 // we are using this ternary ugly thing with `import.meta.env?` and `process.env` because this variables will be loaded in different runtimes, and not in all runtines both "ways" are available.
 
@@ -85,7 +86,7 @@ export const IS_PROD_DEV = IS_PROD_DESKTOP && VERSION?.includes('-dev')
 export const IS_TEST = process.env.NODE_ENV == 'test'
 
 export const DAEMON_HTTP_URL =
-  IME.DAEMON_HTTP_URL || process.env.DAEMON_HTTP_URL || `${DAEMON_HOSTNAME || 'http://localhost'}:${DAEMON_HTTP_PORT}`
+  IME.DAEMON_HTTP_URL || process.env.DAEMON_HTTP_URL || `${DAEMON_HOSTNAME || 'http://127.0.0.1'}:${DAEMON_HTTP_PORT}`
 
 export const API_HTTP_URL = `${DAEMON_HOSTNAME || 'http://localhost'}:${API_HTTP_PORT}`
 
@@ -108,7 +109,13 @@ export const VITE_DESKTOP_SENTRY_DSN = IME.VITE_DESKTOP_SENTRY_DSN || process.en
 
 export const BIG_INT = 2 ** 25 // 2^31 was too big for grpc
 
-export const SEED_HOST_URL = process.env.VITE_SEED_HOST_URL || IME.VITE_SEED_HOST_URL || 'http://localhost:5555'
+/** Hosting service origin; web deployments inject their runtime setting before client bundles load. */
+export const SEED_HOST_URL =
+  WEB_ENV.SEED_HOST_URL ||
+  process.env.SEED_HOST_URL ||
+  process.env.VITE_SEED_HOST_URL ||
+  IME.VITE_SEED_HOST_URL ||
+  'http://localhost:5555'
 
 export const SEED_ASSET_HOST = WEB_ENV.SEED_ASSET_HOST || process.env.SEED_ASSET_HOST || IME.SEED_ASSET_HOST
 
@@ -132,6 +139,9 @@ export const NOTIFY_SMTP_PORT = process.env.NOTIFY_SMTP_PORT
 export const NOTIFY_SMTP_USER = process.env.NOTIFY_SMTP_USER
 export const NOTIFY_SMTP_PASSWORD = process.env.NOTIFY_SMTP_PASSWORD
 export const NOTIFY_SENDER = process.env.NOTIFY_SENDER
+// The hosting service's HTTPS email relay; when set, notify sends through it instead of SMTP.
+export const NOTIFY_EMAIL_RELAY_URL = process.env.NOTIFY_EMAIL_RELAY_URL
+export const NOTIFY_EMAIL_RELAY_TOKEN = process.env.NOTIFY_EMAIL_RELAY_TOKEN
 export const NOTIFY_TRUSTED_PREVALIDATORS = process.env.NOTIFY_TRUSTED_PREVALIDATORS
 
 export const WEB_IS_GATEWAY = WEB_ENV.WEB_IS_GATEWAY ?? process.env.SEED_IS_GATEWAY === 'true'
@@ -140,13 +150,20 @@ export const WEB_API_DISABLED = process.env.SEED_API_ENABLED === 'false'
 
 export const ENABLE_EMAIL_NOTIFICATIONS =
   WEB_ENV.ENABLE_EMAIL_NOTIFICATIONS ||
+  !!(NOTIFY_EMAIL_RELAY_URL && NOTIFY_EMAIL_RELAY_TOKEN) ||
   !!(NOTIFY_SMTP_HOST && NOTIFY_SMTP_PORT && NOTIFY_SMTP_USER && NOTIFY_SMTP_PASSWORD && NOTIFY_SENDER)
 
+/**
+ * Base URL of the notify service: canonical (`https://site.com/hm/api/notify`) or a legacy
+ * origin-only value. Retired hosted hostnames are rewritten; build URLs with `notifyEndpointUrl`.
+ */
 export const NOTIFY_SERVICE_HOST: string | undefined =
-  process.env.NOTIFY_SERVICE_HOST || // web server (runtime env must beat the build-time VITE value,
-  // which vite bakes into the SSR bundle from .env.vars on dev machines)
-  IME.VITE_NOTIFY_SERVICE_HOST || // desktop app
-  WEB_ENV.NOTIFY_SERVICE_HOST // web client
+  normalizeNotifyServiceUrl(
+    process.env.NOTIFY_SERVICE_HOST || // web server (runtime env must beat the build-time VITE value,
+      // which vite bakes into the SSR bundle from .env.vars on dev machines)
+      IME.VITE_NOTIFY_SERVICE_HOST || // desktop app
+      WEB_ENV.NOTIFY_SERVICE_HOST, // web client
+  ) ?? undefined
 
 /**
  * Default agent server for the web app's /hm/agents UI. The site will eventually support several
@@ -155,10 +172,15 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
  * The dev fallback matches the harness dev agents server port (see agents/.env.vars), not the
  * packaged binary's 3050 — a stale packaged server on 3050 answers but 400s the runs API.
  */
-export const SEED_AGENT_SERVER_URL: string | undefined =
-  process.env.SEED_AGENT_SERVER_URL || // web server
-  WEB_ENV.SEED_AGENT_SERVER_URL || // web client
-  (process.env.NODE_ENV === 'production' ? 'https://agentic.seed.hyper.media' : 'http://localhost:3051')
+export const SEED_AGENT_SERVER_URL: string | undefined = (() => {
+  // An explicitly empty value means "no agent server" (single-tenant sites set
+  // it), so only an unset variable falls back to the shared default.
+  const configured =
+    process.env.SEED_AGENT_SERVER_URL ?? // web server
+    WEB_ENV.SEED_AGENT_SERVER_URL // web client
+  if (typeof configured === 'string') return configured || undefined
+  return process.env.NODE_ENV === 'production' ? 'https://agentic.seed.hyper.media' : 'http://localhost:3051'
+})()
 
 // Discovery timeouts
 export const DISCOVERY_TIMEOUT_MS = 15_000 // 15 seconds before showing not-found

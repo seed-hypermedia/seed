@@ -91,13 +91,13 @@ const STATIC_WINDOW_TITLES: Partial<Record<NavRoute['key'], string>> = {
   agent: 'Agent',
   'agent-session': 'Agent Session',
   'agent-run': 'Agent Run',
-  notifications: 'Notifications',
   'site-settings-emails': 'Email Settings',
   'inspect-ipfs': 'IPFS Inspector',
 }
 
 /** Returns the native window title for the active navigation route. */
 export function getWindowTitle(route: NavRoute, activeName?: string): string {
+  if (route.key === 'web') return route.title || route.url
   const staticTitle = STATIC_WINDOW_TITLES[route.key]
   if (staticTitle) return staticTitle
   if (!activeName) return 'Seed'
@@ -117,7 +117,7 @@ export function getWindowTitle(route: NavRoute, activeName?: string): string {
     case 'inspect':
       return `${activeName} – Inspector`
     case 'feed':
-      return `${activeName} – Feed`
+      return `${activeName} – Activity`
     default:
       return activeName
   }

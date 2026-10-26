@@ -76,6 +76,17 @@ describe('Markdown', () => {
     document.body.innerHTML = ''
   })
 
+  it('opens legacy page fences as links instead of running a page inside chat', () => {
+    const url = 'hm://z6MkSite/apps/hello'
+    const {container, root} = renderMarkdown('```seed-page\n' + url + '\n```')
+    expect(container.querySelector('iframe')).toBeNull()
+    const link = container.querySelector('a')!
+    expect(link.textContent).toBe('Open page')
+    act(() => link.dispatchEvent(new MouseEvent('click', {bubbles: true, cancelable: true})))
+    expect(openUrlMock).toHaveBeenCalledWith(url, false)
+    cleanupRendered(root, container)
+  })
+
   it('renders site-backed hm links as https hrefs and keeps raw hm navigation on click', () => {
     const rawHref = 'hm://z6MkSite/notes/:comments/z6MkAuthor/tsid123?panel=activity#blk1+'
     const {container, root} = renderMarkdown(`[Discussion](${rawHref})`)

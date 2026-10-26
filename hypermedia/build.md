@@ -71,11 +71,13 @@ The **peer protocol** is [libp2p](./protocol/network.md) with the protocol id `/
 ## Build for other people <!-- id:MErBNcr1 -->
 
 - [Sign in with Seed](./build/sign-in.md) lets a third-party website act as a visitor's [account](./protocol/identity.md) without ever holding their key. <!-- id:dMzYGzZR -->
+- [Embedding the agents UI](./build/agents-ui.md) shows [Seed Agents](./agent.md) inside another web app with the Seed apps' own interface, signing with a key the app controls. <!-- id:UwmsrjX5 -->
 
 ## Run and contribute <!-- id:agwd8rC- -->
 
 - [Self-hosting](./build/self-hosting.md) runs your own Seed site on a server and domain you control. <!-- id:HWNYDw78 -->
 - [Contributing](./build/contributing.md) maps the repository, runs the development environment and tests, and explains how protocol changes land. <!-- id:LA51Kkao -->
+- [Local CI with agent-ci](./build/local-ci.md), [Releasing](./build/releasing.md) and [Sentry setup](./build/sentry.md) are the maintainers' runbooks: reproduce the GitHub checks locally, cut a release, and configure error reporting. <!-- id:CDzwK08B -->
 
 # See also <!-- id:9kOzZp6w -->
 

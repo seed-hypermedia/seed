@@ -369,6 +369,39 @@ describe('activity trigger matching', () => {
     expect(triggers.activitySummary({newBlob: {blobType: 'Comment', resource: 'hm://z6Mkdoc'}})).toBe(
       'Comment on hm://z6Mkdoc',
     )
+    // A webhook is named by what it carried: GitHub payloads say subject, action, title, sender.
+    expect(
+      triggers.activitySummary({
+        type: 'webhook',
+        deliveryKey: 'd-1',
+        payload: {
+          action: 'opened',
+          issue: {number: 1156, title: 'Replies are not targeted correctly after an edit'},
+          sender: {login: 'ericvicenti'},
+          repository: {full_name: 'seed-hypermedia/seed'},
+        },
+      }),
+    ).toBe('GitHub issue #1156 opened “Replies are not targeted correctly after an edit” by ericvicenti')
+    expect(
+      triggers.activitySummary({
+        type: 'webhook',
+        payload: {
+          action: 'created',
+          comment: {body: 'looks good'},
+          pull_request: {number: 7, title: 'Fix'},
+          sender: {login: 'someone'},
+        },
+      }),
+    ).toBe('GitHub comment on pull request #7 created “Fix” by someone')
+    expect(
+      triggers.activitySummary({
+        type: 'webhook',
+        payload: {action: 'push', repository: {full_name: 'seed-hypermedia/seed'}},
+      }),
+    ).toBe('GitHub push on seed-hypermedia/seed')
+    expect(triggers.activitySummary({type: 'webhook', deliveryKey: 'd-2', payload: {message: 'hello'}})).toBe(
+      'Webhook delivery d-2',
+    )
     expect(triggers.activityEventTimeMs({eventTime: {seconds: 2}, observeTime: {seconds: 1}})).toBe(2000)
   })
 

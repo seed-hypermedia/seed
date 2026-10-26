@@ -1,6 +1,5 @@
 import {safeStorage} from 'electron'
-import {z} from 'zod'
-// @ts-expect-error
+import {z} from 'zod/v3'
 import {secureStore} from './app-store.mts'
 import {t} from './app-trpc'
 

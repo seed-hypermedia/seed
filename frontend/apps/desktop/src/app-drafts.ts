@@ -20,7 +20,7 @@ import fs from 'fs/promises'
 import {nanoid} from 'nanoid'
 import {join} from 'path'
 import {isDeepStrictEqual} from 'node:util'
-import z from 'zod'
+import z from 'zod/v3'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
 import {t} from './app-trpc'
@@ -505,6 +505,26 @@ const DraftWriteSchema = z.object({
   maintenancePreviousDeps: z.array(z.array(z.string())).optional(),
   maintenanceRevision: z.number().int().nonnegative().default(0),
 })
+
+/** Saves a captured website as a local editable draft, without publishing or uploading its contents. */
+export function createBrowserArchiveDraft(
+  archive: import('./app-browser-agent').BrowserArchive,
+  accountUid: string,
+): Promise<{id: string}> {
+  return serializeDraftMutation(() =>
+    writeDraft(
+      DraftWriteSchema.parse({
+        id: '',
+        locationUid: accountUid,
+        locationPath: [],
+        signingAccount: accountUid,
+        metadata: archive.metadata,
+        content: hmBlocksToEditorContent(archive.blocks),
+        visibility: 'PUBLIC',
+      }),
+    ),
+  )
+}
 
 async function getDraft(draftId: string): Promise<HMDraft | null> {
   const entry = draftIndex?.find((draft) => draft.id === draftId)

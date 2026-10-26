@@ -1,12 +1,14 @@
 import {describe, expect, test} from 'bun:test'
-import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
+import type * as piAi from '@earendil-works/pi-ai'
 import {
   loginOpenAICodexHeadless,
   parseAuthorizationInput,
-  PersistedOAuthBackend,
+  PersistedOAuthStore,
   ProviderOAuthManager,
   type OAuthLoginFn,
 } from '@/provider-oauth'
+
+type OAuthCredentials = piAi.OAuthCredentials
 
 const CREDENTIALS: OAuthCredentials = {
   access: 'access-token',
@@ -197,39 +199,51 @@ describe('loginOpenAICodexHeadless', () => {
   })
 })
 
-describe('PersistedOAuthBackend', () => {
-  test('persists lock writes and serializes async access', async () => {
+describe('PersistedOAuthStore', () => {
+  test('persists modifications and serializes concurrent writers', async () => {
     const persisted: string[] = []
-    const backend = new PersistedOAuthBackend('{"a":1}', async (json) => {
+    const store = new PersistedOAuthStore('openai-codex', {...CREDENTIALS, access: 'a1'}, async (credential) => {
       await Bun.sleep(2)
-      persisted.push(json)
+      persisted.push(credential.access)
     })
 
     const reads: string[] = []
     await Promise.all([
-      backend.withLockAsync(async (current) => {
-        reads.push(current ?? '')
+      store.modify('openai-codex', async (current) => {
+        reads.push((current as piAi.OAuthCredential).access)
         await Bun.sleep(1)
-        return {result: 1, next: '{"a":2}'}
+        return {...CREDENTIALS, type: 'oauth', access: 'a2'}
       }),
-      backend.withLockAsync(async (current) => {
-        reads.push(current ?? '')
-        return {result: 2, next: '{"a":3}'}
+      store.modify('openai-codex', async (current) => {
+        reads.push((current as piAi.OAuthCredential).access)
+        return {...CREDENTIALS, type: 'oauth', access: 'a3'}
       }),
     ])
 
-    // The second lock holder saw the first one's write, and both writes persisted in order.
-    expect(reads).toEqual(['{"a":1}', '{"a":2}'])
-    expect(persisted).toEqual(['{"a":2}', '{"a":3}'])
-    expect(backend.withLock((current) => ({result: current}))).toBe('{"a":3}')
+    // The second writer saw the first one's write, and both writes persisted in order.
+    expect(reads).toEqual(['a1', 'a2'])
+    expect(persisted).toEqual(['a2', 'a3'])
+    expect(((await store.read('openai-codex')) as piAi.OAuthCredential).access).toBe('a3')
+    expect(await store.read('anthropic')).toBeUndefined()
+    expect(await store.list()).toEqual([{providerId: 'openai-codex', type: 'oauth'}])
   })
 
   test('a failing persist callback does not break subsequent access', async () => {
-    const backend = new PersistedOAuthBackend('start', async () => {
+    const store = new PersistedOAuthStore('openai-codex', CREDENTIALS, async () => {
       throw new Error('disk full')
     })
-    const value = await backend.withLockAsync(async () => ({result: 'ok', next: 'updated'}))
-    expect(value).toBe('ok')
-    expect(backend.withLock((current) => ({result: current}))).toBe('updated')
+    const next = await store.modify('openai-codex', async () => ({...CREDENTIALS, type: 'oauth', access: 'updated'}))
+    expect((next as piAi.OAuthCredential).access).toBe('updated')
+    expect(((await store.read('openai-codex')) as piAi.OAuthCredential).access).toBe('updated')
+  })
+
+  test('a rejected modification propagates and leaves the credential unchanged', async () => {
+    const store = new PersistedOAuthStore('openai-codex', CREDENTIALS, async () => {})
+    await expect(
+      store.modify('openai-codex', async () => {
+        throw new Error('invalid_grant')
+      }),
+    ).rejects.toThrow('invalid_grant')
+    expect(((await store.read('openai-codex')) as piAi.OAuthCredential).access).toBe(CREDENTIALS.access)
   })
 })

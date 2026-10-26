@@ -1,17 +1,39 @@
 # Voice chat
 
-Talk to an agent session instead of typing. The desktop composer's microphone button joins a LiveKit room for the
-session; a speech worker in the same room transcribes what you say, runs it as a normal user message through the session
-(tools, memory, model, collaborators all apply), and speaks the reply back. The transcript and the reply land in the
-session's log like any typed turn.
+Talk to an agent session instead of typing. The Voice control in Seed desktop and web joins an isolated LiveKit room for
+the call; a speech worker in the same room transcribes what you say, runs it as a normal user message through the
+session (tools, memory, model, collaborators all apply), and speaks the reply back. The transcript and the reply land in
+the session's log like any typed turn.
 
 Voice is off by default. Servers without it answer `CreateVoiceSession` with HTTP 501 and report `voice: false` on
-`/api/health`; the desktop hides the button.
+`/api/health`; both clients hide the control.
 
 During a turn, tool activity is forwarded separately from the persisted assistant reply. If a tool is still running
 after 1.5 seconds, the worker says “I’m checking that now.” once; quick tools stay quiet. The acknowledgment is
 speech-only and is canceled if the tool finishes or the turn ends first. An interrupted call does not cancel or
 duplicate the underlying durable session run.
+
+## Desktop and web experience
+
+Both platforms use the same call controls against the server hosting the session. Voice appears only when that server
+advertises the capability. Start a call explicitly, allow microphone access, mute/unmute as needed, and end the call
+without stopping its durable agent run. Live captions show the current utterance; completed turns use the normal session
+transcript. A call releases microphone and audio elements on navigation, account/server change, or unmount.
+
+Browser playback restrictions show **Enable sound**, which retries from a fresh user gesture. Temporary network loss
+shows **Reconnecting**; terminal disconnects and worker startup failures offer a new call. Web requires HTTPS (or
+localhost), and HTTPS clients require a public `wss://` LiveKit URL. The server rejects missing speech keys and failed
+dispatches before returning a token. Every call gets a distinct room so another collaborator cannot overwrite its
+speaker identity, speech keys, or cleanup state.
+
+Packaged desktop apps can use any configured remote voice server, just like web. The signed macOS app declares its
+microphone usage description and audio-input entitlement. The bundled local server does **not** include a Bun voice
+worker runtime: use a hosted voice server or explicitly provision an external worker. Shipping a local speech worker
+inside every desktop installer remains outside this change.
+
+Clipper consumes the same signed session API and worker routes; it is not a separate voice implementation. Clients must
+use the issued room name, never derive it from the session ID. Existing deployed Clipper calls need no restart to review
+or test this branch. Audio file messages and document narration are outside this live-voice feature.
 
 ## How it works
 
@@ -28,11 +50,11 @@ Agents server ───────────────┘                  
   └ streams the run's text deltas back to the worker through the VoiceEventHub
 ```
 
-1. The desktop sends `CreateVoiceSession {sessionId}` (same access as `MessageSession`). The server resolves the
-   speaker's speech keys, records the room `seed-voice-<sessionId>` in memory, mints a participant JWT (`roomJoin`,
-   `canPublish`, `canSubscribe`, identity `user-<accountId>`, TTL 1h), and asks LiveKit to dispatch the `seed-voice`
-   agent into that room with `{sessionId}` as job metadata. The response carries the LiveKit URL, token, room, identity
-   and `expiresAt`.
+1. The client sends `CreateVoiceSession {sessionId}` (same access as `MessageSession`). The server resolves the
+   speaker's speech keys, records the room `seed-voice-<sessionId>-<callId>` in memory, mints a participant JWT
+   (`roomJoin`, `canPublish`, `canSubscribe`, identity `user-<accountId>`, TTL 1h), and asks LiveKit to dispatch the
+   `seed-voice` agent into that room with `{sessionId}` as job metadata. The response carries the LiveKit URL, token,
+   room, identity and `expiresAt`.
 2. The worker accepts the job, calls `POST /agents/api/voice/room-config {room}` to learn the session and keys, and
    builds its VAD → STT → "LLM" → TTS pipeline.
 3. Each finished utterance becomes `POST /agents/api/voice/turn {room, text}`. The server subscribes to the session's
@@ -42,7 +64,7 @@ Agents server ───────────────┘                  
 4. When the job ends the worker calls `POST /agents/api/voice/leave {room}`; records also expire two hours after issue.
 
 Room records live only in memory: a server restart drops them, and the next `CreateVoiceSession` re-creates one (the
-desktop re-issues on every start of the mic).
+client re-issues on every new call).
 
 ### Internal route contract
 
@@ -92,16 +114,17 @@ The Deepgram and Cartesia keys are placeholders out of the box (`your-deepgram-a
 ways to supply real ones:
 
 - **Server-wide** through the env vars above. Every voice session on the server uses them.
-- **Per account** from desktop Settings → Advanced → Voice. The desktop stores them on its local agents server with
-  `SetVoiceSettings`, encrypted like every other secret, under the names `voice/deepgram-api-key` and
-  `voice/cartesia-api-key` (metadata `{kind: 'voice-api-key', provider}`). `null` clears a key; absent fields are left
-  alone.
+- **Per account** from Voice settings beside the session composer in desktop or web, or desktop Settings → Advanced →
+  Voice. The client stores them on the selected agents server with `SetVoiceSettings`, encrypted like every other
+  secret, under the names `voice/deepgram-api-key` and `voice/cartesia-api-key` (metadata
+  `{kind: 'voice-api-key', provider}`). `null` clears a key; absent fields are left alone.
 
 When a voice session is created the keys are resolved **for the speaker's account** (the signed account, not the agent
-owner's): the account's secret if present, else the server's configured key, else the placeholder. `GetVoiceSettings`
-reports the same logic per key as `'account'`, `'server'` or `'none'`, plus `available` (whether this server runs voice
-at all). The server's key only counts as `'server'` when voice is enabled and the value is not a placeholder. Key values
-are never returned to clients or logged; the worker receives them over the loopback `room-config` route only.
+owner's): the account's secret if present, else the server's configured key, otherwise call creation fails with setup
+instructions. `GetVoiceSettings` reports the same logic per key as `'account'`, `'server'` or `'none'`, plus `available`
+(whether this server runs voice at all). The server's key only counts as `'server'` when voice is enabled and the value
+is not a placeholder. Key values are never returned to clients or logged; the worker receives them over the loopback
+`room-config` route only.
 
 ## Development
 
@@ -116,8 +139,8 @@ livekit-server --dev          # ws://localhost:7880, keys devkey / secret
 `SEED_AGENTS_VOICE_SERVER_URL=http://localhost:3051` and the placeholder speech keys, so the agents server (`:3051`) and
 the worker pane agree on the token without the server generating one.
 
-Put real Deepgram and Cartesia keys either in your shell before `./dev up` or in the desktop's Voice settings. Then open
-a session in the desktop app and click the microphone. The server's startup banner shows
+Put real Deepgram and Cartesia keys in `.env.local` or the session’s Voice settings. Then open a session in Seed desktop
+or web and select Voice. The server's startup banner shows
 `Voice: livekit=… stt=deepgram/nova-3 tts=cartesia/sonic-3 worker=external`.
 
 Handy checks:
@@ -126,7 +149,7 @@ Handy checks:
 curl -s localhost:3051/api/health | jq .voice            # true
 curl -s -X POST localhost:3051/api/voice/room-config \
   -H 'Authorization: Bearer dev-voice-token' -H 'Content-Type: application/json' \
-  -d '{"room":"seed-voice-<sessionId>"}'                  # 403 until the desktop created the room
+  -d '{"room":"seed-voice-<sessionId>-<callId>"}'                  # use the room returned by CreateVoiceSession
 ```
 
 Tests need no LiveKit server: `bun test src/voice.test.ts` injects a fake dispatch client and a fake service host.
@@ -179,17 +202,18 @@ the worker child join the room, fail its STT handshake on the placeholder key, a
 
 ### Speech across tool pauses
 
-The worker wraps Cartesia in `SentenceTTS` (LiveKit's sentence stream adapter), using independent `/tts/bytes` synthesis
-requests rather than one WebSocket context for the entire agent turn. The WebSocket plugin's five-second audio-chunk
-timeout can expire between a spoken prelude and a tool result, cutting off the rest of the answer. Sentence requests
-complete before that gap; later text starts another request, preserving audio order and interruption cancellation.
+The worker wraps Cartesia in `SentenceTTS` (LiveKit's sentence stream adapter), using an independent bounded Cartesia
+WebSocket synthesis request per sentence rather than one context for the entire agent turn. The WebSocket plugin's
+five-second audio-chunk timeout can expire between a spoken prelude and a tool result, cutting off the rest of the
+answer. Sentence requests complete before that gap; later text starts another request, preserving audio order and
+interruption cancellation.
 
 Regression coverage in `src/voice-tts.test.ts` checks that no provider stream stays open during a tool pause, later
 sentences are synthesized once, and an interruption aborts the request signal without speaking buffered text. These
 local tests do not replace an on-device speech check after the worker is reloaded. Existing calls retain their loaded
 code; do not restart a live worker without warning that the call will drop.
 
-### Experimental Casework visible-screen context
+### Optional host visible-screen context
 
 The experimental host bridge accepts `POST http://127.0.0.1:3052/voice/context` with
 `Authorization: Bearer <Casework bridge-token>` and JSON

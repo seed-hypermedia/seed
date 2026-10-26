@@ -161,53 +161,81 @@ const (
 // cancelled fetch — doesn't narrow a scope that is still catching up.
 const quietWavesBeforeNarrowing = 2
 
-// maxQuietScopes bounds the tracker. Only recursive (subscription) scopes are
-// recorded, so in practice this is the subscription count; the cap only exists
-// so a pathological caller can't grow it without limit.
+// maxQuietScopes bounds the trackers so a pathological caller can't grow them
+// without limit. Every scope shape the frontend keeps hot is recorded — the
+// subscriptions plus every link chip, embed and comment on screen — so this is
+// well above the few hundred a busy desktop reaches.
 const maxQuietScopes = 10000
+
+// quietKey identifies a scope in the quiet tracker. Shape is part of the key:
+// the recursive subscription for a space and a one-shot fetch of the same IRI
+// are different searches, and one must not inherit the other's verdict.
+type quietKey struct {
+	iri       blob.IRI
+	recursive bool
+}
 
 // scopeIsQuiet reports whether this scope's recent waves have all come back
 // empty, meaning there is nothing left to search for.
-func (s *Service) scopeIsQuiet(entityID blob.IRI) bool {
+func (s *Service) scopeIsQuiet(entityID blob.IRI, recursive bool) bool {
 	s.quietMu.Lock()
 	defer s.quietMu.Unlock()
-	return s.quiet[entityID] >= quietWavesBeforeNarrowing
+	return s.quiet[quietKey{entityID, recursive}] >= quietWavesBeforeNarrowing
 }
 
 // recordWaveYield folds one wave's result into the quiet counter. Anything
 // fetched resets it, so a scope that starts producing again immediately gets the
 // full search back.
 //
-// Only recursive scopes accumulate quiet: a one-shot discovery never runs a
-// second wave, so there is nothing for the counter to inform, and recording it
-// would grow the map for no benefit. A yield resets the counter regardless of
-// shape though — any wave downloading blobs for this IRI proves the scope is
-// not settled, and the subscription must get its full search back.
-func (s *Service) recordWaveYield(entityID blob.IRI, recursive bool, blobs int32) {
+// Every shape accumulates quiet, not only recursive subscriptions. The
+// frontend keeps a hot task for each link chip, embed and comment on screen,
+// and re-creates it every minute for targets that never resolve; a
+// non-recursive scope that could not go quiet sampled the full 20 peers on
+// every one of those waves, every 10 seconds, forever (measured: ~500 such
+// scopes per hour on one desktop, most of the daemon's dials). A yield resets
+// both shapes though — any wave downloading blobs for this IRI proves the
+// scope is not settled, and every search on it must get its full width back.
+//
+// exhaustive marks a full-width, all-tier wave. An exhaustive wave that comes
+// back empty is the strongest evidence that there is nothing to find, so it
+// also grows the probe backoff (see noteUserInterest).
+func (s *Service) recordWaveYield(entityID blob.IRI, recursive, exhaustive bool, blobs int32) {
 	s.quietMu.Lock()
 	defer s.quietMu.Unlock()
 
 	if blobs > 0 {
-		delete(s.quiet, entityID)
+		delete(s.quiet, quietKey{entityID, true})
+		delete(s.quiet, quietKey{entityID, false})
+		delete(s.probeMisses, entityID)
 		return
 	}
-	if !recursive {
-		return
+	if exhaustive {
+		if s.probeMisses == nil {
+			s.probeMisses = make(map[blob.IRI]uint8)
+		}
+		n, ok := s.probeMisses[entityID]
+		switch {
+		case ok && n < maxProbeMisses:
+			s.probeMisses[entityID] = n + 1
+		case !ok && len(s.probeMisses) < maxQuietScopes:
+			s.probeMisses[entityID] = 1
+		}
 	}
 	if s.quiet == nil {
-		s.quiet = make(map[blob.IRI]int)
+		s.quiet = make(map[quietKey]int)
 	}
-	if n, ok := s.quiet[entityID]; ok {
+	key := quietKey{entityID, recursive}
+	if n, ok := s.quiet[key]; ok {
 		// Saturate rather than climb forever; only the threshold is read.
 		if n < quietWavesBeforeNarrowing {
-			s.quiet[entityID] = n + 1
+			s.quiet[key] = n + 1
 		}
 		return
 	}
 	if len(s.quiet) >= maxQuietScopes {
 		return
 	}
-	s.quiet[entityID] = 1
+	s.quiet[key] = 1
 }
 
 // Quiet-narrowing and the tier short-circuit each assume the peers they keep
@@ -229,6 +257,16 @@ const (
 	// hot-task heartbeat (fired every few seconds while a view is open) cannot
 	// re-create the search load the narrowing removed.
 	userProbeMinInterval = 2 * time.Minute
+
+	// maxProbeMisses caps the exponent of the per-IRI probe backoff: after this
+	// many consecutive empty exhaustive waves the interval stops doubling
+	// (2min << 2 = 8min, inside the 10-minute bound the periodic exhaustive
+	// wave already accepts for subscriptions). A link to a document nobody on
+	// the network has is the common case for a scope that never yields, and
+	// probing it every two minutes for as long as the page is open was most of
+	// the forced-wave load (measured: ~20k forced waves in 5h on one desktop).
+	// Any yield resets it.
+	maxProbeMisses = 2
 
 	// exhaustiveForget drops probe timestamps untouched for this long, so the
 	// map tracks live subscriptions rather than every scope ever probed.
@@ -298,7 +336,7 @@ func (s *Service) noteUserInterest(entityID blob.IRI, now time.Time) {
 	s.quietMu.Lock()
 	defer s.quietMu.Unlock()
 
-	if last, ok := s.lastExhaustive[entityID]; ok && now.Sub(last) < userProbeMinInterval {
+	if last, ok := s.lastExhaustive[entityID]; ok && now.Sub(last) < userProbeMinInterval<<s.probeMisses[entityID] {
 		return
 	}
 	if s.forcedExhaustive == nil {

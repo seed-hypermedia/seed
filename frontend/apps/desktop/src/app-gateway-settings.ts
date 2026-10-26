@@ -1,9 +1,8 @@
 import {DEFAULT_GATEWAY_URL, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import z from 'zod'
+import z from 'zod/v3'
 import {appInvalidateQueries} from './app-invalidation'
 import {handleNotifyServiceHostChanged} from './app-notification-read-state'
-// @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 

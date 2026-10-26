@@ -109,6 +109,17 @@ export type AgentsSignerDelegation = {
 }
 
 export type AgentsPlatform = {
+  /** Session-bound desktop browser bridge and its visible access controls; absent on the web. */
+  /** Desktop-only browser access for the agent's owner; the component asks before any website is shared. */
+  BrowserTools?: React.ComponentType<{
+    serverUrl: string
+    sessionId: string
+    accountUid: string
+    toolEnabled: boolean
+    agentName?: string
+    isOwner: boolean
+    isPublic: boolean
+  }>
   /** Built-in default agent server URL for this runtime, or null when there is none. */
   defaultServerUrl: () => string | null
   /** Returns a signer whose principal is the given account, used to sign agent actions. */
@@ -143,11 +154,7 @@ export type AgentsPlatform = {
   ) => {unsubscribe: () => void}
   /** Peers the platform's local HM node with the agent server's HM node (desktop only). */
   connectToHmServer?: (hmServerUrl: string) => Promise<{peerId: string; addrs: string[]} | null>
-  /**
-   * Offers voice chat in agent-session composers (desktop only). The mic button joins a LiveKit
-   * room served by the app's local agents server, which runs the speech pipeline; platforms
-   * without that server leave this unset and show no button.
-   */
+  /** Offers live voice in session composers; availability comes from the session server. */
   voiceChat?: boolean
   /** Catches provider OAuth browser redirects on a loopback port (see {@link AgentsOAuthRedirectCatcher}). */
   oauthRedirectCatcher?: AgentsOAuthRedirectCatcher

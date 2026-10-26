@@ -136,7 +136,16 @@ function annotationsToPublishable(annotations: HMAnnotation[]): HMPublishableAnn
     if (type === 'Strike') return {type: 'Strike', starts, ends}
     if (type === 'Code') return {type: 'Code', starts, ends}
     if (type === 'Link') return {type: 'Link', starts, ends, link: annotation.link || ''}
-    if (type === 'Embed') return {type: 'Embed', starts, ends, link: annotation.link || ''}
+    if (type === 'Embed') {
+      const mentionKind = annotation.attributes?.mentionKind
+      return {
+        type: 'Embed',
+        starts,
+        ends,
+        link: annotation.link || '',
+        ...(mentionKind === 'account' || mentionKind === 'document' ? {attributes: {mentionKind}} : {}),
+      }
+    }
     if (type === 'TextColor')
       return {type: 'TextColor', starts, ends, attributes: {value: (annotation.attributes?.value as string) || ''}}
     if (type === 'BackgroundColor')

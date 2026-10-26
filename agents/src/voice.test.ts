@@ -344,15 +344,16 @@ describe('voice service', () => {
       _: 'CreateVoiceSessionResponse',
       sessionId: 'sess-1',
       url: 'ws://localhost:7880',
-      room: 'seed-voice-sess-1',
+      room: created.room,
       identity: 'user-speaker',
       expiresAt: now + voicesvc.VOICE_TOKEN_TTL_MS,
     })
+    expect(created.room.startsWith('seed-voice-sess-1-')).toBe(true)
     const payload = decodeJwt(created.token)
     expect(payload.sub).toBe('user-speaker')
     expect(payload.iss).toBe('devkey')
     expect(payload.video).toMatchObject({
-      room: 'seed-voice-sess-1',
+      room: created.room,
       roomJoin: true,
       canPublish: true,
       canSubscribe: true,
@@ -362,9 +363,9 @@ describe('voice service', () => {
     expect(payload.exp * 1000).toBeLessThanOrEqual(Date.now() + voicesvc.VOICE_TOKEN_TTL_MS + 60_000)
 
     expect(dispatch.calls).toEqual([
-      {room: 'seed-voice-sess-1', agentName: 'seed-voice', metadata: JSON.stringify({sessionId: 'sess-1'})},
+      {room: created.room, agentName: 'seed-voice', metadata: JSON.stringify({sessionId: 'sess-1'})},
     ])
-    expect(voice.room('seed-voice-sess-1')).toMatchObject({
+    expect(voice.room(created.room)).toMatchObject({
       sessionId: 'sess-1',
       storageAccountId: 'owner',
       userOrigin: {accountId: 'speaker', signerId: 'key-1'},
@@ -373,9 +374,8 @@ describe('voice service', () => {
     })
   })
 
-  test('a failing dispatch does not fail the token; re-issuing replaces the record; records expire', async () => {
+  test('calls isolate speakers and credentials, and an old worker leaving cannot end the new call', async () => {
     const dispatch = new FakeDispatch()
-    dispatch.fail = new Error('already dispatched')
     let now = 1_700_000_000_000
     const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch, now: () => now})
     const first = await voice.createVoiceSession({
@@ -384,19 +384,37 @@ describe('voice service', () => {
       userOrigin: {accountId: 'speaker', signerId: 'key-1'},
       keys: {deepgramApiKey: 'one', cartesiaApiKey: 'ca'},
     })
-    expect(first.room).toBe('seed-voice-sess-1')
-    await voice.createVoiceSession({
+    const second = await voice.createVoiceSession({
       sessionId: 'sess-1',
       storageAccountId: 'owner',
-      userOrigin: {accountId: 'speaker', signerId: 'key-2'},
+      userOrigin: {accountId: 'collaborator', signerId: 'key-2'},
       keys: {deepgramApiKey: 'two', cartesiaApiKey: 'ca'},
     })
-    expect(voice.room('seed-voice-sess-1')).toMatchObject({
+    expect(first.room).not.toBe(second.room)
+    expect(voice.room(first.room)).toMatchObject({keys: {deepgramApiKey: 'one'}, userOrigin: {accountId: 'speaker'}})
+    expect(voice.room(second.room)).toMatchObject({
       keys: {deepgramApiKey: 'two'},
-      userOrigin: {signerId: 'key-2'},
+      userOrigin: {accountId: 'collaborator'},
     })
+    voice.forgetRoom(first.room)
+    expect(voice.room(second.room)).toBeDefined()
     now += voicesvc.VOICE_ROOM_TTL_MS + 1
-    expect(voice.room('seed-voice-sess-1')).toBeUndefined()
+    expect(voice.room(second.room)).toBeUndefined()
+  })
+
+  test('failed dispatch rejects the call and removes its credentials', async () => {
+    const dispatch = new FakeDispatch()
+    dispatch.fail = new Error('unreachable')
+    const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch})
+    await expect(
+      voice.createVoiceSession({
+        sessionId: 'sess-1',
+        storageAccountId: 'owner',
+        userOrigin: {accountId: 'speaker', signerId: 'key-1'},
+        keys: {deepgramApiKey: 'one', cartesiaApiKey: 'ca'},
+      }),
+    ).rejects.toMatchObject({status: 503})
+    expect(voice.room(dispatch.calls[0]!.room)).toBeUndefined()
   })
 
   test('internal routes require the bearer token and a known room', async () => {
@@ -439,7 +457,7 @@ describe('voice service', () => {
       voiceConfig({deepgramModel: 'nova-3', cartesiaModel: 'sonic-3', cartesiaVoice: 'voice-id', language: 'de'}),
       {dispatch: new FakeDispatch()},
     )
-    await voice.createVoiceSession({
+    const created = await voice.createVoiceSession({
       sessionId: 'sess-1',
       storageAccountId: 'owner',
       userOrigin: {accountId: 'speaker', signerId: 'key-1'},
@@ -449,7 +467,7 @@ describe('voice service', () => {
     const configured = await getPostHandler(
       routes,
       '/api/voice/room-config',
-    )(post('/api/voice/room-config', {room: 'seed-voice-sess-1'}, TOKEN))
+    )(post('/api/voice/room-config', {room: created.room}, TOKEN))
     expect(configured.status).toBe(200)
     expect(await configured.json()).toEqual({
       sessionId: 'sess-1',
@@ -461,23 +479,20 @@ describe('voice service', () => {
       language: 'de',
       turnDetector: false,
     })
-    const left = await getPostHandler(
-      routes,
-      '/api/voice/leave',
-    )(post('/api/voice/leave', {room: 'seed-voice-sess-1'}, TOKEN))
+    const left = await getPostHandler(routes, '/api/voice/leave')(post('/api/voice/leave', {room: created.room}, TOKEN))
     expect(left.status).toBe(200)
     expect(await left.json()).toEqual({ok: true})
-    expect(voice.room('seed-voice-sess-1')).toBeUndefined()
+    expect(voice.room(created.room)).toBeUndefined()
     const again = await getPostHandler(
       routes,
       '/api/voice/leave',
-    )(post('/api/voice/leave', {room: 'seed-voice-sess-1'}, TOKEN))
+    )(post('/api/voice/leave', {room: created.room}, TOKEN))
     expect(again.status).toBe(200)
   })
 
   test('turn streams the session’s text deltas and finishes on the assistant message', async () => {
     const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
-    await voice.createVoiceSession({
+    const created = await voice.createVoiceSession({
       sessionId: 'sess-1',
       storageAccountId: 'owner',
       userOrigin: {accountId: 'speaker', signerId: 'key-1'},
@@ -504,7 +519,7 @@ describe('voice service', () => {
     const res = await getPostHandler(
       voice.routes(host),
       '/agents/api/voice/turn',
-    )(post('/agents/api/voice/turn', {room: 'seed-voice-sess-1', text: '  what time is it  '}, TOKEN))
+    )(post('/agents/api/voice/turn', {room: created.room, text: '  what time is it  '}, TOKEN))
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toBe('application/x-ndjson')
     expect(await readNdjson(res)).toEqual([{delta: 'Hello'}, {delta: ', world'}, {done: true, text: 'Hello, world'}])
@@ -521,7 +536,7 @@ describe('voice service', () => {
 
   test('a silent turn (tools, no text) ends with empty text once the session goes idle', async () => {
     const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
-    await voice.createVoiceSession({
+    const created = await voice.createVoiceSession({
       sessionId: 'sess-1',
       storageAccountId: 'owner',
       userOrigin: {accountId: 'speaker', signerId: 'key-1'},
@@ -540,14 +555,14 @@ describe('voice service', () => {
     const res = await getPostHandler(
       voice.routes(host),
       '/api/voice/turn',
-    )(post('/api/voice/turn', {room: 'seed-voice-sess-1', text: 'do the thing'}, TOKEN))
+    )(post('/api/voice/turn', {room: created.room, text: 'do the thing'}, TOKEN))
     expect(await readNdjson(res)).toEqual([{done: true, text: ''}])
     expect(voice.hub.listenerCount('sess-1')).toBe(0)
   })
 
   test('a turn that never finishes ends at the timeout; a failed turn reports the error', async () => {
     const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch(), turnTimeoutMs: 30})
-    await voice.createVoiceSession({
+    const created = await voice.createVoiceSession({
       sessionId: 'sess-1',
       storageAccountId: 'owner',
       userOrigin: {accountId: 'speaker', signerId: 'key-1'},
@@ -557,7 +572,7 @@ describe('voice service', () => {
     const timedOut = await getPostHandler(
       voice.routes(hanging),
       '/api/voice/turn',
-    )(post('/api/voice/turn', {room: 'seed-voice-sess-1', text: 'hello?'}, TOKEN))
+    )(post('/api/voice/turn', {room: created.room, text: 'hello?'}, TOKEN))
     expect(await readNdjson(timedOut)).toEqual([
       {error: 'The agent is still working. Check its run in the app; your message has not been resent.'},
     ])
@@ -571,14 +586,14 @@ describe('voice service', () => {
     const failed = await getPostHandler(
       voice.routes(failing),
       '/api/voice/turn',
-    )(post('/api/voice/turn', {room: 'seed-voice-sess-1', text: 'hello?'}, TOKEN))
+    )(post('/api/voice/turn', {room: created.room, text: 'hello?'}, TOKEN))
     expect(await readNdjson(failed)).toEqual([{error: 'Session is already streaming'}])
     expect(voice.hub.listenerCount('sess-1')).toBe(0)
   })
 
   test('a client that disconnects mid-turn is unsubscribed', async () => {
     const voice = new voicesvc.VoiceService(voiceConfig(), {dispatch: new FakeDispatch()})
-    await voice.createVoiceSession({
+    const created = await voice.createVoiceSession({
       sessionId: 'sess-1',
       storageAccountId: 'owner',
       userOrigin: {accountId: 'speaker', signerId: 'key-1'},
@@ -588,7 +603,7 @@ describe('voice service', () => {
     const res = await getPostHandler(
       voice.routes(hanging),
       '/api/voice/turn',
-    )(post('/api/voice/turn', {room: 'seed-voice-sess-1', text: 'hello?'}, TOKEN))
+    )(post('/api/voice/turn', {room: created.room, text: 'hello?'}, TOKEN))
     expect(voice.hub.listenerCount('sess-1')).toBe(1)
     await res.body!.cancel()
     expect(voice.hub.listenerCount('sess-1')).toBe(0)
@@ -648,19 +663,9 @@ describe('voice actions', () => {
         cartesiaApiKey: 'none',
       })
 
-      const first = await svc.message(
-        await apisvc.createSignedEnvelope(account, {action: {_: 'CreateVoiceSession', sessionId}}),
-      )
-      if (first._ !== 'CreateVoiceSessionResponse') throw new Error('unexpected response')
-      expect(first.room).toBe(`seed-voice-${sessionId}`)
-      expect(first.identity).toBe(`user-${accountId}`)
-      expect(decodeJwt(first.token).video).toMatchObject({room: `seed-voice-${sessionId}`, roomJoin: true})
-      expect(voice.room(first.room)).toMatchObject({
-        sessionId,
-        storageAccountId: accountId,
-        userOrigin: {accountId},
-        keys: {deepgramApiKey: 'server-dg-key', cartesiaApiKey: config.VOICE_PLACEHOLDER_KEYS.cartesia},
-      })
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'CreateVoiceSession', sessionId}})),
+      ).rejects.toMatchObject({status: 409})
 
       const set = await svc.message(
         await apisvc.createSignedEnvelope(account, {
@@ -712,8 +717,8 @@ class FakeDispatch implements voicesvc.VoiceDispatchClient {
   calls: Array<{room: string; agentName: string; metadata?: string}> = []
   fail?: Error
   async createDispatch(room: string, agentName: string, options?: {metadata?: string}): Promise<unknown> {
-    if (this.fail) throw this.fail
     this.calls.push({room, agentName, metadata: options?.metadata})
+    if (this.fail) throw this.fail
     return {id: `dispatch-${this.calls.length}`}
   }
 }

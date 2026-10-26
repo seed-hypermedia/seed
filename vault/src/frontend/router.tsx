@@ -1,3 +1,4 @@
+import {SignInLoading} from '@shm/ui/spinner'
 import {useEffect, useRef, type FormEvent} from 'react'
 import {createBrowserRouter, Outlet, useLocation} from 'react-router-dom'
 import {Divider} from './components/Divider'
@@ -7,15 +8,22 @@ import {PasswordInput} from './components/PasswordInput'
 import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
-import {getPendingFlowPath, useActions, useAppState, VAULT_BASENAME} from './store'
+import {getPendingFlowPath, siteInviteSignInUrl, useActions, useAppState, VAULT_BASENAME} from './store'
 import {AccountSettingsView} from './views/AccountSettingsView'
 import {ChooseAuthView} from './views/ChooseAuthView'
 import {ConnectSuccessView} from './views/ConnectSuccessView'
 import {ConnectView} from './views/ConnectView'
 import {CreateProfileView} from './views/CreateProfileView'
 import {DelegateView} from './views/DelegateView'
+import {EnterRecoveryWordsView} from './views/EnterRecoveryWordsView'
+import {IdentityRecoveredView} from './views/IdentityRecoveredView'
+import {IdentitySecuredView} from './views/IdentitySecuredView'
+import {InvitedView} from './views/InvitedView'
 import {LoginView} from './views/LoginView'
+import {NoRecoveryWordsView} from './views/NoRecoveryWordsView'
+import {PasswordSignInView} from './views/PasswordSignInView'
 import {PreLoginView} from './views/PreLoginView'
+import {SaveRecoveryWordsView} from './views/SaveRecoveryWordsView'
 import {SetPasswordView} from './views/SetPasswordView'
 import {VerifyPendingView} from './views/VerifyPendingView'
 
@@ -61,6 +69,7 @@ function LockedView() {
   const {session, password, loading, error, passkeySupported} = useAppState()
   const actions = useActions()
   const location = useLocation()
+  const navigate = navigation.useHashNavigate()
 
   const showPasskey = passkeySupported && !!session?.credentials?.passkey
   const showPassword = !!session?.credentials?.password
@@ -126,6 +135,21 @@ function LockedView() {
                 autoComplete="current-password"
                 autoFocus={!showPasskey}
               />
+
+              <div className="text-center">
+                <Button
+                  type="button"
+                  variant="link"
+                  className="underline"
+                  onClick={() => {
+                    rememberReturnPath()
+                    actions.setError('')
+                    navigate('/login/recover')
+                  }}
+                >
+                  Forgot password?
+                </Button>
+              </div>
 
               <Button
                 type="submit"
@@ -222,7 +246,8 @@ const VAULT_REFRESH_POLL_MS = 15_000
 /** Application shell shared across all vault routes. */
 export function RootLayout() {
   const actions = useActions()
-  const isUnlocked = !!useAppState().decryptedDEK
+  const {decryptedDEK, inviteOnly, sessionChecked} = useAppState()
+  const isUnlocked = !!decryptedDEK
 
   useEffect(() => {
     void actions.checkSession().catch((error) => {
@@ -230,6 +255,11 @@ export function RootLayout() {
     })
     actions.parseDelegationFromUrl(window.location.href)
     actions.parseVaultConnectionFromUrl(window.location.href)
+    if (actions.parseInviteFromUrl(window.location.href)) {
+      void actions.checkInvitation().catch((error) => {
+        console.error('Invitation check failed:', error)
+      })
+    }
   }, [actions])
 
   // While unlocked, poll for vault data changed on other devices (e.g. desktop).
@@ -241,6 +271,8 @@ export function RootLayout() {
     return () => window.clearInterval(intervalId)
   }, [isUnlocked, actions])
 
+  if (inviteOnly && !sessionChecked) return <SignInLoading />
+
   return (
     <>
       <Header />
@@ -251,11 +283,50 @@ export function RootLayout() {
   )
 }
 
+/**
+ * Hands an invitation that was opened on the vault itself to the site's
+ * sign-in page, which starts the delegation and comes back here with the
+ * invitation attached, so the account is created and the site signed in to
+ * in one flow.
+ */
+function InviteViaSiteSignIn() {
+  const {inviteCode, inviteEmail, webBaseUrl} = useAppState()
+  const target = siteInviteSignInUrl(inviteCode, inviteEmail, webBaseUrl)
+  useEffect(() => {
+    window.location.replace(target)
+  }, [target])
+  return <SignInLoading />
+}
+
+/** Starts the site delegation before unlocking an enterprise vault opened directly. */
+function EnterpriseSiteSignIn() {
+  const {webBaseUrl} = useAppState()
+  useEffect(() => {
+    const site = webBaseUrl || window.location.origin
+    window.location.replace(new URL('/hm/sign-in', site).toString())
+  }, [webBaseUrl])
+  return <SignInLoading />
+}
+
 function RootView() {
-  const {session, decryptedDEK, delegationRequest, sessionChecked, vaultConnectionRequest, returnToPath} = useAppState()
+  const {
+    session,
+    decryptedDEK,
+    delegationRequest,
+    sessionChecked,
+    vaultConnectionRequest,
+    returnToPath,
+    inviteCode,
+    inviteStatus,
+    inviteOnly,
+  } = useAppState()
 
   if (!sessionChecked) {
     return null
+  }
+
+  if (inviteOnly && !delegationRequest && !vaultConnectionRequest && !returnToPath && !inviteCode) {
+    return <EnterpriseSiteSignIn />
   }
 
   if (session?.authenticated) {
@@ -275,6 +346,23 @@ function RootView() {
     return (
       <div className="w-full max-w-5xl">
         <AccountSettingsView />
+      </div>
+    )
+  }
+
+  // An invitation link gets its own screen: the email is fixed by the
+  // invitation and there is nothing to sign in to yet.
+  if (inviteCode && inviteStatus !== 'none') {
+    // On an invite-only vault the invitation belongs inside the site's
+    // sign-in flow, so that creating the account also signs the person in to
+    // the site. A link that came straight here (older links) is sent through
+    // the site first; it comes back with a delegation request attached.
+    if (inviteOnly && !delegationRequest && inviteStatus === 'valid') {
+      return <InviteViaSiteSignIn />
+    }
+    return (
+      <div className="w-full max-w-lg">
+        <InvitedView />
       </div>
     )
   }
@@ -344,6 +432,18 @@ export function createRouter() {
                     element: <LoginView />,
                   },
                   {
+                    path: '/login/password',
+                    element: <PasswordSignInView />,
+                  },
+                  {
+                    path: '/login/recover',
+                    element: <EnterRecoveryWordsView />,
+                  },
+                  {
+                    path: '/login/no-recovery',
+                    element: <NoRecoveryWordsView />,
+                  },
+                  {
                     path: '/auth/choose',
                     element: <ChooseAuthView />,
                   },
@@ -368,6 +468,22 @@ export function createRouter() {
               {
                 element: <EnsureUnlocked />,
                 children: [
+                  {
+                    path: '/recovery',
+                    element: <SaveRecoveryWordsView />,
+                  },
+                  {
+                    path: '/settings/recovery-words',
+                    element: <SaveRecoveryWordsView fromSettings />,
+                  },
+                  {
+                    path: '/identity-secured',
+                    element: <IdentitySecuredView />,
+                  },
+                  {
+                    path: '/login/recovered',
+                    element: <IdentityRecoveredView />,
+                  },
                   {
                     path: '/profile/create',
                     element: <CreateProfileView />,

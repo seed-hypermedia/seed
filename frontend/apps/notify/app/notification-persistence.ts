@@ -141,13 +141,15 @@ type CollectedInboxNotification = {
   eventAtMs: number
 }
 
-export function persistNotificationsForInboxAccounts(collected: CollectedInboxNotification[]): number {
-  if (!collected.length) return 0
+export function persistNotificationsForInboxAccounts(collected: CollectedInboxNotification[]): boolean[] {
+  if (!collected.length) return []
   const items: Array<{accountId: string; feedEventId: string; eventAtMs: number; data: NotificationPayload}> = []
+  const indices: number[] = []
 
-  for (const entry of collected) {
+  for (const [index, entry] of collected.entries()) {
     if (!entry.eventId) continue
     const payload = notificationToPayload(entry.notif, entry.eventId, entry.eventAtMs)
+    indices.push(index)
     items.push({
       accountId: entry.accountId,
       feedEventId: entry.eventId,
@@ -156,8 +158,10 @@ export function persistNotificationsForInboxAccounts(collected: CollectedInboxNo
     })
   }
 
-  if (items.length > 0) {
-    insertNotificationsBatch(items)
-  }
-  return items.length
+  const accepted = items.length ? insertNotificationsBatch(items) : []
+  const result = collected.map(() => false)
+  indices.forEach((index, itemIndex) => {
+    result[index] = accepted[itemIndex] === true
+  })
+  return result
 }

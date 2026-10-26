@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3'
+import {Database, type Statement} from 'bun:sqlite'
 import crypto from 'crypto'
 import {join} from 'path'
 
@@ -65,54 +65,58 @@ type DBNotificationEmailVerificationRow = {
   createdAt: string
 }
 
-let db: Database.Database
+let db: Database
 
 // Prepared statements - initialized after db is ready
-let stmtInsertEmail: Database.Statement
-let stmtInsertSubscription: Database.Statement
-let stmtGetSubscription: Database.Statement
-let stmtGetSubscriptionsForAccount: Database.Statement
-let stmtGetEmailSubscribersForAccount: Database.Statement
-let stmtSetNotifierStatus: Database.Statement
-let stmtGetNotifierStatus: Database.Statement
-let stmtUpdateSubscription: Database.Statement
-let stmtGetEmail: Database.Statement
-let stmtGetEmailWithToken: Database.Statement
-let stmtGetSubscriptionsForEmail: Database.Statement
-let stmtSetEmailUnsubscribed: Database.Statement
-let stmtGetAllEmails: Database.Statement
-let stmtEnsureEmail: Database.Statement
-let stmtUpsertSubscription: Database.Statement
-let stmtGetNotificationConfig: Database.Statement
-let stmtGetAllNotificationConfigs: Database.Statement
-let stmtGetNotificationConfigsForEmail: Database.Statement
-let stmtUpsertNotificationConfig: Database.Statement
-let stmtDeleteNotificationConfigForAccountEmail: Database.Statement
-let stmtDeleteNotificationConfigForAccount: Database.Statement
-let stmtGetNotificationEmailVerificationForAccount: Database.Statement
-let stmtGetNotificationEmailVerificationByToken: Database.Statement
-let stmtUpsertNotificationEmailVerification: Database.Statement
-let stmtDeleteNotificationEmailVerificationForAccount: Database.Statement
-let stmtMarkNotificationConfigVerified: Database.Statement
-let stmtGetNotificationReadState: Database.Statement
-let stmtUpsertNotificationReadState: Database.Statement
-let stmtGetNotificationReadEvents: Database.Statement
-let stmtUpsertNotificationReadEvent: Database.Statement
-let stmtDeleteNotificationReadEventsForAccount: Database.Statement
-let stmtPruneNotificationReadEvents: Database.Statement
-let stmtInsertNotification: Database.Statement
-let stmtGetNotificationsPage: Database.Statement
-let stmtGetNotificationsFirstPage: Database.Statement
-let stmtGetAllNotificationsForAccount: Database.Statement
-let stmtRegisterInboxAccount: Database.Statement
-let stmtGetInboxRegisteredAccounts: Database.Statement
-let stmtIsInboxRegistered: Database.Statement
+let stmtInsertEmail: Statement
+let stmtInsertSubscription: Statement
+let stmtGetSubscription: Statement
+let stmtGetSubscriptionsForAccount: Statement
+let stmtGetEmailSubscribersForAccount: Statement
+let stmtSetNotifierStatus: Statement
+let stmtGetNotifierStatus: Statement
+let stmtUpdateSubscription: Statement
+let stmtGetEmail: Statement
+let stmtGetEmailWithToken: Statement
+let stmtGetSubscriptionsForEmail: Statement
+let stmtSetEmailUnsubscribed: Statement
+let stmtGetAllEmails: Statement
+let stmtEnsureEmail: Statement
+let stmtUpsertSubscription: Statement
+let stmtGetNotificationConfig: Statement
+let stmtGetAllNotificationConfigs: Statement
+let stmtGetNotificationConfigsForEmail: Statement
+let stmtUpsertNotificationConfig: Statement
+let stmtDeleteNotificationConfigForAccountEmail: Statement
+let stmtDeleteNotificationConfigForAccount: Statement
+let stmtGetNotificationEmailVerificationForAccount: Statement
+let stmtGetNotificationEmailVerificationByToken: Statement
+let stmtUpsertNotificationEmailVerification: Statement
+let stmtDeleteNotificationEmailVerificationForAccount: Statement
+let stmtMarkNotificationConfigVerified: Statement
+let stmtGetNotificationReadState: Statement
+let stmtUpsertNotificationReadState: Statement
+let stmtGetNotificationReadEvents: Statement
+let stmtUpsertNotificationReadEvent: Statement
+let stmtDeleteNotificationReadEventsForAccount: Statement
+let stmtPruneNotificationReadEvents: Statement
+let stmtInsertNotification: Statement
+let stmtClaimComment: Statement
+let stmtGetClaimedComment: Statement
+let stmtUpgradeClaimedComment: Statement
+let stmtClaimBatchComment: Statement
+let stmtGetNotificationsPage: Statement
+let stmtGetNotificationsFirstPage: Statement
+let stmtGetAllNotificationsForAccount: Statement
+let stmtRegisterInboxAccount: Statement
+let stmtGetInboxRegisteredAccounts: Statement
+let stmtIsInboxRegistered: Statement
 
 export async function initDatabase(): Promise<void> {
   const dbFilePath = join(process.env.DATA_DIR || process.cwd(), 'web-db.sqlite')
   console.log('Init DB data file:', dbFilePath)
   db = new Database(dbFilePath)
-  let version: number = db.pragma('user_version', {simple: true}) as number
+  let version = (db.query('PRAGMA user_version').get() as {user_version: number}).user_version
   console.log('Init DB at version:', version)
   if (version === 0) {
     // Initial migration.
@@ -329,6 +333,40 @@ export async function initDatabase(): Promise<void> {
     version = 10
   }
 
+  if (version === 10) {
+    // A comment keeps its logical author/TSID across edits; feed blob CIDs do not.
+    // Backfill without deleting historical rows (their event IDs may already be read).
+    db.exec(`
+      BEGIN;
+      CREATE TABLE notification_comment_claims (
+        accountId TEXT NOT NULL,
+        commentId TEXT NOT NULL,
+        feedEventId TEXT NOT NULL,
+        PRIMARY KEY (accountId, commentId)
+      ) WITHOUT ROWID;
+      INSERT INTO notification_comment_claims (accountId, commentId, feedEventId)
+      SELECT accountId, commentId, feedEventId FROM (
+        SELECT accountId, json_extract(data, '$.commentId') AS commentId, feedEventId,
+          ROW_NUMBER() OVER (
+            PARTITION BY accountId, json_extract(data, '$.commentId')
+            ORDER BY (json_extract(data, '$.reason') = 'mention') DESC, eventAtMs ASC, feedEventId ASC
+          ) AS rank
+        FROM notification_inbox
+        WHERE json_valid(data) AND json_extract(data, '$.eventType') = 'comment'
+          AND json_type(data, '$.commentId') = 'text' AND json_extract(data, '$.commentId') != ''
+      ) WHERE rank = 1;
+      CREATE TABLE notification_batch_comment_claims (
+        accountId TEXT NOT NULL,
+        email TEXT NOT NULL,
+        commentId TEXT NOT NULL,
+        PRIMARY KEY (accountId, email, commentId)
+      ) WITHOUT ROWID;
+      PRAGMA user_version = 11;
+      COMMIT;
+    `)
+    version = 11
+  }
+
   // Initialize all prepared statements
   stmtInsertEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtInsertSubscription = db.prepare(
@@ -476,6 +514,23 @@ export async function initDatabase(): Promise<void> {
   stmtInsertNotification = db.prepare(`
     INSERT OR IGNORE INTO notification_inbox (accountId, feedEventId, eventAtMs, data)
     VALUES (?, ?, ?, ?)
+  `)
+  stmtClaimComment = db.prepare(`
+    INSERT OR IGNORE INTO notification_comment_claims (accountId, commentId, feedEventId)
+    VALUES (?, ?, ?)
+  `)
+  stmtGetClaimedComment = db.prepare(`
+    SELECT feedEventId FROM notification_comment_claims WHERE accountId = ? AND commentId = ?
+  `)
+  stmtUpgradeClaimedComment = db.prepare(`
+    UPDATE notification_inbox SET data = json_set(data, '$.reason', ?)
+    WHERE accountId = ? AND feedEventId = ?
+      AND (json_extract(data, '$.reason') = 'discussion'
+        OR (json_extract(data, '$.reason') = 'mention' AND ? = 'reply'))
+  `)
+  stmtClaimBatchComment = db.prepare(`
+    INSERT OR IGNORE INTO notification_batch_comment_claims (accountId, email, commentId)
+    VALUES (?, ?, ?)
   `)
   stmtGetNotificationsPage = db.prepare(`
     SELECT data, eventAtMs FROM notification_inbox
@@ -890,11 +945,7 @@ export function replaceNotificationReadState(
 // --- Notification Inbox ---
 
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
-
-function notificationMatchesSite(notification: NotificationPayload, siteUid?: string) {
-  if (!siteUid) return true
-  return notification.target.uid === siteUid
-}
+import {notificationMatchesSite} from '@shm/shared/models/notification-read-logic'
 
 function selectNotificationRows(
   accountId: string,
@@ -909,24 +960,48 @@ function selectNotificationRows(
   return stmtGetNotificationsFirstPage.all(accountId, opts.limit) as Array<{data: string; eventAtMs: number}>
 }
 
+type NotificationInsert = {accountId: string; feedEventId: string; eventAtMs: number; data: NotificationPayload}
+
+/** Claim and insert in one SQLite transaction, shared by inbox and immediate email dispatch.
+ * Keep the classifier's reply > mention > discussion precedence without changing the
+ * original event cursor or making a duplicate claim eligible for another email.
+ */
+function insertNotificationClaimed(item: NotificationInsert): boolean {
+  const {accountId, feedEventId, eventAtMs, data} = item
+  if (data.eventType === 'comment' && data.commentId) {
+    const claimed = stmtClaimComment.run(accountId, data.commentId, feedEventId)
+    if (!claimed.changes) {
+      const original = stmtGetClaimedComment.get(accountId, data.commentId) as {feedEventId: string} | null
+      if (original && (data.reason === 'mention' || data.reason === 'reply')) {
+        stmtUpgradeClaimedComment.run(data.reason, accountId, original.feedEventId, data.reason)
+      }
+      return false
+    }
+  }
+  return stmtInsertNotification.run(accountId, feedEventId, eventAtMs, JSON.stringify(data)).changes > 0
+}
+
 export function insertNotification(
   accountId: string,
   feedEventId: string,
   eventAtMs: number,
   data: NotificationPayload,
-): void {
-  stmtInsertNotification.run(accountId, feedEventId, eventAtMs, JSON.stringify(data))
+): boolean {
+  return db.transaction(() => insertNotificationClaimed({accountId, feedEventId, eventAtMs, data}))()
 }
 
-export function insertNotificationsBatch(
-  items: Array<{accountId: string; feedEventId: string; eventAtMs: number; data: NotificationPayload}>,
-): void {
-  const transaction = db.transaction(() => {
-    for (const item of items) {
-      stmtInsertNotification.run(item.accountId, item.feedEventId, item.eventAtMs, JSON.stringify(item.data))
-    }
-  })
-  transaction()
+/** Result indices correspond to the input so only persisted notifications can be emailed. */
+export function insertNotificationsBatch(items: NotificationInsert[]): boolean[] {
+  return db.transaction(() => items.map(insertNotificationClaimed))()
+}
+
+/** Legacy site-discussion emails have no inbox entry; claim separately before batch dispatch. */
+export function claimBatchCommentNotifications(
+  items: Array<{accountId: string; email: string; commentId: string}>,
+): boolean[] {
+  return db.transaction(() =>
+    items.map(({accountId, email, commentId}) => stmtClaimBatchComment.run(accountId, email, commentId).changes > 0),
+  )()
 }
 
 /** Returns every persisted notification for an account, optionally filtered to one site UID. */

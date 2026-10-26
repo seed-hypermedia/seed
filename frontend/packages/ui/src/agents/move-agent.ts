@@ -7,6 +7,7 @@ import {
 } from './client'
 import {modelReasoningSupport} from '@seed-hypermedia/agents-protocol'
 import {pickDefaultProviderModel} from './model-utils'
+import {randomUUID} from './random-id'
 
 /**
  * Client-orchestrated move of one agent between agent servers.
@@ -154,7 +155,7 @@ export async function moveAgentToServer(options: MoveAgentOptions): Promise<Move
   const createRes = await send({
     serverUrl: targetServerUrl,
     accountUid,
-    action: {_: 'CreateAgent', definition: targetDefinition, clientRequestId: crypto.randomUUID()},
+    action: {_: 'CreateAgent', definition: targetDefinition, clientRequestId: randomUUID()},
   })
   if (createRes._ !== 'CreateAgentResponse') throw new Error('Unexpected create response')
   const newAgentId = createRes.agentId
@@ -216,7 +217,7 @@ export async function moveAgentToServer(options: MoveAgentOptions): Promise<Move
           _: 'CreateAgentTrigger',
           agentId: newAgentId,
           trigger: triggerInput,
-          clientRequestId: crypto.randomUUID(),
+          clientRequestId: randomUUID(),
         },
       })
     }

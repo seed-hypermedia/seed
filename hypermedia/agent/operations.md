@@ -122,7 +122,8 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_DATA_DIR` | `./data` | Data directory. <!-- id:oMgwJJep --> |
 | `SEED_AGENTS_HM_SERVER_URL` | `https://hyper.media` | Seed DAG-CBOR `/api/*` endpoint ([Seed API](../build/web-api.md)) used for activity and HM reads and writes. <!-- id:-U_3_rUb --> |
 | `SEED_AGENTS_IPFS_SERVER_URL` | HM server URL | Direct `/ipfs/*` [gateway](../protocol/files.md) origin for reads when it differs from the typed API endpoint. <!-- id:ltc8JHyj --> |
-| `SEED_AGENTS_DOCS_ACCOUNT` | _(unset)_ | The account of the knowledge base space. Reads of `hm://hyper.media/…`, including the default [Agent Guide](./guide.md), go to this account. <!-- id:dAKWdZ8N --> |
+| `SEED_AGENTS_DEFAULT_PROMPT_URL` | the Agent Guide on hyper.media | The document a new agent's system prompt embeds, the [Agent Guide](./guide.md). Reported as `defaultPromptUrl` in `/api/health`; the create-agent dialog embeds it. <!-- id:ClWokX89 --> |
+| `SEED_AGENTS_DOCS_ACCOUNT` | _(unset)_ | The account of the knowledge base space. Reads of `hm://hyper.media/…` go to this account. <!-- id:dAKWdZ8N --> |
 | `SEED_AGENTS_DOCS_ACCOUNT_FILE` | _(unset)_ | A file that names the knowledge base account, read on every use. Dev points it at the file `./dev hm-sync` writes. <!-- id:yRzkV4si --> |
 | `SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS` | `5000` | Activity and schedule trigger monitor poll interval. <!-- id:O4k599Ev --> |
 | `SEED_AGENTS_ACTIVITY_PAGE_SIZE` | `50` | ActivityFeed page size. <!-- id:72cPVt59 --> |
@@ -228,6 +229,9 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
   "uptime": 1234.5,
   "version": "2026.6.10",
   "hmServerUrl": "https://hyper.media",
+  "protocol": 3,
+  "minClientProtocol": 1,
+  "defaultPromptUrl": "hm://hyper.media/agent/guide",
   "ipfsServerUrl": "https://hyper.media",
   "webTools": {"search": true, "readBrowser": true},
   "subscriptionAuth": false,
@@ -263,13 +267,19 @@ agents/data/agents.sqlite-wal
 agents/data/agents/<agentId>/
 ```
 
-SQLite is authoritative for everything except bytes on disk. An agent's state directory is created with the agent and holds its `memory/` filesystem (the `~/memory/` half of its [Space](./space.md)) plus session-private [attachments](./attachment.md). It is removed with the agent. See [persistence](./persistence.md). Staged chunked uploads live under the data dir until they are committed or expire. <!-- id:dWWK_HDM -->
+SQLite is authoritative for everything except bytes on disk. An agent's state directory is created with the agent and holds its `memory/` filesystem (the `~/memory/` half of its [Space](./space.md)) plus session-private [attachments](./attachment.md). It is removed with the agent. Each session's [durable store](./durable-sessions.md) is in the database, not in this directory. See [persistence](./persistence.md). Staged chunked uploads live under the data dir until they are committed or expire. <!-- id:dWWK_HDM -->
 
 # HTTP endpoints <!-- id:oTx-eqES -->
+
+Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service can sit on its own host or on a site's own origin with one reverse-proxy rule. The older paths (`/api/*`, `/agents/api/*`, `/agents/ws`) stay registered: the standalone production host, released clients and webhook URLs already handed out use them. <!-- id:tYSO6ajj -->
 
 <!-- id:WyyD8vqE -->
 | Endpoint <!-- col:QqHnNcMC --> | Method <!-- col:0cPxyrJj --> | Purpose <!-- col:oVN2t9-G --> <!-- id:p8d1Mrxo --> |
 | --- | --- | --- |
+| `/hm/api/agents/message` | `POST` | Signed CBOR action API (canonical). <!-- id:zX6SdlMV --> |
+| `/hm/api/agents/ws` | WebSocket | Signed live subscriptions (canonical). <!-- id:8py3ZRIE --> |
+| `/hm/api/agents/health`, `/version`, `/perf`, `/perf/sessions/<sessionId>` | `GET` | Health, build metadata, timing counters (canonical). <!-- id:546OlRfm --> |
+| `/hm/api/agents/webhooks/<triggerId>[/<secret>]` | `POST` | Webhook trigger delivery (canonical). <!-- id:MExnSG43 --> |
 | `/api/message` | `POST` | Signed CBOR action API. <!-- id:D634v2_4 --> |
 | `/agents/api/message` | `POST` | Same action API under `/agents`. <!-- id:0MOz3jtf --> |
 | `/api/health` | `GET` | JSON health and capabilities (no account data). <!-- id:A68cofS7 --> |
@@ -278,7 +288,17 @@ SQLite is authoritative for everything except bytes on disk. An agent's state di
 | `/agents/api/version` | `GET` | Build metadata under `/agents`. <!-- id:UrIALpko --> |
 | `/agents/ws` | WebSocket | Signed live subscriptions. <!-- id:Em_QCmeP --> |
 
-Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on `/api/message` and `/agents/ws`. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)); a trigger's `endpointPath` names the canonical form. Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on the message endpoint and the WebSocket. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+
+# Where the service lives <!-- id:CJWNG9gR -->
+
+A client holds one base URL per agents server and picks the endpoint paths from its shape (`agentServerEndpoint()` in `frontend/packages/ui/src/agents/client.ts`): <!-- id:_3fqlgq8 -->
+  - **Canonical**: the path ends in `/hm/api/agents`, for example `https://site.example/hm/api/agents`. The client calls `<base>/message`, `<base>/ws`, `<base>/health` and `<base>/webhooks/…`. <!-- id:p4SQmeaZ -->
+  - **Legacy**: an origin only, for example `https://agentic.seed.hyper.media` (a trailing `/agents` is stripped). The client calls `/api/message`, `/agents/ws` and `/agents/api/*` under it. <!-- id:hS7cHZfj -->
+
+Production stays standalone at `https://agentic.seed.hyper.media`, and the desktop, web and mobile defaults keep its legacy form; `https://agentic.seed.hyper.media/hm/api/agents` reaches the same server. A site may instead serve agents on its own origin: the reverse proxy routes `/hm/api/agents/*` (API and WebSocket) to the agents container, and the site advertises `<site>/hm/api/agents` as its agent server URL (`SEED_AGENT_SERVER_URL`, surfaced as `agentServerUrl` in `/hm/api/config`). The web app never proxies agents traffic. Pointing a client at a bare site origin does not work: `<origin>/api/message` is the site's own API, not the agents service. <!-- id:6Hg8hKZ9 -->
+
+On an Enterprise (members-only) site, `/hm/api/agents/*` sits behind the same sign-in gate as the rest of the site, except `POST /hm/api/agents/webhooks/*`, which outside services call with the trigger secret and which stays open. The agents service reads its members-only site with the deployment's service secret (`SEED_AGENTS_HM_SERVER_SECRET`, sent as `X-Seed-Service-Secret` only to that site's origin; `agents/src/hm-server-auth.ts`), so mention triggers keep firing behind the gate. <!-- id:oNdAu6c9 -->
 
 # Trigger monitors <!-- id:KlGKY3Ne -->
 
@@ -291,12 +311,13 @@ The server also starts a background schedule monitor. It evaluates enabled `sche
 # Run queue and workflow engine <!-- id:jIKj9Ovy -->
 
 Every agent execution is a durable row in the `runs` table, which is also the dispatch queue (`agents/src/runs.ts`). See [Runs](./runs.md): <!-- id:Cdw3Ljyi -->
-  - **Queues**: interactive user turns are claimed inline by `MessageSession` (unchanged latency). Everything else (trigger firings, agent-started sessions, delegated model children, script children) dispatches on the `background` queue. Agent runs are capped at 8 concurrent provider streams. Script runs get their own pool of 32 (they hold no provider stream), so a script awaiting its children can never starve them. <!-- id:db3BA2As -->
+  - **Queues**: interactive user turns are claimed inline by `MessageSession` (unchanged latency). Everything else (trigger firings, agent-started sessions, delegated model children, script children) dispatches on the `background` queue. Agent runs are capped at `SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS` (default 8, flag `--max-concurrent-model-runs`) concurrent provider streams. Script runs get their own pool, `SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS` (default 32, `--max-concurrent-workflows`; they hold no provider stream). `SEED_AGENTS_WORKFLOW_WORKER=1` runs scripts in the isolated worker process described in the [worker plan](./plans/worker-isolated-execution.md); `SEED_AGENTS_STANDALONE` is injected into the desktop's bundled binary at build time, so a script awaiting its children can never starve them. <!-- id:db3BA2As -->
   - **One live agent run per session** is enforced at claim time (lease-based). This replaced the old racy status-column 409. <!-- id:ST5DHKVV -->
   - **Boot sweep**: on service construction, runs a dead process left `claimed` or `running` are requeued, and any queued backlog resumes. Agent runs resume by replaying their durable session events. A crash between a persisted `tool_call` and its `tool_result` gets a synthesized "interrupted by service restart" result so the provider request is well-formed and the model decides whether to retry. Script runs resume by [journal](./journal.md) replay. <!-- id:fGRoe2ad -->
   - **Retry classification**: provider 5xx and network failures are retryable with exponential backoff (base 5s, cap 5min). Validation and config errors fail immediately. `maxAttempts` is 3 (`AGENT_RUN_MAX_ATTEMPTS`) for background agent runs: trigger firings, agent-started sessions, delegated model children. It is 1 for interactive turns, which have a person waiting, and for script runs, which resume from their journal and never restart. <!-- id:it4z5p55 -->
   - **Parking**: a run [parks](./park.md) for one of four reasons: its children; a timer (`ctx.sleep` of 60s or more parks with `not_before`, and the dispatcher's 1-second interval wakes due timers); an event (`ctx.waitForEvent`, woken by a `SignalRun`, a trigger `wake` continuation, an activity event, or its timeout); or a budget pause a person resumes. Parked runs hold no resources. <!-- id:wYXSdipo -->
-  - **Leases** expire after 60 seconds. The boot sweep uses them to tell a live claim from a dead one. <!-- id:YD2c9GyO -->
+  - **Planner statistics**: every open runs `ANALYZE` on the small planner tables and sets the WAL, cache, and mmap pragmas; see [persistence](./persistence.md). Nothing runs `VACUUM`. <!-- id:bGD8yhPc -->
+  - **Leases** are recorded for 60 seconds on claim but not enforced: with one service process, the boot sweep requeues every run the previous process left claimed or running. <!-- id:YD2c9GyO -->
   - Tests and shutdown wait for the queue via `Service.drainTriggerSessions()`. `awaitQueueIdle()` is an alias for it under the name the runs feature documents. <!-- id:TebiC9QK -->
 
 [Script](./script.md) execution bounds (see `agents/src/workflow-host.ts`): QuickJS-WASM realm per run, 64 MiB memory cap, 2s pure-compute fuel between awaits, 256 KiB source cap, and journal caps of 5,000 entries / 8 MiB per run (`WORKFLOW_JOURNAL_MAX_ENTRIES` / `WORKFLOW_JOURNAL_MAX_BYTES` in `api-service.ts`). A long-lived loop escapes the journal cap with [`ctx.continueAsNew`](./continue-as-new.md), which ends the run and starts a successor carrying only the declared state. <!-- id:4CrPGBii -->
@@ -367,7 +388,7 @@ The service handles `SIGINT` and `SIGTERM`: <!-- id:27DpYHG3 -->
   3. close WebSocket clients with code `1001`; <!-- id:J6207Axe -->
   4. clear client set; <!-- id:sCNZyrwv -->
   5. stop Bun server; <!-- id:aDJ3JZvP -->
-  6. drain in-flight background runs, bounded at 5 seconds so one stuck session cannot block shutdown, then stop the run-queue timers; <!-- id:X8QzoNFd -->
+  6. drain in-flight background runs, bounded at 5 seconds so one stuck session cannot block shutdown (the HTTP server's own stop is bounded at 3 seconds before it is forced), then stop the run-queue timers; <!-- id:X8QzoNFd -->
   7. close SQLite DB; <!-- id:PpbedZlo -->
   8. exit. <!-- id:bAUcIud1 -->
 
@@ -412,7 +433,7 @@ Run, runtime, and script diagnostics: <!-- id:0OVrLoWY -->
   - `[agents/workflow] continued as new run` <!-- id:fH-VDeMa -->
   - `[agents/workflow] run paused on its time budget` <!-- id:u0b-olQJ -->
 
-Server model execution goes through the Pi SDK. The old manual OpenAI stream logs are not emitted on the primary Pi-backed path. Use durable session events (via `GetSession` or the desktop session page), WebSocket partial logs, and mocked tests for current runtime diagnosis. Add Seed-level Pi runtime diagnostics before production if real-provider troubleshooting needs more visibility. <!-- id:KNt6k5MM -->
+Server model execution goes through pi-ai and Pi Durable. Use durable session events (via `GetSession` or the desktop session page), the `[agents/runtime]` run lines, WebSocket partial logs, and mocked tests for runtime diagnosis. A run that picked up a turn left by an earlier process logs `resuming the durable turn an earlier process left unfinished`, and its `agent run finished` line carries `resumed: true`. A session's durable store is plain JSONL inside the `session_durable_files` table: `SELECT CAST(data AS TEXT) FROM session_durable_files WHERE session_id = ? AND file = 'main.jsonl' ORDER BY seq` prints its main file. <!-- id:KNt6k5MM -->
 
 Server WebSocket logs: <!-- id:LFKybXaZ -->
   - `[agents/ws] open` <!-- id:J0oO3TLG -->
@@ -463,7 +484,7 @@ Desktop signing omits `undefined` recursively before signing. If the error comes
 Follow the log chain: <!-- id:y_nHvnuv -->
   1. Desktop should show `[agents/ws] subscribed event` for `sessions/<sessionId>`. <!-- id:D8kYyYQL -->
   2. The session should be set to `streaming` after `MessageSession`. <!-- id:TdzBvw7L -->
-  3. Server should then show `[agents/ws] publish partial` and `[agents/ws] send partial` when Pi emits text deltas. <!-- id:_ipbPc0H -->
+  3. Server should then show `[agents/ws] publish partial` and `[agents/ws] send partial` when the harness commits streamed text. <!-- id:_ipbPc0H -->
   4. Desktop should show `[agents/ws] partial event` and `[agents/ui] rendering streaming assistant partial`. <!-- id:NzvqNL8D -->
   5. The final assistant message should appear as a durable event in the desktop session page after refresh. <!-- id:CT2Cuh_P -->
 

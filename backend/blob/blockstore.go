@@ -86,7 +86,7 @@ var (
 	// blobs lookup and bounces it as `exists`.
 	//
 	// Buckets:
-	//   reason="public_only_filter" — Has used IsPublicOnly(ctx)=true and the blob is private
+	//   reason="server_mode_filter" — Has used IsServerMode(ctx)=true and the blob is private
 	//   reason="entity_cid_no_change" — CID is an entity-CID; resource exists but no Change blob, yet the blob row IS in blobs
 	//   reason="other"               — neither of the above; deeper bug
 	mHasInconsistent = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -148,7 +148,7 @@ func newBlockstore(db *sqlitex.Pool, log *zap.Logger) *blockStore {
 func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	mCallsTotal.WithLabelValues("Has").Inc()
 
-	publicOnly := IsPublicOnly(ctx)
+	serverMode := IsServerMode(ctx)
 
 	eid, err := EntityIDFromCID(c)
 	if err != nil {
@@ -158,15 +158,15 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 		}
 		defer release()
 
-		ok, err := b.has(ctx, conn, c, publicOnly)
+		ok, err := b.has(ctx, conn, c, serverMode)
 		if err == nil && !ok {
 			// Cross-check: is the row actually present without filters?
 			// If yes, Has lied — the next step is bitswap will fetch it
 			// from peers and putBlock will bounce it as "exists".
 			res, perr := dbBlobsGetSize(conn, c.Hash(), false)
 			if perr == nil && res.BlobsID != 0 && res.BlobsSize >= 0 {
-				if publicOnly {
-					mHasInconsistent.WithLabelValues("public_only_filter").Inc()
+				if serverMode {
+					mHasInconsistent.WithLabelValues("server_mode_filter").Inc()
 				} else {
 					mHasInconsistent.WithLabelValues("other").Inc()
 				}
@@ -196,8 +196,8 @@ func (b *blockStore) Has(ctx context.Context, c cid.Cid) (bool, error) {
 	return ok, nil
 }
 
-func (b *blockStore) has(ctx context.Context, conn *sqlite.Conn, c cid.Cid, publicOnly bool) (bool, error) {
-	res, err := b.getSize(ctx, conn, c, publicOnly)
+func (b *blockStore) has(ctx context.Context, conn *sqlite.Conn, c cid.Cid, serverMode bool) (bool, error) {
+	res, err := b.getSize(ctx, conn, c, serverMode)
 	if err != nil {
 		return false, err
 	}
@@ -245,8 +245,8 @@ func (b *blockStore) Get(ctx context.Context, c cid.Cid) (blocks.Block, error) {
 	}
 	defer release()
 
-	publicOnly := IsPublicOnly(ctx)
-	return b.get(ctx, conn, c, publicOnly)
+	serverMode := IsServerMode(ctx)
+	return b.get(ctx, conn, c, serverMode)
 }
 
 // GetMany is a batch request to get many blocks from the blockstore.
@@ -259,11 +259,11 @@ func (b *blockStore) GetMany(ctx context.Context, cc []cid.Cid) ([]blocks.Block,
 	}
 	defer release()
 
-	publicOnly := IsPublicOnly(ctx)
+	serverMode := IsServerMode(ctx)
 	out := make([]blocks.Block, len(cc))
 
 	for i, c := range cc {
-		blk, err := b.get(ctx, conn, c, publicOnly)
+		blk, err := b.get(ctx, conn, c, serverMode)
 		if err != nil {
 			return nil, err
 		}
@@ -279,12 +279,12 @@ func (b *blockStore) GetMany(ctx context.Context, cc []cid.Cid) ([]blocks.Block,
 func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) erriter.Seq[blocks.Block] {
 	mCallsTotal.WithLabelValues("IterMany").Inc()
 
-	publicOnly := IsPublicOnly(ctx)
+	serverMode := IsServerMode(ctx)
 
 	return erriter.Make(func(yield func(blocks.Block) bool) error {
 		return b.db.WithSave(ctx, func(conn *sqlite.Conn) error {
 			for _, c := range cc {
-				blk, err := b.get(ctx, conn, c, publicOnly)
+				blk, err := b.get(ctx, conn, c, serverMode)
 				if err != nil {
 					return err
 				}
@@ -298,14 +298,14 @@ func (b *blockStore) IterMany(ctx context.Context, cc []cid.Cid) erriter.Seq[blo
 	})
 }
 
-func (b *blockStore) get(ctx context.Context, conn *sqlite.Conn, c cid.Cid, publicOnly bool) (blocks.Block, error) {
-	res, err := dbBlobsGet(conn, c.Hash(), publicOnly)
+func (b *blockStore) get(ctx context.Context, conn *sqlite.Conn, c cid.Cid, serverMode bool) (blocks.Block, error) {
+	res, err := dbBlobsGet(conn, c.Hash(), serverMode)
 	if err != nil {
 		return nil, err
 	}
 
 	if res.ID == 0 {
-		if publicOnly {
+		if serverMode {
 			privateRes, err := dbBlobsGet(conn, c.Hash(), false)
 			if err != nil {
 				return nil, err
@@ -321,7 +321,7 @@ func (b *blockStore) get(ctx context.Context, conn *sqlite.Conn, c cid.Cid, publ
 						goto found
 					}
 				}
-				return nil, PublicOnlyDeniedError{CID: c}
+				return nil, ServerModeDeniedError{CID: c}
 			}
 		}
 		return nil, format.ErrNotFound{Cid: c}
@@ -361,8 +361,9 @@ func (b *blockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
 	}
 	defer release()
 
-	publicOnly := IsPublicOnly(ctx)
-	res, err := b.getSize(ctx, conn, c, publicOnly)
+	serverMode := IsServerMode(ctx)
+
+	res, err := b.getSize(ctx, conn, c, serverMode)
 	if err != nil {
 		return 0, err
 	}
@@ -374,12 +375,13 @@ func (b *blockStore) GetSize(ctx context.Context, c cid.Cid) (int, error) {
 	return int(res.BlobsSize), nil
 }
 
-func (b *blockStore) getSize(ctx context.Context, conn *sqlite.Conn, c cid.Cid, publicOnly bool) (blobsGetSizeResult, error) {
-	res, err := dbBlobsGetSize(conn, c.Hash(), publicOnly)
+func (b *blockStore) getSize(ctx context.Context, conn *sqlite.Conn, c cid.Cid, serverMode bool) (blobsGetSizeResult, error) {
+	res, err := dbBlobsGetSize(conn, c.Hash(), serverMode)
 	if err != nil {
 		return blobsGetSizeResult{}, err
 	}
-	if res.BlobsID != 0 || !publicOnly {
+
+	if res.BlobsID != 0 || !serverMode {
 		return res, nil
 	}
 
@@ -594,8 +596,9 @@ func (b *blockStore) AllKeysChan(ctx context.Context) (<-chan cid.Cid, error) {
 		return nil, err
 	}
 
-	publicOnly := IsPublicOnly(ctx)
-	list, err := dbBlobsListKnown(conn, publicOnly)
+	serverMode := IsServerMode(ctx)
+
+	list, err := dbBlobsListKnown(conn, serverMode)
 	if err != nil {
 		return nil, err
 	}
@@ -661,12 +664,12 @@ type dbBlob struct {
 	IsPublic  bool
 }
 
-func dbBlobsGet(conn *sqlite.Conn, blobsMultihash []byte, publicOnly bool) (dbBlob, error) {
+func dbBlobsGet(conn *sqlite.Conn, blobsMultihash []byte, serverMode bool) (dbBlob, error) {
 	var out dbBlob
 
 	before := func(stmt *sqlite.Stmt) {
 		stmt.SetBytes(":blobsMultihash", blobsMultihash)
-		stmt.SetBool(":publicOnly", publicOnly)
+		stmt.SetBool(":serverMode", serverMode)
 	}
 
 	onStep := func(i int, stmt *sqlite.Stmt) error {
@@ -725,7 +728,7 @@ var qBlobsGet = dqb.Str(`
 	FROM blobs
 	LEFT JOIN public_blobs ON blobs.id = public_blobs.id
 	WHERE blobs.multihash = :blobsMultihash AND blobs.size >= 0
-	AND is_public >= :publicOnly
+	AND is_public >= :serverMode
 `)
 
 func dbBlobsDelete(conn *sqlite.Conn, blobsMultihash []byte) (int64, error) {
@@ -765,11 +768,11 @@ type blobsListKnownResult struct {
 	IsPublic       bool
 }
 
-func dbBlobsListKnown(conn *sqlite.Conn, publicOnly bool) ([]blobsListKnownResult, error) {
+func dbBlobsListKnown(conn *sqlite.Conn, serverMode bool) ([]blobsListKnownResult, error) {
 	var out []blobsListKnownResult
 
 	before := func(stmt *sqlite.Stmt) {
-		stmt.SetBool(":publicOnly", publicOnly)
+		stmt.SetBool(":serverMode", serverMode)
 	}
 
 	onStep := func(_ int, stmt *sqlite.Stmt) error {
@@ -800,6 +803,6 @@ var qBlobsListKnown = dqb.Str(`
 	FROM blobs INDEXED BY blobs_metadata
 	LEFT JOIN public_blobs ON blobs.id = public_blobs.id
 	WHERE blobs.size >= 0
-	AND is_public >= :publicOnly
+	AND is_public >= :serverMode
 	ORDER BY blobs.id
 `)

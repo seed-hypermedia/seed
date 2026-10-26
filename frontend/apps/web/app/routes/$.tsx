@@ -13,6 +13,7 @@ import {
   loadWebDraftPlaceholderResource,
   SiteDocumentPayload,
 } from '@/loaders'
+import type {WebSpaceSettingsPayload} from '@/web-space-settings-page'
 import {SiteSettingsEmailsScreen, type SiteSettingsEmailsPayload} from '@/site-settings-emails-content'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
 import {defaultPageMeta} from '@/meta'
@@ -31,8 +32,9 @@ import {Code} from '@connectrpc/connect'
 import {HeadersFunction} from '@remix-run/node'
 import {MetaFunction, Params, useLoaderData} from '@remix-run/react'
 import {HMDiscoveryStatusOutput, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {lazy, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
 import {Spinner} from '@shm/ui/spinner'
+import {validateDomain} from '@shm/shared/utils/path'
 import {
   commentIdToHmId,
   createDocumentNavRoute,
@@ -55,6 +57,10 @@ import {useTx} from '@shm/shared/translation'
 import {SizableText} from '@shm/ui/text'
 import {shouldRevalidateDocumentRoute} from './revalidation'
 
+const WebSpaceSettingsScreen = lazy(() =>
+  import('@/web-space-settings-page').then((module) => ({default: module.WebSpaceSettingsScreen})),
+)
+
 // Extended payload with view term and panel param for page routing
 type ExtendedSitePayload = SiteDocumentPayload & {
   isInspect?: boolean
@@ -62,6 +68,7 @@ type ExtendedSitePayload = SiteDocumentPayload & {
   exploreQ?: string | null
   exploreSort?: 'relevance' | 'recently_updated' | 'newest' | 'oldest' | 'title' | null
   panelParam?: string | null // Supports extended format like "comments/BLOCKID" or "comments/COMMENT_ID"
+  replyCommentId?: string | null
   openComment?: string | null
   commentVersion?: string | null
   accountUid?: string | null
@@ -87,6 +94,7 @@ type DocumentPayload =
   | ExtendedSitePayload
   | InspectIpfsPayload
   | SiteSettingsEmailsPayload
+  | WebSpaceSettingsPayload
   | SchemaPayload
   | 'unregistered'
   | 'no-site'
@@ -120,6 +128,7 @@ function extractViewTermFromPath(pathParts: string[]): {
   path: string[]
   viewTerm: ViewRouteKey | null
   activityFilter?: string
+  feedTab?: string
   commentId?: string
   accountUid?: string
 } {
@@ -157,6 +166,14 @@ function extractViewTermFromPath(pathParts: string[]): {
         path: pathParts.slice(0, -2),
         viewTerm: 'activity',
         activityFilter: pathParts[pathParts.length - 1],
+      }
+    }
+    // :feed/<tab>, the Activity page on a specific tab
+    if (secondToLast === ':feed') {
+      return {
+        path: pathParts.slice(0, -2),
+        viewTerm: 'feed',
+        feedTab: pathParts[pathParts.length - 1],
       }
     }
   }
@@ -251,6 +268,8 @@ export const meta: MetaFunction<typeof loader> = (args) => {
   if ('kind' in payload && payload.kind === 'inspect-ipfs') {
     return [{title: `ipfs://${payload.ipfsPath}`}]
   }
+  if ('kind' in payload && payload.kind === 'site-settings')
+    return [{title: payload.domain ? `Set up ${payload.domain}` : 'Space Settings'}]
   if ('kind' in payload && payload.kind === 'site-settings-emails') {
     return [{title: 'Email Subscribers'}]
   }
@@ -305,6 +324,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   const version = url.searchParams.get('v')
   const latest = url.searchParams.get('l') === '' || !version
   const panelParam = url.searchParams.get('panel')
+  const replyCommentId = url.searchParams.get('reply')
   const inspectTab = url.searchParams.get('tab')
   const exploreQ = url.searchParams.get('q')
   const rawExploreSort = url.searchParams.get('sort')
@@ -335,6 +355,31 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
   // Site settings pages use a `:settings` view term: /:settings/email-subscribers
   // on the site's own origin, or /hm/<uid>/:settings/email-subscribers on the gateway.
   const rawSitePath = params['*'] ? params['*'].split('/').filter(Boolean) : []
+  const settingsOffset =
+    rawSitePath[0] === ':settings' ? 0 : rawSitePath[0] === 'hm' && rawSitePath[2] === ':settings' ? 2 : -1
+  if (settingsOffset !== -1) {
+    const section = rawSitePath[settingsOffset + 1]
+    const domain = rawSitePath[settingsOffset + 2]
+    const siteUid = settingsOffset === 0 ? registeredAccountUid : rawSitePath[1]!
+    if (
+      rawSitePath.length > settingsOffset + 3 ||
+      (domain !== undefined && (section !== 'web-domain' || !!validateDomain(domain))) ||
+      (section !== undefined && !['identity', 'navigation', 'web-domain', 'email-subscribers'].includes(section))
+    ) {
+      throw new Response('Settings page not found', {status: 404})
+    }
+    if (section !== 'email-subscribers') {
+      const headerData = await instrument(ctx, 'loadSiteHeaderData', () => loadSiteHeaderData(parsedRequest))
+      if (isDataRequest && ctx.enabled) printInstrumentationSummary(ctx)
+      return wrapJSON({
+        ...headerData,
+        kind: 'site-settings',
+        siteUid,
+        section: section as WebSpaceSettingsPayload['section'],
+        domain,
+      } satisfies WebSpaceSettingsPayload)
+    }
+  }
   let settingsSiteAccountUid: string | null = null
   if (rawSitePath.length === 2 && rawSitePath[0] === ':settings' && rawSitePath[1] === 'email-subscribers') {
     settingsSiteAccountUid = registeredAccountUid
@@ -410,6 +455,9 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
     }
+    if (extracted.feedTab) {
+      effectivePanelParam = `feed/${extracted.feedTab}`
+    }
     if (extracted.commentId) {
       openComment = extracted.commentId
       isCommentPermalink = true
@@ -430,6 +478,9 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     if (extracted.activityFilter) {
       effectivePanelParam = `activity/${extracted.activityFilter}`
     }
+    if (extracted.feedTab) {
+      effectivePanelParam = `feed/${extracted.feedTab}`
+    }
     if (extracted.commentId) {
       openComment = extracted.commentId
       isCommentPermalink = true
@@ -448,6 +499,7 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     exploreQ,
     exploreSort,
     panelParam: effectivePanelParam,
+    replyCommentId,
     openComment,
     commentVersion: isCommentPermalink ? version : null,
     accountUid,
@@ -488,6 +540,12 @@ export default function UnifiedDocumentPage() {
   if (data === 'no-site') {
     return <NoSitePage />
   }
+  if ('kind' in data && data.kind === 'site-settings')
+    return (
+      <Suspense fallback={<Spinner />}>
+        <WebSpaceSettingsScreen payload={data} />
+      </Suspense>
+    )
   if ('kind' in data && data.kind === 'site-settings-emails') {
     return <SiteSettingsEmailsScreen payload={data} />
   }
@@ -537,6 +595,7 @@ export default function UnifiedDocumentPage() {
     siteData.openComment,
     siteData.accountUid,
     siteData.commentVersion,
+    siteData.replyCommentId,
   )
   const initialRouteWithExploreParams =
     initialRoute.key === 'explore'

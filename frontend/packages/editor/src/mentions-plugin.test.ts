@@ -6,6 +6,7 @@ import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {UniversalAppProvider} from '@shm/shared/routing'
 import {queryAccount, queryResource} from '@shm/shared/models/queries'
 import {unpackHmId} from '@shm/shared'
+import {formatAccountIdentityName} from '@shm/ui/account-avatar'
 
 describe('inlineEmbedClipboardText', () => {
   it('serializes inline embeds to a non-empty clipboard fallback', () => {
@@ -69,6 +70,8 @@ describe('mention labels', () => {
   it.each([
     ['hm://alice/:profile', 'account'],
     ['hm://alice/:profile', undefined],
+    ['hm://site/:profile/alice', 'account'],
+    ['hm://site/:profile/alice', undefined],
     ['hm://alice', undefined],
   ] as const)('prefixes account label %s (%s) with @', (link, kind) => {
     expect(renderMention(link, kind)).toContain('>@Alice<')
@@ -85,5 +88,18 @@ describe('mention labels', () => {
   ] as const)('keeps document label %s (%s) unprefixed', (link, kind) => {
     expect(renderMention(link, kind)).toContain('>Home document<')
     expect(renderMention(link, kind)).not.toContain('@Home document')
+  })
+})
+
+describe('account identity names', () => {
+  it('limits Unicode characters without splitting surrogate pairs', () => {
+    expect(formatAccountIdentityName('😀'.repeat(21), {maxLength: 20})).toBe('😀'.repeat(20) + '…')
+    expect(formatAccountIdentityName('😀'.repeat(20), {maxLength: 20})).toBe('😀'.repeat(20))
+  })
+
+  it('keeps full mention names and adds only one prefix', () => {
+    const name = 'A very long account display name'
+    expect(formatAccountIdentityName(name, {mention: true})).toBe('@' + name)
+    expect(formatAccountIdentityName('@Alice', {mention: true})).toBe('@Alice')
   })
 })

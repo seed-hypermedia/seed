@@ -16,13 +16,13 @@ import (
 
 // TestPrivateDocSecurityAudit contains security tests that attempt to bypass
 // the private document access controls. Each subtest targets a specific
-// potential vulnerability in the PublicOnly gate.
+// potential vulnerability in the ServerMode gate.
 
-func TestPrivateDocSecurity_PublicOnlyRequiresRootCapabilityForPrivateRead(t *testing.T) {
+func TestPrivateDocSecurity_ServerModeRequiresRootCapabilityForPrivateRead(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	bob := coretest.NewTester("bob")
 	carol := coretest.NewTester("carol")
 	account := alice.me.Account.PublicKey.String()
@@ -106,18 +106,18 @@ func TestPrivateDocumentCreationIsDisabled(t *testing.T) {
 	require.ErrorContains(t, err, "private document creation is disabled")
 }
 
-// VULN-1: GetResource with snapshot (TSID) path bypasses PublicOnly check.
+// VULN-1: GetResource with snapshot (TSID) path bypasses ServerMode check.
 // When GetResource receives a path that looks like a TSID, it enters the
 // snapshot code path (getSnapshotResource) which returns comments/contacts
-// without checking PublicOnly. A private comment on a private document
+// without checking ServerMode. A private comment on a private document
 // can be fetched through this path on a gateway.
-func TestPrivateDocSecurity_GetResourceSnapshotBypassesPublicOnly(t *testing.T) {
+func TestPrivateDocSecurity_GetResourceSnapshotBypassesServerMode(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	// Create server with PublicOnly=true (simulating a gateway).
-	// PublicOnly blocks reads but not writes, so we can set up data directly.
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	// Create server with ServerMode=true (simulating a gateway).
+	// ServerMode blocks anonymous private reads but not writes, so we can set up data directly.
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	account := alice.me.Account.PublicKey.String()
 
 	// Create a private document.
@@ -167,23 +167,23 @@ func TestPrivateDocSecurity_GetResourceSnapshotBypassesPublicOnly(t *testing.T) 
 		Iri: resourceIRI,
 	})
 
-	// This SHOULD return PermissionDenied because the comment is private and we are in PublicOnly mode.
+	// This SHOULD return PermissionDenied because the comment is private and we are in server mode.
 	// If this test fails (no error), the snapshot path is leaking private comments.
-	require.Error(t, err, "GetResource via snapshot TSID path must deny access to private comments in PublicOnly mode")
+	require.Error(t, err, "GetResource via snapshot TSID path must deny access to private comments in server mode")
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error must be PermissionDenied, got %s: %s", st.Code(), st.Message())
 }
 
-// VULN-2: ListDocumentChanges does not check PublicOnly.
+// VULN-2: ListDocumentChanges does not check ServerMode.
 // The ListDocumentChanges RPC loads a private document and returns its change
-// history (author, timestamp, CIDs) without any PublicOnly gate. This leaks
+// history (author, timestamp, CIDs) without any ServerMode gate. This leaks
 // metadata about private documents on gateway nodes.
 func TestPrivateDocSecurity_ListDocumentChangesLeaksMetadata(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	account := alice.me.Account.PublicKey.String()
 
 	privateDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
@@ -206,23 +206,23 @@ func TestPrivateDocSecurity_ListDocumentChangesLeaksMetadata(t *testing.T) {
 		Version: privateDoc.Version,
 	})
 
-	// This SHOULD return PermissionDenied or NotFound when PublicOnly is set.
-	require.Error(t, err, "ListDocumentChanges must deny access to private document history in PublicOnly mode")
+	// This SHOULD return PermissionDenied or NotFound when ServerMode is set.
+	require.Error(t, err, "ListDocumentChanges must deny access to private document history in server mode")
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	require.Contains(t, []codes.Code{codes.PermissionDenied, codes.NotFound}, st.Code(),
 		"error must be PermissionDenied or NotFound, got %s: %s", st.Code(), st.Message())
 }
 
-// VULN-3: GetDocumentChange does not check PublicOnly.
+// VULN-3: GetDocumentChange does not check ServerMode.
 // If an attacker knows a change CID (which could be learned via other leaks),
-// they can fetch the full change blob directly. The method bypasses PublicOnly
+// they can fetch the full change blob directly. The method bypasses ServerMode
 // entirely and returns change metadata (author, deps, timestamp).
 func TestPrivateDocSecurity_GetDocumentChangeLeaksBlob(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	account := alice.me.Account.PublicKey.String()
 
 	privateDoc, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
@@ -243,8 +243,8 @@ func TestPrivateDocSecurity_GetDocumentChangeLeaksBlob(t *testing.T) {
 		Id: privateDoc.Version,
 	})
 
-	// This SHOULD return PermissionDenied when PublicOnly is set.
-	require.Error(t, err, "GetDocumentChange must deny access to private document change blobs in PublicOnly mode")
+	// This SHOULD return PermissionDenied when ServerMode is set.
+	require.Error(t, err, "GetDocumentChange must deny access to private document change blobs in server mode")
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	require.Contains(t, []codes.Code{codes.PermissionDenied, codes.NotFound}, st.Code(),
@@ -252,9 +252,9 @@ func TestPrivateDocSecurity_GetDocumentChangeLeaksBlob(t *testing.T) {
 }
 
 // VULN-4: DAG JSON blob endpoint (/ipfs/{cid}.dagjson) -- FIXED.
-// The HTTP public-only middleware sets blob.WithPublicOnly on the request context
+// The HTTP server-mode middleware sets blob.WithServerMode on the request context
 // before the DAG JSON handler calls blockstore.Get().
-// See TestMakeBlobDAGJSONHandler_PublicOnly in backend/daemon/http_test.go.
+// See TestMakeBlobDAGJSONHandler_ServerMode in backend/daemon/http_test.go.
 
 // VULN-5: CreateRef always creates refs with VisibilityPublic.
 // When CreateRef is called for a path that currently holds a private document,
@@ -264,12 +264,12 @@ func TestPrivateDocSecurity_GetDocumentChangeLeaksBlob(t *testing.T) {
 //
 // WARNING: this is NOT a regression test. It asserts nothing and ends in a t.Log, so it passes
 // whether or not the vulnerability exists. VULN-5 is still open. Do not read a green CI run here as
-// coverage. See docs/security/audit-log.md.
+// coverage. See .agents/skills/security-audit/resources/audit-log.md.
 func TestPrivateDocSecurity_CreateRefIgnoresVisibility(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	// Use a non-PublicOnly server so we can create the Ref, then check from PublicOnly.
+	// Use a default-mode server so we can create the Ref, then check from ServerMode.
 	alice := newTestDocsAPI(t, "alice")
 	account := alice.me.Account.PublicKey.String()
 
@@ -303,10 +303,10 @@ func TestPrivateDocSecurity_CreateRefIgnoresVisibility(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Now create a PublicOnly view of the same database.
+	// Now create a ServerMode view of the same database.
 	// The Ref was created with VisibilityPublic, so the document info
 	// might now be exposed via listings on a gateway.
-	alicePub := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alicePub := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	_ = alicePub
 
 	// This test documents the issue. The fix would be for CreateRef to inherit
@@ -321,7 +321,7 @@ func TestPrivateDocSecurity_GetCommentReplyCountLeaksMetadata(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	account := alice.me.Account.PublicKey.String()
 
 	// Create a private document.
@@ -359,20 +359,20 @@ func TestPrivateDocSecurity_GetCommentReplyCountLeaksMetadata(t *testing.T) {
 		Id: comment.Id,
 	})
 
-	require.Error(t, err, "GetCommentReplyCount must deny access to private comment metadata in PublicOnly mode")
+	require.Error(t, err, "GetCommentReplyCount must deny access to private comment metadata in server mode")
 	st, ok := status.FromError(err)
 	require.True(t, ok)
 	require.Equal(t, codes.PermissionDenied, st.Code(), "error must be PermissionDenied, got %s: %s", st.Code(), st.Message())
 }
 
-// VULN-6b: GetRef does not check PublicOnly.
+// VULN-6b: GetRef does not check ServerMode.
 // If an attacker knows a Ref CID, they can fetch it and learn head CIDs and genesis,
 // enabling DAG walking to reconstruct private document content.
 func TestPrivateDocSecurity_GetRefLeaksPrivateRefData(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	account := alice.me.Account.PublicKey.String()
 
 	// Create a private document.
@@ -389,24 +389,24 @@ func TestPrivateDocSecurity_GetRefLeaksPrivateRefData(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// List refs without PublicOnly to find the ref CID.
-	// We need a non-PublicOnly view to get the ref.
+	// List refs without ServerMode to find the ref CID.
+	// We need a default-mode view to get the ref.
 	aliceNoFilter := newTestDocsAPI(t, "alice")
 	_ = aliceNoFilter
 
-	// Since we can't easily get the ref CID from the PublicOnly server,
-	// we test that ListRefs on the PublicOnly server returns nothing for the private doc.
+	// Since we can't easily get the ref CID from the ServerMode server,
+	// we test that ListRefs on the ServerMode server returns nothing for the private doc.
 	refs, err := alice.ListRefs(ctx, &documents.ListRefsRequest{
 		Account: account,
 		Path:    "/secret",
 	})
 	require.NoError(t, err)
-	require.Empty(t, refs.Refs, "ListRefs must not return refs for private documents in PublicOnly mode")
+	require.Empty(t, refs.Refs, "ListRefs must not return refs for private documents in server mode")
 }
 
-// VULN-7: Pagination leak when PublicOnly skips private docs.
+// VULN-7: Pagination leak when ServerMode skips private docs.
 // When ListDirectory/ListDocuments/ListRootDocuments skip private docs in
-// PublicOnly mode, they do it in application code AFTER the SQL LIMIT is applied.
+// server mode, they do it in application code AFTER the SQL LIMIT is applied.
 // This means a page may return fewer results than pageSize even when more
 // public documents exist, because the LIMIT was consumed by private docs
 // that were then filtered out. This is an information leak: the number of
@@ -415,7 +415,7 @@ func TestPrivateDocSecurity_PaginationLeaksPrivateDocCount(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	account := alice.me.Account.PublicKey.String()
 
 	// Interleave private and public documents so that the SQL LIMIT will
@@ -490,11 +490,11 @@ func TestPrivateDocSecurity_PaginationLeaksPrivateDocCount(t *testing.T) {
 			"private docs should not consume LIMIT slots (got %d, want 3)", len(resp.Documents))
 }
 
-func TestPrivateDocSecurity_PublicOnlyListingsExcludePrivateDocs(t *testing.T) {
+func TestPrivateDocSecurity_ServerModeListingsExcludePrivateDocs(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	account := alice.me.Account.PublicKey.String()
 
 	for _, tc := range []struct {

@@ -40,6 +40,19 @@ function readEventsFromMap(readEvents: Record<string, number>, markAllReadAtMs: 
     }))
 }
 
+// Read state is checked once per loaded notification, and per-space reads let the read events list grow, so look
+// events up in a set built once per list. Read states are never mutated in place, so a list's set stays valid.
+const readEventIdSets = new WeakMap<NotificationReadLikeState['readEvents'], Set<string>>()
+
+function getReadEventIds(readEvents: NotificationReadLikeState['readEvents']) {
+  let ids = readEventIdSets.get(readEvents)
+  if (!ids) {
+    ids = new Set(readEvents.map((evt) => evt.eventId))
+    readEventIdSets.set(readEvents, ids)
+  }
+  return ids
+}
+
 /** Returns `true` when the given event should be considered read. */
 export function isNotificationEventRead(input: {
   readState: NotificationReadLikeState | undefined
@@ -50,7 +63,22 @@ export function isNotificationEventRead(input: {
   if (input.readState.markAllReadAtMs !== null && input.eventAtMs <= input.readState.markAllReadAtMs) {
     return true
   }
-  return input.readState.readEvents.some((evt) => evt.eventId === input.eventId)
+  return getReadEventIds(input.readState.readEvents).has(input.eventId)
+}
+
+/** Counts unread notifications per site, keyed by the account uid of the site each notification belongs to. */
+export function countUnreadNotificationsBySite(
+  notifications: Array<{feedEventId: string; eventAtMs: number; target: {uid: string}}>,
+  readState: NotificationReadLikeState | undefined,
+): Record<string, number> {
+  const counts: Record<string, number> = {}
+  for (const notification of notifications) {
+    if (isNotificationEventRead({readState, eventId: notification.feedEventId, eventAtMs: notification.eventAtMs})) {
+      continue
+    }
+    counts[notification.target.uid] = (counts[notification.target.uid] ?? 0) + 1
+  }
+  return counts
 }
 
 /**
@@ -122,6 +150,46 @@ export function markNotificationEventUnreadInState(input: {
     markAllReadAtMs: newWatermark,
     readEvents: readEventsFromMap(readEvents, newWatermark),
   }
+}
+
+/**
+ * Whether a notification belongs to a site: its target document is owned by the site's account.
+ * Without a site every notification matches. The notify server and the desktop inbox share this rule.
+ */
+export function notificationMatchesSite(notification: {target: {uid: string}}, siteUid?: string) {
+  if (!siteUid) return true
+  return notification.target.uid === siteUid
+}
+
+/**
+ * Returns the next read state after marking each given notification as read, one event at a time.
+ * Used for a site-scoped "mark all as read", where a global watermark would also cover other sites.
+ */
+export function markNotificationsReadInState<State extends NotificationReadLikeState>(
+  readState: State,
+  notifications: Array<{feedEventId: string; eventAtMs: number}>,
+): State {
+  let nextReadState = readState
+  for (const notification of notifications) {
+    if (
+      isNotificationEventRead({
+        readState: nextReadState,
+        eventId: notification.feedEventId,
+        eventAtMs: notification.eventAtMs,
+      })
+    ) {
+      continue
+    }
+    nextReadState = {
+      ...nextReadState,
+      ...markNotificationEventReadInState({
+        readState: nextReadState,
+        eventId: notification.feedEventId,
+        eventAtMs: notification.eventAtMs,
+      }),
+    }
+  }
+  return nextReadState
 }
 
 /**

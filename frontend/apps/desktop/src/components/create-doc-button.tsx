@@ -6,7 +6,7 @@ import {useExperiments} from '@/models/experiments'
 import {buildDocumentCollectionDraftSeed} from '@/utils/publish-utils'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {deriveDocumentType} from '@shm/shared/models/document-machine'
-import {documentCreationMachine, inferDocumentSchema} from '@shm/shared'
+import {documentCreationMachine, inferDocumentSchema, resolveDocumentCreationDestination} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
@@ -183,12 +183,14 @@ function DesktopActorButton({
   schema?: ReturnType<typeof inferDocumentSchema>
   onImportFinished: () => void
 }) {
-  const destination = parentIsCollection && canEditParent && parentId ? parentId : locationId
-  const createAtDestination = useCreateDraft({
-    locationUid: destination.uid,
-    locationPath: destination.path ?? undefined,
+  const destination = resolveDocumentCreationDestination(locationId, {
+    canEditCurrent: true,
+    currentIsCollection,
+    parentId,
+    parentIsCollection,
+    canEditParent,
   })
-  const createSubdocument = useCreateDraft({locationUid: locationId.uid, locationPath: locationId.path ?? undefined})
+  const createDraft = useCreateDraft()
   const importStarted = useRef(false)
   const importing = useImporting(destination, schema, onImportFinished)
   const importDialog = useImportDialog(() => {
@@ -206,12 +208,16 @@ function DesktopActorButton({
         schema,
       }),
       create: async (request) => {
-        const createDraft = request.kind === 'subdocument' ? createSubdocument : createAtDestination
+        const location = {locationUid: request.destination.uid, locationPath: request.destination.path ?? undefined}
         if (request.kind === 'collection') {
           const seed = buildDocumentCollectionDraftSeed(nanoid(8))
-          await createDraft({initialMetadata: {...seed.metadata, ...request.metadata}, initialContent: seed.content})
+          await createDraft({
+            initialMetadata: {...seed.metadata, ...request.metadata},
+            initialContent: seed.content,
+            location,
+          })
         } else {
-          await createDraft({initialMetadata: request.metadata})
+          await createDraft({initialMetadata: request.metadata, location})
         }
         return request.destination
       },

@@ -21,7 +21,7 @@ import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {canShowMoveDocumentAction, canShowRepublishDocumentAction} from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Bookmark, ChevronRight, Copy, Forward, GitFork, MessageSquare, Pencil} from 'lucide-react'
+import {ChevronRight, Copy, Forward, GitFork, MessageSquare, Pencil} from 'lucide-react'
 import {Fragment, useMemo} from 'react'
 import {LibraryEntryUpdateSummary} from './activity'
 import {Button} from './button'
@@ -120,7 +120,6 @@ export function DocumentListItem({
     0
   const canExpand = !!expandable && (childCount > 0 || expandable.expanded || expandable.isLoading)
 
-  const bookmarked = actions.isBookmarked?.(id) ?? false
   const isOwner = actions.selectedAccountUid === id.uid
   const hasPath = !!id.path?.length
   const selectedAccountCanWriteSource = isOwner || !!actions.canWriteDocument?.(id)
@@ -253,7 +252,7 @@ export function DocumentListItem({
     experiments?.advancedCopyLinkOptions,
   ])
 
-  const hasActions = !!actions.onBookmarkToggle || commentCount > 0 || menuItems.length > 0
+  const hasActions = commentCount > 0 || menuItems.length > 0
 
   return (
     <Button
@@ -310,22 +309,6 @@ export function DocumentListItem({
             )}
             {hasActions && (
               <div className="flex items-center gap-1">
-                {actions.onBookmarkToggle && (
-                  <Tooltip content={bookmarked ? 'Remove from Bookmarks' : 'Add to Bookmarks'}>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="no-window-drag"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        actions.onBookmarkToggle!(id)
-                      }}
-                    >
-                      {bookmarked ? <Bookmark className="size-3.5 fill-current" /> : <Bookmark className="size-3.5" />}
-                    </Button>
-                  </Tooltip>
-                )}
                 {commentCount > 0 && (
                   <Tooltip content="View discussions">
                     <Button

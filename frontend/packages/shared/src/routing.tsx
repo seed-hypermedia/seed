@@ -1,7 +1,7 @@
 import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import {createContext, useContext} from 'react'
-import z from 'zod'
+import z from 'zod/v3'
 import {DAEMON_FILE_URL} from './constants'
 import type {NavRoute} from './routes'
 import type {LanguagePack} from './translation'
@@ -12,6 +12,7 @@ import {
   hmIdToURL,
   hypermediaUrlToRoute,
   idToUrl,
+  isViewTermPath,
   routeToHmUrl,
   routeToUrl,
   serializeBlockRange,
@@ -27,6 +28,7 @@ export const appExperimentsSchema = z
   .object({
     hosting: z.boolean().optional(),
     webImporting: z.boolean().optional(),
+    webBrowser: z.boolean().optional(),
     nostr: z.boolean().optional(),
     developerTools: z.boolean().optional(),
     /** Dev tools sub-toggle: the block-hover prediction cone overlay in editors. */
@@ -233,10 +235,6 @@ export function routeToHref(
   if (typeof route !== 'string' && route.key == 'contact') {
     return `/hm/contact/${route.id.uid}`
   }
-  if (typeof route !== 'string' && route.key === 'notifications') {
-    const viewParam = route.view ? `?view=${route.view}` : ''
-    return `/hm/notifications${viewParam}`
-  }
   if (typeof route !== 'string' && route.key === 'agents') {
     return '/hm/agents'
   }
@@ -262,6 +260,11 @@ export function routeToHref(
     if (route.serverUrl) query.push(`server=${encodeURIComponent(route.serverUrl)}`)
     if (route.agentId) query.push(`agent=${encodeURIComponent(route.agentId)}`)
     return `/hm/agents/run/${encodeURIComponent(route.runId)}${query.length ? `?${query.join('&')}` : ''}`
+  }
+  if (typeof route !== 'string' && route.key === 'site-settings') {
+    return options?.hmUrlHref
+      ? routeToHmUrl(route)
+      : routeToUrl(route, {hostname: null, originHomeId: options?.originHomeId})
   }
   if (typeof route !== 'string' && route.key === 'site-settings-emails') {
     const siteBase =
@@ -383,6 +386,7 @@ export function routeToHref(
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTerm += `/${filterSlug}`
     }
+    if (route.key === 'feed' && route.tab === 'to-you') viewTerm += '/to-you'
     // Append openComment to view term path for comments
     if (route.key === 'comments' && route.openComment) {
       viewTerm += `/${route.openComment}`
@@ -476,5 +480,7 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
     href: href || '/',
     tag: 'a',
     onClick,
+    // Panels multiply every document and account into many URLs; keep crawlers on the documents.
+    ...(href && isViewTermPath(href) ? {rel: 'nofollow'} : {}),
   }
 }

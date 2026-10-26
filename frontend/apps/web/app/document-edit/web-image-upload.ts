@@ -8,14 +8,19 @@
 
 import {filesToIpfsBlobs} from '@seed-hypermedia/client'
 import type {UniversalClient} from '@shm/shared/universal-client'
+import {CONTENT_IMAGE_POLICY, processImageIfSupported, type ImageProcessingPolicy} from '@shm/ui/image-processing'
 
 /**
  * Build a `fileUpload(file)` function compatible with the editor's prop.
  * Returns the root CID of the uploaded file.
  */
-export function makeWebFileUpload(client: UniversalClient): (file: File) => Promise<string> {
+export function makeWebFileUpload(
+  client: UniversalClient,
+  imagePolicy: ImageProcessingPolicy = CONTENT_IMAGE_POLICY,
+): (file: File) => Promise<string> {
   return async (file: File) => {
-    const buffer = await file.arrayBuffer()
+    const uploadFile = await processImageIfSupported(file, imagePolicy)
+    const buffer = await uploadFile.arrayBuffer()
     const {resultCIDs, blobs} = await filesToIpfsBlobs([new Uint8Array(buffer)])
     if (!blobs.length || !resultCIDs[0]) {
       throw new Error('IPFS chunking produced no blobs')

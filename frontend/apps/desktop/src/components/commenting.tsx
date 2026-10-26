@@ -10,6 +10,7 @@ import {commentRecordIdFromBlob, createComment} from '@seed-hypermedia/client'
 import {
   HMBlockNode,
   HMCommentGroup,
+  HMComment,
   HMListDiscussionsOutput,
   HMMetadataPayload,
   HMPublishBlobsInput,
@@ -17,6 +18,7 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
 import {hmId, queryClient, queryKeys} from '@shm/shared'
+import {CONTENT_IMAGE_POLICY, processImageIfSupported} from '@shm/ui/image-processing'
 import {BlockNode} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {InlineEditCommentProps} from '@shm/shared/comments-service-provider'
 import {hasBlockContent} from '@shm/shared/content'
@@ -26,7 +28,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useUniversalClient} from '@shm/shared/routing'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavRoute, useNavigation} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Button} from '@shm/ui/button'
 import {toast} from '@shm/ui/toast'
@@ -66,6 +68,7 @@ function CommentBoxImpl(props: {
   replyCommentVersion?: string
   /** CID version of the thread root comment, passed from the route. */
   rootReplyCommentVersion?: string
+  onCommentSubmitted?: (comment: HMComment) => void
 }) {
   const {docId, quotingBlockId, quotingRange, commentId, isReplying, focusOnMount, context} = props
   const quoting = useMemo(
@@ -80,6 +83,7 @@ function CommentBoxImpl(props: {
   const universalClient = useUniversalClient()
   const {getSigner, publish} = universalClient
   const route = useNavRoute()
+  const navigation = useNavigation(undefined)
   const navigate = useNavigate('replace')
   const accountIntent = useDesktopAccountIntent()
   const subscribeContact = useContactSubscribeIntent()
@@ -212,30 +216,33 @@ function CommentBoxImpl(props: {
         visibility: targetDoc?.visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
       })
 
-      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
-      navigateToComment(navigate, route, optimisticComment.id)
+      const rollback = applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
+      return {optimisticComment, rollback}
     },
-    onError: (err: {message: string}) => {
-      // Keep the optimistic comment visible — the publish can be retried later.
-      // Do NOT roll back cache or navigation; do NOT invalidate queries (would fail offline).
+    onError: (err: {message: string}, _variables, context) => {
+      context?.rollback()
       setIsSubmitting(false)
-      console.warn('Comment publish failed, keeping optimistic comment:', err.message)
+      console.warn('Comment publish failed; draft retained:', err.message)
       reportError(err, {
         feature: 'comment',
         operation: 'publish',
         docId: docId.id,
       })
     },
-    onSuccess: () => {
+    onSuccess: (response, _variables, context) => {
+      const comment = {...context!.optimisticComment, version: response.cids[0]!}
+      applyOptimisticComment(queryClient, docId, comment, undefined, quoting)
+      props.onCommentSubmitted?.(comment)
       setIsSubmitting(false)
       isDeletingDraft.current = true
+      pendingBlocksRef.current = null
+      latestBlocksRef.current = null
       clearTimeout(saveTimeoutRef.current)
 
       removeDraft.mutate()
 
+      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION, docId.uid, ...(docId.path || [])])
-      invalidateQueries([queryKeys.LIBRARY])
-      invalidateQueries([queryKeys.SITE_LIBRARY, docId.uid])
       invalidateQueries([queryKeys.LIST_ACCOUNTS])
       invalidateQueries([queryKeys.DOC_CITATIONS])
       invalidateQueries([queryKeys.SEARCH])
@@ -248,6 +255,12 @@ function CommentBoxImpl(props: {
       invalidateQueries([queryKeys.ACTIVITY_FEED])
 
       pushAfterAction({id: docId, trigger: 'publish'})
+      navigateToComment(
+        navigate,
+        route,
+        comment.id,
+        navigation.state.get().routes[navigation.state.get().routeIndex] ?? route,
+      )
     },
   })
 
@@ -341,13 +354,36 @@ function CommentBoxImpl(props: {
         const commentBlobData = commentPayload.blobs[0]?.data
         if (!commentBlobData) throw new Error('No comment blob data')
         const recordId = await commentRecordIdFromBlob(commentBlobData)
-        await publish(commentPayload)
+        const response = await publish(commentPayload)
+        if (!response.cids[0]) throw new Error('Failed to publish comment blob')
+        const comment = await buildOptimisticComment({
+          commentPayload,
+          authorUid: accountUid,
+          docId,
+          docVersion: targetDoc?.version || docId.version || '',
+          contentBlocks,
+          replyParentId: commentId,
+          threadRootVersion: finalRootVersion,
+          quoting,
+          visibility: targetDoc?.visibility === 'PRIVATE' ? 'PRIVATE' : 'PUBLIC',
+        })
+        comment.version = response.cids[0]
+        applyOptimisticComment(queryClient, docId, comment, undefined, quoting)
+        pendingBlocksRef.current = null
+        latestBlocksRef.current = null
+        props.onCommentSubmitted?.(comment)
         removeDraft.mutate()
+        invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
         invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
         invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
         invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
-        navigateToComment(navigate, route, recordId)
+        navigateToComment(
+          navigate,
+          route,
+          recordId,
+          navigation.state.get().routes[navigation.state.get().routeIndex] ?? route,
+        )
         pushAfterAction({id: docId, trigger: 'publish'})
         reset()
         toast.success(joinedSite ? 'Joined space and posted comment' : 'Comment posted')
@@ -363,8 +399,11 @@ function CommentBoxImpl(props: {
       docId,
       finalReplyVersion,
       finalRootVersion,
+      commentId,
+      props.onCommentSubmitted,
       getSigner,
       navigate,
+      navigation,
       publish,
       pushAfterAction,
       quoting,
@@ -474,7 +513,8 @@ function CommentBoxImpl(props: {
 
   // Desktop file attachment handler
   const handleFileAttachment = useCallback(async (file: File) => {
-    const props = await handleDragMedia(file)
+    const attachment = await processImageIfSupported(file, CONTENT_IMAGE_POLICY)
+    const props = await handleDragMedia(attachment)
     if (!props) {
       throw new Error('Failed to handle file')
     }
@@ -482,6 +522,8 @@ function CommentBoxImpl(props: {
       // Return ipfs url for desktop
       url: props.url,
       displaySrc: '',
+      mime: attachment.type,
+      name: attachment.name,
     }
   }, [])
 
@@ -557,10 +599,11 @@ function InlineEditBox({comment, onSave, onCancel, isSaving}: InlineEditCommentP
   const contentRef = useRef<HMBlockNode[]>(comment.content)
 
   const handleFileAttachment = useCallback(async (file: File) => {
-    const props = await handleDragMedia(file)
+    const attachment = await processImageIfSupported(file, CONTENT_IMAGE_POLICY)
+    const props = await handleDragMedia(attachment)
     if (!props) throw new Error('Failed to handle file')
     // Return ipfs url for desktop
-    return {url: props.url, displaySrc: ''}
+    return {url: props.url, displaySrc: '', mime: attachment.type, name: attachment.name}
   }, [])
 
   const handleSubmit = useCallback(

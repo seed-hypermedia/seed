@@ -1,3 +1,4 @@
+import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
 import type {BlockRange, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   parseCustomURL as _parseCustomURL,
@@ -58,6 +59,23 @@ export const VIEW_TERMS = [
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
+/**
+ * Whether a path or URL addresses a view-term panel (`/:followers`, `/:comments`, ...)
+ * rather than a document itself. Panels are alternate views of documents and accounts
+ * whose URL space grows with every pair of accounts, so crawlers are kept out of them
+ * (robots.txt) and links to them carry rel="nofollow".
+ */
+export function isViewTermPath(pathOrUrl: string): boolean {
+  let path = pathOrUrl
+  const schemeEnd = path.indexOf('://')
+  if (schemeEnd >= 0) {
+    const pathStart = path.indexOf('/', schemeEnd + 3)
+    path = pathStart >= 0 ? path.slice(pathStart) : '/'
+  }
+  path = path.split(/[?#]/)[0] || ''
+  return path.split('/').some((segment) => (VIEW_TERMS as readonly string[]).includes(segment))
+}
+
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
 export type ViewRouteKey =
   | 'activity'
@@ -73,7 +91,7 @@ export type ViewRouteKey =
   | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
-export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options'
+export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options' | 'feed'
 
 function extractInspectPrefixFromUrl(url: string): {url: string; isInspect: boolean} {
   const hmInspectMatch = url.match(/^(hm:\/\/)inspect(?:\/(.*))?$/)
@@ -103,11 +121,24 @@ export function extractViewTermFromUrl(url: string): {
   isInspect: boolean
   viewTerm: ViewTerm | null
   activityFilter?: string
+  feedTab?: string
   commentId?: string
   accountUid?: string
   settingsTab?: string
+  settingsDomain?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
+
+  // Check for the :feed/to-you pattern (the Activity page on its To you tab)
+  const feedTabMatch = inspectCleanUrl.match(/\/\:feed\/(to-you)(?=[?#]|$)/)
+  if (feedTabMatch) {
+    return {
+      url: inspectCleanUrl.replace(feedTabMatch[0], ''),
+      isInspect,
+      viewTerm: ':feed',
+      feedTab: feedTabMatch[1],
+    }
+  }
 
   // Check for :comments/<comment-id> or :comment/<comment-id> pattern.
   // Comment IDs may be a single segment or a slash-delimited path.
@@ -134,8 +165,27 @@ export function extractViewTermFromUrl(url: string): {
     }
   }
 
+  // A custom-domain setup has its own reloadable settings destination.
+  const domainSetupMatch = inspectCleanUrl.match(/\/\:settings\/web-domain\/([^/?#]+)(?=[?#]|$)/)
+  if (domainSetupMatch) {
+    let settingsDomain: string
+    try {
+      settingsDomain = decodeURIComponent(domainSetupMatch[1]!)
+    } catch {
+      return {url: inspectCleanUrl, isInspect, viewTerm: null}
+    }
+    return {
+      url: inspectCleanUrl.replace(domainSetupMatch[0], ''),
+      isInspect,
+      viewTerm: ':settings',
+      settingsTab: 'web-domain',
+      settingsDomain,
+    }
+  }
+
   // Check for site settings patterns like /:settings or /:settings/<tab>.
-  const settingsPattern = /\/\:settings(?:\/(identity|navigation|members|writers|email-subscribers))?(?=[?#]|$)/
+  const settingsPattern =
+    /\/\:settings(?:\/(identity|navigation|web-domain|members|writers|email-subscribers|agents))?(?=[?#]|$)/
   const settingsMatch = inspectCleanUrl.match(settingsPattern)
   if (settingsMatch) {
     return {
@@ -382,13 +432,13 @@ export function commentIdToHmId(commentId: string, version?: string | null): Unp
   })
 }
 
-export function hmIdToURL({uid, path, version, latest, blockRef, blockRange}: UnpackedHypermediaId) {
+export function hmIdToURL({uid, path, version, latest, blockRef, blockRange, pageParams}: UnpackedHypermediaId) {
   let res = `${HYPERMEDIA_SCHEME}://${uid}`
 
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
-  res += getHMQueryString({version, latest})
+  res += getHMQueryString({version, latest, pageParams})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -545,7 +595,7 @@ export function getRoutePanelParam(route: NavRoute): string | null {
     panel = route.panel
   }
 
-  if (!panel) return null
+  if (!panel || (route.key === 'comments' && panel.key === 'comments')) return null
 
   // Priority 1: Encode openComment - most specific
   if (panel.key === 'comments' && panel.openComment) {
@@ -561,6 +611,11 @@ export function getRoutePanelParam(route: NavRoute): string | null {
   if (panel.key === 'activity') {
     const filterSlug = activityFilterToSlug((panel as {filterEventType?: string[]}).filterEventType)
     if (filterSlug) return `activity/${filterSlug}`
+  }
+
+  // The space Activity panel spells out To you. All updates is the bare key
+  if (panel.key === 'feed' && (panel as {tab?: string}).tab === 'to-you') {
+    return 'feed/to-you'
   }
 
   return panel.key as PanelQueryKey
@@ -603,6 +658,8 @@ export function routeToUrl(
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
     return url
   }
@@ -625,6 +682,9 @@ export function routeToUrl(
         viewTermPath = `:activity/${filterSlug}`
       }
     }
+    if (route.key === 'feed' && route.tab === 'to-you') {
+      viewTermPath = ':feed/to-you'
+    }
     // For comments with openComment, put commentId in view term path.
     // On comment permalinks, ?v pins the comment version (not the document version).
     let commentPermalinkVersion: {version: string | null; latest: null} | undefined
@@ -640,6 +700,8 @@ export function routeToUrl(
       originHomeId: opts?.originHomeId,
       viewTerm: viewTermPath,
       panel: effectivePanelParam,
+      reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
   }
   if (route.key === 'schema' && route.id) {
@@ -655,7 +717,8 @@ export function routeToUrl(
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
     const siteBase = opts?.originHomeId?.uid === route.id.uid ? '' : `/hm/${route.id.uid}`
     const tabPath = route.tab ? `/${route.tab}` : ''
-    return `${urlHost}${siteBase}/:settings${tabPath}`
+    const domainPath = route.tab === 'web-domain' && route.domain ? `/${encodeURIComponent(route.domain)}` : ''
+    return `${urlHost}${siteBase}/:settings${tabPath}${domainPath}`
   }
   if (route.key === 'site-profile') {
     const urlHost = opts?.hostname === undefined ? DEFAULT_GATEWAY_URL : opts?.hostname === null ? '' : opts.hostname
@@ -680,6 +743,15 @@ export function routeToUrl(
     return `${urlHost}/hm/contact/${route.id.uid}`
   }
   return null
+}
+
+/** Gets the continuation target from the single active Comments view. */
+function getRouteReplyCommentId(route: NavRoute): string | undefined {
+  if (route.key === 'comments') return route.openComment ? route.replyCommentId : undefined
+  if ('panel' in route && route.panel?.key === 'comments' && route.panel.openComment) {
+    return route.panel.replyCommentId
+  }
+  return undefined
 }
 
 /**
@@ -707,6 +779,8 @@ export function routeToHmUrl(route: NavRoute): string | null {
       version: route.id.version,
       latest: route.id.latest,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -728,6 +802,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
       const filterSlug = activityFilterToSlug(route.filterEventType)
       if (filterSlug) viewTermPath = `:activity/${filterSlug}`
     }
+    if (route.key === 'feed' && route.tab === 'to-you') viewTermPath = ':feed/to-you'
     // On comment permalinks, ?v pins the comment version (not the document version).
     let versionQuery: {version?: string | null; latest?: boolean | null} = {
       version: route.id.version,
@@ -743,6 +818,8 @@ export function routeToHmUrl(route: NavRoute): string | null {
     url += getHMQueryString({
       ...versionQuery,
       panel: panelParam,
+      reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -752,7 +829,8 @@ export function routeToHmUrl(route: NavRoute): string | null {
 
   if (route.key === 'site-settings') {
     const tabPath = route.tab ? `/${route.tab}` : ''
-    return `${packBaseId(route.id.uid, route.id.path)}/:settings${tabPath}`
+    const domainPath = route.tab === 'web-domain' && route.domain ? `/${encodeURIComponent(route.domain)}` : ''
+    return `${packBaseId(route.id.uid, route.id.path)}/:settings${tabPath}${domainPath}`
   }
 
   // The schema a document defines: the document URL suffixed with /:schema.
@@ -820,7 +898,10 @@ export function createWebHMUrl(
     originHomeId,
     viewTerm,
     panel,
+    reply,
+    pageParams,
   }: {
+    pageParams?: Record<string, string>
     version?: string | null | undefined
     blockRef?: string | null | undefined
     blockRange?: BlockRange | null
@@ -830,6 +911,7 @@ export function createWebHMUrl(
     originHomeId?: UnpackedHypermediaId
     viewTerm?: string | null
     panel?: string | null
+    reply?: string | null
   } = {},
 ) {
   let webPath = `/hm/${uid}`
@@ -849,6 +931,8 @@ export function createWebHMUrl(
     latest: latest ?? null,
     version: latest ? undefined : version,
     panel,
+    reply,
+    pageParams,
   })
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -860,10 +944,14 @@ function getHMQueryString({
   version,
   latest,
   panel,
+  reply,
+  pageParams,
 }: {
+  pageParams?: Record<string, string>
   version?: string | null
   latest?: boolean | null
   panel?: string | null
+  reply?: string | null
 }) {
   const query: Record<string, string | null> = {}
   if (version) {
@@ -875,7 +963,10 @@ function getHMQueryString({
   if (panel) {
     query.panel = panel
   }
-  return serializeQueryString(query)
+  if (reply) query.reply = reply
+  const base = serializeQueryString(query)
+  const input = pageParamsQuery(pageParams)
+  return base + (input ? (base ? '&' : '?') + input : '')
 }
 
 function packBaseId(uid: string, path?: string[] | null) {
@@ -885,12 +976,13 @@ function packBaseId(uid: string, path?: string[] | null) {
 }
 
 export function packHmId(hmId: UnpackedHypermediaId): string {
-  const {path, version, latest, blockRef, blockRange, uid} = hmId
+  const {path, version, latest, blockRef, blockRange, uid, pageParams} = hmId
   if (!uid) throw new Error('uid is required')
   let responseUrl = packBaseId(uid, path)
   responseUrl += getHMQueryString({
     version,
     latest,
+    pageParams,
   })
   if (blockRef) {
     responseUrl += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -923,6 +1015,7 @@ export function hmId(
     path?: string[] | null
     latest?: boolean | null
     hostname?: string | null
+    pageParams?: Record<string, string>
   } = {},
 ): UnpackedHypermediaId {
   const [uid, ...path] = (idPath || '').split('/')

@@ -2,6 +2,6 @@
   "scripts": {
     "setup": "pnpm i",
     "teardown": null,
-    "run": null
+    "run": "direnv exec . python3 -u -m http.server 0 --bind 127.0.0.1 --directory .ai/embed-review"
   }
 }

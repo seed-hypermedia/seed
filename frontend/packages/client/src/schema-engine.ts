@@ -21,6 +21,7 @@ export type SchemaRegistry = Record<string, HypermediaSchema>
 // authorities (seed.hyper.media, example.com) and the prefixed names from before the folder reorganization
 /** The authority of the bundled schema library in hm:// URLs. */
 export const LIBRARY_AUTHORITY = 'hyper.media'
+const LEGACY_LIBRARY_AUTHORITIES = new Set(['seed.hyper.media', 'example.com'])
 export const KINDS = ['null', 'boolean', 'integer', 'float', 'string', 'bytes', 'list', 'map', 'struct', 'link']
 /** The type language's own schemas: the kind primitives, the meta-schema and its
  * variants, and the built-in refinements — as opposed to the network's blob
@@ -53,9 +54,9 @@ export function refToName(ref: string): string {
   const m = /^hm:\/\/([^/]+)\/(.+)$/.exec(ref)
   if (!m) return ref.replace(/\.schema\.json$|\.json$/, '')
   const [, auth = '', name = ''] = m
-  // A library URL's path is the bundled key. Any other authority is an ordinary space: its
-  // documents are fetched, never matched to the bundle by path.
-  return auth === LIBRARY_AUTHORITY ? name : ref
+  // A library URL's path is the bundled key. Authorities outside the canonical and legacy
+  // library hosts are ordinary spaces whose documents must be fetched.
+  return auth === LIBRARY_AUTHORITY || LEGACY_LIBRARY_AUTHORITIES.has(auth) ? name : ref
 }
 
 /** bundled-schema key (basename) -> its canonical library URL, hm://hyper.media/<name>. */

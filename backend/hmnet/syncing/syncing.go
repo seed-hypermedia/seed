@@ -517,9 +517,12 @@ type Service struct {
 	// lastExhaustive and forcedExhaustive drive the rate-limited escape hatch
 	// from that narrowing; see shouldRunExhaustive. All three share quietMu.
 	quietMu          sync.Mutex
-	quiet            map[blob.IRI]int
+	quiet            map[quietKey]int
 	lastExhaustive   map[blob.IRI]time.Time
 	forcedExhaustive map[blob.IRI]struct{}
+	// probeMisses counts consecutive empty exhaustive waves per IRI and widens
+	// the user-interest probe interval exponentially; see noteUserInterest.
+	probeMisses map[blob.IRI]uint8
 
 	// exhaustiveEvery is how often a settled scope still runs one full-width,
 	// all-tier wave. Zero means defaultExhaustiveWaveInterval.

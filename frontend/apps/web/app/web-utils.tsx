@@ -6,11 +6,10 @@ import {
   hmId,
   routeToUrl,
   useJoinSite,
-  useRouteLink,
   useUniversalAppContext,
   useUniversalClient,
 } from '@shm/shared'
-import {documentCreationMachine, inferDocumentSchema} from '@shm/shared'
+import {documentCreationMachine, inferDocumentSchema, resolveDocumentCreationDestination} from '@shm/shared'
 import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
@@ -20,10 +19,12 @@ import {queryQueryBlock} from '@shm/shared/models/queries'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {getActivityBellTarget, getRouteSpaceUid, isActivityOpen} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
-import {ButtonLink} from '@shm/ui/button'
+import {useCollapseActivity} from '@shm/ui/activity-panel'
+import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,7 @@ import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Add} from '@shm/ui/icons'
 import {JoinButton} from '@shm/ui/join-button'
+import {clearInviteJoin, hasInviteJoin, shouldAutoJoin} from './invite-join'
 import {MobilePanelSheet} from '@shm/ui/mobile-panel-sheet'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {createEmailSubscribersMenuItem} from '@shm/ui/site-email-subscribers'
@@ -74,6 +76,7 @@ import {LogoutDialog, useCreateAccount, useLocalKeyPair} from './auth'
 import {createWebDocumentDraft, createWebDocumentDraftFromMarkdownFile} from './document-edit/web-create-draft'
 import {listWebDocChildDrafts} from './document-edit/web-draft-db'
 import {useWebCanEdit} from './document-edit/use-web-can-edit'
+import {WebSpaceSettingsMenuItem} from './components/web-space-settings-menu'
 import {getVaultAccountSettingsUrl} from './vault-links'
 import {useCreateSpaceDialog, useHasExistingSpace} from './web-create-space-dialog'
 import {useWebNotificationInbox, useWebNotificationReadState} from './web-notifications'
@@ -302,7 +305,13 @@ function WebActorCreateButton({
   const navigate = useNavigate()
   const client = useUniversalClient()
   const inputRef = useRef<HTMLInputElement>(null)
-  const destination = parentIsCollection && canEditParent && parentId ? parentId : locationId
+  const destination = resolveDocumentCreationDestination(locationId, {
+    canEditCurrent: true,
+    currentIsCollection,
+    parentId,
+    parentIsCollection,
+    canEditParent,
+  })
   const actor = useActorRef(documentCreationMachine, {
     input: {
       currentId: locationId,
@@ -491,7 +500,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const keyPair = useLocalKeyPair()
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
   const {content: createAccountContent, createAccount} = useCreateAccount({})
-  const {isJoined, joinSite} = useJoinSite({siteUid})
+  const {isJoined, isLoaded: contactsLoaded, joinSite} = useJoinSite({siteUid})
   const logoutDialog = useAppDialog(LogoutDialog, {showCloseButton: false})
   const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
   const universalClient = useUniversalClient()
@@ -530,11 +539,38 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   // Hide join button if inside a pending space draft.
   const isPendingSpace = isPendingSpaceUid(siteUid)
 
+  // Someone who just accepted an invitation is joined on arrival: the sign-in
+  // page left a marker, and this is where the Join button would otherwise show.
+  const autoJoinStarted = useRef(false)
+  useEffect(() => {
+    if (autoJoinStarted.current) return
+    if (
+      !shouldAutoJoin({
+        pending: hasInviteJoin(),
+        signedIn: !!keyPair && !!accountId,
+        contactsLoaded,
+        isJoined,
+        isPendingSpace,
+      })
+    ) {
+      if (isJoined && hasInviteJoin()) clearInviteJoin()
+      return
+    }
+    autoJoinStarted.current = true
+    joinSite()
+      .then(() => clearInviteJoin())
+      .catch((error) => {
+        autoJoinStarted.current = false
+        console.error('[invite-join] could not join the site automatically', error)
+      })
+  }, [keyPair, accountId, contactsLoaded, isJoined, isPendingSpace, joinSite])
+
   // Show the join button if not joined the site
   if (!keyPair) {
     return (
       <>
         <div className="flex items-center gap-2">
+          <NotifsButton signedIn={false} />
           <PlaceholderAvatar onClick={() => createAccount({source: 'login'})} />
           {isPendingSpace ? null : <JoinButton onClick={() => createAccount({source: 'join'})} />}
         </div>
@@ -603,6 +639,14 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <UserCog className="size-5" />
         <span className="text-sm">Manage account</span>
       </button>
+      <WebSpaceSettingsMenuItem
+        siteUid={siteUid}
+        mobile
+        onSelect={() => {
+          setMobileMenuOpen(false)
+          navigate({key: 'site-settings', id: hmId(siteUid)})
+        }}
+      />
       {maintenance ? (
         <button
           className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
@@ -662,7 +706,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     <>
       {isMobile ? (
         <div className="flex items-center gap-2">
-          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+          <NotifsButton signedIn />
           <button
             ref={accountMenuTriggerRef}
             className="flex cursor-pointer rounded-full shadow-lg"
@@ -684,7 +728,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          {keyPair.notifyServerUrl ? <NotifsButton /> : null}
+          <NotifsButton signedIn />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button ref={accountMenuTriggerRef} className="flex cursor-pointer rounded-full shadow-lg">
@@ -736,6 +780,12 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 <UserCog className="size-4" />
                 Manage account
               </DropdownMenuItem>
+              <WebSpaceSettingsMenuItem
+                siteUid={siteUid}
+                onSelect={() => {
+                  navigate({key: 'site-settings', id: hmId(siteUid)})
+                }}
+              />
               {maintenance ? (
                 <DropdownMenuItem
                   aria-haspopup="dialog"
@@ -798,13 +848,17 @@ export function WebSitePageShell({children, siteUid}: {children?: ReactNode; sit
   )
 }
 
-function NotifsButton() {
-  const storedView = typeof window !== 'undefined' ? localStorage.getItem('seed-notifications-view') : null
-  const linkProps = useRouteLink({key: 'notifications', view: storedView === 'unread' ? 'unread' : undefined})
+// Toggles the space Activity panel, or collapses the full Activity page. It opens on To you, or on All updates for a
+// signed-out reader, who has no notifications but can still follow the space.
+function NotifsButton({signedIn}: {signedIn: boolean}) {
+  const tab = signedIn ? 'to-you' : 'all-updates'
   const route = useNavRoute()
-  const isActive = route.key === 'notifications'
+  const navigate = useNavigate()
+  const isActive = isActivityOpen(route)
   const {originHomeId} = useUniversalAppContext()
-  const siteUid = originHomeId?.uid
+  // Gateway pages (/hm/<uid>/...) belong to the space in their route, not to the gateway's own site.
+  const siteUid = getRouteSpaceUid(route) ?? originHomeId?.uid
+  const collapse = useCollapseActivity(hmId(siteUid), route.key === 'feed' ? route.tab : tab)
   const inbox = useWebNotificationInbox(siteUid)
   const readState = useWebNotificationReadState(siteUid)
 
@@ -822,16 +876,23 @@ function NotifsButton() {
   }, [inbox.data, readState.data])
 
   return (
-    <Tooltip content="Notifications" asChild>
-      <ButtonLink
+    <Tooltip content="Activity" asChild>
+      <Button
         className={cn(
           'relative h-8 rounded-full border-1 border-transparent p-0',
           isActive && 'dark:bg-muted bg-black/5',
         )}
         variant="ghost"
         size="icon"
-        aria-current={isActive ? 'page' : undefined}
-        {...linkProps}
+        aria-label="Activity"
+        aria-pressed={isActive}
+        onClick={() => {
+          const target = getActivityBellTarget(route, tab)
+          if (target === 'collapse') collapse()
+          else if (target) navigate(target)
+          // Pages outside any space have no panel to open, so open the site's full Activity page.
+          else if (siteUid) navigate({key: 'feed', id: hmId(siteUid), tab})
+        }}
       >
         <Bell className="size-4" />
         {unreadCount > 0 ? (
@@ -840,7 +901,7 @@ function NotifsButton() {
             <span className="sr-only">{unreadCount} unread notifications</span>
           </>
         ) : null}
-      </ButtonLink>
+      </Button>
     </Tooltip>
   )
 }

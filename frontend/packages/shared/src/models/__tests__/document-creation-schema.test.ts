@@ -9,11 +9,18 @@ function item(path: string[], metadata: Record<string, unknown>) {
 }
 
 describe('inferDocumentSchema', () => {
-  it('uses published and draft direct children, excludes built-ins and deeper descendants, and keeps type', () => {
+  it('uses published and draft direct children, excludes built-ins and deeper descendants, and keeps custom attributes', () => {
     const schema = inferDocumentSchema({
       collectionId,
       publishedChildren: [
-        item(['projects', 'one'], {name: 'One', type: 'task', status: 'ready'}),
+        item(['projects', 'one'], {
+          name: 'One',
+          type: 'hm://hyper.media/page',
+          html: 'ipfs://bundle',
+          inputSchema: 'hm://hyper.media/page-input',
+          taskKind: 'task',
+          status: 'ready',
+        }),
         item(['projects', 'one', 'note'], {ignored: 'nested'}),
         item(['elsewhere'], {ignored: 'outside'}),
       ],
@@ -26,7 +33,7 @@ describe('inferDocumentSchema', () => {
     expect(schema.attributes).toEqual([
       {key: 'priority', type: 'number'},
       {key: 'status', type: 'text'},
-      {key: 'type', type: 'text'},
+      {key: 'taskKind', type: 'text'},
     ])
   })
 

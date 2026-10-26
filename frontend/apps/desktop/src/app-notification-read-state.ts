@@ -1,9 +1,9 @@
-import z from 'zod'
+import z from 'zod/v3'
 import {
   getLocalNotificationReadState,
   getLocalNotificationSyncStatus,
   handleNotifyServiceHostChanged,
-  markAllNotificationsRead,
+  markSiteNotificationsRead,
   markNotificationEventRead,
   markNotificationEventUnread,
   startNotificationReadBackgroundSync,
@@ -49,11 +49,11 @@ export const notificationReadApi = t.router({
     .input(
       z.object({
         accountUid: z.string(),
-        markAllReadAtMs: z.number(),
+        siteUid: z.string(),
       }),
     )
     .mutation(async ({input}) => {
-      return markAllNotificationsRead(input)
+      return markSiteNotificationsRead(input)
     }),
   syncNow: t.procedure
     .input(

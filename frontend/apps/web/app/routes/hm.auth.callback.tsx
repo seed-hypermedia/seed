@@ -1,3 +1,6 @@
+import {json} from '@remix-run/node'
+import {requireSignInEnabled} from '@/require-sign-in.server'
+import {safeNextPath, SIGN_IN_PATH} from '@/require-sign-in'
 import {keyPairStore} from '@/auth'
 import * as authSession from '@/auth-session'
 import {
@@ -8,15 +11,16 @@ import {
   writeLocalKeys,
 } from '@/local-db'
 import {queryAPI} from '@/models'
-import {getSiteMembershipStatus, processPendingIntent} from '@/pending-intent'
-import {webUniversalClient} from '@/universal-client'
-import {useNavigate} from '@remix-run/react'
+import {saveWebDomainReturn, setWebDomainRequest, takeWebDomainReturn} from '@/models/domain-publishing'
+import {getSiteMembershipStatus, processPendingIntent, type SiteMembershipStatus} from '@/pending-intent'
+import {ensureDaemonAuth, webUniversalClient} from '@/universal-client'
+import {useLoaderData, useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {useUniversalAppContext} from '@shm/shared'
 import * as blobs from '@shm/shared/blobs'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
-import {Spinner} from '@shm/ui/spinner'
+import {SignInLoading, Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {XCircle} from 'lucide-react'
 import {useEffect, useState} from 'react'
@@ -24,15 +28,23 @@ import {useEffect, useState} from 'react'
 const inFlightAuthCallbacks = new Map<string, Promise<void>>()
 const completedAuthCallbacks = new Set<string>()
 
+/** Exposes only the deployment mode needed to preserve the public callback UI. */
+export function loader() {
+  return json({requireSignIn: requireSignInEnabled()})
+}
+
 export default function AuthCallbackRoute() {
+  const {requireSignIn} = useLoaderData<typeof loader>()
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const {origin, originHomeId} = useUniversalAppContext()
 
   useEffect(() => {
-    const callbackKey = window.location.href
+    const callbackUrl = new URL(window.location.href)
+    callbackUrl.hash = ''
+    const callbackKey = callbackUrl.toString()
     if (completedAuthCallbacks.has(callbackKey) || inFlightAuthCallbacks.has(callbackKey)) {
-      console.log('[auth-callback] Skipping duplicate callback handling', {callbackKey})
+      console.log('[auth-callback] Skipping duplicate callback handling')
       return
     }
 
@@ -43,6 +55,7 @@ export default function AuthCallbackRoute() {
       try {
         const result = await authSession.handleCallback({vaultUrl})
         if (!result) {
+          await saveWebDomainReturn()
           setError('No authentication data received.')
           return
         }
@@ -50,13 +63,18 @@ export default function AuthCallbackRoute() {
         // handleCallback already verified signatures, coherence, and built EncodedBlobs.
 
         let hadExistingAccountAtOrigin = false
-        try {
-          const accountResult = await queryAPI<{type?: string}>(
-            `/api/Account?id=${encodeURIComponent(result.accountPrincipal)}`,
-          )
-          hadExistingAccountAtOrigin = accountResult?.type === 'account'
-        } catch {
-          hadExistingAccountAtOrigin = false
+        queryAPI<{type?: string}>(`/api/Account?id=${encodeURIComponent(result.accountPrincipal)}`)
+          .then((accountResult) => {
+            hadExistingAccountAtOrigin = accountResult?.type === 'account'
+          })
+          .catch(() => {})
+        let membershipStatus = null as SiteMembershipStatus | null
+        if (originHomeId?.uid) {
+          getSiteMembershipStatus(originHomeId.uid, result.accountPrincipal)
+            .then((status) => {
+              membershipStatus = status
+            })
+            .catch(() => {})
         }
 
         // Build the session Signer for creating reverse blobs.
@@ -86,33 +104,21 @@ export default function AuthCallbackRoute() {
           account: result.accountPrincipal,
         })
 
-        // Dual-origin persistence.
-        const uploadPromises: Promise<unknown>[] = []
-
-        // 1. Current origin (must succeed).
-        uploadPromises.push(
-          webUniversalClient.publish({blobs: publishBlobs}).then((res) => {
-            console.log('[auth-callback] Published delegation blobs to current origin', res)
-            return res
-          }),
-        )
-
-        // 2. Identity origin (failure is non-fatal).
+        // Identity origin failure is non-fatal, so it doesn't hold the redirect.
         if (WEB_IDENTITY_ORIGIN && WEB_IDENTITY_ORIGIN !== origin) {
-          uploadPromises.push(
-            createSeedClient(WEB_IDENTITY_ORIGIN)
-              .publish({blobs: publishBlobs})
-              .then((res) => {
-                console.log('[auth-callback] Published delegation blobs to identity origin', res)
-                return res
-              })
-              .catch((e) => {
-                console.warn('Identity origin save failed, continuing anyway', e)
-              }),
-          )
+          createSeedClient(WEB_IDENTITY_ORIGIN)
+            .publish({blobs: publishBlobs})
+            .then((res) => {
+              console.log('[auth-callback] Published delegation blobs to identity origin', res)
+            })
+            .catch((e) => {
+              console.warn('Identity origin save failed, continuing anyway', e)
+            })
         }
 
-        await Promise.all(uploadPromises)
+        // Current origin must succeed before the session counts as secured.
+        const res = await webUniversalClient.publish({blobs: publishBlobs})
+        console.log('[auth-callback] Published delegation blobs to current origin', res)
 
         // Store the session key pair as the active local keys with delegation info.
         await writeLocalKeys(sessionSigner.keyPair, {
@@ -123,6 +129,7 @@ export default function AuthCallbackRoute() {
           capabilityBlob: result.capability.data,
           vaultUrl,
           notifyServerUrl: result.notifyServerUrl,
+          emailPrevalidation: result.emailPrevalidation,
         })
         keyPairStore.set({
           ...sessionSigner.keyPair,
@@ -131,12 +138,17 @@ export default function AuthCallbackRoute() {
           capabilityCid: result.capability.cid.toString(),
           vaultUrl,
           notifyServerUrl: result.notifyServerUrl,
+          emailPrevalidation: result.emailPrevalidation,
         })
+
+        // Wait for the site cookie before loading any protected destination.
+        await ensureDaemonAuth()
 
         // Cleanup delegation markers.
         await deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL)
         await deleteAuthState(AUTH_STATE_DELEGATION_RETURN_URL)
 
+        const hostingReturn = await takeWebDomainReturn(result.accountPrincipal)
         const intentResult = await processPendingIntent(originHomeId)
 
         let targetUrl = returnUrl
@@ -160,20 +172,42 @@ export default function AuthCallbackRoute() {
           existingSpaceDraftId = intentResult.draftId
         } else if (intentResult.type === 'join') {
           successVariant = intentResult.joinStatus === 'joined' ? 'join' : 'welcome-back'
-        } else if (originHomeId?.uid) {
-          const membershipStatus = await getSiteMembershipStatus(originHomeId.uid)
-          successVariant = membershipStatus === 'not-member' && !hadExistingAccountAtOrigin ? 'login' : 'welcome-back'
-        } else if (hadExistingAccountAtOrigin) {
-          successVariant = 'welcome-back'
+        } else {
+          // Read whichever toast lookups have settled. An unknown membership
+          // counts as not a member, which keeps the default login wording.
+          const isReturning =
+            hadExistingAccountAtOrigin || (membershipStatus !== null && membershipStatus !== 'not-member')
+          successVariant = isReturning ? 'welcome-back' : 'login'
         }
 
-        const nextUrl = new URL(targetUrl, window.location.origin)
+        let nextUrl = new URL(targetUrl, window.location.origin)
+        // Also finish requests started before direct enterprise return URLs were introduced.
+        if (requireSignIn && !hostingReturn && intentResult.type === 'none' && nextUrl.pathname === SIGN_IN_PATH) {
+          nextUrl = new URL(safeNextPath(nextUrl.searchParams.get('next')), window.location.origin)
+        }
+        if (hostingReturn) {
+          setWebDomainRequest(hostingReturn)
+          successVariant = null
+        }
         if (successVariant) nextUrl.searchParams.set('vault_success', successVariant)
         if (existingSpaceUrl) nextUrl.searchParams.set('vault_space_url', existingSpaceUrl)
         if (existingSpaceDraftId) nextUrl.searchParams.set('vault_draft_id', existingSpaceDraftId)
-        navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {replace: true})
+        const destination = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
+        if (hostingReturn || intentResult.type !== 'none') {
+          // Pending workflows can carry dialogs, optimistic results, or publication prompts in memory.
+          navigate(destination, {
+            replace: true,
+            state: intentResult.type === 'comment' ? {submittedComment: intentResult.comment} : undefined,
+          })
+        } else {
+          // Ordinary sign-in starts with the persisted identity and a fresh query cache.
+          // A client transition can retain the signed-out header/account queries.
+          window.location.replace(destination)
+        }
       } catch (err) {
+        await saveWebDomainReturn()
         const message = err instanceof Error ? err.message : String(err)
+        console.error('[auth-callback] Sign-in failed', err)
         setError(message)
         authSession.clearSession(vaultUrl).catch(console.error)
         deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL).catch(console.error)
@@ -187,7 +221,9 @@ export default function AuthCallbackRoute() {
     })
     inFlightAuthCallbacks.set(callbackKey, authPromise)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin, navigate])
+  }, [origin, navigate, requireSignIn])
+
+  if (requireSignIn && !error) return <SignInLoading />
 
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">
@@ -196,12 +232,13 @@ export default function AuthCallbackRoute() {
           <div className="flex size-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
             <XCircle className="size-6 text-red-600 dark:text-red-400" />
           </div>
-          <div className="space-y-2 text-center">
+          <div className="flex flex-col gap-2 text-center">
             <SizableText size="lg" weight="bold">
-              Authentication Failed
+              We couldn't sign you in
             </SizableText>
             <SizableText color="muted" size="sm">
-              {error}
+              Your sign-in may have expired or been started in a different browser or tab. Please try signing in again
+              from the site.
             </SizableText>
           </div>
           <div className="flex w-full flex-col gap-2">
@@ -216,7 +253,12 @@ export default function AuthCallbackRoute() {
       ) : (
         <div className="flex flex-col items-center gap-4 text-center">
           <Spinner />
-          <SizableText>Securing your identity session…</SizableText>
+          <div className="flex flex-col gap-1">
+            <SizableText weight="bold">Signing you in…</SizableText>
+            <SizableText color="muted" size="sm">
+              This only takes a moment. Please don't close this tab.
+            </SizableText>
+          </div>
         </div>
       )}
     </div>

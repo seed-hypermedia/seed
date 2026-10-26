@@ -21,8 +21,9 @@ import {
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import merge from 'lodash/merge'
 import {CircleAlert, FilePen, Link, Merge, RotateCcw, Trash2, X} from 'lucide-react'
-import {Fragment, useEffect, useMemo, useRef, useState} from 'react'
+import {type ComponentType, Fragment, useEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
+import {AccountAvatar} from './account-avatar'
 import {Button} from './button'
 import {CommentContent, useDeleteCommentDialog} from './comments'
 import {
@@ -35,7 +36,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './components/alert-dialog'
-import {AccountAvatar} from './account-avatar'
 import {ReplyArrow} from './icons'
 import {AuthorNameLink, DocumentNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {DocumentCard} from './newspaper'
@@ -140,6 +140,16 @@ export function getEventNavigationRoute(
   return eventType === 'citation' ? targetRoute : merge({}, currentRoute, targetRoute)
 }
 
+/**
+ * Route for an event tapped in the space Activity view. Comments open the document with Discussions in
+ * right panel, so the document stays in view. Other events go to their target.
+ */
+export function getActivityEventRoute(event: LoadedEvent): NavRoute | null {
+  const route = getEventRoute(event)
+  if (route?.key !== 'comments') return route
+  return {key: 'document', id: route.id, panel: {key: 'comments', id: route.id, openComment: route.openComment}}
+}
+
 export function Feed({
   filterResource,
   filterAuthors,
@@ -148,6 +158,8 @@ export function Feed({
   size = 'md',
   draftVersionEntry,
   targetBlockId,
+  routeForEvent,
+  EventCard,
 }: {
   size?: 'sm' | 'md'
   filterResource: HMListEventsParams['filterResource']
@@ -156,6 +168,8 @@ export function Feed({
   targetDomain?: string
   draftVersionEntry?: DraftVersionEntry
   targetBlockId?: string
+  routeForEvent?: (event: LoadedEvent) => NavRoute | null
+  EventCard?: ComponentType<{event: LoadedEvent; route: NavRoute | null}>
 }) {
   const observerRef = useRef<IntersectionObserver>()
   const lastElementNodeRef = useRef<HTMLDivElement>(null)
@@ -164,6 +178,7 @@ export function Feed({
     filterResource,
     filterAuthors,
     filterEventType,
+    targetBlockId,
   })
 
   // Setup and cleanup observer whenever dependencies change
@@ -275,9 +290,11 @@ export function Feed({
 
   return (
     <SelectionContent>
-      <div>
+      <div className={EventCard ? 'flex flex-col gap-2 p-3' : undefined}>
         {allEvents.map((e, index) => {
-          const route = getEventRoute(e)
+          const route = routeForEvent ? routeForEvent(e) : getEventRoute(e)
+
+          if (EventCard) return <EventCard key={`row-${e.type}-${e.id}-${e.time}`} event={e} route={route} />
 
           if (e.type == 'comment' && e.replyingComment) {
             return (
@@ -310,6 +327,7 @@ export function Feed({
                   isSingleResource={isSingleResource}
                   event={e}
                   route={route}
+                  keepCurrentRoute={!routeForEvent}
                   targetDomain={targetDomain}
                   size={size}
                   latestDocUpdateVersion={latestDocUpdateVersion}
@@ -1064,6 +1082,7 @@ export function getEventRoute(event: LoadedEvent): NavRoute | null {
 function EventItem({
   event,
   route,
+  keepCurrentRoute,
   targetDomain,
   isSingleResource,
   size,
@@ -1071,13 +1090,16 @@ function EventItem({
 }: {
   event: LoadedEvent
   route: NavRoute | null
+  keepCurrentRoute: boolean
   targetDomain?: string
   isSingleResource?: boolean
   size?: 'sm' | 'md'
   latestDocUpdateVersion?: string | null
 }) {
   const currentRoute = useNavRoute()
-  const linkProps = useRouteLink(route ? getEventNavigationRoute(currentRoute, route, event.type) : currentRoute)
+  const linkProps = useRouteLink(
+    route ? (keepCurrentRoute ? getEventNavigationRoute(currentRoute, route, event.type) : route) : currentRoute,
+  )
   const latestDocId = event.type === 'doc-update' ? latestId(event.docId) : null
   const latestResource = useResource(latestDocId)
   const latestDocument = latestResource.data?.type === 'document' ? latestResource.data.document : null

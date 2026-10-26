@@ -8,11 +8,21 @@ import tsconfigPaths from 'vite-tsconfig-paths'
 
 import {envOnlyMacros} from 'vite-env-only'
 
+// Dev only: in production the reverse proxy routes these paths to notify before
+// they reach the web app. Mirroring that here keeps notify on the site's origin
+// locally, so email links and the /hm/email-notifications page line up.
+const NOTIFY_DEV_URL = process.env.NOTIFY_DEV_URL || 'http://localhost:3060'
+const NOTIFY_PATHS =
+  '^/hm/api/(notify|notifications|notification-config|notification-inbox|notification-read-state|public-subscribe|email-notif-token|unsubscribe)(?=$|[/?])'
+
 export default defineConfig(({isSsrBuild}) => {
   return {
     server: {
       port: 3000,
       cors: false,
+      proxy: {
+        [NOTIFY_PATHS]: {target: NOTIFY_DEV_URL},
+      },
     },
     clearScreen: false,
     // css: {
@@ -26,7 +36,9 @@ export default defineConfig(({isSsrBuild}) => {
     // ssr: {
     //   noExternal: ["react-tweet"],
     // },
-    build: {minify: true, sourcemap: true},
+    // SEED_WEB_NO_MINIFY=1 keeps function names readable in CPU profiles
+    // (scripts/ssr-bench); production builds are always minified.
+    build: {minify: !process.env.SEED_WEB_NO_MINIFY, sourcemap: true},
     ssr: {
       // Bundle all workspace packages and common dependencies for proper SSR with pnpm
       noExternal: [

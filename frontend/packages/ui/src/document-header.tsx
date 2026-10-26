@@ -151,7 +151,7 @@ export function DocumentHeader({
               </div>
             )}
             {docMetadata?.summary ? (
-              <span className="font-body text-muted-foreground text-xl">{docMetadata?.summary}</span>
+              <span className="text-muted-foreground font-sans text-xl">{docMetadata?.summary}</span>
             ) : null}
           </>
         )}

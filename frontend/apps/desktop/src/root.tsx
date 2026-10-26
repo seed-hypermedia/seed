@@ -1,4 +1,5 @@
 import {registerDesktopAgentsPlatform} from '@/agents-platform'
+import {setDocumentPagePlatform} from '@shm/shared/document-page'
 import {AppContextProvider} from '@/app-context-provider'
 import {AppIPC} from '@/app-ipc'
 import {cleanupAllEntitySubscriptions} from '@/models/entities'
@@ -9,6 +10,7 @@ import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {queryClient} from '@shm/shared/models/query-client'
 import type {StateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {FileDropGuard} from '@shm/ui/file-drop-guard'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast, Toaster} from '@shm/ui/toast'
@@ -19,6 +21,7 @@ import {ErrorBoundary} from 'react-error-boundary'
 import {AppErrorContent, RootAppError} from './components/app-error'
 import {DesktopDocumentMaintenance} from './components/document-maintenance'
 import {DebugDialogs} from './components/debug-dialogs'
+import {DomainPublishingInvitation} from './components/domain-publishing-invitation'
 import type {GoDaemonState} from './daemon'
 import {grpcClient} from './grpc-client'
 import {ipc} from './ipc'
@@ -177,6 +180,12 @@ registerQueryClient(queryClient)
 
 // Register the desktop adapter for the shared Agents UI, before any agents page renders
 registerDesktopAgentsPlatform()
+// Custom HTML pages on desktop: the main process serves the HTML folder under its own scheme.
+setDocumentPagePlatform({
+  resolvePageUrl: (input) => window.documentPages.open(input),
+  closePageUrl: (url) => window.documentPages.close(url),
+  openExternalUrl: (url) => ipc.send?.('open-external-link', url),
+})
 
 // Dev-only: expose the QueryClient on window so we can poke the React Query cache from
 // DevTools (e.g. forcing transient resource errors to verify the document banner).
@@ -384,7 +393,10 @@ function MainApp({}: {}) {
                   window.location.reload()
                 }}
               >
-                <NavigationContainer>{mainContent}</NavigationContainer>
+                <NavigationContainer>
+                  {mainContent}
+                  <DomainPublishingInvitation />
+                </NavigationContainer>
 
                 <Toaster />
 
@@ -512,6 +524,7 @@ function ElectronApp() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    <FileDropGuard />
     <ElectronApp />
   </React.StrictMode>,
 )

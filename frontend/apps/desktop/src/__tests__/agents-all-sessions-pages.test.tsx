@@ -10,11 +10,11 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
  * cursor, and the merged list must stay ordered and free of duplicates.
  */
 
-type FakeSession = {id: string; agentId: string; updatedAt: number}
+type FakeSession = {id: string; agentId: string; updatedAt: number; triggered?: boolean}
 
 const mockState = vi.hoisted(() => ({
   servers: {} as Record<string, FakeSession[]>,
-  calls: [] as Array<{serverUrl: string; cursor?: unknown}>,
+  calls: [] as Array<{serverUrl: string; cursor?: unknown; excludeTriggered?: boolean}>,
   failing: new Set<string>(),
 }))
 
@@ -22,9 +22,11 @@ vi.mock('@shm/ui/agents/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@shm/ui/agents/client')>()),
   sendAgentAction: async ({serverUrl, action}: {serverUrl: string; action: any}) => {
     if (action._ !== 'ListSessions') throw new Error(`unexpected action ${action._}`)
-    mockState.calls.push({serverUrl, cursor: action.cursor})
+    mockState.calls.push({serverUrl, cursor: action.cursor, excludeTriggered: action.excludeTriggered})
     if (mockState.failing.has(serverUrl)) throw new Error('server down')
-    const all = [...(mockState.servers[serverUrl] ?? [])].sort((a, b) => b.updatedAt - a.updatedAt)
+    const all = [...(mockState.servers[serverUrl] ?? [])]
+      .filter((s) => !(action.excludeTriggered && s.triggered))
+      .sort((a, b) => b.updatedAt - a.updatedAt)
     const after = action.cursor ? all.filter((s) => s.updatedAt < action.cursor.updatedBefore) : all
     const page = after.slice(0, action.limit)
     const last = page[page.length - 1]
@@ -45,9 +47,10 @@ const SERVERS = ['https://one.example', 'https://two.example']
 let container: HTMLDivElement
 let root: Root
 let latest: ReturnType<typeof useAllAgentSessionPages> | null = null
+let excludeTriggered = false
 
 function Probe() {
-  latest = useAllAgentSessionPages(SERVERS, 'account-1')
+  latest = useAllAgentSessionPages(SERVERS, 'account-1', {excludeTriggered})
   return null
 }
 
@@ -79,6 +82,7 @@ beforeEach(() => {
   mockState.calls = []
   mockState.failing = new Set()
   latest = null
+  excludeTriggered = false
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -90,6 +94,23 @@ afterEach(() => {
 })
 
 describe('useAllAgentSessionPages', () => {
+  it('asks the server to leave out trigger-started sessions, so the first page holds chats', async () => {
+    // A trigger-heavy account: the newest 45 sessions on server one were started by triggers.
+    mockState.servers = {
+      [SERVERS[0]!]: [
+        ...sessions('one', 45, 100000).map((s) => ({...s, triggered: true})),
+        ...sessions('chat', 3, 50000),
+      ],
+      [SERVERS[1]!]: [],
+    }
+    excludeTriggered = true
+    await render()
+    expect(mockState.calls.every((call) => call.excludeTriggered === true)).toBe(true)
+    expect(mockState.calls).toHaveLength(2)
+    expect(latest!.entries.map((e) => e.session.id)).toEqual(['chat-0', 'chat-1', 'chat-2'])
+    expect(latest!.hasNextPage).toBe(false)
+  })
+
   it('merges every server newest-first and labels rows with their agent', async () => {
     mockState.servers = {[SERVERS[0]!]: sessions('one', 2, 1000), [SERVERS[1]!]: sessions('two', 2, 1005)}
     await render()

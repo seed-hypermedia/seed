@@ -37,6 +37,7 @@ import {Input} from '@shm/ui/components/input'
 import {Label} from '@shm/ui/components/label'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {SigningIdentityIcon} from './signing-identity-icon'
+import {AVATAR_IMAGE_POLICY, IMAGE_FILE_ACCEPT, processImage} from '@shm/ui/image-processing'
 import {Select, SelectContent, SelectDropdown, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
 import {Spinner} from '@shm/ui/spinner'
 import {Notice} from '@shm/ui/notice'
@@ -58,25 +59,17 @@ import {isSubscriptionSignInAvailable, SubscriptionSignIn} from './provider-oaut
 import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-registry'
 
 /**
- * The Agent Guide that a new agent's system prompt embeds by default. It lives in the Hypermedia knowledge base
- * (`hypermedia/agent/guide.md` in the repo). The agents server resolves `hm://hyper.media` to the knowledge base
- * space it is configured with: the `hm-sync` dev site locally, the published docs space in production.
+ * A new agent's default system prompt is a single Embed of the Agent Guide rather than inline text, so every new
+ * agent picks up the current published guidance. The agent server names the guide (`defaultPromptUrl` in health).
  */
-export const DEFAULT_AGENT_SKILL_URL = 'hm://hyper.media/agent/guide'
-
-/**
- * A new agent's default system prompt is a single Embed of the shared skill document rather than
- * inline text, so every new agent picks up the current published guidance when the service
- * resolves the embed into the model-facing prompt.
- */
-export function defaultAgentSystemPrompt(): HMBlockNode[] {
+export function defaultAgentSystemPrompt(url: string): HMBlockNode[] {
   return [
     {
       block: {
         id: 'default-skill',
         type: 'Embed',
         text: '',
-        link: DEFAULT_AGENT_SKILL_URL,
+        link: url,
         attributes: {childrenType: 'Group', view: 'Content'},
         annotations: [],
       },
@@ -664,6 +657,7 @@ export function EditAgentAccountDialog({
   const [label, setLabel] = useState(identity.label || identity.accountId || identity.name)
   const [iconFile, setIconFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [processingIcon, setProcessingIcon] = useState(false)
   // Release the object URL when the dialog unmounts or the preview is replaced.
   useEffect(() => {
     return () => {
@@ -672,6 +666,7 @@ export function EditAgentAccountDialog({
   }, [previewUrl])
 
   async function handleSave() {
+    if (processingIcon) return
     const nextLabel = label.trim()
     if (!nextLabel) {
       toast.error('Account name is required')
@@ -705,15 +700,23 @@ export function EditAgentAccountDialog({
         >
           <input
             type="file"
-            accept="image/*"
-            disabled={updateIdentity.isLoading}
+            accept={IMAGE_FILE_ACCEPT}
+            disabled={updateIdentity.isLoading || processingIcon}
             className="absolute inset-0 z-10 cursor-pointer opacity-0 disabled:cursor-default"
-            onChange={(event) => {
+            onChange={async (event) => {
               const file = event.target.files?.[0]
               event.target.value = ''
               if (file) {
-                setIconFile(file)
-                setPreviewUrl(URL.createObjectURL(file))
+                setProcessingIcon(true)
+                try {
+                  const icon = await processImage(file, AVATAR_IMAGE_POLICY)
+                  setIconFile(icon)
+                  setPreviewUrl(URL.createObjectURL(icon))
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Could not process account icon')
+                } finally {
+                  setProcessingIcon(false)
+                }
               }
             }}
           />
@@ -740,7 +743,10 @@ export function EditAgentAccountDialog({
         <Button variant="ghost" onClick={onClose}>
           Cancel
         </Button>
-        <Button onClick={() => void handleSave()} disabled={updateIdentity.isLoading || !label.trim()}>
+        <Button
+          onClick={() => void handleSave()}
+          disabled={updateIdentity.isLoading || processingIcon || !label.trim()}
+        >
           {updateIdentity.isLoading ? <Spinner /> : null}
           Save
         </Button>
@@ -817,7 +823,8 @@ function AgentAccountRow({
   // Optimistic local preview of a just-picked image so the new icon shows instantly while the
   // server uploads, publishes, and the account metadata round-trips back.
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const uploading = saveState === 'saving'
+  const [processingIcon, setProcessingIcon] = useState(false)
+  const uploading = saveState === 'saving' || processingIcon
 
   // Drop the optimistic preview if the upload failed, reverting to the published icon.
   useEffect(() => {
@@ -831,9 +838,17 @@ function AgentAccountRow({
     }
   }, [previewUrl])
 
-  function handleFile(file: File) {
-    setPreviewUrl(URL.createObjectURL(file))
-    onIconSelect(file)
+  async function handleFile(file: File) {
+    setProcessingIcon(true)
+    try {
+      const icon = await processImage(file, AVATAR_IMAGE_POLICY)
+      setPreviewUrl(URL.createObjectURL(icon))
+      onIconSelect(icon)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not process account icon')
+    } finally {
+      setProcessingIcon(false)
+    }
   }
 
   return (
@@ -845,13 +860,13 @@ function AgentAccountRow({
       >
         <input
           type="file"
-          accept="image/*"
+          accept={IMAGE_FILE_ACCEPT}
           disabled={uploading}
           className="absolute inset-0 z-10 cursor-pointer opacity-0 disabled:cursor-default"
           onChange={(event) => {
             const file = event.target.files?.[0]
             event.target.value = ''
-            if (file) handleFile(file)
+            if (file) void handleFile(file)
           }}
         />
         {uploading ? (
@@ -933,7 +948,10 @@ export function CreateAgentDialog({
   const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
   const [thoroughness, setThoroughness] = useState<Thoroughness>('normal')
   const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
-  const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[]>(defaultAgentSystemPrompt)
+  const health = useAgentServerHealth(selectedServerUrl)
+  // Servers from before `defaultPromptUrl` resolve this address to their docs space.
+  const defaultPromptUrl = health.data?.defaultPromptUrl ?? 'hm://hyper.media/agent/guide'
+  const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[] | null>(null)
   const [creating, setCreating] = useState(false)
 
   useEffect(() => {
@@ -985,7 +1003,7 @@ export function CreateAgentDialog({
     try {
       const definition: AgentDefinition = {
         name: agentName,
-        systemPrompt: promptBlocksForRequest(systemPrompt),
+        systemPrompt: promptBlocksForRequest(systemPrompt ?? defaultAgentSystemPrompt(defaultPromptUrl)),
         modelProvider: providerName,
         model,
         reasoningLevel: coerceReasoningLevel(selectedProviderType, model, reasoningLevel),
@@ -1130,7 +1148,15 @@ export function CreateAgentDialog({
         <SizableText size="sm" weight="bold">
           System prompt
         </SizableText>
-        <AgentPromptEditor initialBlocks={systemPrompt} onChange={setSystemPrompt} focusOnMount={false} />
+        {health.isInitialLoading ? (
+          <Spinner />
+        ) : (
+          <AgentPromptEditor
+            initialBlocks={defaultAgentSystemPrompt(defaultPromptUrl)}
+            onChange={setSystemPrompt}
+            focusOnMount={false}
+          />
+        )}
       </div>
       <div className="flex justify-end gap-2">
         <Button onClick={() => void handleCreateAgent()} disabled={creating || !providerName || !model}>

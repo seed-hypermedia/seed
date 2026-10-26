@@ -76,7 +76,7 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 
 	srv.clampPageSize("ListCitations", &in.PageSize, 10)
 
-	publicOnly, err := srv.isPublicOnlyFor(ctx, targetAccount, targetURL.Path)
+	filterPrivate, err := srv.shouldFilterPrivate(ctx, targetAccount, targetURL.Path)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 			})
 
 			return nil
-		}, eid, publicOnly, cursor.BlobID, cursor.LinkID, in.PageSize); err != nil {
+		}, eid, filterPrivate, cursor.BlobID, cursor.LinkID, in.PageSize); err != nil {
 			return err
 		}
 
@@ -172,10 +172,16 @@ func (srv *Server) ListCitations(ctx context.Context, in *documents.ListCitation
 		return nil, err
 	}
 
+	// One citation per citing block. The query emits a row per link, and a block
+	// edited in later Changes carries its link again under a Ref of the same
+	// document, so rows that share the source, the citing block and the target
+	// collapse. The citing block has to stay in the key: a document that links one
+	// target block from many blocks (a paper citing its bibliography) is one
+	// citation per paragraph, not one per document.
 	seenCitations := make(map[string]bool)
 	uniqueCitations := make([]*documents.Citation, 0, len(resp.Citations))
 	for _, citation := range resp.Citations {
-		key := fmt.Sprintf("%s|%s|%s|%s|%t", citation.Source, citation.SourceType, citation.TargetVersion, citation.TargetFragment, citation.IsExactVersion)
+		key := fmt.Sprintf("%s|%s|%s|%s|%s|%t", citation.Source, citation.SourceType, citation.SourceContext, citation.TargetVersion, citation.TargetFragment, citation.IsExactVersion)
 		if !seenCitations[key] && !slices.Contains(deletedList, citation.Source) {
 			seenCitations[key] = true
 			uniqueCitations = append(uniqueCitations, citation)
@@ -426,20 +432,26 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		return nil, err
 	}
 
-	doc, err := srv.loadDocument(ctx, acc, u.Path, heads, false)
-	if err != nil {
-		return nil, srv.redirectOrError(ctx, iri, heads, err)
-	}
-
-	if doc.Visibility() == blob.VisibilityPrivate {
-		if err := srv.denyPrivateDocument(ctx, acc, u.Path); err != nil {
-			return nil, err
-		}
-	}
-
-	docpb, err := srv.hydrated.get(ctx, string(iri), doc)
+	docpb, ok, err := srv.cachedDocument(ctx, iri, acc, u.Path, heads)
 	if err != nil {
 		return nil, err
+	}
+	if !ok {
+		doc, err := srv.loadDocument(ctx, acc, u.Path, heads, false)
+		if err != nil {
+			return nil, srv.redirectOrError(ctx, iri, heads, err)
+		}
+
+		if doc.Visibility() == blob.VisibilityPrivate {
+			if err := srv.denyPrivateDocument(ctx, acc, u.Path); err != nil {
+				return nil, err
+			}
+		}
+
+		docpb, err = srv.hydrated.get(ctx, string(iri), doc)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &documents.Resource{
@@ -639,8 +651,8 @@ var qCitationCommentExists = dqb.Str(`
 // is MATERIALIZED on purpose too: it is the plain per-link set without any view join
 // (a LEFT JOIN on the public_blobs view inside a materialized CTE made SQLite 3.45
 // materialize the whole view and scan it per row), and the visibility filter lives in
-// visible_changes so that :publicOnly keeps its position in the positional bind order
-// (:target, :publicOnly, :blob_id, :link_id, :page_size). Measured on a 6.5 GB desktop
+// visible_changes so that :filterPrivate keeps its position in the positional bind order
+// (:target, :filterPrivate, :blob_id, :link_id, :page_size). Measured on a 6.5 GB desktop
 // database under the vendored SQLite 3.45 with cached prepared statements: 195ms ->
 // 2.1ms on the heaviest target, 2.3ms -> 1.9ms on a document with 142 self-links,
 // faster on every other target tried.
@@ -689,7 +701,7 @@ visible_changes AS (
   SELECT changes.*
   FROM changes
   LEFT JOIN public_blobs pb3 ON pb3.id = changes.id
-  WHERE (:publicOnly = 0 OR pb3.id IS NOT NULL)
+  WHERE (:filterPrivate = 0 OR pb3.id IS NOT NULL)
 ),
 owners(change_id, node, depth) AS (
   SELECT DISTINCT id, id, 0 FROM changes
@@ -743,7 +755,7 @@ live_sources AS MATERIALIZED (
     ON dg.resource = r.resource
     AND dg.generation = (SELECT MAX(g2.generation) FROM document_generations g2 WHERE g2.resource = r.resource)
   WHERE dg.is_deleted = 0
-  AND (:publicOnly = 0 OR pb2.id IS NOT NULL)
+  AND (:filterPrivate = 0 OR pb2.id IS NOT NULL)
   AND NOT EXISTS (
     SELECT 1 FROM document_attributes da
     WHERE da.resource = r.resource
@@ -775,7 +787,7 @@ JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
 WHERE (blobs.id %s :blob_id OR (blobs.id = :blob_id AND resource_links.id %s :link_id))
 AND structural_blobs.type IN ('Comment')
-AND (:publicOnly = 0 OR pb.id IS NOT NULL)
+AND (:filterPrivate = 0 OR pb.id IS NOT NULL)
 GROUP BY source_iri, link_id, target_version, target_fragment
 
 UNION ALL

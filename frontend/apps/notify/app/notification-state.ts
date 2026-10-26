@@ -17,7 +17,6 @@ import {
   isNotificationEmailVerificationExpired,
 } from './notification-email-verification'
 import {createNotificationVerificationEmail} from '@shm/emails/notifier'
-import {NOTIFY_SERVICE_HOST, SITE_BASE_URL} from '@shm/shared/constants'
 import {
   reduceNotificationState,
   type NotificationConfigState,
@@ -26,12 +25,10 @@ import {
 } from '@shm/shared/models/notification-state'
 import {
   isNotificationEventRead,
-  markNotificationEventReadInState,
+  markNotificationsReadInState,
   type NotificationReadLikeState,
 } from '@shm/shared/models/notification-read-logic'
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
-
-const notificationEmailHost = (NOTIFY_SERVICE_HOST || SITE_BASE_URL).replace(/\/$/, '')
 
 type NotificationStatePageOptions = {
   beforeMs?: number
@@ -62,13 +59,7 @@ function getNotificationConfigState(accountId: string): NotificationConfigState 
 }
 
 async function sendNotificationVerificationEmail(email: string, token: string) {
-  if (!notificationEmailHost) {
-    throw new Error('Notify service host is not configured')
-  }
-  const verificationUrl = buildNotificationEmailVerificationUrl({
-    notifyServiceHost: notificationEmailHost,
-    token,
-  })
+  const verificationUrl = buildNotificationEmailVerificationUrl({token})
   const verificationEmail = await createNotificationVerificationEmail({
     verificationUrl,
   })
@@ -131,36 +122,6 @@ function isReadStateMutation(action: NotificationMutationAction) {
     action.type === 'mark-all-read' ||
     action.type === 'mark-site-read'
   )
-}
-
-function markSiteNotificationsRead(
-  readState: NotificationStateSnapshot['readState'],
-  notifications: NotificationPayload[],
-): NotificationStateSnapshot['readState'] {
-  let nextReadState = readState
-
-  for (const notification of notifications) {
-    if (
-      isNotificationEventRead({
-        readState: nextReadState,
-        eventId: notification.feedEventId,
-        eventAtMs: notification.eventAtMs,
-      })
-    ) {
-      continue
-    }
-
-    nextReadState = {
-      ...nextReadState,
-      ...markNotificationEventReadInState({
-        readState: nextReadState,
-        eventId: notification.feedEventId,
-        eventAtMs: notification.eventAtMs,
-      }),
-    }
-  }
-
-  return nextReadState
 }
 
 function compactNotificationReadState(
@@ -236,7 +197,7 @@ export async function applyNotificationActionsForAccount(
     if (action.type === 'mark-site-read') {
       nextState = {
         ...nextState,
-        readState: markSiteNotificationsRead(
+        readState: markNotificationsReadInState(
           nextState.readState,
           getAllNotifications(accountId, {siteUid: action.siteUid}),
         ),

@@ -52,6 +52,8 @@ export function useJoinSite({siteUid}: {siteUid: string}) {
 
   return {
     isJoined,
+    /** The contact list has been fetched, so `isJoined` is an answer rather than a default. */
+    isLoaded: selectedAccountContacts.isSuccess,
     isPending: saveContact.isPending,
     siteName,
     isOwnAccount,

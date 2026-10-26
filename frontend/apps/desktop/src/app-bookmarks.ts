@@ -1,5 +1,4 @@
-import z from 'zod'
-// @ts-expect-error ignore this import error
+import z from 'zod/v3'
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 import {BookmarksState, migrateFromFavorites} from './migrate-favorites'

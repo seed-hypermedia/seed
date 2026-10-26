@@ -4,7 +4,6 @@ import {draftEditId, draftLocationId} from '@/models/drafts'
 import {useGatewayUrl, usePushOnPublish} from '@/models/gateway-settings'
 import {useSelectedAccount} from '@/selected-account'
 import {client} from '@/trpc'
-import {pathNameify} from '@/utils/path'
 import {
   computeInlineDraftPublishPath,
   computePublishPath,
@@ -23,7 +22,7 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
-import {Input} from '@shm/ui/components/input'
+import {PathInput} from '@shm/ui/path-input'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
 import {AlertCircle, Check, Copy} from '@shm/ui/icons'
@@ -374,7 +373,7 @@ export default function PublishDraftButton() {
       <Popover {...popoverState}>
         <Tooltip content={signingAccount ? `Publish as ${signingAccount?.metadata?.name}` : 'Publish Document…'}>
           <PopoverTrigger asChild>
-            <Button size="sm" variant="brand">
+            <Button size="sm" variant="default">
               Publish
             </Button>
           </PopoverTrigger>
@@ -430,14 +429,13 @@ export default function PublishDraftButton() {
               {isFirstPublish && editableLocation && (
                 <div className="flex flex-col gap-1">
                   <p className="text-muted-foreground text-xs">Edit your permalink</p>
-                  <Input
-                    value={`/${editablePath}`}
+                  <PathInput
+                    value={editablePath}
                     disabled={!!isPrivate}
-                    onChange={(e) => {
+                    onValueChange={(segment) => {
                       if (isPrivate) return
                       if (!editableLocation) return
-                      const raw = e.target.value.replace(/^\//, '')
-                      const newPath = [...(editableLocation.path?.slice(0, -1) || []), pathNameify(raw)]
+                      const newPath = [...(editableLocation.path?.slice(0, -1) || []), segment]
                       setEditableLocation(hmId(editableLocation.uid, {path: newPath}))
                       setPublishError(null)
                     }}
@@ -447,7 +445,7 @@ export default function PublishDraftButton() {
                         ;(e.target as HTMLInputElement).select()
                       }
                     }}
-                    placeholder="/document-path"
+                    placeholder="document-path"
                     className={`h-8 border-black/10 text-xs dark:border-white/20 ${
                       publishError ? 'border-red-500 dark:border-red-500' : ''
                     }`}
@@ -463,7 +461,7 @@ export default function PublishDraftButton() {
             <Separator className="bg-black/10 dark:bg-white/10" />
 
             <div className="flex flex-col gap-1">
-              <Button size="sm" variant="brand" onClick={handlePublishPress}>
+              <Button size="sm" variant="default" onClick={handlePublishPress}>
                 Publish: Make it live now
               </Button>
               <Button size="sm" variant="ghost" onClick={() => popoverState.onOpenChange(false)}>

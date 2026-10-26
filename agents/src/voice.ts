@@ -1,7 +1,7 @@
 /**
  * Voice chat for agent sessions.
  *
- * The browser joins a LiveKit room per session; a speech worker (`voice-worker.ts`, a separate
+ * The browser joins an isolated LiveKit room per call; a speech worker (`voice-worker.ts`, a separate
  * process) joins the same room, transcribes the user, and asks THIS server to run the utterance as
  * a normal session turn, streaming the reply text back to speak. This module owns everything the
  * server side needs for that:
@@ -18,6 +18,7 @@
  * worker over the loopback `room-config` route only.
  */
 import type * as api from '@/api'
+import {APIError} from '@/api-service'
 import type * as apisvc from '@/api-service'
 import * as config from '@/config'
 import {log} from '@/log'
@@ -27,7 +28,9 @@ import * as fs from 'node:fs'
 import * as nodePath from 'node:path'
 import {fileURLToPath} from 'node:url'
 
+/** Voice server and worker configuration. */
 export type VoiceConfig = config.Config['voice']
+/** Supported speech credential providers. */
 export type VoiceProvider = 'deepgram' | 'cartesia'
 /** Speech keys resolved for one room (account secret, else server config, else placeholder). */
 export type VoiceKeys = {deepgramApiKey: string; cartesiaApiKey: string}
@@ -89,9 +92,9 @@ export const VOICE_ROOM_TTL_MS = 2 * 60 * 60 * 1000
 /** A turn stream ends with whatever it collected after this long (tool-heavy turns can be slow). */
 export const VOICE_TURN_TIMEOUT_MS = 5 * 60 * 1000
 
-/** Room name for a session; one room per session so re-joins land in the same place. */
+/** A unique room for each call; reconnecting WebRTC reuses the issued token and room. */
 export function voiceRoomName(sessionId: string): string {
-  return `seed-voice-${sessionId}`
+  return `seed-voice-${sessionId}-${crypto.randomUUID()}`
 }
 
 export type VoiceSessionListener = (event: apisvc.ServiceEvent) => void
@@ -223,7 +226,7 @@ export class VoiceService {
 
   /**
    * Mints a participant token for the session's room, records the room, and asks LiveKit to
-   * dispatch the speech worker into it. Re-issuing for the same session replaces the record.
+   * dispatch the speech worker into it. Every call has its own speaker and credentials.
    */
   async createVoiceSession(input: {
     sessionId: string
@@ -256,9 +259,9 @@ export class VoiceService {
       })
       log.info('[voice] dispatched worker', {room, sessionId: input.sessionId})
     } catch (error) {
-      // The worker may already be in the room (a re-issue), or LiveKit may be unreachable — in
-      // which case the browser's own connect will surface the failure. Never fail the token.
+      this.forgetRoom(room)
       log.warn('[voice] agent dispatch failed', {room, error: errorMessage(error)})
+      throw new APIError(503, 'The voice service could not start. Please try again.')
     }
     return {
       _: 'CreateVoiceSessionResponse',

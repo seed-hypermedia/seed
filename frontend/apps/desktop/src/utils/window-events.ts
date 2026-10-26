@@ -3,6 +3,28 @@ import {useEffect} from 'react'
 import {useIPC} from '../app-context'
 
 export type AppWindowEvent =
+  | {type: 'browser-dialog'; browserId: number; origin: string}
+  | import('../browser-content-blocker').BrowserBlockedCount
+  | {type: 'browser-favicons'; browserId: number; url: string; icons: string[]}
+  | {type: 'open_web_url'; url: string}
+  /** The main process would not open this link outside Seed: no recent user input backed it. */
+  | {type: 'external_open_refused'; url: string}
+  | {type: 'experiments_changed'}
+  | {type: 'browser-open-url'; browserId: number; url: string}
+  | {type: 'browser-title'; browserId: number; title: string}
+  | {type: 'browser-loading'; browserId: number; loading: boolean}
+  | {type: 'browser-load-error'; browserId: number; description: string}
+  | {
+      type: 'browser-location'
+      userInitiated?: boolean
+      browserId: number
+      url: string
+      title: string
+      historyIndex: number
+      requestId?: number
+      /** The committed page is plain http to a non-loopback host; the pane frames it in red. */
+      insecure?: boolean
+    }
   | {type: 'back'}
   | {type: 'forward'}
   | {type: 'trigger_database_reindex'}

@@ -1,7 +1,6 @@
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {HMBlockEmbed, HMEmbedViewSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRouteLink} from '@shm/shared'
-import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
 import {useResource} from '@shm/shared/models/entity'
 import {useRecents} from '@shm/shared/models/recents'
@@ -28,7 +27,6 @@ import {cn} from '@shm/ui/utils'
 import {Fragment} from '@tiptap/pm/model'
 import {
   BetweenHorizontalStart,
-  Bookmark,
   CreditCard,
   ExternalLink as ExternalLinkIcon,
   Link2,
@@ -55,7 +53,6 @@ import {selectBlockNodeById} from './block-utils'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
 import {useDraftActions} from './draft-actions-context'
-import {EmbedEditorView} from './embed-editor'
 import {transformEmbedNode} from './hm-link-preview'
 import {MediaContainer} from './media-container'
 import {DisplayComponentProps, MediaRender, MediaType} from './media-render'
@@ -458,9 +455,7 @@ function SubdocumentMenu({
   const docResource = useResource(docId)
   const doc = docResource.data?.type === 'document' ? docResource.data.document : null
   const baseItems = useDocumentCardMenuItems(docId, doc)
-  const actions = useDocumentActions()
   const openLink = useRouteLink({key: 'document', id: docId} as any)
-  const bookmarked = actions.isBookmarked?.(docId) ?? false
   const currentView = (block.props.view as string) || 'Content'
   const url = block.props.url as string
 
@@ -521,18 +516,6 @@ function SubdocumentMenu({
       },
     ],
   })
-
-  if (actions.onBookmarkToggle) {
-    prependedItems.push({
-      key: 'bookmark',
-      label: bookmarked ? 'Remove Bookmark' : 'Bookmark',
-      icon: <Bookmark className={cn('size-4', bookmarked && 'fill-current')} />,
-      onClick: (e) => {
-        e?.stopPropagation()
-        actions.onBookmarkToggle!(docId)
-      },
-    })
-  }
 
   // On delete document also remove the block.
   const enhancedBaseItems = baseItems.map((item) =>
@@ -636,22 +619,7 @@ function EditorEmbedContent({
     return <BlockEmbedLink block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
 
   // if (block.attributes.view === 'Content') // content is the default
-  return (
-    <BlockEmbedContent
-      block={block}
-      parentBlockId={parentBlockId}
-      openOnClick={openOnClick}
-      renderDocumentContent={({embedBlocks, id, blockRef, blockRange, rootChildrenType}) => (
-        <EmbedEditorView
-          blocks={embedBlocks}
-          id={id}
-          focusBlockId={blockRef ?? undefined}
-          blockRange={blockRange ?? undefined}
-          rootChildrenType={rootChildrenType}
-        />
-      )}
-    />
-  )
+  return <BlockEmbedContent block={block} parentBlockId={parentBlockId} openOnClick={openOnClick} />
 }
 
 export const EmbedLauncherInput = ({

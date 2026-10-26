@@ -1,4 +1,4 @@
-import {serialize} from 'superjson'
+import {serializeSuperJSON} from './fast-superjson'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {HMActionSchema, HMGetRequestSchema} from '@seed-hypermedia/client/hm-types'
 import {APIParams, APIQueries, APIActions} from './api'
@@ -206,11 +206,18 @@ function handleAPISchemaRequest(url: URL): ApiResponse {
   }
 }
 
+/**
+ * Optional post-processing of a query's result before it is validated and sent, e.g. a host that
+ * answers some not-found reads from another node.
+ */
+export type ApiResultHook = (key: string, input: unknown, output: unknown) => Promise<unknown>
+
 /** Handle GET requests: input deserialized from query string */
 export async function handleApiRequest(
   url: URL,
   grpcClient: GRPCClient,
   queryDaemon: QueryDaemonFn,
+  afterGetData?: ApiResultHook,
 ): Promise<ApiResponse> {
   const pathParts = url.pathname.replace(/^\/api\//, '').split('/')
   const key = pathParts[0]
@@ -246,9 +253,10 @@ export async function handleApiRequest(
       input = deserializeQueryString(url.search, requestSchema.shape.input as any)
     }
 
-    const output = await apiDefinition.getData(grpcClient, input as any, queryDaemon)
+    const localOutput = await apiDefinition.getData(grpcClient, input as any, queryDaemon)
+    const output = afterGetData ? await afterGetData(key, input, localOutput) : localOutput
     const validatedOutput = requestSchema.shape.output.parse(output)
-    return {status: 200, body: JSON.stringify(serialize(validatedOutput)), headers: CORS_HEADERS}
+    return {status: 200, body: JSON.stringify(serializeSuperJSON(validatedOutput)), headers: CORS_HEADERS}
   } catch (error) {
     console.error('API error:', error)
     return {
@@ -295,7 +303,7 @@ export async function handleApiAction(
 
     const output = await apiDefinition.getData(grpcClient, validatedInput as any, queryDaemon)
     const validatedOutput = requestSchema.shape.output.parse(output)
-    return {status: 200, body: JSON.stringify(serialize(validatedOutput)), headers: CORS_HEADERS}
+    return {status: 200, body: JSON.stringify(serializeSuperJSON(validatedOutput)), headers: CORS_HEADERS}
   } catch (error) {
     console.error('API action error:', error)
     return {

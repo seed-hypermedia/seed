@@ -11,6 +11,16 @@
 
 See `hypermedia/*` for the available docs, which you are responsible for helping keep up-to-date.
 
+**Production documentation is release-derived.** The content of the `hyper.media` documentation space
+(`hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB`) comes exclusively from the `hypermedia/` Markdown and schema
+files in a Seed release. Never create, update, delete, import, or directly publish documents in this space through the
+CLI, SDK, agents, UI, or a local `hypermedia:push`. A locally available signing key is not authorization. Edit the
+repository files and ship them through the tagged release's documentation workflow. Requests to define a type at
+`hyper.media/<path>` mean adding its source files for a future release, not publishing that URL immediately. Use the
+isolated dev documentation space for previews. This rule concerns the documentation space, not unrelated users'
+resources served through the `hyper.media` gateway. A user-directed incident rollback is limited to undoing the
+identified unauthorized publications; it is not permission for subsequent direct edits.
+
 ## Subtree AGENTS.md Map
 
 - `backend/AGENTS.md` for `backend/**`.
@@ -40,28 +50,39 @@ See `hypermedia/*` for the available docs, which you are responsible for helping
   tag, branch deletion, or push, unless explicitly asked.
 - If you need to write a commit message, explain why the change was made, not what the commit is doing mechanically.
 
-## Security audit
+## Fork-only custom-images rebase rules
 
-- The vulnerability-hunting protocol is `docs/security/auditor.md`. It is plain markdown and self-contained: point any
-  model at it, or symlink it into a provider's agent directory to launch it as a named agent (for Claude Code:
-  `ln -s ../../docs/security/auditor.md .claude/agents/security-auditor.md`).
-- Read `docs/security/audit-log.md` before any security review. It records which surfaces have been audited and which
-  hypotheses were ruled out, so sessions resume instead of rediscovering.
-- Fixed vulnerabilities are disclosed as GitHub issues closed by their fix commit. Detail for unfixed findings stays in
-  `.ai/security/queue.md`, which is gitignored — this repo is public.
+These rules apply while query-block author and publish-date filters remain fork-only.
+
+- `custom-images` contains query-block filters that are not yet upstream.
+- Treat conflicts between the fork's query-filter changes and upstream query/table changes as additive. Preserve both
+  features instead of choosing one conflict side wholesale.
+- In particular, preserve separate test cases from both sides in:
+  - `frontend/packages/shared/src/client/__tests__/editorblock-to-hmblock.test.ts`
+  - `frontend/packages/shared/src/client/__tests__/hmblock-to-editorblock.test.ts`
+- After resolving conflicts, format the affected files and run `pnpm --filter @shm/shared test` before continuing or
+  pushing the rebase.
+- Never force-push a rebased `custom-images` branch unless those checks pass.
+- Remove this section after the query-filter feature is upstreamed.
 
 ## Workflow
 
-- To cut a release, follow `docs/releasing.md` (interactive runbook: `.agents/skills/run-release`).
+- To cut a release, follow `hypermedia/build/releasing.md` (interactive runbook: `.agents/skills/run-release`).
 
 - Ask clarifying questions when ambiguity matters.
 - Use OS temp dir for scratch files. Clean up after you're done.
 - Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
 - This repo uses `mise` + `direnv` for toolchain setup. Run repository commands as `direnv exec . <command>`.
+- If direnv blocks the environment, inspect `.envrc` and its referenced repository bootstrap tasks, then run
+  `direnv allow .` yourself as ordinary setup, without asking for a new user confirmation.
+- `mise.toml` is the source of truth for global toolchain versions. Declare tools not already managed by a dependency
+  manager (such as pnpm, Bun, or Go modules) there with explicit, pinned versions. When adding or updating a toolchain,
+  start with `mise.toml`, then pin the same exact version in CI, Dockerfiles, and other consumers that do not use mise;
+  do not use floating versions in those consumers.
 
 ## Local CI
 
-- Validate changes with [agent-ci](https://agent-ci.dev) before pushing. Full guide: `docs/local-ci-with-agent-ci.md`.
+- Validate changes with [agent-ci](https://agent-ci.dev) before pushing. Full guide: `hypermedia/build/local-ci.md`.
 - Pick the workflow that matches what you touched (subtree `AGENTS.md` files list the canonical command for each area):
   - Frontend: `npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token`
   - Backend lint: `npx @redwoodjs/agent-ci run -w .github/workflows/lint-go.yml -p`
@@ -100,7 +121,11 @@ See `hypermedia/*` for the available docs, which you are responsible for helping
   - Prefer layout scales that follow a consistent rhythm.
   - Do not use random pixel values for spacing or sizing.
   - Use parent `gap` for flex/grid spacing instead of child margins when possible.
-- Run relevant tests, type checks, and linters for touched areas before finishing.
+- Run relevant tests, type checks, and linters for touched areas before finishing. Typecheck per package
+  (`pnpm --filter <pkg> typecheck`) rather than the root `pnpm typecheck`: each `tsc --noEmit` in this monorepo takes
+  about 3GB, and the root script runs them three at a time. Never chain the root typecheck with several test suites in
+  one background command on a laptop while the desktop dev app is running; it swaps the machine (2026-10-26: nine
+  parallel tsc processes took 25GB on a 24GB laptop and thrashed for 40 minutes).
 - Before every commit, make sure the files you touched are Prettier-formatted (`pnpm format:write` in the touched
   packages, or `./node_modules/.bin/prettier --ignore-unknown --write <files>` from the repo root). CI's `Lint` job runs
   `prettier --check` across every package plus `agents/` and `vault/`; one unformatted file fails it and blocks the web

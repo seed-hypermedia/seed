@@ -41,11 +41,12 @@ import {
   type DocumentOperation,
   type HMSigner,
   type SeedClient,
+  assertValidMermaid,
 } from '@seed-hypermedia/client'
+import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import {
   computeReplaceOps,
   createBlocksMap,
-  matchBlockIds,
   rebindTableIdentities,
   toAPIBlockNode,
 } from '@seed-hypermedia/client/block-diff'
@@ -68,7 +69,10 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T, index: num
       out[i] = await fn(items[i]!, i)
     }
   })
-  await Promise.all(workers)
+  // A failed worker must not leave other requests running into the next sync pass.
+  const settled = await Promise.allSettled(workers)
+  const failed = settled.find((result) => result.status === 'rejected')
+  if (failed?.status === 'rejected') throw failed.reason
   return out
 }
 
@@ -256,6 +260,12 @@ export type ExportOptions = {
   assets?: {
     localize(nodes: HMBlockNode[], mdFile: string, metadata?: Record<string, unknown>): Promise<HMBlockNode[]>
   }
+  /** Keep an existing Markdown file byte-for-byte when it already represents the exported document. */
+  preserveSource?: boolean
+  /** Recheck the checkout immediately before writing a file after asynchronous work. */
+  beforeWrite?: (file: string) => void
+  /** Called synchronously after each file write, before another network request can yield. */
+  onWrite?: (file: string) => void
   log?: (line: string) => void
 }
 
@@ -348,6 +358,37 @@ function reorderLike(value: unknown, template: unknown): unknown {
   return out
 }
 
+/** Retain explicit identities and match missing identities by position, including partially annotated files. */
+function matchMarkdownIdentities(oldNodes: ReturnType<typeof toAPIBlockNode>[], tree: BlockNode[], source: string) {
+  const explicit = new Set(explicitBlockIds(source, tree))
+  // Files often mix existing identity comments with newly written paragraphs without them.
+  // Match only the missing identities; an explicit replacement must remain a real change.
+  const match = (old: typeof oldNodes, nodes: BlockNode[]): BlockNode[] =>
+    nodes.map((node, i) => {
+      const previous = explicit.has(node.block.id) ? old.find((n) => n.block.id === node.block.id) : old[i]
+      const id =
+        !explicit.has(node.block.id) && previous?.block.type === node.block.type && !explicit.has(previous.block.id)
+          ? previous.block.id
+          : node.block.id
+      return {
+        block: {...node.block, id},
+        children: node.block.type === 'Table' ? node.children : match(previous?.children ?? [], node.children),
+      }
+    })
+  return rebindTableIdentities(oldNodes, match(oldNodes, tree))
+}
+
+/** Whether two Markdown sources describe the same content, metadata, and explicit block identities. */
+export function markdownEquivalent(source: string, exported: string): boolean {
+  if (source === exported) return true
+  const local = parseMarkdown(source)
+  const remote = parseMarkdown(exported)
+  if (!deepEqual(local.metadata, remote.metadata)) return false
+  const oldNodes = markdownBlockNodesToHMBlockNodes(remote.tree).map(toAPIBlockNode)
+  const matched = matchMarkdownIdentities(oldNodes, local.tree, source)
+  return computeReplaceOps(createBlocksMap(oldNodes), matched).length === 0
+}
+
 /** Write one document (and the schema it defines) into the directory. */
 export async function exportDocument(
   opts: Omit<ExportOptions, 'uid'>,
@@ -378,13 +419,20 @@ export async function exportDocument(
   const content = self ? rewriteLinks(relative, (link) => swapAuthority(link, doc.account, self)) : relative
   const ownMetadata = self && metadata ? swapAuthority(metadata, doc.account, self) : metadata
   const md = blocksToMarkdown({...doc, metadata: ownMetadata, content}, {ipfsGateway: false})
-  const changed = writeIfChanged(resolve(opts.dir, file), md)
+  opts.beforeWrite?.(file)
+  const destination = resolve(opts.dir, file)
+  const preserved =
+    opts.preserveSource && existsSync(destination) && markdownEquivalent(readFileSync(destination, 'utf8'), md)
+  const changed = !preserved && writeIfChanged(destination, md)
+  if (changed) opts.onWrite?.(file)
   ;(changed ? result.written : result.unchanged).push(file)
   log(`${changed ? 'wrote  ' : 'same   '} ${file}`)
 
   if (schemaCid && schemaFile) {
     const blob = await opts.client.request('GetCID', {cid: schemaCid})
+    opts.beforeWrite?.(schemaFile)
     const changedSchema = writeJsonPreservingOrder(resolve(opts.dir, schemaFile), blob.value)
+    if (changedSchema) opts.onWrite?.(schemaFile)
     ;(changedSchema ? result.written : result.unchanged).push(schemaFile)
     log(`${changedSchema ? 'wrote  ' : 'same   '} ${schemaFile}`)
   }
@@ -874,6 +922,7 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     let prep = prepared.get(file)
     if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
     const {raw, tree, metadata: fileMetadata, nodes} = prep
+    await assertValidMermaid(nodes, await loadMermaidParser())
     const schema = await readSchemaFile(opts.dir, file, layout)
     const ownMetadata = layout.selfAuthority
       ? swapAuthority(fileMetadata, layout.selfAuthority, opts.account)
@@ -968,14 +1017,11 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     const oldDoc = movedFrom === null && existing.type === 'document' ? existing.document : (await getBase()).document
     const oldNodes = (oldDoc.content || []).map(toAPIBlockNode)
     const oldMap = createBlocksMap(oldNodes)
-    // A hand-written file carries no block ids: match its blocks to the
-    // existing document by position, so edits update blocks in place instead
-    // of replacing the whole document every time. (A block's id is explicit
+    // Match blocks without ids by position, even when other blocks in the
+    // file have ids, so repeated imports do not replace those blocks. (An id is explicit
     // when its comment appears in the source; prose mentioning `<!-- id:X -->`
     // does not count.)
-    const hasIds = newTree.some((n) => raw.includes(`<!-- id:${n.block.id}`))
-    const matched = hasIds ? newTree : matchBlockIds(oldNodes, newTree)
-    const rebound = rebindTableIdentities(oldNodes, matched)
+    const rebound = matchMarkdownIdentities(oldNodes, newTree, raw)
     const ops: DocumentOperation[] = computeReplaceOps(oldMap, rebound)
     const metaOp = metadataDiffOp(oldDoc.metadata as Record<string, unknown>, metadata as Record<string, unknown>)
     if (metaOp) ops.unshift(metaOp)

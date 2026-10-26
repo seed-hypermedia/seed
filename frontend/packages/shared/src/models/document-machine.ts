@@ -422,10 +422,12 @@ export function getCollectionEditorBlocks(context: DocumentMachineContext): Edit
 }
 
 function getMachineOwnedContentOverride(context: DocumentMachineContext): EditorBlock[] | undefined {
-  if (context.draftContent === null) return undefined
   const publishedType = deriveDocumentType(context.document?.content, context.documentId)
   if (context.documentType !== 'collection' && publishedType !== 'collection') return undefined
-  return contentToEditorBlocks(context.draftContent)
+  // A collection's body is its query block, owned by the machine. Before any query edit there is no
+  // draft content yet, so fall back to the published query rather than letting the writer read an
+  // (empty) editor, which would drop the query and make publish offer to delete every child.
+  return contentToEditorBlocks(context.draftContent ?? context.document?.content)
 }
 
 /** Returns the effective metadata derived from the published document and draft overlay. */
@@ -880,6 +882,7 @@ export const documentMachine = setup({
       },
     }),
     clearDraftState: assign({
+      documentType: ({context}) => deriveDocumentType(context.document?.content ?? [], context.documentId),
       draftId: null,
       draftCreated: false,
       hasChangedWhileSaving: false,
@@ -1237,7 +1240,14 @@ export const documentMachine = setup({
     pushContentToEditor: () => {
       // Provided via .provide() in the React layer (editor handlers ref)
     },
+    pushPublishedContentToEditor: () => {
+      // Provided via .provide() in the React layer (editor handlers ref)
+    },
     updatePublishedVersion: assign({
+      documentType: ({context, event}) => {
+        const doc = (event as any).output as HMDocument
+        return deriveDocumentType(doc?.content ?? [], context.documentId)
+      },
       publishedVersion: ({event}) => {
         // After publish completes, the done event output is the new HMDocument
         // We extract the version from it
@@ -1550,7 +1560,7 @@ export const documentMachine = setup({
             guard: 'hasPersistedDraft',
           },
           {
-            actions: ['clearDraftState'],
+            actions: ['clearDraftState', 'pushPublishedContentToEditor'],
           },
         ],
         'document.remoteUpdate': {
@@ -1654,7 +1664,7 @@ export const documentMachine = setup({
           },
           {
             target: 'loaded',
-            actions: ['clearDraftState'],
+            actions: ['clearDraftState', 'pushPublishedContentToEditor'],
           },
         ],
         'capability.changed': [
@@ -2147,7 +2157,7 @@ export const documentMachine = setup({
         }),
         onDone: {
           target: 'loaded',
-          actions: ['clearDraftState'],
+          actions: ['clearDraftState', 'pushPublishedContentToEditor'],
         },
         onError: {
           target: 'editing',
@@ -2173,7 +2183,7 @@ export const documentMachine = setup({
                 !hasSelfQueryBlock(getChildDeletionContent(context), context.documentId.id) &&
                 (hasSelfQueryBlock(context.baseBlocks ?? context.document?.content ?? [], context.documentId.id) ||
                   getChildDeletionCandidates(context).length > 0 ||
-                  context.removedChildDocumentIds.some((target) => /^https?:\/\//.test(target)) ||
+                  context.removedChildDocumentIds.length > 0 ||
                   getRemovedChildReferenceTargets(
                     context.documentId,
                     context.baseBlocks ?? context.document?.content ?? [],

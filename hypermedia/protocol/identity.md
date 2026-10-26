@@ -80,7 +80,7 @@ The [Permissions](./permissions.md) page has the exact rule for how far a delega
 
 ## Proving identity to a server <!-- id:JjYMnAhQ -->
 
-Signing blobs proves authorship. Reading private content over HTTP needs something else, because an HTTP request carries no signature. The daemon issues a bearer token. You sign an ephemeral capability that names the daemon's peer. The daemon checks that it is fresh (within five minutes) and that it already knows your principal, and returns a symmetric token valid for thirty days. The [Seed web app](../apps/web.md) stores that token in a cookie and forwards it on every request. The token only widens what you can read on a public-only node. It never authorizes a write. See [Integrity](./integrity.md) for the practical effect. <!-- id:CVquiYcq -->
+Signing blobs proves authorship. Reading private content over HTTP needs something else, because an HTTP request carries no signature. The daemon issues a bearer token. You sign an ephemeral capability that names the daemon's peer. The daemon checks that it is fresh (within five minutes) and that it already knows your principal, and returns a symmetric token valid for thirty days. The [Seed web app](../apps/web.md) stores that token in a cookie and forwards it on every request. The token only widens what you can read on a server-mode node. It never authorizes a write. See [Integrity](./integrity.md) for the practical effect. <!-- id:CVquiYcq -->
 
 ## Recovery and rotation <!-- id:oFA9JF5y -->
 
@@ -132,7 +132,7 @@ As of September 2026 these are directions the team is exploring. None of them is
   - Domains as a second identity vector next to the key, with both saved in links and contacts and a warning when they disagree. Today the only binding is the site's `registeredAccountUid`. <!-- id:9xSg5R-K -->
   - Session keys scoped to a target instead of full AGENT delegations. <!-- id:tSoLgBPx -->
   - Capability revocation, which would make rotation meaningful; see [Permissions](./permissions.md). <!-- id:Eyyt7wpH -->
-  - The HM26 redesign folds home documents and profiles into nodes owned by the space; see [Roadmap](./roadmap.md). <!-- id:op7GGmzk -->
+  - The proposed redesign folds home documents and profiles into nodes owned by the space; see [Roadmap](./roadmap.md). <!-- id:op7GGmzk -->
 
 # See also <!-- id:Ugn0v_W9 -->
 

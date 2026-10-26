@@ -12,6 +12,7 @@ import {DocumentEditor} from '../../src/document-editor'
 import {CommentEditor} from '../../src/comment-editor'
 import {DraftActionsContext, type DraftActions} from '../../src/draft-actions-context'
 import {TooltipProvider} from '@shm/ui/tooltip'
+import {processImage, CONTENT_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {Extension} from '@tiptap/core'
 import {createMachine} from 'xstate'
@@ -676,6 +677,13 @@ function RawModeApp({fixtureName}: {fixtureName: FixtureName}) {
 
   const editor = useBlockNote<HMBlockSchema>({
     blockSchema: hmBlockSchema,
+    handleFileAttachment: new URLSearchParams(window.location.search).has('imageUpload')
+      ? async (file) => {
+          const processed = await processImage(file, CONTENT_IMAGE_POLICY)
+          const url = URL.createObjectURL(processed)
+          return {url, displaySrc: url, name: processed.name, mime: processed.type}
+        }
+      : undefined,
     getSlashMenuItems: getSlashMenuItems,
     onEditorContentChange: (e) => {
       setEditorContent(e.topLevelBlocks)

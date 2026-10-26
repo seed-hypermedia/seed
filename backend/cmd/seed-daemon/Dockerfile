@@ -4,14 +4,16 @@
 # Alpine's musl libc is incompatible with GCC 14's libstdc++ which uses
 # glibc-specific symbols (__libc_single_threaded, __isoc23_* functions).
 # Bookworm's Vulkan SDK (1.3.239) is too old for llama.cpp's ggml-vulkan.
-FROM golang:1.26.2-trixie AS builder
+FROM golang:1.27.1-trixie AS builder
 WORKDIR /code
 ARG COMMIT_HASH
 ARG BRANCH
 ARG DATE
 COPY go.mod go.sum ./
 COPY backend/util/llama-go/go.mod backend/util/llama-go/go.sum ./backend/util/llama-go/
-RUN go mod download
+# The module proxy occasionally drops a download mid-stream (proxy.golang.org INTERNAL_ERROR);
+# retry so one flaky connection does not fail the whole image build.
+RUN for attempt in 1 2 3; do go mod download && exit 0; echo "go mod download failed (attempt $attempt), retrying"; sleep 10; done; exit 1
 COPY backend ./backend
 COPY monitoring ./monitoring
 
@@ -41,6 +43,6 @@ COPY --from=builder /go/bin/seed-daemon /usr/local/bin/seed-daemon
 COPY --from=builder /code/monitoring/grafana /monitoring/grafana
 COPY --from=builder /code/monitoring/prometheus /monitoring/prometheus
 EXPOSE 55000 55001 55002
-ENV SEED_PUBLIC_ONLY=true
+ENV SEED_SERVER_MODE=true
 ENV LLAMA_LOG=error
 CMD ["/usr/local/bin/seed-daemon"]

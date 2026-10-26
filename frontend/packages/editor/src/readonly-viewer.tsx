@@ -1,51 +1,108 @@
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
-import type {BlockRange, HMBlockChildrenType, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {
-  hypermediaUrlToHref,
-  RenderResourceProvider,
-  type RenderResourceKind,
-  useOpenUrl,
-  useUniversalAppContext,
-} from '@shm/shared'
-import {useCallback, useEffect, useMemo} from 'react'
+import type {ReadOnlyViewerProps} from '@shm/shared/readonly-viewer-context'
+import {getSSREmbedRenderer} from './ssr-embed-renderer'
+import styles from './readonly-viewer.module.css'
+
+import {hypermediaUrlToHref, RenderResourceProvider, useOpenUrl, useUniversalAppContext} from '@shm/shared'
+import {createContext, useContext, useCallback, useEffect, useMemo} from 'react'
+import {useImageUrl} from '@shm/ui/get-file-url'
 import {useBlockNote} from './blocknote'
 import {BlockHoverActionsPositioner} from './blocknote/react/BlockHoverActions/BlockHoverActionsPositioner'
 import {PredictionConeDebugOverlay} from './blocknote/react/BlockHoverActions/PredictionConeDebugOverlay'
 import {RangeSelectionPositioner} from './blocknote/react/RangeSelection/RangeSelectionPositioner'
+import {ImageGalleryOverlay} from './blocknote/react/ImageGallery/ImageGalleryOverlay'
 import {blockHighlightPluginKey} from './blocknote/core/extensions/BlockHighlight/BlockHighlightPlugin'
 import {ReadOnlyBlockNoteView} from './readonly-blocknote-view'
 import type {HMBlockSchema} from './schema'
 import {hmBlockSchema} from './schema'
 
-export interface ReadOnlyViewerProps {
-  blocks: HMBlockNode[]
-  resourceId?: UnpackedHypermediaId
-  resourceKind?: RenderResourceKind
-  rootChildrenType?: HMBlockChildrenType
-  textUnit?: number
-  layoutUnit?: number
-  className?: string
-  commentStyle?: boolean
-  /** Block whose whole node (or fragment, when combined with `blockRange`) should be visually highlighted. */
-  focusBlockId?: string
-  /** Codepoint range within `focusBlockId` to highlight instead of the whole block. */
-  blockRange?: BlockRange
-  onCopyBlockLink?: (blockId: string) => void
-  onStartComment?: (blockId: string) => void
-  getBlockCommentCount?: (blockId: string) => number | undefined
-  onCopyFragmentLink?: (blockId: string, rangeStart: number, rangeEnd: number) => void
-  onComment?: (blockId: string, rangeStart: number, rangeEnd: number) => void
+/** Shared read-only renderer properties. */
+export type {ReadOnlyViewerProps} from '@shm/shared/readonly-viewer-context'
+
+const EmbedDepthContext = createContext(0)
+
+/** Renders read-only content with the same presentation on the client and server. */
+export function ReadOnlyViewer(props: ReadOnlyViewerProps) {
+  const parentDepth = useContext(EmbedDepthContext)
+  const depth = props.depth ?? parentDepth + (props.embedded ? 1 : 0)
+  const fragment = props.presentation === 'fragment'
+  // Code fragments are inline text, not an interactive code-block scroller.
+  const blocks = useMemo(
+    () =>
+      fragment
+        ? props.blocks.map((node) =>
+            node.block.type === 'Code'
+              ? {
+                  ...node,
+                  block: {
+                    ...node.block,
+                    type: 'Paragraph' as const,
+                    annotations: [
+                      ...(node.block.annotations || []),
+                      {type: 'Code' as const, starts: [0], ends: [Array.from(node.block.text || '').length]},
+                    ],
+                  },
+                }
+              : node,
+          )
+        : props.blocks,
+    [fragment, props.blocks],
+  )
+  if (depth > 3) return null
+  const ssrRenderer = typeof window === 'undefined' ? getSSREmbedRenderer() : null
+  const html = ssrRenderer?.(blocks, props.rootChildrenType)
+  if (typeof window === 'undefined' && !html) return null
+
+  return (
+    <EmbedDepthContext.Provider value={depth}>
+      <RenderResourceProvider
+        resource={props.resourceId ? {kind: props.resourceKind ?? 'document', id: props.resourceId} : null}
+      >
+        <div
+          contentEditable={props.embedded ? false : undefined}
+          suppressContentEditableWarning
+          onDragStart={
+            props.embedded
+              ? (event) => {
+                  event.stopPropagation()
+                  event.preventDefault()
+                }
+              : undefined
+          }
+          style={
+            {
+              '--text-unit': `${props.textUnit ?? (fragment ? 12 : 18)}px`,
+              '--layout-unit': `${props.layoutUnit ?? 24}px`,
+              '--hm-prose-size': `${props.textUnit ?? (fragment ? 12 : props.commentStyle ? 16 : 18)}px`,
+              '--hm-breakout': props.embedded ? '0px' : undefined,
+            } as React.CSSProperties
+          }
+          className={[
+            props.className,
+            'hm-prose',
+            styles.root,
+            fragment ? styles.fragment : '',
+            props.commentStyle ? 'comment-editor is-comment' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          {fragment && props.inlinePrefix ? <>{props.inlinePrefix} </> : null}
+          {html != null ? (
+            <div className={styles.content} dangerouslySetInnerHTML={{__html: html}} />
+          ) : (
+            <ReadOnlyViewerContent {...props} blocks={blocks} />
+          )}
+        </div>
+      </RenderResourceProvider>
+    </EmbedDepthContext.Provider>
+  )
 }
 
-export function ReadOnlyViewer({
+function ReadOnlyViewerContent({
   blocks,
-  resourceId,
-  resourceKind = 'document',
   rootChildrenType,
-  textUnit,
-  layoutUnit,
-  className,
-  commentStyle,
+  embedded,
   focusBlockId,
   blockRange,
   onCopyBlockLink,
@@ -55,6 +112,7 @@ export function ReadOnlyViewer({
   onComment,
 }: ReadOnlyViewerProps) {
   const openUrl = useOpenUrl()
+  const getImageUrl = useImageUrl()
   const {hmUrlHref, openRouteNewWindow, origin, originHomeId, experiments} = useUniversalAppContext()
   const renderHref = useCallback(
     (url: string) =>
@@ -73,7 +131,7 @@ export function ReadOnlyViewer({
   const editor = useBlockNote<HMBlockSchema>(
     {
       editable: false,
-      renderType: 'viewer',
+      renderType: embedded ? 'embed' : 'viewer',
       blockSchema: hmBlockSchema,
       linkExtensionOptions: {
         openUrl,
@@ -84,7 +142,7 @@ export function ReadOnlyViewer({
       initialContent,
       rootChildrenType: rootChildrenType || 'Group',
     },
-    [initialContent, openUrl, renderHref, rootChildrenType],
+    [initialContent, openUrl, renderHref, openRouteNewWindow, rootChildrenType, embedded],
   )
 
   const rangeStart = blockRange && 'start' in blockRange ? blockRange.start : null
@@ -114,37 +172,22 @@ export function ReadOnlyViewer({
   const hasRangeSelection = !!(onCopyFragmentLink || onComment)
 
   return (
-    <RenderResourceProvider resource={resourceId ? {kind: resourceKind, id: resourceId} : null}>
-      <div
-        style={
-          {
-            '--text-unit': `${textUnit ?? 18}px`,
-            '--layout-unit': `${layoutUnit ?? 24}px`,
-          } as React.CSSProperties
-        }
-        className={[className ?? '', 'hm-prose', commentStyle ? 'comment-editor is-comment' : '']
-          .filter(Boolean)
-          .join(' ')}
-      >
-        <ReadOnlyBlockNoteView editor={editor}>
-          <>
-            {hasHoverActions && (
-              <BlockHoverActionsPositioner
-                editor={editor}
-                onCopyBlockLink={onCopyBlockLink}
-                onStartComment={onStartComment}
-                getCommentCount={getBlockCommentCount}
-              />
-            )}
-            {hasRangeSelection && (
-              <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
-            )}
-            {experiments?.developerTools && experiments?.predictionConeDebug && (
-              <PredictionConeDebugOverlay editor={editor} />
-            )}
-          </>
-        </ReadOnlyBlockNoteView>
-      </div>
-    </RenderResourceProvider>
+    <ReadOnlyBlockNoteView editor={editor} className={styles.content}>
+      <ImageGalleryOverlay editor={editor} resolveImageUrl={getImageUrl} />
+      {!embedded && hasHoverActions && (
+        <BlockHoverActionsPositioner
+          editor={editor}
+          onCopyBlockLink={onCopyBlockLink}
+          onStartComment={onStartComment}
+          getCommentCount={getBlockCommentCount}
+        />
+      )}
+      {!embedded && hasRangeSelection && (
+        <RangeSelectionPositioner editor={editor} onCopyFragmentLink={onCopyFragmentLink} onComment={onComment} />
+      )}
+      {!embedded && experiments?.developerTools && experiments?.predictionConeDebug && (
+        <PredictionConeDebugOverlay editor={editor} />
+      )}
+    </ReadOnlyBlockNoteView>
   )
 }

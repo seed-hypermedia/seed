@@ -6,7 +6,7 @@ The concept pages on this site describe what the Seed [daemon](../apps/daemon.md
 
 The team made these decisions in tech syncs and design meetings and recorded them on the team site. The process is slow on purpose. A change to permanent data goes through a written proposal, argumentation, and a decision "by technical extenuation". The team prefers to solve problems at the application layer whenever the permanent data can stay as it is. <!-- id:v-XBgRBp -->
 
-# The node and resource redesign (HM26) <!-- id:EbZXct8V -->
+# The node and resource redesign <!-- id:EbZXct8V -->
 
 **Where it comes from.** August and September 2026 tech syncs. <!-- id:4D-PNd-r -->
 
@@ -22,7 +22,7 @@ The team made these decisions in tech syncs and design meetings and recorded the
 
 # Home documents become profiles <!-- id:4QzHEyF6 -->
 
-**Where it comes from.** 2026-05-14 tech sync and the HM26 discussions. <!-- id:GHTO4T-V -->
+**Where it comes from.** 2026-05-14 tech sync and the resource-model discussions. <!-- id:GHTO4T-V -->
 
 Today an [account](./identity.md)'s [site](./sites.md) is rooted at its home document, the document at the empty path. Its `siteUrl` attribute names the server that publishes it. The direction is to move that role onto the [profile](../profile.md). Home documents and profiles would become nodes anchored to a fixed, hard-coded node ID under an empty parent, writable only by the space owner. The profile blob would get a deterministic timestamp so multiple devices converge. A new app version would upgrade existing accounts automatically. <!-- id:rFgb84sn -->
 
@@ -46,7 +46,7 @@ Today an [account](./identity.md)'s [site](./sites.md) is rooted at its home doc
 
 **Where it comes from.** Phase one shipped in the first half of 2026; consensus on phase two at the 2026-08-13 tech sync; transport discussion 2026-09-10. <!-- id:tdmbIO5H -->
 
-**Today.** A Ref, a comment or a change can carry private [visibility](../visibility.md). Private documents live under single-segment paths with random names. The owner and root writers can read them. They are pushed only to the space's declared site server or to authenticated peers, and filtered out of public-only servers. The daemon refuses to create new private documents through its public API. The check is a hard precondition in the create path, lifted only in tests. Existing private documents still work. See [Privacy](./privacy.md). <!-- id:WPa5z3jS -->
+**Today.** Refs and comments can carry private [visibility](../visibility.md); Changes and file blobs inherit visibility through references. Private documents live under single-segment paths with random names. The owner and root writers can read them. They are pushed only to the space's declared site server or to authenticated peers, and filtered from anonymous reads in server mode. `PrepareChange` refuses new private documents outside tests; clients can still publish externally signed private blobs. Existing private documents still work. See [Privacy](./privacy.md). <!-- id:WPa5z3jS -->
 
 **Direction.** <!-- id:vBXm-mY6 -->
   - Phase two is inheritance: children of private documents, an "inherit permissions" idea expressed through [metadata](../metadata.md) instead of the path, flat non-human names with redirects, anyone-with-the-link read and write, and an invitation flow that can grant to someone who has no account yet. <!-- id:NzxFqXlh -->

@@ -73,10 +73,10 @@ export function useMarkNotificationEventUnread() {
   })
 }
 
+/** Marks every notification of one space read. */
 export function useMarkAllNotificationsRead() {
   return useMutation({
-    mutationFn: (input: {accountUid: string; markAllReadAtMs: number}) =>
-      client.notificationRead.markAllRead.mutate(input),
+    mutationFn: (input: {accountUid: string; siteUid: string}) => client.notificationRead.markAllRead.mutate(input),
     onSuccess: (result) => {
       invalidateChangedNotificationQueries(result)
     },

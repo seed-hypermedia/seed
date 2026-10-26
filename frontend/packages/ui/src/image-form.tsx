@@ -1,7 +1,11 @@
-import {X} from 'lucide-react'
-import {ChangeEvent, ReactNode} from 'react'
+import {Crop, X} from 'lucide-react'
+import {ChangeEvent, ReactNode, useEffect, useState} from 'react'
 import {Button} from './button'
+import {useImageCropper, type ImageCropConfig} from './image-crop-dialog'
 import {SizableText} from './text'
+import {cn} from './utils'
+import {toast} from './toast'
+import {COVER_IMAGE_POLICY, IMAGE_FILE_ACCEPT, processImage} from './image-processing'
 
 /** Props for the ImageForm component. */
 export interface ImageFormProps {
@@ -15,11 +19,18 @@ export interface ImageFormProps {
   width?: number
   emptyContent?: ReactNode
   /**
+   * Enables cropping. Choosing a file opens the cropper rather than accepting
+   * the image as-is, and only the cropped result reaches onImageUpload.
+   */
+  crop?: ImageCropConfig
+  /**
    * Optional async function that uploads a File and resolves to its URL.
    * When omitted and `uploadOnChange` is true, the upload step is skipped.
    */
   fileUpload?: (file: File) => Promise<string>
   onImageUpload?: (avatar: string | File) => Awaited<void>
+  /** Reports whether crop selection, image preparation, or upload is pending. */
+  onPendingChange?: (pending: boolean) => void
   onRemove?: () => void
 }
 
@@ -36,6 +47,7 @@ export function ImageForm({
   id,
   onImageUpload,
   onRemove,
+  onPendingChange,
   emptyLabel,
   suggestedSize = '1920px x 1080px',
   uploadOnChange = true,
@@ -43,8 +55,40 @@ export function ImageForm({
   width,
   fileUpload,
   emptyContent,
+  crop,
   ...props
 }: ImageFormProps) {
+  const [processing, setProcessing] = useState(false)
+  const deliver = async (file: File, resetInput?: () => void) => {
+    if (!onImageUpload) return
+    if (uploadOnChange) {
+      if (!fileUpload) return
+      setProcessing(true)
+      return processImage(file, COVER_IMAGE_POLICY)
+        .then(fileUpload)
+        .then((data) => {
+          onImageUpload(data)
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error)
+          console.error(`Failed to upload icon: ${message}`, error)
+          toast.error(message)
+        })
+        .finally(() => {
+          setProcessing(false)
+          resetInput?.()
+        })
+    } else {
+      onImageUpload(file)
+    }
+  }
+
+  const cropper = useImageCropper({crop, onCropped: deliver})
+  const pending = processing || cropper.isOpen
+  useEffect(() => {
+    onPendingChange?.(pending)
+  }, [onPendingChange, pending])
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     event.stopPropagation()
     const fileList = event.target.files
@@ -52,21 +96,15 @@ export function ImageForm({
     if (!file) return
     if (!onImageUpload) return
 
-    if (uploadOnChange) {
-      if (!fileUpload) return
-      fileUpload(file)
-        .then((data) => {
-          onImageUpload(data)
-        })
+    event.target.value = ''
+    if (!cropper.pick(file)) {
+      setProcessing(true)
+      processImage(file, COVER_IMAGE_POLICY)
+        .then(deliver)
         .catch((error: unknown) => {
-          const message = error instanceof Error ? error.message : String(error)
-          console.error(`Failed to upload icon: ${message}`, error)
+          toast.error(error instanceof Error ? error.message : 'Could not process this image')
         })
-        .finally(() => {
-          event.target.value = ''
-        })
-    } else {
-      onImageUpload(file)
+        .finally(() => setProcessing(false))
     }
   }
 
@@ -104,6 +142,8 @@ export function ImageForm({
       >
         <input
           type="file"
+          accept={IMAGE_FILE_ACCEPT}
+          disabled={pending}
           onChange={handleFileChange}
           style={{
             opacity: 0,
@@ -141,6 +181,20 @@ export function ImageForm({
           </div>
         )}
       </div>
+      {cropper.source && url ? (
+        <Button
+          size="icon"
+          aria-label="Adjust crop"
+          className={cn('absolute top-0 z-50 opacity-0 group-hover:opacity-100', onRemove ? 'right-8' : 'right-0')}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            cropper.reopen()
+          }}
+        >
+          <Crop className="size-3" />
+        </Button>
+      ) : null}
       {onRemove && url ? (
         <Button
           size="icon"
@@ -148,12 +202,14 @@ export function ImageForm({
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
+            cropper.clear()
             onRemove()
           }}
         >
           <X className="size-3" />
         </Button>
       ) : null}
+      {cropper.dialog}
     </div>
   )
 }

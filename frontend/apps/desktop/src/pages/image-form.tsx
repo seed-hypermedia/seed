@@ -1,6 +1,7 @@
 import {fileUpload} from '@/utils/file-upload'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
+import {IMAGE_FILE_ACCEPT} from '@shm/ui/image-processing'
 import {X} from 'lucide-react'
 import {ChangeEvent} from 'react'
 import appError from '../errors'
@@ -80,6 +81,7 @@ export function ImageForm({
       >
         <input
           type="file"
+          accept={IMAGE_FILE_ACCEPT}
           onChange={handleFileChange}
           style={{
             opacity: 0,

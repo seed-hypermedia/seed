@@ -15,6 +15,11 @@ import React, {createContext, useCallback, useContext, useEffect, useMemo, useRe
  * for first arrival — the panel opens itself once for a reader who has never chosen (see
  * {@link useAssistantAutoOpen}), and only an actual close is remembered as "closed", so a visit
  * that never surfaced the panel (signed out, on a phone) does not count as a decision.
+ *
+ * Narrow viewports add one more fact, not persisted: whether the reader opened the panel themselves
+ * during this page load. There the panel covers the whole page, which only an explicit open may do
+ * — a restored preference or an auto-open on a window that later shrank must not take the page
+ * over. See {@link AssistantPanelState.openedByReader}.
  */
 export type AssistantPanelState = {
   isOpen: boolean
@@ -23,6 +28,12 @@ export type AssistantPanelState = {
    * false when none is, undefined until storage has been read. Only `false` invites auto-open.
    */
   openDecided: boolean | undefined
+  /**
+   * True once the reader opened the panel themselves (header toggle, menu item, new chat) during
+   * this page load; false after a close, and never set by a restored preference or an auto-open.
+   * The host shows the full-screen panel on narrow viewports only while this is true.
+   */
+  openedByReader: boolean
   /** Serialized `AssistantSessionRef` of the session the panel last showed, or null. */
   sessionId: string | null
   /** Serialized agent ref the user last chose in the panel's agent dropdown, or null. */
@@ -32,7 +43,13 @@ export type AssistantPanelState = {
    * flag so a second click while a draft is already open re-focuses the composer.
    */
   newChatRequest: number
+  /** Opens the panel at the reader's request. */
   open: () => void
+  /**
+   * Opens the panel on the app's initiative (first-arrival introduction). Counts as a decision like
+   * `open`, but not as the reader's own, so it never surfaces the full-screen panel.
+   */
+  autoOpen: () => void
   close: () => void
   toggle: () => void
   /** Opens the panel (if needed) and starts a new chat in the last-used agent context. */
@@ -69,6 +86,7 @@ const AssistantPanelContext = createContext<AssistantPanelState | null>(null)
 export function AssistantPanelProvider({children}: {children: React.ReactNode}) {
   const [isOpen, setIsOpen] = useState(false)
   const [openDecided, setOpenDecided] = useState<boolean | undefined>(undefined)
+  const [openedByReader, setOpenedByReader] = useState(false)
   const [sessionId, setSessionIdState] = useState<string | null>(null)
   const [agentId, setAgentIdState] = useState<string | null>(null)
   const [newChatRequest, setNewChatRequest] = useState(0)
@@ -120,18 +138,26 @@ export function AssistantPanelProvider({children}: {children: React.ReactNode}) 
   const open = useCallback(() => {
     setIsOpen(true)
     setOpenDecided(true)
+    setOpenedByReader(true)
+  }, [])
+  const autoOpen = useCallback(() => {
+    setIsOpen(true)
+    setOpenDecided(true)
   }, [])
   const close = useCallback(() => {
     setIsOpen(false)
     setOpenDecided(true)
+    setOpenedByReader(false)
   }, [])
   const toggle = useCallback(() => {
-    setIsOpen((prev) => !prev)
+    setIsOpen(!isOpen)
     setOpenDecided(true)
-  }, [])
+    setOpenedByReader(!isOpen)
+  }, [isOpen])
   const requestNewChat = useCallback(() => {
     setIsOpen(true)
     setOpenDecided(true)
+    setOpenedByReader(true)
     setNewChatRequest((prev) => prev + 1)
   }, [])
   const setSessionId = useCallback((next: string | null) => setSessionIdState(next), [])
@@ -141,10 +167,12 @@ export function AssistantPanelProvider({children}: {children: React.ReactNode}) 
     () => ({
       isOpen,
       openDecided,
+      openedByReader,
       sessionId,
       agentId,
       newChatRequest,
       open,
+      autoOpen,
       close,
       toggle,
       requestNewChat,
@@ -154,10 +182,12 @@ export function AssistantPanelProvider({children}: {children: React.ReactNode}) 
     [
       isOpen,
       openDecided,
+      openedByReader,
       sessionId,
       agentId,
       newChatRequest,
       open,
+      autoOpen,
       close,
       toggle,
       requestNewChat,
@@ -187,22 +217,24 @@ const NARROW_VIEWPORT_QUERY = '(max-width: 660px)'
  * hook settles a render after mount and an effect in that first pass would still read "wide".
  */
 export function useAssistantAutoOpen(available: boolean) {
-  const {openDecided, open} = useAssistantPanel()
+  const {openDecided, autoOpen} = useAssistantPanel()
   useEffect(() => {
     if (!available || openDecided !== false) return
     if (typeof window.matchMedia === 'function' && window.matchMedia(NARROW_VIEWPORT_QUERY).matches) return
-    open()
-  }, [available, openDecided, open])
+    autoOpen()
+  }, [available, openDecided, autoOpen])
 }
 
 const noop = () => {}
 const INERT_STATE: AssistantPanelState = {
   isOpen: false,
   openDecided: true,
+  openedByReader: false,
   sessionId: null,
   agentId: null,
   newChatRequest: 0,
   open: noop,
+  autoOpen: noop,
   close: noop,
   toggle: noop,
   requestNewChat: noop,

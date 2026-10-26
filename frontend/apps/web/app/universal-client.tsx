@@ -21,7 +21,7 @@ import {prepareHMDocumentInfo} from '@shm/shared/models/entity'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {peerIdFromString} from '@libp2p/peer-id'
 import {keyPairStore, type LocalWebIdentity} from './auth'
-import {preparePublicKey, signWithKeyPair} from './auth-utils'
+import {createWebIdentitySigner} from './auth-utils'
 import WebCommenting from './commenting'
 import {deleteRecent, getRecents} from './local-db-recents'
 
@@ -40,7 +40,12 @@ function logDaemonAuthError(error: unknown) {
   console.error(error)
 }
 
-async function ensureDaemonAuth(): Promise<void> {
+/**
+ * Resolves once the daemon session cookie for the current local key is in
+ * place (or immediately when there is no local key). Exported so a page can
+ * wait for it before a full-document navigation that the sign-in gate checks.
+ */
+export async function ensureDaemonAuth(): Promise<void> {
   const kp = keyPairStore.get()
   if (!kp) {
     resetDaemonAuthState()
@@ -218,16 +223,9 @@ export const webUniversalClient = createWebUniversalClient({
   },
   fetchRecents: getRecents,
   deleteRecent: deleteRecent,
-  getSigner: (): HMSigner => ({
-    getPublicKey: async () => {
-      const kp = keyPairStore.get()
-      if (!kp) throw new Error('No signing keys available')
-      return preparePublicKey(kp.publicKey)
-    },
-    sign: async (data: Uint8Array) => {
-      const kp = keyPairStore.get()
-      if (!kp) throw new Error('No signing keys available')
-      return signWithKeyPair(kp, new Uint8Array(data))
-    },
-  }),
+  getSigner: (accountUid): HMSigner => {
+    const identity = keyPairStore.get()
+    if (!identity) throw new Error('No signing keys available')
+    return createWebIdentitySigner(identity, accountUid)
+  },
 })

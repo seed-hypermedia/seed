@@ -1,9 +1,12 @@
-import {UIAvatar} from './avatar'
-import {Button} from './button'
-import {SizableText} from './text'
-import {Tooltip} from './tooltip'
 import {X} from 'lucide-react'
 import {ChangeEvent} from 'react'
+import {UIAvatar} from './avatar'
+import {Button} from './button'
+import {useImageCropper, type ImageCropConfig} from './image-crop-dialog'
+import {SizableText} from './text'
+import {Tooltip} from './tooltip'
+import {toast} from './toast'
+import {AVATAR_IMAGE_POLICY, IMAGE_FILE_ACCEPT, processImage} from './image-processing'
 
 export function IconForm({
   url,
@@ -16,6 +19,7 @@ export function IconForm({
   marginTop,
   borderRadius = size,
   fileUpload,
+  crop,
   ...props
 }: {
   label?: string
@@ -28,7 +32,27 @@ export function IconForm({
   onIconUpload?: (avatar: string) => Awaited<void>
   onRemoveIcon?: () => void
   fileUpload?: (file: File) => Promise<string>
+  crop?: ImageCropConfig
 }) {
+  const upload = (file: File, resetInput?: () => void) => {
+    if (!onIconUpload) return
+    if (!fileUpload) return
+    processImage(file, AVATAR_IMAGE_POLICY)
+      .then(fileUpload)
+      .then((data) => {
+        onIconUpload(data)
+      })
+      .catch((error) => {
+        console.error(`Failed to upload icon: ${error.message}`, error)
+        toast.error(error instanceof Error ? error.message : 'Failed to upload icon')
+      })
+      .finally(() => {
+        resetInput?.()
+      })
+  }
+
+  const cropper = useImageCropper({crop, onCropped: upload})
+
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     event.stopPropagation()
     const fileList = event.target.files
@@ -36,16 +60,8 @@ export function IconForm({
     if (!file) return
     if (!onIconUpload) return
     if (!fileUpload) return
-    fileUpload(file)
-      .then((data) => {
-        onIconUpload(data)
-      })
-      .catch((error) => {
-        console.error(`Failed to upload icon: ${error.message}`, error)
-      })
-      .finally(() => {
-        event.target.value = ''
-      })
+    event.target.value = ''
+    if (!cropper.pick(file)) upload(file)
   }
 
   const iconImage = <UIAvatar label={label} id={id} url={url} size={size} />
@@ -64,6 +80,7 @@ export function IconForm({
       >
         <input
           type="file"
+          accept={IMAGE_FILE_ACCEPT}
           onChange={handleFileChange}
           style={{
             opacity: 0,
@@ -113,6 +130,7 @@ export function IconForm({
           </Button>
         </Tooltip>
       ) : null}
+      {cropper.dialog}
     </div>
   )
 }

@@ -32,7 +32,7 @@ import {useNetworkDialog} from './network-dialog'
 export default function Footer({children}: {children?: ReactNode}) {
   const updateStatus = useUpdateStatus()
   return (
-    <FooterWrapper className="flex-none">
+    <FooterWrapper>
       <FooterNetworkingButton />
       <div className="flex items-center gap-4 px-1">
         <SizableText

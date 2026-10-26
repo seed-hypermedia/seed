@@ -1,14 +1,16 @@
 import {useCreateAccount} from '@/auth'
 import {reportError} from '@/report-error'
-import {useNavigate as useRemixNavigate} from '@remix-run/react'
+import {useLocation, useNavigate as useRemixNavigate} from '@remix-run/react'
 import {commentRecordIdFromBlob, createComment, filesToIpfsBlobs} from '@seed-hypermedia/client'
 import {
   HMBlockNode,
+  HMComment,
   HMMetadataPayload,
   HMPublishBlobsOutput,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {CommentEditor, type CommentEditorSubmitHandle} from '@shm/editor/comment-editor'
+import {CONTENT_IMAGE_POLICY, processImageIfSupported} from '@shm/ui/image-processing'
 import {
   getValidatedWebSeedLinkState,
   hmId,
@@ -30,7 +32,7 @@ import {useAccount, useResource} from '@shm/shared/models/entity'
 import {invalidateQueries, useQueryClient} from '@shm/shared/models/query-client'
 import {applyOptimisticComment, buildOptimisticComment, navigateToComment} from '@shm/shared/optimistic-comment'
 import {useTxString} from '@shm/shared/translation'
-import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
+import {useNavigate, useNavRoute, useNavigation} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Button, buttonVariants} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
@@ -63,6 +65,7 @@ export type WebCommentingProps = {
   /** Codepoint range within the quoted block when commenting on a text fragment. */
   quotingRange?: {start: number; end: number}
   onSuccess?: (successData: {id: string; response: HMPublishBlobsOutput; commentPayload: PublishCommentInput}) => void
+  onCommentSubmitted?: (comment: HMComment) => void
   /** Focus the editor on mount. */
   focusOnMount?: boolean
   /** @deprecated Use focusOnMount. Kept for older callers. */
@@ -79,6 +82,7 @@ export default function WebCommenting({
   quotingBlockId,
   quotingRange,
   onSuccess,
+  onCommentSubmitted,
   focusOnMount,
   autoFocus,
 }: WebCommentingProps) {
@@ -159,6 +163,7 @@ export default function WebCommenting({
 
   const queryClient = useQueryClient()
   const route = useNavRoute()
+  const navigation = useNavigation(undefined)
   const navNavigate = useNavigate('replace')
 
   type PostCommentVars = {commentPayload: PublishCommentInput; contentBlocks: HMBlockNode[]}
@@ -169,6 +174,7 @@ export default function WebCommenting({
       if (!commentBlobData) throw new Error('No comment blob data')
       const commentId = await commentRecordIdFromBlob(commentBlobData)
       const response = await publish(commentPayload)
+      if (!response.cids[0]) throw new Error('Failed to publish comment blob')
       return {response, commentId, commentPayload}
     },
     onMutate: async ({commentPayload, contentBlocks}: PostCommentVars) => {
@@ -190,33 +196,39 @@ export default function WebCommenting({
         visibility: 'PUBLIC',
       })
 
-      applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
-      navigateToComment(navNavigate, route, optimisticComment.id)
+      const rollback = applyOptimisticComment(queryClient, docId, optimisticComment, authorMetadata, quoting)
+      return {optimisticComment, rollback}
     },
-    onError: (_err) => {
-      // Keep the optimistic comment visible — the publish can be retried later.
-      // Do NOT roll back cache or navigation; do NOT invalidate queries (would crash offline).
-      console.warn('Comment publish failed, keeping optimistic comment:', _err)
+    onError: (_err, _variables, context) => {
+      context?.rollback()
+      console.warn('Comment publish failed; draft retained:', _err)
       reportError(_err, {feature: 'web-comment', operation: 'publish', docId: docId.id})
     },
-    onSuccess: ({response, commentId, commentPayload}) => {
+    onSuccess: ({response, commentId, commentPayload}, _variables, context) => {
+      const comment = {...context!.optimisticComment, version: response.cids[0]!}
+      applyOptimisticComment(queryClient, docId, comment, undefined, quoting)
+      onCommentSubmitted?.(comment)
       if (isPerfEnabled()) markCommentSubmitEnd()
       onSuccess?.({
         response,
         commentPayload: commentPayload,
         id: commentId,
       })
-      // refetchType 'all': posting navigates to the focused-comment view, which
-      // unmounts the discussions list. With refetchOnMount disabled on web, an
-      // 'active'-only invalidation would leave that list rendering its stale
-      // cache (without the new comment) when the user tabs back to it (#812).
+      // Refresh inactive discussion lists too: web does not refetch them on mount.
       invalidateQueries([queryKeys.DOCUMENT_ACTIVITY], {refetchType: 'all'})
+      invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOC_CITATIONS], {refetchType: 'all'})
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})
       invalidateQueries([queryKeys.ACTIVITY_FEED], {refetchType: 'all'})
+      navigateToComment(
+        navNavigate,
+        route,
+        comment.id,
+        navigation.state.get().routes[navigation.state.get().routeIndex] ?? route,
+      )
     },
   })
 
@@ -225,6 +237,19 @@ export default function WebCommenting({
   const targetResource = useResource(docId)
   const docVersion = resolveCommentTargetVersion(docId, targetResource.data)
   const remixNavigate = useRemixNavigate()
+  const location = useLocation()
+  const consumedSubmission = useRef<string | null>(null)
+  useEffect(() => {
+    const state = location.state as {submittedComment?: HMComment} | null
+    const comment = state?.submittedComment
+    if (!comment || !onCommentSubmitted || consumedSubmission.current === comment.id) return
+    const targetId = hmId(comment.targetAccount, {path: entityQueryPathToHmIdPath(comment.targetPath)})
+    if (targetId.id !== docId.id) return
+    consumedSubmission.current = comment.id
+    onCommentSubmitted(comment)
+    const {submittedComment: _, ...remainingState} = state!
+    remixNavigate(`${location.pathname}${location.search}${location.hash}`, {replace: true, state: remainingState})
+  }, [location, onCommentSubmitted, docId.id, remixNavigate])
 
   const {
     content: createAccountContent,
@@ -238,7 +263,7 @@ export default function WebCommenting({
           console.log('[commenting] processPendingIntent result:', result)
           if (result.type === 'comment') {
             clearDraft()
-            remixNavigate(result.commentUrl)
+            remixNavigate(result.commentUrl, {replace: true, state: {submittedComment: result.comment}})
           }
         })
         .catch((e) => {
@@ -304,6 +329,7 @@ export default function WebCommenting({
           if (blocks) {
             await setPendingIntent({
               type: 'comment',
+              commentRoute: route,
               docId,
               docVersion,
               content: blocks,
@@ -377,6 +403,7 @@ export default function WebCommenting({
       quotingRange?.end,
       quoting,
       createAccount,
+      route,
       postComment,
       clearDraft,
       promptEmailNotifications,
@@ -529,6 +556,8 @@ async function handleFileAttachment(
   draftId?: string,
 ): Promise<{
   displaySrc: string
+  mime?: string
+  name?: string
   fileBinary?: Uint8Array
   mediaRef?: {
     draftId: string
@@ -538,7 +567,8 @@ async function handleFileAttachment(
     size: number
   }
 }> {
-  const fileBuffer = await file.arrayBuffer()
+  const attachment = file instanceof File ? await processImageIfSupported(file, CONTENT_IMAGE_POLICY) : file
+  const fileBuffer = await attachment.arrayBuffer()
   const fileBinary = new Uint8Array(fileBuffer)
 
   // If draftId provided and we're in browser, use IndexedDB
@@ -546,14 +576,14 @@ async function handleFileAttachment(
     try {
       const {putDraftMedia} = await import('./draft-media-db')
       const mediaId = generateUUID()
-      const name = (file as File).name || `media-${Date.now()}`
-      const mime = file.type || 'application/octet-stream'
-      const size = file.size
+      const name = (attachment as File).name || `media-${Date.now()}`
+      const mime = attachment.type || 'application/octet-stream'
+      const size = attachment.size
 
-      await putDraftMedia(draftId, mediaId, file, {name, mime, size})
+      await putDraftMedia(draftId, mediaId, attachment, {name, mime, size})
 
       return {
-        displaySrc: URL.createObjectURL(file),
+        displaySrc: URL.createObjectURL(attachment),
         mediaRef: {
           draftId,
           mediaId,
@@ -582,8 +612,10 @@ async function handleFileAttachment(
 
   // Legacy behavior: store as binary in the block
   return {
-    displaySrc: URL.createObjectURL(file),
+    displaySrc: URL.createObjectURL(attachment),
     fileBinary,
+    mime: attachment.type,
+    name: (attachment as File).name,
   }
 }
 

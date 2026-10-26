@@ -997,12 +997,14 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
       | {
           includes?: Array<{space: string; path?: string; mode?: string}>
           sort?: Array<{term?: string; reverse?: boolean}>
+          filters?: Array<{type: 'Author'; uid: string}>
           limit?: number
         }
       | undefined
 
     let includes: Array<{space: string; path?: string; mode: 'Children' | 'AllDescendants'}>
     let sort: Array<{term: string; reverse: boolean}> | undefined
+    let filters: Array<{type: 'Author'; uid: string}> | undefined
     let limit: number | undefined
 
     if (queryConfig?.includes) {
@@ -1013,6 +1015,7 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
         mode: (inc.mode as 'Children' | 'AllDescendants') || 'Children',
       }))
       sort = normalizeQuerySort(queryConfig.sort)
+      filters = queryConfig.filters
       limit = queryConfig.limit
     } else {
       const space = (attrs?.space as string) || ''
@@ -1030,6 +1033,7 @@ async function resolveQuery(block: HMBlock, depth: number, ctx: ResolveContext):
     const results = await ctx.client.request('Query', {
       includes,
       sort: sort?.length ? sort : [{term: 'updated', reverse: true}],
+      filters,
       limit: limit || 10,
     })
 

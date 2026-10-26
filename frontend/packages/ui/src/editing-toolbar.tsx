@@ -20,7 +20,7 @@ import {pathNameify} from '@shm/shared/utils/path'
 import {Check, ChevronRight, Clock, Copy, FileDiff, Pencil, Trash, X} from 'lucide-react'
 import React, {forwardRef, useState} from 'react'
 import {Button} from './button'
-import {Input} from './components/input'
+import {PathInput} from './path-input'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
@@ -136,7 +136,7 @@ export function PublishPopoverBody({
   }
 
   const buildPath = () => {
-    const slug = pathNameify((renameSegment ?? '').trim())
+    const slug = renameSegment ?? ''
     const parent = (effectivePath ?? []).slice(0, -1)
     return {slug, path: [...parent, slug]}
   }
@@ -151,7 +151,7 @@ export function PublishPopoverBody({
     send({type: 'rename.retry', path})
   }
 
-  const currentSlug = pathNameify((renameSegment ?? '').trim())
+  const currentSlug = renameSegment ?? ''
   const unchanged = !isFirstPublish && currentSlug === (docId.path?.at(-1) ?? '')
   const canCommitRename = !committing && currentSlug.length > 0 && !unchanged
 
@@ -173,10 +173,10 @@ export function PublishPopoverBody({
         {renameActive ? (
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <Input
+              <PathInput
                 autoFocus
                 value={renameSegment ?? ''}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRenameSegment(e.target.value)}
+                onValueChange={setRenameSegment}
                 onFocus={(e: React.FocusEvent<HTMLInputElement>) => e.target.select()}
                 onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                   if (e.key === 'Enter' && canCommitRename) {
@@ -329,12 +329,8 @@ export function PublishPopoverBody({
       <div className="flex flex-col gap-2 pt-1">
         <Button
           size="default"
-          variant={publishDisabled ? 'ghost' : 'brand'}
-          className={cn(
-            'h-11 text-base font-semibold',
-            publishDisabled &&
-              'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 disabled:opacity-100 dark:bg-neutral-800 dark:text-neutral-400',
-          )}
+          variant="default"
+          className="h-11 text-base font-semibold"
           disabled={publishDisabled}
           onClick={() => onPublish()}
         >
@@ -365,11 +361,12 @@ const PublishTrigger = forwardRef<HTMLButtonElement, {canPublish: boolean; onCli
       <Button
         ref={ref}
         size="sm"
-        variant={canPublish ? 'green' : 'ghost'}
+        variant={canPublish ? 'default' : 'ghost'}
         className={cn(
           'gap-1.5',
+          // Publish stays clickable without changes (it opens the popover), so it mimics the inactive look.
           !canPublish &&
-            'bg-neutral-100 text-neutral-500 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-400',
+            'bg-neutral-100 text-neutral-400 hover:bg-neutral-100 dark:bg-neutral-800 dark:text-neutral-500',
         )}
         onClick={onClick}
       >
@@ -400,6 +397,8 @@ export function PublishButtonWithPopover({
   unpublishedChildCount?: number
 } & EditingToolbarCallbacks) {
   const draftId = useDocumentSelector(selectDraftId)
+  const publishedDoc = useDocumentSelector(selectDocument)
+  const isUnpublishedDraft = !!draftId && !publishedDoc?.version
   const changeCount = useUnpublishedChangeCount()
   const effectiveUnpublishedChildCount = Math.max(unpublishedChildCount, getUnpublishedChildCount?.() ?? 0)
   const canPublish = canPublishDocument({
@@ -415,7 +414,7 @@ export function PublishButtonWithPopover({
   if (draftId) {
     editingTrailingItems.push({
       key: 'discard-changes',
-      label: 'Discard Changes',
+      label: isUnpublishedDraft ? 'Delete Draft' : 'Discard Changes',
       icon: <Trash className="size-4" />,
       variant: 'destructive' as const,
       onClick: () => {
@@ -428,7 +427,10 @@ export function PublishButtonWithPopover({
     })
   }
 
-  const allItems = [...existingMenuItems, ...editingTrailingItems]
+  const allItems = [
+    ...existingMenuItems.filter((item) => !isUnpublishedDraft || item.key !== 'delete'),
+    ...editingTrailingItems,
+  ]
 
   const publishNow = () => {
     if (!canPublish) return

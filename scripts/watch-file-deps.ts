@@ -90,14 +90,25 @@ async function stopCommand() {
 const IGNORED_PATH_SEGMENTS = ['node_modules', '.git', 'dist', '.DS_Store']
 
 let resyncTimer: ReturnType<typeof setTimeout> | null = null
+let resync: Promise<void> | null = null
+let shuttingDown = false
 function scheduleResync(reason: string) {
+  if (shuttingDown) return
   if (resyncTimer) clearTimeout(resyncTimer)
-  resyncTimer = setTimeout(async () => {
+  resyncTimer = setTimeout(() => {
     resyncTimer = null
-    console.log(`↻ watch-file-deps: ${reason} changed — re-running bun install and restarting`)
-    await stopCommand()
-    install()
-    startCommand()
+    console.log(`↻ watch-file-deps: ${reason} changed — scheduling dependency refresh and restart`)
+    // The pending restart installs the latest files once the old child exits. Coalesce changes
+    // arriving during that wait instead of starting another child ahead of it.
+    if (resync) return
+    resync = (async () => {
+      await stopCommand()
+      if (shuttingDown) return
+      install()
+      startCommand()
+    })().finally(() => {
+      resync = null
+    })
   }, 300)
 }
 
@@ -186,7 +197,9 @@ for (const dir of watchedDirs) {
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, async () => {
+    shuttingDown = true
     if (resyncTimer) clearTimeout(resyncTimer)
+    await resync
     await stopCommand()
     process.exit(0)
   })

@@ -4,17 +4,19 @@ import {act} from 'react-dom/test-utils'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {afterEach, describe, expect, it, vi} from 'vitest'
+import {queryClient, queryKeys} from '@shm/shared'
+import type {HMComment, HMListCommentsOutput} from '@seed-hypermedia/client/hm-types'
 import {CommentBox} from '../commenting'
 
-const {createCommentMock, invalidateQueriesMock, publishMock, subscribeContactMock, writeCommentDraftMock} = vi.hoisted(
-  () => ({
+const {createCommentMock, invalidateQueriesMock, publishMock, subscribeContactMock, writeCommentDraftMock, navigation} =
+  vi.hoisted(() => ({
+    navigation: {route: {key: 'document', panel: null} as any},
     createCommentMock: vi.fn(),
     invalidateQueriesMock: vi.fn(),
     publishMock: vi.fn(),
     subscribeContactMock: vi.fn(),
     writeCommentDraftMock: vi.fn(),
-  }),
-)
+  }))
 
 vi.mock('@/grpc-client', () => ({
   grpcClient: {},
@@ -63,7 +65,9 @@ vi.mock('@/utils/media-drag', () => ({
 }))
 
 vi.mock('@/utils/useNavigate', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => (route: any) => {
+    navigation.route = route
+  },
 }))
 
 vi.mock('@seed-hypermedia/client', async (importOriginal) => {
@@ -143,14 +147,26 @@ vi.mock('@shm/shared/models/entity', async (importOriginal) => {
   }
 })
 
-vi.mock('@shm/shared/models/query-client', () => ({
+vi.mock('@shm/shared/models/query-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shm/shared/models/query-client')>()),
   invalidateQueries: invalidateQueriesMock,
 }))
 
-vi.mock('@shm/shared/optimistic-comment', () => ({
-  applyOptimisticComment: vi.fn(),
-  buildOptimisticComment: vi.fn(),
-  navigateToComment: vi.fn(),
+vi.mock('@shm/shared/optimistic-comment', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@shm/shared/optimistic-comment')>()),
+  buildOptimisticComment: async ({docId, replyParentId}: any) => ({
+    id: 'alice/new-comment',
+    version: 'optimistic-pending',
+    author: 'alice',
+    targetAccount: docId.uid,
+    targetPath: '/doc',
+    targetVersion: 'doc-version',
+    replyParent: replyParentId || '',
+    content: [],
+    visibility: 'PUBLIC',
+    createTime: '2026-01-01T00:00:00Z',
+    updateTime: '2026-01-01T00:00:00Z',
+  }),
 }))
 
 vi.mock('@shm/shared/routing', () => ({
@@ -166,12 +182,12 @@ vi.mock('@shm/ui/tooltip', () => ({
 
 vi.mock('@shm/shared/utils/navigation', () => ({
   NavContextProvider: ({children}: {children: React.ReactNode}) => children,
-  useNavigation: () => ({}),
-  useNavRoute: () => ({key: 'document', panel: null}),
+  useNavigation: () => ({state: {get: () => ({routes: [navigation.route], routeIndex: 0})}}),
+  useNavRoute: () => navigation.route,
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-function renderCommentBox(docUid = 'alice') {
+function renderCommentBox(docUid = 'alice', onCommentSubmitted?: (comment: HMComment) => void) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
@@ -185,7 +201,11 @@ function renderCommentBox(docUid = 'alice') {
   act(() => {
     root.render(
       <QueryClientProvider client={queryClient}>
-        <CommentBox docId={hmId(docUid, {path: ['doc']})} />
+        <CommentBox
+          docId={hmId(docUid, {path: ['doc']})}
+          commentId={navigation.route.openComment}
+          onCommentSubmitted={onCommentSubmitted}
+        />
       </QueryClientProvider>,
     )
   })
@@ -202,6 +222,8 @@ function cleanupRendered(root: Root, container: HTMLDivElement) {
 
 afterEach(() => {
   vi.clearAllMocks()
+  queryClient.clear()
+  navigation.route = {key: 'document', panel: null}
 })
 
 describe('CommentBox draft persistence', () => {
@@ -259,6 +281,62 @@ describe('CommentBox site membership', () => {
       createCommentMock.mock.invocationCallOrder[0]!,
     )
 
+    cleanupRendered(root, container)
+  })
+})
+
+describe('CommentBox publication state', () => {
+  it('keeps the context while publishing and advances only to the published reply', async () => {
+    const id = hmId('alice', {path: ['doc']})
+    navigation.route = {key: 'comments', id, openComment: 'bob/context'}
+    createCommentMock.mockResolvedValue({blobs: [{data: new Uint8Array([1])}]})
+    let finish!: (value: {cids: string[]}) => void
+    publishMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    let submitted: HMComment | undefined
+    const {container, root} = renderCommentBox('alice', (comment) => {
+      submitted = comment
+    })
+    await act(async () => {
+      container.querySelector('button')?.click()
+    })
+    await vi.waitFor(() => expect(finish).toBeDefined())
+    expect(navigation.route).toMatchObject({openComment: 'bob/context'})
+    expect(navigation.route.replyCommentId).toBeUndefined()
+    expect(submitted).toBeUndefined()
+    await act(async () => {
+      finish({cids: ['published-comment-cid']})
+    })
+    await vi.waitFor(() => expect(navigation.route.replyCommentId).toBe('alice/new-comment'))
+    expect(navigation.route.openComment).toBe('bob/context')
+    expect(submitted?.version).toBe('published-comment-cid')
+    const comments = queryClient.getQueryData<HMListCommentsOutput>([queryKeys.DOCUMENT_COMMENTS, id])?.comments
+    expect(comments).toHaveLength(1)
+    expect(comments?.[0]?.version).toBe('published-comment-cid')
+    cleanupRendered(root, container)
+  })
+
+  it('removes the pending comment and keeps the route when publishing fails', async () => {
+    const id = hmId('alice', {path: ['doc']})
+    navigation.route = {key: 'comments', id, openComment: 'bob/context'}
+    queryClient.setQueryData([queryKeys.DOCUMENT_COMMENTS, id], {comments: [], authors: {}})
+    createCommentMock.mockResolvedValue({blobs: [{data: new Uint8Array([1])}]})
+    publishMock.mockRejectedValue(new Error('Offline'))
+    let submitted: HMComment | undefined
+    const {container, root} = renderCommentBox('alice', (comment) => {
+      submitted = comment
+    })
+    await act(async () => {
+      container.querySelector('button')?.click()
+    })
+    await vi.waitFor(() => expect(container.querySelector('button')?.disabled).toBe(false))
+    expect(navigation.route.replyCommentId).toBeUndefined()
+    expect(submitted).toBeUndefined()
+    expect(queryClient.getQueryData<HMListCommentsOutput>([queryKeys.DOCUMENT_COMMENTS, id])?.comments).toEqual([])
     cleanupRendered(root, container)
   })
 })

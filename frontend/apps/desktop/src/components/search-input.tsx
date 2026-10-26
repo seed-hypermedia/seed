@@ -1,9 +1,10 @@
+import {useAppContext} from '@/app-context'
 import appError from '@/errors'
 import {domainResolver} from '@/grpc-client'
 import {useConnectPeer} from '@/models/contacts'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
-import {agentUrlToRoute, ipfsUrlToRoute} from '@/omnibar-url'
+import {agentUrlToRoute, ipfsUrlToRoute, parseBrowserAddress} from '@/omnibar-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
 import {parseDeepLink} from '@/utils/deep-links'
@@ -66,8 +67,10 @@ export const SearchInput = forwardRef<
   const [internalSearch, setInternalSearch] = useState('')
   const search = externalSearch !== undefined ? externalSearch : internalSearch
   const setSearch = onExternalSearchChange || setInternalSearch
-  const debouncedSearch = useDebounce(search, 200)
-  const isSearchPending = search !== debouncedSearch
+  // Trim pasted whitespace for URL handling and search; the input still shows the raw text.
+  const query = search.trim()
+  const debouncedSearch = useDebounce(query, 200)
+  const isSearchPending = query !== debouncedSearch
 
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
@@ -96,9 +99,9 @@ export const SearchInput = forwardRef<
     ) {
       return {
         key: 'mtt-link',
-        title: `Query ${search}`,
+        title: `Query ${query}`,
         onSelect: async () => {
-          const deepLinkEvent = parseDeepLink(search)
+          const deepLinkEvent = parseDeepLink(query)
           if (deepLinkEvent) {
             onClose?.()
             triggerWindowEvent(deepLinkEvent)
@@ -106,7 +109,7 @@ export const SearchInput = forwardRef<
           }
 
           // ipfs:// URLs: DAG-CBOR CIDs open in the blob editor, others in the inspector.
-          const ipfsRoute = ipfsUrlToRoute(search)
+          const ipfsRoute = ipfsUrlToRoute(query)
           if (ipfsRoute) {
             onClose?.()
             onSelect({route: ipfsRoute})
@@ -121,7 +124,7 @@ export const SearchInput = forwardRef<
             activityFilter: searchActivityFilter,
             commentId: searchCommentId,
             accountUid: searchAccountUid,
-          } = extractViewTermFromUrl(search)
+          } = extractViewTermFromUrl(query)
           const searchRouteKey = viewTermToRouteKey(searchViewTerm)
           const unpacked = unpackHmId(cleanSearch)
           const appRoute = unpacked ? appRouteOfId(unpacked) : null
@@ -139,17 +142,17 @@ export const SearchInput = forwardRef<
               ),
               id: unpacked,
             })
-          } else if (search.startsWith('http://') || search.startsWith('https://') || search.includes('.')) {
+          } else if (query.startsWith('http://') || query.startsWith('https://') || query.includes('.')) {
             if (allowWebURL) {
-              onSelect({webUrl: search})
+              onSelect({webUrl: query})
             }
 
             setActionPromise(
-              handleUrl(search)
+              handleUrl(query)
                 .then((navRoute) => {
                   if (navRoute) {
                     onClose?.()
-                    onSelect({route: navRoute, webUrl: search})
+                    onSelect({route: navRoute, webUrl: query})
                   }
                 })
                 .catch((error) => {
@@ -172,14 +175,15 @@ export const SearchInput = forwardRef<
       }
     }
     return null
-  }, [debouncedSearch, search, triggerWindowEvent])
+  }, [debouncedSearch, query, triggerWindowEvent])
 
   const searchItems: SearchResult[] =
     searchResults?.data?.entities
       ?.sort((a, b) => {
         // Contacts/profiles first
-        if (a.type === 'contact' && b.type !== 'contact') return -1
-        if (a.type !== 'contact' && b.type === 'contact') return 1
+        const aAccount = a.type === 'contact' || a.type === 'profile'
+        const bAccount = b.type === 'contact' || b.type === 'profile'
+        if (aAccount !== bAccount) return aAccount ? -1 : 1
         // Latest versions first
         const aLatest = a.id.latest ? 1 : 0
         const bLatest = b.id.latest ? 1 : 0
@@ -191,12 +195,17 @@ export const SearchInput = forwardRef<
       ?.map((item, index) => {
         const title = item.title || item.id.uid
         const route =
-          item.type === 'contact'
+          item.type === 'contact' || item.type === 'profile'
             ? ({key: 'profile', id: item.id} as NavRoute)
             : item.type === 'comment' && item.commentId
               ? ({key: 'comments', id: item.id, openComment: item.commentId} as NavRoute)
               : appRouteOfId(item.id)
-        const subtitle = item.type === 'contact' ? 'Contact' : item.type === 'comment' ? 'Comment' : 'Document'
+        const subtitle =
+          item.type === 'contact' || item.type === 'profile'
+            ? 'Profile'
+            : item.type === 'comment'
+              ? 'Comment'
+              : 'Document'
         return {
           key: item.commentId ? `${packHmId(item.id)}:comments/${item.commentId}` : packHmId(item.id),
           title,
@@ -487,6 +496,7 @@ function applyViewTermToRoute(
 
 function useURLHandler() {
   const experiments = useExperiments()
+  const {externalOpen} = useAppContext()
   const webQuery = useMutation({
     mutationFn: (input: {webUrl: string}) => client.webQuery.mutate(input),
   })
@@ -586,7 +596,14 @@ function useURLHandler() {
       }
       toast('Importing from the web')
     } else {
-      toast.error('Failed to fetch web link')
+      // Not a Hypermedia document: an ordinary website opens the way any web link does.
+      const webAddress = parseBrowserAddress(cleanUrl)
+      if (!webAddress) {
+        toast.error('Failed to fetch web link')
+        return null
+      }
+      if (await readWebBrowserEnabled()) return {key: 'web', url: webAddress}
+      externalOpen(webAddress)
       return null
     }
     throw new Error('Failed to fetch web link')

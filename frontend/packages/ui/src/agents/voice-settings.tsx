@@ -10,15 +10,8 @@ import type {GetVoiceSettingsResponse, SetVoiceSettings, VoiceKeySource} from '@
 import {useLocalAgentServerUrl} from './models'
 import {getAgentsPlatform} from './platform'
 
-/**
- * Settings → Advanced → Voice: the speech API keys behind the composer's mic button.
- *
- * Keys live on the app's local agents server as the signed account's encrypted secrets, never in
- * app settings, so this card talks to that server directly: `GetVoiceSettings` says whether each
- * key is the account's own, the server's configured one, or missing, and `SetVoiceSettings`
- * stores or clears one. Stored values are never shown; an empty field on Save leaves the key as
- * it is, and Clear removes the account's own key so the server's (if any) applies again.
- */
+// Keys belong to the signed account on the selected server; stored values are never returned.
+// An empty Save preserves the current key; Clear falls back to the server's shared key.
 
 type VoiceKeyField = 'deepgramApiKey' | 'cartesiaApiKey'
 
@@ -54,7 +47,7 @@ export function useVoiceSettings(serverUrl: string | null | undefined, accountUi
 export function useSetVoiceSettings(serverUrl: string | null | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (patch: Omit<SetVoiceSettings, '_'>) => {
-      if (!serverUrl || !accountUid) throw new Error('No local agent server or account')
+      if (!serverUrl || !accountUid) throw new Error('Choose an agent server and account')
       const response = await sendAgentAction({serverUrl, accountUid, action: {_: 'SetVoiceSettings', ...patch}})
       if (response._ !== 'SetVoiceSettingsResponse') throw new Error('Unexpected response from the agent server')
       return response
@@ -69,16 +62,27 @@ function describeKeySource(source: VoiceKeySource | undefined): string {
   return 'Not set'
 }
 
+/** Speech credentials for the desktop's local server. Session controls use VoiceServerSettings instead. */
 export function VoiceSettingsCard() {
   const localServer = useLocalAgentServerUrl()
   const accountUid = getAgentsPlatform().useAccountUid()
-  const serverUrl = localServer.data ?? null
-  const settings = useVoiceSettings(serverUrl, accountUid)
+  return <VoiceServerSettings serverUrl={localServer.data ?? null} accountUid={accountUid} />
+}
 
-  let blockedReason: string | null = null
-  if (localServer.isLoading) blockedReason = 'Waiting for the local agent server…'
-  else if (!serverUrl) blockedReason = "Voice keys are stored on the app's local agent server, which is not running."
-  else if (!accountUid) blockedReason = 'Select an account to manage its voice keys.'
+/** Manages the signed account's speech keys on the server hosting the current session. */
+export function VoiceServerSettings({
+  serverUrl,
+  accountUid,
+}: {
+  serverUrl: string | null
+  accountUid: string | null | undefined
+}) {
+  const settings = useVoiceSettings(serverUrl, accountUid)
+  const blockedReason = !serverUrl
+    ? 'Connect to an agent server to set up voice.'
+    : !accountUid
+      ? 'Sign in to manage your voice keys.'
+      : null
 
   return (
     <div>
@@ -91,14 +95,14 @@ export function VoiceSettingsCard() {
             Speech API keys
           </SizableText>
           <SizableText size="xs" className="text-muted-foreground">
-            Used by the mic button in agent chats. Keys are stored encrypted on this app's local agent server for your
-            account and override any keys the server was started with.
+            Used by the mic button in agent chats. Your keys are stored encrypted on this session’s agent server and
+            override its shared keys.
           </SizableText>
           <VoiceAvailabilityLine blockedReason={blockedReason} settings={settings} />
         </div>
         {VOICE_KEY_FIELDS.map((spec) => (
           <VoiceKeyRow
-            key={spec.field}
+            key={`${serverUrl}:${accountUid}:${spec.field}`}
             spec={spec}
             serverUrl={serverUrl}
             accountUid={accountUid}
@@ -123,14 +127,14 @@ function VoiceAvailabilityLine({
   if (blockedReason) {
     text = blockedReason
   } else if (settings.isLoading) {
-    text = 'Checking the local server…'
+    text = 'Checking voice availability…'
   } else if (settings.isError) {
     text = settings.error instanceof Error ? settings.error.message : 'Could not read voice settings from the server'
     tone = 'text-destructive'
   } else if (settings.data?.available) {
-    text = "The local server's voice pipeline is available."
+    text = 'Voice is available on this server.'
   } else {
-    text = 'The local server is not running its voice pipeline, so the mic button will not work yet.'
+    text = 'Voice is not enabled on this server. Ask its administrator to set it up.'
   }
   return (
     <SizableText size="xs" className={tone} aria-live="polite">

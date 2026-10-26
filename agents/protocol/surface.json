@@ -70,6 +70,13 @@
         "uploadId": "string"
       }
     },
+    "ConnectSessionBrowser": {
+      "fields": {
+        "_": "\"ConnectSessionBrowser\"",
+        "connectionId": "string",
+        "sessionId": "string"
+      }
+    },
     "CreateAgent": {
       "fields": {
         "_": "\"CreateAgent\"",
@@ -164,6 +171,13 @@
         "name": "string"
       }
     },
+    "DisconnectSessionBrowser": {
+      "fields": {
+        "_": "\"DisconnectSessionBrowser\"",
+        "connectionId": "string",
+        "sessionId": "string"
+      }
+    },
     "DownloadAgentMemoryFile": {
       "fields": {
         "_": "\"DownloadAgentMemoryFile\"",
@@ -243,6 +257,7 @@
     "InvokeSessionTool": {
       "fields": {
         "_": "\"InvokeSessionTool\"",
+        "continueAgent?": "boolean",
         "input": "unknown",
         "sessionId": "string",
         "verb": "\"call\" | \"read\" | \"write\""
@@ -322,6 +337,7 @@
         "_": "\"ListSessions\"",
         "agentId?": "string",
         "cursor?": "SessionListCursor",
+        "excludeTriggered?": "boolean",
         "includeChildren?": "boolean",
         "limit?": "number",
         "parentSessionId?": "string"
@@ -338,6 +354,13 @@
         "_": "\"MessageSession\"",
         "clientMessageId?": "string",
         "content": "MessageSessionContentPart[]",
+        "sessionId": "string"
+      }
+    },
+    "PollSessionBrowser": {
+      "fields": {
+        "_": "\"PollSessionBrowser\"",
+        "connectionId": "string",
         "sessionId": "string"
       }
     },
@@ -372,6 +395,16 @@
         "_": "\"RemoveAgentCollaborator\"",
         "accountId": "string",
         "agentId": "string"
+      }
+    },
+    "ResolveSessionBrowser": {
+      "fields": {
+        "_": "\"ResolveSessionBrowser\"",
+        "connectionId": "string",
+        "error?": "string",
+        "output?": "Record<string, unknown>",
+        "requestId": "string",
+        "sessionId": "string"
       }
     },
     "RetrySession": {
@@ -905,6 +938,12 @@
         "tool": "AgentToolInfo"
       }
     },
+    "SessionBrowserResponse": {
+      "fields": {
+        "_": "\"SessionBrowserResponse\"",
+        "request?": "BrowserRequest"
+      }
+    },
     "SetAgentPublicChatResponse": {
       "fields": {
         "_": "\"SetAgentPublicChatResponse\"",
@@ -1352,6 +1391,15 @@
             "type": "\"webhook\""
           }
         }
+      }
+    },
+    "BrowserCommand": {
+      "alias": "{action: \"archive\"; document: string} | {action: \"click\"; document: string; ref: string} | {action: \"navigate\"; document: string; url: string} | {action: \"press\"; document: string; key: \"ArrowDown\" | \"ArrowUp\" | \"Backspace\" | \"Enter\" | \"Escape\" | \"Tab\"} | {action: \"screenshot\"; document: string} | {action: \"scroll\"; document: string; x?: number; y: number} | {action: \"snapshot\"} | {action: \"type\"; clear?: boolean; document: string; ref: string; text: string}"
+    },
+    "BrowserRequest": {
+      "fields": {
+        "command": "BrowserCommand",
+        "id": "string"
       }
     },
     "FileUploadTarget": {

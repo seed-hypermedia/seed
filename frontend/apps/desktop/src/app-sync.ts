@@ -26,7 +26,7 @@ import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
 import {observable} from '@trpc/server/observable'
-import z from 'zod'
+import z from 'zod/v3'
 import {isAnyWindowFocused, onAppFocusChange} from './app-focus'
 import {appInvalidateQueries, getInvalidationTargetWindowCount} from './app-invalidation'
 import {t} from './app-trpc'
@@ -137,8 +137,8 @@ type SubscriptionState = {
 }
 
 type SyncState = {
-  // Activity polling state
-  lastBlobId: bigint
+  // Activity polling state. lastBlobId is null until the first poll sets the watermark.
+  lastBlobId: bigint | null
   isPolling: boolean
   pendingInvalidations: Set<string>
   debounceTimer: ReturnType<typeof setTimeout> | null
@@ -163,7 +163,7 @@ type SyncState = {
 }
 
 const state: SyncState = {
-  lastBlobId: BigInt(0),
+  lastBlobId: null,
   isPolling: false,
   pendingInvalidations: new Set(),
   debounceTimer: null,
@@ -349,8 +349,6 @@ export function getUnconditionalInvalidations(event: Event): Array<string[]> {
     invalidations.push([queryKeys.SEARCH])
     invalidations.push([queryKeys.ACTIVITY_FEED])
     invalidations.push([queryKeys.FEED])
-    invalidations.push([queryKeys.LIBRARY])
-    invalidations.push([queryKeys.SITE_LIBRARY])
     invalidations.push([queryKeys.LIST_ROOT_DOCUMENTS])
     invalidations.push([queryKeys.ROOT_DOCUMENTS])
   }
@@ -380,6 +378,9 @@ function processEventsInner(events: Event[]) {
   const capabilityData: {id: UnpackedHypermediaId; extraAttrs: string}[] = []
   const contactData: {author: string; extraAttrs: string}[] = []
   const refIds: UnpackedHypermediaId[] = []
+  // Tombstone Refs (deletes and moves) invalidate the search cache. Regular Refs do
+  // not — they arrive continuously during sync and hybrid search is expensive.
+  let hasTombstoneRef = false
 
   for (const event of events) {
     if (event.data.case !== 'newBlob') continue
@@ -418,6 +419,14 @@ function processEventsInner(events: Event[]) {
     if (blobType === 'ref' && resource) {
       const id = unpackHmId(resource)
       if (id) refIds.push(id)
+      if (!hasTombstoneRef) {
+        try {
+          const attrs = JSON.parse(event.data.value.extraAttrs) as {tombstone?: boolean}
+          if (attrs.tombstone === true) hasTombstoneRef = true
+        } catch {
+          // extraAttrs missing or unparseable
+        }
+      }
     }
 
     if (blobType === 'contact') {
@@ -453,8 +462,6 @@ function processEventsInner(events: Event[]) {
     appInvalidateQueries([queryKeys.SEARCH])
     appInvalidateQueries([queryKeys.ACTIVITY_FEED])
     appInvalidateQueries([queryKeys.FEED])
-    appInvalidateQueries([queryKeys.LIBRARY])
-    appInvalidateQueries([queryKeys.SITE_LIBRARY])
     appInvalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
     appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
   }
@@ -462,6 +469,7 @@ function processEventsInner(events: Event[]) {
   // Comment changes: keep object-shaped comment view keys broad, but target
   // string-keyed comment indexes when the activity event carries enough data.
   if (seenBlobTypes.has('comment')) {
+    appInvalidateQueries([queryKeys.QUERY_BLOCK])
     appInvalidateQueries([queryKeys.DOCUMENT_COMMENTS])
     appInvalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
     appInvalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
@@ -523,8 +531,6 @@ function processEventsInner(events: Event[]) {
   if (seenBlobTypes.has('contact')) {
     appInvalidateQueries([queryKeys.DOCUMENT_COLLABORATORS])
     appInvalidateQueries([queryKeys.SEARCH])
-    appInvalidateQueries([queryKeys.LIBRARY])
-    appInvalidateQueries([queryKeys.SITE_LIBRARY])
     appInvalidateQueries([queryKeys.CONTACTS_SUBJECT])
     for (const {author, extraAttrs} of contactData) {
       appInvalidateQueries([queryKeys.CONTACTS_ACCOUNT, author])
@@ -551,32 +557,30 @@ function processEventsInner(events: Event[]) {
     }
   }
 
-  // Document update changes: invalidate listing/library caches. Global library has
-  // no account argument, but site-library and root-document caches can be targeted
-  // from the Ref resource safely.
+  // Document update changes: refresh the root-document caches when a root Ref
+  // arrives. A batch whose Ref resources could not be parsed counts as one, so
+  // a malformed event errs on refreshing rather than going stale.
   if (seenBlobTypes.has('ref')) {
     // QueryBlock powers collection tables. This main-process invalidation is
     // broadcast to every renderer window, keeping a collection current when a
     // child was published elsewhere.
     appInvalidateQueries([queryKeys.QUERY_BLOCK])
-    appInvalidateQueries([queryKeys.LIBRARY])
 
-    const siteUids = new Set<string>()
-    let hasRootRef = false
+    let hasRootRef = refIds.length === 0
     for (const id of refIds) {
-      siteUids.add(id.uid)
       if ((id.path || []).length === 0) hasRootRef = true
-    }
-    if (siteUids.size > 0) {
-      siteUids.forEach((uid) => appInvalidateQueries([queryKeys.SITE_LIBRARY, uid]))
-    } else {
-      appInvalidateQueries([queryKeys.SITE_LIBRARY])
-      hasRootRef = true
     }
 
     if (hasRootRef) {
       appInvalidateQueries([queryKeys.LIST_ROOT_DOCUMENTS])
       appInvalidateQueries([queryKeys.ROOT_DOCUMENTS])
+    }
+
+    // A tombstone Ref removes a document from search results. The daemon already
+    // filters deleted documents in SearchEntities, so a plain refetch is enough.
+    // A move Ref (redirect without republish) is also a tombstone at the old path.
+    if (hasTombstoneRef) {
+      appInvalidateQueries([queryKeys.SEARCH])
     }
   }
 
@@ -604,17 +608,16 @@ function getBlobId(event: Event): bigint {
 }
 
 async function fetchNewEvents(): Promise<Event[]> {
-  if (state.lastBlobId === BigInt(0)) {
+  if (state.lastBlobId === null) {
     // First poll: set watermark so existing feed events are not replayed.
+    // An empty feed (fresh database) gets watermark 0 so the first events that arrive are processed.
     const response = await grpcClient.activityFeed.listEvents({
       pageSize: 1,
       filterEventType: ACTIVITY_BLOB_TYPES,
       order: FeedOrder.OBSERVED_TIME,
     })
     const firstEvent = response.events[0]
-    if (firstEvent) {
-      state.lastBlobId = getBlobId(firstEvent)
-    }
+    state.lastBlobId = firstEvent ? getBlobId(firstEvent) : BigInt(0)
     // console.log('[Sync] Activity monitor watermark initialized', {
     //   watermarkBlobId: state.lastBlobId.toString(),
     // })

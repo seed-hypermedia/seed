@@ -89,6 +89,7 @@ function DocumentIconForm({
         label={metadata.name}
         url={metadata.icon ? getDaemonFileUrl(metadata.icon) : ''}
         fileUpload={fileUpload}
+        crop={{aspect: 1, cropShape: 'round', maxDimension: 512}}
         onIconUpload={(icon) => {
           if (icon) {
             onMetadata({

@@ -1,4 +1,4 @@
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {type HMPrepareDocumentChangeInput, type HMRequest, HMActionSchema, HMRequestSchema, packHmId} from './hm-types'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {blake2b} from '@noble/hashes/blake2.js'

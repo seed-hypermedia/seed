@@ -6,8 +6,8 @@
 #
 # Containers (searxng + crawl4ai) run INLINE here — no `-d`. Their logs stream
 # into the `backends` pane and the containers stop when you quit mprocs.
-# Everything else runs native to keep Metal-GPU (daemon) + HMR (web) + hot
-# reload (agents) intact. mprocs inherits the direnv/mise env from `./dev up`,
+# Everything else runs native to keep Metal-GPU (daemon) + HMR (web) + process
+# restarts (agents) intact. mprocs inherits the direnv/mise env from `./dev up`,
 # so each command is just what you'd type by hand.
 scrollback: 10000
 procs:
@@ -23,7 +23,7 @@ procs:
     autostart: true
 
   # Agents server (:3051 via SEED_AGENTS_HTTP_PORT in .env.vars; release builds
-  # keep 3050), bun --hot. Defaults to the backends above.
+  # keep 3050), bun --watch. Full restarts release queues and journal writers.
   # Separate Bun workspace: `dev` wraps the server in scripts/watch-file-deps.ts,
   # which installs deps and re-syncs + restarts when the copied file: packages
   # (frontend/packages/*) change, so they never go stale mid-session.
@@ -58,17 +58,26 @@ procs:
     shell: 'pnpm explore'
     autostart: true
 
-  # Notify server (Remix/Vite :3060). Backs the vault's email/notification flow.
+  # Notify server (:3060). Backs the vault's email/notification flow. Reached like
+  # in production, on the web app's origin: the web dev server (:3000) forwards
+  # /hm/api/notify/* and the legacy notify paths here, so its public base URL is
+  # http://localhost:3000/hm/api/notify.
   notify:
-    shell: 'pnpm notify'
+    shell: 'NOTIFY_SERVICE_HOST=http://localhost:3000/hm/api/notify pnpm notify'
     autostart: true
 
-  # Vault (:3030), bun --hot. Points at the notify server above (:3060).
+  # Vault (:3030), bun --hot. Points at the notify server above, through the web app (:3000/hm/api/notify).
   # Separate Bun workspace: `dev` wraps the server in scripts/watch-file-deps.ts,
   # which installs deps and re-syncs + restarts when the copied file: packages
   # (frontend/packages/*) change, so they never go stale mid-session.
   vault:
     shell: 'cd vault && bun run dev'
+    autostart: true
+
+  # Hosting service (:5555) from the private SeedHost checkout next to this repo, with its
+  # own embedded Postgres and the web app above as its gateway. Skipped without the checkout.
+  host:
+    shell: './dev run-host'
     autostart: true
 
   # Electron desktop on mainnet; builds + spawns its own Go daemon (Metal GPU).

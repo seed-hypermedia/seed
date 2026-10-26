@@ -7,6 +7,7 @@ import type {NavRoute} from '@shm/shared'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {BlockEmbedCard, BlockEmbedContentComment, BlockEmbedLink} from '../embed-views'
+import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -268,8 +269,11 @@ describe('HM link embed title navigation', () => {
   })
 })
 
-function renderBlockEmbedContentComment() {
-  const embeddedCommentId = hmId('uid-comment', {path: ['comment']})
+function renderBlockEmbedContentComment(fragment = false) {
+  const embeddedCommentId = hmId('uid-comment', {
+    path: ['comment'],
+    ...(fragment ? {version: 'comment-version', blockRef: 'comment-block', blockRange: {start: 2, end: 8}} : {}),
+  })
   const comment: HMComment = {
     id: 'embedded-comment',
     version: 'comment-version',
@@ -293,15 +297,17 @@ function renderBlockEmbedContentComment() {
 
   act(() => {
     root.render(
-      <BlockEmbedContentComment
-        id={embeddedCommentId}
-        parentBlockId={null}
-        depth={0}
-        block={block}
-        comment={comment}
-        author={undefined}
-        targetResource={undefined}
-      />,
+      <TooltipProvider>
+        <BlockEmbedContentComment
+          id={embeddedCommentId}
+          parentBlockId={null}
+          depth={0}
+          block={block}
+          comment={comment}
+          author={undefined}
+          targetResource={undefined}
+        />
+      </TooltipProvider>,
     )
   })
 
@@ -334,6 +340,26 @@ describe('BlockEmbedContentComment routing', () => {
       key: 'comments',
       id: hmId('uid-target', {path: ['target-document'], version: 'target-version'}),
       openComment: 'embedded-comment',
+    })
+  })
+})
+
+describe('comment fragment destinations', () => {
+  it('opens the pinned comment fragment even when another comments panel is active', () => {
+    const sourceDocId = hmId('uid-source')
+    currentRoute.value = {
+      key: 'document',
+      id: sourceDocId,
+      panel: {key: 'comments', id: sourceDocId, openComment: 'other-comment'},
+    }
+    const {wrapper} = renderBlockEmbedContentComment(true)
+    expect(JSON.parse(wrapper?.dataset.route ?? 'null')).toMatchObject({
+      key: 'comments',
+      id: {uid: 'uid-target', path: ['target-document'], blockRef: 'comment-block', blockRange: {start: 2, end: 8}},
+      openComment: 'embedded-comment',
+      openCommentVersion: 'comment-version',
+      blockId: 'comment-block',
+      blockRange: {start: 2, end: 8},
     })
   })
 })

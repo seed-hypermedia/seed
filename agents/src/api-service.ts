@@ -34,6 +34,9 @@ import * as protocol from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
+import {checkDocumentPageData, collectDocumentPageFiles, validateDocumentPage} from '@/document-pages'
+import {BrowserTools} from '@/browser-tools'
+import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
 import {
   buildLambdaProgram,
@@ -93,6 +96,10 @@ import {
   markdownBlockNodesToHMBlockNodes,
   packHmId,
   parseMarkdown,
+  assertValidMermaid,
+  InvalidMermaidError,
+  MarkdownFrontmatterError,
+  directoryToIpfsBlobs,
   fileToIpfsBlobs,
   resolveFileLinksInBlocks,
   describeRedirect,
@@ -106,7 +113,9 @@ import {
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
+import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
+import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
 import type {
   HMSigner,
@@ -126,7 +135,7 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {compileExploreQuery, parseExploreQuery} from '@seed-hypermedia/client/explore-query'
 import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
-import {validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
+import {validate as validateSchema, resolveSchema, STRUCT_URL} from '@seed-hypermedia/client/schema-engine'
 import {
   blobSchemaRef,
   checkDocumentSchema,
@@ -142,15 +151,25 @@ import {
   signedBlobTypeTag,
   verifySignedBlob,
 } from '@seed-hypermedia/client/signed-blob'
-import * as pi from '@mariozechner/pi-coding-agent'
+import * as piAi from '@earendil-works/pi-ai'
+import * as piAnthropicMessages from '@earendil-works/pi-ai/api/anthropic-messages.lazy'
+import * as piGoogleGenerativeAI from '@earendil-works/pi-ai/api/google-generative-ai.lazy'
+import * as piOpenAICodexResponses from '@earendil-works/pi-ai/api/openai-codex-responses.lazy'
+import * as piOpenAICompletions from '@earendil-works/pi-ai/api/openai-completions.lazy'
+import * as piOpenAIResponses from '@earendil-works/pi-ai/api/openai-responses.lazy'
+import * as piOpenAICodexCatalog from '@earendil-works/pi-ai/providers/openai-codex.models'
+import * as durable from '@earendil-works/pi-durable'
+import * as durableSession from '@/durable-session'
 import {providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
 import {sessionPerfRollup, type SessionPerfRollup} from '@/session-perf'
-import {getModels, type ThinkingLevel} from '@mariozechner/pi-ai'
-import type {OAuthCredentials} from '@mariozechner/pi-ai/oauth'
-import {openaiCodexOAuthProvider} from '@mariozechner/pi-ai/oauth'
-import {OAUTH_PROVIDER_TYPES, PersistedOAuthBackend, ProviderOAuthManager} from './provider-oauth'
+import {
+  OAUTH_PROVIDER_TYPES,
+  openaiCodexSubscriptionAuth,
+  PersistedOAuthStore,
+  ProviderOAuthManager,
+} from './provider-oauth'
 import {CID} from 'multiformats/cid'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as nodeCrypto from 'node:crypto'
@@ -263,8 +282,6 @@ const SESSION_DERIVED_CACHE_TTL_MS = 2_000
 const SESSION_DERIVED_CACHE_MAX = 5_000
 /** Coalescing window for the per-session "list may have reordered" signal (see #signalSessionListChange). */
 const SESSION_LIST_SIGNAL_WINDOW_MS = 1_500
-/** Batching interval for streamed assistant text deltas before they are broadcast to subscribers. */
-const PARTIAL_FLUSH_INTERVAL_MS = 80
 const MAX_CONTEXT_LINES = 64
 const MAX_CONTEXT_LINE_BYTES = 2 * 1024
 const MAX_MESSAGE_ATTACHMENTS = 16
@@ -454,7 +471,7 @@ export type DelegationStatus = {
  * it sizes their briefs accordingly instead of discovering the limit by failing.
  */
 export function delegationPrompt(status: DelegationStatus): string {
-  const {depth, limits, childLevelsRemaining, childrenRemaining} = status
+  const {depth, limits, childLevelsRemaining} = status
   if (!status.canDelegate) {
     return `\n\nYou are a leaf worker in a delegation tree (depth ${depth} of ${limits.maxDepth}): delegation is not available to you, and there is no delegate verb. Do this work yourself, completely, then report back. Do not plan around helpers or ask for more delegation.`
   }
@@ -464,11 +481,21 @@ export function delegationPrompt(status: DelegationStatus): string {
       : `Children you delegate may delegate ${childLevelsRemaining} more level${
           childLevelsRemaining === 1 ? '' : 's'
         } below them.`
-  return `\n\nDelegation budget: you are at depth ${depth} of ${
-    limits.maxDepth
-  } and may start ${childrenRemaining} more child${childrenRemaining === 1 ? '' : 'ren'} in this run (${
-    limits.maxChildren
-  } per run; every child's result reports \`delegation.parentChildrenRemaining\`, the live count). Plan batches to fit: several items per brief, or one script child for a long list. ${childRoom}`
+  // No live count here: this paragraph is part of the system prompt, which must not change between
+  // the requests of a session (see `delegationBudgetBlock` for the number as it stands).
+  return `\n\nDelegation budget: you are at depth ${depth} of ${limits.maxDepth} and may start ${limits.maxChildren} children per run. Once you have started one, a <delegation_budget> block with each turn's input says how many are left, and every child's result reports \`delegation.parentChildrenRemaining\`. Plan batches to fit: several items per brief, or one script child for a long list. ${childRoom}`
+}
+
+/**
+ * How many children a run may still start, for the model to read with a turn's input. Absent
+ * until the run has started one: before that the system prompt's "per run" figure is the answer.
+ */
+export function delegationBudgetBlock(status: DelegationStatus): string | undefined {
+  if (!status.canDelegate || status.childrenSpawned === 0) return undefined
+  const {childrenRemaining, limits} = status
+  return `<delegation_budget>You may start ${childrenRemaining} more child${
+    childrenRemaining === 1 ? '' : 'ren'
+  } in this run (${limits.maxChildren} per run).</delegation_budget>`
 }
 
 /**
@@ -924,6 +951,8 @@ export type WebhookDeliveryResult = {
 export class Service {
   readonly #messageRequests = new Map<string, {payload: Uint8Array; promise: Promise<api.MessageSessionResponse>}>()
 
+  readonly #browserTools = new BrowserTools()
+  readonly #browserPrivacy: BrowserPrivacy
   readonly #db: Database
   readonly #dataDir: string
   readonly #onEvent?: (event: ServiceEvent) => void
@@ -990,8 +1019,8 @@ export class Service {
    * refresh token, so parallel refreshes would strand each other) and keeps every
    * session on the freshest credentials.
    */
-  readonly #oauthBackends = new Map<string, PersistedOAuthBackend>()
-  /** Voice pipeline (LiveKit tokens, worker routes); absent when the server has voice off. */
+  readonly #oauthStores = new Map<string, PersistedOAuthStore>()
+  /** Voice pipeline; absent when voice is disabled. */
   readonly #voice?: voicesvc.VoiceService
 
   constructor(
@@ -1019,6 +1048,9 @@ export class Service {
     } = {},
   ) {
     this.#db = db
+    this.#browserPrivacy = new BrowserPrivacy(db)
+    for (const agent of stmt<{state_dir: string}, []>(db, 'SELECT state_dir FROM agents').all())
+      agentMemory.migratePrivateMemory(agent.state_dir)
     this.#dataDir = dataDir
     this.#onEvent = options.onEvent
     this.#voice = options.voice
@@ -1034,8 +1066,9 @@ export class Service {
       maxConcurrentModelRuns: options.runQueue?.maxConcurrentModelRuns,
       maxConcurrentWorkflows: options.runQueue?.maxConcurrentWorkflows,
       executors: {
-        agent: (run) => this.#executeAgentRun(run),
-        workflow: (run) => this.#executeWorkflowRun(run),
+        agent: (run) =>
+          agentMemory.withOwnerAccess(Boolean(this.#interactiveOwner(run)), () => this.#executeAgentRun(run)),
+        workflow: (run) => agentMemory.withOwnerAccess(false, () => this.#executeWorkflowRun(run)),
       },
       onRunChanged: (run) => this.#onRunChanged(run),
       onRunFinalized: (run) => this.#onRunFinalized(run),
@@ -1085,6 +1118,9 @@ export class Service {
   /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
   stopRunQueue(): void {
     this.#runQueue.stop()
+    this.#browserTools.close()
+    for (const timer of this.#sessionListSignalTimer.values()) clearTimeout(timer)
+    this.#sessionListSignalTimer.clear()
   }
 
   /** The Seed HM server this agent publishes to and reads from. Surfaced via health so desktop clients can
@@ -1138,13 +1174,21 @@ export class Service {
     const clientProtocol = clientProtocolOf(envelope)
     this.#assertClientProtocol(clientProtocol)
     const verified = await this.#verifyEnvelope(envelope)
-    const response = await this.#dispatch(envelope, verified)
-    return downgradeResponse(response, clientProtocol, {
-      // Viewer-scoped like `ListSessions {agentId}`: a superset of who passes GetAgent's reader check.
-      listAgentSessions: (agentId) =>
-        this.#listSessionPage(verified.accountId, agentId, DEFAULT_SESSION_PAGE_SIZE, undefined, undefined, false)
-          .sessions,
-    })
+    const ownerAccountId = this.#actionAccountId(verified.accountId, envelope.action)
+    const response = await withMemoryErrorsAsync(() =>
+      agentMemory.withOwnerAccess(ownerAccountId === verified.accountId, () =>
+        this.#dispatch(envelope, verified, ownerAccountId),
+      ),
+    )
+    return this.#browserPrivacy.forViewer(
+      downgradeResponse(response, clientProtocol, {
+        // Viewer-scoped like `ListSessions {agentId}`: a superset of who passes GetAgent's reader check.
+        listAgentSessions: (agentId) =>
+          this.#listSessionPage(verified.accountId, agentId, DEFAULT_SESSION_PAGE_SIZE, undefined, undefined, false)
+            .sessions,
+      }),
+      verified.accountId,
+    )
   }
 
   #assertClientProtocol(clientProtocol: number): void {
@@ -1152,9 +1196,11 @@ export class Service {
     if (problem) throw new APIError(problem.status, problem.message, problem.code)
   }
 
-  async #dispatch(envelope: api.SignedActionEnvelope, verified: auth.VerifiedEnvelope): Promise<api.AgentResponse> {
-    const accountId = this.#actionAccountId(verified.accountId, envelope.action)
-
+  async #dispatch(
+    envelope: api.SignedActionEnvelope,
+    verified: auth.VerifiedEnvelope,
+    accountId: string,
+  ): Promise<api.AgentResponse> {
     if (clientProtocolOf(envelope) < 3) {
       const action = envelope.action
       // Older clients cannot render these sources, so their lists simply leave them out; a request that
@@ -1179,6 +1225,35 @@ export class Service {
     }
 
     switch (envelope.action._) {
+      case 'ConnectSessionBrowser':
+      case 'PollSessionBrowser':
+      case 'ResolveSessionBrowser':
+      case 'DisconnectSessionBrowser': {
+        const action = envelope.action
+        const scope = JSON.stringify([accountId, action.sessionId])
+        const actor = JSON.stringify([verified.accountId, verified.signerId])
+        try {
+          if (action._ !== 'DisconnectSessionBrowser') this.#assertPrivateBrowserAgent(accountId, action.sessionId)
+          switch (action._) {
+            case 'ConnectSessionBrowser':
+              this.#browserTools.connect(scope, actor, action.connectionId)
+              break
+            case 'PollSessionBrowser': {
+              const request = await this.#browserTools.poll(scope, actor, action.connectionId)
+              return {_: 'SessionBrowserResponse', ...(request ? {request} : {})}
+            }
+            case 'ResolveSessionBrowser':
+              this.#browserTools.resolve(scope, actor, action)
+              break
+            case 'DisconnectSessionBrowser':
+              this.#browserTools.disconnect(scope, actor, action.connectionId)
+              break
+          }
+          return {_: 'SessionBrowserResponse'}
+        } catch (error) {
+          throw new APIError(400, errorMessage(error))
+        }
+      }
       case 'RegisterSigner':
         return this.#registerSigner(envelope.signer, envelope.action.capability)
       case 'ListAgents':
@@ -1362,6 +1437,7 @@ export class Service {
           envelope.action.cursor,
           envelope.action.parentSessionId,
           envelope.action.includeChildren,
+          envelope.action.excludeTriggered,
         )
       case 'UpdateSession':
         return this.#updateSession(
@@ -1389,6 +1465,7 @@ export class Service {
           envelope.action.sessionId,
           envelope.action.verb,
           envelope.action.input,
+          envelope.action.continueAgent,
         )
       case 'MessageSession':
         return this.#messageSession(
@@ -1443,15 +1520,15 @@ export class Service {
   }
 
   /**
-   * Resolves an agent-scoped action to the owning account and enforces access once. Three levels:
+   * Resolves an agent-scoped action to the owning account and enforces access once:
    * `reader` (inspect), `chat` (create/message/stop sessions — what public chat grants), and
    * `writer` (everything else that mutates agent-scoped state, including session tools, renames,
-   * deletes, and run control).
+   * deletes, and run control). Browser connections and ownership operations require `owner`.
    */
   #actionAccountId(actorAccountId: string, action: api.UnsignedAgentAction): string {
-    const fromAgent = (agentId: string, level: AgentAccessLevel = 'reader') =>
+    const fromAgent = (agentId: string, level: AgentAccessLevel | 'owner' = 'reader') =>
       this.#requireAgentAccess(actorAccountId, agentId, level).ownerAccountId
-    const fromSession = (sessionId: string, level: AgentAccessLevel = 'reader') => {
+    const fromSession = (sessionId: string, level: AgentAccessLevel | 'owner' = 'reader') => {
       const row = stmt<{agent_id: string}, [string]>(this.#db, `SELECT agent_id FROM sessions WHERE id = ?`).get(
         sessionId,
       )
@@ -1491,9 +1568,15 @@ export class Service {
     const fromUpload = (uploadId: string) => {
       const upload = this.#uploads.get(uploadId)
       if (!upload) throw new APIError(404, 'Upload not found')
-      return upload.target.kind === 'memory'
-        ? fromAgent(upload.target.agentId, 'writer')
-        : fromSession(upload.target.sessionId, 'chat')
+      if (upload.target.kind === 'memory') {
+        const target = upload.target
+        const owner = fromAgent(target.agentId, 'writer')
+        withMemoryErrors(() =>
+          agentMemory.withOwnerAccess(owner === actorAccountId, () => agentMemory.resolveMemoryPath('', target.path)),
+        )
+        return owner
+      }
+      return fromSession(upload.target.sessionId, 'chat')
     }
 
     switch (action._) {
@@ -1539,6 +1622,11 @@ export class Service {
       case 'DeleteSession':
       case 'InvokeSessionTool':
         return fromSession(action.sessionId, 'writer')
+      case 'ConnectSessionBrowser':
+      case 'PollSessionBrowser':
+      case 'ResolveSessionBrowser':
+      case 'DisconnectSessionBrowser':
+        return fromSession(action.sessionId, 'owner')
       case 'MessageSession':
       case 'UploadSessionAttachment':
       case 'StopSession':
@@ -1739,6 +1827,13 @@ export class Service {
         ? `UPDATE agents SET public_read = 1, updated_at = ? WHERE id = ?`
         : `UPDATE agents SET public_read = 0, public_chat = 0, updated_at = ? WHERE id = ?`,
     ).run([Date.now(), agentId])
+    if (publicRead) {
+      for (const session of stmt<{id: string}, [string]>(this.#db, 'SELECT id FROM sessions WHERE agent_id = ?').all(
+        agentId,
+      )) {
+        this.#browserTools.revoke(JSON.stringify([accountId, session.id]))
+      }
+    }
     return {_: 'SetAgentPublicReadResponse', agent: this.#emitPublicAccessChange(accountId, agentId)}
   }
 
@@ -2380,7 +2475,7 @@ export class Service {
     for (const secretName of Object.values(provider.secretRefs ?? {})) {
       if (stillReferenced.has(secretName)) continue
       stmt(this.#db, `DELETE FROM secrets WHERE account_id = ? AND name = ?`).run([accountId, secretName])
-      this.#oauthBackends.delete(this.#oauthBackendKey(accountId, secretName))
+      this.#oauthStores.delete(this.#oauthBackendKey(accountId, secretName))
     }
     this.#scrubDeletedProviderReferences(accountId, name)
     return {_: 'DeleteModelProviderResponse', name}
@@ -2722,14 +2817,10 @@ export class Service {
   ): Promise<api.ProviderModelInfo[]> {
     const oauthSecretName = provider.secretRefs?.oauth
     if (!oauthSecretName) throw new APIError(400, `${provider.type} subscription sign-in is not configured`)
-    const authStorage = pi.AuthStorage.fromStorage(await this.#subscriptionAuthBackend(accountId, oauthSecretName))
-    // Resolves (and refreshes, if expired) the access token through the shared backend.
-    const accessToken = await authStorage.getApiKey(SUBSCRIPTION_PI_PROVIDER_ID)
-    if (!accessToken) {
-      this.#markOAuthSecretNeedsReauth(accountId, oauthSecretName)
-      throw new APIError(401, SUBSCRIPTION_REAUTH_MESSAGE)
-    }
-    const credential = authStorage.get(SUBSCRIPTION_PI_PROVIDER_ID) as {accountId?: unknown} | undefined
+    const store = await this.#subscriptionAuthStore(accountId, oauthSecretName)
+    // Resolves (and refreshes, if expired) the access token through the shared store.
+    const accessToken = await this.#subscriptionAccessToken(accountId, oauthSecretName, store)
+    const credential = (await store.read(SUBSCRIPTION_PI_PROVIDER_ID)) as {accountId?: unknown} | undefined
     const chatgptAccountId = typeof credential?.accountId === 'string' ? credential.accountId : undefined
     try {
       return await fetchCodexSubscriptionModels(accessToken, chatgptAccountId)
@@ -2792,7 +2883,7 @@ export class Service {
    * credentials work again).
    */
   /**
-   * The one key every reader and evictor of `#oauthBackends` must use. A sign-in that rewrites the
+   * The one key every reader and evictor of `#oauthStores` must use. A sign-in that rewrites the
    * secret evicts through this too — a mismatched key here once left a stale, already-rejected
    * token in memory across re-logins until the server restarted.
    */
@@ -2817,17 +2908,10 @@ export class Service {
     if (!secretName) return null
     const key = this.#oauthBackendKey(accountId, secretName)
     try {
-      const backend = this.#oauthBackends.get(key) ?? (await this.#subscriptionAuthBackend(accountId, secretName))
-      await backend.withLockAsync(async (current) => {
-        const data = JSON.parse(current ?? '{}') as Record<string, Record<string, unknown>>
-        const stored = data[SUBSCRIPTION_PI_PROVIDER_ID] as (Partial<OAuthCredentials> & {type?: string}) | undefined
-        if (typeof stored?.refresh !== 'string' || !stored.refresh) throw new Error('No refresh token stored')
-        const {type: _credType, ...credentials} = stored
-        const refreshed = await openaiCodexOAuthProvider.refreshToken(credentials as OAuthCredentials)
-        return {
-          result: undefined,
-          next: JSON.stringify({...data, [SUBSCRIPTION_PI_PROVIDER_ID]: {type: 'oauth', ...refreshed}}),
-        }
+      const store = this.#oauthStores.get(key) ?? (await this.#subscriptionAuthStore(accountId, secretName))
+      await store.modify(SUBSCRIPTION_PI_PROVIDER_ID, async (stored) => {
+        if (stored?.type !== 'oauth' || !stored.refresh) throw new Error('No refresh token stored')
+        return openaiCodexSubscriptionAuth.refresh(stored, AbortSignal.timeout(SUBSCRIPTION_REFRESH_TIMEOUT_MS))
       })
       console.log('[agents] refreshed subscription sign-in after the provider rejected its token', {accountId})
       return 'refreshed'
@@ -2836,47 +2920,64 @@ export class Service {
         accountId,
         error: error instanceof Error ? error.message : String(error),
       })
-      this.#oauthBackends.delete(key)
+      this.#oauthStores.delete(key)
       this.#markOAuthSecretNeedsReauth(accountId, secretName)
       return 'needs-login'
     }
   }
 
-  async #subscriptionAuthBackend(accountId: string, secretName: string): Promise<PersistedOAuthBackend> {
-    const piProviderId = SUBSCRIPTION_PI_PROVIDER_ID
+  async #subscriptionAuthStore(accountId: string, secretName: string): Promise<PersistedOAuthStore> {
     const key = this.#oauthBackendKey(accountId, secretName)
-    const existing = this.#oauthBackends.get(key)
+    const existing = this.#oauthStores.get(key)
     if (existing) return existing
     const plaintext = await this.#getSecretPlaintext(accountId, secretName)
-    let credentials: OAuthCredentials
+    let credentials: piAi.OAuthCredentials
     try {
       credentials = JSON.parse(new TextDecoder().decode(plaintext))
     } catch {
       throw new APIError(400, 'Stored OAuth credentials are corrupted; sign in again')
     }
-    const backend = new PersistedOAuthBackend(
-      JSON.stringify({[piProviderId]: {type: 'oauth', ...credentials}}),
-      async (json) => {
-        const data = JSON.parse(json) as Record<string, Record<string, unknown>>
-        const stored = data[piProviderId]
-        if (!stored) return
-        const {type: _credType, ...rest} = stored
-        const ciphertext = encryptSecret(this.#db, new TextEncoder().encode(JSON.stringify(rest)))
-        const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
-          this.#db,
-          `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
-        ).get(accountId, secretName)
-        if (!row) return // secret was deleted mid-session; nothing to persist into
-        const metadata = row.metadata_cbor ? cbor.decode<Record<string, unknown>>(row.metadata_cbor) : {}
-        delete metadata.needsReauth
-        stmt(
-          this.#db,
-          `UPDATE secrets SET ciphertext = ?, metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`,
-        ).run([ciphertext, cbor.encode(metadata), Date.now(), accountId, secretName])
-      },
+    const store = new PersistedOAuthStore(SUBSCRIPTION_PI_PROVIDER_ID, credentials, async (credential) => {
+      const {type: _credType, ...rest} = credential
+      const ciphertext = encryptSecret(this.#db, new TextEncoder().encode(JSON.stringify(rest)))
+      const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+        this.#db,
+        `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+      ).get(accountId, secretName)
+      if (!row) return // secret was deleted mid-session; nothing to persist into
+      const metadata = row.metadata_cbor ? cbor.decode<Record<string, unknown>>(row.metadata_cbor) : {}
+      delete metadata.needsReauth
+      stmt(
+        this.#db,
+        `UPDATE secrets SET ciphertext = ?, metadata_cbor = ?, updated_at = ? WHERE account_id = ? AND name = ?`,
+      ).run([ciphertext, cbor.encode(metadata), Date.now(), accountId, secretName])
+    })
+    this.#oauthStores.set(key, store)
+    return store
+  }
+
+  /**
+   * The subscription's current access token, refreshed through the shared store when it expired.
+   * An unusable sign-in (refresh rejected, nothing stored) flags the secret and surfaces the
+   * re-auth message instead of a cryptic provider 401 mid-stream.
+   */
+  async #subscriptionAccessToken(accountId: string, secretName: string, store: PersistedOAuthStore): Promise<string> {
+    const models = piAi.createModels({credentials: store})
+    models.setProvider(
+      piAi.createProvider({
+        id: SUBSCRIPTION_PI_PROVIDER_ID,
+        auth: {oauth: openaiCodexSubscriptionAuth},
+        models: [],
+        api: piOpenAICodexResponses.openAICodexResponsesApi(),
+      }),
     )
-    this.#oauthBackends.set(key, backend)
-    return backend
+    const resolved = await models.getAuth(SUBSCRIPTION_PI_PROVIDER_ID).catch(() => undefined)
+    const accessToken = resolved?.auth.apiKey
+    if (!accessToken) {
+      this.#markOAuthSecretNeedsReauth(accountId, secretName)
+      throw new APIError(401, SUBSCRIPTION_REAUTH_MESSAGE)
+    }
+    return accessToken
   }
 
   async #setSecret(
@@ -2889,7 +2990,7 @@ export class Service {
     if (!(value instanceof Uint8Array)) throw new APIError(400, 'Secret value is required')
     if (value.byteLength > MAX_SECRET_BYTES) throw new APIError(400, 'Secret value is too large')
     // A rewritten secret invalidates any cached OAuth credential backend built from it.
-    this.#oauthBackends.delete(this.#oauthBackendKey(accountId, name))
+    this.#oauthStores.delete(this.#oauthBackendKey(accountId, name))
     const metadata = normalizeOptionalMetadata(rawMetadata)
     const ciphertext = encryptSecret(this.#db, value)
     const now = Date.now()
@@ -2949,6 +3050,12 @@ export class Service {
     if (!this.#voice) throw new APIError(501, 'Voice is not available on this server')
     // The speaker's own keys, not the agent owner's: whoever talks pays for their speech minutes.
     const keys = await this.#resolveVoiceKeys(userOrigin.accountId)
+    if (
+      this.#voiceKeySource(userOrigin.accountId, 'deepgram') === 'none' ||
+      this.#voiceKeySource(userOrigin.accountId, 'cartesia') === 'none'
+    ) {
+      throw new APIError(409, 'Add speech API keys in Voice settings before starting a call.')
+    }
     return await this.#voice.createVoiceSession({sessionId, storageAccountId, userOrigin, keys})
   }
 
@@ -3071,8 +3178,17 @@ export class Service {
     cursor?: api.SessionListCursor,
     parentSessionId?: string,
     includeChildren?: boolean,
+    excludeTriggered?: boolean,
   ): api.ListSessionsResponse {
-    const page = this.#listSessionPage(accountId, agentId, limit, cursor, parentSessionId, includeChildren)
+    const page = this.#listSessionPage(
+      accountId,
+      agentId,
+      limit,
+      cursor,
+      parentSessionId,
+      includeChildren,
+      excludeTriggered,
+    )
     const referencedAgentIds = new Set(page.sessions.map((session) => session.agentId))
     const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
     return {_: 'ListSessionsResponse', agents, ...page}
@@ -3086,6 +3202,7 @@ export class Service {
     cursor?: api.SessionListCursor,
     parentSessionId?: string,
     includeChildren?: boolean,
+    excludeTriggered?: boolean,
   ): Pick<api.ListSessionsResponse, 'sessions' | 'nextCursor'> {
     const pageSize = boundedInteger(limit, DEFAULT_SESSION_PAGE_SIZE, 1, MAX_SESSION_PAGE_SIZE)
     // Account-wide listings only cover agents the account owns or collaborates on. A listing scoped to
@@ -3117,6 +3234,14 @@ export class Service {
       // The default (field absent) keeps returning everything: older deployed desktops cannot send
       // this field, and hiding agent-started sessions from them would be a silent regression.
       conditions.push('parent_session_id IS NULL')
+    }
+    if (excludeTriggered === true) {
+      // The same firing lookup #getSessionTriggerContext stamps `startedByTrigger` from. Filtering
+      // here rather than in the client matters: on production 98% of one account's top-level
+      // sessions were trigger-started, so a client-side filter paged ~100 times to fill one list.
+      conditions.push(
+        `NOT EXISTS (SELECT 1 FROM trigger_firings f WHERE f.account_id = sessions.account_id AND f.session_id = sessions.id)`,
+      )
     }
     if (cursor !== undefined) {
       if (!isRecord(cursor)) throw new APIError(400, 'Session cursor must be an object')
@@ -3273,6 +3398,11 @@ export class Service {
       for (const sessionId of sessionIds) {
         stmt(this.#db, `DELETE FROM session_events WHERE session_id = ?`).run([sessionId])
       }
+      // Continuations stay inside one agent, so they all go with it.
+      stmt(this.#db, `DELETE FROM session_continuations WHERE account_id = ? AND agent_id = ?`).run([
+        accountId,
+        agentId,
+      ])
       // Run history survives agent deletion detached; FK columns must be cleared before the
       // referenced rows go (runs.agent_id/session_id/trigger_firing_id are enforced FKs).
       stmt(
@@ -3954,12 +4084,26 @@ export class Service {
     for (const liveRun of runs.listLiveSessionRuns(this.#db, accountId, sessionId)) {
       this.#runQueue.cancelTree(accountId, liveRun.id)
     }
+    const linkedByContinuation = stmt<{other: string}, [string]>(
+      this.#db,
+      `SELECT successor_session_id AS other FROM session_continuations WHERE predecessor_session_id = ?1
+         UNION SELECT predecessor_session_id FROM session_continuations WHERE successor_session_id = ?1`,
+    )
+      .all(sessionId)
+      .map((row) => row.other)
     const transaction = this.#db.transaction(() => {
       stmt(this.#db, `UPDATE trigger_firings SET session_id = NULL WHERE account_id = ? AND session_id = ?`).run([
         accountId,
         sessionId,
       ])
       stmt(this.#db, `DELETE FROM session_events WHERE session_id = ?`).run([sessionId])
+      // A continuation is a link between two sessions and has nothing to say once either is gone.
+      // The session at the other end stays, without the link.
+      for (const other of linkedByContinuation) this.#forgetSessionDerived(accountId, other)
+      stmt(
+        this.#db,
+        `DELETE FROM session_continuations WHERE predecessor_session_id = ?1 OR successor_session_id = ?1`,
+      ).run([sessionId])
       // Run history survives session deletion detached; children promote to top level.
       stmt(this.#db, `UPDATE runs SET session_id = NULL WHERE session_id = ?`).run([sessionId])
       stmt(this.#db, `UPDATE sessions SET parent_session_id = NULL WHERE parent_session_id = ?`).run([sessionId])
@@ -4763,6 +4907,66 @@ export class Service {
     return {sessionId: session.sessionId, title}
   }
 
+  #assertPrivateBrowserAgent(accountId: string, sessionId: string): void {
+    const agent = stmt<{public_read: number}, [string, string]>(
+      this.#db,
+      'SELECT a.public_read FROM agents a JOIN sessions s ON s.agent_id = a.id WHERE s.account_id = ? AND s.id = ?',
+    ).get(accountId, sessionId)
+    if (!agent || agent.public_read) {
+      this.#browserTools.revoke(JSON.stringify([accountId, sessionId]))
+      throw new APIError(
+        400,
+        'Browser access is unavailable for publicly readable agents. Turn off public read before connecting.',
+      )
+    }
+  }
+
+  #interactiveOwner(run: runs.RunRecord): string | undefined {
+    if (
+      run.kind !== 'agent' ||
+      run.origin !== 'user' ||
+      run.queue !== 'interactive' ||
+      run.parentRunId ||
+      run.triggerFiringId ||
+      !run.sessionId
+    )
+      return
+    const input = run.input as {kind?: string; userEventIds?: string[]}
+    if (input?.kind !== 'session-message' || !input.userEventIds?.length) return
+    const session = stmt<{parent_session_id: string | null}, [string]>(
+      this.#db,
+      'SELECT parent_session_id FROM sessions WHERE id = ?',
+    ).get(run.sessionId)
+    if (!session || session.parent_session_id) return
+    for (const id of input.userEventIds) {
+      const row = stmt<{event_cbor: Uint8Array}, [string, string]>(
+        this.#db,
+        'SELECT event_cbor FROM session_events WHERE id = ? AND session_id = ?',
+      ).get(id, run.sessionId)
+      if (!row) return
+      const event = cbor.decode<{
+        type?: string
+        role?: string
+        actor?: string
+        meta?: {accountId?: string; signerId?: string}
+      }>(row.event_cbor)
+      if (event.actor === 'system' || event.actor === 'agent') return
+      if (
+        event.type !== 'message' ||
+        event.role !== 'user' ||
+        event.meta?.accountId !== run.accountId ||
+        !event.meta?.signerId
+      )
+        return
+    }
+    return run.accountId
+  }
+
+  /** Projects owner events for public WebSocket readers as well as collaborator fan-out. */
+  redactForViewer<T>(value: T, viewerAccountId: string): T {
+    return this.#browserPrivacy.forViewer(value, viewerAccountId)
+  }
+
   /**
    * Callables this session's transcript shows as expanded: a read of ~/tools/<name> or a call
    * whose result carried the contract. Scans durable tool_call events only, so the answer is
@@ -4801,7 +5005,9 @@ export class Service {
     sessionId: string,
     verb: string,
     input: unknown,
+    continueAgent = true,
   ): Promise<api.InvokeSessionToolResponse> {
+    if (typeof continueAgent !== 'boolean') throw new APIError(400, 'continueAgent must be a boolean')
     if (verb !== 'read' && verb !== 'write' && verb !== 'call') {
       throw new APIError(400, 'verb must be read, write, or call')
     }
@@ -4821,7 +5027,12 @@ export class Service {
     this.#syncAgentMcpTools(accountId, session.agentId, definition)
     const mcpPool = this.#createMcpPool(accountId)
     const context: AgentServicePiToolContext = {
+      browser: () =>
+        Promise.reject(
+          new APIError(403, 'Browser access is only available in interactive runs started by the agent owner'),
+        ),
       db: this.#db,
+      browserPrivacy: this.#browserPrivacy,
       accountId,
       agentId: session.agentId,
       definition,
@@ -4888,30 +5099,32 @@ export class Service {
       },
       Date.now(),
     )
-    // A user's tool run is conversation, not a silent side-play: the agent takes a turn over the
+    // Unless continueAgent is false, the agent takes a turn over the
     // updated log, exactly as it would after a typed message — which is also what names a session
     // this action just started (titling keys off run activity). Dispatched in the background so
     // the tool result returns immediately; the agent's turn streams over the session WS.
-    const queuedBehindAnotherTurn = runs.sessionHasLiveRun(this.#db, sessionId)
-    this.#runQueue.enqueue({
-      accountId,
-      kind: 'agent',
-      origin: 'user',
-      agentId: session.agentId,
-      sessionId,
-      title: `Respond to user ${verb}`,
-      budget: this.#delegationBudgetForSession(accountId, session.agentId, sessionId),
-      input: {
-        kind: 'session-message',
-        userEventIds: [callEvent.id, resultEvent.id],
-        queuedBehindAnotherTurn,
-      },
-      queue: 'interactive',
-      // The user is watching this thread: fail fast rather than holding the session lock through
-      // retry backoff, same reasoning as interactive message turns. They have Retry.
-      maxAttempts: 1,
-      dispatch: true,
-    })
+    if (continueAgent) {
+      const queuedBehindAnotherTurn = runs.sessionHasLiveRun(this.#db, sessionId)
+      this.#runQueue.enqueue({
+        accountId,
+        kind: 'agent',
+        origin: 'user',
+        agentId: session.agentId,
+        sessionId,
+        title: `Respond to user ${verb}`,
+        budget: this.#delegationBudgetForSession(accountId, session.agentId, sessionId),
+        input: {
+          kind: 'session-message',
+          userEventIds: [callEvent.id, resultEvent.id],
+          queuedBehindAnotherTurn,
+        },
+        queue: 'interactive',
+        // The user is watching this thread: fail fast rather than holding the session lock through
+        // retry backoff, same reasoning as interactive message turns. They have Retry.
+        maxAttempts: 1,
+        dispatch: true,
+      })
+    }
     return {
       _: 'InvokeSessionToolResponse',
       sessionId,
@@ -5191,7 +5404,6 @@ export class Service {
         .map((row) => row.doc.name)
       definition.tools = narrowDefinitionTools(base, spec.tools, lambdaTools)
     }
-    this.#synthesizeInterruptedToolResults(run.accountId, run.agentId, sessionId)
     const runningSession: RunningSession = {accountId: run.accountId, stopped: false}
     this.#runningSessions.set(this.#runningSessionKey(run.accountId, sessionId), runningSession)
     let continuations = 0
@@ -5272,6 +5484,8 @@ export class Service {
           }
         }
         if (error instanceof SessionStoppedError || runningSession.stopped) {
+          // Deleting a session stops its turn too, and then there is no log left to write to.
+          if (!this.#getSessionInfo(run.accountId, sessionId)) return {type: 'canceled', output: {assistantEventId: ''}}
           const stoppedEvent = this.#appendSessionEvent(
             run.accountId,
             run.agentId,
@@ -5476,6 +5690,9 @@ export class Service {
     // stored (a placeholder, a truncated prompt), and the agent has not named this session yet.
     // Once the model or the user names it, the source says so and naming never runs again.
     if (!row || row.title_source !== 'system') return
+    // A title digest of a browser or private-memory session would copy signed-in page content to
+    // another model call. Those sessions keep their provisional title.
+    if (this.#browserPrivacy.sessionIsPrivate(sessionId)) return
     this.#namingSessions.add(sessionId)
     this.#titleAttempts.set(sessionId, (this.#titleAttempts.get(sessionId) ?? 0) + 1)
     const pending = this.#nameSessionWithModel(accountId, sessionId)
@@ -5567,7 +5784,7 @@ export class Service {
     const info = this.#getSessionInfo(accountId, sessionId)
     if (info?.title === title) {
       this.#titleAttempts.delete(sessionId)
-      console.info('[agents/runtime] session titled by model', {sessionId, title})
+      console.info('[agents/runtime] session titled by model', {sessionId, titleLength: title.length})
       this.#emit({type: 'session-change', accountId, session: info})
       this.#emit({
         type: 'account-change',
@@ -5592,84 +5809,65 @@ export class Service {
     // The shared provider runtime, NOT an inline resolution: titling must honor the provider's
     // auth mode (subscription OAuth has no apiKey secret — the old inline path silently bailed
     // and left every subscription-provider session untitled).
+    const hooks: ProviderRequestHooks = {}
     let runtime: Awaited<ReturnType<Service['piProviderRuntimeForTitle']>>
     try {
-      runtime = await this.piProviderRuntimeForTitle(accountId, definition)
+      runtime = await this.piProviderRuntimeForTitle(accountId, definition, hooks)
     } catch {
       return null
     }
-    const {provider, authStorage, modelRegistry, model} = runtime
-    const {session: piSession} = await pi.createAgentSession({
-      cwd: this.#dataDir,
-      agentDir: path.join(this.#dataDir, 'pi'),
-      model,
-      thinkingLevel: 'off',
-      authStorage,
-      modelRegistry,
-      resourceLoader: createSeedPiResourceLoader(
-        'You are a session-titling assistant. Reply with exactly two lines and nothing else. Line 1: a concise title (at most eight words) naming the specific purpose of the conversation you are shown — no quotes, no trailing punctuation. Line 2: one or two plain sentences describing what the conversation is about and what is being done, written for someone scanning a list of sessions. No labels, no explanation.',
-      ),
-      customTools: [],
-      tools: [],
-      noTools: 'builtin',
-      sessionManager: pi.SessionManager.inMemory(this.#dataDir),
-      settingsManager: pi.SettingsManager.inMemory({compaction: {enabled: false}, retry: {enabled: false}}),
-    })
-    try {
-      const reasoningSupport = modelReasoningSupport(provider.type, definition.model)
-      piSession.agent.onPayload = (payload) => {
-        let next = applyReasoningEffort(payload, definition, reasoningSupport)
-        if (provider.modelDefaults) next = mergePiPayloadDefaults(next, provider.modelDefaults)
-        return next
-      }
-      piSession.state.messages = [{role: 'user', content: digest, timestamp: Date.now()}] as never
-      let text = ''
-      const unsubscribe = piSession.subscribe((event) => {
-        if (event.type === 'message_end' && event.message.role === 'assistant') {
-          text = piAssistantText(event.message)
-        }
-      })
-      await piSession.agent.continue()
-      unsubscribe()
-      const [firstLine = '', ...rest] = text
-        .split('\n')
-        .map((line) => line.trim())
-        .filter(Boolean)
-      const stripped = firstLine
-        .replace(/^(title|description)\s*:\s*/i, '')
-        .replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g, '')
-        .replace(/[.]+$/, '')
-        .trim()
-      if (!stripped) return null
-      const descriptionText = rest
-        .join(' ')
-        .replace(/^(description)\s*:\s*/i, '')
-        .replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g, '')
-        .trim()
-      let title: string
-      try {
-        title = normalizeBoundedString(stripped, 'Session title', MAX_NAME_BYTES)
-      } catch {
-        return null
-      }
-      let description: string | undefined
-      if (descriptionText) {
-        try {
-          description = normalizeBoundedString(
-            descriptionText.length > MAX_SESSION_DESCRIPTION_BYTES
-              ? descriptionText.slice(0, MAX_SESSION_DESCRIPTION_BYTES - 1)
-              : descriptionText,
-            'Session description',
-            MAX_SESSION_DESCRIPTION_BYTES,
-          )
-        } catch {
-          description = undefined
-        }
-      }
-      return {title, ...(description ? {description} : {})}
-    } finally {
-      piSession.dispose()
+    const {provider, models, model} = runtime
+    const reasoningSupport = modelReasoningSupport(provider.type, definition.model)
+    hooks.onPayload = (payload) => {
+      const next = applyReasoningEffort(payload, definition, reasoningSupport)
+      return provider.modelDefaults ? mergePiPayloadDefaults(next, provider.modelDefaults) : next
     }
+    const answer = await models.completeSimple(
+      model,
+      {
+        systemPrompt:
+          'You are a session-titling assistant. Reply with exactly two lines and nothing else. Line 1: a concise title (at most eight words) naming the specific purpose of the conversation you are shown — no quotes, no trailing punctuation. Line 2: one or two plain sentences describing what the conversation is about and what is being done, written for someone scanning a list of sessions. No labels, no explanation.',
+        messages: [{role: 'user', content: digest, timestamp: Date.now()}],
+      },
+      {maxRetries: durableSession.PROVIDER_REQUEST_MAX_RETRIES},
+    )
+    const text = answer.stopReason === 'error' || answer.stopReason === 'aborted' ? '' : piAssistantText(answer)
+    const [firstLine = '', ...rest] = text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const stripped = firstLine
+      .replace(/^(title|description)\s*:\s*/i, '')
+      .replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g, '')
+      .replace(/[.]+$/, '')
+      .trim()
+    if (!stripped) return null
+    const descriptionText = rest
+      .join(' ')
+      .replace(/^(description)\s*:\s*/i, '')
+      .replace(/^["'\u201c\u2018]+|["'\u201d\u2019]+$/g, '')
+      .trim()
+    let title: string
+    try {
+      title = normalizeBoundedString(stripped, 'Session title', MAX_NAME_BYTES)
+    } catch {
+      return null
+    }
+    let description: string | undefined
+    if (descriptionText) {
+      try {
+        description = normalizeBoundedString(
+          descriptionText.length > MAX_SESSION_DESCRIPTION_BYTES
+            ? descriptionText.slice(0, MAX_SESSION_DESCRIPTION_BYTES - 1)
+            : descriptionText,
+          'Session description',
+          MAX_SESSION_DESCRIPTION_BYTES,
+        )
+      } catch {
+        description = undefined
+      }
+    }
+    return {title, ...(description ? {description} : {})}
   }
 
   #onRunFinalized(run: runs.RunRecord): void {
@@ -5856,8 +6054,7 @@ export class Service {
           type: 'tool_result',
           toolCallId,
           name,
-          error:
-            'Interrupted by a service restart before this tool finished; whether its side effects happened is unknown. Verify state before retrying.',
+          error: INTERRUPTED_TOOL_RESULT_ERROR,
         },
         Date.now(),
       )
@@ -6577,6 +6774,26 @@ export class Service {
       }
       cursor = cursor.parentRunId ? runs.getRun(this.#db, accountId, cursor.parentRunId) : null
     }
+    // A trigger-launched workflow has no chat session anywhere above it: the firing is where it
+    // came from. Without a link the child lands in the session list as an unexplained top-level
+    // chat — no "Triggered by" pill, no card, nothing to go up to. So the firing adopts the first
+    // session its workflow spawns as its record (the same link a thread firing gets at creation),
+    // and later children of the same firing nest under that first one, so one firing reads as one
+    // thread. A failed workflow that escalates to a thread still re-points the firing at that
+    // thread: the escalation is where a person is asked to look.
+    let adoptingFiringId: string | undefined
+    if (!ancestorSessionId) {
+      const root =
+        workflowRun.rootRunId === workflowRun.id ? workflowRun : runs.getRun(this.#db, accountId, workflowRun.rootRunId)
+      if (root?.triggerFiringId) {
+        const firing = stmt<{session_id: string | null}, [string, string]>(
+          this.#db,
+          `SELECT session_id FROM trigger_firings WHERE account_id = ? AND id = ?`,
+        ).get(accountId, root.triggerFiringId)
+        if (firing?.session_id) ancestorSessionId = firing.session_id
+        else if (firing) adoptingFiringId = root.triggerFiringId
+      }
+    }
     // Same contract as #spawnSubSession: a requested model resolves against this agent's enabled
     // set and becomes the child session's override. Scripts share normalizeSubSessionSpec, so
     // skipping this here silently ran ctx.delegate({model}) children on the agent's default model.
@@ -6591,6 +6808,13 @@ export class Service {
       titleSource: spec.title ? 'agent' : 'system',
       ...(modelOverride ? {modelOverride} : {}),
     })
+    if (adoptingFiringId) {
+      stmt(
+        this.#db,
+        `UPDATE trigger_firings SET session_id = ? WHERE account_id = ? AND id = ? AND session_id IS NULL`,
+      ).run([session.sessionId, accountId, adoptingFiringId])
+      this.#forgetSessionDerived(accountId, session.sessionId)
+    }
     const rendered = renderSubSessionInput(spec.input)
     this.#appendSessionEvent(
       accountId,
@@ -6678,6 +6902,7 @@ export class Service {
     }
     const piToolContext: AgentServicePiToolContext = {
       db: this.#db,
+      browserPrivacy: this.#browserPrivacy,
       accountId: run.accountId,
       agentId: run.agentId,
       definition,
@@ -6823,11 +7048,7 @@ export class Service {
                 error.code = 'unknown-tool'
                 throw error
               }
-              const execute = def.execute as unknown as (
-                toolCallId: string,
-                params: unknown,
-              ) => Promise<{details?: unknown}>
-              const result = await execute(`wf-${run.id}-${toolCallCounter}`, input)
+              const result = await def.execute(`wf-${run.id}-${toolCallCounter}`, input)
               return result.details ?? null
             } finally {
               emitRunPartial({activity: {phase: 'thinking'}})
@@ -7108,12 +7329,16 @@ export class Service {
     )}\n</conversation_members>`
   }
 
-  /** Builds the model-facing system prompt; `stateDir` enables the automatic memory listing. */
+  /**
+   * Builds the model-facing system prompt. Nothing in it may depend on what a session has done so
+   * far or on the state of the agent's Space: it is the prefix every request of a session shares,
+   * and a provider's prompt cache holds only while it repeats byte for byte. State that moves (the
+   * Space index, the plan, the delegation budget left, the clock) rides with each turn's input.
+   */
   async #agentSystemPrompt(
     accountId: string,
     agentId: string,
     definition: api.AgentDefinition,
-    stateDir?: string,
     runPromptProfile?: Pick<SubSessionSpec, 'systemPrompt' | 'includeAgentSystemPrompt' | 'prompt'>,
     /** Where this turn's run sits in its delegation tree; absent for runless prompt previews. */
     delegation?: DelegationStatus,
@@ -7160,16 +7385,12 @@ export class Service {
         expiresAt: Date.now() + RESOLVED_PROMPT_CACHE_TTL_MS,
       })
     }
-    const sharedPrompt = seedAssistantSystemPrompt({
-      currentTime: new Date().toISOString(),
-    })
+    // The time is not part of the prompt: it reaches the model with each turn's input (see
+    // `turnStateMessages`), so this text stays byte-stable from one turn to the next and the
+    // provider's prompt cache survives.
+    const sharedPrompt = seedAssistantSystemPrompt()
     const memoryPrompt =
-      '\n\nYou have a private persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Your user can also browse and edit these files. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
-    const codeExecAvailable = (await this.#codeExec.availability()).available
-    const callables = enabledCallableTools(definition, codeExecAvailable)
-    const spaceIndex = stateDir
-      ? `\n\n${buildSpaceIndex({db: this.#db, accountId, agentId, stateDir, callableTools: callables})}`
-      : ''
+      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Readers can browse shared memory. Paths under ~/memory/private/ are owner-only: only root interactive runs started by the owner and direct owner tool actions may access them. Private files are not mounted into code execution; use read and write to edit them. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. The Memory view shows files as they are: text as text, images as images, an HTML file as its source code. Nothing in memory ever runs. A page, a game or a widget the user can actually use exists only once it is published as a custom HTML page (`write` an hm:// document with options.page); a memory link to an HTML file hands them source code, not a page. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
     const userActionsPrompt =
       '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
     const continuationPrompt = `\n\n${SESSION_CONTINUATION_PROMPT}`
@@ -7187,7 +7408,7 @@ export class Service {
       : ''
     const conversationMembersPrompt = await this.#conversationMembersPrompt(accountId, agentId)
     const delegationParagraph = delegation ? delegationPrompt(delegation) : ''
-    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${delegationParagraph}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}${spaceIndex}`
+    const basePrompt = `${systemPrompt}\n\n${sharedPrompt}${memoryPrompt}${modelChoicePrompt}${delegationParagraph}${userActionsPrompt}${continuationPrompt}${conversationMembersPrompt}`
     if (!signingKeys.length) return basePrompt
     const identities = signingKeys.flatMap((name) => {
       const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
@@ -7212,25 +7433,25 @@ export class Service {
   }
 
   /**
-   * Resolves an agent definition's provider into a ready-to-use Pi runtime:
-   * stored provider config, auth storage (API key, or auto-refreshing OAuth
-   * credentials for subscription providers), model registry, and the resolved
-   * model. Shared by agent runs and the session-titling call so both honor the
-   * provider's auth mode.
+   * Resolves an agent definition's provider into a ready-to-use pi-ai runtime:
+   * stored provider config, a `Models` collection holding the one provider
+   * (API key auth, or auto-refreshing OAuth credentials for subscription
+   * providers), and the resolved model. Shared by agent runs and the
+   * session-titling call so both honor the provider's auth mode.
    */
   /** Internal alias so helper signatures can name the runtime type (private #-methods cannot be referenced in types). */
-  piProviderRuntimeForTitle(accountId: string, definition: api.AgentDefinition) {
-    return this.#piProviderRuntime(accountId, definition)
+  piProviderRuntimeForTitle(accountId: string, definition: api.AgentDefinition, hooks?: ProviderRequestHooks) {
+    return this.#piProviderRuntime(accountId, definition, hooks)
   }
 
   async #piProviderRuntime(
     accountId: string,
     definition: api.AgentDefinition,
+    hooks: ProviderRequestHooks = {},
   ): Promise<{
     provider: api.ModelProviderConfig
-    authStorage: pi.AuthStorage
-    modelRegistry: pi.ModelRegistry
-    model: NonNullable<ReturnType<pi.ModelRegistry['find']>>
+    models: piAi.Models
+    model: piAi.Model<piAi.Api>
   }> {
     const providerRow = stmt<{config_cbor: Uint8Array}, [string, string]>(
       this.#db,
@@ -7246,49 +7467,45 @@ export class Service {
     const spec = providerSpec(provider.type)
     const subscription = provider.authMode === 'subscription'
     const providerName = subscription ? SUBSCRIPTION_PI_PROVIDER_ID : provider.type
-    let authStorage: pi.AuthStorage
+    let models: piAi.MutableModels
+    let auth: piAi.ProviderAuth
     let baseUrl: string
-    let registerAuth: {apiKey: string} | {oauth: typeof openaiCodexOAuthProvider}
     if (subscription) {
       const oauthSecretName = provider.secretRefs?.oauth
       if (!oauthSecretName) throw new APIError(400, `${provider.type} subscription sign-in is not configured`)
       baseUrl = SUBSCRIPTION_CODEX_BASE_URL
-      // Credentials live in AuthStorage (not a runtime api key): Pi re-resolves
-      // them per request and auto-refreshes expired access tokens through the
-      // shared persisted backend, so rotated tokens are saved for future runs.
-      authStorage = pi.AuthStorage.fromStorage(await this.#subscriptionAuthBackend(accountId, oauthSecretName))
-      registerAuth = {oauth: openaiCodexOAuthProvider}
-      // Resolve (and if needed refresh) the access token up front: an expired or
-      // revoked sign-in should fail the run with a clear re-auth message, not a
-      // cryptic provider 401 mid-stream.
-      const accessToken = await authStorage.getApiKey(providerName)
-      if (!accessToken) {
-        this.#markOAuthSecretNeedsReauth(accountId, oauthSecretName)
-        throw new APIError(401, SUBSCRIPTION_REAUTH_MESSAGE)
-      }
+      // Credentials live in the shared credential store (not a fixed api key): `Models` re-resolves
+      // them per request and auto-refreshes expired access tokens under the store's lock, so
+      // rotated tokens are saved for future runs.
+      const store = await this.#subscriptionAuthStore(accountId, oauthSecretName)
+      // Resolve (and if needed refresh) the access token up front: an expired or revoked sign-in
+      // should fail the run with a clear re-auth message, not a cryptic provider 401 mid-stream.
+      await this.#subscriptionAccessToken(accountId, oauthSecretName, store)
+      models = piAi.createModels({credentials: store})
+      auth = {oauth: openaiCodexSubscriptionAuth}
     } else {
       const apiKeySecretName = provider.secretRefs?.apiKey
       if (spec.requireApiKey && !apiKeySecretName) throw new APIError(400, `${providerName} API key is not configured`)
-      // Pi's registerProvider expects a non-empty apiKey when models are defined; local
-      // servers (Ollama/custom without a key) ignore the value, so pass a placeholder.
+      // The OpenAI-compatible adapters expect a non-empty key; local servers (Ollama/custom
+      // without a key) ignore the value, so pass a placeholder.
       const apiKey = apiKeySecretName
         ? new TextDecoder().decode(await this.#getSecretPlaintext(accountId, apiKeySecretName))
         : 'local'
       baseUrl = resolveProviderBaseUrl(provider.type, provider.baseUrl)
-      authStorage = pi.AuthStorage.inMemory()
-      authStorage.setRuntimeApiKey(providerName, apiKey)
-      registerAuth = {apiKey}
+      models = piAi.createModels()
+      auth = {apiKey: {name: `${providerName} API key`, resolve: async () => ({auth: {apiKey}})}}
     }
-    const modelRegistry = pi.ModelRegistry.inMemory(authStorage)
-    modelRegistry.registerProvider(providerName, {
-      baseUrl,
-      ...registerAuth,
-      api: subscription ? 'openai-codex-responses' : spec.api,
-      models: [piModelForDefinition(provider.type, baseUrl, definition, {subscription})],
-    })
-    const model = modelRegistry.find(providerName, definition.model)
-    if (!model) throw new APIError(400, `Model not found: ${providerName}/${definition.model}`)
-    return {provider, authStorage, modelRegistry, model}
+    const model = piModelForDefinition(provider.type, providerName, baseUrl, definition, {subscription})
+    models.setProvider(
+      piAi.createProvider({
+        id: providerName,
+        baseUrl,
+        auth,
+        models: [model],
+        api: withProviderRequestHooks(piApiStreams(model.api), hooks),
+      }),
+    )
+    return {provider, models, model}
   }
 
   async #runPiAgent(
@@ -7328,25 +7545,18 @@ export class Service {
     // The request_gap sub-spans below (`prep.*`) name where pre-turn time goes; anything they do
     // not cover shows up as the difference against `provider.request_gap` in the same snapshot.
     const endProviderRuntimeSpan = startPerfSpan('prep.provider_runtime')
-    const {provider, authStorage, modelRegistry, model} = await this.#piProviderRuntime(accountId, definition)
+    const providerHooks: ProviderRequestHooks = {}
+    const {provider, models, model} = await this.#piProviderRuntime(accountId, definition, providerHooks)
     endProviderRuntimeSpan()
 
-    const cwd = this.#dataDir
-    // Retry policy belongs to the run queue (interactive turns fail fast, background runs ride the
-    // queue's backoff). Pi's own auto-retry must stay off: it re-drives the turn from a detached
-    // timer that dispose() does not cancel, so it would replay the turn after the run finalized.
-    const settingsManager = pi.SettingsManager.inMemory({compaction: {enabled: false}, retry: {enabled: false}})
     const agentStateDir = this.#agentMemoryStateDir(accountId, session.agentId)
     const endSystemPromptSpan = startPerfSpan('prep.system_prompt')
-    const resourceLoader = createSeedPiResourceLoader(
-      await this.#agentSystemPrompt(
-        accountId,
-        session.agentId,
-        definition,
-        agentStateDir,
-        run ? this.#spawnContextForRun(run).spec : undefined,
-        delegation,
-      ),
+    const systemPrompt = await this.#agentSystemPrompt(
+      accountId,
+      session.agentId,
+      definition,
+      run ? this.#spawnContextForRun(run).spec : undefined,
+      delegation,
     )
     endSystemPromptSpan()
     // Agents list execute_code by default; drop it silently when this host cannot run sandboxes
@@ -7367,102 +7577,97 @@ export class Service {
         .map((row) => row.doc.name),
     )
     // SECURITY: promotion must never exceed the enabled callable set plus this agent's own enabled
-    // documents — a hallucinated `call {tool: 'bash'}` durably stores that name, and an unfiltered
-    // allowlist would hand it to Pi, activating Pi's own host bash/edit builtins outside the sandbox.
+    // documents — a hallucinated `call {tool: 'bash'}` durably stores that name, and only names in
+    // this allowlist are ever offered to the provider.
     const expandedCallables = this.#expandedCallablesForSession(sessionId)
       .map(normalizeSeedToolName)
       .filter((name) => enabledCallables.includes(name) || documentTools.has(name))
     endToolSyncSpan()
     const mcpPool = this.#createMcpPool(accountId)
-    const endPiSessionSpan = startPerfSpan('prep.pi_session')
-    const {session: piSession} = await pi.createAgentSession({
-      cwd,
-      agentDir: path.join(this.#dataDir, 'pi'),
-      model,
-      // Pi's level type predates `max`; its runtime passes an unknown effort through to the
-      // Responses API, and `applyReasoningEffort` reasserts the validated level on every payload.
-      thinkingLevel: (definition.reasoningLevel ?? 'off') as ThinkingLevel | 'off',
-      authStorage,
-      modelRegistry,
-      resourceLoader,
-      customTools: createAgentServicePiTools({
-        db: this.#db,
+    const seedTools = createAgentServicePiTools({
+      browser: (command) => {
+        const owner = run && this.#interactiveOwner(run)
+        if (!owner)
+          throw new APIError(403, 'Browser access is only available in interactive runs started by the agent owner')
+        this.#assertPrivateBrowserAgent(accountId, sessionId)
+        return this.#browserTools.execute(JSON.stringify([accountId, sessionId]), command, owner)
+      },
+      db: this.#db,
+      browserPrivacy: this.#browserPrivacy,
+      accountId,
+      agentId: session.agentId,
+      definition,
+      hmServerUrl: this.#hmServerUrl,
+      ipfsServerUrl: this.#ipfsServerUrl,
+      web: this.#web,
+      stateDir: agentStateDir,
+      sessionId,
+      modelAcceptsImages: model.input.includes('image'),
+      codeExec: this.#codeExec,
+      onMemoryChange: () => {
+        invalidateSpaceIndex(accountId, session.agentId)
+        this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
+      },
+      onTriggersChange: () => {
+        invalidateSpaceIndex(accountId, session.agentId)
+        this.#emit({type: 'account-change', accountId, reason: 'trigger-updated', agentId: session.agentId})
+      },
+      // emitProgress is declared below in this scope; tools only call this mid-run, after it exists.
+      onToolProgress: (toolName, progress) =>
+        emitProgress({
+          activity: {
+            phase: 'tool',
+            toolName,
+            toolCallId: progress.toolCallId,
+            detail: progress.detail,
+            outputTail: progress.outputTail,
+          },
+        }),
+      setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan, run?.id),
+      setSessionStatus: (status) => this.#setSessionStatusFromAgent(accountId, sessionId, status),
+      ...continuationToolContext,
+      startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
+      callableTools: enabledCallables,
+      publishEnabled: publishGrantEnabled(definition),
+      mcp: mcpPool,
+      expandedCallables,
+      ...this.#subSessionToolContext(
         accountId,
-        agentId: session.agentId,
-        definition,
-        hmServerUrl: this.#hmServerUrl,
-        ipfsServerUrl: this.#ipfsServerUrl,
-        web: this.#web,
-        stateDir: agentStateDir,
         sessionId,
-        modelAcceptsImages: model.input.includes('image'),
-        codeExec: this.#codeExec,
-        onMemoryChange: () => {
-          invalidateSpaceIndex(accountId, session.agentId)
-          this.#emit({type: 'account-change', accountId, reason: 'agent-memory-changed', agentId: session.agentId})
-        },
-        onTriggersChange: () => {
-          invalidateSpaceIndex(accountId, session.agentId)
-          this.#emit({type: 'account-change', accountId, reason: 'trigger-updated', agentId: session.agentId})
-        },
-        // emitProgress is declared below in this scope; tools only call this mid-run, after it exists.
-        onToolProgress: (toolName, progress) =>
-          emitProgress({
-            activity: {
-              phase: 'tool',
-              toolName,
-              toolCallId: progress.toolCallId,
-              detail: progress.detail,
-              outputTail: progress.outputTail,
-            },
-          }),
-        setSessionPlan: (plan) => this.#setSessionPlanFromAgent(accountId, sessionId, plan, run?.id),
-        setSessionStatus: (status) => this.#setSessionStatusFromAgent(accountId, sessionId, status),
-        ...continuationToolContext,
-        startSession: (input) => this.#startSessionFromAgent(accountId, sessionId, session.agentId, input, run),
-        callableTools: enabledCallables,
-        publishEnabled: publishGrantEnabled(definition),
-        mcp: mcpPool,
-        expandedCallables,
-        ...this.#subSessionToolContext(
-          accountId,
-          sessionId,
-          session.agentId,
-          run,
-          runningSession,
-          subSessionOutputSchema,
-          canDelegate,
-        ),
-      }),
-      // The verbs are the provider-facing surface; expanded callables are promoted beside them.
-      tools: [
-        ...expandedCallables,
-        seedVerbRegistry.read.name,
-        seedVerbRegistry.write.name,
-        seedVerbRegistry.call.name,
-        // Delegation needs a run to park on (the rare runless invocation omits it) and room in
-        // the budget: a leaf sees no delegate verb.
-        ...(run !== undefined && canDelegate ? [seedVerbRegistry.delegate.name] : []),
-        seedVerbRegistry.plan.name,
-        seedVerbRegistry.status.name,
-        // A foreground conversation may carry itself into a successor; a delegated child may not.
-        ...(canContinueSession ? [seedVerbRegistry.continue_session.name] : []),
-        // Typed delegate children must deliver their result through this tool.
-        ...(subSessionOutputSchema ? [seedVerbRegistry.return_result.name] : []),
-      ],
-      noTools: 'builtin',
-      sessionManager: pi.SessionManager.inMemory(cwd),
-      settingsManager,
+        session.agentId,
+        run,
+        runningSession,
+        subSessionOutputSchema,
+        canDelegate,
+      ),
     })
-    endPiSessionSpan()
+    // The verbs are the provider-facing surface; expanded callables are promoted beside them.
+    const offeredToolNames = [
+      ...expandedCallables,
+      seedVerbRegistry.read.name,
+      seedVerbRegistry.write.name,
+      seedVerbRegistry.call.name,
+      // Delegation needs a run to park on (the rare runless invocation omits it) and room in
+      // the budget: a leaf sees no delegate verb.
+      ...(run !== undefined && canDelegate ? [seedVerbRegistry.delegate.name] : []),
+      seedVerbRegistry.plan.name,
+      seedVerbRegistry.status.name,
+      // A foreground conversation may carry itself into a successor; a delegated child may not.
+      ...(canContinueSession ? [seedVerbRegistry.continue_session.name] : []),
+      // Typed delegate children must deliver their result through this tool.
+      ...(subSessionOutputSchema ? [seedVerbRegistry.return_result.name] : []),
+    ]
+    const offeredTools = [...new Set(offeredToolNames)].flatMap((name) => {
+      const tool = seedTools.find((candidate) => candidate.name === name)
+      return tool ? [tool] : []
+    })
 
     const mergeModelDefaults = provider.modelDefaults
     // Provider latency markers, set as each request leaves and cleared by the first streamed
     // output. TTFT (request sent → first output event) is the latency a person actually stares at.
     let lastRequestSentAt = 0
     let firstRequestSent = false
-    let awaitingFirstOutput = false
-    // TTFT of the in-flight turn, held until message_end folds it into that turn's timing meta.
+    // TTFT of the in-flight turn, held until its assistant entry folds it into that turn's timing meta.
     let lastTtftMs: number | undefined
     // The reasoning effort the most recent provider request carried, so a rejection of that exact
     // value can teach `learnReasoningEffortSupport` what the model accepts instead.
@@ -7470,158 +7675,19 @@ export class Service {
     const reasoningSupport = modelReasoningSupport(provider.type, definition.model)
     // Bounded metric suffix (providers × configured models), same shape the error counters use.
     const providerModelTag = `${model.provider}.${definition.model ?? 'default'}`
-    piSession.agent.onPayload = (payload) => {
-      // The next provider request is the tool batch's end: if this turn spawned sub-sessions (park)
-      // or delivered its typed result, the turn is over — refuse to send another provider request.
-      // Throwing here (caught below as a designed ending) guarantees the request never leaves.
-      if (runningSession && (runningSession.parkToolCallIds?.length || runningSession.completeAfterTools)) {
-        console.info('[agents/runtime] ending turn after tool batch', {
-          sessionId,
-          parked: runningSession.parkToolCallIds?.length ?? 0,
-          resultDelivered: runningSession.subResult !== undefined,
-        })
-        throw new SessionParkedError()
-      }
-      const payloadTools = isRecord(payload) && Array.isArray(payload.tools) ? payload.tools.length : undefined
-      console.info('[agents/runtime] sending provider request', {
-        sessionId,
-        agentId: session.agentId,
-        provider: model.provider,
-        model: definition.model,
-        reasoningLevel: definition.reasoningLevel,
-        activeTools: piSession.getActiveToolNames(),
-        payloadTools,
-      })
-      if (!firstRequestSent) {
-        firstRequestSent = true
-        recordPerf('provider.request_gap', Date.now() - turnPrepStartedAt)
-      }
-      lastRequestSentAt = Date.now()
-      awaitingFirstOutput = true
-      let next = applyReasoningEffort(payload, definition, reasoningSupport)
-      if (mergeModelDefaults) next = mergePiPayloadDefaults(next, mergeModelDefaults)
-      lastSentEffort = payloadReasoningEffort(next)
-      return next
-    }
-    const endReplaySpan = startPerfSpan('prep.replay')
-    const replayMessages = this.#piMessages(sessionId)
-    endReplaySpan()
-    const runInput = run && isRecord(run.input) ? run.input : undefined
-    const queuedUserEventIds =
-      runInput?.queuedBehindAnotherTurn === true && Array.isArray(runInput.userEventIds)
-        ? runInput.userEventIds.filter((id): id is string => typeof id === 'string')
-        : []
-    // A concurrent collaborator's message is appended immediately, even while the preceding
-    // assistant response is still streaming. That means durable ordering can be user B, then the
-    // tail of assistant A. Put an in-memory handoff last so the serialized follow-up turn cannot
-    // mistake A's later event for an answer to B. The original messages remain the only durable
-    // copies; this is provider guidance, not another transcript event.
-    const wanted = new Set(queuedUserEventIds)
-    const concurrentMessages = queuedUserEventIds.length
-      ? stmt<SessionEventRow, [string]>(
-          this.#db,
-          `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
-        )
-          .all(sessionId)
-          .filter((row) => wanted.has(row.id))
-          .map((row) => {
-            const payload = cbor.decode<api.SessionEventPayload>(row.event_cbor) as {
-              type?: string
-              role?: string
-              content?: string
-              meta?: api.SessionEventMeta
-            }
-            return {
-              eventId: row.id,
-              accountId: payload.meta?.accountId,
-              content: payload.type === 'message' && payload.role === 'user' ? payload.content : undefined,
-            }
-          })
-          .filter((message): message is {eventId: string; accountId: string | undefined; content: string} =>
-            Boolean(message.content),
-          )
-      : []
-    // Queued user events that are not plain messages (a user tool action behind a live turn)
-    // render nothing here — they replay positionally as user_action messages instead.
-    if (concurrentMessages.length) {
-      replayMessages.push({
-        role: 'user',
-        content: `<concurrent_user_messages>\nThese user messages arrived while the previous response was already in progress. Any assistant event that follows them in the durable transcript belongs to that earlier turn and does not answer them. Respond to these messages now:\n${JSON.stringify(
-          concurrentMessages,
-        )}\n</concurrent_user_messages>`,
-        timestamp: Date.now(),
-      })
-    } else {
-      // A park-resume after interleaved conversation can end on an assistant message (the late tool
-      // results attach adjacent to their calls, earlier in the transcript). Pi cannot continue from
-      // an assistant turn, and the model needs direction anyway: hand it back the floor explicitly.
-      // In-memory only — never persisted to the transcript.
-      const lastReplayed = replayMessages.at(-1) as {role?: string} | undefined
-      if (lastReplayed?.role === 'assistant') {
-        replayMessages.push({
-          role: 'user',
-          content:
-            '<background_work_update>\nThe background sub-sessions/workflows you were waiting on have finished; their results are attached to their tool calls above. Continue now: act on those results and reply to the user, including anything you promised to deliver once they completed.\n</background_work_update>',
-          timestamp: Date.now(),
-        })
-      }
-    }
-    // The checklist, handed back every turn.
-    //
-    // The plan verb writes no transcript events on purpose — the checklist is the card, not
-    // conversation — with the consequence that a model resuming after its children finished is
-    // blind to the very list it published, and cannot close a step it can no longer see. This block
-    // is rebuilt from session state on every turn and never stored: not an event, not rendered,
-    // just the current truth placed where the model will read it last.
-    //
-    // Unless the list is over. A checklist that fully settled under an EARLIER run is a finished
-    // story, already frozen into the transcript on the run that owns it. Handing it back as "your
-    // live checklist" invites the model to append the new request's steps to it, so every new task
-    // resurrects the old plan and the same finished steps render twice — once frozen in the
-    // scroll, once again on the new turn's card. The new turn retires it instead and starts clean.
-    const storedPlan = this.#storedSessionPlan(accountId, sessionId)
-    const planIsHistory =
-      storedPlan !== undefined &&
-      isPlanFullySettled(storedPlan) &&
-      storedPlan.ownerRunId !== undefined &&
-      storedPlan.ownerRunId !== run?.id
-    if (planIsHistory) this.#retireSettledSessionPlan(accountId, sessionId, storedPlan)
-    const planBlock = planIsHistory ? undefined : planStateBlock(storedPlan)
-    if (planBlock) replayMessages.push({role: 'user', content: planBlock, timestamp: Date.now()})
-    // How full the context is, from the last turn's prompt size against the model's window. Like
-    // the plan block: rendered fresh, never stored — a measurement, not a transcript event. Only
-    // where continuing is possible; a delegated child has no use for the number.
-    const contextBlock = canContinueSession
-      ? contextUsageBlock(this.#lastPromptTokens(sessionId), model.contextWindow)
-      : undefined
-    if (contextBlock) replayMessages.push({role: 'user', content: contextBlock, timestamp: Date.now()})
-    // What the session is currently called and said to be doing, so the status verb is a change
-    // the model makes on purpose rather than a restatement it makes by habit. Same rule as the
-    // plan block: rendered fresh from session state, never stored.
-    const statusBlock = sessionStatusBlock(this.#getSessionInfo(accountId, sessionId))
-    if (statusBlock) replayMessages.push({role: 'user', content: statusBlock, timestamp: Date.now()})
-    piSession.state.messages = replayMessages as never
+
     let partialId = crypto.randomUUID()
-    let partialText = ''
-    // Streamed text deltas are coalesced into ~PARTIAL_FLUSH_INTERVAL_MS batches before broadcast:
-    // a reasoning model emits hundreds of tokens per turn, and one WS frame per token per subscriber
-    // dominated the server's outbound traffic. Batching cuts that ~10-50x with no visible change to
-    // the client (it just appends slightly chunkier text). Any pending batch is flushed before any
-    // non-text event so transcript ordering is preserved.
-    let pendingDelta = ''
-    let pendingDeltaTimer: ReturnType<typeof setTimeout> | undefined
-    let currentAssistantHadDelta = false
-    let suppressCurrentAssistantEndFallback = false
     let finalError: string | undefined
     let assistantEvent: api.SessionEvent | undefined
-    const appendedToolCalls = new Set<string>()
     const toolStartedAt = new Map<string, number>()
+    const toolDurationMs = new Map<string, number>()
     // Inner tool a `call` verb dispatched to, so `tool.call` splits into `tool.call.<inner>` and a
     // slow callable (a web search, an execute) is visible instead of blurred into one span.
     const toolInnerName = new Map<string, string>()
 
     const runStartedAt = Date.now()
     let turnCount = 0
+    let streamingLogOpen = false
     const runUsage: api.AgentRunUsage = {input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0}
     const logRun = (message: string, fields: Record<string, unknown> = {}): void => {
       console.info(`[agents/runtime] ${message}`, {
@@ -7641,6 +7707,11 @@ export class Service {
         ...fields,
       })
     }
+    const endStreamingLog = (): void => {
+      if (!streamingLogOpen) return
+      process.stdout.write('\n')
+      streamingLogOpen = false
+    }
     /** Emits a non-text progress patch (activity and/or cumulative token usage) for the current partial. */
     const emitProgress = (patch: {activity?: api.AgentRunActivity; usage?: api.AgentRunUsage}): void => {
       this.#emit({
@@ -7654,211 +7725,346 @@ export class Service {
       })
     }
 
+    providerHooks.onPayload = (payload) => {
+      const payloadTools = isRecord(payload) && Array.isArray(payload.tools) ? payload.tools.length : undefined
+      console.info('[agents/runtime] sending provider request', {
+        sessionId,
+        agentId: session.agentId,
+        provider: model.provider,
+        model: definition.model,
+        reasoningLevel: definition.reasoningLevel,
+        activeTools: offeredTools.map((tool) => tool.name),
+        payloadTools,
+      })
+      if (!firstRequestSent) {
+        firstRequestSent = true
+        recordPerf('provider.request_gap', Date.now() - turnPrepStartedAt)
+      }
+      lastRequestSentAt = Date.now()
+      let next = applyReasoningEffort(payload, definition, reasoningSupport)
+      if (mergeModelDefaults) next = mergePiPayloadDefaults(next, mergeModelDefaults)
+      lastSentEffort = payloadReasoningEffort(next)
+      return next
+    }
+    providerHooks.onFirstOutput = () => {
+      const ttftMs = Date.now() - lastRequestSentAt
+      lastTtftMs = ttftMs
+      recordPerf('provider.ttft', ttftMs)
+      // The same span tagged by provider+model, so one slow model is visible next to the blend.
+      recordPerf(`provider.ttft.${providerModelTag}`, ttftMs)
+      logRun('provider first output', {ttftMs})
+    }
+
+    // The checklist, handed back every turn.
+    //
+    // The plan verb writes no transcript events on purpose — the checklist is the card, not
+    // conversation — with the consequence that a model resuming after its children finished is
+    // blind to the very list it published, and cannot close a step it can no longer see. The block
+    // below is rebuilt from session state on every turn and never stored: not an event, not
+    // rendered, just the current truth placed where the model will read it last.
+    //
+    // Unless the list is over. A checklist that fully settled under an EARLIER run is a finished
+    // story, already frozen into the transcript on the run that owns it. Handing it back as "your
+    // live checklist" invites the model to append the new request's steps to it, so every new task
+    // resurrects the old plan and the same finished steps render twice — once frozen in the
+    // scroll, once again on the new turn's card. The new turn retires it instead and starts clean.
+    const planAtTurnStart = this.#storedSessionPlan(accountId, sessionId)
+    if (
+      planAtTurnStart !== undefined &&
+      isPlanFullySettled(planAtTurnStart) &&
+      planAtTurnStart.ownerRunId !== undefined &&
+      planAtTurnStart.ownerRunId !== run?.id
+    ) {
+      this.#retireSettledSessionPlan(accountId, sessionId, planAtTurnStart)
+    }
+    /**
+     * State the model should read with this turn's input, none of it transcript: the Space index
+     * (what it can read, call and write right now), how many children it may still start, the
+     * checklist, how full the context is (only where continuing is possible; a delegated child has no use for
+     * the number), what the session is currently called and said to be doing (so the status verb
+     * is a change the model makes on purpose rather than a restatement it makes by habit), and the
+     * time. Rendered once per turn, placed right behind the input on every request of the turn,
+     * and never stored: everything before it — the system prompt included — stays byte-stable from
+     * one turn to the next, and the turn's own requests share one prefix.
+     */
+    const turnStateMessages = (): piAi.UserMessage[] => {
+      // A reader's turn in a browser or private-memory session must not see the owner's plan or
+      // status text; the private stub stands in for them.
+      const privateHistory = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.sessionIsPrivate(sessionId)
+      const blocks = [
+        buildSpaceIndex({
+          db: this.#db,
+          accountId,
+          agentId: session.agentId,
+          stateDir: agentStateDir,
+          callableTools: enabledCallables,
+        }),
+        run ? delegationBudgetBlock(this.#delegationStatus(run)) : undefined,
+        privateHistory ? undefined : planStateBlock(this.#storedSessionPlan(accountId, sessionId)),
+        canContinueSession ? contextUsageBlock(this.#lastPromptTokens(sessionId), model.contextWindow) : undefined,
+        privateHistory ? undefined : sessionStatusBlock(this.#getSessionInfo(accountId, sessionId)),
+        `<current_time>${new Date().toISOString()}</current_time>`,
+      ]
+      const timestamp = Date.now()
+      return blocks.flatMap((content) => (content ? [{role: 'user' as const, content, timestamp}] : []))
+    }
+    let turnState: {index: number; messages: piAi.UserMessage[]} | undefined
+
     // Provenance for the messages this turn produces. The run knows what model answered, on which
     // provider, what the turn cost and how long it took — none of which is recoverable later, so it
     // is stamped on the event as it is written and the transcript stays able to explain itself.
     let turnStartedAt = Date.now()
-    let turnUsageForMeta: api.AgentRunUsage | undefined
-    let turnTimingForMeta: NonNullable<api.SessionEventMeta['turn']> | undefined
     // The level the turn actually ran at, not merely the one configured: an unset level is `off`
     // for most models, but a model that cannot stop reasoning ran at the provider's default.
     const reasoningLevelForMeta = effectiveReasoningLevel(provider.type, definition)
-    const messageMeta = (): api.SessionEventMeta => ({
-      ...(definition.model ? {model: definition.model} : {}),
-      ...(model.provider ? {provider: model.provider} : {}),
-      reasoningLevel: reasoningLevelForMeta,
-      ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
-      ...(turnTimingForMeta ? {turn: {...turnTimingForMeta}} : {}),
-      durationMs: Math.max(0, Date.now() - turnStartedAt),
-    })
-    // Provenance for tool events: which model/provider issued the call and what its turn cost.
-    // No duration here — the tool's own span is stamped on the result once it is known.
-    const toolTurnMeta = (): api.SessionEventMeta | undefined => {
-      const meta: api.SessionEventMeta = {
-        ...(definition.model ? {model: definition.model} : {}),
-        ...(model.provider ? {provider: model.provider} : {}),
+    /** Model, provider and cost of the provider response an event came out of. */
+    const responseMeta = (
+      message: piAi.AssistantMessage,
+      timing: NonNullable<api.SessionEventMeta['turn']> | undefined,
+    ): api.SessionEventMeta => {
+      const usage = message.usage
+      return {
+        ...(message.model ? {model: message.model} : {}),
+        ...(message.provider ? {provider: message.provider} : {}),
         reasoningLevel: reasoningLevelForMeta,
-        ...(turnUsageForMeta ? {usage: {...turnUsageForMeta}} : {}),
-        ...(turnTimingForMeta ? {turn: {...turnTimingForMeta}} : {}),
+        usage: {
+          input: usage.input,
+          output: usage.output,
+          cacheRead: usage.cacheRead,
+          cacheWrite: usage.cacheWrite,
+          total: usage.input + usage.output + usage.cacheRead + usage.cacheWrite,
+        },
+        ...(timing ? {turn: timing} : {}),
       }
-      return Object.keys(meta).length ? meta : undefined
     }
+    // Provenance for tool results: which model/provider issued the call and what its turn cost.
+    const toolCallMeta = new Map<string, api.SessionEventMeta>()
+    // Image bytes a tool of this turn put in front of the model (`read attachment:`), by call id.
+    // An image rides its tool result for the turn that asked for it and no further: the durable
+    // result keeps the text, and the hook below adds the image back to this turn's requests.
+    const turnImages = new Map<string, piAi.ToolResultMessage['content']>()
 
-    const appendAssistantMessage = (content: string): void => {
-      if (!content.trim()) return
-      flushPendingDelta()
-      this.#emit({
-        type: 'session-partial',
-        runId: run?.id,
-        accountId,
-        agentId: session.agentId,
-        sessionId,
-        partialId,
-        done: true,
-      })
-      assistantEvent = this.#appendSessionEvent(
-        accountId,
-        session.agentId,
-        sessionId,
-        {type: 'message', role: 'assistant', content, meta: messageMeta()},
-        Date.now(),
-      )
-      // Text flushed mid-turn (before a tool batch) already spent its share of the clock; the next
-      // message is timed from here so no stretch of wall time is counted twice.
-      turnStartedAt = Date.now()
-      turnUsageForMeta = undefined
-      turnTimingForMeta = undefined
-      partialId = crypto.randomUUID()
-    }
-
-    const flushPartialAssistantMessage = (): void => {
-      appendAssistantMessage(partialText)
-      partialText = ''
-      currentAssistantHadDelta = false
-    }
-
-    // Broadcasts the accumulated text batch as one partial (and echoes it to the run log). Called on
-    // the flush timer and — crucially — before any non-text event, so the streamed text always
-    // reaches subscribers ahead of the tool call / message-end / progress event that follows it.
-    const flushPendingDelta = (): void => {
-      if (pendingDeltaTimer) {
-        clearTimeout(pendingDeltaTimer)
-        pendingDeltaTimer = undefined
-      }
-      if (!pendingDelta) return
-      const batch = pendingDelta
-      pendingDelta = ''
-      this.#emit({
-        type: 'session-partial',
-        runId: run?.id,
-        accountId,
-        agentId: session.agentId,
-        sessionId,
-        partialId,
-        textDelta: batch,
-      })
-    }
-
-    const unsubscribe = piSession.subscribe((event) => {
-      const isTextDelta = event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta'
-      // Keep streamed text ahead of whatever event comes next.
-      if (!isTextDelta) flushPendingDelta()
-      if (
-        awaitingFirstOutput &&
-        (event.type === 'message_update' || event.type === 'message_end' || event.type === 'tool_execution_start')
-      ) {
-        awaitingFirstOutput = false
-        const ttftMs = Date.now() - lastRequestSentAt
-        lastTtftMs = ttftMs
-        recordPerf('provider.ttft', ttftMs)
-        // The same span tagged by provider+model, so one slow model is visible next to the blend.
-        recordPerf(`provider.ttft.${providerModelTag}`, ttftMs)
-        logRun('provider first output', {ttftMs})
-      }
-      if (isTextDelta && event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
-        const delta = event.assistantMessageEvent.delta
-        if (!currentAssistantHadDelta) {
-          logRun('assistant text streaming', {partialId})
-          emitProgress({activity: {phase: 'responding'}})
-        }
-        partialText += delta
-        pendingDelta += delta
-        currentAssistantHadDelta = true
-        if (!pendingDeltaTimer) pendingDeltaTimer = setTimeout(flushPendingDelta, PARTIAL_FLUSH_INTERVAL_MS)
-        return
-      }
-      if (event.type === 'message_end' && event.message.role === 'assistant') {
-        const assistantMessage = event.message as {
-          stopReason?: string
-          errorMessage?: string
-          usage?: {input?: number; output?: number; cacheRead?: number; cacheWrite?: number}
-        }
-        turnCount += 1
-        if (lastRequestSentAt) {
-          const turnMs = Date.now() - lastRequestSentAt
-          recordPerf('provider.turn', turnMs)
-          recordPerf(`provider.turn.${providerModelTag}`, turnMs)
-          // Stamped onto every event this turn appends, so a transcript can explain per turn where
-          // its wall time went (model vs tools) instead of only via process-wide aggregates.
-          turnTimingForMeta = {
-            index: turnCount,
-            ...(lastTtftMs !== undefined ? {ttftMs: lastTtftMs} : {}),
-            turnMs,
+    // Streamed text reaches subscribers as the harness commits it: partial answers are committed
+    // (and so published) at most every ~100 ms, which already batches a reasoning model's hundreds
+    // of tokens per turn into a handful of WS frames per subscriber.
+    const textTracker = new durableSession.StreamedTextTracker()
+    /**
+     * Writes the session events one durable transcript entry stands for. `live` entries were
+     * produced by the turn in flight and also drive its accounting and its outcome; the others are
+     * entries an earlier process committed without getting to write their events.
+     */
+    let lastProjectedEntry = 0
+    // Whether this run adopted a turn an earlier process left unfinished in the durable store.
+    let resumed = false
+    // Whether the harness is working on this turn's input. Until then, what the store publishes is
+    // this run's own preparation (messages imported from the log, stale work being aborted), which
+    // is recorded but is neither streamed nor counted as the turn's output.
+    let turnLive = false
+    // One entry stands for several rows (an answer and its tool calls); they are written together
+    // or not at all, because the next open resumes after the highest entry id it finds.
+    const projectEntry = (entry: durable.EntryRecord, live: boolean): void =>
+      this.#db.transaction(() => projectEntryRows(entry, live))()
+    const projectEntryRows = (entry: durable.EntryRecord, live: boolean): void => {
+      if (entry.id <= lastProjectedEntry) return
+      const message = entry.model?.[0]
+      if (durable.AssistantEntry.is(entry) && message?.role === 'assistant') {
+        lastProjectedEntry = entry.id
+        let timing: NonNullable<api.SessionEventMeta['turn']> | undefined
+        if (live) {
+          endStreamingLog()
+          turnCount += 1
+          if (lastRequestSentAt) {
+            const turnMs = Date.now() - lastRequestSentAt
+            recordPerf('provider.turn', turnMs)
+            recordPerf(`provider.turn.${providerModelTag}`, turnMs)
+            // Stamped onto every event this turn appends, so a transcript can explain per turn where
+            // its wall time went (model vs tools) instead of only via process-wide aggregates.
+            timing = {index: turnCount, ...(lastTtftMs !== undefined ? {ttftMs: lastTtftMs} : {}), turnMs}
+            lastTtftMs = undefined
           }
-          lastTtftMs = undefined
-        }
-        const turnUsage = assistantMessage.usage
-        if (turnUsage) {
-          turnUsageForMeta = {
-            input: turnUsage.input ?? 0,
-            output: turnUsage.output ?? 0,
-            cacheRead: turnUsage.cacheRead ?? 0,
-            cacheWrite: turnUsage.cacheWrite ?? 0,
-            total:
-              (turnUsage.input ?? 0) +
-              (turnUsage.output ?? 0) +
-              (turnUsage.cacheRead ?? 0) +
-              (turnUsage.cacheWrite ?? 0),
-          }
-          runUsage.input += turnUsage.input ?? 0
-          runUsage.output += turnUsage.output ?? 0
-          runUsage.cacheRead += turnUsage.cacheRead ?? 0
-          runUsage.cacheWrite += turnUsage.cacheWrite ?? 0
+          runUsage.input += message.usage.input
+          runUsage.output += message.usage.output
+          runUsage.cacheRead += message.usage.cacheRead
+          runUsage.cacheWrite += message.usage.cacheWrite
           runUsage.total = runUsage.input + runUsage.output + runUsage.cacheRead + runUsage.cacheWrite
+          logRun('assistant turn complete', {
+            turn: turnCount,
+            stopReason: message.stopReason,
+            textChars: piAssistantText(message).length,
+            tokens: {...runUsage},
+          })
+          // Usage persists at every turn boundary so a crash loses at most one turn's accounting.
+          if (run) this.#runQueue.updateUsage(run.id, {...runUsage})
+          emitProgress({usage: {...runUsage}, activity: {phase: 'thinking'}})
         }
-        logRun('assistant turn complete', {
-          turn: turnCount,
-          stopReason: assistantMessage.stopReason,
-          textChars: partialText.length || piAssistantText(event.message).length,
-          tokens: {...runUsage},
-        })
-        // Usage persists at every turn boundary so a crash loses at most one turn's accounting.
-        if (run) this.#runQueue.updateUsage(run.id, {...runUsage})
-        emitProgress({usage: {...runUsage}, activity: {phase: 'thinking'}})
-        if (assistantMessage.stopReason === 'error' || assistantMessage.stopReason === 'aborted') {
-          finalError = assistantMessage.errorMessage || 'Agent run failed'
-          // Aborts are people stopping runs, not the provider failing; only real errors count.
-          if (assistantMessage.stopReason === 'error') {
-            recordPerfCount(
-              `provider.error.${model.provider}.${definition.model ?? 'default'}.${providerErrorReason(finalError)}`,
-            )
-            const learned = learnReasoningEffortSupport(definition.model, finalError, lastSentEffort)
-            if (learned) {
-              logRun('learned reasoning efforts the model accepts; the next request will use them', {
-                model: definition.model,
-                rejected: lastSentEffort,
-                supported: learned,
-              })
-            }
+        if (message.stopReason === 'error') {
+          if (!live) return
+          finalError = message.errorMessage || 'Agent run failed'
+          recordPerfCount(
+            `provider.error.${model.provider}.${definition.model ?? 'default'}.${providerErrorReason(finalError)}`,
+          )
+          const learned = learnReasoningEffortSupport(definition.model, finalError, lastSentEffort)
+          if (learned) {
+            logRun('learned reasoning efforts the model accepts; the next request will use them', {
+              model: definition.model,
+              rejected: lastSentEffort,
+              supported: learned,
+            })
           }
-          logRunError('assistant turn reported error', {stopReason: assistantMessage.stopReason, error: finalError})
+          logRunError('assistant turn reported error', {stopReason: message.stopReason, error: finalError})
           return
         }
-        if (currentAssistantHadDelta) flushPartialAssistantMessage()
-        else if (!suppressCurrentAssistantEndFallback) appendAssistantMessage(piAssistantText(event.message))
-        suppressCurrentAssistantEndFallback = false
+        const meta = responseMeta(message, timing)
+        // An aborted entry holds the partial answer of a request that was cut off. When a person
+        // stopped the turn, what was said stays said. When the harness cut it off itself (a turn
+        // resumed after a restart asks again), the complete answer follows and the fragment is
+        // not a message of its own.
+        const stoppedPartial = message.stopReason === 'aborted'
+        const text = stoppedPartial && !(live && runningSession?.stopped) ? '' : piAssistantText(message)
+        if (text.trim()) {
+          this.#emit({
+            type: 'session-partial',
+            runId: run?.id,
+            accountId,
+            agentId: session.agentId,
+            sessionId,
+            partialId,
+            done: true,
+          })
+          const appended = this.#appendSessionEvent(
+            accountId,
+            session.agentId,
+            sessionId,
+            {
+              type: 'message',
+              role: 'assistant',
+              content: text,
+              meta: {...meta, ...(live ? {durationMs: Math.max(0, Date.now() - turnStartedAt)} : {})},
+            },
+            Date.now(),
+            // The harness leaves an aborted response out of the model's context. Written without
+            // its entry id, the text a person saw before stopping is imported with the next turn
+            // like any other message the harness does not know, so the model knows what it said.
+            stoppedPartial ? undefined : entry.id,
+          )
+          if (live) assistantEvent = appended
+          partialId = crypto.randomUUID()
+        }
+        // The next message is timed from here so no stretch of wall time is counted twice.
+        turnStartedAt = Date.now()
+        textTracker.reset()
+        if (message.stopReason === 'aborted') return
+        for (const part of message.content) {
+          if (part.type !== 'toolCall') continue
+          // Plan updates are session state, not conversation: they render as the checklist, not as tool rows.
+          if (part.name === seedVerbRegistry.plan.name) continue
+          toolCallMeta.set(part.id, meta)
+          this.#appendSessionEvent(
+            accountId,
+            session.agentId,
+            sessionId,
+            {type: 'tool_call', id: part.id, name: part.name, input: part.arguments, meta},
+            Date.now(),
+            entry.id,
+          )
+        }
+        return
+      }
+      if (durable.ToolResultEntry.is(entry) && message?.role === 'toolResult') {
+        lastProjectedEntry = entry.id
+        if (message.toolName === seedVerbRegistry.plan.name) return
+        // A parked delegate call keeps its durable tool_call unanswered: the real tool_result is
+        // appended by the child's finalizer, and the turn that resumes picks it up from the log.
+        if (isRecord(message.details) && message.details[PARKED_TOOL_RESULT_MARKER] === true) return
+        // The log already answers this call (a result synthesized after a restart): it stands.
+        if ((!live || resumed) && this.#sessionHasToolResult(sessionId, message.toolCallId)) return
+        const durationMs = toolDurationMs.get(message.toolCallId)
+        toolDurationMs.delete(message.toolCallId)
+        const resultMeta: api.SessionEventMeta = {
+          ...toolCallMeta.get(message.toolCallId),
+          ...(durationMs === undefined ? {} : {durationMs}),
+        }
+        toolCallMeta.delete(message.toolCallId)
+        const toolMeta = Object.keys(resultMeta).length ? {meta: resultMeta} : {}
+        this.#appendSessionEvent(
+          accountId,
+          session.agentId,
+          sessionId,
+          message.isError
+            ? {
+                type: 'tool_result',
+                toolCallId: message.toolCallId,
+                name: message.toolName,
+                error: durableSession.harnessResultText(piToolResultText(message)),
+                ...toolMeta,
+              }
+            : {
+                type: 'tool_result',
+                toolCallId: message.toolCallId,
+                name: message.toolName,
+                output: piToolResultOutput(message),
+                ...toolMeta,
+              },
+          Date.now(),
+          entry.id,
+        )
+      }
+    }
+
+    let resolveSettled: () => void = () => {}
+    const settledSeen = new Promise<void>((resolve) => {
+      resolveSettled = resolve
+    })
+    let turnSubmission: durable.Submission | undefined
+    const onHarnessEvent = (event: durable.AgentEvent): void => {
+      if (event.type === 'snapshot') {
+        // The stream fell too far behind and was handed the current state instead of every step.
+        for (const entry of event.entries) projectEntry(entry, turnLive)
+        return
+      }
+      if (event.type === 'message_start' || event.type === 'message_update') {
+        if (!turnLive) return
+        const hadText = textTracker.text.length > 0
+        const delta = textTracker.apply(event)
+        if (!delta) return
+        if (!hadText) {
+          logRun('assistant text streaming', {partialId})
+          emitProgress({activity: {phase: 'responding'}})
+          streamingLogOpen = true
+        }
+        if (!this.#browserPrivacy.sessionIsPrivate(sessionId)) process.stdout.write(delta)
+        this.#emit({
+          type: 'session-partial',
+          runId: run?.id,
+          accountId,
+          agentId: session.agentId,
+          sessionId,
+          partialId,
+          textDelta: delta,
+        })
+        return
+      }
+      if (event.type === 'message_end') {
+        projectEntry(event.entry, turnLive)
         return
       }
       if (event.type === 'tool_execution_start') {
-        // Plan updates are session state, not conversation: they render as the checklist, not as tool rows.
         if (event.toolName === seedVerbRegistry.plan.name) return
-        if (currentAssistantHadDelta) {
-          flushPartialAssistantMessage()
-          suppressCurrentAssistantEndFallback = true
-        }
+        endStreamingLog()
         toolStartedAt.set(event.toolCallId, Date.now())
-        if (
-          event.toolName === seedVerbRegistry.call.name &&
-          isRecord(event.args) &&
-          typeof event.args.tool === 'string'
-        ) {
+        if (event.toolName === seedVerbRegistry.call.name && typeof event.args.tool === 'string') {
           // Cardinality is bounded: only enabled callables and this agent's own documents dispatch.
           toolInnerName.set(event.toolCallId, event.args.tool)
         }
         logRun('tool call start', {
           tool: event.toolName,
           toolCallId: event.toolCallId,
-          input: summarizeForLog(event.args),
+          input:
+            containsPrivateData({toolName: event.toolName, input: event.args}) ||
+            event.toolName === 'browser' ||
+            this.#browserPrivacy.sessionIsPrivate(sessionId)
+              ? '[private]'
+              : summarizeForLog(event.args),
         })
         emitProgress({
           activity: {
@@ -7868,161 +8074,333 @@ export class Service {
             detail: summarizeToolArgs(event.args),
           },
         })
-        appendedToolCalls.add(event.toolCallId)
-        const callMeta = toolTurnMeta()
-        this.#appendSessionEvent(
-          accountId,
-          session.agentId,
-          sessionId,
-          {
-            type: 'tool_call',
-            id: event.toolCallId,
-            name: event.toolName,
-            input: event.args,
-            ...(callMeta ? {meta: callMeta} : {}),
-          },
-          Date.now(),
-        )
         return
       }
       if (event.type === 'tool_execution_end') {
         if (event.toolName === seedVerbRegistry.plan.name) return
-        // Parked sub_session calls keep their durable tool_call unanswered: the real tool_result is
-        // appended by the child's finalizer, and the resumed turn replays it from there.
-        if (runningSession?.parkToolCallIds?.includes(event.toolCallId)) {
-          emitProgress({activity: {phase: 'thinking'}})
-          return
-        }
         const startedAt = toolStartedAt.get(event.toolCallId)
         toolStartedAt.delete(event.toolCallId)
         const innerName = toolInnerName.get(event.toolCallId)
         toolInnerName.delete(event.toolCallId)
+        const result = event.entry?.model?.[0]
         if (startedAt !== undefined) {
+          // How long the tool actually ran, stamped while the start time is still in hand: the pair
+          // of event timestamps is a decent guess, but only the executor knows the real span.
           const toolMs = Date.now() - startedAt
+          toolDurationMs.set(event.toolCallId, toolMs)
           recordPerf(`tool.${event.toolName}`, toolMs)
           if (innerName) recordPerf(`tool.${event.toolName}.${innerName}`, toolMs)
         }
-        logRun(event.isError ? 'tool call failed' : 'tool call end', {
+        const failed = result?.role !== 'toolResult' || result.isError
+        logRun(failed ? 'tool call failed' : 'tool call end', {
           tool: event.toolName,
           toolCallId: event.toolCallId,
           durationMs: startedAt ? Date.now() - startedAt : undefined,
-          result: summarizeForLog(event.isError ? piToolResultText(event.result) : piToolResultOutput(event.result)),
+          result: this.#browserPrivacy.sessionIsPrivate(sessionId)
+            ? '[private]'
+            : result?.role === 'toolResult'
+              ? summarizeForLog(result.isError ? piToolResultText(result) : piToolResultOutput(result))
+              : undefined,
         })
         emitProgress({activity: {phase: 'thinking'}})
-        if (!appendedToolCalls.has(event.toolCallId)) {
-          this.#appendSessionEvent(
-            accountId,
-            session.agentId,
-            sessionId,
-            {
-              type: 'tool_call',
-              id: event.toolCallId,
-              name: event.toolName,
-              input: {},
-              ...(toolTurnMeta() ? {meta: toolTurnMeta()} : {}),
-            },
-            Date.now(),
-          )
-        }
-        // How long the tool actually ran, stamped while the start time is still in hand: the pair of
-        // event timestamps is a decent guess, but only the executor knows the real span. The issuing
-        // turn's model/provider/usage ride along so the result explains itself on its own.
-        const resultMeta: api.SessionEventMeta = {
-          ...toolTurnMeta(),
-          ...(startedAt === undefined ? {} : {durationMs: Math.max(0, Date.now() - startedAt)}),
-        }
-        const toolMeta: api.SessionEventMeta | undefined = Object.keys(resultMeta).length ? resultMeta : undefined
-        this.#appendSessionEvent(
-          accountId,
-          session.agentId,
-          sessionId,
-          event.isError
-            ? {
-                type: 'tool_result',
-                toolCallId: event.toolCallId,
-                name: event.toolName,
-                error: piToolResultText(event.result),
-                ...(toolMeta ? {meta: toolMeta} : {}),
-              }
-            : {
-                type: 'tool_result',
-                toolCallId: event.toolCallId,
-                name: event.toolName,
-                output: piToolResultOutput(event.result),
-                ...(toolMeta ? {meta: toolMeta} : {}),
-              },
-          Date.now(),
-        )
         return
       }
-      if (event.type === 'agent_end') {
-        const lastAssistant = [...event.messages].reverse().find((message) => message.role === 'assistant') as
-          | {stopReason?: string; errorMessage?: string}
-          | undefined
-        if (lastAssistant?.stopReason === 'error' || lastAssistant?.stopReason === 'aborted') {
-          finalError = lastAssistant.errorMessage || 'Agent run failed'
-          return
-        }
+      if (event.type === 'task_failed') {
+        logRunError('durable task failed', {kind: event.kind, error: event.message})
+        return
       }
-    })
+      if (event.type === 'submission' && event.record.id === turnSubmission?.id) {
+        if (event.record.status === 'done' || event.record.status === 'unanswered') resolveSettled()
+      }
+    }
 
     const runningSessionKey = this.#runningSessionKey(accountId, sessionId)
     runningSession ??= {accountId, stopped: false}
-    runningSession.abort = () => piSession.abort()
-    this.#runningSessions.set(runningSessionKey, runningSession)
+    const live = runningSession
+    // The same record serves every pass of this run's loop; a handle to an earlier pass's closed
+    // store must not be what a stop reaches for.
+    live.abort = undefined
+    this.#runningSessions.set(runningSessionKey, live)
 
-    logRun('agent run starting', {activeTools: piSession.getActiveToolNames()})
+    // The durable conversation of this session. Everything the turn needs to continue after a
+    // restart — this turn's tools, prompt and provider — is installed before the store is opened,
+    // so work an earlier process left pending can be picked up where it stopped.
+    let root: durable.Conversation | undefined
+    const registry = durable.createRegistry()
+    registry.install(
+      durable.defineExtension({
+        name: 'seed',
+        tools: offeredTools.map((tool) =>
+          durable.defineTool({
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters as never,
+            ...(REPLAY_SAFE_VERBS.has(tool.name) ? {replay: 'safe' as const} : {}),
+            execute: async (args: unknown, api: durable.ToolExecutionApi) => {
+              try {
+                const result = await tool.execute(api.callId, args)
+                if (live.parkToolCallIds?.includes(api.callId)) {
+                  // What the model reads if it is asked to speak again before the child finishes.
+                  return {
+                    output: [{type: 'text' as const, text: PARKED_TOOL_RESULT_TEXT}],
+                    details: {[PARKED_TOOL_RESULT_MARKER]: true},
+                  }
+                }
+                // Durable state is strict JSON: no undefined, no class instances.
+                const details = JSON.parse(JSON.stringify(result.details ?? null))
+                if (!result.content.some((part) => part.type === 'image')) return {output: result.content, details}
+                turnImages.set(api.callId, result.content)
+                const text = result.content.filter((part) => part.type === 'text')
+                return {
+                  output: text.length
+                    ? text
+                    : [{type: 'text' as const, text: boundModelToolResultText(safeJSONStringify(details ?? {}))}],
+                  details,
+                }
+              } catch (error) {
+                const text = error instanceof Error ? error.message : String(error)
+                return {output: [{type: 'text' as const, text}], isError: true}
+              }
+            },
+          }),
+        ),
+        // One section, byte-stable across turns unless the agent itself changed: the provider's
+        // prompt cache survives from one turn to the next.
+        sections: [durable.section('seed', () => systemPrompt, {tag: false})],
+        hooks: [
+          durable.hook(durable.GenerationTask, {
+            beforeRequest: async (request, _api, hookContext) => {
+              // This request would follow a tool batch that ended the turn: sub-sessions were
+              // spawned (park), a typed result was delivered, or the conversation moved into a
+              // successor. The request never leaves — the run is aborted from inside, and the
+              // hook waits for that abort to reach it.
+              // A stop that arrived while the turn was still being prepared ends it the same way.
+              if (live.stopped || live.parkToolCallIds?.length || live.completeAfterTools) {
+                console.info('[agents/runtime] ending turn before the next provider request', {
+                  sessionId,
+                  stopped: live.stopped,
+                  parked: live.parkToolCallIds?.length ?? 0,
+                  resultDelivered: live.subResult !== undefined,
+                })
+                const signal = hookContext.abortSignal
+                if (!root || !signal) throw new SessionParkedError()
+                void root.abort(durableSession.CONTEXT).catch(() => {})
+                await new Promise<never>((_, reject) => {
+                  if (signal.aborted) reject(signal.reason)
+                  else signal.addEventListener('abort', () => reject(signal.reason), {once: true})
+                })
+              }
+              turnState ??= {index: request.messages.length, messages: turnStateMessages()}
+              const messages = request.messages.map((message) => {
+                if (message.role !== 'toolResult') return message
+                const images = turnImages.get(message.toolCallId)
+                return images ? {...message, content: images} : message
+              })
+              return {
+                messages: [
+                  ...messages.slice(0, turnState.index),
+                  ...turnState.messages,
+                  ...messages.slice(turnState.index),
+                ],
+              }
+            },
+          }),
+        ],
+      }),
+    )
+
+    logRun('agent run starting', {activeTools: offeredTools.map((tool) => tool.name)})
     emitProgress({activity: {phase: 'starting'}, usage: {...runUsage}})
 
+    const endPiSessionSpan = startPerfSpan('prep.pi_session')
+    const harness = await durableSession.openSessionHarness({
+      db: this.#db,
+      sessionId,
+      models,
+      registry,
+      onReport: (error) => logRunError('durable harness reported', {error: String(error)}),
+    })
+    let settled: durable.SettledSubmissionRecord | undefined
     try {
-      if (runningSession.stopped) throw new SessionStoppedError()
-      await piSession.agent.continue()
-    } catch (error) {
-      // A park or delivered typed result ends the loop by throwing from onPayload; that (and any
-      // error Pi wraps it in) is a designed ending, not a failure — fall through to the end checks.
-      const endedByDesign = runningSession.parkToolCallIds?.length || runningSession.completeAfterTools
-      if (!endedByDesign) {
-        logRunError('agent run threw', {error: error instanceof Error ? error.message : String(error)})
-        throw error
+      const conversation = await harness.root(durableSession.CONTEXT)
+      root = conversation
+      const sync = await harness.snapshot(durableSession.SyncDoc, conversation.id, durableSession.CONTEXT)
+      // Entry ids the log names that this store does not hold belong to a store that is gone: it
+      // was lost (then it holds nothing), or replaced by an older copy of itself. Their events are
+      // no longer projected from anything here. Unmarked, they are imported again like
+      // every other event the harness does not know, and the store never reuses one of their ids
+      // for an entry the log would then take as already written.
+      const newestEntry = (await conversation.entries({}, 1, undefined, durableSession.CONTEXT)).items[0]?.id ?? 0
+      stmt(this.#db, `UPDATE session_events SET pi_entry_id = NULL WHERE session_id = ? AND pi_entry_id > ?`).run([
+        sessionId,
+        newestEntry,
+      ])
+      lastProjectedEntry =
+        stmt<{entry: number | null}, [string]>(
+          this.#db,
+          `SELECT MAX(pi_entry_id) AS entry FROM session_events WHERE session_id = ?`,
+        ).get(sessionId)?.entry ?? 0
+      await conversation.configure(
+        {
+          model: {provider: model.provider, modelId: model.id},
+          thinkingLevel: definition.reasoningLevel ?? 'off',
+        },
+        durableSession.CONTEXT,
+      )
+      const stream = await durable.watchEvents(harness, conversation.id, durableSession.CONTEXT)
+      // Entries an earlier process committed without getting to write their events.
+      for (const entry of stream.snapshot.entries) projectEntry(entry, false)
+      stream.start(async (events) => {
+        for (const event of events) {
+          try {
+            onHarnessEvent(event)
+            // A state handed over in place of the steps may have swallowed the settlement itself.
+            if (event.type === 'snapshot' && turnSubmission) {
+              const record = await turnSubmission.status(durableSession.CONTEXT)
+              if (record.status === 'done' || record.status === 'unanswered') resolveSettled()
+            }
+          } catch (error) {
+            // A throwing listener ends the stream; the turn must keep being recorded.
+            logRunError('harness event handling failed', {
+              event: event.type,
+              error: error instanceof Error ? error.message : String(error),
+            })
+          }
+        }
+      })
+      endPiSessionSpan()
+
+      // A process that died mid-turn left this run's input unsettled in the store. The retried
+      // run adopts it: finished tool calls are not repeated, replay-safe ones rerun, and anything
+      // else that was cut off reaches the model as an interrupted result.
+      const inspection = await harness.inspect(durableSession.CONTEXT)
+      const unsettled = run
+        ? inspection.submissions.find(
+            (record) => record.type === 'input' && record.requestId?.startsWith(`run:${run.id}:`),
+          )
+        : undefined
+      let submission = unsettled ? await harness.submission(unsettled.id, durableSession.CONTEXT) : undefined
+      if (submission) {
+        resumed = true
+        turnLive = true
+        logRun('resuming the durable turn an earlier process left unfinished', {submissionId: submission.id})
+        // Children that turn already spawned still park it.
+        for (const entry of stream.snapshot.entries) {
+          const result = entry.model?.[0]
+          if (
+            unsettled?.entry !== undefined &&
+            entry.id > unsettled.entry &&
+            result?.role === 'toolResult' &&
+            isRecord(result.details) &&
+            result.details[PARKED_TOOL_RESULT_MARKER] === true &&
+            !this.#sessionHasToolResult(sessionId, result.toolCallId)
+          ) {
+            live.parkToolCallIds = [...(live.parkToolCallIds ?? []), result.toolCallId]
+          }
+        }
+      } else {
+        // Nothing of this turn is in the store yet: a stop now leaves the message for the next turn.
+        if (live.stopped) throw new SessionStoppedError()
+        // Work left by a run that is not this one (it failed or was canceled across a restart) is
+        // over: its calls are answered as interrupted and its input is withdrawn.
+        this.#synthesizeInterruptedToolResults(accountId, session.agentId, sessionId)
+        if (inspection.tasks.length > 0 || inspection.submissions.length > 0) {
+          await conversation.abort(durableSession.CONTEXT)
+        }
+        const endReplaySpan = startPerfSpan('prep.replay')
+        const turn = await this.#importSessionLog(conversation, sessionId, sync ?? {importedSeq: 0}, run)
+        endReplaySpan()
+        if ('answered' in turn) {
+          // This run's message was already answered: by this run before a restart cut it off
+          // between the answer and its own bookkeeping, or by the turn of a message that arrived
+          // just before it and took both in. The answer stands; the model is not asked again.
+          logRun('turn already answered in the durable conversation; nothing to run')
+          settled = turn.answered
+          assistantEvent = stmt<SessionEventRow, [string, number]>(
+            this.#db,
+            `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+               WHERE session_id = ? AND pi_entry_id = ? ORDER BY seq ASC`,
+          )
+            .all(sessionId, turn.answered.answer)
+            .map(sessionEventRowToInfo)
+            .find((event) => (event.event as {type?: string}).type === 'message')
+        } else {
+          turnLive = true
+          // From here the input is the conversation's: a stop is an abort of the run it starts.
+          submission = await conversation.submit(
+            {type: 'input', content: turn.content, requestId: turn.requestId},
+            durableSession.CONTEXT,
+          )
+        }
       }
-      logRun('turn ended after tool batch', {parked: runningSession.parkToolCallIds?.length ?? 0})
+      if (submission) {
+        turnSubmission = submission
+        live.abort = () =>
+          conversation.abort(durableSession.CONTEXT).catch((error) => {
+            logRunError('aborting the durable turn failed', {
+              error: error instanceof Error ? error.message : String(error),
+            })
+          })
+        if (live.stopped) await live.abort()
+        settled = await submission.wait(durableSession.CONTEXT)
+        // Every entry of the turn is committed; wait for the stream to hand the last of them over.
+        await Promise.race([settledSeen, stream.closed])
+      }
+      await stream.stop()
+      for (const entry of (await conversation.context(durableSession.CONTEXT)).entries) {
+        projectEntry(entry, turnLive)
+      }
+    } catch (error) {
+      endStreamingLog()
+      logRunError('agent run threw', {error: error instanceof Error ? error.message : String(error)})
+      throw error
     } finally {
-      flushPendingDelta()
+      endStreamingLog()
+      live.abort = undefined
       this.#runningSessions.delete(runningSessionKey)
-      unsubscribe()
-      piSession.dispose()
+      // Closing leaves unfinished work pending in the store; it never cancels it.
+      await harness.close(durableSession.CONTEXT).catch((error) => {
+        logRunError('durable store close failed', {error: error instanceof Error ? error.message : String(error)})
+      })
       await mcpPool.close()
       if (run && runUsage.total > 0) this.#runQueue.updateUsage(run.id, {...runUsage})
       logRun('agent run finished', {
         durationMs: Date.now() - runStartedAt,
         turns: turnCount,
         tokens: {...runUsage},
-        stopped: runningSession.stopped,
+        stopped: live.stopped,
+        resumed,
         error: finalError,
       })
     }
 
-    if (runningSession.parkToolCallIds?.length) {
+    if (live.parkToolCallIds?.length) {
       // The turn ended by design: sub-sessions were spawned and the run parks on them.
-      if (partialText.trim()) flushPartialAssistantMessage()
+      logRun('turn ended after tool batch', {parked: live.parkToolCallIds.length})
       throw new SessionParkedError()
     }
-    if (runningSession.continuation) {
+    if (live.continuation) {
       // The turn moved into a successor session: whatever text streamed before the call stays
       // here, and the answer itself is the successor run's to give.
-      if (partialText.trim()) flushPartialAssistantMessage()
-      throw new SessionContinuedError(runningSession.continuation)
+      throw new SessionContinuedError(live.continuation)
     }
-    if (runningSession.completeAfterTools && runningSession.subResult) {
+    if (live.completeAfterTools && live.subResult) {
       // Typed result delivered; the abort that ended the loop is success, not an error.
-      if (partialText.trim()) flushPartialAssistantMessage()
       if (assistantEvent) return assistantEvent
       throw new SessionStoppedError()
     }
-    if (runningSession.stopped) {
-      if (partialText.trim()) flushPartialAssistantMessage()
+    if (live.stopped) {
       if (assistantEvent) return assistantEvent
       throw new SessionStoppedError()
+    }
+    if (!settled) throw new APIError(502, 'Agent run failed')
+    if (!finalError && settled.status === 'unanswered') {
+      finalError =
+        settled.reason === 'model_error' && typeof settled.detail === 'string' && settled.detail
+          ? settled.detail
+          : settled.reason === 'no_model'
+            ? `Model not found: ${model.provider}/${definition.model}`
+            : `Agent run ended without an answer (${settled.reason})`
     }
     if (finalError) {
       const recovery = await this.#recoverSubscriptionAuth(accountId, provider, finalError)
@@ -8054,13 +8432,316 @@ export class Service {
     return assistantEvent
   }
 
-  #piMessages(sessionId: string): unknown[] {
+  /**
+   * Brings a session's durable conversation up to date with the Seed log and returns the user
+   * input that starts the turn, or the earlier answer when this run's message already has one.
+   *
+   * The usual case appends: what reached the log since the last turn — the new message, verbs the
+   * user ran, a system notice — is written behind the entries the harness produced itself, in the
+   * order the model should read it, and the run's newest message becomes the input. Because the
+   * conversation orders messages by when the model takes them in, a message that arrived while the
+   * previous answer was still streaming simply follows that answer. A message that arrived after
+   * this run's own is left for the run queued for it. The result of a delegated child is written
+   * as a context edit: it replaces the placeholder its call was answered with.
+   *
+   * When the log holds something that cannot be appended — a call the runtime had to answer
+   * itself after a restart, a late result whose placeholder is not in this context, or a session
+   * this store has never seen — the context is rebuilt from the log behind a fresh head, exactly
+   * as the log replays. Earlier entries stay in storage, out of context.
+   *
+   * The input is recorded in the sync document in the same commit that imports everything before
+   * it, with the request id it will be submitted under. An input that was recorded but never
+   * submitted (a crash in between) is therefore still known, and goes first next time.
+   */
+  async #importSessionLog(
+    conversation: durable.Conversation,
+    sessionId: string,
+    sync: durableSession.SyncState,
+    run: runs.RunRecord | undefined,
+  ): Promise<
+    durableSession.TurnInput | {answered: Extract<durable.SubmissionRecord, {type: 'input'; status: 'done'}>}
+  > {
+    const runInput = run && isRecord(run.input) ? run.input : undefined
+    const runEventIds = new Set(
+      Array.isArray(runInput?.userEventIds)
+        ? runInput.userEventIds.filter((id): id is string => typeof id === 'string')
+        : [],
+    )
+    const deferred = new Set(sync.deferred ?? [])
+    const unimported = stmt<SessionEventRow, [string, number]>(
+      this.#db,
+      `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+         WHERE session_id = ? AND seq > ? AND pi_entry_id IS NULL ORDER BY seq ASC`,
+    )
+      .all(sessionId, Math.min(sync.importedSeq, ...[...deferred].map((seq) => seq - 1)))
+      .map(sessionEventRowToInfo)
+      .filter((event) => event.seq > sync.importedSeq || deferred.has(event.seq))
+    const maxSeq =
+      stmt<{seq: number}, [string]>(
+        this.#db,
+        `SELECT COALESCE(MAX(seq), 0) AS seq FROM session_events WHERE session_id = ?`,
+      ).get(sessionId)?.seq ?? 0
+    // What a person wrote is put to the model by the run queued for it, once. So this import leaves
+    // behind a message that arrived after this run's own, and one that belongs to another run still
+    // waiting its turn (this run may be on a later pass, long after its own message went in).
+    // Everything else, such as a child's result or a call the runtime answered, goes in now.
+    const queuedForOthers = new Set(
+      run
+        ? runs
+            .listLiveSessionRuns(this.#db, run.accountId, sessionId)
+            // A parked run is not waiting its turn: the model took its message in before it parked.
+            .filter((other) => other.id !== run.id && other.status !== 'waiting')
+            .flatMap((other) =>
+              isRecord(other.input) && Array.isArray(other.input.userEventIds) ? other.input.userEventIds : [],
+            )
+        : [],
+    )
+    const ownNewest = unimported.findLast((event) => runEventIds.has(event.id))
+    const left = new Set(
+      unimported
+        .filter(
+          (event) =>
+            !runEventIds.has(event.id) &&
+            userEventReplayMessage(event) !== undefined &&
+            (queuedForOthers.has(event.id) || (ownNewest !== undefined && event.seq > ownNewest.seq)),
+        )
+        .map((event) => event.id),
+    )
+    const pending = unimported.filter((event) => !left.has(event.id))
+    const leftSeqs = unimported.filter((event) => left.has(event.id)).map((event) => event.seq)
+    // Strict JSON, as durable state requires: no undefined, nothing but plain data.
+    const entryOf = (message: unknown): {model: piAi.Message[]} => ({model: [JSON.parse(JSON.stringify(message))]})
+    const newInput = (content: string, eventId: string | undefined): durableSession.TurnInput => ({
+      requestId: `run:${run?.id ?? 'runless'}:${crypto.randomUUID()}`,
+      content,
+      ...(eventId ? {eventId} : {}),
+    })
+
+    const appended: {message: Record<string, unknown>; eventId?: string}[] = []
+    // Results that arrived for calls the conversation already answered with a placeholder.
+    const late: {toolCallId: string; output?: unknown; error?: string; createdAt: number}[] = []
+    let appendable = sync.importedSeq > 0
+    // A session that used the browser or private memory is rebuilt from the log on every turn:
+    // the durable conversation would otherwise carry owner-only content into a reader's turn
+    // (or a reader's redacted copy into the owner's). #piMessages redacts by the run's access.
+    if (this.#browserPrivacy.sessionIsPrivate(sessionId)) appendable = false
+    let interrupted = false
+    for (const event of pending) {
+      const value = event.event as {
+        type?: string
+        role?: string
+        content?: unknown
+        toolCallId?: unknown
+        output?: unknown
+        error?: unknown
+      }
+      const userMessage = userEventReplayMessage(event)
+      if (userMessage) {
+        appended.push({message: userMessage, eventId: event.id})
+      } else if (value.type === 'message' && value.role === 'assistant' && typeof value.content === 'string') {
+        appended.push({message: replayAssistantMessage([{type: 'text', text: value.content}], event.createdAt)})
+      } else if (value.type === 'tool_result' && value.error === INTERRUPTED_TOOL_RESULT_ERROR) {
+        appendable = false
+        interrupted = true
+      } else if (value.type === 'tool_result' && typeof value.toolCallId === 'string') {
+        late.push({
+          toolCallId: value.toolCallId,
+          output: value.output,
+          ...(typeof value.error === 'string' ? {error: value.error} : {}),
+          createdAt: event.createdAt,
+        })
+      } else if (value.type === 'tool_call' || value.type === 'tool_result') {
+        appendable = false
+      }
+    }
+
+    const recorded = sync.input
+    const submitted = recorded
+      ? await conversation.commit(
+          (tx) => tx.submissionByRequest(conversation.id, recorded.requestId),
+          durableSession.CONTEXT,
+        )
+      : undefined
+    if (recorded && !submitted) {
+      // Imported as the input of a turn that never got to submit it: it still goes first.
+      appended.unshift({
+        message: {role: 'user', content: recorded.content, timestamp: Date.now()},
+        ...(recorded.eventId ? {eventId: recorded.eventId} : {}),
+      })
+    } else if (
+      submitted?.type === 'input' &&
+      submitted.status === 'done' &&
+      appended.length === 0 &&
+      late.length === 0 &&
+      (appendable || sync.importedSeq === 0)
+    ) {
+      // Nothing has reached the log since the newest input the conversation answered, so there is
+      // nothing to ask the model. That input was this run's own (it was restarted between its
+      // answer and its own bookkeeping), or another run's that took in what this one came for: a
+      // message that arrived just before it, or the results of the children it was parked on.
+      return {answered: submitted}
+    }
+
+    // A late result takes the place of its call's placeholder through a context edit: the entry
+    // stays where the model first read it, and from now on the model reads the real result there.
+    // Everything else in the conversation keeps the provider's own record.
+    const edits: durable.ContextEdit[] = []
+    if (appendable && late.length > 0) {
+      const active = (await conversation.context(durableSession.CONTEXT)).entries
+      for (const result of late) {
+        const placeholder = active.find((entry) => {
+          const message = entry.model?.[0]
+          return (
+            durable.ToolResultEntry.is(entry) &&
+            message?.role === 'toolResult' &&
+            message.toolCallId === result.toolCallId &&
+            isRecord(message.details) &&
+            message.details[PARKED_TOOL_RESULT_MARKER] === true
+          )
+        })
+        const message = placeholder?.model?.[0]
+        if (!placeholder || message?.role !== 'toolResult') {
+          // No placeholder in this context (it was rebuilt since, or the call predates the store).
+          appendable = false
+          break
+        }
+        edits.push({
+          target: placeholder.id,
+          action: 'replace',
+          messages: [
+            JSON.parse(
+              JSON.stringify({
+                ...message,
+                content: [
+                  {
+                    type: 'text',
+                    text: boundModelToolResultText(result.error ?? JSON.stringify(result.output ?? {})),
+                  },
+                ],
+                details: result.output ?? null,
+                isError: result.error !== undefined,
+                timestamp: result.createdAt,
+              }),
+            ),
+          ],
+        })
+      }
+    }
+    const newest = appended.at(-1)
+    const newestUser =
+      newest?.message.role === 'user' && typeof newest.message.content === 'string' ? newest : undefined
+    if (appendable && (newestUser !== undefined || edits.length > 0)) {
+      // Children finished and nobody said anything new: hand the model back the floor explicitly.
+      const input = newestUser
+        ? newInput(String(newestUser.message.content), newestUser.eventId)
+        : newInput(BACKGROUND_WORK_UPDATE_INPUT, undefined)
+      await conversation.commit(async (tx) => {
+        for (const {message} of newestUser ? appended.slice(0, -1) : appended) {
+          await tx.appendEntry(durableSession.ReplayEntry, conversation.id, entryOf(message))
+        }
+        if (edits.length > 0) await tx.appendEntry(durableSession.ReplayEntry, conversation.id, {edits})
+        const doc = await tx.doc(durableSession.SyncDoc, conversation.id)
+        doc.importedSeq = maxSeq
+        doc.deferred = leftSeqs
+        doc.input = input
+      }, durableSession.CONTEXT)
+      return input
+    }
+
+    const replay = this.#piMessages(sessionId, left)
+    const queuedUserEventIds = runInput?.queuedBehindAnotherTurn === true ? [...runEventIds] : []
+    // A concurrent collaborator's message is appended immediately, even while the preceding
+    // assistant response is still streaming. That means durable ordering can be user B, then the
+    // tail of assistant A. A rebuilt context replays the log in that order, so it ends with a
+    // handoff: the serialized follow-up turn cannot mistake A's later event for an answer to B.
+    // The original messages remain the only copies in the log; this is provider guidance.
+    const concurrentMessages = queuedUserEventIds.length
+      ? stmt<SessionEventRow, [string]>(
+          this.#db,
+          `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? ORDER BY seq ASC`,
+        )
+          .all(sessionId)
+          .filter((row) => runEventIds.has(row.id))
+          .map((row) => {
+            const payload = cbor.decode<api.SessionEventPayload>(row.event_cbor) as {
+              type?: string
+              role?: string
+              content?: string
+              meta?: api.SessionEventMeta
+            }
+            return {
+              eventId: row.id,
+              accountId: payload.meta?.accountId,
+              content: payload.type === 'message' && payload.role === 'user' ? payload.content : undefined,
+            }
+          })
+          .filter((message): message is {eventId: string; accountId: string | undefined; content: string} =>
+            Boolean(message.content),
+          )
+      : []
+    // Queued user events that are not plain messages (a user tool action behind a live turn)
+    // render nothing here — they replay positionally as user_action messages instead.
+    let input: durableSession.TurnInput
+    const last = replay.at(-1) as {role?: string; content?: unknown} | undefined
+    if (concurrentMessages.length) {
+      input = newInput(
+        `<concurrent_user_messages>\nThese user messages arrived while the previous response was already in progress. Any assistant event that follows them in the durable transcript belongs to that earlier turn and does not answer them. Respond to these messages now:\n${JSON.stringify(
+          concurrentMessages,
+        )}\n</concurrent_user_messages>`,
+        undefined,
+      )
+    } else if (last?.role === 'user' && typeof last.content === 'string') {
+      // The newest user message starts the run; everything before it is context. It is the newest
+      // event in the log that the user side wrote.
+      const newestUserEvent = stmt<SessionEventRow, [string]>(
+        this.#db,
+        `SELECT id, session_id, seq, event_cbor, created_at FROM session_events
+           WHERE session_id = ? ORDER BY seq DESC LIMIT 32`,
+      )
+        .all(sessionId)
+        .map(sessionEventRowToInfo)
+        .find((event) => !left.has(event.id) && userEventReplayMessage(event) !== undefined)
+      input = newInput(last.content, newestUserEvent?.id)
+      replay.pop()
+    } else if (!interrupted && (late.length > 0 || last?.role === 'assistant')) {
+      // A park-resume ends on the late tool results (attached adjacent to their calls) or, after
+      // interleaved conversation, on an assistant message. Either way the model needs direction:
+      // hand it back the floor explicitly.
+      input = newInput(BACKGROUND_WORK_UPDATE_INPUT, undefined)
+    } else {
+      // A retried turn that had already called tools (a provider error, a service restart) picks
+      // up from their results.
+      input = newInput(
+        '<turn_resumed>\nYour previous attempt at this turn stopped before it finished. The tool calls above show what completed and what was interrupted. Continue from there: verify anything whose outcome is unknown, then finish replying to the user.\n</turn_resumed>',
+        undefined,
+      )
+    }
+    await conversation.commit(async (tx) => {
+      await tx.appendEntry(durable.ResetEntry, conversation.id, {head: 'self'})
+      for (const message of replay) {
+        await tx.appendEntry(durableSession.ReplayEntry, conversation.id, entryOf(message))
+      }
+      const doc = await tx.doc(durableSession.SyncDoc, conversation.id)
+      doc.importedSeq = maxSeq
+      doc.deferred = leftSeqs
+      doc.input = input
+    }, durableSession.CONTEXT)
+    return input
+  }
+
+  /**
+   * The session's log as the messages a model reads, every tool result attached to its call.
+   * `left` names events to leave out: messages another run will put to the model itself.
+   */
+  #piMessages(sessionId: string, left: ReadonlySet<string> = new Set()): unknown[] {
+    const privateSession = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.sessionIsPrivate(sessionId)
     const events = stmt<SessionEventRow, [string, number]>(
       this.#db,
       `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,
     )
       .all(sessionId, 0)
       .map(sessionEventRowToInfo)
+      .map((event) => (agentMemory.hasOwnerAccess() ? event : this.#browserPrivacy.event(event, privateSession)))
 
     // Pass 1 — index every durable tool_result by call id. Providers require tool results to sit
     // DIRECTLY after the assistant message that made the calls, but the durable event order
@@ -8117,18 +8798,8 @@ export class Service {
     }
     const flushPendingAssistant = (): void => {
       if (!pendingAssistant) return
-      const hasToolCall = pendingAssistant.content.some((part) => part.type === 'toolCall')
       const toolCalls = pendingAssistant.content.filter((part) => part.type === 'toolCall')
-      messages.push({
-        role: 'assistant',
-        content: pendingAssistant.content,
-        api: 'openai-completions',
-        provider: 'seed',
-        model: 'seed',
-        usage: emptyPiUsage(),
-        stopReason: hasToolCall ? 'toolUse' : 'stop',
-        timestamp: pendingAssistant.timestamp,
-      })
+      messages.push(replayAssistantMessage(pendingAssistant.content, pendingAssistant.timestamp))
       // Results ride directly behind their calls, wherever their durable events actually landed.
       for (const call of toolCalls) {
         const callId = String(call.id)
@@ -8168,6 +8839,7 @@ export class Service {
     }
 
     for (const event of events) {
+      if (left.has(event.id)) continue
       const value = event.event as {
         type?: string
         role?: string
@@ -8193,56 +8865,10 @@ export class Service {
       ) {
         continue
       }
-      if (eventActor === 'user' && (value.type === 'tool_call' || value.type === 'tool_result')) {
-        // The user acted on the shared log with their own verbs. Provider transcripts have no
-        // notion of user-made tool calls, so these replay as tagged user messages the model reads
-        // as ground truth.
+      const userMessage = userEventReplayMessage(event)
+      if (userMessage) {
         flushPendingAssistant()
-        if (value.type === 'tool_call') {
-          messages.push({
-            role: 'user',
-            content: `<user_action verb="${value.name ?? ''}">\n${escapeActionFraming(
-              boundModelToolResultText(safeJSONStringify(value.input ?? {})),
-            )}\n</user_action>`,
-            timestamp: event.createdAt,
-          })
-        } else {
-          messages.push({
-            role: 'user',
-            content: `<user_action_result verb="${value.name ?? ''}">\n${escapeActionFraming(
-              boundModelToolResultText(
-                value.error !== undefined ? String(value.error) : safeJSONStringify(value.output ?? {}),
-              ),
-            )}\n</user_action_result>`,
-            timestamp: event.createdAt,
-          })
-        }
-        continue
-      }
-      if (value.type === 'message' && value.role === 'user' && typeof value.content === 'string') {
-        flushPendingAssistant()
-        // Client context (e.g. the desktop's current window) rides along to the model inside a
-        // tagged block, mirroring how trigger context reaches it — but stays out of `content`, so
-        // transcripts never render it.
-        const contextLines = Array.isArray(value.contextLines)
-          ? value.contextLines.filter((line): line is string => typeof line === 'string')
-          : []
-        let content =
-          contextLines.length > 0
-            ? `${value.content}\n\n<window_context>\n${contextLines.join('\n')}\n</window_context>`
-            : value.content
-        // Attachments reach the model as cheap metadata only; content is pulled on demand via the
-        // view_attachment tool so images never flood the context uninvited.
-        const attachmentBlock = formatAttachmentMetadata(value.attachments)
-        if (attachmentBlock) content = `${content}\n\n${attachmentBlock}`
-        // The durable event's signed provenance must reach the model, not only the desktop avatar.
-        // JSON keeps the account ID inert even if a user's content imitates our framing tags.
-        if (value.meta?.accountId) {
-          content = `<message_sender>\n${safeJSONStringify({
-            accountId: value.meta.accountId,
-          })}\n</message_sender>\n\n${content}`
-        }
-        messages.push({role: 'user', content, timestamp: event.createdAt})
+        messages.push(userMessage)
       } else if (value.type === 'message' && value.role === 'assistant' && typeof value.content === 'string') {
         appendPendingAssistantContent({type: 'text', text: value.content}, event.createdAt)
       } else if (value.type === 'tool_call') {
@@ -8297,6 +8923,8 @@ export class Service {
     sessionId: string,
     event: api.SessionEventPayload,
     now: number,
+    /** Durable transcript entry this event is projected from; absent for events written by Seed itself. */
+    piEntryId?: number,
   ): api.SessionEvent {
     const seq =
       stmt<{seq: number}, [string]>(
@@ -8306,9 +8934,10 @@ export class Service {
     const id = crypto.randomUUID()
     stmt(
       this.#db,
-      `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
-    ).run([id, sessionId, seq, cbor.encode(event), now])
+      `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at, pi_entry_id) VALUES (?, ?, ?, ?, ?, ?)`,
+    ).run([id, sessionId, seq, cbor.encode(event), now, piEntryId ?? null])
     const info = {id, sessionId, seq, event, createdAt: now}
+    this.#browserPrivacy.recordSessionEvent(info)
     this.#recordAgentActivity(agentId, sessionId, event, now)
     // Content stream: every event reaches the open session view immediately.
     this.#emit({type: 'session-event', accountId, agentId, event: info})
@@ -8458,6 +9087,7 @@ export class Service {
     // Voice consumes one canonical runtime event. The account-specific copies below are for
     // authenticated UI subscribers; feeding those back into speech repeats every text fragment.
     this.#voice?.onServiceEvent(event)
+    if (event.type === 'run-append') this.#browserPrivacy.recordRunEntry(event.entry)
     const onEvent = this.#onEvent
     if (!onEvent) return
     onEvent(event)
@@ -8493,7 +9123,7 @@ export class Service {
         event.type === 'agent-change'
           ? {...event, accountId: collaborator.account_id, agent: {...event.agent, accessRole: collaborator.role}}
           : {...event, accountId: collaborator.account_id}
-      onEvent(sharedEvent as ServiceEvent)
+      onEvent(this.#browserPrivacy.forViewer(sharedEvent, collaborator.account_id) as ServiceEvent)
     }
   }
 
@@ -8504,6 +9134,48 @@ export class Service {
     beforeSeq?: number,
     limit?: number,
   ): Promise<api.GetSessionResponse> {
+    const owner = stmt<{agent_id: string}, [string, string]>(
+      this.#db,
+      `SELECT agent_id FROM sessions WHERE account_id = ? AND id = ?`,
+    ).get(accountId, sessionId)
+    if (!owner) throw new APIError(404, 'Session not found')
+    const agent = stmt<{definition_cbor: Uint8Array; state_dir: string}, [string, string]>(
+      this.#db,
+      `SELECT definition_cbor, state_dir FROM agents WHERE account_id = ? AND id = ?`,
+    ).get(accountId, owner.agent_id)
+    if (!agent) throw new APIError(404, 'Agent not found')
+    // The prompt first, the log last: resolving the prompt can wait on the network, and events
+    // written during that wait must be in the response. A client that has this session open adds
+    // what its socket delivers to what it fetched; an event that is in neither would be lost to it.
+    const definition = normalizeDefinition(cbor.decode<api.AgentDefinition>(agent.definition_cbor))
+    // What the agent is told, as a person would want to read it: the prompt, then the Space index
+    // the model gets with each turn's input.
+    const systemPromptMarkdown = `${await this.#agentSystemPrompt(
+      accountId,
+      owner.agent_id,
+      definition,
+    )}\n\n${buildSpaceIndex({
+      db: this.#db,
+      accountId,
+      agentId: owner.agent_id,
+      stateDir: agent.state_dir,
+      callableTools: enabledCallableTools(definition, (await this.#codeExec.availability()).available),
+    })}`
+    return {...this.#readSession(accountId, sessionId, afterSeq, beforeSeq, limit), systemPromptMarkdown}
+  }
+
+  /**
+   * A session and its events as they are stored right now, without the system prompt. Synchronous,
+   * so a caller can pair the read with something else in the same step: a subscription that starts
+   * in the step its replay is read in can neither miss an event nor see one twice.
+   */
+  #readSession(
+    accountId: string,
+    sessionId: string,
+    afterSeq?: number,
+    beforeSeq?: number,
+    limit?: number,
+  ): Omit<api.GetSessionResponse, 'systemPromptMarkdown'> {
     if (afterSeq !== undefined && (!Number.isInteger(afterSeq) || afterSeq < 0)) {
       throw new APIError(400, 'afterSeq must be a non-negative integer')
     }
@@ -8557,7 +9229,6 @@ export class Service {
         this.#sessionContinuationLinks(accountId, sessionId),
       ),
       events,
-      systemPromptMarkdown: await this.#agentSystemPrompt(accountId, agent.id, definition, agent.state_dir),
       ...(triggerContext ? {triggerContext} : {}),
       ...(hasMoreBefore ? {hasMoreBefore} : {}),
       contextWindow: this.#sessionContextWindow(accountId, definition, sessionRowToInfo(session)),
@@ -8733,7 +9404,11 @@ export class Service {
      * this to forward the owner's events for the key to the public reader.
      */
     publicReadOf?: string
-    replay?: api.GetSessionResponse
+    /**
+     * Reads the session and the events past the subscriber's `afterSeq`. The socket layer calls
+     * it in the same step that starts the subscription, so no event falls between the two.
+     */
+    replay?: () => Pick<api.GetSessionResponse, 'session' | 'events'>
     /** Snapshot + durable journal replay for `runs/<rootRunId>` subscriptions. */
     runsReplay?: {runs: api.RunInfo[]; entries: api.RunJournalEntryInfo[]}
   }> {
@@ -8754,9 +9429,16 @@ export class Service {
       const sessionId = sessionMatch[1]
       if (!sessionId) throw new APIError(400, 'Subscription key is invalid')
       const ownerAccountId = this.#actionAccountId(verified.accountId, {_: 'GetSession', sessionId})
-      const replay = await this.#getSession(ownerAccountId, sessionId, envelope.action.afterSeq)
-      const access = this.#requireAgentAccess(verified.accountId, replay.session.agentId, 'reader')
-      return {accountId: verified.accountId, key, replay, ...publicReadOf(access)}
+      const session = this.#getSessionInfo(ownerAccountId, sessionId)
+      if (!session) throw new APIError(404, 'Session not found')
+      const access = this.#requireAgentAccess(verified.accountId, session.agentId, 'reader')
+      const afterSeq = envelope.action.afterSeq
+      return {
+        accountId: verified.accountId,
+        key,
+        replay: () => this.#readSession(ownerAccountId, sessionId, afterSeq),
+        ...publicReadOf(access),
+      }
     }
     const runMatch = /^runs\/([^/]+)$/.exec(key)
     if (runMatch) {
@@ -8775,7 +9457,7 @@ export class Service {
       return {
         accountId: verified.accountId,
         key,
-        runsReplay: {runs: tree.map(runInfoFromRecord), entries},
+        runsReplay: this.#browserPrivacy.forViewer({runs: tree.map(runInfoFromRecord), entries}, verified.accountId),
         ...(access ? publicReadOf(access) : {}),
       }
     }
@@ -8874,7 +9556,7 @@ export class Service {
     if (!providerRow) return modelContextWindow('', effective.model)
     const provider = cbor.decode<api.ModelProviderConfig>(providerRow.config_cbor)
     const subscription = provider.authMode === 'subscription'
-    return piModelForDefinition(provider.type, '', effective, {subscription}).contextWindow
+    return piModelForDefinition(provider.type, provider.type, '', effective, {subscription}).contextWindow
   }
 
   #getSessionTriggerContext(accountId: string, sessionId: string): api.AgentSessionTriggerContext | null {
@@ -9099,22 +9781,50 @@ export class Service {
       if (!occurrence) continue
       matched += 1
       const firingId = crypto.randomUUID()
-      const inserted = stmt(
-        this.#db,
-        `INSERT OR IGNORE INTO trigger_firings
-           (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run([
-        firingId,
-        trigger.account,
-        trigger.agentId,
-        trigger.id,
-        occurrence.activityKey,
-        cbor.encode(occurrence.activity),
-        'created',
-        now,
-      ])
-      if (inserted.changes === 0) {
+      // The firing and the schedule's advance are one write. An occurrence that has a firing is
+      // spent, whatever comes of it: it woke a run, found nobody listening, or failed. Were the
+      // schedule left where it was in the last two cases, every later poll would compute this same
+      // occurrence, find its firing already recorded, and skip it. The schedule would never fire
+      // again. A 'once' schedule is disabled here for the same reason, and so that a slow run
+      // cannot let its one occurrence fire twice.
+      const once = trigger.source.schedule.kind === 'once'
+      const claimed = this.#db.transaction((): boolean => {
+        const inserted = stmt(
+          this.#db,
+          `INSERT OR IGNORE INTO trigger_firings
+             (id, account_id, agent_id, trigger_id, activity_key, activity_cbor, status, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).run([
+          firingId,
+          trigger.account,
+          trigger.agentId,
+          trigger.id,
+          occurrence.activityKey,
+          cbor.encode(occurrence.activity),
+          'created',
+          now,
+        ])
+        // A firing that is already there belongs to a schedule that was left behind before this
+        // write was atomic. Advancing it now, without firing again, lets it resume at the next
+        // occurrence. Whatever error that firing recorded stays.
+        stmt(
+          this.#db,
+          `UPDATE agent_triggers SET last_fired_at = ?, last_error = CASE WHEN ? THEN NULL ELSE last_error END,
+             enabled = CASE WHEN ? THEN 0 ELSE enabled END WHERE account_id = ? AND id = ?`,
+        ).run(
+          // The caller's clock, not Date.now(): mixing the injected timestamp with the wall clock
+          // makes a firing in the same millisecond as trigger creation eligible to re-match.
+          [
+            Math.max(now, occurrence.scheduledAt),
+            inserted.changes > 0 ? 1 : 0,
+            once ? 1 : 0,
+            trigger.account,
+            trigger.id,
+          ],
+        )
+        return inserted.changes > 0
+      })()
+      if (!claimed) {
         skipped += 1
         continue
       }
@@ -9141,21 +9851,6 @@ export class Service {
           ])
           this.#forgetSessionDerived(trigger.account, session.sessionId)
         }
-        // Disable a 'once' schedule at fire time (session created), not after the run, so a slow run
-        // can't let the same occurrence fire twice.
-        stmt(
-          this.#db,
-          `UPDATE agent_triggers SET last_fired_at = ?, last_error = NULL, enabled = CASE WHEN ? THEN 0 ELSE enabled END WHERE account_id = ? AND id = ?`,
-        ).run(
-          // The caller's clock, not Date.now(): mixing the injected timestamp with the wall clock
-          // makes a firing in the same millisecond as trigger creation eligible to re-match.
-          [
-            Math.max(now, occurrence.scheduledAt),
-            trigger.source.schedule.kind === 'once' ? 1 : 0,
-            trigger.account,
-            trigger.id,
-          ],
-        )
         fired += 1
         // Run the agent in the background; the session already exists for this occurrence.
         if (session) {
@@ -10029,7 +10724,8 @@ function formatMemoryLine(summary: agentMemory.AgentMemorySummary): string {
 
 /** Refreshes one memory line off the prompt path; at most one refresh per state dir in flight. */
 function scheduleMemorySummaryRefresh(stateDir: string): void {
-  const cached = memorySummaryCache.get(stateDir)
+  const summaryKey = `${stateDir}#${agentMemory.hasOwnerAccess() ? 'owner' : 'reader'}`
+  const cached = memorySummaryCache.get(summaryKey)
   if (cached?.refreshing) return
   if (cached) cached.refreshing = true
   void (async () => {
@@ -10043,8 +10739,8 @@ function scheduleMemorySummaryRefresh(stateDir: string): void {
       walkMs < MEMORY_SUMMARY_FREE_WALK_MS
         ? 0
         : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
-    const changed = memorySummaryCache.get(stateDir)?.line !== line
-    memorySummaryCache.set(stateDir, {line, walkedAt: Date.now(), holdMs})
+    const changed = memorySummaryCache.get(summaryKey)?.line !== line
+    memorySummaryCache.set(summaryKey, {line, walkedAt: Date.now(), holdMs})
     // The line is baked into cached space indexes; drop them so the next prompt picks it up. The
     // rest of an index rebuild is a few small SQL reads.
     if (changed) spaceIndexCache.clear()
@@ -10060,7 +10756,8 @@ export function invalidateSpaceIndex(accountId: string, agentId?: string): void 
 }
 
 export function buildSpaceIndex(input: SpaceIndexInput): string {
-  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}`
+  const visibility = agentMemory.hasOwnerAccess() ? 'owner' : 'reader'
+  const cacheKey = `${input.accountId}/${input.agentId}#${[...input.callableTools].sort().join(',')}#${visibility}`
   const cached = spaceIndexCache.get(cacheKey)
   if (cached !== undefined) return cached
 
@@ -10090,7 +10787,8 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
   }
 
   let memoryLine: string
-  const cachedSummary = memorySummaryCache.get(input.stateDir)
+  const summaryKey = `${input.stateDir}#${visibility}`
+  const cachedSummary = memorySummaryCache.get(summaryKey)
   if (cachedSummary && Date.now() - cachedSummary.walkedAt < cachedSummary.holdMs) {
     memoryLine = cachedSummary.line
   } else if (cachedSummary && cachedSummary.holdMs > 0) {
@@ -10109,7 +10807,7 @@ export function buildSpaceIndex(input: SpaceIndexInput): string {
       walkMs < MEMORY_SUMMARY_FREE_WALK_MS
         ? 0
         : Math.min(walkMs * MEMORY_SUMMARY_HOLD_FACTOR, MEMORY_SUMMARY_MAX_HOLD_MS)
-    memorySummaryCache.set(input.stateDir, {line: memoryLine, walkedAt: Date.now(), holdMs})
+    memorySummaryCache.set(summaryKey, {line: memoryLine, walkedAt: Date.now(), holdMs})
   }
 
   const triggers = stmt<{name: string; enabled: number}, [string, string]>(
@@ -10261,9 +10959,13 @@ function agentRowActivity(row: AgentRow): api.AgentActivity | undefined {
 }
 
 /** Selects the activity columns plus a live-run flag for the agent row aliased `alias`. */
+// `busy` pins `runs_dispatch`: its stat1 row says a status matches thousands of runs (the average
+// over mostly `succeeded`), so the planner scanned the whole runs table for every agent instead —
+// 80 ms per agent on production, paid by every ListAgents, GetAgent and ListSessions (2026-09-28).
+// Live statuses match a handful of rows, so the pinned lookup is microseconds.
 function agentActivityColumns(alias: string): string {
   return `${alias}.activity_at, ${alias}.activity_kind, ${alias}.message_at, ${alias}.message_from, ${alias}.activity_session_id,
-          (EXISTS (SELECT 1 FROM runs live_run WHERE live_run.agent_id = ${alias}.id
+          (EXISTS (SELECT 1 FROM runs live_run INDEXED BY runs_dispatch WHERE live_run.agent_id = ${alias}.id
                    AND live_run.status IN ('queued', 'claimed', 'running', 'waiting'))) AS busy`
 }
 
@@ -11443,10 +12145,12 @@ function providerSpec(type: string): ProviderSpec {
  * Subscription ("Sign in with ChatGPT") auth for the `openai` provider type
  * rides Pi's `openai-codex` provider: OAuth access tokens as bearer auth
  * against the ChatGPT Codex backend instead of an API key against
- * api.openai.com. The Pi provider id doubles as the OAuth provider id that
- * `AuthStorage` uses to auto-refresh expired tokens.
+ * api.openai.com. The Pi provider id doubles as the credential-store key
+ * `Models.getAuth()` uses to auto-refresh expired tokens.
  */
 const SUBSCRIPTION_PI_PROVIDER_ID = 'openai-codex'
+/** Deadline for a token refresh forced by a provider rejecting the stored access token. */
+const SUBSCRIPTION_REFRESH_TIMEOUT_MS = 30_000
 const SUBSCRIPTION_REAUTH_MESSAGE =
   'Your OpenAI subscription sign-in has expired or was revoked. Open model provider settings and sign in with ChatGPT again.'
 
@@ -11615,23 +12319,93 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+/** Rewrites and observes the provider requests of one run; see {@link withProviderRequestHooks}. */
+export type ProviderRequestHooks = {
+  /** Sees every outgoing provider payload and returns the payload to send. */
+  onPayload?: (payload: unknown) => unknown
+  /** Called when a request's first streamed output event arrives. */
+  onFirstOutput?: () => void
+}
+
+/** The pi-ai streaming implementation for one of the wire protocols Seed providers speak. */
+function piApiStreams(api: piAi.Api): piAi.ProviderStreams {
+  switch (api) {
+    case 'anthropic-messages':
+      return piAnthropicMessages.anthropicMessagesApi()
+    case 'google-generative-ai':
+      return piGoogleGenerativeAI.googleGenerativeAIApi()
+    case 'openai-codex-responses':
+      return piOpenAICodexResponses.openAICodexResponsesApi()
+    case 'openai-responses':
+      return piOpenAIResponses.openAIResponsesApi()
+    default:
+      return piOpenAICompletions.openAICompletionsApi()
+  }
+}
+
+/**
+ * Wraps a provider's streaming implementation so every request passes through the run's hooks:
+ * the payload rewrite (reasoning effort, model defaults) happens in `onPayload`, and the first
+ * streamed event is reported for time-to-first-token. Provider-wide request transformations
+ * belong here because the durable harness, not Seed, issues the requests.
+ */
+function withProviderRequestHooks(streams: piAi.ProviderStreams, hooks: ProviderRequestHooks): piAi.ProviderStreams {
+  const hooked = <T extends piAi.StreamOptions>(options: T | undefined): T =>
+    ({
+      ...options,
+      onPayload: async (payload: unknown, model: piAi.Model<piAi.Api>) => {
+        const next = (await options?.onPayload?.(payload, model)) ?? payload
+        return hooks.onPayload ? hooks.onPayload(next) : next
+      },
+    }) as T
+  const observed = (inner: piAi.AssistantMessageEventStream): piAi.AssistantMessageEventStream => {
+    if (!hooks.onFirstOutput) return inner
+    const outer = piAi.createAssistantMessageEventStream()
+    void (async () => {
+      let sawOutput = false
+      try {
+        for await (const event of inner) {
+          if (!sawOutput && event.type !== 'start') {
+            sawOutput = true
+            hooks.onFirstOutput?.()
+          }
+          outer.push(event)
+        }
+      } finally {
+        // Whatever happened while observing, the consumer still gets the provider's final message.
+        outer.end(await inner.result())
+      }
+    })()
+    return outer
+  }
+  return {
+    ...streams,
+    stream: (model, context, options) => observed(streams.stream(model, context, hooked(options))),
+    streamSimple: (model, context, options) => observed(streams.streamSimple(model, context, hooked(options))),
+  }
+}
+
 function piModelForDefinition(
   type: string,
+  providerName: string,
   baseUrl: string,
   definition: api.AgentDefinition,
   options: {subscription?: boolean} = {},
-): NonNullable<Parameters<pi.ModelRegistry['registerProvider']>[1]['models']>[number] {
+): piAi.Model<piAi.Api> {
   if (options.subscription) {
     // Subscription runs go through the ChatGPT Codex backend. Prefer Pi's
     // catalog entry (accurate context window, image support, cost); synthesize a
     // sane default for ids the catalog does not know yet. Codex models are all
     // reasoning models.
-    const catalogModel = getModels(SUBSCRIPTION_PI_PROVIDER_ID).find((model) => model.id === definition.model)
+    const catalogModel = Object.values(piOpenAICodexCatalog.OPENAI_CODEX_MODELS).find(
+      (model) => model.id === definition.model,
+    )
     if (catalogModel) return catalogModel
     return {
       id: definition.model,
       name: definition.model,
       api: 'openai-codex-responses',
+      provider: providerName,
       baseUrl,
       reasoning: true,
       input: ['text', 'image'],
@@ -11656,6 +12430,7 @@ function piModelForDefinition(
     id: definition.model,
     name: definition.model,
     api,
+    provider: providerName,
     baseUrl,
     reasoning,
     // Image input gates whether view_attachment returns actual image content to the model.
@@ -11663,20 +12438,6 @@ function piModelForDefinition(
     cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0},
     contextWindow: modelContextWindow(type, definition.model),
     maxTokens: 16384,
-  }
-}
-
-function createSeedPiResourceLoader(systemPrompt: string): pi.ResourceLoader {
-  return {
-    getExtensions: () => ({extensions: [], errors: [], runtime: pi.createExtensionRuntime()}),
-    getSkills: () => ({skills: [], diagnostics: []}),
-    getPrompts: () => ({prompts: [], diagnostics: []}),
-    getThemes: () => ({themes: [], diagnostics: []}),
-    getAgentsFiles: () => ({agentsFiles: []}),
-    getSystemPrompt: () => systemPrompt,
-    getAppendSystemPrompt: () => [],
-    extendResources: () => {},
-    reload: async () => {},
   }
 }
 
@@ -11690,6 +12451,13 @@ type WriteToolContext = {
 }
 
 export type AgentServicePiToolContext = WriteToolContext & {
+  /** Executes commands only in this session's explicitly connected desktop window. */
+  browser?: (command: api.BrowserCommand) => Promise<Record<string, unknown>>
+  /**
+   * The service's one privacy projection. Its scans are incremental per session and run, so a
+   * fresh instance per read would rescan every transcript it touches.
+   */
+  browserPrivacy: BrowserPrivacy
   web: WebToolsConfig
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
@@ -11783,15 +12551,28 @@ function toolMetadataFromDocument(row: toolDocs.ToolDocumentRow): SeedToolMetada
   }
 }
 
+/**
+ * A Seed tool as the runtime executes it: the provider-facing contract plus an executor returning
+ * the bounded model-facing content and the structured output kept on the durable event.
+ */
+type SeedRuntimeTool = {
+  name: string
+  description: string
+  parameters: JsonSchema
+  execute: (
+    toolCallId: string,
+    params: unknown,
+  ) => Promise<{content: piAi.ToolResultMessage['content']; details: unknown}>
+}
+
 function defineSeedPiTool(
   metadata: SeedToolMetadata,
   execute: (params: unknown, toolCallId: string) => Promise<unknown> | unknown,
-): pi.ToolDefinition {
-  return pi.defineTool({
+): SeedRuntimeTool {
+  return {
     name: metadata.name,
-    label: metadata.label,
     description: metadata.description,
-    parameters: metadata.inputSchema as never,
+    parameters: metadata.inputSchema,
     execute: async (toolCallId, params) => {
       const raw = await execute(params, toolCallId)
       if (hasPiContent(raw)) {
@@ -11806,7 +12587,7 @@ function defineSeedPiTool(
       const output = jsonSafeToolOutput(raw)
       return {content: [{type: 'text', text: boundModelToolResultText(safeJSONStringify(output))}], details: output}
     },
-  })
+  }
 }
 
 type AgentSearchType = 'keyword' | 'semantic' | 'hybrid'
@@ -12163,6 +12944,70 @@ function memoryPathFromAddress(address: string): string | null {
 }
 
 /** hm://<account>[/path] → {account, path}; null when not an hm address. */
+/** A custom HTML page folder resolved from `options.page`, ready to publish beside the document change. */
+type WritePageFolder = {
+  html: string
+  inputSchema: string
+  blobs: CollectedBlob[]
+  files: number
+  bytes: number
+  validation: ReturnType<typeof validateDocumentPage>
+  dataAccess?: Awaited<ReturnType<typeof checkDocumentPageData>>
+}
+
+/**
+ * Turns `options.page` (a memory folder with an index.html, or a single HTML file) into the UnixFS
+ * folder the document's `html` attribute will point at. A dry run still builds the folder, so the
+ * CID and file count it reports are the real ones.
+ */
+async function resolveWritePageFolder(
+  context: AgentServicePiToolContext,
+  value: unknown,
+  target: unknown,
+): Promise<WritePageFolder | undefined> {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new APIError(400, 'write options.page must be a memory path: a folder with an index.html, or one HTML file')
+  }
+  const {files, bytes} = withMemoryErrors(() => collectDocumentPageFiles(context.stateDir, value.trim()))
+  const validation = validateDocumentPage(files, target)
+  const folder = await directoryToIpfsBlobs(files)
+  return {
+    validation,
+    inputSchema: 'hm://hyper.media/page-input',
+    html: `ipfs://${folder.cid}`,
+    blobs: folder.blobs,
+    files: files.length,
+    bytes,
+  }
+}
+
+/** Adds what the agent needs to know about a published page to a document write result. */
+function withPageResult(result: Record<string, unknown>, folder: WritePageFolder | undefined): Record<string, unknown> {
+  if (!folder) return result
+  const id = typeof result.id === 'string' ? result.id : undefined
+  return {
+    ...result,
+    html: folder.html,
+    resourceType: 'hm://hyper.media/page',
+    inputSchema: folder.inputSchema,
+    pageFiles: folder.files,
+    pageBytes: folder.bytes,
+    pageValidation: {...folder.validation, bundle: folder.html},
+    ...(folder.dataAccess ? {pageDataAccess: folder.dataAccess} : {}),
+    ...(id
+      ? {
+          instructions:
+            (result.dryRun
+              ? 'Dry run: this bundle has not been published. Proposed document: [Title]('
+              : 'The document now opens as the page in Seed and syncs to anyone it is shared with. Link it in your reply as [Title](') +
+            id +
+            '); pages open in the full document view. Chat page embeds are temporarily disabled. Scripts were syntax-checked, but the page was not opened or interaction-tested by this tool. Durable page data must use schema-bound Seed resources configured before the UI (read ~/tools/write/pages). This tool has not verified data persistence: test create/read/update and reopen with local state empty. seed.storage is only for optional local UI preferences or temporary drafts; it does not sync. Use seed.open(hmUrl) or ordinary hm:// anchors for content links. Check seed.runtime() in the target host before relying on newer SDK methods. Write to the same address with options.page again to publish a new revision.',
+        }
+      : {}),
+  }
+}
+
 function parseHmAddress(address: string): {account: string; path: string} | null {
   const match = /^hm:\/\/([^/?#]+)(\/[^?#]*)?/.exec(address)
   if (!match) return null
@@ -12305,6 +13150,7 @@ function readThreadAddress(
     context.agentId,
   )
   if (!session) throw new APIError(404, `No thread ${sessionId}`)
+  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.sessionIsPrivate(sessionId)) return privateStub()
   const fromSeq = Number.isInteger(options.fromSeq) ? Number(options.fromSeq) : undefined
   const toSeq = Number.isInteger(options.toSeq) ? Number(options.toSeq) : undefined
   const limit = Math.max(1, Math.min(1_000, Number.isInteger(options.limit) ? Number(options.limit) : 200))
@@ -12352,6 +13198,7 @@ function readThreadAddress(
 function readRunAddress(context: AgentServicePiToolContext, runId: string): Record<string, unknown> {
   const run = runs.getRun(context.db, context.accountId, runId)
   if (!run) throw new APIError(404, `No run ${runId}`)
+  if (!agentMemory.hasOwnerAccess() && context.browserPrivacy.runIsPrivate(runId)) return privateStub()
   return {
     summary: `Run ${run.id} (${run.kind}) is ${run.status}.`,
     ...runInfoFromRecord(run),
@@ -12661,16 +13508,16 @@ async function readTriggerAddress(context: AgentServicePiToolContext, name: stri
       ? {
           webhook: webhookSecret
             ? {
-                endpointPath: `/agents/api/webhooks/${row.id}/${webhookSecret}`,
+                endpointPath: `/hm/api/agents/webhooks/${row.id}/${webhookSecret}`,
                 secret: webhookSecret,
-                alternative: `POST to /agents/api/webhooks/${row.id} with the header Authorization: Bearer ${webhookSecret}`,
+                alternative: `POST to /hm/api/agents/webhooks/${row.id} with the header Authorization: Bearer ${webhookSecret}`,
                 requiredHeaders: {'Content-Type': 'application/json'},
                 optionalHeaders: {
                   'Idempotency-Key': '<unique delivery id; retries with the same key and body are deduplicated>',
                 },
               }
             : {
-                endpointPath: `/agents/api/webhooks/${row.id}/<secret>`,
+                endpointPath: `/hm/api/agents/webhooks/${row.id}/<secret>`,
                 secret: null,
                 note: 'The secret for this trigger was not kept; recreate the trigger to get a new one.',
               },
@@ -12964,9 +13811,9 @@ async function writeTriggerAddress(
     ...(webhookSecret
       ? {
           webhook: {
-            endpointPath: `/agents/api/webhooks/${id}/${webhookSecret}`,
+            endpointPath: `/hm/api/agents/webhooks/${id}/${webhookSecret}`,
             secret: webhookSecret,
-            alternative: `Senders that cannot use the secret URL may POST to /agents/api/webhooks/${id} with the header Authorization: Bearer ${webhookSecret}`,
+            alternative: `Senders that cannot use the secret URL may POST to /hm/api/agents/webhooks/${id} with the header Authorization: Bearer ${webhookSecret}`,
             requiredHeaders: {'Content-Type': 'application/json'},
             optionalHeaders: {
               'Idempotency-Key':
@@ -13015,6 +13862,7 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
       triggerRows.length === 1 ? '' : 's'
     } and ${sessionCount} conversation${sessionCount === 1 ? '' : 's'}.`,
     agentId: context.agentId,
+    ownerAccountId: context.accountId,
     name: definition.name,
     model: definition.model,
     modelProvider: provider ? {id: provider.id, name: provider.name, type: provider.type} : definition.modelProvider,
@@ -13055,6 +13903,10 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
   }
 }
 
+/** `read thread:` content search reads the last N events of each of the newest M sessions. */
+const THREAD_SEARCH_SESSIONS = 60
+const THREAD_SEARCH_EVENTS_PER_SESSION = 25
+
 /**
  * Lists (and searches) THIS AGENT's conversations for `read thread:` with no id. Other agents'
  * threads are not listed — agents do not read each other's state, whatever account they share —
@@ -13063,6 +13915,8 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
  * without scanning the whole log history.
  */
 function threadsListing(context: AgentServicePiToolContext, options: Record<string, unknown>): Record<string, unknown> {
+  const visible = (sessionId: string) =>
+    agentMemory.hasOwnerAccess() || !context.browserPrivacy.sessionIsPrivate(sessionId)
   const limit = boundedInteger(options.limit, 25, 1, 100)
   const agentId = context.agentId
   const query = typeof options.query === 'string' ? options.query.trim().toLowerCase() : ''
@@ -13119,7 +13973,7 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
   })
 
   if (!query) {
-    const rows = loadThreads()
+    const rows = loadThreads().filter((row) => visible(row.id))
     return {
       summary: `${rows.length} conversation${
         rows.length === 1 ? '' : 's'
@@ -13135,31 +13989,39 @@ function threadsListing(context: AgentServicePiToolContext, options: Record<stri
        FROM sessions WHERE account_id = ?${agentId ? ' AND agent_id = ?' : ''} ORDER BY updated_at DESC LIMIT 400`,
   )
     .all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
+    .filter((row) => visible(row.id))
     .filter((row) => `${row.title ?? ''}\n${row.description ?? ''}`.toLowerCase().includes(query))
-  // Content matches: a bounded scan over the most recent message events, one snippet per thread.
+  // Content matches: the tail of each of the newest sessions, one snippet per thread. Each tail is
+  // an index-ordered read on (session_id, seq); a single `ORDER BY created_at` across all of the
+  // agent's events made SQLite load and sort EVERY event of the agent (hundreds of thousands of
+  // blobs on prod, 30–40 min on the event loop) to keep the newest few thousand.
   const snippets = new Map<string, string>()
-  const eventRows = stmt<{session_id: string; event_cbor: Uint8Array}, (string | number)[]>(
+  const recentSessions = stmt<{id: string}, [string, string, number]>(
     context.db,
-    `SELECT e.session_id, e.event_cbor FROM session_events e
-       JOIN sessions s ON s.id = e.session_id
-       WHERE s.account_id = ?${agentId ? ' AND s.agent_id = ?' : ''}
-       ORDER BY e.created_at DESC LIMIT 4000`,
-  ).all(...(agentId ? [context.accountId, agentId] : [context.accountId]))
-  for (const eventRow of eventRows) {
-    if (snippets.has(eventRow.session_id)) continue
-    let event: {type?: string; content?: unknown}
-    try {
-      event = cbor.decode(eventRow.event_cbor)
-    } catch {
-      continue
+    `SELECT id FROM sessions WHERE account_id = ? AND agent_id = ? ORDER BY updated_at DESC LIMIT ?`,
+  ).all(context.accountId, agentId, THREAD_SEARCH_SESSIONS)
+  const sessionTail = stmt<{event_cbor: Uint8Array}, [string, number]>(
+    context.db,
+    `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC LIMIT ?`,
+  )
+  for (const session of recentSessions) {
+    if (!visible(session.id)) continue
+    for (const eventRow of sessionTail.all(session.id, THREAD_SEARCH_EVENTS_PER_SESSION)) {
+      let event: {type?: string; content?: unknown}
+      try {
+        event = cbor.decode(eventRow.event_cbor)
+      } catch {
+        continue
+      }
+      if (event.type !== 'message') continue
+      const text = typeof event.content === 'string' ? event.content : safeJSONStringify(event.content)
+      const index = text.toLowerCase().indexOf(query)
+      if (index < 0) continue
+      const start = Math.max(0, index - 80)
+      const end = Math.min(text.length, index + query.length + 80)
+      snippets.set(session.id, `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`)
+      break
     }
-    if (event.type !== 'message') continue
-    const text = typeof event.content === 'string' ? event.content : safeJSONStringify(event.content)
-    const index = text.toLowerCase().indexOf(query)
-    if (index < 0) continue
-    const start = Math.max(0, index - 80)
-    const end = Math.min(text.length, index + query.length + 80)
-    snippets.set(eventRow.session_id, `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`)
   }
   const matchedIds = [...new Set([...titleMatches.map((row) => row.id), ...snippets.keys()])].slice(0, limit)
   const rows = loadThreads(matchedIds)
@@ -13389,9 +14251,9 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata'],
-  update: ['name', 'metadata'],
-  comment: ['target', 'replyTo'],
+  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData'],
+  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData'],
+  comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
   delete: [],
@@ -13684,7 +14546,14 @@ export async function executeWriteVerb(
     }
     const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, memoryPath, content))
     context.onMemoryChange()
-    return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
+    // A memory path is not something a person can open. An HTML file is almost always an app in
+    // the making, and the model that just wrote it is the one that needs to know the next step.
+    const pageHint = /\.html?$/i.test(entry.path)
+      ? context.publishEnabled
+        ? ` The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Before publishing, follow ~/tools/write/pages: set up schemas and Seed resources for durable user data, then connect the UI. Publish it as a custom HTML page: write hm://<your signing account>/pages/<name> with options.page: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link. Do not link the ~/memory path.`
+        : ' The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Publishing it as a custom HTML page needs the Publish grant.'
+      : ''
+    return {summary: `Wrote ${entry.path} (${entry.size} bytes).${pageHint}`, ...entry}
   }
 
   if (address.startsWith('ipfs:')) {
@@ -13779,6 +14648,68 @@ export async function executeWriteVerb(
     if (options.metadata !== undefined && !isRecord(options.metadata)) {
       throw new APIError(400, 'write options.metadata must be an object of document metadata attributes')
     }
+    // A custom HTML page: options.page names a memory folder (or one HTML file) that becomes the
+    // document's HTML page. Its files are published as a UnixFS folder in the same publish as the
+    // change, and the document's `html` attribute points at the folder (see document-pages.md).
+    const pageFolder = await resolveWritePageFolder(context, options.page, options.pageTarget)
+    if (pageFolder?.validation.writesDocuments && options.pageData === undefined) {
+      throw new APIError(
+        400,
+        'This page writes documents. Supply options.pageData with its collection HM URLs so the publisher can check the agent owner’s write access, not just the agent’s. Read ~/tools/write/pages. Syntax validation alone cannot establish that Add/Save works.',
+      )
+    }
+    if (pageFolder && options.pageData !== undefined) {
+      const identities = await listWriteSigningIdentities(
+        context.db,
+        context.accountId,
+        context.definition.signingKeys ?? (context.definition.signingKey ? [context.definition.signingKey] : []),
+      )
+      pageFolder.dataAccess = await checkDocumentPageData(
+        createSeedClient(context.hmServerUrl),
+        options.pageData,
+        context.accountId,
+        identities.map((identity) => identity.publicKey),
+      )
+      if (pageFolder.dataAccess.writeAccess === 'missing') {
+        return writeToolError('document.page', 'Page not published: the intended user needs collection write access.', {
+          published: false,
+          pageDataAccess: pageFolder.dataAccess,
+          instructions:
+            'Compare pageDataAccess.viewer with the authenticated message sender and intended app user; the agent owner may differ from the requester. Check other intended users separately and do not grant to the wrong recipient. Use the current page and conversation intent; do not ask the user to repeat known identity information. Preserve the intended data location. Where canGrant is true, offer the listed WRITER grants for these collections and their records. Explain recipient and scope, batch related grants in one proposal, honor any authorization already given, otherwise ask once for that concrete permission change. Do not ask again after approval. The grant inputs are dry runs; no permissions have changed. Where canGrant is false, ask the identified collection owner to grant access; a writer capability is not authority to grant access. After an authorized grant, recheck access and resume the original task: test the actual Add/Save workflow as the intended viewer, read back the saved record and reopen the app before reporting success. Do not move data or broaden to account-wide/AGENT access just to bypass this failure.',
+        })
+      }
+    }
+    let pageInputSchema = isRecord(options.metadata) ? options.metadata.inputSchema : undefined
+    if (pageFolder && pageInputSchema === undefined && action === 'update') {
+      const id = unpackHmId(address)
+      if (!id) throw new APIError(400, 'Invalid page address')
+      const existing = await createSeedClient(context.hmServerUrl).request('Resource', id)
+      if (existing.type !== 'document')
+        throw new APIError(400, 'Read the existing page before updating its input contract.')
+      pageInputSchema = existing.document.metadata.inputSchema
+    }
+    const metadata: Record<string, unknown> | undefined =
+      isRecord(options.metadata) || pageFolder
+        ? {
+            ...(isRecord(options.metadata) ? options.metadata : {}),
+            ...(pageFolder
+              ? {
+                  type: 'hm://hyper.media/page',
+                  html: pageFolder.html,
+                  inputSchema: pageInputSchema ?? 'hm://hyper.media/page-input',
+                }
+              : {}),
+          }
+        : undefined
+    if (pageFolder) {
+      const ref = metadata?.inputSchema
+      if (typeof ref !== 'string' || !/^(hm|ipfs):\/\//.test(ref))
+        throw new APIError(400, 'A page inputSchema must reference a published HM schema.')
+      const contract = await loadSchemaRef(createSeedClient(context.hmServerUrl), ref)
+      if (!contract || resolveSchema(contract.schema, {}, contract.registry).schema.type !== STRUCT_URL)
+        throw new APIError(400, 'A page inputSchema must resolve to an HM struct schema.')
+      pageFolder.inputSchema = ref
+    }
     const passthrough = isRecord(options.input) ? options.input : {}
     const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
       command,
@@ -13787,32 +14718,41 @@ export async function executeWriteVerb(
       input: {
         ...passthrough,
         ...(options.skipLinkCheck === true ? {skipLinkCheck: true} : {}),
+        ...(options.allowPlainMentions === true ? {allowPlainMentions: true} : {}),
         ...commandInput,
       },
     })
     switch (action) {
       case 'document':
-        return writeHypermedia(
-          context,
-          envelope('document.create', {
-            account: hm.account,
-            path: hm.path,
-            ...(typeof options.name === 'string' ? {name: options.name} : {}),
-            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
-            ...(content !== undefined ? {content, format: 'markdown'} : {}),
-          }),
+        return withPageResult(
+          await writeHypermedia(
+            context,
+            envelope('document.create', {
+              account: hm.account,
+              path: hm.path,
+              ...(typeof options.name === 'string' ? {name: options.name} : {}),
+              ...(metadata ? {metadata} : {}),
+              ...(content !== undefined ? {content, format: 'markdown'} : {}),
+            }),
+            pageFolder?.blobs,
+          ),
+          pageFolder,
         )
       case 'update':
         // The address IS the document being revised ("same address, new version" is the
         // documented contract), so the edit target is filled from it — never a separate option.
-        return writeHypermedia(
-          context,
-          envelope('document.update', {
-            edit: address,
-            ...(typeof options.name === 'string' ? {name: options.name} : {}),
-            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
-            ...(content !== undefined ? {content, format: 'markdown'} : {}),
-          }),
+        return withPageResult(
+          await writeHypermedia(
+            context,
+            envelope('document.update', {
+              edit: address,
+              ...(typeof options.name === 'string' ? {name: options.name} : {}),
+              ...(metadata ? {metadata} : {}),
+              ...(content !== undefined ? {content, format: 'markdown'} : {}),
+            }),
+            pageFolder?.blobs,
+          ),
+          pageFolder,
         )
       case 'comment':
         return writeHypermedia(
@@ -14207,6 +15147,39 @@ export async function executeCallVerb(
     }
   }
   switch (toolName) {
+    case 'browser': {
+      if (!context.browser)
+        throw new APIError(403, 'Browser access is only available in interactive runs started by the agent owner')
+      if (toolInput.action === 'screenshot' && !context.modelAcceptsImages) {
+        throw new APIError(400, 'This model cannot view screenshots. Use snapshot or select a vision-capable model.')
+      }
+      const output = await context.browser(toolInput as api.BrowserCommand)
+      if (toolInput.action === 'archive' && typeof output.markdown === 'string') {
+        const entry = agentMemory.writeMemoryFile(
+          context.stateDir,
+          `private/browser/archive-${crypto.randomUUID()}.md`,
+          output.markdown,
+        )
+        context.onMemoryChange()
+        delete output.markdown
+        output.memoryPath = `~/memory/${entry.path}`
+        output.publishInstructions =
+          'An editable desktop draft and an owner-only private/browser/ memory archive were created; nothing was published. Only the owner can read or publish this archive. Read memoryPath to review or revise the archive. To publish with your available write keys, read ~/tools/write/documents and use write with options.fromPath, preserving the source metadata.'
+      }
+      if (
+        isRecord(output.screenshot) &&
+        typeof output.screenshot.data === 'string' &&
+        output.screenshot.mimeType === 'image/jpeg'
+      ) {
+        const screenshot = output.screenshot
+        delete output.screenshot
+        output.piContent = [
+          {type: 'text', text: JSON.stringify(output)},
+          {type: 'image', data: screenshot.data, mimeType: screenshot.mimeType},
+        ]
+      }
+      return output
+    }
     case 'search':
       return executeAgentServiceSearch(context, toolInput)
     case 'query':
@@ -14259,7 +15232,7 @@ export async function executeCallVerb(
   }
 }
 
-function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolDefinition[] {
+function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRuntimeTool[] {
   const promoted = (context.expandedCallables ?? []).flatMap((name) => {
     const execute = (params: unknown, toolCallId: string) =>
       executeCallVerb(context, {tool: name, input: params}, toolCallId)
@@ -14381,7 +15354,11 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): pi.ToolD
   ]
 }
 
-async function writeHypermedia(context: WriteToolContext, raw: unknown): Promise<Record<string, unknown>> {
+async function writeHypermedia(
+  context: WriteToolContext,
+  raw: unknown,
+  extraBlobs: CollectedBlob[] = [],
+): Promise<Record<string, unknown>> {
   const request = normalizeWriteToolRequest(raw)
   if (request.server || request.dev) {
     const requestedServerUrl = optionsToServerUrl({server: request.server, dev: request.dev})
@@ -14417,9 +15394,9 @@ async function writeHypermedia(context: WriteToolContext, raw: unknown): Promise
     case 'comment.delete':
       return writeCommentDelete(client, signer, request)
     case 'document.create':
-      return writeDocumentCreate(client, signer, request)
+      return writeDocumentCreate(client, signer, request, extraBlobs)
     case 'document.update':
-      return writeDocumentUpdate(client, signer, request)
+      return writeDocumentUpdate(client, signer, request, extraBlobs)
     case 'document.delete':
       return writeDocumentDelete(client, signer, request)
     case 'document.fork':
@@ -14487,7 +15464,11 @@ async function resolveWriteSigner(
     matches = identities.filter((identity) => identity.profileName === profileName)
     if (matches.length === 0) throw new APIError(400, 'Signer profile name is not enabled for this agent')
   } else if (matches.length > 1) {
-    throw new APIError(400, 'Multiple signing identities are enabled; choose a signer by profileName or publicKey')
+    // Several keys enabled and none chosen: the definition's primary key is the default, so a
+    // plain write (an app, a note) does not fail on an agent that can also sign as others.
+    const primary = matches.filter((identity) => identity.secretName === context.definition.signingKey)
+    if (primary.length === 1) matches = primary
+    else throw new APIError(400, 'Multiple signing identities are enabled; choose a signer by profileName or publicKey')
   }
   if (matches.length > 1) throw new APIError(400, 'Signing profile name is ambiguous; choose by publicKey')
 
@@ -14582,6 +15563,13 @@ async function writeCapabilityCreate(
   signer: ResolvedAgentSigner,
   request: ReturnType<typeof normalizeWriteToolRequest>,
 ): Promise<Record<string, unknown>> {
+  const target = normalizeOptionalBoundedString(request.input.account, 'Capability account', MAX_NAME_BYTES)
+  if (target && target !== signer.publicKey) {
+    throw new APIError(
+      403,
+      'The signing identity must own the target space to grant access; writer access does not grant permission-management authority.',
+    )
+  }
   const delegateUid = normalizeBoundedString(
     request.input.delegate ?? request.input.delegateUid,
     'Capability delegate',
@@ -14662,8 +15650,9 @@ async function writeCommentCreate(
   const resourceId = {...id, blockRef: null}
   const resource = await client.request('Resource', resourceId)
   if (resource.type !== 'document') throw new APIError(400, `Comment target is ${resource.type}, not a document`)
-  const blocks = commentMarkdownToBlocks(body)
+  const {blocks, mentionedAccounts} = commentMarkdownToBlocks(body, request.input)
   await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
+  const mentions = mentionedAccounts.map((uid) => `hm://${uid}`)
   const replyCommentVersion = parentComment?.version || undefined
   const rootReplyCommentVersion = parentComment
     ? parentComment.threadRootVersion || parentComment.version || undefined
@@ -14675,6 +15664,7 @@ async function writeCommentCreate(
       target: packHmId(id),
       ...(parentComment ? {replyCommentId: parentComment.id} : {}),
       blockCount: blocks.length,
+      mentions,
       dryRun: true,
     })
   const publishInput = await createComment(
@@ -14705,6 +15695,7 @@ async function writeCommentCreate(
     authorUrl: `hm://${signer.publicKey}`,
     authorName: signer.profileName || signer.publicKey,
     markdown: body,
+    mentions,
     ...(parentComment ? {replyCommentId: parentComment.id} : {}),
     cids: published.cids,
   })
@@ -14718,9 +15709,10 @@ async function writeCommentUpdate(
   const commentId = normalizeCommentId(request.input.comment ?? request.input.commentId, 'Comment ID')
   const body = normalizeWriteContent(request.input.body ?? request.input.content ?? request.input.text, 'Comment body')
   const existing = await client.request('Comment', commentId)
-  const blocks = commentMarkdownToBlocks(body)
+  const {blocks, mentionedAccounts} = commentMarkdownToBlocks(body, request.input)
   await assertHmContentLinks(client, blocks, {skipResolve: request.input.skipLinkCheck === true})
-  if (request.dryRun) return writeToolResult(request.command, signer, {commentId, dryRun: true})
+  const mentions = mentionedAccounts.map((uid) => `hm://${uid}`)
+  if (request.dryRun) return writeToolResult(request.command, signer, {commentId, mentions, dryRun: true})
   const published = await client.publish(
     await updateComment(
       {
@@ -14736,7 +15728,7 @@ async function writeCommentUpdate(
       signer.signer,
     ),
   )
-  return writeToolResult(request.command, signer, {commentId, cids: published.cids})
+  return writeToolResult(request.command, signer, {commentId, mentions, cids: published.cids})
 }
 
 async function writeCommentDelete(
@@ -14792,6 +15784,7 @@ async function writeDocumentCreate(
   extraBlobs: CollectedBlob[] = [],
 ): Promise<Record<string, unknown>> {
   const parsed = parseWriteDocumentContent(request.input)
+  await assertPublishableMermaid(parsed.blocks)
   const metadata = mergeWriteMetadata(parsed.metadata, request.input)
   // A document cannot be born nameless: the name is its identity in every listing, and an
   // "Untitled" default just hides the omission until it is published and visible to everyone.
@@ -14811,7 +15804,7 @@ async function writeDocumentCreate(
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
-  const capability = await requireWriteCapability(client, account, signer.publicKey)
+  const capability = await requireWriteCapability(client, account, signer.publicKey, path)
   const typed = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -14878,8 +15871,9 @@ async function requireWriteCapability(
   client: ReturnType<typeof createSeedClient>,
   space: string,
   signerPublicKey: string,
+  path: string,
 ): Promise<string | undefined> {
-  const capability = await resolveCapability(client, space, signerPublicKey)
+  const capability = await resolveCapability(client, space, signerPublicKey, path)
   if (space !== signerPublicKey && !capability) {
     throw new APIError(
       403,
@@ -14904,9 +15898,8 @@ async function writeDocumentUpdate(
   }
   const edit = normalizeBoundedString(editSource, 'Document edit target', 2048)
   const {id} = await resolveIdWithClient(edit, {serverUrl: client.baseUrl})
-  // A redirected address (including a republished one) is edited by building the Change on the
-  // redirect target's DAG and publishing a Version Ref at THIS address with a fresh generation,
-  // which supersedes the redirect: the path becomes a live document and stops following the target.
+  // Content changes follow redirects and publish at the final live document. The requested address
+  // remains a redirect; publishing there would revive an old path as an independent document.
   const base = await resolveEditableDocument(client, id).catch((error) => {
     throw new APIError(400, error instanceof Error ? error.message : String(error))
   })
@@ -14923,6 +15916,7 @@ async function writeDocumentUpdate(
   const hasContent =
     request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
   const parsed = hasContent ? parseWriteDocumentContent(request.input) : undefined
+  if (parsed) await assertPublishableMermaid(parsed.blocks)
   if (parsed) await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
   const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
   let contentOps: DocumentOperation[] = []
@@ -14940,20 +15934,26 @@ async function writeDocumentUpdate(
   }
   const ops = metadataToWriteSetAttributes(metadata).concat(contentOps)
   if (ops.length === 0) throw new APIError(400, 'No document updates specified — provide content and/or metadata')
-  // The Ref lands at the requested address (id.uid's space), not the redirect target's, so
-  // authorization is checked against the address's space. Checked before the dry-run return so a
-  // dry run surfaces authorization failures instead of reporting a success that publish would
-  // silently lose.
-  const capability = await requireWriteCapability(client, id.uid, signer.publicKey)
-  const replacedRedirect = base.redirect
-    ? {target: packHmId(base.redirect.target), republish: base.redirect.republish}
-    : undefined
-  const typed = await documentSchemaReport(client, packHmId(id), {...resource.document.metadata, ...metadata})
+  const targetId = base.targetId
+  // Checked before the dry-run return so a dry run surfaces authorization failures instead of
+  // reporting a success that publish would silently lose.
+  const capability = await requireWriteCapability(
+    client,
+    targetId.uid,
+    signer.publicKey,
+    hmIdPathToEntityQueryPath(targetId.path),
+  )
+  const typed = await documentSchemaReport(client, packHmId(targetId), {...resource.document.metadata, ...metadata})
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: packHmId(id),
+      resolvedDocumentId: packHmId(targetId),
+      redirectHops: base.redirects.map((hop) => ({
+        from: packHmId(hop.from),
+        to: packHmId(hop.to),
+        republish: hop.republish,
+      })),
       ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
-      ...(replacedRedirect ? {replacedRedirect} : {}),
       ...typed,
       dryRun: true,
     })
@@ -14967,8 +15967,8 @@ async function writeDocumentUpdate(
   const changeBlock = await createChange(unsignedBytes, signer.signer)
   const refInput = await createVersionRef(
     {
-      space: id.uid,
-      path: hmIdPathToEntityQueryPath(id.path),
+      space: targetId.uid,
+      path: hmIdPathToEntityQueryPath(targetId.path),
       genesis: state.genesis,
       version: changeBlock.cid.toString(),
       generation: Number(ts),
@@ -14985,9 +15985,14 @@ async function writeDocumentUpdate(
   })
   return writeToolResult(request.command, signer, {
     id: packHmId(id),
+    resolvedDocumentId: packHmId(targetId),
+    redirectHops: base.redirects.map((hop) => ({
+      from: packHmId(hop.from),
+      to: packHmId(hop.to),
+      republish: hop.republish,
+    })),
     version: changeBlock.cid.toString(),
     cids: published.cids,
-    ...(replacedRedirect ? {replacedRedirect} : {}),
     ...typed,
   })
 }
@@ -15002,7 +16007,7 @@ async function writeDocumentDelete(
   const resource = await client.request('Resource', id)
   if (resource.type !== 'document' && resource.type !== 'redirect')
     throw new APIError(400, `Cannot delete ${resource.type}`)
-  const capability = await requireWriteCapability(client, id.uid, signer.publicKey)
+  const capability = await requireWriteCapability(client, id.uid, signer.publicKey, hmIdPathToEntityQueryPath(id.path))
   // A redirected path (including a republished one) has no document of its own to read genesis and
   // generation from, so the tombstone borrows the redirect target's genesis and takes a fresh
   // generation — the new maximum generation supersedes the redirect Ref, so the path reads as
@@ -15053,7 +16058,12 @@ async function writeDocumentRef(
     const base = await followToDocument(client, sourceId).catch((error) => {
       throw new APIError(400, error instanceof Error ? error.message : String(error))
     })
-    const capability = await requireWriteCapability(client, destId.uid, signer.publicKey)
+    const capability = await requireWriteCapability(
+      client,
+      destId.uid,
+      signer.publicKey,
+      hmIdPathToEntityQueryPath(destId.path),
+    )
     if (request.dryRun) return writeToolResult(request.command, signer, {id: packHmId(destId), dryRun: true})
     const refInput = await createVersionRef(
       {
@@ -15170,7 +16180,12 @@ async function writeRepublishMove(
 ): Promise<Record<string, unknown>> {
   const {source, destination, destId, sourceBase} = ctx
   const original = sourceBase.targetId
-  const capability = await requireWriteCapability(client, destId.uid, signer.publicKey)
+  const capability = await requireWriteCapability(
+    client,
+    destId.uid,
+    signer.publicKey,
+    hmIdPathToEntityQueryPath(destId.path),
+  )
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       destination: packHmId(destId),
@@ -15259,7 +16274,12 @@ async function writeDocumentRedirect(
             throw new APIError(400, error instanceof Error ? error.message : String(error))
           })
       : resource.document.genesis
-  const capability = await requireWriteCapability(client, sourceId.uid, signer.publicKey)
+  const capability = await requireWriteCapability(
+    client,
+    sourceId.uid,
+    signer.publicKey,
+    hmIdPathToEntityQueryPath(sourceId.path),
+  )
   if (request.dryRun)
     return writeToolResult(request.command, signer, {id: packHmId(sourceId), target: packHmId(targetId), dryRun: true})
   const refInput = await createRedirectRef(
@@ -15508,13 +16528,14 @@ async function publishMemoryDocument(
     throw new APIError(400, `Memory file ${file.path} is not UTF-8 text; only markdown files can be published`)
   if (file.size > MAX_WRITE_CONTENT_BYTES) throw new APIError(400, `Memory file ${file.path} is too large to publish`)
 
-  const {tree, metadata: frontmatter} = parseMarkdown(file.content ?? '')
+  const {tree, metadata: frontmatter} = parseMarkdownOrBadRequest(file.content ?? '')
   const parsedNodes = markdownBlockNodesToHMBlockNodes(tree)
   const imagesUploaded = countFileLinkBlocks(parsedNodes)
   const baseDir = file.path.includes('/') ? file.path.slice(0, file.path.lastIndexOf('/')) : ''
   const {nodes, blobs: fileBlobs} = await resolveFileLinksInBlocks(parsedNodes, (linkPath) =>
     readMemoryLinkBytes(context.stateDir, baseDir, linkPath),
   )
+  await assertPublishableMermaid(nodes)
   // Frontmatter media (icon, cover, logo) referencing memory files gets the same treatment
   // as body images: read from memory, chunk to UnixFS, and rewrite to ipfs://.
   for (const key of ['icon', 'cover', 'seedExperimentalLogo'] as const) {
@@ -16155,6 +17176,26 @@ function getDraftRow(context: WriteToolContext, draftId: string) {
   return row
 }
 
+/** Invalid frontmatter YAML is the caller's mistake, so it is reported as a 400 rather than a crash. */
+export function parseMarkdownOrBadRequest(content: string): ReturnType<typeof parseMarkdown> {
+  try {
+    return parseMarkdown(content)
+  } catch (error) {
+    if (error instanceof MarkdownFrontmatterError) throw new APIError(400, error.message)
+    throw error
+  }
+}
+
+/** Mermaid fences are checked before publishing so a syntax error reaches the agent, not the reader. */
+export async function assertPublishableMermaid(blocks: HMBlockNode[]): Promise<void> {
+  try {
+    await assertValidMermaid(blocks, await loadMermaidParser())
+  } catch (error) {
+    if (error instanceof InvalidMermaidError) throw new APIError(400, error.message)
+    throw error
+  }
+}
+
 function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteDocumentContent {
   const rawContent = input.content ?? input.body ?? input.text
   const format =
@@ -16166,7 +17207,7 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
   if (format !== 'markdown' && format !== 'json') throw new APIError(400, 'Document format must be markdown or json')
   if (format === 'markdown') {
     const content = normalizeWriteContent(rawContent, 'Document content')
-    const {tree, metadata} = parseMarkdown(content)
+    const {tree, metadata} = parseMarkdownOrBadRequest(content)
     const blocks = markdownBlockNodesToHMBlockNodes(tree)
     return {ops: flattenToOperations(tree), metadata, blocks}
   }
@@ -16177,7 +17218,7 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
 function parseWriteJsonBlocks(rawContent: unknown): HMBlockNode[] {
   const parsed =
     typeof rawContent === 'string' ? JSON.parse(normalizeWriteContent(rawContent, 'Document content')) : rawContent
-  return z.array(HMBlockNodeSchema).parse(parsed) as HMBlockNode[]
+  return z.array(HMBlockNodeSchema as any).parse(parsed) as HMBlockNode[]
 }
 
 function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId = ''): DocumentOperation[] {
@@ -16192,12 +17233,28 @@ function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId = ''): Document
   return ops
 }
 
-function commentMarkdownToBlocks(content: string): HMBlockNode[] {
+/**
+ * Comment markdown → blocks, with mentions normalized (see comment-mentions.ts). A body that still
+ * carries plain-text `@Name` tokens is refused unless the caller passed `allowPlainMentions`, because
+ * such a "mention" notifies nobody and activates no agent — the failure Eric caught on hyper.media
+ * when Ion wrote "@Artist" as a Link and Artist never woke up.
+ */
+function commentMarkdownToBlocks(
+  content: string,
+  input: Record<string, unknown> = {},
+): {blocks: HMBlockNode[]; mentionedAccounts: string[]} {
   if (!content.trim())
-    return [
-      {block: {id: crypto.randomUUID(), type: 'Paragraph', text: '', attributes: {}, annotations: []}, children: []},
-    ]
-  return markdownBlockNodesToHMBlockNodes(parseMarkdown(content).tree)
+    return {
+      blocks: [
+        {block: {id: crypto.randomUUID(), type: 'Paragraph', text: '', attributes: {}, annotations: []}, children: []},
+      ],
+      mentionedAccounts: [],
+    }
+  const prepared = prepareCommentMentions(markdownBlockNodesToHMBlockNodes(parseMarkdown(content).tree))
+  if (prepared.plainMentions.length && input.allowPlainMentions !== true) {
+    throw new APIError(400, plainMentionsError(prepared.plainMentions))
+  }
+  return {blocks: prepared.blocks, mentionedAccounts: prepared.mentionedAccounts}
 }
 
 function detectWriteContentFormat(content: string): 'markdown' | 'json' {
@@ -16638,6 +17695,113 @@ export function effectiveReasoningLevel(
   return support?.offBehavior === 'default' ? 'default' : 'off'
 }
 
+/** Marks the durable result of a delegate call whose real result arrives when its child finishes. */
+const PARKED_TOOL_RESULT_MARKER = 'seedParked'
+
+/** What the model reads for a parked delegate call if it speaks again before the child finishes. */
+const PARKED_TOOL_RESULT_TEXT = JSON.stringify({
+  status: 'running',
+  note: 'Still running in the background. Its real result will arrive in a later turn as this tool call’s result; do not wait for it — respond to the user now.',
+})
+
+/** The input of a turn that resumes because delegated work finished, with no new message to answer. */
+const BACKGROUND_WORK_UPDATE_INPUT =
+  '<background_work_update>\nThe background sub-sessions/workflows you were waiting on have finished; their results are attached to their tool calls above. Continue now: act on those results and reply to the user, including anything you promised to deliver once they completed.\n</background_work_update>'
+
+/** The result the runtime writes for a tool call a service restart cut off. */
+const INTERRUPTED_TOOL_RESULT_ERROR =
+  'Interrupted by a service restart before this tool finished; whether its side effects happened is unknown. Verify state before retrying.'
+
+/**
+ * Verbs whose interrupted call may simply run again when a turn resumes after a restart: reads
+ * have no side effects, and plan/status set session state to what the call says.
+ */
+const REPLAY_SAFE_VERBS: ReadonlySet<string> = new Set([
+  seedVerbRegistry.read.name,
+  seedVerbRegistry.plan.name,
+  seedVerbRegistry.status.name,
+])
+
+/**
+ * The model-facing message of a log event the user side wrote, or undefined for any other event.
+ * A user message carries its window context, attachment metadata and signed sender; a verb the
+ * user ran replays as a tagged message, because provider transcripts have no notion of user-made
+ * tool calls and the model reads these as ground truth.
+ */
+function userEventReplayMessage(
+  event: api.SessionEvent,
+): {role: 'user'; content: string; timestamp: number} | undefined {
+  const value = event.event as {
+    type?: string
+    role?: string
+    content?: string
+    name?: string
+    input?: unknown
+    output?: unknown
+    error?: string
+    contextLines?: unknown
+    attachments?: unknown
+    meta?: api.SessionEventMeta
+  }
+  if (sessionEventActor(value as never) === 'user' && value.type === 'tool_call') {
+    return {
+      role: 'user',
+      content: `<user_action verb="${value.name ?? ''}">\n${escapeActionFraming(
+        boundModelToolResultText(safeJSONStringify(value.input ?? {})),
+      )}\n</user_action>`,
+      timestamp: event.createdAt,
+    }
+  }
+  if (sessionEventActor(value as never) === 'user' && value.type === 'tool_result') {
+    return {
+      role: 'user',
+      content: `<user_action_result verb="${value.name ?? ''}">\n${escapeActionFraming(
+        boundModelToolResultText(
+          value.error !== undefined ? String(value.error) : safeJSONStringify(value.output ?? {}),
+        ),
+      )}\n</user_action_result>`,
+      timestamp: event.createdAt,
+    }
+  }
+  if (value.type !== 'message' || value.role !== 'user' || typeof value.content !== 'string') return undefined
+  // Client context (e.g. the desktop's current window) rides along to the model inside a
+  // tagged block, mirroring how trigger context reaches it — but stays out of `content`, so
+  // transcripts never render it.
+  const contextLines = Array.isArray(value.contextLines)
+    ? value.contextLines.filter((line): line is string => typeof line === 'string')
+    : []
+  let content =
+    contextLines.length > 0
+      ? `${value.content}\n\n<window_context>\n${contextLines.join('\n')}\n</window_context>`
+      : value.content
+  // Attachments reach the model as cheap metadata only; content is pulled on demand via the
+  // view_attachment tool so images never flood the context uninvited.
+  const attachmentBlock = formatAttachmentMetadata(value.attachments)
+  if (attachmentBlock) content = `${content}\n\n${attachmentBlock}`
+  // The durable event's signed provenance must reach the model, not only the desktop avatar.
+  // JSON keeps the account ID inert even if a user's content imitates our framing tags.
+  if (value.meta?.accountId) {
+    content = `<message_sender>\n${safeJSONStringify({
+      accountId: value.meta.accountId,
+    })}\n</message_sender>\n\n${content}`
+  }
+  return {role: 'user', content, timestamp: event.createdAt}
+}
+
+/** An assistant message replayed from log events, which keep its text and calls but not the provider's own record. */
+function replayAssistantMessage(content: Record<string, unknown>[], timestamp: number): Record<string, unknown> {
+  return {
+    role: 'assistant',
+    content,
+    api: 'openai-completions',
+    provider: 'seed',
+    model: 'seed',
+    usage: emptyPiUsage(),
+    stopReason: content.some((part) => part.type === 'toolCall') ? 'toolUse' : 'stop',
+    timestamp,
+  }
+}
+
 function emptyPiUsage(): {
   input: number
   output: number
@@ -16891,6 +18055,8 @@ type CommentThreadEntry = {
   id: string
   author: string
   authorName?: string
+  /** The markdown that mentions this comment's author: `[@](hm://uid/:profile)`. */
+  mention: string
   createTime?: string
   replyParent?: string
   markdown: string
@@ -16926,6 +18092,7 @@ async function commentThreadEntries(
           id: entry.id,
           author: entry.author,
           authorName: authors[entry.author]?.metadata?.name || undefined,
+          mention: mentionMarkdown(entry.author),
           createTime: hmTimestampToIso(entry.createTime),
           replyParent: entry.replyParent || undefined,
           markdown: await commentToResolvedMarkdown(entry, {client, maxDepth: 1}).catch(
@@ -16982,7 +18149,7 @@ function commentEntryHeading(
   const relation = entry.replyParent ? `replying to \`${entry.replyParent}\`` : 'thread root'
   return [
     `### ${index + 1}. ${who}${when}${mark}`,
-    `Comment id: \`${entry.id}\` · ${relation}`,
+    `Comment id: \`${entry.id}\` · ${relation} · mention the author with \`${entry.mention}\``,
     '',
     entry.markdown || '_(empty)_',
   ]
@@ -17051,6 +18218,8 @@ async function commentReadResult(input: {
   }
   const authorName = thread?.comments.find((entry) => entry.id === comment.id)?.authorName
   if (authorName) (result.comment as Record<string, unknown>).authorName = authorName
+  const authorMention = mentionMarkdown(comment.author)
+  ;(result.comment as Record<string, unknown>).authorMention = authorMention
   if (format === 'json') {
     result.resource = resource
     if (thread) result.thread = thread
@@ -17064,6 +18233,9 @@ async function commentReadResult(input: {
       comment.replyParent ? ` · replying to \`${comment.replyParent}\`` : ' · thread root'
     }${comment.createTime ? ` · ${hmTimestampToIso(comment.createTime)}` : ''}`,
     `Reply with: write {address: "${target}", content: "…", options: {action: "comment", replyTo: "${comment.id}"}}`,
+    `Mention the author with: \`${authorMention}\` (a mention is this inline form only; plain @${
+      authorName || 'Name'
+    } text notifies nobody)`,
     '',
     own || '_(empty)_',
   ]

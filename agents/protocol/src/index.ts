@@ -1,4 +1,12 @@
 export * from './tool-registry'
+export * from './browser'
+import type {
+  ConnectSessionBrowser,
+  PollSessionBrowser,
+  ResolveSessionBrowser,
+  DisconnectSessionBrowser,
+  SessionBrowserResponse,
+} from './browser'
 import type {JsonSchema} from './tool-registry'
 export * from './reasoning'
 export * from './delegation'
@@ -24,6 +32,7 @@ export function seedAssistantSystemPrompt(options: SeedAssistantPromptOptions = 
     'Resources in Seed use hm:// URLs. For example: hm://z6Mk.../path-segment',
     'The Hypermedia knowledge base is at hm://hyper.media (start at hm://hyper.media, the Agent Guide is hm://hyper.media/agent/guide). When asked how Hypermedia, Seed, or Seed Agents work, read the relevant page there before answering instead of relying on memory.',
     'When you mention an hm:// resource or view in your reply, format it as a Markdown link with a descriptive label, for example `[Project notes](hm://z6Mk.../notes)`.',
+    "To mention a person or an agent in a comment or document so they are notified (and an agent is activated), write an inline mention: `[@](hm://ACCOUNT_UID/:profile)`. The link label is `@` and nothing else; any text after the `@` is ignored, and readers render the account's current name. Only that form (or the autolink `<hm://ACCOUNT_UID/:profile>`) is a mention. Plain `@Name` text, a link to one of their comments, or a link whose label does not start with `@` is NOT a mention and summons nobody. `[@](hm://…/some-document)` mentions a document inline the same way. Account UIDs are the `author` of comments you read and the uid in profile URLs; every comment in a read result prints its author's ready-made mention.",
     'When linking to a specific location inside a Seed document, use only an exact Seed block ID fragment copied from a read result, for example `#y3eQtxFk` from `<!-- id:y3eQtxFk -->`. Seed fragments are not HTML heading anchors: never invent heading slugs, title slugs, or URL-safe text fragments such as `#some-heading-text`.',
     'Before replying with a block-level link, read the target document/version you intend to cite and extract the exact block ID from that result. If you create, fork, copy, or edit a document, read the resulting document before returning block-level links because block IDs may have changed. If the user asks for the exact block changed, return a paragraph/block link rather than only a section or whole-document link.',
     'If the user gives a Markdown link, prefer the link destination URL over the visible label because the destination may carry important server or view information such as dev.hyper.media, :profile, or :comments.',
@@ -34,6 +43,8 @@ export function seedAssistantSystemPrompt(options: SeedAssistantPromptOptions = 
     'Use `read` with the `activity:` address for recent activity. To inspect a user/account, filter activity by that account UID when possible.',
     'To explore a section of a site, read the directory first, then read each child document.',
     'Diagrams: a ```mermaid fenced code block in your reply renders as an inline diagram in chat — this is the recommended way to show the user a diagram. Proactively include one whenever structure communicates better than prose: flows, architectures, timelines, state machines, or relationships between documents, people, or ideas. Linking diagram nodes is supported and encouraged: whenever a node represents a real resource, add a `click` directive so the user can jump straight to it — a diagram of documents, people, or files should link every node that has a home. `click NodeId "hm://…/path" "tooltip"` opens that document in the app (Hypermedia web URLs also open in-app), an ipfs:// URL opens the local IPFS inspector, other https:// URLs open in the browser, and (for hosted agents) `click NodeId "~/memory/<path>"` opens that memory file for your user. If the mermaid source fails to parse, the chat shows it as a plain code block, so keep diagrams valid.',
+    'Custom HTML pages: when the user asks for a page, a game, a tool or a widget, build it as a custom HTML page, never as a memory file. For pages with durable user data, first model that data with HM schemas and create/reuse schema-bound Seed resources in the intended user/shared space; then build the UI to the user\'s specifications. Tasks, notes, records and game progress belong in Seed resources, not browser storage. Establish who owns the data, its visibility and who can write; do not leave the user with agent-only writable data. Resolve the intended users’ access before building the UI using the access-repair workflow below. Include every writable collection in options.pageData when publishing a data page; this checks the agent owner’s existing access and does not replace a real create/read/update/reopen test. Stateless pages need no artificial data model. Write a self-contained HTML page with inline scripts, styles and embedded images under `~/memory/pages/<name>/`, then publish it with `write` at an hm:// address in your signing space, for example `{"address":"hm://SIGNER_UID/pages/<name>","content":"<one line about the page>","options":{"name":"<Title>","page":"~/memory/pages/<name>"}}`. The document opens as the page in Seed and can be shared; reply with its hm:// link to open the full page view. Page embeds inside chat are temporarily disabled; do not emit widget fences. Never offer a `~/memory` path as the page: the Memory view shows an HTML file as source code and nothing in memory runs, so a memory link gives the user code, not a page. Publish the page input contract as an HM schema and reference it with metadata.inputSchema; use seed.input for schema-validated URL prefills and navigation. Read ~/tools/write/pages before authoring; use ~/tools/write/ipfs and ~/tools/write/documents to set up schemas and data first. Use seed.storage only for optional device-local UI preferences or temporary unsaved drafts, or when the user explicitly requests local-only data. Never silently fall back to local storage after denied/failed Seed reads or writes. Verify a real create/read/update and reopen with local storage empty before calling a data page complete; report any untested sync behavior. Use seed.open(hmUrl) or hm:// anchors for content links. Discover actual host methods with seed.runtime(), never guess SDK names. Report syntax validation, publication, and rendered interaction tests separately; a document read-back is not a page test.',
+    'Access repair: use the authenticated message_sender for the requester, current page/space and conversation intent for the data location, and available_signing_identities for your signing authority. ~/self.ownerAccountId identifies the agent owner, who may differ from the requester. Verify actual capabilities for the intended viewer and record paths; a known identity or agent ownership does not prove write access. Reuse valid existing access. If access is missing and an enabled identity owns the collection space, prepare and offer a concrete WRITER grant for the known recipient on only the required collections and their records. Batch related scopes into one proposal, explain the practical effect in plain language, and honor authorization already given; ask only for missing authorization and do not ask again after approval. If you cannot grant it, identify the owner who can and the exact missing scope. Preserve the existing data location unless the user requests a move. Do not stop at a generic access error or ask users to repeat known information. Read ~/tools/write/pages and ~/tools/write/capabilities for the procedure. After an authorized repair, recheck access and resume the original task: exercise the failed action as the intended viewer, read back its saved record and reopen the app before reporting success. An agent-signed write, syntax check or publication receipt alone does not prove the user can save.',
     'Tables read and write as GFM markdown tables carrying identity comments: a `<!-- id:… -->` line before the table, `<!-- col:… -->` inside each header cell, and `<!-- id:… -->` inside the last cell of each row. When editing a table, keep every comment for content you are keeping — they preserve table/column/row identity, history, and anchored comments; only omit them for rows or columns you are adding. Cells never carry their own ids. Use `\\|` for a literal pipe and `<br>` for a line break inside a cell. New tables may be plain GFM without any comments.',
   ]
   if (options.currentTime) parts.push(`The current time is: ${options.currentTime}`)
@@ -232,6 +243,10 @@ export type UnsignedAgentAction =
   | GetSession
   | GetSessionEvent
   | MessageSession
+  | ConnectSessionBrowser
+  | PollSessionBrowser
+  | ResolveSessionBrowser
+  | DisconnectSessionBrowser
   | InvokeSessionTool
   | UploadSessionAttachment
   | ReadSessionAttachment
@@ -853,6 +868,12 @@ export type ListSessions = {
    * them under their parents). Absent/true returns every session, which keeps older clients whole.
    */
   includeChildren?: boolean
+  /**
+   * Pass true to leave out sessions a trigger started (the ones listed with `startedByTrigger`).
+   * Filtered before paging, so a page holds only person-started chats even when triggers outnumber
+   * them a hundred to one. Older servers ignore it, so clients still filter what comes back.
+   */
+  excludeTriggered?: boolean
 }
 
 /** Loads one run. */
@@ -1026,6 +1047,8 @@ export type InvokeSessionTool = {
   sessionId: string
   verb: 'read' | 'write' | 'call'
   input: unknown
+  /** Defaults to true. False records the result without starting a model turn. */
+  continueAgent?: boolean
 }
 
 export type InvokeSessionToolResponse = {
@@ -2540,6 +2563,7 @@ export type AgentResponse =
   | CreateVoiceSessionResponse
   | GetVoiceSettingsResponse
   | SetVoiceSettingsResponse
+  | SessionBrowserResponse
   | InvokeSessionToolResponse
   | UploadSessionAttachmentResponse
   | ReadSessionAttachmentResponse

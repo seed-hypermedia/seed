@@ -1,11 +1,12 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
 import {domainResolver} from '@/grpc-client'
+import {reconcileBrowserNavigation, type BrowserLocation} from '@/browser-navigation'
 import {ipc} from '@/ipc'
 import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {client} from '@/trpc'
 import {reportTelemetry, TelemetryStage, telemetryKeyForRoute} from '@/telemetry'
-import {useExperiments} from '@/models/experiments'
+import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {usePushAfterAction} from '@/models/push-after-action'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
@@ -17,6 +18,7 @@ import {isHttpUrl} from '@shm/shared/utils/navigation'
 import {NavAction, NavContextProvider, NavState, navStateReducer, useNavRoute} from '@shm/shared/utils/navigation'
 import {streamSelector, writeableStateStream} from '@shm/shared/utils/stream'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
+import {toast} from '@shm/ui/toast'
 import {useStream} from '@shm/shared/use-stream'
 import {ReactQueryDevtoolsPanel} from '@tanstack/react-query-devtools'
 import {ReactNode, useRef} from 'react'
@@ -25,6 +27,21 @@ import {encodeRouteToPath} from './route-encoding'
 import {AppWindowEvent} from './window-events'
 
 const [updateNavState, navState] = writeableStateStream(window.initNavState)
+
+/** Records a committed browser location in the same history as native Seed pages. */
+export function commitBrowserLocation(location: BrowserLocation, requested: boolean) {
+  updateNavState(reconcileBrowserNavigation(navState.get(), location, requested))
+}
+
+/** Converts the active website to its resolved Seed route without losing forward history. */
+export function resolveBrowserRoute(url: string, route: NavRoute) {
+  const state = navState.get()
+  const current = state.routes[state.routeIndex]
+  if (current?.key !== 'web' || current.url !== url) return
+  const routes = [...state.routes]
+  routes[state.routeIndex] = route
+  updateNavState({...state, routes})
+}
 
 // Developer-only React Query devtools panel. Toggled from the DEVELOPERS section of the account dropdown.
 export const [setQueryDevtoolsOpen, queryDevtoolsOpen] = writeableStateStream<boolean>(false)
@@ -53,6 +70,13 @@ navigation.state.subscribe(() => {
 })
 
 window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
+  if (event.type === 'open_web_url') {
+    const route = hypermediaUrlToRoute(event.url) || {key: 'web' as const, url: event.url}
+    navigation.dispatch({type: 'push', route})
+  }
+  if (event.type === 'external_open_refused') {
+    toast.error('Seed could not open that link. Open it from the omnibar again.')
+  }
   if (event.type === 'back') {
     navigation.dispatch({type: 'pop'})
   }
@@ -127,7 +151,24 @@ export function NavigationContainer({children}: {children: ReactNode}) {
           return
         }
         if (isHttpUrl(url)) {
-          externalOpen(url)
+          // The main process decides, so the answer is never a stale cache from before a toggle.
+          void readWebBrowserEnabled().then((browserEnabled) => {
+            if (!browserEnabled) {
+              externalOpen(url)
+              return
+            }
+            const route: NavRoute = {key: 'web', url}
+            if (newWindow) {
+              const state = navigation.state.get()
+              ipc.invoke('plugin:window|open', {
+                path: encodeRouteToPath(route),
+                selectedIdentity: state.selectedIdentity,
+                accessoryWidth: state.accessoryWidth,
+              })
+            } else {
+              navigation.dispatch({type: 'push', route})
+            }
+          })
           return
         }
         console.warn(`[openUrl] Failed to resolve route for "${url}"`)

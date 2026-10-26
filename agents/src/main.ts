@@ -2,6 +2,7 @@ import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
+import {installHmServerAuth} from '@/hm-server-auth'
 import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
 import {perfSnapshot} from '@/perf'
@@ -34,9 +35,27 @@ async function handleError(error: unknown): Promise<Response> {
   return cbor.response({_: 'Error', message: 'Internal server error'} satisfies api.ErrorResponse, {status: 500})
 }
 
+/** Canonical path prefix of the agents API, on its own host or on a site's origin. */
+export const AGENTS_API_PREFIX = '/hm/api/agents'
+
+/** WebSocket paths: the canonical one and the legacy one. */
+export const AGENTS_WS_PATHS = [`${AGENTS_API_PREFIX}/ws`, '/agents/ws'] as const
+
+function upgradeWebSocket(req: BunRequest, srv: Server<WSData>) {
+  const upgraded = srv.upgrade(req, {
+    data: {
+      connectedAt: Date.now(),
+      subscriptions: new Set<string>(),
+      publicSubscriptions: new Map<string, string>(),
+    },
+  })
+  if (upgraded) return undefined as unknown as Response
+  return new Response('WebSocket upgrade failed', {status: 400})
+}
+
 /** Creates Bun route handlers for the Agents signed CBOR API. */
-export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined, string> {
-  const message = async (req: Request) => {
+export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string): Bun.Serve.Routes<undefined, string> {
+  const message = async (req: Request, server?: Server<undefined>) => {
     if (!isCBORRequest(req)) {
       return cbor.response({_: 'Error', message: 'Content-Type must be application/cbor'} satisfies api.ErrorResponse, {
         status: 415,
@@ -51,6 +70,8 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     }
 
     try {
+      // The browser heartbeat waits up to 20 seconds; Bun otherwise resets idle HTTP requests at 10.
+      if (envelope?.action?._ === 'PollSessionBrowser') server?.timeout(req, 30)
       return cbor.response(await svc.message(envelope))
     } catch (error) {
       if (error instanceof apisvc.APIError) {
@@ -126,13 +147,14 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
         subscriptionAuth: svc.subscriptionAuthEnabled,
+        defaultPromptUrl,
         codeExec: codeExec.available,
         codeExecReason: codeExec.reason,
         codeExecReasonCode: codeExec.code,
         // Which runtimes this server can actually run: `ts` needs an image with bun, so an
         // operator can see at a glance whether TypeScript execution is on here.
         codeExecRuntimes: codeExec.runtimes,
-        // Voice chat (LiveKit room + speech worker): desktop shows the mic button only when true.
+        // Desktop and web show the voice controls only when this server offers the pipeline.
         voice: svc.voiceAvailable,
       },
       {headers: corsHeaders()},
@@ -150,6 +172,17 @@ export function createAPIRoutes(svc: apisvc.Service): Bun.Serve.Routes<undefined
     return Response.json(rollup, {headers: corsHeaders()})
   }
   return {
+    // Canonical mount: everything under one prefix, so a site's reverse proxy can route
+    // `/hm/api/agents/*` to this service on the site's own origin.
+    [`${AGENTS_API_PREFIX}/message`]: {OPTIONS: options, POST: message},
+    [`${AGENTS_API_PREFIX}/webhooks/:triggerId`]: {POST: webhook},
+    [`${AGENTS_API_PREFIX}/webhooks/:triggerId/:secret`]: {POST: webhook},
+    [`${AGENTS_API_PREFIX}/health`]: {GET: health},
+    [`${AGENTS_API_PREFIX}/version`]: {GET: version},
+    [`${AGENTS_API_PREFIX}/perf`]: {GET: perf},
+    [`${AGENTS_API_PREFIX}/perf/sessions/:sessionId`]: {GET: sessionPerf},
+    // Legacy routes, kept for the standalone host (agentic.seed.hyper.media), older clients and
+    // webhook URLs already handed out.
     '/api/message': {OPTIONS: options, POST: message},
     '/agents/api/message': {OPTIONS: options, POST: message},
     '/agents/api/webhooks/:triggerId': {POST: webhook},
@@ -246,6 +279,7 @@ export function wsShouldDeliver(data: WSData, sourceAccountId: string, key: stri
 }
 
 function sendIfSubscribed(
+  svc: apisvc.Service,
   ws: ServerWebSocket<WSData>,
   sourceAccountId: string,
   key: string,
@@ -273,7 +307,7 @@ function sendIfSubscribed(
   if (event._ === 'appendPartial') {
     log.debug('[agents/ws] send partial', {...summarizeWSEvent(event), direct: ws.data.subscriptions.has(key)})
   }
-  sendWS(ws, event)
+  sendWS(ws, svc.redactForViewer(event, ws.data.accountId ?? ''))
 }
 
 function corsHeaders(): HeadersInit {
@@ -309,6 +343,8 @@ async function main(): Promise<void> {
 
   const cfg = config.create(config.parseArgs())
   setLogLevel(cfg.logLevel)
+  // A members-only (Enterprise) site lets this service in by a shared secret instead of a session.
+  installHmServerAuth([cfg.activity.hmServerUrl, cfg.activity.ipfsServerUrl], process.env.SEED_AGENTS_HM_SERVER_SECRET)
   const result = sqlite.open(cfg.dbPath)
 
   if (!result.ok) {
@@ -351,6 +387,7 @@ async function main(): Promise<void> {
       if (event.type === 'session-event') {
         const wireEvent = wireSessionEvent ?? event.event
         sendIfSubscribed(
+          svc,
           ws,
           event.accountId,
           `sessions/${wireEvent.sessionId}`,
@@ -359,6 +396,7 @@ async function main(): Promise<void> {
         )
       } else if (event.type === 'session-partial') {
         sendIfSubscribed(
+          svc,
           ws,
           event.accountId,
           `sessions/${event.sessionId}`,
@@ -373,6 +411,7 @@ async function main(): Promise<void> {
       } else if (event.type === 'session-change') {
         // The open transcript and the agent page; the sidebar gets the same snapshot on its hint.
         sendIfSubscribed(
+          svc,
           ws,
           event.accountId,
           `sessions/${event.session.id}`,
@@ -380,6 +419,7 @@ async function main(): Promise<void> {
           'direct',
         )
         sendIfSubscribed(
+          svc,
           ws,
           event.accountId,
           `agents/${event.session.agentId}`,
@@ -387,19 +427,19 @@ async function main(): Promise<void> {
           'direct',
         )
       } else if (event.type === 'agent-change') {
-        sendIfSubscribed(ws, event.accountId, `agents/${event.agent.id}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `agents/${event.agent.id}`, {
           _: 'change',
           key: `agents/${event.agent.id}`,
           value: event.agent,
         })
       } else if (event.type === 'run-change') {
-        sendIfSubscribed(ws, event.accountId, `runs/${event.run.rootRunId}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `runs/${event.run.rootRunId}`, {
           _: 'change',
           key: `runs/${event.run.rootRunId}`,
           value: event.run,
         })
       } else if (event.type === 'run-append') {
-        sendIfSubscribed(ws, event.accountId, `runs/${event.rootRunId}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `runs/${event.rootRunId}`, {
           _: 'append',
           key: `runs/${event.rootRunId}`,
           runId: event.entry.runId,
@@ -408,7 +448,7 @@ async function main(): Promise<void> {
           createdAt: event.entry.createdAt,
         })
       } else if (event.type === 'run-partial') {
-        sendIfSubscribed(ws, event.accountId, `runs/${event.rootRunId}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `runs/${event.rootRunId}`, {
           _: 'appendPartial',
           key: `runs/${event.rootRunId}`,
           runId: event.runId,
@@ -416,7 +456,7 @@ async function main(): Promise<void> {
           patch: event.patch,
         })
       } else {
-        sendIfSubscribed(ws, event.accountId, `account/${event.accountId}`, {
+        sendIfSubscribed(svc, ws, event.accountId, `account/${event.accountId}`, {
           _: 'change',
           key: `account/${event.accountId}`,
           value: {
@@ -431,7 +471,7 @@ async function main(): Promise<void> {
         // (which have no agent-change event), collaborator changes, and an owner deleting an agent
         // while a collaborator still has its detail page open.
         if (event.agentId) {
-          sendIfSubscribed(ws, event.accountId, `agents/${event.agentId}`, {
+          sendIfSubscribed(svc, ws, event.accountId, `agents/${event.agentId}`, {
             _: 'change',
             key: `account/${event.accountId}`,
             value: {
@@ -474,20 +514,11 @@ async function main(): Promise<void> {
     maxRequestBodySize: Number.MAX_SAFE_INTEGER,
     error: handleError,
     routes: {
-      ...createAPIRoutes(svc),
-      // Internal worker routes exist only with voice on; otherwise they fall through to the 404.
+      ...createAPIRoutes(svc, cfg.defaultPromptUrl),
+      [AGENTS_WS_PATHS[0]]: upgradeWebSocket,
+      [AGENTS_WS_PATHS[1]]: upgradeWebSocket,
+      // Internal routes are authenticated with the worker bearer token.
       ...(voice ? voice.routes(svc) : {}),
-      '/agents/ws': (req: BunRequest, srv: Server<WSData>) => {
-        const upgraded = srv.upgrade(req, {
-          data: {
-            connectedAt: Date.now(),
-            subscriptions: new Set<string>(),
-            publicSubscriptions: new Map<string, string>(),
-          },
-        })
-        if (upgraded) return undefined as unknown as Response
-        return new Response('WebSocket upgrade failed', {status: 400})
-      },
     },
     // The server has no browser UI: everything outside the signed CBOR API, the health/version
     // probes, and the WebSocket is a 404. Account data is only reachable through signed envelopes.
@@ -509,6 +540,9 @@ async function main(): Promise<void> {
             if (ws.data.accountId && ws.data.accountId !== sub.accountId) {
               throw new apisvc.APIError(403, 'WebSocket account switch is not allowed')
             }
+            // Read and subscribe in one step, with nothing awaited between them: an event written
+            // after the read is delivered live, and one written before it is in the replay.
+            const replay = sub.replay?.()
             ws.data.accountId = sub.accountId
             ws.data.subscriptions.add(sub.key)
             if (sub.publicReadOf) ws.data.publicSubscriptions.set(sub.key, sub.publicReadOf)
@@ -516,12 +550,12 @@ async function main(): Promise<void> {
             console.info('[agents/ws] subscribed', {
               accountId: sub.accountId,
               key: sub.key,
-              replayEvents: sub.replay?.events.length ?? 0,
+              replayEvents: replay?.events.length ?? 0,
             })
             sendWS(ws, {_: 'subscribed', key: sub.key, accountId: sub.accountId})
-            if (sub.replay) {
-              sendWS(ws, {_: 'change', key: `sessions/${sub.replay.session.id}`, value: sub.replay.session})
-              for (const event of sub.replay.events) {
+            if (replay) {
+              sendWS(ws, {_: 'change', key: `sessions/${replay.session.id}`, value: replay.session})
+              for (const event of replay.events) {
                 sendWS(ws, {_: 'append', key: `sessions/${event.sessionId}`, event})
               }
             }
@@ -594,7 +628,7 @@ async function main(): Promise<void> {
   const hostname = cfg.http.hostname === '0.0.0.0' ? 'localhost' : cfg.http.hostname
   console.log(`Agents server running at http://${hostname}:${server.port}`)
   console.log(`  Database: ${cfg.dbPath}`)
-  console.log(`  WebSocket endpoint: ws://${hostname}:${server.port}/agents/ws`)
+  console.log(`  WebSocket endpoint: ws://${hostname}:${server.port}${AGENTS_WS_PATHS[0]} (legacy /agents/ws)`)
   console.log(`  API: http://${hostname}:${server.port}/api/message`)
   console.log(`  HM API: ${cfg.activity.hmServerUrl}`)
   console.log(`  IPFS: ${cfg.activity.ipfsServerUrl}`)

@@ -12,6 +12,15 @@ Scope: Document operations on Seed Hypermedia via the Seed CLI — creating, upd
 searching, and managing drafts. For low-level gRPC access to a local Seed daemon, use the **seed-grpc** skill. For
 LLM-powered PDF import see the **seed-pdf-import** skill.
 
+## Protected production documentation
+
+Never use this skill to create, update, delete, import or directly publish content in the `hyper.media` documentation
+space (`hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB`), even when its signing identity is available locally.
+Its content is derived from the `hypermedia/` Markdown and schema files of the latest Seed release. Edit those source
+files; the tagged release workflow publishes them. A request for a definition at `hyper.media/<path>` does not authorize
+an immediate publication. Read access and unrelated users' resources served by the same gateway are unaffected. Only an
+explicit incident-rollback request permits withdrawing the identified accidental publications.
+
 ## Prerequisites
 
 ### 1. Ensure CLI is Available and Up-to-Date
@@ -50,8 +59,8 @@ When a name/account exists in both, the vault wins. `key list` shows a `source` 
 daemon needs to be running. **Mainnet identities typically live in the desktop app's vault**, not the keyring — an empty
 or missing `seed-daemon-main` keyring does NOT mean there are no mainnet keys; always check `key list` (vault included).
 If `key list` output has no `source` field, the installed CLI predates vault support — use the `npx ...@latest` form
-instead. Full reference: `docs/KEYS.md` shipped with the npm package
-(https://unpkg.com/@seed-hypermedia/cli/docs/KEYS.md).
+instead. Full reference: the Keys page of the Seed docs
+(https://github.com/seed-hypermedia/seed/blob/main/hypermedia/build/keys.md).
 
 **IMPORTANT:** Mainnet and devnet use **separate keyrings and separate vaults**. A key from one network does not exist
 in the other. Always list keys with the **same environment flag** you will use for publishing — use `key list --dev`

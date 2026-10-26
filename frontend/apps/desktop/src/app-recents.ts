@@ -5,10 +5,9 @@ import {RecentsResult} from '@shm/shared/models/recents'
 import {createResourceResolver} from '@shm/shared/resource-loader'
 import {getRecentsRouteEntityUrl, NavRoute} from '@shm/shared/routes'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {z} from 'zod'
+import {z} from 'zod/v3'
 import {grpcClient} from './app-grpc'
 import {appInvalidateQueries} from './app-invalidation'
-// @ts-expect-error ignore this import error
 import {appStore} from './app-store.mts'
 import {t} from './app-trpc'
 

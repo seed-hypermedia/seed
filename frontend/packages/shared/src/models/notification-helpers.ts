@@ -2,28 +2,23 @@
  * Shared helpers for notification display, routing, and read-state mutations.
  * No platform-specific dependencies.
  */
-import type {NotificationPayload} from './notification-payload'
-import {getMentionNotificationTitle, getNotificationDocumentName} from './notification-titles'
+import {hmId} from '../index'
 import {NavRoute} from '../routes'
-import {abbreviateUid, hmId} from '../index'
+import type {NotificationPayload} from './notification-payload'
+import {getNotificationDocumentName} from './notification-titles'
 
 /**
  * Returns the navigation route targeted by a notification payload.
+ * Comments open their document with Discussions in the right panel, so the document stays in view.
  */
 export function notificationRouteForPayload(payload: NotificationPayload): NavRoute | null {
   if (payload.eventType === 'comment') {
     if (!payload.target.uid) return null
     const targetId = hmId(payload.target.uid, {path: payload.target.path ?? undefined})
-    if (payload.commentId) {
-      return {
-        key: 'comments',
-        id: targetId,
-        openComment: payload.commentId,
-      }
-    }
     return {
-      key: 'comments',
+      key: 'document',
       id: targetId,
+      panel: {key: 'comments', id: targetId, openComment: payload.commentId ?? undefined},
     }
   }
 
@@ -33,9 +28,9 @@ export function notificationRouteForPayload(payload: NotificationPayload): NavRo
     const sourceId = hmId(sourceUid, {path: payload.target.path ?? undefined})
     if (payload.citationType === 'c' && payload.commentId) {
       return {
-        key: 'comments',
+        key: 'document',
         id: sourceId,
-        openComment: payload.commentId,
+        panel: {key: 'comments', id: sourceId, openComment: payload.commentId},
       }
     }
     return {
@@ -56,13 +51,8 @@ export function notificationRouteForPayload(payload: NotificationPayload): NavRo
   return null
 }
 
-function getNotificationAuthorName(payload: NotificationPayload, authorName?: string | null): string {
-  const resolvedAuthorName = authorName?.trim()
-  if (resolvedAuthorName) return resolvedAuthorName
-  return payload.author.name || (payload.author.uid ? abbreviateUid(payload.author.uid) : 'Someone')
-}
-
-function getNotificationTargetName(payload: NotificationPayload, targetName?: string | null): string {
+/** The name of the document a notification points at, preferring resolved metadata, then the path. */
+export function getNotificationTargetName(payload: NotificationPayload, targetName?: string | null): string {
   const resolvedTargetName = targetName?.trim()
   if (resolvedTargetName) return resolvedTargetName
 
@@ -73,49 +63,22 @@ function getNotificationTargetName(payload: NotificationPayload, targetName?: st
 }
 
 /**
- * Builds a notification title, preferring resolved metadata when available.
+ * The action a notification reports, worded to sit between the author's name and the document name.
  */
-export function notificationTitle(
-  payload: NotificationPayload,
-  overrides?: {
-    authorName?: string | null
-    targetName?: string | null
-  },
-): string {
-  const authorName = getNotificationAuthorName(payload, overrides?.authorName)
-
-  if (payload.reason === 'mention') {
-    const sourceName = getNotificationTargetName(payload, overrides?.targetName)
-    return getMentionNotificationTitle({
-      actorName: authorName,
-      subjectName: 'you',
-      documentName: sourceName,
-    })
+export function notificationAction(payload: NotificationPayload): string {
+  switch (payload.reason) {
+    case 'mention':
+      return 'mentioned you in'
+    case 'discussion':
+    case 'site-new-discussion':
+      return 'started a discussion on'
+    case 'site-doc-update':
+      return 'updated'
+    case 'user-comment':
+      return 'commented on'
+    default:
+      return 'replied to your comment in'
   }
-
-  if (payload.reason === 'discussion') {
-    const targetName = overrides?.targetName || payload.target.name
-    return `${authorName} started a discussion${targetName ? ` on ${targetName}` : ''}`
-  }
-
-  if (payload.reason === 'site-doc-update') {
-    const targetName = overrides?.targetName || payload.target.name
-    return `${authorName} updated${targetName ? ` ${targetName}` : ' a document'}`
-  }
-
-  if (payload.reason === 'site-new-discussion') {
-    const targetName = overrides?.targetName || payload.target.name
-    return `${authorName} started a discussion${targetName ? ` on ${targetName}` : ''}`
-  }
-
-  if (payload.reason === 'user-comment') {
-    const targetName = overrides?.targetName || payload.target.name
-    return `${authorName} commented${targetName ? ` on ${targetName}` : ''}`
-  }
-
-  // reply
-  const targetName = overrides?.targetName || payload.target.name
-  return `${authorName} replied to your comment${targetName ? ` in ${targetName}` : ''}`
 }
 
 /**

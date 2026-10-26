@@ -5,6 +5,7 @@ import * as React from 'react'
 
 import {cn} from './utils'
 
+/** Seed's shared button with variants and a disabled loading state. */
 export const Button = React.forwardRef<
   HTMLButtonElement,
   React.ComponentProps<'button'> &
@@ -20,8 +21,8 @@ export const Button = React.forwardRef<
       ref={ref}
       data-slot="button"
       className={cn(buttonVariants({variant, size, className}))}
-      disabled={loading || props.disabled}
       {...props}
+      disabled={loading || props.disabled}
     >
       {asChild ? (
         children
@@ -50,18 +51,21 @@ export type ButtonProps = React.ComponentProps<'button'> &
     asChild?: boolean
   }
 
+// Primary and secondary buttons share one grey inactive look instead of fading to half opacity.
+const inactive =
+  'disabled:opacity-100 disabled:border-transparent disabled:bg-neutral-100 disabled:text-neutral-400 disabled:shadow-none dark:disabled:bg-neutral-800 dark:disabled:text-neutral-500'
+
 export const buttonVariants = cva(
   "inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-md font-sans text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
-        default: 'bg-primary text-primary-foreground shadow-xs hover:bg-primary/90',
+        default: `bg-green-700 text-white shadow-xs hover:bg-green-800 ${inactive}`,
         destructive:
           'bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive dark:hover:bg-destructive/90',
         danger:
           'bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive dark:hover:bg-destructive/90',
-        outline:
-          'border bg-input shadow-xs hover:bg-background hover:shadow-md hover:text-accent-foreground dark:border-input',
+        outline: `border-[1.5px] border-green-700 bg-background text-green-700 shadow-xs hover:bg-green-50 dark:border-green-500 dark:text-green-500 dark:hover:bg-green-950 ${inactive}`,
         secondary: 'bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80',
         accent: 'bg-accent text-accent-foreground shadow-xs hover:bg-accent/80',
         ghost:
