@@ -16,14 +16,15 @@ import {
   HMBlock,
   HMBlockNode,
   HMDocument,
-  HMPublishBlobsInput,
-  HMSigner,
+  HMDocumentInfo,
   HMDraft,
   HMDraftContent,
   HMDraftMeta,
   HMListedDraft,
+  HMPublishBlobsInput,
   HMResourceFetchResult,
   HMResourceVisibility,
+  HMSigner,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {BlockNoteEditor} from '@shm/editor/blocknote/core'
@@ -34,6 +35,7 @@ import {BIG_INT, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {extractRefs, getAnnotations} from '@shm/shared/content'
 import {prepareHMDocument} from '@shm/shared/document-utils'
 import {retargetQueryBlockIncludesForPublish} from '@shm/shared/models/document-machine'
+import {listAllPages, MAX_LIST_PAGE_SIZE} from '@shm/shared/list-all-pages'
 import {prepareHMDocumentInfo, useResource, useResources} from '@shm/shared/models/entity'
 import {invalidateAfterPublish} from '@shm/shared/models/post-publish-cache'
 import {invalidateQueries, queryClient} from '@shm/shared/models/query-client'
@@ -1007,23 +1009,32 @@ export function usePushResource() {
 export {autoLinkParentAfterPublish, documentContainsLinkToChild, documentHasSelfQuery} from './auto-link-parent'
 export type {AutoLinkParentResult} from './auto-link-parent'
 
-export function useListSite(id?: UnpackedHypermediaId) {
+/**
+ * Every document under `id`, itself excluded. The delete dialog and the move flow act on all of
+ * them, so the walk asks for the daemon's largest pages and is never cut short.
+ */
+export function useDescendantDocuments(id?: UnpackedHypermediaId) {
   return useQuery({
-    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.uid, 'ALL'],
-    queryFn: async () => {
-      if (!id) return []
-      const res = await grpcClient.documents.listDocuments({
-        account: id.uid,
-        pageSize: BIG_INT,
-      })
-      const docs = res.documents
-        .map((d) => prepareHMDocumentInfo(d))
-        .filter((doc) => {
-          return doc.path.length > 0
-        })
-      return docs
-    },
+    queryKey: [queryKeys.DOC_LIST_DIRECTORY, id?.id, 'descendants'],
+    enabled: !!id,
+    queryFn: async () => (id ? listDescendantDocuments(id) : []),
   })
+}
+
+async function listDescendantDocuments(id: UnpackedHypermediaId): Promise<HMDocumentInfo[]> {
+  const docs = await listAllPages(
+    (pageToken) =>
+      grpcClient.documents.listDirectory({
+        account: id.uid,
+        directoryPath: hmIdPathToEntityQueryPath(id.path),
+        recursive: true,
+        pageSize: MAX_LIST_PAGE_SIZE,
+        pageToken,
+      }),
+    (r) => ({items: r.documents, nextPageToken: r.nextPageToken}),
+    {maxItems: Infinity},
+  )
+  return docs.map((d) => prepareHMDocumentInfo(d)).filter((doc) => doc.id.id !== id.id)
 }
 
 function observeBlocks(
@@ -1522,12 +1533,7 @@ export function useMoveDocument() {
       const targetCapabilityId = await resolveWriteCapabilityId(signingAccountId, to)
       const fromPath = from.path || []
       const toPath = to.path || []
-      const listedDocs = await grpcClient.documents.listDocuments({
-        account: from.uid,
-        pageSize: BIG_INT,
-      })
-      const childMoves: PlannedMove[] = listedDocs.documents
-        .map((item) => prepareHMDocumentInfo(item))
+      const childMoves: PlannedMove[] = (await listDescendantDocuments(from))
         .filter((doc) => !doc.redirectInfo)
         .map((doc) => doc.path)
         .filter((path) => isChildDocumentPath(path, fromPath))

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"seed/backend/api/documents/v3alpha/docmodel"
 	telemetry "seed/backend/api/telemetry/v1alpha"
 	"seed/backend/blob"
@@ -231,7 +230,9 @@ func (srv *Server) QueryDocuments(ctx context.Context, in *documents.QueryDocume
 	defer sqlitex.Save(conn)(&err)
 
 	lookup := blob.NewLookupCache(conn)
-	err = sqlitex.ExecTransient(conn, qb.StringTransient(), func(row *sqlite.Stmt) error {
+	// Wrapped like every other listing so the row carries the outer columns (metadata,
+	// unread flag, children count). The filters vary per request, hence the transient SQL.
+	err = sqlitex.ExecTransient(conn, wrapDocumentsQuery(qb.StringTransient(), ""), func(row *sqlite.Stmt) error {
 		if len(out.Documents) == int(in.PageSize) {
 			out.NextPageToken = apiutil.EncodePageToken(struct {
 				Offset int `json:"o"`
@@ -836,6 +837,22 @@ func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], 
 // ListDirectory NAME ordering.
 const documentNameSortSQL = "COALESCE((SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'name') AND da.kind = 's'), '')"
 
+// documentNameOuterSortSQL is documentNameSortSQL over the wrapper's alias `i`: the same
+// attribute seek, so the outer ORDER BY of a name-sorted page agrees with the inner one and
+// the page cursor is taken from the row the inner LIMIT actually cut at. It runs for the
+// page's rows only.
+const documentNameOuterSortSQL = "COALESCE((SELECT value FROM document_attributes da WHERE da.resource = i.resource_id AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'name') AND da.kind = 's'), '')"
+
+// documentKeysetSQL is the page cursor predicate of the document listings: strictly past the
+// last row of the previous page on the sort key, with the stored IRI breaking ties. It belongs
+// in HAVING, after the latest-generation selection of baseDocumentsQuery. In WHERE it was
+// applied per generation row: once the latest generation of a document fell past the cursor,
+// an older generation became the group's maximum and the document was listed again with that
+// generation's heads and version.
+func documentKeysetSQL(key, cmp string) string {
+	return "(" + key + " " + cmp + " ? OR (" + key + " = ? AND r.iri " + cmp + " ?))"
+}
+
 func documentSortSQL(sort []*documents.DocumentSort, args *colx.Slice[any]) (string, error) {
 	if len(sort) == 0 {
 		return "r.iri ASC", nil
@@ -1383,16 +1400,16 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		}
 	}
 
+	// The sort keys of the last row of the previous page. The first page has no cursor at all:
+	// a sentinel such as "\uFFFF" excludes names above U+FFFF, and an empty name excludes the
+	// unnamed documents from an ascending walk.
 	var cursor struct {
-		ActivityTime int64  `json:"t,omitempty"` // Only used when filtering by activity time.
-		NameOrPath   string `json:"n,omitempty"` // Only used when filtering by name or path.
+		ActivityTime int64  `json:"t,omitempty"` // Sort key when sorting by activity time.
+		Name         string `json:"n,omitempty"` // Sort key when sorting by name.
+		IRI          string `json:"i,omitempty"` // Tie-breaker, and the sort key when sorting by path.
 	}
 
-	switch {
-	case in.PageToken == "" && in.SortOptions.Descending:
-		cursor.ActivityTime = math.MaxInt64
-		cursor.NameOrPath = "\uFFFF" // MaxString.
-	case in.PageToken != "":
+	if in.PageToken != "" {
 		if err := apiutil.DecodePageToken(in.PageToken, &cursor, nil); err != nil {
 			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
 		}
@@ -1420,7 +1437,9 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		if publicOnly, err := srv.isPublicOnlyFor(ctx, ns, in.DirectoryPath); err != nil {
 			return nil, err
 		} else if publicOnly {
-			qb.Where(publicOnlyListVisibilityFilter)
+			// Visibility is per generation, so like the cursor it must be checked on the
+			// latest generation, after the grouping.
+			qb.Having(publicOnlyListVisibilityFilter)
 		}
 
 		qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
@@ -1446,19 +1465,27 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		var outerOrder string
 		switch in.SortOptions.Attribute {
 		case documents.SortAttribute_ACTIVITY_TIME:
-			qb.Where("activity_time " + paginationCmp + " ?")
-			args.Append(cursor.ActivityTime)
+			if in.PageToken != "" {
+				qb.Having(documentKeysetSQL("activity_time", paginationCmp))
+				args.Append(cursor.ActivityTime, cursor.ActivityTime, cursor.IRI)
+			}
 
-			qb.OrderBy("activity_time " + order)
-			outerOrder = "activity_time " + order
+			qb.OrderBy("activity_time " + order + ", r.iri " + order)
+			outerOrder = "activity_time " + order + ", i.iri " + order
 		case documents.SortAttribute_NAME:
-			qb.Having("COALESCE((SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'name') AND da.kind = 's'), '') " + paginationCmp + " ?")
-			args.Append(cursor.NameOrPath)
-			qb.OrderBy("COALESCE((SELECT value FROM document_attributes da WHERE da.resource = dg.resource AND da.key = (SELECT id FROM document_attribute_keys WHERE key = 'name') AND da.kind = 's'), '') " + order)
-			outerOrder = "COALESCE(json_extract(i.metadata, '$.name.v'), '') " + order
+			if in.PageToken != "" {
+				qb.Having(documentKeysetSQL(documentNameSortSQL, paginationCmp))
+				args.Append(cursor.Name, cursor.Name, cursor.IRI)
+			}
+
+			qb.OrderBy(documentNameSortSQL + " " + order + ", r.iri " + order)
+			outerOrder = documentNameOuterSortSQL + " " + order + ", i.iri " + order
 		case documents.SortAttribute_PATH:
-			qb.Where("r.iri " + paginationCmp + " ?")
-			args.Append(cursor.NameOrPath)
+			// The IRI is one per resource, so this one may prune before the grouping.
+			if in.PageToken != "" {
+				qb.Where("r.iri " + paginationCmp + " ?")
+				args.Append(cursor.IRI)
+			}
 
 			qb.OrderBy("r.iri " + order)
 			outerOrder = "i.iri " + order
@@ -1467,7 +1494,7 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 		}
 
 		args.Append(in.PageSize)
-		query = wrapDocumentsQuery(qb, outerOrder)
+		query = wrapDocumentsQuery(qb.String(), outerOrder)
 	}
 
 	out = &documents.ListDirectoryResponse{
@@ -1493,15 +1520,16 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 			break
 		}
 
-		item, activityTime, err := listedDocumentInfoFromRow(conn, lookup, row)
+		item, keys, err := listedDocumentInfoFromRow(conn, lookup, row)
 		if err != nil {
 			return nil, err
 		}
 
 		count++
 
-		cursor.ActivityTime = activityTime
-		cursor.NameOrPath = item.Metadata.Fields["name"].GetStringValue()
+		cursor.ActivityTime = keys.ActivityTime
+		cursor.Name = keys.Name
+		cursor.IRI = keys.IRI
 
 		out.Documents = append(out.Documents, item)
 	}
@@ -1514,12 +1542,10 @@ func (srv *Server) ListDirectory(ctx context.Context, in *documents.ListDirector
 
 // ListAccounts implements Documents API v3.
 func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsRequest) (out *documents.ListAccountsResponse, err error) {
-	var cursor = struct {
+	// The sort keys of the last row of the previous page; the first page has no cursor.
+	var cursor struct {
 		ID           string `json:"i"`
 		ActivityTime int64  `json:"t"`
-	}{
-		ID:           "\uFFFF", // MaxString.
-		ActivityTime: math.MaxInt64,
 	}
 
 	if in.PageToken != "" {
@@ -1565,16 +1591,17 @@ func (srv *Server) ListAccounts(ctx context.Context, in *documents.ListAccountsR
 
 		switch in.SortOptions.Attribute {
 		case documents.SortAttribute_ACTIVITY_TIME:
-			qb.Where(
-				"last_activity_time "+paginationCmp+" ?",
-				"spaces.id "+paginationCmp+" ?",
-			)
-			args.Append(cursor.ActivityTime, cursor.ID)
+			if in.PageToken != "" {
+				qb.Where("(last_activity_time " + paginationCmp + " ? OR (last_activity_time = ? AND spaces.id " + paginationCmp + " ?))")
+				args.Append(cursor.ActivityTime, cursor.ActivityTime, cursor.ID)
+			}
 
 			qb.OrderBy("last_activity_time " + order + ", spaces.id " + order)
 		case documents.SortAttribute_NAME, documents.SortAttribute_PATH:
-			qb.Where("spaces.id " + paginationCmp + " ?")
-			args.Append(cursor.ID)
+			if in.PageToken != "" {
+				qb.Where("spaces.id " + paginationCmp + " ?")
+				args.Append(cursor.ID)
+			}
 
 			qb.OrderBy("spaces.id " + order)
 		default:
@@ -1674,7 +1701,7 @@ func getRootDocumentInfos(conn *sqlite.Conn, lookup *blob.LookupCache, iris []bl
 	args = append(args, len(iris))
 
 	out = make(map[blob.IRI]*documents.DocumentInfo, len(iris))
-	rows, discard, check := sqlitex.Query(conn, wrapDocumentsQuery(qb, ""), args...).All()
+	rows, discard, check := sqlitex.Query(conn, wrapDocumentsQuery(qb.String(), ""), args...).All()
 	defer discard(&err)
 	for row := range rows {
 		info, _, err := listedDocumentInfoFromRow(conn, lookup, row)
@@ -2033,12 +2060,10 @@ func (srv *Server) UpdateProfile(ctx context.Context, in *documents.UpdateProfil
 
 // ListRootDocuments implements Documents API v3.
 func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRootDocumentsRequest) (out *documents.ListRootDocumentsResponse, err error) {
-	var cursor = struct {
+	// The sort keys of the last row of the previous page; the first page has no cursor.
+	var cursor struct {
 		IRI          string `json:"i"`
 		ActivityTime int64  `json:"t"`
-	}{
-		IRI:          "\uFFFF", // MaxString.
-		ActivityTime: math.MaxInt64,
 	}
 
 	if in.PageToken != "" {
@@ -2060,18 +2085,21 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 		args  colx.Slice[any]
 	)
 	{
-		qb := baseDocumentsQuery().OrderBy("activity_time DESC")
+		qb := baseDocumentsQuery().OrderBy("activity_time DESC, r.iri DESC")
 
 		qb.Where("r.iri GLOB 'hm://*'")
 		qb.Where("r.iri NOT GLOB 'hm://*/*'")
 
-		qb.Where("activity_time < ?", "r.iri < ?")
-		args.Append(cursor.ActivityTime, cursor.IRI)
+		// The cursor binds before the visibility filter's own argument.
+		if in.PageToken != "" {
+			qb.Having(documentKeysetSQL("activity_time", "<"))
+			args.Append(cursor.ActivityTime, cursor.ActivityTime, cursor.IRI)
+		}
 
 		srv.applyListVisibilityFilter(ctx, qb, &args)
 
 		args.Append(in.PageSize)
-		query = wrapDocumentsQuery(qb, "activity_time DESC")
+		query = wrapDocumentsQuery(qb.String(), "activity_time DESC, i.iri DESC")
 	}
 
 	conn, release, err := srv.db.ReadConn(ctx)
@@ -2093,16 +2121,15 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 			break
 		}
 
-		item, activityTime, err := listedDocumentInfoFromRow(conn, lookup, row)
+		item, keys, err := listedDocumentInfoFromRow(conn, lookup, row)
 		if err != nil {
 			return nil, err
 		}
 
 		count++
 
-		cursor.ActivityTime = activityTime
-		cursor.IRI = "hm://" + item.Account + "/" + item.Path
-		cursor.IRI = strings.TrimSuffix(cursor.IRI, "/")
+		cursor.ActivityTime = keys.ActivityTime
+		cursor.IRI = keys.IRI
 
 		out.Documents = append(out.Documents, item)
 	}
@@ -2116,12 +2143,10 @@ func (srv *Server) ListRootDocuments(ctx context.Context, in *documents.ListRoot
 
 // ListDocuments implements Documents API v3.
 func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocumentsRequest) (out *documents.ListDocumentsResponse, err error) {
-	var cursor = struct {
+	// The sort keys of the last row of the previous page; the first page has no cursor.
+	var cursor struct {
 		IRI          string `json:"i"`
 		ActivityTime int64  `json:"t"`
-	}{
-		IRI:          "\uFFFF", // MaxString.
-		ActivityTime: math.MaxInt64,
 	}
 
 	if in.PageToken != "" {
@@ -2130,9 +2155,7 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 		}
 	}
 
-	if in.PageSize <= 0 {
-		in.PageSize = defaultPageSize
-	}
+	srv.clampPageSize("ListDocuments", &in.PageSize, defaultPageSize)
 
 	out = &documents.ListDocumentsResponse{
 		Documents: make([]*documents.DocumentInfo, 0, min(in.PageSize, maxPageAllocBuffer)),
@@ -2164,27 +2187,32 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			}
 		}
 
-		qb := baseDocumentsQuery().OrderBy("activity_time DESC")
+		qb := baseDocumentsQuery().OrderBy("activity_time DESC, r.iri DESC")
 
 		if in.Account == "" {
 			qb.Where("r.iri GLOB 'hm://*'")
 		} else {
 			if publicOnly {
-				qb.Where(publicOnlyListVisibilityFilter)
+				// Visibility is per generation: checked on the latest one, after the grouping.
+				qb.Having(publicOnlyListVisibilityFilter)
 			}
 
 			qb.Where("(r.iri = ? OR (r.iri >= ? AND r.iri < ?))")
 			args.Append(accountIRI, accountIRI+"/", accountIRI+"0")
 		}
 
-		qb.Where("activity_time < ?", "r.iri < ?")
-		args.Append(cursor.ActivityTime, cursor.IRI)
+		// The cursor binds before the visibility filter's own argument.
+		if in.PageToken != "" {
+			qb.Having(documentKeysetSQL("activity_time", "<"))
+			args.Append(cursor.ActivityTime, cursor.ActivityTime, cursor.IRI)
+		}
+
 		if in.Account == "" {
 			srv.applyListVisibilityFilter(ctx, qb, &args)
 		}
 
 		args.Append(in.PageSize)
-		query = wrapDocumentsQuery(qb, "activity_time DESC")
+		query = wrapDocumentsQuery(qb.String(), "activity_time DESC, i.iri DESC")
 	}
 
 	conn, release, err := srv.db.ReadConn(ctx)
@@ -2205,16 +2233,15 @@ func (srv *Server) ListDocuments(ctx context.Context, in *documents.ListDocument
 			break
 		}
 
-		item, activityTime, err := listedDocumentInfoFromRow(conn, lookup, row)
+		item, keys, err := listedDocumentInfoFromRow(conn, lookup, row)
 		if err != nil {
 			return nil, err
 		}
 
 		count++
 
-		cursor.ActivityTime = activityTime
-		cursor.IRI = "hm://" + item.Account + "/" + item.Path
-		cursor.IRI = strings.TrimSuffix(cursor.IRI, "/")
+		cursor.ActivityTime = keys.ActivityTime
+		cursor.IRI = keys.IRI
 
 		out.Documents = append(out.Documents, item)
 	}
@@ -2384,7 +2411,7 @@ func getDocumentInfo(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) 
 // following a republish for its display fields. Use [getDocumentInfo] unless you are the code
 // doing that following.
 func getDocumentInfoRaw(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IRI) (info *documents.DocumentInfo, err error) {
-	q := wrapDocumentsQuery(baseDocumentsQuery().Where("r.iri = ?"), "")
+	q := wrapDocumentsQuery(baseDocumentsQuery().Where("r.iri = ?").String(), "")
 	// 0 is the page size parameter.
 	rows, discard, check := sqlitex.Query(conn, q, iri, 0).All()
 	defer discard(&err)
@@ -2406,15 +2433,15 @@ func getDocumentInfoRaw(conn *sqlite.Conn, lookup *blob.LookupCache, iri blob.IR
 // republish Ref has no content of its own, so its bare row carries the redirect target but empty
 // metadata, no authors and zero timestamps, and every client labelled a republished document by
 // its path segment or "Untitled".
-func listedDocumentInfoFromRow(conn *sqlite.Conn, lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentInfo, int64, error) {
-	info, activityTime, err := documentInfoFromRow(lookup, row)
+func listedDocumentInfoFromRow(conn *sqlite.Conn, lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentInfo, documentSortKeys, error) {
+	info, keys, err := documentInfoFromRow(lookup, row)
 	if err != nil {
-		return nil, 0, err
+		return nil, documentSortKeys{}, err
 	}
 	if err := fillRepublishDisplayFields(conn, lookup, info); err != nil {
-		return nil, 0, err
+		return nil, documentSortKeys{}, err
 	}
-	return info, activityTime, nil
+	return info, keys, nil
 }
 
 // fillRepublishDisplayFields copies the display fields of a republish's target onto the
@@ -2480,7 +2507,10 @@ func baseDocumentsQuery() *dqb.SelectQuery {
 			"r.iri",
 			"dg.genesis",
 			"dg.generation",
-			"COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = dg.resource), '{}') AS metadata",
+			// The metadata JSON is aggregated in the outer layer (qDocumentsOuterColumns) for
+			// the page's rows only; the inner query just carries the key it needs. Building
+			// it here, for every group the sort then discards, was a third of a page's cost.
+			"dg.resource AS resource_id",
 			"COALESCE(agg.comment_count, 0) AS comment_count",
 			"dg.heads",
 			"dg.authors",
@@ -2524,6 +2554,13 @@ func baseDocumentsQuery() *dqb.SelectQuery {
 // the rows that survive the inner query's LIMIT. They reference the inner
 // query's alias `i`, and they must stay the LAST columns of the statement,
 // in this order, because [documentInfoFromRow] reads columns by position.
+//
+// The metadata is the per-document aggregation of document_attributes as one
+// JSON object. It used to be an inner column, computed for every group before
+// the sort and the LIMIT threw most of them away; out here it costs the page's
+// rows only, which pays for the IRI tie-breaker the page cursors need and
+// then some (8 GB desktop database, first page of 500 by activity:
+// 33 ms before, 30 ms with both changes).
 const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = i.iri) AS is_unread,
     -- Alive direct children of the document, so listing cards can show
     -- the subdocument count without a per-document interaction-summary
@@ -2537,7 +2574,8 @@ const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = 
       WHERE cr.iri > i.iri || '/' AND cr.iri < i.iri || '0'
         AND instr(substr(cr.iri, length(i.iri) + 2), '/') = 0
         AND (SELECT cdg.is_deleted FROM document_generations cdg WHERE cdg.resource = cr.id ORDER BY cdg.generation DESC LIMIT 1) = 0
-    ) AS children_count`
+    ) AS children_count,
+    COALESCE((SELECT json_group_object(dak.key, json_object('key', dak.key, 'v', da.value, 't', da.timestamp, 'o', da.operation, 'a', da.actor, 'k', da.kind)) FROM document_attributes da JOIN document_attribute_keys dak ON dak.id = da.key WHERE da.resource = i.resource_id), '{}') AS metadata`
 
 // wrapDocumentsQuery wraps a query built by [baseDocumentsQuery] into an outer
 // SELECT that appends [qDocumentsOuterColumns]. The inner query keeps all the
@@ -2548,14 +2586,16 @@ const qDocumentsOuterColumns = `    (SELECT 1 FROM unread_resources WHERE iri = 
 // page_size+1 rows survived the sorter).
 //
 // orderBy repeats the inner ordering in terms of the inner query's alias `i`
-// (the wrapper alone doesn't guarantee preserving the inner order); pass ""
-// for single-row lookups.
-func wrapDocumentsQuery(qb *dqb.SelectQuery, orderBy string) string {
+// (the wrapper alone doesn't guarantee preserving the inner order). Pass ""
+// for single-row lookups, and for an inner query paged with OFFSET: SQLite
+// never flattens a subquery that uses OFFSET (flattener restriction 14), so it
+// runs as a co-routine and its own order carries through.
+func wrapDocumentsQuery(inner string, orderBy string) string {
 	var sb strings.Builder
 	sb.WriteString("SELECT\n    i.*,\n")
 	sb.WriteString(qDocumentsOuterColumns)
 	sb.WriteString("\nFROM (\n")
-	sb.WriteString(qb.String())
+	sb.WriteString(inner)
 	sb.WriteString("\n) i")
 	if orderBy != "" {
 		sb.WriteString("\nORDER BY ")
@@ -2564,18 +2604,27 @@ func wrapDocumentsQuery(qb *dqb.SelectQuery, orderBy string) string {
 	return sb.String()
 }
 
-// documentInfoFromRow decodes a row of the base documents query.
-// Alongside the document info it returns the row's activity timestamp
-// (the redirect-aware activity_time column): callers that paginate by
-// activity MUST use it for their page cursors, because it's the same
-// value the query sorts and filters by.
-func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentInfo, int64, error) {
+// documentSortKeys are the sort columns of a listing row as the query ordered by them. Page
+// cursors must be built from these and from nothing in the response: the IRI is the stored one
+// (the response path is decoded and re-rooted), the activity time is the redirect-aware
+// activity_time column, and the name is the row's own 'name' attribute of kind 's' exactly as
+// documentNameSortSQL reads it, taken before fillRepublishDisplayFields replaces the response
+// metadata with the republish target's.
+type documentSortKeys struct {
+	IRI          string
+	ActivityTime int64
+	Name         string
+}
+
+// documentInfoFromRow decodes a row of the base documents query, returning the document info
+// and the row's sort keys.
+func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents.DocumentInfo, documentSortKeys, error) {
 	inc := sqlite.NewIncrementor(0)
 	var (
 		iriRaw            = row.ColumnText(inc())
 		genesis           = row.ColumnText(inc())
 		generation        = row.ColumnInt64(inc())
-		metadataJSON      = row.ColumnBytesUnsafe(inc())
+		_                 = inc() // resource_id: consumed by the outer metadata subquery only.
 		commentCount      = row.ColumnInt64(inc())
 		headsJSON         = row.ColumnBytesUnsafe(inc())
 		authorsJSON       = row.ColumnBytesUnsafe(inc())
@@ -2587,17 +2636,23 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		visibility        = blob.Visibility(row.ColumnText(inc()))
 		isUnread          = row.ColumnInt64(inc()) > 0
 		childrenCount     = row.ColumnInt64(inc())
+		metadataJSON      = row.ColumnBytesUnsafe(inc())
 	)
 
 	iri := blob.IRI(iriRaw)
 	space, path, err := iri.SpacePath()
 	if err != nil {
-		return nil, 0, err
+		return nil, documentSortKeys{}, err
 	}
 
 	var attrs blob.DocIndexedAttrs
 	if err := json.Unmarshal(metadataJSON, &attrs); err != nil {
-		return nil, 0, err
+		return nil, documentSortKeys{}, err
+	}
+
+	keys := documentSortKeys{IRI: iriRaw, ActivityTime: activityTime}
+	if name, ok := attrs["name"]; ok && name.Kind == indexedAttributeString {
+		keys.Name, _ = name.Value.(string)
 	}
 
 	metadata := attrs.PublicMap()
@@ -2606,7 +2661,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	if redirect, ok := attrs["$db.redirect"]; ok {
 		space, path, err := blob.IRI(redirect.Value.(string)).SpacePath()
 		if err != nil {
-			return nil, 0, fmt.Errorf("failed to parse redirect target %v: %w", redirect.Value, err)
+			return nil, documentSortKeys{}, fmt.Errorf("failed to parse redirect target %v: %w", redirect.Value, err)
 		}
 		redirectInfo = &documents.RefTarget_Redirect{
 			Account: space.String(),
@@ -2649,28 +2704,28 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 
 	var authorIDs []int64
 	if err := json.Unmarshal(authorsJSON, &authorIDs); err != nil {
-		return nil, 0, err
+		return nil, documentSortKeys{}, err
 	}
 
 	authors := make([]string, len(authorIDs))
 	for i, a := range authorIDs {
 		aa, err := lookup.PublicKey(a)
 		if err != nil {
-			return nil, 0, err
+			return nil, documentSortKeys{}, err
 		}
 		authors[i] = aa.String()
 	}
 
 	var headIDs []int64
 	if err := json.Unmarshal(headsJSON, &headIDs); err != nil {
-		return nil, 0, err
+		return nil, documentSortKeys{}, err
 	}
 
 	cids := make([]cid.Cid, len(headIDs))
 	for i, h := range headIDs {
 		cids[i], err = lookup.CID(h)
 		if err != nil {
-			return nil, 0, err
+			return nil, documentSortKeys{}, err
 		}
 	}
 
@@ -2684,12 +2739,12 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		for i, iri := range crumbIRIs { // Minus one to skip the current document
 			title, found, err := lookup.DocumentTitle(iri)
 			if err != nil {
-				return nil, 0, err
+				return nil, documentSortKeys{}, err
 			}
 
 			_, path, err := iri.SpacePath()
 			if err != nil {
-				return nil, 0, err
+				return nil, documentSortKeys{}, err
 			}
 
 			crumb := &documents.Breadcrumb{
@@ -2709,12 +2764,12 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 	if lastCommentID != 0 {
 		lc, err := lookup.CID(lastCommentID)
 		if err != nil {
-			return nil, 0, err
+			return nil, documentSortKeys{}, err
 		}
 
 		rid, err := lookup.RecordID(lc)
 		if err != nil {
-			return nil, 0, err
+			return nil, documentSortKeys{}, err
 		}
 
 		latestComment = rid.String()
@@ -2723,7 +2778,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 
 	metastruct, err := structpb.NewStruct(metadata)
 	if err != nil {
-		return nil, 0, err
+		return nil, documentSortKeys{}, err
 	}
 
 	out := &documents.DocumentInfo{
@@ -2754,7 +2809,7 @@ func documentInfoFromRow(lookup *blob.LookupCache, row *sqlite.Stmt) (*documents
 		Visibility:   docmodel.VisibilityToProto(visibility),
 	}
 
-	return out, activityTime, nil
+	return out, keys, nil
 }
 
 // DeleteDocument implements Documents API v3.
