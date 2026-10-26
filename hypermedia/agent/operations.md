@@ -122,7 +122,7 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_DATA_DIR` | `./data` | Data directory. <!-- id:oMgwJJep --> |
 | `SEED_AGENTS_HM_SERVER_URL` | `https://hyper.media` | Seed DAG-CBOR `/api/*` endpoint ([Seed API](../build/web-api.md)) used for activity and HM reads and writes. <!-- id:-U_3_rUb --> |
 | `SEED_AGENTS_IPFS_SERVER_URL` | HM server URL | Direct `/ipfs/*` [gateway](../protocol/files.md) origin for reads when it differs from the typed API endpoint. <!-- id:ltc8JHyj --> |
-| `SEED_AGENTS_DEFAULT_PROMPT_URL` | the Agent Guide on hyper.media | The document a new agent's system prompt embeds, the [Agent Guide](./guide.md). Reported as `defaultPromptUrl` in `/api/health`; the create-agent dialog embeds it. <!-- id:n_6XI4cu --> |
+| `SEED_AGENTS_DEFAULT_PROMPT_URL` | the Agent Guide on hyper.media | The document a new agent's system prompt embeds, the [Agent Guide](./guide.md). Reported as `defaultPromptUrl` in `/api/health`; the create-agent dialog embeds it. <!-- id:ClWokX89 --> |
 | `SEED_AGENTS_DOCS_ACCOUNT` | _(unset)_ | The account of the knowledge base space. Reads of `hm://hyper.media/…` go to this account. <!-- id:dAKWdZ8N --> |
 | `SEED_AGENTS_DOCS_ACCOUNT_FILE` | _(unset)_ | A file that names the knowledge base account, read on every use. Dev points it at the file `./dev hm-sync` writes. <!-- id:yRzkV4si --> |
 | `SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS` | `5000` | Activity and schedule trigger monitor poll interval. <!-- id:O4k599Ev --> |
@@ -271,15 +271,15 @@ SQLite is authoritative for everything except bytes on disk. An agent's state di
 
 # HTTP endpoints <!-- id:oTx-eqES -->
 
-Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service can sit on its own host or on a site's own origin with one reverse-proxy rule. The older paths (`/api/*`, `/agents/api/*`, `/agents/ws`) stay registered: the standalone production host, released clients and webhook URLs already handed out use them.
+Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service can sit on its own host or on a site's own origin with one reverse-proxy rule. The older paths (`/api/*`, `/agents/api/*`, `/agents/ws`) stay registered: the standalone production host, released clients and webhook URLs already handed out use them. <!-- id:tYSO6ajj -->
 
 <!-- id:WyyD8vqE -->
 | Endpoint <!-- col:QqHnNcMC --> | Method <!-- col:0cPxyrJj --> | Purpose <!-- col:oVN2t9-G --> <!-- id:p8d1Mrxo --> |
 | --- | --- | --- |
-| `/hm/api/agents/message` | `POST` | Signed CBOR action API (canonical). |
-| `/hm/api/agents/ws` | WebSocket | Signed live subscriptions (canonical). |
-| `/hm/api/agents/health`, `/version`, `/perf`, `/perf/sessions/<sessionId>` | `GET` | Health, build metadata, timing counters (canonical). |
-| `/hm/api/agents/webhooks/<triggerId>[/<secret>]` | `POST` | Webhook trigger delivery (canonical). |
+| `/hm/api/agents/message` | `POST` | Signed CBOR action API (canonical). <!-- id:zX6SdlMV --> |
+| `/hm/api/agents/ws` | WebSocket | Signed live subscriptions (canonical). <!-- id:8py3ZRIE --> |
+| `/hm/api/agents/health`, `/version`, `/perf`, `/perf/sessions/<sessionId>` | `GET` | Health, build metadata, timing counters (canonical). <!-- id:546OlRfm --> |
+| `/hm/api/agents/webhooks/<triggerId>[/<secret>]` | `POST` | Webhook trigger delivery (canonical). <!-- id:MExnSG43 --> |
 | `/api/message` | `POST` | Signed CBOR action API. <!-- id:D634v2_4 --> |
 | `/agents/api/message` | `POST` | Same action API under `/agents`. <!-- id:0MOz3jtf --> |
 | `/api/health` | `GET` | JSON health and capabilities (no account data). <!-- id:A68cofS7 --> |
@@ -290,16 +290,15 @@ Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service
 
 `GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)); a trigger's `endpointPath` names the canonical form. Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on the message endpoint and the WebSocket. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
 
-# Where the service lives
+# Where the service lives <!-- id:CJWNG9gR -->
 
-A client holds one base URL per agents server and picks the endpoint paths from its shape (`agentServerEndpoint()` in `frontend/packages/ui/src/agents/client.ts`):
+A client holds one base URL per agents server and picks the endpoint paths from its shape (`agentServerEndpoint()` in `frontend/packages/ui/src/agents/client.ts`): <!-- id:_3fqlgq8 -->
+  - **Canonical**: the path ends in `/hm/api/agents`, for example `https://site.example/hm/api/agents`. The client calls `<base>/message`, `<base>/ws`, `<base>/health` and `<base>/webhooks/…`. <!-- id:p4SQmeaZ -->
+  - **Legacy**: an origin only, for example `https://agentic.seed.hyper.media` (a trailing `/agents` is stripped). The client calls `/api/message`, `/agents/ws` and `/agents/api/*` under it. <!-- id:hS7cHZfj -->
 
-- **Canonical**: the path ends in `/hm/api/agents`, for example `https://site.example/hm/api/agents`. The client calls `<base>/message`, `<base>/ws`, `<base>/health` and `<base>/webhooks/…`.
-- **Legacy**: an origin only, for example `https://agentic.seed.hyper.media` (a trailing `/agents` is stripped). The client calls `/api/message`, `/agents/ws` and `/agents/api/*` under it.
+Production stays standalone at `https://agentic.seed.hyper.media`, and the desktop, web and mobile defaults keep its legacy form; `https://agentic.seed.hyper.media/hm/api/agents` reaches the same server. A site may instead serve agents on its own origin: the reverse proxy routes `/hm/api/agents/*` (API and WebSocket) to the agents container, and the site advertises `<site>/hm/api/agents` as its agent server URL (`SEED_AGENT_SERVER_URL`, surfaced as `agentServerUrl` in `/hm/api/config`). The web app never proxies agents traffic. Pointing a client at a bare site origin does not work: `<origin>/api/message` is the site's own API, not the agents service. <!-- id:6Hg8hKZ9 -->
 
-Production stays standalone at `https://agentic.seed.hyper.media`, and the desktop, web and mobile defaults keep its legacy form; `https://agentic.seed.hyper.media/hm/api/agents` reaches the same server. A site may instead serve agents on its own origin: the reverse proxy routes `/hm/api/agents/*` (API and WebSocket) to the agents container, and the site advertises `<site>/hm/api/agents` as its agent server URL (`SEED_AGENT_SERVER_URL`, surfaced as `agentServerUrl` in `/hm/api/config`). The web app never proxies agents traffic. Pointing a client at a bare site origin does not work: `<origin>/api/message` is the site's own API, not the agents service.
-
-On an Enterprise (members-only) site, `/hm/api/agents/*` sits behind the same sign-in gate as the rest of the site, except `POST /hm/api/agents/webhooks/*`, which outside services call with the trigger secret and which stays open. The agents service reads its members-only site with the deployment's service secret (`SEED_AGENTS_HM_SERVER_SECRET`, sent as `X-Seed-Service-Secret` only to that site's origin; `agents/src/hm-server-auth.ts`), so mention triggers keep firing behind the gate.
+On an Enterprise (members-only) site, `/hm/api/agents/*` sits behind the same sign-in gate as the rest of the site, except `POST /hm/api/agents/webhooks/*`, which outside services call with the trigger secret and which stays open. The agents service reads its members-only site with the deployment's service secret (`SEED_AGENTS_HM_SERVER_SECRET`, sent as `X-Seed-Service-Secret` only to that site's origin; `agents/src/hm-server-auth.ts`), so mention triggers keep firing behind the gate. <!-- id:oNdAu6c9 -->
 
 # Trigger monitors <!-- id:KlGKY3Ne -->
 
@@ -317,7 +316,7 @@ Every agent execution is a durable row in the `runs` table, which is also the di
   - **Boot sweep**: on service construction, runs a dead process left `claimed` or `running` are requeued, and any queued backlog resumes. Agent runs resume by replaying their durable session events. A crash between a persisted `tool_call` and its `tool_result` gets a synthesized "interrupted by service restart" result so the provider request is well-formed and the model decides whether to retry. Script runs resume by [journal](./journal.md) replay. <!-- id:fGRoe2ad -->
   - **Retry classification**: provider 5xx and network failures are retryable with exponential backoff (base 5s, cap 5min). Validation and config errors fail immediately. `maxAttempts` is 3 (`AGENT_RUN_MAX_ATTEMPTS`) for background agent runs: trigger firings, agent-started sessions, delegated model children. It is 1 for interactive turns, which have a person waiting, and for script runs, which resume from their journal and never restart. <!-- id:it4z5p55 -->
   - **Parking**: a run [parks](./park.md) for one of four reasons: its children; a timer (`ctx.sleep` of 60s or more parks with `not_before`, and the dispatcher's 1-second interval wakes due timers); an event (`ctx.waitForEvent`, woken by a `SignalRun`, a trigger `wake` continuation, an activity event, or its timeout); or a budget pause a person resumes. Parked runs hold no resources. <!-- id:wYXSdipo -->
-  - **Planner statistics**: every open runs `ANALYZE` on the small planner tables and sets the WAL, cache, and mmap pragmas; see [persistence](./persistence.md). Nothing runs `VACUUM`.
+  - **Planner statistics**: every open runs `ANALYZE` on the small planner tables and sets the WAL, cache, and mmap pragmas; see [persistence](./persistence.md). Nothing runs `VACUUM`. <!-- id:bGD8yhPc -->
   - **Leases** are recorded for 60 seconds on claim but not enforced: with one service process, the boot sweep requeues every run the previous process left claimed or running. <!-- id:YD2c9GyO -->
   - Tests and shutdown wait for the queue via `Service.drainTriggerSessions()`. `awaitQueueIdle()` is an alias for it under the name the runs feature documents. <!-- id:TebiC9QK -->
 
