@@ -6,6 +6,7 @@ import {cleanupAllEntitySubscriptions} from '@/models/entities'
 import {WindowUtils} from '@/models/window-utils'
 import {NavigationContainer} from '@/utils/navigation-container'
 import {useListenAppEvent} from '@/utils/window-events'
+import {client} from '@/trpc'
 import {IS_PROD_DESKTOP} from '@shm/shared/constants'
 import {queryClient} from '@shm/shared/models/query-client'
 import type {StateStream} from '@shm/shared/utils/stream'
@@ -262,6 +263,15 @@ function MainApp({}: {}) {
       window.removeEventListener('beforeunload', cleanupAllEntitySubscriptions)
       cleanupAllEntitySubscriptions()
     }
+  }, [])
+
+  // Pushes that failed while offline wait in the main process; retry them as soon as the network is back.
+  useEffect(() => {
+    function retryPendingPushes() {
+      client.pushQueue.kick.mutate().catch(() => {})
+    }
+    window.addEventListener('online', retryPendingPushes)
+    return () => window.removeEventListener('online', retryPendingPushes)
   }, [])
 
   const daemonState = useGoDaemonState()

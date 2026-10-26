@@ -6,7 +6,7 @@ import type {AppWindowEvent} from '@/utils/window-events'
 import {DAEMON_HTTP_URL, OS_PROTOCOL_SCHEME} from '@shm/shared/constants'
 
 import {grpcClient} from '@/grpc-client'
-import {HMHostConfigSchema, SiteDiscoverRequest} from '@seed-hypermedia/client/hm-types'
+import {SiteDiscoverRequest} from '@seed-hypermedia/client/hm-types'
 import {defaultRoute, NavRoute, navRouteSchema} from '@shm/shared/routes'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
 import {app, BrowserWindow, dialog, ipcMain, NativeImage} from 'electron'
@@ -26,6 +26,7 @@ import {notificationConfigApi} from './app-notification-config'
 import {notificationReadApi, startNotificationReadBackgroundSync} from './app-notification-read-state'
 import {notificationInboxApi, startNotificationInboxBackgroundIngestor} from './app-notification-inbox'
 import {gatewaySettingsApi} from './app-gateway-settings'
+import {fetchHostConfig, pushQueueApi, startPushQueueWorker} from './app-push-queue'
 import {hostApi} from './app-host'
 import {appInvalidateQueries} from './app-invalidation'
 import {userDataPath} from './app-paths'
@@ -141,6 +142,7 @@ function startNotificationServicesWhenReady() {
     startNotificationReadBackgroundSync()
     startNotificationInboxBackgroundIngestor()
     startDocumentCardCleanupCoordinator()
+    startPushQueueWorker()
     return
   }
   const unsub = subscribeDaemonState((state) => {
@@ -149,6 +151,7 @@ function startNotificationServicesWhenReady() {
       startNotificationReadBackgroundSync()
       startNotificationInboxBackgroundIngestor()
       startDocumentCardCleanupCoordinator()
+      startPushQueueWorker()
     }
   })
 }
@@ -275,29 +278,7 @@ export const router = t.router({
           timeout: z.number().optional().default(10_000),
         }),
       )
-      .query(async ({input}) => {
-        const timeout = input.timeout
-        const res = await fetch(`${input.host}/hm/api/config`, {
-          signal: AbortSignal.timeout(timeout),
-        })
-        if (res.status !== 200) {
-          let message = `Space returned status ${res.status}`
-          try {
-            const error = await res.json()
-            if (error.message) message = error.message
-          } catch {
-            // Response wasn't JSON (e.g. plain text error from server)
-          }
-          throw new Error(message)
-        }
-        let config
-        try {
-          config = await res.json()
-        } catch {
-          throw new Error(`Space returned invalid response`)
-        }
-        return HMHostConfigSchema.parse(config)
-      }),
+      .query(async ({input}) => fetchHostConfig(input.host, input.timeout)),
     requestDiscover: t.procedure
       .input(
         z.object({
@@ -340,6 +321,7 @@ export const router = t.router({
   recentSigners: recentSignersApi,
   comments: commentsApi,
   gatewaySettings: gatewaySettingsApi,
+  pushQueue: pushQueueApi,
   secureStorage: secureStorageApi,
   recents: recentsApi,
   sites: sitesApi,
