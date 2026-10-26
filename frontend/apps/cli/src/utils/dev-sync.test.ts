@@ -139,6 +139,17 @@ afterEach(() => {
 })
 
 describe('a running dev sync follows Git checkouts', () => {
+  test('can initially export the app into an empty directory without --push', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dev-sync-empty-'))
+    dirs.push(dir)
+    const {sync, appEdit, published} = session(dir, {push: false})
+    appEdit('', 'An existing app document. <!-- id:home -->\n')
+    await sync.tick()
+    expect(readFileSync(join(dir, 'index.md'), 'utf8')).toContain('An existing app document.')
+    await sync.tick()
+    expect(published).toEqual([])
+  }, 30_000)
+
   test('reconciles modifications, moves and deletions in both directions without dirtying either branch', async () => {
     const {root, dir} = repository()
     const {sync, docs, logs} = session(dir)

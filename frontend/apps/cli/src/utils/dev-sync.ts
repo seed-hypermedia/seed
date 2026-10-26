@@ -93,14 +93,15 @@ export class DevDirectorySync {
   private async run() {
     const revision = this.checkout()
     const snapshot = readDirectory(this.opts.dir)
+    const initial = this.baseline === undefined
     if (
+      (!initial || this.opts.push) &&
       ![...snapshot.keys()].some(
         (file) => file.endsWith('.md') && (this.opts.layout ?? defaultLayout).pathForFile(file) !== null,
       )
     ) {
       throw new DevSyncPaused('No source documents in this checkout; waiting for them to return.')
     }
-    const initial = this.baseline === undefined
     const switched = this.revision !== undefined && this.revision !== revision
     if (switched && this.opts.watchFiles === false) {
       throw new DevSyncPaused('Checkout changed; --no-watch leaves sync paused to protect the new source files.')

@@ -31,7 +31,7 @@ A `*.schema.json` beside a page is the schema that page defines. The sync encode
 - Write for technical readers, but open each concept page with plain sentences and link every concept the first time it appears.
 - No em-dashes, no filler, simple words. [Contributing](./build/contributing.md) has the details.
 - Don't add `<!-- id:… -->` comments by hand. The sync assigns them.
-- The dev loop keeps existing Markdown byte-for-byte when its content, metadata and explicit identities already match the app. Starting the dev stack or pushing a file edit must not produce formatting-only diffs. Handwritten blocks without IDs are matched by position, including in files that already have IDs. An explicit `space export` or `hypermedia:pull` still writes the canonical form; use it when you need persistent IDs for moving pages or linking to blocks.
+- The dev loop keeps existing Markdown byte-for-byte when its content, metadata and explicit identities already match the app. Starting the dev stack or pushing a file edit must not produce formatting-only diffs. Handwritten blocks without IDs are matched by position, including in files that already have IDs. An explicit `space export` from the isolated dev space still writes the canonical form; use it when you need persistent IDs for moving pages or linking to blocks.
 
 ## Checks and tools
 
