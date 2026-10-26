@@ -330,7 +330,13 @@ async function main(): Promise<void> {
       // bundling regression fails the build instead of the first delegated script in production.
       const {quickjsSelfcheck} = await import('@/workflow-host')
       await quickjsSelfcheck()
-      console.log(`exec-selfcheck: SDK loaded; msb=${process.env.MSB_PATH ?? '(binding-relative)'}; quickjs ok`)
+      // mermaid and its DOM shim are bundled; prove a diagram parses so a bundling regression fails
+      // the build instead of every document write that carries a diagram in production.
+      const {mermaidSelfcheck} = await import('@/mermaid-parser')
+      await mermaidSelfcheck()
+      console.log(
+        `exec-selfcheck: SDK loaded; msb=${process.env.MSB_PATH ?? '(binding-relative)'}; quickjs ok; mermaid ok`,
+      )
       process.exit(0)
     } catch (error) {
       console.error(`exec-selfcheck: ${error instanceof Error ? error.message : String(error)}`)
