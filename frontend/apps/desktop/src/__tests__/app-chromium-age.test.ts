@@ -1,4 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
+import release from '../../electron-release.json'
 import {chromiumPolicySchema, getChromiumStatus, isChromiumStale, setChromiumPolicy} from '../app-chromium-age'
 
 const releasedAt = '2026-09-29T00:00:00.000Z'
@@ -42,7 +43,7 @@ describe('Chromium freshness', () => {
     expect(() => setChromiumPolicy({minimumChromium: 'bad'})).toThrow()
     expect(() => setChromiumPolicy({chromiumReleasedAt: 'not a date'})).toThrow()
     setChromiumPolicy({minimumChromium: '153'})
-    expect(getChromiumStatus()).toMatchObject({minimumChromium: '153', bundledReleasedAt: releasedAt})
+    expect(getChromiumStatus()).toMatchObject({minimumChromium: '153', bundledReleasedAt: release.releasedAt})
   })
 
   it('fails closed for an unknown local runtime or invalid bundled date', () => {
