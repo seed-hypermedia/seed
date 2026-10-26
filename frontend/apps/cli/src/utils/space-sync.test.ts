@@ -1,5 +1,107 @@
 import {describe, expect, test} from 'bun:test'
-import {applySchemaMetadata, findMovedFrom, metadataDiffOp, swapAuthority} from './space-sync'
+import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join, resolve} from 'node:path'
+import {blocksToMarkdown, markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
+import type {HMDocument} from '@seed-hypermedia/client/hm-types'
+import {
+  applySchemaMetadata,
+  exportDocument,
+  findMovedFrom,
+  listMarkdownFiles,
+  markdownEquivalent,
+  metadataDiffOp,
+  swapAuthority,
+} from './space-sync'
+
+function documentFromMarkdown(source: string): HMDocument {
+  const {tree, metadata} = parseMarkdown(source)
+  return {account: 'z6MkTest', path: '', metadata, content: markdownBlockNodesToHMBlockNodes(tree)} as HMDocument
+}
+
+describe('dev export preserves source (PR #1272)', () => {
+  const source =
+    '---\nsummary: A test page.\nname: Example\n---\n\n## Heading\n\nA soft-wrapped\nparagraph with *emphasis*.\n\n- one\n- two\n\n| Name | Value |\n| --- | --- |\n| a | b |\n'
+
+  test('startup and repeated exports leave handwritten source byte-for-byte intact', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'sync-source-'))
+    try {
+      const file = join(dir, 'index.md')
+      writeFileSync(file, source)
+      const doc = documentFromMarkdown(source)
+      expect(blocksToMarkdown(doc)).not.toBe(source)
+      const opts = {dir, client: {} as any, preserveSource: true}
+      for (let i = 0; i < 2; i++) {
+        expect((await exportDocument(opts, doc)).written).toEqual([])
+        expect(readFileSync(file, 'utf8')).toBe(source)
+      }
+      // A real edit made in the app still reaches disk.
+      const heading = doc.content![0]!.block
+      if (heading.type !== 'Heading') throw new Error('fixture must start with a heading')
+      heading.text = 'Changed heading'
+      expect((await exportDocument(opts, doc)).written).toEqual(['index.md'])
+      expect(readFileSync(file, 'utf8')).toContain('Changed heading')
+      expect((await exportDocument(opts, doc)).written).toEqual([])
+      // An explicit export retains its canonical serialization behavior.
+      writeFileSync(file, source)
+      expect((await exportDocument({dir, client: {} as any}, documentFromMarkdown(source))).written).toEqual([
+        'index.md',
+      ])
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test('existing comments mixed with new blocks do not cause serialization churn', async () => {
+    const partial = '# Heading <!-- id:heading -->\n\nExisting. <!-- id:existing -->\n\nNew paragraph.\n'
+    const doc = documentFromMarkdown(partial)
+    expect(markdownEquivalent(partial, blocksToMarkdown(doc))).toBe(true)
+    const dir = mkdtempSync(join(tmpdir(), 'sync-partial-ids-'))
+    try {
+      writeFileSync(join(dir, 'index.md'), partial)
+      const {importSpace} = await import('./space-sync')
+      const client = {request: async () => ({type: 'document', document: doc})} as any
+      for (let i = 0; i < 2; i++) {
+        const result = await importSpace({client, signer: {} as any, account: doc.account, dir, dryRun: true})
+        expect(result.unchanged).toEqual(['index.md'])
+        expect(result.updated).toEqual([])
+      }
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test('content, metadata, structure, annotations and explicit identities remain meaningful', () => {
+    const original = '# Heading <!-- id:heading -->\n\nText. <!-- id:paragraph -->\n'
+    for (const changed of [
+      original.replace('Text.', 'Edited.'),
+      original.replace('Text.', '**Text.**'),
+      original.replace('id:paragraph', 'id:replacement'),
+      original.replace('Text. <!-- id:paragraph -->', 'New.\n\nText. <!-- id:paragraph -->'),
+      original + '\nNew paragraph.\n',
+      original.replace('Text.', '## Text.'),
+      '---\nname: New name\n---\n' + original,
+    ])
+      expect(markdownEquivalent(original, blocksToMarkdown(documentFromMarkdown(changed)))).toBe(false)
+  })
+
+  test('does not hide the extra list container found in PR #1272 apps.md', () => {
+    const original = '# See also <!-- id:heading -->\n\n- Link <!-- id:item -->\n'
+    const wrapped = original.replace('- Link', '<!-- id:container -->\n- Link')
+    expect(markdownEquivalent(original, wrapped)).toBe(false)
+  })
+
+  test('the checked-in documentation survives the initial export without cleanup diffs', () => {
+    const dir = resolve(import.meta.dir, '../../../../../hypermedia')
+    const files = listMarkdownFiles(dir).filter((f) => f !== 'README.md')
+    expect(files.length).toBeGreaterThan(250)
+    const changed = files.filter((file) => {
+      const source = readFileSync(join(dir, file), 'utf8')
+      return !markdownEquivalent(source, blocksToMarkdown(documentFromMarkdown(source), {ipfsGateway: false}))
+    })
+    expect(changed).toEqual([])
+  }, 30_000)
+})
 
 describe('findMovedFrom', () => {
   const byBlock = new Map<string, string>([

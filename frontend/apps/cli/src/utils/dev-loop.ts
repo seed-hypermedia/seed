@@ -14,23 +14,14 @@ import {createSeedClient, type HMSigner, type SeedClient} from '@seed-hypermedia
 import {createGRPCClient} from '@shm/shared/grpc-client'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
 import {spawn} from 'node:child_process'
-import {existsSync, mkdirSync, readFileSync, unlinkSync, watch, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {basename, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {printInfo, printSuccess, printWarning} from '../output'
 import {deriveKeyPairFromMnemonic, generateMnemonic, type KeyPair} from './key-derivation'
 import {createSignerFromKey} from './signer'
-import {
-  defaultLayout,
-  exportPath,
-  exportSpace,
-  grantWriters,
-  importSpace,
-  listSpaceVersions,
-  retireMissing,
-  type ImportOptions,
-  type SpaceLayout,
-} from './space-sync'
+import {DevDirectorySync} from './dev-sync'
+import {grantWriters, listSpaceVersions, type ImportOptions, type SpaceLayout} from './space-sync'
 
 /** The unencrypted dev key: a mnemonic in `<dir>/.dev/` (self-ignored), created on first use. */
 function loadOrCreateDevKey(dir: string): {keyPair: KeyPair; words: string[]; created: boolean} {
@@ -287,33 +278,20 @@ export async function runDevLoop(opts: DevLoopOptions) {
     localKeys.filter((k) => k.publicKey === account || !isDevSiteKey(k.name)),
   )
 
-  const layout = opts.layout
-  if (opts.push) {
-    if (opts.beforePush) await opts.beforePush({client, signer, account})
-    printInfo('Publishing the directory into the local daemon...')
-    const result = await importSpace({
-      client,
-      signer,
-      account,
-      dir: opts.dir,
-      layout,
-      metadataFor: opts.metadataFor,
-      log: printInfo,
-    })
-    // The directory is the truth: a document whose file is gone (deleted in git while the loop was stopped)
-    // is retired here, or the export below would write it back as a file.
-    const retired = await retireMissing({
-      client,
-      signer,
-      account,
-      dir: opts.dir,
-      layout,
-      skip: new Set(result.moved.map((m) => m.split(' -> ')[0]!)),
-      log: printInfo,
-    })
-    printInfo(
-      `${result.created.length} created, ${result.moved.length} moved, ${result.updated.length} updated, ${result.unchanged.length} unchanged, ${retired.length} retired.`,
-    )
+  const sync = new DevDirectorySync(opts, client, signer, account, printInfo)
+  let lastError = ''
+  // Startup uses the same recoverable pass as later checkouts. A Git operation
+  // or a temporary publish failure leaves the launcher alive and retries.
+  for (;;) {
+    try {
+      await sync.tick()
+      break
+    } catch (error) {
+      const message = (error as Error).message
+      if (message !== lastError) printWarning(message)
+      lastError = message
+    }
+    await new Promise((r) => setTimeout(r, opts.intervalMs))
   }
 
   const url = `hm://${account}`
@@ -343,86 +321,7 @@ export async function runDevLoop(opts: DevLoopOptions) {
       ') is watched. The production Seed app registers the same hm:// scheme, so do not open the site from a link: edits made there never reach this directory.',
   )
 
-  let versions = await listSpaceVersions(client, account)
-  // Which file each document lives in, so a document moved in the app takes
-  // its file along (the old one is removed).
-  const files = (await exportSpace({client, uid: account, dir: opts.dir, layout})).files
-  const stamp = () => new Date().toLocaleTimeString()
-
-  // ── files → daemon ──
-  // Both sides are watched. The daemon side wins nothing: a file changed on
-  // disk (a checkout, a pull, a hand edit) is pushed as it is, because git is
-  // the source of truth. The loop's own write-backs are not hand edits, so a
-  // file it wrote moments ago is ignored when the watcher reports it.
-  const selfWrites = new Map<string, number>()
-  const noteSelfWrite = (file: string) => selfWrites.set(file, Date.now())
-  const pending = new Set<string>()
-  let pushTimer: ReturnType<typeof setTimeout> | null = null
-  let pushing: Promise<void> = Promise.resolve()
-  const pushPending = () => {
-    pushing = pushing.then(async () => {
-      const batch = Array.from(pending)
-      pending.clear()
-      const mdFiles = new Set<string>()
-      for (const f of batch) {
-        if (f.endsWith('.md')) mdFiles.add(f)
-        else if (f.endsWith('.schema.json')) mdFiles.add(f.replace(/\.schema\.json$/, '.md'))
-      }
-      const only = Array.from(mdFiles).filter((f) => existsSync(resolve(opts.dir, f)))
-      const gone = Array.from(mdFiles)
-        .filter((f) => !only.includes(f))
-        .map((f) => (layout ?? defaultLayout).pathForFile(f))
-        .filter((p): p is string => p !== null)
-      try {
-        if (only.length) {
-          const result = await importSpace({
-            client,
-            signer,
-            account,
-            dir: opts.dir,
-            layout,
-            metadataFor: opts.metadataFor,
-            only,
-            log: (line) => printInfo(`${stamp()}  ${line}`),
-          })
-          const pushed = [...result.created, ...result.updated, ...result.moved.map((m) => m.split(' -> ')[1] ?? m)]
-          if (pushed.length && opts.onPushed) opts.onPushed(only)
-        }
-        // A file deleted on disk retires its document (git is the truth). A file renamed in the same batch was
-        // just published as a move, and its old path is already a redirect, which retiring leaves alone.
-        if (gone.length) {
-          for (const path of await retireMissing({client, signer, account, dir: opts.dir, layout, paths: gone})) {
-            versions.delete(path)
-            files.delete(path)
-            printInfo(`${stamp()}  retired ${path}`)
-          }
-        }
-      } catch (err) {
-        printWarning(`${stamp()}  push failed: ${(err as Error).message}`)
-      }
-    })
-  }
-  if (opts.watchFiles !== false) {
-    try {
-      watch(opts.dir, {recursive: true}, (_event, filename) => {
-        if (!filename) return
-        const rel = String(filename).replace(/\\/g, '/')
-        if (rel.startsWith('.') || rel.includes('/.')) return
-        if (!rel.endsWith('.md') && !rel.endsWith('.schema.json')) return
-        const wrote = selfWrites.get(rel)
-        if (wrote !== undefined && Date.now() - wrote < 3000) return
-        pending.add(rel)
-        if (pushTimer) clearTimeout(pushTimer)
-        pushTimer = setTimeout(pushPending, 600)
-      })
-      printInfo('Watching the files too: a changed .md or .schema.json is pushed into the daemon (the file wins).')
-    } catch (err) {
-      printWarning(`Cannot watch the files (${(err as Error).message}); hand edits are pushed on the next start.`)
-    }
-  }
-
-  // ── daemon → files ──
-  printInfo(`Watching ${versions.size} documents every ${opts.intervalMs}ms. Ctrl-C to stop.`)
+  printInfo(`Checking the checkout and dev site every ${opts.intervalMs}ms. Ctrl-C to stop.`)
   if (opts.afterStart) {
     void Promise.resolve(opts.afterStart({client, account})).catch((err) =>
       printWarning(`after-start check failed: ${(err as Error).message}`),
@@ -430,52 +329,14 @@ export async function runDevLoop(opts: DevLoopOptions) {
   }
   for (;;) {
     await new Promise((r) => setTimeout(r, opts.intervalMs))
-    await pushing
-    let next: Map<string, string>
     try {
-      next = await listSpaceVersions(client, account)
-    } catch (err) {
-      printWarning(`poll failed: ${(err as Error).message}`)
-      continue
+      await sync.tick()
+      if (lastError) printInfo('Sync resumed.')
+      lastError = ''
+    } catch (error) {
+      const message = (error as Error).message
+      if (message !== lastError) printWarning(message)
+      lastError = message
     }
-    // A site that answers with nothing is an outage, not a deletion: the app's API may be
-    // talking to a daemon that does not hold this site (a restart, another daemon on the
-    // port). Dropping every file on that answer would erase the directory; wait instead.
-    if (next.size === 0 && versions.size > 0) {
-      printWarning(`${stamp()}  the site answered with no documents; keeping the files until it is back`)
-      continue
-    }
-    const written: string[] = []
-    for (const [path, version] of next) {
-      if (versions.get(path) === version) continue
-      try {
-        const res = await exportPath({client, uid: account, dir: opts.dir, layout}, path)
-        for (const file of res.written) {
-          noteSelfWrite(file)
-          printInfo(`${stamp()}  wrote ${file}`)
-        }
-        written.push(...res.written)
-        if (res.written.length === 0) printInfo(`${stamp()}  ${path || '(home)'} republished, no file change`)
-        if (res.file) files.set(path, res.file)
-      } catch (err) {
-        printWarning(`${path || '(home)'}: ${(err as Error).message}`)
-      }
-    }
-    // A path that vanished was moved away (or deleted): drop its file.
-    for (const [path] of versions) {
-      if (next.has(path)) continue
-      const file = files.get(path)
-      if (!file) continue
-      try {
-        noteSelfWrite(file)
-        unlinkSync(resolve(opts.dir, file))
-        printInfo(`${stamp()}  removed ${file}`)
-      } catch {
-        // already gone
-      }
-      files.delete(path)
-    }
-    versions = next
-    if (written.length && opts.onWritten) opts.onWritten(written)
   }
 }

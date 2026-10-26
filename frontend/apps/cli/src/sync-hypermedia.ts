@@ -41,7 +41,6 @@ import {encodeSchemaBlob, exportSpace, importSpace, retireMissing, type SpaceLay
 const DIR = dirname(fileURLToPath(import.meta.url)) // frontend/apps/cli/src
 const REPO_ROOT = resolve(DIR, '../../../..')
 const SCHEMAS_DIR = resolve(REPO_ROOT, 'hypermedia')
-const LOCK_PATH = resolve(SCHEMAS_DIR, 'schemas.lock.json')
 
 /** Every schema file under `dir`, relative to it (`block/image.schema.json`), sorted. */
 function listSchemaFiles(dir: string): string[] {
@@ -97,31 +96,30 @@ export const layout: SpaceLayout = {
 // ── Schema blobs ──────────────────────────────────────────────────────────────
 
 /** Encode every schema file and verify it against the lockfile; the blobs to publish. */
-async function loadSchemaBlobs(): Promise<Array<{data: Uint8Array; cid: string}>> {
-  const lock = JSON.parse(readFileSync(LOCK_PATH, 'utf8')) as {schemas: Record<string, string>}
-  const files = listSchemaFiles(SCHEMAS_DIR)
+export async function loadSchemaBlobs(dir = SCHEMAS_DIR): Promise<Array<{data: Uint8Array; cid: string}>> {
+  const lock = JSON.parse(readFileSync(resolve(dir, 'schemas.lock.json'), 'utf8')) as {schemas: Record<string, string>}
+  const files = listSchemaFiles(dir)
   const blobs: Array<{data: Uint8Array; cid: string}> = []
-  let mismatches = 0
+  const mismatches: string[] = []
   for (const file of files) {
     const basename = file.replace(/\.schema\.json$/, '')
-    const obj = JSON.parse(readFileSync(resolve(SCHEMAS_DIR, file), 'utf8'))
+    const obj = JSON.parse(readFileSync(resolve(dir, file), 'utf8'))
     const {data, cid} = await encodeSchemaBlob(obj)
     const lockUrl = `hm://${LIBRARY_AUTHORITY}/${basename}`
     const expected = lock.schemas[lockUrl]
     if (!expected) {
-      console.error(`  ! ${file}: no lockfile entry for ${lockUrl}`)
-      mismatches++
+      mismatches.push(`${file}: no lockfile entry for ${lockUrl}`)
     } else if (expected !== cid) {
-      console.error(`  ! ${file}: CID mismatch\n      computed ${cid}\n      lockfile ${expected}`)
-      mismatches++
+      mismatches.push(`${file}: CID mismatch\n      computed ${cid}\n      lockfile ${expected}`)
     }
     blobs.push({data, cid})
   }
-  if (mismatches > 0) {
-    console.error(
-      `\nFAILED: ${mismatches} schema CID mismatch(es). Run \`node scripts/hypermedia/publish.mjs\` and retry.`,
+  if (mismatches.length > 0) {
+    throw new Error(
+      `${mismatches.join('\n')}\n${
+        mismatches.length
+      } schema CID mismatch(es). Run \`node scripts/hypermedia/publish.mjs\` and retry.`,
     )
-    process.exit(1)
   }
   return blobs
 }

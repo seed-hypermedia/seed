@@ -14,7 +14,7 @@ The account id is the [principal](../principal.md): the 32-byte public key with 
 seed-cli key derive "word1 word2 … word12"     # prints the account id, stores nothing
 ```
 
-A known pair, used by the repository's tests, checks an implementation of the derivation: the twelve words `parrot midnight lion defense ski senior trouble slice chase spot history awkward` with no passphrase give the account `z6Mkm3c7LJn7vJ7XZQZHKNufnG6v9mCsVwLoG6v8ngY7aXq8`.
+A known pair, used by the repository's tests, checks an implementation of the derivation: the twelve words `parrot midnight lion defense ski senior trouble slice chase spot history awkward` with no passphrase give the account `z6Mkm3c7LJn7vJ7XZQZHKNufnG6v9mCsVwLoG6v8ngY7aXq8`. <!-- id:ncwZbuF5 -->
 
 # Where keys live <!-- id:SBHnrprQ -->
 
