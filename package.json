@@ -11,7 +11,7 @@
     "hypermedia:pull": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts pull",
     "shared:test": "pnpm --filter @shm/shared test",
     "format:check": "pnpm -r --parallel run format:check && (cd agents && bun run format:check) && (cd vault && bun run format:check)",
-    "typecheck": "pnpm -r --parallel run typecheck",
+    "typecheck": "pnpm -r --workspace-concurrency=3 run typecheck",
     "security:check": "pnpm audit",
     "security:check:dev": "pnpm audit --dev",
     "format:write": "pnpm -r --parallel run format:write && (cd agents && bun run format:write) && (cd vault && bun run format:write)",

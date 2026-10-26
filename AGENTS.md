@@ -121,7 +121,11 @@ These rules apply while query-block author and publish-date filters remain fork-
   - Prefer layout scales that follow a consistent rhythm.
   - Do not use random pixel values for spacing or sizing.
   - Use parent `gap` for flex/grid spacing instead of child margins when possible.
-- Run relevant tests, type checks, and linters for touched areas before finishing.
+- Run relevant tests, type checks, and linters for touched areas before finishing. Typecheck per package
+  (`pnpm --filter <pkg> typecheck`) rather than the root `pnpm typecheck`: each `tsc --noEmit` in this monorepo takes
+  about 3GB, and the root script runs them three at a time. Never chain the root typecheck with several test suites in
+  one background command on a laptop while the desktop dev app is running; it swaps the machine (2026-10-26: nine
+  parallel tsc processes took 25GB on a 24GB laptop and thrashed for 40 minutes).
 - Before every commit, make sure the files you touched are Prettier-formatted (`pnpm format:write` in the touched
   packages, or `./node_modules/.bin/prettier --ignore-unknown --write <files>` from the repo root). CI's `Lint` job runs
   `prettier --check` across every package plus `agents/` and `vault/`; one unformatted file fails it and blocks the web
