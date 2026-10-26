@@ -681,6 +681,10 @@ export class Service implements api.ServerInterface {
       throw new APIError('Email required', 400)
     }
 
+    if (req.email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.email)) {
+      throw new APIError('Enter a valid email address.', 400)
+    }
+
     const user = this.db
       .query<Pick<User, 'id'>, [string]>(`SELECT id FROM users WHERE email = ?`)
       .get(req.email.toLowerCase())

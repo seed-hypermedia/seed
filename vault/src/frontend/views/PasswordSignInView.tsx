@@ -1,6 +1,6 @@
 import {PasswordInput} from '@/frontend/components/PasswordInput'
 import {Button} from '@/frontend/components/ui/button'
-import {Card, CardContent, CardHeader, CardTitle} from '@/frontend/components/ui/card'
+import {Card, CardContent, CardDescription, CardHeader, CardTitle} from '@/frontend/components/ui/card'
 import * as navigation from '@/frontend/navigation'
 import {useActions, useAppState} from '@/frontend/store'
 import {X} from 'lucide-react'
@@ -10,7 +10,7 @@ import type React from 'react'
  * Password sign-in for an existing user.
  */
 export function PasswordSignInView() {
-  const {email, password, loading, error, sessionChecked} = useAppState()
+  const {email, password, loading, error, sessionChecked, inviteOnly} = useAppState()
   const actions = useActions()
   const navigate = navigation.useHashNavigate()
 
@@ -40,6 +40,7 @@ export function PasswordSignInView() {
             <X className="size-5" />
           </button>
         </div>
+        {inviteOnly && <CardDescription>{email}</CardDescription>}
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -57,7 +58,7 @@ export function PasswordSignInView() {
           <PasswordInput
             id="password"
             label="Password"
-            placeholder="Add password"
+            placeholder={inviteOnly ? 'Enter your password' : 'Add password'}
             value={password}
             onChange={(value) => {
               actions.setPassword(value)
