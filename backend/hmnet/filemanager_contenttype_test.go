@@ -72,9 +72,11 @@ func TestGetFileContentType(t *testing.T) {
 	get := func(t *testing.T, url string, rangeHeader string) *httptest.ResponseRecorder {
 		req, err := http.NewRequest("GET", url, nil)
 		require.NoError(t, err)
+
 		if rangeHeader != "" {
 			req.Header.Set("Range", rangeHeader)
 		}
+
 		res := httptest.NewRecorder()
 		router.ServeHTTP(res, req)
 		return res

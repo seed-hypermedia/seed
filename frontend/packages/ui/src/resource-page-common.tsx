@@ -102,6 +102,7 @@ import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {getRoutePanel} from '@shm/shared/routes'
 import {ActivityContent, ActivityHeader} from './activity-panel'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
+import {DocumentPageView, documentPageCid} from './document-page'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activitySlugToFilter,
@@ -124,6 +125,11 @@ import {
   FilePen,
   FileText,
   Grid3X3,
+  Info,
+  MessagesSquare,
+  ShieldCheck,
+  SlidersHorizontal,
+  Users,
   LayoutGrid,
   List as ListIcon,
   MoreHorizontal,
@@ -428,11 +434,52 @@ function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
   return params as DocumentPanelRoute
 }
 
+/** Document tabs remain available as panels while the page owns the main view. */
+export function getDocumentPagePanelMenuItems(
+  id: UnpackedHypermediaId,
+  openPanel: (panel: DocumentPanelRoute) => void,
+): MenuItemType[] {
+  const target = {...id, blockRef: null, blockRange: null}
+  return [
+    {
+      key: 'app-people',
+      label: 'People',
+      icon: <Users className="size-4" />,
+      onClick: () => openPanel({key: 'collaborators', id: target}),
+    },
+    {
+      key: 'app-comments',
+      label: 'Comments',
+      icon: <MessagesSquare className="size-4" />,
+      onClick: () => openPanel({key: 'comments', id: target}),
+    },
+    {
+      key: 'app-citations',
+      label: 'Citations',
+      icon: <Quote className="size-4" />,
+      onClick: () => openPanel({key: 'activity', id: target, filterEventType: activitySlugToFilter('citations')}),
+    },
+    {
+      key: 'app-attributes',
+      label: 'Attributes',
+      icon: <Info className="size-4" />,
+      onClick: () => openPanel({key: 'metadata', id: target}),
+    },
+  ]
+}
+
 /** Removes redundant document destinations and orders the remaining menu actions by intent. */
 export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
   const hiddenKeys = new Set(['metadata', 'directory', 'all-documents'])
   const visibleItems = items.filter((item) => !hiddenKeys.has(item.key))
   const itemOrder = [
+    'page-parameters',
+    'page-permissions',
+    'app-people',
+    'app-comments',
+    'app-citations',
+    'app-attributes',
+    'app-revoke',
     'new',
     'add-raw-field',
     'options',
@@ -1661,7 +1708,7 @@ export function PageShell({
         'dark:bg-background flex max-h-full flex-col bg-white',
         // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
         // On mobile: natural height for document scrolling
-        isMobile ? 'min-h-dvh' : 'h-dvh',
+        isMobile ? 'min-h-dvh has-[[data-document-page-main]]:h-dvh' : 'h-dvh',
       )}
     >
       <SiteHeader
@@ -1983,6 +2030,11 @@ function DocumentBody({
   const isEditing = useDocumentSelector(selectIsEditing)
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
+  const documentPage = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentPageCid(document) : null
+  const [editPageParameters, setEditPageParameters] = useState<(() => void) | null>(null)
+  const onPageParametersChange = useCallback((edit: (() => void) | null) => setEditPageParameters(() => edit), [])
+  const [managePagePermissions, setManagePagePermissions] = useState<(() => void) | null>(null)
+  const onPageAccessChange = useCallback((revoke: (() => void) | null) => setManagePagePermissions(() => revoke), [])
   const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
@@ -2714,7 +2766,25 @@ function DocumentBody({
   })
   const allMenuItems = useMemo(() => {
     let unorderedItems: MenuItemType[] = [...(optionsMenuItems ?? extraMenuItems ?? [])]
-    unorderedItems.push(citationFragmentToggleMenuItem)
+    if (documentPage) {
+      unorderedItems.push(
+        ...getDocumentPagePanelMenuItems(docId, (panel) => replaceRoute({...route, panel} as NavRoute)),
+      )
+      if (editPageParameters)
+        unorderedItems.push({
+          key: 'page-parameters',
+          label: 'Page parameters',
+          icon: <SlidersHorizontal className="size-4" />,
+          onClick: editPageParameters,
+        })
+      if (managePagePermissions)
+        unorderedItems.push({
+          key: 'page-permissions',
+          label: 'Page permissions',
+          icon: <ShieldCheck className="size-4" />,
+          onClick: managePagePermissions,
+        })
+    } else unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
     if (addRawFieldMenuItem) unorderedItems.push(addRawFieldMenuItem)
@@ -2729,6 +2799,12 @@ function DocumentBody({
     }
     return orderDocumentMenuItems(unorderedItems)
   }, [
+    documentPage,
+    docId,
+    route,
+    replaceRoute,
+    managePagePermissions,
+    editPageParameters,
     optionsMenuItems,
     extraMenuItems,
     citationFragmentToggleMenuItem,
@@ -2813,7 +2889,8 @@ function DocumentBody({
         {documentContentAction}
       </>
     ) : null
-  const floatingButtonsAction = activeView === 'content' && !documentContentAction ? floatingButtons : null
+  const floatingButtonsAction =
+    activeView === 'content' && !documentPage && !documentContentAction ? floatingButtons : null
 
   // The bar always states where you are, so a home document is its own single crumb.
   const spaceBreadcrumbs = breadcrumbs ?? [{id: hmId(docId.uid, {latest: true}), metadata}]
@@ -2836,7 +2913,26 @@ function DocumentBody({
   )
 
   // Main page content (used in both mobile and desktop layouts)
-  const mainPageContent = (
+  const mainPageContent = documentPage ? (
+    <div data-document-page-main className="min-h-0 flex-1">
+      {documentConversionDialog}
+      <DocumentPageView
+        docId={docId}
+        document={document}
+        cid={documentPage}
+        inputParams={route.key === 'document' ? route.id.pageParams : undefined}
+        onInputNavigate={(pageParams, mode) => {
+          const next = {...route, id: {...docId, pageParams}} as NavRoute
+          if (mode === 'replace') replaceRoute(next)
+          else navigate(next)
+        }}
+        perspectiveAccountUid={perspectiveAccountUid}
+        onAccountAccessChange={onPageAccessChange}
+        onParametersChange={onPageParametersChange}
+        fill
+      />
+    </div>
+  ) : (
     <div
       className={cn(
         'flex flex-col',
@@ -3092,7 +3188,10 @@ function DocumentBody({
   if (isMobile) {
     return (
       <>
-        <div className="relative flex flex-1 flex-col pb-20" ref={elementRef}>
+        <div
+          className={cn('relative flex flex-1 flex-col', documentPage ? 'h-full min-h-0 overflow-hidden' : 'pb-20')}
+          ref={elementRef}
+        >
           {documentTopBar}
           {mainPageContent}
           {floatingButtonsAction}
@@ -3101,7 +3200,12 @@ function DocumentBody({
         {mobilePanelOpen && (
           <MobilePanelSheet
             isOpen={mobilePanelOpen}
-            title={panelRoute?.key === 'activity' && panelRoute.targetBlockId ? 'Citations' : getPanelTitle(panelKey)}
+            title={
+              panelRoute?.key === 'activity' &&
+              (panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations')
+                ? 'Citations'
+                : getPanelTitle(panelKey)
+            }
             onClose={handlePanelClose}
             header={activityPanelHeader}
             resizable={panelRoute?.key === 'feed'}
@@ -3116,6 +3220,17 @@ function DocumentBody({
                   targetDomain={siteUrl}
                 />
               </div>
+            ) : panelRoute && panelRoute.key !== 'comments' ? (
+              <PanelContentRenderer
+                panelRoute={panelRoute}
+                docId={docId}
+                document={document}
+                contentMaxWidth={contentMaxWidth}
+                CommentEditor={CommentEditor}
+                siteUrl={siteUrl}
+                fileUpload={fileUpload}
+                draftVersionEntry={draftVersionEntry}
+              />
             ) : (
               <DiscussionsPageContent
                 docId={commentsPanelTarget.docId}
@@ -3191,24 +3306,31 @@ function DocumentBody({
         panelContent={panelContent}
         onPanelClose={handlePanelClose}
         isVersionsPanel={isDocumentVersionsPanelRoute(panelRoute)}
-        isCitationsPanel={panelRoute?.key === 'activity' && !!panelRoute.targetBlockId}
+        isCitationsPanel={
+          panelRoute?.key === 'activity' &&
+          (!!panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations')
+        }
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
         header={activityPanelHeader}
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
-          <ScrollArea
-            ref={documentScrollAreaRef}
-            id="scroll-page-wrapper"
-            className="min-h-0 flex-1"
-            viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
-            fillViewportContent
-          >
-            <div ref={documentTopSentinelRef} className="h-px" aria-hidden="true" />
-            {mainPageContent}
-          </ScrollArea>
-          {activeView === 'content' ? (
+          {documentPage ? (
+            mainPageContent
+          ) : (
+            <ScrollArea
+              ref={documentScrollAreaRef}
+              id="scroll-page-wrapper"
+              className="min-h-0 flex-1"
+              viewportClassName="scroll-pt-4 [&>div]:!block [&>div]:flex [&>div]:min-h-full [&>div]:flex-col"
+              fillViewportContent
+            >
+              <div ref={documentTopSentinelRef} className="h-px" aria-hidden="true" />
+              {mainPageContent}
+            </ScrollArea>
+          )}
+          {activeView === 'content' && !documentPage ? (
             <Button
               ref={backToTopButtonRef}
               type="button"

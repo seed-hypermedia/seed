@@ -10,7 +10,7 @@
 //
 // Validation, resolution, and kind detection are reused verbatim from
 // schema-engine.ts — this file only draws the form and synthesizes defaults.
-import {useRef, useState} from 'react'
+import {createContext, useContext, useRef, useState} from 'react'
 import {DateValueField} from './date-field'
 import {Button} from '../button'
 import {Input} from '../components/input'
@@ -37,6 +37,7 @@ import {
 // expands lazily — optional fields build only when included — and this cap falls
 // back to a raw dag-json box rather than trying to draw an infinite tree.
 const MAX_DEPTH = 14
+const FieldLabel = createContext<string | undefined>(undefined)
 
 type Env = Record<string, any>
 
@@ -172,6 +173,7 @@ function Node({schema: schema0, value, onChange, env, reg, depth}: NodeProps) {
 }
 
 function UnionNode({schema, value, onChange, env, reg, depth}: NodeProps) {
+  const label = useContext(FieldLabel)
   const anyOf = schema.anyOf as HypermediaSchema[]
   const [idx, setIdx] = useState(() => matchVariant(anyOf, value, env, reg))
   const arm = anyOf[Math.min(idx, anyOf.length - 1)]!
@@ -179,6 +181,7 @@ function UnionNode({schema, value, onChange, env, reg, depth}: NodeProps) {
     <div className="flex flex-col gap-2">
       <select
         className={selectCls}
+        aria-label={label ? `${label} type` : 'Value type'}
         value={String(idx)}
         onChange={(ev) => {
           const i = Number(ev.target.value)
@@ -210,10 +213,21 @@ function LiteralUnionNode({
   value,
   onChange,
 }: {members: LiteralMember[]} & Pick<NodeProps, 'value' | 'onChange'>) {
+  const label = useContext(FieldLabel)
   const cur = JSON.stringify(value)
-  const selected = members.some((m) => JSON.stringify(m.value) === cur) ? cur : JSON.stringify(members[0]!.value)
+  const selected = members.some((m) => JSON.stringify(m.value) === cur) ? cur : ''
   return (
-    <select className={selectCls} value={selected} onChange={(ev) => onChange(JSON.parse(ev.target.value))}>
+    <select
+      aria-label={label}
+      className={selectCls}
+      value={selected}
+      onChange={(ev) => onChange(JSON.parse(ev.target.value))}
+    >
+      {selected === '' && (
+        <option value="" disabled>
+          Choose a value
+        </option>
+      )}
       {members.map((m, i) => (
         <option key={i} value={JSON.stringify(m.value)} title={m.description}>
           {JSON.stringify(m.value)}
@@ -224,9 +238,10 @@ function LiteralUnionNode({
 }
 
 function BoolNode({value, onChange}: Pick<NodeProps, 'value' | 'onChange'>) {
+  const label = useContext(FieldLabel)
   return (
     <div className="flex items-center gap-2">
-      <Switch checked={value === true} onCheckedChange={(c) => onChange(c)} />
+      <Switch aria-label={label} checked={value === true} onCheckedChange={(c) => onChange(c)} />
       <span className="text-muted-foreground text-sm">{value === true ? 'true' : 'false'}</span>
     </div>
   )
@@ -242,6 +257,7 @@ function WrappedNode({
   value: unknown
   onChange: (v: unknown) => void
 }) {
+  const label = useContext(FieldLabel)
   const inner = isRecord(value) ? value['/'] : undefined
   const cur = kind === 'link' ? inner : isRecord(inner) ? inner.bytes : undefined
   const text = typeof cur === 'string' ? cur : ''
@@ -249,6 +265,7 @@ function WrappedNode({
     <div className="flex items-center gap-2">
       <Input
         type="text"
+        aria-label={label}
         placeholder={kind === 'link' ? 'CID' : 'base64'}
         value={text}
         onChangeText={(t) => onChange(kind === 'link' ? {'/': t} : {'/': {bytes: t}})}
@@ -269,9 +286,11 @@ function ScalarNode({
   value: unknown
   onChange: (v: unknown) => void
 }) {
+  const label = useContext(FieldLabel)
   const text = value === undefined || value === null ? '' : String(value)
   return (
     <Input
+      aria-label={label}
       type={kind === 'string' ? 'text' : 'number'}
       step={kind === 'integer' ? '1' : kind === 'float' ? 'any' : undefined}
       value={text}
@@ -281,7 +300,7 @@ function ScalarNode({
           return
         }
         if (t.trim() === '') {
-          onChange(0)
+          onChange('')
           return
         }
         const n = Number(t)
@@ -292,12 +311,15 @@ function ScalarNode({
 }
 
 function JsonFallback({value, onChange, note}: {value: unknown; onChange: (v: unknown) => void; note: string}) {
+  const label = useContext(FieldLabel)
   const [text, setText] = useState(() => (value === undefined ? 'null' : JSON.stringify(value, null, 2)))
   const [bad, setBad] = useState(false)
   return (
     <div className="flex flex-col gap-1">
       <div className="text-muted-foreground text-xs">free-form {note} · raw dag-json</div>
       <textarea
+        aria-label={label}
+        aria-invalid={bad}
         className={cn(
           'border-border bg-input text-foreground dark:bg-input/30 w-full rounded-md border px-3 py-2 font-mono text-xs outline-none',
           bad && 'border-destructive',
@@ -310,9 +332,11 @@ function JsonFallback({value, onChange, note}: {value: unknown; onChange: (v: un
           try {
             const parsed = JSON.parse(t)
             setBad(false)
+            ev.currentTarget.setCustomValidity('')
             onChange(parsed)
           } catch {
             setBad(true)
+            ev.currentTarget.setCustomValidity('Enter valid JSON.')
           }
         }}
       />
@@ -349,6 +373,7 @@ function ListNode({schema, value, onChange, env, reg, depth}: NodeProps) {
               )}
             </div>
             <Button
+              type="button"
               size="iconSm"
               variant="ghost"
               onClick={() => {
@@ -363,7 +388,12 @@ function ListNode({schema, value, onChange, env, reg, depth}: NodeProps) {
         ))}
       </div>
       <div>
-        <Button size="sm" variant="outline" onClick={() => onChange([...items, sub ? seed(sub, env, reg) : null])}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => onChange([...items, sub ? seed(sub, env, reg) : null])}
+        >
           + item
         </Button>
       </div>
@@ -412,14 +442,15 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      {Object.entries(props).map(([k, sub]) => {
+      {fields.map(({name: k, schema: sub, description}) => {
         const isReq = required.has(k)
         const included = isReq || k in v
         return (
-          <div key={k} className="flex flex-col gap-1">
+          <fieldset key={k} aria-label={k} className="flex min-w-0 flex-col gap-2">
             <div className="flex items-center gap-2">
               {!isReq && (
                 <Switch
+                  aria-label={`Include ${k}`}
                   checked={k in v}
                   onCheckedChange={(c) =>
                     c ? emitDeclared({...v, [k]: seed(sub, env, reg)}) : emitDeclared(omit(v, k))
@@ -431,8 +462,9 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
                 {isReq ? 'required' : 'optional'}
               </span>
             </div>
+            {description && <p className="text-muted-foreground text-sm">{description}</p>}
             {included && (
-              <div className="pl-3">
+              <FieldLabel.Provider value={k}>
                 <Node
                   schema={sub}
                   value={k in v ? v[k] : seed(sub, env, reg)}
@@ -441,9 +473,9 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
                   reg={reg}
                   depth={depth + 1}
                 />
-              </div>
+              </FieldLabel.Provider>
             )}
-          </div>
+          </fieldset>
         )
       })}
 
@@ -468,13 +500,19 @@ function MapNode({schema, value, onChange, env, reg, depth}: NodeProps) {
                   depth={depth + 1}
                 />
               </div>
-              <Button size="iconSm" variant="ghost" onClick={() => emitExtras(extras.filter((x) => x.id !== r.id))}>
+              <Button
+                type="button"
+                size="iconSm"
+                variant="ghost"
+                onClick={() => emitExtras(extras.filter((x) => x.id !== r.id))}
+              >
                 ✕
               </Button>
             </div>
           ))}
           <div>
             <Button
+              type="button"
               size="sm"
               variant="outline"
               onClick={() => {

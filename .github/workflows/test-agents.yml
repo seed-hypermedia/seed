@@ -7,6 +7,7 @@ on:
       - 'agents/**'
       - 'scripts/watch-file-deps.ts'
       - 'scripts/watch-file-deps.test.mjs'
+      - 'scripts/security/zod-collection-bounds.test.cjs'
       - '.github/workflows/test-agents.yml'
     branches-ignore:
       - 'renovate/**'
@@ -47,6 +48,7 @@ jobs:
           if [ "${{ matrix.task }}" = "test" ]; then
             bun test
             node --test ../scripts/watch-file-deps.test.mjs
+            ZOD_PACKAGE="$PWD/node_modules/zod" node --test ../scripts/security/zod-collection-bounds.test.cjs
           elif [ "${{ matrix.task }}" = "check" ]; then
             bun run check
           elif [ "${{ matrix.task }}" = "protocol" ]; then

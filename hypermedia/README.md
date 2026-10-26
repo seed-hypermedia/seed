@@ -1,6 +1,6 @@
 # hypermedia/: the Seed developer docs
 
-This folder is the source of the Seed developer docs and the Hypermedia Schemas library. A commit to `main` publishes it to the Hypermedia network through `.github/workflows/sync-hypermedia.yml`. The home page of the published site is [index.md](./index.md). This README is not published.
+This folder is the source of the Seed developer docs and the Hypermedia Schemas library. A commit to `main` publishes it to staging. A tagged Seed release publishes that release's `hypermedia/` tree to production through `.github/workflows/sync-hypermedia.yml`. Production `hyper.media` content must never be edited directly through the CLI, SDK, agents or UI. The home page of the published site is [index.md](./index.md). This README is not published.
 
 The pages are markdown in the lossless dialect of `@seed-hypermedia/client` (`blocksToMarkdown` and `parseMarkdown`). Every block type, annotation, attribute and metadata key survives a round trip. Block ids ride in trailing `<!-- id:… -->` comments. Links between pages are relative `.md` links, so they work on GitHub and become `hm://` links when published.
 
@@ -46,12 +46,17 @@ node scripts/hypermedia/typegen.mjs          # TypeScript types for every schema
 
 ## Publishing
 
+Production publication belongs exclusively to the tagged release workflow. Edit these source files and release them;
+do not run a local production push or edit the production documents. Possession of the site key does not authorize a
+write. A requested new URL such as `hyper.media/page` remains unpublished until the release containing its source.
+
 ```sh
-pnpm hypermedia:push -- --dry-run   # what would change in the signing key's space
-pnpm hypermedia:push                # publish (signing key: main)
-pnpm hypermedia:pull                # bring edits made in the Seed app back into git
-./dev hm-sync                       # edit this folder in the desktop dev app
+pnpm hypermedia:push -- --dry-run   # read-only comparison; does not authorize a production push
+./dev hm-sync                       # preview/edit in the isolated desktop dev space
 ```
+
+Do not pull direct production edits into Git as the source of truth. The local dev loop may export edits from its
+throwaway development space back into this folder.
 
 The folder never names a key. Absolute links to the docs space and schema bindings in frontmatter use `hm://hyper.media/…`, and the layout's `selfAuthority` makes `push` swap `hyper.media` for the signing key's account and `pull` swap it back. Schema blobs publish unchanged. `hyper.media` is a name the SDK and the sync understand. The network does not resolve domains in `hm://` URLs yet (planned), so published documents carry the resolved key. `push` needs a signing key: `main`, `--key <name>`, or `SEED_CLI_KEYFILE` in CI. A dry run without a key takes `--space <uid>`.
 

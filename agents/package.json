@@ -21,7 +21,8 @@
   "overrides": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "@seed-hypermedia/client": "file:../frontend/packages/client"
+    "@seed-hypermedia/client": "file:../frontend/packages/client",
+    "zod": "4.6.6"
   },
   "dependencies": {
     "@earendil-works/chord": "1.2.0",
@@ -33,6 +34,7 @@
     "@seed-hypermedia/agents-protocol": "file:./protocol",
     "@seed-hypermedia/client": "file:../frontend/packages/client",
     "@shm/shared": "file:../frontend/packages/shared",
+    "acorn": "8.16.0",
     "linkedom": "0.18.12",
     "mermaid": "^11.4.0",
     "microsandbox": "0.6.8",
@@ -55,5 +57,8 @@
     "prettier-plugin-tailwindcss": "0.6.14",
     "superjson": "2.2.1",
     "typescript": "5.8.3"
+  },
+  "patchedDependencies": {
+    "zod@4.6.6": "patches/zod@4.6.6.patch"
   }
 }

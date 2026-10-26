@@ -750,6 +750,8 @@ function createPanelRoute(panelParam: string, docId: UnpackedHypermediaId): Docu
       return {key: 'directory', id: docId}
     case 'collaborators':
       return {key: 'collaborators', id: docId}
+    case 'metadata':
+      return {key: 'metadata', id: docId}
     case 'options':
       return {key: 'options'}
     default:

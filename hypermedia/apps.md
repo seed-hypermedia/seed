@@ -71,3 +71,5 @@ A daemon started on its own, without the desktop app, defaults to 55000, 55001 a
 - [The web API](./build/web-api.md), the Seed API most of these programs speak. <!-- id:ASzcRpeV -->
 - [Seed Agents](./agent.md), what the agents service runs. <!-- id:rXMWvQ23 -->
 - [The protocol](./protocol.md), what the daemon implements. <!-- id:zIQ4sfQN -->
+
+A [custom HTML page](./apps/document-pages.md) is not a component but a kind of document: one whose `html` metadata names a UnixFS folder that the desktop opens as a sandboxed HTML page.

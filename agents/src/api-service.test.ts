@@ -6178,6 +6178,273 @@ describe('api service', () => {
     }
   })
 
+  test('write with options.page publishes a memory folder as a custom HTML page and revises it in place', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: 'https://hm.test', runQueue: {maxConcurrentModelRuns: 0}})
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      let signerPublicKey = ''
+      let existingVersion = ''
+      let existingHtml = ''
+      let existingInputSchema = 'hm://hyper.media/page-input'
+      let dataCollection = false
+      let capabilities: any[] = []
+      const publishes: number[] = []
+      globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+        const href = url instanceof Request ? url.url : String(url)
+        if (href.includes('/api/PublishBlobs')) {
+          publishes.push((init?.body as ArrayBuffer).byteLength)
+          return Response.json(serialize({cids: [`published-${publishes.length}`]}))
+        }
+        if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities}))
+        if (href.includes('/api/ListChanges')) {
+          return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))
+        }
+        if (href.includes('/api/Resource')) {
+          const resolvedId = unpackHmId(`hm://${signerPublicKey}/counter`)
+          if (!resolvedId) throw new Error('bad target id')
+          if (!existingVersion) return Response.json(serialize({type: 'not-found', id: resolvedId}))
+          return Response.json(
+            serialize({
+              type: 'document',
+              id: resolvedId,
+              document: {
+                content: [{block: {id: 'b1', type: 'Paragraph', text: 'A counter you can share.'}, children: []}],
+                version: existingVersion,
+                account: signerPublicKey,
+                authors: [signerPublicKey],
+                path: '/counter',
+                createTime: '',
+                updateTime: '',
+                metadata: {
+                  name: 'Counter',
+                  type: 'hm://hyper.media/page',
+                  html: existingHtml,
+                  inputSchema: existingInputSchema,
+                  ...(dataCollection ? {childAttributesSchema: 'hm://hyper.media/example/person'} : {}),
+                },
+                genesis: existingVersion,
+                visibility: 'PUBLIC',
+              },
+            }),
+          )
+        }
+        throw new Error(`Unexpected fetch: ${href}`)
+      }) as unknown as typeof fetch
+
+      const identity = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Publisher', clientRequestId: 'publisher'},
+        }),
+      )
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      if (!identity.identity.accountId) throw new Error('missing signing account id')
+      signerPublicKey = identity.identity.accountId
+      // A second enabled key: without options.signer the definition's primary key signs.
+      const other = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {
+          action: {_: 'CreateSigningIdentity', label: 'Other', clientRequestId: 'other'},
+        }),
+      )
+      if (other._ !== 'CreateSigningIdentityResponse') throw new Error('unexpected response')
+      const sessionId = await seedAgentSession(svc, owner, 'Page publisher', {
+        tools: ['publish'],
+        signingKey: identity.identity.name,
+        signingKeys: [identity.identity.name, other.identity.name],
+      })
+      const session = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (session._ !== 'GetSessionResponse') throw new Error('Unexpected response')
+      const writeMemory = async (path: string, content: string) =>
+        svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {_: 'WriteAgentMemoryFile', agentId: session.session.agentId, path, content},
+          }),
+        )
+      await writeMemory(
+        'pages/counter/index.html',
+        '<script src="/.seed/client.js"></script><script src="page.js"></script>',
+      )
+      await writeMemory('pages/counter/page.js', 'seed.context().then(console.log)')
+      // Deterministic callers can reuse the same session without starting a model turn.
+      const write = async (input: Record<string, unknown>) => {
+        const response = await svc.message(
+          await apisvc.createSignedEnvelope(owner, {
+            action: {_: 'InvokeSessionTool', sessionId, verb: 'write', input, continueAgent: false},
+          }),
+        )
+        if (response._ !== 'InvokeSessionToolResponse') throw new Error('Unexpected response')
+        return {...(response.output as Record<string, unknown> | undefined), error: response.error} as Record<
+          string,
+          unknown
+        >
+      }
+
+      const address = `hm://${signerPublicKey}/counter`
+      const first = await write({
+        address,
+        content: 'A counter you can share.',
+        options: {
+          name: 'Counter',
+          page: '~/memory/pages/counter',
+          pageTarget: 'desktop',
+          metadata: {inputSchema: 'hm://hyper.media/example/person'},
+        },
+      })
+      expect(first.error).toBeUndefined()
+      expect(first.id).toBe(address)
+      expect(first.resourceType).toBe('hm://hyper.media/page')
+      expect(first.inputSchema).toBe('hm://hyper.media/example/person')
+      expect(first.html).toMatch(/^ipfs:\/\/bafy/)
+      expect(first.pageFiles).toBe(2)
+      expect(first.pageValidation).toMatchObject({
+        bundle: first.html,
+        syntax: 'passed',
+        target: 'desktop',
+        dataPersistenceTested: false,
+        localState: 'device-only',
+        runtimeTested: false,
+        interactionTested: false,
+      })
+      expect(first.widget).toBeUndefined()
+      expect(String(first.instructions)).toContain('Chat page embeds are temporarily disabled')
+      expect(String(first.instructions)).toContain('opens as the page')
+      const publishesAfterCreate = publishes.length
+      expect(publishesAfterCreate).toBeGreaterThan(0)
+      const invalidContract = await write({
+        address,
+        options: {
+          action: 'update',
+          page: '~/memory/pages/counter',
+          pageTarget: 'desktop',
+          metadata: {inputSchema: 'hm://hyper.media/string'},
+        },
+      })
+      expect(String(invalidContract.error)).toContain('HM struct')
+      expect(publishes.length).toBe(publishesAfterCreate)
+      existingVersion = String(first.version)
+      existingHtml = String(first.html)
+      existingInputSchema = String(first.inputSchema)
+
+      // A new revision: same address, options.action update, only the page changes.
+      await writeMemory('pages/counter/page.js', 'seed.directory(location.href).then(console.log)')
+      const second = await write({address, options: {action: 'update', page: 'pages/counter', pageTarget: 'desktop'}})
+      expect(second.html).toMatch(/^ipfs:\/\/bafy/)
+      expect(second.html).not.toBe(first.html)
+      expect(second.inputSchema).toBe(first.inputSchema)
+      expect(publishes.length).toBeGreaterThan(publishesAfterCreate)
+
+      // An HTML file written to memory comes back with the next step, so the model does not stop
+      // at a private path the user cannot open.
+      const wrote = await write({address: '~/memory/pages/game.html', content: '<h1>Game</h1>'})
+      expect(String(wrote.summary)).toContain('Publish it as a custom HTML page')
+      expect(String(wrote.summary)).toContain('options.page: "~/memory/pages/game.html"')
+
+      const beforeInvalid = publishes.length
+      await writeMemory('pages/invalid.html', '<script>const broken = {</script>')
+      const invalid = await write({address, options: {action: 'update', page: 'pages/invalid.html'}})
+      expect(String(invalid.error)).toContain('syntax error')
+      expect(publishes.length).toBe(beforeInvalid)
+      await writeMemory(
+        'pages/data.html',
+        '<script src="/.seed/client.js"></script><script>seed.publishDocument({})</script>',
+      )
+      const missingData = await write({address, options: {action: 'update', page: 'pages/data.html'}})
+      expect(String(missingData.error)).toContain('pageData')
+      expect(publishes.length).toBe(beforeInvalid)
+      const invalidData = await write({
+        address,
+        options: {action: 'update', page: 'pages/data.html', pageData: [address]},
+      })
+      expect(String(invalidData.error)).toContain('childAttributesSchema')
+      expect(publishes.length).toBe(beforeInvalid)
+      // Missing viewer access should offer a narrow grant using the known user and enabled owner key.
+      dataCollection = true
+      const needsAccess = await write({
+        address,
+        options: {action: 'update', page: 'pages/data.html', pageData: [address]},
+      })
+      expect(needsAccess.type).toBe('hypermedia_write_error')
+      const details = needsAccess.details as any
+      expect(details.published).toBe(false)
+      const proposal = details.pageDataAccess.missingAccess[0].grant
+      expect(proposal).toEqual({
+        address: `hm://${signerPublicKey}`,
+        options: {
+          action: 'capability.grant',
+          signer: {publicKey: signerPublicKey},
+          input: {
+            delegate: blobs.principalToString(owner.principal),
+            role: 'WRITER',
+            path: '/counter',
+          },
+        },
+        dryRun: true,
+      })
+      expect(String(details.instructions)).toContain('offer the listed WRITER grants')
+      const grantPreview = await write(proposal)
+      expect(grantPreview).toMatchObject({
+        dryRun: true,
+        delegate: blobs.principalToString(owner.principal),
+        role: 'WRITER',
+        path: '/counter',
+      })
+      expect(publishes.length).toBe(beforeInvalid)
+      const wrongAuthority = await write({...proposal, address: `hm://${other.identity.accountId}`})
+      expect(String(wrongAuthority.error)).toContain('signing identity must own')
+      expect(publishes.length).toBe(beforeInvalid)
+      capabilities = [
+        {
+          id: existingVersion,
+          account: signerPublicKey,
+          delegate: other.identity.accountId,
+          role: 'WRITER',
+          path: '/counter',
+          noRecursive: true,
+        },
+      ]
+      const scopedUpdate = await write({
+        address,
+        dryRun: true,
+        options: {
+          action: 'update',
+          name: 'Counter updated',
+          signer: {publicKey: other.identity.accountId},
+        },
+      })
+      expect(scopedUpdate.error).toBeUndefined()
+      expect(scopedUpdate.dryRun).toBe(true)
+      expect(publishes.length).toBe(beforeInvalid)
+      const preview = await write({address, dryRun: true, options: {action: 'update', page: 'pages/game.html'}})
+      expect(preview.dryRun).toBe(true)
+      expect(String(preview.instructions)).toContain('has not been published')
+      expect(publishes.length).toBe(beforeInvalid)
+      const afterWrites = await svc.message(
+        await apisvc.createSignedEnvelope(owner, {action: {_: 'GetSession', sessionId}}),
+      )
+      if (afterWrites._ !== 'GetSessionResponse') throw new Error('Unexpected response')
+      expect(afterWrites.events.filter((event) => (event.event as {role?: string}).role === 'assistant')).toHaveLength(
+        0,
+      )
+      expect(
+        db.query<{count: number}, [string]>('SELECT COUNT(*) AS count FROM runs WHERE session_id = ?').get(sessionId)
+          ?.count,
+      ).toBe(0)
+
+      // options.page must be a memory path; a folder without an index is refused before publishing.
+      await writeMemory('pages/broken/page.js', '1')
+      const refused = await write({address, options: {action: 'update', page: 'pages/broken'}})
+      expect(String(refused.error)).toMatch(/index\.html/)
+    } finally {
+      globalThis.fetch = originalFetch
+      svc.stopRunQueue()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('publishes a markdown memory file as a seed document, uploading memory images and updating in place', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const originalFetch = globalThis.fetch

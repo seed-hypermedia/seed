@@ -39,6 +39,9 @@ import {keyPairStore} from './auth'
 import {webUniversalClient} from './universal-client'
 import {WebNotificationInboxClientOnly} from './web-notification-inbox'
 import {isPerfEnabled, markNavEnd, markNavStart} from './web-perf-marks'
+import {installWebDocumentPages} from './web-document-pages'
+
+installWebDocumentPages()
 
 function WebRecentVisitRecorder() {
   const route = useNavRoute()

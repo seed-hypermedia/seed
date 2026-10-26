@@ -16,12 +16,16 @@ export const loader: LoaderFunction = async ({params, request}) => {
 }
 
 async function loadFile(params: Record<string, string | undefined>, request: Request, authToken: string | null) {
-  const CID = params['*']?.split('/')[0]
+  const [CID, ...rest] = params['*']?.split('/') ?? []
 
   if (!CID) return new Response('No CID provided', {status: 400})
+  // A path after the CID names a file inside a UnixFS folder (a custom HTML page's folder, say);
+  // the daemon walks the folder, so the path passes through untouched.
+  const subPath = rest.filter(Boolean).map(encodeURIComponent).join('/')
+  const ipfsPath = `/ipfs/${CID}${subPath ? `/${subPath}` : ''}`
 
   try {
-    const fileUrl = `${DAEMON_HTTP_URL}/ipfs/${CID}`
+    const fileUrl = `${DAEMON_HTTP_URL}${ipfsPath}`
 
     // Forward range headers for video seeking support
     const headers: Record<string, string> = {}
@@ -35,14 +39,18 @@ async function loadFile(params: Record<string, string | undefined>, request: Req
 
     const local = await fetch(fileUrl, {headers})
     // A file from another space's document may only exist on the upstream node.
-    const response =
-      local.ok || local.status === 206 ? local : (await fetchUpstreamFile(`/ipfs/${CID}`, range)) ?? local
+    const response = local.ok || local.status === 206 ? local : (await fetchUpstreamFile(ipfsPath, range)) ?? local
     if (!response.ok && response.status !== 206) {
       throw new Error(`Failed to fetch file from ${fileUrl}: ${response.status}`)
     }
 
     // Stream the response body directly
-    const responseHeaders: Record<string, string> = {}
+    // Raw uploads must not execute with the Seed site's authority when opened directly.
+    const responseHeaders: Record<string, string> = {
+      'Content-Security-Policy':
+        "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'",
+      'X-Content-Type-Options': 'nosniff',
+    }
 
     // Forward relevant headers from the daemon response
     const cacheControl = response.headers.get('cache-control')
@@ -55,12 +63,6 @@ async function loadFile(params: Record<string, string | undefined>, request: Req
     if (contentRange) responseHeaders['Content-Range'] = contentRange
     const acceptRanges = response.headers.get('accept-ranges')
     if (acceptRanges) responseHeaders['Accept-Ranges'] = acceptRanges
-    // The daemon types files by their bytes, so an SVG now arrives as image/svg+xml.
-    // Keep its sandbox so a script inside it can't run on the site's origin.
-    const csp = response.headers.get('content-security-policy')
-    if (csp) responseHeaders['Content-Security-Policy'] = csp
-    const typeOptions = response.headers.get('x-content-type-options')
-    if (typeOptions) responseHeaders['X-Content-Type-Options'] = typeOptions
 
     return new Response(response.body, {
       status: response.status,

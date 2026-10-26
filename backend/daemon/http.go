@@ -78,6 +78,8 @@ func initHTTP(
 		router.HandleFunc("POST /ipfs/file-upload", ipfsHandler.UploadFile)
 		router.HandleFunc("POST /ipfs/{cid}", ipfsHandler.PutBlob)
 		router.HandleFunc("GET /ipfs/{cid}", ipfsGetHandler(ipfsHandler.GetFile, makeBlobDAGJSONHandler(ipfsHandler)))
+		// A path inside a UnixFS directory (custom HTML pages are folders with an index.html).
+		router.HandleFunc("GET /ipfs/{cid}/{path...}", ipfsHandler.GetFile)
 
 		loopback := router.With(loopbackOnly)
 		loopback.HandleNav("GET /debug/metrics", promhttp.Handler())

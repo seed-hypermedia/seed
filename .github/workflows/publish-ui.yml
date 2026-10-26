@@ -80,6 +80,12 @@ jobs:
       - name: Test UI components
         run: pnpm --filter @shm/ui test
 
+      - name: Install Chromium for page parameter form tests
+        run: pnpm --filter @shm/ui exec playwright install chromium --with-deps
+
+      - name: Test page parameter form in the browser
+        run: pnpm --filter @shm/ui test:e2e e2e/tests/page-parameters.e2e.ts
+
       - name: Build and validate the exact release tarball in a clean npm consumer
         env:
           UI_PACKAGE_ARTIFACT_DIR: ${{ runner.temp }}/ui-package

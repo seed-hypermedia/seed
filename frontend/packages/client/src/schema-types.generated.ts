@@ -1283,6 +1283,8 @@ export type HMMetadata = {
   importCategories?: string
   /** Comma-separated tags kept from an external import (e.g. WordPress). */
   importTags?: string
+  /** Resource type, for example hm://hyper.media/page for a custom HTML page. */
+  type?: HMHmUrl
 } & {[key: string]: HMValue}
 
 /**
@@ -1307,6 +1309,28 @@ export type HMMetadataNavigationItem = {
  * Schema: hm://hyper.media/none
  */
 export type HMNone = never
+
+/**
+ * Custom HTML Page
+ * A resource type for a sandboxed HTML page with schema-defined URL input.
+ * Resource attributes for a custom HTML page, with a sandboxed HTML bundle and a published input contract.
+ * Schema: hm://hyper.media/page
+ */
+export type HMPage = {
+  type: 'hm://hyper.media/page'
+  /** UnixFS folder containing index.html for this custom HTML page. */
+  html: HMIpfsUrl
+  /** Published HM struct schema defining this page's URL input fields. */
+  inputSchema: HMUrl
+} & {[key: string]: HMValue}
+
+/**
+ * Empty Page Input
+ * The default published input schema for a custom HTML page that accepts no URL state.
+ * The empty input contract for a custom HTML page that accepts no URL parameters.
+ * Schema: hm://hyper.media/page-input
+ */
+export type HMPageInput = Record<string, never>
 
 /**
  * Principal
