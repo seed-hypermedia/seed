@@ -128,6 +128,7 @@ import {
   Info,
   MessagesSquare,
   ShieldCheck,
+  SlidersHorizontal,
   Users,
   LayoutGrid,
   List as ListIcon,
@@ -472,6 +473,8 @@ export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
   const hiddenKeys = new Set(['metadata', 'directory', 'all-documents'])
   const visibleItems = items.filter((item) => !hiddenKeys.has(item.key))
   const itemOrder = [
+    'page-parameters',
+    'page-permissions',
     'app-people',
     'app-comments',
     'app-citations',
@@ -2028,6 +2031,8 @@ function DocumentBody({
   const isUnpublishedDraft = useDocumentSelector(selectIsUnpublishedDraft)
   const ctx = useDocumentSelector(selectContext)
   const documentPage = activeView === 'content' && !isEditing && !isUnpublishedDraft ? documentPageCid(document) : null
+  const [editPageParameters, setEditPageParameters] = useState<(() => void) | null>(null)
+  const onPageParametersChange = useCallback((edit: (() => void) | null) => setEditPageParameters(() => edit), [])
   const [managePagePermissions, setManagePagePermissions] = useState<(() => void) | null>(null)
   const onPageAccessChange = useCallback((revoke: (() => void) | null) => setManagePagePermissions(() => revoke), [])
   const draftOverlayAllowed = useDocumentSelector(selectDraftOverlayAllowed)
@@ -2765,6 +2770,13 @@ function DocumentBody({
       unorderedItems.push(
         ...getDocumentPagePanelMenuItems(docId, (panel) => replaceRoute({...route, panel} as NavRoute)),
       )
+      if (editPageParameters)
+        unorderedItems.push({
+          key: 'page-parameters',
+          label: 'Page parameters',
+          icon: <SlidersHorizontal className="size-4" />,
+          onClick: editPageParameters,
+        })
       if (managePagePermissions)
         unorderedItems.push({
           key: 'page-permissions',
@@ -2792,6 +2804,7 @@ function DocumentBody({
     route,
     replaceRoute,
     managePagePermissions,
+    editPageParameters,
     optionsMenuItems,
     extraMenuItems,
     citationFragmentToggleMenuItem,
@@ -2915,6 +2928,7 @@ function DocumentBody({
         }}
         perspectiveAccountUid={perspectiveAccountUid}
         onAccountAccessChange={onPageAccessChange}
+        onParametersChange={onPageParametersChange}
         fill
       />
     </div>

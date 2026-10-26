@@ -70,6 +70,14 @@ describe('SchemaDataEditor', () => {
     expect(options).toEqual(['"draft"', '"published"', '"archived"'])
   })
 
+  it('does not display an unselected enum as a valid first choice', () => {
+    act(() =>
+      root.render(<SchemaDataEditor schema={HM_SCHEMAS['example/status']} value="unknown" onValue={() => {}} />),
+    )
+    expect(container.querySelector('select')!.value).toBe('')
+    expect(container.querySelector('option:checked')!.textContent).toBe('Choose a value')
+  })
+
   it('renders a union variant picker for example-app-block', () => {
     const schema = HM_SCHEMAS['example/app-block']
     act(() => {

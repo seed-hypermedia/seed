@@ -26,15 +26,18 @@ export function createDocumentPageInput(options: {
       throw new Error('A page input schema must be an HM struct.')
     return {schema: resolved.schema, registry}
   }
+  function contract(signal = new AbortController().signal) {
+    loaded ||= load(signal).catch((error) => {
+      loaded = undefined
+      throw error
+    })
+    return loaded
+  }
   async function read(raw = params, signal = new AbortController().signal): Promise<DocumentPageInputState> {
     const state = {...decodePageInput(raw), schema: options.schema}
     try {
-      loaded ||= load(signal).catch((error) => {
-        loaded = undefined
-        throw error
-      })
-      const contract = await loaded
-      state.errors.push(...validate(contract.schema, state.values, '$', {}, contract.registry))
+      const resolved = await contract(signal)
+      state.errors.push(...validate(resolved.schema, state.values, '$', {}, resolved.registry))
     } catch (error) {
       state.errors.push(error instanceof Error ? error.message : String(error))
     }
@@ -48,6 +51,7 @@ export function createDocumentPageInput(options: {
     listeners.forEach((listener) => listener(state))
   }
   return {
+    contract,
     read,
     start() {
       active = true

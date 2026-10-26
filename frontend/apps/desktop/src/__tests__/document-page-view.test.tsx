@@ -292,6 +292,46 @@ describe('DocumentPageView', () => {
     expect(navigate).toHaveBeenCalledTimes(2)
   })
 
+  it('opens the parameter form from host controls and applies without remounting the page', async () => {
+    const parametersChanged = vi.fn()
+    const navigate = vi.fn()
+    const resolvePageUrl = vi.fn(async () => `seed-page://${host}/`)
+    setDocumentPagePlatform({resolvePageUrl})
+    const pageDocument = {...document, metadata: {...document.metadata, inputSchema: 'hm://hyper.media/example/person'}}
+    await act(async () =>
+      root.render(
+        <DocumentPageView
+          docId={docId}
+          document={pageDocument}
+          cid={cid}
+          inputParams={{name: '"Initial"'}}
+          onInputNavigate={navigate}
+          onParametersChange={parametersChanged}
+        />,
+      ),
+    )
+    const frame = container.querySelector('iframe')!
+    const posted = vi.spyOn(frame.contentWindow!, 'postMessage')
+    expect(container.textContent).not.toContain('Page parameters')
+    await act(async () => parametersChanged.mock.calls.at(-1)![0]())
+    const field = window.document.querySelector<HTMLInputElement>('input[aria-label="name"]')!
+    expect(field.value).toBe('Initial')
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(field, 'Edited')
+      field.dispatchEvent(new Event('input', {bubbles: true}))
+    })
+    await click('Apply')
+    expect(navigate).toHaveBeenCalledExactlyOnceWith({name: '"Edited"'}, 'push')
+    expect(posted).toHaveBeenCalledWith(
+      expect.objectContaining({type: 'seed-input', state: expect.objectContaining({values: {name: 'Edited'}})}),
+      `seed-page://${host}`,
+    )
+    expect(container.querySelector('iframe')).toBe(frame)
+    expect(resolvePageUrl).toHaveBeenCalledOnce()
+    await act(async () => root.render(null))
+    expect(parametersChanged).toHaveBeenLastCalledWith(null)
+  })
+
   it('cancels pending consent when the account changes', async () => {
     setDocumentPagePlatform({resolvePageUrl: async () => `seed-page://${host}/`})
     await act(async () => root.render(<DocumentPageView docId={docId} document={document} cid={cid} />))

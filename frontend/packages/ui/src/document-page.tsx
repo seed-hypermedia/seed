@@ -4,6 +4,7 @@ import {useQuery, useQueryClient} from '@tanstack/react-query'
 import React from 'react'
 import {cn} from './utils'
 import {Button} from './button'
+import {DocumentPageParameters} from './document-page-parameters'
 import {toast} from './toast'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {documentPageContent, createDocumentPageAccess} from '@shm/shared/document-page-content'
@@ -55,6 +56,8 @@ type DocumentPageViewProps = {
   onInputNavigate?: (params: Record<string, string>, mode: 'push' | 'replace') => void
   /** Fill the main view without a border or document margins. */
   fill?: boolean
+  /** Put the parameter editor in host navigation instead of the inline toolbar. */
+  onParametersChange?: (edit: (() => void) | null) => void
   /** Put the permission manager in host navigation instead of the inline toolbar. */
   onAccountAccessChange?: (manage: (() => void) | null) => void
 }
@@ -125,6 +128,7 @@ function DocumentPageSession(props: DocumentPageViewProps) {
     }
   }, [key])
   const [grants, setGrants] = React.useState<PagePermissionGrant[]>(initial)
+  const [parameters, setParameters] = React.useState(false)
   const [settings, setSettings] = React.useState(false)
   const [approval, setApproval] = React.useState<{
     id: string
@@ -194,6 +198,11 @@ function DocumentPageSession(props: DocumentPageViewProps) {
     props.onAccountAccessChange?.(() => setSettings(true))
     return () => props.onAccountAccessChange?.(null)
   }, [props.onAccountAccessChange])
+  const canNavigateInput = !!props.onInputNavigate
+  React.useEffect(() => {
+    props.onParametersChange?.(canNavigateInput ? () => setParameters(true) : null)
+    return () => props.onParametersChange?.(null)
+  }, [props.onParametersChange, canNavigateInput])
   const inputNavigation = React.useRef(props.onInputNavigate)
   inputNavigation.current = props.onInputNavigate
   const input = React.useMemo(
@@ -305,11 +314,18 @@ function DocumentPageSession(props: DocumentPageViewProps) {
   const name = props.document.metadata?.name || 'This page'
   return (
     <div className={cn('flex flex-col', props.fill ? 'h-full min-h-0' : 'gap-2')}>
-      {!props.onAccountAccessChange && (
-        <div className="flex justify-end">
-          <Button variant="ghost" size="sm" onClick={() => setSettings(true)}>
-            Page permissions
-          </Button>
+      {(!props.onAccountAccessChange || (!props.onParametersChange && canNavigateInput)) && (
+        <div className="flex justify-end gap-2">
+          {!props.onParametersChange && canNavigateInput && (
+            <Button variant="ghost" size="sm" onClick={() => setParameters(true)}>
+              Page parameters
+            </Button>
+          )}
+          {!props.onAccountAccessChange && (
+            <Button variant="ghost" size="sm" onClick={() => setSettings(true)}>
+              Page permissions
+            </Button>
+          )}
         </div>
       )}
       <div className={cn(props.fill && 'min-h-0 flex-1')}>
@@ -319,6 +335,7 @@ function DocumentPageSession(props: DocumentPageViewProps) {
           <LegacyDocumentPageView {...props} content={content} subscribeInput={input.subscribe} />
         )}
       </div>
+      {parameters && <DocumentPageParameters input={input} onClose={() => setParameters(false)} />}
       {approval && (
         <DocumentPagePermissionPrompt
           key={approval.id}
