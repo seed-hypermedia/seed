@@ -2,7 +2,7 @@ import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import type {ActivityTab} from '@shm/shared/routes'
 import {useNavigate, useNavigationDispatch, useNavigationState} from '@shm/shared/utils/navigation'
-import {AtSign, Clock, Maximize2, Minimize2, X} from 'lucide-react'
+import {AtSign, Clock, Maximize2, Minimize2} from 'lucide-react'
 import {type ComponentType, createContext, useCallback, useContext} from 'react'
 import {Button} from './button'
 import {ActivityEventCard, ALL_UPDATES_EVENT_TYPES} from './activity-event-card'
@@ -92,11 +92,6 @@ export function ActivityHeader({
               <Minimize2 className="size-4" />
             </Button>
           </Tooltip>
-        ) : null}
-        {onClose ? (
-          <Button size="icon" variant="ghost" aria-label="Close Activity" onClick={onClose}>
-            <X className="size-4" />
-          </Button>
         ) : null}
       </div>
     </div>

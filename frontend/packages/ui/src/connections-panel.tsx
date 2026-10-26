@@ -15,8 +15,8 @@ import {cn} from './utils'
 export function ConnectionsPanel({docId, targetBlockId}: {docId: UnpackedHypermediaId; targetBlockId?: string}) {
   const citations = useCitations(docId)
   const groups = useMemo(
-    () => groupDocumentConnections(citations.data?.citations, targetBlockId),
-    [citations.data, targetBlockId],
+    () => groupDocumentConnections(docId, citations.data?.citations, targetBlockId),
+    [docId, citations.data, targetBlockId],
   )
   return (
     <div className="bg-card flex min-h-full flex-col gap-4 p-4">
@@ -116,10 +116,14 @@ function ConnectionSource({source, documentId}: {source: DocumentConnectionSourc
   const link = useRouteLink(
     source.isComment
       ? {
-          key: 'comments',
+          key: 'document',
           id: documentId,
-          openComment: comment?.id || [source.id.uid, ...(source.id.path || [])].join('/'),
-          blockId: source.id.blockRef || undefined,
+          panel: {
+            key: 'comments',
+            id: documentId,
+            openComment: comment?.id || [source.id.uid, ...(source.id.path || [])].join('/'),
+            blockId: source.id.blockRef || undefined,
+          },
         }
       : {key: 'document', id: source.id},
   )

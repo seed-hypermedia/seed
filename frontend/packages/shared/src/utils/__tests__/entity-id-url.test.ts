@@ -1,5 +1,6 @@
 import {describe, expect, test} from 'vitest'
 import {DEFAULT_GATEWAY_URL} from '../../constants'
+import {hypermediaUrlToRoute} from '../url-to-route'
 import {
   bookmarkUrlFromRoute,
   buildCopyLinkUrl,
@@ -623,14 +624,14 @@ describe('routeToUrl', () => {
     expect(url).toBe('https://gw.com/hm/uid1/:comments/comment123')
   })
 
-  test('comments route with openComment serializes to the same URL as the copied comment link', () => {
+  test('comment panel route serializes to the same URL as the copied comment link', () => {
     // The comment timestamp navigates to this route; the omnibar URL it
     // produces must match what the "Copy Comment Link" button copies.
     const url = routeToUrl(
       {
-        key: 'comments',
+        key: 'document',
         id: hmId('z6MkOwner', {path: ['doc-path']}),
-        openComment: 'z6MkAuthor/tsid123',
+        panel: {key: 'comments', id: hmId('z6MkOwner', {path: ['doc-path']}), openComment: 'z6MkAuthor/tsid123'},
       },
       {hostname: 'https://example.com', originHomeId: hmId('z6MkOwner')},
     )
@@ -1376,14 +1377,14 @@ describe('buildCopyLinkUrl', () => {
     ).toBe('http://localhost:3000/doc-path')
   })
 
-  test('comment link only (no blockRef) — delegates to createCommentUrl', () => {
+  test('comment link opens the panel on the gateway', () => {
     const commentId = hmId('z6MkAuthor', {path: ['tsid123']})
     expect(
       buildCopyLinkUrl({
         id: hmId('z6MkOwner', {path: ['doc-path']}),
         commentId,
       }),
-    ).toContain('/hm/z6MkOwner/doc-path/:comments/z6MkAuthor/tsid123')
+    ).toContain('/hm/z6MkOwner/doc-path?panel=comments/z6MkAuthor/tsid123')
   })
 
   test('comment link ignores commentVersion (on commentId) even when present', () => {
@@ -1393,7 +1394,7 @@ describe('buildCopyLinkUrl', () => {
         id: hmId('z6MkOwner', {path: ['doc-path'], latest: true, hostname: 'https://example.com'}),
         commentId,
       }),
-    ).toBe('https://example.com/doc-path/:comments/z6MkAuthor/tsid123')
+    ).toBe('https://example.com/doc-path?panel=comments/z6MkAuthor/tsid123')
   })
 
   test('comment + blockRef auto-expands with +', () => {
@@ -1423,6 +1424,29 @@ describe('buildCopyLinkUrl', () => {
         commentId,
       }),
     ).toBe('https://example.com/doc-path/:comments/z6MkAuthor/tsid123#blk1[10:20]')
+  })
+
+  test('root site comment links open the panel without pinning the target version', () => {
+    expect(
+      buildCopyLinkUrl({
+        id: hmId('owner', {hostname: 'https://site.example', version: 'old-document-version'}),
+        commentId: hmId('author', {path: ['tsid']}),
+      }),
+    ).toBe('https://site.example?panel=comments/author/tsid')
+  })
+
+  test('copied comment links roundtrip through the panel route on a custom gateway', () => {
+    const url = buildCopyLinkUrl({
+      id: hmId('owner', {path: ['doc']}),
+      commentId: hmId('author', {path: ['tsid']}),
+      gatewayUrl: 'https://gateway.example',
+    })
+    expect(url).toBe('https://gateway.example/hm/owner/doc?panel=comments/author/tsid')
+    expect(hypermediaUrlToRoute(url)).toMatchObject({
+      key: 'document',
+      id: {uid: 'owner', path: ['doc']},
+      panel: {key: 'comments', openComment: 'author/tsid'},
+    })
   })
 
   test('gatewayUrl overrides the default gateway host', () => {

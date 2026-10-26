@@ -7,7 +7,6 @@ type HighlighterProps = {
   onMouseEnter: () => void
   onMouseLeave: () => void
   'data-resourceid'?: string
-  'data-blockid'?: string
 }
 
 /** Highlights every visible instance of a hovered resource or block, on web and desktop. */
@@ -57,9 +56,7 @@ export function useHighlighter() {
         broadcastEvent?.({type: 'hypermediaHoverOut', id})
       },
     }
-    if (id.blockRef) {
-      divProps['data-blockid'] = id.blockRef
-    } else {
+    if (!id.blockRef) {
       divProps['data-resourceid'] = id.id
     }
     return divProps

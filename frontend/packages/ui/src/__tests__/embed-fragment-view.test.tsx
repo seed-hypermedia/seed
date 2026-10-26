@@ -205,16 +205,13 @@ function TestCommentViewer({
   blocks,
   focusBlockId,
   blockRange,
-  inlinePrefix,
 }: {
-  inlinePrefix?: React.ReactNode
   blocks: HMBlockNode[]
   focusBlockId?: string
   blockRange?: {start?: number; end?: number}
 }) {
   return (
     <>
-      {inlinePrefix}
       <p data-focus={focusBlockId} data-range={JSON.stringify(blockRange)}>
         {blocks.map((node) => ('text' in node.block ? node.block.text : '')).join('')}
       </p>

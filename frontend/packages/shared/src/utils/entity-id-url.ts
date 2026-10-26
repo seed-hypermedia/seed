@@ -360,9 +360,9 @@ export type CopyLinkInput = {
  * Behavior:
  * - `input.id.hostname` set → site-style URL via `createSiteUrl`.
  * - `input.id.hostname` unset → gateway URL via `createWebHMUrl`.
- * - `input.commentId` present → delegates to `createCommentUrl` using the
- *   comment's uid+tsid as the comment identifier and the comment id's own
- *   `version` as `commentVersion`.
+ * - `input.commentId` present → opens the comment panel on the latest document.
+ *   Comment block and fragment links retain the main comment route.
+ *   Copied comment links do not pin document or comment versions.
  * - If `blockRef` is present on `input.id` and `blockRange` is `undefined`,
  *   default to `{expanded: true}` so whole-block links end in `+`. Callers may
  *   pass `{expanded: false}` or `{start,end}` to override.
@@ -379,34 +379,37 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
       ? gatewayUrl
       : id.hostname
 
-  if (commentId) {
-    const tsid = commentId.path?.[0]
-    const packedCommentId = tsid ? `${commentId.uid}/${tsid}` : commentId.uid
+  // Block and fragment links use the main comment route to retain their selection.
+  if (commentId && id.blockRef) {
     return createCommentUrl({
       docId: id,
-      commentId: packedCommentId,
-      siteUrl: siteHostname ?? null,
+      commentId: `${commentId.uid}${commentId.path?.[0] ? `/${commentId.path[0]}` : ''}`,
+      siteUrl: siteHostname,
       blockRef: id.blockRef,
       blockRange: effectiveRange,
-      latest: id.latest ?? null,
+      latest: id.latest,
     })
   }
+
+  const panel = commentId ? `comments/${commentId.uid}${commentId.path?.[0] ? `/${commentId.path[0]}` : ''}` : undefined
 
   if (siteHostname) {
     return createSiteUrl({
       path: id.path,
       hostname: siteHostname,
-      version: id.version,
+      version: commentId ? undefined : id.version,
       latest: id.latest ?? undefined,
       blockRef: id.blockRef,
       blockRange: effectiveRange,
+      panel,
     })
   }
 
   return createWebHMUrl(id.uid, {
-    version: id.version,
+    version: commentId ? undefined : id.version,
     blockRef: id.blockRef,
     blockRange: effectiveRange,
+    panel,
     latest: id.latest,
     path: id.path,
     hostname: gatewayUrl ?? undefined,

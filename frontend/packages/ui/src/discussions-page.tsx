@@ -30,6 +30,7 @@ import {getRenderedCollaboratorsCount} from './collaborators-page'
 /** Footer destination outside the main document scroll area. */
 export const CommentsFooterContext = createContext<HTMLDivElement | null | undefined>(undefined)
 
+/** Content and layout options for the document comments view. */
 export interface DiscussionsPageContentProps {
   /** Keep the editor below a separately scrolling panel list. */
   isPanel?: boolean
@@ -39,14 +40,8 @@ export interface DiscussionsPageContentProps {
   targetBlockId?: string
   blockId?: string
   blockRange?: BlockRange | null
-  autoFocus?: boolean
-  isReplying?: boolean
   commentEditor?: ReactNode
   targetDomain?: string
-  /** Called when user wants to go back to all discussions */
-  onBackToAll?: () => void
-  /** Whether to show the "Open in Panel" button. Defaults to true. */
-  showOpenInPanel?: boolean
   /** Whether to show the title. Defaults to true. */
   showTitle?: boolean
   /** Custom max width for centered content */
@@ -67,7 +62,6 @@ export function DiscussionsPageContent({
   blockRange,
   commentEditor,
   targetDomain,
-  showOpenInPanel: _showOpenInPanel = true,
   showTitle = true,
   contentMaxWidth,
 }: DiscussionsPageContentProps) {

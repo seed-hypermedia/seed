@@ -89,7 +89,6 @@ export function ReadOnlyViewer(props: ReadOnlyViewerProps) {
               .filter(Boolean)
               .join(' ')}
           >
-            {fragment && props.inlinePrefix ? <>{props.inlinePrefix} </> : null}
             {html != null ? (
               <div className={styles.content} dangerouslySetInnerHTML={{__html: html}} />
             ) : (

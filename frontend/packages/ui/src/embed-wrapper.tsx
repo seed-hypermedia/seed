@@ -128,9 +128,6 @@ export function EmbedWrapper({
       data-content-type="embed"
       data-url={packHmId(id)}
       data-view={viewType}
-      data-blockid={
-        id && id.blockRange && 'expanded' in id.blockRange && id.blockRange.expanded ? id?.blockRef : undefined
-      }
       data-resourceid={id?.blockRef ? undefined : id?.id}
       onClick={canNavigate ? openSource : undefined}
       onAuxClick={canNavigate ? openSource : undefined}

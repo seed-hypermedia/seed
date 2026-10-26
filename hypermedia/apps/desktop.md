@@ -45,7 +45,8 @@ reference-counted list of the resources any window is showing, runs [discovery](
 on a loop, polls the daemon's activity feed, and broadcasts React Query invalidations to every window. Its intervals
 stretch ten times when no window is focused. The notification store described on [Notify](./notify.md) lives there too.
 Windows also share hover state: pointing at a block or a resource broadcasts `hypermediaHoverIn` over IPC, and every
-window highlights the elements with the matching `data-blockid` or `data-resourceid`.
+window highlights matching resources through `data-resourceid`. Block highlights use `data-id` within the matching
+`data-highlight-resource` container, so blocks in other resources are not highlighted.
 
 # Where it keeps things <!-- id:rXZ_ZjIJ -->
 

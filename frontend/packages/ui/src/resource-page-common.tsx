@@ -279,7 +279,7 @@ function normalizeCitationFragmentHighlights(citations: HMRawCitation[] | undefi
           kind === 'document' && sourceId
             ? {
                 ...sourceId,
-                version: citation.sourceBlob?.cid || sourceId.version || null,
+                version: sourceId.version,
                 blockRef: sourceBlockId,
                 blockRange: sourceBlockId ? {expanded: true} : null,
               }
@@ -2251,7 +2251,10 @@ function DocumentBody({
     [docId, document.version],
   )
   const citations = useCitations(citationsTargetId)
-  const connectionCount = useMemo(() => groupDocumentConnections(citations.data?.citations).length, [citations.data])
+  const connectionCount = useMemo(
+    () => groupDocumentConnections(docId, citations.data?.citations).length,
+    [docId, citations.data],
+  )
   const isConnectionsPanel =
     panelRoute?.key === 'activity' &&
     !isDocumentVersionsPanelRoute(panelRoute) &&
@@ -3166,7 +3169,10 @@ function DocumentBody({
   const connectionsPanelHeader = isConnectionsPanel ? (
     <PanelHeader
       title="Connections"
-      count={groupDocumentConnections(panelCitations.data?.citations, panelRoute.targetBlockId).length}
+      count={
+        groupDocumentConnections(panelRoute.id ?? docId, panelCitations.data?.citations, panelRoute.targetBlockId)
+          .length
+      }
       onClose={handlePanelClose}
       onExpand={
         isMobile
@@ -3527,7 +3533,6 @@ function CommentsPanelContent({
         isPanel
         docId={docId}
         showTitle={false}
-        showOpenInPanel={false}
         contentMaxWidth={contentMaxWidth}
         targetDomain={targetDomain}
         openComment={openComment}
@@ -4621,9 +4626,7 @@ function MainContent({
       }
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
-          {activityFilterToSlug(activityFilterEventType) !== 'citations' && (
-            <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
-          )}
+          <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
           <Feed
             size="md"
             filterResource={docId.id}
@@ -4639,7 +4642,6 @@ function MainContent({
         <DiscussionsPageContent
           docId={docId}
           showTitle={false}
-          showOpenInPanel={false}
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
           openComment={discussionsParams?.openComment}

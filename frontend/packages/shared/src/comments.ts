@@ -1,4 +1,3 @@
-import {useMemo} from 'react'
 import {normalizeDate} from './utils/date'
 import {HMBlockNode, HMComment, HMCommentGroup} from '@seed-hypermedia/client/hm-types'
 
@@ -94,66 +93,6 @@ export function getCommentGroups(comments?: Array<HMComment>, targetCommentId?: 
 
   // Sort groups by latest thread activity (newest first).
   return groups.sort((a, b) => (latestActivity.get(b.id) ?? 0) - (latestActivity.get(a.id) ?? 0))
-}
-
-export function useCommentParents(comments: Array<HMComment> | undefined, focusedCommentId: string) {
-  return useMemo(() => {
-    const focusedComment = comments?.find((c) => c.id === focusedCommentId)
-    if (!focusedComment) return null
-    let selectedComment: HMComment | null = focusedComment
-    const parentThread: HMComment[] = [focusedComment]
-    while (selectedComment?.replyParent) {
-      const parentComment: HMComment | null | undefined = selectedComment
-        ? comments?.find((c) => c.id == selectedComment?.replyParent)
-        : null
-      if (!parentComment) break
-
-      parentThread.unshift(parentComment)
-      selectedComment = parentComment
-    }
-
-    const authorAccounts = new Set<string>()
-    comments?.forEach((comment) => {
-      if (comment.author) authorAccounts.add(comment.author)
-    })
-
-    return {
-      thread: parentThread,
-      authorAccounts: Array.from(authorAccounts),
-    }
-  }, [comments, focusedCommentId])
-}
-
-export function useCommentGroups(comments?: Array<HMComment>, targetCommentId?: string) {
-  // we are using the data object here for future migration to react-query
-  return useMemo(
-    () => ({
-      data: getCommentGroups(comments, targetCommentId),
-    }),
-    [comments, targetCommentId],
-  )
-}
-
-/** Restores a reply chain and groups the branches outside it under their parents. */
-export function getCommentContinuation(comments: HMComment[] | undefined, contextId: string, replyCommentId?: string) {
-  const byId = new Map(comments?.map((comment) => [comment.id, comment]))
-  const chain: HMComment[] = []
-  const visited = new Set<string>()
-  let current = byId.get(replyCommentId || contextId)
-  while (current && !visited.has(current.id)) {
-    visited.add(current.id)
-    chain.unshift(current)
-    if (current.id === contextId) {
-      const remaining = comments?.filter((comment) => !visited.has(comment.id))
-      const branches = chain.flatMap((parent) => {
-        const groups = getCommentGroups(remaining, parent.id)
-        return groups.length ? [{parent, groups}] : []
-      })
-      return {chain, branches}
-    }
-    current = current.replyParent ? byId.get(current.replyParent) : undefined
-  }
-  return null
 }
 
 /** Shows submitted roots before list refresh, without restoring acknowledged roots that were removed. */

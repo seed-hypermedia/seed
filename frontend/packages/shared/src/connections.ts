@@ -15,8 +15,9 @@ export type DocumentConnection = {
   sources: DocumentConnectionSource[]
 }
 
-/** Groups incoming links by document, keeping each source block once at its newest recorded version. */
+/** Groups external incoming links by document, keeping each source block once at its newest recorded version. */
 export function groupDocumentConnections(
+  targetDocId: UnpackedHypermediaId,
   citations: HMRawCitation[] = [],
   targetBlockId?: string,
 ): DocumentConnection[] {
@@ -34,6 +35,7 @@ export function groupDocumentConnections(
     const document = isComment ? unpackHmId(citation.sourceDocument) : source
     if (!source || !document) continue
     const id = hmId(document.uid, {path: document.path})
+    if (id.id === targetDocId.id) continue
     let group = groups.get(id.id)
     if (!group) {
       group = {id, sources: new Map()}
@@ -41,7 +43,8 @@ export function groupDocumentConnections(
     }
     const sourceId = hmId(source.uid, {
       path: source.path,
-      version: citation.sourceBlob?.cid || source.version,
+      // Ref blob CIDs identify citation records, not document versions.
+      version: isComment ? citation.sourceBlob?.cid || source.version : source.version,
       blockRef: citation.sourceContext || source.blockRef,
     })
     const key = JSON.stringify([source.id, sourceId.blockRef])

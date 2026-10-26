@@ -66,20 +66,18 @@ export function commentBookmarkTitle(content: HMBlockNode[], resolvedNames?: Rea
   return commentToText({comment: {content}, resolvedNames, lineBreaks: false}).replace(/\s+/g, ' ').trim().slice(0, 50)
 }
 
+/** Shows a focused thread in the shared main-page and panel comments layout. */
 export function CommentDiscussions({
   targetId,
   isEntirelyHighlighted = false,
   commentId,
   replyCommentId,
-  commentEditor,
   targetDomain,
   selection,
 }: {
   targetId: UnpackedHypermediaId
   commentId?: string
   replyCommentId?: string
-  commentEditor?: ReactNode
-  onStartDiscussion?: () => void
   isEntirelyHighlighted?: boolean
   targetDomain?: string
   selection?: {
@@ -147,8 +145,6 @@ export function CommentDiscussions({
     })
   }, [highlightedCommentId, thread?.root.id, selectedCommentLoaded, !!focusedComment])
 
-  const commentEditorSlot = commentEditor ? <div className="py-4">{commentEditor}</div> : null
-
   if (!commentId) return null
 
   if (commentsService.error) {
@@ -159,7 +155,6 @@ export function CommentDiscussions({
             Failed to load comment thread
           </SizableText>
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -170,7 +165,6 @@ export function CommentDiscussions({
         <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -181,7 +175,6 @@ export function CommentDiscussions({
         <div className="p-2">
           <DeletedCommentPreview comment={deletedLastVersion!} />
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -192,7 +185,6 @@ export function CommentDiscussions({
         <div className="flex items-center justify-center p-4">
           <Spinner />
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -206,7 +198,6 @@ export function CommentDiscussions({
               This comment was deleted.
             </SizableText>
           </div>
-          {commentEditorSlot}
         </SelectionContent>
       )
     }
@@ -217,7 +208,6 @@ export function CommentDiscussions({
             This comment could not be found.
           </SizableText>
         </div>
-        {commentEditorSlot}
       </SelectionContent>
     )
   }
@@ -247,7 +237,6 @@ export function CommentDiscussions({
             ),
         )}
       </div>
-      {commentEditorSlot}
     </SelectionContent>
   )
 }
@@ -549,7 +538,6 @@ export const Comment = memo(function Comment({
   authorMetadata,
   authorId,
   enableReplies = true,
-  defaultExpandReplies = false,
   highlight = false,
   threadView = false,
   targetDomain,
@@ -562,7 +550,6 @@ export const Comment = memo(function Comment({
   authorMetadata?: HMMetadata | null
   authorId?: string | null
   enableReplies?: boolean
-  defaultExpandReplies?: boolean
   highlight?: boolean
   /** Show reply actions without reopening the current thread. */
   threadView?: boolean
@@ -575,7 +562,6 @@ export const Comment = memo(function Comment({
   }
 }) {
   const tx = useTxString()
-  const [showReplies, setShowReplies] = useState(defaultExpandReplies)
   const [isEditing, setIsEditing] = useState(false)
   const [viewingVersion, setViewingVersion] = useState<HMComment | null>(null)
   const commentsContext = useCommentsServiceContext()
@@ -600,11 +586,6 @@ export const Comment = memo(function Comment({
 
   const externalTargetLink = useRouteLink(externalTarget ? {key: 'document', id: externalTarget.id} : null)
 
-  useEffect(() => {
-    if (defaultExpandReplies !== showReplies) {
-      setShowReplies(defaultExpandReplies)
-    }
-  }, [defaultExpandReplies])
   const navigate = useNavigate('replace')
 
   // When this comment is the focused permalink comment (/:comments/UID/TSID),
@@ -945,13 +926,13 @@ export function CommentContent({
 function CommentDate({comment}: {comment: HMComment}) {
   const targetId = getCommentTargetId(comment)
   // Same destination as "Copy Comment Link": the target document's comments
-  // view focused on this comment, staying within the site context. The id
+  // panel focused on this comment, staying within the site context. The id
   // drops the comment's targetVersion so the URL matches the copied link.
   const destRoute: NavRoute | null = targetId
     ? {
-        key: 'comments',
+        key: 'document',
         id: hmId(targetId.uid, {path: targetId.path}),
-        openComment: comment.id,
+        panel: {key: 'comments', id: hmId(targetId.uid, {path: targetId.path}), openComment: comment.id},
       }
     : null
   return <Timestamp time={comment.createTime} route={destRoute} />

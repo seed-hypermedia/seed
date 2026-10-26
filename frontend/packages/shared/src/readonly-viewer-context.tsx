@@ -1,6 +1,6 @@
 import type {BlockRange, HMBlockChildrenType, HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {RenderResourceKind} from './render-resource-context'
-import {createContext, useContext, type ReactNode} from 'react'
+import {createContext, useContext} from 'react'
 
 /** Shared contract for document, comment, and embedded read-only content. */
 export interface ReadOnlyViewerProps {
@@ -8,9 +8,8 @@ export interface ReadOnlyViewerProps {
   resourceId?: UnpackedHypermediaId
   resourceKind?: RenderResourceKind
   rootChildrenType?: HMBlockChildrenType
-  /** Compact fragments share their first line with the optional identity prefix. */
+  /** Render compact fragments inline. */
   presentation?: 'content' | 'fragment'
-  inlinePrefix?: ReactNode
   /** Disable host positioners and use embedded node-view interactions. */
   embedded?: boolean
   /** Explicit depth supplied by legacy embed callers. Nested viewers also track depth through context. */
