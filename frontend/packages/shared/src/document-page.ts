@@ -1,6 +1,8 @@
 import type {
   HMBlockNode,
   HMRequest,
+  HMResource,
+  HMQueryResult,
   HMPublishBlobsInput,
   HMPublishBlobsOutput,
   HMSigner,
@@ -158,8 +160,10 @@ export type DocumentPageSDK = {
   context(): Promise<DocumentPageContext>
   profile(): Promise<{id: string; name: string | null} | null>
   storage: {get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<null>}
-  resource(url: string): Promise<unknown>
-  directory(url: string, options?: {all?: boolean}): Promise<unknown>
+  /** A resource directly (not the agent read tool's envelope), or a profile for /:profile. */
+  resource(url: string): Promise<HMResource | {id: string; name: string | null}>
+  /** Direct children by default; each row has id and metadata, without a document wrapper. */
+  directory(url: string, options?: {all?: boolean}): Promise<HMQueryResult['results']>
   /** Inspect remembered rules or revoke them; operations themselves trigger consent. */
   permissions: {
     request(): Promise<{grants: import('./document-page-permissions').PagePermissionGrant[]}>
@@ -171,6 +175,7 @@ export type DocumentPageSDK = {
     input: Extract<HMRequest, {key: K}>['input'],
   ): Promise<Extract<HMRequest, {key: K}>['output']>
   publish(input: HMPublishBlobsInput): Promise<HMPublishBlobsOutput>
+  /** Resolve existing viewer write access, publish, and confirm the new version before resolving. */
   publishDocument(input: Omit<PublishDocumentInput, 'signerAccountUid'>): Promise<{document: string}>
   hm: {
     parseMarkdown(markdown: string): Promise<HMBlockNode[]>
@@ -319,10 +324,13 @@ export const DOCUMENT_PAGE_CLIENT_SCRIPT = `(() => {
   const host = window.parent !== window ? window.parent : null;
   const pending = new Map();
   const inputListeners = new Set();
+  let markReady;
+  const ready = new Promise((resolve) => { markReady = resolve; });
   let counter = 0;
   addEventListener('message', (event) => {
     const data = event.data;
     if (!host || event.source !== host || !data || data.seedPage !== ${DOCUMENT_PAGE_PROTOCOL}) return;
+    if (data.type === 'seed-ready') { markReady(); return; }
     if (data.type === 'seed-input') { for (const listener of inputListeners) { try { listener(data.state); } catch (error) { console.error(error); } } return; }
     if (typeof data.id !== 'string') return;
     const entry = pending.get(data.id);
@@ -339,7 +347,7 @@ export const DOCUMENT_PAGE_CLIENT_SCRIPT = `(() => {
       if (messageSize(params) > ${DOCUMENT_PAGE_MAX_REQUEST_BYTES}) return reject(new Error('Request too large'));
       const id = String(++counter) + '.' + Math.random().toString(36).slice(2);
       pending.set(id, {resolve, reject});
-      host.postMessage({seedPage: ${DOCUMENT_PAGE_PROTOCOL}, id, method, params}, '*');
+      ready.then(() => host.postMessage({seedPage: ${DOCUMENT_PAGE_PROTOCOL}, id, method, params}, '*'));
     });
   window.seed = (${DOCUMENT_PAGE_API_SCRIPT})(call, (listener) => { inputListeners.add(listener); return () => inputListeners.delete(listener); });
   ${DOCUMENT_PAGE_LINK_SCRIPT}

@@ -39,7 +39,7 @@ vi.mock('@tanstack/react-query', () => ({
 }))
 
 import {DocumentPageView, documentPageCid} from '@shm/ui/document-page'
-import {setDocumentPagePlatform} from '@shm/shared/document-page'
+import {DOCUMENT_PAGE_CLIENT_SCRIPT, setDocumentPagePlatform} from '@shm/shared/document-page'
 import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@seed-hypermedia/client'
 import {base58btc} from 'multiformats/bases/base58'
@@ -99,6 +99,53 @@ async function send(method: string, params = {}) {
 }
 
 describe('DocumentPageView', () => {
+  it('lets inline startup reads finish after load, including on a subsequent navigation', async () => {
+    setDocumentPagePlatform({resolvePageUrl: async () => `seed-page://${host}/`})
+    await act(async () => root.render(<DocumentPageView docId={docId} document={document} cid={cid} />))
+    const frame = container.querySelector('iframe')!
+    const source = frame.contentWindow!
+    const resource = {type: 'document', id: docId, document}
+    for (let navigation = 0; navigation < 2; navigation++) {
+      let deliver!: (event: unknown) => void
+      const parent = {
+        postMessage: (data: unknown) =>
+          window.dispatchEvent(new MessageEvent('message', {source, origin: `seed-page://${host}`, data})),
+      }
+      const page: any = {parent}
+      vi.spyOn(source, 'postMessage').mockImplementation((data: unknown) => deliver({source: parent, data}))
+      new Function('window', 'document', 'addEventListener', 'TextEncoder', DOCUMENT_PAGE_CLIENT_SCRIPT)(
+        page,
+        frame.contentDocument,
+        (_name: string, listener: typeof deliver) => {
+          deliver = listener
+        },
+        TextEncoder,
+      )
+      let finishRead!: (value: unknown) => void
+      mocks.request.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishRead = resolve
+          }),
+      )
+      const initialRead = page.seed.resource(docId.id)
+      // The inline script executes before the browser fires iframe load.
+      await act(async () => {})
+      expect(mocks.request).toHaveBeenCalledTimes(navigation)
+      await act(async () => {
+        frame.dispatchEvent(new Event('load'))
+      })
+      expect(mocks.request).toHaveBeenCalledTimes(navigation + 1)
+      const signal = mocks.request.mock.calls.at(-1)![2].signal as AbortSignal
+      expect(signal.aborted).toBe(false)
+      await act(async () => finishRead(resource))
+      await expect(initialRead).resolves.toEqual(resource)
+    }
+    const signal = mocks.request.mock.calls.at(-1)![2].signal as AbortSignal
+    await act(async () => root.render(<div />))
+    expect(signal.aborted).toBe(true)
+  })
+
   it('asks before running on an unfamiliar site, without requiring a join', async () => {
     mocks.joined = false
     const resolvePageUrl = vi.fn(async () => `seed-page://${host}/`)

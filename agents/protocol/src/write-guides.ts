@@ -176,11 +176,21 @@ Every hm:// link in document content is resolved before publishing. Use \`option
 
 **Default: model first, resources second, UI third.** A request such as “build me a task tracker” means a working page backed by Seed data, not a browser-local demo. Use existing types and collections where suitable. Stateless calculators need no invented schema; local-only primary data requires an explicit user request.
 
-1. Infer the entities, fields and interactions from the user's specifications. Identify the intended data owner/space and visibility using the current context. Distinguish a shared collection from per-user collections. A selected viewer is the signer, not automatically the data owner. Verify write authority for the intended user(s); do not ship a collection only the authoring agent can edit. If required authority is unavailable, explain the specific missing access rather than substituting local storage or creating broad capabilities.
+1. Infer the entities, fields, interactions, data owner/space and visibility from the user's specifications and current context. Distinguish a shared collection from per-user collections. Follow **Resolve access before building the UI** below; do not ship a collection only the authoring agent can edit.
 2. Read ~/tools/write/ipfs. Publish each needed HM schema with write ipfs:// and options.schema: "schema"; bind the returned CID to a type document via metadata.schemaDefinition. These are Hypermedia schemas (type/properties/value/required), not JSON Schema. Reuse existing schemas without overwriting them.
 3. Read ~/tools/write/documents. Create required parent documents, then a data collection with childAttributesSchema pointing to the type document. Store each independently editable record as a document with attributesSchema, structured metadata fields and optional body content. Do not pack the whole database into a JSON string, one localStorage entry or a comment thread. Schema conformance is advisory in today's document API: fix dry-run/read-back schema warnings before calling it valid.
-4. Put the real collection/type HM URLs in page document metadata (for example dataRoot and taskType). Build the HTML against these resources through seed.directory, seed.resource and seed.publishDocument. Keep the URLs stable across page revisions and preserve existing records. Respect collection visibility and runtime protocol capabilities; do not silently publish private records publicly. UI permission approval is separate from having protocol write authority.
+4. Keep real collection/type HM URLs in one place: constants in the bundle, or page metadata only when the code actually reads that configuration. Do not add redundant dataRoot/type/collection attributes. Build the HTML against these resources through seed.directory, seed.resource and seed.publishDocument. When publishing, pass options.pageData: ["hm://DATA_OWNER/collection", ...] for every writable collection. The publisher checks child-record write access for the agent owner, not the agent signing key, and stops publication when access is missing. Its structured missingAccess result includes whether an enabled identity can grant access and exact dry-run grant inputs; use these to offer the repair, then recheck access after authorized publication of the grant. This is an access preflight, not an interaction test; shared apps must verify access for their other intended users too. Keep the URLs stable across page revisions and preserve existing records. Respect collection visibility and runtime protocol capabilities; do not silently publish private records publicly. UI permission approval is separate from having protocol write authority.
 5. Exercise create → read → edit → read-back against the actual target, then reopen with local page state empty. Verify the same record through an ordinary Seed document/attributes view. Test deletion/archive and denied/error states where offered. A second host reading the same resource is sync evidence; browser refresh alone is not. Report which checks ran. Never report local state as Seed persistence, and never fall back to local-only saves when permission is denied or Seed is unavailable.
+
+## Resolve access before building the UI
+
+1. Identify the intended viewer from the authenticated message_sender and conversation intent. Use the current page/space and existing collections to infer the intended data location. ~/self.ownerAccountId is the agent owner, not necessarily the current requester; available_signing_identities lists the identities you can sign as. Profile names are labels, not permission evidence. Ask only when the relevant identity or intent is genuinely ambiguous.
+2. Read the existing capabilities for that viewer at the actual record paths. Existing ownership or a valid scoped WRITER/AGENT capability may already cover the operation: reuse it and proceed. Do not infer missing access from a loading/schema error, or infer granted access from page approval or the agent's own successful write.
+3. If access is missing, check whether an enabled signing identity owns the collection space. The publisher's pageDataAccess.viewer says whose access was checked: compare it to the intended viewer, and check other intended users separately. For each missingAccess entry, canGrant and grant describe the available owner authority and a dry-run repair; they do not indicate user approval. Never apply a proposal to the wrong recipient just because it appeared in a tool result.
+4. When you can grant access, read ~/tools/write/capabilities and prepare WRITER grants for only the required collections and descendants, keeping the existing app/data location. Present all required scopes together as one specific offer. Use the person's known display name and meaningful collection names in conversation; retain exact IDs and paths in the tool inputs. Honor prior authorization for those recipients/scopes; otherwise ask once for that concrete change. After approval, apply it and continue without asking the same question again. If you cannot grant access, explain which owner must grant which scope. Never substitute local storage, move data by default, or ask for account-wide/AGENT/Any signing access as a shortcut.
+5. Re-read capabilities after applying an authorized grant. Then test the original action as the intended viewer, verify the saved document and reopen the page. Permission setup is a step toward finishing the app, not evidence that the app already works. If UI testing is unavailable, say what was verified and what remains untested; do not tell the user the workflow is fixed.
+
+For example, when a known user cannot add a pet to an agent-owned collection, a useful offer is: “Your account is missing write access to this app's data. I can give you writer access to the Pets and Care Tasks collections, including their records. Apply those two grants?” Fill in the real recipient and collection names from context. If those exact grants are already authorized, apply them and test Add pet instead of repeating the offer. Do not ask “Who are you?” or “Which space should I move the app to?” when the context already establishes those facts.
 
 Local storage (including seed.storage) is optional for filters, theme, dismissed tips and temporary unsaved drafts. Durable tasks, notes, inventory and progress belong in Seed resources. Migrating an older local-only page requires an explicit import: preserve the original data until published records are read back successfully; do not discard or silently upload existing local private data.
 
@@ -195,16 +205,16 @@ Use seed.input.get() to get {values, schema, errors}. Incoming malformed or sche
 
 ## Example: task schema and collection
 
-Adapt the fields/statuses to the requested tracker. Publish this schema with options.schema: "schema", then a type document at hm://DATA_OWNER/types/task with schemaDefinition: "ipfs://<returned CID>". Create parents first. Create hm://DATA_OWNER/tasks with childAttributesSchema: "hm://DATA_OWNER/types/task"; choose its privacy deliberately. Bind the page's metadata.dataRoot and metadata.taskType to those real URLs. DATA_OWNER is the intended data space, not a guessed viewer or agent account.
+Adapt the fields/statuses to the requested tracker. Publish this schema with options.schema: "schema", then a type document at hm://DATA_OWNER/types/task with schemaDefinition: "ipfs://<returned CID>". Create parents first. Create hm://DATA_OWNER/tasks with childAttributesSchema: "hm://DATA_OWNER/types/task"; choose its privacy deliberately. Configure the bundle with those real URLs; page metadata is optional and should only be added if the code reads it. DATA_OWNER is the intended data space, not a guessed viewer or agent account.
 
 \`\`\`json
 {"type":"hm://hyper.media/struct","properties":{"name":{"value":{"type":"hm://hyper.media/string"},"required":true},"status":{"value":{"anyOf":["todo","doing","done","archived"]},"required":true},"attributesSchema":{"value":{"type":"hm://hyper.media/url"},"required":true}}}
 \`\`\`
 
-The following data adapter uses the bridge's real protobuf change shapes. Pass the configured collection/type URLs and, when required, the appropriate writer capability CID for the selected viewer. Create parents and verify access during setup; never embed a secret or an agent signing key. Get configuration by reading the page document returned by seed.context().document. Use the initial resource only for configuration; mutable task reads use unversioned HM URLs.
+The following data adapter uses the bridge's real protobuf change shapes. Pass the configured collection/type URLs. The host resolves an existing writer capability for the selected viewer; it never creates a grant. No page approval can substitute for protocol write authority. Create parents and verify access during setup; never embed a secret or an agent signing key. If configuration lives in metadata, read the page document identified by seed.context().document. Use the initial resource only for configuration; mutable task reads use unversioned HM URLs.
 
 \`\`\`js
-async function createTaskData(seed, {dataRoot, taskType, capability}) {
+async function createTaskData(seed, {dataRoot, taskType}) {
   const root = await seed.resource(dataRoot)
   if (root.type !== 'document') throw new Error('Task collection is unavailable')
   const collection = root.id
@@ -221,7 +231,7 @@ async function createTaskData(seed, {dataRoot, taskType, capability}) {
       if (!name) throw new Error('A task needs a name')
       const taskPath = path + '/task-' + crypto.randomUUID()
       const result = await seed.publishDocument({
-        account: collection.uid, path: taskPath, visibility, capability,
+        account: collection.uid, path: taskPath, visibility,
         changes: Object.entries({name, status: 'todo', attributesSchema: taskType}).map(([key, value]) => ({
           op: {case: 'setMetadata', value: {key, value}},
         })),
@@ -238,7 +248,7 @@ async function createTaskData(seed, {dataRoot, taskType, capability}) {
       await seed.publishDocument({
         account: current.id.uid, path: doc.path,
         baseVersion: doc.version, genesis: doc.genesis, generation: doc.generationInfo?.generation,
-        visibility: doc.visibility === 'PRIVATE' ? 2 : 1, capability,
+        visibility: doc.visibility === 'PRIVATE' ? 2 : 1,
         changes: [{op: {case: 'setMetadata', value: {key: 'status', value: status}}}],
       })
       return seed.resource(taskUrl)
@@ -264,6 +274,12 @@ Publication validates classic JavaScript syntax and rejects external assets for 
 Use \`seed.runtime()\` to discover the actual host's SDK version, implementation digest, method inventory and storage limits. This guide expects SDK 2.0.0. Feature-detect newer methods; if absent, show "Update Seed to use this feature" instead of guessing alternatives. The authoring server and the desktop/web host may run different builds.
 
 For content links use ordinary \`<a href="hm://ACCOUNT/path?v=VERSION#BLOCK">Read the document</a>\` or \`await seed.open(hmUrl)\` in a click handler. Seed opens the content outside the page sandbox and preserves version/block references. Use \`{newWindow: true}\` when desired; anchors support Ctrl/Cmd/middle click and target="_blank". Explicit HTTP(S) URLs retain their original server, which matters for local and private networks. Do not replace window.location, invent gateway URLs, use parent DOM, or open the content inside the sandbox. Opening a link requires no account-write grant. Handle rejected opens visibly and preserve input. Use meaningful link labels.
+
+## Diagnosing Add/Save failures
+
+Read this local guide again before repairing a page; do not infer the browser SDK's shape from an agent read result or older published docs. The agent read tool returns an envelope containing resource; seed.resource returns the resource directly. For a document it is {type: "document", id: {id: "hm://…", uid, path}, document: {account, path, metadata, version, genesis, generationInfo, visibility}}. Directory returns an array of rows with id and metadata, not {results} and not document wrappers. publishDocument resolves to {document: "hm://…"} only after reading back the published version; blob storage alone is not proof of a successful save.
+
+Initialize data before enabling Add/Save, show a persistent initialization error with Retry, and preserve form input on failed saves. Never render a failed collection load as an empty successful collection. Inspect seed.runtime() and the actual failing operation/error in the target host; do not guess alternate wrappers or property names. A verified missing writer capability should trigger the scoped permission repair described in **Resolve access before building the UI** and ~/tools/write/capabilities, not a dead-end error or broader page trust. Preserve the existing app/data location unless the user wants it changed. If publication was submitted but read-back was not confirmed, inspect the named address before retrying to avoid duplicates. Test the original failing button, reload, and edit before saying it is fixed. If no connected UI test surface is available, explicitly report that interaction remains unverified.
 
 SDK calls return promises except \`seed.stringify(value)\`, a display-only JSON serializer for BigInt and binary values (never use it for signing). The exact supported shapes are:
 
@@ -346,10 +362,10 @@ Use \`capability.grant\` (\`capability.create\` is an alias). Required fields ar
 - \`path\` scopes the grant; \`"/"\` covers the account root and descendants.
 
 \`\`\`json
-{"address":"hm://SIGNER_UID","options":{"action":"capability.grant","signer":{"publicKey":"SIGNER_UID"},"input":{"delegate":"DELEGATE_UID","role":"WRITER","path":"/","label":"Site editor"}},"dryRun":true}
+{"address":"hm://SIGNER_UID","options":{"action":"capability.grant","signer":{"publicKey":"SIGNER_UID"},"input":{"delegate":"DELEGATE_UID","role":"WRITER","path":"/apps/my-app/data","label":"App data editor"}},"dryRun":true}
 \`\`\`
 
-Verify the delegate UID, role, and scope carefully before removing \`dryRun\`. The signer is the authority granting access; the delegate is the recipient.`,
+Resolve the recipient from the authenticated message sender and conversation intent; the agent owner may be a different person. Do not ask for an ID already known. Check existing grants first. An enabled signing identity must own the target space; a WRITER capability alone does not let it grant permissions. For a data app, prefer WRITER on each relevant collection and descendants, preserving its existing data location. Offer the concrete recipient/role/paths together, honor prior authorization, otherwise get authorization for that scope before removing \`dryRun\`. Do not ask again once those exact grants are authorized. Then re-read the capabilities and resume the original task, testing the failed action as that user. The signer is the authority granting access; the delegate is the recipient.`,
   },
   contacts: {
     summary: 'Create a named contact for an account or delete an existing contact record.',

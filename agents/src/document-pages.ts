@@ -1,4 +1,6 @@
 import type {IpfsDirectoryFile} from '@seed-hypermedia/client'
+import * as hm from '@seed-hypermedia/client'
+import {z} from 'zod'
 import * as memory from '@/agent-memory'
 import * as acorn from 'acorn'
 import * as html from 'linkedom'
@@ -14,10 +16,25 @@ export function validateDocumentPage(files: IpfsDirectoryFile[], target: unknown
   if (target !== 'web-desktop' && target !== 'desktop') throw new Error('pageTarget must be web-desktop or desktop')
   const warnings = new Set<string>()
   let scripts = 0
+  let writesDocuments = false
   const paths = new Set(files.map((file) => file.path))
   const syntax = (source: string, filename: string) => {
     try {
-      acorn.parse(source, {ecmaVersion: 'latest', sourceType: 'script'})
+      const tree = acorn.parse(source, {ecmaVersion: 'latest', sourceType: 'script'})
+      const visit = (node: unknown) => {
+        if (!node || typeof node !== 'object') return
+        const value = node as Record<string, any>
+        if (value.type === 'CallExpression' && value.callee.type === 'MemberExpression') {
+          const property = value.callee.property
+          const name = value.callee.computed ? property.value : property.name
+          if (name === 'publishDocument' || name === 'createDocumentBlobs') writesDocuments = true
+        }
+        for (const child of Object.values(value)) {
+          if (Array.isArray(child)) child.forEach(visit)
+          else if (child && typeof child === 'object') visit(child)
+        }
+      }
+      visit(tree)
       scripts++
     } catch (error) {
       throw new Error(
@@ -84,6 +101,7 @@ export function validateDocumentPage(files: IpfsDirectoryFile[], target: unknown
   return {
     syntax: 'passed' as const,
     scripts,
+    writesDocuments,
     target,
     runtimeTested: false,
     interactionTested: false,
@@ -91,6 +109,57 @@ export function validateDocumentPage(files: IpfsDirectoryFile[], target: unknown
     dataPersistenceTested: false,
     sdk: {version: DOCUMENT_PAGE_SDK_VERSION, methods: [...DOCUMENT_PAGE_METHODS]},
     warnings: [...warnings],
+  }
+}
+
+/** Check declared data collections as the agent owner, without signing or changing permissions. */
+export async function checkDocumentPageData(
+  client: Pick<hm.SeedClient, 'request'>,
+  value: unknown,
+  viewer: string,
+  grantAuthorities: readonly string[] = [],
+) {
+  const urls = z.array(z.string().min(1)).min(1).max(16).parse(value)
+  const collections = []
+  const missingAccess = []
+  for (const url of urls) {
+    const id = hm.unpackHmId(url)
+    if (!id || id.version || id.blockRef) throw new Error(`pageData needs unversioned collection HM URLs: ${url}`)
+    const root = await client.request('Resource', id)
+    if (root.type !== 'document') throw new Error(`Page data collection is unavailable: ${url} (${root.type})`)
+    const schema = root.document.metadata.childAttributesSchema
+    if (typeof schema !== 'string' || !schema)
+      throw new Error(`Page data collection needs childAttributesSchema: ${url}`)
+    // Probe a child path because exact-document/nonrecursive access is insufficient for Add record.
+    const childPath = `${root.document.path}/_page_write_check`
+    const capability = await hm.resolveCapability(client, root.id.uid, viewer, childPath)
+    if (root.id.uid !== viewer && !capability) {
+      const canGrant = grantAuthorities.includes(root.id.uid)
+      const input = {delegate: viewer, role: 'WRITER', path: root.document.path || '/'}
+      missingAccess.push({
+        collection: url,
+        owner: root.id.uid,
+        ...input,
+        canGrant,
+        ...(canGrant
+          ? {
+              grant: {
+                address: hm.packBaseId(root.id.uid),
+                options: {action: 'capability.grant', signer: {publicKey: root.id.uid}, input},
+                dryRun: true,
+              },
+            }
+          : {}),
+      })
+    }
+    collections.push({url, schema, visibility: root.document.visibility, ...(capability ? {capability} : {})})
+  }
+  return {
+    viewer,
+    collections,
+    writeAccess: missingAccess.length ? ('missing' as const) : ('passed' as const),
+    ...(missingAccess.length ? {missingAccess} : {}),
+    dataPersistenceTested: false,
   }
 }
 

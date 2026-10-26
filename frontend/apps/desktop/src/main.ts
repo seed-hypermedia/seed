@@ -133,8 +133,6 @@ contextMenu({
   // },
 })
 
-Menu.setApplicationMenu(createAppMenu())
-
 // Custom HTML pages get an origin of their own; a privileged scheme must be declared before ready.
 registerDocumentPageScheme()
 
@@ -186,7 +184,7 @@ app.on('before-quit', () => {
   memoryMonitor.stopTracking()
 
   // Unregister all global shortcuts
-  globalShortcut.unregisterAll()
+  if (app.isReady()) globalShortcut.unregisterAll()
 
   logger.info('[MAIN]: App before-quit - cleanup complete')
 })
@@ -271,6 +269,8 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  // Install after native application initialization so macOS keeps the menu and accelerators.
+  Menu.setApplicationMenu(createAppMenu())
   logger.debug('[MAIN]: Seed ready')
 
   // Every packaged build serves its renderer from a local http server, never file://: iframes

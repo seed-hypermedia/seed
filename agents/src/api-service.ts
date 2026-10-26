@@ -33,7 +33,7 @@ import * as protocol from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
-import {collectDocumentPageFiles, validateDocumentPage} from '@/document-pages'
+import {checkDocumentPageData, collectDocumentPageFiles, validateDocumentPage} from '@/document-pages'
 import {BrowserTools} from '@/browser-tools'
 import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
@@ -12757,6 +12757,7 @@ type WritePageFolder = {
   files: number
   bytes: number
   validation: ReturnType<typeof validateDocumentPage>
+  dataAccess?: Awaited<ReturnType<typeof checkDocumentPageData>>
 }
 
 /**
@@ -12798,6 +12799,7 @@ function withPageResult(result: Record<string, unknown>, folder: WritePageFolder
     pageFiles: folder.files,
     pageBytes: folder.bytes,
     pageValidation: {...folder.validation, bundle: folder.html},
+    ...(folder.dataAccess ? {pageDataAccess: folder.dataAccess} : {}),
     ...(id
       ? {
           instructions:
@@ -13665,6 +13667,7 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
       triggerRows.length === 1 ? '' : 's'
     } and ${sessionCount} conversation${sessionCount === 1 ? '' : 's'}.`,
     agentId: context.agentId,
+    ownerAccountId: context.accountId,
     name: definition.name,
     model: definition.model,
     modelProvider: provider ? {id: provider.id, name: provider.name, type: provider.type} : definition.modelProvider,
@@ -14053,8 +14056,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata', 'page', 'pageTarget'],
-  update: ['name', 'metadata', 'page', 'pageTarget'],
+  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData'],
+  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -14454,6 +14457,33 @@ export async function executeWriteVerb(
     // document's HTML page. Its files are published as a UnixFS folder in the same publish as the
     // change, and the document's `html` attribute points at the folder (see document-pages.md).
     const pageFolder = await resolveWritePageFolder(context, options.page, options.pageTarget)
+    if (pageFolder?.validation.writesDocuments && options.pageData === undefined) {
+      throw new APIError(
+        400,
+        'This page writes documents. Supply options.pageData with its collection HM URLs so the publisher can check the agent owner’s write access, not just the agent’s. Read ~/tools/write/pages. Syntax validation alone cannot establish that Add/Save works.',
+      )
+    }
+    if (pageFolder && options.pageData !== undefined) {
+      const identities = await listWriteSigningIdentities(
+        context.db,
+        context.accountId,
+        context.definition.signingKeys ?? (context.definition.signingKey ? [context.definition.signingKey] : []),
+      )
+      pageFolder.dataAccess = await checkDocumentPageData(
+        createSeedClient(context.hmServerUrl),
+        options.pageData,
+        context.accountId,
+        identities.map((identity) => identity.publicKey),
+      )
+      if (pageFolder.dataAccess.writeAccess === 'missing') {
+        return writeToolError('document.page', 'Page not published: the intended user needs collection write access.', {
+          published: false,
+          pageDataAccess: pageFolder.dataAccess,
+          instructions:
+            'Compare pageDataAccess.viewer with the authenticated message sender and intended app user; the agent owner may differ from the requester. Check other intended users separately and do not grant to the wrong recipient. Use the current page and conversation intent; do not ask the user to repeat known identity information. Preserve the intended data location. Where canGrant is true, offer the listed WRITER grants for these collections and their records. Explain recipient and scope, batch related grants in one proposal, honor any authorization already given, otherwise ask once for that concrete permission change. Do not ask again after approval. The grant inputs are dry runs; no permissions have changed. Where canGrant is false, ask the identified collection owner to grant access; a writer capability is not authority to grant access. After an authorized grant, recheck access and resume the original task: test the actual Add/Save workflow as the intended viewer, read back the saved record and reopen the app before reporting success. Do not move data or broaden to account-wide/AGENT access just to bypass this failure.',
+        })
+      }
+    }
     let pageInputSchema = isRecord(options.metadata) ? options.metadata.inputSchema : undefined
     if (pageFolder && pageInputSchema === undefined && action === 'update') {
       const id = unpackHmId(address)
@@ -15338,6 +15368,13 @@ async function writeCapabilityCreate(
   signer: ResolvedAgentSigner,
   request: ReturnType<typeof normalizeWriteToolRequest>,
 ): Promise<Record<string, unknown>> {
+  const target = normalizeOptionalBoundedString(request.input.account, 'Capability account', MAX_NAME_BYTES)
+  if (target && target !== signer.publicKey) {
+    throw new APIError(
+      403,
+      'The signing identity must own the target space to grant access; writer access does not grant permission-management authority.',
+    )
+  }
   const delegateUid = normalizeBoundedString(
     request.input.delegate ?? request.input.delegateUid,
     'Capability delegate',
@@ -15572,7 +15609,7 @@ async function writeDocumentCreate(
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
-  const capability = await requireWriteCapability(client, account, signer.publicKey)
+  const capability = await requireWriteCapability(client, account, signer.publicKey, path)
   const typed = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -15639,8 +15676,9 @@ async function requireWriteCapability(
   client: ReturnType<typeof createSeedClient>,
   space: string,
   signerPublicKey: string,
+  path: string,
 ): Promise<string | undefined> {
-  const capability = await resolveCapability(client, space, signerPublicKey)
+  const capability = await resolveCapability(client, space, signerPublicKey, path)
   if (space !== signerPublicKey && !capability) {
     throw new APIError(
       403,
@@ -15704,7 +15742,12 @@ async function writeDocumentUpdate(
   const targetId = base.targetId
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
-  const capability = await requireWriteCapability(client, targetId.uid, signer.publicKey)
+  const capability = await requireWriteCapability(
+    client,
+    targetId.uid,
+    signer.publicKey,
+    hmIdPathToEntityQueryPath(targetId.path),
+  )
   const typed = await documentSchemaReport(client, packHmId(targetId), {...resource.document.metadata, ...metadata})
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -15769,7 +15812,7 @@ async function writeDocumentDelete(
   const resource = await client.request('Resource', id)
   if (resource.type !== 'document' && resource.type !== 'redirect')
     throw new APIError(400, `Cannot delete ${resource.type}`)
-  const capability = await requireWriteCapability(client, id.uid, signer.publicKey)
+  const capability = await requireWriteCapability(client, id.uid, signer.publicKey, hmIdPathToEntityQueryPath(id.path))
   // A redirected path (including a republished one) has no document of its own to read genesis and
   // generation from, so the tombstone borrows the redirect target's genesis and takes a fresh
   // generation — the new maximum generation supersedes the redirect Ref, so the path reads as
@@ -15820,7 +15863,12 @@ async function writeDocumentRef(
     const base = await followToDocument(client, sourceId).catch((error) => {
       throw new APIError(400, error instanceof Error ? error.message : String(error))
     })
-    const capability = await requireWriteCapability(client, destId.uid, signer.publicKey)
+    const capability = await requireWriteCapability(
+      client,
+      destId.uid,
+      signer.publicKey,
+      hmIdPathToEntityQueryPath(destId.path),
+    )
     if (request.dryRun) return writeToolResult(request.command, signer, {id: packHmId(destId), dryRun: true})
     const refInput = await createVersionRef(
       {
@@ -15937,7 +15985,12 @@ async function writeRepublishMove(
 ): Promise<Record<string, unknown>> {
   const {source, destination, destId, sourceBase} = ctx
   const original = sourceBase.targetId
-  const capability = await requireWriteCapability(client, destId.uid, signer.publicKey)
+  const capability = await requireWriteCapability(
+    client,
+    destId.uid,
+    signer.publicKey,
+    hmIdPathToEntityQueryPath(destId.path),
+  )
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       destination: packHmId(destId),
@@ -16026,7 +16079,12 @@ async function writeDocumentRedirect(
             throw new APIError(400, error instanceof Error ? error.message : String(error))
           })
       : resource.document.genesis
-  const capability = await requireWriteCapability(client, sourceId.uid, signer.publicKey)
+  const capability = await requireWriteCapability(
+    client,
+    sourceId.uid,
+    signer.publicKey,
+    hmIdPathToEntityQueryPath(sourceId.path),
+  )
   if (request.dryRun)
     return writeToolResult(request.command, signer, {id: packHmId(sourceId), target: packHmId(targetId), dryRun: true})
   const refInput = await createRedirectRef(

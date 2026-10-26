@@ -217,7 +217,12 @@ describe('custom HTML page content and signing', () => {
     const {unsignedBytes} = createChangeOps({
       ops: [{type: 'SetAttributes', attrs: [{key: ['name'], value: 'Updated'}]}],
     })
-    request.mockResolvedValueOnce({unsignedChange: unsignedBytes})
+    request.mockImplementation(async (key) => {
+      if (key === 'PrepareDocumentChange') return {unsignedChange: unsignedBytes}
+      const payload = publish.mock.calls.at(-1)![0] as {blobs: {data: Uint8Array}[]}
+      const ref = payload.blobs.map((blob) => decode(blob.data) as any).find((blob) => blob.type === 'Ref')
+      return {type: 'document', document: {version: ref.heads.map(String).join('.')}}
+    })
     const result = await documentPageContent({
       ...options,
       method: 'publishDocument',
@@ -262,6 +267,100 @@ describe('custom HTML page content and signing', () => {
         },
       }),
     ).rejects.toThrow()
+  })
+
+  it('rejects an unwritable target before signing, and does not confuse stored blobs with a saved document', async () => {
+    const {options, request, publish, sign} = await fixture()
+    request.mockResolvedValue({capabilities: []})
+    const call = (account = 'another-space') =>
+      documentPageContent({
+        ...options,
+        method: 'publishDocument',
+        params: {input: {account, path: '/pets/pet-1', changes: []}},
+      })
+    await expect(call()).rejects.toThrow('cannot write to this collection')
+    expect(sign).not.toHaveBeenCalled()
+    expect(publish).not.toHaveBeenCalled()
+    const {unsignedBytes} = createChangeOps({ops: [{type: 'SetAttributes', attrs: [{key: ['name'], value: 'Pet'}]}]})
+    for (const saved of [{type: 'not-found'}, {type: 'document', document: {version: 'old-version'}}]) {
+      request.mockImplementation(async (key) =>
+        key === 'PrepareDocumentChange' ? {unsignedChange: unsignedBytes} : saved,
+      )
+      await expect(call(options.context.account)).rejects.toThrow('could not be confirmed')
+    }
+    expect(publish).toHaveBeenCalledTimes(2)
+  })
+
+  it('selects an existing scoped writer capability for the viewer', async () => {
+    const {options, request, publish} = await fixture()
+    const capability = options.context.version
+    const {unsignedBytes} = createChangeOps({ops: [{type: 'SetAttributes', attrs: [{key: ['name'], value: 'Pet'}]}]})
+    request.mockImplementation(async (key) => {
+      if (key === 'ListCapabilities')
+        return {
+          capabilities: [
+            {id: 'wrong-scope', delegate: options.context.account, role: 'WRITER', path: '/pets-other'},
+            {id: 'nonrecursive', delegate: options.context.account, role: 'WRITER', path: '/pets', noRecursive: true},
+            ...(publish.mock.calls.length === 1
+              ? [{id: 'another-valid-grant', delegate: options.context.account, role: 'WRITER', path: '/pets'}]
+              : []),
+            {id: capability, delegate: options.context.account, role: 'WRITER', path: '/pets'},
+          ],
+        }
+      if (key === 'PrepareDocumentChange') return {unsignedChange: unsignedBytes}
+      const payload = publish.mock.calls.at(-1)![0] as {blobs: {data: Uint8Array}[]}
+      const ref = payload.blobs.map((blob) => decode(blob.data) as any).find((blob) => blob.type === 'Ref')
+      expect(String(ref.capability)).toBe(capability)
+      return {type: 'document', document: {version: ref.heads.map(String).join('.')}}
+    })
+    // A real principal is required by the signing SDK; use a distinct generated identity.
+    const target = (await fixture()).options.context.account
+    await expect(
+      documentPageContent({
+        ...options,
+        method: 'publishDocument',
+        params: {
+          input: {
+            account: target,
+            path: '/pets/pet-1',
+            changes: [],
+          },
+        },
+      }),
+    ).resolves.toEqual({document: `hm://${target}/pets/pet-1`})
+    expect(request).toHaveBeenCalledWith(
+      'PrepareDocumentChange',
+      expect.objectContaining({capability}),
+      expect.anything(),
+    )
+    await expect(
+      documentPageContent({
+        ...options,
+        method: 'publishDocument',
+        params: {
+          input: {
+            account: target,
+            path: '/pets/pet-2',
+            changes: [],
+            capability,
+          },
+        },
+      }),
+    ).resolves.toEqual({document: `hm://${target}/pets/pet-2`})
+    await expect(
+      documentPageContent({
+        ...options,
+        method: 'publishDocument',
+        params: {
+          input: {
+            account: target,
+            path: '/pets/pet-3',
+            changes: [],
+            capability: 'wrong-scope',
+          },
+        },
+      }),
+    ).rejects.toThrow('cannot write')
   })
 
   it('discards reads completed after revocation', async () => {

@@ -429,6 +429,7 @@ function LegacyDocumentPageView({docId, document, cid, fill = false, content, su
     let cancelled = false
     let launchUrl: string | undefined
     setUrl(null)
+    setNavigation(0)
     setError('')
     platform
       .resolvePageUrl({id: docId.id, cid, account})
@@ -460,6 +461,9 @@ function LegacyDocumentPageView({docId, document, cid, fill = false, content, su
     const unsubscribe = subscribeInput(
       (state) => frame.current?.contentWindow?.postMessage({seedPage: 1, type: 'seed-input', state}, origin),
     )
+    // Inline scripts run before iframe load. Release their queued SDK calls only after
+    // installing this navigation's controller, so load cannot cancel initialization.
+    if (navigation) frame.current?.contentWindow?.postMessage({seedPage: 1, type: 'seed-ready'}, origin)
     return () => {
       unsubscribe()
       controller.abort()

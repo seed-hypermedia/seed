@@ -4,6 +4,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import * as pages from '@/document-pages'
 import * as memory from '@/agent-memory'
+import * as hm from '@seed-hypermedia/client'
 
 const directories: string[] = []
 function state() {
@@ -105,6 +106,84 @@ describe('document page validation', () => {
       bundle('<script src="/.seed/client.js"></script><script>seed.publishDocument({})</script>'),
     )
     expect(connected.dataPersistenceTested).toBe(false)
+    expect(connected.writesDocuments).toBe(true)
     expect(connected.warnings).toEqual([])
+  })
+  test('identifies document writers through syntax, without treating comments or strings as writes', () => {
+    expect(
+      pages.validateDocumentPage(
+        bundle(
+          '<script src="/.seed/client.js"></script><script>/* seed.publishDocument({}) */ const text = "seed.publishDocument({})"</script>',
+        ),
+      ).writesDocuments,
+    ).toBe(false)
+    expect(
+      pages.validateDocumentPage(
+        bundle('<script src="/.seed/client.js"></script><script>window.seed["publishDocument"]({})</script>'),
+      ).writesDocuments,
+    ).toBe(true)
+  })
+})
+
+describe('page data access preflight', () => {
+  test('checks the user rather than the authoring agent, including child-path scope', async () => {
+    const url = 'hm://author/pets'
+    const root = {
+      type: 'document',
+      id: hm.unpackHmId(url),
+      document: {
+        path: '/pets',
+        visibility: 'PRIVATE',
+        metadata: {childAttributesSchema: 'hm://author/types/pet'},
+      },
+    }
+    let capabilities: any[] = []
+    const client = {
+      request: async (key: string, input: any) => {
+        if (key === 'Resource') return root
+        expect(key).toBe('ListCapabilities')
+        expect(input.targetId.path).toEqual(['pets', '_page_write_check'])
+        return {capabilities}
+      },
+    } as Pick<hm.SeedClient, 'request'>
+    const unavailable = await pages.checkDocumentPageData(client, [url], 'viewer')
+    expect(unavailable.writeAccess).toBe('missing')
+    expect(unavailable.missingAccess).toEqual([
+      {
+        collection: url,
+        owner: 'author',
+        delegate: 'viewer',
+        role: 'WRITER',
+        path: '/pets',
+        canGrant: false,
+      },
+    ])
+    const repair = await pages.checkDocumentPageData(client, [url], 'viewer', ['author'])
+    expect(repair.missingAccess?.[0]).toMatchObject({
+      canGrant: true,
+      grant: {
+        address: 'hm://author',
+        options: {
+          action: 'capability.grant',
+          signer: {publicKey: 'author'},
+          input: {delegate: 'viewer', role: 'WRITER', path: '/pets'},
+        },
+        dryRun: true,
+      },
+    })
+    capabilities = [{id: 'cap', delegate: 'viewer', role: 'WRITER', path: '/pets', noRecursive: true}]
+    expect((await pages.checkDocumentPageData(client, [url], 'viewer')).writeAccess).toBe('missing')
+    capabilities[0].noRecursive = false
+    expect(await pages.checkDocumentPageData(client, [url], 'viewer')).toEqual({
+      viewer: 'viewer',
+      writeAccess: 'passed',
+      dataPersistenceTested: false,
+      collections: [{url, schema: 'hm://author/types/pet', visibility: 'PRIVATE', capability: 'cap'}],
+    })
+    expect((await pages.checkDocumentPageData(client, [url], 'author')).writeAccess).toBe('passed')
+    await expect(pages.checkDocumentPageData(client, [], 'viewer')).rejects.toThrow()
+    await expect(pages.checkDocumentPageData(client, [url + '?v=old'], 'viewer')).rejects.toThrow('unversioned')
+    root.document.metadata.childAttributesSchema = ''
+    await expect(pages.checkDocumentPageData(client, [url], 'author')).rejects.toThrow('childAttributesSchema')
   })
 })

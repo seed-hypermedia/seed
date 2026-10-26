@@ -208,13 +208,37 @@ export async function documentPageContent({
     })
       .strict()
       .parse(object.input)
+    const id = hm.unpackHmId(hm.packBaseId(input.account, input.path?.split('/').filter(Boolean) || []))!
+    const capability = await hm.resolveCapability({request}, input.account, account, input.path, input.capability)
+    if (input.account !== account && !capability) {
+      throw new Error(
+        'Your selected account cannot write to this collection. Choose a space you can edit; page permission approval does not grant space write access.',
+      )
+    }
+    if (input.capability && input.capability !== capability) {
+      throw new Error('The supplied capability does not match your selected account’s write access.')
+    }
+    let publishedVersion: string | undefined
     const publishingClient = createWebUniversalClient({
       request,
-      publish,
+      publish: async (payload) => {
+        const result = await publish(payload)
+        for (const blob of payload.blobs) {
+          const body = decode(blob.data) as {type?: string; heads?: unknown[]}
+          if (body.type === 'Ref' && body.heads) publishedVersion = body.heads.map(String).join('.')
+        }
+        return result
+      },
       getSigner: () => signer,
     })
-    await publishingClient.publishDocument!({...input, signerAccountUid: account})
-    return {document: hm.packBaseId(input.account, input.path?.split('/').filter(Boolean) || [])}
+    await publishingClient.publishDocument!({...input, capability, signerAccountUid: account})
+    const saved = await request('Resource', id)
+    if (saved.type !== 'document' || !publishedVersion || saved.document.version !== publishedVersion) {
+      throw new Error(
+        `Document publication was submitted but could not be confirmed at ${id.id}. Read this address before retrying; do not report it as saved.`,
+      )
+    }
+    return {document: id.id}
   }
   if (method === 'resource') {
     const id = hm.unpackHmId(z.string().parse(object.url))

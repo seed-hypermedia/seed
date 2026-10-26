@@ -6188,6 +6188,8 @@ describe('api service', () => {
       let existingVersion = ''
       let existingHtml = ''
       let existingInputSchema = 'hm://hyper.media/page-input'
+      let dataCollection = false
+      let capabilities: any[] = []
       const publishes: number[] = []
       globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
         const href = url instanceof Request ? url.url : String(url)
@@ -6195,6 +6197,7 @@ describe('api service', () => {
           publishes.push((init?.body as ArrayBuffer).byteLength)
           return Response.json(serialize({cids: [`published-${publishes.length}`]}))
         }
+        if (href.includes('/api/ListCapabilities')) return Response.json(serialize({capabilities}))
         if (href.includes('/api/ListChanges')) {
           return Response.json(serialize({changes: [{id: existingVersion, deps: [], author: signerPublicKey}]}))
         }
@@ -6219,6 +6222,7 @@ describe('api service', () => {
                   type: 'hm://hyper.media/page',
                   html: existingHtml,
                   inputSchema: existingInputSchema,
+                  ...(dataCollection ? {childAttributesSchema: 'hm://hyper.media/example/person'} : {}),
                 },
                 genesis: existingVersion,
                 visibility: 'PUBLIC',
@@ -6342,6 +6346,76 @@ describe('api service', () => {
       await writeMemory('pages/invalid.html', '<script>const broken = {</script>')
       const invalid = await write({address, options: {action: 'update', page: 'pages/invalid.html'}})
       expect(String(invalid.error)).toContain('syntax error')
+      expect(publishes.length).toBe(beforeInvalid)
+      await writeMemory(
+        'pages/data.html',
+        '<script src="/.seed/client.js"></script><script>seed.publishDocument({})</script>',
+      )
+      const missingData = await write({address, options: {action: 'update', page: 'pages/data.html'}})
+      expect(String(missingData.error)).toContain('pageData')
+      expect(publishes.length).toBe(beforeInvalid)
+      const invalidData = await write({
+        address,
+        options: {action: 'update', page: 'pages/data.html', pageData: [address]},
+      })
+      expect(String(invalidData.error)).toContain('childAttributesSchema')
+      expect(publishes.length).toBe(beforeInvalid)
+      // Missing viewer access should offer a narrow grant using the known user and enabled owner key.
+      dataCollection = true
+      const needsAccess = await write({
+        address,
+        options: {action: 'update', page: 'pages/data.html', pageData: [address]},
+      })
+      expect(needsAccess.type).toBe('hypermedia_write_error')
+      const details = needsAccess.details as any
+      expect(details.published).toBe(false)
+      const proposal = details.pageDataAccess.missingAccess[0].grant
+      expect(proposal).toEqual({
+        address: `hm://${signerPublicKey}`,
+        options: {
+          action: 'capability.grant',
+          signer: {publicKey: signerPublicKey},
+          input: {
+            delegate: blobs.principalToString(owner.principal),
+            role: 'WRITER',
+            path: '/counter',
+          },
+        },
+        dryRun: true,
+      })
+      expect(String(details.instructions)).toContain('offer the listed WRITER grants')
+      const grantPreview = await write(proposal)
+      expect(grantPreview).toMatchObject({
+        dryRun: true,
+        delegate: blobs.principalToString(owner.principal),
+        role: 'WRITER',
+        path: '/counter',
+      })
+      expect(publishes.length).toBe(beforeInvalid)
+      const wrongAuthority = await write({...proposal, address: `hm://${other.identity.accountId}`})
+      expect(String(wrongAuthority.error)).toContain('signing identity must own')
+      expect(publishes.length).toBe(beforeInvalid)
+      capabilities = [
+        {
+          id: existingVersion,
+          account: signerPublicKey,
+          delegate: other.identity.accountId,
+          role: 'WRITER',
+          path: '/counter',
+          noRecursive: true,
+        },
+      ]
+      const scopedUpdate = await write({
+        address,
+        dryRun: true,
+        options: {
+          action: 'update',
+          name: 'Counter updated',
+          signer: {publicKey: other.identity.accountId},
+        },
+      })
+      expect(scopedUpdate.error).toBeUndefined()
+      expect(scopedUpdate.dryRun).toBe(true)
       expect(publishes.length).toBe(beforeInvalid)
       const preview = await write({address, dryRun: true, options: {action: 'update', page: 'pages/game.html'}})
       expect(preview.dryRun).toBe(true)
