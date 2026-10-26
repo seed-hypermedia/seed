@@ -2,13 +2,8 @@ import {PanelSelectionOptions} from '@shm/shared'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {X} from 'lucide-react'
 import {useRef, useState} from 'react'
-import {
-  ImperativePanelGroupHandle,
-  ImperativePanelHandle,
-  Panel,
-  PanelGroup,
-  PanelResizeHandle,
-} from 'react-resizable-panels'
+import {Group, Panel} from 'react-resizable-panels'
+import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from './resizable-panels'
 import {Button} from './button'
 import {FeedFilters} from './feed-filters'
 import {Text} from './text'
@@ -102,10 +97,8 @@ export function PanelLayout({
   onPanelWidthChange,
   header,
 }: PanelLayoutProps) {
-  const panelsRef = useRef<ImperativePanelGroupHandle>(null)
-  const accessoryPanelRef = useRef<ImperativePanelHandle>(null)
+  const saved = useSavedPanelLayout('resource-panel', ['main', 'accessory'], widthStorage)
   const containerRef = useRef<HTMLDivElement>(null)
-  const prevPanelKey = useRef<PanelSelectionOptions | null>(panelKey)
   const [containerWidth, setContainerWidth] = useState(0)
   const minPanelPercent = getPanelMinPercent(containerWidth)
 
@@ -118,81 +111,63 @@ export function PanelLayout({
     return () => observer.disconnect()
   }, [])
 
-  // Always open panel at DEFAULT_PANEL_PX, capped at MAX_OPEN_PERCENT but never below the minimum width
-  useIsomorphicLayoutEffect(() => {
-    const isOpening = prevPanelKey.current === null && panelKey !== null
-
-    if (isOpening) {
-      const container = containerRef.current
-      if (container) {
-        const containerWidth = container.getBoundingClientRect().width
-        if (containerWidth) {
-          const targetPercent = Math.max(
-            getPanelMinPercent(containerWidth),
-            Math.min(MAX_OPEN_PERCENT, (DEFAULT_PANEL_PX / containerWidth) * 100),
-          )
-          accessoryPanelRef.current?.resize(targetPercent)
-          onPanelWidthChange?.(targetPercent)
-        }
-      }
-    }
-
-    prevPanelKey.current = panelKey
-  }, [panelKey, onPanelWidthChange])
-
   const {title, showActivityFilters} = getPanelHeaderState(panelKey, isVersionsPanel, isCitationsPanel)
 
   return (
     <div ref={containerRef} className="flex h-full flex-1">
-      <PanelGroup
-        direction="horizontal"
-        ref={panelsRef}
-        style={{flex: 1}}
-        autoSaveId="resource-panel"
-        storage={widthStorage}
+      <Group
+        orientation="horizontal"
+        className="flex-1"
+        onLayoutChanged={(layout, meta) => {
+          saved.onLayoutChanged(layout, meta)
+          if (!meta.isUserInteraction) return
+          const width = (meta.requestedLayout ?? layout).accessory
+          if (width && width > 0) onPanelWidthChange?.(width)
+          if (layout.accessory === 0 && panelKey !== null) onPanelClose()
+        }}
       >
-        <Panel id="main" minSize={100 - MAX_PANEL_PERCENT}>
+        <Panel id="main" minSize={`${100 - MAX_PANEL_PERCENT}%`}>
           <div className="relative h-full rounded-lg">{children}</div>
         </Panel>
 
-        {panelKey !== null && (
-          <>
-            <PanelResizeHandle className="panel-resize-handle" />
-            <Panel
-              id="accessory"
-              ref={accessoryPanelRef}
-              maxSize={MAX_PANEL_PERCENT}
-              minSize={minPanelPercent}
-              defaultSize={Math.max(panelWidth || 0, minPanelPercent)}
-              onResize={onPanelWidthChange}
-              className="border-l"
-            >
-              <div className="h-full rounded-lg">
-                <div className={cn('dark:bg-background flex h-full flex-col bg-white')}>
-                  <div className="border-border border-b px-5 py-3">
-                    {header ?? (
-                      <>
-                        <div className="flex items-center justify-between gap-2">
-                          <Text weight="semibold" size="lg" className="flex-1">
-                            {title}
-                          </Text>
-                          <Button size="icon" onClick={onPanelClose}>
-                            <X className="size-4" />
-                          </Button>
-                        </div>
-                        {showActivityFilters && onFilterChange && (
-                          <FeedFilters filterEventType={filterEventType} onFilterChange={onFilterChange} />
-                        )}
-                      </>
+        <PanelSeparator open={panelKey !== null} onCollapse={onPanelClose} />
+        <AnimatedPanel
+          id="accessory"
+          open={panelKey !== null}
+          maxSize={`${MAX_PANEL_PERCENT}%`}
+          minSize={`${minPanelPercent}%`}
+          defaultSize={`${Math.max(
+            panelWidth ||
+              saved.expanded?.accessory ||
+              Math.min(MAX_OPEN_PERCENT, containerWidth ? (DEFAULT_PANEL_PX / containerWidth) * 100 : MAX_OPEN_PERCENT),
+            minPanelPercent,
+          )}%`}
+          className="border-l"
+        >
+          <div className="h-full rounded-lg">
+            <div className={cn('dark:bg-background flex h-full flex-col bg-white')}>
+              <div className="border-border border-b px-5 py-3">
+                {header ?? (
+                  <>
+                    <div className="flex items-center justify-between gap-2">
+                      <Text weight="semibold" size="lg" className="flex-1">
+                        {title}
+                      </Text>
+                      <Button size="icon" onClick={onPanelClose}>
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                    {showActivityFilters && onFilterChange && (
+                      <FeedFilters filterEventType={filterEventType} onFilterChange={onFilterChange} />
                     )}
-                  </div>
-                  <div className="flex-1 overflow-hidden">{panelContent}</div>
-                </div>
+                  </>
+                )}
               </div>
-            </Panel>
-          </>
-        )}
-      </PanelGroup>
+              <div className="flex-1 overflow-hidden">{panelContent}</div>
+            </div>
+          </div>
+        </AnimatedPanel>
+      </Group>
     </div>
   )
 }

@@ -123,7 +123,7 @@ describe('SiteFileBrowserLayout', () => {
     expect(html).toContain('Document body')
     expect(html).toContain('Documents')
     expect(html).toContain('w-72')
-    expect(html).not.toContain('data-panel-group')
+    expect(html).not.toContain('data-group')
     expect(html).not.toContain('animate-spin')
   })
 
@@ -137,8 +137,8 @@ describe('SiteFileBrowserLayout', () => {
       container.querySelector<HTMLButtonElement>('[aria-label="Collapse file browser"]')?.click()
     })
 
-    expect(container.querySelector('[data-panel-id="site-file-browser"]')).toBeNull()
-    expect(container.querySelector('[data-panel-resize-handle-id]')).toBeNull()
+    expect(container.querySelector<HTMLElement>('[data-panel][id="site-file-browser"]')?.inert).toBe(true)
+    expect(container.querySelector('[data-separator]')?.getAttribute('aria-hidden')).toBe('true')
     const reopenControl = container.querySelector('[data-tooltip-content="Show file explorer"]')
     expect(reopenControl?.parentElement?.className).toContain('absolute')
     expect(reopenControl?.parentElement?.className).toContain('top-2')
@@ -149,7 +149,7 @@ describe('SiteFileBrowserLayout', () => {
       container.querySelector<HTMLButtonElement>('[aria-label="Open file browser"]')?.click()
     })
 
-    expect(container.querySelector('[data-panel-id="site-file-browser"]')).toBeTruthy()
+    expect(container.querySelector('[data-panel][id="site-file-browser"]')).toBeTruthy()
     expect(container.querySelector('[data-tooltip-content="Show file explorer"]')).toBeNull()
   })
 

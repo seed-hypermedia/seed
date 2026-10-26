@@ -3,7 +3,8 @@ import {IS_DESKTOP} from '@shm/shared/constants'
 import {FileSearch2 as FileSearchCorner, ListFilter, PanelLeftClose, Search, X} from 'lucide-react'
 import {createContext, ReactNode, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {ImperativePanelHandle, Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
+import {Panel, Group} from 'react-resizable-panels'
+import {AnimatedPanel, PanelSeparator} from './resizable-panels'
 import {Button} from './button'
 import {SiteFileBrowser, type SiteFileBrowserProps} from './site-file-browser'
 import {Tooltip} from './tooltip'
@@ -63,10 +64,8 @@ export function SiteFileBrowserLayout({
   const [collapsed, setCollapsed] = useState(false)
   const [searchVisible, setSearchVisible] = useState(false)
   const desktopContainerRef = useRef<HTMLDivElement>(null)
-  const browserPanelRef = useRef<ImperativePanelHandle>(null)
   const [minimumPercent, setMinimumPercent] = useState(20)
   const [revealClaims, setRevealClaims] = useState(0)
-  const didSetInitialWidth = useRef(false)
   const browser = (
     <SiteFileBrowser
       siteId={siteId}
@@ -129,16 +128,12 @@ export function SiteFileBrowserLayout({
       const width = desktopContainerRef.current?.getBoundingClientRect().width ?? 0
       if (!width) return
       setMinimumPercent(Math.min(40, (240 / width) * 100))
-      if (!didSetInitialWidth.current) {
-        browserPanelRef.current?.resize(Math.min(40, (288 / width) * 100))
-        didSetInitialWidth.current = true
-      }
     }
     updateConstraints()
     const observer = new ResizeObserver(updateConstraints)
     observer.observe(desktopContainerRef.current)
     return () => observer.disconnect()
-  }, [isMobile])
+  }, [isMobile, isClient])
 
   if (!isClient) {
     return (
@@ -212,50 +207,52 @@ export function SiteFileBrowserLayout({
   return (
     <SiteFileBrowserContext.Provider value={controls}>
       <div ref={desktopContainerRef} className="flex min-h-0 flex-1">
-        <PanelGroup direction="horizontal" className="min-h-0 flex-1">
-          {!collapsed ? (
-            <>
-              <Panel
-                id="site-file-browser"
-                ref={browserPanelRef}
-                order={1}
-                defaultSize={24}
-                minSize={minimumPercent}
-                maxSize={40}
-              >
-                <aside className="border-border dark:bg-background flex h-full flex-col border-r bg-white">
-                  <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
-                    <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
-                    {!searchVisible ? (
-                      <Tooltip content="Filter Document List">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label="Filter documents"
-                          onClick={() => setSearchVisible(true)}
-                        >
-                          <ListFilter className="size-4" />
-                        </Button>
-                      </Tooltip>
-                    ) : null}
-                    <Tooltip content="Hide file explorer">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="Collapse file browser"
-                        onClick={() => setCollapsed(true)}
-                      >
-                        <PanelLeftClose className="size-4" />
-                      </Button>
-                    </Tooltip>
-                  </div>
-                  <div className="min-h-0 flex-1">{browser}</div>
-                </aside>
-              </Panel>
-              <PanelResizeHandle className="panel-resize-handle" />
-            </>
-          ) : null}
-          <Panel id="site-main-content" order={2} minSize={60}>
+        <Group
+          orientation="horizontal"
+          className="min-h-0 flex-1"
+          onLayoutChanged={(layout, meta) => {
+            if (meta.isUserInteraction) setCollapsed(layout['site-file-browser'] === 0)
+          }}
+        >
+          <AnimatedPanel
+            open={!collapsed}
+            keepMounted
+            id="site-file-browser"
+            defaultSize={288}
+            minSize={`${minimumPercent}%`}
+            maxSize="40%"
+          >
+            <aside className="border-border dark:bg-background flex h-full flex-col border-r bg-white">
+              <div className="border-border flex h-12 shrink-0 items-center border-b px-3">
+                <p className="min-w-0 flex-1 truncate text-sm font-semibold">Documents</p>
+                {!searchVisible ? (
+                  <Tooltip content="Filter Document List">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Filter documents"
+                      onClick={() => setSearchVisible(true)}
+                    >
+                      <ListFilter className="size-4" />
+                    </Button>
+                  </Tooltip>
+                ) : null}
+                <Tooltip content="Hide file explorer">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Collapse file browser"
+                    onClick={() => setCollapsed(true)}
+                  >
+                    <PanelLeftClose className="size-4" />
+                  </Button>
+                </Tooltip>
+              </div>
+              <div className="min-h-0 flex-1">{browser}</div>
+            </aside>
+          </AnimatedPanel>
+          <PanelSeparator open={!collapsed} />
+          <Panel id="site-main-content" minSize="60%">
             <div className="dark:bg-background relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
               {collapsed && revealClaims === 0 ? (
                 <div className="absolute top-2 left-2 z-50 md:top-4 md:left-4">
@@ -274,7 +271,7 @@ export function SiteFileBrowserLayout({
               {children}
             </div>
           </Panel>
-        </PanelGroup>
+        </Group>
       </div>
     </SiteFileBrowserContext.Provider>
   )

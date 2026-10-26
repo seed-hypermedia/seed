@@ -16,6 +16,7 @@ import {useResources} from '@shm/shared/models/entity'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {DialogTitle} from '@shm/ui/components/dialog'
+import {useSavedPanelLayout} from '@shm/ui/resizable-panels'
 import {PanelContainer} from '@shm/ui/container'
 import {FormInput} from '@shm/ui/form-input'
 import {FormField} from '@shm/ui/forms'
@@ -30,7 +31,7 @@ import {cn} from '@shm/ui/utils'
 import {ArrowUpRight, ChevronDown, ChevronRight, ChevronUp, Pencil, ShieldCheck, ShieldPlus, Trash} from 'lucide-react'
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
-import {Panel, PanelGroup, PanelResizeHandle} from 'react-resizable-panels'
+import {Panel, Group, Separator} from 'react-resizable-panels'
 import {z} from 'zod/v3'
 
 export default function ContactPage() {
@@ -41,15 +42,16 @@ export default function ContactPage() {
 }
 
 export function ContactListPage({contactId}: {contactId?: UnpackedHypermediaId | undefined}) {
+  const saved = useSavedPanelLayout('contact-page', ['contacts', 'contact'], undefined, true)
   return (
     <PanelContainer>
-      <PanelGroup direction="horizontal" autoSaveId="contact-page">
-        <Panel defaultSize={30} minSize={20} maxSize={40}>
+      <Group orientation="horizontal" defaultLayout={saved.defaultLayout} onLayoutChanged={saved.onLayoutChanged}>
+        <Panel id="contacts" defaultSize="30%" minSize="20%" maxSize="40%">
           <ContactPageSidebar contactId={contactId} />
         </Panel>
-        <PanelResizeHandle className="panel-resize-handle visible" />
-        <Panel>{contactId ? <ContactPageMain contactId={contactId} /> : null}</Panel>
-      </PanelGroup>
+        <Separator className="panel-resize-handle visible" />
+        <Panel id="contact">{contactId ? <ContactPageMain contactId={contactId} /> : null}</Panel>
+      </Group>
     </PanelContainer>
   )
 }

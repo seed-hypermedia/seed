@@ -599,8 +599,8 @@ importers:
         specifier: 2.0.15
         version: 2.0.15(react@18.2.0)
       react-resizable-panels:
-        specifier: ^2.1.9
-        version: 2.1.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 4.15.0
+        version: 4.15.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react-tweet:
         specifier: 3.2.0
         version: 3.2.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -1311,8 +1311,8 @@ importers:
         specifier: 2.0.15
         version: 2.0.15(react@18.2.0)
       react-resizable-panels:
-        specifier: ^2.1.9
-        version: 2.1.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+        specifier: 4.15.0
+        version: 4.15.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       sharp:
         specifier: 0.35.5
         version: 0.35.5(@types/node@24.19.1)
@@ -1918,6 +1918,9 @@ importers:
       react-markdown:
         specifier: ^10.1.0
         version: 10.1.0(@types/react@18.2.64)(react@18.2.0)
+      react-resizable-panels:
+        specifier: 4.15.0
+        version: 4.15.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       react-virtuoso:
         specifier: 4.6.2
         version: 4.6.2(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -12351,8 +12354,8 @@ packages:
       '@types/react':
         optional: true
 
-  react-resizable-panels@2.1.9:
-    resolution: {integrity: sha512-z77+X08YDIrgAes4jl8xhnUu1LNIRp4+E7cv4xHmLOxxUPO/ML7PSrE813b90vj7xvQ1lcf7g2uA9GeMZonjhQ==}
+  react-resizable-panels@4.15.0:
+    resolution: {integrity: sha512-DRjF1E8QHg4j5n6RcpxDoeP0C15T0w+dlEE9eyooGCwOE8rPPxfXt4OfhJjEuezzCG/JjRwh5ZHLVkakUJF+dA==}
     peerDependencies:
       react: 18.2.0
       react-dom: 18.2.0
@@ -27768,7 +27771,7 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.2.64
 
-  react-resizable-panels@2.1.9(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
+  react-resizable-panels@4.15.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0):
     dependencies:
       react: 18.2.0
       react-dom: 18.2.0(react@18.2.0)
