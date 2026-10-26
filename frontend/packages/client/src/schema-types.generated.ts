@@ -1270,6 +1270,12 @@ export type HMMetadata = {
   showOutline?: boolean
   /** Whether to show the document's activity and tools. */
   showActivity?: boolean
+  /** Whether readers may start and join conversations on the space's documents. Set on a space home document; absent means they may. */
+  showConversations?: boolean
+  /** Whether to show the space's document browser beside its documents. Set on a space home document; absent means it shows. */
+  showDocumentBrowser?: boolean
+  /** Whether collections offer readers search, filter, sort and view controls. Set on a space home document; absent means they do. */
+  showCollectionControls?: boolean
   /** Width of the content column: `S`, `M` or `L`. */
   contentWidth?: 'S' | 'M' | 'L'
   /** Layout of the document's root-level blocks, a block children type. */

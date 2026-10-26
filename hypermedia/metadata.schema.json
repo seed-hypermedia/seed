@@ -119,6 +119,24 @@
       },
       "description": "Whether to show the document's activity and tools."
     },
+    "showConversations": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Whether readers may start and join conversations on the space's documents. Set on a space home document; absent means they may."
+    },
+    "showDocumentBrowser": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Whether to show the space's document browser beside its documents. Set on a space home document; absent means it shows."
+    },
+    "showCollectionControls": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "Whether collections offer readers search, filter, sort and view controls. Set on a space home document; absent means they do."
+    },
     "contentWidth": {
       "value": {
         "anyOf": [

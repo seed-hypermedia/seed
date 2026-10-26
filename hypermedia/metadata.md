@@ -26,6 +26,9 @@ Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -
 | `displayAuthor` | string | an author byline shown to readers <!-- id:EErr-5X_ --> |
 | `showOutline` | boolean | whether to show the document outline <!-- id:lWBPOths --> |
 | `showActivity` | boolean | whether to show the document's activity and tools <!-- id:f9udrNO4 --> |
+| `showConversations` | boolean | whether readers may start and join conversations on the space's documents; set on a space home document, absent means they may |
+| `showDocumentBrowser` | boolean | whether to show the space's document browser beside its documents; set on a space home document, absent means it shows |
+| `showCollectionControls` | boolean | whether collections offer readers search, filter, sort and view controls; set on a space home document, absent means they do |
 | `contentWidth` | `S`, `M` or `L` | the width of the content column <!-- id:hwmbFhVl --> |
 | `childrenType` | string | the layout of the root-level blocks, a [children type](./block/children-type.md) <!-- id:hwzmGVIF --> |
 | `layout` | `Seed/Experimental/Newspaper` or `""` | a legacy space header layout <!-- id:O2Gr-cFN --> |
