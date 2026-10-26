@@ -112,7 +112,8 @@ import {
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
-import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
+import {collectMermaidBlocks} from '@seed-hypermedia/client/mermaid-validation'
+import {loadMermaidParser} from './mermaid-parser'
 import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
 import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
@@ -16993,6 +16994,8 @@ export function parseMarkdownOrBadRequest(content: string): ReturnType<typeof pa
 
 /** Mermaid fences are checked before publishing so a syntax error reaches the agent, not the reader. */
 export async function assertPublishableMermaid(blocks: HMBlockNode[]): Promise<void> {
+  // Most writes carry no diagram; they must not pay for (or depend on) loading mermaid.
+  if (!collectMermaidBlocks(blocks).length) return
   try {
     await assertValidMermaid(blocks, await loadMermaidParser())
   } catch (error) {
