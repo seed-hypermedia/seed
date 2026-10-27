@@ -237,7 +237,7 @@ export function SiteFileBrowserLayout({
                     </Button>
                   </Tooltip>
                 ) : null}
-                <Tooltip content="Hide file explorer">
+                <Tooltip content="Hide File Browser">
                   <Button
                     variant="ghost"
                     size="icon"
@@ -256,7 +256,7 @@ export function SiteFileBrowserLayout({
             <div className="dark:bg-background relative flex h-full min-h-0 flex-col overflow-hidden bg-white">
               {collapsed && revealClaims === 0 ? (
                 <div className="absolute top-2 left-2 z-50 md:top-4 md:left-4">
-                  <Tooltip content="Show file explorer">
+                  <Tooltip content="Show File Browser">
                     <Button
                       variant="ghost"
                       size="icon"

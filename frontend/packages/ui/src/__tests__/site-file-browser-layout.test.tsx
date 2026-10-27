@@ -130,7 +130,7 @@ describe('SiteFileBrowserLayout', () => {
   it('fully collapses the explorer and overlays its reopen control on the main content', () => {
     renderLayout()
 
-    expect(container.querySelector('[data-tooltip-content="Hide file explorer"]')).toBeTruthy()
+    expect(container.querySelector('[data-tooltip-content="Hide File Browser"]')).toBeTruthy()
     expect(container.querySelector('[data-testid="panel-left-close-icon"]')).toBeTruthy()
 
     act(() => {
@@ -139,7 +139,7 @@ describe('SiteFileBrowserLayout', () => {
 
     expect(container.querySelector<HTMLElement>('[data-panel][id="site-file-browser"]')?.inert).toBe(true)
     expect(container.querySelector('[data-separator]')?.getAttribute('aria-hidden')).toBe('true')
-    const reopenControl = container.querySelector('[data-tooltip-content="Show file explorer"]')
+    const reopenControl = container.querySelector('[data-tooltip-content="Show File Browser"]')
     expect(reopenControl?.parentElement?.className).toContain('absolute')
     expect(reopenControl?.parentElement?.className).toContain('top-2')
     expect(reopenControl?.parentElement?.className).toContain('left-2')
@@ -150,7 +150,7 @@ describe('SiteFileBrowserLayout', () => {
     })
 
     expect(container.querySelector('[data-panel][id="site-file-browser"]')).toBeTruthy()
-    expect(container.querySelector('[data-tooltip-content="Show file explorer"]')).toBeNull()
+    expect(container.querySelector('[data-tooltip-content="Show File Browser"]')).toBeNull()
   })
 
   it('keeps desktop main content in a constrained flex column for document scrolling', () => {
