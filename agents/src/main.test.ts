@@ -190,6 +190,8 @@ describe('main routes', () => {
       expect(fullBody.disk.ok).toBe(false)
       expect(fullBody.dispatch.paused).toBe(true)
       expect(fullBody.dispatch.reason).toContain('below the')
+      // The identity a space's agents-server binding must prove to be (see app-mounts.ts).
+      expect(offBody.serverUid).toMatch(/^z6Mk/)
 
       const on = getGetHandler(
         createAPIRoutes(

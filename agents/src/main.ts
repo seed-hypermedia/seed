@@ -1,9 +1,10 @@
 import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
+import {AppMountMonitor} from '@/app-mount-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
 import {installHmServerAuth} from '@/hm-server-auth'
-import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
+import {configureDocsSpace, docsSpaceAccount, resolveDocsUrl} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
 import {loopLagHealth, loopLagSnapshot, perfSnapshot, startLoopLagGauge, stopLoopLagGauge} from '@/perf'
 import {PollLoop, withTimeout} from '@/poll-loop'
@@ -150,6 +151,8 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
         status: lag.ok ? 'ok' : 'unhealthy',
         ...(lag.ok ? {} : {reason: lag.reason, p95: lag.p95}),
         loop: {lag: {p50: loop.p50, p95: loop.p95, max: loop.max, windowMs: loop.windowMs}},
+        // What a space's agents-server binding must prove to be: see app-mounts.ts.
+        serverUid: svc.serverUid,
         uptime: process.uptime(),
         version: buildInfo.version,
         protocol: buildInfo.protocol,
@@ -158,7 +161,9 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
         ipfsServerUrl: svc.ipfsServerUrl,
         webTools: svc.webToolCapabilities(),
         subscriptionAuth: svc.subscriptionAuthEnabled,
-        defaultPromptUrl,
+        // Resolved to the docs space, so a client can open it: the configured value may still
+        // spell the knowledge base as `hm://hyper.media`.
+        defaultPromptUrl: defaultPromptUrl ? resolveDocsUrl(defaultPromptUrl) : defaultPromptUrl,
         codeExec: codeExec.available,
         codeExecReason: codeExec.reason,
         codeExecReasonCode: codeExec.code,
@@ -469,6 +474,7 @@ async function main(): Promise<void> {
     hmServerUrl: cfg.activity.hmServerUrl,
     ipfsServerUrl: cfg.activity.ipfsServerUrl,
     web: cfg.web,
+    apps: cfg.apps,
     exec: cfg.exec,
     subscriptionAuth: cfg.subscriptionAuth,
     titleGeneration: cfg.titleGeneration,
@@ -495,6 +501,8 @@ async function main(): Promise<void> {
   // enforced by /api/health.
   startLoopLagGauge()
   mountNameSync.start()
+  const appMountMonitor = new AppMountMonitor(svc, {pollIntervalMs: 5 * 60_000})
+  appMountMonitor.start()
 
   const server = serve({
     port: cfg.http.port,
@@ -580,6 +588,7 @@ async function main(): Promise<void> {
     activityMonitor.stop()
     scheduleMonitor.stop()
     mountNameSync.stop()
+    appMountMonitor.stop()
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
     // stop() waits for every open connection; clients whose sockets never finish closing would keep

@@ -65,6 +65,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
     hmServerUrl: 'https://hm.example',
     ipfsServerUrl: 'https://hm.example',
     web: {},
+    apps: {resolve: () => undefined},
     stateDir: dataDir,
     sessionId: 'session-1',
     modelAcceptsImages: false,
@@ -1626,5 +1627,42 @@ describe('trigger write safeguards', () => {
     expect(contract).toContain('options {dryRun: true}')
     expect(contract).toContain('never create test triggers')
     expect(contract).toContain('no wildcards')
+  })
+})
+
+describe('metadata attributes', () => {
+  type Metadata = Parameters<typeof apisvc.metadataToWriteSetAttributes>[0]
+
+  test('a nested map becomes one SetAttributes leaf per key path', () => {
+    // The daemon indexes attributes by key path. A map written as one value stays in the document
+    // but never reaches the index, so an app's `arguments.apiKey.secret` would be invisible to
+    // `query` and to the typed-document listings.
+    const metadata = {
+      name: 'Datalab converter',
+      slug: 'convert',
+      arguments: {apiKey: {type: 'string', secret: true, order: 1}},
+      usage: {meter: 'per-unit'},
+      cover: null,
+    } as unknown as Metadata
+    expect(apisvc.metadataToWriteSetAttributes(metadata)).toEqual([
+      {
+        type: 'SetAttributes',
+        attrs: [
+          {key: ['name'], value: 'Datalab converter'},
+          {key: ['slug'], value: 'convert'},
+          {key: ['arguments', 'apiKey', 'type'], value: 'string'},
+          {key: ['arguments', 'apiKey', 'secret'], value: true},
+          {key: ['arguments', 'apiKey', 'order'], value: 1},
+          {key: ['usage', 'meter'], value: 'per-unit'},
+          {key: ['cover'], value: null},
+        ],
+      },
+    ])
+  })
+
+  test('undefined values and empty maps set nothing, and a list passes through whole', () => {
+    expect(apisvc.metadataToWriteSetAttributes({name: undefined, empty: {}} as unknown as Metadata)).toEqual([])
+    const ops: unknown = apisvc.metadataToWriteSetAttributes({importTags: ['a', 'b']} as unknown as Metadata)
+    expect(ops).toEqual([{type: 'SetAttributes', attrs: [{key: ['importTags'], value: ['a', 'b']}]}])
   })
 })
