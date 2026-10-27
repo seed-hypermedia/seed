@@ -1,3 +1,4 @@
+import * as publicationAssets from '@/publication-assets'
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
 import {
@@ -15583,6 +15584,80 @@ async function ensureParentDocumentExists(
   }
 }
 
+/** Check parsed content, not a second Markdown regex that could disagree with the writer. */
+async function preflightDocumentAssets(
+  client: ReturnType<typeof createSeedClient>,
+  blocks: HMBlockNode[],
+  metadata: HMMetadata,
+): Promise<publicationAssets.AssetCheck[]> {
+  try {
+    return await publicationAssets.checkPublicationAssets(
+      publicationAssets.collectPublicationAssets(blocks, metadata),
+      {
+        // Native IPFS assets (including a previous ipfs:// upload) may be gateway-inaccessible
+        // until a public document references them. Verify their literal serving URL after publish.
+        gateway: client.baseUrl,
+        deferIpfs: true,
+      },
+    )
+  } catch (error) {
+    throw new APIError(
+      400,
+      `${errorMessage(
+        error,
+      )}. Nothing was published. Repair the exact URL and retry; skipLinkCheck does not bypass media validation.`,
+    )
+  }
+}
+
+/** Publication already committed: never throw away its receipt or imply that retrying is safe. */
+export async function readBackDocumentAssets(
+  client: ReturnType<typeof createSeedClient>,
+  id: string,
+  version: string,
+  expected: publicationAssets.PublicationAsset[],
+): Promise<Record<string, unknown>> {
+  if (!expected.length) return {}
+  try {
+    const target = unpackHmId(id)
+    if (!target) throw new Error('Invalid published document identifier')
+    const resource = await client.request(
+      'Resource',
+      {...target, version, latest: false},
+      {signal: AbortSignal.timeout(10000)},
+    )
+    if (resource.type !== 'document' || resource.document.version !== version)
+      throw new Error('Published version is not available for read-back yet')
+    const actual = publicationAssets.collectPublicationAssets(
+      resource.document.content || [],
+      resource.document.metadata,
+    )
+    const key = (assets: publicationAssets.PublicationAsset[]) =>
+      assets
+        .map((a) => `${a.kind}:${a.url}`)
+        .sort()
+        .join('\n')
+    if (key(actual) !== key(expected)) throw new Error('Published asset URLs differ from preflight')
+    const assets = await publicationAssets.checkPublicationAssets(actual, {gateway: client.baseUrl})
+    return {
+      assetVerification: {
+        status: 'verified',
+        version,
+        assets,
+        scope: 'bounded GET and media signature; not full-file integrity',
+      },
+    }
+  } catch (error) {
+    return {
+      type: 'hypermedia_write_error',
+      published: true,
+      message:
+        'Document published, but asset verification failed. Inspect the committed version and repair it; do not blindly recreate it.',
+      assetVerification: {status: 'unverified', version, error: errorMessage(error)},
+    }
+  }
+}
+
 async function writeDocumentCreate(
   client: ReturnType<typeof createSeedClient>,
   signer: ResolvedAgentSigner,
@@ -15607,6 +15682,7 @@ async function writeDocumentCreate(
   const path = normalizeDocumentPath(request.input.path, documentName)
   await ensureParentDocumentExists(client, account, path)
   await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  const assets = await preflightDocumentAssets(client, parsed.blocks, metadata)
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
@@ -15617,6 +15693,7 @@ async function writeDocumentCreate(
       id: `hm://${account}${path}`,
       metadata,
       blockCount: parsed.blocks.length,
+      ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
       ...typed,
       dryRun: true,
     })
@@ -15633,6 +15710,7 @@ async function writeDocumentCreate(
     version: created.version,
     cids: published.cids,
     ...typed,
+    ...(await readBackDocumentAssets(client, `hm://${account}${path}`, created.version, assets)),
   })
 }
 
@@ -15750,6 +15828,10 @@ async function writeDocumentUpdate(
     hmIdPathToEntityQueryPath(targetId.path),
   )
   const typed = await documentSchemaReport(client, packHmId(targetId), {...resource.document.metadata, ...metadata})
+  const assets = await preflightDocumentAssets(client, parsed?.blocks ?? resource.document.content ?? [], {
+    ...resource.document.metadata,
+    ...metadata,
+  })
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: packHmId(id),
@@ -15760,6 +15842,7 @@ async function writeDocumentUpdate(
         republish: hop.republish,
       })),
       ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
+      ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
       ...typed,
       dryRun: true,
     })
@@ -15800,6 +15883,7 @@ async function writeDocumentUpdate(
     version: changeBlock.cid.toString(),
     cids: published.cids,
     ...typed,
+    ...(await readBackDocumentAssets(client, packHmId(targetId), changeBlock.cid.toString(), assets)),
   })
 }
 
@@ -16291,10 +16375,10 @@ async function writeDraftPublish(
         }
       : {content: blocks, format: 'json', metadata, name: row.title, path: row.path_name || undefined},
   }
-  if (request.dryRun) return writeToolResult(request.command, signer, {draftId, name: row.title, dryRun: true})
   const result = row.edit_target
     ? await writeDocumentUpdate(client, signer, publishRequest)
     : await writeDocumentCreate(client, signer, publishRequest)
+  if (request.dryRun) return {...result, command: request.command, draftId}
   stmt(
     context.db,
     `UPDATE agent_drafts SET status = ?, published_at = ?, published_id = ?, published_version = ?, updated_at = ? WHERE account_id = ? AND agent_id = ? AND id = ?`,
@@ -16399,7 +16483,7 @@ async function publishMemoryDocument(
     : `${existing ? 'Updated' : 'Published'} ${file.path} ${existing ? 'at' : 'as'} ${target}${imagesNote}.`
   return {
     ...result,
-    summary,
+    summary: result.published === true ? result.message : summary,
     memoryPath: file.path,
     url: `${context.hmServerUrl.replace(/\/+$/, '')}/hm/${account}${docPath}`,
     ...(imagesUploaded ? {imagesUploaded} : {}),
