@@ -113,6 +113,9 @@ Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index
   - `SetMcpServer` <!-- id:L4b_RjIx -->
   - `DeleteMcpServer` <!-- id:f0Y6SZwb -->
   - `RefreshMcpServer` <!-- id:R7N_fbX3 -->
+  - `ListApps`
+  - `RefreshApps`
+  - `GetAppUsage`
   - `ReadAgentMemoryFile` <!-- id:zURG_ATO -->
   - `WriteAgentMemoryFile` <!-- id:vrAHyHX- -->
   - `DeleteAgentMemoryFile` <!-- id:XQ3Loys4 -->
@@ -402,6 +405,18 @@ type RedactedMcpServer = {
 
 `AgentDefinition.mcpServers?: string[]` (≤ 16 names) is the per-agent [grant](./grants.md), accepted by `CreateAgent` and `UpdateAgent`. <!-- id:O34ZBJJq -->
 
+## Apps
+
+Account-scoped, like MCP servers. Full behavior is in [agent apps](./agent-apps.md): mounting is publishing a page in the space, so there is no mount or unmount action.
+
+```
+{_: 'ListApps'}                       → {_: 'ListAppsResponse'; apps: AppMountInfo[]; binding: SpaceBinding}
+{_: 'RefreshApps'}                    → {_: 'ListAppsResponse'; …}   (after a pass over the caller's space)
+{_: 'GetAppUsage'; slug: string}      → {_: 'GetAppUsageResponse'; usage?: AppUsageInfo}
+```
+
+`AppMountInfo` is `{slug, scope: 'server' | 'space', mountId?, app, version?, name, summary, arguments: AppArgumentInfo[], tools: {tool, summary, runtime: 'ts' | 'python'}[], network: Record<label, host>, usage?: {meter, unit?, period?, callCap?, allowance?, ceiling?}, enabled, status: {state: 'pending' | 'ok' | 'error', error?, checkedAt?}, createdAt, updatedAt}`; a secret argument carries `hasValue`, never its value. `SpaceBinding` is `{agentServerUrl?, source: 'home' | 'site' | 'none', isThisServer}`. `GetAppUsage` answers `usage` (`{slug, unit, period, used, allowance, remaining, serverRemaining?}`) only for a metered server-wide mount, and 404 when the app is not mounted for the account. `ListApps` and `GetAppUsage` are reader level, `RefreshApps` writer level. A pass that changed something emits `account-change` with reason `apps-changed`, plus `agent-tools-changed` per re-projected agent. `AgentToolInfo.app?: {slug, version?, scope}` names the mounted app a tool document was projected from.
+
 ## `SetSecret` <!-- id:Lwc2nC08 -->
 
 Request: <!-- id:QQn07xMt -->
@@ -606,11 +621,12 @@ type AgentToolInfo = {
   description: string // full model-facing instructions
   input: Record<string, unknown> // JSON Schema
   output?: Record<string, unknown> // JSON Schema, when declared
-  source?: string // lambda source, exactly as authored
+  source?: string // lambda source: exactly as authored, or an app tool page's code
   runtime?: 'typescript' | 'python'
   cid: string // DAG-CBOR CIDv1 of the document; changes on every edit
   enabled: boolean
   granted: boolean // builtins: whether the agent's grant set offers it. Lambdas: always true
+  app?: {slug: string; version?: string; scope: 'server' | 'space'} // the mounted app a lambda was projected from
   createdAt: number
   updatedAt: number
 }
