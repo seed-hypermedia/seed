@@ -1,4 +1,5 @@
-import {callableToolRegistry} from '@seed-hypermedia/agents-protocol'
+import {callableToolRegistry, type AppMountInfo, type AppToolInfo} from '@seed-hypermedia/agents-protocol'
+import type {AgentToolInfo} from './client'
 
 /**
  * The five verbs (read, write, call, delegate, plan) are always on and are not configuration.
@@ -16,10 +17,53 @@ export const AGENT_BROWSER_TOOL = callableToolRegistry.browser.name
 /** Pseudo-grant: signed public publishing (hm:// documents/comments, IPFS uploads). */
 export const AGENT_PUBLISH_GRANT = 'publish'
 
+/** What the Tools tab's info dialog shows for one tool: the text and the contract the model gets. */
+export type ToolContractView = {
+  label: string
+  /** The line under the label: a builtin's registry name, or the app and runtime an app tool comes from. */
+  name: string
+  description: string
+  inputSchema?: unknown
+  outputSchema?: unknown
+  /** Why the contract is not there: the mount offers no tool, or the server has not projected it yet. */
+  note?: string
+}
+
 /**
- * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution, and
- * publishing. Reading, memory, delegation, and planning are verbs — always available. The server
- * silently drops execute from sessions when the host cannot run sandboxes.
+ * The contract of a mounted app's tool. The registry knows no app tool; the contract is the tool
+ * page's, read by the server and projected into the agent's `~/tools` once the mount works, so it
+ * comes from that document. Until it exists the view carries what the mount lists and why.
+ */
+export function appToolContract(
+  app: AppMountInfo,
+  tool: AppToolInfo,
+  document: AgentToolInfo | undefined,
+): ToolContractView {
+  const version = app.version ? ` · version ${app.version.slice(0, 12)}` : ''
+  return {
+    label: tool.tool,
+    name: `${app.name} · ${tool.runtime}${version}`,
+    description: document?.description ?? tool.summary,
+    ...(document ? {inputSchema: document.input, ...(document.output ? {outputSchema: document.output} : {})} : {}),
+    ...(app.status.state === 'error'
+      ? {
+          note: `This mount offers no tools (${
+            app.status.error ?? 'unknown reason'
+          }), so the agent has no contract for it yet.`,
+        }
+      : document
+        ? {}
+        : {
+            note: 'The server has not projected this tool for the agent yet. Refresh in the Apps dialog asks it to look now.',
+          }),
+  }
+}
+
+/**
+ * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution and
+ * publishing. Reading, memory, delegation, and planning are verbs — always available. The tools
+ * of mounted apps are granted per agent in the Tools tab, by their own names. The server silently
+ * drops execute from sessions when it cannot run it.
  */
 export const DEFAULT_AGENT_TOOLS = [AGENT_SEARCH_TOOL, AGENT_WEB_SEARCH_TOOL, AGENT_EXECUTE_TOOL, AGENT_PUBLISH_GRANT]
 
@@ -29,15 +73,21 @@ const LEGACY_PUBLISH_TOOL_NAMES = ['write', 'memory_publish_document', 'ipfs_wri
 /**
  * Maps a stored (possibly pre-verbs) tools array onto today's grants so the UI reads and writes
  * the truth the server acts on: execute_code → execute, the old write group → publish, names
- * absorbed into verbs dropped.
+ * absorbed into verbs dropped. `appTools` are the names of the tools of the apps mounted for the
+ * account: a grant by one of those names is kept, since the server offers it under that name.
  */
-export function normalizeStoredAgentTools(tools: string[]): string[] {
+export function normalizeStoredAgentTools(tools: string[], appTools: string[] = []): string[] {
   const normalized = new Set<string>()
   for (const tool of tools) {
     if (tool === 'execute_code' || tool === AGENT_EXECUTE_TOOL) normalized.add(AGENT_EXECUTE_TOOL)
     else if (tool === AGENT_PUBLISH_GRANT || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
       normalized.add(AGENT_PUBLISH_GRANT)
-    else if (tool === AGENT_SEARCH_TOOL || tool === AGENT_WEB_SEARCH_TOOL || tool === AGENT_BROWSER_TOOL)
+    else if (
+      tool === AGENT_SEARCH_TOOL ||
+      tool === AGENT_WEB_SEARCH_TOOL ||
+      tool === AGENT_BROWSER_TOOL ||
+      appTools.includes(tool)
+    )
       normalized.add(tool)
     // Everything else was absorbed into the always-on verbs and is inert.
   }
