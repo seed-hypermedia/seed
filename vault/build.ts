@@ -17,11 +17,10 @@ const result = await Bun.build({
   entrypoints: ['./src/main.ts'],
   outdir: OUTDIR,
   target: 'bun',
-  splitting: true,
   minify: process.env.NODE_ENV === 'production',
   sourcemap: 'linked',
   naming: {
-    chunk: 'chunks/[name].[hash].[ext]',
+    chunk: '[dir]/[name].[hash].[ext]',
     asset: '[dir]/[name].[hash].[ext]',
   },
   publicPath: '/vault/',
@@ -35,6 +34,16 @@ if (!result.success) {
     console.error(log)
   }
   process.exit(1)
+}
+
+for (const output of result.outputs) {
+  if (!output.path.endsWith('.html')) continue
+  const html = await output.text()
+  for (const match of html.matchAll(/(?:src|href)=["'](\/[^"']+)["']/g)) {
+    if (!new URL(match[1]!, 'https://vault.invalid').pathname.startsWith('/vault/')) {
+      throw new Error(`Built Vault asset URL escapes /vault/: ${match[1]} (${output.path})`)
+    }
+  }
 }
 
 await copyFile('../frontend/packages/ui/THIRD_PARTY_NOTICES.md', `${OUTDIR}/THIRD_PARTY_NOTICES.md`)
