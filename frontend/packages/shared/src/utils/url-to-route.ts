@@ -45,6 +45,7 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
     isInspect,
     viewTerm,
     activityFilter,
+    feedTab,
     commentId,
     accountUid,
     settingsTab,
@@ -75,7 +76,11 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
   }
   const panelParam = query?.panel || null
   const effectivePanelParam =
-    !panelParam && routeKey === 'activity' && activityFilter ? `activity/${activityFilter}` : panelParam
+    !panelParam && routeKey === 'activity' && activityFilter
+      ? `activity/${activityFilter}`
+      : !panelParam && routeKey === 'feed' && feedTab
+        ? `feed/${feedTab}`
+        : panelParam
   const inspectTabParam = query?.tab
   const inspectTab =
     isInspect && inspectTabParam && (INSPECT_TABS as readonly string[]).includes(inspectTabParam)
