@@ -28,6 +28,7 @@ describe('tool documents', () => {
     const db = makeDb()
     toolDocs.ensureBuiltinToolDocuments(db, 'acct', 'agent')
     const first = toolDocs.listToolDocuments(db, 'acct', 'agent')
+    // `convert` is a mounted app's tool, projected from the mount, never materialized here.
     expect(first.map((row) => row.doc.name)).toEqual([
       'attributes',
       'browser',
