@@ -13,9 +13,8 @@ import {
   HMComment,
   HMDocument,
   HMExistingDraft,
-  HMMetadata,
-  HMQueryTableConfig,
   HMQueryBlockInput,
+  HMQueryTableConfig,
   HMRawCitation,
   HMResource,
   normalizeQuerySort,
@@ -49,6 +48,7 @@ import {
   useHackyAuthorsSubscriptions,
 } from '@shm/shared/comments-service-provider'
 import {IS_DESKTOP, NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
+import {blockToPlainText} from '@shm/shared/content-to-text'
 import type {
   BlockRangeSelectOptions,
   CitationFragmentClick,
@@ -56,10 +56,10 @@ import type {
   DocumentContentProps,
   LinkExtensionOptions,
 } from '@shm/shared/document-content-props'
-import {CONTENT_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage, processImageIfSupported} from './image-processing'
 import {findDraftForPath, isDraftPlaceholderPath, useDraftsForAccountSafe} from '@shm/shared/draft-breadcrumb-context'
 import {parseExploreQuery, type HMExploreResultType} from '@shm/shared/explore'
 import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
+import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import type {DocumentMachineEvent, TransientResourceError} from '@shm/shared/models/document-machine'
 import {
   useAccount,
@@ -72,14 +72,12 @@ import {
   useResources,
   useSiteMembers,
 } from '@shm/shared/models/entity'
-import {useMentionNames} from '@shm/shared/models/inline-mentions'
-import {blockToPlainText} from '@shm/shared/content-to-text'
 import {useExploreResults} from '@shm/shared/models/explore'
+import {useMentionNames} from '@shm/shared/models/inline-mentions'
 import {useInteractionSummary} from '@shm/shared/models/interaction-summary'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {sortTermToDocumentSort} from '@shm/shared/models/query-block-sort'
-import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
-import {useDebounce} from '@shm/shared/utils/use-debounce'
+import {BINDING_SCHEMA_KEYS, type BindingSchemaKey} from '@shm/shared/models/schema-draft'
 import {
   documentMachine,
   DocumentMachineProvider,
@@ -109,15 +107,15 @@ import {
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
+import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {getRoutePanel} from '@shm/shared/routes'
-import {useIsSiteOwner} from '@shm/shared/models/capabilities'
-import {ActivityContent, ActivityHeader} from './activity-panel'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
+import {readSpaceSettings, resolveDocumentDisplay} from '@shm/shared/space-settings'
 import {DocumentPageView, documentPageCid} from './document-page'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
-  activitySlugToFilter,
   activityFilterToSlug,
+  activitySlugToFilter,
   getCommentTargetId,
   getVersionHeads,
   hmIdToURL,
@@ -128,6 +126,7 @@ import {
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {getReservedLazyDraftBreadcrumbName} from '@shm/shared/utils/reserved-draft-ids'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {useQuery} from '@tanstack/react-query'
 import {
@@ -154,6 +153,7 @@ import {
 import {lazy, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {AccountPage} from './account-page'
+import {ActivityContent, ActivityHeader} from './activity-panel'
 import {AllDocumentsPage} from './all-documents-page'
 import {Button} from './button'
 import {ChildDeletionPublishDialog} from './child-deletion-publish-dialog'
@@ -168,6 +168,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './components/alert-dialog'
+import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
 import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './components/popover'
 import {ScrollArea} from './components/scroll-area'
 import {Tabs, TabsList, TabsTrigger} from './components/tabs'
@@ -181,12 +182,35 @@ import {
   HomeDocumentMetadataAffordanceBar,
 } from './document-metadata-affordances'
 import {DocumentMetadataView} from './document-metadata-view'
-import {RequiredAttributesEditor} from './required-attributes-editor'
-import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
+import {DocumentTools} from './document-tools'
+import {DocumentTopBar} from './document-top-bar'
+import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
+import {ExplorePage} from './explore-page'
+import {Feed, type DraftVersionEntry} from './feed'
+import {FeedFilters} from './feed-filters'
+import {SelectField, SwitchField, TextField} from './form-fields'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
+import {HMIcon} from './hm-icon'
+import {CONTENT_IMAGE_POLICY, COVER_IMAGE_POLICY, processImage, processImageIfSupported} from './image-processing'
+import {useDocumentLayout} from './layout'
+import {MembersFacepile} from './members-facepile'
+import {MergedBadge} from './merged-badge'
+import {MobilePanelSheet} from './mobile-panel-sheet'
+import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
+import {MenuItemType, OptionsDropdown} from './options-dropdown'
+import {PageLayout} from './page-layout'
+import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
+import {PanelLayout} from './panel-layout'
+import {PrivateBadge} from './private-badge'
+import {QueryBlockContent} from './query-block-content'
+import {buildSlotItems} from './query-block-draft-items'
+import {RequiredAttributesEditor} from './required-attributes-editor'
+import {HM_SCHEMAS, nameForCid, nameToUrl} from './schema/engine'
+import {DepLists, SchemaNavContext, SchemaView} from './schema/explorer'
+import {libraryPageUrl, SchemaBrowserPage} from './schema/schema-browser'
+import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
-import {SizableText} from './text'
-import {SchemaBrowserPage} from './schema/schema-browser'
+import {useSchemaRegistry} from './schema/schema-registry-cid'
 import {
   classifyRef,
   useConformanceSchema,
@@ -194,38 +218,13 @@ import {
   useParentDraftChildAttributesSchema,
   useResolvedSchema,
 } from './schema/schema-resolve'
-import {BINDING_SCHEMA_KEYS, type BindingSchemaKey} from '@shm/shared/models/schema-draft'
-import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from './components/dialog'
-import {DocumentTools} from './document-tools'
-import {nameForCid, nameToUrl, HM_SCHEMAS} from './schema/engine'
-import {libraryPageUrl} from './schema/schema-browser'
-import {DepLists, SchemaNavContext, SchemaView} from './schema/explorer'
-import {useSchemaRegistry} from './schema/schema-registry-cid'
-import {DocumentTopBar} from './document-top-bar'
-import {DocumentVersionsPanel, isDocumentVersionsPanelRoute} from './document-versions-panel'
-import {ExplorePage} from './explore-page'
-import {Feed, type DraftVersionEntry} from './feed'
-import {FeedFilters} from './feed-filters'
-import {SelectField, SwitchField, TextField} from './form-fields'
-import {HMIcon} from './hm-icon'
-import {useDocumentLayout} from './layout'
-import {MembersFacepile} from './members-facepile'
-import {MergedBadge} from './merged-badge'
-import {MobilePanelSheet} from './mobile-panel-sheet'
-import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
-import {MenuItemType, OptionsDropdown} from './options-dropdown'
-import {SpaceSettingsPanel} from './space-settings-panel'
-import {PageLayout} from './page-layout'
-import {PageDeleted, PageDiscovery, PageNotFound, PagePrivate} from './page-message-states'
-import {PanelLayout} from './panel-layout'
-import {PrivateBadge} from './private-badge'
-import {QueryBlockContent} from './query-block-content'
-import {buildSlotItems} from './query-block-draft-items'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {SiteHeader} from './site-header'
+import {SpaceSettingsPanel, useSpaceHome, useSpaceSettings} from './space-settings'
 import {Spinner} from './spinner'
-import {Tooltip} from './tooltip'
+import {SizableText} from './text'
 import {toast} from './toast'
+import {Tooltip} from './tooltip'
 import {useBlockScroll} from './use-block-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
@@ -1786,6 +1785,7 @@ export function PageShell({
         createMenuItem={fileBrowserCreateMenuItem}
         onIncludeDocument={fileBrowserOnIncludeDocument}
         getIncludeDocumentState={fileBrowserGetIncludeDocumentState}
+        hideBrowser={!readSpaceSettings(headerData.siteHomeDocument?.metadata ?? undefined).showDocumentBrowser}
         onNavigate={(id) => {
           setIsFileBrowserOpen(false)
           navigate({key: 'document', id})
@@ -1906,7 +1906,7 @@ function DocumentBody({
   isLatest = true,
   latestVersion,
   siteUrl,
-  CommentEditor,
+  CommentEditor: CommentEditorProp,
   optionsMenuItems,
   extraMenuItems,
   existingDraft,
@@ -2227,9 +2227,6 @@ function DocumentBody({
     panelRoute,
   })
 
-  // Respect the showActivity metadata toggle to hide the document tools bar.
-  const showActivity = metadata?.showActivity !== false
-
   // Explore searches the whole space rather than presenting a document,
   // so it drops the document's chrome.
   const showDocumentChrome = activeView !== 'explore'
@@ -2278,6 +2275,10 @@ function DocumentBody({
   const isHomeDoc = homeDraftOverride ?? !docId.path?.length
   // Space Settings is the owner's to change, so only the owner is offered it.
   const {isSiteOwner} = useIsSiteOwner(isHomeDoc ? docId.uid : undefined)
+  const spaceHomeMetadata = useSpaceHome(docId.uid)?.metadata
+  const display = resolveDocumentDisplay(metadata, spaceHomeMetadata)
+  const showActivity = display.showActivity
+  const CommentEditor = readSpaceSettings(spaceHomeMetadata).showConversations ? CommentEditorProp : undefined
   const draftVisibility = shouldUseDraftOverlay && existingDraft ? existingDraftVisibility : undefined
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
@@ -2512,8 +2513,8 @@ function DocumentBody({
 
   const {showSidebars, showCollapsed, sidebarProps, mainContentProps, elementRef, wrapperProps, contentMaxWidth} =
     useDocumentLayout({
-      contentWidth: metadata?.contentWidth,
-      showSidebars: !isHomeDoc && metadata?.showOutline !== false && activeView === 'content',
+      contentWidth: display.contentWidth,
+      showSidebars: !isHomeDoc && display.showOutline && activeView === 'content',
     })
 
   // Fetch author metadata for document header and subscribe for discovery
@@ -3678,22 +3679,11 @@ function CommentsPanelContent({
 }
 
 function DocumentSpaceSettingsPanel({docId}: {docId: UnpackedHypermediaId}) {
-  const ctx = useDocumentSelector(selectContext)
-  const send = useDocumentSend()
   const navigate = useNavigate()
-  const {beginEditIfNeeded} = useEditorGate()
-
-  const metadata = {...(ctx.document?.metadata || {}), ...ctx.metadata}
-
   return (
     <SpaceSettingsPanel
-      metadata={metadata as HMMetadata}
-      onMetadata={(newMetadata) => {
-        if (!newMetadata) return
-        beginEditIfNeeded()
-        send({type: 'change', metadata: newMetadata})
-      }}
-      onOpenFullSettings={() => navigate({key: 'site-settings', id: hmId(docId.uid)})}
+      spaceUid={docId.uid}
+      onOpenFullSettings={() => navigate({key: 'site-settings', id: hmId(docId.uid), tab: 'general'})}
     />
   )
 }
@@ -4291,6 +4281,7 @@ export function DocumentCollection({
 }) {
   const {DraftSlot} = useQueryBlockDrafts()
   const client = useUniversalClient()
+  const showCollectionControls = useSpaceSettings(docId.uid).showCollectionControls || canEdit
   const send = useDocumentSend()
   const {beginEditIfNeeded} = useEditorGate()
   const props = queryBlock?.type === 'query' ? queryBlock.props : undefined
@@ -4393,6 +4384,7 @@ export function DocumentCollection({
     const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, !!query.data?.results.length)
     return (
       <QueryBlockContent
+        showControls={showCollectionControls}
         toolbarActions={
           <div className="flex items-center gap-2">
             <Tabs

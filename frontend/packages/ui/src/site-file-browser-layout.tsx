@@ -6,10 +6,10 @@ import {createPortal} from 'react-dom'
 import {Panel, Group} from 'react-resizable-panels'
 import {AnimatedPanel, PanelSeparator} from './resizable-panels'
 import {Button} from './button'
+import type {MenuItemType} from './options-dropdown'
 import {SiteFileBrowser, type SiteFileBrowserProps} from './site-file-browser'
 import {Tooltip} from './tooltip'
 import {useMedia} from './use-media'
-import type {MenuItemType} from './options-dropdown'
 
 /** Collapse state of the inline file browser, shared with the page chrome below it. */
 export interface SiteFileBrowserControls {
@@ -41,6 +41,7 @@ export interface SiteFileBrowserLayoutProps {
   createMenuItem?: MenuItemType | null
   onIncludeDocument?: SiteFileBrowserProps['onIncludeDocument']
   getIncludeDocumentState?: SiteFileBrowserProps['getIncludeDocumentState']
+  hideBrowser?: boolean
   children: ReactNode
 }
 
@@ -56,6 +57,7 @@ export function SiteFileBrowserLayout({
   createMenuItem,
   onIncludeDocument,
   getIncludeDocumentState,
+  hideBrowser,
   children,
 }: SiteFileBrowserLayoutProps) {
   const media = useMedia()
@@ -134,6 +136,18 @@ export function SiteFileBrowserLayout({
     observer.observe(desktopContainerRef.current)
     return () => observer.disconnect()
   }, [isMobile, isClient])
+
+  if (hideBrowser) {
+    return isMobile ? (
+      <div className="min-h-0 flex-1">{children}</div>
+    ) : (
+      <div className="flex min-h-0 flex-1">
+        <div className="dark:bg-background relative flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white">
+          {children}
+        </div>
+      </div>
+    )
+  }
 
   if (!isClient) {
     return (

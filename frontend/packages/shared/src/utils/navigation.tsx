@@ -1,6 +1,6 @@
+import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {Buffer} from 'buffer'
 import {createContext, useCallback, useContext} from 'react'
-import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {defaultRoute, type NavRoute} from '../routes'
 import {UniversalAppContext} from '../routing'
 import {useStream, useStreamSelector} from '../use-stream'
@@ -209,6 +209,20 @@ export function useRouteDocId(): UnpackedHypermediaId | null {
         path: route.editPath,
       })
     }
+  }
+  return null
+}
+
+/**
+ * The most recent page in this window's history, before
+ * the current one, that belongs to a space.
+ */
+export function findLastRouteInSpace(state: NavState, spaceUid: string): {index: number; route: NavRoute} | null {
+  for (let index = state.routeIndex - 1; index >= 0; index--) {
+    const route = state.routes[index]
+    if (!route || route.key === 'site-settings') continue
+    const id = 'id' in route ? route.id : undefined
+    if (typeof id === 'object' && id?.uid === spaceUid) return {index, route}
   }
   return null
 }

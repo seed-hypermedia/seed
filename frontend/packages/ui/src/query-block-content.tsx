@@ -107,6 +107,8 @@ function createQueryTableState(
 export interface QueryBlockContentProps {
   /** Existing collection view and settings controls, shown after the search controls. */
   toolbarActions?: ReactNode
+  /** Whether to show the toolbar of search, filter, sort and view controls. Defaults to true. */
+  showControls?: boolean
   items: HMDocumentInfo[]
   style: 'Card' | 'List' | 'Table'
   columnCount?: string | number
@@ -144,6 +146,7 @@ export interface QueryBlockContentProps {
 /** Renders collection controls and results while retaining viewer state across view changes. */
 export function QueryBlockContent({
   toolbarActions,
+  showControls = true,
   items,
   style,
   columnCount = '3',
@@ -313,28 +316,30 @@ export function QueryBlockContent({
 
   return (
     <div className="border-border bg-background @container/collection flex min-w-0 flex-col rounded-md border">
-      <QueryBlockToolbar
-        actions={toolbarActions}
-        documentCount={usesRemoteViewerQuery ? totalMatches ?? items.length : filteredItems.length}
-        descriptors={descriptors}
-        items={items}
-        context={context}
-        columnOrder={columnOrder}
-        columnVisibility={columnVisibility}
-        toggleColumnVisibility={toggleColumnVisibility}
-        moveColumn={moveColumn}
-        filters={effectiveFilters}
-        setFilters={setEffectiveFilters}
-        sorting={sorting}
-        setSorting={setSortingAndPersist}
-        allowActivitySort={!!onTableSortingChange}
-        search={effectiveSearch}
-        setSearch={setEffectiveSearch}
-        filterOptions={availableFilterOptions}
-        filterOptionsComplete={filterOptions !== undefined}
-        loadedCount={filteredItems.length}
-        isUpdating={isUpdating}
-      />
+      {showControls ? (
+        <QueryBlockToolbar
+          actions={toolbarActions}
+          documentCount={usesRemoteViewerQuery ? totalMatches ?? items.length : filteredItems.length}
+          descriptors={descriptors}
+          items={items}
+          context={context}
+          columnOrder={columnOrder}
+          columnVisibility={columnVisibility}
+          toggleColumnVisibility={toggleColumnVisibility}
+          moveColumn={moveColumn}
+          filters={effectiveFilters}
+          setFilters={setEffectiveFilters}
+          sorting={sorting}
+          setSorting={setSortingAndPersist}
+          allowActivitySort={!!onTableSortingChange}
+          search={effectiveSearch}
+          setSearch={setEffectiveSearch}
+          filterOptions={availableFilterOptions}
+          filterOptionsComplete={filterOptions !== undefined}
+          loadedCount={filteredItems.length}
+          isUpdating={isUpdating}
+        />
+      ) : null}
       {items.length === 0 && isDiscovering ? (
         <div className="bg-background text-muted-foreground flex items-center gap-2 rounded-lg p-4 font-sans">
           <Spinner size="small" />

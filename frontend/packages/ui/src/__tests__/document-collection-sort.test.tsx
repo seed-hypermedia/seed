@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import React from 'react'
 import {hmId} from '@shm/shared'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import type {EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import type {HMQueryBlockInput} from '@seed-hypermedia/client/hm-types'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
@@ -160,7 +161,8 @@ describe('collection reader sorting', () => {
         button!.click()
       })
       await expectResult('Recently commented')
-      expect(queryClient.getQueryCache().getAll()).toHaveLength(1)
+      // A reader-only sort must reuse the saved result set rather than query again.
+      expect(queryClient.getQueryCache().findAll({queryKey: [queryKeys.QUERY_BLOCK]})).toHaveLength(1)
       expect(container.querySelector('[data-sort]')?.textContent).toBe(JSON.stringify([{id: term, desc: true}]))
       expect(JSON.parse(block.props.querySort!)).toEqual([{term: 'activity', reverse: true}])
     },

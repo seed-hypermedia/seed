@@ -224,4 +224,38 @@ describe('SiteFileBrowserLayout', () => {
 
     expect(onMobileOpenChange).toHaveBeenCalledWith(true)
   })
+
+  it.each([
+    ['wide', false],
+    ['mobile', true],
+  ])('renders only the page when the space hides the browser (%s)', (_layout, xs) => {
+    mediaMock.value = {xs}
+
+    act(() => {
+      root.render(
+        <SiteFileBrowserLayout
+          siteId={hmId('site')}
+          activeDocumentId={hmId('site')}
+          siteName="Site"
+          mobileOpen={false}
+          onMobileOpenChange={vi.fn()}
+          onNavigate={vi.fn()}
+          hideBrowser
+        >
+          <MobileFileBrowserTrigger />
+          <div data-testid="document-body">Document body</div>
+        </SiteFileBrowserLayout>,
+      )
+    })
+
+    expect(container.querySelector('[data-testid="document-body"]')).not.toBeNull()
+    expect(container.querySelector('[data-testid="site-file-browser"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Open file browser"]')).toBeNull()
+    // Page chrome gets no controls, so nothing below can offer to open it.
+    expect(container.querySelector('[aria-label="Open file browser from content"]')).not.toBeNull()
+    act(() => {
+      container.querySelector<HTMLButtonElement>('[aria-label="Open file browser from content"]')?.click()
+    })
+    expect(container.querySelector('[data-testid="site-file-browser"]')).toBeNull()
+  })
 })

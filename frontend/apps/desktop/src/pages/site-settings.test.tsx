@@ -1,7 +1,9 @@
-import {act} from 'react-dom/test-utils'
-import {createRoot} from 'react-dom/client'
-import {expect, test, vi} from 'vitest'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY} from '@shm/ui/image-processing'
 import {useEffect} from 'react'
+import {createRoot} from 'react-dom/client'
+import {act} from 'react-dom/test-utils'
+import {expect, test, vi} from 'vitest'
+import SiteSettings from './site-settings'
 
 const mocks = vi.hoisted(() => ({process: vi.fn(), prepare: vi.fn(), crop: vi.fn(), upload: vi.fn(), save: vi.fn()}))
 vi.mock('@/components/site-settings-agents', () => ({SpaceAgentsSettings: () => null}))
@@ -16,7 +18,10 @@ vi.mock('@shm/shared/models/entity', () => ({
   useResource: () => ({data: {type: 'document', document: {metadata: {name: 'Test'}}}}),
 }))
 vi.mock('@shm/shared/utils/navigation', () => ({
-  useNavRoute: () => ({key: 'site-settings', id: {uid: 'test'}}),
+  useNavRoute: () => ({key: 'site-settings', id: {uid: 'test'}, tab: 'identity'}),
+  useNavigationState: () => undefined,
+  useNavigationDispatch: () => vi.fn(),
+  findLastRouteInSpace: () => null,
 }))
 vi.mock('@shm/ui/image-processing', async (original) => ({
   ...(await original<typeof import('@shm/ui/image-processing')>()),
@@ -32,8 +37,6 @@ vi.mock('react-easy-crop', () => ({
     return null
   },
 }))
-import SiteSettings from './site-settings'
-import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY} from '@shm/ui/image-processing'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
 test.each([

@@ -80,6 +80,35 @@ function makeItems(count: number) {
   })) as any
 }
 
+describe('QueryBlockContent controls', () => {
+  it('shows the toolbar by default, so callers that never set it keep it', () => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeItems(2)} style="List" accountsMetadata={{}} />)
+    })
+
+    expect(container.querySelector('[data-query-block-toolbar]')).not.toBeNull()
+  })
+
+  it('drops the toolbar but keeps the results when controls are turned off', () => {
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={makeItems(2)}
+          style="List"
+          accountsMetadata={{}}
+          showControls={false}
+          toolbarActions={<button type="button">View options</button>}
+        />,
+      )
+    })
+
+    expect(container.querySelector('[data-query-block-toolbar]')).toBeNull()
+    expect(container.textContent).not.toContain('View options')
+    expect(container.textContent).toContain('Item 0')
+    expect(container.textContent).toContain('Item 1')
+  })
+})
+
 describe('QueryBlockContent loading state', () => {
   it('shows a spinner while a list query block is loading', () => {
     renderQueryBlock('List')

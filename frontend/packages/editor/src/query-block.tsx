@@ -9,11 +9,11 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {entityQueryPathToHmIdPath, useRenderResourceStack} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
-import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useUniversalClient} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useDebounce} from '@shm/shared/utils/use-debounce'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {SelectField, SwitchField} from '@shm/ui/form-fields'
@@ -22,6 +22,7 @@ import {LazyViewportMount} from '@shm/ui/lazy-viewport-mount'
 import {QueryBlockContent} from '@shm/ui/query-block-content'
 import {buildSlotItems} from '@shm/ui/query-block-draft-items'
 import {useQueryBlockFrontendPerf} from '@shm/ui/query-block-frontend-perf'
+import {useSpaceSettings} from '@shm/ui/space-settings'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {usePopoverState} from '@shm/ui/use-popover-state'
@@ -29,13 +30,13 @@ import {useQuery} from '@tanstack/react-query'
 import {Fragment} from '@tiptap/pm/model'
 import {FocusEvent, Profiler, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {selectBlockNodeById} from './block-utils'
 import {BlockSelectionWrapper} from './block-selection-wrapper'
+import {selectBlockNodeById} from './block-utils'
 import {Block, BlockNoteEditor} from './blocknote'
 import {createReactBlockSpec} from './blocknote/react'
+import {QueryAccountFilterInput} from './query-account-filter-input'
 import {useQuerySearchInput} from './query-search-context'
 import {HMBlockSchema} from './schema'
-import {QueryAccountFilterInput} from './query-account-filter-input'
 
 import {
   defaultQueryFilters,
@@ -164,6 +165,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const sortedItems = queryBlock.data?.results ?? []
 
   const {canEdit, beginEditIfNeeded} = useEditorGate()
+  const showControls = useSpaceSettings(container?.uid).showCollectionControls || canEdit
   const [isSelected, setIsSelected] = useState(false)
   const [isFocusedWithin, setIsFocusedWithin] = useState(false)
 
@@ -199,6 +201,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     const {prependItems, bannerContent, tableDrafts} = buildSlotItems(slot, style, banner, sortedItems.length > 0)
     return (
       <QueryBlockContent
+        showControls={showControls}
         items={sortedItems}
         style={style}
         columnCount={block.props.columnCount}

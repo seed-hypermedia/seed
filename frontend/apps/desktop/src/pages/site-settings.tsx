@@ -4,13 +4,18 @@ import {NavigationSettings} from '@/components/site-settings-navigation'
 import {WebDomainSettings} from '@/components/site-settings-web-domain'
 import {useUpdateHomeDocument} from '@/models/site'
 import {fileUpload} from '@/utils/file-upload'
-import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY, type ImageProcessingPolicy} from '@shm/ui/image-processing'
 import {useNavigate} from '@/utils/useNavigate'
 import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
 import type {SiteSettingsTab} from '@shm/shared/routes'
-import {useNavRoute} from '@shm/shared/utils/navigation'
+import {
+  findLastRouteInSpace,
+  useNavigationDispatch,
+  useNavigationState,
+  useNavRoute,
+} from '@shm/shared/utils/navigation'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
@@ -18,15 +23,17 @@ import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
 import {getDaemonFileUrl} from '@shm/ui/get-file-url'
 import type {ImageCropConfig} from '@shm/ui/image-crop-dialog'
 import {ImageForm} from '@shm/ui/image-form'
+import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY, type ImageProcessingPolicy} from '@shm/ui/image-processing'
+import {DiscardChangesDialog, SpaceSettingsGeneral, useSpaceSettingsForm} from '@shm/ui/space-settings'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {Bot, Globe, Image as ImageIcon, Navigation as NavigationIcon, Users} from 'lucide-react'
+import {ArrowLeft, Bot, Globe, Image as ImageIcon, MonitorCog, Navigation as NavigationIcon, Users} from 'lucide-react'
 import {type ReactNode, useEffect, useState} from 'react'
 
 // Tabs of the site settings page
-type SiteSettingsSection = 'identity' | 'navigation' | 'web-domain' | 'members' | 'agents'
+type SiteSettingsSection = 'general' | 'identity' | 'navigation' | 'web-domain' | 'members' | 'agents'
 
 type SiteSettingsTabConfig = {
   key: SiteSettingsSection
@@ -35,6 +42,7 @@ type SiteSettingsTabConfig = {
 }
 
 const SITE_SETTINGS_TAB_CONFIG: SiteSettingsTabConfig[] = [
+  {key: 'general', icon: MonitorCog, label: 'General'},
   {key: 'identity', icon: ImageIcon, label: 'Identity'},
   {key: 'navigation', icon: NavigationIcon, label: 'Navigation'},
   {key: 'web-domain', icon: Globe, label: 'Web Domain'},
@@ -44,19 +52,35 @@ const SITE_SETTINGS_TAB_CONFIG: SiteSettingsTabConfig[] = [
 
 /** Map a URL subpath to its tab. */
 function sectionForTab(tab: SiteSettingsTab | undefined): SiteSettingsSection {
+  if (tab === 'identity') return 'identity'
   if (tab === 'navigation') return 'navigation'
   if (tab === 'web-domain') return 'web-domain'
   if (tab === 'members' || tab === 'writers' || tab === 'email-subscribers') return 'members'
   if (tab === 'agents') return 'agents'
-  return 'identity'
+  return 'general'
 }
 
 export default function SiteSettings() {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
+  const pushRoute = useNavigate('push')
+  const navState = useNavigationState()
+  const dispatch = useNavigationDispatch()
+  // Whether the open tab has unsaved edits.
+  const [isDirty, setIsDirty] = useState(false)
+  const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null)
   if (route.key !== 'site-settings') return null
   const activeSection = sectionForTab(route.tab)
-  const setActiveTab = (tab: SiteSettingsTab) => navigate({key: 'site-settings', id: route.id, tab})
+  // Leaving a tab drops its edits, so show confirm discard dialog.
+  const leave = (action: () => void) => (isDirty ? setPendingDiscard(() => action) : action())
+  const setActiveTab = (tab: SiteSettingsTab) => leave(() => navigate({key: 'site-settings', id: route.id, tab}))
+  const backToSpace = () =>
+    leave(() => {
+      // Redirect back to where the user was in the space.
+      const last = navState ? findLastRouteInSpace(navState, route.id.uid) : null
+      if (last && last.index === navState!.routeIndex - 1) dispatch({type: 'pop'})
+      else pushRoute(last?.route ?? {key: 'document', id: hmId(route.id.uid)})
+    })
   return (
     <div className={cn(windowContainerStyles, 'h-full max-h-full min-h-0 w-full overflow-hidden pt-0')}>
       <div className={panelContainerStyles}>
@@ -80,8 +104,17 @@ export default function SiteSettings() {
             {/* Content */}
             <ScrollArea className="flex-1">
               <div className="flex flex-col gap-6 p-6">
-                {activeSection === 'identity' && <IdentityTab siteId={route.id} />}
-                {activeSection === 'navigation' && <NavigationSettings siteId={route.id} />}
+                <button
+                  type="button"
+                  onClick={backToSpace}
+                  className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-start text-sm transition-colors"
+                >
+                  <ArrowLeft className="size-4" />
+                  Back to space
+                </button>
+                {activeSection === 'general' && <GeneralTab siteId={route.id} onDirtyChange={setIsDirty} />}
+                {activeSection === 'identity' && <IdentityTab siteId={route.id} onDirtyChange={setIsDirty} />}
+                {activeSection === 'navigation' && <NavigationSettings siteId={route.id} onDirtyChange={setIsDirty} />}
                 {activeSection === 'web-domain' && <WebDomainSettings siteId={route.id} />}
                 {activeSection === 'members' && <MembersSettings siteId={route.id} activeTab={route.tab} />}
                 {activeSection === 'agents' && <SpaceAgentsSettings siteId={route.id} />}
@@ -90,14 +123,76 @@ export default function SiteSettings() {
           </div>
         </div>
       </div>
+      <DiscardChangesDialog onDiscard={pendingDiscard} onCancel={() => setPendingDiscard(null)} />
     </div>
   )
+}
+
+function GeneralTab({
+  siteId,
+  onDirtyChange,
+}: {
+  siteId: UnpackedHypermediaId
+  onDirtyChange: (isDirty: boolean) => void
+}) {
+  const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(siteId.uid)
+  const form = useSpaceSettingsForm(siteId.uid)
+  useReportDirty(form.isDirty, onDirtyChange)
+
+  if (isOwnerLoading || !form.isReady) {
+    return (
+      <div className="flex justify-center py-10">
+        <Spinner />
+      </div>
+    )
+  }
+  if (!isSiteOwner) {
+    return (
+      <>
+        <SizableText size="2xl" weight="bold">
+          General
+        </SizableText>
+        <SizableText color="muted">Only the space owner can edit these settings.</SizableText>
+      </>
+    )
+  }
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <SizableText size="2xl" weight="bold">
+          General
+        </SizableText>
+        <Button variant="default" disabled={!form.isDirty || form.isSaving} onClick={form.save}>
+          {form.isSaving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+      <SpaceSettingsGeneral
+        metadata={form.metadata}
+        onMetadata={form.onMetadata}
+        className="grid grid-cols-1 gap-3 lg:grid-cols-2"
+      />
+    </>
+  )
+}
+
+/** Tells the page whether a tab has unsaved edits, and that it has none once it closes. */
+function useReportDirty(isDirty: boolean, onDirtyChange: (isDirty: boolean) => void) {
+  useEffect(() => {
+    onDirtyChange(isDirty)
+  }, [isDirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange])
 }
 
 /** A picked image is either an existing metadata value or a freshly selected file. */
 type ImageValue = string | File | null
 
-function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
+function IdentityTab({
+  siteId,
+  onDirtyChange,
+}: {
+  siteId: UnpackedHypermediaId
+  onDirtyChange: (isDirty: boolean) => void
+}) {
   const accountUid = siteId.uid
   const resource = useResource(siteId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
@@ -110,6 +205,8 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
   const [cover, setCover] = useState<ImageValue | undefined>(undefined)
   const [logoProcessing, setLogoProcessing] = useState(false)
   const [coverProcessing, setCoverProcessing] = useState(false)
+  const isDirty = name !== null || logo !== undefined || cover !== undefined
+  useReportDirty(isDirty, onDirtyChange)
 
   if (resource.isInitialLoading || isOwnerLoading) {
     return (
@@ -138,7 +235,6 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
   const logoValue = logo === undefined ? metadata.icon || null : logo
   const coverValue = cover === undefined ? metadata.cover || null : cover
 
-  const isDirty = name !== null || logo !== undefined || cover !== undefined
   const canSave = isDirty && nameValue.trim().length > 0 && !updateHome.isPending && !logoProcessing && !coverProcessing
 
   async function handleSave() {
@@ -157,7 +253,10 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
       setLogo(undefined)
       setCover(undefined)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update space identity')
+      // Edits stay in place, so retrying sends the same changes again.
+      toast.error(error instanceof Error ? error.message : 'Failed to update space identity', {
+        action: {label: 'Retry', onClick: () => void handleSave()},
+      })
     }
   }
 

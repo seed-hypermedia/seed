@@ -352,6 +352,7 @@ export const accountSettingsRouteSchema = z.object({
 export type AccountSettingsRoute = z.infer<typeof accountSettingsRouteSchema>
 
 export const siteSettingsTabSchema = z.enum([
+  'general',
   'identity',
   'navigation',
   'web-domain',

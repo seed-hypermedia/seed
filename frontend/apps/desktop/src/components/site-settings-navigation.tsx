@@ -8,17 +8,17 @@ import {useResource} from '@shm/shared/models/entity'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
-import {Switch} from '@shm/ui/components/switch'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
+import {SettingsToggle} from '@shm/ui/space-settings'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useResponsiveItems} from '@shm/ui/use-responsive-items'
 import {cn} from '@shm/ui/utils'
-import {ChevronDown, EllipsisVertical, HelpCircle, Lock, Pencil, Plus, Trash} from 'lucide-react'
+import {ChevronDown, EllipsisVertical, Lock, Plus, X} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {useEffect, useMemo, useRef, useState} from 'react'
 
@@ -57,7 +57,23 @@ export function getNavigationPreviewItems(items: HMNavigationItem[]): HMNavigati
   return [{id: '__site_home__', type: 'Link', text: 'Home', link: ''}, ...items]
 }
 
-export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
+export const MAX_NAV_LINKS = 6
+
+const CONTENT_WIDTHS = [
+  {value: 'S', label: 'Small'},
+  {value: 'M', label: 'Medium'},
+  {value: 'L', label: 'Large'},
+] as const
+
+/** The Navigation tab of Space Settings: top bar links and how the space's documents display. */
+export function NavigationSettings({
+  siteId,
+  onDirtyChange,
+}: {
+  siteId: UnpackedHypermediaId
+  /** Reports unsaved edits for confirm discard dialog. */
+  onDirtyChange?: (isDirty: boolean) => void
+}) {
   const resource = useResource(siteId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
   const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(siteId.uid)
@@ -65,10 +81,30 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
 
   const [navItems, setNavItems] = useState<HMNavigationItem[] | null>(null)
   const [headerLayout, setHeaderLayout] = useState<string | null>(null)
-  const [showActivity, setShowActivity] = useState<boolean | null>(null)
+  const [contentWidth, setContentWidth] = useState<'S' | 'M' | 'L' | null>(null)
+  const [showOutline, setShowOutline] = useState<boolean | null>(null)
   // Dialog: null = closed; {} = new item; {id} = editing existing.
   const [dialogItem, setDialogItem] = useState<HMNavigationItem | null>(null)
   const [dialogIsNew, setDialogIsNew] = useState(false)
+
+  const metadata = document?.metadata
+  const publishedNav = useMemo(() => (document ? readPublishedNav(document) : []), [document])
+  const storedLayout = metadata?.theme?.headerLayout ?? ''
+  const currentLayout = HEADER_LAYOUTS.find((l) => l.stored === storedLayout)?.value || 'horizontal'
+  const currentContentWidth = metadata?.contentWidth ?? 'M'
+  const currentShowOutline = metadata?.showOutline !== false
+  // Dirty state is derived by comparing edits against the published values.
+  // This lets it self clear once the save's refetch lands.
+  const isDirty =
+    (navItems !== null && !navItemsEqual(navItems, publishedNav)) ||
+    (headerLayout !== null && headerLayout !== currentLayout) ||
+    (contentWidth !== null && contentWidth !== currentContentWidth) ||
+    (showOutline !== null && showOutline !== currentShowOutline)
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty)
+  }, [isDirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   if (resource.isInitialLoading || isOwnerLoading) {
     return (
@@ -91,22 +127,13 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
     )
   }
 
-  const metadata = document.metadata
-  const publishedNav = readPublishedNav(document)
+  const publishedMetadata = document.metadata
   const navValue = navItems ?? publishedNav
-  const storedLayout = metadata.theme?.headerLayout ?? ''
-  const currentLayout = HEADER_LAYOUTS.find((l) => l.stored === storedLayout)?.value || 'horizontal'
   const layoutValue = headerLayout ?? currentLayout
-  const currentShowActivity = metadata.showActivity ?? true
-  const showActivityValue = showActivity ?? currentShowActivity
-
-  // Dirty state is derived by comparing edits against the published values.
-  // This lets it self clear once the save's refetch lands.
-  const isDirty =
-    (navItems !== null && !navItemsEqual(navItems, publishedNav)) ||
-    (headerLayout !== null && headerLayout !== currentLayout) ||
-    (showActivity !== null && showActivity !== currentShowActivity)
+  const contentWidthValue = contentWidth ?? currentContentWidth
+  const showOutlineValue = showOutline ?? currentShowOutline
   const canSave = isDirty && !updateHome.isPending
+  const atLinkLimit = navValue.length >= MAX_NAV_LINKS
 
   const setNav = (items: HMNavigationItem[]) => setNavItems(items)
 
@@ -129,14 +156,20 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
     try {
       const stored = HEADER_LAYOUTS.find((l) => l.value === layoutValue)?.stored ?? ''
       const nextMetadata: HMMetadata = {
-        ...metadata,
-        showActivity: showActivityValue,
-        theme: {...metadata.theme, headerLayout: stored},
+        ...publishedMetadata,
+        theme: {...publishedMetadata.theme, headerLayout: stored},
+        // Width and outline apply to every document in the space once set, so
+        // only write them when changed.
+        ...(contentWidth !== null ? {contentWidth} : {}),
+        ...(showOutline !== null ? {showOutline} : {}),
       }
       await updateHome.mutateAsync({metadata: nextMetadata, navigation: navItems ?? undefined})
       toast.success('Navigation updated')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update navigation')
+      // Edits stay in place, so retrying sends the same changes again.
+      toast.error(error instanceof Error ? error.message : 'Failed to update navigation', {
+        action: {label: 'Retry', onClick: () => void handleSave()},
+      })
     }
   }
 
@@ -151,68 +184,71 @@ export function NavigationSettings({siteId}: {siteId: UnpackedHypermediaId}) {
         </Button>
       </div>
 
-      {/* Header preview */}
-      <div className="flex flex-col gap-2">
-        <SizableText weight="medium">Space header preview</SizableText>
+      <div className="flex flex-col gap-3">
+        <SizableText weight="bold">Bar links</SizableText>
         <HeaderPreview
           siteId={siteId}
-          name={metadata.name}
-          icon={metadata.icon}
+          name={publishedMetadata.name}
+          icon={publishedMetadata.icon}
           items={navValue}
           isCenter={layoutValue === 'center'}
         />
-      </div>
-
-      {/* Nav item list */}
-      <div className="flex flex-col gap-2">
-        <SizableText weight="medium">Create the navigation items shown in the top bar</SizableText>
-        <NavItemList
-          items={navValue}
-          onReorder={setNav}
-          onEdit={openEditDialog}
-          onRemove={removeItem}
-          onAdd={openNewDialog}
-        />
-        <div>
-          <Button
-            variant="outline"
-            className="border-primary dark:border-primary text-primary hover:text-primary hover:bg-primary/10 bg-transparent"
-            onClick={openNewDialog}
-          >
-            <Plus className="size-4" />
-            Add navigation item
-          </Button>
-        </div>
-      </div>
-
-      {/* Layout and options */}
-      <div className="flex flex-wrap gap-10">
-        <div className="flex flex-col gap-2">
-          <SizableText weight="medium">Header layout</SizableText>
-          <Select value={layoutValue} onValueChange={setHeaderLayout}>
-            <SelectTrigger className="h-9 w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {HEADER_LAYOUTS.map((l) => (
-                <SelectItem key={l.value} value={l.value}>
-                  {l.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <SizableText weight="medium">Options</SizableText>
-          <div className="bg-muted flex h-9 w-72 items-center justify-between gap-4 rounded-md px-4">
-            <div className="flex items-center gap-1.5">
-              <SizableText>Show activity tabs</SizableText>
-              <Tooltip content="Show the People, Comments, and Citations tabs on your space's pages.">
-                <HelpCircle className="text-muted-foreground size-3.5" />
-              </Tooltip>
-            </div>
-            <Switch checked={showActivityValue} onCheckedChange={setShowActivity} />
+        <NavItemList items={navValue} onReorder={setNav} onEdit={openEditDialog} onRemove={removeItem} />
+        <Tooltip content={atLinkLimit ? `The top bar holds up to ${MAX_NAV_LINKS} links` : ''}>
+          <div className="w-full max-w-sm">
+            <button
+              type="button"
+              onClick={openNewDialog}
+              disabled={atLinkLimit}
+              className="border-border text-muted-foreground hover:text-foreground flex w-full items-center gap-2 rounded-md border border-dashed px-4 py-3 transition-colors hover:border-neutral-400 disabled:pointer-events-none disabled:opacity-50 dark:hover:border-neutral-500"
+            >
+              <Plus className="size-4" />
+              Add a link
+            </button>
           </div>
+        </Tooltip>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <SizableText weight="bold">Display</SizableText>
+        <div className="grid grid-cols-1 items-end gap-4 lg:grid-cols-3">
+          <div className="flex flex-col gap-2">
+            <SizableText weight="medium">Header layout</SizableText>
+            <Select value={layoutValue} onValueChange={setHeaderLayout}>
+              <SelectTrigger className="h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {HEADER_LAYOUTS.map((l) => (
+                  <SelectItem key={l.value} value={l.value}>
+                    {l.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col gap-2">
+            <SizableText weight="medium">Content Width</SizableText>
+            <Select value={contentWidthValue} onValueChange={(value) => setContentWidth(value as 'S' | 'M' | 'L')}>
+              <SelectTrigger className="h-10">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CONTENT_WIDTHS.map((w) => (
+                  <SelectItem key={w.value} value={w.value}>
+                    {w.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <SettingsToggle
+            id="space-show-outline"
+            label="Show outline"
+            hint="Shows each document's outline beside its content."
+            checked={showOutlineValue}
+            onCheckedChange={setShowOutline}
+          />
         </div>
       </div>
 
@@ -265,7 +301,7 @@ function HeaderPreview({
     labelItems.length === 0 ? (
       <div className={cn('flex items-center', isCenter ? 'justify-center' : 'flex-1 justify-end')}>
         <SizableText color="muted" className="italic">
-          No navigations items added yet
+          No links added yet
         </SizableText>
       </div>
     ) : (
@@ -343,13 +379,11 @@ function NavItemList({
   onReorder,
   onEdit,
   onRemove,
-  onAdd,
 }: {
   items: HMNavigationItem[]
   onReorder: (items: HMNavigationItem[]) => void
   onEdit: (item: HMNavigationItem) => void
   onRemove: (id: string) => void
-  onAdd: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [draggingOverId, setDraggingOverId] = useState<string | null>(null)
@@ -372,17 +406,6 @@ function NavItemList({
     })
   }, [items, onReorder])
 
-  const emptyItem = !items.length ? (
-    <button
-      type="button"
-      onClick={onAdd}
-      className="border-border text-muted-foreground flex w-full items-center gap-2 rounded-md border border-dashed px-4 py-5 transition-colors hover:border-neutral-400 dark:hover:border-neutral-500"
-    >
-      <Plus className="size-4" />
-      <SizableText color="muted">Add navigation item</SizableText>
-    </button>
-  ) : null
-
   return (
     <div ref={containerRef} className="flex flex-col gap-2">
       <div className="border-border bg-muted/40 flex items-center gap-3 rounded-md border px-3 py-2.5">
@@ -392,7 +415,6 @@ function NavItemList({
           Fixed
         </SizableText>
       </div>
-      {emptyItem}
       {items.map((item) => (
         <NavItemRow
           key={item.id}
@@ -443,21 +465,21 @@ function NavItemRow({
       >
         <EllipsisVertical className="size-4" />
       </div>
-      <SizableText className={cn('flex-1 truncate', !item.text.trim() && 'text-muted-foreground')}>
-        {item.text || 'Untitled item'}
-      </SizableText>
-      <OptionsDropdown
-        menuItems={[
-          {key: 'edit', label: 'Edit', icon: <Pencil className="size-4" />, onClick: onEdit},
-          {
-            key: 'remove',
-            label: 'Remove',
-            icon: <Trash className="size-4" />,
-            variant: 'destructive' as const,
-            onClick: onRemove,
-          },
-        ]}
-      />
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Edit ${item.text || 'link'}`}
+        className="min-w-0 flex-1 text-left"
+      >
+        <SizableText className={cn('block truncate', !item.text.trim() && 'text-muted-foreground')}>
+          {item.text || 'Untitled link'}
+        </SizableText>
+      </button>
+      <Tooltip content="Remove link">
+        <Button variant="ghost" size="icon" aria-label={`Remove ${item.text || 'link'}`} onClick={onRemove}>
+          <X className="size-4" />
+        </Button>
+      </Tooltip>
     </div>
   )
 }
@@ -485,18 +507,12 @@ function NavItemDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{isNew ? 'Create navigation item' : 'Edit navigation item'}</DialogTitle>
+          <DialogTitle>{isNew ? 'Add link to the top bar' : 'Edit link'}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
             <SizableText size="sm" weight="medium">
-              Item name (shown in the top bar)
-            </SizableText>
-            <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="Add name" />
-          </div>
-          <div className="flex flex-col gap-2">
-            <SizableText size="sm" weight="medium">
-              Link
+              What should this link to?
             </SizableText>
             <HMDocURLInput
               link={link}
@@ -509,6 +525,12 @@ function NavItemDialog({
               }}
             />
           </div>
+          <div className="flex flex-col gap-2">
+            <SizableText size="sm" weight="medium">
+              Link name (shown in the top bar)
+            </SizableText>
+            <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. About, Contact, Blog" />
+          </div>
         </div>
         <DialogFooter>
           <Button
@@ -517,7 +539,7 @@ function NavItemDialog({
             disabled={!canAdd}
             onClick={() => onSubmit({...item, text: text.trim(), link: link.trim()})}
           >
-            {isNew ? 'Add item' : 'Save item'}
+            {isNew ? 'Add link' : 'Save link'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -8,9 +8,9 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   abbreviateUid,
-  getRoutePanel,
   getCommentTargetId,
   getDocumentTitle,
+  getRoutePanel,
   RenderResourceProvider,
   shouldBlockEmbeddedResource,
   unpackHmId,
@@ -19,18 +19,19 @@ import {
   useUniversalClient,
 } from '@shm/shared'
 import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
+import type {DocumentPanelRoute} from '@shm/shared/routes'
 import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
 import {hmId} from '@shm/shared/utils/entity-id-url'
-import type {DocumentPanelRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {AlertCircle, FileSymlink as FileSymlinkIcon, FileText as FileTextIcon, Globe} from 'lucide-react'
 import React, {ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Discussions} from './comments'
+import {ContentEmbed} from './content-embed'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {EmbedWrapper, getEmbedDocumentRoute} from './embed-wrapper'
-import {ContentEmbed} from './content-embed'
 import {DocumentCard} from './newspaper'
+import {useSpaceSettings} from './space-settings'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
@@ -550,6 +551,9 @@ export function BlockEmbedComments({
   // Check tombstone on latest version for version-pinned embeds.
   const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : null
   const latestCheck = useResource(latestCheckId)
+  // The comments belong to the embedded document, so its own space decides
+  // whether new conversations can start here.
+  const {showConversations} = useSpaceSettings(id?.uid)
 
   if (!id) {
     return <ErrorBlock message="Invalid embed link" />
@@ -563,7 +567,7 @@ export function BlockEmbedComments({
   }
 
   const isDeleted = resource.isTombstone || latestCheck.data?.type === 'tombstone' || latestCheck.isTombstone
-  const CommentEditor = client.CommentEditor
+  const CommentEditor = showConversations ? client.CommentEditor : undefined
 
   const content = (
     <EmbedWrapper id={id} parentBlockId={parentBlockId} hideBorder openOnClick={openOnClick}>
