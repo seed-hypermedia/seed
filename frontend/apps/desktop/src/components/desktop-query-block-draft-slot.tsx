@@ -77,7 +77,7 @@ export function DesktopQueryBlockDraftSlot({targetId, children}: QueryBlockDraft
             draft: {draftId, title: draft.metadata?.name, icon: draft.metadata?.icon},
           })
         },
-        onUpdateDraftName: (draftId, name) => updateDraftMetadata.mutate({draftId, metadata: {name}}),
+        onUpdateDraftName: (draftId, name) => updateDraftMetadata.mutateAsync({draftId, metadata: {name}}),
       })}
       {moveDraftDialog.content}
     </>
