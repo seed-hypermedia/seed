@@ -47,6 +47,7 @@ import {
   useUpdateAgent,
   useUpdateAgentTrigger,
   useUpdateSigningIdentity,
+  useApps,
 } from './models'
 import {describeAgentError} from './errors'
 import {SessionListItem} from './session-list-item'
@@ -84,6 +85,7 @@ import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {AppCatalog, AppsDialog} from './apps'
 import {
   ArrowRight,
   ArrowRightLeft,
@@ -111,7 +113,9 @@ import {
   DEFAULT_AGENT_TOOLS,
   normalizeStoredAgentTools,
   getToolAvailability,
+  appToolContract,
   type AgentServerWebCapabilities,
+  type ToolContractView,
 } from './agent-tools'
 import {AgentMemoryTab} from './memory'
 import {
@@ -1564,8 +1568,26 @@ function DeleteAuthoredToolDialog({
 }
 
 /** Shows the exact model-facing prompt and JSON schemas for a single tool, for agent-owner transparency. */
-function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: () => void}) {
-  const meta = getSeedTool(input.toolName)
+function ToolInfoDialog({
+  input,
+  onClose,
+}: {
+  input: {toolName: string; contract?: ToolContractView}
+  onClose: () => void
+}) {
+  // An app's tool brings its contract along (see appToolContract); a builtin's is in the registry.
+  const registered = input.contract ? undefined : getSeedTool(input.toolName)
+  const meta: ToolContractView | undefined =
+    input.contract ??
+    (registered
+      ? {
+          label: registered.label,
+          name: registered.name,
+          description: registered.description,
+          inputSchema: registered.inputSchema,
+          ...(registered.outputSchema ? {outputSchema: registered.outputSchema} : {}),
+        }
+      : undefined)
   if (!meta) {
     return (
       <div className="flex flex-col gap-3">
@@ -1584,22 +1606,29 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
           {meta.name}
         </SizableText>
       </div>
+      {meta.note ? (
+        <Notice size="sm" tone="warning">
+          {meta.note}
+        </Notice>
+      ) : null}
       <div className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Description sent to the model
         </SizableText>
-        <SizableText size="sm" color="muted">
+        <SizableText size="sm" color="muted" className="whitespace-pre-wrap">
           {meta.description}
         </SizableText>
       </div>
-      <div className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          Input schema
-        </SizableText>
-        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
-          {JSON.stringify(meta.inputSchema, null, 2)}
-        </pre>
-      </div>
+      {meta.inputSchema !== undefined ? (
+        <div className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Input schema
+          </SizableText>
+          <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+            {JSON.stringify(meta.inputSchema, null, 2)}
+          </pre>
+        </div>
+      ) : null}
       {meta.outputSchema ? (
         <div className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
@@ -1697,8 +1726,11 @@ function AuthorIdentityChip({
 function useAgentDefinitionPatch(
   definition: AgentDefinition,
   onSave: (definition: AgentDefinition) => Promise<unknown>,
+  /** The names an app grant may carry; a stored grant by one of them must survive normalization. */
+  appToolNames: string[] = [],
 ) {
-  const storedTools = () => (definition.tools ? normalizeStoredAgentTools(definition.tools) : [...DEFAULT_AGENT_TOOLS])
+  const storedTools = () =>
+    definition.tools ? normalizeStoredAgentTools(definition.tools, appToolNames) : [...DEFAULT_AGENT_TOOLS]
   const storedSigningKeys = () => definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
   const [enabledTools, setEnabledTools] = useState<string[]>(storedTools)
   const [signingKeys, setSigningKeys] = useState<string[]>(storedSigningKeys)
@@ -1708,8 +1740,9 @@ function useAgentDefinitionPatch(
     setEnabledTools(storedTools())
     setSigningKeys(storedSigningKeys())
     setMcpServers(definition.mcpServers ?? [])
+    // The app names arrive with the apps list, after the definition; the grants are read again then.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [definition])
+  }, [definition, appToolNames.join('\n')])
 
   /** Which of the account's MCP servers this agent may call; the server re-projects their tools. */
   async function saveMcpServers(next: string[]) {
@@ -1771,16 +1804,50 @@ function AgentPermissionsPage({
   const authoredToolDialog = useAppDialog(AuthoredToolDialog, {className: 'w-full max-w-3xl'})
   const deleteAuthoredToolDialog = useAppDialog(DeleteAuthoredToolDialog, {isAlert: true})
   const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
+  const appsDialog = useAppDialog(AppsDialog)
   const agentTools = useAgentTools(serverUrl, accountUid, agentId)
-  const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda')
-  const {enabledTools, signingKeys, saveTools} = useAgentDefinitionPatch(definition, onSave)
+  const apps = useApps(serverUrl, accountUid)
+  // One row per tool of every app mounted for the account, after the fixed callables. A mount
+  // that is not working (a missing key, an app page that does not hold up) keeps its rows, greyed,
+  // with the reason, so the missing tool and its fix are on the same screen.
+  const toolOptions: {
+    names: string[]
+    title: string
+    description?: string
+    infoTool?: string
+    app?: string
+    contract?: ToolContractView
+    problem?: string
+  }[] = [
+    ...AGENT_TOOL_OPTIONS,
+    ...(apps.data?.apps ?? []).flatMap((app) =>
+      app.tools.map((tool) => ({
+        names: [tool.tool],
+        title: `${tool.tool} · ${app.name}`,
+        infoTool: tool.tool,
+        app: app.slug,
+        contract: appToolContract(
+          app,
+          tool,
+          agentTools.data?.tools.find((document) => document.app?.slug === app.slug && document.name === tool.tool),
+        ),
+        ...(app.status.state === 'error' ? {problem: app.status.error ?? 'This mount offers no tools.'} : {}),
+      })),
+    ),
+  ]
+  // An app's tool is a lambda too, but it is the app's page, not the agent's to edit here.
+  const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda' && !tool.app)
+  const appToolNames = (apps.data?.apps ?? []).flatMap((app) => app.tools.map((tool) => tool.tool))
+  const {enabledTools, signingKeys, saveTools} = useAgentDefinitionPatch(definition, onSave, appToolNames)
   const grantedIdentities = identities.filter((identity) => signingKeys.includes(identity.name))
 
   return (
     <section className="flex max-w-3xl flex-col gap-4">
       <div className="grid gap-2">
-        {AGENT_TOOL_OPTIONS.map((group) => {
-          const availability = group.names.map((name) => getToolAvailability(name, webCapabilities))
+        {toolOptions.map((group) => {
+          const availability = group.problem
+            ? [{available: false, note: group.problem}]
+            : group.names.map((name) => getToolAvailability(name, webCapabilities))
           const groupAvailable = availability.some((entry) => entry.available)
           // Unavailability the user can fix locally (e.g. turn on a Windows feature): keep the
           // checkbox clickable and answer the click with setup instructions instead of a save.
@@ -1818,6 +1885,11 @@ function AgentPermissionsPage({
                   <SizableText size="sm" weight="bold" className="truncate">
                     {group.title}
                   </SizableText>
+                  {group.app ? (
+                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                      App
+                    </span>
+                  ) : null}
                   {!groupAvailable ? (
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
                       {setupAction ? 'Setup required' : 'Unavailable'}
@@ -1829,7 +1901,12 @@ function AgentPermissionsPage({
                   size="iconSm"
                   className="opacity-0 group-hover/tool:opacity-100 max-sm:size-10 max-sm:opacity-100"
                   aria-label={`About ${group.title}`}
-                  onClick={() => toolInfoDialog.open({toolName: group.infoTool ?? group.names[0]!})}
+                  onClick={() =>
+                    toolInfoDialog.open({
+                      toolName: group.infoTool ?? group.names[0]!,
+                      ...(group.contract ? {contract: group.contract} : {}),
+                    })
+                  }
                 >
                   <Info className="size-3.5" />
                 </Button>
@@ -1849,6 +1926,15 @@ function AgentPermissionsPage({
                       onClick={() => enableWhpDialog.open({})}
                     >
                       Show me how
+                    </button>
+                  ) : null}
+                  {group.app && serverUrl ? (
+                    <button
+                      type="button"
+                      className="text-primary cursor-pointer underline underline-offset-2"
+                      onClick={() => appsDialog.open({serverUrl, selectedAccountId: accountUid})}
+                    >
+                      Open Apps
                     </button>
                   ) : null}
                 </SizableText>
@@ -1873,6 +1959,24 @@ function AgentPermissionsPage({
             </div>
           )
         })}
+        {serverUrl ? (
+          <div className="border-border bg-card flex flex-col gap-3 rounded-xl border px-4 py-3">
+            <AppCatalog serverUrl={serverUrl} accountUid={accountUid} />
+            <div className="flex items-center justify-between gap-3">
+              <SizableText size="xs" color="muted">
+                More tools come from apps: a key, a subscription or a service this server does not have on its own.
+              </SizableText>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => appsDialog.open({serverUrl, selectedAccountId: accountUid})}
+              >
+                Manage apps
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {authoredTools.map((tool) => (
           <div
             key={tool.name}
@@ -1953,6 +2057,7 @@ function AgentPermissionsPage({
       {authoredToolDialog.content}
       {deleteAuthoredToolDialog.content}
       {enableWhpDialog.content}
+      {appsDialog.content}
 
       {saving ? (
         <SizableText size="xs" color="muted">

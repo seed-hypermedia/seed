@@ -57,7 +57,7 @@ function agentFor(account: string): AgentInfo {
       systemPrompt: 'A scripted agent used to demo the mobile UI without spending a model call.',
       modelProvider: 'Mock provider',
       model: 'mock-1',
-      tools: ['search', 'web_search', 'execute', 'publish'],
+      tools: ['search', 'web_search', 'execute', 'convert', 'publish'],
     },
     stateDir: '/tmp/mock-agent',
     status: 'idle',
@@ -290,6 +290,10 @@ function handleAction(action: Record<string, any>, account: string): Record<stri
         sessionCount: [...sessions.values()].filter((session) => !session.info.parentSessionId).length,
       }
 
+    case 'ListApps':
+    case 'RefreshApps':
+      return {_: 'ListAppsResponse', apps: [], binding: {source: 'none', isThisServer: false}}
+
     case 'ListModelProviders':
       return {
         _: 'ListModelProvidersResponse',
@@ -479,9 +483,11 @@ const server = Bun.serve({
           status: 'ok',
           uptime: (Date.now() - BOOT_TIME) / 1000,
           version: 'mock',
+          serverUid: 'z6MkMockAgentsServer',
           webTools: {search: true, readBrowser: true},
           codeExec: false,
           codeExecReason: 'The mock server does not run sandboxes.',
+          convert: {available: false, source: 'none'},
         },
         {headers: CORS_HEADERS},
       )
