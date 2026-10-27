@@ -15,8 +15,10 @@ COPY vault ./vault/
 RUN cd vault && bun run build
 
 FROM oven/bun:1.3.10
-WORKDIR /app
+# Bun emits absolute chunk imports under the build's /vault/ publicPath.
+WORKDIR /vault
 COPY --from=build /build/vault/dist/ .
+RUN bun run --no-install main.js --help > /dev/null
 VOLUME /data
 ENV SEED_VAULT_DB_PATH=/data/vault.sqlite
 EXPOSE 3000
