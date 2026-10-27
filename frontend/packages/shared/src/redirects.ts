@@ -18,12 +18,11 @@ export type RedirectWalk = {
    */
   resource: HMResource
   /**
-   * The first address of the walk when it began with a republish, else null. Content reached
-   * through a republish is presented at that address: the page keeps the republish's own id
-   * and never pins the target's version onto it (see #1120).
+   * The first republish address encountered, or null. Content reached through a republish
+   * is presented there, retaining the requested version/latest selection.
    */
   republishSourceId: UnpackedHypermediaId | null
-  /** Every address fetched, in order; on a cycle the repeated address is appended. */
+  /** Addresses visited in order, including an unfetched target when a cycle or limit stops the walk. */
   visited: string[]
   /** Set when the walk gave up instead of ending at a resource. */
   stopped?: 'cycle' | 'limit'

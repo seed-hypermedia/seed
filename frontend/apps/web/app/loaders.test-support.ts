@@ -13,12 +13,16 @@
 import type {HMComment, HMDocument, HMResource, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {HMNotFoundError} from '@shm/shared/models/entity'
-import {MAX_REDIRECT_HOPS} from '@shm/shared/redirects'
+import {MAX_REDIRECT_HOPS, republishVersionCarry} from '@shm/shared/redirects'
 
+/** Account hosting the test site. */
 export const SITE_UID = 'z6MkhzAVoSfE62UVefmbwjvriGk8J2NMXPMwBukkZ3SU288d'
+/** Account hosting republished source documents. */
 export const OTHER_UID = 'z6MkjtdhPwB2jbdp6V8mn8oobZycbqqEuP6nXouN12EZN4Wa'
+/** Author shared by the test documents. */
 export const AUTHOR_UID = 'z6MknjjfAYZdrU3Ksw2imMhq5JLSE8Cuc7Cev9fcr4oxJaGC'
 
+/** Construct a document fixture with optional paragraph content. */
 export function makeDocument(input: {
   uid: string
   path: string[]
@@ -49,6 +53,7 @@ export function makeDocument(input: {
   } as unknown as HMDocument
 }
 
+/** Construct a comment targeting a document fixture. */
 export function makeComment(input: {
   id: string
   version: string
@@ -113,6 +118,8 @@ export class FakeDaemon {
     if (!entry) return {type: 'not-found', id}
     if (id.version && !id.latest) {
       const pinned = entry.versions.get(id.version)
+      // Versioned lookups at redirects still report the redirect (#1128).
+      if (!pinned && entry.latest.type === 'redirect') return {...entry.latest, id}
       if (!pinned) return {type: 'not-found', id}
       return {...pinned, id}
     }
@@ -125,7 +132,7 @@ export class FakeDaemon {
     for (let hop = 0; hop <= MAX_REDIRECT_HOPS; hop++) {
       const resource = this.fetch(current)
       if (resource.type === 'redirect') {
-        current = resource.redirectTarget
+        current = {...resource.redirectTarget, ...republishVersionCarry(resource, current)}
         continue
       }
       if (resource.type === 'not-found') throw new HMNotFoundError()

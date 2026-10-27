@@ -29,7 +29,7 @@ const state = vi.hoisted(() => ({
   originHomeId: null as unknown as UnpackedHypermediaId,
 }))
 
-// ---- loader side: every daemon surface goes to the fake daemon ----
+// Every daemon surface goes to the fake daemon.
 vi.mock('./client.server', () => ({
   grpcClient: {documents: {getDocument: (req: unknown) => state.daemon.getDocument(req)}},
   transport: {},
@@ -61,7 +61,7 @@ vi.mock('./site-config.server', () => ({
   getHostnames: () => [],
 }))
 
-// ---- render side: the same stubs ssr-document.integration.test.ts uses ----
+// The render uses the same stubs as ssr-document.integration.test.ts.
 vi.mock('@shm/shared/constants', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
@@ -205,5 +205,20 @@ describe('SSR through the loader', () => {
     expect(html).not.toContain('animate-spin')
     expect(html).not.toContain('Document Not Found')
     expect(html).toContain('The Paper')
+  })
+  it('renders the requested older version of a republish from the loader cache', async () => {
+    daemon.putDocument(makeDocument({uid: OTHER_UID, path: ['paper'], version: 'v1', name: 'Original paper'}))
+    daemon.putDocument(makeDocument({uid: OTHER_UID, path: ['paper'], version: 'v2', name: 'Revised paper'}))
+    const routeId = hmId(SITE_UID, {path: ['paper'], version: 'v1', latest: false})
+    daemon.putRedirect(routeId, hmId(OTHER_UID, {path: ['paper']}), {republish: true})
+
+    const {payload, html} = await renderThroughLoader(routeId)
+
+    expect(payload.id).toEqual(routeId)
+    expect(payload.isLatest).toBe(false)
+    expect(html).toContain('Original paper')
+    expect(html).not.toContain('Revised paper')
+    expect(html).not.toContain('animate-spin')
+    expect(html).not.toContain('Document Not Found')
   })
 })

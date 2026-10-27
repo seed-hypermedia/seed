@@ -108,4 +108,21 @@ describe('followRedirects', () => {
     expect(walk.resource).toMatchObject({type: 'not-found', id: docB})
     expect(walk.republishSourceId).toEqual(docA)
   })
+  test.each([
+    {republish: true, targetVersion: null, expectedVersion: 'v1'},
+    {republish: true, targetVersion: 'v2', expectedVersion: 'v2'},
+    {republish: false, targetVersion: null, expectedVersion: null},
+  ])('version carry: %j', async ({republish, targetVersion, expectedVersion}) => {
+    const source = {...docA, version: 'v1', latest: false}
+    const target = {...docB, version: targetVersion, latest: false}
+    const calls: UnpackedHypermediaId[] = []
+    const walk = await followRedirects(async (id) => {
+      calls.push(id)
+      return id.id === docA.id ? redirect(id, target, republish) : document(id)
+    }, source)
+
+    expect(calls[1]?.version).toBe(expectedVersion)
+    expect(walk.resource.id.version).toBe(expectedVersion)
+    expect(walk.resource.id.latest).toBe(false)
+  })
 })

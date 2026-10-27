@@ -202,6 +202,28 @@ describe('loadResource by route kind', () => {
     expect((entityQuery(payload, routeId)!.state.data as HMResource).type).toBe('document')
   })
 
+  it.each([false, true])('version-pinned republish keeps the older content (chained: %s)', async (chained) => {
+    daemon.putDocument(makeDocument({uid: OTHER_UID, path: ['paper'], version: 'v1', name: 'Original paper'}))
+    daemon.putDocument(makeDocument({uid: OTHER_UID, path: ['paper'], version: 'v2', name: 'Revised paper'}))
+    const target = hmId(OTHER_UID, {path: ['paper']})
+    const routeId = hmId(SITE_UID, {path: ['paper'], version: 'v1', latest: false})
+    const hop = hmId(SITE_UID, {path: ['intermediate']})
+    if (chained) daemon.putRedirect(hop, target, {republish: true})
+    daemon.putRedirect(routeId, chained ? hop : target, {republish: true})
+
+    const payload = await load(routeId)
+
+    expect(payload.id).toEqual(routeId)
+    expect(payload.document.metadata.name).toBe('Original paper')
+    expect(payload.document.version).toBe('v1')
+    expect(payload.isLatest).toBe(false)
+    expect(entityQuery(payload, routeId)?.state.data).toMatchObject({
+      type: 'document',
+      id: routeId,
+      document: {version: 'v1'},
+    })
+  })
+
   it('republish whose target this node does not hold: not found, so discovery can run', async () => {
     const routeId = hmId(SITE_UID, {path: ['paper'], latest: true})
     daemon.putRedirect(routeId, hmId(OTHER_UID, {path: ['2026', 'paper']}), {republish: true})

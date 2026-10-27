@@ -215,7 +215,9 @@ jobs:
       - name: Install native build dependencies
         # gnome-keyring + libsecret-tools + dbus-x11: a Secret Service for the CLI fixture
         # suite below, whose `key import` stores keys through `secret-tool`.
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake lsof gnome-keyring libsecret-tools dbus-x11
+        run:
+          sudo apt-get update && sudo apt-get install -y build-essential cmake lsof gnome-keyring libsecret-tools
+          dbus-x11
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline
       # The mobile integration tests boot a vault server with bun and an Expo

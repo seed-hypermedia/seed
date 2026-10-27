@@ -455,18 +455,16 @@ async function loadResourcePayload(
   const prefetchCtx = createPrefetchContext()
   const homeId = hmId(docId.uid, {latest: true})
 
-  // Create the final ID that will be returned to the client. Whether a version can be
-  // pinned onto it is derived from the resolved resource, not from how we got here: a
-  // version belongs to the address the document lives at, and only there.
+  // Derive the route identity from the resolved document rather than a caller-supplied
+  // republish flag. Pin ordinary documents to the version served in this response.
   //
   // Clear `latest` when pinning to a specific version — otherwise the client's
   // REST fetch includes both `?v=...&l`, the handler drops the version, and the
   // daemon may return a stale "latest" pointer (overwriting correct SSR data).
   //
-  // A document reached through a republish lives elsewhere: `document.version` belongs
-  // to the TARGET, so pinning it onto the republish's address asks the daemon for a
-  // version that does not exist there and every lookup (the SSR prefetch and each
-  // client refetch) resolves as not-found (#1120). Keep the route's own unpinned id.
+  // For a republish, retain the route's own version/latest selection. An explicit
+  // version is carried to the target by followRedirects (#1128); an unpinned route
+  // must stay unpinned so subsequent refetches can follow the target's latest content.
   const documentLivesAtRoute =
     document.account === docId.uid && (document.path || '') === hmIdPathToEntityQueryPath(docId.path)
   const finalId: UnpackedHypermediaId = documentLivesAtRoute
