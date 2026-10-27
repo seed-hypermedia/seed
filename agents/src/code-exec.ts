@@ -21,8 +21,14 @@ import {availableParallelism} from 'node:os'
 export const EXEC_WORKSPACE_GUEST_PATH = '/workspace'
 /** Maximum bytes of stdout/stderr each returned to the model. */
 export const MAX_EXEC_OUTPUT_BYTES = 64 * 1024
-/** Upper bound for a single execution timeout. */
+/** Upper bound for a single execution timeout of model-written code. */
 export const MAX_EXEC_TIMEOUT_SECS = 300
+/**
+ * The upper bound an app tool may ask for instead. A space consented to the tool's code when it
+ * mounted the app, and a tool like a document converter spends its run waiting on a remote
+ * service, so it gets more wall-clock than code the model wrote a moment ago.
+ */
+export const MAX_APP_EXEC_TIMEOUT_SECS = 1800
 /** Characters of recent combined output kept in live progress updates (enough for ~10 lines). */
 export const EXEC_OUTPUT_TAIL_CHARS = 2000
 /** Minimum interval between output-driven progress callbacks. */
@@ -126,8 +132,24 @@ export type CodeExecRequest = {
   stateDir: string
   runtime: CodeExecRuntime
   code: string
-  /** Optional timeout override in seconds, clamped to [1, MAX_EXEC_TIMEOUT_SECS]. */
+  /** Optional timeout override in seconds, clamped to [1, `maxTimeoutSecs`]. */
   timeoutSecs?: number
+  /**
+   * The ceiling `timeoutSecs` is clamped to: MAX_EXEC_TIMEOUT_SECS unless given. An app tool,
+   * whose code a space consented to at mount, passes MAX_APP_EXEC_TIMEOUT_SECS.
+   */
+  maxTimeoutSecs?: number
+  /**
+   * Environment variables of the program's process, set on the exec and never logged: how an app
+   * tool receives its mount's arguments (see LAMBDA_CONTEXT_ENV).
+   */
+  env?: Record<string, string>
+  /**
+   * Egress limited to exactly these hosts, plus DNS; an empty list is no network at all. Absent,
+   * the execution gets the server's policy for model-written code (`allowNetwork`). An app tool
+   * declares its hosts on its bundle, so a tool gets what the person mounting the app saw.
+   */
+  network?: {hosts: string[]}
   /** Called with live progress while the execution runs, so callers can show what is happening. */
   onProgress?: (progress: CodeExecProgress) => void
 }
@@ -177,6 +199,9 @@ export type SandboxSdk = {
     fromProfiles?(profiles: Iterable<string>): unknown
     nonLocal?(): unknown
   }
+  /** Rule and destination factories (SDK >= 0.6.8), which a host allowlist is assembled from. */
+  Rule?: {allowEgress(destination: unknown): unknown; allowDns(): unknown}
+  Destination?: {domain(domain: string): unknown}
 }
 
 /**
@@ -189,6 +214,25 @@ function nonLocalNetworkPolicy(sdk: SandboxSdk): unknown {
   if (typeof fromProfiles === 'function') return fromProfiles(['public'])
   if (typeof nonLocal === 'function') return nonLocal()
   throw new CodeExecError(502, 'The sandbox SDK offers no non-local network policy')
+}
+
+/**
+ * A policy that lets the guest reach the named hosts and nothing else: egress and ingress denied
+ * by default, DNS allowed so the names resolve, one allow rule per host. The SDK's policy is a
+ * plain object of rules, so it is assembled here rather than through the fluent builder. An SDK
+ * without the rule factories cannot express it, and a tool that declared its hosts must not run
+ * with wider access instead.
+ */
+function hostAllowlistPolicy(sdk: SandboxSdk, hosts: string[]): unknown {
+  const {Rule, Destination} = sdk
+  if (!Rule || !Destination) {
+    throw new CodeExecError(502, 'The sandbox SDK cannot limit network access to named hosts')
+  }
+  return {
+    defaultEgress: 'deny',
+    defaultIngress: 'deny',
+    rules: [Rule.allowDns(), ...hosts.map((host) => Rule.allowEgress(Destination.domain(host)))],
+  }
 }
 
 export type MountBuilderLike = {
@@ -222,6 +266,7 @@ export type SandboxBuilderLike = {
 
 export type ExecOptionsBuilderLike = {
   args(args: string[]): ExecOptionsBuilderLike
+  envs(vars: Record<string, string>): ExecOptionsBuilderLike
   timeout(ms: number): ExecOptionsBuilderLike
 }
 
@@ -386,6 +431,8 @@ export type SandboxSpec = {
    * source's own policy (idle TTL, caps), decoupled from any single call's timeout.
    */
   timeoutSecs: number
+  /** Egress limited to these hosts (see CodeExecRequest.network). A VM with its own policy is never pooled. */
+  network?: {hosts: string[]}
 }
 
 /**
@@ -446,16 +493,20 @@ async function bootSandboxVm(
       .security('restricted')
       .maxDuration(maxDurationSecs)
       .volume(EXEC_WORKSPACE_GUEST_PATH, (mount) => mount.bind(spec.memoryRoot))
-    if (config.allowNetwork) {
+    if (spec.network && spec.network.hosts.length === 0) {
+      // The tool declared no hosts, so it gets no network, whatever the server allows model code.
+      builder = builder.disableNetwork()
+    } else if (config.allowNetwork) {
       // Enable networking with explicit public DNS (the guest has no resolver otherwise) and a
       // non-local policy so code can reach the public internet but not the host's private
-      // network or cloud metadata endpoints.
+      // network or cloud metadata endpoints — or, for a tool that named its hosts, those alone.
       const dnsServers = config.dnsServers.length ? config.dnsServers : DEFAULT_EXEC_DNS_SERVERS
+      const policy = spec.network ? hostAllowlistPolicy(sdk, spec.network.hosts) : nonLocalNetworkPolicy(sdk)
       builder = builder.network((network) =>
         network
           .enabled(true)
           .dns((dns) => dns.nameservers(dnsServers))
-          .policy(nonLocalNetworkPolicy(sdk)),
+          .policy(policy),
       )
     } else {
       builder = builder.disableNetwork()
@@ -769,9 +820,11 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
 
   return {
     async acquire(spec) {
-      if (!validPrincipal(spec)) {
+      if (!validPrincipal(spec) || spec.network) {
         // Fail closed: no pooling for an identity we cannot trust — single-use VM, never parked.
-        recordPerfCount('exec.pool_invalid_principal')
+        // A VM booted with a tool's own egress policy is single-use too: the policy is set at
+        // boot, and the session's pooled VM must keep the policy the session's own code was given.
+        if (!validPrincipal(spec)) recordPerfCount('exec.pool_invalid_principal')
         const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, spec.timeoutSecs + 30)
         return overflowLease(sandbox, bootMs)
       }
@@ -1015,7 +1068,14 @@ export function createCodeExecutor(
             : `Runtime must be one of: ${configuredRuntimes.join(', ')}`,
         )
       }
-      const timeoutSecs = Math.max(1, Math.min(MAX_EXEC_TIMEOUT_SECS, request.timeoutSecs ?? config.timeoutSecs))
+      if (request.network?.hosts.length && !config.allowNetwork) {
+        throw new CodeExecError(
+          400,
+          'This server does not allow network access from the sandbox, which this tool needs',
+        )
+      }
+      const maxTimeoutSecs = request.maxTimeoutSecs ?? MAX_EXEC_TIMEOUT_SECS
+      const timeoutSecs = Math.max(1, Math.min(maxTimeoutSecs, request.timeoutSecs ?? config.timeoutSecs))
 
       const memoryRoot = memoryRootPath(request.stateDir)
       fs.mkdirSync(memoryRoot, {recursive: true})
@@ -1029,13 +1089,17 @@ export function createCodeExecutor(
         image: request.runtime === 'ts' ? config.tsImage : config.image,
         memoryRoot,
         timeoutSecs,
+        ...(request.network ? {network: request.network} : {}),
       })
 
       // Assume wedged until the exchange completes normally, so every early exit (SDK error,
       // watchdog kill) disposes the sandbox instead of ever letting a pool source reuse it.
       let healthy = false
       try {
-        const command = runtimeCommand(request.runtime, code)
+        const command: ExecCommand = {
+          ...runtimeCommand(request.runtime, code),
+          ...(request.env ? {env: request.env} : {}),
+        }
         request.onProgress?.({stage: 'running'})
         const runStartedAt = Date.now()
         // The SDK gets the timeout too, but a wedged guest can outlive it; this deadline is the
@@ -1080,7 +1144,17 @@ export function createCodeExecutor(
 
 type RawExecResult = {code: number; success: boolean; stdout: string; stderr: string}
 
-type ExecCommand = {cmd: string; args: string[]}
+type ExecCommand = {cmd: string; args: string[]; env?: Record<string, string>}
+
+/** The exec options of a command: its arguments, its environment when it has one, and the SDK's own timeout. */
+function execOptions(
+  builder: ExecOptionsBuilderLike,
+  command: ExecCommand,
+  timeoutSecs: number,
+): ExecOptionsBuilderLike {
+  const withArgs = builder.args(command.args)
+  return (command.env ? withArgs.envs(command.env) : withArgs).timeout(timeoutSecs * 1000)
+}
 
 /**
  * How each runtime runs a program. Nothing goes through a shell unless the runtime IS the shell —
@@ -1111,12 +1185,24 @@ export const LAMBDA_RESULT_PREFIX = '__SEED_TOOL_RESULT__'
 export type LambdaRuntime = 'ts' | 'python'
 
 /**
+ * The environment variable that carries a lambda's context, the second argument of its entry
+ * point, as JSON: for an app tool `{args, usage, app}` (see executeAppTool in api-service.ts). It
+ * travels in the process environment rather than in the program text because the arguments
+ * include the mount's secrets, and the program text is what a failed call reports.
+ */
+export const LAMBDA_CONTEXT_ENV = 'SEED_APP_CONTEXT'
+
+/**
  * Wraps a lambda tool's source into a self-contained program for its runtime, with the call's
- * input baked in as a literal. See tool-documents.ts for the ABI this implements.
+ * input baked in as a literal and the context, when the process has one, read from
+ * LAMBDA_CONTEXT_ENV. See tool-documents.ts for the ABI this implements.
  *
- * TypeScript is loaded as a module from a `data:` URL so the source keeps its natural
- * `export default` shape (and its type annotations) without ever touching the filesystem; Python
- * is concatenated ahead of an epilogue that calls its `main`.
+ * TypeScript is written to the guest's temp dir and loaded from there as a module, so the source
+ * keeps its natural `export default` shape (and its type annotations) without touching the
+ * workspace, which is the agent's memory; a `data:` URL would do the same for a short lambda but
+ * bun refuses one past a few kilobytes (NameTooLong), and an app's tool is pages of code. Python
+ * is concatenated ahead of an epilogue that calls its `main`, with the context only when `main`
+ * takes a second parameter, so a tool written as `main(input)` keeps working.
  */
 export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input: unknown): string {
   // JSON.stringify twice: the inner call renders the value, the outer makes it a string literal
@@ -1126,13 +1212,18 @@ export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input
     return [
       source,
       '',
-      'import json as __seed_json',
+      'import json as __seed_json, os as __seed_os, inspect as __seed_inspect',
       `__seed_input = __seed_json.loads(${inputLiteral})`,
+      `__seed_context_json = __seed_os.environ.get(${JSON.stringify(LAMBDA_CONTEXT_ENV)})`,
+      '__seed_context = __seed_json.loads(__seed_context_json) if __seed_context_json else None',
       'if not callable(globals().get("main")):',
       '    raise SystemExit("This python tool must define a top-level main(input) function")',
-      '__seed_result = main(__seed_input)',
-      // `async def main` is a natural thing to write, and awaiting it here costs one import.
-      'import inspect as __seed_inspect',
+      '__seed_result = (',
+      '    main(__seed_input, __seed_context)',
+      '    if len(__seed_inspect.signature(main).parameters) >= 2',
+      '    else main(__seed_input)',
+      ')',
+      // `async def main` is a natural thing to write, and awaiting it here costs nothing more.
       'if __seed_inspect.iscoroutine(__seed_result):',
       '    import asyncio as __seed_asyncio',
       '    __seed_result = __seed_asyncio.run(__seed_result)',
@@ -1140,15 +1231,22 @@ export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input
       '',
     ].join('\n')
   }
-  const sourceUrl = `data:text/typescript;base64,${Buffer.from(source, 'utf8').toString('base64')}`
   return [
     `const __seedInput = JSON.parse(${inputLiteral})`,
-    `const __seedModule = await import(${JSON.stringify(sourceUrl)})`,
+    `const __seedContextJson = process.env[${JSON.stringify(LAMBDA_CONTEXT_ENV)}]`,
+    'const __seedContext = __seedContextJson ? JSON.parse(__seedContextJson) : undefined',
+    "const __seedFs = await import('node:fs')",
+    "const __seedPath = await import('node:path')",
+    "const __seedDir = __seedFs.mkdtempSync(__seedPath.join((await import('node:os')).tmpdir(), 'seed-tool-'))",
+    "const __seedFile = __seedPath.join(__seedDir, 'tool.ts')",
+    `__seedFs.writeFileSync(__seedFile, ${JSON.stringify(source)})`,
+    'const __seedModule = await import(__seedFile)',
+    '__seedFs.rmSync(__seedDir, {recursive: true, force: true})',
     'const __seedEntry = __seedModule.default',
     'if (typeof __seedEntry !== "function") {',
     '  throw new Error("This TypeScript tool must `export default` a function taking its input")',
     '}',
-    'const __seedResult = await __seedEntry(__seedInput)',
+    'const __seedResult = await __seedEntry(__seedInput, __seedContext)',
     `console.log(${JSON.stringify(LAMBDA_RESULT_PREFIX)} + JSON.stringify(__seedResult ?? null))`,
     '',
   ].join('\n')
@@ -1218,7 +1316,7 @@ async function runBufferedExec(
   const deadline = createDeadline(deadlineMs)
   try {
     const output = await raceDeadline(
-      sandbox.execWith(command.cmd, (builder) => builder.args(command.args).timeout(timeoutSecs * 1000)),
+      sandbox.execWith(command.cmd, (builder) => execOptions(builder, command, timeoutSecs)),
       deadline.promise,
     )
     if (output === EXEC_DEADLINE) return timedOutResult(timeoutSecs, '', '')
@@ -1243,7 +1341,7 @@ async function runStreamingExec(
   const deadline = createDeadline(deadlineMs)
   try {
     const handle = await raceDeadline(
-      sandbox.execStreamWith!(command.cmd, (builder) => builder.args(command.args).timeout(timeoutSecs * 1000)),
+      sandbox.execStreamWith!(command.cmd, (builder) => execOptions(builder, command, timeoutSecs)),
       deadline.promise,
     )
     if (handle === EXEC_DEADLINE) return timedOutResult(timeoutSecs, '', '')

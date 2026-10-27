@@ -23,6 +23,7 @@ import {
 import {createAPIRoutes} from '@/main'
 import {clientProtocolOf, clientProtocolProblem, type GetAgentResponseV1} from '@/protocol-compat'
 import {startTestMcpServer} from '@/mcp-test-server'
+import {mountConvert} from '@/test-app-mounts'
 
 /**
  * An event payload with its provenance stamp dropped.
@@ -6570,7 +6571,9 @@ describe('api service', () => {
       fs.mkdirSync(path.join(memoryRoot, 'reports', 'images'), {recursive: true})
       fs.writeFileSync(
         path.join(memoryRoot, 'reports', 'weekly.md'),
-        '---\nname: Weekly Report\nsummary: Week in review\n---\n# Weekly Report\n\nHello world from memory.\n\n![chart](images/chart.png)\n',
+        // The citation link is a `#ref-1` fragment the way convert's post-processor writes it; it
+        // resolves to this very document, which does not exist yet on the first publish.
+        '---\nname: Weekly Report\nsummary: Week in review\n---\n# Weekly Report\n\nHello world from memory [[1](#ref-1)].\n\n![chart](images/chart.png)\n\n## References\n\n- [1] First entry <!-- id:ref-1 -->\n',
       )
       fs.writeFileSync(
         path.join(memoryRoot, 'reports', 'images', 'chart.png'),
@@ -6640,9 +6643,13 @@ describe('api service', () => {
       expect(first.body?.opCount ?? 0).toBeGreaterThan(0)
       expect(BigInt(first.ts)).toBeGreaterThan(0n)
       const createBodyText = new TextDecoder('utf-8', {fatal: false}).decode(createBody)
-      expect(createBodyText).toContain('Hello world from memory.')
+      expect(createBodyText).toContain('Hello world from memory [1].')
       expect(createBodyText).toContain('ipfs://')
       expect(createBodyText).not.toContain('file://')
+      // The fragment link was resolved to the document's own address and let through the link
+      // check, and the entry keeps the id it points at.
+      expect(createBodyText).toContain(`hm://${signerPublicKey}/weekly-report#ref-1`)
+      expect(createBodyText).toContain('ref-1')
 
       // Second publish of the same file: the document now exists, so it updates in place.
       existingVersion = createResult!.output!.version!
@@ -10511,6 +10518,127 @@ function codexStreamResponse(parts: Array<{text: string} | {error: string}>): Re
 function openAIUsage(): Record<string, number> {
   return {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2}
 }
+
+describe('app mounts (signed API)', () => {
+  /** A space bound to this server by its home document, and this server answering for itself. */
+  function bindSpaces(serverUid: string, query: Record<string, unknown> = {documents: [], nextPageToken: ''}) {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (href.includes('/api/Resource')) {
+        const id = unpackHmId(decodeURIComponent(href.split('id=')[1] ?? ''))
+        if (!id || id.path?.length) return Response.json({error: 'not found'}, {status: 404})
+        return Response.json(
+          serialize({
+            type: 'document',
+            id,
+            document: {
+              content: [],
+              version: 'home-v1',
+              account: id.uid,
+              authors: [],
+              path: '',
+              createTime: '',
+              updateTime: '',
+              metadata: {name: 'Home', agentServerUrl: 'https://agents.test/hm/api/agents'},
+              genesis: 'genesis',
+              visibility: 'PUBLIC',
+            },
+          }),
+        )
+      }
+      if (href === 'https://agents.test/hm/api/agents/health') return Response.json({serverUid})
+      if (href.includes('/api/QueryDocuments')) {
+        void init
+        return Response.json(query)
+      }
+      return Response.json({error: `unexpected ${href}`}, {status: 404})
+    }) as unknown as typeof fetch
+    return () => {
+      globalThis.fetch = originalFetch
+    }
+  }
+
+  test('ListApps shows the mounts an account sees with its binding, never a secret value', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const svc = new apisvc.Service(db, dataDir, {apps: {serverArgs: {CONVERT_APIKEY: 'shared-key'}}})
+    const restore = bindSpaces(svc.serverUid)
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const visitor = blobs.generateNobleKeyPair()
+      const ownerId = blobs.principalToString(owner.principal)
+      const sendAs = async (
+        key: blobs.NobleKeyPair,
+        action: Parameters<typeof apisvc.createSignedEnvelope>[1]['action'],
+      ) => svc.message(await apisvc.createSignedEnvelope(key, {action}))
+      await sendAs(owner, {_: 'SetSecret', name: 'app-convert-apiKey', value: new TextEncoder().encode('own-key')})
+      mountConvert(db)
+      mountConvert(db, {accountId: ownerId, secret: 'app-convert-apiKey'})
+
+      const mine = await sendAs(owner, {_: 'ListApps'})
+      expect(mine).toMatchObject({
+        _: 'ListAppsResponse',
+        binding: {agentServerUrl: 'https://agents.test/hm/api/agents', source: 'home', isThisServer: true},
+        apps: [
+          {
+            slug: 'convert',
+            scope: 'space',
+            mountId: `hm://${ownerId}/apps/convert`,
+            name: 'Datalab converter',
+            app: 'hm://docs/agent/apps/convert',
+            tools: [{tool: 'convert', runtime: 'ts'}],
+            network: {datalab: 'www.datalab.to'},
+            usage: {meter: 'per-unit', unit: 'pages', period: 'month'},
+            status: {state: 'ok'},
+          },
+        ],
+      })
+      const apps = (mine as {apps: Array<{arguments: Array<Record<string, unknown>>}>}).apps
+      expect(apps[0]?.arguments.find((arg) => arg.name === 'apiKey')).toMatchObject({secret: true, hasValue: true})
+      expect(JSON.stringify(mine)).not.toContain('own-key')
+      expect(JSON.stringify(mine)).not.toContain('shared-key')
+
+      // Another account sees the server-wide mount only: a space mount is that space's.
+      const theirs = await sendAs(visitor, {_: 'ListApps'})
+      expect((theirs as {apps: Array<{scope: string}>}).apps.map((app) => app.scope)).toEqual(['server'])
+
+      // Usage is counted on the shared key only.
+      expect(await sendAs(visitor, {_: 'GetAppUsage', slug: 'convert'})).toMatchObject({
+        usage: {slug: 'convert', unit: 'pages', used: 0, allowance: 1000, remaining: 1000, serverRemaining: 20000},
+      })
+      expect(await sendAs(owner, {_: 'GetAppUsage', slug: 'convert'})).toEqual({_: 'GetAppUsageResponse'})
+      await expect(sendAs(owner, {_: 'GetAppUsage', slug: 'nope'})).rejects.toThrow('App not mounted')
+    } finally {
+      restore()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test("RefreshApps looks at the account's space now and reports what it found", async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const events: apisvc.ServiceEvent[] = []
+    const svc = new apisvc.Service(db, dataDir, {onEvent: (event) => events.push(event)})
+    const restore = bindSpaces(svc.serverUid)
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const ownerId = blobs.principalToString(owner.principal)
+      const send = async (action: Parameters<typeof apisvc.createSignedEnvelope>[1]['action']) =>
+        svc.message(await apisvc.createSignedEnvelope(owner, {action}))
+      mountConvert(db)
+      mountConvert(db, {accountId: ownerId, secret: 'app-convert-apiKey'})
+      // The space publishes no mount document any more: the pass removes the row and the account
+      // falls back to the server-wide mount.
+      const refreshed = await send({_: 'RefreshApps'})
+      expect((refreshed as {apps: Array<{scope: string}>}).apps.map((app) => app.scope)).toEqual(['server'])
+      expect(events.some((event) => event.type === 'account-change' && event.reason === 'apps-changed')).toBe(true)
+    } finally {
+      restore()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+})
 
 function createTestState(): {db: Database; dataDir: string; cleanup: () => void} {
   const db = new Database(':memory:', {create: true, strict: true})

@@ -8,8 +8,10 @@ import {
   buildLambdaProgram,
   CodeExecError,
   EXEC_WORKSPACE_GUEST_PATH,
+  LAMBDA_CONTEXT_ENV,
   LAMBDA_RESULT_PREFIX,
   parseLambdaResult,
+  MAX_APP_EXEC_TIMEOUT_SECS,
   MAX_EXEC_OUTPUT_BYTES,
   createCodeExecutor,
   defaultCodeExecConfig,
@@ -41,10 +43,10 @@ type FakeCall = {
   networkDisabled?: boolean
   networkEnabled?: boolean
   dnsServers?: string[]
-  networkPolicy?: string
+  networkPolicy?: unknown
   maxDurationSecs?: number
   mounts: {guest: string; host?: string; quotaMib?: number}[]
-  exec?: {cmd: string; args: string[]; timeoutMs?: number}
+  exec?: {cmd: string; args: string[]; timeoutMs?: number; env?: Record<string, string>}
   stopped?: boolean
   killed?: boolean
   streamKilled?: boolean
@@ -90,7 +92,7 @@ function fakeSdk(
                 dnsConfigure(dnsBuilder)
                 return networkBuilder
               },
-              policy: (policy: unknown) => ((call.networkPolicy = policy as string), networkBuilder),
+              policy: (policy: unknown) => ((call.networkPolicy = policy), networkBuilder),
             }
             configure(networkBuilder)
             return builder
@@ -109,9 +111,10 @@ function fakeSdk(
           create: async () => {
             if (behavior.createError) throw behavior.createError
             const captureExec = (cmd: string, configure: (b: any) => any) => {
-              const exec: {cmd: string; args: string[]; timeoutMs?: number} = {cmd, args: []}
+              const exec: NonNullable<FakeCall['exec']> = {cmd, args: []}
               const optionsBuilder = {
                 args: (args: string[]) => ((exec.args = args), optionsBuilder),
+                envs: (vars: Record<string, string>) => ((exec.env = vars), optionsBuilder),
                 timeout: (ms: number) => ((exec.timeoutMs = ms), optionsBuilder),
               }
               configure(optionsBuilder)
@@ -141,13 +144,7 @@ function fakeSdk(
             return {
               ...streaming,
               execWith: async (cmd: string, configure: (b: any) => any) => {
-                const exec: {cmd: string; args: string[]; timeoutMs?: number} = {cmd, args: []}
-                const optionsBuilder = {
-                  args: (args: string[]) => ((exec.args = args), optionsBuilder),
-                  timeout: (ms: number) => ((exec.timeoutMs = ms), optionsBuilder),
-                }
-                configure(optionsBuilder)
-                call.exec = exec
+                captureExec(cmd, configure)
                 behavior.onExec?.()
                 if (behavior.execError) throw behavior.execError
                 if (behavior.execHangs) return new Promise<never>(() => {})
@@ -173,6 +170,8 @@ function fakeSdk(
       },
     },
     NetworkPolicy: {fromProfiles: (profiles: Iterable<string>) => `profiles:${[...profiles].join(',')}`},
+    Rule: {allowDns: () => 'dns', allowEgress: (destination: unknown) => `egress:${String(destination)}`},
+    Destination: {domain: (domain: string) => `domain:${domain}`},
   }
 }
 
@@ -264,6 +263,70 @@ describe('code exec', () => {
       const executor = createCodeExecutor(defaultCodeExecConfig(), async () => oldSdk)
       await executor.execute({principal, stateDir, runtime: 'python', code: 'x'})
       expect(call.networkPolicy).toBe('nonLocal')
+    })
+  })
+
+  test('an app tool run gets its environment, exactly its hosts, and the longer timeout cap', async () => {
+    await withStateDir(async (stateDir) => {
+      const call: FakeCall = {mounts: []}
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), tsImage: 'oven/bun'}, async () => fakeSdk(call))
+      const env = {[LAMBDA_CONTEXT_ENV]: '{"args":{"apiKey":"k"}}'}
+      await executor.execute({
+        principal,
+        stateDir,
+        runtime: 'ts',
+        code: 'console.log(1)',
+        env,
+        network: {hosts: ['www.datalab.to']},
+        timeoutSecs: 1800,
+        maxTimeoutSecs: MAX_APP_EXEC_TIMEOUT_SECS,
+      })
+      // The environment rides on the exec, never in the program text.
+      expect(call.exec).toEqual({cmd: 'bun', args: ['-e', 'console.log(1)'], timeoutMs: 1_800_000, env})
+      expect(call.maxDurationSecs).toBe(1830)
+      // Deny by default, DNS so the name resolves, the one host, and nothing else.
+      expect(call.networkEnabled).toBe(true)
+      expect(call.networkPolicy).toEqual({
+        defaultEgress: 'deny',
+        defaultIngress: 'deny',
+        rules: ['dns', 'egress:domain:www.datalab.to'],
+      })
+
+      // Model code keeps the shorter cap however long it asks for, and no environment.
+      const modelCall: FakeCall = {mounts: []}
+      const modelExecutor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk(modelCall))
+      await modelExecutor.execute({principal, stateDir, runtime: 'python', code: 'x', timeoutSecs: 1800})
+      expect(modelCall.exec).toEqual({cmd: 'python', args: ['-c', 'x'], timeoutMs: 300_000})
+      expect(modelCall.networkPolicy).toBe('profiles:public')
+    })
+  })
+
+  test('a tool that declared no hosts gets no network; one that needs hosts is refused where it cannot have them', async () => {
+    await withStateDir(async (stateDir) => {
+      const none: FakeCall = {mounts: []}
+      await createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk(none)).execute({
+        principal,
+        stateDir,
+        runtime: 'python',
+        code: 'x',
+        network: {hosts: []},
+      })
+      expect(none.networkDisabled).toBe(true)
+      expect(none.networkEnabled).toBeUndefined()
+
+      const needs = {principal, stateDir, runtime: 'python' as const, code: 'x', network: {hosts: ['www.datalab.to']}}
+      const off = createCodeExecutor({...defaultCodeExecConfig(), allowNetwork: false}, async () =>
+        fakeSdk({mounts: []}),
+      )
+      await expect(off.execute(needs)).rejects.toThrow('does not allow network access')
+
+      // A staged SDK older than the rule factories cannot express the allowlist, and the tool must
+      // not run with wider access instead.
+      const old = createCodeExecutor(defaultCodeExecConfig(), async () => {
+        const {Rule: _rule, ...sdk} = fakeSdk({mounts: []})
+        return sdk
+      })
+      await expect(old.execute(needs)).rejects.toThrow('cannot limit network access to named hosts')
     })
   })
 
@@ -455,10 +518,11 @@ describe('code exec', () => {
 
   test('wraps a lambda into a program that hands it the input and marks the value it returns', async () => {
     const tsProgram = buildLambdaProgram('ts', 'export default (input) => ({hi: input.name})', {name: 'Ada'})
-    // The input is a literal, never interpolated code, and the source is imported as a module so
-    // it keeps its natural `export default` shape.
+    // The input is a literal, never interpolated code, and the source is written out and imported
+    // as a module so it keeps its natural `export default` shape.
     expect(tsProgram).toContain('JSON.parse("{\\"name\\":\\"Ada\\"}")')
-    expect(tsProgram).toContain('data:text/typescript;base64,')
+    expect(tsProgram).toContain("'seed-tool-'")
+    expect(tsProgram).toContain(JSON.stringify('export default (input) => ({hi: input.name})'))
     expect(tsProgram).toContain(LAMBDA_RESULT_PREFIX)
 
     const pyProgram = buildLambdaProgram('python', 'def main(input):\n    return {"hi": input["name"]}', {name: 'Ada'})
@@ -504,6 +568,48 @@ describe('code exec', () => {
     const noMain = Bun.spawnSync(['python3', '-c', buildLambdaProgram('python', 'x = 1', {})])
     expect(noMain.exitCode).not.toBe(0)
     expect(noMain.stderr.toString()).toContain('must define a top-level main(input) function')
+  })
+
+  test('the wrappers hand a tool the context from the environment, and nothing when there is none', () => {
+    const context = JSON.stringify({args: {apiKey: 'k'}, app: {slug: 'convert'}})
+    const withContext = {...process.env, [LAMBDA_CONTEXT_ENV]: context}
+    const without = {...process.env, [LAMBDA_CONTEXT_ENV]: ''}
+    const tsSource =
+      'export default (input: {name: string}, ctx?: {args: {apiKey: string}}) => ({key: ctx?.args.apiKey ?? null, name: input.name})'
+    const tsProgram = buildLambdaProgram('ts', tsSource, {name: 'Ada'})
+    expect(
+      parseLambdaResult(Bun.spawnSync(['bun', '-e', tsProgram], {env: withContext}).stdout.toString()).result,
+    ).toEqual({
+      key: 'k',
+      name: 'Ada',
+    })
+    expect(parseLambdaResult(Bun.spawnSync(['bun', '-e', tsProgram], {env: without}).stdout.toString()).result).toEqual(
+      {
+        key: null,
+        name: 'Ada',
+      },
+    )
+
+    const hasPython = Bun.spawnSync(['python3', '-c', 'print(1)']).exitCode === 0
+    if (!hasPython) return
+    // A python tool takes the context only when its main declares a second parameter, so a tool
+    // written as main(input) keeps working with the variable set.
+    const twoParams = buildLambdaProgram(
+      'python',
+      'def main(input, ctx):\n    return {"key": ctx["args"]["apiKey"]}',
+      {},
+    )
+    expect(
+      parseLambdaResult(Bun.spawnSync(['python3', '-c', twoParams], {env: withContext}).stdout.toString()).result,
+    ).toEqual({
+      key: 'k',
+    })
+    const oneParam = buildLambdaProgram('python', 'def main(input):\n    return {"ok": True}', {})
+    expect(
+      parseLambdaResult(Bun.spawnSync(['python3', '-c', oneParam], {env: withContext}).stdout.toString()).result,
+    ).toEqual({
+      ok: true,
+    })
   })
 
   test('reads back the marked result, and reports its absence rather than guessing', () => {

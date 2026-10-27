@@ -192,6 +192,12 @@
         "triggerId": "string"
       }
     },
+    "GetAppUsage": {
+      "fields": {
+        "_": "\"GetAppUsage\"",
+        "slug": "string"
+      }
+    },
     "GetProviderOAuthStatus": {
       "fields": {
         "_": "\"GetProviderOAuthStatus\"",
@@ -293,6 +299,11 @@
         "_": "\"ListAgents\""
       }
     },
+    "ListApps": {
+      "fields": {
+        "_": "\"ListApps\""
+      }
+    },
     "ListMcpServers": {
       "fields": {
         "_": "\"ListMcpServers\""
@@ -365,6 +376,11 @@
         "_": "\"ReadSessionAttachment\"",
         "attachmentId": "string",
         "sessionId": "string"
+      }
+    },
+    "RefreshApps": {
+      "fields": {
+        "_": "\"RefreshApps\""
       }
     },
     "RefreshMcpServer": {
@@ -700,6 +716,12 @@
         "webhookSecret?": "string"
       }
     },
+    "GetAppUsageResponse": {
+      "fields": {
+        "_": "\"GetAppUsageResponse\"",
+        "usage?": "AppUsageInfo"
+      }
+    },
     "GetRunJournalResponse": {
       "fields": {
         "_": "\"GetRunJournalResponse\"",
@@ -802,6 +824,13 @@
       "fields": {
         "_": "\"ListAgentsResponse\"",
         "agents": "AgentInfo[]"
+      }
+    },
+    "ListAppsResponse": {
+      "fields": {
+        "_": "\"ListAppsResponse\"",
+        "apps": "AppMountInfo[]",
+        "binding": "SpaceBinding"
       }
     },
     "ListMcpServersResponse": {
@@ -1221,6 +1250,7 @@
     },
     "AgentToolInfo": {
       "fields": {
+        "app?": "AppToolProvenance",
         "cid": "string",
         "createdAt": "number",
         "description": "string",
@@ -1347,6 +1377,70 @@
             "type": "\"webhook\""
           }
         }
+      }
+    },
+    "AppArgumentInfo": {
+      "fields": {
+        "choices?": "Record<string, string>",
+        "description?": "string",
+        "hasValue?": "boolean",
+        "name": "string",
+        "order?": "number",
+        "required": "boolean",
+        "secret": "boolean",
+        "type": "\"boolean\" | \"integer\" | \"string\"",
+        "value?": "false | null | number | string | true"
+      }
+    },
+    "AppMountInfo": {
+      "fields": {
+        "app": "string",
+        "arguments": "AppArgumentInfo[]",
+        "createdAt": "number",
+        "enabled": "boolean",
+        "mountId?": "string",
+        "name": "string",
+        "network": "Record<string, string>",
+        "scope": "\"server\" | \"space\"",
+        "slug": "string",
+        "status": "AppMountStatus",
+        "summary": "string",
+        "tools": "AppToolInfo[]",
+        "updatedAt": "number",
+        "usage?": "{allowance?: number; callCap?: number; ceiling?: number; meter: \"none\" | \"per-unit\"; period?: \"month\"; unit?: string}",
+        "version?": "string"
+      }
+    },
+    "AppMountStatus": {
+      "fields": {
+        "checkedAt?": "number",
+        "error?": "string",
+        "state": "\"error\" | \"ok\" | \"pending\""
+      }
+    },
+    "AppToolInfo": {
+      "fields": {
+        "runtime": "\"python\" | \"ts\"",
+        "summary": "string",
+        "tool": "string"
+      }
+    },
+    "AppToolProvenance": {
+      "fields": {
+        "scope": "\"server\" | \"space\"",
+        "slug": "string",
+        "version?": "string"
+      }
+    },
+    "AppUsageInfo": {
+      "fields": {
+        "allowance": "number",
+        "period": "string",
+        "remaining": "number",
+        "serverRemaining?": "number",
+        "slug": "string",
+        "unit": "string",
+        "used": "number"
       }
     },
     "BrowserCommand": {
@@ -1688,6 +1782,13 @@
         "data": "Uint8Array<ArrayBufferLike>",
         "fileName?": "string",
         "mimeType?": "string"
+      }
+    },
+    "SpaceBinding": {
+      "fields": {
+        "agentServerUrl?": "string",
+        "isThisServer": "boolean",
+        "source": "\"home\" | \"none\" | \"site\""
       }
     },
     "Thoroughness": {

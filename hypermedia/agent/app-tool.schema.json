@@ -1,0 +1,57 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "tool": {
+      "value": {
+        "type": "hm://hyper.media/string",
+        "pattern": "^[a-z][a-z0-9_-]{1,63}$"
+      },
+      "required": true,
+      "description": "The name the model calls the tool by, the same rules as an authored tool's name. It is unique among the tools of one agent, so an app must not pick a verb's name."
+    },
+    "summary": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "One sentence on what the tool does, the line the model sees in its Space index."
+    },
+    "runtime": {
+      "value": {
+        "anyOf": [
+          "ts",
+          "python"
+        ]
+      },
+      "required": true,
+      "description": "The language of `code`: `ts` runs with bun, `python` with the python interpreter, in the agents server's sandbox. A server that cannot run the runtime refuses the mount and says so."
+    },
+    "timeoutSecs": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "How long one call may run, in seconds, up to the server's cap for app tools (thirty minutes). Without it the server's default execution timeout applies."
+    },
+    "inputSchema": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The contract a call is validated against: a JSON Schema as JSON text, object-rooted and in the subset the server validates, the same an authored lambda's schema follows. Text, because a document's attributes hold scalars and maps and a JSON Schema needs lists (`required`, `enum`)."
+    },
+    "outputSchema": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "description": "Likewise, what the tool returns, when the result is to be checked."
+    },
+    "code": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "The tool's source in the runtime's language, the program the agents server runs in its sandbox for the spaces that mounted the app. It follows the lambda ABI with a second argument: `export default async function (input, ctx)` in TypeScript, `def main(input, ctx)` in Python."
+    }
+  },
+  "description": "One tool of a Seed Agents app: a page under the app page's `tools` folder whose attributes name the tool, say what runtime its code needs, and carry the contract (`inputSchema`, `outputSchema`) and the code the agents server runs. The body is the tool's documentation, the instructions the model reads with the contract."
+}
