@@ -162,7 +162,7 @@ Two packages publish on their own. Pushes to main that touch the [SDK](./sdk.md)
 
 # Contributing to these docs <!-- id:FUbEfrIK -->
 
-This site is the `hypermedia/` folder, and a commit to main publishes it through `.github/workflows/sync-hypermedia.yml`. Pages are plain markdown with a `name` and a one-sentence `summary` in the frontmatter. Links between pages are relative `.md` links. The dialect round-trips losslessly through the [Seed app](../apps/desktop.md). `hypermedia/README.md` explains the layout, and [Publish a folder](./publish-a-folder.md) explains the round trip. <!-- id:N8dBXosg -->
+This site is the `hypermedia/` folder, and a commit to main publishes it through `.github/workflows/sync-hypermedia.yml`. Pages are plain markdown with a `name` and a one-sentence `summary` in the frontmatter. Links between pages are relative `.md` links. The dialect round-trips losslessly through the [Seed app](../apps/desktop.md). `hypermedia/README.md` explains the layout, and [Publish a folder](./publish-a-folder.md) explains the round trip. The home document is also the space's own record, where the desktop keeps settings such as `agentServerUrl` and `spaceAgents`, so on it the sync sets what `index.md` names and leaves the rest alone, and a key is removed by naming it with a null; every other page is owned by its file, and a key missing from the file is removed from the page. <!-- id:N8dBXosg -->
 
 ```sh <!-- id:cKaIfLAn -->
 node scripts/hypermedia/check.mjs     # schemas, lockfile, generated types, bindings, frontmatter
