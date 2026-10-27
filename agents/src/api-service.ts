@@ -33,6 +33,7 @@ import * as protocol from '@seed-hypermedia/agents-protocol'
 import * as activityTriggers from '@/activity-triggers'
 import {resolveDocsLinks, resolveDocsUrl} from '@/docs-space'
 import * as agentMemory from '@/agent-memory'
+import {checkDocumentPageData, collectDocumentPageFiles, validateDocumentPage} from '@/document-pages'
 import {BrowserTools} from '@/browser-tools'
 import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
@@ -97,6 +98,7 @@ import {
   assertValidMermaid,
   InvalidMermaidError,
   MarkdownFrontmatterError,
+  directoryToIpfsBlobs,
   fileToIpfsBlobs,
   resolveFileLinksInBlocks,
   describeRedirect,
@@ -110,7 +112,8 @@ import {
   documentToResolvedMarkdown,
   contentToResolvedMarkdown,
 } from '@seed-hypermedia/client'
-import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
+import {collectMermaidBlocks} from '@seed-hypermedia/client/mermaid-validation'
+import {loadMermaidParser} from './mermaid-parser'
 import type {CollectedBlob, DocumentOperation} from '@seed-hypermedia/client'
 import {mentionMarkdown, plainMentionsError, prepareCommentMentions} from './comment-mentions'
 import {HMBlockNodeSchema} from '@seed-hypermedia/client/hm-types'
@@ -132,7 +135,7 @@ import type {
 } from '@seed-hypermedia/client/hm-types'
 import {compileExploreQuery, parseExploreQuery} from '@seed-hypermedia/client/explore-query'
 import {findSeedIndexerCollision, ipldToDagJson} from '@seed-hypermedia/client/dag-json'
-import {validate as validateSchema} from '@seed-hypermedia/client/schema-engine'
+import {validate as validateSchema, resolveSchema, STRUCT_URL} from '@seed-hypermedia/client/schema-engine'
 import {
   blobSchemaRef,
   checkDocumentSchema,
@@ -1438,6 +1441,7 @@ export class Service {
           envelope.action.sessionId,
           envelope.action.verb,
           envelope.action.input,
+          envelope.action.continueAgent,
         )
       case 'MessageSession':
         return this.#messageSession(
@@ -4872,7 +4876,9 @@ export class Service {
     sessionId: string,
     verb: string,
     input: unknown,
+    continueAgent = true,
   ): Promise<api.InvokeSessionToolResponse> {
+    if (typeof continueAgent !== 'boolean') throw new APIError(400, 'continueAgent must be a boolean')
     if (verb !== 'read' && verb !== 'write' && verb !== 'call') {
       throw new APIError(400, 'verb must be read, write, or call')
     }
@@ -4964,30 +4970,32 @@ export class Service {
       },
       Date.now(),
     )
-    // A user's tool run is conversation, not a silent side-play: the agent takes a turn over the
+    // Unless continueAgent is false, the agent takes a turn over the
     // updated log, exactly as it would after a typed message — which is also what names a session
     // this action just started (titling keys off run activity). Dispatched in the background so
     // the tool result returns immediately; the agent's turn streams over the session WS.
-    const queuedBehindAnotherTurn = runs.sessionHasLiveRun(this.#db, sessionId)
-    this.#runQueue.enqueue({
-      accountId,
-      kind: 'agent',
-      origin: 'user',
-      agentId: session.agentId,
-      sessionId,
-      title: `Respond to user ${verb}`,
-      budget: this.#delegationBudgetForSession(accountId, session.agentId, sessionId),
-      input: {
-        kind: 'session-message',
-        userEventIds: [callEvent.id, resultEvent.id],
-        queuedBehindAnotherTurn,
-      },
-      queue: 'interactive',
-      // The user is watching this thread: fail fast rather than holding the session lock through
-      // retry backoff, same reasoning as interactive message turns. They have Retry.
-      maxAttempts: 1,
-      dispatch: true,
-    })
+    if (continueAgent) {
+      const queuedBehindAnotherTurn = runs.sessionHasLiveRun(this.#db, sessionId)
+      this.#runQueue.enqueue({
+        accountId,
+        kind: 'agent',
+        origin: 'user',
+        agentId: session.agentId,
+        sessionId,
+        title: `Respond to user ${verb}`,
+        budget: this.#delegationBudgetForSession(accountId, session.agentId, sessionId),
+        input: {
+          kind: 'session-message',
+          userEventIds: [callEvent.id, resultEvent.id],
+          queuedBehindAnotherTurn,
+        },
+        queue: 'interactive',
+        // The user is watching this thread: fail fast rather than holding the session lock through
+        // retry backoff, same reasoning as interactive message turns. They have Retry.
+        maxAttempts: 1,
+        dispatch: true,
+      })
+    }
     return {
       _: 'InvokeSessionToolResponse',
       sessionId,
@@ -7216,7 +7224,7 @@ export class Service {
     // provider's prompt cache survives.
     const sharedPrompt = seedAssistantSystemPrompt()
     const memoryPrompt =
-      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Readers can browse shared memory. Paths under ~/memory/private/ are owner-only: only root interactive runs started by the owner and direct owner tool actions may access them. Private files are not mounted into code execution; use read and write to edit them. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
+      '\n\nYou have a persistent memory filesystem shared across all of your sessions, addressed as ~/memory/ through your read and write verbs. Readers can browse shared memory. Paths under ~/memory/private/ are owner-only: only root interactive runs started by the owner and direct owner tool actions may access them. Private files are not mounted into code execution; use read and write to edit them. At the start of a task, check memory for relevant notes. Store durable learnings, preferences, and ongoing state as small, well-organized text files (for example ~/memory/notes/topic.md); update files by reading them and writing back the full revised content. `write` with {fromUrl} downloads web files (including binary media) into memory; `read ipfs://<cid>` fetches by CID; `write ipfs://` with {fromPath} publishes a memory file to IPFS and returns an ipfs:// URL for use in Hypermedia content (the gateway serves such a blob only once a published document or comment references it, so an ipfs:// URL alone does not display in chat). To show your user an image or other file from memory in this conversation, reference its memory path in markdown: `![caption](~/memory/path/to/image.png)`; the chat renders it inline for the owner. A markdown link `[label](~/memory/<path>)` — or a mermaid `click NodeId "~/memory/<path>"` target — opens that file in your user\'s Memory view when clicked. The Memory view shows files as they are: text as text, images as images, an HTML file as its source code. Nothing in memory ever runs. A page, a game or a widget the user can actually use exists only once it is published as a custom HTML page (`write` an hm:// document with options.page); a memory link to an HTML file hands them source code, not a page. Files your user attaches to a chat message are session-private and are NOT in memory: their metadata appears on the message, and you can read one with `read attachment:<id>` or save it with `write ~/memory/<path>` and {fromAttachment}.'
     const userActionsPrompt =
       '\n\nYour user holds the same verbs you do, on this same conversation log. Entries tagged <user_action>/<user_action_result> are actions the user ran themselves — read their results as shared ground truth you can build on without re-running them.'
     const continuationPrompt = `\n\n${SESSION_CONTINUATION_PROMPT}`
@@ -12742,6 +12750,70 @@ function memoryPathFromAddress(address: string): string | null {
 }
 
 /** hm://<account>[/path] → {account, path}; null when not an hm address. */
+/** A custom HTML page folder resolved from `options.page`, ready to publish beside the document change. */
+type WritePageFolder = {
+  html: string
+  inputSchema: string
+  blobs: CollectedBlob[]
+  files: number
+  bytes: number
+  validation: ReturnType<typeof validateDocumentPage>
+  dataAccess?: Awaited<ReturnType<typeof checkDocumentPageData>>
+}
+
+/**
+ * Turns `options.page` (a memory folder with an index.html, or a single HTML file) into the UnixFS
+ * folder the document's `html` attribute will point at. A dry run still builds the folder, so the
+ * CID and file count it reports are the real ones.
+ */
+async function resolveWritePageFolder(
+  context: AgentServicePiToolContext,
+  value: unknown,
+  target: unknown,
+): Promise<WritePageFolder | undefined> {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new APIError(400, 'write options.page must be a memory path: a folder with an index.html, or one HTML file')
+  }
+  const {files, bytes} = withMemoryErrors(() => collectDocumentPageFiles(context.stateDir, value.trim()))
+  const validation = validateDocumentPage(files, target)
+  const folder = await directoryToIpfsBlobs(files)
+  return {
+    validation,
+    inputSchema: 'hm://hyper.media/page-input',
+    html: `ipfs://${folder.cid}`,
+    blobs: folder.blobs,
+    files: files.length,
+    bytes,
+  }
+}
+
+/** Adds what the agent needs to know about a published page to a document write result. */
+function withPageResult(result: Record<string, unknown>, folder: WritePageFolder | undefined): Record<string, unknown> {
+  if (!folder) return result
+  const id = typeof result.id === 'string' ? result.id : undefined
+  return {
+    ...result,
+    html: folder.html,
+    resourceType: 'hm://hyper.media/page',
+    inputSchema: folder.inputSchema,
+    pageFiles: folder.files,
+    pageBytes: folder.bytes,
+    pageValidation: {...folder.validation, bundle: folder.html},
+    ...(folder.dataAccess ? {pageDataAccess: folder.dataAccess} : {}),
+    ...(id
+      ? {
+          instructions:
+            (result.dryRun
+              ? 'Dry run: this bundle has not been published. Proposed document: [Title]('
+              : 'The document now opens as the page in Seed and syncs to anyone it is shared with. Link it in your reply as [Title](') +
+            id +
+            '); pages open in the full document view. Chat page embeds are temporarily disabled. Scripts were syntax-checked, but the page was not opened or interaction-tested by this tool. Durable page data must use schema-bound Seed resources configured before the UI (read ~/tools/write/pages). This tool has not verified data persistence: test create/read/update and reopen with local state empty. seed.storage is only for optional local UI preferences or temporary drafts; it does not sync. Use seed.open(hmUrl) or ordinary hm:// anchors for content links. Check seed.runtime() in the target host before relying on newer SDK methods. Write to the same address with options.page again to publish a new revision.',
+        }
+      : {}),
+  }
+}
+
 function parseHmAddress(address: string): {account: string; path: string} | null {
   const match = /^hm:\/\/([^/?#]+)(\/[^?#]*)?/.exec(address)
   if (!match) return null
@@ -13596,6 +13668,7 @@ function readSelfAddress(context: AgentServicePiToolContext): Record<string, unk
       triggerRows.length === 1 ? '' : 's'
     } and ${sessionCount} conversation${sessionCount === 1 ? '' : 's'}.`,
     agentId: context.agentId,
+    ownerAccountId: context.accountId,
     name: definition.name,
     model: definition.model,
     modelProvider: provider ? {id: provider.id, name: provider.name, type: provider.type} : definition.modelProvider,
@@ -13984,8 +14057,8 @@ const RETIRED_WRITE_OPTION_HINTS: Record<string, string> = {
 
 const HM_WRITE_BASE_OPTION_KEYS = ['action', 'signer', 'input', 'skipLinkCheck'] as const
 const HM_WRITE_ACTION_OPTION_KEYS: Record<string, readonly string[]> = {
-  document: ['name', 'metadata'],
-  update: ['name', 'metadata'],
+  document: ['name', 'metadata', 'page', 'pageTarget', 'pageData'],
+  update: ['name', 'metadata', 'page', 'pageTarget', 'pageData'],
   comment: ['target', 'replyTo', 'allowPlainMentions'],
   move: ['toPath'],
   redirect: ['toUrl'],
@@ -14279,7 +14352,14 @@ export async function executeWriteVerb(
     }
     const entry = withMemoryErrors(() => agentMemory.writeMemoryFile(context.stateDir, memoryPath, content))
     context.onMemoryChange()
-    return {summary: `Wrote ${entry.path} (${entry.size} bytes).`, ...entry}
+    // A memory path is not something a person can open. An HTML file is almost always an app in
+    // the making, and the model that just wrote it is the one that needs to know the next step.
+    const pageHint = /\.html?$/i.test(entry.path)
+      ? context.publishEnabled
+        ? ` The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Before publishing, follow ~/tools/write/pages: set up schemas and Seed resources for durable user data, then connect the UI. Publish it as a custom HTML page: write hm://<your signing account>/pages/<name> with options.page: "~/memory/${entry.path}" (or its folder) and options.name; then reply with the document's hm:// link. Do not link the ~/memory path.`
+        : ' The user cannot use this: in memory an HTML file is only source code (the Memory view shows it as text; nothing in memory runs). Publishing it as a custom HTML page needs the Publish grant.'
+      : ''
+    return {summary: `Wrote ${entry.path} (${entry.size} bytes).${pageHint}`, ...entry}
   }
 
   if (address.startsWith('ipfs:')) {
@@ -14374,6 +14454,68 @@ export async function executeWriteVerb(
     if (options.metadata !== undefined && !isRecord(options.metadata)) {
       throw new APIError(400, 'write options.metadata must be an object of document metadata attributes')
     }
+    // A custom HTML page: options.page names a memory folder (or one HTML file) that becomes the
+    // document's HTML page. Its files are published as a UnixFS folder in the same publish as the
+    // change, and the document's `html` attribute points at the folder (see document-pages.md).
+    const pageFolder = await resolveWritePageFolder(context, options.page, options.pageTarget)
+    if (pageFolder?.validation.writesDocuments && options.pageData === undefined) {
+      throw new APIError(
+        400,
+        'This page writes documents. Supply options.pageData with its collection HM URLs so the publisher can check the agent owner’s write access, not just the agent’s. Read ~/tools/write/pages. Syntax validation alone cannot establish that Add/Save works.',
+      )
+    }
+    if (pageFolder && options.pageData !== undefined) {
+      const identities = await listWriteSigningIdentities(
+        context.db,
+        context.accountId,
+        context.definition.signingKeys ?? (context.definition.signingKey ? [context.definition.signingKey] : []),
+      )
+      pageFolder.dataAccess = await checkDocumentPageData(
+        createSeedClient(context.hmServerUrl),
+        options.pageData,
+        context.accountId,
+        identities.map((identity) => identity.publicKey),
+      )
+      if (pageFolder.dataAccess.writeAccess === 'missing') {
+        return writeToolError('document.page', 'Page not published: the intended user needs collection write access.', {
+          published: false,
+          pageDataAccess: pageFolder.dataAccess,
+          instructions:
+            'Compare pageDataAccess.viewer with the authenticated message sender and intended app user; the agent owner may differ from the requester. Check other intended users separately and do not grant to the wrong recipient. Use the current page and conversation intent; do not ask the user to repeat known identity information. Preserve the intended data location. Where canGrant is true, offer the listed WRITER grants for these collections and their records. Explain recipient and scope, batch related grants in one proposal, honor any authorization already given, otherwise ask once for that concrete permission change. Do not ask again after approval. The grant inputs are dry runs; no permissions have changed. Where canGrant is false, ask the identified collection owner to grant access; a writer capability is not authority to grant access. After an authorized grant, recheck access and resume the original task: test the actual Add/Save workflow as the intended viewer, read back the saved record and reopen the app before reporting success. Do not move data or broaden to account-wide/AGENT access just to bypass this failure.',
+        })
+      }
+    }
+    let pageInputSchema = isRecord(options.metadata) ? options.metadata.inputSchema : undefined
+    if (pageFolder && pageInputSchema === undefined && action === 'update') {
+      const id = unpackHmId(address)
+      if (!id) throw new APIError(400, 'Invalid page address')
+      const existing = await createSeedClient(context.hmServerUrl).request('Resource', id)
+      if (existing.type !== 'document')
+        throw new APIError(400, 'Read the existing page before updating its input contract.')
+      pageInputSchema = existing.document.metadata.inputSchema
+    }
+    const metadata: Record<string, unknown> | undefined =
+      isRecord(options.metadata) || pageFolder
+        ? {
+            ...(isRecord(options.metadata) ? options.metadata : {}),
+            ...(pageFolder
+              ? {
+                  type: 'hm://hyper.media/page',
+                  html: pageFolder.html,
+                  inputSchema: pageInputSchema ?? 'hm://hyper.media/page-input',
+                }
+              : {}),
+          }
+        : undefined
+    if (pageFolder) {
+      const ref = metadata?.inputSchema
+      if (typeof ref !== 'string' || !/^(hm|ipfs):\/\//.test(ref))
+        throw new APIError(400, 'A page inputSchema must reference a published HM schema.')
+      const contract = await loadSchemaRef(createSeedClient(context.hmServerUrl), ref)
+      if (!contract || resolveSchema(contract.schema, {}, contract.registry).schema.type !== STRUCT_URL)
+        throw new APIError(400, 'A page inputSchema must resolve to an HM struct schema.')
+      pageFolder.inputSchema = ref
+    }
     const passthrough = isRecord(options.input) ? options.input : {}
     const envelope = (command: string, commandInput: Record<string, unknown>): Record<string, unknown> => ({
       command,
@@ -14388,27 +14530,35 @@ export async function executeWriteVerb(
     })
     switch (action) {
       case 'document':
-        return writeHypermedia(
-          context,
-          envelope('document.create', {
-            account: hm.account,
-            path: hm.path,
-            ...(typeof options.name === 'string' ? {name: options.name} : {}),
-            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
-            ...(content !== undefined ? {content, format: 'markdown'} : {}),
-          }),
+        return withPageResult(
+          await writeHypermedia(
+            context,
+            envelope('document.create', {
+              account: hm.account,
+              path: hm.path,
+              ...(typeof options.name === 'string' ? {name: options.name} : {}),
+              ...(metadata ? {metadata} : {}),
+              ...(content !== undefined ? {content, format: 'markdown'} : {}),
+            }),
+            pageFolder?.blobs,
+          ),
+          pageFolder,
         )
       case 'update':
         // The address IS the document being revised ("same address, new version" is the
         // documented contract), so the edit target is filled from it — never a separate option.
-        return writeHypermedia(
-          context,
-          envelope('document.update', {
-            edit: address,
-            ...(typeof options.name === 'string' ? {name: options.name} : {}),
-            ...(isRecord(options.metadata) ? {metadata: options.metadata} : {}),
-            ...(content !== undefined ? {content, format: 'markdown'} : {}),
-          }),
+        return withPageResult(
+          await writeHypermedia(
+            context,
+            envelope('document.update', {
+              edit: address,
+              ...(typeof options.name === 'string' ? {name: options.name} : {}),
+              ...(metadata ? {metadata} : {}),
+              ...(content !== undefined ? {content, format: 'markdown'} : {}),
+            }),
+            pageFolder?.blobs,
+          ),
+          pageFolder,
         )
       case 'comment':
         return writeHypermedia(
@@ -15010,7 +15160,11 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRunt
   ]
 }
 
-async function writeHypermedia(context: WriteToolContext, raw: unknown): Promise<Record<string, unknown>> {
+async function writeHypermedia(
+  context: WriteToolContext,
+  raw: unknown,
+  extraBlobs: CollectedBlob[] = [],
+): Promise<Record<string, unknown>> {
   const request = normalizeWriteToolRequest(raw)
   if (request.server || request.dev) {
     const requestedServerUrl = optionsToServerUrl({server: request.server, dev: request.dev})
@@ -15046,9 +15200,9 @@ async function writeHypermedia(context: WriteToolContext, raw: unknown): Promise
     case 'comment.delete':
       return writeCommentDelete(client, signer, request)
     case 'document.create':
-      return writeDocumentCreate(client, signer, request)
+      return writeDocumentCreate(client, signer, request, extraBlobs)
     case 'document.update':
-      return writeDocumentUpdate(client, signer, request)
+      return writeDocumentUpdate(client, signer, request, extraBlobs)
     case 'document.delete':
       return writeDocumentDelete(client, signer, request)
     case 'document.fork':
@@ -15116,7 +15270,11 @@ async function resolveWriteSigner(
     matches = identities.filter((identity) => identity.profileName === profileName)
     if (matches.length === 0) throw new APIError(400, 'Signer profile name is not enabled for this agent')
   } else if (matches.length > 1) {
-    throw new APIError(400, 'Multiple signing identities are enabled; choose a signer by profileName or publicKey')
+    // Several keys enabled and none chosen: the definition's primary key is the default, so a
+    // plain write (an app, a note) does not fail on an agent that can also sign as others.
+    const primary = matches.filter((identity) => identity.secretName === context.definition.signingKey)
+    if (primary.length === 1) matches = primary
+    else throw new APIError(400, 'Multiple signing identities are enabled; choose a signer by profileName or publicKey')
   }
   if (matches.length > 1) throw new APIError(400, 'Signing profile name is ambiguous; choose by publicKey')
 
@@ -15211,6 +15369,13 @@ async function writeCapabilityCreate(
   signer: ResolvedAgentSigner,
   request: ReturnType<typeof normalizeWriteToolRequest>,
 ): Promise<Record<string, unknown>> {
+  const target = normalizeOptionalBoundedString(request.input.account, 'Capability account', MAX_NAME_BYTES)
+  if (target && target !== signer.publicKey) {
+    throw new APIError(
+      403,
+      'The signing identity must own the target space to grant access; writer access does not grant permission-management authority.',
+    )
+  }
   const delegateUid = normalizeBoundedString(
     request.input.delegate ?? request.input.delegateUid,
     'Capability delegate',
@@ -15445,7 +15610,7 @@ async function writeDocumentCreate(
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
-  const capability = await requireWriteCapability(client, account, signer.publicKey)
+  const capability = await requireWriteCapability(client, account, signer.publicKey, path)
   const typed = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -15512,8 +15677,9 @@ async function requireWriteCapability(
   client: ReturnType<typeof createSeedClient>,
   space: string,
   signerPublicKey: string,
+  path: string,
 ): Promise<string | undefined> {
-  const capability = await resolveCapability(client, space, signerPublicKey)
+  const capability = await resolveCapability(client, space, signerPublicKey, path)
   if (space !== signerPublicKey && !capability) {
     throw new APIError(
       403,
@@ -15577,7 +15743,12 @@ async function writeDocumentUpdate(
   const targetId = base.targetId
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
-  const capability = await requireWriteCapability(client, targetId.uid, signer.publicKey)
+  const capability = await requireWriteCapability(
+    client,
+    targetId.uid,
+    signer.publicKey,
+    hmIdPathToEntityQueryPath(targetId.path),
+  )
   const typed = await documentSchemaReport(client, packHmId(targetId), {...resource.document.metadata, ...metadata})
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
@@ -15642,7 +15813,7 @@ async function writeDocumentDelete(
   const resource = await client.request('Resource', id)
   if (resource.type !== 'document' && resource.type !== 'redirect')
     throw new APIError(400, `Cannot delete ${resource.type}`)
-  const capability = await requireWriteCapability(client, id.uid, signer.publicKey)
+  const capability = await requireWriteCapability(client, id.uid, signer.publicKey, hmIdPathToEntityQueryPath(id.path))
   // A redirected path (including a republished one) has no document of its own to read genesis and
   // generation from, so the tombstone borrows the redirect target's genesis and takes a fresh
   // generation — the new maximum generation supersedes the redirect Ref, so the path reads as
@@ -15693,7 +15864,12 @@ async function writeDocumentRef(
     const base = await followToDocument(client, sourceId).catch((error) => {
       throw new APIError(400, error instanceof Error ? error.message : String(error))
     })
-    const capability = await requireWriteCapability(client, destId.uid, signer.publicKey)
+    const capability = await requireWriteCapability(
+      client,
+      destId.uid,
+      signer.publicKey,
+      hmIdPathToEntityQueryPath(destId.path),
+    )
     if (request.dryRun) return writeToolResult(request.command, signer, {id: packHmId(destId), dryRun: true})
     const refInput = await createVersionRef(
       {
@@ -15810,7 +15986,12 @@ async function writeRepublishMove(
 ): Promise<Record<string, unknown>> {
   const {source, destination, destId, sourceBase} = ctx
   const original = sourceBase.targetId
-  const capability = await requireWriteCapability(client, destId.uid, signer.publicKey)
+  const capability = await requireWriteCapability(
+    client,
+    destId.uid,
+    signer.publicKey,
+    hmIdPathToEntityQueryPath(destId.path),
+  )
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       destination: packHmId(destId),
@@ -15899,7 +16080,12 @@ async function writeDocumentRedirect(
             throw new APIError(400, error instanceof Error ? error.message : String(error))
           })
       : resource.document.genesis
-  const capability = await requireWriteCapability(client, sourceId.uid, signer.publicKey)
+  const capability = await requireWriteCapability(
+    client,
+    sourceId.uid,
+    signer.publicKey,
+    hmIdPathToEntityQueryPath(sourceId.path),
+  )
   if (request.dryRun)
     return writeToolResult(request.command, signer, {id: packHmId(sourceId), target: packHmId(targetId), dryRun: true})
   const refInput = await createRedirectRef(
@@ -16808,6 +16994,8 @@ export function parseMarkdownOrBadRequest(content: string): ReturnType<typeof pa
 
 /** Mermaid fences are checked before publishing so a syntax error reaches the agent, not the reader. */
 export async function assertPublishableMermaid(blocks: HMBlockNode[]): Promise<void> {
+  // Most writes carry no diagram; they must not pay for (or depend on) loading mermaid.
+  if (!collectMermaidBlocks(blocks).length) return
   try {
     await assertValidMermaid(blocks, await loadMermaidParser())
   } catch (error) {

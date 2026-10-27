@@ -13,7 +13,7 @@ export interface JoinButtonProps {
 export function JoinButton({onClick, disabled}: JoinButtonProps) {
   return (
     <Button
-      variant="default"
+      variant="brand"
       size="sm"
       className="plausible-event-name=click-join-button text-white"
       onClick={onClick}

@@ -30,9 +30,9 @@ Together, these let a reader who holds a version's CIDs verify three things with
 
 **Site trust is DNS and HTTPS trust.** The peer that `https://<siteUrl>/hm/api/config` reports is granted the space's private blobs, because the home document says that host is the site. Whoever controls the domain and its certificate controls that trust. A space owner who points `siteUrl` at a hostile host hands that host their private content. <!-- id:lZ4F8fRe -->
 
-**The local daemon API has no authentication.** The gRPC port and the HTTP port accept any caller who can reach them, with CORS open to every origin. Any such caller can list keys, sign with any stored key, export keys, store blobs, create Refs and capabilities with any registered key, or force a reindex. Write RPCs check whether the key may write. They never check the caller. The daemon is designed to be reached only from localhost or behind a firewall. Hosted sites run with `-public-only`, which hides private content from unauthenticated HTTP requests but does not disable writes. <!-- id:GCxyZk8- -->
+**The daemon trusts admitted API callers.** In default mode, gRPC and HTTP admit only loopback socket peers. HTTP requires the Host hostname to be exactly `localhost` or a literal loopback IP and checks browser fetch metadata and exact origins. `-api.allowed-origins` registers additional trusted origins without widening peer or Host admission. Admitted local tools can list keys, sign with stored keys, export keys, store blobs, create Refs and capabilities, or force a reindex. Write RPCs check whether the signing key may write, not the caller's identity. Hosted sites use server mode (`-server-mode`, or `SEED_SERVER_MODE=true`), which trusts the deployment network and hides private content from anonymous HTTP requests while allowing authorized bearer reads. Keep daemon API ports private and proxy only the public `/ipfs/*` routes; server mode does not disable writes. <!-- id:GCxyZk8- -->
 
-**Bearer tokens are symmetric and daemon-local.** A token is sealed with a random per-daemon secret and lasts thirty days. The only way to invalidate it is to rotate that secret. Its only tie to state is that the daemon must still know the principal. It widens reads on public-only nodes and never authorizes a write. <!-- id:O-MCJker -->
+**Bearer tokens are symmetric and daemon-local.** A token is sealed with a random per-daemon secret and lasts thirty days. The only way to invalidate it is to rotate that secret. Its only tie to state is that the daemon must still know the principal. It widens reads on server-mode nodes and never authorizes a write. <!-- id:O-MCJker -->
 
 **Two CIDs for the same bytes.** The daemon hashes with BLAKE2b by default and the [SDK](../build/sdk.md) hashes with SHA-256. Both are valid CIDs of the same content. The daemon deduplicates by multihash, so a Ref naming the SHA-256 head and another naming the BLAKE2b head of identical bytes are two different documents. Always pass explicit CIDs for blobs that other blobs reference. See [Blobs](./blobs.md). <!-- id:NvliI770 -->
 
@@ -41,7 +41,7 @@ Together, these let a reader who holds a version's CIDs verify three things with
 <!-- id:9KFP54wS -->
 | Trusted part <!-- col:_8gmy-bk --> | What to do about it <!-- col:o8c578o6 --> <!-- id:C8M3OtL5 --> |
 | --- | --- |
-| open local API | bind to localhost, firewall the ports, run hosted nodes with `-public-only`, never expose a desktop daemon; see [Self-hosting](../build/self-hosting.md) <!-- id:va4uXiFL --> |
+| trusted API callers | keep default-mode API access loopback-only; keep hosted daemon API ports private with `-server-mode`; see [Self-hosting](../build/self-hosting.md) <!-- id:va4uXiFL --> |
 | unauthenticated comments | filter by author or by [contacts](./permissions.md) in the client; site-level comment gating is planned <!-- id:_dNSAAI5 --> |
 | eternal capabilities | grant WRITER on a path to a key you control; give bots and servers their own keys; treat a lost delegate key as permanent <!-- id:E6SkAwMy --> |
 | self-declared time | treat `ts` as the author's claim; anchor externally if it matters <!-- id:hMxG5DQa --> |

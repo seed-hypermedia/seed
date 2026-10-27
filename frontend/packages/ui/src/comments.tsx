@@ -820,17 +820,18 @@ export const Comment = memo(function Comment({
                     onClick={() => {
                       if (!docId) return
                       const rootId = comment.threadRoot || threadRootId || comment.id
-                      const routeLatest =
+                      const routeDocumentId =
                         currentRoute.key === 'document' ||
                         currentRoute.key === 'comments' ||
                         currentRoute.key === 'activity'
-                          ? currentRoute.id.latest
+                          ? currentRoute.id
                           : undefined
                       copyHmLink({
                         id: {
                           ...docId,
                           hostname: targetDomain ?? null,
-                          latest: routeLatest ?? null,
+                          latest: routeDocumentId?.latest ?? null,
+                          pageParams: routeDocumentId?.id === docId.id ? routeDocumentId.pageParams : undefined,
                         },
                         commentId: commentIdToHmId(rootId),
                         replyCommentId: rootId !== comment.id ? comment.id : undefined,
@@ -942,15 +943,16 @@ export function CommentContent({
   const copyBlockUrl = useCallback(
     (blockId: string, blockRange?: BlockRange | null) => {
       if (!targetDocId) return
-      const routeLatest =
+      const routeDocumentId =
         currentRoute.key === 'document' || currentRoute.key === 'comments' || currentRoute.key === 'activity'
-          ? currentRoute.id.latest
+          ? currentRoute.id
           : undefined
       copyHmLink({
         id: {
           ...targetDocId,
           hostname: siteUrl ?? null,
-          latest: routeLatest ?? null,
+          latest: routeDocumentId?.latest ?? null,
+          pageParams: routeDocumentId?.id === targetDocId.id ? routeDocumentId.pageParams : undefined,
           blockRef: blockId,
           blockRange: blockRange ?? null,
         },

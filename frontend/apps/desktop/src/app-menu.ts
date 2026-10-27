@@ -1,12 +1,30 @@
 // this menu is visible on macOS only
 // the keyboard shortcuts apply to every platform
 
-import {BrowserWindow, ipcMain, Menu, MenuItem} from 'electron'
+import {BrowserWindow, ipcMain, Menu, MenuItem, webContents, type WebFrameMain} from 'electron'
+import {isDocumentPageURL} from '@shm/shared/document-page'
 import {dispatchFocusedWindowAppEvent, openRoute, trpc} from './app-api'
 import {getFocusedWindow} from './app-windows'
 import {checkForUpdates} from './auto-update'
 import {isProfilerEnabled, createProfilerWindow} from './memory-profiler-window'
 
+function reloadFocusedPage(ignoreCache: boolean) {
+  const contents = webContents.getFocusedWebContents() || getFocusedWindow()?.webContents
+  if (!contents || contents.isDestroyed()) return
+  // Focus may be inside a nested frame. Reload the enclosing HTML app, not Seed or a widget within it.
+  let page: WebFrameMain | undefined
+  for (let frame = contents.focusedFrame; frame && frame !== contents.mainFrame; frame = frame.parent) {
+    if (frame.isDestroyed() || frame.detached) return
+    if (isDocumentPageURL(frame.url)) page = frame
+  }
+  if (page) {
+    // seed-page responses use Cache-Control: no-store, including on a force refresh.
+    page.reload()
+  } else if (ignoreCache) contents.reloadIgnoringCache()
+  else contents.reload()
+}
+
+/** Build the native menu and keyboard shortcuts, routing refresh to the focused app or HTML page. */
 export function createAppMenu() {
   const appMenu = new Menu()
 
@@ -116,8 +134,13 @@ export function createAppMenu() {
       id: 'viewMenu',
       label: 'View',
       submenu: [
-        {role: 'reload'},
-        {role: 'forceReload'},
+        {id: 'reload', label: 'Reload', accelerator: 'CmdOrCtrl+R', click: () => reloadFocusedPage(false)},
+        {
+          id: 'forceReload',
+          label: 'Force Reload',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => reloadFocusedPage(true),
+        },
         {role: 'toggleDevTools'},
         ...(isProfilerEnabled()
           ? [

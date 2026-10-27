@@ -92,7 +92,7 @@ var gibberishEmbedding = []int8{
 // Returns the top limit results matching the query.
 // Threshold is the minimum similarity score (0.0 to 1.0) to include in results.
 type LightEmbedder interface {
-	SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, publicOnly, rootDocumentsOnly bool) (SearchResultMap, error)
+	SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, filterPrivate, rootDocumentsOnly bool) (SearchResultMap, error)
 }
 
 // Embedder handles embedding generation and indexing.
@@ -417,7 +417,7 @@ func (srList SearchResultList) ToMap() SearchResultMap {
 // iriGlob filters results by IRI pattern. If empty, defaults to "*" (all).
 // Threshold filters results by minimum similarity score (0.0 to 1.0). Default is 0.0 (no filtering).
 // rootDocumentsOnly restricts results to resources whose IRI has no document path.
-func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, publicOnly, rootDocumentsOnly bool) (SearchResultMap, error) {
+func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, contentTypes map[string]bool, iriGlob string, threshold float32, filterPrivate, rootDocumentsOnly bool) (SearchResultMap, error) {
 	if limit <= 0 {
 		limit = 20
 	}
@@ -506,8 +506,8 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		// The subquery parameters are duplicated for both UNION branches.
 		if err := sqlitex.Exec(conn, qEmbeddingsSearchFiltered(), resultHandler,
 			queryEmbedding, maxDistance, limit,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, rootDocumentsOnly, publicOnly,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, rootDocumentsOnly, publicOnly,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, rootDocumentsOnly, filterPrivate,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, iriGlob, rootDocumentsOnly, filterPrivate,
 		); err != nil {
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
 		}
@@ -515,7 +515,7 @@ func (e *Embedder) SemanticSearch(ctx context.Context, query string, limit int, 
 		// Use unfiltered query for generic IRI patterns.
 		if err := sqlitex.Exec(conn, qEmbeddingsSearchUnfiltered(), resultHandler,
 			queryEmbedding, maxDistance, limit,
-			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, publicOnly,
+			entityTypeTitle, entityTypeContact, entityTypeDoc, entityTypeComment, entityTypeProfile, filterPrivate,
 		); err != nil {
 			return nil, fmt.Errorf("semantic search query failed: %w", err)
 		}

@@ -5,10 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"seed/backend/blob"
+	"seed/backend/config"
 	"seed/backend/hmnet"
 	"seed/backend/storage"
 	"seed/backend/util/cleanup"
 	"seed/backend/util/sqlite/sqlitex"
+	"strings"
 	"testing"
 
 	"seed/backend/util/must"
@@ -25,11 +27,13 @@ import (
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
-// TestSecurity_LoopbackOnlyHost covers DNS rebinding through a loopback connection (#1259).
-func TestSecurity_LoopbackOnlyHost(t *testing.T) {
+// TestSecurity_APIHost covers DNS rebinding through a loopback connection (#1259).
+func TestSecurity_APIHost(t *testing.T) {
 	t.Parallel()
 
-	handler := loopbackOnly(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	access, err := newAPIAccess(config.Base{})
+	require.NoError(t, err)
+	handler := access.middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 
@@ -82,11 +86,13 @@ func TestSecurity_LoopbackOnlyHost(t *testing.T) {
 	}
 }
 
-// TestSecurity_LoopbackOnlyPeer preserves the peer-IP gate independently of Host.
-func TestSecurity_LoopbackOnlyPeer(t *testing.T) {
+// TestSecurity_APIPeer preserves the peer-IP gate independently of Host.
+func TestSecurity_APIPeer(t *testing.T) {
 	t.Parallel()
 
-	handler := loopbackOnly(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	access, err := newAPIAccess(config.Base{})
+	require.NoError(t, err)
+	handler := access.middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	for _, tt := range []struct {
@@ -113,7 +119,71 @@ func TestSecurity_LoopbackOnlyPeer(t *testing.T) {
 	}
 }
 
-func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
+func TestSecurity_APIBrowserAdmission(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name   string
+		cfg    config.Base
+		peer   string
+		host   string
+		origin string
+		ref    string
+		site   string
+		want   int
+	}{
+		{name: "local tool", want: http.StatusNoContent},
+		{name: "grpcui POST", origin: "http://localhost:58001", site: "same-origin", want: http.StatusNoContent},
+		{name: "navigation", site: "none", want: http.StatusNoContent},
+		{name: "foreign origin without metadata", origin: "https://evil.example", want: http.StatusForbidden},
+		{name: "foreign origin with same-origin metadata", origin: "https://evil.example", site: "same-origin", want: http.StatusForbidden},
+		{name: "foreign same-site", origin: "http://localhost:9999", site: "same-site", want: http.StatusForbidden},
+		{name: "cross-site without origin", site: "cross-site", want: http.StatusForbidden},
+		{name: "unknown metadata", site: "unknown", want: http.StatusForbidden},
+		{name: "trusted renderer", cfg: config.Base{APIAllowedOrigins: "http://localhost:5173"}, origin: "http://localhost:5173", site: "same-site", want: http.StatusNoContent},
+		{name: "renderer media without Origin", cfg: config.Base{APIAllowedOrigins: "http://localhost:5173"}, ref: "http://localhost:5173/document", site: "same-site", want: http.StatusNoContent},
+		{name: "renderer media across loopback hostnames", cfg: config.Base{APIAllowedOrigins: "http://localhost:5173"}, ref: "http://localhost:5173/", site: "cross-site", want: http.StatusNoContent},
+		{name: "foreign Referer without metadata", ref: "https://evil.example/document", want: http.StatusForbidden},
+		{name: "Referer origin prefix attack", cfg: config.Base{APIAllowedOrigins: "https://app.example"}, ref: "https://app.example.evil.example/", site: "cross-site", want: http.StatusForbidden},
+		{name: "Referer cannot override Origin", cfg: config.Base{APIAllowedOrigins: "http://localhost:5173"}, origin: "https://evil.example", ref: "http://localhost:5173/", site: "cross-site", want: http.StatusForbidden},
+		{name: "trusted remote renderer", cfg: config.Base{APIAllowedOrigins: "https://app.example"}, origin: "https://app.example", site: "cross-site", want: http.StatusNoContent},
+		{name: "origin cannot admit peer", cfg: config.Base{APIAllowedOrigins: "https://app.example"}, peer: "100.64.1.3:12345", origin: "https://app.example", site: "cross-site", want: http.StatusForbidden},
+		{name: "origin cannot admit rebound Host", cfg: config.Base{APIAllowedOrigins: "https://app.example"}, host: "evil.example", origin: "https://app.example", site: "same-origin", want: http.StatusForbidden},
+		{name: "remote tool", peer: "100.64.1.3:12345", want: http.StatusForbidden},
+		{name: "mapped remote peer", peer: "[::ffff:100.64.1.3]:12345", host: "[::ffff:100.64.1.3]:58001", want: http.StatusForbidden},
+		{name: "server container networking", cfg: config.Base{ServerMode: true}, peer: "172.20.0.3:12345", host: "seed-daemon:56001", origin: "https://public.example", site: "cross-site", want: http.StatusNoContent},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			access, err := newAPIAccess(tt.cfg)
+			require.NoError(t, err)
+			h := access.middleware(openCORSMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNoContent)
+			})))
+			for _, method := range []string{http.MethodPost, http.MethodOptions} {
+				req := httptest.NewRequest(method, "/debug/grpcui/invoke/test", nil)
+
+				req.RemoteAddr = "127.0.0.1:12345"
+				if tt.peer != "" {
+					req.RemoteAddr = tt.peer
+				}
+
+				req.Host = "localhost:58001"
+				if tt.host != "" {
+					req.Host = tt.host
+				}
+
+				req.Header.Set("Origin", tt.origin)
+				req.Header.Set("Referer", tt.ref)
+				req.Header.Set("Sec-Fetch-Site", tt.site)
+				req.Header.Set("Access-Control-Request-Method", "POST")
+				rec := httptest.NewRecorder()
+				h.ServeHTTP(rec, req)
+				require.Equal(t, tt.want, rec.Code, method)
+			}
+		})
+	}
+}
+
+func TestMakeBlobDAGJSONHandler_ServerMode(t *testing.T) {
 	t.Parallel()
 
 	db := storage.MakeTestMemoryDB(t)
@@ -146,29 +216,29 @@ func TestMakeBlobDAGJSONHandler_PublicOnly(t *testing.T) {
 
 	// The private blob has no blob_visibility entry, so it's not in public_blobs.
 
-	t.Run("PublicOnly=true blocks private blobs", func(t *testing.T) {
-		handler := publicOnlyMiddleware(true)(makeBlobDAGJSONHandler(fm))
+	t.Run("ServerMode=true blocks private blobs", func(t *testing.T) {
+		handler := serverModeMiddleware(true)(makeBlobDAGJSONHandler(fm))
 
 		// Private blob should return 404.
 		rec := serveBlobDAGJSON(t, handler, privateCID.String())
-		require.Equal(t, http.StatusNotFound, rec.Code, "private blob must be blocked when PublicOnly=true")
+		require.Equal(t, http.StatusNotFound, rec.Code, "private blob must be blocked when ServerMode=true")
 
 		// Public blob should succeed (will fail at IPLD decode since raw codec, but not 404).
 		rec = serveBlobDAGJSON(t, handler, publicCID.String())
 		// Raw codec blocks fail at the IPLD decode step with 400, not at the blockstore level.
 		// The key assertion is that it does NOT return 404 — the blob was found.
-		require.NotEqual(t, http.StatusNotFound, rec.Code, "public blob must be accessible when PublicOnly=true")
+		require.NotEqual(t, http.StatusNotFound, rec.Code, "public blob must be accessible when ServerMode=true")
 	})
 
-	t.Run("PublicOnly=false serves all blobs", func(t *testing.T) {
-		handler := publicOnlyMiddleware(false)(makeBlobDAGJSONHandler(fm))
+	t.Run("ServerMode=false serves all blobs", func(t *testing.T) {
+		handler := serverModeMiddleware(false)(makeBlobDAGJSONHandler(fm))
 
 		// Both blobs should be found (not 404).
 		rec := serveBlobDAGJSON(t, handler, privateCID.String())
-		require.NotEqual(t, http.StatusNotFound, rec.Code, "private blob must be accessible when PublicOnly=false")
+		require.NotEqual(t, http.StatusNotFound, rec.Code, "private blob must be accessible when ServerMode=false")
 
 		rec = serveBlobDAGJSON(t, handler, publicCID.String())
-		require.NotEqual(t, http.StatusNotFound, rec.Code, "public blob must be accessible when PublicOnly=false")
+		require.NotEqual(t, http.StatusNotFound, rec.Code, "public blob must be accessible when ServerMode=false")
 	})
 
 	t.Run("nonexistent CID returns 404", func(t *testing.T) {
@@ -216,18 +286,49 @@ func TestMakeGRPCUIHandler(t *testing.T) {
 
 	handler, err := makeGRPCUIHandler(rpc, &clean, &g)
 	require.NoError(t, err)
+	access, err := newAPIAccess(config.Base{})
+	require.NoError(t, err)
+	handler = access.middleware(handler)
 
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "http://localhost/", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
 	handler.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), "grpc.health.v1.Health")
+	cookies := rec.Result().Cookies()
 
 	rec = httptest.NewRecorder()
-	req = httptest.NewRequest("GET", "/metadata?method=grpc.health.v1.Health.Check", nil)
+	req = httptest.NewRequest("GET", "http://localhost/metadata?method=grpc.health.v1.Health.Check", nil)
+	req.RemoteAddr = "127.0.0.1:12345"
 	handler.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"requestType": "grpc.health.v1.HealthCheckRequest"`)
+
+	for _, origin := range []string{"http://localhost", "https://evil.example"} {
+		rec = httptest.NewRecorder()
+		req = httptest.NewRequest("POST", "http://localhost/invoke/grpc.health.v1.Health.Check", strings.NewReader(`{"data":[{}]}`))
+		req.RemoteAddr = "127.0.0.1:12345"
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Origin", origin)
+		req.Header.Set("Sec-Fetch-Site", "same-origin")
+		for _, cookie := range cookies {
+			req.AddCookie(cookie)
+
+			if cookie.Name == "_grpcui_csrf_token" {
+				req.Header.Set("X-Grpcui-Csrf-Token", cookie.Value)
+			}
+		}
+
+		handler.ServeHTTP(rec, req)
+
+		if origin == "http://localhost" {
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			require.Contains(t, rec.Body.String(), `"status": "SERVING"`)
+		} else {
+			require.Equal(t, http.StatusForbidden, rec.Code)
+		}
+	}
 }
 
 // serveBlobDAGJSON calls the handler with a request that has the CID path value set.

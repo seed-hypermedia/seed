@@ -246,6 +246,7 @@
     "InvokeSessionTool": {
       "fields": {
         "_": "\"InvokeSessionTool\"",
+        "continueAgent?": "boolean",
         "input": "unknown",
         "sessionId": "string",
         "verb": "\"call\" | \"read\" | \"write\""

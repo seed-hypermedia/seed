@@ -11,6 +11,16 @@
 
 See `hypermedia/*` for the available docs, which you are responsible for helping keep up-to-date.
 
+**Production documentation is release-derived.** The content of the `hyper.media` documentation space
+(`hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB`) comes exclusively from the `hypermedia/` Markdown and schema
+files in a Seed release. Never create, update, delete, import, or directly publish documents in this space through the
+CLI, SDK, agents, UI, or a local `hypermedia:push`. A locally available signing key is not authorization. Edit the
+repository files and ship them through the tagged release's documentation workflow. Requests to define a type at
+`hyper.media/<path>` mean adding its source files for a future release, not publishing that URL immediately. Use the
+isolated dev documentation space for previews. This rule concerns the documentation space, not unrelated users'
+resources served through the `hyper.media` gateway. A user-directed incident rollback is limited to undoing the
+identified unauthorized publications; it is not permission for subsequent direct edits.
+
 ## Subtree AGENTS.md Map
 
 - `backend/AGENTS.md` for `backend/**`.

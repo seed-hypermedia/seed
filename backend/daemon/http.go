@@ -9,8 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/netip"
-	"net/url"
 	"runtime/debug"
 	daemonapi "seed/backend/api/daemon/v1alpha"
 	telemetryapi "seed/backend/api/telemetry/v1alpha"
@@ -55,6 +53,7 @@ var (
 
 func initHTTP(
 	cfg config.Base,
+	access *apiAccess,
 	port int,
 	rpc *grpc.Server,
 	clean *cleanup.Stack,
@@ -65,10 +64,14 @@ func initHTTP(
 	telemetrySrv *telemetryapi.Server,
 ) (srv *http.Server, lis net.Listener, err error) {
 	router := &Router{mux: http.NewServeMux()}
+	// Admit every route before CORS/preflight handling, including grpc-web and
+	// debug pages. grpcui invokes RPCs over bufconn, so its authority must come
+	// from admitting the original HTTP caller here, not its internal RPC peer.
 	router.Use(
+		access.middleware,
 		openCORSMiddleware,
 		authContextMiddleware(apiServer),
-		publicOnlyMiddleware(cfg.PublicOnly),
+		serverModeMiddleware(cfg.ServerMode),
 		handlerNameMiddleware(router.mux),
 		instrument,
 		p2pnet.HTTPServerBW().Middleware(httpRequestTag),
@@ -78,29 +81,30 @@ func initHTTP(
 		router.HandleFunc("POST /ipfs/file-upload", ipfsHandler.UploadFile)
 		router.HandleFunc("POST /ipfs/{cid}", ipfsHandler.PutBlob)
 		router.HandleFunc("GET /ipfs/{cid}", ipfsGetHandler(ipfsHandler.GetFile, makeBlobDAGJSONHandler(ipfsHandler)))
+		// A path inside a UnixFS directory (custom HTML pages are folders with an index.html).
+		router.HandleFunc("GET /ipfs/{cid}/{path...}", ipfsHandler.GetFile)
 
-		loopback := router.With(loopbackOnly)
-		loopback.HandleNav("GET /debug/metrics", promhttp.Handler())
-		loopback.HandleNav("/debug/pprof/", http.DefaultServeMux)
-		loopback.HandleNav("/debug/vars", http.DefaultServeMux)
-		loopback.HandleNav("/debug/requests", http.DefaultServeMux)
-		loopback.HandleNav("/debug/events", http.DefaultServeMux)
-		loopback.HandleNav("/debug/buildinfo", buildInfoHandler())
-		loopback.HandleNav("/debug/traces", trcstats.Handler(eztrc.Handler()))
+		router.HandleNav("GET /debug/metrics", promhttp.Handler())
+		router.HandleNav("/debug/pprof/", http.DefaultServeMux)
+		router.HandleNav("/debug/vars", http.DefaultServeMux)
+		router.HandleNav("/debug/requests", http.DefaultServeMux)
+		router.HandleNav("/debug/events", http.DefaultServeMux)
+		router.HandleNav("/debug/buildinfo", buildInfoHandler())
+		router.HandleNav("/debug/traces", trcstats.Handler(eztrc.Handler()))
 		if telemetrySrv != nil {
-			loopback.HandleNav("/debug/journeys", journeys.Handler(telemetrySrv))
+			router.HandleNav("/debug/journeys", journeys.Handler(telemetrySrv))
 		}
-		loopback.HandleNav("/debug/logs", logging.DebugHandler())
-		loopback.HandleNav("/debug/p2p", p2pnet.DebugHandler())
-		loopback.HandleNav("/debug/network", p2pnet.NetworkDebugHandler())
-		loopback.HandleNav("/debug/sqlite", sqlitex.DebugHandler())
-		loopback.HandleNav("/debug/malloc", mallocDebugHandler())
+		router.HandleNav("/debug/logs", logging.DebugHandler())
+		router.HandleNav("/debug/p2p", p2pnet.DebugHandler())
+		router.HandleNav("/debug/network", p2pnet.NetworkDebugHandler())
+		router.HandleNav("/debug/sqlite", sqlitex.DebugHandler())
+		router.HandleNav("/debug/malloc", mallocDebugHandler())
 		grpcUI, err := makeGRPCUIHandler(rpc, clean, g)
 		if err != nil {
 			return nil, nil, err
 		}
-		loopback.HandleNav("/debug/grpcui/", http.StripPrefix("/debug/grpcui", grpcUI))
-		loopback.HandleFunc("/{$}", router.Index)
+		router.HandleNav("/debug/grpcui/", http.StripPrefix("/debug/grpcui", grpcUI))
+		router.HandleFunc("/{$}", router.Index)
 
 		router.HandleNav("GET /hm/api/config", p2pnet.HMAPIConfigHandler())
 		router.HandleNav("GET /debug/version", gitVersionHandler())
@@ -185,54 +189,6 @@ func makeGRPCUIHandler(rpc *grpc.Server, clean *cleanup.Stack, g *errgroup.Group
 	}), nil
 }
 
-func loopbackOnly(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ap, err := netip.ParseAddrPort(r.RemoteAddr)
-		if err != nil {
-			http.Error(w, "bad remote address", http.StatusBadRequest)
-			return
-		}
-
-		ip := ap.Addr().Unmap()
-
-		if !ip.IsLoopback() {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-
-		// DNS rebinding can point an attacker's hostname at loopback while the browser
-		// still reports same-origin. Require localhost or a literal loopback IP without
-		// resolving DNS; checking the socket peer and Fetch Metadata alone is insufficient.
-		// Require Host so every request undergoes the loopback-host check, including HTTP/1.0.
-		// The "//" prefix makes url.Parse treat Host as an authority (host plus optional
-		// port), rather than a path or scheme. This only parses text; it makes no request.
-		authority, err := url.Parse("//" + r.Host)
-		if err != nil || authority.Host != r.Host || authority.User != nil {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-
-		host := authority.Hostname()
-
-		addr, _ := netip.ParseAddr(host)
-		if !strings.EqualFold(host, "localhost") && !addr.Unmap().IsLoopback() {
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-
-		switch r.Header.Get("Sec-Fetch-Site") {
-		case "", "none", "same-origin":
-			// Fetch Metadata is browser-provided. Missing headers are allowed so
-			// non-browser local clients keep working, and "none" covers direct
-			// user navigations to localhost debug URLs.
-			next.ServeHTTP(w, r)
-		default:
-			http.Error(w, "forbidden", http.StatusForbidden)
-			return
-		}
-	})
-}
-
 func authContextMiddleware(auth *daemonapi.Server) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -255,14 +211,14 @@ func authContextMiddleware(auth *daemonapi.Server) func(http.Handler) http.Handl
 	}
 }
 
-func publicOnlyMiddleware(publicOnly bool) func(http.Handler) http.Handler {
+func serverModeMiddleware(serverMode bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		if !publicOnly {
+		if !serverMode {
 			return next
 		}
 
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := blob.WithPublicOnly(r.Context())
+			ctx := blob.WithServerMode(r.Context())
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
@@ -271,9 +227,8 @@ func publicOnlyMiddleware(publicOnly bool) func(http.Handler) http.Handler {
 // openCORSMiddleware allows different host/origins.
 func openCORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// We don't rely on CORS for protection. Routes that expose sensitive
-		// data or actions must require authentication or their own access policy,
-		// hence by default we allow very broad CORS settings on purpose.
+		// Default-mode admission runs before CORS, including preflights. Server
+		// deployments rely on their private network and public reverse proxy.
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Headers", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "*")
@@ -447,11 +402,6 @@ type Router struct {
 	nav         []string
 }
 
-type routeGroup struct {
-	router      *Router
-	middlewares []func(http.Handler) http.Handler
-}
-
 // ServeHTTP serves a request with the router's middleware chain.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.withMiddlewares(r.mux).ServeHTTP(w, req)
@@ -461,14 +411,6 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 // Register all middlewares before defining handlers when possible.
 func (r *Router) Use(middlewares ...func(http.Handler) http.Handler) {
 	r.middlewares = append(r.middlewares, middlewares...)
-}
-
-// With returns a route group with the given middlewares.
-func (r *Router) With(middlewares ...func(http.Handler) http.Handler) routeGroup {
-	return routeGroup{
-		router:      r,
-		middlewares: middlewares,
-	}
 }
 
 // Handle a route.
@@ -487,28 +429,9 @@ func (r *Router) HandleNav(path string, h http.Handler) {
 	r.nav = append(r.nav, routeNameFromPattern(path))
 }
 
-func (g routeGroup) Handle(path string, h http.Handler) {
-	g.router.Handle(path, g.withMiddlewares(h))
-}
-
-func (g routeGroup) HandleFunc(path string, h func(http.ResponseWriter, *http.Request)) {
-	g.Handle(path, http.HandlerFunc(h))
-}
-
-func (g routeGroup) HandleNav(path string, h http.Handler) {
-	g.router.HandleNav(path, g.withMiddlewares(h))
-}
-
 func (r *Router) withMiddlewares(h http.Handler) http.Handler {
 	for i := len(r.middlewares) - 1; i >= 0; i-- {
 		h = r.middlewares[i](h)
-	}
-	return h
-}
-
-func (g routeGroup) withMiddlewares(h http.Handler) http.Handler {
-	for i := len(g.middlewares) - 1; i >= 0; i-- {
-		h = g.middlewares[i](h)
 	}
 	return h
 }

@@ -20,6 +20,7 @@ import {
   getOldVersionEditBlockedToastOptions,
   getCitationsTargetId,
   orderDocumentMenuItems,
+  getDocumentPagePanelMenuItems,
   BACK_TO_TOP_SCROLL_OFFSET,
   getBlockCitationsPanelRoute,
 } from '../resource-page-common'
@@ -60,6 +61,20 @@ describe('orderDocumentMenuItems', () => {
         item('new'),
       ]).map(({key}) => key),
     ).toEqual(['new', 'options', 'versions', 'copy-link', 'move', 'export', 'inspect', 'delete'])
+  })
+})
+
+describe('custom HTML page panel menu', () => {
+  it('keeps every document tab reachable without replacing the page or targeting a fragment', () => {
+    const open = vi.fn()
+    const id = {...hmId('alice', {path: ['app'], version: 'v1'}), blockRef: 'block1'}
+    const items = orderDocumentMenuItems(getDocumentPagePanelMenuItems(id, open))
+    expect(items.map((item) => item.label)).toEqual(['People', 'Comments', 'Citations', 'Attributes'])
+    for (const item of items) item.onClick?.({} as never)
+    expect(open.mock.calls.map(([panel]) => panel.key)).toEqual(['collaborators', 'comments', 'activity', 'metadata'])
+    for (const [panel] of open.mock.calls)
+      expect(panel.id).toMatchObject({uid: 'alice', path: ['app'], version: 'v1', blockRef: null, blockRange: null})
+    expect(open.mock.calls[2]![0].filterEventType).toEqual(['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'])
   })
 })
 

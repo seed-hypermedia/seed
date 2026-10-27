@@ -1408,6 +1408,47 @@ describe('buildCopyLinkUrl', () => {
     },
   )
 
+  test.each(['panel', 'expanded'] as const)(
+    'retains page input in %s root and reply copy links on sites and gateways',
+    (commentView) => {
+      const pageParams = {filter: '"active & recent"', panel: '"page-owned"'}
+      for (const hostname of [undefined, 'https://site.example']) {
+        for (const replyCommentId of [undefined, 'other/reply']) {
+          const url = new URL(
+            buildCopyLinkUrl({
+              id: hmId('owner', {path: ['doc'], hostname, pageParams}),
+              commentId: hmId('author', {path: ['root']}),
+              replyCommentId,
+              commentView,
+              gatewayUrl: 'https://gateway.example',
+            }),
+          )
+          expect(url.origin).toBe(hostname || 'https://gateway.example')
+          expect(url.pathname).toBe(
+            `${hostname ? '' : '/hm/owner'}/doc${commentView === 'expanded' ? '/:comments/author/root' : ''}`,
+          )
+          expect(url.searchParams.get('panel')).toBe(commentView === 'panel' ? 'comments/author/root' : null)
+          expect(url.searchParams.get('reply')).toBe(replyCommentId || null)
+          expect(url.searchParams.get('p.filter')).toBe(pageParams.filter)
+          expect(url.searchParams.get('p.panel')).toBe(pageParams.panel)
+        }
+      }
+    },
+  )
+
+  test('retains page input before the fragment in copied comment block links', () => {
+    for (const hostname of [undefined, 'https://site.example']) {
+      const url = new URL(
+        buildCopyLinkUrl({
+          id: hmId('owner', {path: ['doc'], hostname, pageParams: {filter: '"active"'}, blockRef: 'block'}),
+          commentId: hmId('author', {path: ['root']}),
+        }),
+      )
+      expect(url.searchParams.get('p.filter')).toBe('"active"')
+      expect(url.hash).toBe('#block+')
+    }
+  })
+
   test('expanded root links retain site context and omit a reply selection', () => {
     expect(
       buildCopyLinkUrl({

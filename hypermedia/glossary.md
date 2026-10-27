@@ -21,7 +21,7 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **Profile.** A small signed snapshot blob that gives an account a name, an avatar and a description. The daemon merges all of an account's profile blobs field by field. See [Profile](./profile.md). <!-- id:V2quF0dS -->
 - **Alias.** A profile whose only field points at another account, meaning "this key is really that account". The daemon accepts it only if that account granted the key an AGENT capability. See [Identity](./protocol/identity.md). <!-- id:J90CYDNz -->
 - **Key linking.** Joining several keys into one identity with an AGENT capability from the main account and an alias profile from the other key. It is how desktop, phone and browser keys all show up as one person. See [Identity](./protocol/identity.md). <!-- id:8XQHVpoa -->
-- **Bearer token.** A token the daemon issues in exchange for a signed, short-lived capability, which the Seed web app forwards so that a public-only node can serve you private content. It never authorizes a write. See [Privacy](./protocol/privacy.md). <!-- id:g2T0h5UN -->
+- **Bearer token.** A token the daemon issues in exchange for a signed, short-lived capability, which the Seed web app forwards so that a server-mode node can serve you private content when authorized. It never authorizes a write. See [Privacy](./protocol/privacy.md). <!-- id:g2T0h5UN -->
 
 # Blobs and encoding <!-- id:NUGiiJeD -->
 
@@ -113,7 +113,7 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **Site registration.** The handshake that binds one account to one site: the owner's app presents a one-time secret to `/hm/api/register`, pushes the space, and sets `siteUrl`. See [Sites](./protocol/sites.md). <!-- id:uXOObTck -->
 - **`/hm/api/config`.** A site's public description of itself: its registered account, peer id, addresses and protocol id. Any client holding only a web URL starts here. See [Sites](./protocol/sites.md). <!-- id:4S5TlLKU -->
 - **Custom domain.** A domain you own that points at a hosted `<name>.hyper.media` site or a self-hosted server. See [Sites](./protocol/sites.md). <!-- id:qZQN2e1f -->
-- **Public-only node.** A daemon started with `-public-only`, which serves only public data over HTTP and gRPC unless a request carries a valid bearer token. Hosted sites and gateways run this way. See [Privacy](./protocol/privacy.md). <!-- id:9P4NLgPE -->
+- **Server mode.** A daemon mode enabled with `-server-mode` or `SEED_SERVER_MODE=true`, used by hosted sites and gateways. It trusts the deployment network and filters anonymous private reads while allowing authorized bearer callers. Keep daemon API ports private and proxy only the public `/ipfs/*` routes. See [Privacy](./protocol/privacy.md). <!-- id:9P4NLgPE -->
 - **Hot and cold discovery.** Hot tasks come from something on screen and rerun every ten seconds while viewed. Cold tasks are subscriptions that rerun every minute. See [Network](./protocol/network.md). <!-- id:c3XzLhjO -->
 
 # URLs and APIs <!-- id:H_i4c7kQ -->
@@ -122,7 +122,7 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 - **View suffix.** A path segment starting with `:` that selects a view of the same document, such as `/:comments`, `/:directory` or `/:attributes`. See [URLs](./protocol/urls.md). <!-- id:B4xPxZED -->
 - **Seed API.** The typed HTTP API every Seed web app serves at `/api/<Key>`, such as `/api/Resource?id=…`. See [Web API](./build/web-api.md). <!-- id:obPcUTpG -->
 - **Site services.** The web app's own endpoints under `/hm/api/*`: config, auth, file, register, discover and others. See [Web API](./build/web-api.md). <!-- id:OsCXuvoY -->
-- **Daemon gRPC API.** The Seed daemon's gRPC services, served natively and as gRPC-web on its HTTP port, for deep integration. The local API has no authentication, so keep it on localhost. See [gRPC](./build/grpc.md). <!-- id:k9WnQ-6c -->
+- **Daemon gRPC API.** The Seed daemon's gRPC services, served natively and as gRPC-web on its HTTP port, for deep integration. Default mode admits only loopback socket peers and trusts local tools after admission. See [gRPC](./build/grpc.md). <!-- id:k9WnQ-6c -->
 - **SDK.** `@seed-hypermedia/client`, the TypeScript library for reading through the Seed API and for building, signing and publishing blobs. See [SDK](./build/sdk.md). <!-- id:Hrd2ZG5N -->
 - **Seed CLI.** `seed-cli`, the command-line tool for keys, documents, comments, blobs and schemas, and the tool external agents use through the seed-cli skill. See [Seed CLI](./build/cli.md). <!-- id:VZp3FlMd -->
 

@@ -55,6 +55,14 @@ import {getConfig} from './site-config.server'
 import {createResourceMetadata, metadataToHeaders} from './hypermedia-metadata'
 import {discoverDocument} from './utils/discovery'
 import {wrapJSON, WrappedResponse} from './wrapping.server'
+import {
+  HMDocumentShell,
+  isBotUserAgent,
+  isContentHiddenView,
+  isExpectedResourceError,
+  RESOURCE_DELETED_MESSAGE,
+  toDocumentShell,
+} from './resource-payload'
 import {WEB_IS_GATEWAY} from '@shm/shared/constants'
 
 /**
@@ -113,7 +121,11 @@ export async function getAccount(
       metadata,
     } as HMMetadataPayload
   } catch (e) {
-    console.error('Error getting account ' + accountUid, e)
+    if (isExpectedResourceError(e)) {
+      console.warn(`Error getting account ${accountUid}: ${(e as Error).message}`)
+    } else {
+      console.error('Error getting account ' + accountUid, e)
+    }
     return {id: hmId(accountUid), metadata: {}}
   }
 }
@@ -409,9 +421,7 @@ async function loadResourcePayload(
     republish?: boolean
   },
   ctx?: InstrumentationContext,
-  options?: {
-    originHomeId?: UnpackedHypermediaId
-  },
+  options?: ResourceLoadOptions,
 ): Promise<WebResourcePayload> {
   const {document, latestDocument, comment, commentId, republish} = payload
   const prefetchCtx = createPrefetchContext()
@@ -461,23 +471,27 @@ async function loadResourcePayload(
   // cache key. Any data change misses the cache and re-renders (~4-15ms on
   // the heaviest real pages); a hit can never serve stale markup.
   const dehydratedState = dehydratePrefetchContext(prefetchCtx)
-  const dataFingerprint = hashString(
-    stringifyWithBigInt(
-      dehydratedState.queries
-        .map((q) => [q.queryHash, q.state.data] as const)
-        // Prefetch completion order varies run-to-run; sort for a stable key.
-        .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
-    ),
-  )
+  const renderContent = !!document.content && !options?.contentHidden
+  const dataFingerprint = renderContent
+    ? hashString(
+        stringifyWithBigInt(
+          dehydratedState.queries
+            .map((q) => [q.queryHash, q.state.data] as const)
+            // Prefetch completion order varies run-to-run; sort for a stable key.
+            .sort((a, b) => (a[0] < b[0] ? -1 : 1)),
+        ),
+      )
+    : ''
 
   const {origin} = getOriginRequestData(parsedRequest)
   const originHomeId = options?.originHomeId
-  const cacheKey = document.version
-    ? `${origin}|${originHomeId?.uid || 'no-home'}|${docId.uid}/${docId.path?.join('/') || ''}@${
-        document.version
-      }|d:${dataFingerprint}`
-    : undefined
-  const ssrContentHTML = document.content
+  const cacheKey =
+    renderContent && document.version
+      ? `${origin}|${originHomeId?.uid || 'no-home'}|${docId.uid}/${docId.path?.join('/') || ''}@${
+          document.version
+        }|d:${dataFingerprint}`
+      : undefined
+  const ssrContentHTML = renderContent
     ? renderDocumentToHTML(document.content, {
         cacheKey,
         rootChildrenType: document.metadata?.childrenType,
@@ -503,9 +517,7 @@ async function loadResourcePayload(
         },
       })
     : null
-  if (ssrContentHTML) {
-    console.log(`[ssr-render] Generated ${ssrContentHTML.length} chars of SSR HTML for ${cacheKey || 'uncached'}`)
-  } else if (document.content?.length) {
+  if (renderContent && !ssrContentHTML && document.content?.length) {
     console.warn(
       `[ssr-render] Failed to generate SSR HTML for ${cacheKey || 'unknown'} (${document.content.length} blocks)`,
     )
@@ -524,6 +536,19 @@ async function loadResourcePayload(
   }
 }
 
+export type ResourceLoadOptions = {
+  originHomeId?: UnpackedHypermediaId
+  /**
+   * The page will not show the document's content (a view-term panel such as
+   * /:activity or /:comments, the inspector, or a comment), and the request is
+   * from a crawler, which never switches to the content view client-side:
+   * skip server-rendering the content HTML. See isContentHiddenView.
+   */
+  contentHidden?: boolean
+  /** The request is from a crawler; comment pages never show the target's content to it. */
+  isBot?: boolean
+}
+
 // Low-level fetcher - returns all types including redirect and not-found
 export const fetchResource = createResourceFetcher(grpcClient)
 
@@ -535,9 +560,7 @@ export async function loadResource(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
   ctx?: InstrumentationContext,
-  options?: {
-    originHomeId?: UnpackedHypermediaId
-  },
+  options?: ResourceLoadOptions,
 ): Promise<WebResourcePayload> {
   const noopCtx = {
     enabled: false,
@@ -608,11 +631,12 @@ export async function loadResource(
         commentId,
       },
       ctx,
-      options,
+      // A comment page shows the discussion, not the target's content.
+      {...options, contentHidden: options?.contentHidden || options?.isBot},
     )
   }
   if (resource.type === 'tombstone') {
-    throw new Error('Resource has been deleted')
+    throw new Error(RESOURCE_DELETED_MESSAGE)
   }
   // resource.type === 'document'
   const document = resource.document
@@ -636,9 +660,7 @@ export async function loadResourceWithDiscovery(
   id: UnpackedHypermediaId,
   parsedRequest: ParsedRequest,
   ctx?: InstrumentationContext,
-  options?: {
-    originHomeId?: UnpackedHypermediaId
-  },
+  options?: ResourceLoadOptions,
 ): Promise<WebResourcePayload> {
   const noopCtx = {
     enabled: false,
@@ -673,7 +695,8 @@ export async function loadResourceWithDiscovery(
   }
 }
 
-export type SiteDocumentPayload = WebResourcePayload & {
+export type SiteDocumentPayload<D extends HMDocumentShell = HMDocumentShell> = Omit<WebResourcePayload, 'document'> & {
+  document: D
   homeMetadata: HMMetadata
   originHomeId: UnpackedHypermediaId
   origin: string
@@ -764,8 +787,39 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     commentVersion?: string | null
   },
 ): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
+  return loadSiteResourcePayload(parsedRequest, id, extraData, {documentContent: false})
+}
+
+/**
+ * {@link loadSiteResource} for pages that render the payload's document content
+ * themselves (the download page's header outline) instead of reading it from the
+ * dehydrated query cache.
+ */
+export async function loadSiteResourceWithContent<T extends Record<string, unknown> = Record<string, never>>(
+  parsedRequest: ParsedRequest,
+  id: UnpackedHypermediaId,
+  extraData?: T & {instrumentationCtx?: InstrumentationContext},
+): Promise<WrappedResponse<SiteDocumentPayload<HMDocument> & Omit<T, 'instrumentationCtx'>>> {
+  return loadSiteResourcePayload(parsedRequest, id, extraData, {documentContent: true}) as any
+}
+
+async function loadSiteResourcePayload<T extends Record<string, unknown> = Record<string, never>>(
+  parsedRequest: ParsedRequest,
+  id: UnpackedHypermediaId,
+  extraData:
+    | (T & {
+        instrumentationCtx?: InstrumentationContext
+        viewTerm?: string | null
+        accountUid?: string | null
+        openComment?: string | null
+        commentVersion?: string | null
+      })
+    | undefined,
+  {documentContent}: {documentContent: boolean},
+): Promise<WrappedResponse<SiteDocumentPayload & Omit<T, 'instrumentationCtx'>>> {
   const {hostname, origin} = parsedRequest
   const ctx = extraData?.instrumentationCtx
+  const isBot = isBotUserAgent(parsedRequest.headers.get('user-agent'))
   // Profile pages render/load the account root document, but the public
   // metadata identifies the profile view term addressed by the URL.
   const metadataId =
@@ -799,7 +853,11 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
   }
   try {
     const resourceContent = await instrument(ctx || noopCtx, `loadResourceWithDiscovery(${packHmId(id)})`, () =>
-      loadResourceWithDiscovery(id, parsedRequest, ctx, {originHomeId}),
+      loadResourceWithDiscovery(id, parsedRequest, ctx, {
+        originHomeId,
+        isBot,
+        contentHidden: isBot && isContentHiddenView(extraData),
+      }),
     )
 
     // Resolve comment when URL addresses one (e.g. /:comment/UID/TSID)
@@ -865,6 +923,7 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
     const loadedSiteDocument = {
       ...(extraData || {}),
       ...resourceContent,
+      document: documentContent ? resourceContent.document : toDocumentShell(resourceContent.document),
       ...(comment ? {comment} : {}),
       dehydratedState: mergedDehydratedState,
       homeMetadata,
@@ -912,14 +971,10 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
         (extraData || {}) as RedirectRouteContext,
         originHomeId,
       )
-      console.log('[web-loader] redirecting resource route', {
-        from: id,
-        to: e.target,
-        destRedirectUrl,
-      })
+      console.log(`[web-loader] redirecting resource route ${id.id} -> ${e.target.id} (${destRedirectUrl})`)
       return redirect(destRedirectUrl)
     }
-    console.error('Error Loading Site Document', id, e)
+    logSiteResourceError(id, e)
 
     let daemonError: GRPCError | undefined = undefined
     if (e instanceof ConnectError) {
@@ -946,6 +1001,19 @@ export async function loadSiteResource<T extends Record<string, unknown> = Recor
       },
       {status: id ? 200 : 404},
     )
+  }
+}
+
+/**
+ * Missing, deleted and private documents are routine (crawlers probe dead links
+ * all day): log them as one line. Anything else is unexpected and keeps its
+ * stack trace.
+ */
+function logSiteResourceError(id: UnpackedHypermediaId, e: unknown) {
+  if (isExpectedResourceError(e)) {
+    console.warn(`Error Loading Site Document ${id.id}: ${e instanceof Error ? e.message : String(e)}`)
+  } else {
+    console.error('Error Loading Site Document', id, e)
   }
 }
 

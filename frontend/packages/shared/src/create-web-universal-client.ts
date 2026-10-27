@@ -1,3 +1,4 @@
+import type {JSX} from 'react'
 import {
   createDocumentChange,
   createHomeGenesisChange,
@@ -29,7 +30,7 @@ export type WebClientDependencies = Pick<UniversalClient, 'request' | 'publish'>
     request: ListDocumentAttributeValuesRequest,
     options?: {signal?: AbortSignal},
   ) => Promise<ListDocumentAttributeValuesResponse>
-  CommentEditor: (props: {docId: UnpackedHypermediaId}) => JSX.Element
+  CommentEditor?: (props: {docId: UnpackedHypermediaId}) => JSX.Element
   fetchRecents?: () => Promise<any[]>
   deleteRecent?: (id: string) => Promise<void>
   getSigner?: (accountUid: string) => HMSigner

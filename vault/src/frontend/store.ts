@@ -22,6 +22,17 @@ import * as notificationApi from './notification-api'
 import type {AccountProfileSummary, ProfileLoadState} from './profile'
 import * as vault from './vault'
 
+// The signed request is public protocol data, never vault keys or credentials.
+const PENDING_DELEGATION_KEY = 'seed-vault-pending-delegation'
+
+function clearPendingDelegation() {
+  try {
+    window.sessionStorage.removeItem(PENDING_DELEGATION_KEY)
+  } catch {
+    // Storage can be unavailable; the in-memory flow still works.
+  }
+}
+
 export interface SessionInfo {
   authenticated: boolean
   relyingPartyOrigin: string
@@ -807,14 +818,29 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
       }
     },
 
-    async handlePreLogin() {
+    async handlePreLogin({
+      signInOnly = false,
+      checkRegistration = false,
+    }: {signInOnly?: boolean; checkRegistration?: boolean} = {}) {
       state.error = ''
       state.loading = true
 
+      const email = state.inviteOnly ? state.email.trim().toLowerCase() : state.email
+      state.email = email
       try {
-        const data = await client.preLogin({email: state.email})
+        const data = await client.preLogin({email})
+        // Ignore an answer for an address the user changed while the lookup was pending.
+        if (state.email !== email) return false
         const hasPassword = data.credentials?.password ?? false
         const hasPasskey = data.credentials?.passkey ?? false
+
+        // Signing in must never send registration email or create an account.
+        if (signInOnly && (!data.exists || (!hasPassword && !hasPasskey))) {
+          state.error = 'No sign-in method found for this email. Check the address or choose Create account.'
+          return false
+        }
+
+        if (checkRegistration && (!data.exists || (!hasPassword && !hasPasskey))) return true
 
         if (data.exists) {
           state.userHasPassword = hasPassword
@@ -830,8 +856,10 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         } else {
           await actions.handleStartRegistration()
         }
-      } catch (_e) {
-        state.error = 'Connection failed. Please try again.'
+      } catch (e) {
+        if (state.email === email) {
+          state.error = state.inviteOnly && e instanceof APIError ? e.message : 'Connection failed. Please try again.'
+        }
       } finally {
         state.loading = false
       }
@@ -2048,19 +2076,42 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
 
     /**
      * Parse delegation parameters from a URL and store the request.
-     * If the URL has no delegation params, this is a no-op.
+     * On authentication routes without params, resumes this tab’s pending request.
      * If params are present but invalid, sets state.error.
      */
     parseDelegationFromUrl(url: URL | string) {
       try {
-        const request = hmauth.parseDelegationRequest(url)
+        let request = hmauth.parseDelegationRequest(url)
+        const current = new URL(url)
+        // Only resume on authentication routes, never when explicitly opening settings.
+        if (
+          !request &&
+          /^\/vault(?:\/?$|\/login(?:\/|$)|\/delegate$|\/auth\/|\/verify\/|\/password\/)/.test(current.pathname)
+        ) {
+          let saved: string | null = null
+          try {
+            saved = window.sessionStorage.getItem(PENDING_DELEGATION_KEY)
+          } catch {
+            // No persisted request is available in this browser.
+          }
+          if (saved) {
+            request = hmauth.parseDelegationRequest(saved)
+            if (request?.vaultOrigin !== current.origin) throw new Error('Delegation request vault origin mismatch')
+          }
+        }
         if (request) {
+          try {
+            window.sessionStorage.setItem(PENDING_DELEGATION_KEY, request.originalUrl)
+          } catch {
+            // Continue this login in memory if browser storage is unavailable.
+          }
           state.delegationRequest = request
           if (request.email) {
             state.email = request.email
           }
         }
       } catch (e) {
+        clearPendingDelegation()
         state.error = (e as Error).message || 'Invalid delegation request'
       }
     },
@@ -2289,6 +2340,7 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
           }
         }
 
+        clearPendingDelegation()
         state.delegationRequest = null
         state.delegationConsented = false
 
@@ -2310,16 +2362,19 @@ function createActions(state: AppState, client: api.ClientInterface, navigator: 
         const url = new URL(state.delegationRequest.redirectUri)
         url.searchParams.set('error', 'access_denied')
         url.searchParams.set('state', state.delegationRequest.state)
+        clearPendingDelegation()
         state.delegationRequest = null
         state.delegationConsented = false
         window.location.href = url.toString()
       } else {
+        clearPendingDelegation()
         state.delegationRequest = null
         state.delegationConsented = false
       }
     },
 
     async handleLogout() {
+      clearPendingDelegation()
       await client.logout()
       state.session = null
       state.decryptedDEK = null

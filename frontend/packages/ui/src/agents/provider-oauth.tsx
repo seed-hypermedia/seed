@@ -188,7 +188,7 @@ export function SubscriptionSignIn({
             />
             <Button
               type="button"
-              variant="outline"
+              variant="secondary"
               disabled={!pastedCode.trim() || submitCode.isLoading}
               onClick={() => void handleSubmitCode()}
             >

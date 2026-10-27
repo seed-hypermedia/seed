@@ -1,3 +1,4 @@
+import {SignInLoading} from '@shm/ui/spinner'
 import {AccountSelectionItem} from '@/frontend/components/AccountSelectionItem'
 import {CreateAccountDialog} from '@/frontend/components/CreateAccountDialog'
 import {ErrorMessage} from '@/frontend/components/ErrorMessage'
@@ -10,7 +11,7 @@ import {useActions, useAppState} from '@/frontend/store'
 import * as blobs from '@shm/shared/blobs'
 import * as hmauth from '@shm/shared/hmauth'
 import {Plus, User} from 'lucide-react'
-import {useEffect} from 'react'
+import {useEffect, useRef} from 'react'
 import {useSearchParams} from 'react-router-dom'
 
 /**
@@ -21,6 +22,7 @@ import {useSearchParams} from 'react-router-dom'
 export function DelegateView() {
   const {
     delegationRequest,
+    inviteOnly,
     vaultData,
     selectedAccountIndex,
     creatingAccount,
@@ -32,6 +34,11 @@ export function DelegateView() {
   } = useAppState()
   const actions = useActions()
   const [searchParams] = useSearchParams()
+
+  // Clearing the completed request must not start a competing SPA navigation
+  // while the browser is loading the signed callback at the site.
+  const hadRequest = useRef(false)
+  if (delegationRequest) hadRequest.current = true
 
   const accounts = vaultData?.accounts ?? []
 
@@ -50,8 +57,10 @@ export function DelegateView() {
     }
   }, [accounts.length, selectedAccountIndex, actions])
 
+  if (inviteOnly && (loading || (hadRequest.current && !delegationRequest))) return <SignInLoading />
+
   if (!delegationRequest && !searchParams.has(hmauth.PARAM_CLIENT_ID)) {
-    return <navigation.HashNavigate to="/" replace />
+    return hadRequest.current ? null : <navigation.HashNavigate to="/" replace />
   }
 
   // URL has params but store hasn't synced yet — wait for the effect.
@@ -106,8 +115,16 @@ export function DelegateView() {
       <CardHeader>
         <CardTitle className="text-left text-xl">Confirm your account</CardTitle>
         <CardDescription className="text-left">
-          Join <span className="text-foreground font-medium">{siteDisplayName}</span> to comment, reply, and
-          participate.
+          {inviteOnly ? (
+            <>
+              Sign in to <span className="text-foreground font-medium">{siteDisplayName}</span> with this account.
+            </>
+          ) : (
+            <>
+              Join <span className="text-foreground font-medium">{siteDisplayName}</span> to comment, reply, and
+              participate.
+            </>
+          )}
           {delegationRequest.emailPrevalidation && (
             <span className="mt-2 block">Continuing shares your verified email with {clientHostname}.</span>
           )}

@@ -1,4 +1,4 @@
-import {serialize} from 'superjson'
+import {serializeSuperJSON} from './fast-superjson'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {HMActionSchema, HMGetRequestSchema} from '@seed-hypermedia/client/hm-types'
 import {APIParams, APIQueries, APIActions} from './api'
@@ -242,7 +242,7 @@ export async function handleApiRequest(
     const localOutput = await apiDefinition.getData(grpcClient, input as any, queryDaemon)
     const output = afterGetData ? await afterGetData(key, input, localOutput) : localOutput
     const validatedOutput = requestSchema.shape.output.parse(output)
-    return {status: 200, body: JSON.stringify(serialize(validatedOutput)), headers: CORS_HEADERS}
+    return {status: 200, body: JSON.stringify(serializeSuperJSON(validatedOutput)), headers: CORS_HEADERS}
   } catch (error) {
     console.error('API error:', error)
     return {
@@ -289,7 +289,7 @@ export async function handleApiAction(
 
     const output = await apiDefinition.getData(grpcClient, validatedInput as any, queryDaemon)
     const validatedOutput = requestSchema.shape.output.parse(output)
-    return {status: 200, body: JSON.stringify(serialize(validatedOutput)), headers: CORS_HEADERS}
+    return {status: 200, body: JSON.stringify(serializeSuperJSON(validatedOutput)), headers: CORS_HEADERS}
   } catch (error) {
     console.error('API action error:', error)
     return {

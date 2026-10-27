@@ -3655,16 +3655,16 @@ func TestPrepareChangeRedirectChainLimits(t *testing.T) {
 }
 
 // A redirect is not an authorisation. Following one on the write path replays a private document on
-// a public-only node, where every read RPC denies it, and that leaked two things to an
+// a server-mode node, where every read RPC denies it, and that leaked two things to an
 // unauthenticated caller: the target's existence, because "base_version is required" is only
 // reported when a document really is there; and its genesis and heads, to anyone who already knew
 // the version to ask with. The write path must refuse at the read instead, so neither depends on
 // what else the request happens to carry.
-func TestPrepareChangeRefusesPrivateRedirectTargetOnPublicOnlyNode(t *testing.T) {
+func TestPrepareChangeRefusesPrivateRedirectTargetOnServerModeNode(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	space := alice.me.Account.PublicKey.String()
 
 	_, err := alice.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
@@ -3677,7 +3677,7 @@ func TestPrepareChangeRefusesPrivateRedirectTargetOnPublicOnlyNode(t *testing.T)
 	require.NoError(t, err)
 
 	// The redirect Ref is written straight to the index, the way one would arrive from a peer.
-	// CreateRef reads its target, and on a public-only node that read already refuses.
+	// CreateRef reads its target, and on a server-mode node that read already refuses.
 	privateState, err := alice.idx.ResolveLatest(ctx, blob.IRI("hm://"+space+"/private"))
 	require.NoError(t, err)
 	require.Equal(t, blob.VisibilityPrivate, privateState.Visibility)
@@ -3708,7 +3708,7 @@ func TestPrepareChangeRefusesPrivateRedirectTargetOnPublicOnlyNode(t *testing.T)
 		Path:    "/bait",
 		Changes: appendBlockChange("b", "Block B", "a"),
 	})
-	require.Error(t, err, "a redirect must not read a private document on a public-only node")
+	require.Error(t, err, "a redirect must not read a private document on a server-mode node")
 	require.Equal(t, codes.PermissionDenied, status.Code(err))
 
 	// Knowing the version: this is the request that used to come back with the private document's

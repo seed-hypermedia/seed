@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func makeTestApp(t *testing.T, name string, cfg config.Config, register bool) *App {
+func makeTestApp(t *testing.T, name string, cfg config.Config, register bool, opts ...Option) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	u := coretest.NewTester(name)
@@ -20,7 +20,7 @@ func makeTestApp(t *testing.T, name string, cfg config.Config, register bool) *A
 	repo, err := storage.Open(cfg.Base.DataDir, u.Device.Libp2pKey(), keystore.NewMemory(), "debug")
 	require.NoError(t, err)
 
-	app, err := Load(ctx, cfg, repo)
+	app, err := Load(ctx, cfg, repo, opts...)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		defer repo.Close()

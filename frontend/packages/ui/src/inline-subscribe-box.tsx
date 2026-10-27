@@ -79,7 +79,7 @@ export function InlineSubscribeBox({accountId, notifyServiceHost, accountMeta, c
           }}
         />
         <Button
-          variant="default"
+          variant="brand"
           size="sm"
           onClick={handleSubscribe}
           disabled={!email.trim() || isPending}

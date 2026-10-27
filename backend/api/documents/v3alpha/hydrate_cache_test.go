@@ -243,8 +243,8 @@ func TestCachedDocumentServesPinnedVersions(t *testing.T) {
 func TestCachedDocumentDeniesPrivatePinnedVersions(t *testing.T) {
 	t.Parallel()
 
-	// PublicOnly simulates a gateway, which must never serve private documents.
-	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{PublicOnly: true})
+	// ServerMode simulates a gateway, which must never serve private documents anonymously.
+	alice := newTestDocsAPIWithConfig(t, "alice", config.Base{ServerMode: true})
 	ctx := context.Background()
 	account := alice.me.Account.PublicKey.String()
 	ns := alice.me.Account.Principal()

@@ -1,3 +1,4 @@
+import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
 import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import {createContext, useContext} from 'react'
@@ -405,6 +406,8 @@ export function routeToHref(
     if (replyCommentId) {
       href += `${href.includes('?') ? '&' : '?'}reply=${replyCommentId}`
     }
+    const pageInput = pageParamsQuery(route.id.pageParams)
+    if (pageInput) href += `${href.includes('?') ? '&' : '?'}${pageInput}`
     // Append block fragment if present
     if (route.id.blockRef) {
       href += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`

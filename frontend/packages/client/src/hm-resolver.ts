@@ -1,3 +1,4 @@
+import {pageParamsFromUrl} from './page-input'
 import {entityQueryPathToHmIdPath, parseFragment, unpackHmId, type UnpackedHypermediaId} from './hm-types'
 
 /**
@@ -169,6 +170,7 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
         id,
         hmId: {
           ...hmId,
+          ...(pageParamsFromUrl(url) ? {pageParams: pageParamsFromUrl(url)} : {}),
           version: resolvedVersion,
           latest,
           blockRef,
@@ -275,6 +277,7 @@ function buildResolvedUrlFromDomainUid(
       blockRange,
       hostname: siteHostname,
       scheme: 'hm',
+      ...(pageParamsFromUrl(parsedUrl.href) ? {pageParams: pageParamsFromUrl(parsedUrl.href)} : {}),
       latest,
     } as UnpackedHypermediaId,
     version,

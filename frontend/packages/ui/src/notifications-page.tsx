@@ -284,7 +284,7 @@ export function NotificationEmailSettings({
               <Button type="button" variant="ghost" className="flex-1" onClick={() => setIsOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" variant="default" className="flex-1" disabled={!canSave}>
+              <Button type="submit" variant="brand" className="flex-1" disabled={!canSave}>
                 {isSaving ? 'Saving…' : currentEmail ? 'Save' : 'Set email'}
               </Button>
             </div>

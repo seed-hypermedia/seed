@@ -72,8 +72,8 @@ esac
 echo "       peerId: ${PEER_ID}"
 
 # --- gate 4: which process, which data dir, which flags ---------------------------------------
-# /debug/pprof/cmdline gives the daemon's argv, which is the only reliable way to see -data-dir
-# and -public-only. argv entries are NUL-separated.
+# /debug/pprof/cmdline gives the daemon's argv, including explicit -data-dir
+# and -server-mode flags, but not environment configuration. argv entries are NUL-separated.
 CMDLINE="$(curl -sf -m 3 "${H}/debug/pprof/cmdline" 2>/dev/null | tr '\0' '\n')"
 if [ -z "${CMDLINE}" ]; then
   warn 4 "could not read /debug/pprof/cmdline (is this request coming from loopback?)"
@@ -89,13 +89,23 @@ else
   echo "       WRITE PROBES: only proceed if data-dir contains 'Seed-sec-audit' (agent rule 4)."
 fi
 
-# --- gate 5: PublicOnly state (changes which findings are even reachable) ----------------------
+# --- gate 5: ServerMode state (changes which findings are even reachable) ----------------------
 if [ -n "${CMDLINE}" ]; then
-  if printf '%s\n' "${CMDLINE}" | grep -q -- '-public-only'; then
-    ok 5 "daemon is running with -public-only (gateway/hosted mode)"
-  else
-    ok 5 "daemon is NOT public-only (desktop mode). The VULN-1..8 family only reproduces with -public-only."
-  fi
+  SERVER_MODE_ARG="$(printf '%s\n' "${CMDLINE}" | sed -n -e 's/^-\{1,2\}server-mode=\(.*\)$/\1/p' -e 's/^-\{1,2\}server-mode$/true/p' | tail -1)"
+  case "${SERVER_MODE_ARG}" in
+  true|1|t|T|TRUE|True)
+    ok 5 "daemon explicitly enables -server-mode (trusted deployment network; anonymous private reads filtered)"
+    ;;
+  false|0|f|F|FALSE|False)
+    ok 5 "daemon explicitly disables -server-mode (default mode; admitted local tools are trusted)"
+    ;;
+  *)
+    warn 5 "server mode cannot be determined from argv: check SEED_SERVER_MODE in the daemon environment. Docker enables it by default."
+    ;;
+  esac
+  echo "       Private-read filtering probes require server mode; authorized bearer callers may still read private content."
+  echo "       Default mode admits loopback peers unless remote access is explicitly configured, and checks HTTP Host and browser metadata/origins."
+  echo "       In server mode, keep daemon API ports private; proxy only the public /ipfs routes."
 fi
 
 # --- gate 6: gRPC reachable and reflecting ----------------------------------------------------

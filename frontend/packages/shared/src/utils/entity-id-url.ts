@@ -1,3 +1,4 @@
+import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
 import type {BlockRange, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
   parseCustomURL as _parseCustomURL,
@@ -263,6 +264,7 @@ export function createSiteUrl({
   viewTerm,
   panel,
   reply,
+  pageParams,
 }: {
   path: string[] | null | undefined
   hostname: string
@@ -273,6 +275,7 @@ export function createSiteUrl({
   viewTerm?: string | null
   panel?: string | null
   reply?: string | null
+  pageParams?: Record<string, string>
 }) {
   let res = hostname
   if (path && path.length) {
@@ -281,7 +284,7 @@ export function createSiteUrl({
   if (viewTerm) {
     res += '/' + viewTerm
   }
-  res += getHMQueryString({latest, version, panel, reply})
+  res += getHMQueryString({latest, version, panel, reply, pageParams})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -318,6 +321,7 @@ export function createCommentUrl({
   if (siteUrl) {
     return createSiteUrl({
       path: docId.path,
+      pageParams: docId.pageParams,
       hostname: siteUrl,
       latest: latest ?? undefined,
       version: commentVersion ?? undefined,
@@ -328,6 +332,7 @@ export function createCommentUrl({
   }
   return createWebHMUrl(docId.uid, {
     path: docId.path,
+    pageParams: docId.pageParams,
     latest,
     version: commentVersion,
     viewTerm: viewTermWithComment,
@@ -407,6 +412,7 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
   if (siteHostname) {
     return createSiteUrl({
       path: id.path,
+      pageParams: id.pageParams,
       hostname: siteHostname,
       version: commentId ? undefined : id.version,
       latest: id.latest ?? undefined,
@@ -427,6 +433,7 @@ export function buildCopyLinkUrl(input: CopyLinkInput): string {
     reply,
     latest: id.latest,
     path: id.path,
+    pageParams: id.pageParams,
     hostname: gatewayUrl ?? undefined,
   })
 }
@@ -449,13 +456,13 @@ export function commentIdToHmId(commentId: string, version?: string | null): Unp
   })
 }
 
-export function hmIdToURL({uid, path, version, latest, blockRef, blockRange}: UnpackedHypermediaId) {
+export function hmIdToURL({uid, path, version, latest, blockRef, blockRange, pageParams}: UnpackedHypermediaId) {
   let res = `${HYPERMEDIA_SCHEME}://${uid}`
 
   if (path && path.length) {
     res += `/${path.join('/')}`
   }
-  res += getHMQueryString({version, latest})
+  res += getHMQueryString({version, latest, pageParams})
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
   }
@@ -676,6 +683,7 @@ export function routeToUrl(
       originHomeId: opts?.originHomeId,
       panel: panelParam,
       reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
     return url
   }
@@ -717,6 +725,7 @@ export function routeToUrl(
       viewTerm: viewTermPath,
       panel: effectivePanelParam,
       reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
   }
   if (route.key === 'schema' && route.id) {
@@ -795,6 +804,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
       latest: route.id.latest,
       panel: panelParam,
       reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -833,6 +843,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
       ...versionQuery,
       panel: panelParam,
       reply: getRouteReplyCommentId(route),
+      pageParams: route.id.pageParams,
     })
     if (route.id.blockRef) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -912,7 +923,9 @@ export function createWebHMUrl(
     viewTerm,
     panel,
     reply,
+    pageParams,
   }: {
+    pageParams?: Record<string, string>
     version?: string | null | undefined
     blockRef?: string | null | undefined
     blockRange?: BlockRange | null
@@ -943,6 +956,7 @@ export function createWebHMUrl(
     version: latest ? undefined : version,
     panel,
     reply,
+    pageParams,
   })
   if (blockRef) {
     res += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -955,7 +969,9 @@ function getHMQueryString({
   latest,
   panel,
   reply,
+  pageParams,
 }: {
+  pageParams?: Record<string, string>
   version?: string | null
   latest?: boolean | null
   panel?: string | null
@@ -972,7 +988,9 @@ function getHMQueryString({
     query.panel = panel
   }
   if (reply) query.reply = reply
-  return serializeQueryString(query)
+  const base = serializeQueryString(query)
+  const input = pageParamsQuery(pageParams)
+  return base + (input ? (base ? '&' : '?') + input : '')
 }
 
 function packBaseId(uid: string, path?: string[] | null) {
@@ -982,12 +1000,13 @@ function packBaseId(uid: string, path?: string[] | null) {
 }
 
 export function packHmId(hmId: UnpackedHypermediaId): string {
-  const {path, version, latest, blockRef, blockRange, uid} = hmId
+  const {path, version, latest, blockRef, blockRange, uid, pageParams} = hmId
   if (!uid) throw new Error('uid is required')
   let responseUrl = packBaseId(uid, path)
   responseUrl += getHMQueryString({
     version,
     latest,
+    pageParams,
   })
   if (blockRef) {
     responseUrl += `#${blockRef}${serializeBlockRange(blockRange)}`
@@ -1020,6 +1039,7 @@ export function hmId(
     path?: string[] | null
     latest?: boolean | null
     hostname?: string | null
+    pageParams?: Record<string, string>
   } = {},
 ): UnpackedHypermediaId {
   const [uid, ...path] = (idPath || '').split('/')

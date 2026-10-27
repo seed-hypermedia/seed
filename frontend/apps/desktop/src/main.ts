@@ -53,6 +53,7 @@ import {startLocalAgentsServer, stopLocalAgentsServer} from './agents-server-pro
 import {startApiServer, stopApiServer} from './app-http-server'
 import {startLocalServer, stopLocalServer} from './local-server'
 import {installAppSessionGuards, openAppExternalLink} from './app-window-security'
+import {installDocumentPageProtocol, registerDocumentPageScheme} from './app-document-pages'
 import * as logger from './logger'
 import {saveCidAsFile} from './save-cid-as-file'
 import {saveMarkdownFile} from './save-markdown-file'
@@ -132,7 +133,8 @@ contextMenu({
   // },
 })
 
-Menu.setApplicationMenu(createAppMenu())
+// Custom HTML pages get an origin of their own; a privileged scheme must be declared before ready.
+registerDocumentPageScheme()
 
 if (IS_PROD_DESKTOP) {
   if (squirrelStartup) {
@@ -182,7 +184,7 @@ app.on('before-quit', () => {
   memoryMonitor.stopTracking()
 
   // Unregister all global shortcuts
-  globalShortcut.unregisterAll()
+  if (app.isReady()) globalShortcut.unregisterAll()
 
   logger.info('[MAIN]: App before-quit - cleanup complete')
 })
@@ -267,6 +269,8 @@ async function startDaemonWithLoadingWindow(): Promise<void> {
 }
 
 app.whenReady().then(async () => {
+  // Install after native application initialization so macOS keeps the menu and accelerators.
+  Menu.setApplicationMenu(createAppMenu())
   logger.debug('[MAIN]: Seed ready')
 
   // Every packaged build serves its renderer from a local http server, never file://: iframes
@@ -285,6 +289,10 @@ app.whenReady().then(async () => {
   }
 
   installAppSessionGuards(session.defaultSession, getAppWindowPolicy())
+  installDocumentPageProtocol(session.defaultSession, () => {
+    const origin = getAppWindowPolicy().appOrigin
+    return origin ? [origin] : []
+  })
 
   // Memory profiler mode - opens dedicated profiler window
   if (isProfilerEnabled()) {

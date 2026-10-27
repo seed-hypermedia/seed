@@ -12,7 +12,8 @@
     "start:prod": "NODE_OPTIONS='--import ./instrumentation.server.mjs' remix-serve ./build/server/index.js",
     "typecheck": "tsc --noEmit",
     "test": "vitest --run",
-    "test:w": "vitest"
+    "test:w": "vitest",
+    "test:pages": "node --test scripts/document-page-browser.e2e.mjs"
   },
   "dependencies": {
     "@bufbuild/protobuf": "1.10.0",

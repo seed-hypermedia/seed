@@ -1,4 +1,5 @@
 import {registerDesktopAgentsPlatform} from '@/agents-platform'
+import {setDocumentPagePlatform} from '@shm/shared/document-page'
 import {AppContextProvider} from '@/app-context-provider'
 import {AppIPC} from '@/app-ipc'
 import {cleanupAllEntitySubscriptions} from '@/models/entities'
@@ -179,6 +180,12 @@ registerQueryClient(queryClient)
 
 // Register the desktop adapter for the shared Agents UI, before any agents page renders
 registerDesktopAgentsPlatform()
+// Custom HTML pages on desktop: the main process serves the HTML folder under its own scheme.
+setDocumentPagePlatform({
+  resolvePageUrl: (input) => window.documentPages.open(input),
+  closePageUrl: (url) => window.documentPages.close(url),
+  openExternalUrl: (url) => ipc.send?.('open-external-link', url),
+})
 
 // Dev-only: expose the QueryClient on window so we can poke the React Query cache from
 // DevTools (e.g. forcing transient resource errors to verify the document banner).

@@ -110,6 +110,16 @@ describe('createDocumentNavRoute', () => {
   })
 
   describe('simple panel keys', () => {
+    test('attributes panel survives URL navigation', () => {
+      const route: NavRoute = {key: 'document', id: testDocId, panel: {key: 'metadata', id: testDocId}}
+      expect(createDocumentNavRoute(testDocId, null, 'metadata')).toEqual(route)
+      expect(hypermediaUrlToRoute(routeToUrl(route)!)).toMatchObject({
+        key: 'document',
+        id: {id: testDocId.id},
+        panel: {key: 'metadata', id: {id: testDocId.id}},
+      })
+    })
+
     test('collaborators panel', () => {
       const route = createDocumentNavRoute(testDocId, null, 'collaborators')
       expect(route).toEqual({
@@ -454,6 +464,20 @@ describe('routeToHref', () => {
         ? '/doc/:comments/author/root?reply=author/reply'
         : '/doc?panel=comments/author/root&reply=author/reply',
     )
+  })
+
+  test.each(['panel', 'expanded'] as const)('retains page input and fragments in %s comment hrefs', (layout) => {
+    const id = hmId('uid1', {path: ['doc'], pageParams: {filter: '"active & recent"'}, blockRef: 'block'})
+    for (const replyCommentId of [undefined, 'author/reply']) {
+      const thread = {key: 'comments' as const, id, openComment: 'author/root', replyCommentId}
+      const route = layout === 'expanded' ? thread : {key: 'document' as const, id, panel: thread}
+      const url = new URL(routeToHref(route, {originHomeId: originHome})!, 'https://site.example')
+      expect(url.pathname).toBe(layout === 'expanded' ? '/doc/:comments/author/root' : '/doc')
+      expect(url.searchParams.get('panel')).toBe(layout === 'panel' ? 'comments/author/root' : null)
+      expect(url.searchParams.get('reply')).toBe(replyCommentId || null)
+      expect(url.searchParams.get('p.filter')).toBe(id.pageParams!.filter)
+      expect(url.hash).toBe('#block')
+    }
   })
 
   test('desktop hrefs retain the panel and selected reply', () => {

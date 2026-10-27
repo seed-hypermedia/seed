@@ -18,8 +18,10 @@ import (
 	"time"
 
 	"github.com/ipfs/boxo/blockstore"
+	uio "github.com/ipfs/boxo/ipld/unixfs/io"
 	"github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
+	ipld "github.com/ipfs/go-ipld-format"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
 	"github.com/multiformats/go-multiaddr"
@@ -230,4 +232,71 @@ func createFile0toBound(bound uint) ([]byte, error) {
 		}
 	}
 	return []byte(b.String()), nil
+}
+
+// A custom HTML page is a UnixFS folder with an index.html: the gateway walks into the folder by
+// path, types entries by extension, and serves the folder itself as its index.html.
+func TestGetDirectoryEntries(t *testing.T) {
+	server := makeManager(t, akey)
+	ctx := context.Background()
+	addFile := func(content string) ipld.Node {
+		node, err := server.addFile(strings.NewReader(content))
+		require.NoError(t, err)
+		return node
+	}
+	assets, err := uio.NewDirectory(server.dagService)
+	require.NoError(t, err)
+	require.NoError(t, assets.AddChild(ctx, "app.js", addFile("console.log('hi')")))
+	assetsNode, err := assets.GetNode()
+	require.NoError(t, err)
+	require.NoError(t, server.dagService.Add(ctx, assetsNode))
+	root, err := uio.NewDirectory(server.dagService)
+	require.NoError(t, err)
+	require.NoError(t, root.AddChild(ctx, "index.html", addFile("<h1>App</h1>")))
+	require.NoError(t, root.AddChild(ctx, "assets", assetsNode))
+	rootNode, err := root.GetNode()
+	require.NoError(t, err)
+	require.NoError(t, server.dagService.Add(ctx, rootNode))
+	dirCID := rootNode.Cid().String()
+
+	router := http.NewServeMux()
+	router.HandleFunc("GET /ipfs/{cid}", server.GetFile)
+	router.HandleFunc("GET /ipfs/{cid}/{path...}", server.GetFile)
+
+	res := makeRequest(t, "GET", "/ipfs/"+dirCID, nil, router)
+	require.Equal(t, http.StatusOK, res.Code)
+	require.Equal(t, "<h1>App</h1>", res.Body.String())
+	require.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
+	require.Equal(t, "sandbox", res.Header().Get("Content-Security-Policy"))
+	require.Equal(t, "nosniff", res.Header().Get("X-Content-Type-Options"))
+
+	res = makeRequest(t, "GET", "/ipfs/"+dirCID+"/index.html", nil, router)
+	require.Equal(t, http.StatusOK, res.Code)
+	require.Equal(t, "<h1>App</h1>", res.Body.String())
+
+	res = makeRequest(t, "GET", "/ipfs/"+dirCID+"/assets/app.js", nil, router)
+	require.Equal(t, http.StatusOK, res.Code)
+	require.Equal(t, "console.log('hi')", res.Body.String())
+	require.Equal(t, "text/javascript; charset=utf-8", res.Header().Get("Content-Type"))
+
+	res = makeRequest(t, "GET", "/ipfs/"+dirCID+"/assets", nil, router)
+	require.Equal(t, http.StatusNotFound, res.Code, "a folder without index.html is not a page")
+
+	res = makeRequest(t, "GET", "/ipfs/"+dirCID+"/missing.txt", nil, router)
+	require.Equal(t, http.StatusNotFound, res.Code)
+
+	res = makeRequest(t, "GET", "/ipfs/"+dirCID+"/missing%3Cscript%3E.html", nil, router)
+	require.Equal(t, http.StatusNotFound, res.Code)
+	require.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
+	require.Equal(t, "nosniff", res.Header().Get("X-Content-Type-Options"))
+
+	res = makeRequest(t, "GET", "/ipfs/"+dirCID+"/index.html/deeper", nil, router)
+	require.Equal(t, http.StatusNotFound, res.Code, "a file has no entries")
+
+	// A bare file is typed by its bytes, with no index lookup.
+	fileCID := addFile("plain").Cid().String()
+	res = makeRequest(t, "GET", "/ipfs/"+fileCID, nil, router)
+	require.Equal(t, http.StatusOK, res.Code)
+	require.Equal(t, "plain", res.Body.String())
+	require.Equal(t, "text/plain; charset=utf-8", res.Header().Get("Content-Type"))
 }

@@ -341,14 +341,25 @@ type PreHastNode = {
   children?: Array<PreHastNode & {type?: string; value?: string}>
 }
 
-/** Returns the fence's source when a `pre` hast node wraps a ```mermaid code block. */
-function mermaidSourceFromPre(node: unknown): string | null {
+/** Returns the fence's source when a `pre` hast node wraps a code block of the given language. */
+function fenceSourceFromPre(node: unknown, language: string): string | null {
   const code = (node as PreHastNode | undefined)?.children?.find((child) => child.tagName === 'code')
   const className = code?.properties?.className
-  if (!Array.isArray(className) || !className.includes('language-mermaid')) return null
+  if (!Array.isArray(className) || !className.includes(`language-${language}`)) return null
   return (code?.children ?? [])
     .map((child) => (child.type === 'text' && typeof child.value === 'string' ? child.value : ''))
     .join('')
+}
+
+/** Returns the fence's source when a `pre` hast node wraps a ```mermaid code block. */
+function mermaidSourceFromPre(node: unknown): string | null {
+  return fenceSourceFromPre(node, 'mermaid')
+}
+
+/** The hm:// URL inside a legacy page fence, opened in the full document view. */
+export function documentPageUrlFromFence(source: string): string | null {
+  const url = source.trim()
+  return /^hm:\/\/[^\s]+$/.test(url) ? url : null
 }
 
 function MarkdownLink({href, children}: React.ComponentProps<'a'> & ExtraProps) {
@@ -430,6 +441,12 @@ export function Markdown({children, enableGfm = true}: {children: string; enable
     pre: ({children, node}) => {
       const mermaidSource = mermaidSourceFromPre(node)
       if (mermaidSource !== null) return <MermaidDiagram code={mermaidSource} />
+      const pageSource = fenceSourceFromPre(node, 'seed-page')
+      if (pageSource !== null) {
+        const url = documentPageUrlFromFence(pageSource)
+        // HTML page execution in chat is temporarily disabled; page fences open the full page.
+        if (url) return <MarkdownLink href={url}>Open page</MarkdownLink>
+      }
       return <pre className="bg-background/50 my-2 overflow-x-auto rounded p-2 text-xs">{children}</pre>
     },
     code: ({className, children}) => {

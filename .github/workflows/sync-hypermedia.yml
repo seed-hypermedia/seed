@@ -42,6 +42,15 @@ jobs:
     env:
       TARGET: ${{ inputs.target || 'staging' }}
     steps:
+      - name: Require a release tag for production documentation
+        if: env.TARGET == 'production'
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          if [ "$REF_TYPE" != tag ]; then
+            echo "::error::Production hyper.media content must come from a tagged Seed release. Edit hypermedia/ and release it; direct production publication is prohibited."
+            exit 1
+          fi
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -58,7 +67,8 @@ jobs:
       - name: Publish hypermedia/ to the ${{ env.TARGET }} docs site
         working-directory: frontend/apps/cli
         env:
-          SEED_CLI_KEYFILE: ${{ env.TARGET == 'production' && secrets.SEED_DOCS_KEYFILE || secrets.SEED_DOCS_STAGING_KEYFILE }}
+          SEED_CLI_KEYFILE:
+            ${{ env.TARGET == 'production' && secrets.SEED_DOCS_KEYFILE || secrets.SEED_DOCS_STAGING_KEYFILE }}
         run: |
           case "$TARGET" in
             production) SERVER=https://hyper.media; SECRET=SEED_DOCS_KEYFILE ;;

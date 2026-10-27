@@ -220,6 +220,9 @@ patchedDependencies:
   http-cache-semantics@4.3.0:
     hash: dc4653b95c6e7827511f59ed9e510ba6465c1a0fac1ac9d30afe73a1c5c5f6b7
     path: patches/http-cache-semantics@4.3.0.patch
+  zod@4.6.6:
+    hash: 6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e
+    path: patches/zod@4.6.6.patch
 
 importers:
 
@@ -390,7 +393,7 @@ importers:
         version: 2.18.2
       '@hookform/resolvers':
         specifier: 5.7.0
-        version: 5.7.0(@sinclair/typebox@0.27.8)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1)(ajv@8.18.0)(react-hook-form@7.71.1(react@18.2.0))(valibot@1.4.2(typescript@5.8.3))(zod@4.6.6)
+        version: 5.7.0(@sinclair/typebox@0.27.8)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1)(ajv@8.18.0)(react-hook-form@7.71.1(react@18.2.0))(valibot@1.4.2(typescript@5.8.3))(zod@4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e))
       '@ipld/dag-cbor':
         specifier: ^9.2.2
         version: 9.2.5
@@ -669,7 +672,7 @@ importers:
         version: 13.6.4
       zod:
         specifier: 4.6.6
-        version: 4.6.6
+        version: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
     devDependencies:
       '@electron-forge/cli':
         specifier: 7.11.2
@@ -964,7 +967,7 @@ importers:
         version: 18.2.0
       zod:
         specifier: 4.6.6
-        version: 4.6.6
+        version: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
     devDependencies:
       '@types/bun':
         specifier: 1.3.10
@@ -1342,7 +1345,7 @@ importers:
         version: 13.6.4
       zod:
         specifier: 4.6.6
-        version: 4.6.6
+        version: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
     devDependencies:
       '@remix-run/dev':
         specifier: 2.17.5
@@ -1498,7 +1501,7 @@ importers:
         version: 4.1.12(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(happy-dom@21.0.4)(jsdom@24.1.3)(msw@2.12.7(@types/node@24.19.1)(typescript@5.8.3))(vite@6.4.4(@types/node@24.19.1)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.3))
       zod:
         specifier: 4.6.6
-        version: 4.6.6
+        version: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
 
   frontend/packages/editor:
     dependencies:
@@ -1755,6 +1758,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^4.36.1
         version: 4.43.0(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@types/lodash':
+        specifier: 4.17.0
+        version: 4.17.0
       '@xstate/react':
         specifier: 4.1.3
         version: 4.1.3(@types/react@18.2.64)(react@18.2.0)(xstate@5.19.2)
@@ -1767,6 +1773,9 @@ importers:
       katex:
         specifier: 0.18.2
         version: 0.18.2
+      lodash:
+        specifier: 4.18.1
+        version: 4.18.1
       lowlight:
         specifier: 3.1.0
         version: 3.1.0
@@ -1787,7 +1796,7 @@ importers:
         version: 5.19.2
       zod:
         specifier: 4.6.6
-        version: 4.6.6
+        version: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
     devDependencies:
       typescript:
         specifier: 5.8.3
@@ -1803,7 +1812,7 @@ importers:
         version: 0.3.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
       '@hookform/resolvers':
         specifier: 5.7.0
-        version: 5.7.0(@sinclair/typebox@0.27.8)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1)(ajv@8.18.0)(react-hook-form@7.71.1(react@18.2.0))(valibot@1.4.2(typescript@5.8.3))(zod@4.6.6)
+        version: 5.7.0(@sinclair/typebox@0.27.8)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1)(ajv@8.18.0)(react-hook-form@7.71.1(react@18.2.0))(valibot@1.4.2(typescript@5.8.3))(zod@4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e))
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.14
         version: 1.1.15(@types/react-dom@18.2.21)(@types/react@18.2.64)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
@@ -6421,8 +6430,8 @@ packages:
   '@types/linkify-it@5.0.0':
     resolution: {integrity: sha512-sVDA58zAw4eWAffKOaQH5/5j3XeayukzDk+ewSsnv3p4yJEZHCCzMDiZM8e0OUrRvmpGZ85jf4yDHkHsgBNr9Q==}
 
-  '@types/lodash@4.17.23':
-    resolution: {integrity: sha512-RDvF6wTulMPjrNdCoYRC8gNR880JNGT8uB+REUpC2Ns4pRqQJhGz90wh7rgdXDPpCczF3VGktDuFGVnz8zP7HA==}
+  '@types/lodash@4.17.0':
+    resolution: {integrity: sha512-t7dhREVv6dbNj0q17X12j7yDG4bD/DHYX7o5/DbDxobP0HnGPgpRz2Ej77aL7TZT3DSw13fqUTj8J4mMnqa7WA==}
 
   '@types/markdown-it@14.1.2':
     resolution: {integrity: sha512-promo4eFwuiW+TfGxhi+0x3czqTYJkG8qB17ZUJiVF10Xm7NLVRSLUsfRTU/6h1e24VvRnXCx+hG7li58lkzog==}
@@ -16355,7 +16364,7 @@ snapshots:
     dependencies:
       hono: 4.13.11
 
-  '@hookform/resolvers@5.7.0(@sinclair/typebox@0.27.8)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1)(ajv@8.18.0)(react-hook-form@7.71.1(react@18.2.0))(valibot@1.4.2(typescript@5.8.3))(zod@4.6.6)':
+  '@hookform/resolvers@5.7.0(@sinclair/typebox@0.27.8)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1)(ajv@8.18.0)(react-hook-form@7.71.1(react@18.2.0))(valibot@1.4.2(typescript@5.8.3))(zod@4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e))':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.71.1(react@18.2.0)
@@ -16365,7 +16374,7 @@ snapshots:
       ajv: 8.18.0
       ajv-formats: 2.1.1
       valibot: 1.4.2(typescript@5.8.3)
-      zod: 4.6.6
+      zod: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
 
   '@humanfs/core@0.19.2':
     dependencies:
@@ -17064,8 +17073,8 @@ snapshots:
       json-schema-typed: 8.0.2
       pkce-challenge: 5.0.1
       raw-body: 3.0.2
-      zod: 4.6.6
-      zod-to-json-schema: 3.25.1(zod@4.6.6)
+      zod: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
+      zod-to-json-schema: 3.25.1(zod@4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e))
     transitivePeerDependencies:
       - supports-color
 
@@ -20048,7 +20057,7 @@ snapshots:
 
   '@types/linkify-it@5.0.0': {}
 
-  '@types/lodash@4.17.23': {}
+  '@types/lodash@4.17.0': {}
 
   '@types/markdown-it@14.1.2':
     dependencies:
@@ -21438,7 +21447,7 @@ snapshots:
     dependencies:
       devtools-protocol: 0.0.1666840
       mitt: 3.0.1
-      zod: 4.6.6
+      zod: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
 
   chromium-pickle-js@0.2.0: {}
 
@@ -27710,7 +27719,7 @@ snapshots:
     dependencies:
       '@babel/runtime': 7.29.2
       '@types/base16': 1.0.5
-      '@types/lodash': 4.17.23
+      '@types/lodash': 4.17.0
       base16: 1.0.0
       color: 3.2.1
       csstype: 3.2.3
@@ -27752,7 +27761,7 @@ snapshots:
   react-dock@0.6.0(@types/react@18.2.64)(react@18.2.0):
     dependencies:
       '@babel/runtime': 7.29.2
-      '@types/lodash': 4.17.23
+      '@types/lodash': 4.17.0
       '@types/prop-types': 15.7.15
       '@types/react': 18.2.64
       lodash.debounce: 4.0.8
@@ -27790,7 +27799,7 @@ snapshots:
   react-json-tree@0.17.0(@types/react@18.2.64)(react@18.2.0):
     dependencies:
       '@babel/runtime': 7.29.2
-      '@types/lodash': 4.17.23
+      '@types/lodash': 4.17.0
       '@types/prop-types': 15.7.15
       '@types/react': 18.2.64
       prop-types: 15.8.1
@@ -28435,8 +28444,8 @@ snapshots:
       stringify-object: 5.0.0
       ts-morph: 18.0.0
       tsconfig-paths: 4.2.0
-      zod: 4.6.6
-      zod-to-json-schema: 3.25.1(zod@4.6.6)
+      zod: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
+      zod-to-json-schema: 3.25.1(zod@4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e))
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@types/node'
@@ -30091,11 +30100,11 @@ snapshots:
 
   yoga-wasm-web@0.3.3: {}
 
-  zod-to-json-schema@3.25.1(zod@4.6.6):
+  zod-to-json-schema@3.25.1(zod@4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)):
     dependencies:
-      zod: 4.6.6
+      zod: 4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e)
 
-  zod@4.6.6: {}
+  zod@4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e): {}
 
   zwitch@2.0.4: {}
 

@@ -180,7 +180,7 @@ describe('CommentDiscussions', () => {
           },
         },
       })
-      const id = hmId('alice', {path: ['doc']})
+      const id = {...hmId('alice', {path: ['doc']}), pageParams: {filter: '"active"'}}
       const thread = {key: 'comments', id, openComment: focusedComment.id}
       currentRoute.value = layout === 'expanded' ? thread : {key: 'document', id, panel: thread}
       const reply = {
@@ -203,6 +203,7 @@ describe('CommentDiscussions', () => {
       await act(async () => buttons[1]!.click())
       const url = new URL(copied)
       expect(url.searchParams.get('reply')).toBe(reply.id)
+      expect(url.searchParams.get('p.filter')).toBe('"active"')
       if (layout === 'panel') {
         expect(url.pathname).toBe('/hm/alice/doc')
         expect(url.searchParams.get('panel')).toBe(`comments/${focusedComment.id}`)

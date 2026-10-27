@@ -1,3 +1,6 @@
+import {json} from '@remix-run/node'
+import {requireSignInEnabled} from '@/require-sign-in.server'
+import {safeNextPath, SIGN_IN_PATH} from '@/require-sign-in'
 import {keyPairStore} from '@/auth'
 import * as authSession from '@/auth-session'
 import {
@@ -10,14 +13,14 @@ import {
 import {queryAPI} from '@/models'
 import {saveWebDomainReturn, setWebDomainRequest, takeWebDomainReturn} from '@/models/domain-publishing'
 import {getSiteMembershipStatus, processPendingIntent, type SiteMembershipStatus} from '@/pending-intent'
-import {webUniversalClient} from '@/universal-client'
-import {useNavigate} from '@remix-run/react'
+import {ensureDaemonAuth, webUniversalClient} from '@/universal-client'
+import {useLoaderData, useNavigate} from '@remix-run/react'
 import {createSeedClient} from '@seed-hypermedia/client'
 import {useUniversalAppContext} from '@shm/shared'
 import * as blobs from '@shm/shared/blobs'
 import {WEB_IDENTITY_ORIGIN} from '@shm/shared/constants'
 import {Button} from '@shm/ui/button'
-import {Spinner} from '@shm/ui/spinner'
+import {SignInLoading, Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
 import {XCircle} from 'lucide-react'
 import {useEffect, useState} from 'react'
@@ -25,7 +28,13 @@ import {useEffect, useState} from 'react'
 const inFlightAuthCallbacks = new Map<string, Promise<void>>()
 const completedAuthCallbacks = new Set<string>()
 
+/** Exposes only the deployment mode needed to preserve the public callback UI. */
+export function loader() {
+  return json({requireSignIn: requireSignInEnabled()})
+}
+
 export default function AuthCallbackRoute() {
+  const {requireSignIn} = useLoaderData<typeof loader>()
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
   const {origin, originHomeId} = useUniversalAppContext()
@@ -132,6 +141,9 @@ export default function AuthCallbackRoute() {
           emailPrevalidation: result.emailPrevalidation,
         })
 
+        // Wait for the site cookie before loading any protected destination.
+        await ensureDaemonAuth()
+
         // Cleanup delegation markers.
         await deleteAuthState(AUTH_STATE_DELEGATION_VAULT_URL)
         await deleteAuthState(AUTH_STATE_DELEGATION_RETURN_URL)
@@ -168,7 +180,11 @@ export default function AuthCallbackRoute() {
           successVariant = isReturning ? 'welcome-back' : 'login'
         }
 
-        const nextUrl = new URL(targetUrl, window.location.origin)
+        let nextUrl = new URL(targetUrl, window.location.origin)
+        // Also finish requests started before direct enterprise return URLs were introduced.
+        if (requireSignIn && !hostingReturn && intentResult.type === 'none' && nextUrl.pathname === SIGN_IN_PATH) {
+          nextUrl = new URL(safeNextPath(nextUrl.searchParams.get('next')), window.location.origin)
+        }
         if (hostingReturn) {
           setWebDomainRequest(hostingReturn)
           successVariant = null
@@ -176,10 +192,18 @@ export default function AuthCallbackRoute() {
         if (successVariant) nextUrl.searchParams.set('vault_success', successVariant)
         if (existingSpaceUrl) nextUrl.searchParams.set('vault_space_url', existingSpaceUrl)
         if (existingSpaceDraftId) nextUrl.searchParams.set('vault_draft_id', existingSpaceDraftId)
-        navigate(`${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`, {
-          replace: true,
-          state: intentResult.type === 'comment' ? {submittedComment: intentResult.comment} : undefined,
-        })
+        const destination = `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`
+        if (hostingReturn || intentResult.type !== 'none') {
+          // Pending workflows can carry dialogs, optimistic results, or publication prompts in memory.
+          navigate(destination, {
+            replace: true,
+            state: intentResult.type === 'comment' ? {submittedComment: intentResult.comment} : undefined,
+          })
+        } else {
+          // Ordinary sign-in starts with the persisted identity and a fresh query cache.
+          // A client transition can retain the signed-out header/account queries.
+          window.location.replace(destination)
+        }
       } catch (err) {
         await saveWebDomainReturn()
         const message = err instanceof Error ? err.message : String(err)
@@ -197,7 +221,9 @@ export default function AuthCallbackRoute() {
     })
     inFlightAuthCallbacks.set(callbackKey, authPromise)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [origin, navigate])
+  }, [origin, navigate, requireSignIn])
+
+  if (requireSignIn && !error) return <SignInLoading />
 
   return (
     <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">
