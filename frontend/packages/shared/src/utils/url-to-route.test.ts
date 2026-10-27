@@ -4,6 +4,36 @@ import {hmId, unpackHmId, routeToHmUrl, routeToUrl} from './entity-id-url'
 import {hypermediaUrlToHref, hypermediaUrlToRoute} from './url-to-route'
 
 describe('hypermediaUrlToRoute', () => {
+  test.each(['hm://uid1/:feed/to-you', 'https://example.com/hm/uid1/:feed/to-you'])(
+    'preserves the To you feed tab from %s',
+    (url) => {
+      expect(hypermediaUrlToRoute(url)).toEqual({
+        key: 'feed',
+        id: unpackHmId(url.replace('/:feed/to-you', '')),
+        tab: 'to-you',
+        panel: null,
+      })
+    },
+  )
+
+  test('keeps the default feed route without an explicit tab', () => {
+    expect(hypermediaUrlToRoute('hm://uid1/:feed')).toEqual({
+      key: 'feed',
+      id: unpackHmId('hm://uid1'),
+      panel: null,
+    })
+  })
+
+  test('round-trips the To you tab with a version and block fragment', () => {
+    const route = {
+      key: 'feed' as const,
+      id: hmId('uid1', {version: 'v1', blockRef: 'block1'}),
+      tab: 'to-you' as const,
+      panel: null,
+    }
+    expect(hypermediaUrlToRoute(routeToHmUrl(route)!)).toEqual({...route, id: unpackHmId('hm://uid1?v=v1#block1')})
+  })
+
   test('converts a base document URL into a document route', () => {
     expect(hypermediaUrlToRoute('hm://uid1')).toEqual({
       key: 'document',
