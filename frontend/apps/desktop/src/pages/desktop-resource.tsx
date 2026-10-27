@@ -635,8 +635,6 @@ export default function DesktopResourcePage() {
 
   // Create publishDocument actor that uses the stored publish mutation ref.
   // Account UID flows through machine context → actor input (no closure deps).
-  const navigateRef = useRef(navigate)
-  navigateRef.current = navigate
   const broadcastWindowEvent = useBroadcastWindowEvent()
   const broadcastWindowEventRef = useRef(broadcastWindowEvent)
   broadcastWindowEventRef.current = broadcastWindowEvent
@@ -709,7 +707,7 @@ export default function DesktopResourcePage() {
         // navigate this window to the new URL and broadcast the change so any
         // other window stuck on the old draft URL can react.
         if (pathChanged) {
-          navigateRef.current({key: 'document', id: newRouteId})
+          replaceRouteRef.current({key: 'document', id: newRouteId})
           broadcastWindowEventRef.current({
             type: 'document_path_changed',
             oldId: oldRouteId.id,
