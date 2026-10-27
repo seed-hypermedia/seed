@@ -821,11 +821,17 @@ function metadataLeaves(metadata: Record<string, unknown> | undefined, prefix: s
 
 /**
  * The SetAttributes op turning `oldMetadata` into `newMetadata`: changed and
- * added leaves are set, leaves missing from the new metadata are nulled.
+ * added leaves are set, and leaves missing from the new metadata are nulled,
+ * unless `keepUnlisted` asks to leave them alone. The home document asks: it is
+ * also the space's own record, where the desktop keeps settings the directory
+ * never names, such as `agentServerUrl` and `spaceAgents`, and a full import
+ * used to wipe them. On the home document the file sets what it names, and a
+ * key is removed by naming it with a null.
  */
 export function metadataDiffOp(
   oldMetadata: Record<string, unknown> | undefined,
   newMetadata: Record<string, unknown> | undefined,
+  options: {keepUnlisted?: boolean} = {},
 ): DocumentOperation | null {
   const oldLeaves = new Map(metadataLeaves(oldMetadata).map((l) => [l.key.join(' '), l.value]))
   const attrs: Leaf[] = []
@@ -835,8 +841,10 @@ export function metadataDiffOp(
     seen.add(k)
     if (!oldLeaves.has(k) || oldLeaves.get(k) !== leaf.value) attrs.push(leaf)
   }
-  for (const [k] of oldLeaves) {
-    if (!seen.has(k)) attrs.push({key: k.split(' '), value: null})
+  if (!options.keepUnlisted) {
+    for (const [k] of oldLeaves) {
+      if (!seen.has(k)) attrs.push({key: k.split(' '), value: null})
+    }
   }
   return attrs.length ? {type: 'SetAttributes', attrs} : null
 }
@@ -1023,7 +1031,9 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     // does not count.)
     const rebound = matchMarkdownIdentities(oldNodes, newTree, raw)
     const ops: DocumentOperation[] = computeReplaceOps(oldMap, rebound)
-    const metaOp = metadataDiffOp(oldDoc.metadata as Record<string, unknown>, metadata as Record<string, unknown>)
+    const metaOp = metadataDiffOp(oldDoc.metadata as Record<string, unknown>, metadata as Record<string, unknown>, {
+      keepUnlisted: path === '',
+    })
     if (metaOp) ops.unshift(metaOp)
 
     if (ops.length === 0) {
