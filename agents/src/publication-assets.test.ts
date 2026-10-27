@@ -53,6 +53,14 @@ describe('publication asset collection and validation', () => {
     for (const [kind, type, sample] of [
       ['Image', 'image/jpeg', Buffer.from('ffd8ff', 'hex')],
       ['Image', 'image/gif', Buffer.from('GIF89a')],
+      [
+        'Image',
+        'image/svg+xml',
+        Buffer.from(
+          '<?xml version="1.0"?><!--first--><!--second--><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg>',
+        ),
+      ],
+      ['Image', 'image/svg+xml', Buffer.from('<!DOCTYPE svg [<!ENTITY title "example">]><svg>')],
       ['Image', 'image/svg+xml', Buffer.from('<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg">')],
       ['Video', 'video/mp4', Buffer.from('000000186674797069736f6d', 'hex')],
       ['File', 'text/plain', Buffer.from('report')],
@@ -172,13 +180,21 @@ describe('public-only pinned transport', () => {
         'not public',
       )
       expect(get).not.toHaveBeenCalled()
-      lookup.mockResolvedValue([{address: '1.1.1.1', family: 4}] as never)
+      lookup.mockResolvedValue([
+        {address: '2606:4700:4700::1111', family: 6},
+        {address: '1.1.1.1', family: 4},
+      ] as never)
       get.mockImplementation(((_url: URL, options: any, receive: any) => {
         options.lookup('example.com', {all: true}, (error: unknown, result: unknown) => {
           expect(error).toBeNull()
-          expect(result).toEqual([{address: '1.1.1.1', family: 4}])
+          expect(result).toEqual([
+            {address: '2606:4700:4700::1111', family: 6},
+            {address: '1.1.1.1', family: 4},
+          ])
         })
         expect(options.agent).toBe(false)
+        expect(options.autoSelectFamily).toBe(true)
+        expect(options.autoSelectFamilyAttemptTimeout).toBe(250)
         const request = new events.EventEmitter()
         queueMicrotask(() => receive({statusCode: 302, headers: {location: 'http://127.0.0.1/secret'}, destroy() {}}))
         return request

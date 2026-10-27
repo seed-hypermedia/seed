@@ -15621,11 +15621,18 @@ export async function readBackDocumentAssets(
   try {
     const target = unpackHmId(id)
     if (!target) throw new Error('Invalid published document identifier')
-    const resource = await client.request(
-      'Resource',
-      {...target, version, latest: false},
-      {signal: AbortSignal.timeout(10000)},
-    )
+    const signal = AbortSignal.timeout(10000)
+    let resource = await client.request('Resource', {...target, version, latest: false}, {signal})
+    // Indexing can lag a successful PublishBlobs response. Retry only visibility/version lag,
+    // under one deadline; immutable content mismatches and asset failures are not hidden.
+    for (
+      let attempt = 0;
+      attempt < 2 && (resource.type !== 'document' || resource.document.version !== version);
+      attempt++
+    ) {
+      await Bun.sleep(150 * (attempt + 1))
+      resource = await client.request('Resource', {...target, version, latest: false}, {signal})
+    }
     if (resource.type !== 'document' || resource.document.version !== version)
       throw new Error('Published version is not available for read-back yet')
     const actual = publicationAssets.collectPublicationAssets(
@@ -17110,7 +17117,16 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
 function parseWriteJsonBlocks(rawContent: unknown): HMBlockNode[] {
   const parsed =
     typeof rawContent === 'string' ? JSON.parse(normalizeWriteContent(rawContent, 'Document content')) : rawContent
-  return z.array(HMBlockNodeSchema as any).parse(parsed) as HMBlockNode[]
+  // Persisted drafts encode absent children as CBOR null. Normalize only that absent-child
+  // representation; the SDK schema still validates every node and block field.
+  const normalizeChildren = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map((node) =>
+          isRecord(node) ? {...node, children: node.children == null ? [] : normalizeChildren(node.children)} : node,
+        )
+      : value
+  // The SDK owns this v4 schema; wrapping it in the service's v3 array breaks draft/memory publication.
+  return HMBlockNodeSchema.array().parse(normalizeChildren(parsed))
 }
 
 function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId = ''): DocumentOperation[] {

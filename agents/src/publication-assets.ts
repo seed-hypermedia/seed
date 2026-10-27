@@ -98,8 +98,10 @@ export async function probePublicAsset(raw: string, signal: AbortSignal): Promis
         {
           signal,
           agent: false,
+          autoSelectFamily: true,
+          autoSelectFamilyAttemptTimeout: 250,
           lookup: (_host, options, callback) => {
-            if (options.all) callback(null, [pinned])
+            if (options.all) callback(null, addresses)
             else callback(null, pinned.address, pinned.family)
           },
           headers: {Range: `bytes=0-${SAMPLE_BYTES - 1}`, 'Accept-Encoding': 'identity'},
@@ -190,6 +192,17 @@ async function withAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T
   }
 }
 
+function isSvgPrefix(text: string): boolean {
+  // Inspect only the bounded sample; never parse/fetch a DTD or external entity.
+  let prefix = text.trimStart()
+  const prolog = /^(?:<\?xml[\s\S]*?\?>|<!--[\s\S]*?-->|<!DOCTYPE\s+svg(?:[^>\[]|\[[\s\S]*?\])*>)/i
+  for (;;) {
+    const match = prolog.exec(prefix)
+    if (!match) return /^<svg[\s>]/i.test(prefix)
+    prefix = prefix.slice(match[0].length).trimStart()
+  }
+}
+
 function mediaKind(sample: Uint8Array): 'image' | 'video' | undefined {
   const b = Buffer.from(sample)
   const text = b.toString('utf8')
@@ -201,7 +214,7 @@ function mediaKind(sample: Uint8Array): 'image' | 'video' | undefined {
     (ascii.startsWith('RIFF') && ascii.slice(8, 12) === 'WEBP') ||
     ascii.startsWith('BM') ||
     b.subarray(0, 4).equals(Buffer.from([0, 0, 1, 0])) ||
-    /^\s*(?:<\?xml[^>]*>\s*)?(?:<!--[^]*?-->\s*)?<svg[\s>]/i.test(text)
+    isSvgPrefix(text)
   )
     return 'image'
   if (ascii.slice(4, 8) === 'ftyp') return /avif|avis|heic|heix|mif1/.test(ascii.slice(8, 32)) ? 'image' : 'video'
