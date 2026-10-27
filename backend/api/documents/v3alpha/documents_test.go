@@ -4417,3 +4417,65 @@ func TestHomeGenesisBootstrap(t *testing.T) {
 		require.Equal(t, sdkGenesisCID.String(), got.Genesis)
 	})
 }
+
+// A document whose latest generation is a tombstone must not come back from an attribute query,
+// whatever the shape of the filter. A top-level OR leaked it: its SQL joined the HAVING clause
+// unparenthesized, so `generation = MAX(generation) AND is_deleted = 0 AND a OR b` let `b` bypass
+// the deletion check, and an app mount page a space had deleted stayed mounted on its agents server.
+func TestQueryDocumentsTombstonedUnderOrFilter(t *testing.T) {
+	t.Parallel()
+
+	alice := newTestDocsAPI(t, "alice")
+	ctx := t.Context()
+	account := alice.me.Account.Principal()
+	space := alice.me.Account.PublicKey.String()
+
+	_, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(account, "", "", "main").
+		SetAttribute("", []string{"title"}, "Alice's profile").
+		Build())
+	require.NoError(t, err)
+	for _, path := range []string{"/mount-kept", "/mount-deleted"} {
+		_, err := alice.PublishDocumentChangeForTest(ctx, apitest.NewChangeBuilder(account, path, "", "main").
+			SetAttribute("", []string{"attributesSchema"}, "hm://x/app-mount").
+			Build())
+		require.NoError(t, err)
+	}
+	// The tombstone's timestamp must come after the document's.
+	time.Sleep(20 * time.Millisecond)
+	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
+		SigningKeyName: "main",
+		Account:        space,
+		Path:           "/mount-deleted",
+		Target:         &documents.RefTarget{Target: &documents.RefTarget_Tombstone_{Tombstone: &documents.RefTarget_Tombstone{}}},
+	})
+	require.NoError(t, err)
+
+	typed := func(ref string) *documents.DocumentFilter {
+		return &documents.DocumentFilter{Filter: &documents.DocumentFilter_Comparison_{Comparison: &documents.DocumentFilter_Comparison{
+			Key:      "attributesSchema",
+			Operator: documents.DocumentFilter_Comparison_EQUAL,
+			Value:    &documents.AttributeValue{Value: &documents.AttributeValue_StringValue{StringValue: ref}},
+		}}}
+	}
+	// The branch the deleted page matches comes last: bare, it was the `b` of `... AND a OR b`.
+	either := &documents.DocumentFilter{Filter: &documents.DocumentFilter_Or_{Or: &documents.DocumentFilter_Or{
+		Filters: []*documents.DocumentFilter{typed("hm://y/app-mount"), typed("hm://x/app-mount")},
+	}}}
+	// The shape an agents server sends when it refreshes one space: the space match moves to WHERE
+	// and the OR is left on its own in HAVING.
+	inSpace := &documents.DocumentFilter{Filter: &documents.DocumentFilter_And_{And: &documents.DocumentFilter_And{
+		Filters: []*documents.DocumentFilter{
+			{Filter: &documents.DocumentFilter_SpaceMatch_{SpaceMatch: &documents.DocumentFilter_SpaceMatch{Space: space}}},
+			either,
+		},
+	}}}
+	for name, filter := range map[string]*documents.DocumentFilter{"or": either, "space and or": inSpace} {
+		resp, err := alice.QueryDocuments(ctx, &documents.QueryDocumentsRequest{Filter: filter, PageSize: 10})
+		require.NoError(t, err, name)
+		paths := make([]string, 0, len(resp.Documents))
+		for _, doc := range resp.Documents {
+			paths = append(paths, doc.Path)
+		}
+		require.Equal(t, []string{"/mount-kept"}, paths, name)
+	}
+}
