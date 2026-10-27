@@ -1,4 +1,4 @@
-import * as z from 'zod/v3'
+import * as z from 'zod'
 import {pageParamsFromUrl, pageParamsQuery} from './page-input'
 
 // Signing abstraction: each platform provides its own implementation
@@ -27,7 +27,7 @@ export const unpackedHmIdSchema = z.object({
   scheme: z.string().nullable(),
   latest: z.boolean().nullable().optional(),
   /** JSON-encoded custom HTML page input, excluded from canonical resource identity. */
-  pageParams: z.record(z.string()).optional(),
+  pageParams: z.record(z.string(), z.string()).optional(),
   // deprecated:
   targetDocUid: z.string().nullable().optional(),
   targetDocPath: z.array(z.string()).nullable().optional(),
@@ -350,8 +350,7 @@ export const HMBlockFileSchema = z
           .transform((value) => (value == null ? null : toNumber(value))), // number of bytes, as a string
         name: z.string().optional(),
       })
-      .optional()
-      .default({}),
+      .prefault({}),
     link: z.string(),
   })
   .strict()
@@ -599,7 +598,7 @@ export const HMDocumentMetadataSchema = z
      * because removal leaves a null attribute behind rather than dropping the key; `parseSpaceAgentIds`
      * in @shm/ui/agents/space-agents is the reader for this field.
      */
-    spaceAgents: z.record(z.unknown()).optional(),
+    spaceAgents: z.record(z.string(), z.unknown()).optional(),
     /** Resource type; custom HTML pages use hm://hyper.media/page. */
     type: z.string().optional(),
     /** UnixFS folder whose index.html runs as an isolated custom HTML page. */
@@ -1074,7 +1073,7 @@ export const HMBlockUnknownSchema = z
     type: z.string(),
     id: z.string(),
     revision: z.string().optional(),
-    attributes: z.record(z.any()).optional(),
+    attributes: z.record(z.string(), z.any()).optional(),
     annotations: z.array(z.any()).optional(),
     text: z.string().optional(),
     link: z.string().optional(),
@@ -1083,7 +1082,7 @@ export const HMBlockUnknownSchema = z
 
 export const HMBlockSchema = z.union([HMBlockKnownSchema, HMBlockUnknownSchema])
 
-export const knownBlockTypes = new Set(HMBlockKnownSchema.optionsMap.keys())
+export const knownBlockTypes = new Set<string>(HMBlockKnownSchema.options.map((schema) => schema.shape.type.value))
 
 export function isKnownBlockType(btype: string): boolean {
   return knownBlockTypes.has(btype)
@@ -1734,7 +1733,7 @@ export const HMRawDocumentInfoSchema = z
     account: z.string(),
     /** The document path, `/`-prefixed; empty for the space's home document. */
     path: z.string().optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
     authors: z.array(z.string()).optional(),
     createTime: z.string().optional(),
     updateTime: z.string().optional(),
@@ -2007,7 +2006,7 @@ export type HMListAccountsRequest = z.infer<typeof HMListAccountsRequestSchema>
 
 // GetCID - fetch raw IPFS block data by CID
 export const HMGetCIDOutputSchema = z.object({
-  value: z.any(),
+  value: z.any().optional(),
 })
 export type HMGetCIDOutput = z.infer<typeof HMGetCIDOutputSchema>
 
@@ -2313,11 +2312,14 @@ const ProtoBlockSchema = z.object({
   revision: z.string().optional(),
 })
 
+// Accept protobuf Empty instances and strip their runtime fields during parsing.
+const ProtoEmptySchema: z.ZodType<object> = z.object({})
+
 const ProtoSetAttributeValueSchema = z.union([
   z.object({case: z.literal('stringValue'), value: z.string()}),
   z.object({case: z.literal('intValue'), value: z.union([z.bigint(), z.coerce.bigint()])}),
   z.object({case: z.literal('boolValue'), value: z.boolean()}),
-  z.object({case: z.literal('nullValue'), value: z.object({})}),
+  z.object({case: z.literal('nullValue'), value: ProtoEmptySchema}),
   z.object({case: z.undefined(), value: z.undefined().optional()}),
 ])
 

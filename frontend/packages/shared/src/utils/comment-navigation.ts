@@ -25,6 +25,18 @@ export function useCommentNavigation({
 }: UseCommentNavigationOptions) {
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
+      const threadSelection = {
+        openComment: replyComment.threadRoot || replyComment.id,
+        replyCommentId:
+          replyComment.threadRoot && replyComment.threadRoot !== replyComment.id ? replyComment.id : undefined,
+      }
+      const currentThread =
+        route.key === 'comments'
+          ? route.openComment
+          : 'panel' in route && route.panel?.key === 'comments'
+            ? route.panel.openComment
+            : undefined
+      const navigateThread = currentThread === threadSelection.openComment ? replaceRoute : navigate
       const replyVersionData = {
         replyCommentVersion: replyComment.version,
         rootReplyCommentVersion: replyComment.threadRootVersion || replyComment.version,
@@ -40,27 +52,26 @@ export function useCommentNavigation({
           panel: {
             key: 'comments',
             id: targetRoute,
-            openComment: replyComment.id,
+            ...threadSelection,
             isReplying: true,
             ...replyVersionData,
           },
         } as any)
       } else if (route.key === 'comments') {
-        replaceRoute({
+        navigateThread({
           ...route,
-          openComment: replyComment.id,
+          ...threadSelection,
           openCommentVersion: undefined,
-          replyCommentId: undefined,
           isReplying: true,
           ...replyVersionData,
         } as any)
       } else {
-        replaceRoute({
+        navigateThread({
           ...route,
           panel: {
             key: 'comments',
             id: docId,
-            openComment: replyComment.id,
+            ...threadSelection,
             isReplying: true,
             ...replyVersionData,
           },
@@ -73,6 +84,18 @@ export function useCommentNavigation({
 
   const onReplyCountClick = useCallback(
     (replyComment: HMComment) => {
+      const threadSelection = {
+        openComment: replyComment.threadRoot || replyComment.id,
+        replyCommentId:
+          replyComment.threadRoot && replyComment.threadRoot !== replyComment.id ? replyComment.id : undefined,
+      }
+      const currentThread =
+        route.key === 'comments'
+          ? route.openComment
+          : 'panel' in route && route.panel?.key === 'comments'
+            ? route.panel.openComment
+            : undefined
+      const navigateThread = currentThread === threadSelection.openComment ? replaceRoute : navigate
       const targetRoute = isRouteEqualToCommentTarget({
         id: docId,
         comment: replyComment,
@@ -84,26 +107,25 @@ export function useCommentNavigation({
           panel: {
             key: 'comments',
             id: targetRoute,
-            openComment: replyComment.id,
+            ...threadSelection,
           },
         } as any)
       } else if (route.key === 'comments') {
-        replaceRoute({
+        navigateThread({
           ...route,
-          openComment: replyComment.id,
+          ...threadSelection,
           openCommentVersion: undefined,
-          replyCommentId: undefined,
           isReplying: undefined,
           replyCommentVersion: undefined,
           rootReplyCommentVersion: undefined,
         } as any)
       } else {
-        replaceRoute({
+        navigateThread({
           ...route,
           panel: {
             key: 'comments',
             id: docId,
-            openComment: replyComment.id,
+            ...threadSelection,
           },
         } as any)
       }

@@ -27,7 +27,7 @@ import {SizableText, Text} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useEffect, useRef, useState} from 'react'
 import {SubmitHandler, useForm} from 'react-hook-form'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 
 import {
   AlertDialogAction,

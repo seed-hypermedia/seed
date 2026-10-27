@@ -41,7 +41,7 @@ import matter from 'gray-matter'
 import {nanoid} from 'nanoid'
 import {ReactElement, useEffect, useMemo, useState} from 'react'
 import {useForm} from 'react-hook-form'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 import {ImportedDocument, useImportConfirmDialog} from './import-doc-dialog'
 import {useWXRImportDialog} from './wxr-import-dialog'
 

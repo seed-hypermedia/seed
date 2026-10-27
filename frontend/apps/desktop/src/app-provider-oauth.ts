@@ -10,7 +10,7 @@
  * the signed `SubmitProviderOAuthCode` action.
  */
 import http from 'http'
-import z from 'zod/v3'
+import z from 'zod'
 import {t} from './app-trpc'
 import * as log from './logger'
 

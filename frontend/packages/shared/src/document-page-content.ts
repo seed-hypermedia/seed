@@ -1,4 +1,4 @@
-import {z} from 'zod/v3'
+import {z} from 'zod'
 import * as hm from '@seed-hypermedia/client'
 import {signBlob} from '@seed-hypermedia/client/signed-blob'
 import {
@@ -142,7 +142,7 @@ export async function documentPageContent({
     if (key === 'PublishBlobs') return publish(HMPublishBlobsInputSchema.parse(input))
     await authorizeRead(key, input)
     authorized.throwIfAborted()
-    const result = await client.request(key, input, {signal: authorized})
+    const result = await client.request<HMRequest['key']>(key, input, {signal: authorized})
     authorized.throwIfAborted()
     // Check the resolved resource as well: a redirect must not widen a resource or site grant.
     if ((key === 'Resource' || key === 'ResourceMetadata') && result && typeof result === 'object') {
@@ -169,7 +169,7 @@ export async function documentPageContent({
     authorized.throwIfAborted()
     return result
   }) as UniversalClient['request']
-  const object = z.record(z.unknown()).parse(params)
+  const object = z.record(z.string(), z.unknown()).parse(params)
   if (method === 'permissions.request') return {grants: access.snapshot()}
   if (method === 'context' || method === 'profile' || method === 'signer.getPublicKey') {
     if (account)

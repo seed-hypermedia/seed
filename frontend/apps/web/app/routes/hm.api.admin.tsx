@@ -10,7 +10,7 @@ import {
 } from '@/site-config.server'
 import {ActionFunction, json} from '@remix-run/node'
 import {randomBytes} from 'crypto'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 
 const AdminActionCreateService = z
   .object({
@@ -178,7 +178,7 @@ export const action: ActionFunction = async ({request}) => {
 
     const parseResult = AdminActionRequest.safeParse(data)
     if (!parseResult.success) {
-      return json({message: 'Invalid request', errors: parseResult.error.errors}, {status: 400})
+      return json({message: 'Invalid request', errors: parseResult.error.issues}, {status: 400})
     }
     const payload = parseResult.data
 

@@ -1,5 +1,5 @@
 import {safeStorage} from 'electron'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 import {secureStore} from './app-store.mts'
 import {t} from './app-trpc'
 

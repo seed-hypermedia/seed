@@ -1,6 +1,6 @@
-import {HMComment} from '@seed-hypermedia/client/hm-types'
+import {HMComment, HMExternalCommentGroup} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, test} from 'vitest'
-import {getCommentGroups, getCommentContinuation, getSubmittedCommentGroups} from './comments'
+import {getCommentGroups, getSubmittedCommentGroups, getCommentThread, sortCommentGroupsByCreation} from './comments'
 
 // Only the fields getCommentGroups reads.
 function comment(id: string, replyParent: string, updateTime: string): HMComment {
@@ -63,32 +63,6 @@ describe('getCommentGroups', () => {
   })
 })
 
-describe('getCommentContinuation', () => {
-  const comments = [
-    comment('c', '', ''),
-    comment('r1', 'c', ''),
-    comment('r2', 'r1', ''),
-    comment('sibling', 'c', ''),
-    comment('branch', 'r1', ''),
-  ]
-  test('restores the selected chain and keeps other branches once', () => {
-    const result = getCommentContinuation(comments, 'c', 'r2')!
-    expect(result.chain.map((c) => c.id)).toEqual(['c', 'r1', 'r2'])
-    expect(result.branches.map((b) => [b.parent.id, b.groups.map((g) => g.id)])).toEqual([
-      ['c', ['sibling']],
-      ['r1', ['branch']],
-    ])
-  })
-  test('uses context as target without a continuation', () => {
-    expect(getCommentContinuation(comments, 'c')!.chain.map((c) => c.id)).toEqual(['c'])
-  })
-  test('rejects missing, unrelated, and cyclic targets', () => {
-    expect(getCommentContinuation(comments, 'r1', 'sibling')).toBeNull()
-    expect(getCommentContinuation(comments, 'c', 'missing')).toBeNull()
-    expect(getCommentContinuation([...comments, comment('loop', 'loop', '')], 'c', 'loop')).toBeNull()
-  })
-})
-
 describe('getSubmittedCommentGroups', () => {
   const root = comment('new', '', '')
   test('shows a submitted root before the server list loads', () => {
@@ -97,8 +71,84 @@ describe('getSubmittedCommentGroups', () => {
   test('does not restore a deleted root after the server acknowledged it', () => {
     expect(getSubmittedCommentGroups([], [root], new Set(['new']))).toEqual([])
   })
-  test('keeps a submitted root only once and before other groups', () => {
-    const groups = getCommentGroups([comment('old', '', ''), root])
-    expect(getSubmittedCommentGroups(groups, [root, root], new Set()).map((g) => g.id)).toEqual(['new', 'old'])
+  test('appends a submitted root only once after other groups', () => {
+    const groups = getCommentGroups([comment('old', '', '')])
+    expect(getSubmittedCommentGroups(groups, [root, root], new Set()).map((g) => g.id)).toEqual(['old', 'new'])
+  })
+})
+
+describe('sortCommentGroupsByCreation', () => {
+  const older = {...comment('older', '', '2026-10-01T00:00:00Z'), createTime: '2026-01-01T00:00:00Z'}
+  const newer = {...comment('newer', '', '2026-02-01T00:00:00Z'), createTime: '2026-02-01T00:00:00Z'}
+
+  test('orders roots oldest first regardless of edits or deep reply activity', () => {
+    const groups = getCommentGroups([
+      newer,
+      older,
+      {...comment('reply', older.id, '2026-12-01T00:00:00Z'), createTime: '2026-12-01T00:00:00Z'},
+    ])
+    const original = groups.map((group) => group.id)
+    expect(sortCommentGroupsByCreation(groups).map((group) => group.id)).toEqual(['older', 'newer'])
+    expect(groups.map((group) => group.id)).toEqual(original)
+  })
+
+  test('interleaves citing groups and protobuf timestamps with local roots', () => {
+    const external = {
+      id: 'external',
+      type: 'externalCommentGroup',
+      comments: [{...older, id: 'external', createTime: {seconds: 1768435200n, nanos: 0}}],
+      moreCommentsCount: 0,
+    } as HMExternalCommentGroup
+    expect(sortCommentGroupsByCreation([...getCommentGroups([newer, older]), external]).map((g) => g.id)).toEqual([
+      'older',
+      'external',
+      'newer',
+    ])
+  })
+
+  test('uses stable IDs when creation times match', () => {
+    const groups = getCommentGroups([
+      {...older, id: 'b'},
+      {...older, id: 'a'},
+    ])
+    expect(sortCommentGroupsByCreation(groups).map((g) => g.id)).toEqual(['a', 'b'])
+    expect(sortCommentGroupsByCreation([...groups].reverse()).map((g) => g.id)).toEqual(['a', 'b'])
+  })
+
+  test('keeps acknowledged submissions in creation order as other roots arrive', () => {
+    const groups = getCommentGroups([newer, older])
+    const latest = {...newer, id: 'latest', createTime: '2026-03-01T00:00:00Z'}
+    const merged = getSubmittedCommentGroups(groups, [older, latest, latest], new Set([older.id]))
+    expect(sortCommentGroupsByCreation(merged).map((g) => g.id)).toEqual(['older', 'newer', 'latest'])
+  })
+})
+
+describe('getCommentThread', () => {
+  const root = {...comment('root', '', ''), createTime: '2026-01-01T00:00:00Z'}
+  const early = {...comment('early', 'root', '2026-10-01T00:00:00Z'), createTime: '2026-01-02T00:00:00Z'}
+  const late = {...comment('late', 'early', ''), createTime: '2026-01-03T00:00:00Z'}
+  const sibling = {...comment('sibling', 'root', ''), createTime: '2026-01-04T00:00:00Z'}
+  test('resolves a direct reply link to its root and sorts every branch by creation, not edit time', () => {
+    const result = getCommentThread([sibling, late, early, root, comment('unrelated', '', '')], 'late')!
+    expect(result.root.id).toBe('root')
+    expect(result.replies.map((reply) => reply.id)).toEqual(['early', 'late', 'sibling'])
+    expect(result.replies[1]?.replyParent).toBe('early')
+  })
+  test('keeps descendants whose parent was deleted using threadRoot', () => {
+    const orphan = {...late, replyParent: 'deleted', threadRoot: 'root'}
+    expect(getCommentThread([root, orphan], 'orphan')).toBeNull()
+    expect(getCommentThread([root, orphan], 'late')?.root).toBe(root)
+    expect(getCommentThread([root, orphan], 'root')?.replies).toEqual([orphan])
+  })
+  test('orders protobuf and ISO timestamps together', () => {
+    const timestampReply = {...late, createTime: {seconds: BigInt(Date.parse('2026-01-03T00:00:00Z') / 1000), nanos: 0}}
+    expect(getCommentThread([root, timestampReply, early], 'root')?.replies.map((reply) => reply.id)).toEqual([
+      'early',
+      'late',
+    ])
+  })
+  test('handles loading, missing targets and cyclic parents', () => {
+    expect(getCommentThread(undefined, 'root')).toBeNull()
+    expect(getCommentThread([comment('a', 'b', ''), comment('b', 'a', '')], 'a')).toBeNull()
   })
 })

@@ -32,7 +32,7 @@ import {ArrowUpRight, ChevronDown, ChevronRight, ChevronUp, Pencil, ShieldCheck,
 import {useState} from 'react'
 import {useForm} from 'react-hook-form'
 import {Panel, Group, Separator} from 'react-resizable-panels'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 
 export default function ContactPage() {
   const route = useNavRoute()

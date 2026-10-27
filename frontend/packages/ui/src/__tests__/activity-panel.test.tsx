@@ -41,13 +41,13 @@ describe('ActivityHeader', () => {
 
   it('offers Expand and Close in the side panel, and only Collapse on the full page', () => {
     render(<ActivityHeader tab="to-you" onTabChange={vi.fn()} onExpand={vi.fn()} onClose={vi.fn()} />)
-    expect(container.querySelector('[aria-label="Expand Activity"]')).not.toBeNull()
-    expect(container.querySelector('[aria-label="Close Activity"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Expand activity"]')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Close panel"]')).not.toBeNull()
     expect(container.querySelector('[aria-label="Collapse Activity"]')).toBeNull()
 
     render(<ActivityHeader tab="to-you" onTabChange={vi.fn()} onCollapse={vi.fn()} />)
     expect(container.querySelector('[aria-label="Collapse Activity"]')).not.toBeNull()
-    expect(container.querySelector('[aria-label="Expand Activity"]')).toBeNull()
-    expect(container.querySelector('[aria-label="Close Activity"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Expand activity"]')).toBeNull()
+    expect(container.querySelector('[aria-label="Close panel"]')).toBeNull()
   })
 })

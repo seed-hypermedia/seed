@@ -3,11 +3,14 @@ import {useCallback, useEffect, useLayoutEffect, useRef} from 'react'
 // Use useLayoutEffect on client, useEffect on server (SSR safe)
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
 
+/** Controls source-block scrolling and repeated navigation to the same block. */
 export type BlockScrollOptions = {
   /** Block position when scrolling ('start' | 'center') */
   block?: ScrollLogicalPosition
   /** Scroll behavior ('smooth' | 'instant') */
   behavior?: ScrollBehavior
+  /** A new navigation can select the same block after the reader has scrolled away. */
+  navigationKey?: unknown
 }
 
 // Breathing room above the target block. Nothing is pinned over the scroll
@@ -28,6 +31,14 @@ function pinnedTopBarHeight(): number {
 function scrollWindowToElement(element: HTMLElement, behavior: ScrollBehavior | undefined) {
   const top = element.getBoundingClientRect().top + window.scrollY - SCROLL_TOP_MARGIN - pinnedTopBarHeight()
   window.scrollTo({top: Math.max(top, 0), behavior})
+}
+
+/** Finds the source block without selecting a quoted copy inside an embed. */
+function findSourceBlock(blockId: string): HTMLElement | null {
+  for (const element of Array.from(document.querySelectorAll<HTMLElement>('[data-node-type="blockNode"][data-id]'))) {
+    if (element.dataset.id === blockId && !element.closest('[data-content-type="embed"]')) return element
+  }
+  return document.getElementById(blockId)
 }
 
 const defaultOptions: BlockScrollOptions = {
@@ -56,7 +67,7 @@ const defaultOptions: BlockScrollOptions = {
  * }
  */
 export function useBlockScroll(blockRef: string | null | undefined, options: BlockScrollOptions = {}) {
-  const {block, behavior} = {...defaultOptions, ...options}
+  const {block, behavior, navigationKey} = {...defaultOptions, ...options}
   const lastScrolledBlockRef = useRef<string | null>(null)
 
   // Scroll to blockRef when it changes via URL (e.g., clicking embed in panel, initial load)
@@ -69,7 +80,7 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
     }
 
     const scrollToElement = () => {
-      const element = document.getElementById(blockRef)
+      const element = findSourceBlock(blockRef)
       if (!element) return false
 
       // Find the scrollable ancestor container (for nested scroll containers like on web)
@@ -99,39 +110,25 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
       return true
     }
 
-    // Don't try immediately - wait for scroll containers to be created
-    // The scroll container (overflow-y-auto) may not exist yet during SSR hydration
-    // Use requestAnimationFrame to wait for the next paint, then retry with timeouts
-    let retryCount = 0
-    const maxRetries = 20
-    const retryDelay = 50
-
-    const retry = () => {
-      if (scrollToElement() || retryCount >= maxRetries) {
-        lastScrolledBlockRef.current = null
-        return
-      }
-      retryCount++
-      timeoutId = setTimeout(retry, retryDelay)
-    }
-
-    // Wait for next frame to allow scroll containers to be created
-    let rafId = requestAnimationFrame(() => {
-      timeoutId = setTimeout(retry, 0)
+    // The editor may mount after the route. Observe its arrival instead of
+    // stopping after a fixed retry window on slow documents.
+    const observer = new MutationObserver(() => {
+      if (scrollToElement()) observer.disconnect()
     })
-
-    let timeoutId: ReturnType<typeof setTimeout>
+    const rafId = requestAnimationFrame(() => {
+      if (!scrollToElement()) observer.observe(document.body, {childList: true, subtree: true})
+    })
     return () => {
       cancelAnimationFrame(rafId)
-      clearTimeout(timeoutId)
+      observer.disconnect()
     }
-  }, [blockRef, behavior, block])
+  }, [blockRef, behavior, block, navigationKey])
 
   // Call this when manually scrolling to prevent double-scroll from effect
   const scrollToBlock = useCallback(
     (blockId: string) => {
       lastScrolledBlockRef.current = blockId
-      const element = document.getElementById(blockId)
+      const element = findSourceBlock(blockId)
       if (!element) return
 
       // Find the scrollable ancestor container

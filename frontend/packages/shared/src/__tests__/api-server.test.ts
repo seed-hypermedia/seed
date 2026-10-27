@@ -300,6 +300,30 @@ describe('handleApiRequest schema introspection', () => {
     )
   })
 
+  it('keeps recursive schema references local and resolvable', async () => {
+    const result = await handleApiRequest(new URL('http://localhost/api/schema?key=Resource'), {} as any, vi.fn())
+    expect(result.status).toBe(200)
+    const {outputSchema} = JSON.parse(result.body)
+    const references: string[] = []
+    function visit(value: unknown) {
+      if (!value || typeof value !== 'object') return
+      for (const [key, child] of Object.entries(value)) {
+        if (key === '$ref') references.push(child as string)
+        else visit(child)
+      }
+    }
+    visit(outputSchema)
+    expect(references.length).toBeGreaterThan(1)
+    for (const reference of references) {
+      expect(reference.startsWith('#/')).toBe(true)
+      const target = reference
+        .slice(2)
+        .split('/')
+        .reduce((value, segment) => value?.[segment.replace(/~1/g, '/').replace(/~0/g, '~')], outputSchema)
+      expect(target, reference).toBeDefined()
+    }
+  })
+
   it('returns 404 for unknown introspection keys', async () => {
     const grpcClient = {} as any
     const queryDaemon = vi.fn()

@@ -31,6 +31,7 @@ import {useUniversalClient} from '@shm/shared/routing'
 import {useNavRoute, useNavigation} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {Button} from '@shm/ui/button'
+import {CommentAudience} from '@shm/ui/members-facepile'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useMutation} from '@tanstack/react-query'
@@ -54,6 +55,8 @@ export function useCommentGroupAuthors(commentGroups: HMCommentGroup[]): HMListD
 
 export const CommentBox = memo(CommentBoxImpl)
 function CommentBoxImpl(props: {
+  /** Use the compact panel-footer editor. */
+  compact?: boolean
   docId: UnpackedHypermediaId
   backgroundColor?: string
   quotingBlockId?: string
@@ -532,6 +535,8 @@ function CommentBoxImpl(props: {
   return (
     <>
       <CommentEditor
+        compact={props.compact}
+        referenceTarget={{documentId: docId.id, commentId}}
         focusOnMount={focusOnMount}
         isReplying={isReplying || !!commentId}
         submitHandleRef={submitHandleRef}
@@ -560,6 +565,8 @@ function CommentBoxImpl(props: {
             <Button
               variant="default"
               size="icon"
+              aria-label="Send comment"
+              className={props.compact ? 'size-12 shrink-0 rounded-full' : undefined}
               onClick={(e) => {
                 e.stopPropagation()
                 handleSubmit(getContent, reset)
@@ -571,6 +578,7 @@ function CommentBoxImpl(props: {
           </Tooltip>
         )}
       />
+      {props.compact && <CommentAudience docId={docId} />}
       {accountIntent.content}
     </>
   )

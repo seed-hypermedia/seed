@@ -5,7 +5,7 @@ import {validateSignature} from '@/validate-signature'
 import {resolveAccountId} from '@/verify-delegation'
 import {encode as cborEncode} from '@ipld/dag-cbor'
 import {base58btc} from 'multiformats/bases/base58'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 
 const notificationMutationActionSchema = z.discriminatedUnion('type', [
   z.object({

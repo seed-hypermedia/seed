@@ -1,3 +1,9 @@
+import {ConnectionsPanel} from './connections-panel'
+import {PanelHeader} from './panel-header'
+import {groupDocumentConnections} from '@shm/shared/connections'
+import {useQueryClient} from '@tanstack/react-query'
+import {getCommentThread} from '@shm/shared/comments'
+import {queryDocumentComments} from '@shm/shared/models/queries'
 import type {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {
   BlockRange,
@@ -27,6 +33,7 @@ import {
   hmId,
   NavRoute,
   ProfileTab,
+  packHmId,
   replaceRouteDocumentId,
   routeToHref,
   unpackHmId,
@@ -34,6 +41,8 @@ import {
 } from '@shm/shared'
 import {
   CommentsProvider,
+  CommentDraftReferenceProvider,
+  useCommentDraftReferences,
   isRouteEqualToCommentTarget,
   useCommentsServiceContext,
   useHackyAuthorsSubscriptions,
@@ -161,7 +170,7 @@ import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './componen
 import {ScrollArea} from './components/scroll-area'
 import {Tabs, TabsList, TabsTrigger} from './components/tabs'
 import {DirectoryPageContent} from './directory-page'
-import {DiscussionsPageContent} from './discussions-page'
+import {CommentsFooterContext, DiscussionsPageContent} from './discussions-page'
 import {DocumentCover} from './document-cover'
 import {AuthorPayload, BreadcrumbEntry, DocumentHeader} from './document-header'
 import {
@@ -202,7 +211,6 @@ import {MembersFacepile} from './members-facepile'
 import {MergedBadge} from './merged-badge'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
-import {OpenInPanelButton} from './open-in-panel'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {OptionsPanel} from './options-panel'
 import {PageLayout} from './page-layout'
@@ -277,7 +285,7 @@ function normalizeCitationFragmentHighlights(citations: HMRawCitation[] | undefi
           kind === 'document' && sourceId
             ? {
                 ...sourceId,
-                version: citation.sourceBlob?.cid || sourceId.version || null,
+                version: sourceId.version,
                 blockRef: sourceBlockId,
                 blockRange: sourceBlockId ? {expanded: true} : null,
               }
@@ -426,12 +434,6 @@ function CitationFragmentPopover({
       </PopoverContent>
     </Popover>
   )
-}
-
-/** Extract panel route from a view route, stripping top-level-only fields */
-function extractPanelRoute(route: NavRoute): DocumentPanelRoute {
-  const {panel, width, ...params} = route as any
-  return params as DocumentPanelRoute
 }
 
 /** Document tabs remain available as panels while the page owns the main view. */
@@ -824,6 +826,40 @@ export function getCitationsTargetId({
   return {...docId, blockRef: null, blockRange: null}
 }
 
+/** Appends a pinned block reference to the active draft without moving the document. */
+export function getBlockCommentDraftReference({
+  route,
+  sourceId,
+  resolvedThreadRootId,
+  version,
+  blockId,
+  blockRange,
+}: {
+  route: Extract<NavRoute, {key: 'document' | 'feed'}>
+  sourceId?: UnpackedHypermediaId
+  resolvedThreadRootId?: string
+  version: string
+  blockId: string
+  blockRange?: BlockRange
+}) {
+  const commentsPanel = route.panel?.key === 'comments' ? route.panel : undefined
+  return {
+    reference: {
+      documentId: (commentsPanel?.id ?? route.id).id,
+      commentId: resolvedThreadRootId || commentsPanel?.openComment,
+      link: packHmId({
+        ...(sourceId ?? route.id),
+        version,
+        latest: null,
+        blockRef: blockId,
+        blockRange: blockRange && 'start' in blockRange && 'end' in blockRange ? blockRange : null,
+      }),
+    },
+    route: commentsPanel ? route : {...route, panel: {key: 'comments' as const, id: route.id}},
+  }
+}
+
+/** Opens the root thread and retains the selected reply for display. */
 export function getCommentReplyPanelRoute({
   docId,
   comment,
@@ -848,7 +884,8 @@ export function getCommentReplyPanelRoute({
   return {
     key: 'comments',
     id: targetRoute || docId,
-    openComment: comment.id,
+    openComment: comment.threadRoot || comment.id,
+    replyCommentId: comment.threadRoot && comment.threadRoot !== comment.id ? comment.id : undefined,
     ...replyVersionData,
   }
 }
@@ -879,6 +916,8 @@ function getActiveView(routeKey: string): ActiveView {
 }
 
 export interface CommentEditorProps {
+  /** Use a compact field with a separate send button in the panel footer. */
+  compact?: boolean
   /** Called after the comment is published successfully. */
   onCommentSubmitted?: (comment: HMComment) => void
   docId: UnpackedHypermediaId
@@ -1003,7 +1042,7 @@ function getPanelTitle(panelKey: string | null): string {
     case 'feed':
       return 'Activity'
     case 'comments':
-      return 'Discussions'
+      return 'Comments'
     case 'directory':
       return 'Sub documents'
     case 'collaborators':
@@ -1017,7 +1056,16 @@ function getPanelTitle(panelKey: string | null): string {
   }
 }
 
-export function ResourcePage({
+/** Renders a resource with a document-scoped queue for comment references. */
+export function ResourcePage(props: ResourcePageProps) {
+  return (
+    <CommentDraftReferenceProvider key={props.docId.id}>
+      <ResourcePageContent {...props} />
+    </CommentDraftReferenceProvider>
+  )
+}
+
+function ResourcePageContent({
   docId,
   resourceId,
   CommentEditor,
@@ -2039,6 +2087,7 @@ function DocumentBody({
   const canEditCurrentRoute = useDocumentSelector(selectCanEditCurrentRoute)
   const shouldUseDraftOverlay = useDocumentSelector(selectShouldUseDraftOverlay)
   const isCollection = useDocumentSelector(selectIsCollection)
+  const [mainCommentsFooter, setMainCommentsFooter] = useState<HTMLDivElement | null>(null)
   const [pendingDocumentConversion, setPendingDocumentConversion] = useState<'collection' | 'document' | null>(null)
   const collectionQueryBlock = useDocumentSelector(selectCollectionQueryBlock)
   const send = useDocumentSend()
@@ -2185,7 +2234,7 @@ function DocumentBody({
 
   // Extract blockRef from route for scroll-to-block and highlighting
   const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
-  const {scrollToBlock} = useBlockScroll(routeBlockRef)
+  const {scrollToBlock} = useBlockScroll(routeBlockRef, {navigationKey: 'id' in route ? route.id : null})
 
   // On mount, sync URL hash (#blockId) into route if not already present
   useEffect(() => {
@@ -2235,6 +2284,9 @@ function DocumentBody({
   const siteMembers = useSiteMembers(isLocalOnlyDoc ? null : siteId)
   const directory = useDirectory(isLocalOnlyDoc ? null : docId)
   const interactionSummary = useInteractionSummary(isLocalOnlyDoc ? null : docId)
+  const commentsPanelSummary = useInteractionSummary(
+    !isLocalOnlyDoc && panelKey === 'comments' ? commentsPanelTarget.docId : null,
+  )
   const collaborators = useDocumentCollaborators(isLocalOnlyDoc ? null : docId)
   const peopleCount = useMemo(
     () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
@@ -2251,6 +2303,15 @@ function DocumentBody({
     [docId, document.version],
   )
   const citations = useCitations(citationsTargetId)
+  const connectionCount = useMemo(
+    () => groupDocumentConnections(docId, citations.data?.citations).length,
+    [docId, citations.data],
+  )
+  const isConnectionsPanel =
+    panelRoute?.key === 'activity' &&
+    !isDocumentVersionsPanelRoute(panelRoute) &&
+    (!!panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations')
+  const panelCitations = useCitations(isConnectionsPanel ? panelRoute.id ?? citationsTargetId : null)
 
   // Breadcrumbs: fetch parent documents for non-home docs
   const breadcrumbIds = useMemo(() => {
@@ -2403,7 +2464,12 @@ function DocumentBody({
       metadata: 'Attributes',
     }
     if (activeView !== 'content' && panelLabels[activeView]) {
-      items.push({label: panelLabels[activeView]})
+      items.push({
+        label:
+          route.key === 'activity' && activityFilterToSlug(route.filterEventType) === 'citations'
+            ? 'Connections'
+            : panelLabels[activeView],
+      })
     }
 
     // Append block text when a block is focused
@@ -2576,30 +2642,50 @@ function DocumentBody({
     [route, navigate, scrollToBlock],
   )
 
+  const commentDraftReferences = useCommentDraftReferences()
+  const commentQueryClient = useQueryClient()
+  const commentClient = useUniversalClient()
   const handleBlockCommentClick = useCallback(
-    (blockId?: string | null, blockRangeInput?: BlockRange | undefined, _startCommentingNow?: boolean) => {
+    async (blockId?: string | null, blockRangeInput?: BlockRange | undefined, _startCommentingNow?: boolean) => {
       if (route.key !== 'document' && route.key !== 'feed') return
       if (!blockId) return
-      // Validate blockRange has proper structure
-      const blockRange =
-        blockRangeInput && 'start' in blockRangeInput && 'end' in blockRangeInput ? blockRangeInput : null
-      navigate({
-        ...route,
-        id: {
-          ...route.id,
-          blockRef: blockId,
-          blockRange,
-        },
-        panel: {
-          key: 'comments',
-          id: route.id,
-          targetBlockId: blockId,
-          blockRange,
-          autoFocus: true,
-        },
-      })
+      try {
+        let resolvedThreadRootId: string | undefined
+        if (route.panel?.key === 'comments' && route.panel.openComment) {
+          const comments = await commentQueryClient.ensureQueryData(
+            queryDocumentComments(commentClient, commentsPanelTarget.docId),
+          )
+          const thread = getCommentThread(comments.comments, route.panel.openComment)
+          if (!thread || thread.root.replyParent) {
+            toast.error('The comment thread could not be loaded.')
+            return
+          }
+          resolvedThreadRootId = thread.root.id
+        }
+        const request = getBlockCommentDraftReference({
+          route,
+          sourceId: docId,
+          resolvedThreadRootId,
+          version: document.version,
+          blockId,
+          blockRange: blockRangeInput,
+        })
+        commentDraftReferences?.appendReference(request.reference)
+        if (request.route !== route) navigate(request.route)
+      } catch {
+        toast.error('The comment thread could not be loaded.')
+      }
     },
-    [route, navigate],
+    [
+      route,
+      navigate,
+      docId,
+      document.version,
+      commentDraftReferences?.appendReference,
+      commentQueryClient,
+      commentClient,
+      commentsPanelTarget.docId,
+    ],
   )
 
   // Block select handler (copy block link + navigate to update URL)
@@ -3035,8 +3121,7 @@ function DocumentBody({
         </div>
       )}
 
-      {/* DocumentTools - scrolls with the page; the border separates document
-          identity above from document body below. Hidden when showActivity is false. */}
+      {/* Document tools scroll with the page and are hidden when showActivity is false. */}
       {showActivity && showDocumentChrome && (
         <div className="px-5 py-1">
           <DocumentTools
@@ -3053,10 +3138,11 @@ function DocumentBody({
                   : activeView
             }
             currentPanel={panelRoute}
-            existingDraft={isEditing || !shouldUseDraftOverlay ? undefined : existingDraft}
+            currentRoute={route}
             commentsCount={interactionSummary.data?.comments || 0}
-            citationsCount={interactionSummary.data?.citations || 0}
+            citationsCount={connectionCount}
             collabsCount={peopleCount}
+            collaborators={collaborators.data}
             metadataCount={countCustomMetadataFields(metadata)}
             schemaCid={schemaDefinitionCid(metadata)}
             layoutProps={
@@ -3069,33 +3155,14 @@ function DocumentBody({
                     showSidebars,
                   }
             }
-            activeTabAction={
-              activeView !== 'content' &&
-              activeView !== 'site-profile' &&
-              activeView !== 'all-documents' &&
-              activeView !== 'schema' ? (
-                <OpenInPanelButton
-                  id={docId}
-                  panelRoute={
-                    route.key === activeView
-                      ? extractPanelRoute(route)
-                      : {
-                          key: activeView as Exclude<
-                            ActiveView,
-                            'content' | 'site-profile' | 'all-documents' | 'explore' | 'schema'
-                          >,
-                          id: docId,
-                        }
-                  }
-                />
-              ) : null
-            }
           />
         </div>
       )}
 
       {/* Main content based on activeView */}
-      <div className={cn('flex-1', activeView !== 'content' && 'pb-60', isMobile && 'px-4')}>
+      <div
+        className={cn('flex-1', activeView !== 'content' && activeView !== 'comments' && 'pb-60', isMobile && 'px-4')}
+      >
         <DocumentViewContent
           activeView={activeView}
           collection={
@@ -3104,45 +3171,47 @@ function DocumentBody({
             ) : undefined
           }
         >
-          <MainContent
-            docId={docId}
-            resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
-            document={document}
-            activeView={activeView}
-            contentMaxWidth={contentMaxWidth}
-            wrapperProps={wrapperProps}
-            sidebarProps={sidebarProps}
-            mainContentProps={mainContentProps}
-            showSidebars={showSidebars}
-            showCollapsed={showCollapsed}
-            discussionsParams={discussionsParams}
-            suppressCommentEditor={suppressMainCommentEditor}
-            activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
-            onActivityFilterChange={handleMainActivityFilterChange}
-            blockCitations={blockCitations}
-            citationFragmentHighlights={citationFragmentHighlights}
-            onCitationFragmentClick={handleCitationFragmentClick}
-            onBlockCitationClick={handleBlockCitationClick}
-            onBlockCommentClick={handleBlockCommentClick}
-            onBlockSelect={handleBlockSelect}
-            onTextSelection={handleTextSelection}
-            isUnpublishedDraft={isUnpublishedDraft}
-            isBlockInPublishedVersion={isBlockInPublishedVersion}
-            CommentEditor={CommentEditor}
-            directory={directory.data}
-            siteUrl={siteUrl}
-            inlineCards={inlineCards}
-            inlineInsert={inlineInsert}
-            DocumentContentComponent={DocumentContentComponent}
-            onEditorReady={handleEditorReadyWrapped}
-            existingDraftContent={effectiveContent}
-            existingDraftCursorPosition={existingDraftCursorPosition}
-            ssrContentHTML={ssrContentHTML}
-            perspectiveAccountUid={perspectiveAccountUid}
-            linkExtensionOptions={linkExtensionOptions}
-            fileUpload={fileUpload}
-            draftVersionEntry={draftVersionEntry}
-          />
+          <CommentsFooterContext.Provider value={mainCommentsFooter}>
+            <MainContent
+              docId={docId}
+              resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
+              document={document}
+              activeView={activeView}
+              contentMaxWidth={contentMaxWidth}
+              wrapperProps={wrapperProps}
+              sidebarProps={sidebarProps}
+              mainContentProps={mainContentProps}
+              showSidebars={showSidebars}
+              showCollapsed={showCollapsed}
+              discussionsParams={discussionsParams}
+              suppressCommentEditor={suppressMainCommentEditor}
+              activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
+              onActivityFilterChange={handleMainActivityFilterChange}
+              blockCitations={blockCitations}
+              citationFragmentHighlights={citationFragmentHighlights}
+              onCitationFragmentClick={handleCitationFragmentClick}
+              onBlockCitationClick={handleBlockCitationClick}
+              onBlockCommentClick={handleBlockCommentClick}
+              onBlockSelect={handleBlockSelect}
+              onTextSelection={handleTextSelection}
+              isUnpublishedDraft={isUnpublishedDraft}
+              isBlockInPublishedVersion={isBlockInPublishedVersion}
+              CommentEditor={CommentEditor}
+              directory={directory.data}
+              siteUrl={siteUrl}
+              inlineCards={inlineCards}
+              inlineInsert={inlineInsert}
+              DocumentContentComponent={DocumentContentComponent}
+              onEditorReady={handleEditorReadyWrapped}
+              existingDraftContent={effectiveContent}
+              existingDraftCursorPosition={existingDraftCursorPosition}
+              ssrContentHTML={ssrContentHTML}
+              perspectiveAccountUid={perspectiveAccountUid}
+              linkExtensionOptions={linkExtensionOptions}
+              fileUpload={fileUpload}
+              draftVersionEntry={draftVersionEntry}
+            />
+          </CommentsFooterContext.Provider>
         </DocumentViewContent>
         {citationFragmentClick ? (
           <CitationFragmentPopover
@@ -3163,6 +3232,11 @@ function DocumentBody({
     }
   }
 
+  const handleCommentsExpand = () => {
+    if (panelRoute?.key !== 'comments') return
+    navigate({...panelRoute, id: commentsPanelTarget.docId, panel: null})
+  }
+
   // Activity filter change handler (panel)
   const handleFilterChange = (filter: {filterEventType?: string[]}) => {
     if ((route.key === 'document' || route.key === 'feed') && route.panel?.key === 'activity') {
@@ -3179,10 +3253,50 @@ function DocumentBody({
       <ActivityHeader
         tab={panelRoute.tab}
         onTabChange={(tab) => replaceRoute({...route, panel: {...panelRoute, tab}} as NavRoute)}
-        onExpand={() => navigate({key: 'feed', id: hmId(panelRoute.id?.uid ?? docId.uid), tab: panelRoute.tab})}
+        onExpand={
+          isMobile
+            ? undefined
+            : () => navigate({key: 'feed', id: hmId(panelRoute.id?.uid ?? docId.uid), tab: panelRoute.tab})
+        }
         onClose={handlePanelClose}
       />
     ) : undefined
+
+  const connectionsPanelHeader = isConnectionsPanel ? (
+    <PanelHeader
+      title="Connections"
+      count={
+        groupDocumentConnections(panelRoute.id ?? docId, panelCitations.data?.citations, panelRoute.targetBlockId)
+          .length
+      }
+      onClose={handlePanelClose}
+      onExpand={
+        isMobile
+          ? undefined
+          : () =>
+              navigate({
+                key: 'activity',
+                id: {...(panelRoute.id ?? docId), blockRef: panelRoute.targetBlockId || null},
+                filterEventType: activitySlugToFilter('citations'),
+              })
+      }
+    />
+  ) : undefined
+
+  // Both layouts use the same panel content and reply navigation.
+  const panelContent = panelRoute ? (
+    <PanelContentRenderer
+      panelRoute={panelRoute}
+      docId={docId}
+      document={document}
+      contentMaxWidth={contentMaxWidth}
+      CommentEditor={CommentEditor}
+      siteUrl={siteUrl}
+      fileUpload={fileUpload}
+      draftVersionEntry={draftVersionEntry}
+      autoFocusComments={!isMobile}
+    />
+  ) : null
 
   // Mobile: use document scroll with bottom bar and panel sheet
   if (isMobile) {
@@ -3194,117 +3308,47 @@ function DocumentBody({
         >
           {documentTopBar}
           {mainPageContent}
+          {activeView === 'comments' && <div ref={setMainCommentsFooter} className="sticky bottom-20 z-10 shrink-0" />}
           {floatingButtonsAction}
         </div>
 
         {mobilePanelOpen && (
           <MobilePanelSheet
             isOpen={mobilePanelOpen}
-            title={
-              panelRoute?.key === 'activity' &&
-              (panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations')
-                ? 'Citations'
-                : getPanelTitle(panelKey)
-            }
+            title={isConnectionsPanel ? 'Connections' : getPanelTitle(panelKey)}
             onClose={handlePanelClose}
-            header={activityPanelHeader}
-            resizable={panelRoute?.key === 'feed'}
+            header={connectionsPanelHeader ?? activityPanelHeader}
+            resizable
+            scrollContent={panelKey !== 'comments' && panelKey !== 'feed'}
+            onBack={
+              panelRoute?.key === 'comments' && panelRoute.openComment && 'panel' in route
+                ? () => replaceRoute({...route, panel: {key: 'comments', id: commentsPanelTarget.docId}})
+                : undefined
+            }
+            count={panelKey === 'comments' ? commentsPanelSummary.data?.comments : undefined}
           >
-            {panelRoute?.key === 'feed' ? (
-              // The feed fills its parent's height and clips the rest. A parent without a fixed height lets it grow,
-              // so the sheet scrolls it.
-              <div>
-                <ActivityContent
-                  spaceId={hmId(panelRoute.id?.uid ?? docId.uid)}
-                  tab={panelRoute.tab}
-                  targetDomain={siteUrl}
-                />
-              </div>
-            ) : panelRoute && panelRoute.key !== 'comments' ? (
-              <PanelContentRenderer
-                panelRoute={panelRoute}
-                docId={docId}
-                document={document}
-                contentMaxWidth={contentMaxWidth}
-                CommentEditor={CommentEditor}
-                siteUrl={siteUrl}
-                fileUpload={fileUpload}
-                draftVersionEntry={draftVersionEntry}
-              />
-            ) : (
-              <DiscussionsPageContent
-                docId={commentsPanelTarget.docId}
-                showTitle={false}
-                showOpenInPanel={false}
-                contentMaxWidth={contentMaxWidth}
-                targetDomain={siteUrl}
-                openComment={commentsPanelTarget.openComment}
-                replyCommentId={panelRoute?.key === 'comments' ? panelRoute.replyCommentId : undefined}
-                targetBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-                blockId={panelRoute?.key === 'comments' ? panelRoute.blockId : undefined}
-                blockRange={panelRoute?.key === 'comments' ? panelRoute.blockRange : undefined}
-                commentEditor={
-                  CommentEditor ? (
-                    <CommentEditor
-                      key={
-                        panelRoute?.key === 'comments'
-                          ? getCommentEditorRouteKey({
-                              openComment: panelRoute.openComment,
-                              targetBlockId: panelRoute.targetBlockId,
-                              blockRange: panelRoute.blockRange,
-                            })
-                          : undefined
-                      }
-                      docId={commentsPanelTarget.docId}
-                      quotingBlockId={panelRoute?.key === 'comments' ? panelRoute.targetBlockId : undefined}
-                      quotingRange={
-                        panelRoute?.key === 'comments' ? extractQuotingRange(panelRoute.blockRange) : undefined
-                      }
-                      commentId={commentsPanelTarget.openComment}
-                      isReplying={
-                        panelRoute?.key === 'comments' ? panelRoute.isReplying ?? !!panelRoute.openComment : false
-                      }
-                      replyCommentVersion={panelRoute?.key === 'comments' ? panelRoute.replyCommentVersion : undefined}
-                      rootReplyCommentVersion={
-                        panelRoute?.key === 'comments' ? panelRoute.rootReplyCommentVersion : undefined
-                      }
-                      // On mobile, opening the keyboard during the sheet entrance
-                      // causes visible viewport jumps. Let the drawer settle and
-                      // let users tap the composer when they are ready to type.
-                      focusOnMount={false}
-                    />
-                  ) : undefined
-                }
-              />
-            )}
+            {panelContent}
           </MobilePanelSheet>
         )}
       </>
     )
   }
 
-  // Desktop: use PanelLayout with scrollable main content + optional panel
-  const panelContent = panelKey ? (
-    <ScrollArea className="flex-1">
-      <PanelContentRenderer
-        panelRoute={panelRoute!}
-        docId={docId}
-        document={document}
-        contentMaxWidth={contentMaxWidth}
-        CommentEditor={CommentEditor}
-        siteUrl={siteUrl}
-        fileUpload={fileUpload}
-        draftVersionEntry={draftVersionEntry}
-      />
-    </ScrollArea>
-  ) : null
-
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
       <PanelLayout
         panelKey={panelKey}
-        panelContent={panelContent}
+        panelContent={
+          panelKey === 'comments' ? panelContent : <ScrollArea className="flex-1">{panelContent}</ScrollArea>
+        }
         onPanelClose={handlePanelClose}
+        commentsCount={commentsPanelSummary.data?.comments}
+        onCommentsExpand={handleCommentsExpand}
+        onCommentsBack={
+          panelRoute?.key === 'comments' && panelRoute.openComment && 'panel' in route
+            ? () => replaceRoute({...route, panel: {key: 'comments', id: commentsPanelTarget.docId}})
+            : undefined
+        }
         isVersionsPanel={isDocumentVersionsPanelRoute(panelRoute)}
         isCitationsPanel={
           panelRoute?.key === 'activity' &&
@@ -3312,7 +3356,7 @@ function DocumentBody({
         }
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
-        header={activityPanelHeader}
+        header={connectionsPanelHeader ?? activityPanelHeader}
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
@@ -3330,6 +3374,7 @@ function DocumentBody({
               {mainPageContent}
             </ScrollArea>
           )}
+          {activeView === 'comments' && <div ref={setMainCommentsFooter} className="shrink-0" />}
           {activeView === 'content' && !documentPage ? (
             <Button
               ref={backToTopButtonRef}
@@ -3464,6 +3509,7 @@ function PanelContentRenderer({
   siteUrl,
   fileUpload,
   draftVersionEntry,
+  autoFocusComments = true,
 }: {
   panelRoute: DocumentPanelRoute
   docId: UnpackedHypermediaId
@@ -3473,6 +3519,7 @@ function PanelContentRenderer({
   siteUrl?: string
   fileUpload?: (file: File) => Promise<string>
   draftVersionEntry?: DraftVersionEntry
+  autoFocusComments?: boolean
 }) {
   switch (panelRoute.key) {
     case 'options':
@@ -3488,6 +3535,9 @@ function PanelContentRenderer({
         return (
           <DocumentVersionsPanel size="sm" docId={docId} targetDomain={siteUrl} draftVersionEntry={draftVersionEntry} />
         )
+      }
+      if (panelRoute.targetBlockId || activityFilterToSlug(panelRoute.filterEventType) === 'citations') {
+        return <ConnectionsPanel docId={panelRoute.id ?? docId} targetBlockId={panelRoute.targetBlockId} />
       }
       return (
         <Feed
@@ -3509,6 +3559,7 @@ function PanelContentRenderer({
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
           CommentEditor={CommentEditor}
+          autoFocus={autoFocusComments}
         />
       )
     case 'directory':
@@ -3516,7 +3567,7 @@ function PanelContentRenderer({
     case 'collaborators':
       return (
         <div className="p-4">
-          <CollaboratorsPage docId={docId} />
+          <CollaboratorsPage docId={panelRoute.id ?? docId} />
         </div>
       )
     case 'feed':
@@ -3536,6 +3587,7 @@ function CommentsPanelContent({
   contentMaxWidth,
   targetDomain,
   CommentEditor,
+  autoFocus = true,
 }: {
   docId: UnpackedHypermediaId
   openComment?: string
@@ -3543,15 +3595,18 @@ function CommentsPanelContent({
   contentMaxWidth: number
   targetDomain?: string
   CommentEditor?: React.ComponentType<CommentEditorProps>
+  autoFocus?: boolean
 }) {
   const commentsContext = useCommentsServiceContext()
   const route = useNavRoute()
+  const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
 
   const onReplyClick = useCallback(
     (comment: HMComment) => {
       if (!('panel' in route)) return
-      replaceRoute({
+      const navigateThread = openComment === (comment.threadRoot || comment.id) ? replaceRoute : navigate
+      navigateThread({
         ...route,
         panel: getCommentReplyPanelRoute({
           docId,
@@ -3560,13 +3615,14 @@ function CommentsPanelContent({
         }),
       } as NavRoute)
     },
-    [docId, replaceRoute, route],
+    [docId, navigate, openComment, replaceRoute, route],
   )
 
   const onReplyCountClick = useCallback(
     (comment: HMComment) => {
       if (!('panel' in route)) return
-      replaceRoute({
+      const navigateThread = openComment === (comment.threadRoot || comment.id) ? replaceRoute : navigate
+      navigateThread({
         ...route,
         panel: getCommentReplyPanelRoute({
           docId,
@@ -3574,15 +3630,15 @@ function CommentsPanelContent({
         }),
       } as NavRoute)
     },
-    [docId, replaceRoute, route],
+    [docId, navigate, openComment, replaceRoute, route],
   )
 
   return (
     <CommentsProvider {...commentsContext} onReplyClick={onReplyClick} onReplyCountClick={onReplyCountClick}>
       <DiscussionsPageContent
+        isPanel
         docId={docId}
         showTitle={false}
-        showOpenInPanel={false}
         contentMaxWidth={contentMaxWidth}
         targetDomain={targetDomain}
         openComment={openComment}
@@ -3605,7 +3661,7 @@ function CommentsPanelContent({
               isReplying={panelRoute.isReplying ?? !!openComment}
               replyCommentVersion={panelRoute.replyCommentVersion}
               rootReplyCommentVersion={panelRoute.rootReplyCommentVersion}
-              focusOnMount
+              focusOnMount={autoFocus && !!panelRoute.isReplying}
             />
           ) : undefined
         }
@@ -4667,11 +4723,16 @@ function MainContent({
           </PageLayout>
         )
       }
+      if (activityFilterToSlug(activityFilterEventType) === 'citations') {
+        return (
+          <PageLayout contentMaxWidth={contentMaxWidth}>
+            <ConnectionsPanel docId={docId} targetBlockId={docId.blockRef || undefined} />
+          </PageLayout>
+        )
+      }
       return (
         <PageLayout contentMaxWidth={contentMaxWidth}>
-          {activityFilterToSlug(activityFilterEventType) !== 'citations' && (
-            <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
-          )}
+          <FeedFilters filterEventType={activityFilterEventType} onFilterChange={onActivityFilterChange} />
           <Feed
             size="md"
             filterResource={docId.id}
@@ -4687,7 +4748,6 @@ function MainContent({
         <DiscussionsPageContent
           docId={docId}
           showTitle={false}
-          showOpenInPanel={false}
           contentMaxWidth={contentMaxWidth}
           targetDomain={siteUrl}
           openComment={discussionsParams?.openComment}

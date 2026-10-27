@@ -3,20 +3,13 @@ import React from 'react'
 import {hmId} from '@shm/shared'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
-import {afterEach, describe, expect, it, vi} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {commentBookmarkTitle, CommentDiscussions} from '../comments'
 import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {
-  focusedComment,
-  parentComment,
-  useCommentParentsMock,
-  useDocumentCommentsMock,
-  onBookmarkToggleMock,
-  currentRoute,
-} = vi.hoisted(() => {
+const {focusedComment, useDocumentCommentsMock, onBookmarkToggleMock, currentRoute} = vi.hoisted(() => {
   const focusedComment = {
     id: 'alice/comment',
     version: 'focused-version',
@@ -29,13 +22,10 @@ const {
     updateTime: {seconds: 0, nanos: 0},
     visibility: 'PUBLIC',
   }
-  const parentComment = {...focusedComment, id: 'alice/parent', version: 'parent-version'}
 
   return {
     focusedComment,
-    parentComment,
     currentRoute: {value: {key: 'document', panel: null} as any},
-    useCommentParentsMock: vi.fn<() => any>(() => null),
     useDocumentCommentsMock: vi.fn<() => any>(() => ({
       data: null,
       error: null,
@@ -49,8 +39,6 @@ vi.mock('@shm/shared', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shm/shared')>()
   return {
     ...actual,
-    useCommentGroups: () => ({data: []}),
-    useCommentParents: useCommentParentsMock,
     useRouteLink: () => ({href: '#', onClick: vi.fn()}),
     useUniversalAppContext: () => ({}),
   }
@@ -140,16 +128,16 @@ function renderCommentDiscussions(selection?: {blockId: string; blockRange: {sta
   act(() => {
     root!.render(
       <TooltipProvider>
-        <CommentDiscussions
-          targetId={hmId('alice', {path: ['doc']})}
-          commentId="alice/comment"
-          selection={selection}
-          commentEditor={<div data-testid="comment-editor">Editor</div>}
-        />
+        <CommentDiscussions targetId={hmId('alice', {path: ['doc']})} commentId="alice/comment" selection={selection} />
       </TooltipProvider>,
     )
   })
 }
+
+beforeEach(() => {
+  // jsdom does not implement the browser scroll API used by thread focus.
+  HTMLElement.prototype.scrollIntoView = vi.fn()
+})
 
 afterEach(() => {
   if (root) {
@@ -158,38 +146,75 @@ afterEach(() => {
   container?.remove()
   root = null
   container = null
-  useCommentParentsMock.mockReturnValue(null)
   useDocumentCommentsMock.mockReturnValue({data: null, error: null, isLoading: true})
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
-  vi.useRealTimers()
+  Reflect.deleteProperty(navigator, 'clipboard')
   onBookmarkToggleMock.mockReset()
   currentRoute.value = {key: 'document', panel: null}
 })
 
 describe('CommentDiscussions', () => {
-  it('keeps the comment editor mounted in the reply composer slot while the focused thread is loading', () => {
-    renderCommentDiscussions()
-
-    expect(document.body.querySelector('[data-testid="comment-editor"]')).not.toBeNull()
-  })
-
-  it('keeps the focused comment at the top after rendering its parents', () => {
-    vi.useFakeTimers()
+  it('scrolls the selected root into view when the thread loads', () => {
     const scrollIntoView = vi.fn()
     HTMLElement.prototype.scrollIntoView = scrollIntoView
-    useCommentParentsMock.mockReturnValue({thread: [parentComment, focusedComment]})
     useDocumentCommentsMock.mockReturnValue({
-      data: {comments: [parentComment, focusedComment], authors: {}},
+      data: {comments: [focusedComment], authors: {}},
       error: null,
       isLoading: false,
     })
 
     renderCommentDiscussions()
 
-    act(() => vi.advanceTimersByTime(100))
-
     expect(scrollIntoView).toHaveBeenCalledWith({behavior: 'instant', block: 'start'})
   })
+
+  it.each(['panel', 'expanded'] as const)(
+    'copies optimistic replies within their resolved root in %s links',
+    async (layout) => {
+      let copied = ''
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: async (text: string) => {
+            copied = text
+          },
+        },
+      })
+      const id = {...hmId('alice', {path: ['doc']}), pageParams: {filter: '"active"'}}
+      const thread = {key: 'comments', id, openComment: focusedComment.id}
+      currentRoute.value = layout === 'expanded' ? thread : {key: 'document', id, panel: thread}
+      const reply = {
+        ...focusedComment,
+        id: 'bob/reply',
+        author: 'bob',
+        replyParent: focusedComment.id,
+        threadRootVersion: focusedComment.version,
+      }
+      useDocumentCommentsMock.mockReturnValue({
+        data: {comments: [focusedComment, reply], authors: {}},
+        error: null,
+        isLoading: false,
+      })
+      renderCommentDiscussions()
+      const buttons = Array.from(container!.querySelectorAll<HTMLButtonElement>('button')).filter((button) =>
+        button.querySelector('.lucide-link'),
+      )
+      expect(buttons).toHaveLength(2)
+      await act(async () => buttons[1]!.click())
+      const url = new URL(copied)
+      expect(url.searchParams.get('reply')).toBe(reply.id)
+      expect(url.searchParams.get('p.filter')).toBe('"active"')
+      if (layout === 'panel') {
+        expect(url.pathname).toBe('/hm/alice/doc')
+        expect(url.searchParams.get('panel')).toBe(`comments/${focusedComment.id}`)
+      } else {
+        expect(url.pathname).toBe(`/hm/alice/doc/:comments/${focusedComment.id}`)
+        expect(url.searchParams.has('panel')).toBe(false)
+      }
+      await act(async () => buttons[0]!.click())
+      expect(new URL(copied).searchParams.has('reply')).toBe(false)
+    },
+  )
 
   it('bookmarks a comment snapshot from the comment header', () => {
     useDocumentCommentsMock.mockReturnValue({

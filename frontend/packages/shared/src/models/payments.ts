@@ -1,7 +1,7 @@
 import {HMInvoice, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useMutation, useQuery} from '@tanstack/react-query'
 import {useEffect} from 'react'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 import {LIGHTNING_API_URL} from '../constants'
 import {invalidateQueries} from './query-client'
 import {queryKeys} from './query-keys'

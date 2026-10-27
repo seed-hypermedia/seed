@@ -2,6 +2,7 @@ import type {MentionThreadContext} from '@shm/shared/models/mention-ranking'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {HMBlockNode, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {useCommentDraftReferences, type CommentDraftReference} from '@shm/shared/comments-service-provider'
 import {blocksHaveDraftContent} from './comment-editor-draft-content'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {useOpenUrl, useUniversalClient, writeableStateStream} from '@shm/shared'
@@ -274,6 +275,7 @@ export function CommentEditor({
   siteUid,
   documentId,
   mentionThread,
+  referenceTarget,
   initialBlocks,
   onContentChange,
   onAvatarPress,
@@ -282,6 +284,7 @@ export function CommentEditor({
   universalClient,
   getDraftMediaBlob,
   hideAvatar,
+  compact = false,
   hideSubmitToolbar,
   submitHandleRef,
   disableTrailingNode,
@@ -322,6 +325,8 @@ export function CommentEditor({
   documentId?: UnpackedHypermediaId
   /** Loaded participants in the conversation being replied to. */
   mentionThread?: MentionThreadContext
+  /** Accept document references only for this active comment draft, never inline edits. */
+  referenceTarget?: {documentId: string; commentId?: string}
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => void
   onAvatarPress?: () => void
@@ -344,6 +349,8 @@ export function CommentEditor({
     }
   }>
   getDraftMediaBlob?: (draftId: string, mediaId: string) => Promise<Blob | null>
+  /** Render a compact field with its submit button outside the border. */
+  compact?: boolean
   /** Hide the leading avatar */
   hideAvatar?: boolean
   /** Hide the built-in footer toolbar when submit controls are rendered outside the editor. */
@@ -385,6 +392,9 @@ export function CommentEditor({
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const tx = useTx()
   const isInitializedRef = useRef(false)
+  const [isDraftReady, setIsDraftReady] = useState(false)
+  const draftReferences = useCommentDraftReferences()
+  const insertedReferences = useRef(new WeakSet<CommentDraftReference>())
   const contentChangeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasLocalEditsRef = useRef(false)
   const isApplyingInitialBlocksRef = useRef(false)
@@ -536,9 +546,14 @@ export function CommentEditor({
 
   // Initialize editor with draft content and rehydrate media
   useEffect(() => {
-    if (!initialBlocks || initialBlocks.length === 0 || isInitializedRef.current || !editor) return
+    if (!editor || isInitializedRef.current) return
+    if (!initialBlocks?.length) {
+      setIsDraftReady(true)
+      return
+    }
     if (hasLocalEditsRef.current) {
       isInitializedRef.current = true
+      setIsDraftReady(true)
       return
     }
 
@@ -605,6 +620,8 @@ export function CommentEditor({
       } catch (error) {
         isApplyingInitialBlocksRef.current = false
         console.error('Failed to initialize editor with draft content:', error)
+      } finally {
+        setIsDraftReady(true)
       }
     }
 
@@ -667,6 +684,51 @@ export function CommentEditor({
       flushContentChange()
     }
   }, [editor, onContentChange])
+
+  useEffect(() => {
+    if (!referenceTarget || !draftReferences || !isDraftReady) return
+    const pending = draftReferences.references.filter(
+      (reference) =>
+        reference.documentId === referenceTarget.documentId &&
+        reference.commentId === referenceTarget.commentId &&
+        !insertedReferences.current.has(reference),
+    )
+    if (!pending.length) return
+    if (!isExpanded) {
+      setIsExpanded(true)
+      return
+    }
+    let didInsert = false
+    for (const reference of pending) {
+      // A URL can be opened again after this editor remounts with its saved draft.
+      // Consume that request without duplicating an embed already in the content.
+      const existing = crawlEditorBlocks(
+        editor.topLevelBlocks as EditorBlock[],
+        (block) => block.type === 'embed' && block.props.url === reference.link,
+      )
+      if (existing.length) {
+        insertedReferences.current.add(reference)
+        draftReferences.consumeReference(reference)
+        continue
+      }
+      const lastBlock = editor.topLevelBlocks.at(-1)
+      if (!lastBlock) continue
+      const embed = {type: 'embed' as const, props: {url: reference.link, view: 'Content' as const}}
+      if (lastBlock.type === 'paragraph' && !lastBlock.content?.length && !lastBlock.children.length) {
+        // Reuse the editor's empty trailing paragraph as the new typing position.
+        editor.insertBlocks([embed], lastBlock, 'before')
+      } else {
+        editor.insertBlocks([embed, {type: 'paragraph', content: []}], lastBlock, 'after')
+      }
+      insertedReferences.current.add(reference)
+      draftReferences.consumeReference(reference)
+      didInsert = true
+    }
+    if (!didInsert) return
+    hasLocalEditsRef.current = true
+    flushContentChange()
+    editor._tiptapEditor.commands.focus('end')
+  }, [draftReferences, referenceTarget?.documentId, referenceTarget?.commentId, isDraftReady, isExpanded, editor])
 
   useEffect(() => {
     if (hasDraftContent && !isExpanded) {
@@ -953,7 +1015,7 @@ export function CommentEditor({
   return (
     <>
       <div className="flex w-full items-start gap-2">
-        {hideAvatar ? null : (
+        {hideAvatar || compact ? null : (
           <div className="flex shrink-0 grow-0">
             {account?.metadata ? (
               <LinkIcon id={account.id} metadata={account.metadata} size={32} />
@@ -965,6 +1027,7 @@ export function CommentEditor({
         <div
           className={cn(
             'bg-muted border-border dark:border-muted-foreground/20 focus-within:border-ring/60 w-full min-w-0 flex-1 rounded-lg border transition-[filter,border-color,background-color]',
+            compact && 'bg-card rounded-xl',
             isExpanded
               ? ''
               : 'hover:border-black/10 hover:brightness-[1.01] active:brightness-95 dark:hover:border-white/10',
@@ -1031,8 +1094,13 @@ export function CommentEditor({
         >
           <div
             className={cn(
-              'hm-prose is-comment comment-editor max-h-[160px] min-h-20 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto md:max-h-full',
-              isExpanded ? 'justify-start px-3 pt-1 pb-2' : 'justify-center',
+              'hm-prose is-comment comment-editor w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto',
+              compact ? 'max-h-40 min-h-12' : 'max-h-[160px] min-h-20 md:max-h-full',
+              isExpanded
+                ? 'justify-start px-3 pt-1 pb-2'
+                : compact
+                  ? 'flex items-center justify-center'
+                  : 'justify-center',
             )}
             // marginTop="$1"
 
@@ -1078,7 +1146,7 @@ export function CommentEditor({
               </Button>
             )}
           </div>
-          {!hideSubmitToolbar ? (
+          {!hideSubmitToolbar && (!compact || (isExpanded && isMobile)) ? (
             <div ref={toolbarRef} className={cn('mx-2 mb-2 flex gap-2', isMobile ? 'justify-between' : 'justify-end')}>
               {isExpanded && isMobile && (
                 <div className="flex items-center gap-2">
@@ -1111,16 +1179,11 @@ export function CommentEditor({
                 </div>
               )}
 
-              <div className="flex gap-2">
-                {submitButton({
-                  reset,
-                  disabled: !isExpanded,
-                  getContent,
-                })}
-              </div>
+              {!compact && <div className="flex gap-2">{submitButton({reset, disabled: !isExpanded, getContent})}</div>}
             </div>
           ) : null}
         </div>
+        {compact && !hideSubmitToolbar && submitButton({reset, disabled: !isExpanded, getContent})}
       </div>
 
       {/* Mobile dialogs */}

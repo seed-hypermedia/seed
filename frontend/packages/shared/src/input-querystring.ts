@@ -1,4 +1,4 @@
-import {z} from 'zod/v3'
+import {z} from 'zod'
 
 /**
  * Reserved query param key for non-object inputs (string, number, boolean).
@@ -43,7 +43,7 @@ export function serializeQueryString<T>(data: T, _schema?: z.ZodType<T>): string
  * Deserializes a URL query string using a Zod schema.
  * If the query contains only a __value key, returns the primitive value directly.
  */
-export function deserializeQueryString<T>(queryString: string, schema: z.ZodType<T, z.ZodTypeDef, any>): T {
+export function deserializeQueryString<T>(queryString: string, schema: z.ZodType<T>): T {
   // Remove leading '?' if present
   const cleanQuery = queryString.startsWith('?') ? queryString.slice(1) : queryString
 

@@ -68,6 +68,16 @@ export function getBlockFragment(node: HMBlockNode, range: BlockRange | null): H
   }
 }
 
+/** Creates a plain-text preview without changing the source block or its annotations. */
+export function getPlainTextQuote(node: HMBlockNode) {
+  const {block} = node
+  if (block.type !== 'Paragraph' && block.type !== 'Heading' && block.type !== 'Code') return null
+  return {
+    block: {id: block.id, type: 'Paragraph' as const, text: block.text, attributes: {}, annotations: []},
+    children: [],
+  }
+}
+
 /** Finds a block node by ID with support for undefined input. */
 export function getBlockNode(blockNodes: HMBlockNode[] | undefined, blockId: string): HMBlockNode | null {
   if (!blockNodes) return null

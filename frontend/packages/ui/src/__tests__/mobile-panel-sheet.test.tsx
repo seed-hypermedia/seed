@@ -109,6 +109,16 @@ describe('MobilePanelSheet', () => {
     expect(onClose).toHaveBeenCalledOnce()
   })
 
+  it('keeps the panel open when the browser cancels a drag', () => {
+    const {onClose} = renderSheet()
+    const handle = document.body.querySelector('[data-slot="mobile-panel-drag-handle"]')!
+    act(() => dispatchPointerEvent(handle, 'pointerdown', 100))
+    act(() => dispatchPointerEvent(handle, 'pointermove', 320))
+    act(() => dispatchPointerEvent(handle, 'pointercancel', 320))
+    act(() => dispatchPointerEvent(handle, 'pointerup', 320))
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('closes on Escape', () => {
     const {onClose} = renderSheet()
 
@@ -135,13 +145,13 @@ describe('resizable MobilePanelSheet', () => {
     return document.body.querySelector<HTMLElement>('[data-slot="mobile-panel-sheet"]')!
   }
 
-  it('opens at about 60% of the screen', () => {
+  it('opens at about 65% of the screen', () => {
     const sheet = renderResizable()
     expect(sheet.dataset.snap).toBe('partial')
-    expect(sheet.style.height).toBe('60dvh')
+    expect(sheet.style.height).toBe(`${window.innerHeight * 0.65}px`)
   })
 
-  it('toggles between 60% and full height when the handle is tapped', () => {
+  it('toggles between 65% and full height when the handle is tapped', () => {
     const sheet = renderResizable()
     const handle = document.body.querySelector('[data-slot="mobile-panel-drag-handle"]')!
     act(() => handle.dispatchEvent(new MouseEvent('click', {bubbles: true})))

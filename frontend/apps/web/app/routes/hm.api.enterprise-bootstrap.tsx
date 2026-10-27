@@ -8,7 +8,7 @@ import {createDocumentBlobs, type PrincipalSigner} from '@seed-hypermedia/client
 import * as keyfile from '@seed-hypermedia/client/keyfile'
 import {SITE_BASE_URL} from '@shm/shared/constants'
 import {base58btc} from 'multiformats/bases/base58'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 
 /**
  * First-deploy bootstrap of an enterprise node: creates the organization's

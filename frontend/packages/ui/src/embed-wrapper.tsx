@@ -26,6 +26,24 @@ function isInteractiveEmbedClickTarget(event: MouseEvent<HTMLElement>) {
 
 /** Builds a document route for an embed while retaining the currently active panel. */
 export function getEmbedDocumentRoute(id: UnpackedHypermediaId, currentRoute: NavRoute): DocumentRoute {
+  if (currentRoute.key === 'comments' && currentRoute.openComment) {
+    return {
+      key: 'document',
+      id:
+        currentRoute.id.id === id.id && id.blockRef
+          ? {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange}
+          : id,
+      panel: {
+        key: 'comments',
+        id: currentRoute.id,
+        openComment: currentRoute.openComment,
+        replyCommentId: currentRoute.replyCommentId,
+      },
+    }
+  }
+  if (currentRoute.key === 'document' && currentRoute.id.id === id.id && id.blockRef) {
+    return {...currentRoute, id: {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange}}
+  }
   const panel = getRoutePanel(currentRoute) as DocumentPanelRoute | null
   return panel ? {key: 'document', id, panel} : {key: 'document', id}
 }
@@ -66,7 +84,7 @@ export function EmbedWrapper({
     return route
   }, [route, currentRoute])
 
-  const linkProps = useRouteLink(openOnClick && effectiveRoute ? effectiveRoute : null)
+  const linkProps = useRouteLink(openOnClick && effectiveRoute ? effectiveRoute : null, {replace: !!id?.blockRef})
   const {onClick: routeOnClick, tag: _routeTag, ...linkAttributes} = linkProps
   const sourceLink = useRef<HTMLAnchorElement>(null)
   const canNavigate = !!(openOnClick && effectiveRoute)
@@ -110,6 +128,10 @@ export function EmbedWrapper({
   return (
     <div
       contentEditable={false}
+      onMouseDownCapture={(event) => {
+        // Let the browser select text, but keep ProseMirror from selecting the embed node.
+        if (canNavigate && !isInteractiveEmbedClickTarget(event)) event.stopPropagation()
+      }}
       className={cn(
         'block-embed hm-prose flex flex-col',
         blockStyles,
@@ -121,9 +143,6 @@ export function EmbedWrapper({
       data-content-type="embed"
       data-url={packHmId(id)}
       data-view={viewType}
-      data-blockid={
-        id && id.blockRange && 'expanded' in id.blockRange && id.blockRange.expanded ? id?.blockRef : undefined
-      }
       data-resourceid={id?.blockRef ? undefined : id?.id}
       onClick={canNavigate ? openSource : undefined}
       onAuxClick={canNavigate ? openSource : undefined}
@@ -155,7 +174,7 @@ export function FragmentEmbedControls({
   const toggleLabel = expanded ? `Hide full ${sourceLabel}` : `Show full ${sourceLabel}`
   const Caret = expanded ? ChevronUp : ChevronDown
   return (
-    <div className="bg-muted/30 relative min-h-8 rounded-sm py-1">
+    <div className="bg-primary/5 relative min-h-8 rounded-sm py-1">
       {children}
       <Tooltip content={toggleLabel} asChild>
         <Button

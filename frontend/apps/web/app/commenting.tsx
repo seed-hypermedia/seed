@@ -1,3 +1,4 @@
+import {CommentAudience} from '@shm/ui/members-facepile'
 import {useCreateAccount} from '@/auth'
 import {reportError} from '@/report-error'
 import {useLocation, useNavigate as useRemixNavigate} from '@remix-run/react'
@@ -54,6 +55,8 @@ import {isPerfEnabled, markCommentSubmitEnd, markCommentSubmitStart, markEditorL
 type PublishCommentInput = Awaited<ReturnType<typeof createComment>>
 
 export type WebCommentingProps = {
+  /** Use the compact panel-footer editor. */
+  compact?: boolean
   docId: UnpackedHypermediaId
   /** Comment ID from CommentEditorProps - used to resolve reply parent */
   commentId?: string | null
@@ -73,6 +76,7 @@ export type WebCommentingProps = {
 }
 
 export default function WebCommenting({
+  compact,
   docId,
   commentId,
   isReplying,
@@ -98,7 +102,7 @@ export default function WebCommenting({
   // Resolve reply parent from commentId when explicit version props aren't provided
   const commentsService = useDocumentComments(docId)
   const resolvedReply = useMemo(() => {
-    const id = replyCommentIdProp || commentId
+    const id = commentId || replyCommentIdProp
     if (!id) return null
     const comment = commentsService.data?.comments?.find((c) => c.id === id)
     if (!comment) return null
@@ -109,7 +113,7 @@ export default function WebCommenting({
     }
   }, [replyCommentIdProp, commentId, commentsService.data?.comments])
 
-  const replyCommentId = replyCommentIdProp || resolvedReply?.replyCommentId
+  const replyCommentId = commentId || replyCommentIdProp || resolvedReply?.replyCommentId
   const replyCommentVersion = replyCommentVersionProp || resolvedReply?.replyCommentVersion
   const rootReplyCommentVersion = rootReplyCommentVersionProp || resolvedReply?.rootReplyCommentVersion
   const isReplyEditor = isReplying || !!replyCommentId || !!commentId
@@ -459,6 +463,8 @@ export default function WebCommenting({
   return (
     <div className="w-full">
       <CommentEditor
+        compact={compact}
+        referenceTarget={{documentId: docId.id, commentId: replyCommentId || undefined}}
         key={`${draftId}-${editorGeneration}`}
         focusOnMount={focusOnMount ?? autoFocus}
         isReplying={isReplyEditor}
@@ -497,11 +503,13 @@ export default function WebCommenting({
               )}
             >
               <button
+                aria-label="Send comment"
                 disabled={isSubmitting || disabled}
                 className={cn(
                   buttonVariants({size: 'icon', variant: 'default'}),
                   publishButtonEventClass,
-                  'flex items-center justify-center rounded-sm p-2',
+                  'flex items-center justify-center p-2',
+                  compact ? 'size-12 shrink-0 rounded-full' : 'rounded-sm',
                   (isSubmitting || disabled) && 'cursor-not-allowed opacity-50',
                 )}
                 onClick={() => handleSubmit(getContent, reset)}
@@ -517,6 +525,7 @@ export default function WebCommenting({
         siteUid={docId.uid}
         documentId={docId}
       />
+      {compact && <CommentAudience docId={docId} />}
       {createAccountContent}
       {emailNotificationsPromptContent}
     </div>

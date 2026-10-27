@@ -145,9 +145,7 @@ export function getEventNavigationRoute(
  * right panel, so the document stays in view. Other events go to their target.
  */
 export function getActivityEventRoute(event: LoadedEvent): NavRoute | null {
-  const route = getEventRoute(event)
-  if (route?.key !== 'comments') return route
-  return {key: 'document', id: route.id, panel: {key: 'comments', id: route.id, openComment: route.openComment}}
+  return getEventRoute(event)
 }
 
 export function Feed({
@@ -997,15 +995,16 @@ function CitationSourceBlock({sourceId}: {sourceId: UnpackedHypermediaId}) {
   return <Viewer blocks={[blockNode]} resourceId={sourceId} textUnit={14} layoutUnit={16} />
 }
 
+/** Opens comment events in their document panel and other events at their source. */
 export function getEventRoute(event: LoadedEvent): NavRoute | null {
   if (event.type == 'comment') {
-    // Navigate to the full comments page with the comment focused in the main panel
+    // Keep the containing document visible while focusing the comment thread.
     if (!event.target?.id || !event.comment) return null
 
     return {
-      key: 'comments' as const,
+      key: 'document',
       id: event.target.id,
-      openComment: event.comment.id,
+      panel: {key: 'comments', id: event.target.id, openComment: event.comment.id},
     }
   }
 
@@ -1054,12 +1053,12 @@ export function getEventRoute(event: LoadedEvent): NavRoute | null {
     // Navigate to the target document (the document being cited)
     if (!event.source?.id) return null
 
-    // For comment citations, open the comment in the full comments page
+    // For comment citations, open the source document with its comment panel.
     if (event.citationType === 'c' && event.comment) {
       return {
-        key: 'comments' as const,
+        key: 'document',
         id: event.source.id,
-        openComment: event.comment.id,
+        panel: {key: 'comments', id: event.source.id, openComment: event.comment.id},
       }
     }
 

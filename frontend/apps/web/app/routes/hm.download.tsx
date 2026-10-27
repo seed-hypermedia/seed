@@ -15,7 +15,7 @@ import {Button} from '@shm/ui/button'
 import {Download, Linux, Macos, Win32} from '@shm/ui/icons'
 import {SizableText} from '@shm/ui/text'
 import {useEffect, useState} from 'react'
-import {z} from 'zod/v3'
+import {z} from 'zod'
 import {Container} from '../ui/container'
 
 async function isArm64(): Promise<boolean | null> {

@@ -107,3 +107,10 @@ it('legacy batch discussion remains eligible when account mentions are not enabl
   expect(sent.mock.calls[0]?.[4]).toMatchObject({feedbackId: 'batch'})
   expect(getAllNotifications(owner)).toHaveLength(0)
 })
+
+it.each([blob, mention])('comment notification emails target the containing document panel (%p)', async (makeEvent) => {
+  await processImmediateNotifications([makeEvent()])
+  expect(sent).toHaveBeenCalledTimes(1)
+  const emailContent = (sent.mock.calls[0]![2] as {text: string}).text
+  expect(decodeURIComponent(emailContent)).toContain(`/hm/${owner}/post?panel=comments/${id}`)
+})

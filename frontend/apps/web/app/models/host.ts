@@ -5,7 +5,7 @@ import {SEED_HOST_URL} from '@shm/shared/constants'
 import {getQueryClient} from '@shm/shared/models/query-client'
 import {useMutation, useQuery, type MutateOptions} from '@tanstack/react-query'
 import {useEffect, useRef, useSyncExternalStore} from 'react'
-import z from 'zod/v3'
+import z from 'zod'
 
 /** Hosting API AbsorbResponseSchema contract, shared with the desktop hosting flow. */
 export const AbsorbResponseSchema = z.discriminatedUnion('status', [

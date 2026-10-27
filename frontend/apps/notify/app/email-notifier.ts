@@ -1370,6 +1370,7 @@ async function buildVerifiedResourceUrl(
     siteOwnerUid: string
     path?: string[] | null
     viewTerm?: string | null
+    panel?: string | null
     blockRef?: string | null
   },
 ): Promise<string> {
@@ -1382,6 +1383,7 @@ async function buildVerifiedResourceUrl(
           hostname: opts.siteUrl,
           path: opts.path,
           viewTerm: opts.viewTerm,
+          panel: opts.panel,
           blockRef: opts.blockRef,
           originHomeId: hmId(opts.siteOwnerUid),
         })
@@ -1393,6 +1395,7 @@ async function buildVerifiedResourceUrl(
     hostname: fallbackSiteBaseUrl,
     path: opts.path,
     viewTerm: opts.viewTerm,
+    panel: opts.panel,
     blockRef: opts.blockRef,
   })
 }
@@ -1482,10 +1485,11 @@ async function evaluateMentionEventForNotifications(
     if (!sourceCommentId || !commentPath) {
       return
     }
-    mentionUrl = await buildVerifiedResourceUrl(sourceCommentId.uid, {
+    mentionUrl = await buildVerifiedResourceUrl(sourceDocId.uid, {
       siteUrl,
       siteOwnerUid: sourceDocId.uid,
-      path: [commentPath],
+      path: sourceDocId.path,
+      panel: `comments/${sourceCommentId.uid}/${commentPath}`,
     })
     try {
       const sourceBlobCid = mentionEvent.sourceBlob?.cid
@@ -1640,10 +1644,11 @@ async function evaluateNewCommentForNotifications(
     throw new Error('Invalid comment ID format: ' + comment.id)
   }
   const commentSiteUrl = targetDocumentSiteUrl || targetAccountSiteUrl
-  const commentUrl = await buildVerifiedResourceUrl(comment.author, {
+  const commentUrl = await buildVerifiedResourceUrl(targetDocId.uid, {
     siteUrl: commentSiteUrl,
     siteOwnerUid: comment.targetAccount,
-    path: [commentTSID],
+    path: targetDocId.path,
+    panel: `comments/${comment.id}`,
   })
 
   // Get all mentioned users in this comment

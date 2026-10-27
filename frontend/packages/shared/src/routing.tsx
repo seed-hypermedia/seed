@@ -1,7 +1,8 @@
+import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
 import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
 import {createContext, useContext} from 'react'
-import z from 'zod/v3'
+import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
 import type {NavRoute} from './routes'
 import type {LanguagePack} from './translation'
@@ -9,9 +10,8 @@ import type {UniversalClient} from './universal-client'
 import {
   activityFilterToSlug,
   getRoutePanelParam,
-  hmIdToURL,
+  getRouteReplyCommentId,
   hypermediaUrlToRoute,
-  idToUrl,
   isViewTermPath,
   routeToHmUrl,
   routeToUrl,
@@ -402,6 +402,12 @@ export function routeToHref(
       const separator = href.includes('?') ? '&' : '?'
       href += `${separator}panel=${panelParam}`
     }
+    const replyCommentId = getRouteReplyCommentId(route)
+    if (replyCommentId) {
+      href += `${href.includes('?') ? '&' : '?'}reply=${replyCommentId}`
+    }
+    const pageInput = pageParamsQuery(route.id.pageParams)
+    if (pageInput) href += `${href.includes('?') ? '&' : '?'}${pageInput}`
     // Append block fragment if present
     if (route.id.blockRef) {
       href += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
@@ -415,19 +421,12 @@ export function routeToHref(
   if (typeof route == 'string') {
     href = route
   } else if (docRoute && docId) {
-    const panelParam = getRoutePanelParam(docRoute)
     href = options?.hmUrlHref
-      ? hmIdToURL(docId)
-      : idToUrl(
-          {
-            ...docId,
-            hostname: options?.origin || null,
-          },
-          {
-            originHomeId: options?.originHomeId,
-            panel: panelParam,
-          },
-        )
+      ? routeToHmUrl(docRoute) ?? undefined
+      : routeToUrl(docRoute, {
+          hostname: options?.origin || null,
+          originHomeId: options?.originHomeId,
+        }) ?? undefined
   }
   return href
 }
