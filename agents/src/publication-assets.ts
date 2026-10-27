@@ -12,6 +12,11 @@ export type AssetCheck = PublicationAsset & {status: 'checked' | 'pending-public
 const MAX_ASSETS = 64
 const SAMPLE_BYTES = 1024
 const CONCURRENCY = 4
+// node:http forwards these socket options; its RequestOptions type omits them.
+const FAMILY_OPTIONS: Pick<net.TcpNetConnectOpts, 'autoSelectFamily' | 'autoSelectFamilyAttemptTimeout'> = {
+  autoSelectFamily: true,
+  autoSelectFamilyAttemptTimeout: 250,
+}
 const PRIVATE_V4 = new net.BlockList()
 for (const [ip, prefix] of [
   ['0.0.0.0', 8],
@@ -98,8 +103,7 @@ export async function probePublicAsset(raw: string, signal: AbortSignal): Promis
         {
           signal,
           agent: false,
-          autoSelectFamily: true,
-          autoSelectFamilyAttemptTimeout: 250,
+          ...FAMILY_OPTIONS,
           lookup: (_host, options, callback) => {
             if (options.all) callback(null, addresses)
             else callback(null, pinned.address, pinned.family)
