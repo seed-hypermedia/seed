@@ -1,5 +1,6 @@
 import {getQueryBlockInput} from '@shm/editor/query-block-input'
 import {renderDocumentToHTML} from '@shm/editor/ssr-render'
+import {resolveDocumentDisplay} from '@shm/shared/space-settings'
 import {hmBlockToEditorBlock} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {Code, ConnectError} from '@connectrpc/connect'
 import {redirect} from '@remix-run/react'
@@ -538,7 +539,10 @@ async function loadResourcePayload(
         queryClient: prefetchCtx.queryClient,
         // The mounted editor's content width: contentWidth setting minus the
         // px-4 content padding. Media with absolute px widths size against it.
-        editorWidth: getContentWidthValue(document.metadata?.contentWidth) - 32,
+        // Resolved against the space's setting the same way the page does, so
+        // the server render matches the width the client settles on.
+        editorWidth:
+          getContentWidthValue(resolveDocumentDisplay(document.metadata, homeDocument?.metadata).contentWidth) - 32,
         // The same context values WebSiteProvider passes on the client, so
         // block components produce identical URLs server-side.
         appContext: {

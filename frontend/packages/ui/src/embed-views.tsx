@@ -31,6 +31,7 @@ import {ContentEmbed} from './content-embed'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {EmbedWrapper, getEmbedDocumentRoute} from './embed-wrapper'
 import {DocumentCard} from './newspaper'
+import {useSpaceSettings} from './space-settings'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
@@ -511,6 +512,9 @@ export function BlockEmbedComments({
   // Check tombstone on latest version for version-pinned embeds.
   const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : null
   const latestCheck = useResource(latestCheckId)
+  // The comments belong to the embedded document, so its own space decides
+  // whether new conversations can start here.
+  const {showConversations} = useSpaceSettings(id?.uid)
 
   if (resolved.isLoading) return <Spinner />
   if (resolved.error) return <ErrorBlock message={`Could not resolve embed: ${String(resolved.error)}`} />
@@ -526,7 +530,7 @@ export function BlockEmbedComments({
   }
 
   const isDeleted = resource.isTombstone || latestCheck.data?.type === 'tombstone' || latestCheck.isTombstone
-  const CommentEditor = client.CommentEditor
+  const CommentEditor = showConversations ? client.CommentEditor : undefined
 
   const content = (
     <EmbedWrapper id={id} parentBlockId={parentBlockId} hideBorder openOnClick={openOnClick}>
