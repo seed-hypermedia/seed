@@ -12,6 +12,8 @@ import {
 } from '@/utils/publish-utils'
 import {useNavigate} from '@/utils/useNavigate'
 import {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {schemaRefKey} from '@seed-hypermedia/client/schema-subtypes'
+import {APP_MOUNT_TYPE} from '@shm/ui/agents/apps'
 import {useResource} from '@shm/shared/models/entity'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
@@ -48,6 +50,14 @@ export default function PublishDraftButton() {
   const draft = useDraft(draftId)
   const pushOnPublish = usePushOnPublish()
   const editId = draftRoute.editUid ? hmId(draftRoute.editUid, {path: draftRoute.editPath}) : draftEditId(draft.data)
+  // A draft typed App Mount installs an app when it is published, and the person got here from the
+  // Apps dialog's Mount button, so the button names that act; "Publish" would read as another one.
+  // The type may be spelled by its library name or CID (one key) or by the docs space's page URL.
+  const draftType = draft.data?.metadata.attributesSchema
+  const draftTypeKey = typeof draftType === 'string' ? schemaRefKey(draftType) : null
+  const isAppMount =
+    draftTypeKey !== null &&
+    (draftTypeKey === schemaRefKey(APP_MOUNT_TYPE) || draftTypeKey.endsWith('/agent/app-mount'))
 
   const deleteDraft = useMutation({
     mutationFn: (draftId: string) => client.drafts.delete.mutate(draftId),
@@ -374,10 +384,18 @@ export default function PublishDraftButton() {
       {publishErrorFeedback.content}
       <SaveIndicatorStatus />
       <Popover {...popoverState}>
-        <Tooltip content={signingAccount ? `Publish as ${signingAccount?.metadata?.name}` : 'Publish Document…'}>
+        <Tooltip
+          content={
+            isAppMount
+              ? 'Publishing this page mounts the app for this space'
+              : signingAccount
+                ? `Publish as ${signingAccount?.metadata?.name}`
+                : 'Publish Document…'
+          }
+        >
           <PopoverTrigger asChild>
             <Button size="sm" variant="brand">
-              Publish
+              {isAppMount ? 'Mount' : 'Publish'}
             </Button>
           </PopoverTrigger>
         </Tooltip>
@@ -465,7 +483,7 @@ export default function PublishDraftButton() {
 
             <div className="flex flex-col gap-1">
               <Button size="sm" variant="brand" onClick={handlePublishPress}>
-                Publish: Make it live now
+                {isAppMount ? 'Mount: publish this page now' : 'Publish: Make it live now'}
               </Button>
               <Button size="sm" variant="ghost" onClick={() => popoverState.onOpenChange(false)}>
                 Cancel

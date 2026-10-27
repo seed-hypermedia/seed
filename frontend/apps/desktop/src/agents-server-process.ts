@@ -7,6 +7,7 @@ import * as readline from 'node:readline'
 import path from 'path'
 import {userDataPath} from './app-paths'
 import {getStoredSetting, writeStoredSetting} from './app-settings-store'
+import {getDefaultConvertRelayUrl} from './agents-defaults'
 import {getAgentsServerBinaryPath, getAgentsServerWorkingDirectory} from './agents-server-path'
 import * as log from './logger'
 import {forceKillChildProcess} from './win32-process'
@@ -249,6 +250,9 @@ async function spawnAgentsServer(): Promise<string> {
     // Subscription sign-in is a server opt-in; the desktop enables it for the server
     // it owns because it can catch the OAuth redirect on localhost:1455 itself.
     `--subscription-auth=true`,
+    // The local server has no Datalab key, so its agents' `convert` tool asks the hosted server,
+    // which bills the agent's own identity account.
+    `--convert-relay-url=${getDefaultConvertRelayUrl()}`,
   ]
 
   log.info('Starting local agents server', {binaryPath, port, args})
