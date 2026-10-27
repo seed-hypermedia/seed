@@ -8,8 +8,8 @@ import {DOCUMENT_PAGE_SDK_VERSION, DOCUMENT_PAGE_METHODS} from '@shm/shared/docu
 
 /** Most files a document page folder may hold. */
 export const MAX_DOCUMENT_PAGE_FILES = 256
-/** Most bytes a document page folder may hold in total. */
-export const MAX_DOCUMENT_PAGE_BYTES = 16 * 1024 * 1024
+/** Most bytes a document page folder may hold in total (1 GiB). */
+export const MAX_DOCUMENT_PAGE_BYTES = 1024 * 1024 * 1024
 
 /** Parse executable output without executing it, and enforce the selected runtime's asset contract. */
 export function validateDocumentPage(files: IpfsDirectoryFile[], target: unknown = 'web-desktop') {

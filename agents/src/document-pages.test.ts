@@ -34,6 +34,17 @@ describe('document page folders', () => {
       bytes: 12,
     })
   })
+  test('accepts folders and single HTML pages larger than 16 MiB', () => {
+    const dir = state()
+    const content = '<!doctype html>' + ' '.repeat(16 * 1024 * 1024)
+    memory.writeMemoryFile(dir, 'pages/large/index.html', content)
+    const folder = pages.collectDocumentPageFiles(dir, 'pages/large')
+    const single = pages.collectDocumentPageFiles(dir, 'pages/large/index.html')
+    expect(folder.bytes).toBe(content.length)
+    expect(single.bytes).toBe(content.length)
+    expect(folder.files).toHaveLength(1)
+    expect(single.files).toHaveLength(1)
+  })
   test('refuses folders without an index, non-HTML single files, and paths outside memory', () => {
     const dir = state()
     memory.writeMemoryFile(dir, 'pages/noindex/page.js', 'x')
