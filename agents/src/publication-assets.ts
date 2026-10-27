@@ -62,8 +62,10 @@ export function collectPublicationAssets(nodes: HMBlockNode[], metadata: HMMetad
   const visit = (list: HMBlockNode[]) => {
     for (const node of list) {
       const block = node.block
-      if (block && (block.type === 'Image' || block.type === 'Video' || block.type === 'File'))
+      if (block && (block.type === 'Image' || block.type === 'Video' || block.type === 'File')) {
+        if (!block.link?.trim()) throw new Error(`${block.type} block has no asset URL`)
         add(block.link, block.type)
+      }
       if (node.children?.length) visit(node.children)
     }
   }
@@ -230,7 +232,6 @@ export async function checkPublicationAssets(
   assets: PublicationAsset[],
   options: {
     gateway: string
-    stagedCids?: Set<string>
     deferIpfs?: boolean
     probe?: typeof probePublicAsset
     timeoutMs?: number
@@ -257,7 +258,7 @@ export async function checkPublicationAssets(
           if (url.startsWith('ipfs://')) {
             const cid = url.slice(7)
             CID.parse(cid) // file links must name a complete CID, not arbitrary gateway paths
-            if (options.deferIpfs || options.stagedCids?.has(cid)) {
+            if (options.deferIpfs) {
               results.set(url, 'pending')
               continue
             }

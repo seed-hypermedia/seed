@@ -14,6 +14,10 @@ const node = (url: string, children: HMBlockNode[] = []) =>
   ({block: {id: 'image', type: 'Image', link: url, attributes: {}}, children}) as HMBlockNode
 
 describe('publication asset collection and validation', () => {
+  test('does not silently omit a media block with no URL', () => {
+    expect(() => assets.collectPublicationAssets([node('')])).toThrow('no asset URL')
+    expect(() => assets.collectPublicationAssets([node('   ')])).toThrow('no asset URL')
+  })
   test('uses parsed nested block URLs and metadata, deduplicates, ignores paragraph links', () => {
     expect(
       assets.collectPublicationAssets([node('https://one', [node('https://two')]), node('https://one')], {
@@ -95,7 +99,7 @@ describe('publication asset collection and validation', () => {
     expect(
       await assets.checkPublicationAssets([image(`ipfs://${CID}`)], {
         gateway: 'https://hyper.media',
-        stagedCids: new Set([CID]),
+        deferIpfs: true,
         probe,
       }),
     ).toMatchObject([{status: 'pending-publication'}])

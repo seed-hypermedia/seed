@@ -15689,12 +15689,12 @@ async function writeDocumentCreate(
   const path = normalizeDocumentPath(request.input.path, documentName)
   await ensureParentDocumentExists(client, account, path)
   await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
-  const assets = await preflightDocumentAssets(client, parsed.blocks, metadata)
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
   const capability = await requireWriteCapability(client, account, signer.publicKey, path)
   const typed = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
+  const assets = await preflightDocumentAssets(client, parsed.blocks, metadata)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: `hm://${account}${path}`,
