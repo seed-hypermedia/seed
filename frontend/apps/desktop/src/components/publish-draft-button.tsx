@@ -373,7 +373,7 @@ export default function PublishDraftButton() {
       <Popover {...popoverState}>
         <Tooltip content={signingAccount ? `Publish as ${signingAccount?.metadata?.name}` : 'Publish Document…'}>
           <PopoverTrigger asChild>
-            <Button size="sm" variant="default">
+            <Button size="sm" variant="brand">
               Publish
             </Button>
           </PopoverTrigger>
@@ -461,7 +461,7 @@ export default function PublishDraftButton() {
             <Separator className="bg-black/10 dark:bg-white/10" />
 
             <div className="flex flex-col gap-1">
-              <Button size="sm" variant="default" onClick={handlePublishPress}>
+              <Button size="sm" variant="brand" onClick={handlePublishPress}>
                 Publish: Make it live now
               </Button>
               <Button size="sm" variant="ghost" onClick={() => popoverState.onOpenChange(false)}>

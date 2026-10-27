@@ -441,7 +441,7 @@ function VaultSettings() {
                   label="Not connected"
                   description="Sign in to sync your identities across devices."
                   action={
-                    <Button variant="outline" size="sm" onClick={openConnectDialog}>
+                    <Button variant="secondary" size="sm" onClick={openConnectDialog}>
                       Connect
                     </Button>
                   }

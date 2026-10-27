@@ -52,7 +52,7 @@ export function RemoteVaultReminder() {
         </Button>
         <Button
           size="sm"
-          variant="outline"
+          variant="secondary"
           onClick={() => {
             reminder.setPreference({
               remindLaterUntilMs: Date.now() + REMIND_LATER_MS,

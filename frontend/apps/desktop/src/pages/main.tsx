@@ -335,7 +335,7 @@ function ConfirmConnectionDialogContent({input, onClose}: {input: string; onClos
         </div>
       ) : null}
       <Button
-        variant="default"
+        variant="brand"
         onClick={() => {
           console.log('Will attempt connection:', input)
           connect.mutate(input)

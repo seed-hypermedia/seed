@@ -22,7 +22,7 @@ export function AccountSettingsHeader({
     <div className="flex items-center gap-3">
       <AccountSettingsTabs activeTab={activeTab} onTabChange={onTabChange} className="flex-1" />
       {onOpenProfile ? (
-        <Button variant="default" className="shrink-0" onClick={onOpenProfile}>
+        <Button variant="green" className="shrink-0" onClick={onOpenProfile}>
           <ExternalLink className="size-4" />
           My Profile
         </Button>
