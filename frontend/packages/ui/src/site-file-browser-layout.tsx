@@ -16,6 +16,8 @@ export interface SiteFileBrowserLayoutProps
   siteName: string
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
+  /** Leaves the space's documents out of the sidebar, per the space's settings. */
+  hideBrowser?: boolean
   children: ReactNode
 }
 
@@ -25,9 +27,11 @@ export function SiteFileBrowserLayout(props: SiteFileBrowserLayoutProps) {
   if (IS_DESKTOP && sidebar) {
     return (
       <>
-        <SiteSidebarPortal>
-          <SiteSidebarDocuments {...props} />
-        </SiteSidebarPortal>
+        {props.hideBrowser ? null : (
+          <SiteSidebarPortal>
+            <SiteSidebarDocuments {...props} />
+          </SiteSidebarPortal>
+        )}
         {props.children}
       </>
     )
@@ -40,6 +44,7 @@ function WebSiteSidebarLayout({
   mobileOpen,
   onMobileOpenChange,
   siteName,
+  hideBrowser,
   ...props
 }: SiteFileBrowserLayoutProps) {
   const media = useMedia()
@@ -79,14 +84,16 @@ function WebSiteSidebarLayout({
       onNavigate={props.onNavigate}
       onAfterNavigate={closeDrawer}
     >
-      <SiteSidebarDocuments
-        {...props}
-        onNavigate={(id) => {
-          closeDrawer()
-          props.onNavigate(id)
-        }}
-        onCreate={closeDrawer}
-      />
+      {hideBrowser ? null : (
+        <SiteSidebarDocuments
+          {...props}
+          onNavigate={(id) => {
+            closeDrawer()
+            props.onNavigate(id)
+          }}
+          onCreate={closeDrawer}
+        />
+      )}
     </SiteSidebar>
   )
   const updateOpen = (value: boolean) => {

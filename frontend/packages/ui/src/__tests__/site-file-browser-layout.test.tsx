@@ -47,7 +47,7 @@ afterEach(() => {
   container.remove()
 })
 
-function Page() {
+function Page({hideBrowser}: {hideBrowser?: boolean}) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [path, setPath] = useState('Home')
   return (
@@ -59,6 +59,7 @@ function Page() {
         mobileOpen={mobileOpen}
         onMobileOpenChange={setMobileOpen}
         onNavigate={(id) => setPath(id.path!.join('/'))}
+        hideBrowser={hideBrowser}
       >
         <SiteSidebarToggle />
         <main>{path}</main>
@@ -121,5 +122,20 @@ describe('unified site sidebar layout', () => {
     act(() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})))
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     await vi.waitFor(() => expect(document.activeElement).toBe(toggle))
+  })
+
+  it('leaves the documents out of the open sidebar when the space hides the browser', () => {
+    localStorage.setItem('seed.site-sidebar.open', 'true')
+    act(() => root.render(<Page hideBrowser />))
+    expect(container.querySelector('aside')).not.toBeNull()
+    expect(container.textContent).not.toContain('Open document')
+  })
+
+  it('leaves the documents out of the mobile drawer when the space hides the browser', () => {
+    media.xs = true
+    act(() => root.render(<Page hideBrowser />))
+    clickToggle()
+    expect(document.querySelector('[role="dialog"] aside')).not.toBeNull()
+    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain('Open document')
   })
 })
