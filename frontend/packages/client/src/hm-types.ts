@@ -1012,6 +1012,28 @@ export const HMBlockTableColumnSchema = z
   })
   .strict()
 
+/** A shared View uses the same filter semantics as temporary reader controls. */
+export const HMQueryViewFilterSchema = z.object({
+  columnId: z.string(),
+  operator: z.enum(['contains', 'equals', 'notEquals', 'greaterThan', 'lessThan']),
+  value: z.string(),
+})
+
+/** The default View of a Query block, published with the containing document. */
+export const HMQueryViewSchema = z.object({filters: z.array(HMQueryViewFilterSchema)})
+export type HMQueryView = z.infer<typeof HMQueryViewSchema>
+
+/** Invalid draft data must not crash reader controls. Publishing validates it strictly. */
+export function parseHMQueryViewJSON(raw: string | undefined): HMQueryView | undefined {
+  if (!raw) return undefined
+  try {
+    const parsed = HMQueryViewSchema.safeParse(JSON.parse(raw))
+    return parsed.success ? parsed.data : undefined
+  } catch {
+    return undefined
+  }
+}
+
 export const HMBlockQuerySchema = z
   .object({
     type: z.literal('Query'),
@@ -1023,6 +1045,7 @@ export const HMBlockQuerySchema = z
       query: HMQuerySchema,
       banner: z.boolean().optional().default(false),
       table: HMQueryTableConfigSchema.optional(),
+      view: HMQueryViewSchema.optional(),
     }),
   })
   .strict()
@@ -1875,15 +1898,7 @@ export const HMQueryBlockInputSchema = z.object({
   viewer: z
     .object({
       search: z.string().optional(),
-      filters: z
-        .array(
-          z.object({
-            columnId: z.string(),
-            operator: z.enum(['contains', 'equals', 'notEquals', 'greaterThan', 'lessThan']),
-            value: z.string(),
-          }),
-        )
-        .optional(),
+      filters: z.array(HMQueryViewFilterSchema).optional(),
     })
     .optional(),
 })

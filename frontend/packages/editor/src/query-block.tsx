@@ -10,7 +10,8 @@ import {
 import {entityQueryPathToHmIdPath, useRenderResourceStack} from '@shm/shared'
 import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useDebounce} from '@shm/shared/utils/use-debounce'
-import {useEditorGate} from '@shm/shared/models/use-editor-gate'
+import {useQueryViewFilters} from '@shm/shared/models/use-query-view-filters'
+import {useCanEditCurrentRoute, useEditorGate} from '@shm/shared/models/use-editor-gate'
 import {QueryBlockDraftSlotData, useQueryBlockDrafts} from '@shm/shared/query-block-drafts-context'
 import {useUniversalClient} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -67,6 +68,9 @@ export const QueryBlock = createReactBlockSpec({
     },
     queryFilters: {
       default: defaultQueryFilters,
+    },
+    queryView: {
+      default: '',
     },
     banner: {
       default: 'false',
@@ -143,27 +147,8 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [block.props, containerKey],
   )
-  const [viewerSearch, setViewerSearch] = useState('')
-  const [viewerFilters, setViewerFilters] = useState<NonNullable<NonNullable<HMQueryBlockInput['viewer']>['filters']>>(
-    [],
-  )
-  const debouncedViewerSearch = useDebounce(viewerSearch.trim(), 250)
-  const queryBlockInput = useMemo<HMQueryBlockInput | null>(() => {
-    if (!baseQueryBlockInput) return null
-    const filters = viewerFilters.filter((filter) => filter.value.trim())
-    if (!debouncedViewerSearch && !filters.length) return baseQueryBlockInput
-    return {
-      ...baseQueryBlockInput,
-      viewer: {
-        ...(debouncedViewerSearch ? {search: debouncedViewerSearch} : {}),
-        ...(filters.length ? {filters} : {}),
-      },
-    }
-  }, [baseQueryBlockInput, debouncedViewerSearch, viewerFilters])
-  const queryBlock = useQuery(queryQueryBlock(client, queryBlockInput))
-  const sortedItems = queryBlock.data?.results ?? []
-
   const {canEdit, beginEditIfNeeded} = useEditorGate()
+  const canEditCurrentRoute = useCanEditCurrentRoute()
   const [isSelected, setIsSelected] = useState(false)
   const [isFocusedWithin, setIsFocusedWithin] = useState(false)
 
@@ -175,6 +160,29 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
     },
     [editor, block.id, beginEditIfNeeded],
   )
+
+  const [viewerSearch, setViewerSearch] = useState('')
+  const [viewerFilters, setViewerFilters] = useQueryViewFilters({
+    scope: `${containerKey}/${container?.version ?? ''}/${block.id}`,
+    view: block.props.queryView,
+    canEdit: canEditCurrentRoute,
+    onChange: (queryView) => assign({queryView}),
+  })
+  const debouncedViewerSearch = useDebounce(viewerSearch.trim(), 250)
+  const queryBlockInput = useMemo<HMQueryBlockInput | null>(() => {
+    if (!baseQueryBlockInput) return null
+    const filters = viewerFilters.filter((filter) => filter.value.trim())
+    if (!debouncedViewerSearch && !filters.length && !baseQueryBlockInput.viewer) return baseQueryBlockInput
+    return {
+      ...baseQueryBlockInput,
+      viewer: {
+        ...(debouncedViewerSearch ? {search: debouncedViewerSearch} : {}),
+        ...(filters.length || baseQueryBlockInput.viewer ? {filters} : {}),
+      },
+    }
+  }, [baseQueryBlockInput, debouncedViewerSearch, viewerFilters])
+  const queryBlock = useQuery(queryQueryBlock(client, queryBlockInput))
+  const sortedItems = queryBlock.data?.results ?? []
 
   const interactionSummaries = queryBlock.data?.interactionSummaries ?? {}
   const itemContributors = useMemo(() => {
@@ -261,7 +269,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   return (
     <BlockSelectionWrapper editor={editor} block={block} onSelectionChange={setIsSelected} selectOnMouseDown>
       <div
-        className="group relative -mx-4 flex flex-col px-4 select-none"
+        className="group relative -mx-4 flex select-none flex-col px-4"
         onFocusCapture={() => setIsFocusedWithin(true)}
         onBlurCapture={handleBlurCapture}
       >
@@ -672,7 +680,7 @@ function QuerySearch({
       {showSearch && SearchInputComponent ? (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowSearch(false)} />
-          <div className="no-window-drag border-muted bg-background absolute -top-2 -left-2 z-40 h-[260px] min-h-[80%] w-[calc(100%+16px)] max-w-[800px] rounded-md border p-2 shadow-lg">
+          <div className="no-window-drag border-muted bg-background absolute -left-2 -top-2 z-40 h-[260px] min-h-[80%] w-[calc(100%+16px)] max-w-[800px] rounded-md border p-2 shadow-lg">
             <SearchInputComponent
               onClose={() => setShowSearch(false)}
               allowWebURL={allowWebURL}

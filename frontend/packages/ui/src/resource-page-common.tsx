@@ -1,6 +1,7 @@
 import {ConnectionsPanel} from './connections-panel'
 import {PanelHeader} from './panel-header'
 import {groupDocumentConnections} from '@shm/shared/connections'
+import {useQueryViewFilters} from '@shm/shared/models/use-query-view-filters'
 import {useQueryClient} from '@tanstack/react-query'
 import {getCommentThread} from '@shm/shared/comments'
 import {queryDocumentComments} from '@shm/shared/models/queries'
@@ -4332,9 +4333,15 @@ export function DocumentCollection({
   const columnCount = props?.columnCount || '3'
   const banner = props?.banner === 'true'
   const [viewerSearch, setViewerSearch] = useState('')
-  const [viewerFilters, setViewerFilters] = useState<NonNullable<NonNullable<HMQueryBlockInput['viewer']>['filters']>>(
-    [],
-  )
+  const [viewerFilters, setViewerFilters] = useQueryViewFilters({
+    scope: `${docId.id}/${docId.version ?? ''}/${queryBlock?.id ?? ''}`,
+    view: props?.queryView,
+    canEdit,
+    onChange: (queryView) => {
+      beginEditIfNeeded()
+      send({type: 'collection.query.change', props: {queryView}})
+    },
+  })
   const debouncedViewerSearch = useDebounce(viewerSearch.trim(), 250)
   const queryInput = useMemo<HMQueryBlockInput | null>(() => {
     if (!includes.length) return null
@@ -4462,7 +4469,7 @@ export function DocumentCollection({
   }
 
   return (
-    <div className="w-full px-5 pt-4 pb-8">
+    <div className="w-full px-5 pb-8 pt-4">
       <div className="border-border bg-background overflow-hidden rounded-xl border">
         {DraftSlot ? <DraftSlot targetId={docId}>{renderContent}</DraftSlot> : renderContent(null)}
       </div>
