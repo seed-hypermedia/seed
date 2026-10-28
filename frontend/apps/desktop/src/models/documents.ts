@@ -443,8 +443,7 @@ export function usePublishResource(
             account: resolvedDestinationId.uid,
             baseVersion,
             path: docPath,
-            // allChanges is DocumentChange[] from shared helpers; structurally compatible with plain change objects
-            changes: allChanges as any,
+            changes: allChanges,
             capability: capabilityId,
             visibility,
             genesis: baseVersion ? editDocument?.genesis : undefined,

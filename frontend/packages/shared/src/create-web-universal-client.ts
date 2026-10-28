@@ -1,3 +1,4 @@
+import {documentChangesToPlain} from './utils/document-changes'
 import type {JSX} from 'react'
 import {
   createDocumentChange,
@@ -40,6 +41,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
   async function publishDocument(input: PublishDocumentInput): Promise<void> {
     if (!deps.getSigner) throw new Error('getSigner is required for publishDocument')
     const signer = deps.getSigner(input.signerAccountUid)
+    const changes = documentChangesToPlain(input.changes)
 
     // Brand-new home documents need their deterministic genesis change created
     // and signed client-side. For metadata-only account creation we can create
@@ -52,7 +54,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
       if (input.changes.every((change) => change.op?.case === 'setMetadata')) {
         const contentChange = await createDocumentChange(
           {
-            changes: input.changes,
+            changes,
             genesisCid: genesisChange.cid,
             deps: [genesisChange.cid],
             depth: 1,
@@ -108,7 +110,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
       account: input.account,
       path: input.path,
       baseVersion: input.baseVersion,
-      changes: input.changes,
+      changes,
       capability: input.capability,
       visibility: input.visibility,
     })) as Extract<HMRequest, {key: 'PrepareDocumentChange'}>['output']
