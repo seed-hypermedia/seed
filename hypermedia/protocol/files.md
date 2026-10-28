@@ -27,7 +27,7 @@ A typed attribute uses the [ipfs-url](../ipfs-url.md) schema type to say "this v
 
 ## Visibility follows the link <!-- id:pW39Clyv -->
 
-A file block has no visibility of its own. When it is first stored it is treated as **private**. It becomes public as soon as any public blob links to it, directly or through another DAG-PB node. The indexer passes visibility along every link type into DAG-PB and raw blocks. So a public document's image and all of its chunks are public, and a private document's image stays private. If the only document linking a file is deleted or made private, the file follows. <!-- id:6Buine9d -->
+A file block has no visibility of its own. When it is first stored it is treated as **private**. It becomes public as soon as any public blob links to it, directly or through another DAG-PB node. The indexer passes visibility along every link type into DAG-PB and raw blocks. So a public document's image and all of its chunks are public, and a private document's image stays private. Visibility only accumulates: a file once public stays public, whatever later happens to the documents that linked it. <!-- id:6Buine9d -->
 
 This surprises people: **a file uploaded on its own is not public**. Publishing the blocks stores them, and the uploader's local daemon can fetch them back. A gateway in server mode denies anonymous reads until a published document, comment or profile references the `ipfs://` URL; authorized bearer callers can still read private files. This rule stops a Seed node from acting as anonymous public file hosting. Link the file from something public, and it appears. <!-- id:Iuhj83rQ -->
 
