@@ -51,7 +51,9 @@ Foundations shows every discovered color, type, spacing, shape and elevation. Co
 discover every `**/*.stories.tsx` module and use Storybook's portable composition API. Module/story decorators and the
 real preview annotations are retained; the preview theme decorator receives the canvas's selected mode. A sticky index
 links the four sections. Story groups mount when within 600px of the viewport and retain local state thereafter; tall
-stories have bounded local overflow. The index counts mounted successful/fallback tiles.
+stories have bounded local overflow. The index shows the complete story count and static policy-classified
+Storybook-only count, independent of which tiles have mounted. Unexpected inline rendering errors still show a fallback
+without changing these catalogue totals.
 
 Stories with hardcoded open overlays, page permission/parameter modals without closed-state inputs and non-null image
 crop inputs remain isolated in Storybook; their tiles explain why. Ordinary overlay stories are composed closed when

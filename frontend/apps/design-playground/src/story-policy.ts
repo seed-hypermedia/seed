@@ -1,3 +1,14 @@
+/** Count the complete catalogue and its policy fallbacks without mounting story components. */
+export function countStories(stories: {title: string; args: Record<string, unknown>; source: string}[]): {
+  total: number
+  storybookOnly: number
+} {
+  return {
+    total: stories.length,
+    storybookOnly: stories.filter(({title, args, source}) => inlineStoryReason(title, args, source)).length,
+  }
+}
+
 /** Close the public overlay inputs while leaving all other story args unchanged. */
 export function closedOverlayArgs(args: Record<string, unknown>): Record<string, false> {
   return Object.fromEntries(

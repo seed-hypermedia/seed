@@ -3,7 +3,7 @@ import {composeStories, composeStory, setProjectAnnotations} from '@storybook/re
 import preview from '../../../packages/ui/.storybook/preview'
 import {storyUrl} from './Canvas'
 import type {Mode} from './theme'
-import {closedOverlayArgs, inlineStoryReason} from './story-policy'
+import {closedOverlayArgs, countStories, inlineStoryReason} from './story-policy'
 
 type StoryModule = Parameters<typeof composeStories>[0]
 const modules = import.meta.glob<StoryModule>('../../../packages/ui/src/**/*.stories.tsx', {eager: true})
@@ -14,15 +14,45 @@ const sources = import.meta.glob<string>('../../../packages/ui/src/**/*.stories.
 })
 setProjectAnnotations(preview)
 
+function composeGroup(
+  module: StoryModule,
+  mode: Mode,
+): {stories: Record<string, ReturnType<typeof composeStory>>; reason: string} {
+  try {
+    return {
+      stories: composeStories(module, {
+        ...preview,
+        parameters: {...preview.parameters, themes: {themeOverride: mode}},
+        initialGlobals: {theme: mode},
+      }) as Record<string, ReturnType<typeof composeStory>>,
+      reason: '',
+    }
+  } catch (error) {
+    return {stories: {}, reason: String(error)}
+  }
+}
+
 /** Automatically discovered CSF modules, split by the stories' own navigation titles. */
 export const storyGroups = Object.entries(modules)
   .map(([file, module]) => ({
     file,
     module,
+    composed: composeGroup(module, 'light'),
     title: String(module.default.title ?? file.split('/').pop()),
     page: String(module.default.title).startsWith('Pages/'),
   }))
   .sort((a, b) => a.title.localeCompare(b.title))
+
+/** Static catalogue totals classified by the same policy used for inline story tiles. */
+export const storyTotals = countStories(
+  storyGroups.flatMap((group) =>
+    Object.values(group.composed.stories).map((Story) => ({
+      title: group.title,
+      args: Story.args,
+      source: sources[group.file] ?? '',
+    })),
+  ),
+)
 
 class StoryBoundary extends Component<{children: ReactNode}, {reason: string}> {
   state = {reason: ''}
@@ -58,20 +88,7 @@ const StoryGroup = memo(function StoryGroup({group, mode}: {group: (typeof story
     if (root.current) observer.observe(root.current)
     return () => observer.disconnect()
   }, [])
-  const composed = useMemo<{stories: Record<string, ReturnType<typeof composeStory>>; reason: string}>(() => {
-    try {
-      return {
-        stories: composeStories(group.module, {
-          ...preview,
-          parameters: {...preview.parameters, themes: {themeOverride: mode}},
-          initialGlobals: {theme: mode},
-        }) as Record<string, ReturnType<typeof composeStory>>,
-        reason: '',
-      }
-    } catch (error) {
-      return {stories: {}, reason: String(error)}
-    }
-  }, [group, mode])
+  const composed = useMemo(() => (mode === 'light' ? group.composed : composeGroup(group.module, mode)), [group, mode])
   return (
     <div className="story-group" ref={root} data-story-group={group.title}>
       <h3>{group.title.replace(/^(Components|Pages)\//, '')}</h3>

@@ -1,9 +1,9 @@
-import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react'
+import {useEffect, useLayoutEffect, useMemo, useState, type ReactNode} from 'react'
 import {Leaf, Menu, X, RotateCcw, Sun, Moon, ArrowUpRight} from 'lucide-react'
 import {Text} from '@shm/ui/text'
 import themeSource from '@shm/ui/theme.css?raw'
 import {Canvas, storybookBase} from './Canvas'
-import {Stories} from './Stories'
+import {Stories, storyTotals} from './Stories'
 import {
   colorNames,
   groupColors,
@@ -121,8 +121,6 @@ export function App() {
   const [panelOpen, setPanelOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [notice, setNotice] = useState('')
-  const [count, setCount] = useState({rendered: 0, fallback: 0})
-  const main = useRef<HTMLElement>(null)
   const overrides = useMemo(() => themeOverrides(theme, state), [state])
   const css = useMemo(() => overrideCss(overrides, theme), [overrides])
   const changed = new Set(
@@ -158,19 +156,6 @@ export function App() {
       removeEventListener('pointerup', release)
       removeEventListener('keydown', keyboard)
     }
-  }, [])
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      if (main.current) {
-        const rendered = main.current.querySelectorAll('.story-tile [data-story-status="rendered"]').length
-        const fallback = main.current.querySelectorAll('.story-tile [data-story-status="fallback"]').length
-        setCount((previous) =>
-          previous.rendered === rendered && previous.fallback === fallback ? previous : {rendered, fallback},
-        )
-      }
-    })
-    if (main.current) observer.observe(main.current, {childList: true, subtree: true})
-    return () => observer.disconnect()
   }, [])
   const matches = (name: string) => name.toLowerCase().includes(search.toLowerCase())
   const numeric = (
@@ -450,7 +435,7 @@ export function App() {
             </a>
           ))}
           <span>
-            {count.rendered} rendered · {count.fallback} Storybook only
+            {storyTotals.total} stories · {storyTotals.storybookOnly} Storybook-only
           </span>
         </nav>
         {notice && (
@@ -461,7 +446,7 @@ export function App() {
             </button>
           </div>
         )}
-        <main ref={main}>
+        <main>
           <section id="foundations" className="canvas-section">
             <h2>Foundations</h2>
             <div className="foundation-grid">

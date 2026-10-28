@@ -1,7 +1,20 @@
 import {describe, expect, it} from 'vitest'
-import {closedOverlayArgs, inlineStoryReason} from './story-policy'
+import {closedOverlayArgs, countStories, inlineStoryReason} from './story-policy'
 
 describe('inline story policy', () => {
+  it('counts the entire catalogue before any stories mount', () => {
+    expect(
+      countStories([
+        {title: 'Components/Button', args: {}, source: '<Button>Save</Button>'},
+        {title: 'Components/ImageCropDialog', args: {input: null}, source: ''},
+        {title: 'Components/ImageCropDialog', args: {input: {file: 'fixture'}}, source: ''},
+        {title: 'Components/Toaster', args: {}, source: ''},
+        {title: 'Pages/DocumentPagePermissions', args: {}, source: ''},
+        {title: 'Example', args: {}, source: '<Dialog open>'},
+      ]),
+    ).toEqual({total: 6, storybookOnly: 4})
+    expect(countStories([])).toEqual({total: 0, storybookOnly: 0})
+  })
   it('closes every supported public overlay input without changing other props', () => {
     expect(closedOverlayArgs({open: true, defaultOpen: true, isOpen: true, title: 'Panel'})).toEqual({
       open: false,
