@@ -8,7 +8,15 @@ import {PasswordInput} from './components/PasswordInput'
 import {Button} from './components/ui/button'
 import {Card, CardContent, CardDescription, CardHeader, CardTitle} from './components/ui/card'
 import * as navigation from './navigation'
-import {getPendingFlowPath, siteInviteSignInUrl, useActions, useAppState, VAULT_BASENAME} from './store'
+import {
+  consumeSiteSignInReturn,
+  getPendingFlowPath,
+  markSiteSignInReturn,
+  siteInviteSignInUrl,
+  useActions,
+  useAppState,
+  VAULT_BASENAME,
+} from './store'
 import {AccountSettingsView} from './views/AccountSettingsView'
 import {ChooseAuthView} from './views/ChooseAuthView'
 import {ConnectSuccessView} from './views/ConnectSuccessView'
@@ -298,17 +306,24 @@ function InviteViaSiteSignIn() {
   return <SignInLoading />
 }
 
-/** Starts the site delegation before unlocking an enterprise vault opened directly. */
+/**
+ * Starts the site delegation for an enterprise vault opened directly without a
+ * vault session, so that signing in also signs the person in to the site. The
+ * site sends them back here once its session exists.
+ */
 function EnterpriseSiteSignIn() {
   const {webBaseUrl} = useAppState()
   useEffect(() => {
     const site = webBaseUrl || window.location.origin
-    window.location.replace(new URL('/hm/sign-in', site).toString())
+    const target = new URL('/hm/sign-in', site)
+    target.searchParams.set('next', VAULT_BASENAME)
+    markSiteSignInReturn()
+    window.location.replace(target.toString())
   }, [webBaseUrl])
   return <SignInLoading />
 }
 
-function RootView() {
+function RootView({returnedFromSiteSignIn}: {returnedFromSiteSignIn: boolean}) {
   const {
     session,
     decryptedDEK,
@@ -325,7 +340,18 @@ function RootView() {
     return null
   }
 
-  if (inviteOnly && !delegationRequest && !vaultConnectionRequest && !returnToPath && !inviteCode) {
+  // A vault session (locked or unlocked) is shown as it is on any vault. Only a
+  // person without one is sent through the site, and only once: a browser that
+  // the site already knows comes straight back, and must not loop.
+  if (
+    inviteOnly &&
+    !session?.authenticated &&
+    !returnedFromSiteSignIn &&
+    !delegationRequest &&
+    !vaultConnectionRequest &&
+    !returnToPath &&
+    !inviteCode
+  ) {
     return <EnterpriseSiteSignIn />
   }
 
@@ -409,6 +435,9 @@ function ConnectRouteView() {
 
 /** Creates the application router with all route definitions. */
 export function createRouter() {
+  // Read once per page load: whether the site's sign-in just sent us back here.
+  const returnedFromSiteSignIn = consumeSiteSignInReturn()
+
   // TODO(burdiyan): some of these routes need more robust guards for checking whether session exists.
   // The current state is harmless — simply may cause confusion if the user navigates to those routes without having a session, and sees a half-baked page.
 
@@ -419,7 +448,7 @@ export function createRouter() {
         children: [
           {
             path: '/',
-            element: <RootView />,
+            element: <RootView returnedFromSiteSignIn={returnedFromSiteSignIn} />,
           },
           {
             element: <NarrowLayout />,

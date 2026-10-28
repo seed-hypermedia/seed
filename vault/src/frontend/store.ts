@@ -73,6 +73,33 @@ export function getPendingFlowPath(
 }
 
 /**
+ * sessionStorage marker set just before an enterprise vault hands a direct
+ * visit to the site's sign-in page. The site sends a browser it already knows
+ * straight back; the marker tells the vault not to send it out again.
+ */
+const SITE_SIGN_IN_RETURN_KEY = 'vault:site-sign-in-return'
+
+/** Records that the next load of this tab comes back from the site's sign-in. */
+export function markSiteSignInReturn(): void {
+  try {
+    window.sessionStorage.setItem(SITE_SIGN_IN_RETURN_KEY, '1')
+  } catch {
+    // Storage unavailable: the vault simply offers its own sign-in next time.
+  }
+}
+
+/** Reads and clears the marker; true when this page load returns from the site's sign-in. */
+export function consumeSiteSignInReturn(): boolean {
+  try {
+    const marked = window.sessionStorage.getItem(SITE_SIGN_IN_RETURN_KEY) === '1'
+    if (marked) window.sessionStorage.removeItem(SITE_SIGN_IN_RETURN_KEY)
+    return marked
+  } catch {
+    return false
+  }
+}
+
+/**
  * The site's sign-in page with an invitation attached. The site starts the
  * delegation from there and sends the person back to the vault, which creates
  * the account and completes that delegation, so the invitee ends up signed in

@@ -338,4 +338,73 @@ describe('invite-only registration', () => {
     await rtl.screen.findByLabelText('Enter your email to continue')
     expect(rtl.screen.queryByLabelText('Invitation code')).toBeNull()
   })
+
+  describe('direct vault entry', () => {
+    afterEach(() => {
+      window.sessionStorage.clear()
+    })
+
+    test('a vault session is shown as the vault, never bounced to the site', async () => {
+      const client = createMockClient({
+        getSession: async () => ({
+          authenticated: true,
+          relyingPartyOrigin: window.location.origin,
+          userId: 'user-1',
+          email: 'eric@example.com',
+          credentials: {password: true},
+        }),
+      })
+      const replace = spyOn(window.location, 'replace').mockImplementation(() => {})
+      try {
+        setWindowUrl('http://localhost/vault')
+        await renderApp(client)
+
+        await rtl.screen.findByText('Unlock your vault')
+        expect(replace).not.toHaveBeenCalled()
+        expect(window.sessionStorage.getItem('vault:site-sign-in-return')).toBeNull()
+      } finally {
+        replace.mockRestore()
+      }
+    })
+
+    test('without a session the site sign-in is asked to come back to the vault', async () => {
+      const client = createMockClient({
+        getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      })
+      const replace = spyOn(window.location, 'replace').mockImplementation(() => {})
+      try {
+        setWindowUrl('http://localhost/vault')
+        await renderApp(client)
+
+        await rtl.screen.findByRole('status', {name: 'Signing in'})
+        await rtl.waitFor(() => expect(replace).toHaveBeenCalled())
+        const target = new URL(replace.mock.calls[0]![0] as string)
+        expect(target.origin).toBe('http://localhost')
+        expect(target.pathname).toBe('/hm/sign-in')
+        expect(target.searchParams.get('next')).toBe('/vault')
+        expect(window.sessionStorage.getItem('vault:site-sign-in-return')).toBe('1')
+      } finally {
+        replace.mockRestore()
+      }
+    })
+
+    test('a browser the site sent straight back signs in on the vault instead of looping', async () => {
+      const client = createMockClient({
+        getSession: async () => ({authenticated: false, relyingPartyOrigin: window.location.origin}),
+      })
+      const replace = spyOn(window.location, 'replace').mockImplementation(() => {})
+      try {
+        window.sessionStorage.setItem('vault:site-sign-in-return', '1')
+        setWindowUrl('http://localhost/vault')
+        await renderApp(client)
+
+        await rtl.screen.findByLabelText('Enter your email to continue')
+        expect(replace).not.toHaveBeenCalled()
+        // Consumed: a later direct visit in this tab goes through the site again.
+        expect(window.sessionStorage.getItem('vault:site-sign-in-return')).toBeNull()
+      } finally {
+        replace.mockRestore()
+      }
+    })
+  })
 })
