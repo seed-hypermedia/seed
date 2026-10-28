@@ -31,6 +31,8 @@ import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {InspectorPage} from '@shm/ui/inspector-page'
 import type {MenuItemType} from '@shm/ui/options-dropdown'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
+import {AgentDocumentViewContext, type AgentDocumentViewProps} from '@shm/ui/agent-document-view'
+import {clientLazy} from './client-lazy'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -152,6 +154,8 @@ function WebDocumentRenameNavigator({onRenamed}: {onRenamed: (payload: {oldId: s
   useOnDocumentRenamed(onRenamed)
   return null
 }
+
+const WebAgentDocument = clientLazy<AgentDocumentViewProps>(() => import('./web-agent-document'))
 
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId
@@ -793,53 +797,55 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                   <HomeDraftProvider value={homeDraftOverride}>
                     <WebDocumentPrefetch originHomeId={originHomeId}>
                       {(onPrefetchDocument) => (
-                        <ResourcePage
-                          docId={docId}
-                          resourceId={useLocalDraftShell ? null : docId}
-                          CommentEditor={CommentEditor}
-                          pageFooter={<PageFooter id={docId} />}
-                          onEditProfile={onEditProfile}
-                          profileHeaderButtons={profileHeaderButtons}
-                          onFollowClick={onFollowClick}
-                          rightActions={<WebHeaderActions siteUid={docId.uid} />}
-                          optionsMenuItems={optionsMenuItems}
-                          fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
-                          fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
-                          fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
-                          inlineInsert={inlineInsert}
-                          DocumentContentComponent={DocumentContentComponent}
-                          ssrContentHTML={ssrContentHTML}
-                          perspectiveAccountUid={ownAccountUid}
-                          linkExtensionOptions={linkExtensionOptions}
-                          canEdit={effectiveCanEdit}
-                          machine={machine}
-                          machineExtras={
-                            <>
-                              <WebDraftExternalModificationListener />
-                              <WebDocumentRenameNavigator onRenamed={handleDocumentRenamed} />
-                            </>
-                          }
-                          signingAccountId={signingAccountId ?? undefined}
-                          publishAccountUid={signingAccountId ?? undefined}
-                          onEditorReady={onEditorReady}
-                          existingDraft={existingDraft}
-                          reservedDraftId={reservedDraftId}
-                          existingDraftVisibility={draftData?.visibility}
-                          existingDraftContent={existingDraftContent}
-                          existingDraftCursorPosition={existingDraftCursorPosition}
-                          existingDraftPublishPath={existingDraftPublishPath}
-                          existingDraftSchemaDraft={existingDraftSchemaDraft}
-                          existingDraftBindingSchemaDrafts={existingDraftBindingSchemaDrafts}
-                          existingDraftDeps={draftData?.deps}
-                          existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
-                          existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
-                          existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
-                          existingDraftMineTouchedIds={draftData?.mineTouchedIds}
-                          draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
-                          editingFloatingActions={editingFloatingActions}
-                          fileUpload={fileUpload}
-                          onPrefetchDocument={onPrefetchDocument}
-                        />
+                        <AgentDocumentViewContext.Provider value={WebAgentDocument}>
+                          <ResourcePage
+                            docId={docId}
+                            resourceId={useLocalDraftShell ? null : docId}
+                            CommentEditor={CommentEditor}
+                            pageFooter={<PageFooter id={docId} />}
+                            onEditProfile={onEditProfile}
+                            profileHeaderButtons={profileHeaderButtons}
+                            onFollowClick={onFollowClick}
+                            rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                            optionsMenuItems={optionsMenuItems}
+                            fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
+                            fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
+                            fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
+                            inlineInsert={inlineInsert}
+                            DocumentContentComponent={DocumentContentComponent}
+                            ssrContentHTML={ssrContentHTML}
+                            perspectiveAccountUid={ownAccountUid}
+                            linkExtensionOptions={linkExtensionOptions}
+                            canEdit={effectiveCanEdit}
+                            machine={machine}
+                            machineExtras={
+                              <>
+                                <WebDraftExternalModificationListener />
+                                <WebDocumentRenameNavigator onRenamed={handleDocumentRenamed} />
+                              </>
+                            }
+                            signingAccountId={signingAccountId ?? undefined}
+                            publishAccountUid={signingAccountId ?? undefined}
+                            onEditorReady={onEditorReady}
+                            existingDraft={existingDraft}
+                            reservedDraftId={reservedDraftId}
+                            existingDraftVisibility={draftData?.visibility}
+                            existingDraftContent={existingDraftContent}
+                            existingDraftCursorPosition={existingDraftCursorPosition}
+                            existingDraftPublishPath={existingDraftPublishPath}
+                            existingDraftSchemaDraft={existingDraftSchemaDraft}
+                            existingDraftBindingSchemaDrafts={existingDraftBindingSchemaDrafts}
+                            existingDraftDeps={draftData?.deps}
+                            existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
+                            existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
+                            existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
+                            existingDraftMineTouchedIds={draftData?.mineTouchedIds}
+                            draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
+                            editingFloatingActions={editingFloatingActions}
+                            fileUpload={fileUpload}
+                            onPrefetchDocument={onPrefetchDocument}
+                          />
+                        </AgentDocumentViewContext.Provider>
                       )}
                     </WebDocumentPrefetch>
                   </HomeDraftProvider>

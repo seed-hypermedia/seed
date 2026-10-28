@@ -3,7 +3,6 @@ import appError from '@/errors'
 import {domainResolver} from '@/grpc-client'
 import {useConnectPeer} from '@/models/contacts'
 import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
-import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {agentUrlToRoute, ipfsUrlToRoute, parseBrowserAddress} from '@/omnibar-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
@@ -13,7 +12,6 @@ import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {SearchResult} from '@seed-hypermedia/client/editor-types'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
-import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {createDocumentNavRoute, createInspectNavRoute, NavRoute} from '@shm/shared/routes'
@@ -25,7 +23,6 @@ import {
   packHmId,
   parseCustomURL,
   parseFragment,
-  unpackHmId,
   viewTermToRouteKey,
 } from '@shm/shared/utils/entity-id-url'
 import {appRouteOfId, isHttpUrl, useNavRoute} from '@shm/shared/utils/navigation'
@@ -74,7 +71,6 @@ export const SearchInput = forwardRef<
 
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
-  const gwHost = useGatewayHost_DEPRECATED()
   const handleUrl = useURLHandler()
   const recents = useRecents()
   const selectedAccountId = useSelectedAccountId()
@@ -116,32 +112,11 @@ export const SearchInput = forwardRef<
             return
           }
 
-          // Extract view term before processing
-          const {
-            url: cleanSearch,
-            isInspect: searchIsInspect,
-            viewTerm: searchViewTerm,
-            activityFilter: searchActivityFilter,
-            commentId: searchCommentId,
-            accountUid: searchAccountUid,
-          } = extractViewTermFromUrl(query)
-          const searchRouteKey = viewTermToRouteKey(searchViewTerm)
-          const unpacked = unpackHmId(cleanSearch)
-          const appRoute = unpacked ? appRouteOfId(unpacked) : null
-
-          if ((unpacked?.scheme === HYPERMEDIA_SCHEME || unpacked?.hostname === gwHost) && appRoute && unpacked) {
+          // Keep view suffixes and query state through the shared route parser.
+          const directRoute = hypermediaUrlToRoute(query)
+          if (directRoute) {
             onClose?.()
-            onSelect({
-              route: applyViewTermToRoute(
-                appRoute,
-                searchRouteKey,
-                searchCommentId,
-                searchAccountUid,
-                searchActivityFilter,
-                searchIsInspect,
-              ),
-              id: unpacked,
-            })
+            onSelect({route: directRoute})
           } else if (query.startsWith('http://') || query.startsWith('https://') || query.includes('.')) {
             if (allowWebURL) {
               onSelect({webUrl: query})
@@ -569,6 +544,9 @@ function useURLHandler() {
       activityFilter,
       commentId,
       accountUid,
+      agentView,
+      agentSessionId,
+      agentTriggerId,
     } = extractViewTermFromUrl(httpSearch)
     const routeKey = viewTermToRouteKey(viewTerm)
 
@@ -577,6 +555,16 @@ function useURLHandler() {
     const directResult = await resolveHypermediaUrl(cleanUrl, {domainResolver}).catch(() => null)
     const directRoute = routeFromResolvedUrl(cleanUrl, directResult)
     if (directRoute) {
+      if (directRoute.key === 'document' && (agentView || (viewTerm === ':settings' && directRoute.id.path?.length))) {
+        const query = new URL(httpSearch).searchParams
+        return {
+          ...directRoute,
+          agentView: agentView || 'settings',
+          agentSessionId,
+          agentTriggerId: agentTriggerId || query.get('trigger') || undefined,
+          agentMemoryPath: query.get('file') || undefined,
+        }
+      }
       return applyViewTermToRoute(directRoute, routeKey, commentId, accountUid, activityFilter, isInspect)
     }
 

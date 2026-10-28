@@ -117,6 +117,8 @@ The `Resource` request takes the packed id as its `id` parameter: `GET /api/Reso
 
 [Seed Agents](../agent.md) address everything by URL: [`read`](../agent/read.md) `hm://<uid>/<path>` (with `?v=`, `/:directory`, `/:attributes`, `/:profile`, `/:comments`, or a comment id `hm://<uid>/<tsid>`), `read https://…` (tried as Hypermedia first, then as a web page), and [`write`](../agent/write.md) `hm://<uid>/<path>`. An external agent should convert web URLs with the `OPTIONS` trick above before calling the CLI. See [Agents](../build/agents.md). <!-- id:xLo8L22B -->
 
+Domain-based references such as `hm://hyper.media/agent/guide` resolve the domain to its registered Hypermedia account before reading the resource. The SDK and embed readers use the domain cache first and fall back to HTTPS OPTIONS metadata. The path, version, and block fragment survive resolution; an unresolved domain is an error, never an account ID. The stored reference remains readable, while resource reads and discovery use the resolved canonical ID.
+
 # See also <!-- id:zi3pWi3V -->
 
 - [Documents](./documents.md) for what a version is. <!-- id:84OVp_oO -->

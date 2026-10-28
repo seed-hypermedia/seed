@@ -300,6 +300,7 @@ export function AgentHeader({
   canCreateTrigger,
   menuItems,
   breadcrumbItems,
+  embedded = false,
 }: {
   agent?: AgentHeaderInfo
   agentId?: string
@@ -318,6 +319,8 @@ export function AgentHeader({
   /** Rows for the top-right options menu; the menu renders only when at least one row is present. */
   menuItems?: (MenuItemType | null)[]
   breadcrumbItems?: AgentBreadcrumbItem[]
+  /** Document shell supplies identity and tabs; retain only agent actions. */
+  embedded?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
@@ -375,21 +378,25 @@ export function AgentHeader({
 
   return (
     <>
-      <AgentBreadcrumb
-        serverUrl={serverUrl}
-        agentId={agentId}
-        agentName={currentAgentName}
-        items={breadcrumbItems || [{label: activeTabLabel}]}
-      />
+      {!embedded && (
+        <AgentBreadcrumb
+          serverUrl={serverUrl}
+          agentId={agentId}
+          agentName={currentAgentName}
+          items={breadcrumbItems || [{label: activeTabLabel}]}
+        />
+      )}
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 sm:flex-nowrap">
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex min-w-0 items-center gap-2.5">
-              <AgentTitleMenu
-                title={currentAgentName}
-                current={agentId ? {serverUrl, agentId} : undefined}
-                onRename={onEditName}
-              />
+              {!embedded && (
+                <AgentTitleMenu
+                  title={currentAgentName}
+                  current={agentId ? {serverUrl, agentId} : undefined}
+                  onRename={onEditName}
+                />
+              )}
               {agent && agentId ? (
                 <AgentIdentityChip serverUrl={serverUrl} agentId={agentId} definition={agent.definition} />
               ) : null}
@@ -429,7 +436,7 @@ export function AgentHeader({
           </div>
         </div>
 
-        {agentId ? (
+        {agentId && !embedded ? (
           <div
             ref={containerRef}
             className="bg-panel/95 sticky top-0 z-10 -mx-1 flex items-center gap-2 p-1 backdrop-blur md:gap-4"

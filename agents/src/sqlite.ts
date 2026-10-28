@@ -14,6 +14,10 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  `CREATE TABLE agent_id_aliases (
+      alias TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES agents (id) ON DELETE CASCADE
+  ) WITHOUT ROWID;`,
   // Pi Durable sessions. `pi_entry_id` is the durable transcript entry a session event was
   // projected from: an interrupted projection resumes after the highest id, and events without one
   // are the ones a turn still has to import into the session's durable conversation.

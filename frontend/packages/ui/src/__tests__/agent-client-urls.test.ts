@@ -1,5 +1,6 @@
 import * as cbor from '@shm/shared/cbor'
 import {describe, expect, it, vi} from 'vitest'
+import {buildAgentSessionUrl, buildAgentSessionEventUrl} from '../agents/agent-session-rows'
 import {
   agentServerEndpoint,
   getAgentServerHealth,
@@ -11,6 +12,20 @@ import {
 } from '../agents/client'
 
 describe('agent server URLs', () => {
+  it('shares mounted sessions through the document UI on the configured gateway', () => {
+    expect(
+      buildAgentSessionUrl('https://api.example', 'hm://alice/team/helper', 'session-1', 'https://seed.example'),
+    ).toBe('https://seed.example/hm/alice/team/helper/:session/session-1')
+    expect(
+      buildAgentSessionEventUrl(
+        'https://api.example',
+        'hm://alice/team/helper',
+        'session-1',
+        'event-1',
+        'https://seed.example',
+      ),
+    ).toBe('https://seed.example/hm/alice/team/helper/:session/session-1#event=event-1')
+  })
   it('derives the WebSocket URL from the server origin', () => {
     expect(getAgentWebSocketUrl('https://agent.example')).toBe('wss://agent.example/agents/ws')
     expect(getAgentWebSocketUrl('http://127.0.0.1:3053/')).toBe('ws://127.0.0.1:3053/agents/ws')

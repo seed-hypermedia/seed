@@ -156,6 +156,7 @@ export function AssistantPanel({
   onClose?: () => void
 }) {
   const accountUid = useSelectedAccountId()
+  const gatewayUrl = getAgentsPlatform().useGatewayUrl?.()
   const serverUrls = useAgentServerUrls()
   const localServerUrl = useLocalAgentServerUrl()
   const agentQueries = useAgentLists(serverUrls.data, accountUid)
@@ -536,7 +537,7 @@ export function AssistantPanel({
                   onClick={() => {
                     const url =
                       sessionAgentId &&
-                      buildAgentSessionUrl(activeSession.serverUrl, sessionAgentId, activeSession.sessionId)
+                      buildAgentSessionUrl(activeSession.serverUrl, sessionAgentId, activeSession.sessionId, gatewayUrl)
                     if (!url) return
                     void navigator.clipboard?.writeText(url)
                     toast.success('Session URL copied')
@@ -860,6 +861,7 @@ function AssistantSessionChat({
   onOpenSession?: (sessionId: string) => void
 }) {
   const {serverUrl, sessionId} = sessionRef
+  const gatewayUrl = getAgentsPlatform().useGatewayUrl?.()
   const BrowserTools = getAgentsPlatform().BrowserTools
   const navigate = useNavigate()
   const session = useAgentSession(serverUrl, accountUid, sessionId)
@@ -919,6 +921,7 @@ function AssistantSessionChat({
         interleaveRunRecords(
           buildAgentSessionChatRows(events || [], {
             serverUrl,
+            gatewayUrl,
             agentId: session.data?.session.agentId,
             sessionId,
             triggerContext: session.data?.triggerContext,
@@ -933,6 +936,7 @@ function AssistantSessionChat({
     [
       events,
       serverUrl,
+      gatewayUrl,
       sessionId,
       session.data?.session.agentId,
       session.data?.session.plan,

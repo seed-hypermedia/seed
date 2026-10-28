@@ -3,7 +3,7 @@ import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {BlockEmbedContent} from '../embed-views'
 import {CommentContentContext, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
@@ -27,6 +27,7 @@ const {source, navigated} = vi.hoisted(() => ({
 }))
 
 vi.mock('@shm/shared/models/entity', () => ({
+  useResolvedHmId: (url: string) => ({id: unpackHmId(url), isLoading: false, error: null}),
   useResource: (id: ReturnType<typeof hmId> | undefined) => ({
     data: id?.path?.[0] === 'comment' ? {type: 'comment', comment} : {type: 'document', id, document: source},
     isLoading: false,

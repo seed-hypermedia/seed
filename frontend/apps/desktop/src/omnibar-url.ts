@@ -131,7 +131,17 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   const agentRoute = agentUrlToRoute(url)
   if (agentRoute) return agentRoute
 
-  const {url: cleanUrl, isInspect, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
+  const {
+    url: cleanUrl,
+    isInspect,
+    viewTerm,
+    activityFilter,
+    commentId,
+    accountUid,
+    agentView,
+    agentSessionId,
+    agentTriggerId,
+  } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
 
   if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
@@ -141,6 +151,17 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   try {
     const result = await resolveHypermediaUrl(cleanUrl, opts)
     if (!result?.hmId) return null
+    if (agentView || (viewTerm === ':settings' && result.hmId.path?.length)) {
+      const query = new URL(url).searchParams
+      return {
+        key: 'document',
+        id: result.hmId,
+        agentView: agentView || 'settings',
+        agentSessionId,
+        agentTriggerId: agentTriggerId || query.get('trigger') || undefined,
+        agentMemoryPath: query.get('file') || undefined,
+      }
+    }
 
     const baseRoute = result.panel ? createDocumentNavRoute(result.hmId, null, result.panel) : appRouteOfId(result.hmId)
     if (!baseRoute) return null

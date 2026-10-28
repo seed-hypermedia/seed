@@ -38,6 +38,153 @@ function withoutMeta(payload: unknown): unknown {
 }
 
 describe('api service', () => {
+  test('creates a local mounted agent directly, rejects invalid locations, and deduplicates concurrent retries', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const owner = blobs.generateNobleKeyPair()
+    const ownerId = blobs.principalToString(owner.principal)
+    const documentId = `hm://${ownerId}/agents/new-helper`
+    let validDocument = false
+    let release: (() => void) | undefined
+    let entered: (() => void) | undefined
+    const hm = Bun.serve({
+      port: 0,
+      fetch: async () => {
+        if (entered) {
+          const ready = entered
+          entered = undefined
+          await new Promise<void>((resolve) => {
+            release = resolve
+            ready()
+          })
+        }
+        return Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId(documentId),
+            document: {
+              authors: [ownerId],
+              genesis: 'test-genesis',
+              visibility: 'PUBLIC',
+              metadata: validDocument ? {type: 'hm://hyper.media/agent', agentServerUrl: 'http://localhost:3051'} : {},
+            },
+          }),
+        )
+      },
+    })
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: hm.url.origin, runQueue: {maxConcurrentModelRuns: 0}})
+    const send = async (action: import('@/api').UnsignedAgentAction) =>
+      svc.message(await apisvc.createSignedEnvelope(owner, {action}))
+    try {
+      await seedAgentSession(svc, owner, 'Existing agent')
+      const countBefore = db.query<{count: number}, []>('SELECT count(*) AS count FROM agents').get()!.count
+      const action: import('@/api').CreateAgent = {
+        _: 'CreateAgent',
+        clientRequestId: 'create-at-location',
+        definition: {name: 'New helper', systemPrompt: 'Test', modelProvider: 'openai', model: 'gpt-test', tools: []},
+        mount: {documentId},
+      }
+      await expect(send(action)).rejects.toThrow('mount document')
+      expect(db.query('SELECT count(*) AS count FROM agents').get()).toEqual({count: countBefore})
+      validDocument = true
+      const started = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const first = send(action)
+      await started
+      // Network discovery must not leave a transaction open on the shared SQLite connection.
+      const unrelated = await send({...action, clientRequestId: 'other-agent', mount: undefined})
+      expect(unrelated._).toBe('CreateAgentResponse')
+      const retry = send(action)
+      release!()
+      expect(await first).toEqual({_: 'CreateAgentResponse', agentId: documentId})
+      expect(await retry).toEqual({_: 'CreateAgentResponse', agentId: documentId})
+      expect(await send(action)).toEqual({_: 'CreateAgentResponse', agentId: documentId})
+      expect(db.query('SELECT count(*) AS count FROM agents').get()).toEqual({count: countBefore + 2})
+      expect(await send({_: 'GetAgent', agentId: documentId})).toMatchObject({agent: {id: documentId}})
+      const row = db.query<{state_dir: string}, [string]>('SELECT state_dir FROM agents WHERE id = ?').get(documentId)!
+      expect(path.relative(dataDir, row.state_dir)).toMatch(/^agents\/[^/]+$/)
+      await expect(send({...action, clientRequestId: 'different-request'})).rejects.toThrow('another agent')
+      expect(db.query('PRAGMA foreign_key_check').all()).toEqual([])
+    } finally {
+      release?.()
+      svc.stopRunQueue()
+      hm.stop(true)
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('mounts an idle agent at its document ID while preserving sessions, files, permissions, and old links', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const owner = blobs.generateNobleKeyPair()
+    const collaborator = blobs.generateNobleKeyPair()
+    const ownerId = blobs.principalToString(owner.principal)
+    const collaboratorId = blobs.principalToString(collaborator.principal)
+    const documentId = `hm://${ownerId}/agents/helper`
+    const hm = Bun.serve({
+      port: 0,
+      fetch: () =>
+        Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId(documentId),
+            document: {
+              authors: [ownerId],
+              genesis: 'test-genesis',
+              visibility: 'PUBLIC',
+              metadata: {type: 'hm://hyper.media/agent', name: 'Helper', agentServerUrl: 'https://agent.example'},
+            },
+          }),
+        ),
+    })
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: hm.url.origin, runQueue: {maxConcurrentModelRuns: 0}})
+    const send = async (signer: blobs.Signer, action: import('@/api').UnsignedAgentAction) =>
+      svc.message(await apisvc.createSignedEnvelope(signer, {action}))
+    try {
+      const sessionId = await seedAgentSession(svc, owner, 'Keep my history')
+      const before = db.query<{id: string; state_dir: string}, []>('SELECT id, state_dir FROM agents').get()!
+      await send(owner, {_: 'WriteAgentMemoryFile', agentId: before.id, path: 'notes.md', content: 'Remember me'})
+      await send(owner, {_: 'InviteAgentCollaborator', agentId: before.id, accountId: collaboratorId, role: 'reader'})
+      await send(collaborator, {_: 'AcceptAgentInvite', agentId: before.id})
+      await expect(send(collaborator, {_: 'MountAgent', agentId: before.id, documentId})).rejects.toMatchObject({
+        status: 403,
+      })
+      db.run(
+        `INSERT INTO runs (id, account_id, root_run_id, kind, agent_id, session_id, origin, input_cbor, status, created_at, updated_at) VALUES ('busy', ?, 'busy', 'agent', ?, ?, 'interactive', ?, 'running', 1, 1)`,
+        [ownerId, before.id, sessionId, cbor.encode({})],
+      )
+      await expect(send(owner, {_: 'MountAgent', agentId: before.id, documentId})).rejects.toThrow('running work')
+      expect(db.query('SELECT id FROM agents').get()).toEqual({id: before.id})
+      db.run("UPDATE runs SET status = 'succeeded'")
+      const result = await send(owner, {_: 'MountAgent', agentId: before.id, documentId})
+      expect(result).toMatchObject({_: 'GetAgentResponse', agent: {id: documentId}})
+      expect(db.query('SELECT id, state_dir FROM agents').get()).toEqual({id: documentId, state_dir: before.state_dir})
+      expect(db.query('PRAGMA foreign_key_check').all()).toEqual([])
+      expect(await send(collaborator, {_: 'GetAgent', agentId: before.id})).toMatchObject({
+        agent: {id: documentId, accessRole: 'reader'},
+      })
+      expect(await send(owner, {_: 'GetSession', sessionId})).toMatchObject({session: {agentId: documentId}})
+      expect(await send(owner, {_: 'ReadAgentMemoryFile', agentId: documentId, path: 'notes.md'})).toMatchObject({
+        file: {content: 'Remember me'},
+      })
+      expect(
+        await svc.verifySubscription(
+          await apisvc.createSignedEnvelope(owner, {action: {_: 'Subscribe', key: `agents/${before.id}`}}),
+        ),
+      ).toMatchObject({key: `agents/${documentId}`})
+      expect(await send(owner, {_: 'MountAgent', agentId: before.id, documentId})).toMatchObject({
+        agent: {id: documentId},
+      })
+      await send(owner, {_: 'DeleteAgent', agentId: before.id})
+      expect(db.query('SELECT * FROM agent_id_aliases').all()).toEqual([])
+    } finally {
+      svc.stopRunQueue()
+      hm.stop(true)
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('browser transport is owner-only, refuses public agents, and direct tool invocation cannot dispatch', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})

@@ -1,8 +1,9 @@
+import {hmDomainUrlToWebUrl} from '@seed-hypermedia/client/hm-resolver'
 import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {HMBlockEmbed, HMEmbedViewSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRouteLink} from '@shm/shared'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
-import {useResource} from '@shm/shared/models/entity'
+import {useResource, useResolvedHmId} from '@shm/shared/models/entity'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
@@ -319,7 +320,7 @@ export async function resolveEmbedUrl(
     domainResolver?: DomainResolverFn
   } = {},
 ): Promise<EmbedResolveResult> {
-  const directHmId = unpackHmId(url)
+  const directHmId = hmDomainUrlToWebUrl(url) ? null : unpackHmId(url)
   if (directHmId) {
     return {kind: 'direct', url: packHmId(directHmId)}
   }
@@ -570,7 +571,7 @@ function SelectedEmbedActions({
   isSelected: boolean
 }) {
   const url = block.props.url as string
-  const docId = useMemo(() => (url ? unpackHmId(url) : null), [url])
+  const {id: docId} = useResolvedHmId(url)
 
   // External URLs have no embed-specific action bar.
   if (!docId) return null
