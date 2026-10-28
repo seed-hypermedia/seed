@@ -101,6 +101,41 @@ describe('comment permalink route loading', () => {
     mocks.loadSiteResource.mockResolvedValue({ok: true})
   })
 
+  it.each(['sessions', 'tools', 'settings', 'session/session-1'])(
+    'loads mounted agent %s under the document on gateways and custom domains',
+    async (view) => {
+      for (const prefix of ['hm/doc-account/', '']) {
+        mocks.loadSiteResource.mockClear()
+        await loader({
+          params: {'*': `${prefix}team/helper/:${view}`},
+          request: new Request(`https://seed.example/${prefix}team/helper/:${view}?v=old&trigger=trigger-1`),
+        })
+        const [, documentId, extraData] = mocks.loadSiteResource.mock.calls[0]!
+        expect(documentId).toMatchObject({
+          uid: prefix ? 'doc-account' : 'site-account',
+          path: ['team', 'helper'],
+          version: null,
+          latest: true,
+        })
+        expect(extraData).toMatchObject({
+          agentView: view.startsWith('session/') ? 'session' : view,
+          agentTriggerId: 'trigger-1',
+        })
+        if (view.startsWith('session/')) expect(extraData).toMatchObject({agentSessionId: 'session-1'})
+      }
+    },
+  )
+
+  it.each(['hm/doc-account/', ''])('loads trigger detail paths through %s', async (prefix) => {
+    await loader({
+      params: {'*': `${prefix}team/helper/:triggers/trigger-2`},
+      request: new Request(`https://seed.example/${prefix}team/helper/:triggers/trigger-2?trigger=old`),
+    })
+    const [, documentId, extraData] = mocks.loadSiteResource.mock.calls[0]!
+    expect(documentId).toMatchObject({uid: prefix ? 'doc-account' : 'site-account', path: ['team', 'helper']})
+    expect(extraData).toMatchObject({agentView: 'triggers', agentTriggerId: 'trigger-2'})
+  })
+
   it('treats ?v on a comment permalink as the comment version, not the document version', async () => {
     await loader({
       params: {'*': 'hm/doc-account/docs/:comments/comment-author/comment-tsid'},

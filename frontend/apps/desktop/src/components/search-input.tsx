@@ -111,7 +111,7 @@ export const SearchInput = forwardRef<
             onSelect({route: ipfsRoute})
             return
           }
-
+          // Keep view suffixes and query state through the shared route parser.
           const directRoute = hypermediaUrlToRoute(query)
           if (directRoute) {
             onClose?.()
@@ -551,6 +551,9 @@ function useURLHandler() {
       activityFilter,
       commentId,
       accountUid,
+      agentView,
+      agentSessionId,
+      agentTriggerId,
     } = extractViewTermFromUrl(httpSearch)
     const routeKey = viewTermToRouteKey(viewTerm)
     const replyCommentId = parseCustomURL(cleanUrl)?.query.reply
@@ -560,6 +563,16 @@ function useURLHandler() {
     const directResult = await resolveHypermediaUrl(cleanUrl, {domainResolver}).catch(() => null)
     const directRoute = routeFromResolvedUrl(cleanUrl, directResult)
     if (directRoute) {
+      if (directRoute.key === 'document' && (agentView || (viewTerm === ':settings' && directRoute.id.path?.length))) {
+        const query = new URL(httpSearch).searchParams
+        return {
+          ...directRoute,
+          agentView: agentView || 'settings',
+          agentSessionId,
+          agentTriggerId: agentTriggerId || query.get('trigger') || undefined,
+          agentMemoryPath: query.get('file') || undefined,
+        }
+      }
       return applyViewTermToRoute(
         directRoute,
         routeKey,

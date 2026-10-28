@@ -18,6 +18,18 @@ export type HMBytes = Uint8Array | {'/': {bytes: string}}
 export type HMAccount = string
 
 /**
+ * Seed Agents
+ * Seed Agents is the hosted agent runtime that lets an account run language-model agents which read and write Hypermedia through the Seed API with their own signing keys.
+ * Resource attributes for an agent mounted at a Hypermedia document. The server must also register the agent at this exact document ID.
+ * Schema: hm://hyper.media/agent
+ */
+export type HMAgent = {
+  type: 'hm://hyper.media/agent'
+  /** HTTP(S) agent server registering this resource's exact versionless HMID as the agent ID. */
+  agentServerUrl: HMUrl
+} & {[key: string]: HMValue}
+
+/**
  * Blob
  * The signed envelope every Hypermedia blob extends, with a type tag, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a millisecond timestamp.
  * The signed envelope every Hypermedia blob extends: a type tag, the signer's key, a signature and a millisecond timestamp.

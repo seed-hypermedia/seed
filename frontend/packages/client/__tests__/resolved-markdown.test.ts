@@ -44,6 +44,23 @@ function client(responses: Record<string, unknown>) {
 }
 
 describe('resolved markdown', () => {
+  it('resolves domain-based prompt embeds before requesting their content', async () => {
+    const request = vi.fn(async (key: string, input: any) => {
+      if (key === 'GetDomain') {
+        expect(input.domain).toBe('hyper.media')
+        return {registeredAccountUid: 'docs-account', isGateway: true}
+      }
+      expect(key).toBe('Resource')
+      expect(input).toMatchObject({uid: 'docs-account', path: ['agent', 'guide']})
+      return {type: 'document', document: doc('Guide', [paragraph('guide', 'Resolved instructions')])}
+    })
+    const result = await contentToResolvedMarkdown([embed('prompt', 'hm://hyper.media/agent/guide')], {
+      client: {request} as any,
+    })
+    expect(result).toContain('Resolved instructions')
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
   it('renders :profile inline embeds with account display names', async () => {
     const c = client({
       'Account:hm://alice': {type: 'account', id: {uid: 'alice'}, metadata: {name: 'Alice Example'}},

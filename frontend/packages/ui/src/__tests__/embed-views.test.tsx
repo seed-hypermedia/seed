@@ -41,6 +41,7 @@ vi.mock('@shm/shared', async (importOriginal) => {
 })
 
 vi.mock('@shm/shared/models/entity', () => ({
+  useResolvedHmId: (url: string) => ({id: unpackHmId(url), isLoading: false, error: null}),
   useResource: () => ({
     data: {
       type: 'document',

@@ -199,6 +199,7 @@ export type UnsignedAgentAction =
   | AcceptAgentInvite
   | DeclineAgentInvite
   | CreateAgent
+  | MountAgent
   | ListModelProviders
   | ListProviderModels
   | ListSigningIdentities
@@ -354,7 +355,28 @@ export type DeclineAgentInvite = {
 export type CreateAgent = {
   _: 'CreateAgent'
   definition: AgentDefinition
+  /** Create directly at this published document; omitted by legacy clients. */
+  mount?: Pick<MountAgent, 'documentId' | 'blobs'>
   clientRequestId?: string
+}
+
+/** Gives an existing agent a published document's canonical identity. Owner-only. */
+export type MountAgent = {
+  _: 'MountAgent'
+  agentId: string
+  documentId: string
+  /** Signed document blobs, also published locally by the client, for immediate server discovery. */
+  blobs?: {cid: string; data: Uint8Array}[]
+}
+
+/** Whether an agent address is an HTTP(S) endpoint without embedded credentials. */
+export function isMountableAgentServerUrl(serverUrl: string): boolean {
+  try {
+    const url = new URL(serverUrl)
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password
+  } catch {
+    return false
+  }
 }
 
 /** Lists configured model providers for the signed account. */

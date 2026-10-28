@@ -1,0 +1,9 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "type": {"value": {"value": "hm://hyper.media/agent"}, "required": true},
+    "agentServerUrl": {"value": {"type": "hm://hyper.media/url"}, "required": true, "description": "HTTP(S) agent server registering this resource's exact versionless HMID as the agent ID."}
+  },
+  "values": {"type": "hm://hyper.media/value"},
+  "description": "Resource attributes for an agent mounted at a Hypermedia document. The server must also register the agent at this exact document ID."
+}

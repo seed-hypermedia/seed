@@ -1,4 +1,7 @@
-import {type AgentDefinition, type AgentModelRef, type ModelProviderType, type SigningIdentity} from './client'
+import type {CreateAgent} from '@seed-hypermedia/agents-protocol'
+import type {DocumentDestinationSubmitInput} from '../document-destination-dialog'
+import {AgentMountDestination} from './mount'
+import {type AgentModelRef, type ModelProviderType, type SigningIdentity} from './client'
 import {
   getDefaultAgentServerUrl,
   isLocalAgentServer,
@@ -937,7 +940,6 @@ export function CreateAgentDialog({
   const providers = useModelProviders(selectedServerUrl, input.selectedAccountId)
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(selectedServerUrl, input.selectedAccountId)
-  const deleteSigningIdentity = useDeleteSigningIdentity(selectedServerUrl, input.selectedAccountId)
   const navigate = useNavigate()
   const [providerName, setProviderName] = useState('')
   const providerModels = useProviderModels(selectedServerUrl, input.selectedAccountId, providerName)
@@ -952,7 +954,9 @@ export function CreateAgentDialog({
   // Servers from before `defaultPromptUrl` resolve this address to their docs space.
   const defaultPromptUrl = health.data?.defaultPromptUrl ?? 'hm://hyper.media/agent/guide'
   const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[] | null>(null)
-  const [creating, setCreating] = useState(false)
+  const [choosingLocation, setChoosingLocation] = useState(false)
+  const signingKey = useRef<string>()
+  const pendingCreation = useRef<Omit<CreateAgent, '_'>>()
 
   useEffect(() => {
     setSelectedServerUrl(input.serverUrls[0] || getDefaultAgentServerUrl() || '')
@@ -980,28 +984,24 @@ export function CreateAgentDialog({
     if (!model || (selectedProviderType !== 'custom' && !modelIsDiscovered)) setModel(defaultModel)
   }, [model, providerModels.data, selectedProviderType])
 
-  async function handleCreateAgent() {
-    const agentName = name.trim()
-    if (!agentName) {
-      toast.error('Agent name is required')
-      return
+  async function handleCreateAgent(
+    destination: DocumentDestinationSubmitInput,
+    mount: NonNullable<CreateAgent['mount']>,
+  ) {
+    if (pendingCreation.current && pendingCreation.current.mount?.documentId !== mount.documentId) {
+      throw new Error('Retry at the original location to finish creating this agent.')
     }
-    // Auto-create a dedicated account for the agent so it can publish without the
-    // user setting up a signing identity by hand. The account is named after the
-    // agent and wired in as its signing key with write tooling enabled.
-    setCreating(true)
-    let signingKeyName: string | undefined
-    try {
-      const identityResult = await createSigningIdentity.mutateAsync(agentName)
-      if (identityResult._ !== 'CreateSigningIdentityResponse') throw new Error('Unexpected account response')
-      signingKeyName = identityResult.identity.name
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not create the agent account')
-      setCreating(false)
-      return
+    const agentName = destination.name?.trim() || name.trim()
+    if (!agentName) throw new Error('Agent name is required')
+    if (!signingKey.current) {
+      const identity = await createSigningIdentity.mutateAsync(agentName)
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('Unexpected account response')
+      signingKey.current = identity.identity.name
     }
-    try {
-      const definition: AgentDefinition = {
+    // Retain the exact request and identity across retries, including a lost success response.
+    // Deleting the key on a transport error could break an agent the server already created.
+    pendingCreation.current ??= {
+      definition: {
         name: agentName,
         systemPrompt: promptBlocksForRequest(systemPrompt ?? defaultAgentSystemPrompt(defaultPromptUrl)),
         modelProvider: providerName,
@@ -1010,31 +1010,42 @@ export function CreateAgentDialog({
         thoroughness,
         ...(enabledModels.length ? {enabledModels} : {}),
         tools: DEFAULT_AGENT_TOOLS,
-        signingKey: signingKeyName,
-        signingKeys: [signingKeyName],
+        signingKey: signingKey.current,
+        signingKeys: [signingKey.current],
         metadata: {createdFrom: 'desktop-agents-page'},
-      }
-      const result = await createAgent.mutateAsync(definition)
-      if (result._ !== 'CreateAgentResponse') throw new Error('Unexpected create response')
-      // Pre-load the agent detail into the query cache so the agent page renders
-      // immediately instead of flashing a loading state after navigation.
-      await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
-      toast.success('Agent created')
-      onClose()
-      if (input.onCreated) input.onCreated({serverUrl: selectedServerUrl, agentId: result.agentId})
-      else navigate({key: 'agent', agentId: result.agentId, serverUrl: selectedServerUrl})
-    } catch (error) {
-      // Roll back the just-created account so a failed agent create doesn't leave an orphan.
-      void deleteSigningIdentity.mutateAsync(signingKeyName).catch(() => {})
-      toast.error(error instanceof Error ? error.message : 'Could not create agent')
-      setCreating(false)
+      },
+      mount,
+      clientRequestId: crypto.randomUUID(),
     }
+    const result = await createAgent.mutateAsync(pendingCreation.current)
+    if (result._ !== 'CreateAgentResponse' || result.agentId !== mount.documentId) {
+      throw new Error('This agent server must be updated to support creating mounted agents.')
+    }
+    await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
+  }
+
+  if (choosingLocation && input.selectedAccountId) {
+    return (
+      <AgentMountDestination
+        accountUid={input.selectedAccountId}
+        serverUrl={selectedServerUrl}
+        name={name}
+        creating
+        onClose={onClose}
+        onSubmit={handleCreateAgent}
+        onSuccess={({to}) => {
+          onClose()
+          if (input.onCreated) input.onCreated({serverUrl: selectedServerUrl, agentId: to.id})
+          else navigate({key: 'document', id: to, agentView: 'sessions'})
+        }}
+      />
+    )
   }
 
   const serverSelector = (
     <label className="flex flex-col gap-1">
       <SizableText size="sm" weight="bold">
-        Agent Home
+        Run on
       </SizableText>
       <SelectDropdown
         options={input.serverUrls.map((serverUrl) => ({
@@ -1077,8 +1088,8 @@ export function CreateAgentDialog({
       <div className="flex flex-col gap-3">
         <DialogTitle>Create Agent</DialogTitle>
         <DialogDescription>
-          Choose a model provider, model, and system prompt. An account named after the agent is created automatically
-          so it can publish Seed content.
+          Configure your agent, then choose where its document will live. An account named after the agent is created
+          automatically so it can publish Seed content.
         </DialogDescription>
       </div>
       {serverSelector}
@@ -1159,9 +1170,11 @@ export function CreateAgentDialog({
         )}
       </div>
       <div className="flex justify-end gap-2">
-        <Button onClick={() => void handleCreateAgent()} disabled={creating || !providerName || !model}>
-          {creating ? <Spinner /> : null}
-          Create Agent
+        <Button
+          onClick={() => setChoosingLocation(true)}
+          disabled={!input.selectedAccountId || !name.trim() || !providerName || !model}
+        >
+          Choose location
         </Button>
       </div>
     </div>

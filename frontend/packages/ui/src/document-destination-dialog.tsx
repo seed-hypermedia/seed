@@ -37,6 +37,8 @@ import {cn} from './utils'
 
 /** Destination action supported by the shared document destination dialog. */
 export type DocumentDestinationMode =
+  | 'mount-agent'
+  | 'create-agent'
   | 'move'
   | 'republish'
   | 'extend-schema'
@@ -45,6 +47,8 @@ export type DocumentDestinationMode =
 
 /** The modes that create a NEW document draft (rather than relocating `id`). */
 export const DOCUMENT_CREATE_MODES: readonly DocumentDestinationMode[] = [
+  'mount-agent',
+  'create-agent',
   'extend-schema',
   'new-typed-document',
   'new-typed-collection',
@@ -52,6 +56,8 @@ export const DOCUMENT_CREATE_MODES: readonly DocumentDestinationMode[] = [
 
 /** Input passed when opening the shared document destination dialog. */
 export type DocumentDestinationDialogInput = {
+  /** Initial title for an agent document being created. */
+  mountName?: string
   id: UnpackedHypermediaId
   mode: DocumentDestinationMode
   origin?: DocumentCardActionOrigin
@@ -89,6 +95,8 @@ export type DocumentDestinationSubmitInput = {
 }
 
 const modeCopy: Record<DocumentDestinationMode, {eyebrow: string; action: string; success: string}> = {
+  'create-agent': {eyebrow: 'Create Agent', action: 'Create Agent', success: 'Agent created'},
+  'mount-agent': {eyebrow: 'Mount Agent', action: 'Mount Agent', success: 'Agent mounted'},
   move: {eyebrow: 'Move', action: 'Move', success: 'Document moved'},
   republish: {eyebrow: 'Republish', action: 'Republish', success: 'Document republished'},
   'extend-schema': {eyebrow: 'Extend Schema', action: 'Create Draft', success: 'Draft created'},
@@ -105,6 +113,7 @@ export function DocumentDestinationDialog({
   enabledModes = ['move', 'republish'],
   onSubmit,
   onSuccess,
+  resumableDestination,
 }: {
   input: DocumentDestinationDialogInput
   onClose: () => void
@@ -113,26 +122,31 @@ export function DocumentDestinationDialog({
   enabledModes?: DocumentDestinationMode[]
   onSubmit: (input: DocumentDestinationSubmitInput) => Promise<void>
   onSuccess?: (input: DocumentDestinationSubmitInput) => void
+  /** A document this operation already published; allows retrying its remaining server action. */
+  resumableDestination?: string
 }) {
   const isDraftSource = !!input.draft
-  const {data: resource, isLoading, isError, error} = useResource(isDraftSource ? null : input.id)
+  const isMount = input.mode === 'mount-agent' || input.mode === 'create-agent'
+  const {data: resource, isLoading, isError, error} = useResource(isDraftSource || isMount ? null : input.id)
   const document = resource?.type === 'document' ? resource.document : undefined
   const sourceId = input.id
-  const sourceTitle = isDraftSource
-    ? input.draft?.title || 'Untitled draft'
-    : document
-      ? getMetadataName(document.metadata)
-      : 'Untitled'
+  const sourceTitle = isMount
+    ? input.mountName || 'Agent'
+    : isDraftSource
+      ? input.draft?.title || 'Untitled draft'
+      : document
+        ? getMetadataName(document.metadata)
+        : 'Untitled'
   const sourceIcon = isDraftSource ? input.draft?.icon : document?.metadata.icon
   const isExtend = input.mode === 'extend-schema'
   // Extending, or creating a typed document or collection, makes a NEW document: it starts
   // unnamed, defaulting next to the schema page.
   const isCreate = DOCUMENT_CREATE_MODES.includes(input.mode)
   const initialTargetParent = useMemo(() => getSourceParentId(sourceId), [sourceId.id])
-  const initialSlug = isCreate ? '' : sourceId.path?.at(-1) || ''
+  const initialSlug = isMount ? pathNameify(input.mountName || 'agent') : isCreate ? '' : sourceId.path?.at(-1) || ''
   const [targetParent, setTargetParent] = useState<UnpackedHypermediaId | null>(initialTargetParent)
   const [slug, setSlug] = useState(initialSlug)
-  const [name, setName] = useState('')
+  const [name, setName] = useState(input.mountName || '')
   const [searchQuery, setSearchQuery] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -162,10 +176,9 @@ export function DocumentDestinationDialog({
   const moveTargetWrongSite = input.mode === 'move' && !!targetParent && !isMoveTargetSameSite(sourceId, targetParent)
   const moveTargetBlocked = input.mode === 'move' && isMoveTargetParentBlocked(sourceId, targetParent)
   const sourceIsHomeDocument = !isCreate && !sourceId.path?.length
-  const destinationExists = !canUseDocumentDestination(
-    destinationResource.data,
-    input.mode === 'move' && !isDraftSource ? sourceId : undefined,
-  )
+  const destinationExists =
+    destinationId?.id !== resumableDestination &&
+    !canUseDocumentDestination(destinationResource.data, input.mode === 'move' && !isDraftSource ? sourceId : undefined)
   const validationMessage = modeDisabled
     ? `${modeCopy[input.mode].action} is not available here.`
     : sourceIsHomeDocument
@@ -196,14 +209,14 @@ export function DocumentDestinationDialog({
   if (!selectedAccountUid) {
     return <DialogError message="Select an account before moving or republishing documents." />
   }
-  if (!isDraftSource && (isLoading || !document)) {
+  if (!isDraftSource && !isMount && (isLoading || !document)) {
     return (
       <div className="flex min-h-48 items-center justify-center">
         <Spinner />
       </div>
     )
   }
-  if (!isDraftSource && (isError || resource?.type !== 'document')) {
+  if (!isDraftSource && !isMount && (isError || resource?.type !== 'document')) {
     return <DialogError message={error ? String(error) : 'Could not load document.'} />
   }
 
@@ -243,87 +256,91 @@ export function DocumentDestinationDialog({
         </DialogTitle>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1.5">
-          <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-            {targetParent ? 'Location' : 'Choose a space'}
-          </SizableText>
-          {targetParent ? <LocationBreadcrumb location={targetParent} onSelect={setTargetParent} /> : null}
+      <fieldset disabled={isSubmitting || !!resumableDestination} className="flex min-w-0 flex-col gap-5">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
+              {targetParent ? 'Location' : 'Choose a space'}
+            </SizableText>
+            {targetParent ? <LocationBreadcrumb location={targetParent} onSelect={setTargetParent} /> : null}
+          </div>
+          <div className="relative">
+            <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Input
+              className="h-11 rounded-xl pl-10 text-base"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search location…"
+            />
+          </div>
         </div>
-        <div className="relative">
-          <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-          <Input
-            className="h-11 rounded-xl pl-10 text-base"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            placeholder="Search location…"
-          />
-        </div>
-      </div>
 
-      <DestinationBrowser
-        mode={input.mode}
-        sourceId={sourceId}
-        targetParent={targetParent}
-        searchQuery={searchQuery}
-        writableDocuments={writableDocuments}
-        selectedAccountUid={selectedAccountUid}
-        onSelect={(location) => {
-          setTargetParent(location)
-          setSearchQuery('')
-        }}
-        onClear={() => {
-          setTargetParent(null)
-          setSearchQuery('')
-        }}
-      />
+        <DestinationBrowser
+          mode={input.mode}
+          sourceId={sourceId}
+          targetParent={targetParent}
+          searchQuery={searchQuery}
+          writableDocuments={writableDocuments}
+          selectedAccountUid={selectedAccountUid}
+          onSelect={(location) => {
+            setTargetParent(location)
+            setSearchQuery('')
+          }}
+          onClear={() => {
+            setTargetParent(null)
+            setSearchQuery('')
+          }}
+        />
 
-      {isCreate ? (
-        <div className="flex flex-col gap-2">
-          <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-            {isExtend ? 'New Schema Name' : 'Name'}
-          </SizableText>
-          <Input
-            className="h-11 rounded-xl text-base"
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value)
-              setSlug(pathNameify(event.target.value))
-            }}
-            placeholder={isExtend ? `Extended ${sourceTitle}` : `New ${sourceTitle}`}
-          />
-        </div>
-      ) : null}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-            URL Path
-          </SizableText>
-          <Tooltip content="This edits only the final URL segment. Choose the parent location above.">
-            <Help className="text-muted-foreground size-4" />
-          </Tooltip>
-        </div>
-        {isDraftSource ? (
-          <SizableText className="text-muted-foreground text-sm">
-            Draft moves keep the draft placeholder path until publish.
-          </SizableText>
-        ) : (
-          <PathInput
-            className="h-11 rounded-xl text-base"
-            value={slug}
-            onValueChange={setSlug}
-            placeholder="url-path"
-          />
-        )}
-        {destinationUrl ? (
-          <SizableText
-            className={cn('text-sm break-all', validationMessage ? 'text-muted-foreground' : 'text-primary')}
-          >
-            {destinationUrl}
-          </SizableText>
+        {isCreate ? (
+          <div className="flex flex-col gap-2">
+            <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
+              {isExtend ? 'New Schema Name' : 'Name'}
+            </SizableText>
+            <Input
+              className="h-11 rounded-xl text-base"
+              value={name}
+              onChange={(event) => {
+                setName(event.target.value)
+                setSlug(pathNameify(event.target.value))
+              }}
+              placeholder={isExtend ? `Extended ${sourceTitle}` : `New ${sourceTitle}`}
+            />
+          </div>
         ) : null}
-        {validationMessage ? <SizableText className="text-destructive text-sm">{validationMessage}</SizableText> : null}
-      </div>
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
+              URL Path
+            </SizableText>
+            <Tooltip content="This edits only the final URL segment. Choose the parent location above.">
+              <Help className="text-muted-foreground size-4" />
+            </Tooltip>
+          </div>
+          {isDraftSource ? (
+            <SizableText className="text-muted-foreground text-sm">
+              Draft moves keep the draft placeholder path until publish.
+            </SizableText>
+          ) : (
+            <PathInput
+              className="h-11 rounded-xl text-base"
+              value={slug}
+              onValueChange={setSlug}
+              placeholder="url-path"
+            />
+          )}
+          {destinationUrl ? (
+            <SizableText
+              className={cn('text-sm break-all', validationMessage ? 'text-muted-foreground' : 'text-primary')}
+            >
+              {destinationUrl}
+            </SizableText>
+          ) : null}
+          {validationMessage ? (
+            <SizableText className="text-destructive text-sm">{validationMessage}</SizableText>
+          ) : null}
+        </div>
+      </fieldset>
 
       <div className="flex items-center justify-end gap-3 pt-1">
         <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
@@ -553,7 +570,7 @@ function LocationBreadcrumb({
 }) {
   const siteId = hmId(location.uid, {latest: true})
   const {data: siteResource} = useResource(siteId)
-  const siteTitle = siteResource?.type === 'document' ? getMetadataName(siteResource.document.metadata) : location.uid
+  const siteTitle = siteResource?.type === 'document' ? getMetadataName(siteResource.document.metadata) : 'Space'
   const ancestorIds = useMemo(
     () => location.path?.map((_, index) => hmId(location.uid, {path: location.path?.slice(0, index + 1)})) || [],
     [location.id],

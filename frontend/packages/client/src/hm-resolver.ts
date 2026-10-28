@@ -43,7 +43,18 @@ export type ResolvedUrl = {
   type: string | null
   panel: string | null
 }
+/** Converts a domain-based hm:// reference to its HTTPS resolution URL; canonical IDs return null. */
+export function hmDomainUrlToWebUrl(input: string): string | null {
+  if (!input.startsWith('hm://')) return null
+  const parsed = unpackHmId(input)
+  if (!parsed?.uid.includes('.')) return null
+  const url = new URL(`https://${input.slice('hm://'.length)}`)
+  if (url.username || url.password) throw new Error('Hypermedia domain URLs cannot contain credentials')
+  return url.href
+}
+
 export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): Promise<ResolvedUrl | null> {
+  url = hmDomainUrlToWebUrl(url) || url
   // Parse query params and fragment from original URL
   let latest = false
   let blockRef: string | null = null
@@ -196,11 +207,12 @@ export async function resolveHypermediaUrl(url: string, opts?: ResolveOptions): 
  * back to an OPTIONS request for web URLs.
  */
 export async function resolveId(input: string, opts?: ResolveOptions): Promise<UnpackedHypermediaId> {
-  const parsed = unpackHmId(input)
+  const domainUrl = hmDomainUrlToWebUrl(input)
+  const parsed = domainUrl ? null : unpackHmId(input)
   if (parsed) return parsed
 
-  if (input.startsWith('http://') || input.startsWith('https://')) {
-    const resolved = await resolveHypermediaUrl(input, opts)
+  if (domainUrl || input.startsWith('http://') || input.startsWith('https://')) {
+    const resolved = await resolveHypermediaUrl(domainUrl || input, opts)
     if (resolved?.hmId) return resolved.hmId
     throw new Error(`URL does not appear to be a Seed Hypermedia resource: ${input}`)
   }

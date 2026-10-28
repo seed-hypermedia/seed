@@ -147,13 +147,16 @@ import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {NewSessionComposer} from './new-session-composer'
 import {type AgentsRichEditorSubmitHandle} from './platform'
 import {randomUUID} from './random-id'
+import {AgentMountBanner} from './mount'
 
-function AgentDetailPage({
+/** Agent controls, optionally embedded below a mounted document's tabs. */
+export function AgentDetailPage({
   agentId,
   routeServerUrl,
   tab = 'sessions',
   triggerId,
   memoryPath,
+  embedded = false,
 }: {
   agentId: string
   routeServerUrl?: string
@@ -161,6 +164,7 @@ function AgentDetailPage({
   triggerId?: string
   /** Memory file the route asked to open, set when a tool row linked to it. */
   memoryPath?: string
+  embedded?: boolean
 }) {
   const selectedAccountId = useSelectedAccountId()
   const navigate = useNavigate()
@@ -171,6 +175,10 @@ function AgentDetailPage({
   const serverUrl = routeServerUrl || serverUrlQuery.data || getDefaultAgentServerUrl() || ''
   const serverHealth = useAgentServerHealth(serverUrl)
   const agent = useAgentDetail(serverUrl, selectedAccountId, agentId)
+  useEffect(() => {
+    if (!embedded && agent.data?.agent.id.startsWith('hm://'))
+      replaceRoute({key: 'agent', agentId: agent.data.agent.id, serverUrl, tab, triggerId, memoryPath})
+  }, [embedded, agent.data?.agent.id, replaceRoute, serverUrl, tab, triggerId, memoryPath])
   // Top-level sessions only, a page at a time; children nest under their parent's disclosure.
   const sessionPages = useAgentSessions(serverUrl, selectedAccountId, agentId)
   const topLevelSessions = useMemo(
@@ -467,6 +475,7 @@ function AgentDetailPage({
   // Built only once the agent has loaded; the render below shows a spinner or notice before then.
   const header = agent.data ? (
     <AgentHeader
+      embedded={embedded}
       agent={agent.data.agent}
       agentName={name}
       onEditName={
@@ -492,23 +501,25 @@ function AgentDetailPage({
       menuItems={
         isOwner
           ? [
-              {
-                key: 'move-server',
-                label: 'Move to another server…',
-                icon: <ArrowRightLeft className="size-4" />,
-                disabled: !selectedAccountId,
-                onClick: () =>
-                  moveAgentDialog.open({
-                    sourceServerUrl: serverUrl,
-                    selectedAccountId,
-                    agentId,
-                    agentName: name,
-                    modelProvider: agent.data?.agent.definition.modelProvider ?? '',
-                    sessionsCount: sessionCount,
-                    onMoved: ({serverUrl: movedServerUrl, agentId: movedAgentId}) =>
-                      navigate({key: 'agent', agentId: movedAgentId, serverUrl: movedServerUrl}),
-                  }),
-              },
+              !embedded
+                ? {
+                    key: 'move-server',
+                    label: 'Move to another server…',
+                    icon: <ArrowRightLeft className="size-4" />,
+                    disabled: !selectedAccountId,
+                    onClick: () =>
+                      moveAgentDialog.open({
+                        sourceServerUrl: serverUrl,
+                        selectedAccountId,
+                        agentId,
+                        agentName: name,
+                        modelProvider: agent.data?.agent.definition.modelProvider ?? '',
+                        sessionsCount: sessionCount,
+                        onMoved: ({serverUrl: movedServerUrl, agentId: movedAgentId}) =>
+                          navigate({key: 'agent', agentId: movedAgentId, serverUrl: movedServerUrl}),
+                      }),
+                  }
+                : null,
               {
                 key: 'delete-agent',
                 label: 'Delete agent…',
@@ -533,6 +544,7 @@ function AgentDetailPage({
 
   return (
     <PanelContainer className="flex flex-col overflow-hidden">
+      {agent.data && !embedded && <AgentMountBanner agent={agent.data.agent} serverUrl={serverUrl} />}
       <div className={isTriggerDetail ? 'border-border flex-none border-b' : 'contents'}>
         <Container
           className={
