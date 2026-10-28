@@ -226,7 +226,7 @@ import {
 } from './schema/schema-resolve'
 import {SiteFileBrowserLayout} from './site-file-browser-layout'
 import {SiteHeader} from './site-header'
-import {SpaceSettingsPanel, useSpaceHome, useSpaceSettings} from './space-settings'
+import {useSpaceHome, useSpaceSettings} from './space-settings'
 import {Spinner} from './spinner'
 import {SizableText, Text} from './text'
 import {toast} from './toast'
@@ -525,7 +525,7 @@ export function orderDocumentMenuItems(items: MenuItemType[]): MenuItemType[] {
     'app-revoke',
     'new',
     'add-raw-field',
-    'options',
+    'space-settings',
     'versions',
     'convert-to-collection',
     'convert-to-document',
@@ -1089,8 +1089,6 @@ function getPanelTitle(panelKey: string | null): string {
       return 'Collaborators'
     case 'all-documents':
       return 'All Documents'
-    case 'options':
-      return 'Space settings'
     default:
       return 'Panel'
   }
@@ -2861,22 +2859,17 @@ function DocumentBody({
       },
     }
   }, [docId, navigate, route.key, experiments?.developerTools])
-  // Space Settings replaced the old per-document options panel. It belongs to the
-  // space rather than the document, so it is offered on the home document only,
-  // to the owner, and only where the full settings page exists to continue into.
+  // Space Settings available on the home document to the owner of the space, and only on desktop.
   // An agent has its own Settings tab, so it isn't offered there.
   const spaceSettingsMenuItem = useMemo<MenuItemType | null>(() => {
     if (!IS_DESKTOP || !isHomeDoc || !isSiteOwner || isAgentDocument) return null
     return {
-      key: 'options',
+      key: 'space-settings',
       label: 'Space settings',
       icon: <Settings className="size-4" />,
-      onClick: () => {
-        const newPanel = panelKey === 'options' ? null : {key: 'options' as const}
-        replaceRoute({...route, panel: newPanel} as any)
-      },
+      onClick: () => navigate({key: 'site-settings', id: hmId(docId.uid), tab: 'general'}),
     }
-  }, [isHomeDoc, isSiteOwner, isAgentDocument, panelKey, route, replaceRoute])
+  }, [isHomeDoc, isSiteOwner, isAgentDocument, navigate, docId.uid])
   // On the Attributes page, a field outside the attributes schema is added from the options menu.
   const addRawFieldMenuItem = useMemo<MenuItemType | null>(() => {
     if (!canEditCurrentRoute || route.key !== 'metadata') return null
@@ -3680,8 +3673,6 @@ function PanelContentRenderer({
   autoFocusComments?: boolean
 }) {
   switch (panelRoute.key) {
-    case 'options':
-      return <DocumentSpaceSettingsPanel docId={docId} />
     case 'metadata':
       return (
         <div className="px-4">
@@ -3825,16 +3816,6 @@ function CommentsPanelContent({
         }
       />
     </CommentsProvider>
-  )
-}
-
-function DocumentSpaceSettingsPanel({docId}: {docId: UnpackedHypermediaId}) {
-  const navigate = useNavigate()
-  return (
-    <SpaceSettingsPanel
-      spaceUid={docId.uid}
-      onOpenFullSettings={() => navigate({key: 'site-settings', id: hmId(docId.uid), tab: 'general'})}
-    />
   )
 }
 
