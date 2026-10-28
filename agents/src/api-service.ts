@@ -39,6 +39,7 @@ import {BrowserTools} from '@/browser-tools'
 import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
 import {
+  buildLambdaEntryProgram,
   buildLambdaProgram,
   CodeExecError,
   createCodeExecutor,
@@ -3305,13 +3306,24 @@ export class Service {
   }
 
   #appResolver(accountId: string): AgentServicePiToolContext['apps'] {
-    return {resolve: (slug) => appMounts.resolveAppMount(this.#db, accountId, slug, this.#appSecrets())}
+    return {
+      resolve: (slug) => appMounts.resolveAppMount(this.#db, accountId, slug, this.#appSecrets()),
+      codeRoot: (tool, code) =>
+        appMounts.ensureToolCode(this.#appMountDeps(), tool, code).catch((error: unknown) => {
+          throw new APIError(
+            503,
+            `The code of ${tool} is not available: ${error instanceof Error ? error.message : String(error)}`,
+          )
+        }),
+    }
   }
 
   #appMountDeps(signal?: AbortSignal): appMounts.AppMountDeps {
     return {
       db: this.#db,
       hmServerUrl: this.#hmServerUrl,
+      ipfsServerUrl: this.#ipfsServerUrl,
+      dataDir: this.#dataDir,
       serverUid: this.serverUid,
       fetch: fetchWithReadDeadline,
       runtimes: this.#codeExec.runtimes,
@@ -12468,8 +12480,15 @@ export type AgentServicePiToolContext = WriteToolContext & {
    */
   browserPrivacy: BrowserPrivacy
   web: WebToolsConfig
-  /** The apps mounted for this account, resolved with their argument values for a tool about to run. */
-  apps: {resolve: (slug: string) => appMounts.ResolvedAppMount | undefined}
+  /**
+   * The apps mounted for this account, resolved with their argument values for a tool about to
+   * run, and the host directory a tool's code is cached in (fetched again when the data directory
+   * lost it), for the sandbox to stage.
+   */
+  apps: {
+    resolve: (slug: string) => appMounts.ResolvedAppMount | undefined
+    codeRoot: (tool: string, code: appMounts.AppToolCode) => Promise<string>
+  }
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
   /** Agent state directory holding the private memory filesystem. */
@@ -14936,12 +14955,19 @@ async function runLambdaSource(
     network?: {hosts: string[]}
     timeoutSecs?: number
     maxTimeoutSecs?: number
+    /** An app tool's code: the host directory it is cached in and the entry file, staged into the sandbox. */
+    code?: {root: string; entry: string}
   },
 ): Promise<Record<string, unknown>> {
   const doc = row.doc
   const source = typeof doc.source === 'string' ? doc.source : ''
-  if (!source.trim()) throw new APIError(400, `Tool ${doc.name} has no source to run`)
+  if (!run.code && !source.trim()) throw new APIError(400, `Tool ${doc.name} has no source to run`)
   const runtime: LambdaRuntime = doc.runtime === 'python' ? 'python' : 'ts'
+  // A staged tool gets a directory of its own in the guest; the program imports its entry from there.
+  const stage = run.code ? {hostDir: run.code.root, guestDir: `/tmp/seed-tool-${crypto.randomUUID()}`} : undefined
+  const program = stage
+    ? buildLambdaEntryProgram(runtime, `${stage.guestDir}/${run.code!.entry}`, toolInput)
+    : buildLambdaProgram(runtime, source, toolInput)
   // What the HOST can do comes first: when the server cannot run this runtime at all, saying the
   // owner should grant something would send the user off to fix the wrong thing.
   if (!context.codeExec.runtimes.includes(runtime)) {
@@ -14961,7 +14987,8 @@ async function runLambdaSource(
       principal: run.principal,
       stateDir: context.stateDir,
       runtime,
-      code: buildLambdaProgram(runtime, source, toolInput),
+      code: program,
+      ...(stage ? {stage} : {}),
       ...(run.env ? {env: run.env} : {}),
       ...(run.network ? {network: run.network} : {}),
       ...(run.timeoutSecs !== undefined ? {timeoutSecs: run.timeoutSecs} : {}),
@@ -15225,6 +15252,8 @@ async function executeAppTool(
   }
   let wrapped: Record<string, unknown>
   try {
+    // The code the mount pass fetched and proved, from the server's cache; the sandbox stages it.
+    const codeRoot = await context.apps.codeRoot(doc.name, appTool.code)
     wrapped = await runLambdaSource(context, document, toolInput, toolCallId, {
       principal: {
         accountId: context.accountId,
@@ -15235,6 +15264,7 @@ async function executeAppTool(
       network: {hosts: Object.values(mount.snapshot.network)},
       ...(appTool.timeoutSecs !== undefined ? {timeoutSecs: appTool.timeoutSecs} : {}),
       maxTimeoutSecs: MAX_APP_EXEC_TIMEOUT_SECS,
+      code: {root: codeRoot, entry: appTool.code.entry},
     })
   } catch (error) {
     if (reservation) appUsage.releaseReservation(context.db, reservation.id, Date.now())

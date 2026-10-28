@@ -1420,6 +1420,9 @@
     },
     "AppToolInfo": {
       "fields": {
+        "code": "string",
+        "inputSchema": "string",
+        "outputSchema?": "string",
         "runtime": "\"python\" | \"ts\"",
         "summary": "string",
         "tool": "string"
@@ -1427,6 +1430,7 @@
     },
     "AppToolProvenance": {
       "fields": {
+        "code?": "{entry: string; url: string}",
         "scope": "\"server\" | \"space\"",
         "slug": "string",
         "version?": "string"

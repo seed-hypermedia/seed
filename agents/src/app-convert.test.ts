@@ -9,18 +9,25 @@ import {parseFrontmatter} from '@seed-hypermedia/client'
 
 /**
  * The Datalab converter's tool page, read the way a mount reads it and run the way the sandbox runs
- * it: the `code` attribute is the tool and `inputSchema` its contract. The page lives in the repo's
- * `hypermedia/` library, outside this workspace; it is read here as a fixture by path, not imported
- * as a module.
+ * it: the page's `code` names the tool's file and `inputSchema` its contract, and the docs sync
+ * publishes the files beside the page as the blobs those attributes reference. The page lives in
+ * the repo's `hypermedia/` library, outside this workspace; its files are read here as fixtures by
+ * path, not imported as modules.
  */
 
-const PAGE = path.resolve(import.meta.dir, '../../hypermedia/agent/apps/convert/tools/convert.md')
+const TOOL_DIR = path.resolve(import.meta.dir, '../../hypermedia/agent/apps/convert/tools')
 // The frontmatter is parsed the way the docs sync parses it when it publishes the page.
-const page = parseFrontmatter(fs.readFileSync(PAGE, 'utf8'))
+const page = parseFrontmatter(fs.readFileSync(path.join(TOOL_DIR, 'convert.md'), 'utf8'))
 const metadata = page.metadata as Record<string, unknown>
-const input = JSON.parse(metadata.inputSchema as string) as JsonSchema
-const output = JSON.parse(metadata.outputSchema as string) as JsonSchema
-const source = metadata.code as string
+const fileBeside = (attribute: string): string => {
+  const value = metadata[attribute]
+  if (typeof value !== 'string' || !value.startsWith('./'))
+    throw new Error(`${attribute} must name a file beside the page`)
+  return path.join(TOOL_DIR, value)
+}
+const input = JSON.parse(fs.readFileSync(fileBeside('inputSchema'), 'utf8')) as JsonSchema
+const output = JSON.parse(fs.readFileSync(fileBeside('outputSchema'), 'utf8')) as JsonSchema
+const source = fs.readFileSync(fileBeside('code'), 'utf8')
 
 type Convert = (
   input: Record<string, unknown>,

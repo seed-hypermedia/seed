@@ -8,17 +8,9 @@ import type {AppSnapshot} from '@/app-mounts'
  * a working `convert` seed these rows and get on with it.
  */
 
-/**
- * A stand-in for the converter's code: a tool that reports what it was handed, so a test can see
- * the context an app run receives and the pages it says it spent, without Datalab.
- */
-export const CONVERT_TEST_SOURCE = [
-  'export default async function (input, ctx) {',
-  '  return {summary: `Converted ${input.files.length} document(s)`, documents: [], failures: [],',
-  '    ctx: {args: ctx.args, usage: ctx.usage, app: ctx.app, workspace: ctx.workspace},',
-  '    ...(ctx.usage ? {usage: {units: Math.min(ctx.usage.reserved, 3)}} : {})}',
-  '}',
-].join('\n')
+/** Stand-ins for the tool page's references: a raw file for the code, DAG-CBOR objects for the schemas. */
+export const CONVERT_TEST_CODE_CID = 'bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy'
+export const CONVERT_TEST_INPUT_CID = 'bafyreihtfb2u3l5v2z2jtyoalbquk5rrvknmgtixwnpwp2dkt2ysntfw3u'
 
 /** The converter app as a pass would snapshot it: enough for the projection and the sandbox run. */
 export const CONVERT_SNAPSHOT: AppSnapshot = {
@@ -45,7 +37,8 @@ export const CONVERT_SNAPSHOT: AppSnapshot = {
         required: ['files'],
         additionalProperties: false,
       },
-      source: CONVERT_TEST_SOURCE,
+      inputSchema: `ipfs://${CONVERT_TEST_INPUT_CID}`,
+      code: {url: `ipfs://${CONVERT_TEST_CODE_CID}`, cid: CONVERT_TEST_CODE_CID, entry: 'index.ts'},
       instructions: 'Pass memory paths in `files`.',
     },
   ],

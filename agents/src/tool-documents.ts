@@ -72,8 +72,11 @@ export type ToolDocument = {
   server?: string
   /** MCP tools: the tool's name on that server. */
   remoteName?: string
-  /** App tools: the mounted app the document is projected from; `source` is the tool page's code, run for that mount. */
-  app?: {slug: string; version?: string; scope: 'server' | 'space'}
+  /**
+   * App tools: the mounted app the document is projected from, and where the tool page's code is
+   * (`code`, the `ipfs://` reference and the entry file), run for that mount; such a document carries no `source`.
+   */
+  app?: {slug: string; version?: string; scope: 'server' | 'space'; code?: {url: string; entry: string}}
 }
 
 export type ToolDocumentRow = {
@@ -234,8 +237,10 @@ export function mcpToolInfoFromDescriptor(
   }
 }
 
-/** A tool of a mounted app as the agent's document: the executor's contract under the tool's name, with the app's text. */
-/** The document an app's tool projects to: a lambda whose source is the tool page's code, run for the mount. */
+/**
+ * The document an app's tool projects to: a lambda whose code is the tool page's `code` reference,
+ * cached by the server and run for the mount; the contract and the app's text come with it.
+ */
 function appToolDocument(row: AppMountRow, appTool: AppToolSnapshot): ToolDocument | undefined {
   if (!row.snapshot) return undefined
   const description = [appTool.instructions.trim(), row.snapshot.skillDoc.trim()].filter(Boolean).join('\n\n')
@@ -246,9 +251,13 @@ function appToolDocument(row: AppMountRow, appTool: AppToolSnapshot): ToolDocume
     description,
     input: appTool.input,
     ...(appTool.output ? {output: appTool.output} : {}),
-    source: appTool.source,
     runtime: appTool.runtime === 'python' ? 'python' : 'typescript',
-    app: {slug: row.slug, ...(row.version ? {version: row.version} : {}), scope: row.scope},
+    app: {
+      slug: row.slug,
+      ...(row.version ? {version: row.version} : {}),
+      scope: row.scope,
+      code: {url: appTool.code.url, entry: appTool.code.entry},
+    },
   }
 }
 
@@ -558,7 +567,12 @@ export function toolDocumentContractMarkdown(row: ToolDocumentRow): string {
   if (doc.output) {
     parts.push('', '## Output schema', '```json', JSON.stringify(doc.output, null, 2), '```')
   }
-  if (doc.source) {
+  if (doc.app?.code) {
+    parts.push(
+      '',
+      `> Runs in the execute sandbox for the mount: the code is \`${doc.app.code.url}\`, entry \`${doc.app.code.entry}\`.`,
+    )
+  } else if (doc.source) {
     parts.push(
       '',
       doc.runtime === 'python'

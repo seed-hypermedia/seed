@@ -5,6 +5,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import {writeMemoryFile, memoryRootPath} from '@/agent-memory'
 import {
+  buildLambdaEntryProgram,
   buildLambdaProgram,
   CodeExecError,
   EXEC_WORKSPACE_GUEST_PATH,
@@ -47,6 +48,8 @@ type FakeCall = {
   maxDurationSecs?: number
   mounts: {guest: string; host?: string; quotaMib?: number}[]
   exec?: {cmd: string; args: string[]; timeoutMs?: number; env?: Record<string, string>}
+  /** What the guest file API was asked to create, in order: directories and files with their contents. */
+  staged?: Array<{dir: string} | {file: string; text: string}>
   stopped?: boolean
   killed?: boolean
   streamKilled?: boolean
@@ -163,6 +166,20 @@ function fakeSdk(
               kill: async () => {
                 call.killed = true
               },
+              // The guest file API, recording what the executor stages before a run.
+              fs: () => ({
+                exists: async (guestPath: string) =>
+                  (call.staged ?? []).some((entry) => 'dir' in entry && entry.dir === guestPath),
+                mkdir: async (guestPath: string) => {
+                  ;(call.staged ??= []).push({dir: guestPath})
+                },
+                write: async (guestPath: string, data: Uint8Array | string) => {
+                  ;(call.staged ??= []).push({
+                    file: guestPath,
+                    text: typeof data === 'string' ? data : new TextDecoder().decode(data),
+                  })
+                },
+              }),
             }
           },
         }
@@ -568,6 +585,81 @@ describe('code exec', () => {
     const noMain = Bun.spawnSync(['python3', '-c', buildLambdaProgram('python', 'x = 1', {})])
     expect(noMain.exitCode).not.toBe(0)
     expect(noMain.stderr.toString()).toContain('must define a top-level main(input) function')
+  })
+
+  test('a staged directory is placed in the guest through the file API before the program runs', async () => {
+    await withStateDir(async (stateDir) => {
+      const hostDir = fs.mkdtempSync(path.join(os.tmpdir(), 'code-exec-stage-'))
+      try {
+        fs.mkdirSync(path.join(hostDir, 'lib'))
+        fs.writeFileSync(path.join(hostDir, 'index.ts'), 'export default () => 1')
+        fs.writeFileSync(path.join(hostDir, 'lib', 'util.ts'), 'export const x = 1')
+        const call: FakeCall = {mounts: []}
+        const executor = createCodeExecutor(defaultCodeExecConfig(), async () => fakeSdk(call))
+        await executor.execute({
+          principal,
+          stateDir,
+          runtime: 'ts',
+          code: 'console.log(1)',
+          stage: {hostDir, guestDir: '/tmp/seed-tool-x'},
+        })
+        // Parents first, then the files, in a stable order; nothing touches the workspace mount.
+        expect(call.staged).toEqual([
+          {dir: '/tmp'},
+          {dir: '/tmp/seed-tool-x'},
+          {file: '/tmp/seed-tool-x/index.ts', text: 'export default () => 1'},
+          {dir: '/tmp/seed-tool-x/lib'},
+          {file: '/tmp/seed-tool-x/lib/util.ts', text: 'export const x = 1'},
+        ])
+        expect(call.mounts).toEqual([{guest: EXEC_WORKSPACE_GUEST_PATH, host: memoryRootPath(stateDir)}])
+      } finally {
+        fs.rmSync(hostDir, {recursive: true, force: true})
+      }
+    })
+  })
+
+  test('the entry program imports a staged tool from its directory, in both runtimes, end to end', async () => {
+    // Same idea as the wrapper tests: the program is just bun (or python) input, so run it on the
+    // host against a directory laid out the way the sandbox would see it.
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'code-exec-entry-'))
+    try {
+      fs.mkdirSync(path.join(dir, 'lib'))
+      fs.writeFileSync(path.join(dir, 'lib', 'greet.ts'), 'export const greet = (name: string) => `hi ${name}`')
+      fs.writeFileSync(
+        path.join(dir, 'index.ts'),
+        "import {greet} from './lib/greet'\nexport default async function (input: {name: string}, ctx: unknown) {\n  console.log('working')\n  return {greeting: greet(input.name), ctx}\n}\n",
+      )
+      const tsProgram = buildLambdaEntryProgram('ts', `${dir}/index.ts`, {name: 'Ada'})
+      expect(tsProgram).not.toContain('seed-tool-')
+      const run = Bun.spawnSync(['bun', '-e', tsProgram], {env: {...process.env, [LAMBDA_CONTEXT_ENV]: '{"a":1}'}})
+      const parsed = parseLambdaResult(run.stdout.toString())
+      expect(run.exitCode).toBe(0)
+      expect(parsed.result).toEqual({greeting: 'hi Ada', ctx: {a: 1}})
+      expect(parsed.logs).toBe('working')
+
+      const hasPython = Bun.spawnSync(['python3', '-c', 'print(1)']).exitCode === 0
+      if (!hasPython) return
+      fs.writeFileSync(path.join(dir, 'helper.py'), 'def greet(name):\n    return "hi " + name\n')
+      fs.writeFileSync(
+        path.join(dir, 'main.py'),
+        'from helper import greet\n\ndef main(input, ctx):\n    print("working")\n    return {"greeting": greet(input["name"]), "ctx": ctx}\n',
+      )
+      const pyProgram = buildLambdaEntryProgram('python', `${dir}/main.py`, {name: 'Ada'})
+      const pyRun = Bun.spawnSync(['python3', '-c', pyProgram], {
+        env: {...process.env, [LAMBDA_CONTEXT_ENV]: '{"a":1}'},
+      })
+      const pyParsed = parseLambdaResult(pyRun.stdout.toString())
+      expect(pyRun.exitCode).toBe(0)
+      expect(pyParsed.result).toEqual({greeting: 'hi Ada', ctx: {a: 1}})
+      expect(pyParsed.logs).toBe('working')
+      // A module without main is a broken tool, and says so.
+      fs.writeFileSync(path.join(dir, 'main.py'), 'x = 1\n')
+      const noMain = Bun.spawnSync(['python3', '-c', buildLambdaEntryProgram('python', `${dir}/main.py`, {})])
+      expect(noMain.exitCode).not.toBe(0)
+      expect(noMain.stderr.toString()).toContain('must define a top-level main(input) function')
+    } finally {
+      fs.rmSync(dir, {recursive: true, force: true})
+    }
   })
 
   test('the wrappers hand a tool the context from the environment, and nothing when there is none', () => {

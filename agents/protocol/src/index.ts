@@ -1887,6 +1887,12 @@ export type AppToolInfo = {
   summary: string
   /** The language of the tool page's code, run in the server's sandbox. */
   runtime: 'ts' | 'python'
+  /** The tool page's `code` reference: `ipfs://<cid>` of the file, or of the folder whose entry the server runs. */
+  code: string
+  /** The tool page's `inputSchema` reference: `ipfs://<cid>` of the DAG-CBOR object holding the JSON Schema. */
+  inputSchema: string
+  /** Likewise the `outputSchema` reference, when the page has one. */
+  outputSchema?: string
 }
 
 /** What the last pass over a mount found. */
@@ -2298,6 +2304,8 @@ export type AppToolProvenance = {
   slug: string
   version?: string
   scope: 'server' | 'space'
+  /** The tool page's `code` reference and the entry file the server runs from it; an app tool carries no `source`. */
+  code?: {url: string; entry: string}
 }
 
 /** One tool document from an agent's `~/tools`: a builtin binding, an authored lambda, or an MCP projection. */

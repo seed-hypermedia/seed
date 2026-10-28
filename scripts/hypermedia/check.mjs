@@ -11,6 +11,7 @@
 //
 //   1. spelling      a schema node names what it is with `type`; `ref` and `$type` are retired
 //   2. pairing       every schema file has a page, and no page carries schemaDefinition in its frontmatter
+//   2b. assets       a relative path in a frontmatter (`code: ./x.ts`) names a file beside the page
 //   3. meta-schema   validate.mjs: each schema is a valid Hypermedia schema, self-description holds
 //   4. lockfile      schemas.lock.json matches the files (publish.mjs --check)
 //   5. generated     the bundled registry and TS types match the files
@@ -115,6 +116,23 @@ for (const page of pages) {
     fail(page.file, `frontmatter carries schemaDefinition; remove it, the sync sets it from ${schemaFile}`)
 }
 if (!failures.length) ok(`${schemaFiles.length} schemas paired with pages`)
+
+// 2b. Attribute assets ───────────────────────────────────────────────────────
+// A frontmatter value that is a relative path names a file or folder beside the page, which the
+// sync publishes as the blob the attribute references (`code: ./convert.ts`). The file is the
+// source, so the frontmatter never carries the CID, and a path must name something that exists.
+section('Every relative path in a frontmatter names a file beside its page')
+const leavesOf = (value) =>
+  typeof value === 'string' ? [value] : value && typeof value === 'object' ? Object.values(value).flatMap(leavesOf) : []
+let assets = 0
+for (const page of pages) {
+  for (const value of leavesOf(page.frontmatter)) {
+    if (!/^\.\.?\//.test(value)) continue
+    assets++
+    if (!existsSync(resolve(HM_DIR, dirname(page.file), value))) fail(page.file, `${value} names no file beside the page`)
+  }
+}
+if (!failures.length) ok(`${assets} attribute assets exist beside their pages`)
 
 // 3-5. The generators and the reference validator ────────────────────────────
 const run = (script, args = []) => {

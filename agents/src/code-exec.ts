@@ -16,6 +16,7 @@ import {listMemory, memoryRootPath} from '@/agent-memory'
 import {recordPerf, recordPerfCount} from '@/perf'
 import * as fs from 'node:fs'
 import {availableParallelism} from 'node:os'
+import * as path from 'node:path'
 
 /** Guest path where the agent's memory directory is mounted. */
 export const EXEC_WORKSPACE_GUEST_PATH = '/workspace'
@@ -150,6 +151,13 @@ export type CodeExecRequest = {
    * declares its hosts on its bundle, so a tool gets what the person mounting the app saw.
    */
   network?: {hosts: string[]}
+  /**
+   * A host directory placed in the guest before the program runs, file by file through the
+   * sandbox's file API: how an app tool's code, cached on the host by its CID, reaches the VM
+   * without riding in the program text (which travels in argv) and without a mount, so a pooled
+   * VM could take it too. The program names `guestDir` itself (see buildLambdaEntryProgram).
+   */
+  stage?: {hostDir: string; guestDir: string}
   /** Called with live progress while the execution runs, so callers can show what is happening. */
   onProgress?: (progress: CodeExecProgress) => void
 }
@@ -298,6 +306,15 @@ export type SandboxLike = {
   ): Promise<ExecStreamHandleLike>
   stop(): Promise<void>
   kill(): Promise<void>
+  /** The guest's file API, when the SDK offers one: how a staged directory (CodeExecRequest.stage) is placed. */
+  fs?(): SandboxFsLike
+}
+
+/** The part of the SDK's guest file API the executor uses to stage files. */
+export type SandboxFsLike = {
+  exists(path: string): Promise<boolean>
+  mkdir(path: string): Promise<void>
+  write(path: string, data: Uint8Array | string): Promise<void>
 }
 
 /** Machine-readable cause when code execution is unavailable, so clients can offer targeted help. */
@@ -1096,6 +1113,7 @@ export function createCodeExecutor(
       // watchdog kill) disposes the sandbox instead of ever letting a pool source reuse it.
       let healthy = false
       try {
+        if (request.stage) await stageDirectory(lease.sandbox, request.stage)
         const command: ExecCommand = {
           ...runtimeCommand(request.runtime, code),
           ...(request.env ? {env: request.env} : {}),
@@ -1166,6 +1184,43 @@ function runtimeCommand(runtime: CodeExecRuntime, code: string): ExecCommand {
   return {cmd: '/bin/sh', args: ['-c', code]}
 }
 
+/**
+ * Places a host directory in the guest, file by file, each parent made first. The SDK's file
+ * API is the only way in that needs neither a mount (fixed at boot, so unusable with a pooled
+ * VM) nor the program text (argv-bound). The staged tree is small by construction: an app
+ * tool's code is bounded at mount (see app-mounts.ts).
+ */
+async function stageDirectory(sandbox: SandboxLike, stage: {hostDir: string; guestDir: string}): Promise<void> {
+  if (!sandbox.fs) throw new CodeExecError(502, 'The sandbox SDK cannot place files in the guest')
+  const guestFs = sandbox.fs()
+  const made = new Set<string>()
+  const ensureDir = async (guestPath: string): Promise<void> => {
+    if (made.has(guestPath)) return
+    const parent = guestPath.slice(0, guestPath.lastIndexOf('/'))
+    if (parent) await ensureDir(parent)
+    if (!(await guestFs.exists(guestPath))) await guestFs.mkdir(guestPath)
+    made.add(guestPath)
+  }
+  const copy = async (hostDir: string, guestDir: string): Promise<void> => {
+    await ensureDir(guestDir)
+    for (const entry of fs.readdirSync(hostDir, {withFileTypes: true}).sort((a, b) => a.name.localeCompare(b.name))) {
+      const hostPath = path.join(hostDir, entry.name)
+      const guestPath = `${guestDir}/${entry.name}`
+      if (entry.isDirectory()) await copy(hostPath, guestPath)
+      else if (entry.isFile()) await guestFs.write(guestPath, fs.readFileSync(hostPath))
+    }
+  }
+  try {
+    await copy(stage.hostDir, stage.guestDir)
+  } catch (error) {
+    if (error instanceof CodeExecError) throw error
+    throw new CodeExecError(
+      502,
+      `Could not place the tool's files in the sandbox: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+}
+
 // ------------------------------------------------------------------------------------------------
 // Lambda tools
 // ------------------------------------------------------------------------------------------------
@@ -1205,36 +1260,17 @@ export const LAMBDA_CONTEXT_ENV = 'SEED_APP_CONTEXT'
  * takes a second parameter, so a tool written as `main(input)` keeps working.
  */
 export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input: unknown): string {
-  // JSON.stringify twice: the inner call renders the value, the outer makes it a string literal
-  // that is valid in both languages, so no interpolation can escape into code.
-  const inputLiteral = JSON.stringify(JSON.stringify(input ?? null))
   if (runtime === 'python') {
     return [
       source,
       '',
       'import json as __seed_json, os as __seed_os, inspect as __seed_inspect',
-      `__seed_input = __seed_json.loads(${inputLiteral})`,
-      `__seed_context_json = __seed_os.environ.get(${JSON.stringify(LAMBDA_CONTEXT_ENV)})`,
-      '__seed_context = __seed_json.loads(__seed_context_json) if __seed_context_json else None',
-      'if not callable(globals().get("main")):',
-      '    raise SystemExit("This python tool must define a top-level main(input) function")',
-      '__seed_result = (',
-      '    main(__seed_input, __seed_context)',
-      '    if len(__seed_inspect.signature(main).parameters) >= 2',
-      '    else main(__seed_input)',
-      ')',
-      // `async def main` is a natural thing to write, and awaiting it here costs nothing more.
-      'if __seed_inspect.iscoroutine(__seed_result):',
-      '    import asyncio as __seed_asyncio',
-      '    __seed_result = __seed_asyncio.run(__seed_result)',
-      `print("${LAMBDA_RESULT_PREFIX}" + __seed_json.dumps(__seed_result))`,
-      '',
+      'main = globals().get("main")',
+      ...pythonLambdaEpilogue(input),
     ].join('\n')
   }
   return [
-    `const __seedInput = JSON.parse(${inputLiteral})`,
-    `const __seedContextJson = process.env[${JSON.stringify(LAMBDA_CONTEXT_ENV)}]`,
-    'const __seedContext = __seedContextJson ? JSON.parse(__seedContextJson) : undefined',
+    ...tsLambdaPrologue(input),
     "const __seedFs = await import('node:fs')",
     "const __seedPath = await import('node:path')",
     "const __seedDir = __seedFs.mkdtempSync(__seedPath.join((await import('node:os')).tmpdir(), 'seed-tool-'))",
@@ -1242,6 +1278,77 @@ export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input
     `__seedFs.writeFileSync(__seedFile, ${JSON.stringify(source)})`,
     'const __seedModule = await import(__seedFile)',
     '__seedFs.rmSync(__seedDir, {recursive: true, force: true})',
+    ...tsLambdaEpilogue(),
+  ].join('\n')
+}
+
+/**
+ * The program that runs a tool whose code is a directory staged in the guest
+ * (CodeExecRequest.stage): the same ABI as buildLambdaProgram, with the entry module imported
+ * from `entryPath` instead of pasted into the program text. An app tool's code is a file or a
+ * folder the server cached by CID, so the program is a few lines whatever the tool's size.
+ * `entryPath` is absolute in the guest; python imports the entry's module name from its
+ * directory, so a folder's own imports resolve beside it.
+ */
+export function buildLambdaEntryProgram(runtime: LambdaRuntime, entryPath: string, input: unknown): string {
+  const dir = entryPath.slice(0, entryPath.lastIndexOf('/'))
+  const file = entryPath.slice(entryPath.lastIndexOf('/') + 1)
+  if (runtime === 'python') {
+    return [
+      'import json as __seed_json, os as __seed_os, inspect as __seed_inspect, sys as __seed_sys, importlib as __seed_importlib',
+      `__seed_sys.path.insert(0, ${JSON.stringify(dir)})`,
+      `main = getattr(__seed_importlib.import_module(${JSON.stringify(file.replace(/\.py$/, ''))}), "main", None)`,
+      ...pythonLambdaEpilogue(input),
+    ].join('\n')
+  }
+  return [
+    ...tsLambdaPrologue(input),
+    `const __seedModule = await import(${JSON.stringify(entryPath)})`,
+    ...tsLambdaEpilogue(),
+  ].join('\n')
+}
+
+/**
+ * A JSON string literal of the call's input: JSON.stringify twice, the inner call renders the
+ * value, the outer makes it a string literal valid in both languages, so no interpolation can
+ * escape into code.
+ */
+const inputLiteralOf = (input: unknown): string => JSON.stringify(JSON.stringify(input ?? null))
+
+/** After `main` is bound: the input, the context, the call with or without it, and the marked result. */
+function pythonLambdaEpilogue(input: unknown): string[] {
+  return [
+    `__seed_input = __seed_json.loads(${inputLiteralOf(input)})`,
+    `__seed_context_json = __seed_os.environ.get(${JSON.stringify(LAMBDA_CONTEXT_ENV)})`,
+    '__seed_context = __seed_json.loads(__seed_context_json) if __seed_context_json else None',
+    'if not callable(main):',
+    '    raise SystemExit("This python tool must define a top-level main(input) function")',
+    '__seed_result = (',
+    '    main(__seed_input, __seed_context)',
+    '    if len(__seed_inspect.signature(main).parameters) >= 2',
+    '    else main(__seed_input)',
+    ')',
+    // `async def main` is a natural thing to write, and awaiting it here costs nothing more.
+    'if __seed_inspect.iscoroutine(__seed_result):',
+    '    import asyncio as __seed_asyncio',
+    '    __seed_result = __seed_asyncio.run(__seed_result)',
+    `print("${LAMBDA_RESULT_PREFIX}" + __seed_json.dumps(__seed_result))`,
+    '',
+  ]
+}
+
+/** The input and the context, before the module is loaded. */
+function tsLambdaPrologue(input: unknown): string[] {
+  return [
+    `const __seedInput = JSON.parse(${inputLiteralOf(input)})`,
+    `const __seedContextJson = process.env[${JSON.stringify(LAMBDA_CONTEXT_ENV)}]`,
+    'const __seedContext = __seedContextJson ? JSON.parse(__seedContextJson) : undefined',
+  ]
+}
+
+/** After `__seedModule` is loaded: the default export called with the input and the marked result. */
+function tsLambdaEpilogue(): string[] {
+  return [
     'const __seedEntry = __seedModule.default',
     'if (typeof __seedEntry !== "function") {',
     '  throw new Error("This TypeScript tool must `export default` a function taking its input")',
@@ -1249,7 +1356,7 @@ export function buildLambdaProgram(runtime: LambdaRuntime, source: string, input
     'const __seedResult = await __seedEntry(__seedInput, __seedContext)',
     `console.log(${JSON.stringify(LAMBDA_RESULT_PREFIX)} + JSON.stringify(__seedResult ?? null))`,
     '',
-  ].join('\n')
+  ]
 }
 
 /**
