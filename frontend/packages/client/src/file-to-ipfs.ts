@@ -101,6 +101,10 @@ export async function directoryToIpfsBlobs(files: IpfsDirectoryFile[]): Promise<
     seen.add(path)
     return {path, content: file.content}
   })
+  // A directory node links its children in the order they were added, so the same files given in
+  // another order would make another CID. Sorted by path, a folder's CID is a function of its
+  // content alone, which lets anyone recompute it from the files.
+  entries.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   const blockstore = new MemoryBlockstore()
   let rootCid: string | undefined
   const blobs: CollectedBlob[] = []
