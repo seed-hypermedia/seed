@@ -2228,6 +2228,78 @@ describe('DocumentLifecycle machine', () => {
       actor.stop()
     })
 
+    it('asks the UI to focus the title for a draft written up front with no title or text', () => {
+      const actor = createTestActor({existingDraftId: 'draft-1'})
+      const placeholderDocument = {...mockDocument, version: '', metadata: {}} as HMDocument
+
+      actor.start()
+      actor.send({type: 'draft.resolved', draftId: 'draft-1', content: [], cursorPosition: null, metadata: {}})
+      actor.send({type: 'document.loaded', document: placeholderDocument})
+
+      expect(actor.getSnapshot().matches('editing')).toBe(true)
+      expect(actor.getSnapshot().context.draftCreated).toBe(true)
+      expect(selectShouldFocusDraftTitle(actor.getSnapshot())).toBe(true)
+      actor.stop()
+    })
+
+    it('leaves the cursor alone for an untitled draft that already has body text', () => {
+      const actor = createTestActor({existingDraftId: 'draft-1'})
+      const placeholderDocument = {...mockDocument, version: '', metadata: {}} as HMDocument
+      const paragraph = {block: {id: 'b1', type: 'Paragraph', text: 'Body first', annotations: []}, children: []}
+
+      actor.start()
+      actor.send({
+        type: 'draft.resolved',
+        draftId: 'draft-1',
+        content: [paragraph as any],
+        cursorPosition: null,
+        metadata: {},
+      })
+      actor.send({type: 'document.loaded', document: placeholderDocument})
+
+      expect(actor.getSnapshot().matches('editing')).toBe(true)
+      expect(selectShouldFocusDraftTitle(actor.getSnapshot())).toBe(false)
+      actor.stop()
+    })
+
+    it('reads desktop draft snapshots stored as editor blocks when deciding to focus the title', () => {
+      const placeholderDocument = {...mockDocument, version: '', metadata: {}} as HMDocument
+      const typed = {
+        id: 'e1',
+        type: 'paragraph',
+        props: {},
+        content: [{type: 'text', text: 'Typed', styles: {}}],
+        children: [],
+      }
+      const empty = {id: 'e2', type: 'paragraph', props: {}, content: [], children: []}
+
+      const withText = createTestActor({existingDraftId: 'draft-1'})
+      withText.start()
+      withText.send({
+        type: 'draft.resolved',
+        draftId: 'draft-1',
+        content: [typed as any],
+        cursorPosition: null,
+        metadata: {},
+      })
+      withText.send({type: 'document.loaded', document: placeholderDocument})
+      expect(selectShouldFocusDraftTitle(withText.getSnapshot())).toBe(false)
+      withText.stop()
+
+      const blank = createTestActor({existingDraftId: 'draft-2'})
+      blank.start()
+      blank.send({
+        type: 'draft.resolved',
+        draftId: 'draft-2',
+        content: [empty as any],
+        cursorPosition: null,
+        metadata: {},
+      })
+      blank.send({type: 'document.loaded', document: placeholderDocument})
+      expect(selectShouldFocusDraftTitle(blank.getSnapshot())).toBe(true)
+      blank.stop()
+    })
+
     it('discarding a reserved draft before the first save does not call delete', async () => {
       const discardCalls: any[] = []
       const machine = documentMachine.provide({

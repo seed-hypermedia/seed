@@ -709,7 +709,12 @@ export function DocumentEditor({
   return (
     <RenderResourceProvider resource={{kind: 'document', id: resourceId}}>
       <FragmentActionsContext.Provider value={fragmentActionsValue}>
-        <BlockNoteView editor={editor} className="hm-prose draft-editor" data-highlight-resource={resourceId.id}>
+        <BlockNoteView
+          editor={editor}
+          className="hm-prose draft-editor"
+          data-highlight-resource={resourceId.id}
+          data-publish-shortcut="allow"
+        >
           {/* Editing-only positioners — gated behind isEditing */}
           {editable && (
             <>

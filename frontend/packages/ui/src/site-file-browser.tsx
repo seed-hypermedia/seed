@@ -2,6 +2,7 @@ import type {HMDocumentInfo, HMListedDraft, UnpackedHypermediaId} from '@seed-hy
 import {hmId} from '@shm/shared'
 import {isDraftPlaceholderPath, type HMListedDraftWithLocation} from '@shm/shared/draft-breadcrumb-context'
 import {useDirectoryWithDrafts} from '@shm/shared/models/entity'
+import {isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {latestId} from '@shm/shared/utils/entity-id-url'
 import {
   buildDocumentTree,
@@ -37,7 +38,10 @@ export interface SiteFileBrowserProps {
 }
 
 function titleOf(doc: HMDocumentInfo) {
-  return doc.metadata?.name || doc.path?.at(-1) || 'Untitled Document'
+  const slug = doc.path?.at(-1)
+  // An unpublished draft's slug is a placeholder id, not a readable name.
+  if (isDraftPathSegment(slug)) return doc.metadata?.name || 'Untitled Document'
+  return doc.metadata?.name || slug || 'Untitled Document'
 }
 
 /** Renders the searchable, expandable document hierarchy for a site. */
