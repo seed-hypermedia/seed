@@ -109,7 +109,7 @@ export type HMAgentAppMount = {
 
 /**
  * App Tool
- * The page type of one tool of a Seed Agents app, whose attributes name the tool and its runtime and carry its contract and the code the agents server runs for the spaces that mounted the app, and whose body is the tool's documentation, the instructions the model reads.
+ * The page type of one tool of a Seed Agents app, whose attributes name the tool and its runtime and reference its contract and its code by content id, and whose body is the tool's documentation, the instructions the model reads.
  * One tool of a Seed Agents app: a page under the app page's `tools` folder whose attributes name the tool, say what runtime its code needs, and reference the contract (`inputSchema`, `outputSchema`) and the code the agents server runs, each an `ipfs://` content id. The body is the tool's documentation, the instructions the model reads with the contract.
  * Schema: hm://hyper.media/agent/app-tool
  */
