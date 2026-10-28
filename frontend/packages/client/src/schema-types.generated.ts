@@ -30,6 +30,8 @@ export type HMAgent = {
 } & {[key: string]: HMValue}
 
 /**
+ * App
+ * The page type of a Seed Agents app, whose attributes declare its slug, the arguments a mount takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads.
  * A Seed Agents app: the home page of an app, whose attributes declare its name, the arguments a mount takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads. Its `tools` folder holds one app-tool document per tool, each carrying its own code.
  * Schema: hm://hyper.media/agent/app
  */
@@ -82,6 +84,8 @@ export type HMAgentApp = {
 }
 
 /**
+ * App Mount
+ * The page type a space publishes to install a Seed Agents app authored elsewhere, naming the app, the scope and the non-secret argument values.
  * A mount of a Seed Agents app: a page a space publishes to install an app authored elsewhere, naming the app's page and the argument values. Which agents server acts on it follows from the server the space is bound to.
  * Schema: hm://hyper.media/agent/app-mount
  */
@@ -104,7 +108,9 @@ export type HMAgentAppMount = {
 }
 
 /**
- * One tool of a Seed Agents app: a page under the app page's `tools` folder whose attributes name the tool, say what runtime its code needs, and carry the contract (`inputSchema`, `outputSchema`) and the code the agents server runs. The body is the tool's documentation, the instructions the model reads with the contract.
+ * App Tool
+ * The page type of one tool of a Seed Agents app, whose attributes name the tool and its runtime and carry its contract and the code the agents server runs for the spaces that mounted the app, and whose body is the tool's documentation, the instructions the model reads.
+ * One tool of a Seed Agents app: a page under the app page's `tools` folder whose attributes name the tool, say what runtime its code needs, and reference the contract (`inputSchema`, `outputSchema`) and the code the agents server runs, each an `ipfs://` content id. The body is the tool's documentation, the instructions the model reads with the contract.
  * Schema: hm://hyper.media/agent/app-tool
  */
 export type HMAgentAppTool = {
@@ -116,12 +122,12 @@ export type HMAgentAppTool = {
   runtime: 'ts' | 'python'
   /** How long one call may run, in seconds, up to the server's cap for app tools (thirty minutes). Without it the server's default execution timeout applies. */
   timeoutSecs?: number
-  /** The contract a call is validated against: a JSON Schema as JSON text, object-rooted and in the subset the server validates, the same an authored lambda's schema follows. Text, because a document's attributes hold scalars and maps and a JSON Schema needs lists (`required`, `enum`). */
-  inputSchema: string
+  /** The contract a call is validated against: an `ipfs://<cid>` naming a DAG-CBOR object that holds a JSON Schema, object-rooted and in the subset the server validates, the same an authored lambda's schema follows. An object, because a JSON Schema needs lists (`required`, `enum`) and a document's attributes hold scalars and maps; a reference, so the page carries no payload. */
+  inputSchema: HMIpfsUrl
   /** Likewise, what the tool returns, when the result is to be checked. */
-  outputSchema?: string
-  /** The tool's source in the runtime's language, the program the agents server runs in its sandbox for the spaces that mounted the app. It follows the lambda ABI with a second argument: `export default async function (input, ctx)` in TypeScript, `def main(input, ctx)` in Python. */
-  code: string
+  outputSchema?: HMIpfsUrl
+  /** The tool's code: an `ipfs://<cid>` naming one file, or a UnixFS folder whose entry is `index.ts` (`runtime: ts`) or `main.py` (`runtime: python`). The agents server fetches it at mount, checks every file against its content id, and runs the entry in its sandbox for the spaces that mounted the app. The entry follows the lambda ABI with a second argument: `export default async function (input, ctx)` in TypeScript, `def main(input, ctx)` in Python. */
+  code: HMIpfsUrl
 }
 
 /**

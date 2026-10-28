@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 50,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Memory paths relative to ~/memory, such as \"incoming/paper.pdf\" or \"papers\" for a whole folder. Explicit paths only; globs are not expanded."
+    },
+    "output_dir": {
+      "type": "string",
+      "description": "Memory folder that receives one subfolder per document. Default \"datalab-imports\"."
+    },
+    "page_range": {
+      "type": "string",
+      "description": "Zero-indexed pages to convert, such as \"0-5,10\". Applies to every document in the call."
+    },
+    "max_pages": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Convert at most this many pages per document. The per-document cap and the call's page budget apply as well."
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["fast", "balanced", "accurate"],
+      "description": "Datalab mode. Leave unset unless the user asks for a specific one: the mount's mode is already the best it offers, and on the shared key a more expensive mode is lowered to it anyway."
+    },
+    "overwrite": {
+      "type": "boolean",
+      "description": "Replace an existing output folder for the same document. Default false: an existing folder is reported as a failure and no pages are spent."
+    }
+  },
+  "required": ["files"]
+}

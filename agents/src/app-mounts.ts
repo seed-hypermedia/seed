@@ -34,6 +34,10 @@ import type {HMDocument, HMDocumentFilter, UnpackedHypermediaId} from '@seed-hyp
 import {unpackHmId} from '@seed-hypermedia/client/hm-types'
 import {checkDocumentSchema} from '@seed-hypermedia/client/schema-resolve'
 import {closeOverSubtypes, libraryCandidates} from '@seed-hypermedia/client/schema-subtypes'
+import {CID} from 'multiformats/cid'
+import {sha256} from 'multiformats/hashes/sha2'
+import * as fs from 'node:fs'
+import * as path from 'node:path'
 
 /** The library names of the three types, as the schema registry spells them. */
 export const APP_SCHEMA = 'hm://hyper.media/agent/app'
@@ -50,8 +54,20 @@ const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,31}$/
 const TOOL_PATTERN = /^[a-z][a-z0-9_-]{1,63}$/
 const MAX_QUERY_PAGES = 20
 const MAX_TOOLS_PER_APP = 32
-/** The lambda limit: a tool's code is stored and shipped to the sandbox whole. */
-const MAX_TOOL_SOURCE_BYTES = 256 * 1024
+/**
+ * The most one file of a tool's code may hold: one UnixFS chunk, so every file is a single raw
+ * block whose CID is the hash of its bytes, checked here. A file past this is a dag-pb DAG, refused.
+ */
+const MAX_TOOL_FILE_BYTES = 256 * 1024
+/** A code folder's bounds: files, bytes and nesting. Well under the importer's HAMT sharding threshold. */
+const MAX_TOOL_FILES = 64
+const MAX_TOOL_CODE_BYTES = 2 * 1024 * 1024
+const MAX_TOOL_FOLDER_DEPTH = 8
+/** Multicodec codes of the blobs a tool page may reference: a raw file, a dag-pb folder, a DAG-CBOR object. */
+const RAW_CODEC = 0x55
+const DAG_PB_CODEC = 0x70
+const DAG_CBOR_CODEC = 0x71
+const SHA256_CODE = 0x12
 /** How long a proven (or disproven) binding is believed before `/health` is asked again. */
 const BINDING_FRESH_MS = 24 * 60 * 60 * 1000
 /** How long a failed probe is believed, so an unreachable server is not asked on every pass. */
@@ -72,7 +88,14 @@ export type AppArgumentDeclaration = {
 /** The runtimes a tool page may name: `ts` runs with bun, `python` with the interpreter. */
 export type AppToolRuntime = 'ts' | 'python'
 
-/** One tool as the app's `tools` folder declares it: the contract and code from its page body, and the text the model reads. */
+/**
+ * Where a tool's code is: the page's `code` reference, its CID, and the entry file the sandbox
+ * runs (`index.ts` or `main.py` of a folder, or the single file under that name). The bytes sit in
+ * the server's cache under the CID (see appCodePath), fetched at mount and checked against it.
+ */
+export type AppToolCode = {url: string; cid: string; entry: string}
+
+/** One tool as the app's `tools` folder declares it: the contract and code its page references, and the text the model reads. */
 export type AppToolSnapshot = {
   tool: string
   summary: string
@@ -81,8 +104,11 @@ export type AppToolSnapshot = {
   timeoutSecs?: number
   input: JsonSchema
   output?: JsonSchema
-  /** The page's `code` attribute, run in the sandbox per the lambda ABI. */
-  source: string
+  /** The `inputSchema` and `outputSchema` references, as the page spells them, for clients that show them. */
+  inputSchema: string
+  outputSchema?: string
+  /** The page's `code` reference resolved: what the sandbox runs per the lambda ABI. */
+  code: AppToolCode
   /** The page's body: the tool's documentation, which the model reads with the contract. */
   instructions: string
 }
@@ -128,6 +154,10 @@ export type AppMountRow = {
 export type AppMountDeps = {
   db: Database
   hmServerUrl: string
+  /** The endpoint serving `/ipfs/<cid>`: where a tool's code and schemas are fetched from. */
+  ipfsServerUrl: string
+  /** The server's data directory; a tool's code is cached under `app-code/<cid>` in it. */
+  dataDir: string
   /** This server's identity principal, as `/health` publishes it. */
   serverUid: string
   /** The fetch every network call goes through (deadlines and test stubs live here). */
@@ -433,29 +463,58 @@ async function readDocument(
 
 /** Reads an app page and its tools folder into a snapshot, refusing anything the server will not run. */
 async function readAppSnapshot(
+  deps: AppMountDeps,
   client: SeedClient,
   appUrl: string,
-  runtimes: readonly CodeExecRuntime[],
 ): Promise<{snapshot: AppSnapshot; version?: string}> {
   const {id, document} = await readDocument(client, appUrl)
   await assertTyped(client, id, document, APP_SCHEMA, 'The app page')
   const declared = parseAppAttributes(document.metadata as Record<string, unknown>)
   try {
-    return await readAppTools(client, id, document, declared, runtimes)
+    return await readAppTools(deps, client, id, document, declared)
   } catch (error) {
     if (error instanceof MountProblem) error.slug = declared.slug
     throw error
   }
 }
 
-/** An attribute's JSON Schema, parsed and held to the subset the server validates against. */
-function parseSchemaAttribute(tool: string, attribute: string, text: string): JsonSchema {
-  let schema: unknown
-  try {
-    schema = JSON.parse(text)
-  } catch {
-    throw new MountProblem(`Tool ${tool}'s ${attribute} is not JSON`)
+/** Where the server keeps a tool's code: one directory per CID under the data directory, immutable by construction. */
+export function appCodePath(dataDir: string, cid: string): string {
+  return path.join(dataDir, 'app-code', cid)
+}
+
+const describe = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+const sameBytes = (a: Uint8Array, b: Uint8Array) => Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0
+
+/** The CID an `ipfs://<cid>` attribute names; a missing or malformed value is the tool's problem, named. */
+function ipfsReference(tool: string, attribute: string, value: unknown): CID {
+  if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) {
+    throw new MountProblem(`Tool ${tool} has no ${attribute}`)
   }
+  const match = typeof value === 'string' ? /^ipfs:\/\/([A-Za-z0-9]+)$/.exec(value.trim()) : null
+  if (!match) throw new MountProblem(`Tool ${tool}'s ${attribute} must be an ipfs:// reference`)
+  try {
+    return CID.parse(match[1]!)
+  } catch {
+    throw new MountProblem(`Tool ${tool}'s ${attribute} is not a valid ipfs:// reference`)
+  }
+}
+
+/** A schema reference resolved: the DAG-CBOR object it names, held to the subset the server validates against. */
+async function readSchemaReference(
+  client: SeedClient,
+  tool: string,
+  attribute: string,
+  value: unknown,
+): Promise<JsonSchema> {
+  const cid = ipfsReference(tool, attribute, value)
+  if (cid.code !== DAG_CBOR_CODEC) {
+    throw new MountProblem(`Tool ${tool}'s ${attribute} must name a DAG-CBOR object, not a file`)
+  }
+  const got = await client.request('GetCID', {cid: cid.toString()}).catch((error: unknown) => {
+    throw new MountProblem(`Tool ${tool}'s ${attribute} ipfs://${cid} could not be read: ${describe(error)}`)
+  })
+  const schema = (got as {value?: unknown} | undefined)?.value
   const errors = validateJsonSchemaShape(schema)
   if (errors.length) {
     throw new MountProblem(
@@ -465,13 +524,182 @@ function parseSchemaAttribute(tool: string, attribute: string, text: string): Js
   return schema as JsonSchema
 }
 
+/** A raw block by CID from the IPFS endpoint, proven: the bytes must hash to the CID. */
+async function fetchRawBlock(deps: AppMountDeps, cid: CID, what: string): Promise<Uint8Array> {
+  const url = `${deps.ipfsServerUrl.replace(/\/+$/, '')}/ipfs/${cid}`
+  const response = await deps.fetch(url, {signal: deps.signal}).catch((error: unknown) => {
+    throw new MountProblem(`${what} ipfs://${cid} could not be fetched: ${describe(error)}`)
+  })
+  if (!response.ok) throw new MountProblem(`${what} ipfs://${cid} could not be fetched (${response.status})`)
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  if (bytes.byteLength > MAX_TOOL_FILE_BYTES) {
+    throw new MountProblem(`${what} is larger than ${MAX_TOOL_FILE_BYTES / 1024} KiB`)
+  }
+  const digest = await sha256.digest(bytes)
+  if (cid.multihash.code !== SHA256_CODE || !sameBytes(digest.digest, cid.multihash.digest)) {
+    throw new MountProblem(`${what} ipfs://${cid} does not match its content id`)
+  }
+  return bytes
+}
+
+/** A UnixFS folder's entries from the dag-json view of its node: named links, each a file (raw) or a folder (dag-pb). */
+async function fetchFolderListing(
+  client: SeedClient,
+  cid: CID,
+  what: string,
+): Promise<Array<{name: string; cid: CID}>> {
+  const got = await client.request('GetCID', {cid: cid.toString()}).catch((error: unknown) => {
+    throw new MountProblem(`${what} ipfs://${cid} could not be listed: ${describe(error)}`)
+  })
+  const links = asRecord((got as {value?: unknown} | undefined)?.value)?.Links
+  if (!Array.isArray(links) || !links.length) throw new MountProblem(`${what} ipfs://${cid} is an empty folder`)
+  return links.map((link) => {
+    const record = asRecord(link)
+    const name = record?.Name
+    const hash = asRecord(record?.Hash)?.['/']
+    if (typeof name !== 'string' || !name) {
+      throw new MountProblem(
+        `${what} ipfs://${cid} is a file in several blocks, larger than ${MAX_TOOL_FILE_BYTES / 1024} KiB`,
+      )
+    }
+    if (typeof hash !== 'string') throw new MountProblem(`${what} ipfs://${cid} has an entry without a content id`)
+    try {
+      return {name, cid: CID.parse(hash)}
+    } catch {
+      throw new MountProblem(`${what} ipfs://${cid} has an entry with an invalid content id`)
+    }
+  })
+}
+
+const ENTRY_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
+
+/** Every file of a tool's code, fetched and proven: the one raw file a CID names, or a folder walked to its leaves. */
+async function fetchToolTree(
+  deps: AppMountDeps,
+  client: SeedClient,
+  tool: string,
+  cid: CID,
+): Promise<{kind: 'file' | 'folder'; files: Array<{path: string; bytes: Uint8Array}>}> {
+  const what = `Tool ${tool}'s code`
+  if (cid.code === RAW_CODEC) return {kind: 'file', files: [{path: '', bytes: await fetchRawBlock(deps, cid, what)}]}
+  if (cid.code !== DAG_PB_CODEC) throw new MountProblem(`${what} must name a file or a folder`)
+  const files: Array<{path: string; bytes: Uint8Array}> = []
+  let total = 0
+  const walk = async (folder: CID, prefix: string, depth: number): Promise<void> => {
+    if (depth > MAX_TOOL_FOLDER_DEPTH) {
+      throw new MountProblem(`${what} nests folders deeper than ${MAX_TOOL_FOLDER_DEPTH}`)
+    }
+    for (const entry of await fetchFolderListing(client, folder, what)) {
+      const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name
+      if (!ENTRY_NAME.test(entry.name))
+        throw new MountProblem(`${what} has an entry with an unusable name: ${entryPath}`)
+      if (entry.cid.code === DAG_PB_CODEC) {
+        await walk(entry.cid, entryPath, depth + 1)
+        continue
+      }
+      if (entry.cid.code !== RAW_CODEC) throw new MountProblem(`${what}: ${entryPath} is neither a file nor a folder`)
+      if (files.length >= MAX_TOOL_FILES) throw new MountProblem(`${what} has more than ${MAX_TOOL_FILES} files`)
+      const bytes = await fetchRawBlock(deps, entry.cid, `${what}: ${entryPath}`)
+      total += bytes.byteLength
+      if (total > MAX_TOOL_CODE_BYTES) {
+        throw new MountProblem(`${what} is larger than ${MAX_TOOL_CODE_BYTES / 1024 / 1024} MiB`)
+      }
+      files.push({path: entryPath, bytes})
+    }
+  }
+  await walk(cid, '', 1)
+  return {kind: 'folder', files}
+}
+
+/** Writes a fetched tree under its cache directory: a temp directory renamed into place, or files added one by one when the directory already exists. */
+function writeToolTree(dir: string, files: Array<{path: string; bytes: Uint8Array}>): void {
+  fs.mkdirSync(path.dirname(dir), {recursive: true})
+  const temp = fs.mkdtempSync(`${dir}.tmp-`)
+  try {
+    for (const file of files) {
+      const target = path.join(temp, ...file.path.split('/'))
+      fs.mkdirSync(path.dirname(target), {recursive: true})
+      fs.writeFileSync(target, file.bytes)
+    }
+    try {
+      fs.renameSync(temp, dir)
+    } catch {
+      // Another writer got there first: the content is the same by construction, so only a file
+      // the directory lacks (a single file under another runtime's entry name) is added.
+      for (const file of files) {
+        const target = path.join(dir, ...file.path.split('/'))
+        if (fs.existsSync(target)) continue
+        fs.mkdirSync(path.dirname(target), {recursive: true})
+        fs.renameSync(path.join(temp, ...file.path.split('/')), target)
+      }
+    }
+  } finally {
+    fs.rmSync(temp, {recursive: true, force: true})
+  }
+}
+
+/** Fetches of a tool's code in flight, by CID, so overlapping passes fetch and write it once. */
+const inflightToolCode = new Map<string, Promise<void>>()
+
+/**
+ * Resolves a tool page's `code` reference: the code is fetched into the server's cache under its
+ * CID, every file proven against its content id and the whole held to the bounds above, and the
+ * entry the sandbox will run is found. A CID already in the cache is not fetched again, whoever
+ * mounted it: content never changes under a CID.
+ */
+async function fetchToolCode(
+  deps: AppMountDeps,
+  client: SeedClient,
+  tool: string,
+  runtime: AppToolRuntime,
+  value: unknown,
+): Promise<AppToolCode> {
+  const cid = ipfsReference(tool, 'code', value)
+  const entry = runtime === 'python' ? 'main.py' : 'index.ts'
+  const dir = appCodePath(deps.dataDir, cid.toString())
+  if (!fs.existsSync(path.join(dir, entry))) {
+    const key = `${cid}\n${entry}`
+    let pending = inflightToolCode.get(key)
+    if (!pending) {
+      pending = (async () => {
+        if (fs.existsSync(path.join(dir, entry))) return
+        const tree = await fetchToolTree(deps, client, tool, cid)
+        const files = tree.kind === 'file' ? [{path: entry, bytes: tree.files[0]!.bytes}] : tree.files
+        if (!files.some((file) => file.path === entry)) {
+          throw new MountProblem(`Tool ${tool}'s code folder has no ${entry}`)
+        }
+        writeToolTree(dir, files)
+      })().finally(() => inflightToolCode.delete(key))
+      inflightToolCode.set(key, pending)
+    }
+    await pending
+  }
+  return {url: `ipfs://${cid}`, cid: cid.toString(), entry}
+}
+
+/**
+ * The cache directory of a tool's code, for a run about to start: the one the mount pass filled,
+ * fetched again when the data directory lost it. Throws the mount's problem when the code cannot
+ * be had.
+ */
+export async function ensureToolCode(deps: AppMountDeps, tool: string, code: AppToolCode): Promise<string> {
+  const dir = appCodePath(deps.dataDir, code.cid)
+  if (!fs.existsSync(path.join(dir, code.entry))) {
+    const client = createSeedClient(deps.hmServerUrl, {fetch: deps.fetch})
+    const runtime: AppToolRuntime = code.entry === 'main.py' ? 'python' : 'ts'
+    await fetchToolCode(deps, client, tool, runtime, code.url)
+  }
+  return dir
+}
+
 async function readAppTools(
+  deps: AppMountDeps,
   client: SeedClient,
   id: UnpackedHypermediaId,
   document: HMDocument,
   declared: Omit<AppSnapshot, 'skillDoc' | 'tools'>,
-  runtimes: readonly CodeExecRuntime[],
 ): Promise<{snapshot: AppSnapshot; version?: string}> {
+  const {runtimes} = deps
   const skillDoc = await bodyMarkdown(client, document)
   const toolsPath = `/${[...(id.path ?? []), 'tools'].join('/')}`
   const toolInfos = await queryAll(client, {
@@ -515,20 +743,13 @@ async function readAppTools(
     ) {
       throw new MountProblem(`Tool ${tool} asks for a timeout outside 1..${MAX_APP_EXEC_TIMEOUT_SECS} seconds`)
     }
-    const inputSchema = metadata.inputSchema
-    if (typeof inputSchema !== 'string' || !inputSchema.trim())
-      throw new MountProblem(`Tool ${tool} has no inputSchema`)
-    const input = parseSchemaAttribute(tool, 'inputSchema', inputSchema)
+    const input = await readSchemaReference(client, tool, 'inputSchema', metadata.inputSchema)
     const outputSchema = metadata.outputSchema
     const output =
       typeof outputSchema === 'string' && outputSchema.trim()
-        ? parseSchemaAttribute(tool, 'outputSchema', outputSchema)
+        ? await readSchemaReference(client, tool, 'outputSchema', outputSchema)
         : undefined
-    const source = metadata.code
-    if (typeof source !== 'string' || !source.trim()) throw new MountProblem(`Tool ${tool} has no code`)
-    if (Buffer.byteLength(source, 'utf8') > MAX_TOOL_SOURCE_BYTES) {
-      throw new MountProblem(`Tool ${tool}'s code is larger than ${MAX_TOOL_SOURCE_BYTES / 1024} KiB`)
-    }
+    const code = await fetchToolCode(deps, client, tool, runtime, metadata.code)
     tools.push({
       tool,
       summary: typeof metadata.summary === 'string' ? metadata.summary : '',
@@ -536,7 +757,9 @@ async function readAppTools(
       ...(timeoutSecs !== undefined ? {timeoutSecs: timeoutSecs as number} : {}),
       input,
       ...(output ? {output} : {}),
-      source,
+      inputSchema: (metadata.inputSchema as string).trim(),
+      ...(output ? {outputSchema: (outputSchema as string).trim()} : {}),
+      code,
       instructions: await bodyMarkdown(client, page.document),
     })
   }
@@ -631,7 +854,6 @@ function getRow(db: Database, accountId: string, slug: string): AppMountRow | un
 /** Writes a mount row, reporting whether anything a reader could see changed. */
 function upsertRow(db: Database, next: Omit<AppMountRow, 'createdAt' | 'updatedAt'>, now: number): boolean {
   const current = getRow(db, next.accountId, next.slug)
-  const sameBytes = (a: Uint8Array, b: Uint8Array) => Buffer.compare(Buffer.from(a), Buffer.from(b)) === 0
   const encoded = {
     snapshot: next.snapshot ? cbor.encode(next.snapshot) : null,
     args: cbor.encode(next.args),
@@ -798,7 +1020,7 @@ export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?:
     }
     let next: Omit<AppMountRow, 'createdAt' | 'updatedAt'>
     try {
-      const {snapshot, version} = await readAppSnapshot(client, candidate.appUrl, deps.runtimes)
+      const {snapshot, version} = await readAppSnapshot(deps, client, candidate.appUrl)
       const slug = snapshot.slug
       if (seen.has(keyOf(rowAccount, slug))) continue
       try {
@@ -957,6 +1179,9 @@ export function appMountInfo(row: AppMountRow): api.AppMountInfo {
       tool: appTool.tool,
       summary: appTool.summary,
       runtime: appTool.runtime,
+      code: appTool.code.url,
+      inputSchema: appTool.inputSchema,
+      ...(appTool.outputSchema ? {outputSchema: appTool.outputSchema} : {}),
     })),
     network: snapshot?.network ?? {},
     ...(snapshot?.usage ? {usage: {...snapshot.usage, ...row.usage}} : {}),

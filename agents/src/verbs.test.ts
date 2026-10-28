@@ -65,7 +65,7 @@ function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentS
     hmServerUrl: 'https://hm.example',
     ipfsServerUrl: 'https://hm.example',
     web: {},
-    apps: {resolve: () => undefined},
+    apps: {resolve: () => undefined, codeRoot: async () => dataDir},
     stateDir: dataDir,
     sessionId: 'session-1',
     modelAcceptsImages: false,
