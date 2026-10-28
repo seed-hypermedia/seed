@@ -514,13 +514,29 @@ export function PublishButtonWithPopover({
     return () => window.removeEventListener('keydown', onKeyDown, true)
   }, [])
 
+  // Keyboard focus belongs on the publish action while the popover is open, so Enter publishes.
+  // On open the action can still be disabled (the first autosave may be in flight), so focus parks
+  // on the popover itself and moves to the action once publishing becomes possible, unless the user
+  // has already moved focus to another control inside the popover.
   const publishButtonRef = useRef<HTMLButtonElement>(null)
   const focusPublishButton = (event: Event) => {
-    const button = publishButtonRef.current
-    if (!button || button.disabled) return
     event.preventDefault()
-    button.focus()
+    const button = publishButtonRef.current
+    if (button && !button.disabled) button.focus()
+    else (event.currentTarget as HTMLElement | null)?.focus()
   }
+  useEffect(() => {
+    if (!popoverState.open || !canPublish) return
+    const frame = requestAnimationFrame(() => {
+      const button = publishButtonRef.current
+      if (!button || button.disabled) return
+      const content = button.closest('[data-slot="popover-content"]')
+      const active = document.activeElement
+      if (active && active !== content && content?.contains(active)) return
+      button.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [popoverState.open, canPublish])
 
   return (
     <div className="flex items-center gap-2">
@@ -529,6 +545,7 @@ export function PublishButtonWithPopover({
           <PublishTrigger canPublish={canPublish} onClick={handlePublishTriggerClick} />
         </PopoverAnchor>
         <PopoverContent
+          tabIndex={-1}
           align="end"
           className="w-[26rem] max-w-[calc(100vw-2rem)] p-6"
           onOpenAutoFocus={focusPublishButton}

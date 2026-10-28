@@ -419,7 +419,7 @@ describe('publish keyboard shortcut', () => {
     }
   })
 
-  it('leaves the popover closed when publishing is unavailable and Cmd+Enter is pressed twice', () => {
+  it('parks focus on the popover while publishing is unavailable and does not publish', () => {
     unpublishedChangeCountMock.mockReturnValue(0)
     const docId = hmId('acct-1', {path: ['my-doc']})
     const {container, root} = renderNode(
@@ -430,9 +430,61 @@ describe('publish keyboard shortcut', () => {
       pressCmdEnter()
       const publishButton = findButtonByText(document.body, 'Publish: Make it live now')
       expect(publishButton?.disabled).toBe(true)
-      expect(document.activeElement).not.toBe(publishButton)
+      expect(document.activeElement).toBe(document.body.querySelector('[data-slot="popover-content"]'))
       pressCmdEnter()
       expect(sendMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('moves focus to the publish action once publishing becomes possible', async () => {
+    unpublishedChangeCountMock.mockReturnValue(0)
+    const docId = hmId('acct-1', {path: ['my-doc']})
+    // A fresh element each render, otherwise React bails out of re-rendering an identical one.
+    const node = () => <PublishButtonWithPopover docId={docId} existingMenuItems={[]} unpublishedChildCount={0} />
+    const {container, root} = renderNode(node())
+
+    try {
+      pressCmdEnter()
+      const publishButton = findButtonByText(document.body, 'Publish: Make it live now')!
+      expect(publishButton.disabled).toBe(true)
+
+      // The first autosave lands: the change count ticks up and the action becomes available.
+      unpublishedChangeCountMock.mockReturnValue(1)
+      act(() => {
+        root.render(node())
+      })
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+      })
+
+      expect(publishButton.disabled).toBe(false)
+      expect(document.activeElement).toBe(publishButton)
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('does not steal focus from a control the user picked inside the popover', async () => {
+    unpublishedChangeCountMock.mockReturnValue(0)
+    const docId = hmId('acct-1', {path: ['my-doc']})
+    // A fresh element each render, otherwise React bails out of re-rendering an identical one.
+    const node = () => <PublishButtonWithPopover docId={docId} existingMenuItems={[]} unpublishedChildCount={0} />
+    const {container, root} = renderNode(node())
+
+    try {
+      pressCmdEnter()
+      const cancel = findButtonByText(document.body, 'Cancel')!
+      cancel.focus()
+      unpublishedChangeCountMock.mockReturnValue(1)
+      act(() => {
+        root.render(node())
+      })
+      await act(async () => {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+      })
+      expect(document.activeElement).toBe(cancel)
     } finally {
       cleanup(root, container)
     }
