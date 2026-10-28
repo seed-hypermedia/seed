@@ -1,3 +1,4 @@
+import {Code, ConnectError} from '@connectrpc/connect'
 import {serializeSuperJSON} from './fast-superjson'
 import {decode as cborDecode} from '@ipld/dag-cbor'
 import {HMActionSchema, HMGetRequestSchema} from '@seed-hypermedia/client/hm-types'
@@ -244,12 +245,7 @@ export async function handleApiRequest(
     const validatedOutput = requestSchema.shape.output.parse(output)
     return {status: 200, body: JSON.stringify(serializeSuperJSON(validatedOutput)), headers: CORS_HEADERS}
   } catch (error) {
-    console.error('API error:', error)
-    return {
-      status: 500,
-      body: JSON.stringify({error: error instanceof Error ? error.message : 'Unknown error'}),
-      headers: CORS_HEADERS,
-    }
+    return errorResponse('API error:', error)
   }
 }
 
@@ -291,11 +287,17 @@ export async function handleApiAction(
     const validatedOutput = requestSchema.shape.output.parse(output)
     return {status: 200, body: JSON.stringify(serializeSuperJSON(validatedOutput)), headers: CORS_HEADERS}
   } catch (error) {
-    console.error('API action error:', error)
-    return {
-      status: 500,
-      body: JSON.stringify({error: error instanceof Error ? error.message : 'Unknown error'}),
-      headers: CORS_HEADERS,
-    }
+    return errorResponse('API action error:', error)
+  }
+}
+
+/** A failed request: 404 when the daemon has no such record, 500 (logged) for anything else. */
+function errorResponse(label: string, error: unknown): ApiResponse {
+  const notFound = ConnectError.from(error).code === Code.NotFound
+  if (!notFound) console.error(label, error)
+  return {
+    status: notFound ? 404 : 500,
+    body: JSON.stringify({error: error instanceof Error ? error.message : 'Unknown error'}),
+    headers: CORS_HEADERS,
   }
 }

@@ -72,8 +72,11 @@ import {WEB_IS_GATEWAY} from '@shm/shared/constants'
  * discovery task.
  */
 export class HMDiscoveryPendingError extends Error {
-  constructor() {
+  /** What the client should ask discovery for when it is not the route's own resource (a missing comment). */
+  id?: UnpackedHypermediaId
+  constructor(id?: UnpackedHypermediaId) {
     super('Resource not found locally; client may start discovery')
+    this.id = id
   }
 }
 
@@ -884,19 +887,42 @@ async function loadSiteResourcePayload<T extends Record<string, unknown> = Recor
     const openCommentId = extraData?.openComment || undefined
     const openCommentVersion = extraData?.commentVersion || undefined
     if (!comment && openCommentId) {
+      // ?v on comment permalinks is the comment version CID. The comments
+      // API accepts either the stable comment id or a version CID.
+      let commentMissing = false
       try {
-        // ?v on comment permalinks is the comment version CID. The comments
-        // API accepts either the stable comment id or a version CID.
         comment = (await getComment(openCommentVersion || openCommentId)) ?? undefined
-        if (comment?.author) {
+        commentMissing = !comment
+      } catch (e) {}
+      if (commentMissing) {
+        // The document is here but the comment is not. Comments reach a node by
+        // push or by discovery, and a gateway never pulls for spaces it does not
+        // host, so look for the comment itself, by its own IRI hm://author/tsid.
+        // A gateway hands that to the client-driven shim (discovery never starts
+        // from SSR, see loadResourceWithDiscovery); a site searches right away.
+        const commentHmId = commentIdToHmId(openCommentId, openCommentVersion)
+        if (WEB_IS_GATEWAY) {
+          throw new HMDiscoveryPendingError({...commentHmId, latest: !openCommentVersion})
+        }
+        const discovered = await instrument(ctx || noopCtx, `discoverComment(${openCommentId})`, () =>
+          discoverDocument(commentHmId.uid, commentHmId.path || [], openCommentVersion, !openCommentVersion).catch(
+            () => null,
+          ),
+        )
+        if (discovered) {
           try {
-            const authorResource = await resolveResource(hmId(comment.author))
-            if (authorResource.type === 'document') {
-              commentAuthorTitle = authorResource.document.metadata.name || undefined
-            }
+            comment = (await getComment(openCommentVersion || openCommentId)) ?? undefined
           } catch (e) {}
         }
-      } catch (e) {}
+      }
+      if (comment?.author) {
+        try {
+          const authorResource = await resolveResource(hmId(comment.author))
+          if (authorResource.type === 'document') {
+            commentAuthorTitle = authorResource.document.metadata.name || undefined
+          }
+        } catch (e) {}
+      }
     }
 
     // When viewing a profile, prefetch the account data so the client
@@ -968,7 +994,7 @@ async function loadSiteResourcePayload<T extends Record<string, unknown> = Recor
       const {instrumentationCtx: _, ...cleanExtraData} = (extraData || {}) as any
       return wrapJSON(
         {
-          id,
+          id: e.id ?? id,
           homeMetadata,
           origin,
           originHomeId,

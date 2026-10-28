@@ -832,6 +832,28 @@ export async function pushResource(
 
   // console.log('== publish 3 == destinationHosts', destinationHosts)
 
+  const resourceIdToPush = resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
+  if (!resourceIdToPush) {
+    console.error('Could not determine resource ID to push', resource)
+    throw new Error('Could not determine resource ID to push')
+  }
+  const pushResourceUrl = hmIdToURL({
+    ...resourceIdToPush,
+    blockRef: null,
+    blockRange: null,
+  })
+
+  // From here the main process owns delivery: every host is recorded before the
+  // live attempt below and forgotten once it acknowledged the push, so a failed
+  // dial, a lost connection or quitting the app leaves the push to be retried.
+  await Promise.all(
+    Array.from(destinationHosts).map((host) =>
+      client.pushQueue.enqueue.mutate({resourceUrl: pushResourceUrl, host}).catch((error) => {
+        console.error('Failed to record pending push', host, error)
+      }),
+    ),
+  )
+
   let status: PushResourceStatus = {
     hosts: Array.from(destinationHosts).map((host) => ({
       host,
@@ -916,12 +938,6 @@ export async function pushResource(
   // step 4. push this resource to all the sites.
   // - the daemon will automatically connect, and will push all the relevant materials to the destination peers
   // console.log('== publish 4 == pushing to peers', peerIds)
-  const resourceIdToPush = resource.type === 'comment' ? getCommentTargetId(resource.comment) : id
-  if (!resourceIdToPush) {
-    console.error('Could not determine resource ID to push', resource)
-    throw new Error('Could not determine resource ID to push')
-  }
-
   const peerIdsToPush = new Set<string>()
   status.hosts.forEach(({peerId}) => {
     if (peerId) peerIdsToPush.add(peerId)
@@ -944,11 +960,6 @@ export async function pushResource(
     throw new Error('Failed to connect to any sites.')
   }
 
-  const pushResourceUrl = hmIdToURL({
-    ...resourceIdToPush,
-    blockRef: null,
-    blockRange: null,
-  })
   // console.log('== publish 4 == pushing to peers', pushResourceUrl, peerIds)
 
   await Promise.all(
@@ -971,6 +982,13 @@ export async function pushResource(
         }
         // console.log(`== publish ${syncDebugId} == DONE =====`)
         updatePeerStatus(peerId, 'success', 'Done')
+        status.hosts
+          .filter((h) => h.peerId === peerId)
+          .forEach((h) => {
+            client.pushQueue.remove.mutate({resourceUrl: pushResourceUrl, host: h.host}).catch((error) => {
+              console.error('Failed to clear pending push', h.host, error)
+            })
+          })
       } catch (error) {
         console.error(`== publish ${syncDebugId} == Error pushing to peer`, peerId, error)
         updatePeerStatus(peerId, 'error', (error as Error).message)

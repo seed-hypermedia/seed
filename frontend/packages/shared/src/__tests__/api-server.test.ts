@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from 'vitest'
 import {encode as cborEncode, decode as cborDecode} from '@ipld/dag-cbor'
 import {deserialize} from 'superjson'
+import {Code, ConnectError} from '@connectrpc/connect'
 import {handleApiAction, handleApiRequest} from '../api-server'
 
 describe('handleApiAction', () => {
@@ -338,5 +339,38 @@ describe('handleApiRequest schema introspection', () => {
     expect(JSON.parse(result.body)).toEqual({
       error: 'Unknown API schema key: DoesNotExist',
     })
+  })
+})
+
+describe('handleApiRequest daemon errors', () => {
+  it('returns 404 when the daemon has no such comment', async () => {
+    const getComment = vi.fn().mockRejectedValue(new ConnectError('comment not found', Code.NotFound))
+    const grpcClient = {comments: {getComment}} as any
+
+    const result = await handleApiRequest(
+      new URL('http://localhost/api/Comment?__value=z6MkAuthor%2Fz6KCtsid'),
+      grpcClient,
+      vi.fn(),
+    )
+
+    expect(result.status).toBe(404)
+    expect(getComment).toHaveBeenCalledWith({id: 'z6MkAuthor/z6KCtsid'})
+    expect(JSON.parse(result.body)).toEqual(expect.objectContaining({error: expect.stringContaining('not found')}))
+  })
+
+  it('keeps 500 for any other daemon failure', async () => {
+    const getComment = vi.fn().mockRejectedValue(new ConnectError('daemon unavailable', Code.Unavailable))
+    const grpcClient = {comments: {getComment}} as any
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const result = await handleApiRequest(
+      new URL('http://localhost/api/Comment?__value=z6MkAuthor%2Fz6KCtsid'),
+      grpcClient,
+      vi.fn(),
+    )
+
+    expect(result.status).toBe(500)
+    expect(consoleError).toHaveBeenCalled()
+    consoleError.mockRestore()
   })
 })
