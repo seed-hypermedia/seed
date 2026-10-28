@@ -4276,8 +4276,40 @@ export function DocumentCollection({
   const columnCount = props?.columnCount || '3'
   const banner = props?.banner === 'true'
   const [viewerSearch, setViewerSearch] = useState('')
-  const [viewerFilters, setViewerFilters] = useState<NonNullable<NonNullable<HMQueryBlockInput['viewer']>['filters']>>(
-    [],
+  type ViewerFilters = NonNullable<NonNullable<HMQueryBlockInput['viewer']>['filters']>
+  const [savedViewerFilters, setSavedViewerFilters] = useState<{documentId: string; filters: ViewerFilters}>({
+    documentId: docId.id,
+    filters: [],
+  })
+  const viewerFilters = savedViewerFilters.documentId === docId.id ? savedViewerFilters.filters : []
+  useEffect(() => {
+    let filters: ViewerFilters = []
+    try {
+      const stored = JSON.parse(localStorage.getItem(`seed:collection-filters:v1:${docId.id}`) || '[]')
+      if (Array.isArray(stored)) {
+        filters = stored.filter(
+          (filter) =>
+            filter &&
+            typeof filter.columnId === 'string' &&
+            typeof filter.value === 'string' &&
+            ['equals', 'notEquals', 'contains', 'greaterThan', 'lessThan'].includes(filter.operator),
+        )
+      }
+    } catch {
+      /* Storage may be unavailable or contain an invalid value. */
+    }
+    setSavedViewerFilters({documentId: docId.id, filters})
+  }, [docId.id])
+  const setViewerFilters = useCallback(
+    (filters: ViewerFilters) => {
+      setSavedViewerFilters({documentId: docId.id, filters})
+      try {
+        localStorage.setItem(`seed:collection-filters:v1:${docId.id}`, JSON.stringify(filters))
+      } catch {
+        /* Filtering still works when storage is unavailable. */
+      }
+    },
+    [docId.id],
   )
   const debouncedViewerSearch = useDebounce(viewerSearch.trim(), 250)
   const queryInput = useMemo<HMQueryBlockInput | null>(() => {
