@@ -554,10 +554,7 @@ export function usePublishResource(
       } catch (error) {
         const connectErr = ConnectError.from(error)
         const msg = connectErr.rawMessage.toLowerCase()
-        const isDuplicatePath =
-          (connectErr.code === Code.FailedPrecondition && msg.includes('path already exists')) ||
-          msg.includes('preparedocumentchange')
-        if (isDuplicatePath) {
+        if (msg.includes('path already exists')) {
           throw new Error(
             'A document already exists at this path. Please choose a different path name before publishing.',
           )
