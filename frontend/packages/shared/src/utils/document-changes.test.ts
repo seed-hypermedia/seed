@@ -1,7 +1,8 @@
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
-import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {HMPrepareDocumentChangeInputSchema, type HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
+import {DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
 import {
   compareBlocksWithMap,
   createBlocksMap,
@@ -330,5 +331,26 @@ describe('compareBlocksWithMap (publish-diff path)', () => {
 
     const replaces = changes.filter((change) => change.op?.case === 'replaceBlock')
     expect(replaces).toEqual([])
+  })
+
+  // Regression: Zod 4 z.record rejects protobuf Struct instances, which broke every desktop publish.
+  it('emits changes that pass PrepareDocumentChange input validation and round-trip', () => {
+    const draft = [
+      {
+        id: 'b1',
+        type: 'paragraph',
+        props: {},
+        content: [
+          {type: 'text', text: 'bold', styles: {bold: true}},
+          {type: 'link', href: 'https://example.com', content: [{type: 'text', text: 'link', styles: {}}]},
+        ],
+        children: [paraWithText('b2', 'child')],
+      },
+    ] as EditorBlock[]
+
+    const {changes} = compareBlocksWithMap({}, draft, '')
+    const parsed = HMPrepareDocumentChangeInputSchema.parse({account: 'z6Mk', path: '/doc', changes})
+
+    expect(parsed.changes.map((c) => new DocumentChange(c as any).toJson())).toEqual(changes.map((c) => c.toJson()))
   })
 })
