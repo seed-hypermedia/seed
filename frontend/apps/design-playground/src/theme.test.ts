@@ -10,10 +10,63 @@ import {
   overrideCss,
   parseTheme,
   themeOverrides,
+  groupColors,
+  extendedTokens,
   type Tokens,
+  type ThemeState,
 } from './theme'
 
 const source = parseTheme(readFileSync(new URL('../../../packages/ui/src/theme.css', import.meta.url), 'utf8'))
+
+describe('token groups and extensions', () => {
+  it('groups every discovered color exactly once, including empty inventories', () => {
+    const names = colorNames(source)
+    const groups = groupColors(names)
+    expect(Object.values(groups).flat().sort()).toEqual(names)
+    expect(groups.Brand).toContain('--brand-12')
+    expect(groups.Sidebar).toContain('--sidebar')
+    expect(groups.Code).toContain('--hljs-blue')
+    expect(Object.values(groupColors([])).flat()).toEqual([])
+  })
+  it('leaves the compiled default scale untouched until a control changes', () => {
+    expect(extendedTokens(defaultState())).toEqual({})
+  })
+  it('emits the Tailwind variables used by typography, spacing and motion', () => {
+    const state = {
+      ...defaultState(),
+      baseSize: 20,
+      typeRatio: 1.25,
+      lineHeight: 1.8,
+      spacing: 6,
+      duration: 500,
+      mono: 'Consolas, monospace',
+    }
+    const tokens = extendedTokens(state)
+    expect(tokens['--text-base']).toBe('20.000px')
+    expect(tokens['--text-lg']).toBe('25.000px')
+    expect(tokens['--leading-normal']).toBe('1.8')
+    expect(tokens['--text-sm--line-height']).toBe('1.8')
+    expect(tokens['--spacing']).toBe('6px')
+    expect(tokens['--duration-normal']).toBe('500ms')
+    expect(tokens['--font-mono']).toBe('Consolas, monospace')
+    const overrides = themeOverrides(source, state)
+    expect(overrides.light['--text-base']).toBe(tokens['--text-base'])
+    expect(overrides.dark['--spacing']).toBe('6px')
+    expect(overrideCss(overrides, source)).toContain('--text-lg: 25.000px;')
+    expect(decodeHash(encodeHash(state), source)).toEqual(state)
+  })
+  it('rejects invalid extension values at the share-link boundary', () => {
+    for (const patch of [
+      {spacing: 0},
+      {baseSize: 100},
+      {typeRatio: -1},
+      {lineHeight: '2'},
+      {duration: 2000},
+      {mono: 'red;} body{display:none'},
+    ])
+      expect(decodeHash(encodeHash({...defaultState(), ...patch} as ThemeState), source)).toBeNull()
+  })
+})
 
 describe('theme parser', () => {
   it('reads both selectors, multiline declarations and comments without @theme aliases', () => {

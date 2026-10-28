@@ -13,6 +13,7 @@
     "format:write": "prettier --write ."
   },
   "dependencies": {
+    "@storybook/react": "10.6.5",
     "@shm/ui": "workspace:*",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

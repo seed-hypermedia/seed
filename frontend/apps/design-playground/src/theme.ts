@@ -11,6 +11,12 @@ export interface ThemeState {
   sans: string
   serif: string
   shadow: number
+  mono?: string
+  baseSize?: number
+  typeRatio?: number
+  lineHeight?: number
+  spacing?: number
+  duration?: number
   overrides: Tokens
 }
 /** An untouched state preserves the exact shared Seed palette. */
@@ -23,6 +29,12 @@ export function defaultState(): ThemeState {
     sans: '',
     serif: '',
     shadow: 1,
+    mono: '',
+    baseSize: 16,
+    typeRatio: 1.2,
+    lineHeight: 1.5,
+    spacing: 4,
+    duration: 200,
     overrides: {light: {}, dark: {}},
   }
 }
@@ -46,6 +58,60 @@ export function colorNames(tokens: Tokens): string[] {
       ),
     )
     .sort()
+}
+/** Group every discovered color exactly once, without maintaining a second token inventory. */
+export function groupColors(names: string[]): Record<string, string[]> {
+  const groups: Record<string, string[]> = {
+    Brand: [],
+    Surface: [],
+    Text: [],
+    Semantic: [],
+    Chart: [],
+    Sidebar: [],
+    Code: [],
+  }
+  for (const name of names) {
+    const group = name.startsWith('--sidebar')
+      ? 'Sidebar'
+      : name.startsWith('--hljs')
+        ? 'Code'
+        : name.startsWith('--chart')
+          ? 'Chart'
+          : /^--(brand|primary|ring)/.test(name)
+            ? 'Brand'
+            : /foreground|link|selection/.test(name)
+              ? 'Text'
+              : /destructive|warning|success|accent|blue|green|orange|yellow|red/.test(name)
+                ? 'Semantic'
+                : 'Surface'
+    groups[group]!.push(name)
+  }
+  return groups
+}
+/** Generate only active extensions consumed by Tailwind v4's compiled utility variables. */
+export function extendedTokens(state: ThemeState): Record<string, string> {
+  const result: Record<string, string> = {}
+  if (state.mono) result['--font-mono'] = state.mono
+  const sizes = ['xs', 'sm', 'base', 'lg', 'xl', '2xl', '3xl', '4xl', '5xl', '6xl', '7xl', '8xl', '9xl']
+  if ((state.baseSize ?? 16) !== 16 || (state.typeRatio ?? 1.2) !== 1.2) {
+    for (const [index, size] of sizes.entries())
+      result['--text-' + size] = ((state.baseSize ?? 16) * (state.typeRatio ?? 1.2) ** (index - 2)).toFixed(3) + 'px'
+  }
+  if ((state.lineHeight ?? 1.5) !== 1.5) {
+    for (const size of sizes) result['--text-' + size + '--line-height'] = String(state.lineHeight)
+    for (const [name, offset] of Object.entries({
+      none: -0.5,
+      tight: -0.25,
+      snug: -0.125,
+      normal: 0,
+      relaxed: 0.125,
+      loose: 0.5,
+    }))
+      result['--leading-' + name] = String(state.lineHeight! + offset)
+  }
+  if ((state.spacing ?? 4) !== 4) result['--spacing'] = state.spacing + 'px'
+  if ((state.duration ?? 200) !== 200) result['--duration-normal'] = state.duration + 'ms'
+  return result
 }
 /** Build twelve perceptually spaced colors; dark mode reverses the light scale. */
 export function brandScale(hue: number): Tokens {
@@ -102,6 +168,7 @@ export function themeOverrides(source: Tokens, state: ThemeState): Tokens {
     }
   }
   for (const mode of ['light', 'dark'] as const) {
+    Object.assign(result[mode], extendedTokens(state))
     if (state.radius) result[mode]['--radius'] = state.radius + 'rem'
     if (state.sans) result[mode]['--font-sans'] = state.sans
     if (state.serif) result[mode]['--font-serif'] = state.serif
@@ -118,7 +185,7 @@ export function themeOverrides(source: Tokens, state: ThemeState): Tokens {
   }
   return result
 }
-/** Serialize only differences from the shared theme, ready to paste into theme.css. */
+/** Serialize active differences into the workbench's single override stylesheet. */
 export function overrideCss(overrides: Tokens, defaults: Tokens): string {
   return (['light', 'dark'] as const)
     .map((mode) => {
@@ -173,6 +240,23 @@ export function decodeHash(hash: string, defaults: Tokens): ThemeState | null {
       serif: data.serif,
       shadow: data.shadow,
     })
+    if (data.mono !== undefined) {
+      if (!safe(data.mono)) return null
+      state.mono = data.mono
+    }
+    for (const [name, min, max] of [
+      ['baseSize', 12, 24],
+      ['typeRatio', 1.05, 1.5],
+      ['lineHeight', 1.2, 2],
+      ['spacing', 2, 8],
+      ['duration', 0, 1000],
+    ] as const) {
+      if (data[name] !== undefined) {
+        if (typeof data[name] !== 'number' || !Number.isFinite(data[name]) || data[name] < min || data[name] > max)
+          return null
+        state[name] = data[name]
+      }
+    }
     const names = new Set(colorNames(defaults))
     for (const mode of ['light', 'dark'] as const) {
       if (!data.overrides?.[mode] || typeof data.overrides[mode] !== 'object' || Array.isArray(data.overrides[mode]))
