@@ -60,7 +60,14 @@ it('allows only the configured IPFS gateway origin', () => {
 it('limits script execution while preserving configured local services', () => {
   const csp = appContentSecurityPolicy(policy)
   expect(csp).toContain("script-src 'self' https://platform.twitter.com/widgets.js")
-  expect(csp.split('; ').find((directive) => directive.startsWith('script-src'))).not.toContain('unsafe-inline')
+  const scriptSrc = csp
+    .split('; ')
+    .find((directive) => directive.startsWith('script-src'))!
+    .split(' ')
+  // widgets.js loads the tweet renderer from this directory; without it every tweet embed fails.
+  expect(scriptSrc).toContain('https://platform.twitter.com/js/')
+  expect(scriptSrc).not.toContain('https://platform.twitter.com')
+  expect(scriptSrc).not.toContain("'unsafe-inline'")
   expect(csp).not.toContain('unsafe-eval')
   expect(csp).toContain(
     "connect-src 'self' http://localhost:* http://127.0.0.1:* https: ws://localhost:* ws://127.0.0.1:* wss:",

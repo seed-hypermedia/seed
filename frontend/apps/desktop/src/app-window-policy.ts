@@ -66,7 +66,7 @@ export function appContentSecurityPolicy(policy: AppWindowPolicy): string {
     `frame-src 'self' ${DOCUMENT_PAGE_SCHEME}: ${contentOrigins.join(' ')} ${frames.join(' ')}`,
     // Existing embed loaders and optional production analytics inject these
     // specific scripts. No arbitrary HTTPS script source or inline execution.
-    "script-src 'self' https://platform.twitter.com/widgets.js https://www.instagram.com/embed.js https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js",
+    "script-src 'self' https://platform.twitter.com/widgets.js https://platform.twitter.com/js/ https://www.instagram.com/embed.js https://plausible.io/js/script.file-downloads.hash.outbound-links.pageview-props.revenue.tagged-events.js",
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self' data:",
     "object-src 'none'",
