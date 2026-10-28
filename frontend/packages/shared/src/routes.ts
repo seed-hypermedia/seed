@@ -207,11 +207,6 @@ const activityPagePanelSchema = z.discriminatedUnion('key', [
   feedPanelSchema,
 ])
 
-export const documentOptionsRouteSchema = z.object({
-  key: z.literal('options'),
-})
-export type DocumentOptionsRoute = z.infer<typeof documentOptionsRouteSchema>
-
 export const activityRouteSchema = z.object({
   key: z.literal('activity'),
   id: unpackedHmIdSchema,
@@ -277,7 +272,6 @@ const documentPanelRoute = z.discriminatedUnion('key', [
   commentsRouteSchema,
   directoryRouteSchema,
   collaboratorsRouteSchema,
-  documentOptionsRouteSchema,
   metadataRouteSchema,
   feedPanelSchema,
 ])
@@ -570,7 +564,7 @@ export function getRoutePanel(route: NavRoute): NavRoute | null {
   }
   if (!panel) return null
   // Ensure panel has id from parent route if not set
-  if (routeId && panel.key !== 'options' && !panel.id) {
+  if (routeId && !panel.id) {
     return {...panel, id: routeId} as NavRoute
   }
   return panel as NavRoute
@@ -650,22 +644,11 @@ function replacePanelDocumentId(
 
   const nextPanel = 'panel' in panel ? replacePanelDocumentId(panel.panel as DocumentPanelRoute | null, targetId) : null
 
-  if ('id' in panel) {
-    return {
-      ...panel,
-      id: targetId,
-      ...('panel' in panel ? {panel: nextPanel} : {}),
-    } as DocumentPanelRoute
-  }
-
-  if ('panel' in panel) {
-    return {
-      ...panel,
-      panel: nextPanel,
-    } as DocumentPanelRoute
-  }
-
-  return panel
+  return {
+    ...panel,
+    id: targetId,
+    ...('panel' in panel ? {panel: nextPanel} : {}),
+  } as DocumentPanelRoute
 }
 
 /**
@@ -753,8 +736,6 @@ function createPanelRoute(panelParam: string, docId: UnpackedHypermediaId): Docu
       return {key: 'collaborators', id: docId}
     case 'metadata':
       return {key: 'metadata', id: docId}
-    case 'options':
-      return {key: 'options'}
     default:
       // Fallback for unknown panel types
       return {key: 'comments', id: docId}

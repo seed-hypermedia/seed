@@ -18,7 +18,7 @@ vi.mock('@shm/shared/routing', async (importOriginal) => ({
   useUniversalClient: () => ({publishDocument}),
 }))
 
-import {SpaceSettingsGeneral, SpaceSettingsPanel} from '../space-settings'
+import {SpaceSettingsGeneral, useSpaceSettingsForm} from '../space-settings'
 import {TooltipProvider} from '../tooltip'
 
 let root: Root | null = null
@@ -99,9 +99,22 @@ describe('SpaceSettingsGeneral', () => {
   })
 })
 
-describe('SpaceSettingsPanel', () => {
-  it('keeps Save disabled until a setting actually changes', () => {
-    render(<SpaceSettingsPanel spaceUid="space" onOpenFullSettings={vi.fn()} />)
+/** The General tab's form, as the settings page wires it up. */
+function FormHarness() {
+  const form = useSpaceSettingsForm('space')
+  return (
+    <>
+      <SpaceSettingsGeneral metadata={form.metadata} onMetadata={form.onMetadata} />
+      <button disabled={!form.isDirty || form.isSaving} onClick={form.save}>
+        Save
+      </button>
+    </>
+  )
+}
+
+describe('useSpaceSettingsForm', () => {
+  it('is only dirty while a setting actually differs from the published one', () => {
+    render(<FormHarness />)
     expect(button('Save').disabled).toBe(true)
 
     act(() => switchFor('Show Document Browser').click())
@@ -113,7 +126,7 @@ describe('SpaceSettingsPanel', () => {
   })
 
   it('publishes the home document with only the settings that changed', async () => {
-    render(<SpaceSettingsPanel spaceUid="space" onOpenFullSettings={vi.fn()} />)
+    render(<FormHarness />)
 
     act(() => switchFor('Show Document Browser').click())
     await act(async () => button('Save').click())
@@ -123,26 +136,5 @@ describe('SpaceSettingsPanel', () => {
     expect(input).toMatchObject({signerAccountUid: 'space', account: 'space', baseVersion: 'v1', genesis: 'g'})
     expect(JSON.stringify(input.changes)).toContain('showDocumentBrowser')
     expect(JSON.stringify(input.changes)).not.toContain('showConversations')
-  })
-
-  it('asks before leaving for the full settings page with unsaved changes', () => {
-    const onOpenFullSettings = vi.fn()
-    render(<SpaceSettingsPanel spaceUid="space" onOpenFullSettings={onOpenFullSettings} />)
-
-    act(() => switchFor('Show Document Browser').click())
-    act(() => button('Go to space settings').click())
-    expect(onOpenFullSettings).not.toHaveBeenCalled()
-
-    const discard = [...document.querySelectorAll('button')].find((el) => el.textContent === 'Discard')!
-    act(() => discard.click())
-    expect(onOpenFullSettings).toHaveBeenCalledTimes(1)
-  })
-
-  it('goes straight to the full settings page when nothing is unsaved', () => {
-    const onOpenFullSettings = vi.fn()
-    render(<SpaceSettingsPanel spaceUid="space" onOpenFullSettings={onOpenFullSettings} />)
-
-    act(() => button('Go to space settings').click())
-    expect(onOpenFullSettings).toHaveBeenCalledTimes(1)
   })
 })

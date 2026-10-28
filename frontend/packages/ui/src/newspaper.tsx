@@ -23,7 +23,7 @@ import {
 } from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Copy, FilePen, FileText, Forward, Grid3X3, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
+import {Copy, FileText, Forward, Grid3X3, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
 import {HTMLAttributes, ReactNode, useMemo} from 'react'
 import {Button} from './button'
 import {createCopyLinkMenuItem, getWebCopyLinkHostname} from './copy-link-menu'
@@ -82,17 +82,6 @@ export function useDocumentCardMenuItems(
         } as any)
       },
     })
-    if (isOwner) {
-      items.push({
-        key: 'options',
-        label: 'Document Settings',
-        icon: <FilePen className="size-4" />,
-        onClick: (e) => {
-          e?.stopPropagation()
-          navigate({key: 'document', id: docId, panel: {key: 'options'}} as any)
-        },
-      })
-    }
     if (actions.onCopyLink) {
       const copyCanonical = onCopyReference ? () => onCopyReference(docId) : null
       const copyGateway = async () => {

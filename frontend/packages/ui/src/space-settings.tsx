@@ -9,7 +9,6 @@ import {getDocAttributeChanges} from '@shm/shared/utils/document-changes'
 import {useMutation} from '@tanstack/react-query'
 import {HelpCircle} from 'lucide-react'
 import {useState} from 'react'
-import {Button} from './button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,9 +20,7 @@ import {
   AlertDialogTitle,
 } from './components/alert-dialog'
 import {Label} from './components/label'
-import {ScrollArea} from './components/scroll-area'
 import {Switch} from './components/switch'
-import {Spinner} from './spinner'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
@@ -213,42 +210,5 @@ export function DiscardChangesDialog({onDiscard, onCancel}: {onDiscard: (() => v
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  )
-}
-
-/**
- * Space Settings as a side panel, opened from the home document's options menu.
- * Only the space owner sees it, so the caller is responsible for that check.
- */
-export function SpaceSettingsPanel({spaceUid, onOpenFullSettings}: {spaceUid: string; onOpenFullSettings: () => void}) {
-  const form = useSpaceSettingsForm(spaceUid)
-  const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null)
-  return (
-    <div className="flex h-full flex-1 flex-col overflow-hidden">
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="p-4">
-          {form.isReady ? (
-            <SpaceSettingsGeneral metadata={form.metadata} onMetadata={form.onMetadata} />
-          ) : (
-            <div className="flex justify-center py-6">
-              <Spinner />
-            </div>
-          )}
-        </div>
-      </ScrollArea>
-      <div className="border-border flex flex-wrap gap-2 border-t p-4">
-        <Button
-          variant="outline"
-          className="flex-1 basis-40"
-          onClick={() => (form.isDirty ? setPendingDiscard(() => onOpenFullSettings) : onOpenFullSettings())}
-        >
-          Go to space settings
-        </Button>
-        <Button className="flex-1 basis-40" disabled={!form.isDirty || form.isSaving} onClick={form.save}>
-          {form.isSaving ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-      <DiscardChangesDialog onDiscard={pendingDiscard} onCancel={() => setPendingDiscard(null)} />
-    </div>
   )
 }

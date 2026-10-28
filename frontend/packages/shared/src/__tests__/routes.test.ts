@@ -164,15 +164,6 @@ describe('createDocumentNavRoute', () => {
         panel: {key: 'directory', id: testDocId},
       })
     })
-
-    test('options panel', () => {
-      const route = createDocumentNavRoute(testDocId, null, 'options')
-      expect(route).toEqual({
-        key: 'document',
-        id: testDocId,
-        panel: {key: 'options'},
-      })
-    })
   })
 
   describe('extended panel formats', () => {
