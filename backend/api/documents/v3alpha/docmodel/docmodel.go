@@ -298,6 +298,7 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 						if blk.InlineAttributes_ == nil {
 							blk.InlineAttributes_ = map[string]any{}
 						}
+
 						blk.InlineAttributes_["view"] = view
 					}
 				}

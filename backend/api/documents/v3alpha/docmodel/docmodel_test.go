@@ -164,6 +164,7 @@ func TestLegacyQueryReplacePreservesView(t *testing.T) {
 		if include {
 			m["view"] = view
 		}
+
 		return must.Do2(structpb.NewStruct(m))
 	}
 	view := map[string]any{"filters": []any{map[string]any{"columnId": "metadata:status", "operator": "notEquals", "value": "Done"}}}
