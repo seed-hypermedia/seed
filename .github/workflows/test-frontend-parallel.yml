@@ -211,7 +211,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.27.1'
+          go-version: '1.27.3'
       - name: Install native build dependencies
         # gnome-keyring + libsecret-tools + dbus-x11: a Secret Service for the CLI fixture
         # suite below, whose `key import` stores keys through `secret-tool`.
