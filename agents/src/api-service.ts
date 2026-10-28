@@ -17026,7 +17026,8 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
 function parseWriteJsonBlocks(rawContent: unknown): HMBlockNode[] {
   const parsed =
     typeof rawContent === 'string' ? JSON.parse(normalizeWriteContent(rawContent, 'Document content')) : rawContent
-  return z.array(HMBlockNodeSchema as any).parse(parsed) as HMBlockNode[]
+  // `z` here is Zod v3; the block schema is Zod v4, so build the array from the schema itself.
+  return HMBlockNodeSchema.array().parse(parsed)
 }
 
 function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId = ''): DocumentOperation[] {
