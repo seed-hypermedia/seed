@@ -111,10 +111,10 @@ describe('orderDocumentMenuItems', () => {
         item('copy-link'),
         item('directory'),
         item('versions'),
-        item('options'),
+        item('space-settings'),
         item('new'),
       ]).map(({key}) => key),
-    ).toEqual(['new', 'options', 'versions', 'copy-link', 'move', 'export', 'inspect', 'delete'])
+    ).toEqual(['new', 'space-settings', 'versions', 'copy-link', 'move', 'export', 'inspect', 'delete'])
   })
 })
 

@@ -47,7 +47,7 @@ export type AssistantWindowContext = {
     | 'attributes'
     | 'web'
   browserStatus?: AssistantBrowserStatus
-  activePanel?: 'comments' | 'activity' | 'directory' | 'collaborators' | 'options'
+  activePanel?: 'comments' | 'activity' | 'directory' | 'collaborators'
   openComment?: string
   focusedBlockId?: string
   focusedBlockRange?: {start: number; end: number}
