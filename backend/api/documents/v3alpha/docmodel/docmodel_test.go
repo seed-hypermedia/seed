@@ -155,6 +155,47 @@ func TestMetadataStructuralReplacementDoesNotResurrectAncestors(t *testing.T) {
 	require.Equal(t, 1, doc.crdt.stateMetadata.Len(), "only the winning child tombstone must remain")
 }
 
+// An older editor round-trips a Query without its newer attributes.view field.
+// Its unrelated republish must not silently discard a signed shared View.
+func TestLegacyQueryReplacePreservesView(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	attrs := func(view any, include bool) *structpb.Struct {
+		m := map[string]any{"query": map[string]any{"includes": []any{}, "sort": []any{}}}
+		if include {
+			m["view"] = view
+		}
+		return must.Do2(structpb.NewStruct(m))
+	}
+	view := map[string]any{"filters": []any{map[string]any{"columnId": "metadata:status", "operator": "notEquals", "value": "Done"}}}
+	original := must.Do2(New("mydoc", cclock.New()))
+	must.Do(original.MoveBlock("q1", "", ""))
+	must.Do(original.ReplaceBlock(&documents.Block{Id: "q1", Type: "Query", Attributes: attrs(view, true)}))
+	first := must.Do2(original.SignChange(alice))
+
+	for _, tc := range []struct {
+		name      string
+		newerView any
+		include   bool
+		wantView  any
+	}{
+		{name: "old client omits view", wantView: view},
+		{name: "new client explicitly clears view", newerView: map[string]any{"filters": []any{}}, include: true, wantView: map[string]any{"filters": []any{}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := must.Do2(New("mydoc", cclock.New()))
+			must.Do(doc.ApplyChange(first.CID, first.Decoded))
+			must.Do(doc.ReplaceBlock(&documents.Block{Id: "q1", Type: "Query", Text: "unrelated change", Attributes: attrs(tc.newerView, tc.include)}))
+			change := must.Do2(doc.SignChange(alice))
+			reader := must.Do2(New("mydoc", cclock.New()))
+			must.Do(reader.ApplyChange(first.CID, first.Decoded))
+			must.Do(reader.ApplyChange(change.CID, change.Decoded))
+			got, ok := reader.crdt.stateBlocks["q1"].GetLatestOK()
+			require.True(t, ok)
+			require.Equal(t, tc.wantView, got.Attributes()["view"])
+		})
+	}
+}
+
 func TestBug_RedundantReplaces(t *testing.T) {
 	alice := coretest.NewTester("alice").Account
 
