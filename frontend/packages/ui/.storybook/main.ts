@@ -13,6 +13,10 @@ const config: StorybookConfig = {
   docs: {
     defaultName: 'Docs',
   },
+  viteFinal: async (config) => ({
+    ...config,
+    define: {...config.define, 'process.env': '{}'},
+  }),
 }
 
 export default config
