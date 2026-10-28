@@ -21,9 +21,16 @@
  * the document, and sets `schemaDefinition: ipfs://<cid>` (the file is the
  * truth, whatever the frontmatter says). A document that CONFORMS to a type says so in its
  * frontmatter (`attributesSchema`), like any other typed document.
+ *
+ * Other files travel the same way. A frontmatter value that is a relative path (`code:
+ * ./convert.ts`, `icon: ./icon.png`, a folder) names a file beside the page: import publishes it
+ * as the blob the attribute references (a folder as a UnixFS directory, a `.json` file as a
+ * DAG-CBOR object, anything else as a UnixFS file) and sets the attribute to `ipfs://<cid>`;
+ * export keeps the path in the frontmatter and writes the file from the blob when the app
+ * changed it. The file is the truth, as the schema file is.
  */
 import {effectiveSchemaRef, loadSchema, metadataViolations} from './schema'
-import {existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync} from 'node:fs'
 import {dirname, join, normalize, relative, resolve} from 'node:path'
 import {
   blocksToMarkdown,
@@ -42,6 +49,9 @@ import {
   type HMSigner,
   type SeedClient,
   assertValidMermaid,
+  directoryToIpfsBlobs,
+  fileToIpfsBlobs,
+  type CollectedBlob,
 } from '@seed-hypermedia/client'
 import {loadMermaidParser} from '@seed-hypermedia/client/mermaid-parser'
 import {
@@ -418,7 +428,16 @@ export async function exportDocument(
   const self = layout.selfAuthority
   const content = self ? rewriteLinks(relative, (link) => swapAuthority(link, doc.account, self)) : relative
   const ownMetadata = self && metadata ? swapAuthority(metadata, doc.account, self) : metadata
-  const md = blocksToMarkdown({...doc, metadata: ownMetadata, content}, {ipfsGateway: false})
+  // The files the local page names keep their place in the frontmatter, and are written from the
+  // blobs only when the app changed them, before the page is compared with what is on disk.
+  const assets = await restoreAttributeAssets(opts.client, opts.dir, file, ownMetadata, {
+    beforeWrite: opts.beforeWrite,
+    onWrite: opts.onWrite,
+    log,
+  })
+  result.written.push(...assets.written)
+  result.unchanged.push(...assets.unchanged)
+  const md = blocksToMarkdown({...doc, metadata: assets.metadata, content}, {ipfsGateway: false})
   opts.beforeWrite?.(file)
   const destination = resolve(opts.dir, file)
   const preserved =
@@ -804,6 +823,180 @@ export function listMarkdownFiles(dir: string): string[] {
   return out
 }
 
+/** A frontmatter value that names a file beside the page: an explicit relative path, never a bare name. */
+const ASSET_PATH = /^\.\.?\//
+
+type AssetLeaf = {key: string[]; value: string; abs: string}
+
+/** The relative-path leaves of a page's frontmatter, resolved against the page's folder. */
+function assetLeaves(dir: string, mdFile: string, metadata: Record<string, unknown> | undefined): AssetLeaf[] {
+  const fileDir = resolve(dir, dirname(mdFile))
+  return metadataLeaves(metadata)
+    .filter((leaf): leaf is Leaf & {value: string} => typeof leaf.value === 'string' && ASSET_PATH.test(leaf.value))
+    .map((leaf) => ({key: leaf.key, value: leaf.value, abs: resolve(fileDir, leaf.value)}))
+}
+
+/** `metadata` with one leaf replaced, the objects along the path copied. */
+function withLeaf(metadata: Record<string, unknown>, key: string[], value: unknown): Record<string, unknown> {
+  const [head, ...rest] = key
+  if (head === undefined) return metadata
+  const child = metadata[head]
+  return {
+    ...metadata,
+    [head]: rest.length
+      ? withLeaf(child && typeof child === 'object' ? (child as Record<string, unknown>) : {}, rest, value)
+      : value,
+  }
+}
+
+/** The files of a folder on disk as the folder encoder takes them, dotfiles and `node_modules` left out. */
+function folderFiles(root: string): Array<{path: string; content: Uint8Array}> {
+  const out: Array<{path: string; content: Uint8Array}> = []
+  const walk = (folder: string, prefix: string) => {
+    for (const entry of readdirSync(folder, {withFileTypes: true}).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+      const path = prefix ? `${prefix}/${entry.name}` : entry.name
+      if (entry.isDirectory()) walk(join(folder, entry.name), path)
+      else if (entry.isFile()) out.push({path, content: readFileSync(join(folder, entry.name))})
+    }
+  }
+  walk(root, '')
+  return out
+}
+
+/**
+ * A file or folder encoded as the blob an attribute references: a folder is a UnixFS directory, a
+ * `.json` file a DAG-CBOR object (a JSON Schema, say), any other file a UnixFS file. The encoders
+ * are the daemon's and the app's, so the CID is a function of the content alone, and export can
+ * recompute it to tell an unchanged file from one edited in the app.
+ */
+export async function encodeAttributeAsset(abs: string): Promise<{cid: string; blobs: CollectedBlob[]}> {
+  if (statSync(abs).isDirectory()) return directoryToIpfsBlobs(folderFiles(abs))
+  if (abs.endsWith('.json')) {
+    const {data, cid} = await encodeSchemaBlob(JSON.parse(readFileSync(abs, 'utf8')))
+    return {cid, blobs: [{cid, data}]}
+  }
+  return fileToIpfsBlobs(readFileSync(abs))
+}
+
+/**
+ * The files and folders a page's frontmatter names by relative path (`code: ./convert.ts`), each
+ * published as the blob the attribute references. The metadata comes back with those leaves
+ * replaced by `ipfs://<cid>` and the blobs ride with the change; the files stay the authority,
+ * and restoreAttributeAssets is the way back. A path that names nothing is left alone: checkLinks
+ * reports it, and nothing is published.
+ */
+export async function readAttributeAssets(
+  dir: string,
+  mdFile: string,
+  metadata: HMMetadata,
+): Promise<{metadata: HMMetadata; blobs: CollectedBlob[]}> {
+  let out = metadata as Record<string, unknown>
+  const blobs: CollectedBlob[] = []
+  for (const leaf of assetLeaves(dir, mdFile, out)) {
+    if (!existsSync(leaf.abs)) continue
+    const encoded = await encodeAttributeAsset(leaf.abs)
+    blobs.push(...encoded.blobs)
+    out = withLeaf(out, leaf.key, `ipfs://${encoded.cid}`)
+  }
+  return {metadata: out as HMMetadata, blobs}
+}
+
+/** The attribute paths of a page that name no file, reported like broken links so nothing is published half-made. */
+export function missingAttributeAssets(dir: string, mdFile: string, metadata: HMMetadata): BrokenLink[] {
+  return assetLeaves(dir, mdFile, metadata as Record<string, unknown>)
+    .filter((leaf) => !existsSync(leaf.abs))
+    .map((leaf) => ({file: mdFile, link: leaf.value, reason: `${leaf.key.join('.')} names no file beside the page`}))
+}
+
+const RAW_CODEC = 0x55
+const DAG_PB_CODEC = 0x70
+
+/** The bytes of a dag-json bytes envelope (`{"/": {"bytes": "<base64>"}}`), the way the daemon renders a raw block. */
+function dagJsonBytes(value: unknown): Uint8Array | null {
+  const envelope = isObject(value) && isObject(value['/']) ? value['/'] : null
+  return envelope && typeof envelope.bytes === 'string' ? new Uint8Array(Buffer.from(envelope.bytes, 'base64')) : null
+}
+
+/**
+ * Writes the blob a CID names where an attribute asset lives: a DAG-CBOR object as JSON, a raw
+ * block as the file's bytes, a UnixFS folder as a directory with exactly the entries the folder
+ * lists (local files it does not list are removed).
+ */
+async function writeAttributeAsset(client: SeedClient, cid: string, abs: string): Promise<void> {
+  const code = CID.parse(cid).code
+  const {value} = await client.request('GetCID', {cid})
+  if (code === DAG_PB_CODEC) {
+    const links = isObject(value) && Array.isArray(value.Links) ? value.Links : null
+    if (!links) throw new Error(`ipfs://${cid} is not a folder`)
+    mkdirSync(abs, {recursive: true})
+    const names = new Set<string>()
+    for (const link of links) {
+      const name = isObject(link) && typeof link.Name === 'string' ? link.Name : ''
+      const child = isObject(link) && isObject(link.Hash) && typeof link.Hash['/'] === 'string' ? link.Hash['/'] : ''
+      if (!name || !child || name === '.' || name === '..' || name.includes('/')) {
+        throw new Error(`ipfs://${cid} has an entry that cannot be a file: ${name || child}`)
+      }
+      names.add(name)
+      await writeAttributeAsset(client, child, join(abs, name))
+    }
+    for (const entry of readdirSync(abs)) {
+      if (!names.has(entry) && !entry.startsWith('.')) rmSync(join(abs, entry), {recursive: true, force: true})
+    }
+    return
+  }
+  mkdirSync(dirname(abs), {recursive: true})
+  if (code === RAW_CODEC) {
+    const bytes = dagJsonBytes(value)
+    if (!bytes) throw new Error(`ipfs://${cid} did not come back as bytes`)
+    writeFileSync(abs, bytes)
+    return
+  }
+  writeJsonPreservingOrder(abs, value)
+}
+
+/**
+ * The way back for attribute assets: for each leaf the local page's frontmatter names by relative
+ * path whose published value is `ipfs://<cid>`, the path keeps its place in the frontmatter, and
+ * the file is written from the blob only when its content no longer encodes to that CID (an edit
+ * made in the app). Without a local page there is nothing to map to, and the `ipfs://` stays.
+ */
+export async function restoreAttributeAssets(
+  client: SeedClient,
+  dir: string,
+  mdFile: string,
+  metadata: HMMetadata,
+  hooks: {beforeWrite?: (file: string) => void; onWrite?: (file: string) => void; log?: (line: string) => void} = {},
+): Promise<{metadata: HMMetadata; written: string[]; unchanged: string[]}> {
+  const written: string[] = []
+  const unchanged: string[] = []
+  const local = resolve(dir, mdFile)
+  if (!existsSync(local)) return {metadata, written, unchanged}
+  let localMetadata: Record<string, unknown>
+  try {
+    localMetadata = parseMarkdown(readFileSync(local, 'utf8')).metadata as Record<string, unknown>
+  } catch {
+    return {metadata, written, unchanged}
+  }
+  let out = metadata as Record<string, unknown>
+  const published = new Map(metadataLeaves(out).map((leaf) => [JSON.stringify(leaf.key), leaf.value]))
+  for (const leaf of assetLeaves(dir, mdFile, localMetadata)) {
+    const cid = ipfsCid(published.get(JSON.stringify(leaf.key)))
+    if (!cid) continue
+    const file = relative(dir, leaf.abs).split('\\').join('/')
+    const current = existsSync(leaf.abs) ? (await encodeAttributeAsset(leaf.abs)).cid : null
+    if (current !== cid) {
+      hooks.beforeWrite?.(file)
+      await writeAttributeAsset(client, cid, leaf.abs)
+      hooks.onWrite?.(file)
+      written.push(file)
+    } else unchanged.push(file)
+    hooks.log?.(`${current !== cid ? 'wrote  ' : 'same   '} ${file}`)
+    out = withLeaf(out, leaf.key, leaf.value)
+  }
+  return {metadata: out as HMMetadata, written, unchanged}
+}
+
 type Leaf = {key: string[]; value: string | number | boolean | null}
 
 /** Flatten metadata to attribute leaves, the shape SetAttributes takes. */
@@ -883,6 +1076,7 @@ export function checkLinks(
     let prep = prepared.get(file)
     if (!prep) prepared.set(file, (prep = prepareFile(opts, layout, file)))
     broken.push(...findBrokenLinks(file, prep.nodes, opts.account, publishedPaths))
+    broken.push(...missingAttributeAssets(opts.dir, file, prep.metadata))
   }
   return broken
 }
@@ -935,9 +1129,15 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
     const ownMetadata = layout.selfAuthority
       ? swapAuthority(fileMetadata, layout.selfAuthority, opts.account)
       : fileMetadata
-    const metadata = applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, ownMetadata) : ownMetadata, schema)
-    // The schema blob rides along with the change that binds it.
-    const schemaBlobs = schema ? [{data: schema.data, cid: schema.cid}] : []
+    // The files the frontmatter names become the blobs its attributes reference.
+    const assets = await readAttributeAssets(
+      opts.dir,
+      file,
+      applySchemaMetadata(opts.metadataFor ? opts.metadataFor(file, ownMetadata) : ownMetadata, schema),
+    )
+    const metadata = assets.metadata
+    // The schema blob and the attribute assets ride along with the change that binds them.
+    const schemaBlobs = [...(schema ? [{data: schema.data, cid: schema.cid}] : []), ...assets.blobs]
     const resolved = await resolveFileLinks(nodes)
     const newTree = resolved.nodes.map(hmBlockNodeToBlockNode)
     const id = hmId(opts.account, {path: path ? path.replace(/^\//, '').split('/') : []})
