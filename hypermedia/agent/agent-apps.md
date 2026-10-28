@@ -11,7 +11,7 @@ There is one kind of tool: a page with code, run on the server for the spaces th
 ```
 app page (agent/app)                       slug, arguments, permissions, network, usage; body = skill doc
   tools/ (childAttributesSchema)           one agent/app-tool page per tool: tool, summary, runtime,
-                                           inputSchema, outputSchema, code; body = documentation
+                                           inputSchema, outputSchema, code as ipfs:// references; body = documentation
 mount page (agent/app-mount)               app link (version pinned), scope, enabled, arguments, usage
 ```
 
@@ -43,7 +43,7 @@ An app declares each argument's kind, whether it is secret and whether it is req
 
 # Code and the sandbox
 
-A tool page's `code` is a lambda (the ABI in [tools](./tools.md)) with a second argument: `ctx.args`, the mount's argument values, secrets included; `ctx.usage`, the budget of a metered call; `ctx.app`; and `ctx.workspace`. The server runs it in the `execute` sandbox, a microVM with the agent's memory at `/workspace`, and nothing else of the host. What the sandbox gets is what the app declared and the person mounting it saw: the arguments arrive as one environment variable (`SEED_APP_CONTEXT`), never in the program text; egress is limited to the hosts in the app's `network` map (deny by default, DNS allowed, one allow rule per host) or there is no network at all when it names none; the call may run up to the tool page's `timeoutSecs`, capped at thirty minutes where model-written code gets five. The run has a sandbox principal of its own (`app:<slug>:<session>`), so a warm pooled VM never carries a secret into the agent's own code. No `execute` grant is needed: the mount is the consent, and the agent cannot write the code.
+A tool page's `code` references a lambda (the ABI in [tools](./tools.md)): one file, or a folder whose entry is `index.ts` or `main.py`, fetched into the server's cache by its content id at mount, every file checked against it, and staged into the sandbox at each call. It takes a second argument: `ctx.args`, the mount's argument values, secrets included; `ctx.usage`, the budget of a metered call; `ctx.app`; and `ctx.workspace`. The server runs it in the `execute` sandbox, a microVM with the agent's memory at `/workspace`, and nothing else of the host. What the sandbox gets is what the app declared and the person mounting it saw: the arguments arrive as one environment variable (`SEED_APP_CONTEXT`), never in the program text; egress is limited to the hosts in the app's `network` map (deny by default, DNS allowed, one allow rule per host) or there is no network at all when it names none; the call may run up to the tool page's `timeoutSecs`, capped at thirty minutes where model-written code gets five. The run has a sandbox principal of its own (`app:<slug>:<session>`), so a warm pooled VM never carries a secret into the agent's own code. No `execute` grant is needed: the mount is the consent, and the agent cannot write the code.
 
 The mount is where consent happens. The Apps dialog says what an app's code gets before the person publishes the mount, and the Mount button pins the app page's version, so the code consented to is the code that runs until the person edits the mount page.
 
