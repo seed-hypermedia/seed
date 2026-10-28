@@ -13,7 +13,8 @@ import * as cbor from './cbor'
 const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex')
 const VERSION = 'bafyreiccaudhs737unopajz7k2tjonmqucburxp45yjzfvvgy75bm66y5q'
 const ID = 'hm://z6MkpVa5nMUR5ZaUEyV1SE48KTNbwTuHRd83RwLgMKc4nGU3/test'
-const URL = 'https://ipfs.io/ipfs/bafkreihz3ude43b6lilnvunejpnkr4d7sbjwrldflbfffkcg637l7uppbu'
+const CID = 'bafkreihz3ude43b6lilnvunejpnkr4d7sbjwrldflbfffkcg637l7uppbu'
+const URL = `https://hyper.media/ipfs/${CID}?fixture=unavailable`
 const originalFetch = globalThis.fetch
 const cleanup: (() => void)[] = []
 afterEach(() => {
@@ -70,7 +71,7 @@ function resource(version = VERSION, url = URL) {
   }
 }
 
-test('real writer refuses broken literal image before publish, including dryRun and skipLinkCheck', async () => {
+test('real writer refuses broken literal image on our server before publish, including dryRun and skipLinkCheck', async () => {
   const ctx = await context()
   let publishes = 0
   globalThis.fetch = (async (url: unknown) => {
@@ -189,8 +190,7 @@ test('updates and metadata-only changes check the resulting body and preserve th
 
 test('native IPFS preflight is pending; configured local gateway is sampled only after readback', async () => {
   const ctx = await context()
-  const cid = URL.split('/').pop()!
-  const native = `ipfs://${cid}`
+  const native = `ipfs://${CID}`
   let gatewayCalls = 0
   globalThis.fetch = (async (url: unknown, options?: RequestInit) => {
     if (String(url).includes('/ipfs/')) {

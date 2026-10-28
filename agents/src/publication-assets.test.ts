@@ -26,16 +26,19 @@ describe('publication asset collection and validation', () => {
       }),
     ).toEqual([image('https://one'), image('https://two'), image('https://three')])
   })
-  test('checks exact HTTP URL even when its CID works on another gateway', async () => {
+  test('checks the exact HTTP URL even when its CID works at the base endpoint', async () => {
+    // A controlled fixture models a broken literal URL on our own server; the
+    // base CID endpoint still responds successfully and must not mask the error.
+    const failingURL = `https://hyper.media/ipfs/${CID}?fixture=unavailable`
     const urls: string[] = []
     const probe = async (url: string) => {
       urls.push(url)
-      return url.startsWith('https://ipfs.io/') ? {...(await good()), status: 429} : good()
+      return url === failingURL ? {...(await good()), status: 429} : good()
     }
     await expect(
-      assets.checkPublicationAssets([image(`https://ipfs.io/ipfs/${CID}`)], {gateway: 'https://hyper.media', probe}),
+      assets.checkPublicationAssets([image(failingURL)], {gateway: 'https://hyper.media', probe}),
     ).rejects.toThrow('HTTP 429')
-    expect(urls).toEqual([`https://ipfs.io/ipfs/${CID}`])
+    expect(urls).toEqual([failingURL])
     expect(
       await assets.checkPublicationAssets([image(`https://hyper.media/ipfs/${CID}`)], {
         gateway: 'https://hyper.media',
