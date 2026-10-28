@@ -112,6 +112,7 @@ import {getRoutePanel} from '@shm/shared/routes'
 import {ActivityContent, ActivityHeader} from './activity-panel'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {DocumentPageView, documentPageCid} from './document-page'
+import {usePublishError} from './editing-toolbar'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activitySlugToFilter,
@@ -1127,6 +1128,7 @@ function ResourcePageContent({
   const isSiteProfile = route.key === 'site-profile'
   const media = useMedia()
   const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
+  const publishError = usePublishError()
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
 
   const handleResourceRedirect = useCallback(
@@ -1527,6 +1529,7 @@ function ResourcePageContent({
       transientResourceError={transientResourceError}
       liveNavigationItems={liveNavigationItems}
     >
+      {publishError.content}
       <DocumentMachineProvider
         // Recreate the machine only when the identity it's bound to changes: the
         // resolved doc id (path change on first publish) or the ROUTE's pinned
@@ -1548,6 +1551,7 @@ function ResourcePageContent({
         }}
         machine={machine}
         inspect={inspect}
+        onPublishError={publishError.showError}
       >
         <DocumentNavigationItemsBridge docId={renderedDocId} onItemsChange={setLiveNavigationItems} />
         {editNavPane && editNavPanePortalElement ? createPortal(editNavPane, editNavPanePortalElement) : null}

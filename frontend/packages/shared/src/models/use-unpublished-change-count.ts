@@ -89,7 +89,6 @@ export function useUnpublishedChangeCount(): number {
     const countBlockChanges = (editorBlocks: EditorBlock[]) => {
       const current = removeTrailingEmptyParagraphs(editorBlocks)
       if (!diffBaseline.length) return current.length
-      if (!current.length) return 0
       const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(diffBaseline), '')
       const {changes, touchedBlocks} = compareBlocksWithMap(baselineMap, current, '')
       return changes.length + extractDeletes(baselineMap, touchedBlocks).length

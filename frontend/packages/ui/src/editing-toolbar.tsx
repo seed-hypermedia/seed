@@ -18,10 +18,11 @@ import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-chan
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
 import {pathNameify} from '@shm/shared/utils/path'
 import {Check, ChevronRight, Clock, Copy, FileDiff, Pencil, Trash, X} from 'lucide-react'
-import React, {forwardRef, useEffect, useRef, useState} from 'react'
+import React, {forwardRef, useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {PathInput} from './path-input'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Separator} from './separator'
@@ -30,6 +31,54 @@ import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
+
+/** Show a compact publication error with a dialog for viewing and copying its details. */
+export function usePublishError() {
+  const [details, setDetails] = useState<string | null>(null)
+  const showError = useCallback((error: unknown) => {
+    const errorDetails = error instanceof Error ? error.stack || error.message : String(error)
+    toast.error('Failed to publish', {
+      id: 'document-publish-error',
+      duration: 10_000,
+      closeButton: true,
+      action: {
+        label: 'Show error details',
+        onClick: () => setDetails(errorDetails),
+      },
+    })
+  }, [])
+
+  return {
+    showError,
+    content: (
+      <Dialog open={details !== null} onOpenChange={(open) => !open && setDetails(null)}>
+        <DialogContent aria-describedby={undefined}>
+          <DialogHeader className="pr-6">
+            <DialogTitle>Error details</DialogTitle>
+          </DialogHeader>
+          <pre
+            tabIndex={0}
+            className="bg-muted max-h-96 overflow-auto rounded-md p-3 text-xs break-words whitespace-pre-wrap select-text"
+          >
+            {details}
+          </pre>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (details === null) return
+                void copyTextToClipboard(details).catch(() => toast.error('Failed to copy error details'))
+              }}
+            >
+              <Copy className="size-4" />
+              Copy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    ),
+  }
+}
 
 /** Platform callbacks injected by the host (desktop or web). */
 export type EditingToolbarCallbacks = {

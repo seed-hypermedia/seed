@@ -211,6 +211,61 @@ describe('useUnpublishedChangeCount', () => {
     }
   })
 
+  it.each(['empty blocks', 'empty paragraph', 'empty text node'])(
+    'counts deleting all published content with %s',
+    (emptyShape) => {
+      const childBlock = paragraphBlock('Nested text')[0]!
+      childBlock.block.id = 'child-1'
+      const publishedBlocks = [{...paragraphBlock('Published text')[0]!, children: [childBlock]}]
+      selectMock.document = {content: publishedBlocks, version: 'bafypublished', metadata: {name: 'Title'}}
+      selectMock.metadata = {name: 'Title'}
+      selectMock.draftId = 'draft-1'
+      const emptyBlocks =
+        emptyShape === 'empty blocks'
+          ? []
+          : emptyShape === 'empty paragraph'
+            ? emptyParagraphBlock()
+            : hmBlocksToEditorContent(paragraphBlock('') as any)
+      // A reopened draft's editor baseline is already empty; compare to the published content.
+      selectMock.editorBaseline = emptyBlocks
+      selectMock.blocks = emptyBlocks
+
+      const {container, root} = renderProbe()
+      try {
+        expect(container.firstElementChild?.getAttribute('data-count')).toBe('2')
+
+        handlersRefMock.current = {getCurrentBlocks: () => emptyBlocks}
+        selectMock.saveStatus = 'changed'
+        act(() => root.render(<CountProbe />))
+        expect(container.firstElementChild?.getAttribute('data-count')).toBe('2')
+
+        // Publishing the deletion must clear the count, including the editor placeholder.
+        selectMock.document = {...selectMock.document, content: [], version: 'bafyempty'}
+        selectMock.draftId = null
+        selectMock.editorBaseline = []
+        act(() => root.render(<CountProbe />))
+        expect(container.firstElementChild?.getAttribute('data-count')).toBe('0')
+      } finally {
+        cleanup(root, container)
+      }
+    },
+  )
+
+  it('counts deleting the last block in the live editor before the draft is saved', () => {
+    const publishedBlocks = paragraphBlock('Published text')
+    selectMock.document = {content: publishedBlocks, version: 'bafypublished'}
+    selectMock.editorBaseline = hmBlocksToEditorContent(publishedBlocks as any)
+    selectMock.blocks = publishedBlocks
+    handlersRefMock.current = {getCurrentBlocks: () => emptyParagraphBlock()}
+
+    const {container, root} = renderProbe()
+    try {
+      expect(container.firstElementChild?.getAttribute('data-count')).toBe('1')
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
   it('counts draft metadata for a document that has not been published yet', () => {
     selectMock.document = {
       content: [],
@@ -272,6 +327,7 @@ describe('useUnpublishedChangeCount', () => {
     // what `updatePublishedVersion` sets from the freshly published document.
     selectMock.draftId = null
     selectMock.editorBaseline = [contentBlock, trailingEmptyWithTextNode] as any
+    selectMock.blocks = [contentBlock, trailingEmptyWithTextNode]
     handlersRefMock.current = {
       getCurrentBlocks: () => [contentBlock],
     }
