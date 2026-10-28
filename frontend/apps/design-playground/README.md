@@ -18,6 +18,22 @@ VITE_STORYBOOK_URL defaults to http://localhost:6006. Storybook's STORYBOOK_PLAY
 http://localhost:6007. The combined build supplies relative ./storybook/ and ../ links; serve dist/ with any static
 server. No deployment workflow is added.
 
+## Cloudflare Pages
+
+Production: https://seed-design-playground.pages.dev (Storybook at `/storybook/`). The combined build isolates its Vite
+environment from local desktop/service settings and supplies relative cross-links.
+
+To redeploy from the repository root, set `CLOUDFLARE_API_TOKEN` in your shell without committing it, then run:
+
+```sh
+export CLOUDFLARE_ACCOUNT_ID=3982e727ae1980b6e00d14f3011cb0a5
+direnv exec . pnpm --filter @shm/design-playground build:site
+direnv exec . npx --yes wrangler@4.154.0 pages deploy frontend/apps/design-playground/dist --project-name seed-design-playground --branch main
+```
+
+The Pages project uses production branch `main`; `--branch main` publishes production even when the checkout is the
+Storybook feature branch. Review the checkout before deploying. No deployment workflow or credentials are stored here.
+
 ## Token controls
 
 The fixed dark panel edits tokens, not its own chrome. On mobile, open it using the menu button. Colors are discovered
