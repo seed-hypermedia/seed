@@ -13,9 +13,20 @@ const config: StorybookConfig = {
   docs: {
     defaultName: 'Docs',
   },
+  env: (config) => ({
+    ...config,
+    STORYBOOK_PLAYGROUND_URL: process.env.STORYBOOK_PLAYGROUND_URL || 'http://localhost:6007',
+  }),
   viteFinal: async (config) => ({
     ...config,
-    define: {...config.define, 'process.env': '{}'},
+    base: './',
+    define: {
+      ...config.define,
+      'process.env': '{}',
+      'process.env.STORYBOOK_PLAYGROUND_URL': JSON.stringify(
+        process.env.STORYBOOK_PLAYGROUND_URL || 'http://localhost:6007',
+      ),
+    },
   }),
 }
 

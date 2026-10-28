@@ -4,7 +4,7 @@
   "scripts": {
     "page-demo": "node scripts/document-page-demo/server.mjs",
     "page-demo:test": "node --test scripts/document-page-demo/demo.test.mjs",
-    "test": "pnpm web:test && pnpm shared:test && pnpm desktop:test:unit",
+    "test": "pnpm web:test && pnpm shared:test && pnpm desktop:test:unit && pnpm --filter @shm/design-playground test",
     "hypermedia:check": "node scripts/hypermedia/check.mjs",
     "hypermedia:dev": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts dev",
     "hypermedia:push": "cd frontend/apps/cli && bun run src/sync-hypermedia.ts push",

@@ -1,4 +1,4 @@
-import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {HMDocumentSchema} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {UniversalAppProvider, type UniversalClient} from '@shm/shared/routing'
@@ -35,12 +35,29 @@ export const storyDocument = HMDocumentSchema.parse({
   metadata: {name: 'Project notes'},
   content: storyBlocks,
 })
+/** Listing metadata for the same offline document, shared by explorer previews. */
+export const storyDocumentInfo: HMDocumentInfo = {
+  ...storyDocument,
+  type: 'document',
+  id: storyId,
+  path: ['notes'],
+  authors: [],
+  createTime: '2026-10-20T10:00:00Z',
+  updateTime: '2026-10-20T10:00:00Z',
+  sortTime: new Date('2026-10-20T10:00:00Z'),
+  breadcrumbs: [],
+  activitySummary: {latestCommentId: '', commentCount: 0, latestChangeTime: '2026-10-20T10:00:00Z', isUnread: false},
+  generationInfo: {genesis: 'fixture', generation: 1n},
+}
 /** Local request responses; unexpected requests fail rather than reaching a service. */
 export const storyClient: UniversalClient = {
   request: (async (method: string) => {
     if (method === 'ListCitations') return {citations: []}
     if (method === 'Resource') return {type: 'document', id: storyId, document: storyDocument}
     if (method === 'ListContacts') return {contacts: []}
+    if (method === 'Account') return {id: storyId, metadata: {name: 'Ada Lovelace'}}
+    if (method === 'InteractionSummary')
+      return {citations: 0, comments: 0, changes: 0, children: 0, authorUids: [], blocks: {}}
     throw new Error(`No story fixture for ${method}`)
   }) as UniversalClient['request'],
   publish: async () => {
