@@ -18,7 +18,7 @@ import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-chan
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
 import {pathNameify} from '@shm/shared/utils/path'
 import {Check, ChevronRight, Clock, Copy, FileDiff, Pencil, Trash, X} from 'lucide-react'
-import React, {forwardRef, useState} from 'react'
+import React, {forwardRef, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {PathInput} from './path-input'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
@@ -91,6 +91,7 @@ export function PublishPopoverBody({
   onClose,
   publishDisabled,
   unpublishedChildCount = 0,
+  publishButtonRef,
   getDocumentUrl,
   onGoToVersions,
 }: {
@@ -101,6 +102,8 @@ export function PublishPopoverBody({
   publishDisabled: boolean
   /** When greater than 0, publish is blocked because the doc embeds child drafts that haven't been published yet. */
   unpublishedChildCount?: number
+  /** The primary publish action, so the popover can focus it on open. */
+  publishButtonRef?: React.Ref<HTMLButtonElement>
 } & EditingToolbarCallbacks) {
   const publishedDoc = useDocumentSelector(selectDocument)
   const metadata = useDocumentSelector(selectMetadata)
@@ -328,6 +331,7 @@ export function PublishPopoverBody({
 
       <div className="flex flex-col gap-2 pt-1">
         <Button
+          ref={publishButtonRef}
           size="default"
           variant={publishDisabled ? 'ghost' : 'brand'}
           className={cn(
@@ -346,6 +350,41 @@ export function PublishPopoverBody({
       </div>
     </div>
   )
+}
+
+/**
+ * Whether Cmd/Ctrl+Enter from this event target should publish the document.
+ *
+ * Non-editable targets (buttons, the page body, the popover) always qualify. Editable targets
+ * qualify only inside a document editing surface tagged `data-publish-shortcut="allow"` (the
+ * document editor and its title/summary fields), so comment editors, the assistant composer and
+ * other inputs keep their own Mod+Enter meaning. Code blocks keep Mod+Enter for splitting.
+ * Exported for testing.
+ */
+export function isPublishShortcutTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return true
+  if (target.closest('[data-publish-shortcut="ignore"]')) return false
+  const editable =
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement ||
+    isContentEditable(target)
+  if (!editable) return true
+  if (!target.closest('[data-publish-shortcut="allow"]')) return false
+  // A keydown targets the focused contenteditable root, so the caret's block has to come from the
+  // selection rather than the event target.
+  const anchor = target.ownerDocument.getSelection()?.anchorNode ?? null
+  const anchorElement = anchor instanceof Element ? anchor : anchor?.parentElement
+  if (anchorElement && target.contains(anchorElement) && anchorElement.closest('pre')) return false
+  return true
+}
+
+function isContentEditable(element: Element): boolean {
+  if (element instanceof HTMLElement && typeof element.isContentEditable === 'boolean') {
+    return element.isContentEditable
+  }
+  const host = element.closest('[contenteditable]')
+  return !!host && host.getAttribute('contenteditable') !== 'false'
 }
 
 function canPublishDocument({
@@ -454,13 +493,46 @@ export function PublishButtonWithPopover({
     popoverState.onOpenChange(!popoverState.open)
   }
 
+  // Cmd/Ctrl+Enter opens the publish popover; pressed again while it is open it publishes, so
+  // "Cmd+Enter, Enter" and "Cmd+Enter, Cmd+Enter" both publish from the keyboard. The listener
+  // runs in the capture phase because the title field, inline draft cards and other inputs swallow
+  // Enter before it would bubble up here; `isPublishShortcutTarget` decides which editable surfaces
+  // the shortcut applies to.
+  const shortcutRef = useRef({open: popoverState.open, publishNow, setOpen: popoverState.onOpenChange})
+  shortcutRef.current = {open: popoverState.open, publishNow, setOpen: popoverState.onOpenChange}
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return
+      if (!isPublishShortcutTarget(event.target)) return
+      event.preventDefault()
+      event.stopPropagation()
+      const {open, publishNow: publish, setOpen} = shortcutRef.current
+      if (open) publish()
+      else setOpen(true)
+    }
+    window.addEventListener('keydown', onKeyDown, true)
+    return () => window.removeEventListener('keydown', onKeyDown, true)
+  }, [])
+
+  const publishButtonRef = useRef<HTMLButtonElement>(null)
+  const focusPublishButton = (event: Event) => {
+    const button = publishButtonRef.current
+    if (!button || button.disabled) return
+    event.preventDefault()
+    button.focus()
+  }
+
   return (
     <div className="flex items-center gap-2">
       <Popover open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
         <PopoverAnchor asChild>
           <PublishTrigger canPublish={canPublish} onClick={handlePublishTriggerClick} />
         </PopoverAnchor>
-        <PopoverContent align="end" className="w-[26rem] max-w-[calc(100vw-2rem)] p-6">
+        <PopoverContent
+          align="end"
+          className="w-[26rem] max-w-[calc(100vw-2rem)] p-6"
+          onOpenAutoFocus={focusPublishButton}
+        >
           <PublishPopoverBody
             docId={docId}
             changeCount={changeCount}
@@ -468,6 +540,7 @@ export function PublishButtonWithPopover({
             onClose={() => popoverState.onOpenChange(false)}
             publishDisabled={!canPublish}
             unpublishedChildCount={effectiveUnpublishedChildCount}
+            publishButtonRef={publishButtonRef}
             getDocumentUrl={getDocumentUrl}
             onGoToVersions={onGoToVersions}
           />

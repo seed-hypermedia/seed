@@ -348,6 +348,7 @@ export function EditableDocumentMetadataFields({
   return (
     <div
       className={cn('relative flex flex-col gap-2', metadata?.cover && 'pt-8', className)}
+      data-publish-shortcut="allow"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >

@@ -5,6 +5,7 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import {useActorRef, useSelector} from '@xstate/react'
 import {createContext, createElement, ReactNode, useContext, useEffect, useMemo, useRef} from 'react'
 import {ActorRefFrom, SnapshotFrom, enqueueActions} from 'xstate'
+import {getBlockText} from '../content'
 import {applyRebasePlan, classifyRebase} from '../utils/document-changes'
 import {computeInlineDraftPublishPath} from '../utils/publish-paths'
 import {
@@ -761,12 +762,30 @@ export function selectShouldUseDraftOverlay(snapshot: DocumentMachineSnapshot): 
   return selectDraftOverlayAllowed(snapshot) && !!snapshot.context.draftContent
 }
 
-/** Whether a brand-new reserved draft should initially focus the title field. */
+/**
+ * Whether an unpublished draft the user has not typed into yet should initially focus the title
+ * field. Applies to lazily reserved drafts and to drafts written up front (the New button and
+ * Cmd+Shift+N), so every fresh draft opens with the cursor in the title. Once the body has text the
+ * cursor belongs to the editor, so a remount of the title field no longer steals it.
+ */
 export function selectShouldFocusDraftTitle(snapshot: DocumentMachineSnapshot): boolean {
   const ctx = snapshot.context
   return (
-    snapshot.matches('editing') && !!ctx.draftId && !ctx.draftCreated && !ctx.document?.version && !ctx.metadata?.name
+    snapshot.matches('editing') &&
+    !!ctx.draftId &&
+    !ctx.document?.version &&
+    !ctx.metadata?.name &&
+    !blocksHaveText(ctx.draftContent)
   )
+}
+
+// Desktop draft snapshots store editor blocks, not published block nodes, so normalise first.
+function blocksHaveText(content: HMBlockNode[] | null | undefined): boolean {
+  if (!content?.length) return false
+  const nodes = 'block' in content[0]! ? content : editorBlocksToHMBlockNodes(content as unknown as EditorBlock[])
+  const hasText = (list: HMBlockNode[]): boolean =>
+    list.some((node) => (!!node.block && getBlockText(node.block).trim().length > 0) || hasText(node.children ?? []))
+  return hasText(nodes)
 }
 
 /** The blocks the editor should render from the document machine's current source of truth. */

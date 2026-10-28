@@ -112,6 +112,30 @@ describe('SiteFileBrowser', () => {
     )
   })
 
+  it('labels an unnamed unpublished draft Untitled Document instead of its placeholder slug', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [makeDoc(['guides'], 'Guides')],
+      drafts: [
+        {
+          id: 'draft-2',
+          metadata: {},
+          locationId: hmId('site', {path: ['guides']}),
+          editId: hmId('site', {path: ['guides', '-draft-2']}),
+        } as unknown as HMListedDraft,
+      ],
+      isLoading: false,
+    })
+
+    act(() => {
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+    })
+    act(() => (container.querySelector('[aria-label="Expand Guides"]') as HTMLButtonElement).click())
+
+    const labels = Array.from(container.querySelectorAll('button')).map((button) => button.textContent ?? '')
+    expect(labels.some((label) => label.includes('Untitled Document'))).toBe(true)
+    expect(labels.some((label) => label.includes('-draft-2'))).toBe(false)
+  })
+
   it('marks collections with a grid icon instead of a private icon', () => {
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [
