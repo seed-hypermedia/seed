@@ -1,8 +1,27 @@
 import {describe, expect, test} from 'vitest'
-import {appNeedsOf, appSettingsLine, mountsByApp} from '../agents/apps'
+import {appNeedsOf, appSettingsLine, mountsByApp, toolReferenceLinks} from '../agents/apps'
 import type {AppMountInfo} from '../agents/client'
 
 describe('the Apps dialog catalog', () => {
+  test('a mounted tool links what its page references: the code first, then the contract', () => {
+    const tool = {
+      tool: 'convert',
+      summary: 'Converts.',
+      runtime: 'ts' as const,
+      code: 'ipfs://bafkcode',
+      inputSchema: 'ipfs://bafyinput',
+    }
+    expect(toolReferenceLinks(tool)).toEqual([
+      {label: 'code', url: 'ipfs://bafkcode'},
+      {label: 'input', url: 'ipfs://bafyinput'},
+    ])
+    expect(toolReferenceLinks({...tool, outputSchema: 'ipfs://bafyoutput'}).map((link) => link.label)).toEqual([
+      'code',
+      'input',
+      'output',
+    ])
+  })
+
   test('recognizes a mounted app by its page whatever version the mount pins', () => {
     // A mount drafted from the catalog pins the version it consented to, and the server reports
     // the app with that version; the catalog knows the page by its address alone. Matching the

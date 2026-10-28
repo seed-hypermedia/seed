@@ -339,6 +339,40 @@ export function AppsDialog({
   )
 }
 
+/**
+ * What a tool's page references, for a reader to open: the code, then the contract. Each is an
+ * `ipfs://` the app opens in its IPFS page, a text file as text, a folder as its entries.
+ */
+export function toolReferenceLinks(tool: AppMountInfo['tools'][number]): Array<{label: string; url: string}> {
+  return [
+    {label: 'code', url: tool.code},
+    {label: 'input', url: tool.inputSchema},
+    ...(tool.outputSchema ? [{label: 'output', url: tool.outputSchema}] : []),
+  ]
+}
+
+/** One tool of a mount: its name and runtime, and the references a person can read before trusting it. */
+function ToolLine({tool, openUrl}: {tool: AppMountInfo['tools'][number]; openUrl: (url: string) => void}) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2">
+      <span className="font-mono">
+        {tool.tool} ({tool.runtime})
+      </span>
+      {toolReferenceLinks(tool).map(({label, url}) => (
+        <button
+          key={label}
+          type="button"
+          className="text-primary hover:underline"
+          aria-label={`Open the ${label} of ${tool.tool}`}
+          onClick={() => openUrl(url)}
+        >
+          {label}
+        </button>
+      ))}
+    </span>
+  )
+}
+
 function AppCard({
   app,
   serverUrl,
@@ -384,9 +418,18 @@ function AppCard({
             <SizableText size="sm" color="muted">
               {app.summary}
             </SizableText>
-            <SizableText size="xs" color="muted" className="font-mono">
-              {app.tools.map((tool) => `${tool.tool} (${tool.runtime})`).join(', ') || 'no tools'}
-              {app.version ? ` · version ${app.version.slice(0, 12)}` : ''}
+            <SizableText size="xs" color="muted">
+              {app.tools.length ? (
+                app.tools.map((tool, index) => (
+                  <React.Fragment key={tool.tool}>
+                    {index ? ', ' : ''}
+                    <ToolLine tool={tool} openUrl={openUrl} />
+                  </React.Fragment>
+                ))
+              ) : (
+                <span className="font-mono">no tools</span>
+              )}
+              {app.version ? <span className="font-mono">{` · version ${app.version.slice(0, 12)}`}</span> : null}
             </SizableText>
             <SizableText size="xs" color="muted">
               {Object.values(app.network).length
