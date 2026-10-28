@@ -4469,7 +4469,7 @@ export function DocumentCollection({
   }
 
   return (
-    <div className="w-full px-5 pb-8 pt-4">
+    <div className="w-full px-5 pt-4 pb-8">
       <div className="border-border bg-background overflow-hidden rounded-xl border">
         {DraftSlot ? <DraftSlot targetId={docId}>{renderContent}</DraftSlot> : renderContent(null)}
       </div>

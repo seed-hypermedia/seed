@@ -269,7 +269,7 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   return (
     <BlockSelectionWrapper editor={editor} block={block} onSelectionChange={setIsSelected} selectOnMouseDown>
       <div
-        className="group relative -mx-4 flex select-none flex-col px-4"
+        className="group relative -mx-4 flex flex-col px-4 select-none"
         onFocusCapture={() => setIsFocusedWithin(true)}
         onBlurCapture={handleBlurCapture}
       >
@@ -680,7 +680,7 @@ function QuerySearch({
       {showSearch && SearchInputComponent ? (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setShowSearch(false)} />
-          <div className="no-window-drag border-muted bg-background absolute -left-2 -top-2 z-40 h-[260px] min-h-[80%] w-[calc(100%+16px)] max-w-[800px] rounded-md border p-2 shadow-lg">
+          <div className="no-window-drag border-muted bg-background absolute -top-2 -left-2 z-40 h-[260px] min-h-[80%] w-[calc(100%+16px)] max-w-[800px] rounded-md border p-2 shadow-lg">
             <SearchInputComponent
               onClose={() => setShowSearch(false)}
               allowWebURL={allowWebURL}
