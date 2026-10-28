@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, {act} from 'react'
+import {act} from 'react-dom/test-utils'
 import {createRoot} from 'react-dom/client'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {useQueryViewFilters} from '../use-query-view-filters'
