@@ -2,6 +2,7 @@ import {hmId, unpackHmId, type NavRoute} from '@shm/shared'
 import {describe, expect, it, vi} from 'vitest'
 import {
   getDocumentResourceRouteKey,
+  getDraftBreadcrumbEntry,
   getBlockCommentDraftReference,
   getCommentReplyPanelRoute,
   getCommentsPanelTarget,
@@ -24,6 +25,59 @@ import {
   BACK_TO_TOP_SCROLL_OFFSET,
   getBlockCitationsPanelRoute,
 } from '../resource-page-common'
+
+describe('draft breadcrumb metadata', () => {
+  const id = hmId('alice', {path: ['opaque-document-id']})
+  const draft = {id: 'draft-1', metadata: {}, visibility: 'PUBLIC', deps: [], lastUpdateTime: 0} as const
+
+  it('retains the published title for a body-only draft, including ancestor breadcrumbs', () => {
+    const entry = getDraftBreadcrumbEntry({
+      id,
+      draft: {...draft, deps: []},
+      publishedMetadata: {name: 'Document title'},
+      isUnpublishedDraft: false,
+      isLoading: false,
+    })
+    expect(entry).toMatchObject({metadata: {name: 'Document title'}, draftId: 'draft-1', isLoading: false})
+  })
+
+  it('applies saved draft titles and prefers the latest live title edit', () => {
+    const input = {
+      id,
+      draft: {...draft, deps: [], metadata: {name: 'Saved draft title'}},
+      publishedMetadata: {name: 'Published title'},
+      isUnpublishedDraft: false,
+      isLoading: false,
+    }
+    expect(getDraftBreadcrumbEntry(input)).toMatchObject({metadata: {name: 'Saved draft title'}})
+    expect(getDraftBreadcrumbEntry({...input, currentMetadata: {name: 'Live title'}})).toMatchObject({
+      metadata: {name: 'Live title'},
+    })
+    expect(getDraftBreadcrumbEntry({...input, currentMetadata: {name: ''}})).toMatchObject({
+      metadata: {name: ''},
+      fallbackName: 'Untitled Document',
+    })
+  })
+
+  it('shows a loading state until an ancestor title is available', () => {
+    expect(
+      getDraftBreadcrumbEntry({id, draft: {...draft, deps: []}, isUnpublishedDraft: false, isLoading: true}),
+    ).toMatchObject({isLoading: true})
+  })
+
+  it.each(['PUBLIC', 'PRIVATE'] as const)('uses a friendly label for an untitled %s draft', (visibility) => {
+    expect(
+      getDraftBreadcrumbEntry({
+        id,
+        draft: {...draft, deps: [], visibility},
+        isUnpublishedDraft: true,
+        isLoading: false,
+      }),
+    ).toMatchObject({
+      fallbackName: visibility === 'PRIVATE' ? 'New Private Document' : 'New Document',
+    })
+  })
+})
 
 describe('back to top visibility', () => {
   it('uses a 200px visibility threshold', () => {

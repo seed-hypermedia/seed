@@ -3,6 +3,7 @@ import React from 'react'
 import {createRoot, Root} from 'react-dom/client'
 ;(globalThis as typeof globalThis & {React?: typeof React}).React = React
 import {act} from 'react-dom/test-utils'
+import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editorblock'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 
@@ -42,6 +43,7 @@ vi.mock('../use-document-machine', () => ({
   selectDocument: (s: any) => s.context.document,
   selectDraftId: (s: any) => s.context.draftId,
   selectEditorBaseline: (s: any) => s.context.editorBaseline,
+  selectIsEditing: () => true,
   selectMetadata: (s: any) => s.context.metadata,
   selectNavigation: (s: any) => s.context.navigation,
   selectSaveStatus: () => selectMock.saveStatus,
@@ -124,8 +126,8 @@ describe('useUnpublishedChangeCount', () => {
   })
 
   it('falls back to machine draft blocks before editor handlers are ready', () => {
-    const baselineBlocks = hmBlocksToEditorContent(paragraphBlock('Published text') as any)
-    selectMock.editorBaseline = baselineBlocks
+    selectMock.document = {content: paragraphBlock('Published text'), version: 'bafypublished'}
+    selectMock.editorBaseline = hmBlocksToEditorContent(selectMock.document.content)
     selectMock.blocks = paragraphBlock('Draft text')
 
     const {container, root} = renderProbe()
@@ -323,9 +325,12 @@ describe('useUnpublishedChangeCount', () => {
       content: [{type: 'text', text: '', styles: {}}],
       children: [],
     }
-    // No active draft: the diff baseline comes from `editorBaseline`, which is
-    // what `updatePublishedVersion` sets from the freshly published document.
+    // Freshly published content includes a trailing empty paragraph.
     selectMock.draftId = null
+    selectMock.document = {
+      content: editorBlocksToHMBlockNodes([contentBlock, trailingEmptyWithTextNode] as any),
+      version: 'bafypublished',
+    }
     selectMock.editorBaseline = [contentBlock, trailingEmptyWithTextNode] as any
     selectMock.blocks = [contentBlock, trailingEmptyWithTextNode]
     handlersRefMock.current = {

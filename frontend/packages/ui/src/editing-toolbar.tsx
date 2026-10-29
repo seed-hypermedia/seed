@@ -502,7 +502,7 @@ export function PublishButtonWithPopover({
 
   const editingTrailingItems: MenuItemType[] = []
 
-  if (draftId) {
+  if (draftId && (isUnpublishedDraft || changeCount > 0)) {
     editingTrailingItems.push({
       key: 'discard-changes',
       label: isUnpublishedDraft ? 'Delete Draft' : 'Discard Changes',

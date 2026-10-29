@@ -10,8 +10,7 @@ import {
   selectBindingSchemaDrafts,
   selectBlocks,
   selectDocument,
-  selectDraftId,
-  selectEditorBaseline,
+  selectIsEditing,
   selectMetadata,
   selectNavigation,
   selectSaveStatus,
@@ -49,7 +48,7 @@ function removeTrailingEmptyParagraphs(blocks: EditorBlock[]): EditorBlock[] {
 }
 
 /**
- * Count of unpublished changes: block diffs against the editor baseline plus
+ * Count of unpublished changes: block diffs against the published document plus
  * any metadata fields touched this session (title, summary, etc.). Reads
  * `editor.topLevelBlocks` via `EditorHandlersContext` and re-runs whenever
  * `selectSaveStatus` ticks.
@@ -59,11 +58,10 @@ function removeTrailingEmptyParagraphs(blocks: EditorBlock[]): EditorBlock[] {
  */
 export function useUnpublishedChangeCount(): number {
   const handlersRef = useEditorHandlersRef()
-  const baseline = useDocumentSelector(selectEditorBaseline)
+  const isEditing = useDocumentSelector(selectIsEditing)
   const metadata = useDocumentSelector(selectMetadata)
   const navigation = useDocumentSelector(selectNavigation)
   const publishedDoc = useDocumentSelector(selectDocument)
-  const draftId = useDocumentSelector(selectDraftId)
   const blocks = useDocumentSelector(selectBlocks)
   const saveStatus = useDocumentSelector(selectSaveStatus)
   const schemaDraft = useDocumentSelector(selectSchemaDraft)
@@ -82,14 +80,15 @@ export function useUnpublishedChangeCount(): number {
     // them via the same diff used at publish time. `navigation === undefined`
     // means no nav edits this session — return 0 ops.
     const navigationChangeCount = getNavigationChanges(navigation, publishedDoc?.detachedBlocks?.navigation).length
-    const publishedBaseline = removeTrailingEmptyParagraphs(
+    // The published document is the baseline throughout the draft's lifecycle.
+    // An editor snapshot can contain draft content even after that draft is discarded.
+    const diffBaseline = removeTrailingEmptyParagraphs(
       hmBlocksToEditorContent(publishedDoc?.content ?? [], {childrenType: 'Group'}),
     )
-    const diffBaseline = removeTrailingEmptyParagraphs(draftId ? publishedBaseline : baseline ?? publishedBaseline)
+    const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(diffBaseline), '')
     const countBlockChanges = (editorBlocks: EditorBlock[]) => {
       const current = removeTrailingEmptyParagraphs(editorBlocks)
       if (!diffBaseline.length) return current.length
-      const baselineMap = createBlocksMap(editorBlocksToHMBlockNodes(diffBaseline), '')
       const {changes, touchedBlocks} = compareBlocksWithMap(baselineMap, current, '')
       return changes.length + extractDeletes(baselineMap, touchedBlocks).length
     }
@@ -99,43 +98,16 @@ export function useUnpublishedChangeCount(): number {
         ? (blocks as unknown as EditorBlock[])
         : hmBlocksToEditorContent(blocks)
     const machineBlockChanges = countBlockChanges(machineEditorBlocks)
-    const editorBlockChanges = handlersRef.current?.getCurrentBlocks
-      ? countBlockChanges(handlersRef.current.getCurrentBlocks())
-      : 0
-    const unpublishedChangeCount =
+    // Read-only editors can still hold their previous/placeholder content while
+    // React mounts the published document. That snapshot is not an authored edit.
+    const editorBlockChanges =
+      isEditing && handlersRef.current?.getCurrentBlocks ? countBlockChanges(handlersRef.current.getCurrentBlocks()) : 0
+    return (
       Math.max(machineBlockChanges, editorBlockChanges) +
       metadataChangeCount +
       navigationChangeCount +
       schemaChangeCount
-    const machineQuery = machineEditorBlocks.find((block) => block.type === 'query')
-    const publishedQuery = publishedBaseline.find((block) => block.type === 'query')
-    if (machineQuery || publishedQuery) {
-      console.info('[Folder draft debug] unpublished change count', {
-        draftId,
-        saveStatus,
-        machineBlockChanges,
-        editorBlockChanges,
-        metadataChangeCount,
-        navigationChangeCount,
-        unpublishedChangeCount,
-        publishedTableConfig: publishedQuery?.type === 'query' ? publishedQuery.props.tableConfig : undefined,
-        draftTableConfig: machineQuery?.type === 'query' ? machineQuery.props.tableConfig : undefined,
-        publishedQuerySort: publishedQuery?.type === 'query' ? publishedQuery.props.querySort : undefined,
-        draftQuerySort: machineQuery?.type === 'query' ? machineQuery.props.querySort : undefined,
-      })
-    }
-    return unpublishedChangeCount
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    baseline,
-    metadata,
-    navigation,
-    publishedDoc,
-    draftId,
-    blocks,
-    saveStatus,
-    handlersRef,
-    schemaDraft,
-    bindingSchemaDrafts,
-  ])
+  }, [isEditing, metadata, navigation, publishedDoc, blocks, saveStatus, handlersRef, schemaDraft, bindingSchemaDrafts])
 }
