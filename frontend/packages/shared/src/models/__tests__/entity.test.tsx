@@ -8,7 +8,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {UniversalAppContext} from '../../routing'
 import {hmId} from '../../utils/entity-id-url'
 import {queryKeys} from '../query-keys'
-import {useResource} from '../entity'
+import {useResource, useResolvedHmId} from '../entity'
 
 const docA = hmId('uid1', {path: ['old-name']})
 const docB = hmId('uid1', {path: ['new-name']})
@@ -168,5 +168,67 @@ describe('useResource redirects', () => {
     })
 
     rendered.cleanup()
+  })
+})
+
+describe('domain-based HM embeds', () => {
+  it('resolves before resource reads and discovery subscriptions, preserving pinned state', async () => {
+    let resolveDomain!: (value: unknown) => void
+    const domainResult = new Promise((resolve) => {
+      resolveDomain = resolve
+    })
+    const request = vi.fn(async (key: string, input: any) => {
+      if (key === 'GetDomain') return domainResult
+      if (key === 'Resource') {
+        expect(input.uid).toBe('docs-account')
+        return documentResponse(input)
+      }
+      throw new Error(`Unexpected ${key}`)
+    })
+    const subscribeEntity = vi.fn(() => () => {})
+    let result: ReturnType<typeof useResolvedHmId>
+    let resource: ReturnType<typeof useResource>
+    function Embed() {
+      result = useResolvedHmId('hm://hyper.media/agent/guide?v=pinned#intro[1:3]')
+      resource = useResource(result.id, {subscribed: true})
+      return null
+    }
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+    const container = document.createElement('div')
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      act(() =>
+        root.render(
+          <QueryClientProvider client={queryClient}>
+            <UniversalAppContext.Provider
+              value={{openUrl: () => {}, universalClient: {request, publish: vi.fn(), subscribeEntity} as any}}
+            >
+              <Embed />
+            </UniversalAppContext.Provider>
+          </QueryClientProvider>,
+        ),
+      )
+      expect(request).toHaveBeenCalledTimes(1)
+      expect(request).toHaveBeenCalledWith('GetDomain', {domain: 'hyper.media'})
+      expect(subscribeEntity).not.toHaveBeenCalled()
+      await act(async () => resolveDomain({registeredAccountUid: 'docs-account', isGateway: true}))
+      await waitForCondition(() => resource?.data?.type === 'document')
+      expect(result!.id).toMatchObject({
+        uid: 'docs-account',
+        path: ['agent', 'guide'],
+        version: 'pinned',
+        latest: false,
+        blockRef: 'intro',
+        blockRange: {start: 1, end: 3},
+      })
+      expect(subscribeEntity).toHaveBeenCalledWith(
+        expect.objectContaining({id: expect.objectContaining({uid: 'docs-account'})}),
+      )
+    } finally {
+      act(() => root.unmount())
+      queryClient.clear()
+      container.remove()
+    }
   })
 })

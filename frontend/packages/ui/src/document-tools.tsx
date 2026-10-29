@@ -9,6 +9,7 @@ import {
   NavRoute,
 } from '@shm/shared'
 import type {InspectTab} from '@shm/shared/routes'
+import type {DocumentRoute} from '@shm/shared/routes'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {
   MessageCircle,
@@ -20,9 +21,16 @@ import {
   Info,
   LucideIcon,
   MessagesSquare,
+  Newspaper,
   Quote,
   Shield,
   Users,
+  Bot,
+  Wrench,
+  Settings,
+  Zap,
+  Brain,
+  ScrollText,
 } from 'lucide-react'
 import {cloneElement, isValidElement, useRef, useState} from 'react'
 import {PageTab} from './page-tabs'
@@ -74,8 +82,15 @@ export function DocumentTools({
   inspectRoute,
   inspectTabs,
   layoutProps,
+  hasAgent,
+  agentHome,
+  activeAgentView,
 }: {
   id: UnpackedHypermediaId
+  hasAgent?: boolean
+  /** Agent resources display their identity home instead of mount content. */
+  agentHome?: boolean
+  activeAgentView?: DocumentRoute['agentView']
   activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations' | 'metadata' | 'schema'
   commentsCount?: number
   citationsCount?: number
@@ -305,6 +320,42 @@ export function DocumentTools({
               ]
             : []),
         ]
+  if ((hasAgent || agentHome) && mode === 'document') {
+    // Agent views replace the document body, so the agent tab bar needs a tab back to it.
+    // Link to the latest content at the base path, never the resolved version.
+    const documentRoute: NavRoute = {
+      key: 'document',
+      id: {...idWithoutBlock, version: null, latest: true},
+      panel: currentPanel || undefined,
+    }
+    const agentTabs: {view: NonNullable<DocumentRoute['agentView']>; label: string; icon: LucideIcon}[] = hasAgent
+      ? [
+          {view: 'sessions', label: 'Sessions', icon: Bot},
+          {view: 'tools', label: 'Tools', icon: Wrench},
+          {view: 'triggers', label: 'Triggers', icon: Zap},
+          {view: 'memory', label: 'Memory', icon: Brain},
+          {view: 'prompt', label: 'Prompt', icon: ScrollText},
+          {view: 'access', label: 'Agent access', icon: Shield},
+          {view: 'settings', label: 'Settings', icon: Settings},
+        ]
+      : []
+    buttons.unshift(
+      {
+        label: agentHome ? 'Home' : 'Content',
+        tooltip: agentHome ? 'Open Agent Home' : 'Open Content',
+        icon: Newspaper,
+        active: !activeAgentView && (activeTab == 'draft' || activeTab == 'content'),
+        route: documentRoute,
+      },
+      ...agentTabs.map(({view, label, icon}) => ({
+        label,
+        tooltip: `Open agent ${label.toLowerCase()}`,
+        icon,
+        active: activeAgentView === view || (view === 'sessions' && activeAgentView === 'session'),
+        route: {...documentRoute, agentView: view},
+      })),
+    )
+  }
   const hasActive = buttons.some((b) => b.active)
   const standaloneAction =
     !hasActive && activeTabAction
@@ -354,7 +405,7 @@ export function DocumentTools({
           count={button.count}
           showZeroCount={button.showZeroCount}
           bg={button.bg}
-          showLabel={showLabels}
+          showLabel={hasAgent || showLabels}
           collapsedCount={
             mode === 'document' && 'panel' in button.route && button.route.panel?.key === 'collaborators'
               ? collabsCount
@@ -374,6 +425,13 @@ export function DocumentTools({
       {standaloneAction}
     </>
   )
+
+  if (hasAgent)
+    return (
+      <div ref={containerRef} className="flex min-w-0 items-center gap-2 overflow-x-auto p-1">
+        {tabButtons}
+      </div>
+    )
 
   if (layoutProps) {
     const {wrapperProps, sidebarProps, mainContentProps, showSidebars} = layoutProps

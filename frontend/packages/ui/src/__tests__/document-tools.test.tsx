@@ -7,8 +7,26 @@ import {hmId, activitySlugToFilter, type NavRoute} from '@shm/shared'
 import {DocumentTools, getDocumentToolRoute} from '../document-tools'
 
 vi.mock('../page-tabs', () => ({
-  PageTab: ({label, count, showZeroCount}: {label?: string; count?: number; showZeroCount?: boolean}) => (
-    <span data-label={label} data-count={count} data-show-zero-count={showZeroCount}>
+  PageTab: ({
+    label,
+    count,
+    showZeroCount,
+    route,
+    active,
+  }: {
+    label?: string
+    count?: number
+    showZeroCount?: boolean
+    route: unknown
+    active?: boolean
+  }) => (
+    <span
+      data-label={label}
+      data-count={count}
+      data-show-zero-count={showZeroCount}
+      data-route={JSON.stringify(route)}
+      data-active={active}
+    >
       {label}
     </span>
   ),
@@ -39,6 +57,36 @@ afterEach(() => {
 })
 
 describe('DocumentTools', () => {
+  it('integrates agent views with document tabs and keeps Sessions selected for a transcript', () => {
+    act(() =>
+      root.render(
+        <DocumentTools
+          id={hmId('alice', {path: ['helper'], version: 'old-version'})}
+          hasAgent
+          activeTab="content"
+          activeAgentView="session"
+        />,
+      ),
+    )
+    const sessionTab = container.querySelector('[data-label="Sessions"]')!
+    expect(sessionTab.getAttribute('data-active')).toBe('true')
+    expect(container.querySelector('[data-label="Content"]')?.getAttribute('data-active')).toBe('false')
+    expect(JSON.parse(sessionTab.getAttribute('data-route')!)).toMatchObject({
+      key: 'document',
+      agentView: 'sessions',
+      id: {version: null, path: ['helper']},
+    })
+    for (const label of ['Content', 'Tools', 'Settings', 'Attributes', 'Comments'])
+      expect(container.querySelector(`[data-label="${label}"]`)).not.toBeNull()
+  })
+  it('replaces Content with the agent Home tab even before registration finishes', () => {
+    act(() => root.render(<DocumentTools id={hmId('alice', {path: ['bob']})} agentHome activeTab="content" />))
+    expect(container.querySelector('[data-label="Content"]')).toBeNull()
+    const home = container.querySelector('[data-label="Home"]')!
+    expect(home.getAttribute('data-active')).toBe('true')
+    expect(JSON.parse(home.getAttribute('data-route')!)).toMatchObject({key: 'document', id: {id: 'hm://alice/bob'}})
+  })
+
   it('shows the Attributes tab with a zero count when the document has no custom attributes', () => {
     act(() => {
       root.render(<DocumentTools id={hmId('alice', {path: ['doc']})} metadataCount={0} />)

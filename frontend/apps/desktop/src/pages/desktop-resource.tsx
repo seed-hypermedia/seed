@@ -876,7 +876,8 @@ export default function DesktopResourcePage() {
   // Tracks drafts created from query blocks so the corresponding inline draft card can focus its title.
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
   const canCreateChildDocs = !!doc?.version && canCreateChildDocuments(doc?.visibility, draftData?.visibility)
-  const {menuItem: fileBrowserCreateMenuItem} = useCreateDocumentMenuItem({
+  // The file browser's plus menu opens dialogs (Create Agent) whose content mounts here.
+  const {menuItem: fileBrowserCreateMenuItem, content: fileBrowserCreateContent} = useCreateDocumentMenuItem({
     locationId: hmId(docId.uid),
   })
   const cleanupSnapshot = useQuery({
@@ -1249,6 +1250,7 @@ export default function DesktopResourcePage() {
 
   return (
     <div className={pageFrameStyles}>
+      {fileBrowserCreateContent}
       <CommentsProvider
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={onReplyClick}

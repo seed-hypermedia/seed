@@ -287,6 +287,11 @@ export type PanelSelectionOptions = DocumentPanelRoute['key']
 export const documentRouteSchema = z.object({
   key: z.literal('document'),
   id: unpackedHmIdSchema,
+  /** Agent features share the document's shell and identity. */
+  agentView: z.enum(['sessions', 'session', 'tools', 'settings', 'triggers', 'memory', 'prompt', 'access']).optional(),
+  agentSessionId: z.string().optional(),
+  agentTriggerId: z.string().optional(),
+  agentMemoryPath: z.string().optional(),
   isBlockFocused: z.boolean().optional(),
   immediatelyPromptPush: z.boolean().optional(),
   immediatelyPromptNotifs: z.boolean().optional(),

@@ -581,7 +581,8 @@ export const HMDocumentMetadataSchema = z
     /**
      * Agents server a space advertises for its readers (an http(s) origin). Clients viewing the
      * space's documents connect to it alongside their own configured servers, so a site can host
-     * agents for its audience — on the gateway, each site brings its own agents backend.
+     * agents for its audience — on the gateway, each site brings its own agents backend. A document
+     * declares a mount with type hm://hyper.media/agent; this server must register its exact canonical HMID.
      */
     agentServerUrl: z.string().optional(),
     /**
@@ -2119,6 +2120,7 @@ export const HMRawCapabilitySchema = z.object({
   path: z.string().optional(),
   role: z.string().optional(),
   noRecursive: z.boolean().optional(),
+  isExact: z.boolean().optional(),
   label: z.string().optional(),
   createTime: z.string().optional(),
 })

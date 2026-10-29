@@ -5,6 +5,7 @@ import {useQueryClient} from '@tanstack/react-query'
 import {getCommentThread} from '@shm/shared/comments'
 import {queryDocumentComments} from '@shm/shared/models/queries'
 import type {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
+import {AgentDocumentView} from './agent-document-view'
 import {
   BlockRange,
   countCustomMetadataFields,
@@ -3121,98 +3122,112 @@ function DocumentBody({
         </div>
       )}
 
-      {/* Document tools scroll with the page and are hidden when showActivity is false. */}
-      {showActivity && showDocumentChrome && (
-        <div className="px-5 py-1">
-          <DocumentTools
-            id={docId}
-            activeTab={
-              activeView === 'activity' &&
-              activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
-                ? 'citations'
-                : activeView === 'activity' ||
-                    activeView === 'directory' ||
-                    activeView === 'site-profile' ||
-                    activeView === 'all-documents'
-                  ? undefined
-                  : activeView
-            }
-            currentPanel={panelRoute}
-            currentRoute={route}
-            commentsCount={interactionSummary.data?.comments || 0}
-            citationsCount={connectionCount}
-            collabsCount={peopleCount}
-            collaborators={collaborators.data}
-            metadataCount={countCustomMetadataFields(metadata)}
-            schemaCid={schemaDefinitionCid(metadata)}
-            layoutProps={
-              isMobile || isCollection
-                ? undefined
-                : {
-                    wrapperProps,
-                    sidebarProps,
-                    mainContentProps,
-                    showSidebars,
+      {/* Document tools scroll with the page and are hidden when showActivity is false,
+          except on a mounted agent document, whose views live behind these tabs. */}
+      {showDocumentChrome && (
+        <AgentDocumentView document={document} route={{key: 'document', id: docId}}>
+          {(hasAgent) =>
+            (showActivity || hasAgent) && (
+              <div className="px-5 py-1">
+                <DocumentTools
+                  id={docId}
+                  hasAgent={hasAgent}
+                  agentHome={document.metadata.type === 'hm://hyper.media/agent'}
+                  activeAgentView={route.key === 'document' ? route.agentView : undefined}
+                  activeTab={
+                    activeView === 'activity' &&
+                    activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
+                      ? 'citations'
+                      : activeView === 'activity' ||
+                          activeView === 'directory' ||
+                          activeView === 'site-profile' ||
+                          activeView === 'all-documents'
+                        ? undefined
+                        : activeView
                   }
-            }
-          />
-        </div>
+                  currentPanel={panelRoute}
+                  currentRoute={route}
+                  commentsCount={interactionSummary.data?.comments || 0}
+                  citationsCount={connectionCount}
+                  collabsCount={peopleCount}
+                  collaborators={collaborators.data}
+                  metadataCount={countCustomMetadataFields(metadata)}
+                  schemaCid={schemaDefinitionCid(metadata)}
+                  layoutProps={
+                    isMobile || isCollection
+                      ? undefined
+                      : {
+                          wrapperProps,
+                          sidebarProps,
+                          mainContentProps,
+                          showSidebars,
+                        }
+                  }
+                />
+              </div>
+            )
+          }
+        </AgentDocumentView>
       )}
 
       {/* Main content based on activeView */}
       <div
         className={cn('flex-1', activeView !== 'content' && activeView !== 'comments' && 'pb-60', isMobile && 'px-4')}
       >
-        <DocumentViewContent
-          activeView={activeView}
-          collection={
-            isCollection ? (
-              <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
-            ) : undefined
-          }
-        >
-          <CommentsFooterContext.Provider value={mainCommentsFooter}>
-            <MainContent
-              docId={docId}
-              resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
-              document={document}
-              activeView={activeView}
-              contentMaxWidth={contentMaxWidth}
-              wrapperProps={wrapperProps}
-              sidebarProps={sidebarProps}
-              mainContentProps={mainContentProps}
-              showSidebars={showSidebars}
-              showCollapsed={showCollapsed}
-              discussionsParams={discussionsParams}
-              suppressCommentEditor={suppressMainCommentEditor}
-              activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
-              onActivityFilterChange={handleMainActivityFilterChange}
-              blockCitations={blockCitations}
-              citationFragmentHighlights={citationFragmentHighlights}
-              onCitationFragmentClick={handleCitationFragmentClick}
-              onBlockCitationClick={handleBlockCitationClick}
-              onBlockCommentClick={handleBlockCommentClick}
-              onBlockSelect={handleBlockSelect}
-              onTextSelection={handleTextSelection}
-              isUnpublishedDraft={isUnpublishedDraft}
-              isBlockInPublishedVersion={isBlockInPublishedVersion}
-              CommentEditor={CommentEditor}
-              directory={directory.data}
-              siteUrl={siteUrl}
-              inlineCards={inlineCards}
-              inlineInsert={inlineInsert}
-              DocumentContentComponent={DocumentContentComponent}
-              onEditorReady={handleEditorReadyWrapped}
-              existingDraftContent={effectiveContent}
-              existingDraftCursorPosition={existingDraftCursorPosition}
-              ssrContentHTML={ssrContentHTML}
-              perspectiveAccountUid={perspectiveAccountUid}
-              linkExtensionOptions={linkExtensionOptions}
-              fileUpload={fileUpload}
-              draftVersionEntry={draftVersionEntry}
-            />
-          </CommentsFooterContext.Provider>
-        </DocumentViewContent>
+        {route.key === 'document' && (route.agentView || document.metadata.type === 'hm://hyper.media/agent') ? (
+          <AgentDocumentView document={document} route={route} contentMaxWidth={contentMaxWidth} />
+        ) : (
+          <DocumentViewContent
+            activeView={activeView}
+            collection={
+              isCollection ? (
+                <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
+              ) : undefined
+            }
+          >
+            <CommentsFooterContext.Provider value={mainCommentsFooter}>
+              <MainContent
+                docId={docId}
+                resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
+                document={document}
+                activeView={activeView}
+                contentMaxWidth={contentMaxWidth}
+                wrapperProps={wrapperProps}
+                sidebarProps={sidebarProps}
+                mainContentProps={mainContentProps}
+                showSidebars={showSidebars}
+                showCollapsed={showCollapsed}
+                discussionsParams={discussionsParams}
+                suppressCommentEditor={suppressMainCommentEditor}
+                activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
+                onActivityFilterChange={handleMainActivityFilterChange}
+                blockCitations={blockCitations}
+                citationFragmentHighlights={citationFragmentHighlights}
+                onCitationFragmentClick={handleCitationFragmentClick}
+                onBlockCitationClick={handleBlockCitationClick}
+                onBlockCommentClick={handleBlockCommentClick}
+                onBlockSelect={handleBlockSelect}
+                onTextSelection={handleTextSelection}
+                isUnpublishedDraft={isUnpublishedDraft}
+                isBlockInPublishedVersion={isBlockInPublishedVersion}
+                CommentEditor={CommentEditor}
+                directory={directory.data}
+                siteUrl={siteUrl}
+                inlineCards={inlineCards}
+                inlineInsert={inlineInsert}
+                DocumentContentComponent={DocumentContentComponent}
+                onEditorReady={handleEditorReadyWrapped}
+                existingDraftContent={effectiveContent}
+                existingDraftCursorPosition={existingDraftCursorPosition}
+                ssrContentHTML={ssrContentHTML}
+                perspectiveAccountUid={perspectiveAccountUid}
+                linkExtensionOptions={linkExtensionOptions}
+                fileUpload={fileUpload}
+                draftVersionEntry={draftVersionEntry}
+              />
+            </CommentsFooterContext.Provider>
+          </DocumentViewContent>
+        )}
         {citationFragmentClick ? (
           <CitationFragmentPopover
             click={citationFragmentClick}

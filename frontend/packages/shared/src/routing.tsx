@@ -17,6 +17,7 @@ import {
   routeToUrl,
   serializeBlockRange,
   unpackHmId,
+  mountedAgentRoute,
 } from './utils'
 import type {StateStream} from './utils/stream'
 
@@ -222,6 +223,7 @@ export function routeToHref(
     origin?: string | null
   },
 ) {
+  if (typeof route !== 'string') route = mountedAgentRoute(route)
   if (typeof route !== 'string' && route.key === 'site-profile') {
     const docId = route.id
     const siteBase = options?.originHomeId?.uid === docId.uid ? '' : `/hm/${docId.uid}`
@@ -441,6 +443,8 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
       tag: 'a',
     }
   if (!context) throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
+
+  if (typeof route !== 'string') route = mountedAgentRoute(route)
 
   const href = routeToHref(route, {
     hmUrlHref: context.hmUrlHref,

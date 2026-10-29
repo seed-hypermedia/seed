@@ -2,6 +2,7 @@ import {describe, expect, test} from 'vitest'
 import {navStateReducer} from './navigation'
 import {hmId, unpackHmId, routeToHmUrl, routeToUrl} from './entity-id-url'
 import {hypermediaUrlToHref, hypermediaUrlToRoute} from './url-to-route'
+import {routeToHref} from '../routing'
 
 describe('hypermediaUrlToRoute', () => {
   test.each(['hm://uid1/:feed/to-you', 'https://example.com/hm/uid1/:feed/to-you'])(
@@ -32,6 +33,66 @@ describe('hypermediaUrlToRoute', () => {
       panel: null,
     }
     expect(hypermediaUrlToRoute(routeToHmUrl(route)!)).toEqual({...route, id: unpackHmId('hm://uid1?v=v1#block1')})
+  })
+
+  test.each(['sessions', 'tools', 'settings', 'triggers', 'memory', 'prompt', 'access'] as const)(
+    'round trips mounted agent %s through hm, gateway and custom-site URLs',
+    (view) => {
+      const id = hmId('alice', {path: ['team', 'helper']})
+      const route = {key: 'document' as const, id, agentView: view}
+      const hmUrl = `hm://alice/team/helper/:${view}`
+      expect(routeToHmUrl(route)).toBe(hmUrl)
+      expect(hypermediaUrlToRoute(hmUrl)).toMatchObject({key: 'document', id: {id: id.id}, agentView: view})
+      expect(hypermediaUrlToRoute(`https://seed.example/hm/alice/team/helper/:${view}`)).toMatchObject({
+        key: 'document',
+        id: {id: id.id},
+        agentView: view,
+      })
+      expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe(`/team/helper/:${view}`)
+    },
+  )
+
+  test('canonical agent navigation uses document URLs and preserves session and tool details', () => {
+    const agentId = 'hm://alice/helper'
+    expect(
+      routeToHref({key: 'agent-session', agentId, sessionId: 'session-123', serverUrl: 'https://api.example'}),
+    ).toBe('/hm/alice/helper/:session/session-123')
+    const session = hypermediaUrlToRoute('hm://alice/helper/:session/session-123')
+    expect(session).toMatchObject({
+      key: 'document',
+      id: {id: agentId},
+      agentView: 'session',
+      agentSessionId: 'session-123',
+    })
+    const triggerUrl = routeToHmUrl({key: 'agent', agentId, tab: 'triggers', triggerId: 'trigger-one'})
+    expect(triggerUrl).toBe('hm://alice/helper/:triggers/trigger-one')
+    expect(hypermediaUrlToRoute(triggerUrl!)).toMatchObject({agentView: 'triggers', agentTriggerId: 'trigger-one'})
+    const memoryUrl = routeToHmUrl({key: 'agent', agentId, tab: 'memory', memoryPath: 'notes/a b.md'})
+    expect(hypermediaUrlToRoute(memoryUrl!)).toMatchObject({agentView: 'memory', agentMemoryPath: 'notes/a b.md'})
+    expect(hypermediaUrlToRoute('hm://alice/:settings')).toMatchObject({key: 'site-settings'})
+  })
+  test('trigger detail paths round trip and take precedence over legacy query state', () => {
+    const id = hmId('alice', {path: ['team', 'helper']})
+    const route = {key: 'document' as const, id, agentView: 'triggers' as const, agentTriggerId: 'trigger one'}
+    expect(routeToHmUrl(route)).toBe('hm://alice/team/helper/:triggers/trigger%20one')
+    expect(routeToUrl(route, {hostname: 'https://seed.example'})).toBe(
+      'https://seed.example/hm/alice/team/helper/:triggers/trigger%20one',
+    )
+    expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe('/team/helper/:triggers/trigger%20one')
+    for (const url of [
+      'hm://alice/team/helper/:triggers/trigger%20one',
+      'https://seed.example/hm/alice/team/helper/:triggers/trigger%20one?trigger=old',
+      'hm://alice/team/helper/:triggers?trigger=trigger+one',
+    ]) {
+      const parsed = hypermediaUrlToRoute(url)
+      expect(parsed).toMatchObject({
+        key: 'document',
+        id: {id: id.id},
+        agentView: 'triggers',
+        agentTriggerId: 'trigger one',
+      })
+      expect(routeToHmUrl(parsed!)).toBe('hm://alice/team/helper/:triggers/trigger%20one')
+    }
   })
 
   test('converts a base document URL into a document route', () => {

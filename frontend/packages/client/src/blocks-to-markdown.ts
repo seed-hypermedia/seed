@@ -18,6 +18,7 @@
  * `{ipfsGateway: false}` to keep `ipfs://` links verbatim.
  */
 
+import {resolveId} from './hm-resolver'
 import {stringify as stringifyYaml} from 'yaml'
 import type {SeedClient} from './client'
 import type {
@@ -1135,12 +1136,22 @@ async function resolveInlineEmbed(ann: HMAnnotation, type: 'open' | 'close', ctx
   }
 }
 
+async function resolveMarkdownReferenceId(link: string, ctx: ResolveContext) {
+  return resolveId(link, {
+    domainResolver: async (domain) => {
+      const info = await ctx.client.request('GetDomain', {domain})
+      return info.registeredAccountUid
+        ? {registeredAccountUid: info.registeredAccountUid, isGateway: info.isGateway}
+        : null
+    },
+  })
+}
+
 async function resolveEmbeddedResource(link: string, ctx: ResolveContext): Promise<ResolvedReference> {
   const cacheKey = `embed:${link}`
   const cached = ctx.cache.get(cacheKey)
   if (cached) return cached
-  const id = unpackHmId(link)
-  if (!id) throw new Error('Invalid HM link')
+  const id = await resolveMarkdownReferenceId(link, ctx)
 
   const resource = await ctx.client.request('Resource', id)
   let resolved: ResolvedReference
@@ -1183,8 +1194,7 @@ async function resolveReference(
   const cacheKey = `${mentionKind || 'legacy'}:${link}`
   const cached = ctx.cache.get(cacheKey)
   if (cached) return cached
-  const id = unpackHmId(link)
-  if (!id) throw new Error('Invalid HM link')
+  const id = await resolveMarkdownReferenceId(link, ctx)
 
   let resolved: ResolvedReference
   const profileAccountUid = id.path?.[0] === ':profile' ? id.path[1] || id.uid : !id.path?.length ? id.uid : null

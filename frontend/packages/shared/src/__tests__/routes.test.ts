@@ -1,4 +1,6 @@
-import {describe, expect, test} from 'vitest'
+import {describe, expect, test, vi} from 'vitest'
+import {createElement, useContext, type MouseEvent} from 'react'
+import {renderToStaticMarkup} from 'react-dom/server'
 import {
   commentsRouteSchema,
   createDocumentNavRoute,
@@ -13,12 +15,39 @@ import {
   replaceRouteDocumentId,
   type NavRoute,
 } from '../routes'
-import {routeToHref} from '../routing'
+import {routeToHref, UniversalAppContext, useRouteLink} from '../routing'
 import {extractViewTermFromUrl, hmId, routeToUrl, unpackHmId, viewTermToRouteKey} from '../utils/entity-id-url'
 import {appRouteOfId} from '../utils/navigation'
 import {hypermediaUrlToRoute} from '../utils/url-to-route'
 
 const testDocId = hmId('testuid123')
+
+test('mounted agent links open the document route for clicks and new windows', () => {
+  const id = hmId('owner', {path: ['helper']})
+  const openRoute = vi.fn()
+  const openRouteNewWindow = vi.fn()
+  let link: ReturnType<typeof useRouteLink> | undefined
+  function Link() {
+    link = useRouteLink({key: 'agent-session', agentId: id.id, sessionId: 'conversation'})
+    return null
+  }
+  function Harness() {
+    const defaults = useContext(UniversalAppContext)
+    return createElement(
+      UniversalAppContext.Provider,
+      {value: {...defaults, openRoute, openRouteNewWindow}},
+      createElement(Link),
+    )
+  }
+  renderToStaticMarkup(createElement(Harness))
+  expect(link?.href).toBe('/hm/owner/helper/:session/conversation')
+  const event = {stopPropagation: vi.fn(), preventDefault: vi.fn()} as unknown as MouseEvent<HTMLElement>
+  link?.onClick?.(event)
+  link?.onClick?.({...event, metaKey: true})
+  const expected = {key: 'document', id: unpackHmId(id.id), agentView: 'session', agentSessionId: 'conversation'}
+  expect(openRoute).toHaveBeenCalledWith(expected, undefined)
+  expect(openRouteNewWindow).toHaveBeenCalledWith(expected)
+})
 
 test('defaults new windows to onboarding', () => {
   expect(defaultRoute).toEqual({key: 'onboarding'})

@@ -50,10 +50,24 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
     accountUid,
     settingsTab,
     settingsDomain,
+    agentView,
+    agentSessionId,
+    agentTriggerId,
   } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
   let id = unpackHmId(cleanUrl)
   if (!id) return null
+  if (agentView || (viewTerm === ':settings' && id.path?.length && !settingsTab)) {
+    const params = new URLSearchParams(url.split('?')[1]?.split('#')[0])
+    return {
+      key: 'document',
+      id: {...id, version: null, latest: true, blockRef: null, blockRange: null},
+      agentView: agentView || 'settings',
+      ...(agentSessionId ? {agentSessionId} : {}),
+      ...(agentTriggerId || params.get('trigger') ? {agentTriggerId: agentTriggerId || params.get('trigger')!} : {}),
+      ...(params.get('file') ? {agentMemoryPath: params.get('file')!} : {}),
+    }
+  }
 
   // On comment permalink URLs (/:comments/UID/TSID?v=CID), ?v is the comment
   // version, not the target document version — keep it off the document id.

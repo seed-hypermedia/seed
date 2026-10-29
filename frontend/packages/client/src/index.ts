@@ -61,7 +61,7 @@ export type {HMRequest, HMSigner, UnpackedHypermediaId} from './hm-types'
 export {toHMSigner, toPrincipalSigner} from './signer'
 export type {AnySigner, PrincipalSigner} from './signer'
 
-export {resolveHypermediaUrl, resolveId} from './hm-resolver'
+export {resolveHypermediaUrl, resolveId, hmDomainUrlToWebUrl} from './hm-resolver'
 export type {DomainResolverFn, DomainIdChangedCallback, ResolveOptions, ResolvedUrl} from './hm-resolver'
 export {resolveIdWithClient} from './resource-read'
 export type {ResolveIdWithClientOptions, ResolvedIdWithClient} from './resource-read'

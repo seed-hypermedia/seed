@@ -1,4 +1,7 @@
-import {type AgentDefinition, type AgentModelRef, type ModelProviderType, type SigningIdentity} from './client'
+import type {CreateAgent} from '@seed-hypermedia/agents-protocol'
+import type {DocumentDestinationSubmitInput} from '../document-destination-dialog'
+import {AgentMountDestination, findFreeAgentMountPath, prepareAgentMount, type PreparedAgentMount} from './mount'
+import {type AgentModelRef, type ModelProviderType, type SigningIdentity} from './client'
 import {
   getDefaultAgentServerUrl,
   isLocalAgentServer,
@@ -18,12 +21,15 @@ import {
 } from './models'
 import {useNavigate} from './navigation'
 import {keyfile} from '@seed-hypermedia/client'
-import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import type {HMBlockNode, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
-import {useAccount} from '@shm/shared/models/entity'
+import {getDocumentTitle} from '@shm/shared/content'
+import {useAccount, useResource} from '@shm/shared/models/entity'
+import {invalidateQueries} from '@shm/shared/models/query-client'
+import {queryKeys} from '@shm/shared/models/query-keys'
 import {queryAccount} from '@shm/shared/models/queries'
 import {queryClient, useQueryClient} from '@shm/shared/models/query-client'
-import {useUniversalClient} from '@shm/shared/routing'
+import {useUniversalAppContext, useUniversalClient} from '@shm/shared/routing'
 import {Button} from '@shm/ui/button'
 import {
   AlertDialogAction,
@@ -48,12 +54,9 @@ import {Camera, Copy, ExternalLink, FileKey, Plus, Trash2} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
-import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/agents-protocol'
 import {ProviderModelSelect} from './provider-model-select'
-import {coerceReasoningLevel, ReasoningSlider} from './reasoning-select'
-import {ThoroughnessPicker} from './thoroughness-select'
-import {pickDefaultProviderModel} from './model-utils'
-import {AgentPromptEditor, promptBlocksForRequest} from './prompt-editor'
+import {pickDefaultEnabledModels, pickDefaultProviderModel} from './model-utils'
+import {promptBlocksForRequest} from './prompt-editor'
 import {ProviderIcon} from './provider-icons'
 import {isSubscriptionSignInAvailable, SubscriptionSignIn} from './provider-oauth'
 import {PROVIDER_METADATA, PROVIDER_TYPE_ORDER, providerLabel} from './provider-registry'
@@ -924,6 +927,12 @@ export function CreateAgentDialog({
     serverUrls: string[]
     selectedAccountId: string | null | undefined
     /**
+     * Parent document the agent is created under, when opened from a document's New menu or the
+     * file browser. The agent's path is derived from its name. Without a location (the Agents
+     * page, the assistant sidebar) the dialog asks for one before creating.
+     */
+    location?: UnpackedHypermediaId
+    /**
      * Where to land after creation. The default navigates to the new agent's full page; the
      * assistant sidebar passes a handler that selects the agent in place instead, so creating an
      * agent from the sidebar keeps the user in the sidebar.
@@ -937,22 +946,28 @@ export function CreateAgentDialog({
   const providers = useModelProviders(selectedServerUrl, input.selectedAccountId)
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(selectedServerUrl, input.selectedAccountId)
-  const deleteSigningIdentity = useDeleteSigningIdentity(selectedServerUrl, input.selectedAccountId)
   const navigate = useNavigate()
+  const client = useUniversalClient()
+  const {onPushPublished} = useUniversalAppContext()
   const [providerName, setProviderName] = useState('')
   const providerModels = useProviderModels(selectedServerUrl, input.selectedAccountId, providerName)
   const selectedProviderType = providers.data?.find((provider) => provider.name === providerName)?.type
   const addProviderDialog = useAppDialog(AddModelProviderDialog)
   const [name, setName] = useState(generateAgentName)
   const [model, setModel] = useState('')
-  const [reasoningLevel, setReasoningLevel] = useState<ReasoningLevel | undefined>(undefined)
-  const [thoroughness, setThoroughness] = useState<Thoroughness>('normal')
   const [enabledModels, setEnabledModels] = useState<AgentModelRef[]>([])
   const health = useAgentServerHealth(selectedServerUrl)
   // Servers from before `defaultPromptUrl` resolve this address to their docs space.
   const defaultPromptUrl = health.data?.defaultPromptUrl ?? 'hm://hyper.media/agent/guide'
-  const [systemPrompt, setSystemPrompt] = useState<HMBlockNode[] | null>(null)
+  const [choosingLocation, setChoosingLocation] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
+  const location = useResource(input.location)
+  const locationTitle =
+    location.data?.type === 'document' ? getDocumentTitle(location.data.document) : input.location?.path?.at(-1)
+  const signingKey = useRef<string>()
+  const pendingCreation = useRef<Omit<CreateAgent, '_'>>()
+  const preparedMount = useRef<{to: UnpackedHypermediaId; mount: PreparedAgentMount} | null>(null)
 
   useEffect(() => {
     setSelectedServerUrl(input.serverUrls[0] || getDefaultAgentServerUrl() || '')
@@ -977,77 +992,134 @@ export function CreateAgentDialog({
   useEffect(() => {
     const defaultModel = pickDefaultProviderModel(providerModels.data, selectedProviderType)?.id || ''
     const modelIsDiscovered = providerModels.data?.some((providerModel) => providerModel.id === model)
-    if (!model || (selectedProviderType !== 'custom' && !modelIsDiscovered)) setModel(defaultModel)
-  }, [model, providerModels.data, selectedProviderType])
+    if (model && (selectedProviderType === 'custom' || modelIsDiscovered)) return
+    setModel(defaultModel)
+    // Applying the provider's default also checks its preferred quick-switch models (e.g. the
+    // ChatGPT subscription's Astra and Luna beside Sol); anything already checked stays.
+    const defaults = pickDefaultEnabledModels(providerModels.data, selectedProviderType)
+    if (!defaults.length || !providerName) return
+    setEnabledModels((current) => [
+      ...current,
+      ...defaults
+        .filter((entry) => !current.some((item) => item.provider === providerName && item.model === entry.id))
+        .map((entry) => ({provider: providerName, model: entry.id})),
+    ])
+  }, [model, providerModels.data, providerName, selectedProviderType])
 
-  async function handleCreateAgent() {
-    const agentName = name.trim()
-    if (!agentName) {
-      toast.error('Agent name is required')
-      return
+  async function handleCreateAgent(
+    destination: Pick<DocumentDestinationSubmitInput, 'to' | 'name'>,
+    mount: NonNullable<CreateAgent['mount']>,
+  ) {
+    if (pendingCreation.current && pendingCreation.current.mount?.documentId !== mount.documentId) {
+      throw new Error('Retry at the original location to finish creating this agent.')
     }
-    // Auto-create a dedicated account for the agent so it can publish without the
-    // user setting up a signing identity by hand. The account is named after the
-    // agent and wired in as its signing key with write tooling enabled.
-    setCreating(true)
-    let signingKeyName: string | undefined
-    try {
-      const identityResult = await createSigningIdentity.mutateAsync(agentName)
-      if (identityResult._ !== 'CreateSigningIdentityResponse') throw new Error('Unexpected account response')
-      signingKeyName = identityResult.identity.name
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not create the agent account')
-      setCreating(false)
-      return
+    const agentName = destination.name?.trim() || name.trim()
+    if (!agentName) throw new Error('Agent name is required')
+    if (!signingKey.current) {
+      const identity = await createSigningIdentity.mutateAsync(agentName)
+      if (identity._ !== 'CreateSigningIdentityResponse') throw new Error('Unexpected account response')
+      signingKey.current = identity.identity.name
     }
-    try {
-      const definition: AgentDefinition = {
+    // Retain the exact request and identity across retries, including a lost success response.
+    // Deleting the key on a transport error could break an agent the server already created.
+    // Reasoning and thoroughness stay at the server defaults; the agent's Settings tab adjusts them.
+    pendingCreation.current ??= {
+      definition: {
         name: agentName,
-        systemPrompt: promptBlocksForRequest(systemPrompt ?? defaultAgentSystemPrompt(defaultPromptUrl)),
+        systemPrompt: promptBlocksForRequest(defaultAgentSystemPrompt(defaultPromptUrl)),
         modelProvider: providerName,
         model,
-        reasoningLevel: coerceReasoningLevel(selectedProviderType, model, reasoningLevel),
-        thoroughness,
         ...(enabledModels.length ? {enabledModels} : {}),
         tools: DEFAULT_AGENT_TOOLS,
-        signingKey: signingKeyName,
-        signingKeys: [signingKeyName],
+        signingKey: signingKey.current,
+        signingKeys: [signingKey.current],
         metadata: {createdFrom: 'desktop-agents-page'},
+      },
+      mount,
+      clientRequestId: crypto.randomUUID(),
+    }
+    const result = await createAgent.mutateAsync(pendingCreation.current)
+    if (result._ !== 'CreateAgentResponse' || result.agentId !== mount.documentId) {
+      throw new Error('This agent server must be updated to support creating mounted agents.')
+    }
+    await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
+  }
+
+  function finishCreation(to: UnpackedHypermediaId) {
+    onClose()
+    if (input.onCreated) input.onCreated({serverUrl: selectedServerUrl, agentId: to.id})
+    else navigate({key: 'document', id: to, agentView: 'sessions'})
+  }
+
+  /** Creates the agent under `input.location` at a path derived from its name, retrying in place on failure. */
+  async function createAtLocation() {
+    const parent = input.location
+    const accountUid = input.selectedAccountId
+    if (!parent || !accountUid) return
+    setCreating(true)
+    setCreateError(null)
+    try {
+      // The first attempt fixes the path; a retry after a failed server action reuses the same
+      // published document rather than publishing a second one.
+      if (!preparedMount.current) {
+        const to = await findFreeAgentMountPath(client, parent, name.trim())
+        const mount = await prepareAgentMount({client, accountUid, serverUrl: selectedServerUrl, to, name: name.trim()})
+        preparedMount.current = {to, mount}
       }
-      const result = await createAgent.mutateAsync(definition)
-      if (result._ !== 'CreateAgentResponse') throw new Error('Unexpected create response')
-      // Pre-load the agent detail into the query cache so the agent page renders
-      // immediately instead of flashing a loading state after navigation.
-      await prefetchAgentDetail(selectedServerUrl, input.selectedAccountId, result.agentId).catch(() => {})
+      const {to, mount} = preparedMount.current
+      await client.publish({blobs: mount.blobs})
+      invalidateQueries([queryKeys.ENTITY, to.id])
+      invalidateQueries([queryKeys.DOC_LIST_DIRECTORY, to.uid])
+      onPushPublished?.(to)
+      await handleCreateAgent({to, name: name.trim()}, {documentId: to.id, blobs: mount.blobs})
       toast.success('Agent created')
-      onClose()
-      if (input.onCreated) input.onCreated({serverUrl: selectedServerUrl, agentId: result.agentId})
-      else navigate({key: 'agent', agentId: result.agentId, serverUrl: selectedServerUrl})
+      finishCreation(to)
     } catch (error) {
-      // Roll back the just-created account so a failed agent create doesn't leave an orphan.
-      void deleteSigningIdentity.mutateAsync(signingKeyName).catch(() => {})
-      toast.error(error instanceof Error ? error.message : 'Could not create agent')
+      setCreateError(error instanceof Error ? error.message : 'Could not create agent')
+    } finally {
       setCreating(false)
     }
   }
 
-  const serverSelector = (
-    <label className="flex flex-col gap-1">
-      <SizableText size="sm" weight="bold">
-        Agent Home
-      </SizableText>
-      <SelectDropdown
-        options={input.serverUrls.map((serverUrl) => ({
-          value: serverUrl,
-          // The desktop-managed server is a named place; its localhost address is an
-          // implementation detail whose port moves between launches.
-          label: isLocalAgentServer(serverUrl, localServerUrl.data) ? 'Local' : serverUrl.replace(/^https?:\/\//, ''),
-        }))}
-        value={selectedServerUrl}
-        onValue={setSelectedServerUrl}
+  if (choosingLocation && input.selectedAccountId) {
+    return (
+      <AgentMountDestination
+        accountUid={input.selectedAccountId}
+        serverUrl={selectedServerUrl}
+        name={name}
+        creating
+        onClose={onClose}
+        onSubmit={handleCreateAgent}
+        onSuccess={({to}) => finishCreation(to)}
       />
-    </label>
-  )
+    )
+  }
+
+  // The desktop-managed server is a named place; its localhost address is an implementation
+  // detail whose port moves between launches.
+  const describeServer = (serverUrl: string) =>
+    isLocalAgentServer(serverUrl, localServerUrl.data) ? 'Local' : serverUrl.replace(/^https?:\/\//, '')
+  // One server (the usual case: the app's own) needs no choice; the dropdown appears only when
+  // other servers are configured.
+  const serverSelector =
+    input.serverUrls.length > 1 ? (
+      <label className="flex flex-col gap-1">
+        <SizableText size="sm" weight="bold">
+          Run on
+        </SizableText>
+        <SelectDropdown
+          options={input.serverUrls.map((serverUrl) => ({value: serverUrl, label: describeServer(serverUrl)}))}
+          value={selectedServerUrl}
+          onValue={setSelectedServerUrl}
+          // The published document names this server; a retry must create the agent there.
+          disabled={!!preparedMount.current}
+        />
+      </label>
+    ) : selectedServerUrl ? (
+      <SizableText size="sm" className="text-muted-foreground">
+        Runs on {describeServer(selectedServerUrl)}
+      </SizableText>
+    ) : null
 
   // Force provider setup before agent creation when the selected server has
   // none configured. Saving one refetches `providers`, which transitions this
@@ -1072,13 +1144,18 @@ export function CreateAgentDialog({
     )
   }
 
+  const canSubmit = !!input.selectedAccountId && !!name.trim() && !!providerName && !!model
+
   return (
     <div className="flex flex-col gap-5 sm:min-w-[520px]">
       <div className="flex flex-col gap-3">
         <DialogTitle>Create Agent</DialogTitle>
         <DialogDescription>
-          Choose a model provider, model, and system prompt. An account named after the agent is created automatically
-          so it can publish Seed content.
+          {input.location
+            ? `The agent gets its own document in ${
+                locationTitle ? `"${locationTitle}"` : 'this location'
+              } and an account named after it, so it can publish Seed content.`
+            : 'Configure your agent, then choose where its document will live. An account named after the agent is created automatically so it can publish Seed content.'}
         </DialogDescription>
       </div>
       {serverSelector}
@@ -1086,83 +1163,64 @@ export function CreateAgentDialog({
         <SizableText size="sm" weight="bold">
           Name
         </SizableText>
-        <Input autoFocus value={name} onChange={(event) => setName(event.target.value)} />
+        <Input
+          autoFocus
+          value={name}
+          disabled={!!preparedMount.current}
+          onChange={(event) => setName(event.target.value)}
+        />
       </label>
-      <div className="grid gap-3 md:grid-cols-2">
-        <label className="flex flex-col gap-1">
-          <SizableText size="sm" weight="bold">
-            Model
-          </SizableText>
-          <ProviderModelSelect
-            serverUrl={selectedServerUrl}
-            accountUid={input.selectedAccountId}
-            value={{provider: providerName, model}}
-            onChange={(entry) => {
-              setProviderName(entry.provider)
-              setModel(entry.model)
-              // Selecting implicitly checks the model, so anything the agent has used
-              // stays in the header switcher until explicitly unchecked.
-              setEnabledModels((current) =>
-                current.some((item) => item.provider === entry.provider && item.model === entry.model)
-                  ? current
-                  : [...current, entry],
-              )
-              const nextType = providers.data?.find((provider) => provider.name === entry.provider)?.type
-              setReasoningLevel((level) => coerceReasoningLevel(nextType, entry.model, level))
-            }}
-            enabledModels={enabledModels}
-            onToggleModel={(entry, enabled) =>
-              setEnabledModels((current) => [
-                ...current.filter((item) => !(item.provider === entry.provider && item.model === entry.model)),
-                ...(enabled ? [entry] : []),
-              ])
-            }
-            onAddProvider={() =>
-              addProviderDialog.open({
-                serverUrl: selectedServerUrl,
-                selectedAccountId: input.selectedAccountId,
-                onSaved: (nextProviderName) => {
-                  setProviderName(nextProviderName)
-                  setModel('')
-                },
-              })
-            }
-          />
-        </label>
-        {selectedProviderType && model && modelReasoningSupport(selectedProviderType, model) ? (
-          <div className="flex flex-col justify-end gap-1">
-            <ReasoningSlider
-              providerType={selectedProviderType}
-              model={model}
-              value={reasoningLevel}
-              onChange={setReasoningLevel}
-            />
-          </div>
-        ) : null}
-        <div className="flex flex-col justify-end gap-1">
-          <ThoroughnessPicker value={thoroughness} onChange={setThoroughness} />
-        </div>
-      </div>
-      {addProviderDialog.content}
-      <div className="flex flex-col gap-1">
+      <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
-          System prompt
+          Model
         </SizableText>
-        {health.isInitialLoading ? (
-          <Spinner />
-        ) : (
-          <AgentPromptEditor
-            initialBlocks={defaultAgentSystemPrompt(defaultPromptUrl)}
-            onChange={setSystemPrompt}
-            focusOnMount={false}
-          />
-        )}
-      </div>
+        <ProviderModelSelect
+          serverUrl={selectedServerUrl}
+          accountUid={input.selectedAccountId}
+          value={{provider: providerName, model}}
+          onChange={(entry) => {
+            setProviderName(entry.provider)
+            setModel(entry.model)
+            // Selecting implicitly checks the model, so anything the agent has used
+            // stays in the header switcher until explicitly unchecked.
+            setEnabledModels((current) =>
+              current.some((item) => item.provider === entry.provider && item.model === entry.model)
+                ? current
+                : [...current, entry],
+            )
+          }}
+          enabledModels={enabledModels}
+          onToggleModel={(entry, enabled) =>
+            setEnabledModels((current) => [
+              ...current.filter((item) => !(item.provider === entry.provider && item.model === entry.model)),
+              ...(enabled ? [entry] : []),
+            ])
+          }
+          onAddProvider={() =>
+            addProviderDialog.open({
+              serverUrl: selectedServerUrl,
+              selectedAccountId: input.selectedAccountId,
+              onSaved: (nextProviderName) => {
+                setProviderName(nextProviderName)
+                setModel('')
+              },
+            })
+          }
+        />
+      </label>
+      {addProviderDialog.content}
+      {createError ? <Notice tone="error">{createError}</Notice> : null}
       <div className="flex justify-end gap-2">
-        <Button onClick={() => void handleCreateAgent()} disabled={creating || !providerName || !model}>
-          {creating ? <Spinner /> : null}
-          Create Agent
-        </Button>
+        {input.location ? (
+          <Button onClick={() => void createAtLocation()} disabled={!canSubmit || creating}>
+            {creating ? <Spinner /> : null}
+            {preparedMount.current ? 'Retry' : 'Create Agent'}
+          </Button>
+        ) : (
+          <Button onClick={() => setChoosingLocation(true)} disabled={!canSubmit}>
+            Choose location
+          </Button>
+        )}
       </div>
     </div>
   )

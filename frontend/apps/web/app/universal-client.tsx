@@ -184,6 +184,11 @@ function isJsonValue(value: unknown): value is JsonValue {
 }
 
 export const webUniversalClient = createWebUniversalClient({
+  listWritableLocations: async (accountUid) => {
+    const response = await fetch(`/hm/api/writable-locations?account=${encodeURIComponent(accountUid)}`)
+    if (!response.ok) throw new Error('Could not load writable locations')
+    return response.json()
+  },
   request: seedClient.request as UniversalClient['request'],
   publish: seedClient.publish,
   queryDocuments: async (request: QueryDocumentsRequest, options) => {

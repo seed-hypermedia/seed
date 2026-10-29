@@ -81,7 +81,8 @@
       "fields": {
         "_": "\"CreateAgent\"",
         "clientRequestId?": "string",
-        "definition": "AgentDefinition"
+        "definition": "AgentDefinition",
+        "mount?": "Pick<MountAgent, \"blobs\" | \"documentId\">"
       }
     },
     "CreateAgentTrigger": {
@@ -344,6 +345,14 @@
         "clientMessageId?": "string",
         "content": "MessageSessionContentPart[]",
         "sessionId": "string"
+      }
+    },
+    "MountAgent": {
+      "fields": {
+        "_": "\"MountAgent\"",
+        "agentId": "string",
+        "blobs?": "{cid: string; data: Uint8Array<ArrayBufferLike>}[]",
+        "documentId": "string"
       }
     },
     "PollSessionBrowser": {
@@ -1454,6 +1463,14 @@
         "modelDefaults?": "Record<string, unknown>",
         "secretRefs?": "Record<string, string>",
         "type": "string"
+      }
+    },
+    "MountAgent": {
+      "fields": {
+        "_": "\"MountAgent\"",
+        "agentId": "string",
+        "blobs?": "{cid: string; data: Uint8Array<ArrayBufferLike>}[]",
+        "documentId": "string"
       }
     },
     "ProviderModelInfo": {

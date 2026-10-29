@@ -54,6 +54,8 @@ export type DiscoveryService = {
 
 // Platform-agnostic client interface for universal data operations
 export type UniversalClient = {
+  /** Writable roots delegated to this identity, including path-scoped grants. */
+  listWritableLocations?: (accountUid: string) => Promise<UnpackedHypermediaId[]>
   /** Lists published documents not referenced by their immediate published parent. */
   listUnreferencedDocuments?: (
     request: {siteAccount: string; pageSize: number; pageToken: string},

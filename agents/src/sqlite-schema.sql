@@ -73,6 +73,11 @@ CREATE TABLE agents (
 
 CREATE INDEX agents_by_account ON agents (account_id, updated_at DESC);
 
+CREATE TABLE agent_id_aliases (
+    alias TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL REFERENCES agents (id) ON DELETE CASCADE
+) WITHOUT ROWID;
+
 CREATE TABLE agent_collaborators (
     agent_id TEXT NOT NULL REFERENCES agents (id),
     account_id TEXT NOT NULL REFERENCES accounts (id),

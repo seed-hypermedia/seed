@@ -1,3 +1,4 @@
+import {unpackHmId} from '@seed-hypermedia/client/hm-types'
 // @vitest-environment jsdom
 import {createRoot, type Root} from 'react-dom/client'
 import {type HTMLAttributes} from 'react'
@@ -90,6 +91,7 @@ vi.mock('@shm/ui/embed-views', () => ({
 // is present so it can reveal on hover; stub its leaf data hooks so it renders a
 // closed dropdown without a QueryClient/route/actions provider.
 vi.mock('@shm/shared/models/entity', () => ({
+  useResolvedHmId: (url: string) => ({id: unpackHmId(url), isLoading: false, error: null}),
   useResource: () => ({data: undefined, isLoading: false, isInitialLoading: false}),
   useResources: () => [],
   useAccount: () => ({data: undefined}),

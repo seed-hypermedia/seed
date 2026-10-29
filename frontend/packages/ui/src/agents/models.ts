@@ -1,3 +1,4 @@
+import type {CreateAgent} from '@seed-hypermedia/agents-protocol'
 import {
   getAgentServerHealth,
   getAgentWebSocketUrl,
@@ -1555,12 +1556,12 @@ export function useEnsureAgentProvider(serverUrl: string | undefined, accountUid
 /** Creates a testable server-hosted agent from the desktop GUI. */
 export function useCreateAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
-    mutationFn: async (definition: AgentDefinition) => {
+    mutationFn: async (input: Omit<CreateAgent, '_'>) => {
       if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
       return sendAgentAction({
         serverUrl,
         accountUid,
-        action: {_: 'CreateAgent', definition, clientRequestId: randomUUID()},
+        action: {_: 'CreateAgent', ...input, clientRequestId: input.clientRequestId ?? randomUUID()},
       })
     },
     onSuccess() {
