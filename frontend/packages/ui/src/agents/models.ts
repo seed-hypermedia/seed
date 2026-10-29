@@ -3314,7 +3314,7 @@ function useSignedAgentSocket(
           }
         })()
       })
-      ws.addEventListener('close', (event) => {
+      ws.addEventListener('close', () => {
         if (cancelled) return
         retry += 1
         reconnectTimer = setTimeout(connect, Math.min(10_000, 500 * 2 ** retry))
