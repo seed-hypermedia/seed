@@ -231,30 +231,6 @@ function sendWS(ws: ServerWebSocket<WSData>, event: api.AgentWSEvent): void {
   ws.send(JSON.stringify(event))
 }
 
-function summarizeWSEvent(event: api.AgentWSEvent): Record<string, unknown> {
-  if (event._ === 'appendPartial') {
-    const patch = event.patch as {
-      textDelta?: string
-      done?: boolean
-      usage?: api.AgentRunUsage
-      activity?: api.AgentRunActivity
-    }
-    return {
-      type: event._,
-      key: event.key,
-      partialId: event.partialId,
-      textDeltaBytes: patch.textDelta ? new TextEncoder().encode(patch.textDelta).byteLength : 0,
-      done: patch.done === true,
-      activity: patch.activity?.phase,
-      totalTokens: patch.usage?.total,
-    }
-  }
-  if (event._ === 'append') return {type: event._, key: event.key, seq: 'seq' in event ? event.seq : event.event.seq}
-  if (event._ === 'change') return {type: event._, key: event.key}
-  if (event._ === 'subscribed') return {type: event._, key: event.key, accountId: event.accountId}
-  return {type: event._}
-}
-
 /**
  * How far a published event travels: only to sockets subscribed to its exact key (`direct`), or
  * also to the account-wide `account/<id>` subscription (`account`).
@@ -283,16 +259,7 @@ function sendIfSubscribed(
   event: api.AgentWSEvent,
   scope: WSDeliveryScope = 'account',
 ): void {
-  if (!wsShouldDeliver(ws.data, sourceAccountId, key, scope)) {
-    if (event._ === 'appendPartial' && ws.data.accountId === sourceAccountId) {
-      log.debug('[agents/ws] skip partial; no subscription', {
-        key,
-        accountId: ws.data.accountId,
-        subscriptions: Array.from(ws.data.subscriptions),
-      })
-    }
-    return
-  }
+  if (!wsShouldDeliver(ws.data, sourceAccountId, key, scope)) return
   if (ws.data.accountId !== sourceAccountId && event._ === 'change' && event.key.startsWith('agents/')) {
     // A public reader never sees the owner's access role — it gets the role public access grants,
     // which the snapshot's own flags determine.
@@ -300,9 +267,6 @@ function sendIfSubscribed(
     const value = {...agent, accessRole: agent.publicChat ? 'chatter' : 'reader'} satisfies api.AgentInfo
     sendWS(ws, {...event, value} as api.AgentWSEvent)
     return
-  }
-  if (event._ === 'appendPartial') {
-    log.debug('[agents/ws] send partial', {...summarizeWSEvent(event), direct: ws.data.subscriptions.has(key)})
   }
   sendWS(ws, svc.redactForViewer(event, ws.data.accountId ?? ''))
 }
@@ -368,20 +332,6 @@ async function main(): Promise<void> {
   const db = result.db
   const clients = new Set<ServerWebSocket<WSData>>()
   const publish = (event: apisvc.ServiceEvent) => {
-    if (event.type === 'session-partial') {
-      log.debug('[agents/ws] publish partial', {
-        accountId: event.accountId,
-        sessionId: event.sessionId,
-        partialId: event.partialId,
-        textDeltaBytes: event.textDelta ? new TextEncoder().encode(event.textDelta).byteLength : 0,
-        done: event.done === true,
-        activity: event.activity
-          ? event.activity.phase + (event.activity.toolName ? `:${event.activity.toolName}` : '')
-          : undefined,
-        totalTokens: event.usage?.total,
-        clients: clients.size,
-      })
-    }
     // Truncated once per publish, not per client: a giant tool result would otherwise be encoded
     // whole into a multi-megabyte frame for every subscriber.
     const wireSessionEvent =
@@ -524,7 +474,6 @@ async function main(): Promise<void> {
     websocket: {
       open(ws: ServerWebSocket<WSData>) {
         clients.add(ws)
-        console.info('[agents/ws] open', {connectedAt: ws.data.connectedAt, clients: clients.size})
         sendWS(ws, {_: 'connected', connectedAt: ws.data.connectedAt})
       },
       message(ws: ServerWebSocket<WSData>, message: string | Buffer) {
@@ -543,11 +492,6 @@ async function main(): Promise<void> {
             ws.data.subscriptions.add(sub.key)
             if (sub.publicReadOf) ws.data.publicSubscriptions.set(sub.key, sub.publicReadOf)
             else ws.data.publicSubscriptions.delete(sub.key)
-            console.info('[agents/ws] subscribed', {
-              accountId: sub.accountId,
-              key: sub.key,
-              replayEvents: replay?.events.length ?? 0,
-            })
             sendWS(ws, {_: 'subscribed', key: sub.key, accountId: sub.accountId})
             if (replay) {
               sendWS(ws, {_: 'change', key: `sessions/${replay.session.id}`, value: replay.session})
@@ -582,7 +526,6 @@ async function main(): Promise<void> {
       },
       close(ws: ServerWebSocket<WSData>) {
         clients.delete(ws)
-        console.info('[agents/ws] close', {accountId: ws.data.accountId, clients: clients.size})
       },
     },
   })

@@ -3226,9 +3226,6 @@ export type AgentSessionLiveState = {
 
 const EMPTY_SESSION_LIVE_STATE: AgentSessionLiveState = {text: ''}
 
-/** Logger passed to socket event handlers, pre-tagged with the connection's server/account/key. */
-type AgentSocketLog = (message: string, fields?: Record<string, unknown>) => void
-
 /** Everything a signed subscription can watch. */
 export type AgentSubscriptionKey = `account/${string}` | `agents/${string}` | `sessions/${string}` | `runs/${string}`
 
@@ -3254,7 +3251,7 @@ function useSignedAgentSocket(
   accountUid: string | null | undefined,
   key: AgentSubscriptionKey | undefined,
   afterSeq: number | undefined,
-  onEvent: (event: AgentWSEvent, log: AgentSocketLog) => void,
+  onEvent: (event: AgentWSEvent) => void,
 ) {
   const handlerRef = useRef(onEvent)
   handlerRef.current = onEvent
@@ -3270,10 +3267,6 @@ function useSignedAgentSocket(
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null
     let retry = 0
 
-    const log: AgentSocketLog = (message, fields = {}) => {
-      console.info(`[agents/ws] ${message}`, {serverUrl, accountUid, key, ...fields})
-    }
-
     const parseMessage = async (data: MessageEvent['data']): Promise<AgentWSEvent> => {
       if (typeof data === 'string') return JSON.parse(data) as AgentWSEvent
       if (data instanceof Blob) return JSON.parse(await data.text()) as AgentWSEvent
@@ -3283,7 +3276,6 @@ function useSignedAgentSocket(
 
     const connect = () => {
       const wsUrl = getAgentWebSocketUrl(serverUrl)
-      log('connecting', {wsUrl, retry})
       ws = new WebSocket(wsUrl)
       ws.binaryType = 'arraybuffer'
       ws.addEventListener('open', () => {
@@ -3295,16 +3287,14 @@ function useSignedAgentSocket(
         const afterSeq = afterSeqRef.current
         const action =
           afterSeq === undefined ? ({_: 'Subscribe', key} as const) : ({_: 'Subscribe', key, afterSeq} as const)
-        log('open; signing subscribe', {afterSeq, omittedUndefinedAfterSeq: afterSeq === undefined})
         void signAgentAction({accountUid, action})
           .then((envelope) => {
             if (!cancelled && ws?.readyState === WebSocket.OPEN) {
               ws.send(cbor.encode(envelope) as Uint8Array)
-              log('subscribe sent', {afterSeq})
             }
           })
-          .catch((error) => {
-            log('subscribe signing failed', {error: error instanceof Error ? error.message : String(error)})
+          .catch(() => {
+            // The socket's close handler schedules the reconnect; nothing to do here.
           })
       })
       ws.addEventListener('message', (message) => {
@@ -3312,7 +3302,7 @@ function useSignedAgentSocket(
           try {
             const event = await parseMessage(message.data)
             if (serverUrl) recordServerClock(serverUrl, event)
-            handlerRef.current(event, log)
+            handlerRef.current(event)
           } catch (error) {
             console.warn('[agents/ws] ignored malformed message', {
               serverUrl,
@@ -3324,11 +3314,7 @@ function useSignedAgentSocket(
           }
         })()
       })
-      ws.addEventListener('error', () => {
-        log('socket error')
-      })
       ws.addEventListener('close', (event) => {
-        log('closed', {code: event.code, reason: event.reason, wasClean: event.wasClean})
         if (cancelled) return
         retry += 1
         reconnectTimer = setTimeout(connect, Math.min(10_000, 500 * 2 ** retry))
@@ -3338,7 +3324,6 @@ function useSignedAgentSocket(
     connect()
     return () => {
       cancelled = true
-      log('cleanup')
       if (reconnectTimer) clearTimeout(reconnectTimer)
       ws?.close()
     }
@@ -3391,15 +3376,10 @@ export function useAgentWebSocketSubscription(
     }
   }, [serverUrl, accountUid, key])
 
-  useSignedAgentSocket(serverUrl, accountUid, key, afterSeq, (event, log) => {
-    if (event._ === 'connected') {
-      log('connected event', {connectedAt: event.connectedAt})
-    } else if (event._ === 'subscribed') {
-      log('subscribed event', {subscribedKey: event.key, accountId: event.accountId})
-    } else if (event._ === 'append') {
+  useSignedAgentSocket(serverUrl, accountUid, key, afterSeq, (event) => {
+    if (event._ === 'append') {
       // Run-journal appends (runs/<id> keys) are handled by the run-tree hook, not here.
       if (!('event' in event)) return
-      log('append event', {sessionId: event.event.sessionId, seq: event.event.seq})
       const eventPayload = event.event.event as {
         type?: string
         role?: string
@@ -3449,7 +3429,7 @@ export function useAgentWebSocketSubscription(
       // the agent. The account hints refresh agent detail for the reasons that do.
     } else if (event._ === 'appendPartial') {
       // Account subscriptions also receive every session partial, but their callers only need
-      // durable cache invalidations. Ignore those updates before logging or scheduling React state.
+      // durable cache invalidations. Ignore those updates before scheduling React state.
       if (!key?.startsWith('sessions/') || event.key !== key) return
       const patch = event.patch as {
         textDelta?: string
@@ -3457,35 +3437,8 @@ export function useAgentWebSocketSubscription(
         usage?: AgentRunUsage
         activity?: AgentRunActivity
       }
-      const sessionId = event.key.slice('sessions/'.length)
-      const textDeltaLength = patch.textDelta?.length ?? 0
-      log('partial event', {
-        sessionId,
-        partialId: event.partialId,
-        textDeltaLength,
-        done: patch.done === true,
-        activity: patch.activity?.phase,
-        totalTokens: patch.usage?.total,
-      })
-      setPartials((current) => {
-        const next = applyAgentSessionPartial(current, key, event.key, patch)
-        if (next === current) return current
-        const totalLength = next[sessionId]?.text.length ?? 0
-        if (patch.done) {
-          log('partial marked done; keeping visible until durable append', {
-            sessionId,
-            partialId: event.partialId,
-            totalLength,
-          })
-        } else {
-          log('partial state updated', {sessionId, partialId: event.partialId, totalLength})
-        }
-        return next
-      })
-    } else if (event._ === 'error') {
-      log('server error event', {message: event.message})
+      setPartials((current) => applyAgentSessionPartial(current, key, event.key, patch))
     } else if (event._ === 'change') {
-      log('change event', {changedKey: event.key})
       // Run rows tick often while a workflow executes; refreshing only the runs queries keeps
       // that from re-fetching every session and agent list on each step.
       if (event.key.startsWith('runs/')) {
@@ -3576,7 +3529,7 @@ export function useAgentRunTreeSubscription(
     setState({runs: {}, progress: {}, activity: {}, journal: []})
   }, [key])
 
-  useSignedAgentSocket(serverUrl, accountUid, key, undefined, (event, log) => {
+  useSignedAgentSocket(serverUrl, accountUid, key, undefined, (event) => {
     if (event._ === 'change' && event.key.startsWith('runs/')) {
       const run = event.value as RunInfo
       setState((current) => ({...current, runs: {...current.runs, [run.id]: run}}))
@@ -3600,8 +3553,6 @@ export function useAgentRunTreeSubscription(
         progress: patch.progress ? {...current.progress, [runId]: patch.progress} : current.progress,
         activity: patch.activity ? {...current.activity, [runId]: patch.activity} : current.activity,
       }))
-    } else if (event._ === 'error') {
-      log('run subscription error', {message: event.message})
     }
   })
 
