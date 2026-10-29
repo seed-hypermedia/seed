@@ -27,6 +27,10 @@ import {
   setSubscription,
   unsetNotificationConfig,
   updateSubscription,
+  replaceNotificationReadState,
+  recordNotificationReadAudit,
+  listNotificationReadAudit,
+  NOTIFICATION_READ_AUDIT_RETENTION_MS,
 } from './db'
 
 interface TableInfo {
@@ -71,6 +75,7 @@ describe('Database', () => {
           'notification_email_verifications',
           'notification_read_state',
           'notification_read_events',
+          'notification_read_audit',
         ]),
       )
 
@@ -99,7 +104,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = (db.query('PRAGMA user_version').get() as {user_version: number}).user_version
-      expect(version).toBe(11)
+      expect(version).toBe(12)
       db.close()
     })
   })
@@ -438,6 +443,41 @@ describe('Database', () => {
 
       const state = getNotificationReadState(accountId)
       expect(state.markAllReadAtMs).toBe(1000)
+    })
+
+    it('keeps read-state audit rows for the retention window and prunes older ones on write', () => {
+      const now = 1_800_000_000_000
+      const entry = {
+        accountId: 'audit-1',
+        signerUid: 'signer-1',
+        siteUid: null,
+        actions: [{type: 'mark-site-read', siteUid: 'site-a'}],
+        markBefore: null,
+        markAfter: 2000,
+        readEventsBefore: 0,
+        readEventsAfter: 0,
+        regressed: 0,
+        regressedSample: [],
+      }
+      recordNotificationReadAudit({...entry, at: now - NOTIFICATION_READ_AUDIT_RETENTION_MS - 1})
+      recordNotificationReadAudit({...entry, at: now - 1000, regressed: 2, regressedSample: ['evt-1', 'evt-2']})
+      recordNotificationReadAudit({...entry, at: now})
+
+      const rows = listNotificationReadAudit('audit-1')
+      expect(rows.map((row) => row.at)).toEqual([now, now - 1000])
+      expect(rows[1]?.actions).toEqual([{type: 'mark-site-read', siteUid: 'site-a'}])
+      expect(rows[1]?.regressedSample).toEqual(['evt-1', 'evt-2'])
+      expect(listNotificationReadAudit('audit-other')).toEqual([])
+    })
+
+    it('replaces the watermark outright, even lower, when the actions API writes twice in one millisecond', () => {
+      replaceNotificationReadState('replace-lower', {markAllReadAtMs: 5000, readEvents: []})
+      const state = replaceNotificationReadState('replace-lower', {
+        markAllReadAtMs: 999,
+        readEvents: [{eventId: 'evt-2', eventAtMs: 2000}],
+      })
+      expect(state.markAllReadAtMs).toBe(999)
+      expect(state.readEvents).toEqual([{eventId: 'evt-2', eventAtMs: 2000}])
     })
 
     it('should accept lower watermark when stateUpdatedAtMs is newer', () => {
