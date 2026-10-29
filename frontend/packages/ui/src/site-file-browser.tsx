@@ -10,7 +10,7 @@ import {
   flattenTree,
   getAncestorPathKeys,
 } from '@shm/shared/utils/all-documents-tree'
-import {ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
+import {Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
@@ -116,7 +116,9 @@ export function SiteFileBrowser({
   const visibleDocuments = query.trim() ? matches : rows.map((row) => row.doc)
   const rowById = useMemo(() => new Map(rows.map((row) => [row.doc.id.id, row])), [rows])
   const createItems = createMenuItem?.children?.filter((item) =>
-    ['new-document', 'new-document-collection', 'new-collection', 'new-private-document'].includes(item.key),
+    ['new-document', 'new-document-collection', 'new-collection', 'new-agent', 'new-private-document'].includes(
+      item.key,
+    ),
   )
 
   function toggle(pathKey: string) {
@@ -154,6 +156,8 @@ export function SiteFileBrowser({
               <FileText className="size-4" />
             ) : item.key === 'new-document-collection' || item.key === 'new-collection' ? (
               <Grid3X3 className="size-4" />
+            ) : item.key === 'new-agent' ? (
+              <Bot className="size-4" />
             ) : (
               <Lock className="size-4" />
             )}
@@ -225,8 +229,8 @@ export function SiteFileBrowser({
             >
               <Home className="size-4 shrink-0" />
               <span className="truncate">Home</span>
-            </button>
-            {!showHeader && createButton}
+            </button>{' '}
+            {!showHeader && createButton}{' '}
           </div>
           {isLoading ? (
             <div className="flex h-24 items-center justify-center" aria-label="Loading documents">
@@ -275,7 +279,10 @@ export function SiteFileBrowser({
                       onClick={() => onNavigate(navigationId)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left text-sm outline-none focus-visible:ring-2"
                     >
-                      {doc.isCollection ? (
+                      {' '}
+                      {doc.metadata?.type === 'hm://hyper.media/agent' ? (
+                        <Bot aria-label="Agent" className="size-4 shrink-0" />
+                      ) : doc.isCollection ? (
                         <Grid3X3 aria-label="Collection" className="size-4 shrink-0" />
                       ) : doc.visibility === 'PRIVATE' ? (
                         <Lock aria-label="Private document" className="size-4 shrink-0" />

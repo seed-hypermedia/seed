@@ -7,6 +7,10 @@ import {DocumentCreateButton} from '../document-create-button'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
+if (typeof PointerEvent === 'undefined') {
+  ;(globalThis as typeof globalThis & {PointerEvent: typeof MouseEvent}).PointerEvent = MouseEvent
+}
+
 let container: HTMLDivElement
 let root: Root
 
@@ -20,6 +24,19 @@ afterEach(() => {
   act(() => root.unmount())
   container.remove()
 })
+
+function openMenu() {
+  const trigger = container.querySelector('[aria-label="Choose what to create"]') as HTMLElement
+  act(() => {
+    trigger.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, button: 0, ctrlKey: false}))
+  })
+}
+
+function menuItem(label: string) {
+  return Array.from(document.querySelectorAll('[role="menuitem"]')).find(
+    (item) => item.textContent?.trim() === label,
+  ) as HTMLElement | undefined
+}
 
 describe('DocumentCreateButton', () => {
   it('renders both split controls disabled while resolving', () => {
@@ -45,6 +62,21 @@ describe('DocumentCreateButton', () => {
     act(() => root.render(<DocumentCreateButton onCreate={onCreate} onImport={vi.fn()} />))
     act(() => (container.querySelector('button') as HTMLButtonElement).click())
     expect(onCreate).toHaveBeenCalledWith('document')
+  })
+
+  it('omits Agent from the menu when agent creation is not wired', () => {
+    act(() => root.render(<DocumentCreateButton onCreate={vi.fn()} onImport={vi.fn()} />))
+    openMenu()
+    expect(menuItem('Collection')).toBeDefined()
+    expect(menuItem('Agent')).toBeUndefined()
+  })
+
+  it('offers Agent in the menu when agent creation is wired', () => {
+    const onCreateAgent = vi.fn()
+    act(() => root.render(<DocumentCreateButton onCreate={vi.fn()} onImport={vi.fn()} onCreateAgent={onCreateAgent} />))
+    openMenu()
+    act(() => menuItem('Agent')!.click())
+    expect(onCreateAgent).toHaveBeenCalledTimes(1)
   })
 
   it('renders nothing when hidden', () => {
