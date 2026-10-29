@@ -6,13 +6,13 @@ import {
   registerInboxAccount,
   getNotificationReadState,
   getNotificationsPage,
-  recordNotificationReadAudit,
   removeNotificationConfig,
   replaceNotificationReadState,
   setNotificationConfig,
   setNotificationEmailVerification,
 } from './db'
 import {sendEmail} from './mailer'
+import {captureMessage} from './sentry'
 import {
   buildNotificationEmailVerificationUrl,
   isNotificationEmailVerificationExpired,
@@ -27,7 +27,6 @@ import {
 import {
   isNotificationEventRead,
   markNotificationsReadInState,
-  notificationMatchesSite,
   type NotificationReadLikeState,
 } from '@shm/shared/models/notification-read-logic'
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
@@ -187,67 +186,24 @@ export function getNotificationStateSnapshot(
 }
 
 /**
- * Resolves a client's unread toggle against every notification the service holds.
- *
- * Marking an event unread below the watermark lowers the watermark, and the shared reducer re-lists the events
- * between as explicit reads. Clients only know the page they loaded (the web app loads one space), so a toggle
- * built from their list would silently flip every other notification in that span to unread. The service has the
- * whole inbox, so it supplies the list, and the toggle only affects the one event.
- */
-function resolveUnreadAction(
-  action: Extract<NotificationMutationAction, {type: 'mark-event-unread'}>,
-  allNotifications: NotificationPayload[],
-): Extract<NotificationMutationAction, {type: 'mark-event-unread'}> {
-  const target = allNotifications.find((notification) => notification.feedEventId === action.eventId)
-  return {
-    type: 'mark-event-unread',
-    eventId: action.eventId,
-    // The service's time for the event wins, so the lowered watermark lands just before it.
-    eventAtMs: target?.eventAtMs ?? action.eventAtMs,
-    otherLoadedEvents: allNotifications.map((notification) => ({
-      eventId: notification.feedEventId,
-      eventAtMs: notification.eventAtMs,
-    })),
-  }
-}
-
-/** One audit row's worth of an action: enough to replay it by hand, without the client's event list. */
-function summarizeReadAction(action: NotificationMutationAction): Record<string, unknown> {
-  if (action.type === 'mark-event-unread') {
-    return {
-      type: action.type,
-      eventId: action.eventId,
-      eventAtMs: action.eventAtMs,
-      otherLoadedEvents: action.otherLoadedEvents.length,
-    }
-  }
-  const {type, ...rest} = action
-  return {type, ...rest}
-}
-
-/**
- * Notifications that a read-state write turned from read to unread. Compaction and the read actions are meant to
- * be monotonic, so any count above zero is the trace of a bug (or of an unread toggle, which lists one event).
+ * Notifications a read-state write turned from read to unread. Every read action and the compaction are monotonic,
+ * so only an unread toggle may do this, and only to its one event. Anything more is a bug worth a Sentry event.
  */
 export function findReadRegressions(
   before: NotificationReadLikeState,
   after: NotificationReadLikeState,
   notifications: NotificationPayload[],
 ): string[] {
-  const regressed: Array<{eventId: string; eventAtMs: number}> = []
-  for (const notification of notifications) {
-    const input = {eventId: notification.feedEventId, eventAtMs: notification.eventAtMs}
-    if (
-      isNotificationEventRead({readState: before, ...input}) &&
-      !isNotificationEventRead({readState: after, ...input})
-    ) {
-      regressed.push(input)
-    }
-  }
-  return regressed.sort((left, right) => left.eventAtMs - right.eventAtMs).map((event) => event.eventId)
+  return notifications
+    .filter((notification) => {
+      const input = {eventId: notification.feedEventId, eventAtMs: notification.eventAtMs}
+      return (
+        isNotificationEventRead({readState: before, ...input}) && !isNotificationEventRead({readState: after, ...input})
+      )
+    })
+    .sort((left, right) => left.eventAtMs - right.eventAtMs)
+    .map((notification) => notification.feedEventId)
 }
-
-const READ_AUDIT_SAMPLE_SIZE = 5
 
 /** Applies shared notification actions on the notify service and returns canonical state. */
 export async function applyNotificationActionsForAccount(
@@ -264,20 +220,13 @@ export async function applyNotificationActionsForAccount(
   let nextState = currentState
   let hasReadStateChanges = false
 
-  // Every read mutation resolves against the whole inbox, so load it once per request.
-  let allNotifications: NotificationPayload[] | null = null
-  const getAllAccountNotifications = () => {
-    if (!allNotifications) allNotifications = getAllNotifications(accountId)
-    return allNotifications
-  }
-
   for (const action of actions) {
     if (action.type === 'mark-site-read') {
       nextState = {
         ...nextState,
         readState: markNotificationsReadInState(
           nextState.readState,
-          getAllAccountNotifications().filter((notification) => notificationMatchesSite(notification, action.siteUid)),
+          getAllNotifications(accountId, {siteUid: action.siteUid}),
         ),
       }
       hasReadStateChanges = true
@@ -285,7 +234,15 @@ export async function applyNotificationActionsForAccount(
     }
 
     if (action.type === 'mark-event-unread') {
-      nextState = reduceNotificationState(nextState, resolveUnreadAction(action, getAllAccountNotifications()))
+      // The reducer keeps only the listed events read below the lowered watermark. A client lists the page it
+      // loaded (the web app: one space), so resolve against every notification the service holds instead, at the
+      // service's own time for the event, and the toggle affects exactly that one event.
+      const allNotifications = getAllNotifications(accountId)
+      nextState = reduceNotificationState(nextState, {
+        ...action,
+        eventAtMs: allNotifications.find((n) => n.feedEventId === action.eventId)?.eventAtMs ?? action.eventAtMs,
+        otherLoadedEvents: allNotifications.map((n) => ({eventId: n.feedEventId, eventAtMs: n.eventAtMs})),
+      })
       hasReadStateChanges = true
       continue
     }
@@ -295,11 +252,12 @@ export async function applyNotificationActionsForAccount(
   }
 
   if (hasReadStateChanges) {
+    const allNotifications = getAllNotifications(accountId)
     nextState = {
       ...nextState,
       readState: {
         ...nextState.readState,
-        ...compactNotificationReadState(nextState.readState, getAllAccountNotifications()),
+        ...compactNotificationReadState(nextState.readState, allNotifications),
       },
     }
     replaceNotificationReadState(accountId, {
@@ -307,33 +265,18 @@ export async function applyNotificationActionsForAccount(
       readEvents: nextState.readState.readEvents,
     })
 
-    const regressed = findReadRegressions(currentState.readState, nextState.readState, getAllAccountNotifications())
-    const readActions = actions.filter(isReadStateMutation)
-    recordNotificationReadAudit({
-      at: Date.now(),
-      accountId,
-      signerUid: audit?.signerUid ?? null,
-      siteUid: opts.siteUid ?? null,
-      actions: readActions.map(summarizeReadAction),
-      markBefore: currentState.readState.markAllReadAtMs,
-      markAfter: nextState.readState.markAllReadAtMs,
-      readEventsBefore: currentState.readState.readEvents.length,
-      readEventsAfter: nextState.readState.readEvents.length,
-      regressed: regressed.length,
-      regressedSample: regressed.slice(0, READ_AUDIT_SAMPLE_SIZE),
-    })
-    // An unread toggle regresses exactly its one event. Anything more is the bug this audit exists to catch.
-    const expectedRegressions = readActions.filter((action) => action.type === 'mark-event-unread').length
-    if (regressed.length > expectedRegressions) {
-      console.warn('[notify][read-state] read marks regressed', {
+    const regressed = findReadRegressions(currentState.readState, nextState.readState, allNotifications)
+    const unreadToggles = actions.filter((action) => action.type === 'mark-event-unread').length
+    if (regressed.length > unreadToggles) {
+      captureMessage('notify read marks regressed', {
         accountId,
         signerUid: audit?.signerUid ?? null,
         siteUid: opts.siteUid ?? null,
-        actions: readActions.map((action) => action.type),
+        actions: actions.map((action) => action.type),
         markBefore: currentState.readState.markAllReadAtMs,
         markAfter: nextState.readState.markAllReadAtMs,
         regressed: regressed.length,
-        sample: regressed.slice(0, READ_AUDIT_SAMPLE_SIZE),
+        sample: regressed.slice(0, 5),
       })
     }
   }

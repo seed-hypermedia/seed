@@ -97,9 +97,6 @@ let stmtMarkNotificationConfigVerified: Statement
 let stmtGetNotificationReadState: Statement
 let stmtUpsertNotificationReadState: Statement
 let stmtReplaceNotificationReadState: Statement
-let stmtInsertNotificationReadAudit: Statement
-let stmtPruneNotificationReadAudit: Statement
-let stmtListNotificationReadAudit: Statement
 let stmtGetNotificationReadEvents: Statement
 let stmtUpsertNotificationReadEvent: Statement
 let stmtDeleteNotificationReadEventsForAccount: Statement
@@ -372,26 +369,10 @@ export async function initDatabase(): Promise<void> {
   }
 
   if (version === 11) {
-    // Audit trail of read-state writes, so a read mark that flips back to unread can be traced to the request
-    // that did it. Rows are pruned on write after NOTIFICATION_READ_AUDIT_RETENTION_MS.
+    // Version 12 briefly held a read-state audit table; regressions are reported to Sentry instead.
     db.exec(`
       BEGIN;
-      CREATE TABLE IF NOT EXISTS notification_read_audit (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        at INTEGER NOT NULL,
-        accountId TEXT NOT NULL,
-        signerUid TEXT NULL,
-        siteUid TEXT NULL,
-        actions TEXT NOT NULL,
-        markBefore INTEGER NULL,
-        markAfter INTEGER NULL,
-        readEventsBefore INTEGER NOT NULL,
-        readEventsAfter INTEGER NOT NULL,
-        regressed INTEGER NOT NULL,
-        regressedSample TEXT NOT NULL
-      );
-      CREATE INDEX IF NOT EXISTS idx_notification_read_audit_at ON notification_read_audit (at);
-      CREATE INDEX IF NOT EXISTS idx_notification_read_audit_account ON notification_read_audit (accountId, at DESC);
+      DROP TABLE IF EXISTS notification_read_audit;
       PRAGMA user_version = 12;
       COMMIT;
     `)
@@ -589,21 +570,6 @@ export async function initDatabase(): Promise<void> {
     SELECT data FROM notification_inbox
     WHERE accountId = ?
     ORDER BY eventAtMs DESC
-  `)
-  stmtInsertNotificationReadAudit = db.prepare(`
-    INSERT INTO notification_read_audit (
-      at, accountId, signerUid, siteUid, actions, markBefore, markAfter, readEventsBefore, readEventsAfter,
-      regressed, regressedSample
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `)
-  stmtPruneNotificationReadAudit = db.prepare(`
-    DELETE FROM notification_read_audit WHERE at < ?
-  `)
-  stmtListNotificationReadAudit = db.prepare(`
-    SELECT * FROM notification_read_audit
-    WHERE accountId = ?
-    ORDER BY at DESC, id DESC
-    LIMIT ?
   `)
   stmtRegisterInboxAccount = db.prepare(`
     INSERT INTO inbox_registration (accountId)
@@ -996,61 +962,6 @@ export function replaceNotificationReadState(
   })
 
   return transaction()
-}
-
-/** How long read-state audit rows are kept. Pruned on every write, so the table never outgrows this window. */
-export const NOTIFICATION_READ_AUDIT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
-
-export type NotificationReadAuditEntry = {
-  at: number
-  accountId: string
-  signerUid: string | null
-  /** The page scope the client asked for, if any: a hint of which space's panel sent the request. */
-  siteUid: string | null
-  /** Compact summary of the applied read actions, one object per action. */
-  actions: Array<Record<string, unknown>>
-  markBefore: number | null
-  markAfter: number | null
-  readEventsBefore: number
-  readEventsAfter: number
-  /** Notifications that were read before this write and are unread after it. */
-  regressed: number
-  /** Up to a few event ids of those notifications, oldest first. */
-  regressedSample: string[]
-}
-
-export type NotificationReadAuditRow = NotificationReadAuditEntry & {id: number}
-
-/** Appends one read-state audit row and prunes rows past the retention window. */
-export function recordNotificationReadAudit(entry: NotificationReadAuditEntry): void {
-  db.transaction(() => {
-    stmtInsertNotificationReadAudit.run(
-      entry.at,
-      entry.accountId,
-      entry.signerUid,
-      entry.siteUid,
-      JSON.stringify(entry.actions),
-      entry.markBefore,
-      entry.markAfter,
-      entry.readEventsBefore,
-      entry.readEventsAfter,
-      entry.regressed,
-      JSON.stringify(entry.regressedSample),
-    )
-    stmtPruneNotificationReadAudit.run(entry.at - NOTIFICATION_READ_AUDIT_RETENTION_MS)
-  })()
-}
-
-/** Returns the newest read-state audit rows for an account. */
-export function listNotificationReadAudit(accountId: string, limit = 100): NotificationReadAuditRow[] {
-  const rows = stmtListNotificationReadAudit.all(accountId, Math.min(Math.max(limit, 1), 1000)) as Array<
-    Omit<NotificationReadAuditRow, 'actions' | 'regressedSample'> & {actions: string; regressedSample: string}
-  >
-  return rows.map((row) => ({
-    ...row,
-    actions: JSON.parse(row.actions),
-    regressedSample: JSON.parse(row.regressedSample),
-  }))
 }
 
 // --- Notification Inbox ---
