@@ -26,6 +26,7 @@ import {
 import {
   isNotificationEventRead,
   markNotificationsReadInState,
+  notificationMatchesSite,
   type NotificationReadLikeState,
 } from '@shm/shared/models/notification-read-logic'
 import type {NotificationPayload} from '@shm/shared/models/notification-payload'
@@ -179,6 +180,31 @@ export function getNotificationStateSnapshot(
   }
 }
 
+/**
+ * Resolves a client's unread toggle against every notification the service holds.
+ *
+ * Marking an event unread below the watermark lowers the watermark, and the shared reducer re-lists the events
+ * between as explicit reads. Clients only know the page they loaded (the web app loads one space), so a toggle
+ * built from their list would silently flip every other notification in that span to unread. The service has the
+ * whole inbox, so it supplies the list, and the toggle only affects the one event.
+ */
+function resolveUnreadAction(
+  action: Extract<NotificationMutationAction, {type: 'mark-event-unread'}>,
+  allNotifications: NotificationPayload[],
+): Extract<NotificationMutationAction, {type: 'mark-event-unread'}> {
+  const target = allNotifications.find((notification) => notification.feedEventId === action.eventId)
+  return {
+    type: 'mark-event-unread',
+    eventId: action.eventId,
+    // The service's time for the event wins, so the lowered watermark lands just before it.
+    eventAtMs: target?.eventAtMs ?? action.eventAtMs,
+    otherLoadedEvents: allNotifications.map((notification) => ({
+      eventId: notification.feedEventId,
+      eventAtMs: notification.eventAtMs,
+    })),
+  }
+}
+
 /** Applies shared notification actions on the notify service and returns canonical state. */
 export async function applyNotificationActionsForAccount(
   accountId: string,
@@ -193,15 +219,28 @@ export async function applyNotificationActionsForAccount(
   let nextState = currentState
   let hasReadStateChanges = false
 
+  // Every read mutation resolves against the whole inbox, so load it once per request.
+  let allNotifications: NotificationPayload[] | null = null
+  const getAllAccountNotifications = () => {
+    if (!allNotifications) allNotifications = getAllNotifications(accountId)
+    return allNotifications
+  }
+
   for (const action of actions) {
     if (action.type === 'mark-site-read') {
       nextState = {
         ...nextState,
         readState: markNotificationsReadInState(
           nextState.readState,
-          getAllNotifications(accountId, {siteUid: action.siteUid}),
+          getAllAccountNotifications().filter((notification) => notificationMatchesSite(notification, action.siteUid)),
         ),
       }
+      hasReadStateChanges = true
+      continue
+    }
+
+    if (action.type === 'mark-event-unread') {
+      nextState = reduceNotificationState(nextState, resolveUnreadAction(action, getAllAccountNotifications()))
       hasReadStateChanges = true
       continue
     }
@@ -215,7 +254,7 @@ export async function applyNotificationActionsForAccount(
       ...nextState,
       readState: {
         ...nextState.readState,
-        ...compactNotificationReadState(nextState.readState, getAllNotifications(accountId)),
+        ...compactNotificationReadState(nextState.readState, getAllAccountNotifications()),
       },
     }
     replaceNotificationReadState(accountId, {

@@ -96,6 +96,7 @@ let stmtDeleteNotificationEmailVerificationForAccount: Statement
 let stmtMarkNotificationConfigVerified: Statement
 let stmtGetNotificationReadState: Statement
 let stmtUpsertNotificationReadState: Statement
+let stmtReplaceNotificationReadState: Statement
 let stmtGetNotificationReadEvents: Statement
 let stmtUpsertNotificationReadEvent: Statement
 let stmtDeleteNotificationReadEventsForAccount: Statement
@@ -486,6 +487,16 @@ export async function initDatabase(): Promise<void> {
         END
       END,
       stateUpdatedAtMs = MAX(excluded.stateUpdatedAtMs, notification_read_state.stateUpdatedAtMs),
+      updatedAt = CURRENT_TIMESTAMP
+  `)
+  // The actions API computes the next state from the row it just read, so its write replaces the watermark
+  // outright: a lowered watermark (an unread toggle) must land even when the previous write shares its millisecond.
+  stmtReplaceNotificationReadState = db.prepare(`
+    INSERT INTO notification_read_state (accountId, markAllReadAtMs, stateUpdatedAtMs, updatedAt)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(accountId) DO UPDATE SET
+      markAllReadAtMs = excluded.markAllReadAtMs,
+      stateUpdatedAtMs = MAX(excluded.stateUpdatedAtMs, notification_read_state.stateUpdatedAtMs + 1),
       updatedAt = CURRENT_TIMESTAMP
   `)
   stmtGetNotificationReadEvents = db.prepare(`
@@ -928,7 +939,7 @@ export function replaceNotificationReadState(
     }))
 
   const transaction = db.transaction(() => {
-    stmtUpsertNotificationReadState.run(accountId, snapshot.markAllReadAtMs, Date.now())
+    stmtReplaceNotificationReadState.run(accountId, snapshot.markAllReadAtMs, Date.now())
     stmtDeleteNotificationReadEventsForAccount.run(accountId)
     for (const evt of normalizedReadEvents) {
       if (snapshot.markAllReadAtMs !== null && evt.eventAtMs <= snapshot.markAllReadAtMs) {

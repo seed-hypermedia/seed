@@ -1,7 +1,8 @@
 import {mkdtempSync, rmSync} from 'fs'
 import {tmpdir} from 'os'
 import {afterEach, beforeEach, describe, expect, it, mock} from 'bun:test'
-import {cleanup, getInboxRegisteredAccounts, initDatabase, insertNotification} from './db'
+import {cleanup, getAllNotifications, getInboxRegisteredAccounts, initDatabase, insertNotification} from './db'
+import {isNotificationEventRead} from '@shm/shared/models/notification-read-logic'
 import {applyNotificationActionsForAccount, getNotificationStateSnapshot} from './notification-state'
 
 const sendEmailMock = mock(async () => undefined)
@@ -152,5 +153,66 @@ describe('notification state service', () => {
       {eventId: 'event-3', eventAtMs: 3000},
       {eventId: 'event-1', eventAtMs: 2000},
     ])
+  })
+
+  it('keeps every other notification read when a client marks one unread from a partial list', async () => {
+    const accountId = 'account-state-unread-partial'
+
+    // Two spaces, read in full: the watermark covers everything.
+    insertTestNotification(accountId, 'event-1', 1000, 'site-a')
+    insertTestNotification(accountId, 'event-2', 2000, 'site-b')
+    insertTestNotification(accountId, 'event-3', 3000, 'site-b')
+    insertTestNotification(accountId, 'event-4', 4000, 'site-a')
+    insertTestNotification(accountId, 'event-5', 5000, 'site-b')
+    const readState = await applyNotificationActionsForAccount(accountId, [
+      {type: 'mark-site-read', siteUid: 'site-a'},
+      {type: 'mark-site-read', siteUid: 'site-b'},
+    ])
+    expect(readState.readState.markAllReadAtMs).toBe(5000)
+
+    // The web app only loads the space it shows, so its unread toggle lists site-a events alone.
+    const nextState = await applyNotificationActionsForAccount(accountId, [
+      {
+        type: 'mark-event-unread',
+        eventId: 'event-1',
+        eventAtMs: 1000,
+        otherLoadedEvents: [{eventId: 'event-4', eventAtMs: 4000}],
+      },
+    ])
+
+    const readStatus = Object.fromEntries(
+      getAllNotifications(accountId).map((notification) => [
+        notification.feedEventId,
+        isNotificationEventRead({
+          readState: nextState.readState,
+          eventId: notification.feedEventId,
+          eventAtMs: notification.eventAtMs,
+        }),
+      ]),
+    )
+    expect(readStatus).toEqual({
+      'event-1': false,
+      'event-2': true,
+      'event-3': true,
+      'event-4': true,
+      'event-5': true,
+    })
+    expect(nextState.readState.markAllReadAtMs).toBe(999)
+  })
+
+  it('places the unread toggle at the time the service holds for the event', async () => {
+    const accountId = 'account-state-unread-time'
+
+    insertTestNotification(accountId, 'event-1', 1000, 'site-a')
+    insertTestNotification(accountId, 'event-2', 2000, 'site-a')
+    await applyNotificationActionsForAccount(accountId, [{type: 'mark-site-read', siteUid: 'site-a'}])
+
+    // A client with a different time for the event must not leave it covered by the watermark.
+    const nextState = await applyNotificationActionsForAccount(accountId, [
+      {type: 'mark-event-unread', eventId: 'event-1', eventAtMs: 1500, otherLoadedEvents: []},
+    ])
+
+    expect(isNotificationEventRead({readState: nextState.readState, eventId: 'event-1', eventAtMs: 1000})).toBe(false)
+    expect(isNotificationEventRead({readState: nextState.readState, eventId: 'event-2', eventAtMs: 2000})).toBe(true)
   })
 })
