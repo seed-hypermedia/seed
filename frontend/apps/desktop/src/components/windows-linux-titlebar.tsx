@@ -6,6 +6,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useTriggerWindowEvent} from '@/utils/window-events'
 import {defaultRoute} from '@shm/shared/routes'
 import {useNavRoute, useNavigationDispatch} from '@shm/shared/utils/navigation'
+import {getParentRoute} from '@shm/shared/utils/parent-route'
 import {
   Menubar,
   MenubarContent,
@@ -175,6 +176,15 @@ export function SystemMenu() {
               title: 'Forward',
               accelerator: 'Ctrl+▶︎',
               onSelect: () => navDispatch({type: 'forward'}),
+            },
+            {
+              id: 'go_to_parent',
+              title: 'Go to Parent',
+              accelerator: 'Ctrl+▲',
+              onSelect: () => {
+                const parent = getParentRoute(route)
+                if (parent) push(parent)
+              },
             },
             {
               id: 'contacts',
