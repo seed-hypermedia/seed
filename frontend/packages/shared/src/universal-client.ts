@@ -8,6 +8,7 @@ import type {
   HMSigner,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
+import type {DocumentChange} from './client/.generated/documents/v3alpha/documents_pb'
 import type {RecentsResult} from './models/recents'
 import type {StateStream} from './utils/stream'
 import type {
@@ -24,7 +25,7 @@ import type {
 export type PublishDocumentInput = {
   account: string
   signerAccountUid: string
-  changes: HMPrepareDocumentChangeInput['changes']
+  changes: (HMPrepareDocumentChangeInput['changes'][number] | DocumentChange)[]
   path?: string
   baseVersion?: string
   genesis?: string

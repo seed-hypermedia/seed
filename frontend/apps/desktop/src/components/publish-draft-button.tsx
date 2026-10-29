@@ -22,6 +22,7 @@ import {useNavRoute} from '@shm/shared/utils/navigation'
 import {entityQueryPathToHmIdPath} from '@shm/shared/utils/path-api'
 import {writeableStateStream} from '@shm/shared/utils/stream'
 import {Button} from '@shm/ui/button'
+import {usePublishError} from '@shm/ui/editing-toolbar'
 import {PathInput} from '@shm/ui/path-input'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {copyTextToClipboard} from '@shm/ui/copy-to-clipboard'
@@ -38,6 +39,7 @@ import {useDraft} from '../models/accounts'
 import {usePublishResource, usePushResource} from '../models/documents'
 
 export default function PublishDraftButton() {
+  const publishErrorFeedback = usePublishError()
   const route = useNavRoute()
   const navigate = useNavigate('replace')
   const draftRoute: DraftRoute | null = route.key === 'draft' ? route : null
@@ -324,7 +326,7 @@ export default function PublishDraftButton() {
       // Editing an existing document — keep the existing path as-is.
       await handlePublish(editId, signingAccountId).catch((err) => {
         console.error('Publish failed:', err)
-        toast.error(err.message || 'Publish failed')
+        publishErrorFeedback.showError(err)
         reportError(err, {
           feature: 'publish-draft',
           operation: 'publish-existing',
@@ -345,7 +347,7 @@ export default function PublishDraftButton() {
       }
       await handlePublish(editableLocation, signingAccountId).catch((err) => {
         console.error('Publish failed:', err)
-        setPublishError(err.message || 'Failed to publish. Try a different path name.')
+        publishErrorFeedback.showError(err)
         reportError(err, {
           feature: 'publish-draft',
           operation: 'publish-first',
@@ -369,6 +371,7 @@ export default function PublishDraftButton() {
 
   return (
     <>
+      {publishErrorFeedback.content}
       <SaveIndicatorStatus />
       <Popover {...popoverState}>
         <Tooltip content={signingAccount ? `Publish as ${signingAccount?.metadata?.name}` : 'Publish Document…'}>

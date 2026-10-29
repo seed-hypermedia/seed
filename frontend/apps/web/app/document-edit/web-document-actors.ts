@@ -433,7 +433,7 @@ export async function publishWebDocument(input: PublishInput, deps: CreateWebDoc
       account: deps.docId.uid,
       path,
       baseVersion: effectiveBaseVersion,
-      changes: allChanges as any,
+      changes: allChanges,
       capability: capabilityCid,
       visibility,
     } as any,

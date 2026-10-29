@@ -13,6 +13,8 @@ import {
   HMComment,
   HMDocument,
   HMExistingDraft,
+  HMListedDraft,
+  HMMetadata,
   HMQueryTableConfig,
   HMQueryBlockInput,
   HMRawCitation,
@@ -112,6 +114,7 @@ import {getRoutePanel} from '@shm/shared/routes'
 import {ActivityContent, ActivityHeader} from './activity-panel'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {DocumentPageView, documentPageCid} from './document-page'
+import {usePublishError} from './editing-toolbar'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activitySlugToFilter,
@@ -229,6 +232,40 @@ import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
 import {cn} from './utils'
 import {AttributeAutocomplete, AttributeAutocompleteProvider} from './value-editor'
+
+/** Build a draft breadcrumb while preserving published metadata omitted by partial draft edits. */
+export function getDraftBreadcrumbEntry({
+  id,
+  draft,
+  publishedMetadata,
+  currentMetadata,
+  isUnpublishedDraft,
+  isLoading,
+}: {
+  id: UnpackedHypermediaId
+  draft: HMListedDraft
+  publishedMetadata?: HMMetadata
+  currentMetadata?: HMMetadata
+  isUnpublishedDraft: boolean
+  isLoading: boolean
+}): BreadcrumbEntry {
+  const metadata = {...publishedMetadata, ...draft.metadata, ...currentMetadata}
+  return {
+    id,
+    metadata,
+    draftId: draft.id,
+    fallbackName: isUnpublishedDraft
+      ? draft.visibility === 'PRIVATE'
+        ? 'New Private Document'
+        : 'New Document'
+      : 'Untitled Document',
+    isLoading: !metadata.name && isLoading,
+    isTombstone: false,
+    isNotFound: false,
+    isError: false,
+    isUnpublishedDraft,
+  }
+}
 
 /** Creates a right-panel route showing citations to one block. */
 export function getBlockCitationsPanelRoute(
@@ -1127,6 +1164,7 @@ function ResourcePageContent({
   const isSiteProfile = route.key === 'site-profile'
   const media = useMedia()
   const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
+  const publishError = usePublishError()
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
 
   const handleResourceRedirect = useCallback(
@@ -1527,6 +1565,7 @@ function ResourcePageContent({
       transientResourceError={transientResourceError}
       liveNavigationItems={liveNavigationItems}
     >
+      {publishError.content}
       <DocumentMachineProvider
         // Recreate the machine only when the identity it's bound to changes: the
         // resolved doc id (path change on first publish) or the ROUTE's pinned
@@ -1548,6 +1587,7 @@ function ResourcePageContent({
         }}
         machine={machine}
         inspect={inspect}
+        onPublishError={publishError.showError}
       >
         <DocumentNavigationItemsBridge docId={renderedDocId} onItemsChange={setLiveNavigationItems} />
         {editNavPane && editNavPanePortalElement ? createPortal(editNavPane, editNavPanePortalElement) : null}
@@ -2324,10 +2364,7 @@ function DocumentBody({
   // current web), so the daemon-fetch path stays unchanged there.
   const accountDrafts = useDraftsForAccountSafe(docId.uid)
 
-  // Resolve each breadcrumb segment to a local draft when possible. A draft
-  // match short-circuits the daemon fetch and the discovery subscription —
-  // we pass `null` at draft positions to `useResources` (see below) which
-  // honours `enabled: !!id` and skips both.
+  // Resolve draft overlays without losing the published metadata they inherit.
   const draftsForBreadcrumbs = useMemo(
     () => breadcrumbIds.map((id) => findDraftForPath(accountDrafts.data, id.uid, id.path ?? [])),
     [breadcrumbIds, accountDrafts.data],
@@ -2351,13 +2388,16 @@ function DocumentBody({
     [breadcrumbIds, accountDrafts.isLoading, reservedDraftBreadcrumbNames],
   )
 
-  // Mask draft positions so `useResources` skips the daemon `Resource`
-  // request and the discovery subscription for them. Array length is
-  // preserved so downstream index-based access stays aligned.
+  // Only unpublished placeholders lack a server resource. Existing documents
+  // still supply the title when their draft contains only body edits.
   const resourceFetchIds = useMemo(
     () =>
       breadcrumbIds.map((id, i) =>
-        draftsForBreadcrumbs[i] || pendingDraftLookup[i] || reservedDraftBreadcrumbNames[i] ? null : id,
+        isDraftPlaceholderPath(id.path, draftsForBreadcrumbs[i]?.id) ||
+        pendingDraftLookup[i] ||
+        reservedDraftBreadcrumbNames[i]
+          ? null
+          : id,
       ),
     [breadcrumbIds, draftsForBreadcrumbs, pendingDraftLookup, reservedDraftBreadcrumbNames],
   )
@@ -2383,23 +2423,23 @@ function DocumentBody({
           ? ctx.metadata?.name || (existingDraft ? existingDraft.metadata?.name : undefined)
           : undefined
       const reservedDraftBreadcrumbName = reservedDraftBreadcrumbNames[i]
-      const fallbackName = currentDraftName || reservedDraftBreadcrumbName || id.path?.at(-1) || id.uid.slice(0, 8)
+      const fallbackName = currentDraftName || reservedDraftBreadcrumbName || 'Untitled Document'
 
       if (draft) {
         const draftIsUnpublished = isDraftPlaceholderPath(id.path, draft.id) || (isCurrent && isUnpublishedDraft)
-        const draftMetadata = draft.metadata ?? {}
-        const draftName = currentDraftName || draftMetadata.name
-        return {
+        const result = breadcrumbResults[i]
+        return getDraftBreadcrumbEntry({
           id,
-          metadata: draftName ? {...draftMetadata, name: draftName} : draftMetadata,
-          draftId: draft.id,
-          fallbackName: draftName || fallbackName,
-          isLoading: false,
-          isTombstone: false,
-          isNotFound: false,
-          isError: false,
+          draft,
+          publishedMetadata: isCurrent
+            ? ctx.document?.metadata ?? document.metadata
+            : result?.data?.type === 'document'
+              ? result.data.document.metadata
+              : undefined,
+          currentMetadata: isCurrent && draftOverlayAllowed ? ctx.metadata : undefined,
           isUnpublishedDraft: draftIsUnpublished,
-        }
+          isLoading: !isCurrent && !draftIsUnpublished && (!result || result.isLoading || result.isDiscovering),
+        })
       }
 
       if (reservedDraftBreadcrumbName) {
@@ -2496,7 +2536,10 @@ function DocumentBody({
     metadata,
     isUnpublishedDraft,
     existingDraft,
-    ctx.metadata?.name,
+    ctx.metadata,
+    ctx.document?.metadata,
+    document.metadata,
+    draftOverlayAllowed,
     activeView,
     focusedBlock,
     focusedBlockMentionNames,

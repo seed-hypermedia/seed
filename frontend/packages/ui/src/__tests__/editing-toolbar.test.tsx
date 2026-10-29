@@ -106,6 +106,39 @@ describe('editing-toolbar publish disabled states', () => {
     useAccountMock.mockReturnValue({data: undefined})
   })
 
+  it.each([
+    {published: true, changes: 0, children: 0, action: null},
+    {published: true, changes: 1, children: 0, action: 'Discard Changes'},
+    {published: true, changes: 1, children: 1, action: 'Discard Changes'},
+    {published: false, changes: 0, children: 0, action: 'Delete Draft'},
+  ])('shows a draft action only when meaningful: %j', ({published, changes, children, action}) => {
+    selectMock.document = {version: published ? 'published-version' : '', metadata: {}}
+    unpublishedChangeCountMock.mockReturnValue(changes)
+    const {container, root} = renderNode(
+      <PublishButtonWithPopover
+        docId={hmId('alice', {path: ['doc']})}
+        existingMenuItems={[]}
+        unpublishedChildCount={children}
+      />,
+    )
+    try {
+      const trigger = container.querySelector('[aria-label="Open options"]')!
+      act(() => trigger.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', bubbles: true})))
+      const labels = Array.from(document.body.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)
+      expect(labels).toEqual(action ? [action] : [])
+      const publish = findButtonByText(container, 'Publish')!
+      expect(publish.className.includes('bg-neutral-100')).toBe(changes === 0 || children > 0)
+      if (action) {
+        act(() =>
+          document.body.querySelector('[role="menuitem"]')!.dispatchEvent(new MouseEvent('click', {bubbles: true})),
+        )
+        expect(sendMock).toHaveBeenCalledWith({type: 'edit.discard'})
+      }
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
   it('greys out the trigger when publish is unavailable', () => {
     const docId = hmId('acct-1', {path: ['my-doc']})
     const {container, root} = renderNode(

@@ -1,4 +1,5 @@
 import type {HMSigner, SeedClient} from '@seed-hypermedia/client'
+import {documentChangesToPlain} from '@shm/shared/utils/document-changes'
 import type {PublishDocumentInput} from '@shm/shared/universal-client'
 
 type PublishDesktopDocumentDeps = {
@@ -11,5 +12,8 @@ export async function publishDesktopDocument(
   input: PublishDocumentInput,
 ): Promise<import('@seed-hypermedia/client').PublishDocumentResult | void> {
   const {signerAccountUid, ...publishInput} = input
-  return deps.publishDocument(publishInput, deps.getSigner(signerAccountUid))
+  return deps.publishDocument(
+    {...publishInput, changes: documentChangesToPlain(input.changes)},
+    deps.getSigner(signerAccountUid),
+  )
 }

@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest'
-import {createActor, fromPromise} from 'xstate'
+import {createActor, fromPromise, waitFor} from 'xstate'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {
   createDefaultCollectionQueryBlock,
@@ -1094,12 +1094,21 @@ describe('DocumentLifecycle machine', () => {
     actor.stop()
   })
 
-  it('failed publish clears pendingPathOverride and returns to editing.idle', async () => {
+  it('failed publish resumes the edited content and allows retry without resetting it', async () => {
+    let editorText = ''
+    let attempts = 0
     const machine = documentMachine.provide({
+      actions: {
+        applyInitialContentToEditor: () => {
+          editorText = ''
+        },
+      },
       actors: {
         writeDraft: fromPromise<{id: string}, any>(async () => ({id: 'draft-123'})),
         publishDocument: fromPromise<HMDocument, any>(async () => {
-          throw new Error('publish exploded')
+          attempts++
+          if (attempts === 1) throw new Error('publish exploded')
+          return {...mockDocument, version: 'bafynew'}
         }),
       },
     })
@@ -1108,13 +1117,20 @@ describe('DocumentLifecycle machine', () => {
     })
     actor.start()
     actor.send({type: 'document.loaded', document: mockDocument})
+    editorText = 'Text added to the empty document'
     actor.send({type: 'publish.start', pathOverride: ['custom', 'slug']})
     expect(actor.getSnapshot().context.pendingPathOverride).toEqual(['custom', 'slug'])
-    await new Promise((r) => setTimeout(r, 50))
+    await waitFor(actor, (snapshot) => snapshot.matches('editing'))
     expect(actor.getSnapshot().context.pendingPathOverride).toBeNull()
     expect(actor.getSnapshot().value).toEqual({
       editing: {draft: 'idle', saveIndicator: 'hidden', rebase: 'idle', rename: 'idle'},
     })
+    expect(editorText).toBe('Text added to the empty document')
+    expect(actor.getSnapshot().context.draftId).toBe('my-draft')
+    actor.send({type: 'publish.start'})
+    await waitFor(actor, (snapshot) => snapshot.matches('loaded'))
+    expect(attempts).toBe(2)
+    expect(editorText).toBe('Text added to the empty document')
     actor.stop()
   })
 

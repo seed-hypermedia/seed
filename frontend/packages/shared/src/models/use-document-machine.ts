@@ -76,6 +76,8 @@ export interface DocumentMachineProviderProps {
   machine?: typeof documentMachine
   /** Optional XState inspect callback for debugging (from @statelyai/inspect). */
   inspect?: (inspectionEvent: any) => void
+  /** Show publication failures while the machine preserves the editable draft. */
+  onPublishError?: (error: unknown) => void
   children: ReactNode
 }
 
@@ -83,12 +85,20 @@ export interface DocumentMachineProviderProps {
  * Creates a document machine actor and provides it via React context.
  * The actor starts automatically via `useActorRef` and stops on unmount.
  */
-export function DocumentMachineProvider({input, machine, inspect, children}: DocumentMachineProviderProps) {
+export function DocumentMachineProvider({
+  input,
+  machine,
+  inspect,
+  onPublishError,
+  children,
+}: DocumentMachineProviderProps) {
   // Mutable ref populated by `DocumentEditor` with the imperative handlers the
   // machine needs to flip the editor's editable flag, replace blocks on entry,
   // and place the cursor. Read lazily inside provided actions so replacing the
   // handlers does not require recreating the actor.
   const editorHandlersRef = useRef<EditorHandlers | null>(null)
+  const onPublishErrorRef = useRef(onPublishError)
+  onPublishErrorRef.current = onPublishError
 
   // Compose the incoming machine (or the default) with React-layer action
   // implementations. The ref is stable, so this only runs once per mount.
@@ -96,6 +106,7 @@ export function DocumentMachineProvider({input, machine, inspect, children}: Doc
     () =>
       (machine ?? documentMachine).provide({
         actions: {
+          notifyPublishError: (_, {error}) => onPublishErrorRef.current?.(error),
           setEditorEditable: ({context}) => {
             documentEmbedCleanupInfo(`${DOCUMENT_EMBED_CLEANUP_LOG_PREFIX} renderer set editor editable`, {
               documentId: context.documentId.id,
