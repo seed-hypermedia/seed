@@ -30,7 +30,7 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs'
 import {dirname, join, relative, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
-import {createSeedClient, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
+import {createSeedClient, fileToIpfsBlobs, parseMarkdown, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
 import {runDevLoop} from './utils/dev-loop'
 import {resolveSigningKey} from './utils/keys'
 import {createSignerFromKey} from './utils/signer'
@@ -124,6 +124,17 @@ export async function loadSchemaBlobs(dir = SCHEMAS_DIR): Promise<Array<{data: U
   return blobs
 }
 
+/** Load the release's schemas and home icon, verifying that the metadata names the bundled image. */
+export async function loadPublicationBlobs(dir = SCHEMAS_DIR): Promise<Array<{data: Uint8Array; cid: string}>> {
+  const schemas = await loadSchemaBlobs(dir)
+  const icon = await fileToIpfsBlobs(readFileSync(resolve(dir, 'assets/HyperMedia_IconInverse.png')))
+  const {metadata} = parseMarkdown(readFileSync(resolve(dir, 'index.md'), 'utf8'))
+  if (metadata.icon !== `ipfs://${icon.cid}`) {
+    throw new Error(`Home icon CID mismatch: set index.md icon to ipfs://${icon.cid}`)
+  }
+  return [...schemas, ...icon.blobs]
+}
+
 /** Refresh the lockfile and the bundled registry after schema files changed. */
 function refreshSchemaArtifacts() {
   for (const script of [
@@ -143,14 +154,14 @@ function argValue(args: string[], flag: string): string | undefined {
   return idx >= 0 ? args[idx + 1] : undefined
 }
 
-/** Publish the schema blobs, then import hypermedia/ into `account` on `client`. */
+/** Publish the schema and icon blobs, then import hypermedia/ into `account` on `client`. */
 async function pushTo(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean, keepStale = false) {
-  const blobs = await loadSchemaBlobs()
-  console.log(`Schema blobs: ${blobs.length} encoded, all CIDs match the lockfile.`)
+  const blobs = await loadPublicationBlobs()
+  console.log(`Publication blobs: ${blobs.length} encoded, schema and icon CIDs verified.`)
   if (!dryRun) {
     // One request per blob through the daemon's blob endpoint: a site's API may cap its request
     // bodies at a few KB (staging does, at 4 KB), and the daemon route carries file-sized bodies.
-    console.log(`Publishing ${blobs.length} schema blobs...`)
+    console.log(`Publishing ${blobs.length} schema and icon blobs...`)
     for (const blob of blobs) await client.putBlob(blob)
     console.log('  done.\n')
   }
@@ -280,8 +291,8 @@ async function dev(args: string[]) {
     },
     layout,
     beforePush: async ({client}) => {
-      const blobs = await loadSchemaBlobs()
-      console.log(`Schema blobs: ${blobs.length} encoded, all CIDs match the lockfile. Publishing...`)
+      const blobs = await loadPublicationBlobs()
+      console.log(`Publication blobs: ${blobs.length} encoded, schema and icon CIDs verified. Publishing...`)
       await client.publish({blobs})
     },
     onWritten: (files) => {

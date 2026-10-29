@@ -13,7 +13,7 @@ import {DevDirectorySync, DevSyncPaused} from './dev-sync'
 import {keyPairFromPrivateKey} from './key-derivation'
 import {createSignerFromKey} from './signer'
 import type {DevLoopOptions} from './dev-loop'
-import {loadSchemaBlobs} from '../sync-hypermedia'
+import {loadPublicationBlobs, loadSchemaBlobs} from '../sync-hypermedia'
 import {encodeSchemaBlob} from './space-sync'
 
 const dirs: string[] = []
@@ -374,6 +374,19 @@ describe('a running dev sync follows Git checkouts', () => {
     writeFileSync(join(dir, 'schemas.lock.json'), JSON.stringify({schemas: {'hm://hyper.media/example': cid}}))
     expect((await loadSchemaBlobs(dir)).map((blob) => blob.cid)).toEqual([cid])
   }, 30_000)
+
+  test('bundles the home icon for publication and rejects stale icon metadata', async () => {
+    const {dir} = repository()
+    const data = new Uint8Array([137, 80, 78, 71])
+    const cid = CID.createV1(0x55, createDigest(0x12, createHash('sha256').update(data).digest())).toString()
+    mkdirSync(join(dir, 'assets'))
+    writeFileSync(join(dir, 'assets/HyperMedia_IconInverse.png'), data)
+    writeFileSync(join(dir, 'schemas.lock.json'), JSON.stringify({schemas: {}}))
+    writeFileSync(join(dir, 'index.md'), `---\nname: Hypermedia\nicon: ipfs://${cid}\n---\n`)
+    expect(await loadPublicationBlobs(dir)).toEqual([{cid, data}])
+    writeFileSync(join(dir, 'assets/HyperMedia_IconInverse.png'), new Uint8Array([1, 2, 3]))
+    await expect(loadPublicationBlobs(dir)).rejects.toThrow('Home icon CID mismatch')
+  })
 
   test('drains all workers from a failed push before reconciling a queued checkout', async () => {
     const {root, dir} = repository()

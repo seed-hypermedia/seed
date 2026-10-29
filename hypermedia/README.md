@@ -25,6 +25,8 @@ A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. 
 
 A `*.schema.json` beside a page is the schema that page defines. The sync encodes it to canonical DAG-CBOR, publishes it as a blob, and sets the page's `schemaDefinition` to `ipfs://<cid>` at publish time. Don't put `schemaDefinition` in frontmatter; `check.mjs` rejects it. A page without a schema can still be an instance of a type by naming one in `attributesSchema` in its frontmatter (see `example/bob.md`). How documents bind to schemas is explained in [Typed documents](./schema/typed-documents.md).
 
+The home icon is `assets/HyperMedia_IconInverse.png`, referenced by its `ipfs://` CID in `index.md` frontmatter. The release and dev sync upload that image alongside the schema blobs and reject a mismatched icon CID. When replacing the image, update the frontmatter to the CID reported by the sync's mismatch error.
+
 ## Writing pages
 
 - Frontmatter has a `name` (the title) and a `summary` (one whole sentence).
