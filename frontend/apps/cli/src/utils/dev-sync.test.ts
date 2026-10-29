@@ -13,7 +13,7 @@ import {DevDirectorySync, DevSyncPaused} from './dev-sync'
 import {keyPairFromPrivateKey} from './key-derivation'
 import {createSignerFromKey} from './signer'
 import type {DevLoopOptions} from './dev-loop'
-import {loadPublicationBlobs, loadSchemaBlobs} from '../sync-hypermedia'
+import {loadPublicationBlobs, loadSchemaBlobs, publicationMetadataFor} from '../sync-hypermedia'
 import {encodeSchemaBlob} from './space-sync'
 
 const dirs: string[] = []
@@ -374,6 +374,17 @@ describe('a running dev sync follows Git checkouts', () => {
     writeFileSync(join(dir, 'schemas.lock.json'), JSON.stringify({schemas: {'hm://hyper.media/example': cid}}))
     expect((await loadSchemaBlobs(dir)).map((blob) => blob.cid)).toEqual([cid])
   }, 30_000)
+
+  test('labels only the staging home at publication without changing the source or production metadata', () => {
+    const metadata = {name: 'Hypermedia', icon: 'ipfs://icon', summary: 'Protocol documentation.'}
+    const staging = publicationMetadataFor('https://staging.hyper.media/')!
+    expect(staging('index.md', metadata)).toEqual({...metadata, name: 'Hypermedia [STAGING]'})
+    expect(staging('protocol.md', metadata)).toBe(metadata)
+    expect(metadata.name).toBe('Hypermedia')
+    expect(staging('index.md', metadata).name).toBe('Hypermedia [STAGING]')
+    expect(publicationMetadataFor('https://hyper.media')).toBeUndefined()
+    expect(publicationMetadataFor('http://localhost:58004')).toBeUndefined()
+  })
 
   test('bundles the home icon for publication and rejects stale icon metadata', async () => {
     const {dir} = repository()

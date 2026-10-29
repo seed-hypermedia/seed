@@ -2,6 +2,8 @@
 
 This folder is the source of the Seed developer docs and the Hypermedia Schemas library. A commit to `main` publishes it to staging. A tagged Seed release publishes that release's `hypermedia/` tree to production through `.github/workflows/sync-hypermedia.yml`. Production `hyper.media` content must never be edited directly through the CLI, SDK, agents or UI. The home page of the published site is [index.md](./index.md). This README is not published.
 
+Publishing to `staging.hyper.media` adds ` [STAGING]` to the home document's name (for example, `Hypermedia [STAGING]`). This happens during import, leaving `index.md` and all other page titles unchanged. Tagged production releases use the original name without the suffix.
+
 The pages are markdown in the lossless dialect of `@seed-hypermedia/client` (`blocksToMarkdown` and `parseMarkdown`). Every block type, annotation, attribute and metadata key survives a round trip. Block ids ride in trailing `<!-- id:… -->` comments. Links between pages are relative `.md` links, so they work on GitHub and become `hm://` links when published.
 
 ## Layout

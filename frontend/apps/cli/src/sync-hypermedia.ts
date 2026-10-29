@@ -30,11 +30,18 @@ import {existsSync, readdirSync, readFileSync, statSync} from 'node:fs'
 import {dirname, join, relative, resolve} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
-import {createSeedClient, fileToIpfsBlobs, parseMarkdown, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
+import {createSeedClient, fileToIpfsBlobs, parseMarkdown, type HMSigner} from '@seed-hypermedia/client'
 import {runDevLoop} from './utils/dev-loop'
 import {resolveSigningKey} from './utils/keys'
 import {createSignerFromKey} from './utils/signer'
-import {encodeSchemaBlob, exportSpace, importSpace, retireMissing, type SpaceLayout} from './utils/space-sync'
+import {
+  encodeSchemaBlob,
+  exportSpace,
+  importSpace,
+  retireMissing,
+  type ImportOptions,
+  type SpaceLayout,
+} from './utils/space-sync'
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -154,8 +161,15 @@ function argValue(args: string[], flag: string): string | undefined {
   return idx >= 0 ? args[idx + 1] : undefined
 }
 
+/** Add a staging label to the home document at publication time, keeping source metadata unchanged. */
+export function publicationMetadataFor(serverUrl: string): ImportOptions['metadataFor'] {
+  if (new URL(serverUrl).hostname !== 'staging.hyper.media') return undefined
+  return (file, metadata) => (file === 'index.md' ? {...metadata, name: `${metadata.name} [STAGING]`} : metadata)
+}
+
 /** Publish the schema and icon blobs, then import hypermedia/ into `account` on `client`. */
-async function pushTo(client: SeedClient, signer: HMSigner, account: string, dryRun: boolean, keepStale = false) {
+async function pushTo(serverUrl: string, signer: HMSigner, account: string, dryRun: boolean, keepStale = false) {
+  const client = createSeedClient(serverUrl)
   const blobs = await loadPublicationBlobs()
   console.log(`Publication blobs: ${blobs.length} encoded, schema and icon CIDs verified.`)
   if (!dryRun) {
@@ -172,6 +186,7 @@ async function pushTo(client: SeedClient, signer: HMSigner, account: string, dry
     dir: SCHEMAS_DIR,
     layout,
     dryRun,
+    metadataFor: publicationMetadataFor(serverUrl),
     log: (line) => console.log('  ' + line),
   })
   const movedFrom = new Set(result.moved.map((m) => m.split(' -> ')[0]!))
@@ -229,7 +244,7 @@ async function push(args: string[]) {
   console.log(`Server:  ${serverUrl}`)
   console.log(`Mode:    ${dryRun ? 'DRY RUN' : 'PUBLISH'}\n`)
 
-  await pushTo(createSeedClient(serverUrl), signer, account, dryRun, args.includes('--keep-stale'))
+  await pushTo(serverUrl, signer, account, dryRun, args.includes('--keep-stale'))
   console.log(`Root: hm://${account}`)
 }
 
