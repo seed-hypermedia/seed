@@ -585,7 +585,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   )
   const canCreateChildDocs =
     !!currentDocument?.version && canCreateChildDocuments(currentDocument?.visibility, draftData?.visibility)
-  const {menuItem: fileBrowserCreateMenuItem} = useWebCreateDocumentMenuItem({
+  // The file browser's plus menu opens dialogs (Create Agent) whose content mounts here.
+  const {menuItem: fileBrowserCreateMenuItem, content: fileBrowserCreateContent} = useWebCreateDocumentMenuItem({
     locationId: hmId(docId.uid),
     signingAccountId: signingAccountId ?? undefined,
     canCreate: effectiveCanEdit && !!signingAccountId,
@@ -768,6 +769,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   return (
     <WebSitePageShell siteUid={docId.uid}>
+      {fileBrowserCreateContent}
       <CommentsProvider
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
