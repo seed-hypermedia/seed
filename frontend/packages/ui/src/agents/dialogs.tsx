@@ -55,7 +55,7 @@ import {useEffect, useRef, useState} from 'react'
 import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
 import {ProviderModelSelect} from './provider-model-select'
-import {pickDefaultProviderModel} from './model-utils'
+import {pickDefaultEnabledModels, pickDefaultProviderModel} from './model-utils'
 import {promptBlocksForRequest} from './prompt-editor'
 import {ProviderIcon} from './provider-icons'
 import {isSubscriptionSignInAvailable, SubscriptionSignIn} from './provider-oauth'
@@ -992,8 +992,19 @@ export function CreateAgentDialog({
   useEffect(() => {
     const defaultModel = pickDefaultProviderModel(providerModels.data, selectedProviderType)?.id || ''
     const modelIsDiscovered = providerModels.data?.some((providerModel) => providerModel.id === model)
-    if (!model || (selectedProviderType !== 'custom' && !modelIsDiscovered)) setModel(defaultModel)
-  }, [model, providerModels.data, selectedProviderType])
+    if (model && (selectedProviderType === 'custom' || modelIsDiscovered)) return
+    setModel(defaultModel)
+    // Applying the provider's default also checks its preferred quick-switch models (e.g. the
+    // ChatGPT subscription's Astra and Luna beside Sol); anything already checked stays.
+    const defaults = pickDefaultEnabledModels(providerModels.data, selectedProviderType)
+    if (!defaults.length || !providerName) return
+    setEnabledModels((current) => [
+      ...current,
+      ...defaults
+        .filter((entry) => !current.some((item) => item.provider === providerName && item.model === entry.id))
+        .map((entry) => ({provider: providerName, model: entry.id})),
+    ])
+  }, [model, providerModels.data, providerName, selectedProviderType])
 
   async function handleCreateAgent(
     destination: Pick<DocumentDestinationSubmitInput, 'to' | 'name'>,

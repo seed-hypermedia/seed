@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   findFreeAgentMountPath: vi.fn(),
   prepareAgentMount: vi.fn(),
   toastSuccess: vi.fn(),
+  models: [{id: 'gpt-test', name: 'gpt-test'}] as {id: string; name: string}[],
 }))
 
 const location = hmId('alice', {path: ['notes']})
@@ -30,7 +31,10 @@ vi.mock('../agents/models', () => ({
   useCreateAgent: () => ({mutateAsync: mocks.createAgent}),
   useCreateSigningIdentity: () => ({mutateAsync: mocks.createIdentity}),
   useModelProviders: () => ({data: [{name: 'openai', type: 'openai'}], isLoading: false, isFetching: false}),
-  useProviderModels: () => ({data: [{id: 'gpt-test'}]}),
+  // Like the real query, no models load until a provider is named.
+  useProviderModels: (_server: string, _account: string, providerName: string) => ({
+    data: providerName ? mocks.models : undefined,
+  }),
   useLocalAgentServerUrl: () => ({data: 'http://local.test'}),
   useDeleteModelProvider: vi.fn(),
   useDeleteSigningIdentity: vi.fn(),
@@ -38,9 +42,6 @@ vi.mock('../agents/models', () => ({
   useSaveModelProvider: vi.fn(),
   useSigningIdentities: vi.fn(),
   useUpdateSigningIdentity: vi.fn(),
-}))
-vi.mock('../agents/model-utils', () => ({
-  pickDefaultProviderModel: (models?: {id: string}[]) => models?.[0],
 }))
 vi.mock('../agents/mount', () => ({
   AgentMountDestination: () => <div data-testid="choose-location" />,
@@ -84,6 +85,7 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   vi.clearAllMocks()
+  mocks.models = [{id: 'gpt-test', name: 'gpt-test'}]
   mocks.createIdentity.mockResolvedValue({
     _: 'CreateSigningIdentityResponse',
     identity: {name: 'amber-wolf-key', accountId: 'z6agent'},
@@ -176,6 +178,29 @@ describe('CreateAgentDialog', () => {
     expect(mocks.createAgent).toHaveBeenCalledTimes(2)
     expect(mocks.createAgent.mock.calls[1]![0]).toBe(mocks.createAgent.mock.calls[0]![0])
     expect(mocks.navigate).toHaveBeenCalledWith({key: 'document', id: mountId, agentView: 'sessions'})
+  })
+
+  it('defaults a ChatGPT subscription agent to Sol with Astra and Luna checked', async () => {
+    mocks.models = [
+      {id: 'gpt-6-astra', name: 'GPT-6 Astra'},
+      {id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol'},
+      {id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra'},
+      {id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna'},
+      {id: 'gpt-5.5', name: 'GPT-5.5'},
+    ]
+    mocks.createAgent.mockResolvedValue({_: 'CreateAgentResponse', agentId: mountId.id})
+    render({serverUrls: ['http://local.test'], selectedAccountId: 'alice', location})
+    await flush()
+    expect(container.querySelector('[data-testid="model-select"]')?.textContent).toBe('gpt-5.6-sol')
+    await act(async () => button('Create Agent')!.click())
+    await flush()
+    const definition = mocks.createAgent.mock.calls[0]![0].definition
+    expect(definition).toMatchObject({modelProvider: 'openai', model: 'gpt-5.6-sol'})
+    expect(definition.enabledModels).toEqual([
+      {provider: 'openai', model: 'gpt-6-astra'},
+      {provider: 'openai', model: 'gpt-5.6-sol'},
+      {provider: 'openai', model: 'gpt-5.6-luna'},
+    ])
   })
 
   it('offers a server choice only when several servers are configured', async () => {
