@@ -285,27 +285,6 @@ func (dm *Document) ReplaceBlock(blkpb *documents.Block) error {
 		return err
 	}
 
-	// Legacy editors do not know Query attributes.view and omit it when
-	// replacing a Query block. Keep the signed default View through unrelated
-	// edits. New editors explicitly send {filters: []} to clear a View; deleting
-	// the entire Query block still deletes its View.
-	if blk.Type == "Query" {
-		if reg := dm.crdt.stateBlocks[blkpb.Id]; reg != nil {
-			if previous, ok := reg.GetLatestOK(); ok && previous.Type == "Query" {
-				oldAttrs, newAttrs := previous.Attributes(), blk.Attributes()
-				if view, hasView := oldAttrs["view"]; hasView {
-					if _, supplied := newAttrs["view"]; !supplied {
-						if blk.InlineAttributes_ == nil {
-							blk.InlineAttributes_ = map[string]any{}
-						}
-
-						blk.InlineAttributes_["view"] = view
-					}
-				}
-			}
-		}
-	}
-
 	// Check if CRDT state already has the same value for block.
 	// If so, we do nothing, and remove any dirty state for this block.
 	var preds []opID
