@@ -95,6 +95,7 @@ func TestIndexChangeIndexesMetadataReferences(t *testing.T) {
 	`, []byte(change.CID.Hash()))
 	require.NoError(t, err)
 	var got [][]string
+
 	require.NoError(t, json.Unmarshal([]byte(raw), &got))
 	require.ElementsMatch(t, [][]string{
 		{MetadataLinkType, "hm://" + bob, "owner"},

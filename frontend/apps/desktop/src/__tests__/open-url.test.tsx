@@ -118,7 +118,7 @@ describe('useOpenUrl', () => {
     expect(mockState.pushNavigate).toHaveBeenCalledWith({
       key: 'activity',
       id: unpackHmId('hm://uid1#blk1[5:15]'),
-      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
       panel: null,
     })
 

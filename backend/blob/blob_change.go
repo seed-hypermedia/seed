@@ -476,6 +476,7 @@ func indexChange(ictx *indexingCtx, id int64, eb Encoded[*Change]) error {
 				if err := dbFTSInsertOrReplace(ictx.conn, vs, ftsKey, id, "", sb.CID.String(), sb.Ts, sb.GenesisBlob.Hash().String()); err != nil {
 					return fmt.Errorf("failed to insert record in fts table: %w", err)
 				}
+
 				if isStr {
 					indexMetadataValue(&sb, ictx.log, k, vs)
 				}
@@ -592,11 +593,13 @@ func indexMetadataValue(sb *structuralBlob, log *zap.Logger, key, value string) 
 		if err != nil {
 			return
 		}
+
 		sb.AddBlobLink("metadata/"+key, c)
 	case "hm":
 		if _, err := core.DecodePrincipal(u.Host); err != nil {
 			return
 		}
+
 		if err := indexURL(sb, log, key, MetadataLinkType, value); err != nil {
 			log.Warn("FailedToIndexMetadataLink",
 				zap.String("key", key),
