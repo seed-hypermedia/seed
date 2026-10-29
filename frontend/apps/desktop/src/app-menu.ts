@@ -170,6 +170,14 @@ export function createAppMenu() {
             dispatchFocusedWindowAppEvent({type: 'forward'})
           },
         },
+        {
+          id: 'go_to_parent',
+          label: 'Go to Parent',
+          accelerator: 'CmdOrCtrl+Up',
+          click: () => {
+            dispatchFocusedWindowAppEvent({type: 'go_to_parent'})
+          },
+        },
         {type: 'separator'},
         {
           id: 'toggle_sidebar',
@@ -230,7 +238,6 @@ export function createAppMenu() {
         },
         {
           label: 'Maximize',
-          accelerator: 'CmdOrCtrl+Up',
           click: () => {
             const window = getFocusedWindow()
             if (window) {

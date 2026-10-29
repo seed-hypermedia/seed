@@ -13,6 +13,7 @@ import {DAEMON_FILE_URL, DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 import {NavRoute} from '@shm/shared/routes'
 import {AppEvent, UniversalAppProvider} from '@shm/shared/routing'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
+import {getParentRoute} from '@shm/shared/utils/parent-route'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {isHttpUrl} from '@shm/shared/utils/navigation'
 import {NavAction, NavContextProvider, NavState, navStateReducer, useNavRoute} from '@shm/shared/utils/navigation'
@@ -82,6 +83,12 @@ window.appWindowEvents?.subscribe((event: AppWindowEvent) => {
   }
   if (event.type === 'forward') {
     navigation.dispatch({type: 'forward'})
+  }
+  if (event.type === 'go_to_parent') {
+    const state = navigation.state.get()
+    const current = state.routes[state.routeIndex]
+    const parent = current ? getParentRoute(current) : null
+    if (parent) navigation.dispatch({type: 'push', route: parent})
   }
   if (event.type === 'selectedIdentityChanged') {
     // Update the navigation state with the new selected identity

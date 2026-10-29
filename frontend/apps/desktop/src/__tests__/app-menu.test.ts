@@ -90,3 +90,17 @@ describe('focus-aware refresh menu shortcuts', () => {
     expect(contents.reload).toHaveBeenCalledOnce()
   })
 })
+
+describe('Go to Parent shortcut', () => {
+  it('owns Cmd/Ctrl+Up and dispatches go_to_parent to the focused window', async () => {
+    const {dispatchFocusedWindowAppEvent} = await import('../app-api')
+    const menu = createAppMenu()
+    const up = menu.getMenuItemById('go_to_parent')!
+    expect(up.accelerator).toBe('CmdOrCtrl+Up')
+    up.click!(up, undefined, {} as any)
+    expect(dispatchFocusedWindowAppEvent).toHaveBeenCalledWith({type: 'go_to_parent'})
+    // Maximize used to hold Cmd+Up; no other item may still claim it.
+    const all = menu.items.flatMap((item: any) => item.submenu?.items || [])
+    expect(all.filter((item: any) => item.accelerator === 'CmdOrCtrl+Up')).toHaveLength(1)
+  })
+})
