@@ -1,4 +1,4 @@
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 
 const {resolveHypermediaUrlMock} = vi.hoisted(() => ({
@@ -231,7 +231,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'alice',
         domainStatus: 'success',
@@ -243,7 +242,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         isDomainLoading: true,
       }),
@@ -254,7 +252,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'bob',
         domainStatus: 'success',
@@ -262,23 +259,61 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     ).toBeNull()
   })
 
-  it('returns null for the gateway host even when the account matches', () => {
+  it('keeps the gateway host when it serves the current account', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://gateway.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'alice',
         domainStatus: 'success',
       }),
-    ).toBeNull()
+    ).toBe('https://gateway.example')
+  })
+
+  it.each(['', '/build/cli', '/:activity'])(
+    'preserves a gateway home-space URL %s through desktop routing',
+    async (path) => {
+      const {resolveHypermediaUrl} =
+        await vi.importActual<typeof import('@seed-hypermedia/client')>('@seed-hypermedia/client')
+      resolveHypermediaUrlMock.mockImplementation(resolveHypermediaUrl)
+      const url = `https://hyper.media${path}`
+      const route = await resolveOmnibarUrlToRoute(url, {
+        domainResolver: async () => ({registeredAccountUid: 'home', isGateway: true}),
+      })
+      expect(route).toBeTruthy()
+      if (!route || !('id' in route) || typeof route.id !== 'object' || !route.id)
+        throw new Error('Expected resource route')
+      const siteUrl = selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: route.id.hostname,
+        accountUid: route.id.uid,
+        registeredAccountUid: 'home',
+        domainStatus: 'success',
+      })
+      expect(siteUrl).toBe('https://hyper.media')
+      expect(routeToUrl(route, {hostname: siteUrl, originHomeId: hmId('home')})).toBe(url)
+    },
+  )
+
+  it('keeps the account prefix for another account served through the gateway', () => {
+    const siteUrl = selectValidatedOmnibarSiteUrl({
+      candidateSiteUrl: 'https://hyper.media',
+      accountUid: 'other',
+      registeredAccountUid: 'home',
+      domainStatus: 'success',
+    })
+    expect(siteUrl).toBeNull()
+    expect(
+      routeToUrl(
+        {key: 'document', id: hmId('other', {path: ['notes']})},
+        {hostname: siteUrl || 'https://hyper.media', originHomeId: siteUrl ? hmId('other') : undefined},
+      ),
+    ).toBe('https://hyper.media/hm/other/notes')
   })
 
   it('keeps the candidate domain when the domain check status is error', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
         domainStatus: 'error',
@@ -290,7 +325,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
         domainStatus: 'unreachable',
@@ -302,7 +336,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
         domainStatus: undefined,
@@ -314,7 +347,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
         domainStatus: 'success',

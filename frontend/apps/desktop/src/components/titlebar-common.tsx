@@ -822,9 +822,7 @@ function useCurrentRouteUrl(): {
   // Entity metadata is authoritative; otherwise consider the hostname from the current route.
   const candidateSiteUrl = entitySiteUrl || routeId?.hostname || null
   const candidateSiteHostname = getUrlHostname(candidateSiteUrl)
-  const gatewayHostname = getUrlHostname(gwUrl)
-  const shouldValidateSiteUrl =
-    !!candidateSiteHostname && !!lookupUid && candidateSiteHostname !== gatewayHostname && candidateSiteUrl !== gwUrl
+  const shouldValidateSiteUrl = !!candidateSiteHostname && !!lookupUid
   const domainInfo = useDomain(shouldValidateSiteUrl ? candidateSiteHostname : null, {
     enabled: shouldValidateSiteUrl,
     forceCheck: true,
@@ -834,7 +832,6 @@ function useCurrentRouteUrl(): {
   })
   const validatedSiteUrl = selectValidatedOmnibarSiteUrl({
     candidateSiteUrl,
-    gatewayUrl: gwUrl,
     accountUid: lookupUid,
     registeredAccountUid: domainInfo.data?.registeredAccountUid,
     domainStatus: domainInfo.data?.status,

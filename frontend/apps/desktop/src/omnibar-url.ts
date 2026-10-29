@@ -42,22 +42,19 @@ export function parseBrowserAddress(input: string): string | null {
 }
 
 /**
- * Returns the current site's custom domain only when it is actively resolving
- * to the same account as the page shown in the desktop omnibar.
+ * Selects the site's URL for the desktop omnibar, including a gateway's own
+ * home space. A successful domain check must resolve to the current account.
  */
 export function selectValidatedOmnibarSiteUrl(params: {
   candidateSiteUrl?: string | null
-  gatewayUrl: string
   accountUid?: string | null
   registeredAccountUid?: string | null
   domainStatus?: string | null
   isDomainLoading?: boolean
 }): string | null {
   const candidateHostname = getUrlHostname(params.candidateSiteUrl)
-  const gatewayHostname = getUrlHostname(params.gatewayUrl)
 
   if (!params.candidateSiteUrl || !candidateHostname) return null
-  if (gatewayHostname && candidateHostname === gatewayHostname) return null
 
   // Domain check still in flight — optimistically show what the user typed.
   if (params.isDomainLoading) return params.candidateSiteUrl
