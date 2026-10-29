@@ -173,6 +173,15 @@ export function activitySummary(event: ActivityFeedEvent): string {
     return source ? `Mention of ${target} from ${source}` : `Mention of ${target}`
   }
   const type = stringField(event, 'type')
+  // A document attribute naming the target (owner, maintainer…), which the feed resolves as a
+  // document citation carrying the attribute key.
+  const metadataKey = type === 'citation' ? stringField(event, 'metadataKey') : undefined
+  if (metadataKey) {
+    const sourceRecord = recordField(event, 'source')
+    const sourceId = sourceRecord ? recordField(sourceRecord, 'id') : null
+    const sourceHref = sourceId ? stringField(sourceId, 'id') : undefined
+    return `Named as ${metadataKey} of ${sourceHref || 'a document'}`
+  }
   // Resolved feed events (the shape /api/ListEvents returns) carry the comment itself: say whether
   // it is a reply and where, instead of the bare event type ("citation").
   const comment = recordField(event, 'comment')

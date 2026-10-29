@@ -53,6 +53,67 @@ func TestIndexIgnoresNonScalarDocumentAttributes(t *testing.T) {
 	require.Equal(t, 1, indexed, "only the scalar name attribute must be indexed")
 }
 
+// A metadata value that names an account (a bare id, its hm:// home URL or a :profile URL)
+// or an hm:// document is indexed as a metadata/Link resource link anchored at the attribute
+// key, so setting someone as the owner of a document cites them and counts as a mention of
+// them. Type URLs whose authority is not an account, http URLs and plain text carry no link,
+// and ipfs:// values stay blob links typed by their key.
+func TestIndexChangeIndexesMetadataReferences(t *testing.T) {
+	alice := coretest.NewTester("alice").Account
+	bob := coretest.NewTester("bob").Account.Principal().String()
+	db := storage.MakeTestDB(t)
+	idx, err := OpenIndex(t.Context(), db, zap.NewNop())
+	require.NoError(t, err)
+
+	clock := cclock.New()
+	change, err := NewChange(alice, cid.Undef, nil, 0, ChangeBody{
+		Ops: []OpMap{
+			NewOpSetAttributes("", []KeyValue{
+				{Key: []string{"name"}, Value: "Owned"},
+				{Key: []string{"owner"}, Value: "hm://" + bob},
+				{Key: []string{"accountId"}, Value: bob},
+				{Key: []string{"profile"}, Value: "hm://" + bob + "/:profile"},
+				{Key: []string{"attributesSchema"}, Value: "hm://" + bob + "/types/person"},
+				{Key: []string{"type"}, Value: "hm://hyper.media/page"},
+				{Key: []string{"siteUrl"}, Value: "https://example.com"},
+				{Key: []string{"icon"}, Value: "ipfs://bafkreigh2akiscaildcuj3pww4f2ptib34dm5x3dpljubjkbzfgutz5jum"},
+			}),
+			{"type": "SetKey", "key": "maintainer", "value": bob},
+		},
+	}, clock.MustNow())
+	require.NoError(t, err)
+	ref, err := NewRef(alice, 0, change.CID, alice.Principal(), "/owned", []cid.Cid{change.CID}, clock.MustNow(), VisibilityPublic)
+	require.NoError(t, err)
+	require.NoError(t, idx.PutMany(t.Context(), []blocks.Block{change, ref}))
+
+	raw, err := sqlitex.QueryOnePool[string](t.Context(), db, `
+		SELECT json_group_array(json_array(rl.type, r.iri, rl.extra_attrs->>'a'))
+		FROM resource_links rl
+		JOIN blobs b ON b.id = rl.source
+		JOIN resources r ON r.id = rl.target
+		WHERE b.multihash = ?
+	`, []byte(change.CID.Hash()))
+	require.NoError(t, err)
+	var got [][]string
+	require.NoError(t, json.Unmarshal([]byte(raw), &got))
+	require.ElementsMatch(t, [][]string{
+		{MetadataLinkType, "hm://" + bob, "owner"},
+		{MetadataLinkType, "hm://" + bob, "accountId"},
+		{MetadataLinkType, "hm://" + bob + "/:profile", "profile"},
+		{MetadataLinkType, "hm://" + bob + "/types/person", "attributesSchema"},
+		{MetadataLinkType, "hm://" + bob, "maintainer"},
+	}, got, "every account or document reference in metadata is a link anchored at its key")
+
+	iconLinks, err := sqlitex.QueryOnePool[int](t.Context(), db, `
+		SELECT COUNT()
+		FROM blob_links bl
+		JOIN blobs b ON b.id = bl.source
+		WHERE b.multihash = ? AND bl.type = 'metadata/icon'
+	`, []byte(change.CID.Hash()))
+	require.NoError(t, err)
+	require.Equal(t, 1, iconLinks, "ipfs:// metadata values stay blob links typed by their key")
+}
+
 // A block gets exactly one fts row per change, no matter how many times the
 // change moves it, and a move never records stale content for a block the same
 // change replaces. Before this, each move entry re-read and re-inserted the
