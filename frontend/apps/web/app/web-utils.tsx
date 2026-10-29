@@ -22,6 +22,8 @@ import {hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {getActivityBellTarget, getRouteSpaceUid, isActivityOpen} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
+import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
+import {useAgentServerUrls} from '@shm/ui/agents/models'
 import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
 import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {Button} from '@shm/ui/button'
@@ -190,6 +192,7 @@ export function useWebCreateDocumentMenuItem({
   const navigate = useNavigate()
   const importInputRef = useRef<HTMLInputElement>(null)
   const client = useUniversalClient()
+  const createAgent = useWebCreateAgentAtLocation(locationId, signingAccountId)
 
   const createDraft = useCallback(
     (visibility?: HMResourceVisibility, collection = false) => {
@@ -237,6 +240,16 @@ export function useWebCreateDocumentMenuItem({
           icon: <Grid3X3 className="size-4" />,
           onClick: () => createDraft('PUBLIC', true),
         },
+        ...(createAgent.open
+          ? [
+              {
+                key: 'new-agent',
+                label: 'Agent',
+                icon: <Bot className="size-4" />,
+                onClick: createAgent.open,
+              },
+            ]
+          : []),
         {
           key: 'import',
           label: 'Import Markdown File',
@@ -245,40 +258,60 @@ export function useWebCreateDocumentMenuItem({
         },
       ],
     }
-  }, [canCreate, canCreateChildren, createDraft, signingAccountId])
+  }, [canCreate, canCreateChildren, createAgent.open, createDraft, signingAccountId])
 
   return {
     menuItem,
     content:
       canCreate && canCreateChildren && signingAccountId ? (
-        <input
-          ref={importInputRef}
-          type="file"
-          accept=".md,.markdown,text/markdown,text/plain"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0]
-            event.currentTarget.value = ''
-            if (!file) return
-            toast.promise(
-              createWebDocumentDraftFromMarkdownFile({
-                client,
-                file,
-                locationId,
-                signingAccountId,
-                capabilityCid,
-                navigate: (route) => navigate(route),
-              }),
-              {
-                loading: 'Importing Markdown…',
-                success: 'Markdown imported.',
-                error: 'Failed to import Markdown.',
-              },
-            )
-          }}
-        />
+        <>
+          {createAgent.content}
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".md,.markdown,text/markdown,text/plain"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (!file) return
+              toast.promise(
+                createWebDocumentDraftFromMarkdownFile({
+                  client,
+                  file,
+                  locationId,
+                  signingAccountId,
+                  capabilityCid,
+                  navigate: (route) => navigate(route),
+                }),
+                {
+                  loading: 'Importing Markdown…',
+                  success: 'Markdown imported.',
+                  error: 'Failed to import Markdown.',
+                },
+              )
+            }}
+          />
+        </>
       ) : null,
   }
+}
+
+/**
+ * Agent creation under `locationId` for the web New menus: `open` is undefined while no agent server
+ * is known (none configured and the site advertises none) or nobody is signed in, hiding the entry.
+ */
+function useWebCreateAgentAtLocation(
+  locationId: UnpackedHypermediaId,
+  signingAccountId: string | undefined,
+): {open?: () => void; content: ReactNode} {
+  const dialog = useAppDialog(CreateAgentDialog)
+  const serverUrls = useAgentServerUrls().data
+  const open = useMemo(() => {
+    if (!serverUrls?.length || !signingAccountId) return undefined
+    return () => dialog.open({serverUrls, selectedAccountId: signingAccountId, location: locationId})
+  }, [dialog.open, locationId, serverUrls, signingAccountId])
+  return {open, content: dialog.content}
 }
 
 function WebActorCreateButton({
@@ -312,6 +345,7 @@ function WebActorCreateButton({
     parentIsCollection,
     canEditParent,
   })
+  const createAgent = useWebCreateAgentAtLocation(destination, signingAccountId)
   const actor = useActorRef(documentCreationMachine, {
     input: {
       currentId: locationId,
@@ -363,11 +397,13 @@ function WebActorCreateButton({
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         importLabel="Import Markdown File"
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
+        onCreateAgent={createAgent.open}
         onImport={() => {
           actor.send({type: 'import.requested'})
           if (actor.getSnapshot().output?.type === 'import') inputRef.current?.click()
         }}
       />
+      {createAgent.content}
       <input
         ref={inputRef}
         type="file"

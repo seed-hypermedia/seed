@@ -281,16 +281,16 @@ describe('agent mounting', () => {
     expect(await send({_: 'GetAgent', agentId: personal.agentId})).toMatchObject({
       agent: {id: `hm://${FIXTURE_ACCOUNT.accountId}/personal-helper`},
     })
-    // New agents must select a document before the server sees a CreateAgent action.
-    await page.goto(`${env!.web.baseUrl}/hm/agents/server?url=${encodeURIComponent(serverUrl)}`)
-    await page.getByRole('button', {name: 'Create Agent', exact: true}).click()
+    // New agents are created from a document's New menu, under that document, at a path derived
+    // from the agent's name. The server sees one CreateAgent action with that document ID.
+    await page.goto(`${env!.web.baseUrl}/hm/${sharedSpace.accountId}/team`)
+    await page.getByRole('button', {name: 'Choose what to create', exact: true}).click()
+    await page.getByRole('menuitem', {name: 'Agent', exact: true}).click()
     await dialog.getByLabel('Name', {exact: true}).fill('New local helper')
-    expect(await dialog.getByRole('button', {name: 'Create Agent', exact: true}).count()).toBe(0)
-    await dialog.getByRole('button', {name: 'Choose location', exact: true}).click()
+    expect(await dialog.getByRole('button', {name: 'Choose location', exact: true}).count()).toBe(0)
+    expect(await dialog.getByText('System prompt', {exact: true}).count()).toBe(0)
+    expect(await dialog.getByText('Thoroughness').count()).toBe(0)
     const createButton = dialog.getByRole('button', {name: 'Create Agent', exact: true})
-    expect(await createButton.isDisabled()).toBe(true)
-    await dialog.getByRole('button', {name: 'Team agents', exact: true}).click()
-    await dialog.getByPlaceholder('url-path').fill('new-local-helper')
     await vi.waitFor(async () => expect(await createButton.isEnabled()).toBe(true))
     await page.screenshot({path: path.join(tmpdir(), 'seed-agent-create-location.png')})
     let createRequests = 0
@@ -312,7 +312,8 @@ describe('agent mounting', () => {
     await page.getByText('Test response lost', {exact: true}).waitFor()
     const newId = `hm://${sharedSpace.accountId}/team/new-local-helper`
     expect(await send({_: 'GetAgent', agentId: newId})).toMatchObject({agent: {id: newId}})
-    await createButton.click()
+    // Retry reuses the published document, the signing identity and the request.
+    await dialog.getByRole('button', {name: 'Retry', exact: true}).click()
     await page.waitForURL(`${env!.web.baseUrl}/hm/${sharedSpace.accountId}/team/new-local-helper/:sessions`)
     expect(createRequests).toBe(2)
     await page.reload()
