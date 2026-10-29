@@ -635,9 +635,11 @@ func documentFilterSQL(filter *documents.DocumentFilter, args *colx.Slice[any], 
 			}
 			parts = append(parts, "("+part+")")
 		}
+
 		if len(parts) == 1 {
 			return parts[0], nil
 		}
+
 		// Grouped, because the caller appends the result to a clause with AND: an OR joined in
 		// bare read as `... AND is_deleted = 0 AND a OR b`, and `b` let a tombstoned document
 		// through the deletion check of the documents query.
