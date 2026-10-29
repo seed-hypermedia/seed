@@ -6618,7 +6618,9 @@ describe('api service', () => {
       expect(createResult?.output?.command).toBe('document.create')
       expect(createResult?.output?.id).toBe(`hm://${signerPublicKey}/weekly-report`)
       expect(createResult?.output?.imagesUploaded).toBe(1)
-      expect(createResult?.output?.summary).toContain('Published reports/weekly.md')
+      // This fixture deliberately returns not-found until the second write: the commit succeeded,
+      // but the media read-back must not claim success without the published version.
+      expect(createResult?.output?.summary).toContain('Document published, but asset verification failed')
       expect(createResult?.output?.version).toBeTruthy()
 
       // Published blobs hold genesis + change + ref + the image's UnixFS blob, with the

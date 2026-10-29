@@ -168,6 +168,10 @@ Conformance is advisory: a document that violates its type still publishes, and 
 {"address":"hm://ACCOUNT_UID/people/bob","content":"Bob is a person.","options":{"name":"Bob","metadata":{"surname":"Smith","born":"1990-01-01","attributesSchema":"hm://ACCOUNT_UID/types/person"}},"dryRun":true}
 \`\`\`
 
+Document create/update (including memory files and draft publication) checks Image, Video and File blocks plus icon/cover metadata. HTTP(S) media checks GET the exact embedded URL (never substitute another gateway), require a successful nonempty response, and require image/video MIME types and recognized signatures. Requests use public destinations only, standard ports, no credentials, bounded redirects, at most 64 distinct URLs, four requests at once, a 20-second batch deadline and a 1024-byte sample. These checks do not prove full decoding, full-file hashes, future availability or browser playback. Embed blocks, ordinary text hyperlinks and assets inside custom HTML pages are outside this check.
+
+Native ipfs:// assets may not be served until a public document references them, so preflight marks them pending-publication rather than falsely rejecting an upload. After publication, media-bearing documents are read back at the committed version; their literal asset URLs are compared and checked again (native IPFS uses the configured HM gateway). The response's assetVerification distinguishes preflight, verified and unverified. A post-publication failure returns hypermedia_write_error with published: true, the committed id/version/cids and repair guidance: the document already exists; do not blindly retry creation. Dry runs check preflight only, including draft publication, and never claim read-back verification. skipLinkCheck does not bypass media checks.
+
 Every hm:// link in document content is resolved before publishing. Use \`options.skipLinkCheck: true\` only when a linked resource is about to be created. Read the resulting document before citing block-level links because publishing can change block IDs.`,
   },
   pages: {
