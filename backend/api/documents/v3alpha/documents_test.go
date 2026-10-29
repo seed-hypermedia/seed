@@ -4440,6 +4440,7 @@ func TestQueryDocumentsTombstonedUnderOrFilter(t *testing.T) {
 			Build())
 		require.NoError(t, err)
 	}
+
 	// The tombstone's timestamp must come after the document's.
 	time.Sleep(20 * time.Millisecond)
 	_, err = alice.CreateRef(ctx, &documents.CreateRefRequest{
@@ -4476,6 +4477,7 @@ func TestQueryDocumentsTombstonedUnderOrFilter(t *testing.T) {
 		for _, doc := range resp.Documents {
 			paths = append(paths, doc.Path)
 		}
+
 		require.Equal(t, []string{"/mount-kept"}, paths, name)
 	}
 }
