@@ -100,8 +100,10 @@ test('enterprise root starts site login; public vault retains its entry UI', asy
           </StoreContext.Provider>,
         )
       })
-      if (enterprise) await rtl.waitFor(() => expect(replace).toHaveBeenCalledWith('http://localhost/hm/sign-in'))
-      else {
+      if (enterprise) {
+        await rtl.waitFor(() => expect(replace).toHaveBeenCalledWith('http://localhost/hm/sign-in?next=%2Fvault'))
+        window.sessionStorage.clear()
+      } else {
         expect(rtl.screen.getByText("What's your email?")).toBeDefined()
         expect(rtl.screen.getByText("We'll send a verification code.")).toBeDefined()
         expect(rtl.screen.getByRole('button', {name: 'Send code'})).toBeDefined()

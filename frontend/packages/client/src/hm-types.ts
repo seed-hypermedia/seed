@@ -2294,10 +2294,13 @@ export type HMPublishBlobsRequest = z.infer<typeof HMPublishBlobsRequestSchema>
 
 // PrepareDocumentChange - call gRPC PrepareChange, returns unsigned CBOR bytes for client signing
 
+// Accept protobuf Struct instances: z.record rejects non-plain objects in Zod 4.
+const ProtoStructSchema = z.object({}).catchall(z.any())
+
 const ProtoAnnotationSchema = z.object({
   type: z.string(),
   link: z.string().optional(),
-  attributes: z.record(z.string(), z.any()).optional(),
+  attributes: ProtoStructSchema.optional(),
   starts: z.array(z.number()).optional(),
   ends: z.array(z.number()).optional(),
 })
@@ -2307,7 +2310,7 @@ const ProtoBlockSchema = z.object({
   type: z.string().optional(),
   text: z.string().optional(),
   link: z.string().optional(),
-  attributes: z.record(z.string(), z.any()).optional(),
+  attributes: ProtoStructSchema.optional(),
   annotations: z.array(ProtoAnnotationSchema).optional(),
   revision: z.string().optional(),
 })

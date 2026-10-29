@@ -1,6 +1,6 @@
 module seed
 
-go 1.27.1
+go 1.27.3
 
 require (
 	crawshaw.io/iox v0.0.0-20181124134642-c51c3df30797

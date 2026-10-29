@@ -224,6 +224,8 @@ function DesktopActorButton({
     },
   })
   const snapshot = useSelector(actor, (state) => state)
+  const isHidden = JSON.stringify(snapshot.value) === JSON.stringify({resolved: 'hidden'})
+  const isReady = JSON.stringify(snapshot.value) === JSON.stringify({resolved: 'ready'})
 
   useEffect(() => {
     if (snapshot.value !== 'failedCreation') return
@@ -231,11 +233,24 @@ function DesktopActorButton({
     actor.send({type: 'retry.requested'})
   }, [actor, snapshot.context.error, snapshot.value])
 
+  // Cmd/Ctrl+Shift+N does what the primary "New" button does, with the same contextual gating.
+  useEffect(() => {
+    if (!isReady) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return
+      if (event.code !== 'KeyN' || !(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey) return
+      event.preventDefault()
+      actor.send({type: 'create.requested', kind: 'document'})
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [actor, isReady])
+
   return (
     <>
       <DocumentCreateButton
-        hidden={JSON.stringify(snapshot.value) === JSON.stringify({resolved: 'hidden'})}
-        disabled={JSON.stringify(snapshot.value) !== JSON.stringify({resolved: 'ready'})}
+        hidden={isHidden}
+        disabled={!isReady}
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
         onImport={() => {

@@ -1,6 +1,6 @@
 module github.com/burdiyan/cachehash
 
-go 1.27.1
+go 1.27.3
 
 require (
 	github.com/bmatcuk/doublestar v1.3.4
