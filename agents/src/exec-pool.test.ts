@@ -365,4 +365,46 @@ describe('warm pool through the executor', () => {
       fs.rmSync(stateDir, {recursive: true, force: true})
     }
   })
+
+  test('a concurrent same-session call waits for the VM and reuses it; it never boots an overflow VM on the same root', async () => {
+    const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'exec-pool-test-'))
+    try {
+      const farm = guestFarm()
+      farm.execDelayMs = 60
+      const executor = createCodeExecutor(poolConfig({maxConcurrent: 4}), async () => farm.sdk)
+      const alpha = {accountId: 'acct', agentId: 'alpha', sessionId: 's1'}
+      const first = executor.execute({principal: alpha, stateDir, runtime: 'shell', code: 'echo hi'})
+      await new Promise((resolve) => setTimeout(resolve, 15))
+      const second = executor.execute({principal: alpha, stateDir, runtime: 'shell', code: 'echo again'})
+      await new Promise((resolve) => setTimeout(resolve, 15))
+      // Before the lock, this was the pool_overflow path: a second VM booted on the same directory.
+      expect(farm.sandboxes.length).toBe(1)
+      const [a, b] = await Promise.all([first, second])
+      expect(a.success && b.success).toBe(true)
+      expect(farm.sandboxes.length).toBe(1)
+      expect(b.bootMs).toBe(0)
+      expect(perfSnapshot().counters['exec.pool_overflow']).toBeUndefined()
+      expect(perfSnapshot().counters['exec.memroot_wait']!.count).toBe(1)
+
+      // A headless firing of the same agent (no session) waits the same way, then gets its own
+      // single-use VM — after the session's VM is parked, never beside it.
+      const held = executor.execute({principal: alpha, stateDir, runtime: 'shell', code: 'echo busy'})
+      await new Promise((resolve) => setTimeout(resolve, 15))
+      const firing = executor.execute({
+        principal: {...alpha, sessionId: ''},
+        stateDir,
+        runtime: 'shell',
+        code: 'echo cron',
+      })
+      await new Promise((resolve) => setTimeout(resolve, 15))
+      expect(farm.sandboxes.length).toBe(1)
+      await Promise.all([held, firing])
+      expect(farm.sandboxes.length).toBe(2)
+      expect(perfSnapshot().counters['exec.pool_invalid_principal']!.count).toBe(1)
+      expect(perfSnapshot().counters['exec.memroot_wait']!.count).toBe(2)
+      await executor.drain()
+    } finally {
+      fs.rmSync(stateDir, {recursive: true, force: true})
+    }
+  })
 })

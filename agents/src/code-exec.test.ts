@@ -1,9 +1,10 @@
-import {describe, expect, test} from 'bun:test'
+import {beforeEach, describe, expect, test} from 'bun:test'
 import {availableParallelism} from 'node:os'
 import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import {writeMemoryFile, memoryRootPath} from '@/agent-memory'
+import {perfSnapshot, resetPerfForTests} from '@/perf'
 import {
   buildLambdaProgram,
   CodeExecError,
@@ -14,6 +15,7 @@ import {
   createCodeExecutor,
   defaultCodeExecConfig,
   withConcurrencyCap,
+  withMemoryRootLock,
   type CodeExecProgress,
   type ExecOutputLike,
   type ExecStreamEventLike,
@@ -725,28 +727,32 @@ describe('sandbox concurrency cap', () => {
 
   test('a waiter that outlives acquireWaitMs fails with a retryable 503 and the slot is not lost', async () => {
     await withStateDir(async (stateDir) => {
-      const {sandbox, open} = gatedSandbox()
-      const {factory, specs} = fakeSource(sandbox)
-      const executor = createCodeExecutor(
-        {...defaultCodeExecConfig(), maxConcurrent: 1, acquireWaitMs: 40},
-        unusedSdk,
-        factory,
-      )
-      const first = executor.execute({principal, stateDir, runtime: 'shell', code: 'a'})
-      await tick()
-      const error = await executor
-        .execute({principal, stateDir, runtime: 'shell', code: 'b'})
-        .catch((thrown: unknown) => thrown)
-      expect(error).toBeInstanceOf(CodeExecError)
-      expect((error as CodeExecError).status).toBe(503)
-      expect((error as CodeExecError).message).toContain('at capacity')
-      expect(specs).toHaveLength(1)
-      open()
-      expect((await first).exitCode).toBe(0)
-      // The slot came back with the first release: a fresh call proceeds without waiting.
-      const third = await executor.execute({principal, stateDir, runtime: 'shell', code: 'c'})
-      expect(third.exitCode).toBe(0)
-      expect(specs).toHaveLength(2)
+      await withStateDir(async (otherStateDir) => {
+        const {sandbox, open} = gatedSandbox()
+        const {factory, specs} = fakeSource(sandbox)
+        const executor = createCodeExecutor(
+          {...defaultCodeExecConfig(), maxConcurrent: 1, acquireWaitMs: 40},
+          unusedSdk,
+          factory,
+        )
+        const first = executor.execute({principal, stateDir, runtime: 'shell', code: 'a'})
+        await tick()
+        // A different agent (its own memory root), so the host-wide cap is the only thing in the way.
+        const other = {...principal, agentId: 'other-agent'}
+        const error = await executor
+          .execute({principal: other, stateDir: otherStateDir, runtime: 'shell', code: 'b'})
+          .catch((thrown: unknown) => thrown)
+        expect(error).toBeInstanceOf(CodeExecError)
+        expect((error as CodeExecError).status).toBe(503)
+        expect((error as CodeExecError).message).toContain('at capacity')
+        expect(specs).toHaveLength(1)
+        open()
+        expect((await first).exitCode).toBe(0)
+        // The slot came back with the first release: a fresh call proceeds without waiting.
+        const third = await executor.execute({principal, stateDir, runtime: 'shell', code: 'c'})
+        expect(third.exitCode).toBe(0)
+        expect(specs).toHaveLength(2)
+      })
     })
   })
 
@@ -798,5 +804,262 @@ describe('sandbox concurrency cap', () => {
     // The slot is free despite the throwing teardown; this would 503 at 40 ms otherwise.
     const second = await capped.acquire(spec)
     expect(second.reused).toBe(false)
+  })
+})
+
+// ------------------------------------------------------------------------------------------------
+// One sandbox per memory root at a time (withMemoryRootLock)
+// ------------------------------------------------------------------------------------------------
+
+/**
+ * A source that boots a fresh gated sandbox per acquire and watches the mount it was asked for:
+ * `overlap` is the most leases that were ever out at once on one memory root — the number this
+ * whole layer exists to keep at 1.
+ */
+function mountWatchingSource() {
+  const specs: SandboxSpec[] = []
+  const gates: Array<() => void> = []
+  const live = new Map<string, number>()
+  let overlap = 0
+  const factory: SandboxSourceFactory = () => ({
+    drain: async () => {},
+    async acquire(spec) {
+      specs.push(spec)
+      const {sandbox, open} = gatedSandbox()
+      gates.push(open)
+      const now = (live.get(spec.memoryRoot) ?? 0) + 1
+      live.set(spec.memoryRoot, now)
+      overlap = Math.max(overlap, now)
+      return {
+        sandbox,
+        bootMs: 0,
+        reused: false,
+        release: async () => {
+          live.set(spec.memoryRoot, (live.get(spec.memoryRoot) ?? 1) - 1)
+        },
+      }
+    },
+  })
+  return {factory, specs, open: (index: number) => gates[index]!(), overlap: () => overlap}
+}
+
+const sessionA = {...principal, sessionId: 'session-a'}
+const sessionB = {...principal, sessionId: 'session-b'}
+/** What a headless trigger firing carries: a real agent, no session. */
+const headless = {...principal, sessionId: ''}
+
+describe('memory-root lock', () => {
+  beforeEach(() => {
+    resetPerfForTests()
+  })
+
+  test('two sessions of one agent serialize: the second starts only after the first releases', async () => {
+    await withStateDir(async (stateDir) => {
+      const source = mountWatchingSource()
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 4}, unusedSdk, source.factory)
+      const first = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const second = executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'b'})
+      await tick()
+      // Capacity is plentiful; the second call is parked on the memory root alone.
+      expect(source.specs).toHaveLength(1)
+      expect(perfSnapshot().counters['exec.memroot_wait']!.count).toBe(1)
+      source.open(0)
+      expect((await first).exitCode).toBe(0)
+      await tick()
+      expect(source.specs).toHaveLength(2)
+      expect(source.specs[1]!.principal).toEqual(sessionB)
+      source.open(1)
+      expect((await second).exitCode).toBe(0)
+      expect(source.overlap()).toBe(1)
+      expect(perfSnapshot().metrics['exec.memroot_wait_ms']!.count).toBe(1)
+    })
+  })
+
+  test('a second call in the same session waits too, instead of getting a second VM on the same root', async () => {
+    await withStateDir(async (stateDir) => {
+      const source = mountWatchingSource()
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 4}, unusedSdk, source.factory)
+      const first = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const second = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'b'})
+      await tick()
+      expect(source.specs).toHaveLength(1)
+      source.open(0)
+      await first
+      await tick()
+      source.open(1)
+      await second
+      expect(source.specs).toHaveLength(2)
+      expect(source.overlap()).toBe(1)
+    })
+  })
+
+  test('a headless firing (no sessionId) waits for the in-flight session VM of the same agent', async () => {
+    await withStateDir(async (stateDir) => {
+      const source = mountWatchingSource()
+      const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 4}, unusedSdk, source.factory)
+      const session = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const firing = executor.execute({principal: headless, stateDir, runtime: 'shell', code: 'b'})
+      await tick()
+      expect(source.specs).toHaveLength(1)
+      source.open(0)
+      await session
+      await tick()
+      expect(source.specs).toHaveLength(2)
+      expect(source.specs[1]!.principal).toEqual(headless)
+      source.open(1)
+      await firing
+      expect(source.overlap()).toBe(1)
+
+      // And the other way round: a session call waits for a firing that is already in.
+      const firingFirst = executor.execute({principal: headless, stateDir, runtime: 'shell', code: 'c'})
+      await tick()
+      const sessionNext = executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'd'})
+      await tick()
+      expect(source.specs).toHaveLength(3)
+      source.open(2)
+      await firingFirst
+      await tick()
+      source.open(3)
+      await sessionNext
+      expect(source.overlap()).toBe(1)
+    })
+  })
+
+  test('different agents still run at the same time', async () => {
+    await withStateDir(async (stateDir) => {
+      await withStateDir(async (otherStateDir) => {
+        const source = mountWatchingSource()
+        const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 4}, unusedSdk, source.factory)
+        const other = {...principal, agentId: 'other-agent'}
+        const first = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+        const second = executor.execute({principal: other, stateDir: otherStateDir, runtime: 'shell', code: 'b'})
+        await tick()
+        // Both are in flight: two roots, two sandboxes, nobody waited.
+        expect(source.specs).toHaveLength(2)
+        expect(perfSnapshot().counters['exec.memroot_wait']).toBeUndefined()
+        source.open(0)
+        source.open(1)
+        const results = await Promise.all([first, second])
+        expect(results.map((r) => r.exitCode)).toEqual([0, 0])
+        expect(source.overlap()).toBe(1)
+      })
+    })
+  })
+
+  test('a boot that throws releases the memory root', async () => {
+    await withStateDir(async (stateDir) => {
+      let boots = 0
+      const factory: SandboxSourceFactory = () => ({
+        drain: async () => {},
+        async acquire() {
+          boots += 1
+          if (boots === 1) throw new Error('boot failed')
+          return {sandbox: fakeSandbox({code: 0}), bootMs: 0, reused: false, release: async () => {}}
+        },
+      })
+      const executor = createCodeExecutor(
+        {...defaultCodeExecConfig(), maxConcurrent: 4, acquireWaitMs: 40},
+        unusedSdk,
+        factory,
+      )
+      await expect(executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})).rejects.toThrow(
+        'boot failed',
+      )
+      // A leaked root would make this wait 40 ms and fail with the memory-root 503 instead.
+      const result = await executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'b'})
+      expect(result.exitCode).toBe(0)
+      expect(perfSnapshot().counters['exec.memroot_wait']).toBeUndefined()
+    })
+  })
+
+  test('a waiter that outlives acquireWaitMs fails with a retryable 503 that names the cause', async () => {
+    await withStateDir(async (stateDir) => {
+      const source = mountWatchingSource()
+      const executor = createCodeExecutor(
+        {...defaultCodeExecConfig(), maxConcurrent: 4, acquireWaitMs: 40},
+        unusedSdk,
+        source.factory,
+      )
+      const first = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+      await tick()
+      const error = await executor
+        .execute({principal: sessionB, stateDir, runtime: 'shell', code: 'b'})
+        .catch((thrown: unknown) => thrown)
+      expect(error).toBeInstanceOf(CodeExecError)
+      expect((error as CodeExecError).status).toBe(503)
+      expect((error as CodeExecError).message).toContain('memory workspace')
+      expect(source.specs).toHaveLength(1)
+      expect(perfSnapshot().counters['exec.memroot_rejected']!.count).toBe(1)
+      source.open(0)
+      expect((await first).exitCode).toBe(0)
+      // The root came back with the first release; a fresh call proceeds without waiting.
+      const third = executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'c'})
+      await tick()
+      expect(source.specs).toHaveLength(2)
+      source.open(1)
+      expect((await third).exitCode).toBe(0)
+    })
+  })
+
+  test('a release whose teardown throws still frees the root, and a second release is a no-op', async () => {
+    let releases = 0
+    const inner: SandboxSource = {
+      drain: async () => {},
+      async acquire() {
+        return {
+          sandbox: fakeSandbox({code: 0}),
+          bootMs: 0,
+          reused: false,
+          release: async () => {
+            releases += 1
+            throw new Error('teardown exploded')
+          },
+        }
+      },
+    }
+    const locked = withMemoryRootLock(inner, {acquireWaitMs: 40})
+    const spec = {principal: sessionA, image: 'python', memoryRoot: '/tmp/some-agent/memory/', timeoutSecs: 1}
+    const first = await locked.acquire(spec)
+    await expect(first.release({healthy: true})).rejects.toThrow('teardown exploded')
+    await first.release({healthy: true})
+    expect(releases).toBe(1)
+    // Same directory spelled without the trailing slash: the same root, free again (else a 503 at 40 ms).
+    const second = await locked.acquire({...spec, principal: sessionB, memoryRoot: '/tmp/some-agent/memory'})
+    expect(second.reused).toBe(false)
+  })
+
+  test('a call waiting for its memory root holds no capacity slot, so other agents go ahead of it', async () => {
+    await withStateDir(async (stateDir) => {
+      await withStateDir(async (otherStateDir) => {
+        const source = mountWatchingSource()
+        const executor = createCodeExecutor({...defaultCodeExecConfig(), maxConcurrent: 1}, unusedSdk, source.factory)
+        const other = {...principal, agentId: 'other-agent'}
+        const busy = executor.execute({principal: sessionA, stateDir, runtime: 'shell', code: 'a'})
+        await tick()
+        const sameRoot = executor.execute({principal: sessionB, stateDir, runtime: 'shell', code: 'b'})
+        await tick()
+        const otherAgent = executor.execute({principal: other, stateDir: otherStateDir, runtime: 'shell', code: 'c'})
+        await tick()
+        expect(source.specs).toHaveLength(1)
+        source.open(0)
+        await busy
+        await tick()
+        // The one slot went to the other agent, which was queued on the cap; the same-root call was
+        // queued on its root instead and only now moves on to wait for a slot.
+        expect(source.specs).toHaveLength(2)
+        expect(source.specs[1]!.principal).toEqual(other)
+        source.open(1)
+        await otherAgent
+        await tick()
+        expect(source.specs).toHaveLength(3)
+        expect(source.specs[2]!.principal).toEqual(sessionB)
+        source.open(2)
+        await sameRoot
+        expect(source.overlap()).toBe(1)
+      })
+    })
   })
 })

@@ -8,6 +8,12 @@
  * host. Each execution uses a fresh ephemeral sandbox with capped CPU, memory, and wall-clock
  * duration; networking is disabled unless explicitly allowed.
  *
+ * One writable VM per memory root at a time: the bind mount is a shared host directory, and two
+ * guests mounted on it concurrently each keep their own page cache with no lock coherence between
+ * them, so concurrent writes tear files (a SQLite database under /workspace came back with
+ * `disk I/O error` and a corrupt index in production on 2026-10-29). `withMemoryRootLock` below
+ * serializes every acquire on the memory root, whatever source or principal it comes from.
+ *
  * The SDK is loaded lazily and injected in tests, so the service runs fine on hosts without
  * virtualization support — the tool then fails with a clear error instead of breaking the server.
  */
@@ -16,6 +22,7 @@ import {listMemory, memoryRootPath} from '@/agent-memory'
 import {recordPerf, recordPerfCount} from '@/perf'
 import * as fs from 'node:fs'
 import {availableParallelism} from 'node:os'
+import {resolve as resolvePath} from 'node:path'
 
 /** Guest path where the agent's memory directory is mounted. */
 export const EXEC_WORKSPACE_GUEST_PATH = '/workspace'
@@ -69,7 +76,7 @@ export type CodeExecConfig = {
   warmPool: boolean
   /**
    * Maximum RETAINED pool entries (parked or leased pooled VMs). Not a hard cap on total live
-   * VMs: same-key concurrency and lost boot races create transient single-use overflow VMs at
+   * VMs: a pool that fills up while a VM boots creates a transient single-use overflow VM at
    * boot-per-call cost, so the cap can never make a call fail or wait.
    */
   poolMaxVms: number
@@ -89,7 +96,10 @@ export type CodeExecConfig = {
    * 2026-09-14 three concurrent guests on a 4-vCPU host took /api/health from ~1 ms to ~1 s.
    */
   maxConcurrent: number
-  /** How long an acquire may wait for a slot before failing with a clear, retryable error. */
+  /**
+   * How long an acquire may wait before failing with a clear, retryable error. Applies to each
+   * wait separately: first for the agent's memory-root lease, then for a host-wide slot.
+   */
   acquireWaitMs: number
   /** Override for EXEC_TIMEOUT_GRACE_MS, so tests can exercise the watchdog without real waits. */
   timeoutGraceMs?: number
@@ -116,6 +126,12 @@ export const CODE_EXEC_RUNTIMES: readonly CodeExecRuntime[] = ['ts', 'python', '
  *   surface in another. A new session always starts from a cold, known-clean VM; only repeat
  *   calls within the same session get the warm one. Durable cross-session state belongs in
  *   /workspace, which is the agent's memory and survives regardless.
+ *
+ * Neither boundary decides who may have the memory directory mounted: that is a property of the
+ * host path itself. Every session of an agent, its delegated children (which run as the same
+ * agent), and its headless trigger firings (which carry an empty `sessionId`) all share one memory
+ * root, and only one sandbox may be on loan for that root at a time (see `withMemoryRootLock`).
+ * Distinct sessions therefore get distinct VMs, but never concurrently.
  */
 export type ExecPrincipal = {accountId: string; agentId: string; sessionId: string}
 
@@ -411,6 +427,9 @@ export type SandboxLease = {
  * Contract every source must honor:
  * - A sandbox is on loan to at most one lease at a time — never double-leased. Concurrent
  *   acquires for the same (principal, image) either queue or get distinct VMs.
+ * - A source never sees two concurrent acquires for the same `memoryRoot`: the executor wraps
+ *   every source in `withMemoryRootLock`, which queues them, so no two leased VMs ever have the
+ *   same host directory mounted. A source must not assume otherwise when used on its own.
  * - `release` may return fast (parking is not teardown); actual disposal can drain
  *   asynchronously. `drain` is where that debt is settled, so shutdown and tests stay
  *   deterministic.
@@ -525,8 +544,13 @@ export const POOL_VM_SDK_MAX_DURATION_SECS = 24 * 3600
  *   boundary, session isolation is the predictability boundary — a conversation only ever sees
  *   warm state its own calls created.
  * - A VM is on loan to at most one lease. The parked entry is locked (`leased = true`)
- *   synchronously — before any await — so interleaved acquires cannot double-lease it; a
- *   same-key acquire while the VM is out gets a single-use overflow VM instead.
+ *   synchronously — before any await — so interleaved acquires cannot double-lease it. In the
+ *   executor, same-key acquires never overlap at all: they share a memory root, and
+ *   `withMemoryRootLock` queues them ahead of the pool. The single-use overflow VM a same-key
+ *   acquire gets while the VM is out is the pool's own fail-safe for a source used without that
+ *   lock; it must never be the second VM on one memory root in production.
+ * - A parked VM still has the memory root mounted, but its park reset proved it runs nothing, so
+ *   it holds no file open and cannot write; the exclusive mount invariant is about leases.
  * - Reset before park: release runs the fail-closed multi-pass /proc sweep (GUEST_RESET_SCRIPT
  *   below) until a full pass proves the guest empty; a failed reset disposes the VM. Reuse is
  *   additionally gated on a health probe, so a VM that died while parked is replaced, not handed out.
@@ -539,6 +563,10 @@ export const POOL_VM_SDK_MAX_DURATION_SECS = 24 * 3600
  *
  * The `poolMaxVms` cap bounds pooled VMs; overflow VMs are transient extras, exactly as costly as
  * today's boot-per-call behavior, so the cap can never make a call fail.
+ *
+ * The pool alone does NOT keep an agent's memory root to one VM: different sessions of one agent
+ * have different keys and so different VMs, and a headless firing has no key at all. That
+ * invariant is `withMemoryRootLock`'s, layered outside the pool by the executor.
  */
 export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
   type PoolEntry = {
@@ -565,7 +593,10 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
    * undefined and null to the SAME serialized entry, so two malformed "identities" would collide
    * into one retained-VM key (found by ion's session-delta review). A malformed principal
    * therefore never touches the pool at all: the execution falls back to a single-use VM, which
-   * cannot be shared with anyone.
+   * cannot be shared with anyone. Headless trigger firings (empty sessionId) take this path by
+   * design. The single-use VM still mounts the agent's memory root, so it still goes through the
+   * memory-root lease (`withMemoryRootLock`, outside this source): a malformed principal never
+   * shares a VM, and never double-mounts a directory either.
    */
   const validId = (value: unknown): boolean => typeof value === 'string' && value.length > 0
   const validPrincipal = (spec: SandboxSpec): boolean =>
@@ -790,6 +821,8 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
       }
       if (entries.get(key)?.leased === true) {
         // The key's VM is out on another call: single-use VM, today's boot-per-call economics.
+        // Unreachable behind withMemoryRootLock (same key means same memory root, and those are
+        // serialized before they get here); kept so the source is safe to use on its own.
         recordPerfCount('exec.pool_overflow')
         const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, spec.timeoutSecs + 30)
         return overflowLease(sandbox, bootMs)
@@ -805,7 +838,8 @@ export const createWarmPoolSource: SandboxSourceFactory = (config, getSdk) => {
       }
       const {sandbox, bootMs} = await bootSandboxVm(config, getSdk, spec, POOL_VM_SDK_MAX_DURATION_SECS)
       if (entries.has(key) || entries.size >= config.poolMaxVms) {
-        // Lost a boot race for this key, or every slot filled while booting: stay single-use.
+        // Lost a boot race for this key (not behind withMemoryRootLock), or every slot filled
+        // while booting: stay single-use.
         // Counted as overflow — the counters classify what a VM BECAME, not what was hoped for.
         recordPerfCount('exec.pool_overflow')
         return overflowLease(sandbox, bootMs)
@@ -919,6 +953,115 @@ export function withConcurrencyCap(
   }
 }
 
+/**
+ * One sandbox on loan per memory root at a time, whatever source sits underneath.
+ *
+ * The memory root is a host directory bind-mounted writable into the guest. Two guests mounted on
+ * it at once each cache pages and take locks that the other never sees, so concurrent writes tear
+ * files — SQLite under /workspace is where production noticed. The pool key cannot prevent this:
+ * it is session-scoped (two sessions of one agent get two VMs), a leased key spills into an
+ * overflow VM, and a headless firing has no session at all. So the directory itself is the unit
+ * of exclusion here, keyed on the normalized path: whoever asks for the same root waits.
+ *
+ * Semantics mirror `withConcurrencyCap`: waiters queue FIFO per root, inherit the lease straight
+ * from the releasing call, and fail after `acquireWaitMs` with a retryable 503. The lease is
+ * handed back in `finally` — a boot that throws or a release whose teardown throws still frees
+ * the root, so a wedged guest cannot lock an agent out of its own memory for good.
+ *
+ * Layered OUTSIDE the host-wide cap on purpose: a call waiting for its memory root holds no
+ * capacity slot, so a burst on one agent cannot park the whole host's capacity behind one busy
+ * directory; and a call holding its root while it waits for a slot blocks only its own agent.
+ * Holders of a root never wait for another root (an execution acquires exactly once), so the
+ * two queues cannot form a cycle.
+ *
+ * A delegated child runs as the same agent and shares the parent's memory root, so parent and
+ * child executions serialize rather than overlap. Neither holds the lease outside its own
+ * sandbox exchange, so one can never wait on the other for anything but a running execution;
+ * waiting is therefore bounded by that execution's timeout, and past `acquireWaitMs` by the 503.
+ */
+export function withMemoryRootLock(
+  source: SandboxSource,
+  config: Pick<CodeExecConfig, 'acquireWaitMs'>,
+): SandboxSource {
+  type Waiter = {grant: () => void; timer: ReturnType<typeof setTimeout>}
+  // A root is on loan exactly while it has an entry; the entry is the FIFO of calls waiting for it.
+  const loans = new Map<string, Waiter[]>()
+
+  const free = (root: string) => {
+    const waiters = loans.get(root)
+    const next = waiters?.shift()
+    if (next) {
+      // Hand the root straight to the next waiter; the entry stays, now on their behalf.
+      clearTimeout(next.timer)
+      next.grant()
+      return
+    }
+    loans.delete(root)
+  }
+
+  const take = (root: string): Promise<void> => {
+    const waiters = loans.get(root)
+    if (!waiters) {
+      loans.set(root, [])
+      return Promise.resolve()
+    }
+    recordPerfCount('exec.memroot_wait')
+    const waitStartedAt = Date.now()
+    return new Promise<void>((resolve, reject) => {
+      const waiter: Waiter = {
+        grant: () => {
+          recordPerf('exec.memroot_wait_ms', Date.now() - waitStartedAt)
+          resolve()
+        },
+        timer: setTimeout(() => {
+          const at = waiters.indexOf(waiter)
+          if (at >= 0) waiters.splice(at, 1)
+          recordPerfCount('exec.memroot_rejected')
+          reject(
+            new CodeExecError(
+              503,
+              `Another execution is already using this agent's memory workspace (waited ${Math.round(
+                config.acquireWaitMs / 1000,
+              )}s). Only one sandbox may have it mounted at a time; retry once that execution finishes, and avoid parallel execute calls for the same agent.`,
+            ),
+          )
+        }, config.acquireWaitMs),
+      }
+      waiters.push(waiter)
+    })
+  }
+
+  return {
+    drain: () => source.drain(),
+    async acquire(spec) {
+      // Normalize so "a/b/" and "a/b" are the same root; every real caller derives the path the
+      // same way (memoryRootPath), this just keeps the key honest if that ever stops being true.
+      const root = resolvePath(spec.memoryRoot)
+      await take(root)
+      let lease: SandboxLease
+      try {
+        lease = await source.acquire(spec)
+      } catch (error) {
+        free(root)
+        throw error
+      }
+      let released = false
+      return {
+        ...lease,
+        async release(opts) {
+          if (released) return
+          released = true
+          try {
+            await lease.release(opts)
+          } finally {
+            free(root)
+          }
+        },
+      }
+    },
+  }
+}
+
 export const createConfiguredSandboxSource: SandboxSourceFactory = (config, getSdk) =>
   config.warmPool ? createWarmPoolSource(config, getSdk) : createBootPerCallSource(config, getSdk)
 
@@ -945,7 +1088,8 @@ export function createCodeExecutor(
     return sdkPromise
   }
 
-  const source = withConcurrencyCap(createSource(config, getSdk), config)
+  // Memory-root lock outside, host-wide cap inside: see withMemoryRootLock for why this order.
+  const source = withMemoryRootLock(withConcurrencyCap(createSource(config, getSdk), config), config)
 
   // Availability cannot change during the process lifetime (platform, staged runtime, config are
   // all fixed at startup), so the probe result is memoized including failures.
