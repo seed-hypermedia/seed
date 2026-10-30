@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import type {HMRawCitation} from '@seed-hypermedia/client/hm-types'
-import {groupDocumentConnections} from '../connections'
+import type {HMBlockNode, HMRawCitation} from '@seed-hypermedia/client/hm-types'
+import {buildConnectionsGraph, groupDocumentConnections} from '../connections'
 import {hmId} from '../utils/entity-id-url'
 
 const target = hmId('target', {path: ['document']})
@@ -109,5 +109,124 @@ describe('document connections', () => {
         'intro',
       ),
     ).toEqual([])
+  })
+})
+
+describe('connection graph', () => {
+  const contentWithLinks = (links: string[]): HMBlockNode[] => [
+    {
+      block: {
+        id: 'links',
+        type: 'Paragraph',
+        text: 'links',
+        attributes: {},
+        annotations: links.map((link) => ({type: 'Link', link, starts: [0], ends: [1]})),
+      },
+      children: [],
+    },
+  ]
+
+  it('merges citation, child, and outgoing relationships under one canonical document', () => {
+    const id = hmId('alice', {path: ['source']})
+    const nodes = buildConnectionsGraph(
+      target,
+      groupDocumentConnections(target, [link()]),
+      [{id: hmId('alice', {path: ['source'], version: 'child-version'}), metadata: {name: 'Source'}}],
+      contentWithLinks(['hm://alice/source?v=old#one', 'hm://alice/source?v=new#two', 'hm://alice/source/:directory']),
+    )
+    expect(nodes).toEqual([{key: id.id, id, name: 'Source', citation: true, child: true, outgoing: true}])
+  })
+
+  it('excludes the target from every relationship', () => {
+    expect(
+      buildConnectionsGraph(
+        target,
+        [{id: target, sources: []}],
+        [{id: target, metadata: {}}],
+        contentWithLinks(['hm://target/document?v=old#block']),
+      ),
+    ).toEqual([])
+  })
+
+  it('extracts nested block links and excludes account, profile, and comment mentions', () => {
+    const content = contentWithLinks([
+      'hm://alice/:profile',
+      'hm://alice/doc/:comments/bob-comment',
+      'https://example.com',
+    ])
+    content[0]!.children = [
+      {block: {id: 'embed', type: 'Embed', link: 'hm://alice/nested', attributes: {}}, children: []},
+    ]
+    const paragraph = content[0]!.block
+    if (paragraph.type !== 'Paragraph') throw new Error('Expected paragraph fixture')
+    paragraph.annotations!.push({
+      type: 'Embed',
+      link: 'hm://bob',
+      starts: [0],
+      ends: [1],
+      attributes: {mentionKind: 'account'},
+    })
+    paragraph.annotations!.push({
+      type: 'Embed',
+      link: 'hm://carol',
+      starts: [0],
+      ends: [1],
+      attributes: {mentionKind: 'document'},
+    })
+    expect(buildConnectionsGraph(target, [], [], content).map((node) => node.key)).toEqual([
+      'hm://alice/nested',
+      'hm://carol',
+    ])
+  })
+
+  it('keeps drafts separate and sorts citations before stable keys', () => {
+    const children = [
+      {id: hmId('z', {path: ['child']}), metadata: {name: 'Z'}},
+      {draftId: 'local', metadata: {name: 'Draft'}},
+      {id: hmId('a', {path: ['child']}), metadata: {name: 'A'}},
+    ]
+    const groups = groupDocumentConnections(target, [
+      link({source: 'hm://z/citation'}),
+      link({source: 'hm://a/citation'}),
+    ])
+    const nodes = buildConnectionsGraph(target, groups, children, [])
+    expect(nodes.map((node) => node.key)).toEqual([
+      'hm://a/citation',
+      'hm://z/citation',
+      'draft:local',
+      'hm://a/child',
+      'hm://z/child',
+    ])
+    expect(nodes[2]).toEqual({
+      key: 'draft:local',
+      draftId: 'local',
+      name: 'Draft',
+      citation: false,
+      child: true,
+      outgoing: false,
+    })
+    expect(buildConnectionsGraph(target, groups.slice().reverse(), children.slice().reverse(), [])).toEqual(nodes)
+  })
+
+  it('merges a published child with pending draft edits into the published node', () => {
+    const id = hmId('alice', {path: ['source']})
+    const nodes = buildConnectionsGraph(
+      target,
+      groupDocumentConnections(target, [link()]),
+      [{id, draftId: 'pending-edits', metadata: {name: 'Source'}}],
+      contentWithLinks(['hm://alice/source?v=old#one']),
+    )
+    expect(nodes).toEqual([{key: id.id, id, name: 'Source', citation: true, child: true, outgoing: true}])
+  })
+
+  it('retains all 669 children without making them outgoing links', () => {
+    const children = Array.from({length: 669}, (_, index) => ({
+      id: hmId('alice', {path: ['child-' + index]}),
+      metadata: {name: 'Child ' + index},
+    }))
+    const nodes = buildConnectionsGraph(target, [], children, [])
+    expect(nodes).toHaveLength(669)
+    expect(new Set(nodes.map((node) => node.key)).size).toBe(669)
+    expect(nodes.every((node) => node.child && !node.citation && !node.outgoing)).toBe(true)
   })
 })
