@@ -52,7 +52,7 @@ vi.mock('@shm/shared/utils/navigation', () => ({
 }))
 vi.mock('../page-layout', () => ({PageLayout: ({children}: {children: React.ReactNode}) => <div>{children}</div>}))
 vi.mock('../components/scroll-area', () => ({
-  ScrollArea: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
+  ScrollArea: ({children}: {children: React.ReactNode}) => <div data-slot="scroll-area-viewport">{children}</div>,
 }))
 vi.mock('../collaborators-page', () => ({getRenderedCollaboratorsCount: () => 0}))
 
@@ -85,6 +85,7 @@ let references: ReturnType<typeof useCommentDraftReferences>
 let editorProps: CommentEditorProps
 let updateDraft: (text: string) => void
 let scrolled: HTMLElement[]
+const resizeCallbacks = new Set<() => void>()
 
 function DraftEditor(props: CommentEditorProps) {
   editorProps = props
@@ -115,6 +116,19 @@ function render(isPanel: boolean, replyCommentId?: string) {
   })
 }
 beforeEach(() => {
+  resizeCallbacks.clear()
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private callback: () => void) {}
+      observe() {
+        resizeCallbacks.add(this.callback)
+      }
+      disconnect() {
+        resizeCallbacks.delete(this.callback)
+      }
+    },
+  )
   state.comments = [rootComment, reply]
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -129,10 +143,33 @@ afterEach(() => {
   container.remove()
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 for (const isPanel of [true, false]) {
   describe(isPanel ? 'Panel reply selection' : 'Expanded reply selection', () => {
+    it('scrolls to the highlighted reply on entry and keeps the root reply editor visible', () => {
+      render(isPanel, reply.id)
+      expect(scrolled.at(-1)?.textContent).toContain('Selected reply')
+      expect(scrolled.at(-1)?.contains(container.querySelector('.bg-highlight')!)).toBe(true)
+      expect(container.querySelector('textarea')).not.toBeNull()
+      expect(editorProps.commentId).toBe(rootComment.id)
+    })
+
+    if (isPanel)
+      it('keeps the reply visible as the editor grows, until the user scrolls', () => {
+        render(isPanel, reply.id)
+        scrolled = []
+        act(() => resizeCallbacks.forEach((callback) => callback()))
+        expect(scrolled.at(-1)?.textContent).toContain('Selected reply')
+        container
+          .querySelector('[data-slot="scroll-area-viewport"]')!
+          .dispatchEvent(new WheelEvent('wheel', {bubbles: true}))
+        scrolled = []
+        act(() => resizeCallbacks.forEach((callback) => callback()))
+        expect(scrolled).toEqual([])
+      })
+
     it('queues the selected reply once without changing the root draft or submission target', () => {
       render(isPanel)
       act(() => updateDraft('Keep my unsent text'))

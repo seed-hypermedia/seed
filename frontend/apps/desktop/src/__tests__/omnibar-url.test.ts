@@ -1,5 +1,5 @@
 import {hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const {resolveHypermediaUrlMock} = vi.hoisted(() => ({
   resolveHypermediaUrlMock: vi.fn(),
@@ -23,6 +23,47 @@ import {
 } from '../omnibar-url'
 
 describe('omnibar url resolution', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each(['hm://uid1/path', 'https://gateway.example/hm/uid1/path'])(
+    'preserves the selected reply in directly parsed URLs: %s',
+    async (base) => {
+      await expect(
+        resolveOmnibarUrlToHypermediaUrl(`${base}?panel=comments/author/root&reply=author%2Freply`),
+      ).resolves.toBe('hm://uid1/path?panel=comments/author/root&reply=author/reply')
+    },
+  )
+
+  it.each(['cached', 'http'] as const)(
+    'preserves reply selection through real %s site resolution and HM serialization',
+    async (resolution) => {
+      const actual = await vi.importActual<typeof import('@seed-hypermedia/client')>('@seed-hypermedia/client')
+      resolveHypermediaUrlMock.mockImplementation(actual.resolveHypermediaUrl)
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(null, {
+          status: 200,
+          headers: {'x-hypermedia-id': 'hm://uid1/path'},
+        }),
+      )
+      const opts = resolution === 'cached' ? {domainResolver: async () => 'uid1'} : undefined
+      for (const suffix of [
+        '?panel=comments/author/root&reply=author%2Freply',
+        '/:comments/author/root?reply=author%2Freply',
+      ]) {
+        const url = `https://site.example/path${suffix}`
+        const route = await resolveOmnibarUrlToRoute(url, opts)
+        const comments = route?.key === 'comments' ? route : route && 'panel' in route ? route.panel : null
+        expect(comments).toMatchObject({openComment: 'author/root', replyCommentId: 'author/reply'})
+        const hmUrl = await resolveOmnibarUrlToHypermediaUrl(url, opts)
+        expect(hmUrl).toContain('reply=author/reply')
+        const roundTrip = await resolveOmnibarUrlToRoute(hmUrl!)
+        const roundTripComments =
+          roundTrip?.key === 'comments' ? roundTrip : roundTrip && 'panel' in roundTrip ? roundTrip.panel : null
+        expect(roundTripComments).toMatchObject({openComment: 'author/root', replyCommentId: 'author/reply'})
+      }
+    },
+  )
+
   it('accepts full URLs and bare domains without turning search text or unsafe schemes into websites', () => {
     expect(parseBrowserAddress(' example.com/path?q=seed#section ')).toBe('https://example.com/path?q=seed#section')
     expect(parseBrowserAddress('https://example.com/path')).toBe('https://example.com/path')

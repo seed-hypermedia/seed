@@ -168,53 +168,48 @@ describe('CommentDiscussions', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({behavior: 'instant', block: 'start'})
   })
 
-  it.each(['panel', 'expanded'] as const)(
-    'copies optimistic replies within their resolved root in %s links',
-    async (layout) => {
-      let copied = ''
-      Object.defineProperty(navigator, 'clipboard', {
-        configurable: true,
-        value: {
-          writeText: async (text: string) => {
-            copied = text
-          },
+  it.each(['panel', 'expanded'] as const)('copies root and reply panel links from the %s layout', async (layout) => {
+    let copied = ''
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: async (text: string) => {
+          copied = text
         },
-      })
-      const id = {...hmId('alice', {path: ['doc']}), pageParams: {filter: '"active"'}}
-      const thread = {key: 'comments', id, openComment: focusedComment.id}
-      currentRoute.value = layout === 'expanded' ? thread : {key: 'document', id, panel: thread}
-      const reply = {
-        ...focusedComment,
-        id: 'bob/reply',
-        author: 'bob',
-        replyParent: focusedComment.id,
-        threadRootVersion: focusedComment.version,
-      }
-      useDocumentCommentsMock.mockReturnValue({
-        data: {comments: [focusedComment, reply], authors: {}},
-        error: null,
-        isLoading: false,
-      })
-      renderCommentDiscussions()
-      const buttons = Array.from(container!.querySelectorAll<HTMLButtonElement>('button')).filter((button) =>
-        button.querySelector('.lucide-link'),
-      )
-      expect(buttons).toHaveLength(2)
-      await act(async () => buttons[1]!.click())
-      const url = new URL(copied)
-      expect(url.searchParams.get('reply')).toBe(reply.id)
-      expect(url.searchParams.get('p.filter')).toBe('"active"')
-      if (layout === 'panel') {
-        expect(url.pathname).toBe('/hm/alice/doc')
-        expect(url.searchParams.get('panel')).toBe(`comments/${focusedComment.id}`)
-      } else {
-        expect(url.pathname).toBe(`/hm/alice/doc/:comments/${focusedComment.id}`)
-        expect(url.searchParams.has('panel')).toBe(false)
-      }
-      await act(async () => buttons[0]!.click())
-      expect(new URL(copied).searchParams.has('reply')).toBe(false)
-    },
-  )
+      },
+    })
+    const id = {...hmId('alice', {path: ['doc']}), pageParams: {filter: '"active"'}}
+    const thread = {key: 'comments', id, openComment: focusedComment.id}
+    currentRoute.value = layout === 'expanded' ? thread : {key: 'document', id, panel: thread}
+    const reply = {
+      ...focusedComment,
+      id: 'bob/reply',
+      author: 'bob',
+      replyParent: focusedComment.id,
+      threadRootVersion: focusedComment.version,
+    }
+    useDocumentCommentsMock.mockReturnValue({
+      data: {comments: [focusedComment, reply], authors: {}},
+      error: null,
+      isLoading: false,
+    })
+    renderCommentDiscussions()
+    const buttons = Array.from(container!.querySelectorAll<HTMLButtonElement>('button')).filter((button) =>
+      button.querySelector('.lucide-link'),
+    )
+    expect(buttons).toHaveLength(2)
+    await act(async () => buttons[1]!.click())
+    const url = new URL(copied)
+    expect(url.searchParams.get('reply')).toBe(reply.id)
+    expect(url.searchParams.get('p.filter')).toBe('"active"')
+    expect(url.pathname).toBe('/hm/alice/doc')
+    expect(url.searchParams.get('panel')).toBe(`comments/${focusedComment.id}`)
+    await act(async () => buttons[0]!.click())
+    const rootUrl = new URL(copied)
+    expect(rootUrl.pathname).toBe('/hm/alice/doc')
+    expect(rootUrl.searchParams.get('panel')).toBe(`comments/${focusedComment.id}`)
+    expect(rootUrl.searchParams.has('reply')).toBe(false)
+  })
 
   it('bookmarks a comment snapshot from the comment header', () => {
     useDocumentCommentsMock.mockReturnValue({

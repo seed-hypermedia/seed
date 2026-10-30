@@ -6,6 +6,7 @@ export function notificationToPayload(notif: Notification, eventId: string, even
   const base = {
     feedEventId: eventId,
     eventAtMs,
+    threadRoot: 'comment' in notif ? notif.comment?.threadRoot || null : null,
   }
 
   if (notif.reason === 'mention') {

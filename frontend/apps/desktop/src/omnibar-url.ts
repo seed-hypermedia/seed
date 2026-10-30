@@ -139,10 +139,13 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
     const result = await resolveHypermediaUrl(cleanUrl, opts)
     if (!result?.hmId) return null
 
-    const baseRoute = result.panel ? createDocumentNavRoute(result.hmId, null, result.panel) : appRouteOfId(result.hmId)
+    const replyCommentId = new URL(cleanUrl).searchParams.get('reply')
+    const baseRoute = result.panel
+      ? createDocumentNavRoute(result.hmId, null, result.panel, null, null, null, replyCommentId)
+      : appRouteOfId(result.hmId)
     if (!baseRoute) return null
 
-    return applyResolvedViewTerm(baseRoute, routeKey, activityFilter, commentId, accountUid, isInspect)
+    return applyResolvedViewTerm(baseRoute, routeKey, activityFilter, commentId, accountUid, isInspect, replyCommentId)
   } catch {
     return null
   }
@@ -288,6 +291,7 @@ function applyResolvedViewTerm(
   commentId?: string,
   accountUid?: string,
   isInspect?: boolean,
+  replyCommentId?: string | null,
 ): NavRoute {
   if (route.key !== 'document') return route
 
@@ -310,6 +314,7 @@ function applyResolvedViewTerm(
       id: {...route.id, version: null, latest: true},
       openComment: commentId,
       openCommentVersion: route.id.version || undefined,
+      replyCommentId: replyCommentId || undefined,
     }
   }
 

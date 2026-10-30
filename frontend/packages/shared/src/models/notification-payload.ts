@@ -32,6 +32,8 @@ export const NotificationPayloadSchema = z.object({
   author: NotificationAuthorSchema,
   target: NotificationTargetSchema,
   commentId: z.string().nullable(),
+  // Optional for notifications stored before thread-aware routing was added.
+  threadRoot: z.string().nullable().optional(),
   sourceId: z.string().nullable(),
   citationType: z.enum(['d', 'c']).nullable(),
 })
