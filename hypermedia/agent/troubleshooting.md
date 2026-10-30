@@ -145,6 +145,12 @@ rm -f agents/data/agents.sqlite agents/data/agents.sqlite-shm agents/data/agents
 
 Restart the server. <!-- id:y-E4pbt- -->
 
+# `disk I/O error`, `database is locked`, or a corrupt index under `/workspace`
+
+Two writers collided on one memory file. The disk is fine. Several microVMs can mount the same memory directory at once (one per session, one per trigger firing, plus overflow VMs), and the host side `read` and `write` verbs touch the same files. Page caches and file locks are not coherent across them, so SQLite, lock files and shared append logs under `/workspace` get torn. A guest hung in `flock` or `fsync` has the same cause.
+
+Move the state out of the shared file: whole-file writes through `write`, one file per record. Point the agent at [What not to keep in /workspace](./tools.md#what-not-to-keep-in-workspace).
+
 # See also <!-- id:l9QDdj-U -->
 
 - [Operations](./operations.md) <!-- id:cSXHQ9JA -->
