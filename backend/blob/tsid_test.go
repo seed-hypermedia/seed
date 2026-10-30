@@ -254,3 +254,29 @@ func TestTSID_StringLength(t *testing.T) {
 		require.Equal(t, MaxTSIDLength, len(tsid), "Max TSID string length should also be 14 characters")
 	}
 }
+
+func TestTSID_RejectsNonBase58Strings(t *testing.T) {
+	// These are valid multibase strings of exactly 10 bytes in other encodings,
+	// so without the base58btc check they would be mistaken for TSIDs.
+	// "user-story-maps" is a real document path that broke GetResource in production.
+	for _, s := range []string{
+		"user-story-maps", // base64url ('u' prefix).
+	} {
+		_, _, err := TSID(s).Parse()
+		require.Error(t, err, s)
+	}
+
+	for _, s := range []string{
+		"",
+		"z",
+		"user-stories",
+		"zebra-notes-xx",
+		"z6KGJG2P1vLD31z6KGJG2P1vLD31",
+	} {
+		_, _, err := TSID(s).Parse()
+		require.Error(t, err, s)
+	}
+
+	_, _, err := TSID("z6KGJG2P1vLD31").Parse()
+	require.NoError(t, err)
+}
