@@ -148,6 +148,6 @@ describe('new window state', () => {
 
   it('uses defaults when there is no source window', () => {
     createAppWindow({id: 'new', routes: [defaultRoute]})
-    expect(getWindowNavState().new).toMatchObject({sidebarLocked: true, sidebarWidth: 15, accessoryWidth: 20})
+    expect(getWindowNavState().new).toMatchObject({sidebarLocked: true, sidebarWidth: 22, accessoryWidth: 20})
   })
 })

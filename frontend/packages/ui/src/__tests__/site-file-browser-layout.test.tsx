@@ -1,227 +1,125 @@
 // @vitest-environment jsdom
-import {hmId} from '@shm/shared'
+import React, {useState} from 'react'
 import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {renderToString} from 'react-dom/server'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {SiteFileBrowserLayout, useSiteFileBrowserControls} from '../site-file-browser-layout'
-;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
-
-const mediaMock = vi.hoisted(() => ({value: {xs: false}}))
-const fileBrowserPropsMock = vi.hoisted(() => ({
-  value: null as null | {onPrefetch?: (id: ReturnType<typeof hmId>) => void; searchVisible?: boolean},
-}))
-vi.mock('../use-media', () => ({useMedia: () => mediaMock.value}))
-vi.mock('../site-file-browser', () => ({
-  SiteFileBrowser: (props: {onPrefetch?: (id: ReturnType<typeof hmId>) => void; searchVisible?: boolean}) => {
-    fileBrowserPropsMock.value = props
-    return <div data-testid="site-file-browser" />
-  },
-}))
-vi.mock('../components/scroll-area', () => ({
-  ScrollArea: ({children}: {children: React.ReactNode}) => <div data-testid="main-scroll-area">{children}</div>,
-}))
-vi.mock('../tooltip', () => ({
-  Tooltip: ({content, children}: {content: string; children: React.ReactNode}) => (
-    <div data-tooltip-content={content}>{children}</div>
-  ),
-}))
-vi.mock('lucide-react', async () => {
-  const makeIcon = (testId: string) => (props: React.SVGProps<SVGSVGElement>) => <svg data-testid={testId} {...props} />
+import {hmId} from '@shm/shared'
+import {SiteFileBrowserLayout} from '../site-file-browser-layout'
+import {SiteSidebarToggle} from '../site-sidebar-context'
+import {TooltipProvider} from '../tooltip'
+;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+const media = vi.hoisted(() => ({xs: false}))
+const navigation = vi.hoisted(() => ({path: 'one'}))
+vi.mock('../use-media', () => ({useMedia: () => media}))
+vi.mock('@shm/shared/utils/navigation', async () => {
+  const actual = await vi.importActual<typeof import('@shm/shared/utils/navigation')>('@shm/shared/utils/navigation')
   return {
-    FileSearch2: makeIcon('file-search-corner-icon'),
-    ListFilter: makeIcon('list-filter-icon'),
-    PanelLeftClose: makeIcon('panel-left-close-icon'),
-    Search: makeIcon('search-icon'),
-    X: makeIcon('x-icon'),
+    ...actual,
+    useNavigate: () => () => {},
+    useNavRouteOrNull: () => ({key: 'document', id: hmId('site', {path: [navigation.path]})}),
   }
 })
+vi.mock('../site-sidebar', () => ({
+  SiteSidebar: ({children}: {children: React.ReactNode}) => <aside>{children}</aside>,
+  SiteSidebarDocuments: ({onNavigate}: {onNavigate: (id: ReturnType<typeof hmId>) => void}) => (
+    <button onClick={() => onNavigate(hmId('site', {path: ['doc']}))}>Open document</button>
+  ),
+}))
 
 let container: HTMLDivElement
 let root: Root
-
 beforeEach(() => {
-  mediaMock.value = {xs: false}
+  media.xs = false
+  navigation.path = 'one'
+  localStorage.clear()
   container = document.createElement('div')
-  document.body.appendChild(container)
+  document.body.append(container)
   root = createRoot(container)
-  ;(globalThis as typeof globalThis & {ResizeObserver: typeof ResizeObserver}).ResizeObserver = class {
+  globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}
-  } as unknown as typeof ResizeObserver
+  } as any
 })
-
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
-  vi.clearAllMocks()
 })
 
-function renderLayout() {
-  act(() => {
-    root.render(
+function Page() {
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [path, setPath] = useState('Home')
+  return (
+    <TooltipProvider>
       <SiteFileBrowserLayout
         siteId={hmId('site')}
-        activeDocumentId={hmId('site')}
+        activeDocumentId={null}
         siteName="Site"
-        mobileOpen={false}
-        onMobileOpenChange={vi.fn()}
-        onNavigate={vi.fn()}
+        mobileOpen={mobileOpen}
+        onMobileOpenChange={setMobileOpen}
+        onNavigate={(id) => setPath(id.path!.join('/'))}
       >
-        <div data-testid="document-body">Document body</div>
-      </SiteFileBrowserLayout>,
-    )
-  })
-}
-
-function MobileFileBrowserTrigger() {
-  const controls = useSiteFileBrowserControls()
-  return (
-    <button type="button" aria-label="Open file browser from content" onClick={() => controls?.setCollapsed(false)}>
-      Open files
-    </button>
+        <SiteSidebarToggle />
+        <main>{path}</main>
+      </SiteFileBrowserLayout>
+    </TooltipProvider>
   )
 }
 
-describe('SiteFileBrowserLayout', () => {
-  it('passes document prefetch intent to the file browser', () => {
-    const onPrefetch = vi.fn()
-    act(() => {
-      root.render(
-        <SiteFileBrowserLayout
-          siteId={hmId('site')}
-          activeDocumentId={hmId('site')}
-          siteName="Site"
-          mobileOpen={false}
-          onMobileOpenChange={vi.fn()}
-          onNavigate={vi.fn()}
-          onPrefetch={onPrefetch}
-        >
-          <div>Document body</div>
-        </SiteFileBrowserLayout>,
-      )
-    })
+function clickToggle() {
+  act(() => container.querySelector<HTMLButtonElement>('[aria-expanded]')!.click())
+}
 
-    expect(fileBrowserPropsMock.value?.onPrefetch).toBe(onPrefetch)
+describe('unified site sidebar layout', () => {
+  it('starts closed on web and saves explicit toggles', () => {
+    act(() => root.render(<Page />))
+    expect(container.querySelector('[aria-label="Open sidebar"]')).not.toBeNull()
+    clickToggle()
+    expect(container.querySelector('[aria-label="Close sidebar"]')).not.toBeNull()
+    expect(localStorage.getItem('seed.site-sidebar.open')).toBe('true')
+    clickToggle()
+    expect(localStorage.getItem('seed.site-sidebar.open')).toBe('false')
   })
 
-  it('server-renders a static 288px file explorer before client sizing is known', () => {
-    const html = renderToString(
-      <SiteFileBrowserLayout
-        siteId={hmId('site')}
-        activeDocumentId={hmId('site')}
-        siteName="Site"
-        mobileOpen={false}
-        onMobileOpenChange={vi.fn()}
-        onNavigate={vi.fn()}
-      >
-        <div>Document body</div>
-      </SiteFileBrowserLayout>,
-    )
-
-    expect(html).toContain('Document body')
-    expect(html).toContain('Documents')
-    expect(html).toContain('w-72')
-    expect(html).not.toContain('data-group')
-    expect(html).not.toContain('animate-spin')
+  it('closes the mobile drawer when browser history changes the route', () => {
+    media.xs = true
+    act(() => root.render(<Page />))
+    clickToggle()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    navigation.path = 'two'
+    act(() => root.render(<Page />))
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('fully collapses the explorer and overlays its reopen control on the main content', () => {
-    renderLayout()
-
-    expect(container.querySelector('[data-tooltip-content="Hide File Browser"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="panel-left-close-icon"]')).toBeTruthy()
-
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[aria-label="Collapse file browser"]')?.click()
-    })
-
-    expect(container.querySelector<HTMLElement>('[data-panel][id="site-file-browser"]')?.inert).toBe(true)
-    expect(container.querySelector('[data-separator]')?.getAttribute('aria-hidden')).toBe('true')
-    const reopenControl = container.querySelector('[data-tooltip-content="Show File Browser"]')
-    expect(reopenControl?.parentElement?.className).toContain('absolute')
-    expect(reopenControl?.parentElement?.className).toContain('top-2')
-    expect(reopenControl?.parentElement?.className).toContain('left-2')
-    expect(container.querySelector('[data-testid="file-search-corner-icon"]')).toBeTruthy()
-
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[aria-label="Open file browser"]')?.click()
-    })
-
-    expect(container.querySelector('[data-panel][id="site-file-browser"]')).toBeTruthy()
-    expect(container.querySelector('[data-tooltip-content="Show File Browser"]')).toBeNull()
+  it('server renders the page with a closed sidebar', () => {
+    const html = renderToString(<Page />)
+    expect(html).toContain('Home')
+    expect(html).toContain('Open sidebar')
+    expect(html).not.toContain('<aside')
   })
 
-  it('keeps desktop main content in a constrained flex column for document scrolling', () => {
-    renderLayout()
-
-    expect(container.querySelector('[data-testid="main-scroll-area"]')).toBeNull()
-    expect(container.textContent).toContain('Document body')
-    expect(container.querySelector('[data-testid="document-body"]')?.parentElement?.className).toContain('flex-col')
+  it('keeps the wide-screen preference when a mobile navigation closes the drawer', () => {
+    localStorage.setItem('seed.site-sidebar.open', 'true')
+    media.xs = true
+    act(() => root.render(<Page />))
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    clickToggle()
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
+    act(() => document.querySelector<HTMLButtonElement>('[role="dialog"] button')!.click())
+    expect(container.querySelector('main')?.textContent).toBe('doc')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(localStorage.getItem('seed.site-sidebar.open')).toBe('true')
   })
 
-  it('reveals document filtering from the header search button', () => {
-    renderLayout()
-
-    expect(fileBrowserPropsMock.value?.searchVisible).toBe(false)
-    expect(container.querySelector('[data-testid="list-filter-icon"]')).toBeTruthy()
-
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[aria-label="Filter documents"]')?.click()
-    })
-
-    expect(fileBrowserPropsMock.value?.searchVisible).toBe(true)
-  })
-
-  it('keeps the mobile drawer pinned to 80 percent of the viewport', () => {
-    mediaMock.value = {xs: true}
-
-    act(() => {
-      root.render(
-        <SiteFileBrowserLayout
-          siteId={hmId('site')}
-          activeDocumentId={hmId('site')}
-          siteName="Site"
-          mobileOpen={true}
-          onMobileOpenChange={vi.fn()}
-          onNavigate={vi.fn()}
-        >
-          <div>Document body</div>
-        </SiteFileBrowserLayout>,
-      )
-    })
-
-    const drawer = document.body.querySelector('aside')
-    expect(drawer?.className).toContain('w-[80dvw]')
-    expect(drawer?.className).toContain('max-w-[80dvw]')
-    expect(drawer?.className).toContain('shrink-0')
-    expect(drawer?.className).toContain('motion-safe:slide-in-from-left')
-  })
-
-  it('lets page chrome open the mobile file browser', () => {
-    mediaMock.value = {xs: true}
-    const onMobileOpenChange = vi.fn()
-
-    act(() => {
-      root.render(
-        <SiteFileBrowserLayout
-          siteId={hmId('site')}
-          activeDocumentId={hmId('site')}
-          siteName="Site"
-          mobileOpen={false}
-          onMobileOpenChange={onMobileOpenChange}
-          onNavigate={vi.fn()}
-        >
-          <MobileFileBrowserTrigger />
-        </SiteFileBrowserLayout>,
-      )
-    })
-
-    act(() => {
-      container.querySelector<HTMLButtonElement>('[aria-label="Open file browser from content"]')?.click()
-    })
-
-    expect(onMobileOpenChange).toHaveBeenCalledWith(true)
+  it('closes the mobile drawer with Escape and restores toggle focus', async () => {
+    media.xs = true
+    act(() => root.render(<Page />))
+    const toggle = container.querySelector<HTMLButtonElement>('[aria-expanded]')!
+    toggle.focus()
+    clickToggle()
+    act(() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})))
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    await vi.waitFor(() => expect(document.activeElement).toBe(toggle))
   })
 })

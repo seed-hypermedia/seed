@@ -1,9 +1,12 @@
+// @vitest-environment jsdom
 import {hmId} from '@shm/shared'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
-import {createElement} from 'react'
+import {createElement, useState} from 'react'
+import {act} from 'react-dom/test-utils'
+import {createRoot} from 'react-dom/client'
 import {renderToStaticMarkup} from 'react-dom/server'
 import {describe, expect, it} from 'vitest'
-import {getSiteHeaderItems, isSiteHeaderItemActive, SiteHeaderMenu} from '../site-header'
+import {getSiteHeaderItems, isSiteHeaderItemActive, SiteHeaderMenu, MobileMenu} from '../site-header'
 import {TooltipProvider} from '../tooltip'
 
 describe('getSiteHeaderItems', () => {
@@ -64,5 +67,37 @@ describe('isSiteHeaderItemActive', () => {
 
     expect(isSiteHeaderItemActive(item, hmId('site', {path: ['about', 'team']}))).toBe(true)
     expect(isSiteHeaderItemActive(item, hmId('site', {path: ['blog']}))).toBe(false)
+  })
+})
+
+describe('mobile navigation portal', () => {
+  it('escapes the header while retaining navigation state and cleaning up on unmount', () => {
+    ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('header')
+    document.body.append(container)
+    const root = createRoot(container)
+    function Page() {
+      const [open, setOpen] = useState(true)
+      return createElement(MobileMenu, {
+        open,
+        onClose: () => setOpen(false),
+        renderContent: () => createElement('button', {onClick: () => setOpen(false)}, 'Go home'),
+      })
+    }
+    try {
+      act(() => root.render(createElement(Page)))
+      const destination = Array.from(document.body.querySelectorAll('button')).find(
+        (button) => button.textContent === 'Go home',
+      )!
+      expect(destination).toBeDefined()
+      expect(container.contains(destination)).toBe(false)
+      act(() => destination.click())
+      expect(document.body.textContent).not.toContain('Go home')
+      expect(document.querySelector('[aria-label="Close navigation menu"]')).not.toBeNull()
+    } finally {
+      act(() => root.unmount())
+      container.remove()
+    }
+    expect(document.querySelector('[aria-label="Close navigation menu"]')).toBeNull()
   })
 })

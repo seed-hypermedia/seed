@@ -23,18 +23,6 @@ vi.mock('@shm/shared/utils/navigation', () => ({
   useNavRoute: () => ({key: 'document'}),
 }))
 
-const fileBrowserControls = vi.hoisted(() => ({
-  current: null as null | {
-    collapsed: boolean
-    setCollapsed: (collapsed: boolean) => void
-    claimRevealButton: () => () => void
-  },
-}))
-
-vi.mock('../site-file-browser-layout', () => ({
-  useSiteFileBrowserControls: () => fileBrowserControls.current,
-}))
-
 import {DocumentTopBar} from '../document-top-bar'
 
 let container: HTMLDivElement
@@ -44,7 +32,6 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
-  fileBrowserControls.current = null
 })
 
 afterEach(() => {
@@ -113,33 +100,5 @@ describe('DocumentTopBar', () => {
 
     expect(container.querySelector('nav[aria-label="Breadcrumb"]')).not.toBeNull()
     expect(container.querySelectorAll('a')).toHaveLength(0)
-  })
-
-  it('reveals the file browser and claims the reveal button while it is collapsed', () => {
-    const setCollapsed = vi.fn()
-    const release = vi.fn()
-    const claimRevealButton = vi.fn(() => release)
-    fileBrowserControls.current = {collapsed: true, setCollapsed, claimRevealButton}
-
-    render(<DocumentTopBar breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]} />)
-
-    expect(claimRevealButton).toHaveBeenCalledOnce()
-    const revealButton = container.querySelector<HTMLButtonElement>('button[aria-label="Open file browser"]')
-    expect(revealButton).not.toBeNull()
-    expect(revealButton?.querySelector('.lucide-file-search-2')).not.toBeNull()
-
-    act(() => {
-      revealButton?.dispatchEvent(new MouseEvent('click', {bubbles: true}))
-    })
-    expect(setCollapsed).toHaveBeenCalledWith(false)
-  })
-
-  it('omits the reveal button when the file browser is already visible', () => {
-    fileBrowserControls.current = {collapsed: false, setCollapsed: vi.fn(), claimRevealButton: vi.fn(() => vi.fn())}
-
-    render(<DocumentTopBar breadcrumbs={[{id: hmId('site'), metadata: {name: 'Site'}}]} />)
-
-    expect(container.querySelector('button[aria-label="Open file browser"]')).toBeNull()
-    expect(fileBrowserControls.current.claimRevealButton).not.toHaveBeenCalled()
   })
 })

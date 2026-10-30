@@ -2,7 +2,7 @@ import {useSidebarContext, useSidebarWidth} from '@/sidebar-context'
 import {useStream} from '@shm/shared/use-stream'
 import {TitleText, TitlebarWrapper} from '@shm/ui/titlebar'
 import {TitleBarProps} from './titlebar'
-import {NavMenuButton, NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
+import {NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
 import {TitlebarMainRow} from './titlebar-layout'
 
 export default function TitleBarMacos(props: TitleBarProps) {
@@ -25,17 +25,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
       <TitlebarMainRow
         sidebarLocked={isSidebarLocked}
         sidebarWidth={sidebarWidth}
-        sidebarControl={
-          <NavMenuButton
-            left={
-              isSidebarLocked ? undefined : (
-                <div
-                  className="w-[72px]" // this width to stay away from the macOS window traffic lights
-                />
-              )
-            }
-          />
-        }
+        sidebarControl={<div className="w-[72px]" />}
         navigation={<NavigationButtons />}
         omnibar={<Omnibar />}
         actions={<PageActionButtons assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} />}

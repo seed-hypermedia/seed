@@ -529,7 +529,6 @@ function AssistantChatButton() {
 export function PageActionButtons(_props: TitleBarProps) {
   return (
     <TitlebarSection>
-      <ExploreButton />
       <AgentActivityConnection />
       <AccountProfileButton />
     </TitlebarSection>
@@ -556,10 +555,10 @@ function AgentActivityConnection() {
 }
 
 /**
- * Titlebar entry point to Explore page, scoped to the space in the current route.
+ * Sidebar entry point to Explore page, scoped to the space in the current route.
  * Routes with no space open Explore across the whole node instead.
  */
-function ExploreButton() {
+export function ExploreButton({className}: {className?: string}) {
   const route = useNavRoute()
   const navigate = useNavigate()
   const isActive = route.key === 'explore'
@@ -569,10 +568,11 @@ function ExploreButton() {
     <Tooltip content="Explore" asChild>
       <Button
         className={cn(
-          'window-no-drag h-8 gap-1.5 rounded-full border px-3',
+          'window-no-drag h-10 w-full justify-start gap-3 rounded-xl border-0 px-3 text-sm font-semibold',
           isActive
-            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            ? 'bg-sidebar-accent text-brand hover:bg-sidebar-accent/80 hover:text-brand dark:text-sidebar-accent-foreground dark:hover:bg-sidebar-accent/80 dark:hover:text-sidebar-accent-foreground'
             : 'border-transparent',
+          className,
         )}
         aria-current={isActive ? 'page' : undefined}
         onClick={() => {

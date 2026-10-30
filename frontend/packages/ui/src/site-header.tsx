@@ -5,30 +5,31 @@ import {
   HMResourceVisibility,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {getMetadataName, NavRoute, SearchResult, useRouteLink, useValidatedWebRouteLink} from '@shm/shared'
-import {useIsHomeDraftOverride} from '@shm/shared/home-draft-context'
-import React, {useEffect, useMemo, useRef, useState} from 'react'
-import {Button} from './button'
-import {ScrollArea} from './components/scroll-area'
-import {DocumentMaintenanceTrigger} from './document-maintenance'
-import {DraftBadge} from './draft-badge'
-import {ChevronDown, Close, Menu, Search} from './icons'
-import {SmallListItem} from './list-item'
-import {useResponsiveItems} from './use-responsive-items'
+import { getMetadataName, NavRoute, SearchResult, useValidatedWebRouteLink } from '@shm/shared'
+import { useIsHomeDraftOverride } from '@shm/shared/home-draft-context'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Button } from './button'
+import { ScrollArea } from './components/scroll-area'
+import { DocumentMaintenanceTrigger } from './document-maintenance'
+import { DraftBadge } from './draft-badge'
+import { ChevronDown, Close, Menu } from './icons'
+import { SmallListItem } from './list-item'
+import { useResponsiveItems } from './use-responsive-items'
 
-import {IS_DESKTOP} from '@shm/shared/constants'
-import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
-import {Lock} from 'lucide-react'
-import {AssistantPanelHeaderButton, AssistantPanelMenuItem} from './assistant-panel-toggle'
-import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
-import {focusExploreSearch} from './explore-search-focus'
-import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline} from './navigation'
-import {MobileSearch} from './search'
-import {Separator} from './separator'
-import {SiteLogo} from './site-logo'
-import {Tooltip} from './tooltip'
+import { IS_DESKTOP } from '@shm/shared/constants'
+import { useIsomorphicLayoutEffect } from '@shm/shared/utils/use-isomorphic-layout-effect'
+import { Lock } from 'lucide-react'
+import { AssistantPanelHeaderButton, AssistantPanelMenuItem } from './assistant-panel-toggle'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './components/dropdown-menu'
+import { DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutline } from './navigation'
+import { MobileSearch } from './search'
+import { Separator } from './separator'
+import { SiteLogo } from './site-logo'
+import { SiteSidebarToggle } from './site-sidebar-context'
+import { Tooltip } from './tooltip'
 import useMedia from './use-media'
-import {cn} from './utils'
+import { cn } from './utils'
 
 // Stable width estimator functions
 const getNavItemWidth = () => 150
@@ -42,8 +43,8 @@ export function getSiteHeaderItems(
   return [
     {
       key: HOME_NAVIGATION_KEY,
-      id: {...siteHomeId, path: [], version: null, latest: true},
-      metadata: {name: 'Home'},
+      id: { ...siteHomeId, path: [], version: null, latest: true },
+      metadata: { name: 'Home' },
       isPublished: true,
     },
     ...items,
@@ -63,45 +64,6 @@ function getActiveSiteHeaderItemKey(items: DocNavigationItem[], docId: UnpackedH
   return items
     .filter((item) => isSiteHeaderItemActive(item, docId))
     .sort((a, b) => (b.id?.path?.length ?? 0) - (a.id?.path?.length ?? 0))[0]?.key
-}
-
-/**
- * Site header entry point to Explore page, scoped to the space being viewed.
- */
-function ExploreHeaderButton({siteHomeId}: {siteHomeId: UnpackedHypermediaId}) {
-  const linkRef = useRef<HTMLAnchorElement>(null)
-  const linkProps = useRouteLink(
-    {
-      key: 'explore',
-      context: {type: 'site', id: {...siteHomeId, latest: true, version: null}},
-    },
-    {onClick: focusExploreSearch},
-  )
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return
-      if (!(event.metaKey || event.ctrlKey) || event.key !== 'k') return
-      event.preventDefault()
-      // Click the anchor rather than navigating directly, so the shortcut and the button share one
-      // navigation path and cannot drift apart.
-      linkRef.current?.click()
-    }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
-  }, [])
-
-  return (
-    <Tooltip content="Explore">
-      <Button asChild variant="ghost" className="h-8 gap-1.5 rounded-full border-1 border-transparent px-3">
-        <a ref={linkRef} {...linkProps}>
-          <Search className="size-4" />
-          Explore
-        </a>
-      </Button>
-    </Tooltip>
-  )
 }
 
 export function SiteHeader({
@@ -161,8 +123,8 @@ export function SiteHeader({
   const homeDraftOverride = useIsHomeDraftOverride()
   const isHomeView = homeDraftOverride ?? !!(docId && !docId.path?.length)
   const homeDoc = isHomeView
-    ? {document, id: docId} // On home page — document IS the home doc
-    : {document: siteHomeDocument ?? undefined, id: siteHomeId} // Non-home: use site home (may be undefined while loading)
+    ? { document, id: docId } // On home page — document IS the home doc
+    : { document: siteHomeDocument ?? undefined, id: siteHomeId } // Non-home: use site home (may be undefined while loading)
   const headerSearch = (
     <>
       <Button
@@ -177,7 +139,6 @@ export function SiteHeader({
       </Button>
       {siteHomeId && !IS_DESKTOP ? (
         <div className="hidden items-center gap-4 md:flex">
-          <ExploreHeaderButton siteHomeId={siteHomeId} />
           <div className="flex items-center gap-1">
             <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
             <DocumentMaintenanceTrigger compact />
@@ -222,7 +183,7 @@ export function SiteHeader({
     <header
       ref={headerRef}
       className={cn(
-        'border-border dark:bg-background relative z-40 flex w-full transform-gpu border-b bg-white px-4 py-2 transition-transform duration-200',
+        'border-border dark:bg-background relative z-40 flex w-full transform-gpu border-b bg-white pl-2 pr-4 py-2 transition-transform duration-200',
         {
           'flex-col': isCenterLayout,
           'flex-row items-center': !isCenterLayout,
@@ -235,9 +196,10 @@ export function SiteHeader({
       <div
         className={cn('flex min-w-0 items-center self-stretch sm:shrink-0', {
           'justify-center md:relative': isCenterLayout,
-          'flex-start': !isCenterLayout,
+          'flex-start gap-2': !isCenterLayout,
         })}
       >
+        <SiteSidebarToggle />
         <div className={cn('flex min-w-0 overflow-hidden', isCenterLayout ? 'flex-1 justify-center' : '')}>
           <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
         </div>
@@ -348,30 +310,30 @@ export function SiteHeader({
   )
 }
 
-function NavItems({items, onClick}: {items?: DocNavigationItem[] | null; onClick?: () => void}) {
+function NavItems({ items, onClick }: { items?: DocNavigationItem[] | null; onClick?: () => void }) {
   return items
     ? items.map((doc) => {
-        if (!doc.id && !doc.draftId && !doc.webUrl) return null
-        if (doc.webUrl && !doc.id && !doc.draftId) {
-          return <MobileWebLinkItem key={doc.key} item={doc} onClick={onClick} />
-        }
-        return (
-          <DocumentSmallListItem
-            onClick={onClick}
-            key={doc.key}
-            metadata={doc.metadata}
-            id={doc.id}
-            draftId={doc.draftId}
-            isPublished={doc.isPublished}
-            visibility={doc.visibility}
-          />
-        )
-      })
+      if (!doc.id && !doc.draftId && !doc.webUrl) return null
+      if (doc.webUrl && !doc.id && !doc.draftId) {
+        return <MobileWebLinkItem key={doc.key} item={doc} onClick={onClick} />
+      }
+      return (
+        <DocumentSmallListItem
+          onClick={onClick}
+          key={doc.key}
+          metadata={doc.metadata}
+          id={doc.id}
+          draftId={doc.draftId}
+          isPublished={doc.isPublished}
+          visibility={doc.visibility}
+        />
+      )
+    })
     : null
 }
 
-function MobileWebLinkItem({item, onClick}: {item: DocNavigationItem; onClick?: () => void}) {
-  const {linkProps} = useValidatedWebRouteLink(item.webUrl || null, {onClick})
+function MobileWebLinkItem({ item, onClick }: { item: DocNavigationItem; onClick?: () => void }) {
+  const { linkProps } = useValidatedWebRouteLink(item.webUrl || null, { onClick })
 
   return <SmallListItem bold title={getMetadataName(item.metadata)} {...linkProps} />
 }
@@ -406,11 +368,11 @@ function OverflowMenuItem({
     visibility?: HMResourceVisibility
   }
 }) {
-  const {linkProps} = useValidatedWebRouteLink(
+  const { linkProps } = useValidatedWebRouteLink(
     item.draftId
-      ? {key: 'draft', id: item.draftId}
+      ? { key: 'draft', id: item.draftId }
       : item.id
-        ? {key: 'document', id: {...item.id, latest: true, version: null}}
+        ? { key: 'document', id: { ...item.id, latest: true, version: null } }
         : item.webUrl || '',
   )
   return (
@@ -438,18 +400,18 @@ function HeaderLinkItem({
   webUrl?: string | undefined
   visibility?: HMResourceVisibility
 }) {
-  const {linkProps} = useValidatedWebRouteLink(
+  const { linkProps } = useValidatedWebRouteLink(
     draftId
       ? {
-          key: 'draft',
-          id: draftId,
-          // panel: {key: 'options'},
-        }
+        key: 'draft',
+        id: draftId,
+        // panel: {key: 'options'},
+      }
       : id
         ? {
-            key: 'document',
-            id: {...id, latest: true, version: null},
-          }
+          key: 'document',
+          id: { ...id, latest: true, version: null },
+        }
         : webUrl || null,
   )
   return (
@@ -493,7 +455,7 @@ export function SiteHeaderMenu({
 
   const activeKey = useMemo(() => getActiveSiteHeaderItemKey(items ?? [], docId), [docId, items])
 
-  const {containerRef, itemRefs, visibleItems, overflowItems} = useResponsiveItems({
+  const { containerRef, itemRefs, visibleItems, overflowItems } = useResponsiveItems({
     items: items || [],
     activeKey,
     getItemWidth: getNavItemWidth,
@@ -584,6 +546,7 @@ export function SiteHeaderMenu({
   )
 }
 
+/** Full-screen mobile navigation, portaled above the header and document controls. */
 export function MobileMenu({
   renderContent,
   open,
@@ -593,7 +556,11 @@ export function MobileMenu({
   open: boolean
   onClose: () => void
 }) {
-  return (
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null)
+  useEffect(() => setPortalTarget(document.body), [])
+  if (!portalTarget) return null
+
+  return createPortal(
     <div
       className={cn(
         'bg-background fixed inset-0 z-50 flex h-dvh max-h-dvh flex-col transition-transform duration-200 md:hidden',
@@ -601,7 +568,7 @@ export function MobileMenu({
       )}
     >
       <div className="flex flex-0 items-center justify-end p-4">
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button variant="ghost" size="icon" aria-label="Close navigation menu" onClick={onClose}>
           <Close className="size-4" />
         </Button>
       </div>
@@ -609,7 +576,8 @@ export function MobileMenu({
         {open ? renderContent() : null}
         <div className="h-20"></div>
       </ScrollArea>
-    </div>
+    </div>,
+    portalTarget,
   )
 }
 
@@ -657,13 +625,13 @@ export function useAutoHideSiteHeader(scrollContainerRef?: React.RefObject<HTMLE
     if (media.gtSm && scrollContainerRef?.current) {
       // Desktop: listen to custom container
       const container = scrollContainerRef.current
-      container.addEventListener('scroll', handleScroll, {passive: true})
+      container.addEventListener('scroll', handleScroll, { passive: true })
       return () => {
         container.removeEventListener('scroll', handleScroll)
       }
     } else if (!media.gtSm) {
       // Mobile: listen to window
-      window.addEventListener('scroll', handleScroll, {passive: true})
+      window.addEventListener('scroll', handleScroll, { passive: true })
       return () => {
         window.removeEventListener('scroll', handleScroll)
       }
@@ -675,6 +643,6 @@ export function useAutoHideSiteHeader(scrollContainerRef?: React.RefObject<HTMLE
   return {
     hideSiteHeaderClassName: isHidden ? '-translate-y-full' : ('translate-y-0' as AutoHideSiteHeaderClassName),
     hideMobileBarClassName: isHidden ? 'opacity-40' : '',
-    onScroll: () => {}, // Keep for backward compatibility
+    onScroll: () => { }, // Keep for backward compatibility
   }
 }

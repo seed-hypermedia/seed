@@ -1,9 +1,5 @@
-import {FileSearch2 as FileSearchCorner} from 'lucide-react'
-import {ReactNode, useEffect} from 'react'
-import {Button} from './button'
+import {ReactNode} from 'react'
 import {Breadcrumbs, type BreadcrumbEntry} from './document-header'
-import {useSiteFileBrowserControls} from './site-file-browser-layout'
-import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
 /**
@@ -23,14 +19,6 @@ export function DocumentTopBar({
   actions?: ReactNode
   isMobile?: boolean
 }) {
-  const fileBrowser = useSiteFileBrowserControls()
-  const canRevealFileBrowser = !!fileBrowser?.collapsed
-
-  useEffect(() => {
-    if (!canRevealFileBrowser || !fileBrowser) return
-    return fileBrowser.claimRevealButton()
-  }, [canRevealFileBrowser, fileBrowser])
-
   return (
     <div
       data-document-top-bar=""
@@ -42,19 +30,6 @@ export function DocumentTopBar({
       )}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {canRevealFileBrowser ? (
-          <Tooltip content="Show File Browser">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Open file browser"
-              className="shrink-0"
-              onClick={() => fileBrowser?.setCollapsed(false)}
-            >
-              <FileSearchCorner className="size-4" />
-            </Button>
-          </Tooltip>
-        ) : null}
         {breadcrumbs?.length ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
         {status ? (
           <div data-document-status="" className="flex shrink-0 items-center gap-1">

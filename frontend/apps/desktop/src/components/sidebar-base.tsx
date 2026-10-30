@@ -85,7 +85,7 @@ export function GenericSidebarContainer({
         className="h-full"
       >
         <div ref={panelContentRef} className="relative flex h-full w-full flex-col">
-          <div className="flex-1 overflow-y-auto pb-8">{children}</div>
+          <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
           {footer ? <div className="w-full items-end">{footer({isVisible: isLocked})}</div> : null}
         </div>
       </AnimatedPanel>
