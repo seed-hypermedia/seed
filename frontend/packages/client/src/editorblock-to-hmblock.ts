@@ -6,6 +6,7 @@ import {
   type HMBlockNode,
   HMBlockSchema,
   parseHMQueryFiltersJSON,
+  HMQueryViewSchema,
   type HMBlockType,
   toNumber,
 } from './hm-types'
@@ -356,6 +357,9 @@ export function editorBlockToHMBlock(editorBlock: EditorBlock): HMBlock {
     }
     if (editorBlock.props.queryLimit) query.limit = Number(editorBlock.props.queryLimit)
     blockQuery.attributes.query = query
+    if (editorBlock.props.queryView) {
+      blockQuery.attributes.view = HMQueryViewSchema.parse(JSON.parse(editorBlock.props.queryView))
+    }
     blockQuery.attributes.banner = editorBlock.props.banner == 'true'
     if (editorBlock.props.tableConfig) blockQuery.attributes.table = JSON.parse(editorBlock.props.tableConfig)
   }

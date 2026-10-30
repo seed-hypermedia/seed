@@ -3,12 +3,17 @@ import {useCallback} from 'react'
 import {
   DocumentMachineSnapshot,
   selectCanEdit,
+  selectCanEditCurrentRoute,
   selectIsEditing,
   useDocumentMachineRefOptional,
 } from './use-document-machine'
 
 function safeCanEdit(snapshot: DocumentMachineSnapshot | undefined): boolean {
   return snapshot ? selectCanEdit(snapshot) : false
+}
+
+function safeCanEditCurrentRoute(snapshot: DocumentMachineSnapshot | undefined): boolean {
+  return snapshot ? selectCanEditCurrentRoute(snapshot) : false
 }
 
 function safeIsEditing(snapshot: DocumentMachineSnapshot | undefined): boolean {
@@ -44,4 +49,10 @@ export function useEditorGate() {
   }, [actorRef])
 
   return {canEdit, isEditing, beginEditIfNeeded}
+}
+
+/** Route-aware permission for controls that must remain temporary while viewing history. */
+export function useCanEditCurrentRoute() {
+  const actorRef = useDocumentMachineRefOptional()
+  return useSelector(actorRef ?? undefined, safeCanEditCurrentRoute)
 }
