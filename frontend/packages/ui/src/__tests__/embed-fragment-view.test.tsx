@@ -6,6 +6,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {BlockEmbedContent} from '../embed-views'
+import {ContentEmbed} from '../content-embed'
 import {CommentContentContext, ReadOnlyViewerProvider} from '@shm/shared/readonly-viewer-context'
 import {CommentContent, QuotedDocBlock} from '../comments'
 import type {HMComment, HMDocument} from '@seed-hypermedia/client/hm-types'
@@ -354,4 +355,59 @@ it('opens a whole comment block with its block anchor', () => {
   act(() => container.querySelector('p')!.click())
   expect(navigated.href).toBe('/hm/site/document/:comments/author/comment?v=comment-version#source')
   expect(navigated.route).toMatchObject({blockId: 'source'})
+})
+
+describe('image embed expansion', () => {
+  const image = {
+    block: {
+      id: 'image',
+      type: 'Image',
+      link: 'https://example.com/image.png',
+      text: 'Image caption',
+      attributes: {},
+      annotations: [],
+    },
+  } satisfies HMBlockNode
+  function renderImage(blocks: HMBlockNode[] = [image], path = 'images') {
+    const id = hmId('author', {path: [path], blockRef: 'image'})
+    act(() =>
+      root.render(
+        <CommentContentContext.Provider value={true}>
+          <TooltipProvider>
+            <ReadOnlyViewerProvider value={TestCommentViewer}>
+              <ContentEmbed id={id} blocks={blocks} route={{key: 'document', id}} />
+            </ReadOnlyViewerProvider>
+          </TooltipProvider>
+        </CommentContentContext.Provider>,
+      ),
+    )
+    return id
+  }
+
+  it('starts expanded and keeps an image when collapsed without navigating', () => {
+    const id = renderImage()
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(image.block.link)
+    act(() => container.querySelector('button')!.click())
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(image.block.link)
+    expect(navigated.href).toBe('')
+    act(() => container.querySelector('img')!.click())
+    expect(navigated.href).toBe(packHmId(id))
+  })
+
+  it('preserves a collapse choice on rerender and resets for a different image source', () => {
+    renderImage()
+    act(() => container.querySelector('button')!.click())
+    renderImage()
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('false')
+    renderImage([image], 'other-images')
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+  })
+
+  it('opens expanded when the image content arrives after the first render', () => {
+    renderImage([])
+    renderImage()
+    expect(container.querySelector('button')?.getAttribute('aria-expanded')).toBe('true')
+  })
 })

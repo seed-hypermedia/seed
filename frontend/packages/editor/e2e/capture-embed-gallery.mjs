@@ -78,6 +78,30 @@ for (const label of ['Document · block', 'Document · fragment', 'Heading · bl
 }
 if (await page.locator('.bn-block-highlight-focus, .bn-range-highlight-focus').count())
   throw new Error('Unselected embeds have a default highlight')
+const imageEmbed = page.locator('[data-case="Image · block"]')
+await imageEmbed.getByRole('button', {name: 'Hide full block'}).waitFor()
+await imageEmbed.getByRole('button', {name: 'Hide full block'}).click()
+const thumbnail = imageEmbed.locator('img')
+await thumbnail.evaluate((image) => image.decode())
+const thumbnailSize = await thumbnail.boundingBox()
+if (
+  !thumbnailSize ||
+  thumbnailSize.width <= 0 ||
+  thumbnailSize.height <= 0 ||
+  thumbnailSize.width > 40 ||
+  thumbnailSize.height > 40
+)
+  throw new Error(`Collapsed image exceeds 40 px: ${JSON.stringify(thumbnailSize)}`)
+if (Math.abs(thumbnailSize.width / thumbnailSize.height - 0.6) > 0.01)
+  throw new Error('Collapsed image lost its aspect ratio')
+if (await page.evaluate(() => window.GALLERY_NAVIGATION.length)) throw new Error('Image collapse navigated')
+await imageEmbed.locator('[data-content-type="embed"]').click({position: {x: 6, y: 6}})
+if ((await page.evaluate(() => window.GALLERY_NAVIGATION.at(-1)?.route?.id?.blockRef)) !== 'image')
+  throw new Error('Collapsed image did not open its source')
+await page.evaluate(() => {
+  window.GALLERY_NAVIGATION.length = 0
+})
+await imageEmbed.getByRole('button', {name: 'Show full block'}).click()
 const commentReferences = page.locator('[data-case="Comment under editing document"] .block-embed')
 await commentReferences.first().waitFor()
 for (let index = 0; index < 2; index++) {
@@ -216,9 +240,10 @@ await page.screenshot({path: path.join(output, 'narrow-collapsed.png'), fullPage
 await page.setViewportSize({width: 1280, height: 1000})
 const expandButtons = page.getByRole('button', {name: /^Show full/})
 const expansionCount = await expandButtons.count()
+const alreadyExpandedCount = await page.getByRole('button', {name: /^Hide full/}).count()
 if (expansionCount !== 8) throw new Error(`Expected eight quote controls, got ${expansionCount}`)
 for (let index = 0; index < expansionCount; index++) await expandButtons.first().click()
-if ((await page.getByRole('button', {name: /^Hide full/}).count()) !== expansionCount)
+if ((await page.getByRole('button', {name: /^Hide full/}).count()) !== expansionCount + alreadyExpandedCount)
   throw new Error('Quotes did not expand')
 for (const label of ['Document · fragment', 'Comment · fragment', 'Reply quote']) {
   const highlightedText = await page.locator(`[data-case="${label}"] .bn-range-highlight-focus`).allTextContents()
