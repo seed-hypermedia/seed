@@ -78,6 +78,30 @@ for (const label of ['Document · block', 'Document · fragment', 'Heading · bl
 }
 if (await page.locator('.bn-block-highlight-focus, .bn-range-highlight-focus').count())
   throw new Error('Unselected embeds have a default highlight')
+const imageEmbed = page.locator('[data-case="Image · block"]')
+await imageEmbed.getByRole('button', {name: 'Hide full block'}).waitFor()
+await imageEmbed.getByRole('button', {name: 'Hide full block'}).click()
+const thumbnail = imageEmbed.locator('img')
+await thumbnail.evaluate((image) => image.decode())
+const thumbnailSize = await thumbnail.boundingBox()
+if (
+  !thumbnailSize ||
+  thumbnailSize.width <= 0 ||
+  thumbnailSize.height <= 0 ||
+  thumbnailSize.width > 40 ||
+  thumbnailSize.height > 40
+)
+  throw new Error(`Collapsed image exceeds 40 px: ${JSON.stringify(thumbnailSize)}`)
+if (Math.abs(thumbnailSize.width / thumbnailSize.height - 0.6) > 0.01)
+  throw new Error('Collapsed image lost its aspect ratio')
+if (await page.evaluate(() => window.GALLERY_NAVIGATION.length)) throw new Error('Image collapse navigated')
+await imageEmbed.locator('[data-content-type="embed"]').click({position: {x: 6, y: 6}})
+if ((await page.evaluate(() => window.GALLERY_NAVIGATION.at(-1)?.route?.id?.blockRef)) !== 'image')
+  throw new Error('Collapsed image did not open its source')
+await page.evaluate(() => {
+  window.GALLERY_NAVIGATION.length = 0
+})
+await imageEmbed.getByRole('button', {name: 'Show full block'}).click()
 const commentReferences = page.locator('[data-case="Comment under editing document"] .block-embed')
 await commentReferences.first().waitFor()
 for (let index = 0; index < 2; index++) {
@@ -95,6 +119,9 @@ for (let index = 0; index < 2; index++) {
     throw new Error('Read-only comment reference failed to replace navigation with its source')
   if (index === 1 && navigation.route.id.blockRange?.start !== 2)
     throw new Error('Read-only comment reference lost its fragment range')
+  const hash = await page.evaluate(() => decodeURIComponent(location.hash))
+  if (hash !== (index === 1 ? '#intro[2:63]' : '#intro'))
+    throw new Error(`Comment reference lost its URL anchor: ${hash}`)
   if ((await page.evaluate(() => history.length)) !== historyBefore)
     throw new Error('Read-only comment reference pushed history')
 }
@@ -134,6 +161,14 @@ const unrelated = await page
 if (unrelated !== 'rgba(0, 0, 0, 0)') throw new Error('Hover leaked into an unrelated comment')
 await page.locator('h1').hover()
 if (JSON.stringify(await backgrounds()) !== JSON.stringify(beforeHover)) throw new Error('Hover did not clear on leave')
+const commentCard = page.locator('[data-case="Comment layout"] [data-resourceid]').first()
+const commentBackground = await commentCard.evaluate((node) => getComputedStyle(node).backgroundColor)
+await page.locator('[data-case="Comment · whole"] [data-content-type="embed"]').hover()
+if ((await commentCard.evaluate((node) => getComputedStyle(node).backgroundColor)) === commentBackground)
+  throw new Error('Hover did not highlight the source comment')
+await page.locator('h1').hover()
+if ((await commentCard.evaluate((node) => getComputedStyle(node).backgroundColor)) !== commentBackground)
+  throw new Error('Comment hover did not clear')
 const historyLength = await page.evaluate(() => history.length)
 await page.locator('[data-case="Reply quote"] [data-content-type="embed"]').click({position: {x: 2, y: 2}})
 await page.locator('[data-case="Reply quote"] .bn-range-highlight-focus').first().waitFor()
@@ -205,10 +240,16 @@ await page.screenshot({path: path.join(output, 'narrow-collapsed.png'), fullPage
 await page.setViewportSize({width: 1280, height: 1000})
 const expandButtons = page.getByRole('button', {name: /^Show full/})
 const expansionCount = await expandButtons.count()
+const alreadyExpandedCount = await page.getByRole('button', {name: /^Hide full/}).count()
 if (expansionCount !== 8) throw new Error(`Expected eight quote controls, got ${expansionCount}`)
 for (let index = 0; index < expansionCount; index++) await expandButtons.first().click()
-if ((await page.getByRole('button', {name: /^Hide full/}).count()) !== expansionCount)
+if ((await page.getByRole('button', {name: /^Hide full/}).count()) !== expansionCount + alreadyExpandedCount)
   throw new Error('Quotes did not expand')
+for (const label of ['Document · fragment', 'Comment · fragment', 'Reply quote']) {
+  const highlightedText = await page.locator(`[data-case="${label}"] .bn-range-highlight-focus`).allTextContents()
+  if (highlightedText.join('') !== 'shared source should keep its meaning, formatting, and identi')
+    throw new Error(`Expanded fragment highlight is wrong in ${label}: ${highlightedText.join('')}`)
+}
 if (await page.evaluate(() => window.GALLERY_NAVIGATION.length)) throw new Error('Caret triggered navigation')
 await page.locator('[data-case="Document · block"] a[href="https://example.com/source"]').click()
 const navigation = await page.evaluate(() => window.GALLERY_NAVIGATION)

@@ -284,6 +284,33 @@ const documentPanelRoute = z.discriminatedUnion('key', [
 export type DocumentPanelRoute = z.infer<typeof documentPanelRoute>
 export type PanelSelectionOptions = DocumentPanelRoute['key']
 
+/** Resolves an expanded document panel's title and the panel to reopen when it collapses. */
+export function getExpandedDocumentPanel(route: NavRoute): {title: string; panel: DocumentPanelRoute} | null {
+  switch (route.key) {
+    case 'comments': {
+      const {panel: _panel, ...panel} = route
+      return {title: 'Comments', panel}
+    }
+    case 'metadata':
+      return {title: 'Attributes', panel: {key: 'metadata', id: route.id}}
+    case 'collaborators':
+      return {title: 'People', panel: {key: 'collaborators', id: route.id}}
+    case 'activity':
+      if (activityFilterToSlug(route.filterEventType) === 'citations') {
+        return {
+          title: 'Connections',
+          panel: {
+            key: 'activity',
+            id: route.id,
+            filterEventType: route.filterEventType,
+            targetBlockId: route.targetBlockId || route.id.blockRef || undefined,
+          },
+        }
+      }
+  }
+  return null
+}
+
 export const documentRouteSchema = z.object({
   key: z.literal('document'),
   id: unpackedHmIdSchema,

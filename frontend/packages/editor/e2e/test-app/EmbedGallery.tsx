@@ -81,7 +81,7 @@ const previewBlocks: HMBlockNode[] = [
       link:
         'data:image/svg+xml,' +
         encodeURIComponent(
-          '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1000"><rect width="600" height="1000" fill="#ccebdc"/><text x="40" y="100" font-size="32" fill="#20543d">Source image</text><rect x="40" y="160" width="520" height="780" rx="16" fill="#67ad89"/></svg>',
+          '<svg xmlns="http://www.w3.org/2000/svg" width="600" height="1000"><rect width="600" height="1000" fill="#ccebdc"/><rect x="40" y="160" width="520" height="780" rx="16" fill="#67ad89"/></svg>',
         ),
       attributes: {},
       annotations: [],
@@ -588,10 +588,7 @@ function EmbedGallery() {
                         </DocumentMachineProvider>
                       </section>
                       {cases.map(([label, link]) => (
-                        <CommentContentContext.Provider
-                          key={label}
-                          value={!['Image · block', 'Video · block'].includes(label)}
-                        >
+                        <CommentContentContext.Provider key={label} value={label !== 'Video · block'}>
                           <section data-case={label} style={{minWidth: 0}}>
                             <h2 style={{fontSize: 13, fontWeight: 600, marginBottom: 12}}>{label}</h2>
                             {previewBlocks.some((node) => link.endsWith(`#${node.block.id}`)) ? (

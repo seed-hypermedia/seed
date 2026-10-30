@@ -4,7 +4,7 @@
 }
 
 .bn-range-highlight-focus {
-  background-color: var(--highlight);
+  background-color: var(--highlight-fragment, var(--highlight));
   border-radius: 2px;
 }
 

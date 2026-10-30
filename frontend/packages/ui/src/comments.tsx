@@ -140,10 +140,28 @@ export function CommentDiscussions({
   const selectedCommentLoaded =
     thread?.root.id === highlightedCommentId || thread?.replies.some((comment) => comment.id === highlightedCommentId)
   useLayoutEffect(() => {
-    focusedCommentRef.current?.scrollIntoView({
-      behavior: 'instant',
-      block: highlightedCommentId === thread?.root.id ? 'start' : 'nearest',
-    })
+    const focusedElement = focusedCommentRef.current
+    if (!focusedElement) return
+    const scrollToComment = () =>
+      focusedElement.scrollIntoView({
+        behavior: 'instant',
+        block: highlightedCommentId === thread?.root.id ? 'start' : 'nearest',
+      })
+    scrollToComment()
+
+    // The reply editor can grow after entry, reducing the thread's visible height.
+    const viewport = focusedElement.closest('[data-slot="scroll-area-viewport"]')
+    if (!viewport) return
+    const observer = new ResizeObserver(scrollToComment)
+    observer.observe(viewport)
+    const stopFollowing = () => observer.disconnect()
+    const interactionTarget = viewport.parentElement ?? viewport
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const
+    for (const event of events) interactionTarget.addEventListener(event, stopFollowing, {passive: true})
+    return () => {
+      observer.disconnect()
+      for (const event of events) interactionTarget.removeEventListener(event, stopFollowing)
+    }
   }, [highlightedCommentId, thread?.root.id, selectedCommentLoaded, !!focusedComment])
 
   if (!commentId) return null
@@ -739,6 +757,7 @@ export const Comment = memo(function Comment({
     <>
       {deleteCommentDialog.content}
       <div
+        data-resourceid={commentHmId.id}
         className={cn(
           'highlight-transition group relative flex flex-col gap-1 rounded-lg px-3 py-3',
           isEntirelyHighlighted && 'bg-highlight',
@@ -835,7 +854,6 @@ export const Comment = memo(function Comment({
                         },
                         commentId: commentIdToHmId(rootId),
                         replyCommentId: rootId !== comment.id ? comment.id : undefined,
-                        commentView: currentRoute.key === 'comments' ? 'expanded' : 'panel',
                         gatewayUrl: appOrigin ?? undefined,
                       })
                     }}

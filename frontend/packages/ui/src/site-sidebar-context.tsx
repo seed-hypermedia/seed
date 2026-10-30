@@ -1,8 +1,8 @@
-import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
-import { Button } from './button'
-import { Tooltip } from './tooltip'
+import {PanelLeftClose, PanelLeftOpen} from 'lucide-react'
+import {createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode} from 'react'
+import {createPortal} from 'react-dom'
+import {Button} from './button'
+import {Tooltip} from './tooltip'
 
 /** Reads a saved sidebar preference without treating invalid storage as a choice. */
 export function readSidebarOpen(value: string | null, defaultOpen: boolean): boolean {
@@ -54,7 +54,7 @@ export function SiteSidebarProvider({
   const [target, setTarget] = useState<HTMLDivElement | null>(null)
   const [hasPageContent, setHasPageContent] = useState(false)
   const value = useMemo(
-    () => ({ open, setOpen, target, setTarget, hasPageContent, setHasPageContent }),
+    () => ({open, setOpen, target, setTarget, hasPageContent, setHasPageContent}),
     [open, setOpen, target, hasPageContent],
   )
   return <SiteSidebarContext.Provider value={value}>{children}</SiteSidebarContext.Provider>
@@ -66,7 +66,7 @@ export function useSiteSidebar() {
 }
 
 /** Places a page's browser in the desktop sidebar while keeping page providers and permissions. */
-export function SiteSidebarPortal({ children }: { children: ReactNode }) {
+export function SiteSidebarPortal({children}: {children: ReactNode}) {
   const sidebar = useSiteSidebar()
   const setHasPageContent = sidebar?.setHasPageContent
   useEffect(() => {
@@ -89,7 +89,7 @@ export function SiteSidebarToggle() {
         size="iconSm"
         aria-label={label}
         aria-expanded={sidebar.open}
-        className="no-window-drag text-muted-foreground opacity-50 hover:text-muted-foreground size-7 min-w-7 shrink-0 focus-visible:ring-2"
+        className="no-window-drag text-muted-foreground hover:text-muted-foreground size-7 min-w-7 shrink-0 opacity-50 focus-visible:ring-2"
         onClick={() => sidebar.setOpen(!sidebar.open)}
       >
         <Icon className="size-5" />

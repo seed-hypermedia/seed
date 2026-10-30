@@ -27,8 +27,36 @@ import {DocumentTopBar} from '../document-top-bar'
 
 let container: HTMLDivElement
 let root: Root
+let observers: Array<{
+  target?: Element
+  emit: (isIntersecting: boolean) => void
+  disconnected: boolean
+}>
 
 beforeEach(() => {
+  observers = []
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      target?: Element
+      disconnected = false
+      constructor(private callback: IntersectionObserverCallback) {
+        observers.push(this)
+      }
+      observe(target: Element) {
+        this.target = target
+      }
+      disconnect() {
+        this.disconnected = true
+      }
+      emit(isIntersecting: boolean) {
+        this.callback(
+          [{target: this.target, isIntersecting} as IntersectionObserverEntry],
+          this as unknown as IntersectionObserver,
+        )
+      }
+    },
+  )
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -39,6 +67,7 @@ afterEach(() => {
     root.unmount()
   })
   container.remove()
+  vi.unstubAllGlobals()
 })
 
 function render(node: React.ReactNode) {
@@ -56,6 +85,59 @@ function render(node: React.ReactNode) {
 }
 
 describe('DocumentTopBar', () => {
+  it('shows Collapse only while the inline control is offscreen and performs the collapse action', () => {
+    const inlineButton = document.createElement('button')
+    function Page() {
+      const [expanded, setExpanded] = React.useState(true)
+      return (
+        <>
+          <DocumentTopBar
+            collapseAction={
+              expanded
+                ? {
+                    inlineButton,
+                    title: 'Comments',
+                    onCollapse: () => setExpanded(false),
+                  }
+                : undefined
+            }
+          />
+          <div>{expanded ? 'Expanded comments' : 'Document with comments panel'}</div>
+        </>
+      )
+    }
+    render(<Page />)
+    const collapse = () => container.querySelector<HTMLButtonElement>('[aria-label="Collapse Comments"]')
+    expect(collapse()).toBeNull()
+    act(() => observers[0]!.emit(true))
+    expect(collapse()).toBeNull()
+    act(() => observers[0]!.emit(false))
+    expect(collapse()).not.toBeNull()
+    act(() => observers[0]!.emit(true))
+    expect(collapse()).toBeNull()
+    act(() => observers[0]!.emit(false))
+    act(() => collapse()!.click())
+    expect(container.textContent).toContain('Document with comments panel')
+    expect(collapse()).toBeNull()
+    expect(observers[0]!.disconnected).toBe(true)
+  })
+
+  it('does not carry offscreen state over to a different inline button', () => {
+    const action = {inlineButton: document.createElement('button'), title: 'Comments', onCollapse: () => {}}
+    render(<DocumentTopBar collapseAction={action} />)
+    act(() => observers[0]!.emit(false))
+    expect(container.querySelector('[aria-label="Collapse Comments"]')).not.toBeNull()
+    render(
+      <DocumentTopBar collapseAction={{...action, title: 'People', inlineButton: document.createElement('button')}} />,
+    )
+    expect(container.querySelector('[aria-label="Collapse People"]')).toBeNull()
+    expect(observers[0]!.disconnected).toBe(true)
+    act(() => observers[1]!.emit(false))
+    expect(container.querySelector('[aria-label="Collapse People"]')).not.toBeNull()
+    render(<DocumentTopBar />)
+    expect(container.querySelector('[aria-label="Collapse People"]')).toBeNull()
+  })
+
   it('renders the location trail and the page actions', () => {
     render(
       <DocumentTopBar

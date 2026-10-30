@@ -112,6 +112,34 @@ function createReplyPayload(overrides: Partial<NotificationPayload> = {}): Notif
 }
 
 describe('notifications page helpers', () => {
+  it.each(['comment', 'citation'])(
+    'opens the root thread and selects the source %s notification reply',
+    (eventType) => {
+      const payload = createReplyPayload({
+        eventType,
+        citationType: eventType === 'citation' ? 'c' : null,
+        commentId: 'author/reply',
+        threadRoot: 'other/root',
+      })
+      expect(notificationRouteForPayload(payload)).toMatchObject({
+        key: 'document',
+        id: {uid: 'site', path: ['post']},
+        panel: {key: 'comments', openComment: 'other/root', replyCommentId: 'author/reply'},
+      })
+    },
+  )
+
+  it('opens a root comment without selecting a reply', () => {
+    const payload = createReplyPayload({commentId: 'author/root', threadRoot: ''})
+    expect(notificationRouteForPayload(payload)).toMatchObject({
+      panel: {key: 'comments', openComment: 'author/root'},
+    })
+    const route = notificationRouteForPayload(payload)
+    expect(
+      route && 'panel' in route && route.panel && 'replyCommentId' in route.panel && route.panel.replyCommentId,
+    ).toBeFalsy()
+  })
+
   it('classifies mention notifications for selected account root target', () => {
     const event = createMentionEvent()
     expect(classifyNotificationEvent(event, 'target-account')).toBe('mention')
