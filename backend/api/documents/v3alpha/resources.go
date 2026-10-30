@@ -387,7 +387,14 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		if _, _, err := tsid.Parse(); err == nil {
 			blb, err := srv.getSnapshotResource(ctx, acc, tsid, heads)
 			if err != nil {
-				return nil, err
+				if !errors.Is(err, errNotSnapshotResource) {
+					return nil, err
+				}
+
+				// The path parses as a TSID, but whatever lives there is not a snapshot blob
+				// (e.g. a document whose path happens to look like a TSID, pinned to a Change version).
+				// Fall through and treat it as a document path.
+				blb = &snapshotBlob{}
 			}
 
 			switch v := blb.Blob.(type) {
@@ -931,6 +938,10 @@ var qGetResource = dqb.Str(`
 	LIMIT 1
 `)
 
+// errNotSnapshotResource is returned when a TSID lookup resolves to a blob
+// that is not a state-based (snapshot) resource, such as a document Change.
+var errNotSnapshotResource = errors.New("not a snapshot resource")
+
 func decodeSnapshotBlob(bt blob.Type, data []byte) (blob.Blob, error) {
 	var out blob.Blob
 	switch bt {
@@ -939,7 +950,7 @@ func decodeSnapshotBlob(bt blob.Type, data []byte) (blob.Blob, error) {
 	case blob.TypeContact:
 		out = &blob.Contact{}
 	default:
-		return nil, status.Errorf(codes.InvalidArgument, "getResource: blob type '%s' is not supported", bt)
+		return nil, fmt.Errorf("getResource: blob type '%s' is not supported: %w", bt, errNotSnapshotResource)
 	}
 
 	if err := cbornode.DecodeInto(data, out); err != nil {

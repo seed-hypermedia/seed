@@ -136,6 +136,47 @@ func TestGetResource(t *testing.T) {
 		require.Equal(t, "Test Document", resp.GetDocument().Metadata.Fields["title"].GetStringValue())
 	})
 
+	t.Run("GetDocumentWithTSIDLookingPath", func(t *testing.T) {
+		t.Parallel()
+		srv := newTestDocsAPI(t, "carol")
+		ctx := context.Background()
+
+		// Regression: "user-story-maps" multibase-decodes (base64url, 'u' prefix) to exactly
+		// 10 bytes, so it used to be mistaken for a comment TSID and GetResource failed with
+		// "blob type 'Change' is not supported" when a version was pinned.
+		// The second path is a real base58btc TSID string used as a document path.
+		paths := []string{
+			"/user-story-maps",
+			"/" + string(blob.NewTSIDWithHash(time.UnixMilli(1793298326812), [4]byte{1, 2, 3, 4})),
+		}
+
+		for _, path := range paths {
+			doc, err := srv.PublishDocumentChangeForTest(ctx, &apitest.DocumentChangeRequest{
+				SigningKeyName: "main",
+				Account:        srv.me.Account.PublicKey.String(),
+				Path:           path,
+				Changes: []*documents.DocumentChange{
+					{Op: &documents.DocumentChange_SetMetadata_{
+						SetMetadata: &documents.DocumentChange_SetMetadata{
+							Key:   "title",
+							Value: "TSID-looking path",
+						},
+					}},
+				},
+			})
+			require.NoError(t, err, path)
+
+			base := fmt.Sprintf("hm://%s%s", srv.me.Account.Principal(), path)
+			for _, iri := range []string{base, base + "?v=" + doc.Version} {
+				resp, err := srv.GetResource(ctx, &documents.GetResourceRequest{Iri: iri})
+				require.NoError(t, err, iri)
+				require.NotNil(t, resp.GetDocument(), iri)
+				require.Equal(t, path, resp.GetDocument().Path, iri)
+				require.Equal(t, doc.Version, resp.GetDocument().Version, iri)
+			}
+		}
+	})
+
 	t.Run("GetDocumentViaWebURLWithHmPath", func(t *testing.T) {
 		t.Parallel()
 		srv := newTestDocsAPI(t, "alice")
