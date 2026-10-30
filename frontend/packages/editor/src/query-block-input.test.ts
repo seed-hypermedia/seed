@@ -44,14 +44,20 @@ describe('published View input', () => {
       query: {includes, sort, limit: undefined},
       ...(activeFilters.length ? {viewer: {filters: activeFilters}} : {}),
     })
-    expect(getQueryBlockInput({queryIncludes: EMPTY, queryView: JSON.stringify({filters})}, {uid: 'alice'}))
-      .toEqual(rendererInput(filters))
-    expect(getQueryBlockInput({queryIncludes: EMPTY, queryView: '{"filters":[]}'}, {uid: 'alice'}))
-      .toEqual(rendererInput([]))
+    expect(getQueryBlockInput({queryIncludes: EMPTY, queryView: JSON.stringify({filters})}, {uid: 'alice'})).toEqual(
+      rendererInput(filters),
+    )
+    expect(getQueryBlockInput({queryIncludes: EMPTY, queryView: '{"filters":[]}'}, {uid: 'alice'})).toEqual(
+      rendererInput([]),
+    )
   })
   it('keeps nonempty legacy query filters in the prefetch request', () => {
-    expect(getQueryBlockInput({queryIncludes: EMPTY, queryFilters: JSON.stringify([{type: 'Author', uid: 'bob'}])}, {uid: 'alice'})?.query.filters)
-      .toEqual([{type: 'Author', uid: 'bob'}])
+    expect(
+      getQueryBlockInput(
+        {queryIncludes: EMPTY, queryFilters: JSON.stringify([{type: 'Author', uid: 'bob'}])},
+        {uid: 'alice'},
+      )?.query.filters,
+    ).toEqual([{type: 'Author', uid: 'bob'}])
   })
 })
 
