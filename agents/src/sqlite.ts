@@ -28,15 +28,13 @@ export const migrations: string[] = [
       kind TEXT NOT NULL,
       input_digest TEXT NOT NULL,
       status TEXT NOT NULL,
-      attempt INTEGER NOT NULL DEFAULT 1,
       lease_owner TEXT,
-      lease_expires_at INTEGER,
       response_cbor BLOB,
       error TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
       completed_at INTEGER
-  ) WITHOUT ROWID;
+  );
 
   CREATE INDEX effect_outbox_by_session ON effect_outbox (session_id, created_at);
   CREATE INDEX effect_outbox_by_status ON effect_outbox (status, completed_at);`,

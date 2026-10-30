@@ -15,11 +15,12 @@
  *
  * - no row: the effect never began, so it runs now;
  * - `succeeded` or `failed`: the stored response is returned, and the effect does not run again;
- * - `running` left by a process that is gone, or `interrupted` after the boot sweep: the call is
+ * - `running` left by a run that is over, or `interrupted` after the boot sweep: the call is
  *   answered as interrupted, naming the effect, so the model checks one thing instead of guessing.
  *
- * Reads (`read`, `plan`, `status`, and the read-only callables) never get a row: repeating them is
- * free. See {@link classifyEffect}.
+ * Reads (`read`, `plan`, `status`, the read-only callables) and the verbs that are idempotent on
+ * their own (`continue_session`, `return_result`) never get a row: repeating them is free. They
+ * classify as `read`; see {@link classifyEffect}.
  *
  * Rows are keyed by session and tool call id, which Pi Durable keeps stable across a rerun. The
  * input digest is kept so a receipt is never returned for a call whose arguments changed, which
@@ -31,21 +32,24 @@ import type {Database} from 'bun:sqlite'
 import * as cbor from '@/cbor'
 import {stmt} from '@/statements'
 
-/** How long a settled receipt is kept. A resumed turn needs it for minutes; a week is generous. */
-export const RETENTION_MS = 7 * 24 * 60 * 60 * 1000
+/** How long a settled receipt is kept. A resumed turn needs it for minutes; two days is generous. */
+export const RETENTION_MS = 2 * 24 * 60 * 60 * 1000
 
-/** A lease this old on a `running` row belongs to a process that is gone (the server is one process). */
-export const LEASE_MS = 60 * 60 * 1000
+/** The reason an effect's row carries once a process death settled it. */
+export const INTERRUPTED_BY_RESTART = 'The server process ended before this effect completed.'
+/** The reason when the run that started the effect is over but the process is not. */
+export const INTERRUPTED_BY_RUN_END = 'The run that started this effect ended before it completed.'
 
 export type EffectStatus = 'running' | 'succeeded' | 'failed' | 'interrupted'
 
-/** What a tool call does to the world, or `read` when it does nothing worth recording. */
-export type EffectClass = {
-  /** `read` for calls that may simply run again; anything else names the effect for people and the model. */
-  kind: string
-  /** Whether a call cut off mid-effect may run again instead of being answered as interrupted. */
-  repeatable: boolean
-}
+/**
+ * What a tool call does to the world: `read` for a call that may simply run again and gets no row,
+ * anything else the name of the effect, as an interrupted result shows it to the model.
+ */
+export type EffectKind = string
+
+/** The kind of a call that gets no row. */
+export const READ: EffectKind = 'read'
 
 export type EffectRow = {
   id: string
@@ -57,9 +61,8 @@ export type EffectRow = {
   kind: string
   inputDigest: string
   status: EffectStatus
-  attempt: number
+  /** The process that ran the effect, while it runs: tells a run that ended from a process that died. */
   leaseOwner: string | null
-  leaseExpiresAt: number | null
   response: unknown
   error: string | null
   createdAt: number
@@ -77,9 +80,7 @@ type EffectDbRow = {
   kind: string
   input_digest: string
   status: EffectStatus
-  attempt: number
   lease_owner: string | null
-  lease_expires_at: number | null
   response_cbor: Uint8Array | null
   error: string | null
   created_at: number
@@ -87,8 +88,8 @@ type EffectDbRow = {
   completed_at: number | null
 }
 
-const COLUMNS = `id, account_id, session_id, run_id, tool_call_id, tool, kind, input_digest, status, attempt,
-  lease_owner, lease_expires_at, response_cbor, error, created_at, updated_at, completed_at`
+const COLUMNS = `id, account_id, session_id, run_id, tool_call_id, tool, kind, input_digest, status,
+  lease_owner, response_cbor, error, created_at, updated_at, completed_at`
 
 function rowToEffect(row: EffectDbRow): EffectRow {
   return {
@@ -101,9 +102,7 @@ function rowToEffect(row: EffectDbRow): EffectRow {
     kind: row.kind,
     inputDigest: row.input_digest,
     status: row.status,
-    attempt: row.attempt,
     leaseOwner: row.lease_owner,
-    leaseExpiresAt: row.lease_expires_at,
     response: row.response_cbor ? cbor.decode(row.response_cbor) : undefined,
     error: row.error,
     createdAt: row.created_at,
@@ -142,53 +141,51 @@ const READ_ONLY_CALLABLES: ReadonlySet<string> = new Set(['search', 'query', 'at
  * What a tool call does to the world, from its name and arguments alone, before it runs.
  *
  * The verbs that only read (`read`, `plan`, `status`) and the read-only callables are `read`: a
- * cut-off call simply runs again, as it always has. A `write` is named by its address, a `call` by
- * the tool it calls, and a promoted callable by its own name. The kinds are the words an
- * interrupted result shows the model, so they say what to check: `publish`, `memory-write`,
- * `execute`, `mcp:<name>`.
+ * cut-off call simply runs again, as it always has. `continue_session` and `return_result` are
+ * repeatable too, because they are idempotent by themselves: the first finds its own continuation
+ * row, the second only sets the turn's state. A `write` is named by its address, a `call` by the
+ * tool it calls, and a promoted callable by its own name. The kinds are the words an interrupted
+ * result shows the model, so they say what to check: `publish`, `memory-write`, `execute`,
+ * `call:<name>`.
  */
-export function classifyEffect(tool: string, args: unknown): EffectClass {
+export function classifyEffect(tool: string, args: unknown): EffectKind {
   const input = args && typeof args === 'object' && !Array.isArray(args) ? (args as Record<string, unknown>) : {}
-  const read = {kind: 'read', repeatable: true}
   switch (tool) {
     case 'read':
     case 'plan':
     case 'status':
-      return read
+    case 'continue_session':
+    case 'return_result':
+      return READ
     case 'write': {
-      if (input.dryRun === true) return read
+      if (input.dryRun === true) return READ
       const address = typeof input.address === 'string' ? input.address.trim() : ''
-      if (address.startsWith('~/triggers/')) return {kind: 'trigger-write', repeatable: false}
-      if (address.startsWith('~/tools/')) return {kind: 'tool-write', repeatable: false}
-      if (address.startsWith('~/memory/') || address.startsWith('~/')) return {kind: 'memory-write', repeatable: false}
-      if (address.startsWith('ipfs:')) return {kind: 'ipfs-upload', repeatable: false}
-      if (address.startsWith('hm://') || address.startsWith('hm:')) return {kind: 'publish', repeatable: false}
-      return {kind: 'write', repeatable: false}
+      if (address.startsWith('~/triggers/')) return 'trigger-write'
+      if (address.startsWith('~/tools/')) return 'tool-write'
+      if (address.startsWith('~/memory/')) return 'memory-write'
+      if (address.startsWith('~/')) return 'space-write'
+      if (address.startsWith('ipfs:')) return 'ipfs-upload'
+      if (address.startsWith('hm://') || address.startsWith('hm:')) return 'publish'
+      return 'write'
     }
     case 'call': {
       const name = typeof input.tool === 'string' ? input.tool.trim() : ''
-      if (!name) return read
-      return classifyCallable(name)
+      // A call with no tool name answers with the listing: nothing to record.
+      return name ? classifyCallable(name) : READ
     }
     case 'delegate':
-      return {kind: 'delegate', repeatable: false}
-    case 'continue_session':
-      return {kind: 'continue-session', repeatable: false}
-    case 'return_result':
-      return {kind: 'return-result', repeatable: false}
+      return 'delegate'
     default:
       // A promoted callable is offered under its own name and runs through the call verb.
       return classifyCallable(tool)
   }
 }
 
-function classifyCallable(name: string): EffectClass {
-  if (READ_ONLY_CALLABLES.has(name)) return {kind: 'read', repeatable: true}
-  if (name === 'execute') return {kind: 'execute', repeatable: false}
-  if (name === 'browser') return {kind: 'browser', repeatable: false}
-  if (name === 'navigate') return {kind: 'navigate', repeatable: false}
+function classifyCallable(name: string): EffectKind {
+  if (READ_ONLY_CALLABLES.has(name)) return READ
+  if (name === 'execute' || name === 'browser' || name === 'navigate') return name
   // An authored lambda or an MCP tool: it may do anything, so it is recorded under its own name.
-  return {kind: `call:${name}`, repeatable: false}
+  return `call:${name}`
 }
 
 /** What the wrapper around a tool does with a call, decided from the outbox before the tool runs. */
@@ -197,10 +194,8 @@ export type Disposition =
   | {state: 'run'; row: EffectRow}
   /** The effect already ended: answer with its receipt. */
   | {state: 'settled'; row: EffectRow}
-  /** The effect began under a process that is gone and nobody knows how it ended. */
+  /** The effect began under a run that is over and nobody knows how it ended. */
   | {state: 'interrupted'; row: EffectRow}
-  /** The same effect is running right now in this process (two executions of one call). */
-  | {state: 'in-flight'; row: EffectRow}
 
 export type BeginOptions = {
   accountId: string
@@ -210,16 +205,21 @@ export type BeginOptions = {
   tool: string
   kind: string
   args: unknown
-  /** The process running the effect; the boot sweep treats every other owner as gone. */
+  /** The process running the effect; a rerun tells a run that ended from a process that died by it. */
   owner: string
   now?: number
 }
 
 /**
- * Records that a tool call is about to perform its effect, or finds what an earlier process
- * recorded for the same call. The insert commits before this returns, so a process death after it
- * leaves a `running` row the boot sweep settles, and a process death before it leaves nothing,
- * which the rerun reads as "never began".
+ * Records that a tool call is about to perform its effect, or finds what an earlier run recorded
+ * for the same call. The insert commits before this returns, so a process death after it leaves a
+ * `running` row the boot sweep settles, and a process death before it leaves nothing, which the
+ * rerun reads as "never began".
+ *
+ * A `running` row found here always belongs to a run that is over: the harness reruns a call only
+ * after its earlier execution was lost, and the caller keeps two executions of one call in this
+ * process apart. So it is settled as interrupted, with a reason that says whether the process
+ * survived.
  *
  * A row whose arguments differ from this call's is treated as foreign: it is replaced, because a
  * receipt must only ever answer the call that earned it. Through the harness the arguments of one
@@ -234,18 +234,18 @@ export function begin(db: Database, options: BeginOptions): Disposition {
     if (existing && existing.inputDigest === digest) {
       if (existing.status === 'succeeded' || existing.status === 'failed') return {state: 'settled', row: existing}
       if (existing.status === 'interrupted') return {state: 'interrupted', row: existing}
-      // `running`: this process is executing it right now, or a dead process never got to settle it.
-      const live = existing.leaseOwner === options.owner && (existing.leaseExpiresAt ?? 0) > now
-      if (live) return {state: 'in-flight', row: existing}
-      const interrupted = markInterrupted(db, id, now, 'The server process ended before this effect completed.')
-      return {state: 'interrupted', row: interrupted ?? existing}
+      const reason = existing.leaseOwner === options.owner ? INTERRUPTED_BY_RUN_END : INTERRUPTED_BY_RESTART
+      return {state: 'interrupted', row: interrupt(db, id, reason, now) ?? existing}
     }
     if (existing) stmt(db, `DELETE FROM effect_outbox WHERE id = ?`).run([id])
-    stmt(
+    const row = stmt<
+      EffectDbRow,
+      [string, string, string, string | null, string, string, string, string, string, number]
+    >(
       db,
       `INSERT INTO effect_outbox (${COLUMNS})
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'running', 1, ?, ?, NULL, NULL, ?, ?, NULL)`,
-    ).run([
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'running', ?9, NULL, NULL, ?10, ?10, NULL) RETURNING ${COLUMNS}`,
+    ).get(
       id,
       options.accountId,
       options.sessionId,
@@ -255,13 +255,10 @@ export function begin(db: Database, options: BeginOptions): Disposition {
       options.kind,
       digest,
       options.owner,
-      now + LEASE_MS,
       now,
-      now,
-    ])
-    const row = get(db, id)
-    if (!row) throw new Error('Effect outbox row vanished inside its own transaction')
-    return {state: 'run', row}
+    )
+    if (!row) throw new Error('INSERT … RETURNING produced no row')
+    return {state: 'run', row: rowToEffect(row)}
   })()
 }
 
@@ -276,14 +273,14 @@ export function complete(
     stmt(
       db,
       `UPDATE effect_outbox SET status = 'failed', error = ?, response_cbor = NULL, lease_owner = NULL,
-         lease_expires_at = NULL, updated_at = ?, completed_at = ? WHERE id = ? AND status = 'running'`,
+       updated_at = ?, completed_at = ? WHERE id = ? AND status = 'running'`,
     ).run([outcome.error, now, now, id])
     return
   }
   stmt(
     db,
     `UPDATE effect_outbox SET status = 'succeeded', response_cbor = ?, error = NULL, lease_owner = NULL,
-       lease_expires_at = NULL, updated_at = ?, completed_at = ? WHERE id = ? AND status = 'running'`,
+       updated_at = ?, completed_at = ? WHERE id = ? AND status = 'running'`,
   ).run([cbor.encode(outcome.response), now, now, id])
 }
 
@@ -300,17 +297,13 @@ export function recover(db: Database, id: string, response: unknown, now: number
   return updated > 0 ? get(db, id) : null
 }
 
-/** Marks a `running` effect of a run that is over as interrupted; a settled row is left alone. */
+/** Marks a `running` effect of a run that is over as interrupted, with the reason; a settled row is left alone. */
 export function interrupt(db: Database, id: string, reason: string, now: number = Date.now()): EffectRow | null {
-  return markInterrupted(db, id, now, reason)
-}
-
-function markInterrupted(db: Database, id: string, now: number, error: string): EffectRow | null {
   stmt(
     db,
-    `UPDATE effect_outbox SET status = 'interrupted', error = ?, lease_owner = NULL, lease_expires_at = NULL,
+    `UPDATE effect_outbox SET status = 'interrupted', error = ?, lease_owner = NULL,
        updated_at = ?, completed_at = ? WHERE id = ? AND status = 'running'`,
-  ).run([error, now, now, id])
+  ).run([reason, now, now, id])
   return get(db, id)
 }
 
@@ -320,65 +313,43 @@ export function get(db: Database, id: string): EffectRow | null {
   return row ? rowToEffect(row) : null
 }
 
-/** Every effect recorded for a session, oldest first. */
-export function listForSession(db: Database, sessionId: string): EffectRow[] {
-  return stmt<EffectDbRow, [string]>(
-    db,
-    `SELECT ${COLUMNS} FROM effect_outbox WHERE session_id = ? ORDER BY created_at ASC, id ASC`,
-  )
-    .all(sessionId)
-    .map(rowToEffect)
-}
-
 /**
  * Settles what a dead process left behind. The server is one process, so at boot every `running`
- * row belongs to a process that is gone. A repeatable effect's row is deleted, so the rerun starts
- * clean; any other becomes `interrupted` with a reason, which is what the rerun answers with.
+ * row belongs to a process that is gone: it becomes `interrupted`, which is what a rerun answers
+ * with. Returns how many rows that was.
  */
-export function sweepAtBoot(
-  db: Database,
-  options: {repeatable?: (kind: string) => boolean; now?: number} = {},
-): {interrupted: number; cleared: number} {
-  const now = options.now ?? Date.now()
-  const repeatable = options.repeatable ?? (() => false)
-  const running = stmt<{id: string; kind: string}, []>(
+export function sweepAtBoot(db: Database, now: number = Date.now()): number {
+  const interrupted = stmt(
     db,
-    `SELECT id, kind FROM effect_outbox WHERE status = 'running'`,
-  ).all()
-  let interrupted = 0
-  let cleared = 0
-  db.transaction(() => {
-    for (const row of running) {
-      if (repeatable(row.kind)) {
-        stmt(db, `DELETE FROM effect_outbox WHERE id = ?`).run([row.id])
-        cleared += 1
-      } else {
-        markInterrupted(db, row.id, now, 'The server process ended before this effect completed.')
-        interrupted += 1
-      }
-    }
-  })()
-  if (interrupted > 0 || cleared > 0) {
-    console.info('[agents/outbox] boot sweep settled effects a dead process left running', {interrupted, cleared})
+    `UPDATE effect_outbox SET status = 'interrupted', error = ?, lease_owner = NULL,
+       updated_at = ?, completed_at = ? WHERE status = 'running'`,
+  ).run([INTERRUPTED_BY_RESTART, now, now]).changes
+  if (interrupted > 0) {
+    console.info('[agents/outbox] boot sweep settled effects a dead process left running', {interrupted})
   }
-  return {interrupted, cleared}
+  return interrupted
 }
 
-/** Deletes settled receipts older than the retention window. Returns how many went. */
+/** Deletes settled receipts older than the retention window, by `effect_outbox_by_status`. Returns how many went. */
 export function prune(db: Database, now: number = Date.now(), retentionMs: number = RETENTION_MS): number {
   const cutoff = now - retentionMs
-  return stmt(db, `DELETE FROM effect_outbox WHERE status != 'running' AND COALESCE(completed_at, updated_at) < ?`).run(
-    [cutoff],
-  ).changes
+  return stmt(
+    db,
+    `DELETE FROM effect_outbox WHERE status IN ('succeeded', 'failed', 'interrupted') AND completed_at < ?`,
+  ).run([cutoff]).changes
 }
 
 /**
- * The text a call cut off mid-effect is answered with: it names the effect and the one thing to
- * check, instead of the harness's generic "may have partially run".
+ * The text a call cut off mid-effect is answered with: it names the effect, says why nothing more
+ * is known, and names the one thing to do, instead of the harness's generic "may have partially
+ * run".
  */
-export function interruptedResultText(row: Pick<EffectRow, 'kind' | 'tool'>): string {
-  const what = effectDescription(row.kind, row.tool)
-  return `Interrupted by a service restart while ${what}. It may have completed before the restart. Check the result before repeating it.`
+export function interruptedResultText(row: Pick<EffectRow, 'kind' | 'tool' | 'error'>): string {
+  const why = row.error || INTERRUPTED_BY_RUN_END
+  return `Interrupted while ${effectDescription(
+    row.kind,
+    row.tool,
+  )}. ${why} It may have completed. Check the result before repeating it.`
 }
 
 function effectDescription(kind: string, tool: string): string {
@@ -389,6 +360,8 @@ function effectDescription(kind: string, tool: string): string {
       return 'uploading to IPFS'
     case 'memory-write':
       return 'writing a memory file'
+    case 'space-write':
+      return 'writing to the agent space'
     case 'trigger-write':
       return 'changing a trigger'
     case 'tool-write':
@@ -401,10 +374,6 @@ function effectDescription(kind: string, tool: string): string {
       return 'navigating'
     case 'delegate':
       return 'starting a delegated child'
-    case 'continue-session':
-      return 'continuing into a successor session'
-    case 'return-result':
-      return 'returning the typed result'
     default:
       return kind.startsWith('call:') ? `calling ${kind.slice('call:'.length)}` : `running ${tool}`
   }

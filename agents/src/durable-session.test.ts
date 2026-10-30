@@ -1218,7 +1218,7 @@ describe('effect outbox in a turn', () => {
     expect(requests).toHaveLength(2)
     const toolResult = (requests[1] ?? []).find((message) => message.role === 'tool')
     expect(toolResult?.tool_call_id).toBe('call-write')
-    expect(String(toolResult?.content)).toContain('Interrupted by a service restart while writing a memory file')
+    expect(String(toolResult?.content)).toContain('Interrupted while writing a memory file')
     const row = effectOutbox.get(h.db, effectOutbox.effectId(h.sessionId, 'call-write'))
     expect(row?.status).toBe('interrupted')
 
@@ -1322,6 +1322,42 @@ describe('effect outbox in a turn', () => {
     const after = await sessionEvents(h.service, h)
     const answers = after.filter((event) => event.type === 'message' && event.content === 'Here is the answer.')
     expect(answers).toHaveLength(1)
+  })
+
+  test('a retry while dispatch is paused waits in the queue instead of being cancelled', async () => {
+    const h = await createSession()
+    let healthy = false
+    const requests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      requests.push(providerMessages(init))
+      return healthy ? textReply('chat-ok', 'Back on a roomy disk.') : new Response('boom', {status: 500})
+    }) as unknown as typeof fetch
+    await expect(
+      h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Question'}]}),
+    ).rejects.toThrow()
+    h.service.stopRunQueue()
+
+    // The same database, served by a process whose disk floor no disk can meet.
+    const paused = new apisvc.Service(h.db, h.dataDir, {
+      storage: {path: h.dataDir, minFreeBytes: Number.MAX_SAFE_INTEGER},
+    })
+    cleanups.push(() => paused.stopRunQueue())
+    const send = async (action: unknown) =>
+      paused.message(await apisvc.createSignedEnvelope(h.account, {action: action as never}))
+    healthy = true
+    const requestsBefore = requests.length
+    const retried = await send({_: 'RetrySession', sessionId: h.sessionId})
+    expect(retried._).toBe('RetrySessionResponse')
+    if (retried._ !== 'RetrySessionResponse') throw new Error('unexpected response')
+    expect(retried.assistantEventId).toBe('')
+    const latest = h.db
+      .query<{status: string}, [string]>(`SELECT status FROM runs WHERE session_id = ? ORDER BY created_at DESC`)
+      .get(h.sessionId)
+    // Held, not cancelled: it runs once dispatch resumes, and the model was not asked meanwhile.
+    expect(latest?.status).toBe('queued')
+    expect(requests).toHaveLength(requestsBefore)
   })
 })
 

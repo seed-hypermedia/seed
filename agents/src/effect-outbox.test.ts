@@ -47,6 +47,16 @@ function beginWrite(db: Database, overrides: Partial<effectOutbox.BeginOptions> 
   })
 }
 
+/** The tool call ids with a row for the session, oldest first. */
+function recordedCalls(db: Database): string[] {
+  return db
+    .query<{tool_call_id: string}, [string]>(
+      `SELECT tool_call_id FROM effect_outbox WHERE session_id = ? ORDER BY created_at, id`,
+    )
+    .all(SESSION)
+    .map((row) => row.tool_call_id)
+}
+
 const cleanups: Array<() => void> = []
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup()
@@ -55,48 +65,39 @@ afterEach(() => {
 describe('classifyEffect', () => {
   test('reads, plan and status repeat freely', () => {
     for (const tool of ['read', 'plan', 'status']) {
-      expect(effectOutbox.classifyEffect(tool, {})).toEqual({kind: 'read', repeatable: true})
+      expect(effectOutbox.classifyEffect(tool, {})).toBe(effectOutbox.READ)
     }
   })
 
   test('a write is named by its address, and a rehearsal is a read', () => {
-    expect(effectOutbox.classifyEffect('write', {address: 'hm://z6Mkdoc/notes', content: 'x'})).toEqual({
-      kind: 'publish',
-      repeatable: false,
-    })
-    expect(effectOutbox.classifyEffect('write', {address: 'hm://z6Mkdoc/notes', content: 'x', dryRun: true})).toEqual({
-      kind: 'read',
-      repeatable: true,
-    })
-    expect(effectOutbox.classifyEffect('write', {address: '~/memory/a.md'}).kind).toBe('memory-write')
-    expect(effectOutbox.classifyEffect('write', {address: '~/triggers/daily'}).kind).toBe('trigger-write')
-    expect(effectOutbox.classifyEffect('write', {address: '~/tools/fetch'}).kind).toBe('tool-write')
-    expect(effectOutbox.classifyEffect('write', {address: 'ipfs://'}).kind).toBe('ipfs-upload')
+    expect(effectOutbox.classifyEffect('write', {address: 'hm://z6Mkdoc/notes', content: 'x'})).toBe('publish')
+    expect(effectOutbox.classifyEffect('write', {address: 'hm://z6Mkdoc/notes', content: 'x', dryRun: true})).toBe(
+      'read',
+    )
+    expect(effectOutbox.classifyEffect('write', {address: '~/memory/a.md'})).toBe('memory-write')
+    expect(effectOutbox.classifyEffect('write', {address: '~/triggers/daily'})).toBe('trigger-write')
+    expect(effectOutbox.classifyEffect('write', {address: '~/tools/fetch'})).toBe('tool-write')
+    expect(effectOutbox.classifyEffect('write', {address: '~/self'})).toBe('space-write')
+    expect(effectOutbox.classifyEffect('write', {address: 'ipfs://'})).toBe('ipfs-upload')
   })
 
   test('a call is named by what it calls; read-only callables repeat, everything else is recorded', () => {
     for (const name of ['search', 'query', 'attributes', 'web_search']) {
-      expect(effectOutbox.classifyEffect('call', {tool: name, input: {}}).repeatable).toBe(true)
+      expect(effectOutbox.classifyEffect('call', {tool: name, input: {}})).toBe('read')
       // A promoted callable is offered under its own name.
-      expect(effectOutbox.classifyEffect(name, {}).repeatable).toBe(true)
+      expect(effectOutbox.classifyEffect(name, {})).toBe('read')
     }
-    expect(effectOutbox.classifyEffect('call', {tool: 'execute', input: {}})).toEqual({
-      kind: 'execute',
-      repeatable: false,
-    })
-    expect(effectOutbox.classifyEffect('execute', {code: 'print(1)'})).toEqual({kind: 'execute', repeatable: false})
-    expect(effectOutbox.classifyEffect('call', {tool: 'github_create_issue'})).toEqual({
-      kind: 'call:github_create_issue',
-      repeatable: false,
-    })
+    expect(effectOutbox.classifyEffect('call', {tool: 'execute', input: {}})).toBe('execute')
+    expect(effectOutbox.classifyEffect('execute', {code: 'print(1)'})).toBe('execute')
+    expect(effectOutbox.classifyEffect('call', {tool: 'github_create_issue'})).toBe('call:github_create_issue')
     // A call with no tool name answers with the listing: nothing to record.
-    expect(effectOutbox.classifyEffect('call', {}).repeatable).toBe(true)
+    expect(effectOutbox.classifyEffect('call', {})).toBe('read')
   })
 
-  test('delegation and the turn-ending verbs are recorded under their own names', () => {
-    expect(effectOutbox.classifyEffect('delegate', {input: 'go'})).toEqual({kind: 'delegate', repeatable: false})
-    expect(effectOutbox.classifyEffect('continue_session', {}).kind).toBe('continue-session')
-    expect(effectOutbox.classifyEffect('return_result', {}).kind).toBe('return-result')
+  test('delegation is recorded; the verbs that are idempotent on their own are reads', () => {
+    expect(effectOutbox.classifyEffect('delegate', {input: 'go'})).toBe('delegate')
+    expect(effectOutbox.classifyEffect('continue_session', {})).toBe('read')
+    expect(effectOutbox.classifyEffect('return_result', {})).toBe('read')
   })
 })
 
@@ -110,6 +111,7 @@ describe('effect outbox', () => {
     expect(first.row.status).toBe('running')
     expect(first.row.leaseOwner).toBe('process-a')
     expect(first.row.kind).toBe('memory-write')
+    expect(first.row.runId).toBe('run-1')
 
     effectOutbox.complete(db, first.row.id, {
       response: {output: [{type: 'text', text: 'Wrote notes.md'}], details: {ok: 1}},
@@ -120,6 +122,7 @@ describe('effect outbox', () => {
     expect(again.row.status).toBe('succeeded')
     expect(again.row.response).toEqual({output: [{type: 'text', text: 'Wrote notes.md'}], details: {ok: 1}})
     expect(again.row.leaseOwner).toBeNull()
+    expect(again.row.completedAt).not.toBeNull()
   })
 
   test('a failed effect is a receipt too: the error is returned, the effect is not retried', () => {
@@ -144,7 +147,7 @@ describe('effect outbox', () => {
     // Same call id, other content: the old row is replaced and the call runs.
     const changed = beginWrite(db, {args: {address: '~/memory/notes.md', content: 'something else'}})
     expect(changed.state).toBe('run')
-    expect(effectOutbox.listForSession(db, SESSION)).toHaveLength(1)
+    expect(recordedCalls(db)).toEqual(['call-1'])
   })
 
   test('the digest ignores key order and undefined members', () => {
@@ -154,7 +157,7 @@ describe('effect outbox', () => {
     expect(effectOutbox.inputDigest({a: 1})).not.toBe(effectOutbox.inputDigest({a: 2}))
   })
 
-  test('a row another process left running is interrupted, and stays interrupted', () => {
+  test('a row another process left running is interrupted by the restart, and stays interrupted', () => {
     const db = createDb()
     cleanups.push(() => sqlite.closeDatabase(db))
     const first = beginWrite(db, {owner: 'process-a'})
@@ -164,9 +167,9 @@ describe('effect outbox', () => {
     expect(rerun.state).toBe('interrupted')
     if (rerun.state !== 'interrupted') throw new Error('unexpected')
     expect(rerun.row.status).toBe('interrupted')
-    expect(rerun.row.error).toContain('ended before this effect completed')
+    expect(rerun.row.error).toBe(effectOutbox.INTERRUPTED_BY_RESTART)
     expect(effectOutbox.interruptedResultText(rerun.row)).toBe(
-      'Interrupted by a service restart while writing a memory file. It may have completed before the restart. Check the result before repeating it.',
+      'Interrupted while writing a memory file. The server process ended before this effect completed. It may have completed. Check the result before repeating it.',
     )
     // A late receipt from the dead process cannot flip it: complete() only settles running rows.
     effectOutbox.complete(db, rerun.row.id, {response: {output: []}})
@@ -174,30 +177,32 @@ describe('effect outbox', () => {
     expect(beginWrite(db, {owner: 'process-b'}).state).toBe('interrupted')
   })
 
-  test('a row this process is still running is in flight, and expires with its lease', () => {
+  test('a row the same process left running belongs to a run that ended, and says so', () => {
     const db = createDb()
     cleanups.push(() => sqlite.closeDatabase(db))
-    const now = 1_000_000
-    const first = beginWrite(db, {now})
-    expect(first.state).toBe('run')
-    expect(beginWrite(db, {now: now + 1}).state).toBe('in-flight')
-    expect(beginWrite(db, {now: now + effectOutbox.LEASE_MS + 1}).state).toBe('interrupted')
+    expect(beginWrite(db).state).toBe('run')
+    const rerun = beginWrite(db)
+    expect(rerun.state).toBe('interrupted')
+    if (rerun.state !== 'interrupted') throw new Error('unexpected')
+    expect(rerun.row.error).toBe(effectOutbox.INTERRUPTED_BY_RUN_END)
+    expect(effectOutbox.interruptedResultText(rerun.row)).toContain('The run that started this effect ended')
   })
 
   test('the boot sweep settles every running row before any turn can ask', () => {
     const db = createDb()
     cleanups.push(() => sqlite.closeDatabase(db))
     const publish = beginWrite(db, {toolCallId: 'call-publish', kind: 'publish', args: {address: 'hm://x/y'}})
-    const query = beginWrite(db, {toolCallId: 'call-query', tool: 'call', kind: 'read', args: {tool: 'query'}})
+    const exec = beginWrite(db, {toolCallId: 'call-exec', tool: 'call', kind: 'execute', args: {tool: 'execute'}})
     const done = beginWrite(db, {toolCallId: 'call-done'})
-    if (publish.state !== 'run' || query.state !== 'run' || done.state !== 'run') throw new Error('unexpected')
+    if (publish.state !== 'run' || exec.state !== 'run' || done.state !== 'run') throw new Error('unexpected')
     effectOutbox.complete(db, done.row.id, {response: {output: []}})
 
-    const swept = effectOutbox.sweepAtBoot(db, {repeatable: (kind) => kind === 'read'})
-    expect(swept).toEqual({interrupted: 1, cleared: 1})
+    expect(effectOutbox.sweepAtBoot(db)).toBe(2)
     expect(effectOutbox.get(db, publish.row.id)?.status).toBe('interrupted')
-    expect(effectOutbox.get(db, query.row.id)).toBeNull()
+    expect(effectOutbox.get(db, publish.row.id)?.error).toBe(effectOutbox.INTERRUPTED_BY_RESTART)
+    expect(effectOutbox.get(db, exec.row.id)?.status).toBe('interrupted')
     expect(effectOutbox.get(db, done.row.id)?.status).toBe('succeeded')
+    expect(effectOutbox.sweepAtBoot(db)).toBe(0)
   })
 
   test('an interrupted effect whose outcome turned up elsewhere becomes a receipt', () => {
@@ -225,7 +230,21 @@ describe('effect outbox', () => {
     effectOutbox.complete(db, old.row.id, {response: {output: []}}, now)
     effectOutbox.complete(db, fresh.row.id, {response: {output: []}}, now + effectOutbox.RETENTION_MS)
     expect(effectOutbox.prune(db, now + effectOutbox.RETENTION_MS + 1)).toBe(1)
-    const left = effectOutbox.listForSession(db, SESSION).map((row) => row.toolCallId)
-    expect(left).toEqual(['call-fresh', 'call-running'])
+    expect(recordedCalls(db)).toEqual(['call-fresh', 'call-running'])
+    // The prune walks the status index rather than the table.
+    const plan = db
+      .query<{detail: string}, []>(
+        `EXPLAIN QUERY PLAN DELETE FROM effect_outbox WHERE status IN ('succeeded', 'failed', 'interrupted') AND completed_at < 0`,
+      )
+      .all()
+    expect(plan.some((step) => step.detail.includes('effect_outbox_by_status'))).toBe(true)
+  })
+
+  test('deleting a session deletes its receipts', () => {
+    const db = createDb()
+    cleanups.push(() => sqlite.closeDatabase(db))
+    expect(beginWrite(db).state).toBe('run')
+    db.run(`DELETE FROM sessions WHERE id = ?`, [SESSION])
+    expect(recordedCalls(db)).toEqual([])
   })
 })

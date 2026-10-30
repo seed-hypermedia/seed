@@ -275,6 +275,22 @@ describe('runs queue', () => {
     expect(executed).toEqual([run.id])
   })
 
+  test("a live child of a parent run that is over still counts as the parent's pending spawn", () => {
+    const db = createDb()
+    const queue = new runs.RunQueue(db, {executors: {}})
+    track(db, queue)
+    createSession(db, 'session-parent')
+    const parent = queue.enqueue(agentSpec({sessionId: 'session-parent', dispatch: false}))
+    const child = queue.enqueue(
+      agentSpec({parentRunId: parent.id, parentToolCallId: 'call-delegate', title: 'Child', dispatch: false}),
+    )
+    // The parent died across a restart and was failed; the child is still queued.
+    db.run(`UPDATE runs SET status = 'failed' WHERE id = ?`, [parent.id])
+    expect(runs.pendingWaitToolCallIds(db, 'session-parent')).toEqual(new Set(['call-delegate']))
+    db.run(`UPDATE runs SET status = 'succeeded' WHERE id = ?`, [child.id])
+    expect(runs.pendingWaitToolCallIds(db, 'session-parent')).toEqual(new Set())
+  })
+
   test('parked runs hold no slot and resume via requeueWaiting', async () => {
     const db = createDb()
     let phase = 0

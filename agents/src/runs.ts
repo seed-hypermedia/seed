@@ -334,6 +334,16 @@ export function pendingWaitToolCallIds(db: Database, sessionId: string): Set<str
     const wait = cbor.decode<RunWait>(row.wait_cbor)
     if (wait.reason === 'children') for (const id of wait.toolCallIds) pending.add(id)
   }
+  // A child still working whose parent run is over (it failed or was canceled across a restart)
+  // is pending too: its finalizer will answer the call, so nothing else may answer it first.
+  const placeholders = TERMINAL_RUN_STATUSES.map(() => '?').join(', ')
+  const live = stmt<{parent_tool_call_id: string}, string[]>(
+    db,
+    `SELECT parent_tool_call_id FROM runs
+       WHERE parent_tool_call_id IS NOT NULL AND status NOT IN (${placeholders})
+         AND parent_run_id IN (SELECT id FROM runs WHERE session_id = ?)`,
+  ).all(...TERMINAL_RUN_STATUSES, sessionId)
+  for (const row of live) pending.add(row.parent_tool_call_id)
   return pending
 }
 

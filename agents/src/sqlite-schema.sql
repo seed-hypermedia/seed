@@ -329,7 +329,7 @@ CREATE TABLE action_idempotency (
 -- The intent and receipt of every side effect a tool call performs (see effect-outbox.ts): a
 -- row is inserted before the effect begins and settled when it ends, keyed by session and tool
 -- call id. `status` is running, succeeded, failed, or interrupted; `response_cbor` is what the
--- tool returned. Settled rows are pruned after seven days.
+-- tool returned. Settled rows are pruned after two days.
 CREATE TABLE effect_outbox (
     id TEXT PRIMARY KEY,
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -340,15 +340,13 @@ CREATE TABLE effect_outbox (
     kind TEXT NOT NULL,
     input_digest TEXT NOT NULL,
     status TEXT NOT NULL,
-    attempt INTEGER NOT NULL DEFAULT 1,
     lease_owner TEXT,
-    lease_expires_at INTEGER,
     response_cbor BLOB,
     error TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     completed_at INTEGER
-) WITHOUT ROWID;
+);
 
 CREATE INDEX effect_outbox_by_session ON effect_outbox (session_id, created_at);
 CREATE INDEX effect_outbox_by_status ON effect_outbox (status, completed_at);

@@ -173,7 +173,7 @@ describe('main routes', () => {
         '/agents/api/health',
       )
       const roomyBody = await (await roomy()).json()
-      expect(roomyBody.disk).toMatchObject({path: dataDir, minFreeBytes: 1, ok: true})
+      expect(roomyBody.disk).toEqual({freeBytes: roomyBody.disk.freeBytes, minFreeBytes: 1, ok: true})
       expect(roomyBody.disk.freeBytes).toBeGreaterThan(1)
       expect(roomyBody.dispatch).toEqual({paused: false})
 

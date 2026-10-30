@@ -22,9 +22,12 @@ direnv exec . bash -lc 'cd agents && bun check && bun test'
 direnv exec . bash -lc 'cd agents && bun run test:build'
 direnv exec . bash -lc 'cd agents && bun run test:docker'
 direnv exec . bash -lc 'cd agents && bun run test:trigger'
+direnv exec . bash -lc 'cd agents && bun run test:outbox'
 ```
 
 `test:trigger` boots the real daemon against a local stand-in for hyper.media's `/api/ListEvents`, creates an agent and a user-mention trigger over the [signed API](./signed-api.md), and asserts that a comment mention fires exactly one session. It guards the comment and citation sibling race. See [triggers](./triggers.md). <!-- id:PN41rCE- -->
+
+`test:outbox` boots the real daemon on a real SQLite file with a local OpenAI-compatible stand-in for the model and drives the [effect outbox](./effect-outbox.md) over the wire: a memory write leaves a receipt; `kill -9` while a download is in flight and a restart answer the call as interrupted without repeating the download; on macOS the database moves to a 32 MiB RAM disk to show the disk floor pausing dispatch and a real ENOSPC mid-turn failing the run and recovering into one well-formed transcript. `SEED_AGENTS_SMOKE_REAL_DB=<path>` first boots on a copy of that database so the migration runs against real rows; `SEED_AGENTS_SMOKE_ONLY=restart,floor` selects scenarios by a word in their names.
 
 The [desktop app](../apps/desktop.md): <!-- id:nzMipXzR -->
 

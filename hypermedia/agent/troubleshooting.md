@@ -97,9 +97,9 @@ Since the runs rework, `sessions.status` is a derived mirror of [run](./runs.md)
 
 Check `/api/health`. `dispatch: {paused: true, reason}` means the queue has stopped claiming runs, and the reason says why; today the one cause is free disk space under the database below `SEED_AGENTS_MIN_FREE_DISK_MIB` (default 512 MiB), shown in `disk`. Runs already in flight finish; queued ones, including the turn behind a message a person just sent, wait. Free space and dispatch resumes on its own within a second; the log says `[agents/runs] dispatch paused` once when it stops and `[agents/runs] dispatch resumed` when it starts again. Setting the floor to `0` turns the check off, and then a turn that starts on a full disk fails with "The turn could not be recorded" instead. See the [effect outbox](./effect-outbox.md).
 
-# A tool result says "Interrupted by a service restart while …"
+# A tool result says "Interrupted while …"
 
-The call was cut off mid-effect by a restart and the [effect outbox](./effect-outbox.md) could not tell whether it finished. The text names the effect (publishing, writing a memory file, running code, a named callable). The model is told to check before repeating it; a person can do the same from the named address. A call that finished before the restart is answered from its receipt and never shows this text; a call that never began simply runs. The row is in `effect_outbox`, keyed by `<session_id>:<tool_call_id>`.
+The call was cut off mid-effect and the [effect outbox](./effect-outbox.md) could not tell whether it finished. The text names the effect (publishing, writing a memory file, running code, a named callable) and says whether the server process died or only the run ended. The model is told to check before repeating it; a person can do the same from the named address. A call that finished before the restart is answered from its receipt and never shows this text; a call that never began simply runs. The row is in `effect_outbox`, keyed by `<session_id>:<tool_call_id>`.
 
 # A delegate row says "Starting the child…" but the child is alive <!-- id:s0To9423 -->
 
