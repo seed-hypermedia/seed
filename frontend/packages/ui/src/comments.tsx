@@ -757,6 +757,7 @@ export const Comment = memo(function Comment({
     <>
       {deleteCommentDialog.content}
       <div
+        data-resourceid={commentHmId.id}
         className={cn(
           'highlight-transition group relative flex flex-col gap-1 rounded-lg px-3 py-3',
           isEntirelyHighlighted && 'bg-highlight',

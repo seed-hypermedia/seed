@@ -618,7 +618,7 @@ export function BlockEmbedContentComment({
   const route = useMemo(() => {
     if (!targetDocId) return undefined
 
-    if (id.blockRef && typeof id.blockRange?.start === 'number' && typeof id.blockRange?.end === 'number') {
+    if (id.blockRef) {
       return {
         key: 'comments' as const,
         id: {...targetDocId, blockRef: id.blockRef, blockRange: id.blockRange},

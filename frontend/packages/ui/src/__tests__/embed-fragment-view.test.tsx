@@ -160,6 +160,8 @@ describe('fragment embed interactions', () => {
     act(() => caret.click())
     expect(container.querySelector('p')?.textContent).toBe('Before fragment after')
     expect(caret.getAttribute('aria-expanded')).toBe('true')
+    expect(container.querySelector('p')?.getAttribute('data-focus')).toBe('source')
+    expect(container.querySelector('p')?.getAttribute('data-range')).toBe(JSON.stringify({start: 7, end: 15}))
     expect(navigated.href).toBe('')
     act(() => caret.click())
     expect(container.querySelector('p')?.textContent).toBe('fragment')
@@ -219,12 +221,12 @@ function TestCommentViewer({
   )
 }
 
-function renderCommentFragment(wholeComment = false) {
+function renderCommentFragment(wholeComment = false, wholeBlock = false) {
   const id = hmId('author', {
     path: ['comment'],
     version: 'comment-version',
     blockRef: wholeComment ? null : 'source',
-    blockRange: wholeComment ? null : {start: 7, end: 15},
+    blockRange: wholeComment || wholeBlock ? null : {start: 7, end: 15},
   })
   act(() =>
     root.render(
@@ -263,8 +265,8 @@ describe('comment fragment embeds', () => {
     const caret = container.querySelector('button')!
     act(() => caret.click())
     expect(container.querySelector('p')?.textContent).toBe('Before fragment afterAnother comment paragraph')
-    expect(container.querySelector('p')?.getAttribute('data-focus')).toBeNull()
-    expect(container.querySelector('p')?.getAttribute('data-range')).toBeNull()
+    expect(container.querySelector('p')?.getAttribute('data-focus')).toBe('source')
+    expect(container.querySelector('p')?.getAttribute('data-range')).toBe(JSON.stringify({start: 7, end: 15}))
     expect(navigated.href).toBe('')
     act(() => caret.click())
     expect(container.querySelector('p')?.textContent).toBe('fragment')
@@ -314,7 +316,7 @@ describe('quoted document fragments above the reply editor', () => {
     )
   }
 
-  it('expands the source block without selecting it and preserves the reply during both toggles', () => {
+  it('highlights the expanded fragment and preserves the reply during both toggles', () => {
     renderQuote()
     const reply = container.querySelector('textarea')!
     reply.value = 'My unfinished reply'
@@ -322,7 +324,7 @@ describe('quoted document fragments above the reply editor', () => {
     expect(container.querySelector('p')?.getAttribute('data-focus')).toBeNull()
     act(() => container.querySelector('button')!.click())
     expect(container.querySelector('p')?.textContent).toBe('Before fragment after')
-    expect(container.querySelector('p')?.getAttribute('data-range')).toBeNull()
+    expect(container.querySelector('p')?.getAttribute('data-range')).toBe(JSON.stringify({start: 7, end: 15}))
     expect(container.querySelector('textarea')).toBe(reply)
     expect(reply.value).toBe('My unfinished reply')
     act(() => container.querySelector('button')!.click())
@@ -345,4 +347,11 @@ describe('quoted document fragments above the reply editor', () => {
     expect(container.querySelector('p')?.textContent).toBe('Before fragment after')
     expect(container.querySelector('button')).toBeNull()
   })
+})
+
+it('opens a whole comment block with its block anchor', () => {
+  renderCommentFragment(false, true)
+  act(() => container.querySelector('p')!.click())
+  expect(navigated.href).toBe('/hm/site/document/:comments/author/comment?v=comment-version#source')
+  expect(navigated.route).toMatchObject({blockId: 'source'})
 })

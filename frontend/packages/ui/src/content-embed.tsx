@@ -151,7 +151,10 @@ export function ContentEmbed({
       expandTo === 'resource' || !!(id.blockRange && 'expanded' in id.blockRange && id.blockRange.expanded)
     return [{...selectedBlock, children: includeChildren ? selectedBlock.children : []}]
   }, [blocks, selectedBlock, id.blockRange, quote, collapsed, expanded, expandTo])
-  const highlight = getContentEmbedHighlight(id, currentRoute, resourceKind, collapsed)
+  const highlight =
+    expanded && fragment && id.blockRef && id.blockRange
+      ? {focusBlockId: id.blockRef, blockRange: id.blockRange}
+      : getContentEmbedHighlight(id, currentRoute, resourceKind, collapsed)
   const author = identity ? (
     <span className="inline-flex items-center gap-1 align-baseline">
       <AccountIdentity
