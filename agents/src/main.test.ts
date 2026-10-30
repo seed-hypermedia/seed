@@ -164,6 +164,31 @@ describe('main routes', () => {
       expect(offBody.hmServerUrl).toBe('https://hyper.media')
       expect(offBody.ipfsServerUrl).toBe('https://hyper.media')
       expect(offBody.webTools).toEqual({search: false, readBrowser: false})
+      // No storage configured: the disk check is off and the queue is claiming.
+      expect(offBody.disk).toBeNull()
+      expect(offBody.dispatch).toEqual({paused: false})
+
+      const roomy = getGetHandler(
+        createAPIRoutes(new apisvc.Service(db, dataDir, {storage: {path: dataDir, minFreeBytes: 1}})),
+        '/agents/api/health',
+      )
+      const roomyBody = await (await roomy()).json()
+      expect(roomyBody.disk).toMatchObject({path: dataDir, minFreeBytes: 1, ok: true})
+      expect(roomyBody.disk.freeBytes).toBeGreaterThan(1)
+      expect(roomyBody.dispatch).toEqual({paused: false})
+
+      // A floor no disk can meet: the queue stops claiming runs and says why.
+      const full = getGetHandler(
+        createAPIRoutes(
+          new apisvc.Service(db, dataDir, {storage: {path: dataDir, minFreeBytes: Number.MAX_SAFE_INTEGER}}),
+        ),
+        '/agents/api/health',
+      )
+      const fullBody = await (await full()).json()
+      expect(fullBody.status).toBe('ok')
+      expect(fullBody.disk.ok).toBe(false)
+      expect(fullBody.dispatch.paused).toBe(true)
+      expect(fullBody.dispatch.reason).toContain('below the')
 
       const on = getGetHandler(
         createAPIRoutes(

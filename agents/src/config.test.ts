@@ -45,4 +45,16 @@ describe('config', () => {
       'Invalid log level',
     )
   })
+
+  test('the free-disk floor defaults to 512 MiB, honors env and flag, and zero turns it off', () => {
+    expect(config.create(config.flags({} as NodeJS.ProcessEnv)).storage.minFreeDiskBytes).toBe(512 * 1_048_576)
+    expect(
+      config.create(config.flags({SEED_AGENTS_MIN_FREE_DISK_MIB: '0'} as NodeJS.ProcessEnv)).storage.minFreeDiskBytes,
+    ).toBe(0)
+    expect(
+      config.create(config.parseArgs(['--min-free-disk-mib=1024'], {} as NodeJS.ProcessEnv)).storage.minFreeDiskBytes,
+    ).toBe(1024 * 1_048_576)
+    expect(() => config.parseArgs(['--min-free-disk-mib=-1'], {} as NodeJS.ProcessEnv)).toThrow()
+    expect(() => config.parseArgs(['--min-free-disk-mib=lots'], {} as NodeJS.ProcessEnv)).toThrow()
+  })
 })

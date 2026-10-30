@@ -245,6 +245,36 @@ describe('runs queue', () => {
     expect(after?.attempt).toBe(0)
   })
 
+  test('runs are held while admission is refused and claimed once it is granted', async () => {
+    const db = createDb()
+    let admitted = false
+    const executed: string[] = []
+    const queue = new runs.RunQueue(db, {
+      executors: {
+        agent: async (run) => {
+          executed.push(run.id)
+          return {type: 'succeeded', output: {}}
+        },
+      },
+      admit: () => (admitted ? {ok: true} : {ok: false, reason: 'free disk space is below the floor'}),
+      pollIntervalMs: 5,
+    })
+    track(db, queue)
+    const run = queue.enqueue(agentSpec())
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(runs.getRun(db, ACCOUNT, run.id)?.status).toBe('queued')
+    expect(executed).toEqual([])
+    // The interactive path holds the run the same way: durable, queued, not started.
+    const inline = await queue.runInline(run.id)
+    expect(inline.status).toBe('queued')
+    expect(executed).toEqual([])
+
+    admitted = true
+    const done = await untilTerminal(db, run.id)
+    expect(done.status).toBe('succeeded')
+    expect(executed).toEqual([run.id])
+  })
+
   test('parked runs hold no slot and resume via requeueWaiting', async () => {
     const db = createDb()
     let phase = 0
