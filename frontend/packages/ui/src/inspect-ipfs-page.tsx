@@ -51,7 +51,30 @@ import {
   ValueEditorProvider,
 } from './value-editor'
 
-type IpfsKind = 'loading' | 'image' | 'cbor' | 'text'
+type IpfsKind = 'loading' | 'image' | 'cbor' | 'text' | 'folder'
+
+const DAG_PB_CODE = 0x70
+
+/** One entry of a UnixFS folder: its name and the CID of the file or folder it is. */
+export type FolderEntry = {name: string; cid: string}
+
+/**
+ * The entries of a UnixFS folder, read from the dag-json of its node: the named links. A file in
+ * several blocks is a dag-pb node too, but its links carry no names, so it is not a folder; nor is
+ * a node without links.
+ */
+export function folderEntriesOf(value: unknown): FolderEntry[] | null {
+  const links = isPlainObject(value) && Array.isArray(value.Links) ? value.Links : null
+  if (!links || !links.length) return null
+  const entries: FolderEntry[] = []
+  for (const link of links) {
+    const name = isPlainObject(link) && typeof link.Name === 'string' ? link.Name : ''
+    const hash = isPlainObject(link) && isPlainObject(link.Hash) ? link.Hash['/'] : undefined
+    if (!name || typeof hash !== 'string') return null
+    entries.push({name, cid: hash})
+  }
+  return entries
+}
 
 /**
  * Probes whether an image URL loads. Returns `null` while testing, `true`/`false`
@@ -182,11 +205,17 @@ export function InspectIpfsPage({
   // like the editor; only decode `signer` bytes to a readable hm:// principal.
   const preparedData = useMemo(() => (viewValue === null ? null : decodeSignerBytes(viewValue)), [viewValue])
 
+  // A dag-pb node is a UnixFS folder when its links are named (a tool's code, a page's bundle);
+  // its dag-json says so, and the entries open one by one in this same page.
+  const folderEntries = useMemo(() => (codec === DAG_PB_CODE ? folderEntriesOf(rawValue) : null), [codec, rawValue])
+
   let kind: IpfsKind
   if (isDraft) {
     kind = 'cbor'
   } else if (hasSubpath || isDagCbor) {
     kind = ipfsData.isLoading ? 'loading' : 'cbor'
+  } else if (codec === DAG_PB_CODE && (folderEntries || ipfsData.isLoading)) {
+    kind = folderEntries ? 'folder' : 'loading'
   } else if (isFile) {
     kind = isImage === null ? 'loading' : isImage ? 'image' : 'text'
   } else {
@@ -528,6 +557,24 @@ export function InspectIpfsPage({
           {rawText}
         </pre>
       )
+  } else if (kind === 'folder' && folderEntries) {
+    // A folder lists its entries; each opens in this page, a file as text or image, a folder as its own list.
+    body = (
+      <ul className="bg-background flex flex-col rounded-md border font-mono text-sm" aria-label="Folder entries">
+        {folderEntries.map((entry) => (
+          <li key={entry.name} className="border-border border-b last:border-b-0">
+            <button
+              type="button"
+              className="hover:bg-muted flex w-full items-center gap-2 px-4 py-2 text-left"
+              onClick={() => openLinkedBlob(entry.cid)}
+            >
+              <FileText className="text-muted-foreground size-4 shrink-0" />
+              <span className="truncate">{entry.name}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    )
   } else if (preparedData === null || preparedData === undefined) {
     body = <div className="text-muted-foreground text-sm">No IPFS data found.</div>
   } else if (rawMode) {
@@ -589,7 +636,9 @@ export function InspectIpfsPage({
             ? 'Image'
             : kind === 'text'
               ? 'Text file'
-              : 'IPFS blob'
+              : kind === 'folder'
+                ? 'Folder'
+                : 'IPFS blob'
 
   return (
     <div className="bg-background flex h-full max-h-full flex-col overflow-hidden">

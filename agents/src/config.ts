@@ -4,6 +4,11 @@
  * Keep runtime configuration in this module instead of reading `process.env` throughout
  * server code. Environment variables provide defaults and command-line flags override
  * them for local development and deployments.
+ *
+ * `SEED_AGENTS_APP_<SLUG>_<ARG>` variables have no flag: each is the value of one server-scope
+ * app argument (a shared API key the operator provides for an app mounted server-wide), keyed by
+ * that suffix in `apps.serverArgs`. `SEED_AGENTS_DATALAB_API_KEY` remains the older spelling of
+ * the convert app's `apiKey`.
  */
 
 /** HTTP bind configuration for the Agents service. */
@@ -54,6 +59,10 @@ export type Config = {
     crawlerUrl?: string
     /** Bearer token for Crawl4AI (required by Crawl4AI >= 0.9). */
     crawlerToken?: string
+  }
+  apps: {
+    /** Server-scope app argument values from the environment, keyed `<SLUG>_<ARG>` in upper case. */
+    serverArgs: Record<string, string>
   }
   exec: {
     /** Code-execution backend: 'microsandbox' or '' to disable. */
@@ -217,8 +226,22 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
   return parsed
 }
 
+/**
+ * `SEED_AGENTS_APP_<SLUG>_<ARG>` variables, keyed by that suffix: the server-scope app arguments
+ * the operator provides. `SEED_AGENTS_DATALAB_API_KEY`, the spelling from before mounts existed,
+ * still provides the convert app's key.
+ */
+export function serverAppArgs(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const out: Record<string, string> = {}
+  if (env.SEED_AGENTS_DATALAB_API_KEY?.trim()) out.CONVERT_APIKEY = env.SEED_AGENTS_DATALAB_API_KEY.trim()
+  for (const [key, value] of Object.entries(env)) {
+    if (key.startsWith('SEED_AGENTS_APP_') && value) out[key.slice('SEED_AGENTS_APP_'.length)] = value
+  }
+  return out
+}
+
 /** Creates validated service configuration from parsed flags. */
-export function create(pflags: Flags): Config {
+export function create(pflags: Flags, env: NodeJS.ProcessEnv = process.env): Config {
   if (!pflags['server-hostname']) {
     throw new Error('Server hostname configuration is required')
   }
@@ -248,6 +271,7 @@ export function create(pflags: Flags): Config {
       crawlerUrl: optionalHttpUrl(pflags['crawler-url'], 'Crawler URL'),
       crawlerToken: pflags['crawler-token'].trim() || undefined,
     },
+    apps: {serverArgs: serverAppArgs(env)},
     exec: {
       backend: parseExecBackend(pflags['exec-backend']),
       image: pflags['exec-image'].trim() || 'python',

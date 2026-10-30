@@ -70,6 +70,7 @@ function repository() {
 function session(dir: string, overrides: Partial<DevLoopOptions> = {}) {
   const docs = new Map<string, HMDocument>()
   const published: string[] = []
+  const assets: string[] = []
   const logs: string[] = []
   const hooks: {request?: (key: string, path: string) => Promise<void>; publish?: () => Promise<void>} = {}
   const appEdit = (path: string, source: string) => {
@@ -110,8 +111,14 @@ function session(dir: string, overrides: Partial<DevLoopOptions> = {}) {
     publish: async (input: any) => {
       await hooks.publish?.()
       for (const blob of input.blobs) {
-        const value = decodeCbor(blob.data) as any
-        if (value.type !== 'Ref') continue
+        let value: any
+        try {
+          value = decodeCbor(blob.data)
+        } catch {
+          assets.push(blob.cid) // a raw file block: an attribute asset riding with the change
+          continue
+        }
+        if (value?.type !== 'Ref') continue
         const path = value.path ?? ''
         published.push(path)
         if (!value.heads?.length || value.redirect) docs.delete(path)
@@ -131,7 +138,7 @@ function session(dir: string, overrides: Partial<DevLoopOptions> = {}) {
     key.accountId,
     (line) => logs.push(line),
   )
-  return {sync, docs, published, logs, hooks, appEdit}
+  return {sync, docs, published, assets, logs, hooks, appEdit}
 }
 
 afterEach(() => {
@@ -438,5 +445,32 @@ describe('a running dev sync follows Git checkouts', () => {
     await following
     expect(docs.get('')!.metadata.name).toBe('Second')
     expect(git(root, 'status', '--porcelain')).toBe('')
+  }, 30_000)
+})
+
+describe('a running dev sync owns the files a page names', () => {
+  test('an edit to a file a page names pushes that page, with the file as a blob, and nothing else', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'dev-sync-assets-'))
+    dirs.push(dir)
+    writeFileSync(join(dir, 'index.md'), '---\nname: Home\n---\nHome. <!-- id:home -->\n')
+    writeFileSync(join(dir, 'tool.md'), '---\nname: Tool\ncode: ./tool.ts\n---\nTool. <!-- id:tool -->\n')
+    writeFileSync(join(dir, 'tool.ts'), 'export default () => 1\n')
+    const {sync, published, assets} = session(dir)
+    await sync.tick()
+    expect(published.sort()).toEqual(['', '/tool'])
+    expect(assets).toHaveLength(1)
+    published.length = 0
+    assets.length = 0
+    // A quiet pass pushes nothing; an edit to the code pushes its page and the new blob.
+    await sync.tick()
+    expect(published).toEqual([])
+    writeFileSync(join(dir, 'tool.ts'), 'export default () => 2\n')
+    await sync.tick()
+    expect(published).toEqual(['/tool'])
+    expect(assets).toHaveLength(1)
+    // The page on disk keeps naming the file.
+    expect(readFileSync(join(dir, 'tool.md'), 'utf8')).toContain('code: ./tool.ts')
+    await sync.tick()
+    expect(published).toEqual(['/tool'])
   }, 30_000)
 })

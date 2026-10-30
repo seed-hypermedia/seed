@@ -10,6 +10,15 @@ export function getDefaultAgentServerUrl() {
 }
 
 /**
+ * Where the spawned local agents server sends documents to convert. Always the hosted server: the
+ * local server has no Datalab key by design, and in dev the default server URL above is the local
+ * server itself, which would just relay to itself. Overridable for pointing dev at staging.
+ */
+export function getDefaultConvertRelayUrl() {
+  return process.env.SEED_AGENTS_CONVERT_RELAY_URL || PRODUCTION_DEFAULT_AGENT_SERVER_URL
+}
+
+/**
  * The built-in default agent server URL for the current desktop runtime.
  *
  * Kept in its own module (separate from the platform adapter) so settings UI and tests can import

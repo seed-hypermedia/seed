@@ -8,12 +8,12 @@ An agent's whole model-facing tool surface is **five verbs**, [`read`](./read.md
 
 The canonical registry is `agents/protocol/src/tool-registry.ts`. The Agents service executes from it and the desktop renders from it, so a tool's prompt text, schemas, chat bubble, and HM-reference extraction cannot drift apart. It exports three tables: <!-- id:5JGudaAa -->
   - `seedVerbRegistry`: the five verbs, `status`, `continue_session`, and the hidden `return_result` mechanism. This is the **only** provider-facing toolset. A leaf run gets no `delegate`, a delegated child gets no `continue_session`, and only a typed child gets `return_result`. <!-- id:cpDWf5e4 -->
-  - `callableToolRegistry`: `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`. By default these are never handed to the provider as tools. `call` dispatches them (`callableToolRegistry`). <!-- id:Z3ye-2G4 -->
+  - `callableToolRegistry`: `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`, `convert`. By default these are never handed to the provider as tools. `call` dispatches them (`callableToolRegistry`). <!-- id:Z3ye-2G4 -->
   - `seedToolRegistry`: both, merged, for renderers and validation lookups (`seedToolRegistry`). <!-- id:lnALDCIy -->
 
 Each entry owns the model-facing name, label, prompt description, JSON input schema, optional output schema, runtime availability (`assistant` or `agent-service`), rendering metadata, and an optional `getReferencedUrls` extractor. The extractor lists the `hm://` resources a call touched so they can [sync](../protocol/network.md). Write results include [document](../protocol/documents.md) versions and [comment](../protocol/comments.md) and target URLs in this extraction. An open desktop session can then keep newly published content subscribed on its local node before the user follows the result link. Server runtimes only add execution functions around registry entries. Chat UIs pick their bubble renderer from the same metadata. <!-- id:Io_jNF7p -->
 
-`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it. `serviceCallableNames()` (in `agents/src/api-service.ts`) filters on `runtimes.includes('agent-service')`, which leaves the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`. Nothing on this branch runs the `assistant` runtime, so `navigate` does nothing today. It stays as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
+`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it. `serviceCallableNames()` (in `agents/src/api-service.ts`) filters on `runtimes.includes('agent-service')`, which leaves the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`, `convert`. Nothing on this branch runs the `assistant` runtime, so `navigate` does nothing today. It stays as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
 
 ## Legacy names <!-- id:xGuoC4hF -->
 
@@ -76,7 +76,7 @@ This filter is a security control. A hallucinated `call {tool: 'bash'}` durably 
 # Grants <!-- id:tPg5Z6sN -->
 
 Verbs are never [grants](./grants.md). They are always on. Two things are granted per agent, both through `definition.tools`: <!-- id:dEtv6vHA -->
-  - **The callable set.** `enabledCallableTools()` (`api-service.ts`) intersects the service callables with `definition.tools` (normalized, unknown names ignored). An undefined `tools` array grants all of them. `execute` drops out silently when the host cannot run sandboxes, so the model never sees a tool that can only fail. <!-- id:22xP_Z0w -->
+  - **The callable set.** `enabledCallableTools()` (`api-service.ts`) intersects the service callables with `definition.tools` (normalized, unknown names ignored). An undefined `tools` array grants all of them. `execute` drops out silently when the host cannot run sandboxes, and `convert` when the server has no Datalab key, no relay, and the account no key of its own, so the model never sees a tool that can only fail. <!-- id:22xP_Z0w -->
   - **Publish.** `publishGrantEnabled()` (`api-service.ts`) checks for the pseudo-tool name `publish` in `definition.tools`. Legacy write-group names (`write`, `memory_publish_document`, `ipfs_write`, `attachment_to_ipfs`) still count, so a pre-verbs agent keeps exactly the publishing posture its owner configured. An undefined `tools` array publishes. Without the grant, `write` to `hm://` or `ipfs://` returns 403 (`api-service.ts`, `api-service.ts`). Memory writes are never gated. <!-- id:27po_PK5 -->
 
 Definition limits: at most 32 tool names, 128 bytes each, 4 KiB total (`api-service.ts`). <!-- id:H43msgHh -->
@@ -179,7 +179,7 @@ More write behavior: <!-- id:6PdHCPGt -->
   - A comment mentions an account only through an inline mention, `[@](hm://ACCOUNT_UID/:profile)` (`prepareCommentMentions`). The shared markdown parser turns any `@`-labelled hm:// link (text after the `@` is ignored; a document URL gives a document mention), and the autolink `<hm://ACCOUNT_UID/:profile>`, into the `Embed` annotation the [mention trigger](./triggers.md) and notifications look for; a plain `[Name](hm://ACCOUNT_UID/:profile)` link in a comment is promoted to a mention as well. A comment body that still contains plain-text `@Name` is refused with the correct form in the message, because a plain `@Name`, or a link to someone's comment, notifies nobody and summons no agent. `options.allowPlainMentions: true` posts literal `@` text anyway. The result lists the mentioned accounts under `mentions`, and every thread entry in a comment read result prints its author's ready-made mention. <!-- id:Lqj5AycC -->
   - `options.fromPath` on an `hm://` address publishes a memory markdown file (frontmatter plus resolved images) through the dedicated pipeline. Path `/` derives the document path from the file's frontmatter name. <!-- id:gZfg4J0I -->
   - `document.create` refuses a nested path whose parent is not already published. Top-level paths are always allowed. The server enforces this, including in `dryRun`. <!-- id:KlGDRPlO -->
-  - `options.skipLinkCheck` publishes without checking that every link in the body resolves. <!-- id:WV4ngnGU -->
+  - `options.skipLinkCheck` publishes without checking that every link in the body resolves. Links into the document being published (`#blockId` fragments, resolved to its own address at publish time, such as the citation links `convert` writes) are never checked: on a first publication the document does not exist yet. <!-- id:WV4ngnGU -->
   - Root-level `server` and `dev` are accepted only when they resolve to the configured agent HM server. Publishing always uses that server, never one the model picks (`api-service.ts`). <!-- id:Dlh1Pqbd -->
   - `path: "/"` means the account [home document](../protocol/documents.md) and is published as the canonical empty HM path. <!-- id:zkDp34Z8 -->
   - [Tables](../block/table.md) round-trip through markdown as GFM tables carrying identity comments. The shared dialect is in `frontend/packages/client/src/markdown-to-blocks.ts` and `blocks-to-markdown.ts`. <!-- id:-ULSX1WW -->
@@ -204,7 +204,7 @@ Dispatch order in `executeCallVerb` (`api-service.ts`): <!-- id:iTHt2YHO -->
   2. If it is not a granted builtin, look for an enabled document of that name. A **lambda** runs in the sandbox (`executeLambdaTool`). An **MCP projection** is proxied to its server (`executeMcpTool`, see [`mcp.md`](./mcp.md)). <!-- id:SWV7WM4u -->
   3. Otherwise return the `~/tools` listing with a "no callable tool named …" summary. <!-- id:WixN3gx_ -->
   4. Validate `input` against the tool's schema. On failure, return the contract (touch-expand). <!-- id:euze5A7r -->
-  5. Execute: `search` goes to `executeAgentServiceSearch`, `query` to `executeAgentServiceQuery`, `attributes` to `executeAgentServiceAttributes`, `web_search` to `executeWebSearch`, and `execute` to the sandbox. <!-- id:dlSy993f -->
+  5. Execute: `search` goes to `executeAgentServiceSearch`, `query` to `executeAgentServiceQuery`, `attributes` to `executeAgentServiceAttributes`, `web_search` to `executeWebSearch`, `convert` to `executeConvert`, and `execute` to the sandbox. <!-- id:dlSy993f -->
 
 Promoted callables are exposed as real provider tools that route back through the same function (`createAgentServicePiTools`, `api-service.ts`). A promoted tool and a `call` of it behave identically: same validation, same narrowing, same executor. <!-- id:NFz3qyK1 -->
 
@@ -248,30 +248,42 @@ type ExecuteInput = {
 - Output: `{summary, exitCode, success, stdout, stderr, truncated, durationMs, changedFiles}`. stdout and stderr are bounded at 64 KiB each. `changedFiles` is a before/after listing diff of memory. Live progress streams a \~2000-char output tail at most every 250 ms. <!-- id:Zr_CQ4Uz -->
 - The SDK loads lazily and `availability()` is memoized. Hosts without virtualization run normally, and the tool is absent there instead of failing (`code-exec.ts`, with codes `config-disabled`, `unsupported-platform`, `whp-disabled`, `kvm-missing`, `kvm-forbidden`, `runtime-error`). <!-- id:nzXZhUiw -->
 
+## App tools
+
+The tools of a mounted [app](./agent-apps.md) are lambdas too: each is projected from the app's [tool page](./app-tool.md) with the page's `code` attribute as `source`, its `inputSchema` and `outputSchema`, and `app: {slug, version, scope}` as provenance. They are granted by their own names like any callable, and run through `executeAppTool` (`api-service.ts`):
+
+- **Input** is validated against the page's `inputSchema`; a miss returns the contract.
+- **The mount** is resolved for the account with its argument values and secrets (`resolveAppMount`, `app-mounts.ts`); an app no longer mounted answers an error.
+- **Usage**: on a metered server-wide mount, `min(callCap, allowance remaining, ceiling remaining)` units are reserved in `app_usage` (`agents/src/app-usage.ts`) before the run and handed to the tool as `ctx.usage.reserved`; the tool's `usage.units` settles the reservation, a failure releases it, a tool that reports nothing is charged what it was given, and the result's `usage` becomes `{unit, charged, remainingThisPeriod}`.
+- **The run** is the lambda path below with the mount's context as environment (`SEED_APP_CONTEXT`), egress limited to the app's `network` hosts, a principal of its own (`app:<slug>:<session>`) and a timeout up to the page's `timeoutSecs` (at most 30 minutes). No `execute` grant is needed: the mount is the consent, and the agent cannot write the code.
+- **Result**: the lambda wrapper's `{summary, result, logs?, changedFiles?, durationMs}`, with the tool's own `summary` lifted to the top when it returns one.
+
+The [Datalab converter](./apps/convert.md) is the first such app: its `convert` tool page carries the Datalab client, the output tree, the caption folding and the citation links, and nothing about documents lives in the server.
+
 ## Authored (lambda) tools <!-- id:tzwll2x7 -->
 
 A lambda runs its stored source in the same sandbox. The call's validated input goes in and its return value comes back (`executeLambdaTool`, `api-service.ts`). The ABI (`tool-documents.ts`): <!-- id:8p-mQ8J7 -->
 
 ```ts <!-- id:i6bvXwNl -->
-// runtime: 'typescript' — run with bun
-export default async function (input: {city: string}) {
+// runtime: 'typescript' — run with bun; ctx is set for an app's tool, absent for an authored one
+export default async function (input: {city: string}, ctx?: {args: {apiKey: string}}) {
   return {tempC: await lookup(input.city)}
 }
 ```
 
 ```python <!-- id:OGOpC1qL -->
-# runtime: 'python'
-def main(input):
+# runtime: 'python'; main(input) alone is fine too
+def main(input, ctx):
     return {"tempC": lookup(input["city"])}
 ```
 
-`buildLambdaProgram()` (`code-exec.ts`) wraps the source into a self-contained program with the input baked in as a double-`JSON.stringify` literal, so no interpolation can escape into code. TypeScript is imported as a module from a `data:` URL. It keeps its natural `export default` shape and type annotations and never touches the filesystem. Python gets an epilogue that calls `main` and awaits it if it is a coroutine. <!-- id:f-bHTuGv -->
+`buildLambdaProgram()` (`code-exec.ts`) wraps the source into a self-contained program with the input baked in as a double-`JSON.stringify` literal, so no interpolation can escape into code, and the context, when the process has one, read from the `SEED_APP_CONTEXT` environment variable (`LAMBDA_CONTEXT_ENV`): it carries a mount's secrets, so it travels in the environment and never in the program text. TypeScript is written to the guest's temp dir and imported from there as a module, which keeps its natural `export default` shape and type annotations without touching the workspace (a `data:` URL did the same for short lambdas, but bun refuses one past a few kilobytes). Python gets an epilogue that calls `main`, with the context only when `main` takes a second parameter, and awaits it if it is a coroutine. <!-- id:f-bHTuGv -->
 
 The return value travels on a marked stdout line (`LAMBDA_RESULT_PREFIX = '__SEED_TOOL_RESULT__'`). A result file would have to live somewhere, and `/workspace` _is_ the agent's memory, so the file would litter memory and show up in `changedFiles`. Everything unmarked comes back to the caller as `logs`, so ordinary `print` and `console.log` debugging still works (`code-exec.ts`, `parseLambdaResult` at `code-exec.ts`). <!-- id:9lADD45R -->
 
 Failures are thrown. A non-zero exit, no returned value, or a value the tool's own `output` schema rejects means the tool is broken, and the model that authored it is the one who can fix it. An input miss still returns the contract, exactly like a builtin. <!-- id:P_MNxRje -->
 
-Two gates apply before a lambda runs. The server must actually offer that runtime, and the agent must hold the `execute` grant or have the lambda's own name in its `tools` (which is how a narrowed child keeps one authored tool without general code execution). An authored tool is code in the sandbox, so writing one must not get around an owner who turned code execution off (`api-service.ts`, `api-service.ts`). <!-- id:aisa2jmo -->
+Two gates apply before an authored lambda runs. The server must actually offer that runtime, and the agent must hold the `execute` grant or have the lambda's own name in its `tools` (which is how a narrowed child keeps one authored tool without general code execution). An authored tool is code in the sandbox, so writing one must not get around an owner who turned code execution off (`api-service.ts`). An app's tool passes only the first gate: its code is the app's, consented to at mount, so the `execute` grant is not required. <!-- id:aisa2jmo -->
 
 # `delegate` <!-- id:9vaS9oaE -->
 
@@ -388,7 +400,7 @@ Durable session events and the desktop UI keep the tool's full output. Only the 
 - [Grants](./grants.md) <!-- id:rK4BKGX7 -->
 - [Tool document](./tool-document.md) <!-- id:lG_ea_kJ -->
 - [MCP servers](./mcp.md) <!-- id:4D2TubeN -->
-- [Datalab PDF importer](./datalab-importer.md) <!-- id:1K4OHZH_ -->
+- [Document import](./datalab-importer.md) <!-- id:1K4OHZH_ -->
 - [Triggers](./triggers.md) <!-- id:F1npZzOs -->
 - [Security](./security.md) <!-- id:1gpCge_Z -->
 - [Session continuation](./session-continuation.md) <!-- id:5SxLzsxa -->

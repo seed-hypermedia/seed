@@ -86,6 +86,8 @@ function guestFarm(): GuestFarm {
       },
     },
     NetworkPolicy: {fromProfiles: () => 'public'},
+    Rule: {allowDns: () => 'dns', allowEgress: (destination: unknown) => destination},
+    Destination: {domain: (domain: string) => domain},
   }
   return farm
 }
@@ -196,6 +198,26 @@ describe('warm pool source', () => {
     const again = await source.acquire(specFor('acct', 'agent'))
     expect(again.sandbox).toBe(good.sandbox)
     expect(again.reused).toBe(true)
+  })
+
+  test("a VM booted with a tool's own egress policy is single-use, never parked for the session", async () => {
+    const farm = guestFarm()
+    const source = createWarmPoolSource(poolConfig(), async () => farm.sdk)
+    const own = await source.acquire({...specFor('acct', 'agent'), network: {hosts: ['www.datalab.to']}})
+    expect(own.reused).toBe(false)
+    await own.release({healthy: true})
+    // The session's next plain call boots its own VM rather than inheriting the narrowed policy…
+    const plain = await source.acquire(specFor('acct', 'agent'))
+    expect(plain.sandbox).not.toBe(own.sandbox)
+    expect(plain.reused).toBe(false)
+    await plain.release({healthy: true})
+    // …and a second tool run never gets the parked session VM either.
+    const again = await source.acquire({...specFor('acct', 'agent'), network: {hosts: ['www.datalab.to']}})
+    expect(again.sandbox).not.toBe(plain.sandbox)
+    expect(again.reused).toBe(false)
+    await again.release({healthy: true})
+    await settled(() => farm.sandboxes.filter((sandbox) => sandbox.stopped).length === 2)
+    expect((plain.sandbox as GuestSandbox).stopped).toBe(false)
   })
 
   test('reuse is session-scoped: the same agent in a different session gets a fresh VM', async () => {

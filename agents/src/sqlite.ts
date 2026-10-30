@@ -14,6 +14,72 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // App tools carry their own code, and any app may be metered: the conversion ledger becomes the
+  // usage ledger of every metered app, keyed by the app's slug, and a server-wide mount page may
+  // set the allowance and ceiling it gives away (usage_cbor).
+  `CREATE TABLE app_usage (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      agent_id TEXT,
+      period TEXT NOT NULL,
+      units_reserved INTEGER NOT NULL,
+      units_charged INTEGER NOT NULL DEFAULT 0,
+      state TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+  CREATE INDEX app_usage_by_account ON app_usage (slug, account_id, period, state);
+  CREATE INDEX app_usage_by_period ON app_usage (slug, period, state);
+  INSERT INTO app_usage (id, slug, account_id, agent_id, period, units_reserved, units_charged, state, created_at, updated_at)
+    SELECT id, 'convert', account_id, agent_id, period, pages_reserved, pages_charged, state, created_at, updated_at
+    FROM conversion_usage;
+  DROP TABLE conversion_usage;
+  ALTER TABLE app_mounts ADD COLUMN usage_cbor BLOB;`,
+  // App mounts: the apps the server found mounted for a space (account_id) or server-wide from the
+  // operator's space (account_id ''), with a snapshot of the bundle and its actions so projection
+  // and execution never read the network. server_bindings remembers which agents-server URLs
+  // proved to be this server, so a binding is checked once a day and not once per mount.
+  `CREATE TABLE app_mounts (
+      account_id TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      mount_id TEXT NOT NULL,
+      bundle_id TEXT NOT NULL,
+      version TEXT,
+      snapshot_cbor BLOB,
+      args_cbor BLOB,
+      secret_refs_cbor BLOB,
+      status_cbor BLOB NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (account_id, slug)
+  ) WITHOUT ROWID;
+  CREATE INDEX app_mounts_by_slug ON app_mounts (slug, account_id);
+  CREATE TABLE server_bindings (
+      url TEXT PRIMARY KEY,
+      server_uid TEXT,
+      checked_at INTEGER NOT NULL,
+      error TEXT
+  ) WITHOUT ROWID;`,
+  // Metered use of the server's shared Datalab key by the convert tool: a row is reserved before
+  // the call (the reservation is what Datalab is told as max_pages, so spend is bounded up front),
+  // settled to the real page count on success, and released on failure.
+  `CREATE TABLE conversion_usage (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      agent_id TEXT,
+      period TEXT NOT NULL,
+      pages_reserved INTEGER NOT NULL,
+      pages_charged INTEGER NOT NULL DEFAULT 0,
+      state TEXT NOT NULL,
+      request_id TEXT,
+      source_name TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+  CREATE INDEX conversion_usage_by_account ON conversion_usage (account_id, period, state);
+  CREATE INDEX conversion_usage_by_period ON conversion_usage (period, state);`,
   // Pi Durable sessions. `pi_entry_id` is the durable transcript entry a session event was
   // projected from: an interrupted projection resumes after the highest id, and events without one
   // are the ones a turn still has to import into the session's durable conversation.

@@ -39,6 +39,7 @@ import {BrowserTools} from '@/browser-tools'
 import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import * as sessionAttachments from '@/session-attachments'
 import {
+  buildLambdaEntryProgram,
   buildLambdaProgram,
   CodeExecError,
   createCodeExecutor,
@@ -49,6 +50,10 @@ import {
   type CodeExecResult,
   type CodeExecutor,
   type LambdaRuntime,
+  EXEC_WORKSPACE_GUEST_PATH,
+  LAMBDA_CONTEXT_ENV,
+  MAX_APP_EXEC_TIMEOUT_SECS,
+  type ExecPrincipal,
 } from '@/code-exec'
 import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
@@ -57,6 +62,7 @@ import * as cbor from '@/cbor'
 import * as mcp from '@/mcp'
 import * as runs from '@/runs'
 import * as runEvents from '@/run-events'
+import * as appMounts from '@/app-mounts'
 import * as toolDocs from '@/tool-documents'
 import {
   lintWorkflowSource,
@@ -68,7 +74,8 @@ import {
   type WorkflowJournalEntry,
 } from '@/workflow-host'
 import {runWorkflowInWorker} from '@/workflow-worker-host'
-import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
+import {executeWebRead, executeWebSearch, withFetchDeadline, type WebToolsConfig} from '@/web-tools'
+import * as appUsage from '@/app-usage'
 import * as blobs from '@shm/shared/blobs'
 import {
   blocksToMarkdown,
@@ -601,11 +608,18 @@ export function narrowDefinitionTools(base: string[], specTools: string[], lambd
   ]
 }
 
-function enabledCallableTools(definition: api.AgentDefinition, codeExecAvailable: boolean): string[] {
+function enabledCallableTools(
+  definition: api.AgentDefinition,
+  codeExecAvailable: boolean,
+  appTools: string[],
+): string[] {
+  // Builtins are apps that happen to be mounted already: the tools of the apps mounted for the
+  // account join the service callables, and the grant list filters both by name.
   const serviceCallables = serviceCallableNames()
+  const offered = [...serviceCallables, ...appTools.filter((name) => !serviceCallables.includes(name))]
   const requested = definition.tools?.map(normalizeSeedToolName)
-  const enabled =
-    requested === undefined ? serviceCallables : serviceCallables.filter((name) => requested.includes(name))
+  const enabled = requested === undefined ? offered : offered.filter((name) => requested.includes(name))
+  // A tool this server cannot run is not offered at all, so the model never sees it in <space>.
   return enabled.filter((name) => name !== callableToolRegistry.execute.name || codeExecAvailable)
 }
 
@@ -1016,6 +1030,10 @@ export class Service {
    * session on the freshest credentials.
    */
   readonly #oauthStores = new Map<string, PersistedOAuthStore>()
+  /** This server's own key pair; its principal is the `serverUid` /health shows and a space's binding must prove. */
+  readonly #serverIdentity: blobs.NobleKeyPair
+  /** Server-scope app arguments from the environment, keyed `<SLUG>_<ARG>` in upper case. */
+  readonly #appServerArgs: Record<string, string>
 
   constructor(
     db: Database,
@@ -1028,6 +1046,8 @@ export class Service {
       /** Resolves a delegation Capability blob by CID; defaults to the IPFS endpoint above. */
       fetchCapability?: auth.CapabilityFetcher
       web?: WebToolsConfig
+      /** Server-scope app arguments (`SEED_AGENTS_APP_<SLUG>_<ARG>` in the environment), keyed by that suffix. */
+      apps?: {serverArgs?: Record<string, string>}
       exec?: CodeExecConfig
       codeExecutor?: CodeExecutor
       providerOAuth?: ProviderOAuthManager
@@ -1050,6 +1070,10 @@ export class Service {
     this.#ipfsServerUrl = options.ipfsServerUrl || this.#hmServerUrl
     this.#fetchCapability = options.fetchCapability ?? ((cid) => fetchBlobFromGateway(this.#ipfsServerUrl, cid))
     this.#web = options.web ?? {}
+    this.#appServerArgs = options.apps?.serverArgs ?? {}
+    this.#serverIdentity = getOrCreateServerIdentity(db)
+    // Relayed conversion jobs live in memory, so spooled results from a previous process are orphans.
+    fs.rmSync(path.join(dataDir, 'conversions'), {recursive: true, force: true})
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
     this.#titleGenerationEnabled = options.titleGeneration ?? false
@@ -1309,6 +1333,12 @@ export class Service {
         return this.#deleteMcpServer(verified.accountId, envelope.action.name)
       case 'RefreshMcpServer':
         return this.#refreshMcpServer(verified.accountId, envelope.action.name)
+      case 'ListApps':
+        return this.#listApps(verified.accountId)
+      case 'RefreshApps':
+        return this.#refreshApps(verified.accountId)
+      case 'GetAppUsage':
+        return this.#getAppUsage(verified.accountId, envelope.action.slug)
       case 'StartProviderOAuth':
         return this.#startProviderOAuth(verified.accountId, envelope.action.providerType)
       case 'SubmitProviderOAuthCode':
@@ -1990,7 +2020,7 @@ export class Service {
     ).run([agentId, accountId, cbor.encode(definition), stateDir, 'idle', now, now])
     fs.mkdirSync(stateDir, {recursive: true})
     this.#createDefaultMentionTrigger(accountId, agentId, definition)
-    this.#syncAgentMcpTools(accountId, agentId, definition)
+    this.#syncAgentTools(accountId, agentId, definition)
     const agentInfo = this.#getAgentInfo(accountId, agentId)
     if (agentInfo) {
       this.#emit({type: 'agent-change', accountId, agent: agentInfo})
@@ -2670,7 +2700,7 @@ export class Service {
         Date.now(),
         agent.id,
       ])
-      this.#syncAgentMcpTools(accountId, agent.id, definition)
+      this.#syncAgentTools(accountId, agent.id, definition)
       const agentInfo = this.#getAgentInfo(accountId, agent.id)
       if (agentInfo) this.#emit({type: 'agent-change', accountId, agent: agentInfo})
       this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: agent.id})
@@ -3202,7 +3232,7 @@ export class Service {
     ])
     // The agent's ~/tools/ is a projection of its grants: re-derive the MCP documents now so the
     // next listing, Space index, and call see exactly the servers this definition enables.
-    const mcpSync = this.#syncAgentMcpTools(accountId, agentId, definition)
+    const mcpSync = this.#syncAgentTools(accountId, agentId, definition)
     const response = this.#getAgent(accountId, agentId, viewerAccountId)
     this.#emit({type: 'agent-change', accountId, agent: response.agent})
     invalidateSpaceIndex(accountId, agentId)
@@ -3211,19 +3241,25 @@ export class Service {
     return response
   }
 
-  /** Reconciles one agent's `mcp` tool documents with the servers its definition enables. */
-  #syncAgentMcpTools(
+  /**
+   * Reconciles one agent's projected tool documents: the tools of the apps mounted for its
+   * account, then the tools of the MCP servers its definition enables. Apps go first so a remote
+   * tool of the same name yields to the mounted tool.
+   */
+  #syncAgentTools(
     accountId: string,
     agentId: string,
     definition: api.AgentDefinition,
   ): {changed: boolean; conflicts: string[]} {
-    const result = toolDocs.syncMcpToolDocuments(this.#db, accountId, agentId, definition.mcpServers ?? [])
+    const apps = toolDocs.syncAppToolDocuments(this.#db, accountId, agentId)
+    const mcp = toolDocs.syncMcpToolDocuments(this.#db, accountId, agentId, definition.mcpServers ?? [])
+    const result = {changed: apps.changed || mcp.changed, conflicts: [...apps.conflicts, ...mcp.conflicts]}
     if (result.changed) invalidateSpaceIndex(accountId, agentId)
-    if (result.conflicts.length) {
-      console.warn('[agents/mcp] remote tools shadowed by authored tools of the same name', {
-        agentId,
-        names: result.conflicts,
-      })
+    if (apps.conflicts.length) {
+      console.warn('[agents/apps] app tools shadowed by tools of the same name', {agentId, names: apps.conflicts})
+    }
+    if (mcp.conflicts.length) {
+      console.warn('[agents/mcp] remote tools shadowed by tools of the same name', {agentId, names: mcp.conflicts})
     }
     return result
   }
@@ -3237,10 +3273,160 @@ export class Service {
     for (const agent of agents) {
       const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
       if (!definition.mcpServers?.includes(serverName)) continue
-      const result = this.#syncAgentMcpTools(accountId, agent.id, definition)
+      const result = this.#syncAgentTools(accountId, agent.id, definition)
       if (result.changed) {
         this.#emit({type: 'account-change', accountId, reason: 'agent-tools-changed', agentId: agent.id})
       }
+    }
+  }
+
+  /** This server's identity, as `/health` publishes it: what a space's agents-server binding must prove to be. */
+  get serverUid(): string {
+    return blobs.principalToString(this.#serverIdentity.principal)
+  }
+
+  /**
+   * A server-scope app argument from this server's own configuration: the environment
+   * (`SEED_AGENTS_APP_<SLUG>_<ARG>`).
+   */
+  #serverArgValue(slug: string, arg: string): string | undefined {
+    return this.#appServerArgs[`${slug}_${arg}`.toUpperCase().replace(/-/g, '_')] || undefined
+  }
+
+  #appSecrets() {
+    return {
+      decrypt: (accountId: string, name: string) => readSecretString(this.#db, accountId, name),
+      serverArgValue: (slug: string, arg: string) => this.#serverArgValue(slug, arg),
+    }
+  }
+
+  /** The tool names of the apps mounted for an account, the server-wide ones and its own, offered as callables. */
+  #appToolNames(accountId: string): string[] {
+    return appMounts.visibleAppToolNames(this.#db, accountId)
+  }
+
+  #appResolver(accountId: string): AgentServicePiToolContext['apps'] {
+    return {
+      resolve: (slug) => appMounts.resolveAppMount(this.#db, accountId, slug, this.#appSecrets()),
+      codeRoot: (tool, code) =>
+        appMounts.ensureToolCode(this.#appMountDeps(), tool, code).catch((error: unknown) => {
+          throw new APIError(
+            503,
+            `The code of ${tool} is not available: ${error instanceof Error ? error.message : String(error)}`,
+          )
+        }),
+    }
+  }
+
+  #appMountDeps(signal?: AbortSignal): appMounts.AppMountDeps {
+    return {
+      db: this.#db,
+      hmServerUrl: this.#hmServerUrl,
+      ipfsServerUrl: this.#ipfsServerUrl,
+      dataDir: this.#dataDir,
+      serverUid: this.serverUid,
+      fetch: fetchWithReadDeadline,
+      runtimes: this.#codeExec.runtimes,
+      serverArgValue: (slug, arg) => this.#serverArgValue(slug, arg),
+      signal,
+    }
+  }
+
+  /**
+   * One pass over the mount documents this server is bound to act on (see app-mounts.ts), then the
+   * projection of what changed onto the agents that see it. The monitor runs it every few minutes;
+   * `RefreshApps` runs it for one space on demand.
+   */
+  async refreshAppMounts(options: {accountId?: string; signal?: AbortSignal} = {}): Promise<void> {
+    // A tool is refused at mount when this host cannot run its runtime, so the probed availability
+    // decides, not the configuration alone: a box without KVM mounts nothing it cannot run.
+    const {runtimes} = await this.#codeExec.availability()
+    const result = await appMounts.refreshAppMounts(
+      {...this.#appMountDeps(options.signal), runtimes},
+      {accountId: options.accountId},
+    )
+    if (result.serverChanged) {
+      invalidateAllSpaceIndexes()
+      this.#syncAppsAcrossAgents()
+      for (const {id} of stmt<{id: string}, []>(this.#db, `SELECT id FROM accounts`).all()) {
+        this.#emit({type: 'account-change', accountId: id, reason: 'apps-changed'})
+      }
+      return
+    }
+    for (const accountId of result.changedAccounts) {
+      invalidateSpaceIndex(accountId)
+      this.#syncAppsAcrossAgents(accountId)
+      this.#emit({type: 'account-change', accountId, reason: 'apps-changed'})
+    }
+  }
+
+  /** Re-projects mounted apps onto every agent of one account, or of all of them. */
+  #syncAppsAcrossAgents(accountId?: string): void {
+    type AgentRow = {id: string; account_id: string; definition_cbor: Uint8Array}
+    const agents = accountId
+      ? stmt<AgentRow, [string]>(
+          this.#db,
+          `SELECT id, account_id, definition_cbor FROM agents WHERE account_id = ?`,
+        ).all(accountId)
+      : stmt<AgentRow, []>(this.#db, `SELECT id, account_id, definition_cbor FROM agents`).all()
+    for (const agent of agents) {
+      const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
+      const result = this.#syncAgentTools(agent.account_id, agent.id, definition)
+      if (result.changed) {
+        this.#emit({
+          type: 'account-change',
+          accountId: agent.account_id,
+          reason: 'agent-tools-changed',
+          agentId: agent.id,
+        })
+      }
+    }
+  }
+
+  async #listApps(accountId: string): Promise<api.ListAppsResponse> {
+    const client = createSeedClient(this.#hmServerUrl, {fetch: fetchWithReadDeadline})
+    const binding = await appMounts.spaceBinding(this.#appMountDeps(), client, accountId)
+    return {
+      _: 'ListAppsResponse',
+      apps: appMounts.listVisibleAppMounts(this.#db, accountId).map(appMounts.appMountInfo),
+      binding: {
+        ...(binding.agentServerUrl ? {agentServerUrl: binding.agentServerUrl} : {}),
+        source: binding.source,
+        isThisServer: binding.isThisServer,
+      },
+    }
+  }
+
+  async #refreshApps(accountId: string): Promise<api.ListAppsResponse> {
+    await this.refreshAppMounts({accountId})
+    return this.#listApps(accountId)
+  }
+
+  #getAppUsage(accountId: string, rawSlug: string): api.GetAppUsageResponse {
+    const slug = normalizeBoundedString(rawSlug, 'App slug', MAX_NAME_BYTES)
+    const mount = appMounts.visibleAppMount(this.#db, accountId, slug)
+    if (!mount) throw new APIError(404, 'App not mounted')
+    // Only a server-wide mount is counted: a space's own mount spends the space's own key.
+    const allowance = mount.usage?.allowance
+    if (mount.scope !== 'server' || mount.snapshot?.usage?.meter !== 'per-unit' || allowance === undefined) {
+      return {_: 'GetAppUsageResponse'}
+    }
+    const period = appUsage.periodOf(Date.now())
+    const used = appUsage.unitsUsed(this.#db, {slug, accountId, period})
+    const ceiling = mount.usage?.ceiling
+    return {
+      _: 'GetAppUsageResponse',
+      usage: {
+        slug,
+        unit: mount.snapshot.usage.unit ?? 'units',
+        period,
+        used,
+        allowance,
+        remaining: Math.max(0, allowance - used),
+        ...(ceiling !== undefined
+          ? {serverRemaining: Math.max(0, ceiling - appUsage.unitsUsed(this.#db, {slug, period}))}
+          : {}),
+      },
     }
   }
 
@@ -3377,15 +3563,16 @@ export class Service {
     const agent = this.#getAgentInfo(accountId, agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
     const codeExecAvailable = (await this.#codeExec.availability()).available
-    const callables = enabledCallableTools(agent.definition, codeExecAvailable)
+    const callables = enabledCallableTools(agent.definition, codeExecAvailable, this.#appToolNames(accountId))
     toolDocs.ensureBuiltinToolDocuments(this.#db, accountId, agentId)
-    this.#syncAgentMcpTools(accountId, agentId, agent.definition)
+    this.#syncAgentTools(accountId, agentId, agent.definition)
     const tools = toolDocs.listToolDocuments(this.#db, accountId, agentId).map(
       (row): api.AgentToolInfo => ({
         name: row.doc.name,
         kind: row.doc.kind,
         ...(row.doc.server ? {server: row.doc.server} : {}),
         ...(row.doc.remoteName ? {remoteName: row.doc.remoteName} : {}),
+        ...(row.doc.app ? {app: row.doc.app} : {}),
         summary: row.doc.summary,
         description: row.doc.description,
         input: row.doc.input as Record<string, unknown>,
@@ -4031,6 +4218,19 @@ export class Service {
   // Large files upload in bounded chunks so each signed action stays small: the client never
   // hashes hundreds of megabytes in one blocking call, and can report progress per chunk. Bytes
   // stage under <dataDir>/uploads until commit materializes them at the validated target.
+
+  // ─── Relayed document conversion ───────────────────────────────────────────
+  // A server without a Datalab key (the desktop app's local server, a self-hosted one) sends the
+  // document here, signed by the agent's own identity, and polls for the result. The ledger bills
+  // that identity's account. Jobs live in memory; results spool to disk until they are collected.
+
+  /** Spending an allowance is the account's own act: a delegated key, however it was authorized, is refused. */
+  #requireSelfSigned(verified: auth.VerifiedEnvelope, what: string): string {
+    if (verified.signerId !== verified.accountId) {
+      throw new APIError(403, `${what} must be signed by the account itself, not by a delegated key`)
+    }
+    return verified.accountId
+  }
 
   #cleanupExpiredUploads(): void {
     const now = Date.now()
@@ -4896,7 +5096,7 @@ export class Service {
     if (!agent) throw new APIError(404, 'Agent not found')
     const definition = cbor.decode<api.AgentDefinition>(agent.definition_cbor)
     const codeExecAvailable = (await this.#codeExec.availability()).available
-    this.#syncAgentMcpTools(accountId, session.agentId, definition)
+    this.#syncAgentTools(accountId, session.agentId, definition)
     const mcpPool = this.#createMcpPool(accountId)
     const context: AgentServicePiToolContext = {
       browser: () =>
@@ -4911,6 +5111,7 @@ export class Service {
       hmServerUrl: this.#hmServerUrl,
       ipfsServerUrl: this.#ipfsServerUrl,
       web: this.#web,
+      apps: this.#appResolver(accountId),
       stateDir: this.#agentMemoryStateDir(accountId, session.agentId),
       sessionId,
       modelAcceptsImages: false,
@@ -4924,7 +5125,7 @@ export class Service {
       },
       onToolProgress: () => {},
       codeExec: this.#codeExec,
-      callableTools: enabledCallableTools(definition, codeExecAvailable),
+      callableTools: enabledCallableTools(definition, codeExecAvailable, this.#appToolNames(accountId)),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
       startSession: () => {
@@ -5232,7 +5433,9 @@ export class Service {
       // Undefined parent tools means "all callables plus the publish grant" — narrowing must
       // intersect against that full set, not a stale minimal default, or the child loses tools
       // the parent granted.
-      const base = (definition.tools ?? [...serviceCallableNames(), 'publish']).map(normalizeSeedToolName)
+      const base = (
+        definition.tools ?? [...serviceCallableNames(), ...this.#appToolNames(run.accountId), 'publish']
+      ).map(normalizeSeedToolName)
       const lambdaTools = toolDocs
         .listToolDocuments(this.#db, run.accountId, run.agentId)
         .filter((row) => row.enabled && row.doc.kind === 'lambda')
@@ -6708,7 +6911,7 @@ export class Service {
     // Scripts always hold the read/write verbs; definition.tools narrows only the built-in
     // callable set. Enabled authored tools and projected MCP tools are callable too — the same
     // grant and runtime checks as a chat `call` still apply inside their executors.
-    this.#syncAgentMcpTools(run.accountId, run.agentId, definition)
+    this.#syncAgentTools(run.accountId, run.agentId, definition)
     const documentTools = toolDocs
       .listToolDocuments(this.#db, run.accountId, run.agentId)
       .filter((row) => row.enabled && row.doc.kind !== 'builtin')
@@ -6716,7 +6919,7 @@ export class Service {
     const allowedTools = new Set([
       seedVerbRegistry.read.name,
       seedVerbRegistry.write.name,
-      ...enabledCallableTools(definition, codeExecAvailable),
+      ...enabledCallableTools(definition, codeExecAvailable, this.#appToolNames(run.accountId)),
       ...documentTools,
     ])
     const mcpPool = this.#createMcpPool(run.accountId)
@@ -6744,6 +6947,7 @@ export class Service {
       hmServerUrl: this.#hmServerUrl,
       ipfsServerUrl: this.#ipfsServerUrl,
       web: this.#web,
+      apps: this.#appResolver(run.accountId),
       stateDir,
       sessionId: '',
       modelAcceptsImages: false,
@@ -6776,7 +6980,7 @@ export class Service {
             outputTail: progress.outputTail,
           },
         }),
-      callableTools: enabledCallableTools(definition, codeExecAvailable),
+      callableTools: enabledCallableTools(definition, codeExecAvailable, this.#appToolNames(run.accountId)),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
       startSession: () => {
@@ -7400,11 +7604,11 @@ export class Service {
     // Touch-expand is durable: any transcript read of ~/tools/<name> (or a call-miss that returned
     // the contract) promotes that callable to a first-class provider tool for the rest of the
     // thread — resume, park, and restart reconstruct the same set from the same events.
-    const enabledCallables = enabledCallableTools(definition, codeExecAvailable)
+    const enabledCallables = enabledCallableTools(definition, codeExecAvailable, this.#appToolNames(accountId))
     // The agent's own documents — authored lambdas and the tools of its enabled MCP servers — are
     // promotable too; the projection is re-derived here so it matches the definition being run.
     const endToolSyncSpan = startPerfSpan('prep.tool_sync')
-    this.#syncAgentMcpTools(accountId, session.agentId, definition)
+    this.#syncAgentTools(accountId, session.agentId, definition)
     const documentTools = new Set(
       toolDocs
         .listToolDocuments(this.#db, accountId, session.agentId)
@@ -7435,6 +7639,7 @@ export class Service {
       hmServerUrl: this.#hmServerUrl,
       ipfsServerUrl: this.#ipfsServerUrl,
       web: this.#web,
+      apps: this.#appResolver(accountId),
       stateDir: agentStateDir,
       sessionId,
       modelAcceptsImages: model.input.includes('image'),
@@ -8966,7 +9171,11 @@ export class Service {
       accountId,
       agentId: owner.agent_id,
       stateDir: agent.state_dir,
-      callableTools: enabledCallableTools(definition, (await this.#codeExec.availability()).available),
+      callableTools: enabledCallableTools(
+        definition,
+        (await this.#codeExec.availability()).available,
+        this.#appToolNames(accountId),
+      ),
     })}`
     return {...this.#readSession(accountId, sessionId, afterSeq, beforeSeq, limit), systemPromptMarkdown}
   }
@@ -10552,6 +10761,11 @@ function scheduleMemorySummaryRefresh(stateDir: string): void {
     // rest of an index rebuild is a few small SQL reads.
     if (changed) spaceIndexCache.clear()
   })()
+}
+
+/** Drops every cached Space index: a server-wide mount changed, so every agent's tool list did. */
+export function invalidateAllSpaceIndexes(): void {
+  spaceIndexCache.clear()
 }
 
 export function invalidateSpaceIndex(accountId: string, agentId?: string): void {
@@ -12266,6 +12480,15 @@ export type AgentServicePiToolContext = WriteToolContext & {
    */
   browserPrivacy: BrowserPrivacy
   web: WebToolsConfig
+  /**
+   * The apps mounted for this account, resolved with their argument values for a tool about to
+   * run, and the host directory a tool's code is cached in (fetched again when the data directory
+   * lost it), for the sandbox to stage.
+   */
+  apps: {
+    resolve: (slug: string) => appMounts.ResolvedAppMount | undefined
+    codeRoot: (tool: string, code: appMounts.AppToolCode) => Promise<string>
+  }
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
   /** Agent state directory holding the private memory filesystem. */
@@ -12348,10 +12571,12 @@ function hasPiContent(value: unknown): value is PiToolRichOutput & Record<string
 function toolMetadataFromDocument(row: toolDocs.ToolDocumentRow): SeedToolMetadata {
   const {doc} = row
   const label = doc.kind === 'mcp' ? `${doc.server} · ${doc.remoteName ?? doc.name}` : doc.name
+  // An app tool keeps its executor's renderer, so the chat shows a conversion the way it always did.
+  const executor = doc.app && doc.binding ? getSeedTool(doc.binding) : undefined
   return {
-    ...seedVerbRegistry.call,
+    ...(executor ?? seedVerbRegistry.call),
     name: doc.name,
-    label,
+    label: doc.app ? `${doc.app.slug} · ${doc.name}` : label,
     description: doc.description,
     inputSchema: doc.input,
     ...(doc.output ? {outputSchema: doc.output} : {}),
@@ -14673,10 +14898,6 @@ function contractMarkdownForThisServer(context: AgentServicePiToolContext, row: 
  * Runs an authored lambda tool: its stored source, executed in the same sandbox the execute tool
  * uses, with the call's validated input handed in and its return value handed back. See
  * tool-documents.ts for the ABI, and code-exec.ts for how the program is assembled.
- *
- * Failures are thrown rather than returned: a lambda that crashes, returns nothing, or returns
- * something its own output schema rejects is a broken tool, and the model that authored it is the
- * one who can fix it — so it gets the error, not a plausible-looking empty result.
  */
 async function executeLambdaTool(
   context: AgentServicePiToolContext,
@@ -14695,21 +14916,6 @@ async function executeLambdaTool(
       validationErrors: validationErrors.map((error) => `${error.path}: ${error.message}`),
     }
   }
-  const source = typeof doc.source === 'string' ? doc.source : ''
-  if (!source.trim()) throw new APIError(400, `Tool ${doc.name} has no source to run`)
-  const runtime: LambdaRuntime = doc.runtime === 'python' ? 'python' : 'ts'
-  // What the HOST can do comes first: when the server cannot run this runtime at all, saying the
-  // owner should grant something would send the user off to fix the wrong thing.
-  if (!context.codeExec.runtimes.includes(runtime)) {
-    throw new APIError(
-      400,
-      `Tool ${doc.name} is written in ${doc.runtime ?? 'typescript'}, which this server cannot run: ${
-        runtime === 'ts'
-          ? 'TypeScript tools need a sandbox image with bun on PATH.'
-          : 'code execution is unavailable here.'
-      }`,
-    )
-  }
   // An authored tool is code in the sandbox, so it rides on the SAME grant the execute tool needs.
   // Without this, writing a lambda would be a way around an owner who turned code execution off.
   // A delegated child may carry the lambda's own name instead: its spec asked for this tool and
@@ -14724,14 +14930,69 @@ async function executeLambdaTool(
       `Tool ${doc.name} runs code in the sandbox, which is not enabled for this agent. Its owner can grant code execution in the agent's tool settings.`,
     )
   }
+  return runLambdaSource(context, row, toolInput, toolCallId, {
+    principal: {accountId: context.accountId, agentId: context.agentId, sessionId: context.sessionId},
+  })
+}
+
+/**
+ * Runs a tool document's source in the sandbox and hands back what it returned: the one path
+ * behind an authored lambda and a mounted app's tool. `run` says whose sandbox and with what; the
+ * app path adds the mount's context as environment, the app's hosts and the longer timeout cap.
+ *
+ * Failures are thrown rather than returned: a tool that crashes, returns nothing, or returns
+ * something its own output schema rejects is a broken tool, and whoever wrote it is the one who
+ * can fix it — so the caller gets the error, not a plausible-looking empty result.
+ */
+async function runLambdaSource(
+  context: AgentServicePiToolContext,
+  row: toolDocs.ToolDocumentRow,
+  toolInput: Record<string, unknown>,
+  toolCallId: string | undefined,
+  run: {
+    principal: ExecPrincipal
+    env?: Record<string, string>
+    network?: {hosts: string[]}
+    timeoutSecs?: number
+    maxTimeoutSecs?: number
+    /** An app tool's code: the host directory it is cached in and the entry file, staged into the sandbox. */
+    code?: {root: string; entry: string}
+  },
+): Promise<Record<string, unknown>> {
+  const doc = row.doc
+  const source = typeof doc.source === 'string' ? doc.source : ''
+  if (!run.code && !source.trim()) throw new APIError(400, `Tool ${doc.name} has no source to run`)
+  const runtime: LambdaRuntime = doc.runtime === 'python' ? 'python' : 'ts'
+  // A staged tool gets a directory of its own in the guest; the program imports its entry from there.
+  const stage = run.code ? {hostDir: run.code.root, guestDir: `/tmp/seed-tool-${crypto.randomUUID()}`} : undefined
+  const program = stage
+    ? buildLambdaEntryProgram(runtime, `${stage.guestDir}/${run.code!.entry}`, toolInput)
+    : buildLambdaProgram(runtime, source, toolInput)
+  // What the HOST can do comes first: when the server cannot run this runtime at all, saying the
+  // owner should grant something would send the user off to fix the wrong thing.
+  if (!context.codeExec.runtimes.includes(runtime)) {
+    throw new APIError(
+      400,
+      `Tool ${doc.name} is written in ${doc.runtime ?? 'typescript'}, which this server cannot run: ${
+        runtime === 'ts'
+          ? 'TypeScript tools need a sandbox image with bun on PATH.'
+          : 'code execution is unavailable here.'
+      }`,
+    )
+  }
 
   let execution: CodeExecResult
   try {
     execution = await context.codeExec.execute({
-      principal: {accountId: context.accountId, agentId: context.agentId, sessionId: context.sessionId},
+      principal: run.principal,
       stateDir: context.stateDir,
       runtime,
-      code: buildLambdaProgram(runtime, source, toolInput),
+      code: program,
+      ...(stage ? {stage} : {}),
+      ...(run.env ? {env: run.env} : {}),
+      ...(run.network ? {network: run.network} : {}),
+      ...(run.timeoutSecs !== undefined ? {timeoutSecs: run.timeoutSecs} : {}),
+      ...(run.maxTimeoutSecs !== undefined ? {maxTimeoutSecs: run.maxTimeoutSecs} : {}),
       onProgress: (progress) =>
         context.onToolProgress(seedVerbRegistry.call.name, {
           toolCallId,
@@ -14909,6 +15170,122 @@ export function firstShortStringArgument(input: Record<string, unknown>): string
   return undefined
 }
 
+/** A secret's plaintext as a string, or undefined when the account holds none by that name. */
+function readSecretString(db: Database, accountId: string, name: string): string | undefined {
+  const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
+    db,
+    `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
+  ).get(accountId, name)
+  if (!row) return undefined
+  const value = new TextDecoder().decode(decryptSecret(db, row.ciphertext)).trim()
+  return value || undefined
+}
+
+/**
+ * Runs a mounted app's tool: the tool page's code in the sandbox, for the mount the account sees.
+ * The mount is the consent, so no `execute` grant is needed: the agent cannot write the code, and
+ * the space's writers chose to run it. The run gets the mount's arguments and the app's hosts and
+ * nothing else, under a principal of its own so a pooled VM never carries a secret into the
+ * agent's own code. A metered server-wide mount reserves the call's budget first and settles it
+ * to what the tool reports as `usage.units`; a tool that reports nothing is charged what it was
+ * given, and the result's `usage` then says what was charged and what is left this period.
+ */
+async function executeAppTool(
+  context: AgentServicePiToolContext,
+  document: toolDocs.ToolDocumentRow,
+  rawInput: unknown,
+  toolCallId: string | undefined,
+): Promise<Record<string, unknown>> {
+  const {doc} = document
+  const toolInput = isRecord(rawInput) ? rawInput : {}
+  const validationErrors = validateJsonSchemaValue(doc.input, toolInput)
+  if (validationErrors.length > 0) {
+    return {
+      summary: `Input for ${doc.name} did not match its contract — here it is; call again with valid input.`,
+      contract: toolDocs.toolDocumentContractMarkdown(document),
+      validationErrors: validationErrors.map((error) => `${error.path}: ${error.message}`),
+    }
+  }
+  const slug = doc.app?.slug ?? ''
+  const mount = context.apps.resolve(slug)
+  if (!mount) {
+    throw new APIError(400, `The ${slug} app is no longer mounted for this account, so ${doc.name} cannot run`)
+  }
+  const appTool = mount.snapshot.tools.find((tool) => tool.tool === doc.name)
+  if (!appTool) throw new APIError(400, `The ${slug} app no longer has a tool named ${doc.name}`)
+
+  const declaredUsage = mount.snapshot.usage
+  const unit = declaredUsage?.unit ?? 'units'
+  const allowance = mount.usage?.allowance
+  let reservation: appUsage.Reservation | undefined
+  if (mount.scope === 'server' && declaredUsage?.meter === 'per-unit') {
+    if (allowance === undefined) {
+      throw new APIError(
+        503,
+        `The ${slug} app is metered, but the server-wide mount sets no allowance; the operator has to set one on the mount page`,
+      )
+    }
+    try {
+      reservation = appUsage.reserveUnits(context.db, {
+        slug,
+        accountId: context.accountId,
+        agentId: context.agentId,
+        unit,
+        callCap: declaredUsage.callCap ?? allowance,
+        allowance,
+        ceiling: mount.usage?.ceiling ?? Number.MAX_SAFE_INTEGER,
+        now: Date.now(),
+      })
+    } catch (error) {
+      if (!(error instanceof appUsage.UsageQuotaError)) throw error
+      throw new APIError(
+        429,
+        `${error.message}. Mount the ${slug} app with your own key from the Apps dialog to keep going, or wait for the next period.`,
+      )
+    }
+  }
+  const appContext = {
+    args: mount.args,
+    ...(reservation ? {usage: {unit, reserved: reservation.units}} : {}),
+    app: {slug, scope: mount.scope},
+    workspace: EXEC_WORKSPACE_GUEST_PATH,
+  }
+  let wrapped: Record<string, unknown>
+  try {
+    // The code the mount pass fetched and proved, from the server's cache; the sandbox stages it.
+    const codeRoot = await context.apps.codeRoot(doc.name, appTool.code)
+    wrapped = await runLambdaSource(context, document, toolInput, toolCallId, {
+      principal: {
+        accountId: context.accountId,
+        agentId: context.agentId,
+        sessionId: `app:${slug}:${context.sessionId}`,
+      },
+      env: {[LAMBDA_CONTEXT_ENV]: JSON.stringify(appContext)},
+      network: {hosts: Object.values(mount.snapshot.network)},
+      ...(appTool.timeoutSecs !== undefined ? {timeoutSecs: appTool.timeoutSecs} : {}),
+      maxTimeoutSecs: MAX_APP_EXEC_TIMEOUT_SECS,
+      code: {root: codeRoot, entry: appTool.code.entry},
+    })
+  } catch (error) {
+    if (reservation) appUsage.releaseReservation(context.db, reservation.id, Date.now())
+    throw error
+  }
+  const value = isRecord(wrapped.result) ? wrapped.result : {}
+  if (reservation && allowance !== undefined) {
+    const now = Date.now()
+    const reported = isRecord(value.usage) && typeof value.usage.units === 'number' ? value.usage.units : undefined
+    const charged = Math.min(reservation.units, Math.max(0, Math.floor(reported ?? reservation.units)))
+    appUsage.settleReservation(context.db, reservation.id, {units: charged, now})
+    const used = appUsage.unitsUsed(context.db, {slug, accountId: context.accountId, period: appUsage.periodOf(now)})
+    wrapped = {
+      ...wrapped,
+      result: {...value, usage: {unit, charged, remainingThisPeriod: Math.max(0, allowance - used)}},
+    }
+  }
+  // The tool's own account of what it did is the one the model should read first.
+  return typeof value.summary === 'string' && value.summary ? {...wrapped, summary: value.summary} : wrapped
+}
+
 /**
  * Executes the call verb: contract-on-miss dispatch into the callable tool set. `description` is
  * the model's optional one-line intent for the user; it is read by the chat row from the durable
@@ -14930,6 +15307,12 @@ export async function executeCallVerb(
     const document = toolName
       ? toolDocs.getToolDocument(context.db, context.accountId, context.agentId, toolName)
       : undefined
+    if (document?.enabled && document.doc.kind === 'lambda' && document.doc.app) {
+      if (!context.callableTools.includes(toolName)) {
+        throw new APIError(403, `Tool ${toolName} is not granted to this agent`)
+      }
+      return executeAppTool(context, document, input.input, toolCallId)
+    }
     if (document?.enabled && document.doc.kind === 'lambda') {
       return executeLambdaTool(context, document, input.input, toolCallId)
     }
@@ -15043,6 +15426,12 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRunt
   const promoted = (context.expandedCallables ?? []).flatMap((name) => {
     const execute = (params: unknown, toolCallId: string) =>
       executeCallVerb(context, {tool: name, input: params}, toolCallId)
+    const document = toolDocs.getToolDocument(context.db, context.accountId, context.agentId, name)
+    // An app's tool promotes from its own document although its name is a granted callable: the
+    // contract the model read is the tool page's, and it runs for the mount.
+    if (document?.enabled && document.doc.app && context.callableTools.includes(name)) {
+      return [defineSeedPiTool(toolMetadataFromDocument(document), execute)]
+    }
     if (context.callableTools.includes(name)) {
       const registryTool = getSeedTool(name)
       if (!registryTool) return []
@@ -15054,7 +15443,6 @@ function createAgentServicePiTools(context: AgentServicePiToolContext): SeedRunt
     // Authored lambdas and projected MCP tools promote from their own documents: the contract the
     // model read is the schema the provider now validates against. Builtins never take this path —
     // an ungranted builtin's document is not a grant.
-    const document = toolDocs.getToolDocument(context.db, context.accountId, context.agentId, name)
     if (!document?.enabled || document.doc.kind === 'builtin') return []
     return [defineSeedPiTool(toolMetadataFromDocument(document), execute)]
   })
@@ -15281,12 +15669,7 @@ async function resolveWriteSigner(
 
   const selected = matches[0]
   if (!selected) throw new APIError(400, 'Signing identity not found')
-  const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
-    context.db,
-    `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
-  ).get(context.accountId, selected.secretName)
-  if (!row) throw new APIError(400, 'Signing identity secret not found')
-  const keyPair = blobs.nobleKeyPairFromSeed(decryptSecret(context.db, row.ciphertext))
+  const keyPair = loadSigningKeyPair(context.db, context.accountId, selected.secretName)
   return {
     ...selected,
     keyPair,
@@ -15295,6 +15678,16 @@ async function resolveWriteSigner(
       sign: (data) => keyPair.sign(data),
     },
   }
+}
+
+/** Decrypts a stored identity seed into its key pair. */
+function loadSigningKeyPair(db: Database, accountId: string, secretName: string): blobs.NobleKeyPair {
+  const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
+    db,
+    `SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?`,
+  ).get(accountId, secretName)
+  if (!row) throw new APIError(400, 'Signing identity secret not found')
+  return blobs.nobleKeyPairFromSeed(decryptSecret(db, row.ciphertext))
 }
 
 async function listWriteSigningIdentities(
@@ -15688,7 +16081,10 @@ async function writeDocumentCreate(
     normalizeOptionalBoundedString(request.input.account, 'Document account', MAX_NAME_BYTES) || signer.publicKey
   const path = normalizeDocumentPath(request.input.path, documentName)
   await ensureParentDocumentExists(client, account, path)
-  await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  await assertHmContentLinks(client, parsed.blocks, {
+    skipResolve: request.input.skipLinkCheck === true,
+    self: `hm://${account}${path}`,
+  })
   const ops = metadataToWriteSetAttributes(metadata).concat(parsed.ops)
   // Checked before the dry-run return so a dry run surfaces authorization failures instead of
   // reporting a success that publish would silently lose.
@@ -15808,7 +16204,11 @@ async function writeDocumentUpdate(
     request.input.content !== undefined || request.input.body !== undefined || request.input.text !== undefined
   const parsed = hasContent ? parseWriteDocumentContent(request.input) : undefined
   if (parsed) await assertPublishableMermaid(parsed.blocks)
-  if (parsed) await assertHmContentLinks(client, parsed.blocks, {skipResolve: request.input.skipLinkCheck === true})
+  if (parsed)
+    await assertHmContentLinks(client, parsed.blocks, {
+      skipResolve: request.input.skipLinkCheck === true,
+      self: `hm://${id.uid}${id.path?.length ? `/${id.path.join('/')}` : ''}`,
+    })
   const metadata = mergeWriteMetadata(parsed?.metadata ?? {}, request.input)
   let contentOps: DocumentOperation[] = []
   if (parsed) {
@@ -16451,6 +16851,9 @@ async function publishMemoryDocument(
   const title = nameOverride || frontmatter.name || titleFromMemoryPath(file.path)
   const docPath = normalizeDocumentPath(input.documentPath, title)
   const target = `hm://${account}${docPath}`
+  // `#blockId` links written before publishing (the convert post-processor's citation links) point
+  // into this very document, whose address is only known now.
+  const content = resolveFragmentLinks(nodes, target)
 
   const client = createSeedClient(context.hmServerUrl)
   const {id: targetId} = await resolveIdWithClient(target, {serverUrl: client.baseUrl})
@@ -16466,7 +16869,7 @@ async function publishMemoryDocument(
     input: existing
       ? {
           edit: target,
-          content: nodes,
+          content,
           format: 'json',
           metadata: frontmatter,
           ...(nameOverride ? {name: nameOverride} : {}),
@@ -16474,7 +16877,7 @@ async function publishMemoryDocument(
       : {
           account,
           path: docPath || '/',
-          content: nodes,
+          content,
           format: 'json',
           metadata: frontmatter,
           name: title,
@@ -16495,6 +16898,40 @@ async function publishMemoryDocument(
     url: `${context.hmServerUrl.replace(/\/+$/, '')}/hm/${account}${docPath}`,
     ...(imagesUploaded ? {imagesUploaded} : {}),
   }
+}
+
+/**
+ * Rewrites fragment-only links (`#blockId`) in blocks and their inline annotations to full
+ * `hm://…#blockId` links into `target`, the document being published.
+ */
+export function resolveFragmentLinks(nodes: HMBlockNode[], target: string): HMBlockNode[] {
+  const resolve = (link: unknown) =>
+    typeof link === 'string' && /^#[A-Za-z0-9_-]+$/.test(link) ? `${target}${link}` : undefined
+  return nodes.map((node) => {
+    const block = node.block as Record<string, unknown>
+    const blockLink = resolve(block.link)
+    const original: unknown[] | undefined = Array.isArray(block.annotations) ? block.annotations : undefined
+    const annotations = original?.map((annotation) => {
+      if (!isRecord(annotation)) return annotation
+      const link = resolve(annotation.link)
+      return link ? {...annotation, link} : annotation
+    })
+    const changed =
+      blockLink !== undefined || (annotations !== undefined && annotations.some((a, i) => a !== original![i]))
+    return {
+      ...node,
+      ...(changed
+        ? {
+            block: {
+              ...block,
+              ...(blockLink ? {link: blockLink} : {}),
+              ...(annotations ? {annotations} : {}),
+            } as HMBlockNode['block'],
+          }
+        : {}),
+      ...(node.children?.length ? {children: resolveFragmentLinks(node.children, target)} : {}),
+    }
+  })
 }
 
 /** Counts blocks whose link points at a local file, for reporting how many images get uploaded. */
@@ -17217,10 +17654,24 @@ function mergeWriteMetadata(
   return metadata
 }
 
-function metadataToWriteSetAttributes(metadata: HMMetadata): DocumentOperation[] {
-  const attrs = Object.entries(metadata)
-    .filter((entry) => entry[1] !== undefined)
-    .map(([key, value]) => ({key: [key], value}))
+/**
+ * Metadata as the attribute leaves `SetAttributes` takes. A nested map becomes one leaf per key
+ * path (`arguments.apiKey.type`), which is how the daemon stores and indexes attributes: a whole
+ * map written as a single value is kept by the document but never reaches the attribute index, so
+ * `query`, the typed-document listings and the attribute pickers could not see it. Scalars, nulls
+ * and anything that is not a plain map pass through as they are.
+ */
+export function metadataToWriteSetAttributes(metadata: HMMetadata): DocumentOperation[] {
+  const attrs: Array<{key: string[]; value: unknown}> = []
+  const walk = (value: unknown, key: string[]) => {
+    if (value === undefined) return
+    if (value !== null && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) walk(v, [...key, k])
+      return
+    }
+    attrs.push({key, value})
+  }
+  for (const [key, value] of Object.entries(metadata)) walk(value, [key])
   return attrs.length ? ([{type: 'SetAttributes', attrs}] as DocumentOperation[]) : []
 }
 
@@ -17298,7 +17749,10 @@ const MAX_LINK_RESOLUTION_CHECKS = 50
  * well-formed ones must resolve on the configured HM server — `{type: 'not-found'}` is a broken
  * link, while a server that cannot answer (thrown request) never blocks publishing, because an
  * infra flake must not be able to hold content hostage. `skipLinkCheck` skips only the resolution
- * half, for links whose targets are about to exist; nothing skips malformed-ness.
+ * half, for links whose targets are about to exist; nothing skips malformed-ness. Links into the
+ * document being written (`self`, its address without a fragment; the convert post-processor's
+ * `#ref-N` citation links become these) are never resolved: on a first publication the document
+ * does not exist yet, and on an update it trivially does.
  */
 export async function assertHmContentLinks(
   // Structural: only Resource lookups are needed, and the SeedClient generic makes a full
@@ -17307,10 +17761,11 @@ export async function assertHmContentLinks(
     request: (key: 'Resource', id: NonNullable<ReturnType<typeof unpackHmId>>) => Promise<unknown>
   },
   nodes: HMBlockNode[],
-  options: {skipResolve?: boolean} = {},
+  options: {skipResolve?: boolean; self?: string} = {},
 ): Promise<void> {
   const links = [...new Set(collectHmContentLinks(nodes))]
   if (links.length === 0) return
+  const selfId = options.self ? unpackHmId(options.self) : null
   const malformed: string[] = []
   const targets: Array<{link: string; id: NonNullable<ReturnType<typeof unpackHmId>>}> = []
   for (const link of links) {
@@ -17323,10 +17778,12 @@ export async function assertHmContentLinks(
     }
     try {
       blobs.principalFromString(id.uid)
-      targets.push({link, id})
     } catch {
       malformed.push(link)
+      continue
     }
+    if (selfId && id.uid === selfId.uid && (id.path ?? []).join('/') === (selfId.path ?? []).join('/')) continue
+    targets.push({link, id})
   }
   if (malformed.length > 0) {
     throw new APIError(
@@ -18487,6 +18944,23 @@ function getOrCreateSecretEncryptionKey(db: Database): Uint8Array {
   return key
 }
 
+const SERVER_IDENTITY_CONFIG_KEY = 'server_identity_key_v1'
+
+/**
+ * This server's own key pair, made once and kept beside the secret-encryption key. Its principal
+ * is the `serverUid` that /health publishes, which is how a URL proves to be this server.
+ */
+function getOrCreateServerIdentity(db: Database): blobs.NobleKeyPair {
+  const row = stmt<{value: Uint8Array | ArrayBuffer}, [string]>(
+    db,
+    `SELECT value FROM server_config WHERE key = ?`,
+  ).get(SERVER_IDENTITY_CONFIG_KEY)
+  if (row) return blobs.nobleKeyPairFromSeed(row.value instanceof Uint8Array ? row.value : new Uint8Array(row.value))
+  const keyPair = blobs.generateNobleKeyPair()
+  stmt(db, `INSERT INTO server_config (key, value) VALUES (?, ?)`).run([SERVER_IDENTITY_CONFIG_KEY, keyPair.seed])
+  return keyPair
+}
+
 function normalizeAccountId(value: unknown): string {
   const accountId = normalizeBoundedString(value, 'Collaborator account', MAX_NAME_BYTES)
   try {
@@ -18507,33 +18981,6 @@ function normalizeBoundedString(value: unknown, label: string, maxBytes: number)
   return normalized
 }
 
-/** Creates a signed envelope for tests and future local clients. */
-export async function createSignedEnvelope(
-  signer: blobs.Signer,
-  input: {
-    account?: blobs.Principal
-    /** CID of the Capability by which `account` delegated to the signer (see the envelope type). */
-    capability?: string
-    capabilityBlob?: Uint8Array
-    action: api.UnsignedAgentAction
-    ts?: number
-    /**
-     * Protocol version to declare; defaults to this build's. `null` declares none, as clients from
-     * before protocol 2 do (servers read that as protocol 1).
-     */
-    protocol?: number | null
-  },
-): Promise<api.SignedActionEnvelope> {
-  const protocol = input.protocol === undefined ? AGENTS_PROTOCOL_VERSION : input.protocol
-  const envelope: api.SignedActionEnvelope = {
-    type: 'AgentsAction',
-    signer: signer.principal,
-    sig: new Uint8Array(blobs.ED25519_SIGNATURE_SIZE),
-    account: input.account ?? signer.principal,
-    ...(input.capability !== undefined ? {capability: input.capability} : {}),
-    ...(input.capabilityBlob !== undefined ? {capabilityBlob: input.capabilityBlob} : {}),
-    ...(protocol !== null ? {protocol} : {}),
-    action: {...input.action, ts: input.ts ?? Date.now()} as api.AgentAction,
-  }
-  return (await blobs.sign(signer, envelope as unknown as blobs.Blob)) as unknown as api.SignedActionEnvelope
-}
+// Tests and tooling sign envelopes through this module; the implementation moved to envelope.ts
+// so the convert relay can sign without importing the whole service.
+export {createSignedEnvelope} from '@/auth'

@@ -105,16 +105,15 @@ export function SpaceAgentsSettings({siteId}: {siteId: UnpackedHypermediaId}) {
   const canSave = isDirty && !updateHome.isPending
   const isLocal = !!serverValue && isLocalAgentServer(serverValue, localServerUrl.data)
 
-  // The desktop's own local server is deliberately absent: it is reachable only from this computer,
-  // so advertising it to a space's readers publishes an address none of them can resolve.
+  // The desktop's own local server is offered too, with a warning once chosen: it is reachable
+  // only from this computer, so advertising it publishes an address no reader can resolve, but it
+  // is the server a space talks to while its owner tries agents out here, and in a development
+  // stack it is the only server there is.
   //
   // Whatever the space already advertises stays selectable even if this app has not configured it,
   // so opening the page on another machine can never silently drop the space's server.
   const serverOptions = Array.from(
-    new Set([
-      ...(publishedServer ? [publishedServer] : []),
-      ...(knownServers.data ?? []).filter((serverUrl) => !isLocalAgentServer(serverUrl, localServerUrl.data)),
-    ]),
+    new Set([...(publishedServer ? [publishedServer] : []), ...(knownServers.data ?? [])]),
   )
 
   const publishedRows = idsValue.map((agentId) => ({
@@ -203,10 +202,9 @@ export function SpaceAgentsSettings({siteId}: {siteId: UnpackedHypermediaId}) {
           Everyone reading this space connects to this server, alongside their own, to reach the agents you publish.
         </SizableText>
         {isLocal ? (
-          // Not offered by the dropdown, but a space that already advertises it needs to be told why
-          // that is broken rather than left to wonder where its readers' agents went.
           <Notice size="sm" tone="warning" title="Visitors can’t reach Local Agents">
-            It runs only on this computer. Choose a server your readers can connect to.
+            It runs only on this computer, so this binding works for you here and for nobody else. Choose a server your
+            readers can connect to before publishing agents to them.
           </Notice>
         ) : null}
       </div>
