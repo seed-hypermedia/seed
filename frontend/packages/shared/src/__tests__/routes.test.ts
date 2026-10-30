@@ -7,6 +7,7 @@ import {
   createRouteFromInspectNavRoute,
   defaultRoute,
   getActivityBellTarget,
+  getExpandedDocumentPanel,
   getRecentsRouteEntityUrl,
   isActivityOpen,
   navRouteSchema,
@@ -19,6 +20,48 @@ import {appRouteOfId} from '../utils/navigation'
 import {hypermediaUrlToRoute} from '../utils/url-to-route'
 
 const testDocId = hmId('testuid123')
+
+describe('expanded document panels', () => {
+  const id = hmId('testuid123', {path: ['random', 'path'], version: 'version123'})
+
+  test.each([
+    ['comments', 'Comments'],
+    ['metadata', 'Attributes'],
+    ['collaborators', 'People'],
+  ] as const)('collapses %s onto the same document', (key, title) => {
+    const expanded = getExpandedDocumentPanel({key, id})
+    expect(expanded).toEqual({title, panel: {key, id}})
+    const collapsed: NavRoute = {key: 'document', id, panel: expanded!.panel}
+    expect(hypermediaUrlToRoute(routeToUrl(collapsed)!)).toMatchObject({
+      key: 'document',
+      id: {uid: id.uid, path: id.path, version: id.version},
+      panel: {key},
+    })
+  })
+
+  test('preserves the selected comment thread', () => {
+    expect(
+      getExpandedDocumentPanel({key: 'comments', id, openComment: 'author/root', replyCommentId: 'author/reply'}),
+    ).toEqual({
+      title: 'Comments',
+      panel: {key: 'comments', id, openComment: 'author/root', replyCommentId: 'author/reply'},
+    })
+  })
+
+  test('preserves the block selected in Connections', () => {
+    const filterEventType = ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']
+    const blockId = {...id, blockRef: 'block123'}
+    expect(getExpandedDocumentPanel({key: 'activity', id: blockId, filterEventType})).toEqual({
+      title: 'Connections',
+      panel: {key: 'activity', id: blockId, filterEventType, targetBlockId: 'block123'},
+    })
+  })
+
+  test('does not replace tools on document and other activity views', () => {
+    expect(getExpandedDocumentPanel({key: 'document', id})).toBeNull()
+    expect(getExpandedDocumentPanel({key: 'activity', id})).toBeNull()
+  })
+})
 
 test('defaults new windows to onboarding', () => {
   expect(defaultRoute).toEqual({key: 'onboarding'})

@@ -110,7 +110,7 @@ import {
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
-import {getRoutePanel} from '@shm/shared/routes'
+import {getExpandedDocumentPanel, getRoutePanel} from '@shm/shared/routes'
 import {ActivityContent, ActivityHeader} from './activity-panel'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {DocumentPageView, documentPageCid} from './document-page'
@@ -139,6 +139,7 @@ import {
   Grid3X3,
   Info,
   MessagesSquare,
+  Minimize2,
   ShieldCheck,
   SlidersHorizontal,
   Users,
@@ -186,7 +187,7 @@ import {RequiredAttributesEditor} from './required-attributes-editor'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
-import {SizableText} from './text'
+import {SizableText, Text} from './text'
 import {SchemaBrowserPage} from './schema/schema-browser'
 import {
   classifyRef,
@@ -2240,6 +2241,12 @@ function DocumentBody({
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
   const panelKey = panelRoute?.key ?? null
   const commentsPanelTarget = getCommentsPanelTarget(docId, panelRoute)
+  const expandedPanel = getExpandedDocumentPanel(route)
+  const fullWidthHeader = isCollection && !expandedPanel
+  const [inlineCollapseButton, setInlineCollapseButton] = useState<HTMLButtonElement | null>(null)
+  const collapseExpandedPanel = () => {
+    if (expandedPanel) navigate({key: 'document', id: docId, panel: expandedPanel.panel})
+  }
 
   // Extract discussions-specific params from route or from explicit props
   const discussionsParams =
@@ -3038,6 +3045,11 @@ function DocumentBody({
       }
       actions={topBarActions}
       isMobile={isMobile}
+      collapseAction={
+        expandedPanel
+          ? {inlineButton: inlineCollapseButton, title: expandedPanel.title, onCollapse: collapseExpandedPanel}
+          : undefined
+      }
     />
   )
 
@@ -3087,15 +3099,15 @@ function DocumentBody({
             wrapperProps.className,
             'flex-none',
             !showSidebars && 'justify-center',
-            isCollection && '!block w-full',
+            fullWidthHeader && '!block w-full',
           )}
-          style={isCollection ? {...wrapperProps.style, maxWidth: undefined} : wrapperProps.style}
+          style={fullWidthHeader ? {...wrapperProps.style, maxWidth: undefined} : wrapperProps.style}
         >
           {showSidebars && !isCollection && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
           <div
             {...mainContentProps}
-            className={cn(mainContentProps.className, 'flex flex-col', isCollection && '!w-full !max-w-none')}
-            style={isCollection ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
+            className={cn(mainContentProps.className, 'flex flex-col', fullWidthHeader && '!w-full !max-w-none')}
+            style={fullWidthHeader ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
             {showMembersFacepile && (
               <div className="pt-4">
@@ -3130,8 +3142,8 @@ function DocumentBody({
         </div>
       ) : (
         <div
-          className={cn('mx-auto flex w-full flex-col px-4')}
-          style={{maxWidth: isCollection ? undefined : contentMaxWidth}}
+          className={cn('mx-auto flex w-full flex-col', !expandedPanel && 'px-4')}
+          style={{maxWidth: fullWidthHeader ? undefined : contentMaxWidth}}
         >
           {showMembersFacepile && (
             <div className="pt-4">
@@ -3165,46 +3177,74 @@ function DocumentBody({
       )}
 
       {/* Document tools scroll with the page and are hidden when showActivity is false. */}
-      {showActivity && showDocumentChrome && (
-        <div className="px-5 py-1">
-          <DocumentTools
-            id={docId}
-            activeTab={
-              activeView === 'activity' &&
-              activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
-                ? 'citations'
-                : activeView === 'activity' ||
-                    activeView === 'directory' ||
-                    activeView === 'site-profile' ||
-                    activeView === 'all-documents'
-                  ? undefined
-                  : activeView
-            }
-            currentPanel={panelRoute}
-            currentRoute={route}
-            commentsCount={interactionSummary.data?.comments || 0}
-            citationsCount={connectionCount}
-            collabsCount={peopleCount}
-            collaborators={collaborators.data}
-            metadataCount={countCustomMetadataFields(metadata)}
-            schemaCid={schemaDefinitionCid(metadata)}
-            layoutProps={
-              isMobile || isCollection
-                ? undefined
-                : {
-                    wrapperProps,
-                    sidebarProps,
-                    mainContentProps,
-                    showSidebars,
-                  }
-            }
-          />
+      {expandedPanel ? (
+        <div className="pt-4 pb-2">
+          <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
+            <div className="border-border flex items-center justify-between gap-2 border-b pb-4">
+              <Text weight="semibold" size="lg">
+                {expandedPanel.title}
+              </Text>
+              <Tooltip content="Collapse">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`Collapse ${expandedPanel.title}`}
+                  ref={setInlineCollapseButton}
+                  onClick={collapseExpandedPanel}
+                >
+                  <Minimize2 className="size-4" />
+                </Button>
+              </Tooltip>
+            </div>
+          </PageLayout>
         </div>
+      ) : (
+        showActivity &&
+        showDocumentChrome && (
+          <div className="px-5 py-1">
+            <DocumentTools
+              id={docId}
+              activeTab={
+                activeView === 'activity' &&
+                activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
+                  ? 'citations'
+                  : activeView === 'activity' ||
+                      activeView === 'directory' ||
+                      activeView === 'site-profile' ||
+                      activeView === 'all-documents'
+                    ? undefined
+                    : activeView
+              }
+              currentPanel={panelRoute}
+              currentRoute={route}
+              commentsCount={interactionSummary.data?.comments || 0}
+              citationsCount={connectionCount}
+              collabsCount={peopleCount}
+              collaborators={collaborators.data}
+              metadataCount={countCustomMetadataFields(metadata)}
+              schemaCid={schemaDefinitionCid(metadata)}
+              layoutProps={
+                isMobile || isCollection
+                  ? undefined
+                  : {
+                      wrapperProps,
+                      sidebarProps,
+                      mainContentProps,
+                      showSidebars,
+                    }
+              }
+            />
+          </div>
+        )
       )}
 
       {/* Main content based on activeView */}
       <div
-        className={cn('flex-1', activeView !== 'content' && activeView !== 'comments' && 'pb-60', isMobile && 'px-4')}
+        className={cn(
+          'flex-1',
+          activeView !== 'content' && activeView !== 'comments' && 'pb-60',
+          isMobile && !expandedPanel && 'px-4',
+        )}
       >
         <DocumentViewContent
           activeView={activeView}
@@ -3305,7 +3345,7 @@ function DocumentBody({
       />
     ) : undefined
 
-  const connectionsPanelHeader = isConnectionsPanel ? (
+  const documentPanelHeader = isConnectionsPanel ? (
     <PanelHeader
       title="Connections"
       count={
@@ -3323,6 +3363,12 @@ function DocumentBody({
                 filterEventType: activitySlugToFilter('citations'),
               })
       }
+    />
+  ) : panelRoute?.key === 'metadata' || panelRoute?.key === 'collaborators' ? (
+    <PanelHeader
+      title={panelRoute.key === 'metadata' ? 'Attributes' : 'People'}
+      onClose={handlePanelClose}
+      onExpand={isMobile ? undefined : () => navigate({key: panelRoute.key, id: panelRoute.id ?? docId})}
     />
   ) : undefined
 
@@ -3360,7 +3406,7 @@ function DocumentBody({
             isOpen={mobilePanelOpen}
             title={isConnectionsPanel ? 'Connections' : getPanelTitle(panelKey)}
             onClose={handlePanelClose}
-            header={connectionsPanelHeader ?? activityPanelHeader}
+            header={documentPanelHeader ?? activityPanelHeader}
             resizable
             scrollContent={panelKey !== 'comments' && panelKey !== 'feed'}
             onBack={
@@ -3399,7 +3445,7 @@ function DocumentBody({
         }
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
-        header={connectionsPanelHeader ?? activityPanelHeader}
+        header={documentPanelHeader ?? activityPanelHeader}
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
@@ -4729,18 +4775,15 @@ function MainContent({
 
     case 'collaborators':
       return (
-        <PageLayout contentMaxWidth={contentMaxWidth}>
+        <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
           <CollaboratorsPage docId={docId} />
         </PageLayout>
       )
 
     case 'metadata':
       return (
-        <PageLayout contentMaxWidth={contentMaxWidth}>
-          {/* Extra left padding in the main view; the panel render keeps its own. */}
-          <div className="pl-4">
-            <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
-          </div>
+        <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
+          <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
         </PageLayout>
       )
 

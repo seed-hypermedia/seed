@@ -189,16 +189,22 @@ export function DiscussionsPageContent({
     )
   } else {
     layout = (
-      <div className="p-4">
-        <PageLayout title={showTitle ? 'Comments' : undefined} contentMaxWidth={contentMaxWidth}>
+      <div className="py-4">
+        <PageLayout
+          title={showTitle ? 'Comments' : undefined}
+          contentMaxWidth={contentMaxWidth}
+          contentClassName="px-4"
+        >
           {content}
           {editor && footerTarget === undefined && <div className="bg-background mt-4 rounded-lg p-3">{editor}</div>}
         </PageLayout>
         {editor &&
           footerTarget &&
           createPortal(
-            <div className="bg-background border-border border-t px-4 pt-3 pb-2">
-              <PageLayout contentMaxWidth={contentMaxWidth}>{editor}</PageLayout>
+            <div className="bg-background border-border border-t pt-3 pb-2">
+              <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
+                {editor}
+              </PageLayout>
             </div>,
             footerTarget,
           )}
