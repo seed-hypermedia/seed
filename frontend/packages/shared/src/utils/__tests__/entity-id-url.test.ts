@@ -798,7 +798,7 @@ describe('routeToHmUrl', () => {
     const url = routeToHmUrl({
       key: 'activity',
       id: hmId('uid1'),
-      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
     })
     expect(url).toBe('hm://uid1/:activity/citations')
   })

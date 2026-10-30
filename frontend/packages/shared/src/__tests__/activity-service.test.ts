@@ -169,6 +169,99 @@ describe('loadCitationEvent', () => {
   })
 })
 
+describe('loadCitationEvent metadata references', () => {
+  it('resolves a metadata/Link mention as a document citation keyed by the attribute', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const site = 'z6MkhUgmuFYwEDED4P5EdPKqh35ybJprcGxaVpK9u3H8vpGh'
+    const owner = 'z6Mkj6fUDHMAvGm1MRqtjrBH5vLX5gQnDYh2f74NRFfccbVt'
+    const event = {
+      account: site,
+      eventTime: null,
+      observeTime: null,
+      newMention: {
+        source: `hm://${site}/notes`,
+        sourceType: 'metadata/Link',
+        sourceContext: 'owner',
+        sourceBlob: {cid: TEST_CID, author: site},
+        sourceDocument: '',
+        target: `hm://${owner}`,
+        targetVersion: '',
+        targetFragment: '',
+      },
+    } as any
+
+    const cache = {
+      getAccount: vi.fn(async (uid: string) => ({id: {uid}, metadata: {name: uid}})),
+      getDocument: vi.fn(async () => {
+        throw new Error('document unavailable')
+      }),
+      getComment: vi.fn(async () => {
+        throw new Error('comment unavailable')
+      }),
+      getCommentReplyCount: vi.fn(async () => 0),
+      getContacts: vi.fn(async () => []),
+    } as any
+
+    try {
+      const loaded = await loadCitationEvent({} as any, event, event.account, cache)
+      expect(loaded).not.toBeNull()
+      expect(loaded?.citationType).toBe('d')
+      expect(loaded?.metadataKey).toBe('owner')
+      expect(loaded?.mentionKind).toBe('account')
+      expect(loaded?.source.id.uid).toBe(site)
+      expect(loaded?.source.id.path).toEqual(['notes'])
+      expect(loaded?.source.id.version).toBe(TEST_CID)
+      // The attribute key is not a block of the source document.
+      expect(loaded?.source.id.blockRef).toBeNull()
+      expect(loaded?.target.id.uid).toBe(owner)
+      expect(loaded?.target.id.path ?? []).toEqual([])
+    } finally {
+      warnSpy.mockRestore()
+      errorSpy.mockRestore()
+    }
+  })
+
+  it('treats a metadata/Link reference to a document as a document citation', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const site = 'z6MkhUgmuFYwEDED4P5EdPKqh35ybJprcGxaVpK9u3H8vpGh'
+    const event = {
+      account: site,
+      eventTime: null,
+      observeTime: null,
+      newMention: {
+        source: `hm://${site}/people/ana`,
+        sourceType: 'metadata/Link',
+        sourceContext: 'attributesSchema',
+        sourceBlob: {cid: TEST_CID, author: site},
+        sourceDocument: '',
+        target: `hm://${site}/types/person`,
+        targetVersion: '',
+        targetFragment: '',
+      },
+    } as any
+    const cache = {
+      getAccount: vi.fn(async (uid: string) => ({id: {uid}, metadata: {name: uid}})),
+      getDocument: vi.fn(async () => {
+        throw new Error('document unavailable')
+      }),
+      getComment: vi.fn(async () => null),
+      getCommentReplyCount: vi.fn(async () => 0),
+      getContacts: vi.fn(async () => []),
+    } as any
+    try {
+      const loaded = await loadCitationEvent({} as any, event, event.account, cache)
+      expect(loaded?.metadataKey).toBe('attributesSchema')
+      expect(loaded?.mentionKind).toBe('document')
+    } finally {
+      warnSpy.mockRestore()
+      errorSpy.mockRestore()
+    }
+  })
+})
+
 describe('getFeedEventId', () => {
   it('does not synthesize blob IDs from missing or invalid CIDs', () => {
     expect(
