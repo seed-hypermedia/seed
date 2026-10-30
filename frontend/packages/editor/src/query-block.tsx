@@ -172,12 +172,12 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
   const queryBlockInput = useMemo<HMQueryBlockInput | null>(() => {
     if (!baseQueryBlockInput) return null
     const filters = viewerFilters.filter((filter) => filter.value.trim())
-    if (!debouncedViewerSearch && !filters.length && !baseQueryBlockInput.viewer) return baseQueryBlockInput
+    if (!debouncedViewerSearch && !filters.length) return {query: baseQueryBlockInput.query}
     return {
       ...baseQueryBlockInput,
       viewer: {
         ...(debouncedViewerSearch ? {search: debouncedViewerSearch} : {}),
-        ...(filters.length || baseQueryBlockInput.viewer ? {filters} : {}),
+        ...(filters.length ? {filters} : {}),
       },
     }
   }, [baseQueryBlockInput, debouncedViewerSearch, viewerFilters])

@@ -37,10 +37,21 @@ describe('published View input', () => {
   it('does not add viewer state to legacy requests', () => {
     expect(getQueryBlockInput({queryIncludes: EMPTY}, {uid: 'alice'})).not.toHaveProperty('viewer')
   })
-  it('preserves an explicitly cleared View', () => {
-    expect(getQueryBlockInput({queryIncludes: EMPTY, queryView: '{"filters":[]}'}, {uid: 'alice'})?.viewer).toEqual({
-      filters: [],
+  it('matches the renderer cache key for saved and cleared Views', () => {
+    const includes = [{space: 'alice', path: '', mode: 'Children'}]
+    const sort = [{term: 'updated', reverse: true}]
+    const rendererInput = (activeFilters: typeof filters) => ({
+      query: {includes, sort, limit: undefined},
+      ...(activeFilters.length ? {viewer: {filters: activeFilters}} : {}),
     })
+    expect(getQueryBlockInput({queryIncludes: EMPTY, queryView: JSON.stringify({filters})}, {uid: 'alice'}))
+      .toEqual(rendererInput(filters))
+    expect(getQueryBlockInput({queryIncludes: EMPTY, queryView: '{"filters":[]}'}, {uid: 'alice'}))
+      .toEqual(rendererInput([]))
+  })
+  it('keeps nonempty legacy query filters in the prefetch request', () => {
+    expect(getQueryBlockInput({queryIncludes: EMPTY, queryFilters: JSON.stringify([{type: 'Author', uid: 'bob'}])}, {uid: 'alice'})?.query.filters)
+      .toEqual([{type: 'Author', uid: 'bob'}])
   })
 })
 
@@ -53,7 +64,7 @@ it('does not prefetch incomplete saved conditions as active filters', () => {
       },
       {uid: 'alice'},
     )?.viewer,
-  ).toEqual({filters: []})
+  ).toBeUndefined()
 })
 
 describe('View data roundtrip through renderer request and real filtering', () => {

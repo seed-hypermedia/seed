@@ -36,7 +36,7 @@ export function getQueryBlockInput(
   props: QueryBlockInputProps,
   container?: QueryBlockContainer | null,
 ): {
-  query: {includes: any[]; sort: {term: string; reverse: boolean}[]; limit: number | undefined; filters: any[]}
+  query: {includes: any[]; sort: {term: string; reverse: boolean}[]; limit: number | undefined; filters?: any[]}
   viewer?: HMQueryView
 } | null {
   const queryIncludes = resolveQueryIncludes(JSON.parse(props.queryIncludes || defaultQueryIncludes), container)
@@ -47,12 +47,14 @@ export function getQueryBlockInput(
   if (!queryIncludes?.[0]?.space) return null
   const view = parseHMQueryViewJSON(props.queryView)
   return {
-    ...(view ? {viewer: {filters: view.filters.filter((filter) => filter.value.trim())}} : {}),
+    ...(view?.filters.some((filter) => filter.value.trim())
+      ? {viewer: {filters: view.filters.filter((filter) => filter.value.trim())}}
+      : {}),
     query: {
       includes: queryIncludes,
       sort: querySort,
       limit: parsedLimit > 0 ? parsedLimit : undefined,
-      filters: queryFilters,
+      ...(queryFilters.length ? {filters: queryFilters} : {}),
     },
   }
 }
