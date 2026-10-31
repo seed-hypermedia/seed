@@ -35,6 +35,7 @@ The control plane is signed the same way. Every request to an agents server is a
 # Where to start <!-- id:IUcE3dhQ -->
 
 - To use an agent: open the Agents section of the Seed app, add a model provider, and create an agent. The [desktop and web UI](./agent/desktop-ui.md) page walks through the screens. A site can show its agents to visitors with the `agentServerUrl` and `spaceAgents` [metadata](./metadata.md) keys, explained under [environments](./agent/environments.md). <!-- id:_ol0QB9a -->
+- To talk instead of type: [voice conversations](./agent/voice.md) covers desktop and web calls, microphone controls, and speech setup.
 - To build an agent that uses Seed without this runtime, such as a Claude Code session with the Seed CLI, read [Building agents on Seed](./build/agents.md). <!-- id:Ji7GrJSR -->
 - To see what every new agent is told: the [Agent Guide](./agent/guide.md), which is the default system prompt. <!-- id:jlqRDpAF -->
 - To understand the runtime: [system overview](./agent/system-overview.md), then [tools](./agent/tools.md), [triggers](./agent/triggers.md), [persistence](./agent/persistence.md), [durable sessions](./agent/durable-sessions.md), and [security](./agent/security.md). <!-- id:BvDmGUR0 -->

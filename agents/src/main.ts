@@ -11,6 +11,7 @@ import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
 import * as config from '@/config'
 import * as sqlite from '@/sqlite'
+import * as voicesvc from '@/voice'
 import {type BunRequest, type Server, type ServerWebSocket, serve} from 'bun'
 import * as fs from 'node:fs'
 import * as filepath from 'node:path'
@@ -153,6 +154,8 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
         // Which runtimes this server can actually run: `ts` needs an image with bun, so an
         // operator can see at a glance whether TypeScript execution is on here.
         codeExecRuntimes: codeExec.runtimes,
+        // Desktop and web show the voice controls only when this server offers the pipeline.
+        voice: svc.voiceAvailable,
       },
       {headers: corsHeaders()},
     )
@@ -440,6 +443,8 @@ async function main(): Promise<void> {
     }
   }
   configureDocsSpace(cfg.docs)
+  // Service feeds voice before collaborator fan-out; publish receives the per-account copies.
+  const voice = cfg.voice.enabled ? new voicesvc.VoiceService(cfg.voice) : undefined
   const svc = new apisvc.Service(db, cfg.dataDir, {
     onEvent: publish,
     hmServerUrl: cfg.activity.hmServerUrl,
@@ -449,6 +454,7 @@ async function main(): Promise<void> {
     subscriptionAuth: cfg.subscriptionAuth,
     titleGeneration: cfg.titleGeneration,
     runQueue: cfg.runQueue,
+    voice,
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
@@ -458,6 +464,8 @@ async function main(): Promise<void> {
   const server = serve({
     port: cfg.http.port,
     hostname: cfg.http.hostname,
+    // Signed model requests and voice streams may be quiet during long host tools.
+    idleTimeout: 0,
     // Agent memory accepts files of any size, so uploads must not hit Bun's 128MB default cap.
     maxRequestBodySize: Number.MAX_SAFE_INTEGER,
     error: handleError,
@@ -465,6 +473,8 @@ async function main(): Promise<void> {
       ...createAPIRoutes(svc, cfg.defaultPromptUrl),
       [AGENTS_WS_PATHS[0]]: upgradeWebSocket,
       [AGENTS_WS_PATHS[1]]: upgradeWebSocket,
+      // Internal routes are authenticated with the worker bearer token.
+      ...(voice ? voice.routes(svc) : {}),
     },
     // The server has no browser UI: everything outside the signed CBOR API, the health/version
     // probes, and the WebSocket is a 404. Account data is only reachable through signed envelopes.
@@ -530,6 +540,16 @@ async function main(): Promise<void> {
     },
   })
 
+  // The speech worker is a child of this process in production (one container); the dev loop runs
+  // it in its own mprocs pane (`external`) so it hot-reloads independently.
+  const voiceWorker =
+    voice && cfg.voice.worker === 'child'
+      ? voicesvc.startVoiceWorker(cfg.voice, {
+          serverUrl: `http://127.0.0.1:${server.port}`,
+          internalToken: voice.internalToken,
+        })
+      : undefined
+
   let shuttingDown = false
   const shutdown = async () => {
     if (shuttingDown) return
@@ -537,6 +557,7 @@ async function main(): Promise<void> {
     shuttingDown = true
     activityMonitor.stop()
     scheduleMonitor.stop()
+    await voiceWorker?.stop()
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
     // stop() waits for every open connection; clients whose sockets never finish closing would keep
@@ -569,6 +590,11 @@ async function main(): Promise<void> {
     `  Web tools: search=${cfg.web.searxngUrl ? 'on' : 'off'} reader=${
       cfg.web.crawlerUrl ? 'static+crawl4ai' : 'static-only'
     }`,
+  )
+  console.log(
+    cfg.voice.enabled
+      ? `  Voice: livekit=${cfg.voice.livekitUrl} stt=deepgram/${cfg.voice.deepgramModel} tts=cartesia/${cfg.voice.cartesiaModel} worker=${cfg.voice.worker}`
+      : '  Voice: off',
   )
 }
 

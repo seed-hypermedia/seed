@@ -145,6 +145,7 @@ export function registerWebAgentsPlatform() {
     useOpenUrl: useWebAgentsOpenUrl,
     useGatewayUrl: useWebAgentsGatewayUrl,
     useSignInPrompt: useWebSignInPrompt,
+    voiceChat: true,
     CommentEditor,
     ReadOnlyMessageViewer: React.lazy(() =>
       import('@shm/editor/readonly-viewer').then((module) => ({default: module.ReadOnlyViewer})),

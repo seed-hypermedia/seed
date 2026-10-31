@@ -20,8 +20,9 @@ artifacts always retain the hardened fuses.
 
 ## macOS entitlements
 
-The frontend has no getUserMedia, geolocation, Web Bluetooth, Web USB or print calls. Camera icons open file pickers;
-they do not capture camera images. Camera, microphone, Bluetooth, USB, location and print grants have been removed.
+Live agent voice requests microphone access when the user starts a call. The app declares its microphone usage
+description and the audio-input entitlement. Ending a call or leaving the session releases the microphone. Camera icons
+open file pickers; camera, Bluetooth, USB, location and print grants remain absent.
 
 V8/Bun retain JIT and unsigned executable memory, and microsandbox's `msb` retains the hypervisor entitlement. Library
 validation remains enabled: the agents server, `msb`, `libkrunfw.5.dylib`, and both copies of

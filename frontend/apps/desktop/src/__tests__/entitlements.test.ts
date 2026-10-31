@@ -14,6 +14,7 @@ it('grants only the entitlements the app needs', () => {
   expect(keys).toEqual([
     'com.apple.security.cs.allow-jit',
     'com.apple.security.cs.allow-unsigned-executable-memory',
+    'com.apple.security.device.audio-input',
     'com.apple.security.hypervisor',
   ])
   expect(plist).not.toContain('<false/>')

@@ -11,7 +11,7 @@ process.chdir(path.dirname(fileURLToPath(import.meta.url)))
 await rm(OUTDIR, {recursive: true, force: true})
 
 const result = await Bun.build({
-  entrypoints: ['./src/main.ts', './src/workflow-worker-entry.ts'],
+  entrypoints: ['./src/main.ts', './src/workflow-worker-entry.ts', './src/voice-worker.ts'],
   outdir: OUTDIR,
   target: 'bun',
   minify: process.env.NODE_ENV === 'production',
@@ -27,7 +27,22 @@ const result = await Bun.build({
   // node_modules/ next to dist/ the same way build-binary.ts stages it next to the binary.
   // `canvas` is an optional native dep reached only through linkedom's guarded require — its
   // fallback shim covers us — and bundling it fails on machines where the binding never compiled.
-  external: ['microsandbox', 'canvas'],
+  // The LiveKit agents framework and its plugins (voice-worker.js) stay external for the same
+  // reason: they reach native code (`@livekit/rtc-node` ffi bindings, `onnxruntime-node` for the
+  // Silero VAD and turn detector, `@livekit/av`) through per-platform packages and fork their own
+  // job/inference child processes from files inside the package. scripts/stage-msb-runtime.ts
+  // stages their dependency closure into the image's node_modules.
+  external: [
+    'microsandbox',
+    'canvas',
+    '@livekit/agents',
+    '@livekit/agents-plugin-deepgram',
+    '@livekit/agents-plugin-cartesia',
+    '@livekit/agents-plugin-silero',
+    '@livekit/agents-plugin-livekit',
+    '@livekit/rtc-node',
+    'onnxruntime-node',
+  ],
 })
 
 if (!result.success) {
