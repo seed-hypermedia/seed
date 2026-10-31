@@ -295,3 +295,32 @@
     animation: none !important;
   }
 }
+
+/* The mobile sidebar enters from the left and leaves past the viewport's right edge. */
+.site-sidebar-drawer[data-state='open'] {
+  animation: site-sidebar-enter var(--duration-normal) var(--ease-out-smooth) both;
+}
+.site-sidebar-drawer[data-state='closed'] {
+  animation: site-sidebar-exit var(--duration-normal) var(--ease-out-smooth) both;
+}
+@keyframes site-sidebar-enter {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes site-sidebar-exit {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100vw);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-sidebar-drawer[data-state] {
+    animation: none;
+  }
+}

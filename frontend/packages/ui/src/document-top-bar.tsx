@@ -1,8 +1,7 @@
-import {FileSearch2 as FileSearchCorner, Minimize2} from 'lucide-react'
+import {Minimize2} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {Breadcrumbs, type BreadcrumbEntry} from './document-header'
-import {useSiteFileBrowserControls} from './site-file-browser-layout'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
@@ -34,8 +33,6 @@ export function DocumentTopBar({
   const [offscreenButton, setOffscreenButton] = useState<Element | null>(null)
   const inlineButton = collapseAction?.inlineButton
   const showCollapse = !!inlineButton && offscreenButton === inlineButton
-  const fileBrowser = useSiteFileBrowserControls()
-  const canRevealFileBrowser = !!fileBrowser?.collapsed
 
   useEffect(() => {
     setOffscreenButton(null)
@@ -53,11 +50,6 @@ export function DocumentTopBar({
     return () => observer.disconnect()
   }, [inlineButton, isMobile])
 
-  useEffect(() => {
-    if (!canRevealFileBrowser || !fileBrowser) return
-    return fileBrowser.claimRevealButton()
-  }, [canRevealFileBrowser, fileBrowser])
-
   return (
     <div
       ref={barRef}
@@ -70,19 +62,6 @@ export function DocumentTopBar({
       )}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {canRevealFileBrowser ? (
-          <Tooltip content="Show File Browser">
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Open file browser"
-              className="shrink-0"
-              onClick={() => fileBrowser?.setCollapsed(false)}
-            >
-              <FileSearchCorner className="size-4" />
-            </Button>
-          </Tooltip>
-        ) : null}
         {breadcrumbs?.length ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
         {status ? (
           <div data-document-status="" className="flex shrink-0 items-center gap-1">

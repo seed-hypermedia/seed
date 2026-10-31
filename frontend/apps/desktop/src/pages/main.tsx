@@ -1,3 +1,4 @@
+import {SiteSidebarToggle, useSiteSidebar} from '@shm/ui/site-sidebar-context'
 import {useAppContext, useListen} from '@/app-context'
 
 import {CloseButton} from '@/components/window-controls'
@@ -265,28 +266,33 @@ export default function Main({className}: {className?: string}) {
               {titlebar}
               <PanelContent>
                 {sidebar}
-                <Panel id="page" className="pl-1">
-                  <ErrorBoundary
-                    resetKeys={[routeKey]}
-                    FallbackComponent={RootAppError}
-                    onReset={() => {
-                      window.location.reload()
-                    }}
-                  >
-                    {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
+                <Panel id="page">
+                  <div className="flex h-full min-h-0 flex-col">
+                    <NonSitePageHeader />
+                    <div className="min-h-0 flex-1">
+                      <ErrorBoundary
+                        resetKeys={[routeKey]}
+                        FallbackComponent={RootAppError}
+                        onReset={() => {
+                          window.location.reload()
+                        }}
+                      >
+                        {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
                         inside the panel. Without this, the lazy import suspends all the way to the
                         root boundary and the whole window — chrome included — becomes a spinner. */}
-                    <Suspense fallback={<Fallback />}>
-                      {(browserMounted || navR.key === 'web') && <WebBrowser />}
-                      {navR.key !== 'web' && (
-                        <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
-                          <NotificationInboxProvider value={DesktopNotificationInbox}>
-                            <PageComponent />
-                          </NotificationInboxProvider>
-                        </AssistantPanelToggleContext.Provider>
-                      )}
-                    </Suspense>
-                  </ErrorBoundary>
+                        <Suspense fallback={<Fallback />}>
+                          {(browserMounted || navR.key === 'web') && <WebBrowser />}
+                          {navR.key !== 'web' && (
+                            <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
+                              <NotificationInboxProvider value={DesktopNotificationInbox}>
+                                <PageComponent />
+                              </NotificationInboxProvider>
+                            </AssistantPanelToggleContext.Provider>
+                          )}
+                        </Suspense>
+                      </ErrorBoundary>
+                    </div>
+                  </div>
                 </Panel>
               </PanelContent>
 
@@ -378,7 +384,7 @@ function PanelContent({children}: {children: ReactNode}) {
   return (
     <Group
       orientation="horizontal"
-      className={cn('flex min-h-0 overflow-hidden px-2')}
+      className={cn('flex min-h-0 overflow-hidden pr-2')}
       onLayoutChanged={(layout, meta) => {
         if (!meta.isUserInteraction) return
         const width = (meta.requestedLayout ?? layout).sidebar
@@ -548,5 +554,17 @@ function WindowClose() {
     <div className="no-window-drag absolute top-0 right-0 size-[26px] items-center justify-center">
       <CloseButton />
     </div>
+  )
+}
+
+function NonSitePageHeader() {
+  const sidebar = useSiteSidebar()
+  const route = useNavRoute()
+  if (!sidebar || sidebar.hasPageContent) return null
+  return (
+    <header className="border-border flex h-12 shrink-0 items-center gap-2 border-b px-4">
+      <SiteSidebarToggle />
+      <span className="font-semibold capitalize">{route.key.replaceAll('-', ' ')}</span>
+    </header>
   )
 }

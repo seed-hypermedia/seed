@@ -3,7 +3,7 @@ import {clientLazy, ClientOnly} from '@/client-lazy'
 import {SiteHeaderPayload} from '@/loaders'
 import {PageFooter} from '@/page-footer'
 import {NavigationLoadingContent, WebSiteProvider} from '@/providers'
-import {WebSiteHeader} from '@/web-site-header'
+import {WebSiteHeader, WebSidebarLayout} from '@/web-site-header'
 import {WebHeaderActions} from '@/web-utils'
 import {unwrap} from '@/wrapping'
 import {useLoaderData, useLocation} from '@remix-run/react'
@@ -39,26 +39,28 @@ export function AgentsPage() {
       dehydratedState={dehydratedState}
       initialRoute={initialRoute}
     >
-      {/* The agents pages are full-height panels (PanelContainer uses h-full and scrolls
+      <WebSidebarLayout siteHomeId={originHomeId}>
+        {/* The agents pages are full-height panels (PanelContainer uses h-full and scrolls
           internally), so the surface must be a definite viewport height, not min-h-screen. */}
-      <GeneralPageSurface className="h-dvh min-h-0 items-center">
-        <WebSiteHeader
-          homeMetadata={homeMetadata}
-          originHomeId={originHomeId}
-          siteHomeId={originHomeId}
-          docId={null}
-          origin={origin}
-          rightActions={<WebHeaderActions siteUid={originHomeId.uid} />}
-        />
-        <NavigationLoadingContent className="flex min-h-0 w-full flex-1 flex-col gap-4 pt-[var(--site-header-h)] sm:pt-0">
-          <ClientOnly>
-            <Suspense fallback={<Spinner />}>
-              <WebAgentsContent />
-            </Suspense>
-          </ClientOnly>
-        </NavigationLoadingContent>
-        <PageFooter className="w-full" />
-      </GeneralPageSurface>
+        <GeneralPageSurface className="h-dvh min-h-0 items-center">
+          <WebSiteHeader
+            homeMetadata={homeMetadata}
+            originHomeId={originHomeId}
+            siteHomeId={originHomeId}
+            docId={null}
+            origin={origin}
+            rightActions={<WebHeaderActions siteUid={originHomeId.uid} />}
+          />
+          <NavigationLoadingContent className="flex min-h-0 w-full flex-1 flex-col gap-4 pt-[var(--site-header-h)] sm:pt-0">
+            <ClientOnly>
+              <Suspense fallback={<Spinner />}>
+                <WebAgentsContent />
+              </Suspense>
+            </ClientOnly>
+          </NavigationLoadingContent>
+          <PageFooter className="w-full" />
+        </GeneralPageSurface>
+      </WebSidebarLayout>
     </WebSiteProvider>
   )
 }

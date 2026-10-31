@@ -1,5 +1,6 @@
+import type {loader as rootLoader} from './root'
 import {SelectedAccountContactsProvider} from '@shm/shared/models/contacts'
-import {useLocation, useNavigate, useNavigation} from '@remix-run/react'
+import {useLocation, useNavigate, useNavigation, useRouteLoaderData} from '@remix-run/react'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client'
 import {NavRoute, OptimizedImageSize, routeToHref, UniversalAppProvider} from '@shm/shared'
 import {DAEMON_FILE_URL, SEED_ASSET_HOST, SITE_BASE_URL} from '@shm/shared/constants'
@@ -315,6 +316,7 @@ export function WebSiteProvider(props: {
   initialRoute?: NavRoute
 }) {
   const navigate = useNavigate()
+  const rootData = useRouteLoaderData<typeof rootLoader>('root')
   const client = useQueryClient()
 
   // Hydrate synchronously so SSR hooks can access prefetched data
@@ -388,6 +390,7 @@ export function WebSiteProvider(props: {
 
   return (
     <UniversalAppProvider
+      isGateway={rootData?.isGateway ?? false}
       origin={props.origin}
       originHomeId={props.originHomeId}
       // The blob/schema building-block features (desktop gates these behind a

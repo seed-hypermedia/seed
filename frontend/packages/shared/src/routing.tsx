@@ -55,6 +55,8 @@ type UniversalAppContextValue = {
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
   openRouteNewWindow?: null | ((route: NavRoute) => void)
+  /** Whether the current web hostname serves a gateway rather than a single site. */
+  isGateway?: boolean
   originHomeId?: UnpackedHypermediaId | undefined
 
   // the web URL in the current context. If null, the hm URL should be used.
@@ -130,6 +132,8 @@ export type AppEvent =
 
 export function UniversalAppProvider(props: {
   children: React.ReactNode
+  /** Whether the current web hostname is a gateway. */
+  isGateway?: boolean
   originHomeId?: UnpackedHypermediaId
   origin?: string | null
   ipfsFileUrl?: string
@@ -155,6 +159,7 @@ export function UniversalAppProvider(props: {
   return (
     <UniversalAppContext.Provider
       value={{
+        isGateway: props.isGateway,
         originHomeId: props.originHomeId,
         origin: props.origin,
         ipfsFileUrl: props.ipfsFileUrl,

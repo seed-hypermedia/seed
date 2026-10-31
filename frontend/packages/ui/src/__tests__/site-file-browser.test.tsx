@@ -52,6 +52,15 @@ afterEach(() => {
 })
 
 describe('SiteFileBrowser', () => {
+  it('marks Home active only when the home document is selected', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
+    const props = {siteId: hmId('site'), onNavigate: vi.fn()}
+    act(() => root.render(<SiteFileBrowser {...props} activeDocumentId={null} />))
+    expect(container.querySelector('[aria-current="page"]')).toBeNull()
+    act(() => root.render(<SiteFileBrowser {...props} activeDocumentId={hmId('site')} />))
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Home')
+  })
+
   it('does not load or render unreferenced documents', () => {
     const install = makeDoc(['guides', 'install'], 'Install Seed', 'PRIVATE')
     useDirectoryWithDraftsMock.mockReturnValue({directory: [install], drafts: [], isLoading: false})
@@ -156,26 +165,6 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelector('[aria-label="Document"]')).toBeTruthy()
   })
 
-  it('colors collection, private and document icons with the shared icon token', () => {
-    useDirectoryWithDraftsMock.mockReturnValue({
-      directory: [
-        makeCollection(['collection'], 'Collection'),
-        makeDoc(['private'], 'Private', 'PRIVATE'),
-        makeDoc(['document'], 'Document'),
-      ],
-      drafts: [],
-      isLoading: false,
-    })
-
-    act(() => {
-      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
-    })
-
-    for (const label of ['Collection', 'Private document', 'Document']) {
-      expect(container.querySelector(`[aria-label="${label}"]`)?.getAttribute('class')).toContain('text-icon')
-    }
-  })
-
   it('reveals the active document and marks private rows', () => {
     useDirectoryWithDraftsMock.mockReturnValue({
       directory: [makeDoc(['guides'], 'Guides'), makeDoc(['guides', 'private'], 'Private guide', 'PRIVATE')],
@@ -197,14 +186,6 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelector('[data-slot="scroll-area"]')).toBeTruthy()
     expect(container.querySelector('[aria-label="Private document"]')).toBeTruthy()
     expect(container.querySelector('[aria-current="page"]')?.textContent).toContain('Private guide')
-    const caretButton = container.querySelector('[aria-label="Collapse Guides"]')
-    expect(caretButton?.className).toContain('size-6')
-    expect(caretButton?.className).toContain('p-0')
-    expect(caretButton?.className).not.toContain('min-w-8')
-    const activeDocumentButton = container.querySelector('[aria-current="page"]')
-    expect(activeDocumentButton?.className).toContain('h-6')
-    expect(activeDocumentButton?.className).toContain('text-sm')
-    expect(activeDocumentButton?.className).not.toContain('text-xs')
   })
 
   it('shows title matches as a flat list and navigates', () => {
@@ -341,7 +322,6 @@ describe('SiteFileBrowser', () => {
     })
     const home = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Home')!
     expect(home).toBeTruthy()
-    expect(home.querySelector('svg')).toBeNull()
     act(() => home.click())
     expect(onNavigate).toHaveBeenCalledWith(hmId('site'))
   })

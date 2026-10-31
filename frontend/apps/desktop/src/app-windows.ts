@@ -142,7 +142,7 @@ export function closeAppWindow(windowId: string) {
       routes: [defaultRoute],
       routeIndex: 0,
       sidebarLocked: true,
-      sidebarWidth: 15,
+      sidebarWidth: 22,
       accessoryWidth: 20,
     })
   }
@@ -559,7 +559,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
     routes: initRoutes,
     routeIndex: initRouteIndex,
     sidebarLocked: input.sidebarLocked ?? sourceState?.sidebarLocked ?? true,
-    sidebarWidth: input.sidebarWidth ?? sourceState?.sidebarWidth ?? 15,
+    sidebarWidth: input.sidebarWidth ?? sourceState?.sidebarWidth ?? 22,
     accessoryWidth: input.accessoryWidth ?? sourceState?.accessoryWidth ?? 20,
     selectedIdentity,
     assistantOpen: input.assistantOpen || false,
@@ -631,7 +631,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       routes,
       routeIndex,
       sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
-      sidebarWidth: sidebarWidth || 15,
+      sidebarWidth: sidebarWidth || 22,
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
     })
@@ -641,7 +641,7 @@ export function createAppWindow(input: Partial<AppWindow> & {id?: string}): Brow
       routes,
       routeIndex,
       sidebarLocked: typeof sidebarLocked === 'boolean' ? sidebarLocked : true,
-      sidebarWidth: sidebarWidth || 15,
+      sidebarWidth: sidebarWidth || 22,
       accessoryWidth: accessoryWidth || 20,
       selectedIdentity: selectedIdentity || null,
     }))

@@ -3,7 +3,7 @@ import {useSidebarContext, useSidebarWidth} from '@/sidebar-context'
 import {useStream} from '@shm/shared/use-stream'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {TitleBarProps} from './titlebar'
-import {NavigationButtons, NavMenuButton, Omnibar, PageActionButtons} from './titlebar-common'
+import {NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
 import {TitlebarMainRow} from './titlebar-layout'
 import './titlebar-windows-linux.css'
 import {SystemMenu} from './windows-linux-titlebar'
@@ -34,7 +34,7 @@ export default function TitleBarWindows(props: TitleBarProps) {
         <TitlebarMainRow
           sidebarLocked={isSidebarLocked}
           sidebarWidth={sidebarWidth}
-          sidebarControl={<NavMenuButton />}
+          sidebarControl={null}
           navigation={<NavigationButtons />}
           omnibar={<Omnibar />}
           actions={
