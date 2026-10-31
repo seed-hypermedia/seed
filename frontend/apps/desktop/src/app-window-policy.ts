@@ -31,6 +31,13 @@ export function parseWebURL(value: string): URL | null {
   }
 }
 
+/** Whether the URL belongs to one of the supported third-party embed domains. */
+export function isEmbedFrameURL(value: string): boolean {
+  const url = parseWebURL(value)
+  if (!url) return false
+  return EMBED_DOMAINS.some((domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`))
+}
+
 /** Match whole DNS labels below explicit registrable domains, never URL substrings. */
 export function isAllowedFrameURL(value: string, policy: AppWindowPolicy): boolean {
   // A custom HTML page runs in a frame of its own scheme and origin (see app-document-pages.ts).
@@ -41,7 +48,7 @@ export function isAllowedFrameURL(value: string, policy: AppWindowPolicy): boole
     url.origin === policy.appOrigin ||
     url.origin === policy.daemonOrigin ||
     url.origin === policy.fileOrigin ||
-    EMBED_DOMAINS.some((domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`))
+    isEmbedFrameURL(value)
   )
 }
 

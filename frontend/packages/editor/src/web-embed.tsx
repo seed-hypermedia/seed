@@ -173,8 +173,8 @@ const WebEmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
       onPress={() => {
         // First click selects only (PM handleClickOn made the NodeSelection);
         // open the link only when the block was already selected at mousedown.
-        if (wasSelectedAtMouseDown.current && block.props.link) {
-          openUrl(block.props.link)
+        if (wasSelectedAtMouseDown.current && block.props.url) {
+          openUrl(block.props.url)
         }
       }}
       styleProps={{
