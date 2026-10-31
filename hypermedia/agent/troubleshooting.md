@@ -87,11 +87,19 @@ The server rejects secret submission to remote plain HTTP servers. Use HTTPS or 
 
 # Session stuck in `streaming` <!-- id:9Avd0DG9 -->
 
-Since the runs rework, `sessions.status` is a derived mirror of [run](./runs.md) state, and a crash cannot wedge it. The boot sweep requeues interrupted runs. Interrupted tool calls get synthesized results. A boot reconcile pass replays children that finalized inside a crash window. If a session still shows `streaming`: <!-- id:lgnWLAMl -->
+Since the runs rework, `sessions.status` is a derived mirror of [run](./runs.md) state, and a crash cannot wedge it. The boot sweep requeues interrupted runs. Interrupted tool calls are answered from the [effect outbox](./effect-outbox.md). A boot reconcile pass replays children that finalized inside a crash window. If a session still shows `streaming`: <!-- id:lgnWLAMl -->
   1. Run `ListRuns {sessionId}` and check whether the latest root run is live (`queued`, `claimed`, `running`, or `waiting`). The mirror says `streaming` if and only if it is. <!-- id:jvdfm_lR -->
   2. A run `waiting` with `wait_cbor {reason: 'children'}` is [parked](./park.md) on delegated [children](./child.md). Inspect the tree with `ListRuns {rootRunId}` and check each child's status. `reason: 'timer'` (with `not_before`) wakes on schedule. `reason: 'event'` is parked on `ctx.waitForEvent` and needs a [wake source](./wake-source.md): a `SignalRun` (the run's `wait.answerWith` names the signal, and the card's Answer button sends it), a [trigger](./triggers.md) with a `wake` continuation, a matching activity event, or its own timeout. `reason: 'budget-pause'` waits for a person to resume it. <!-- id:CQeTvjby -->
   3. `StopSession` aborts the live turn AND cancels every run rooted at the session, including descendants. `CancelRun` on any run id is the finer kill switch, and it cascades to that run's subtree. <!-- id:_4-Jmfw6 -->
   4. Restarting the service is always safe: sweep and reconcile recover every documented crash window. <!-- id:KkC31s6i -->
+
+# Runs stay `queued` and nothing starts
+
+Check `/api/health`. `dispatch: {paused: true, reason}` means the queue has stopped claiming runs, and the reason says why; today the one cause is free disk space under the database below `SEED_AGENTS_MIN_FREE_DISK_MIB` (default 512 MiB), shown in `disk`. Runs already in flight finish; queued ones, including the turn behind a message a person just sent, wait. Free space and dispatch resumes on its own within a second; the log says `[agents/runs] dispatch paused` once when it stops and `[agents/runs] dispatch resumed` when it starts again. Setting the floor to `0` turns the check off, and then a turn that starts on a full disk fails with "The turn could not be recorded" instead. See the [effect outbox](./effect-outbox.md).
+
+# A tool result says "Interrupted while …"
+
+The call was cut off mid-effect and the [effect outbox](./effect-outbox.md) could not tell whether it finished. The text names the effect (publishing, writing a memory file, running code, a named callable) and says whether the server process died or only the run ended. The model is told to check before repeating it; a person can do the same from the named address. A call that finished before the restart is answered from its receipt and never shows this text; a call that never began simply runs. The row is in `effect_outbox`, keyed by `<session_id>:<tool_call_id>`.
 
 # A delegate row says "Starting the child…" but the child is alive <!-- id:s0To9423 -->
 

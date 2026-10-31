@@ -25,7 +25,7 @@ On startup, `sqlite.open()` either: <!-- id:2_LU9c3d -->
 
 The service never runs against an unknown schema state. On rejection, `main.ts` serves a 500 on every route and logs both versions. <!-- id:Cxj6ftns -->
 
-Migrations live in the `migrations` array in `sqlite.ts` and are **prepend-only**: new entries go at the top of the literal and the array is `.reverse()`d. Index order then equals apply order, and `desiredVersion` is `migrations.length`. Each migration applies inside its own savepoint within one transaction, and a failure rolls the whole batch back. The schema version is 29 as of October 2026. `sqlite-schema.sql` is the fresh-install baseline and must stay equivalent to baseline + every migration. <!-- id:hd8VJE3g -->
+Migrations live in the `migrations` array in `sqlite.ts` and are **prepend-only**: new entries go at the top of the literal and the array is `.reverse()`d. Index order then equals apply order, and `desiredVersion` is `migrations.length`. Each migration applies inside its own savepoint within one transaction, and a failure rolls the whole batch back. The schema version is 31 as of October 2026. `sqlite-schema.sql` is the fresh-install baseline and must stay equivalent to baseline + every migration. <!-- id:hd8VJE3g -->
 
 # Tables <!-- id:6sX7nWzL -->
 
@@ -366,6 +366,10 @@ Used by: <!-- id:1-pLN2bq -->
 
 Same client ID with identical request bytes replays the response. Same client ID with different request bytes returns `409`. <!-- id:xDb-SvJk -->
 
+## `effect_outbox`
+
+The intent and receipt of every side effect a tool call performs; see the [effect outbox](./effect-outbox.md). One row per call, `id` = `<session_id>:<tool_call_id>`, with `account_id`, `session_id` (cascades on session delete), `run_id`, `tool_call_id`, `tool`, `kind` (`publish`, `memory-write`, `execute`, `delegate`, `call:<name>`, and so on), `input_digest` (SHA-256 of the call's arguments), `status` (`running`, `succeeded`, `failed`, `interrupted`), `attempt`, `lease_owner` and `lease_expires_at` (the process running it), `response_cbor` (the receipt: the text and details the tool returned), `error`, `created_at`, `updated_at`, `completed_at`. The row is inserted and committed before the effect begins and settled when it ends. The boot sweep marks every `running` row `interrupted`; settled rows are pruned after two days.
+
 # Open settings and planner statistics <!-- id:VGWqFzrf -->
 
 `openWithDatabase` sets `journal_mode=WAL`, a 64 MB `cache_size`, a 512 MB `mmap_size`, and `temp_store=MEMORY`, then runs `ANALYZE` on the small planner tables (`PLANNER_STATISTICS_TABLES`: runs, sessions, agents, collaborators, firings, continuations, and friends) at every open, deliberately leaving out `session_events` and `run_journal`. Without statistics the planner chose the account-wide index for per-session run lookups and pinned the server (2026-09-23); the hot queries also pin their index with `INDEXED BY`. Nothing runs `VACUUM`. See [operations](./operations.md). <!-- id:afAY8b18 -->
@@ -423,5 +427,6 @@ Do not hold write transactions during provider or tool network calls. <!-- id:Oi
 - [Runs](./runs.md) <!-- id:Rk2fkzzC -->
 - [Log](./log.md) <!-- id:Aa-ObMEx -->
 - [Durable sessions](./durable-sessions.md) <!-- id:LAZPp-8q -->
+- [Effect outbox](./effect-outbox.md)
 - [Security](./security.md) <!-- id:7k0_A0Pk -->
 - [Operations](./operations.md) <!-- id:shyewYK8 -->
