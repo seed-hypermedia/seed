@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, test} from 'bun:test'
 import {
   boundMarkdown,
+  clearWebReadCacheForTests,
   executeWebRead,
   executeWebSearch,
   extractReadableMarkdown,
@@ -11,6 +12,7 @@ import {
 const realFetch = globalThis.fetch
 afterEach(() => {
   globalThis.fetch = realFetch
+  clearWebReadCacheForTests()
 })
 
 type Route = (url: string, init?: RequestInit) => Response | Promise<Response>
@@ -189,6 +191,93 @@ describe('executeWebRead tiers', () => {
 
   test('rejects non-http(s) URLs', async () => {
     await expect(executeWebRead({}, {url: 'ftp://x'})).rejects.toThrow(/http/)
+  })
+
+  describe('read cache and coalescing', () => {
+    test('a repeat read is served from cache without fetching, fragment-insensitive', async () => {
+      let fetches = 0
+      mockFetch((url) => {
+        fetches += 1
+        if (url.startsWith('https://docs.test/page')) return htmlResponse(ARTICLE_HTML)
+        throw new Error(`unexpected fetch ${url}`)
+      })
+      const first = await executeWebRead({}, {url: 'https://docs.test/page#section-one'})
+      // The prod shape this exists for: the same page re-read under a different anchor.
+      const second = await executeWebRead({}, {url: 'https://docs.test/page#section-two'})
+      expect(fetches).toBe(1)
+      expect(second.markdown).toBe(first.markdown)
+      expect(String(second.summary)).toContain('(cached)')
+      // Each response still echoes the URL it was asked for.
+      expect(second.url).toBe('https://docs.test/page#section-two')
+      expect(String(first.summary)).not.toContain('(cached)')
+    })
+
+    test('concurrent identical reads share one fetch', async () => {
+      let fetches = 0
+      let release!: () => void
+      const gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      mockFetch(async (url) => {
+        fetches += 1
+        await gate
+        return htmlResponse(ARTICLE_HTML)
+      })
+      const a = executeWebRead({}, {url: 'https://docs.test/page'})
+      const b = executeWebRead({}, {url: 'https://docs.test/page#anchor'})
+      release()
+      const [ra, rb] = await Promise.all([a, b])
+      expect(fetches).toBe(1)
+      expect(rb.markdown).toBe(ra.markdown)
+    })
+
+    test('a coalesced failure rejects both callers and is not cached', async () => {
+      let fetches = 0
+      mockFetch(() => {
+        fetches += 1
+        return new Response('nope', {status: 500})
+      })
+      const settled = await Promise.allSettled([
+        executeWebRead({}, {url: 'https://dead.test/'}),
+        executeWebRead({}, {url: 'https://dead.test/'}),
+      ])
+      expect(settled.map((s) => s.status)).toEqual(['rejected', 'rejected'])
+      for (const s of settled) {
+        expect(String((s as PromiseRejectedResult).reason)).toMatch(/Could not extract/)
+      }
+      expect(fetches).toBe(1)
+      // The failure must not poison the cache: the next read tries again.
+      await expect(executeWebRead({}, {url: 'https://dead.test/'})).rejects.toThrow(/Could not extract/)
+      expect(fetches).toBe(2)
+    })
+
+    test('entries expire after the ttl and different queries do not share entries', async () => {
+      let fetches = 0
+      mockFetch((url) => {
+        fetches += 1
+        if (url.startsWith('https://docs.test/')) return htmlResponse(ARTICLE_HTML)
+        if (url.endsWith('/md')) return json({success: true, markdown: 'x'.repeat(300)})
+        throw new Error(`unexpected fetch ${url}`)
+      })
+      await executeWebRead({readCacheTtlMs: 30}, {url: 'https://docs.test/page'})
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      await executeWebRead({readCacheTtlMs: 30}, {url: 'https://docs.test/page'})
+      expect(fetches).toBe(2)
+      // `query` steers crawl4ai's content filter, so it is part of the identity.
+      await executeWebRead({readCacheTtlMs: 60_000}, {url: 'https://docs.test/page', query: 'pricing'})
+      expect(fetches).toBe(3)
+    })
+
+    test('readCacheTtlMs: 0 disables caching entirely', async () => {
+      let fetches = 0
+      mockFetch(() => {
+        fetches += 1
+        return htmlResponse(ARTICLE_HTML)
+      })
+      await executeWebRead({readCacheTtlMs: 0}, {url: 'https://docs.test/page'})
+      await executeWebRead({readCacheTtlMs: 0}, {url: 'https://docs.test/page'})
+      expect(fetches).toBe(2)
+    })
   })
 
   // Regression: the fetch deadline must cover the BODY, not just the headers. A server that
