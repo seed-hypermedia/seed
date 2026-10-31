@@ -16,6 +16,7 @@ import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {hmId} from '@shm/shared'
 import {defaultRoute, NavRoute} from '@shm/shared/routes'
+import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {NotificationInboxProvider} from '@shm/ui/activity-panel'
 import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
@@ -363,6 +364,7 @@ function ConfirmConnectionDialog() {
 
 function PanelContent({children}: {children: ReactNode}) {
   const ctx = useSidebarContext()
+  const isSidebarLocked = useStream(ctx.isLocked)
 
   useListenAppEvent('toggle_sidebar', () => {
     const activeEl = document.activeElement
@@ -384,7 +386,7 @@ function PanelContent({children}: {children: ReactNode}) {
   return (
     <Group
       orientation="horizontal"
-      className={cn('flex min-h-0 overflow-hidden pr-2')}
+      className={cn('flex min-h-0 overflow-hidden pr-2', !isSidebarLocked && 'pl-2')}
       onLayoutChanged={(layout, meta) => {
         if (!meta.isUserInteraction) return
         const width = (meta.requestedLayout ?? layout).sidebar

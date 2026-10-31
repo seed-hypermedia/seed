@@ -21,15 +21,16 @@ import {
 } from '@shm/shared'
 
 import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
+import {getCommentThread, getSubmittedCommentGroups, sortCommentGroupsByCreation} from '@shm/shared/comments'
 import {
   useCommentsServiceContext,
   useDeleteComment,
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
-import {getCommentThread, getSubmittedCommentGroups, sortCommentGroupsByCreation} from '@shm/shared/comments'
-import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {extractRefs} from '@shm/shared/content'
 import {commentToText} from '@shm/shared/content-to-text'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {
   useBlockDiscussions,
   useCommentReplyCount,
@@ -39,7 +40,6 @@ import {
 } from '@shm/shared/models/comments'
 import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
 import {useMentionNames} from '@shm/shared/models/inline-mentions'
-import {extractRefs} from '@shm/shared/content'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
@@ -47,20 +47,20 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Bookmark, Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
+import {AccountAvatar} from './account-avatar'
 import {getBlockNodeById} from './blocks-content-utils'
-import {ContentEmbed} from './content-embed'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
-import {AccountAvatar} from './account-avatar'
+import {ContentEmbed} from './content-embed'
 import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
+import {useCommentsScroll} from './use-comments-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {cn} from './utils'
-import {useCommentsScroll} from './use-comments-scroll'
 
 /** Return a normalized 50-character snapshot for a comment bookmark title. */
 export function commentBookmarkTitle(content: HMBlockNode[], resolvedNames?: Readonly<Record<string, string>>): string {
@@ -240,7 +240,7 @@ export function CommentDiscussions({
               <div
                 key={comment.id}
                 ref={comment.id === highlightedCommentId ? focusedCommentRef : undefined}
-                className={index ? 'border-border ml-4 border-t' : 'scroll-mt-4 pb-3'}
+                className={index ? 'border-border ml-4 border-t' : 'scroll-mt-4'}
               >
                 <Comment
                   comment={comment}
@@ -761,6 +761,7 @@ export const Comment = memo(function Comment({
         className={cn(
           'highlight-transition group relative flex flex-col gap-1 rounded-lg px-3 py-3',
           isEntirelyHighlighted && 'bg-highlight',
+          !!threadRootId && 'pb-4',
         )}
       >
         <div className="flex min-w-0 items-center gap-1">
