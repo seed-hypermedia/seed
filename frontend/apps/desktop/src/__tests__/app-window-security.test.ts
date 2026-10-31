@@ -109,6 +109,52 @@ it('changes response headers only at the exact app origin', () => {
   }
 })
 
+describe('window-open referrer gating', () => {
+  function openHandler(activated: boolean, withPolicy: AppWindowPolicy = policy) {
+    const contents = Object.assign(new EventEmitter(), {
+      getURL: () => `${policy.appOrigin}/index.html`,
+      isDestroyed: () => false,
+      mainFrame: {},
+      executeJavaScriptInIsolatedWorld: vi.fn().mockResolvedValue(activated),
+      setWindowOpenHandler: vi.fn(),
+    })
+    installWindowGuards({webContents: contents} as unknown as BrowserWindow, withPolicy)
+    const handler = contents.setWindowOpenHandler.mock.calls[0]![0] as (details: {
+      url: string
+      disposition: string
+      referrer: {url: string}
+    }) => {action: string}
+    return {contents, handler}
+  }
+  const url = 'https://x.com/user/status/1'
+
+  beforeEach(() => vi.mocked(shell.openExternal).mockClear())
+
+  it('opens new-tab links from embed subframes after a real activation', async () => {
+    const {handler} = openHandler(true)
+    const result = handler({url, disposition: 'foreground-tab', referrer: {url: 'https://platform.twitter.com/embed'}})
+    expect(result).toEqual({action: 'deny'})
+    await vi.waitFor(() => expect(shell.openExternal).toHaveBeenCalledWith(url))
+  })
+
+  it('routes embed-subframe links into the app when the web browser is enabled', async () => {
+    const openInApp = vi.fn().mockReturnValue(true)
+    const {handler} = openHandler(true, {...policy, openInApp})
+    handler({url, disposition: 'foreground-tab', referrer: {url: 'https://platform.twitter.com/embed'}})
+    await vi.waitFor(() => expect(openInApp).toHaveBeenCalledWith(url, expect.anything()))
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+
+  it('still refuses opens from foreign referrers and without activation', async () => {
+    const activatedForeign = openHandler(true)
+    activatedForeign.handler({url, disposition: 'foreground-tab', referrer: {url: 'https://evil.example/'}})
+    const inactiveEmbed = openHandler(false)
+    inactiveEmbed.handler({url, disposition: 'foreground-tab', referrer: {url: 'https://platform.twitter.com/embed'}})
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(shell.openExternal).not.toHaveBeenCalled()
+  })
+})
+
 describe('openAppExternalLink', () => {
   function appWindow(activated: boolean) {
     const contents = Object.assign(new EventEmitter(), {
