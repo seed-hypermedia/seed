@@ -17,6 +17,8 @@ import {Readability} from '@mozilla/readability'
 import {parseHTML} from 'linkedom'
 import TurndownService from 'turndown'
 
+import {recordPerfCount} from '@/perf'
+
 /** Optional URLs/credentials for the self-hosted web backends. */
 export type WebToolsConfig = {
   /** Self-hosted SearXNG base URL, e.g. http://searxng:8080. Required for web_search. */
@@ -29,6 +31,8 @@ export type WebToolsConfig = {
   fetchTimeoutMs?: number
   /** Override for CRAWL_TIMEOUT_MS. */
   crawlTimeoutMs?: number
+  /** Override for READ_CACHE_TTL_MS (0 disables the web_read cache). */
+  readCacheTtlMs?: number
 }
 
 /** Keep markdown comfortably under the 256 KiB tool-result cap, leaving room for metadata. */
@@ -397,41 +401,39 @@ async function readRaw(url: string, timeoutMs: number): Promise<{body: string; f
   }
 }
 
-export async function executeWebRead(config: WebToolsConfig, raw: unknown): Promise<Record<string, unknown>> {
-  const input = isRecord(raw) ? raw : {}
-  const rawUrl = boundedString(input.url, 2048)
-  if (!rawUrl) throw new Error('A url is required')
-  let parsed: URL
-  try {
-    parsed = new URL(rawUrl)
-  } catch {
-    throw new Error(`Invalid url: ${rawUrl}`)
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
-    throw new Error('web_read only supports http(s) URLs')
-  const query = boundedString(input.query, 512)
+/**
+ * Extracted-page cache and in-flight coalescing for the tiered (non-raw) `web_read` path.
+ *
+ * Agents demonstrably re-read pages: a prod session fetched the same docs page three times — the
+ * last two as PARALLEL calls that differed only in their `#fragment` — burning ~63s on content the
+ * process had held 25 minutes earlier. The key strips the fragment (anchors never change the
+ * fetched document) and includes `query` (it steers crawl4ai's content filter). Failures are never
+ * cached; concurrent identical reads share one in-flight promise, including its rejection.
+ */
+const READ_CACHE_TTL_MS = 5 * 60_000
+const READ_CACHE_MAX_ENTRIES = 50
 
+type WebReadPage = {title: string; markdown: string; source: WebReadSource; finalUrl: string}
+const readCache = new Map<string, {page: WebReadPage; expiresAt: number}>()
+const readsInFlight = new Map<string, Promise<WebReadPage>>()
+
+/** Tests only — the cache is process-wide state. */
+export function clearWebReadCacheForTests(): void {
+  readCache.clear()
+  readsInFlight.clear()
+}
+
+function readCacheKey(parsed: URL, crawlQuery: string): string {
+  const noFragment = new URL(parsed.toString())
+  noFragment.hash = ''
+  return `${noFragment.toString()} ${crawlQuery}`
+}
+
+/** Runs the tier chain: MediaWiki -> static -> crawl4ai. Throws when no tier extracts content. */
+async function readTiered(config: WebToolsConfig, parsed: URL, rawUrl: string, query: string): Promise<WebReadPage> {
   const timeoutMs = config.fetchTimeoutMs ?? FETCH_TIMEOUT_MS
-
-  // Raw mode: return the response body verbatim (source code, JSON APIs, config files) with no extraction.
-  if (input.raw === true) {
-    const fetched = await readRaw(rawUrl, timeoutMs)
-    const {markdown, truncated} = boundMarkdown(fetched.body)
-    return {
-      summary: `Fetched ${fetched.finalUrl} via ${WEB_READ_SOURCE_LABEL.raw}${truncated ? ' (truncated)' : ''}.`,
-      url: rawUrl,
-      finalUrl: fetched.finalUrl,
-      title: hostnameOf(rawUrl),
-      source: 'raw' satisfies WebReadSource,
-      contentType: fetched.contentType,
-      truncated,
-      success: true,
-      markdown,
-    }
-  }
-
   const attempts: string[] = []
-  let result: {title: string; markdown: string; source: WebReadSource; finalUrl: string} | null = null
+  let result: WebReadPage | null = null
 
   // Tier 1: MediaWiki API (clean, no browser) when the URL looks like a wiki page.
   if (parseWikiTitle(parsed)) {
@@ -457,14 +459,86 @@ export async function executeWebRead(config: WebToolsConfig, raw: unknown): Prom
   if (!result) {
     throw new Error(`Could not extract readable content from ${rawUrl} (tried: ${attempts.join(', ') || 'none'}).`)
   }
+  return result
+}
 
-  const {markdown, truncated} = boundMarkdown(result.markdown)
+export async function executeWebRead(config: WebToolsConfig, raw: unknown): Promise<Record<string, unknown>> {
+  const input = isRecord(raw) ? raw : {}
+  const rawUrl = boundedString(input.url, 2048)
+  if (!rawUrl) throw new Error('A url is required')
+  let parsed: URL
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    throw new Error(`Invalid url: ${rawUrl}`)
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')
+    throw new Error('web_read only supports http(s) URLs')
+  const query = boundedString(input.query, 512)
+
+  // Raw mode: return the response body verbatim (source code, JSON APIs, config files) with no
+  // extraction — and no caching: raw reads are often APIs whose freshness matters.
+  if (input.raw === true) {
+    const fetched = await readRaw(rawUrl, config.fetchTimeoutMs ?? FETCH_TIMEOUT_MS)
+    const {markdown, truncated} = boundMarkdown(fetched.body)
+    return {
+      summary: `Fetched ${fetched.finalUrl} via ${WEB_READ_SOURCE_LABEL.raw}${truncated ? ' (truncated)' : ''}.`,
+      url: rawUrl,
+      finalUrl: fetched.finalUrl,
+      title: hostnameOf(rawUrl),
+      source: 'raw' satisfies WebReadSource,
+      contentType: fetched.contentType,
+      truncated,
+      success: true,
+      markdown,
+    }
+  }
+
+  const ttlMs = config.readCacheTtlMs ?? READ_CACHE_TTL_MS
+  const key = readCacheKey(parsed, query)
+  let page: WebReadPage
+  let cached = false
+  const cachedEntry = ttlMs > 0 ? readCache.get(key) : undefined
+  if (cachedEntry && cachedEntry.expiresAt > Date.now()) {
+    page = cachedEntry.page
+    cached = true
+    recordPerfCount('web_read.cache_hit')
+  } else {
+    const inFlight = readsInFlight.get(key)
+    if (inFlight) {
+      recordPerfCount('web_read.coalesced')
+      page = await inFlight
+    } else {
+      recordPerfCount('web_read.cache_miss')
+      const pending = readTiered(config, parsed, rawUrl, query)
+      readsInFlight.set(key, pending)
+      try {
+        page = await pending
+      } finally {
+        readsInFlight.delete(key)
+      }
+      if (ttlMs > 0) {
+        // Refresh insertion order so eviction drops the least-recently written entry.
+        readCache.delete(key)
+        readCache.set(key, {page, expiresAt: Date.now() + ttlMs})
+        while (readCache.size > READ_CACHE_MAX_ENTRIES) {
+          const oldest = readCache.keys().next().value
+          if (oldest === undefined) break
+          readCache.delete(oldest)
+        }
+      }
+    }
+  }
+
+  const {markdown, truncated} = boundMarkdown(page.markdown)
   return {
-    summary: `Read ${result.title} via ${WEB_READ_SOURCE_LABEL[result.source]}${truncated ? ' (truncated)' : ''}.`,
+    summary: `Read ${page.title} via ${WEB_READ_SOURCE_LABEL[page.source]}${truncated ? ' (truncated)' : ''}${
+      cached ? ' (cached)' : ''
+    }.`,
     url: rawUrl,
-    finalUrl: result.finalUrl,
-    title: result.title,
-    source: result.source,
+    finalUrl: page.finalUrl,
+    title: page.title,
+    source: page.source,
     truncated,
     success: true,
     markdown,
