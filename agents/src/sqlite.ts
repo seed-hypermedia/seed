@@ -14,6 +14,30 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Effect outbox: the intent and receipt of every side effect a tool call performs (publish,
+  // memory write, sandbox run, MCP call, delegation). Inserted before the effect begins and
+  // settled when it ends, so a turn resumed after a process death knows whether a cut-off call
+  // never began, finished, or is unknown. See effect-outbox.ts.
+  `CREATE TABLE effect_outbox (
+      id TEXT PRIMARY KEY,
+      account_id TEXT NOT NULL REFERENCES accounts (id),
+      session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+      run_id TEXT,
+      tool_call_id TEXT NOT NULL,
+      tool TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      input_digest TEXT NOT NULL,
+      status TEXT NOT NULL,
+      lease_owner TEXT,
+      response_cbor BLOB,
+      error TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      completed_at INTEGER
+  );
+
+  CREATE INDEX effect_outbox_by_session ON effect_outbox (session_id, created_at);
+  CREATE INDEX effect_outbox_by_status ON effect_outbox (status, completed_at);`,
   // Pi Durable sessions. `pi_entry_id` is the durable transcript entry a session event was
   // projected from: an interrupted projection resumes after the highest id, and events without one
   // are the ones a turn still has to import into the session's durable conversation.

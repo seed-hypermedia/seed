@@ -38,6 +38,8 @@ The words the [Seed Agents](../agent.md) pages use, one line each, linked to the
 - [typed result](./typed-result.md): a child spawned with an `output` schema must deliver its result through the `return_result` tool. <!-- id:THID80eE -->
 - [script and ctx](./script.md): a script child's world: `ctx.call`, `ctx.delegate`, `ctx.parallel`, `ctx.step`, `ctx.plan`, `ctx.sleep`, `ctx.waitForEvent`, `ctx.continueAsNew`. <!-- id:QxQG0zGR -->
 - [journal](./journal.md): a script run's durable effect record; resume replays the source against it and completed effects never re-execute. <!-- id:Pi9NkRbM -->
+- [effect outbox](./effect-outbox.md): the record of every side effect a chat turn's tool call performs, written before the effect and receipted after, so a call rerun after a restart is answered from what happened instead of repeating it.
+- receipt: the settled row of the [effect outbox](./effect-outbox.md) for one call: what the tool returned, or the error it ended with.
 - journal entry: one record in a [journal](./journal.md), a JSON value with a `kind` (`call`, `result`, `timer`, `fired`, `wait`, `event`, `now`, `log`, `step`, `plan`), the `callSeq` of the ctx call it belongs to, and a content `key` replay matches on. <!-- id:q2_iCTWm -->
 - run tree: a root [run](./runs.md) and every run spawned under it, all sharing one `rootRunId`; what `ListRuns {rootRunId}` returns and a `runs/<rootRunId>` subscription replays. <!-- id:vseyzZTk -->
 - root run: the run a message or a firing started, at depth 0; its children carry `parentRunId` and a greater `depth`. <!-- id:6IZ9sg9v -->

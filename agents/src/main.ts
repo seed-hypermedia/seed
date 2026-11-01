@@ -153,6 +153,11 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
         // Which runtimes this server can actually run: `ts` needs an image with bun, so an
         // operator can see at a glance whether TypeScript execution is on here.
         codeExecRuntimes: codeExec.runtimes,
+        // Free space where the database lives, against the floor new runs require (null when the
+        // check is off), and whether the queue is claiming runs right now. A full disk shows up
+        // here before it shows up as failed turns.
+        disk: healthDisk(svc.diskStatus()),
+        dispatch: svc.dispatchStatus(),
       },
       {headers: corsHeaders()},
     )
@@ -193,6 +198,13 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
     '/api/perf/sessions/:sessionId': {GET: sessionPerf},
     '/agents/api/perf/sessions/:sessionId': {GET: sessionPerf},
   }
+}
+
+/** The free-space figures for health, without the directory they were read from. */
+function healthDisk(
+  status: ReturnType<apisvc.Service['diskStatus']>,
+): {freeBytes: number; minFreeBytes: number; ok: boolean} | null {
+  return status ? {freeBytes: status.freeBytes, minFreeBytes: status.minFreeBytes, ok: status.ok} : null
 }
 
 async function readWebhookBody(req: Request): Promise<Uint8Array> {
@@ -449,6 +461,7 @@ async function main(): Promise<void> {
     subscriptionAuth: cfg.subscriptionAuth,
     titleGeneration: cfg.titleGeneration,
     runQueue: cfg.runQueue,
+    storage: {path: filepath.dirname(filepath.resolve(cfg.dbPath)), minFreeBytes: cfg.storage.minFreeDiskBytes},
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})

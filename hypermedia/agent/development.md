@@ -26,6 +26,7 @@ direnv exec . bash -lc 'cd agents && bun check && bun test'   # typecheck + form
 direnv exec . bash -lc 'cd agents && bun run test:build'      # the compiled binary boots
 direnv exec . bash -lc 'cd agents && bun run test:docker'     # the image boots
 direnv exec . bash -lc 'cd agents && bun run test:trigger'    # real daemon, mention trigger fires once
+direnv exec . bash -lc 'cd agents && bun run test:outbox'     # real daemon, effect outbox across kill -9, disk floor, ENOSPC
 direnv exec . bash -lc 'cd agents && bun run protocol:check'  # the protocol surface did not change silently
 ```
 

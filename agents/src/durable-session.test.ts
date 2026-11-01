@@ -11,6 +11,7 @@ import * as blobs from '@shm/shared/blobs'
 import {serialize} from 'superjson'
 import {unpackHmId} from '@seed-hypermedia/client'
 import * as durableSession from '@/durable-session'
+import * as effectOutbox from '@/effect-outbox'
 import * as sqlite from '@/sqlite'
 import * as cbor from '@/cbor'
 
@@ -1134,6 +1135,229 @@ describe('durable sessions', () => {
     expect(storeRows(h).length).toBeGreaterThan(0)
     await h.send({_: 'DeleteSession', sessionId: h.sessionId})
     expect(storeRows(h)).toEqual([])
+  })
+})
+
+/** The one file named `name` under a test's data directory, where the agent's memory lives. */
+function memoryFile(h: TestSession, name: string): string | undefined {
+  const walk = (dir: string): string | undefined => {
+    for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+      const full = path.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        const found = walk(full)
+        if (found) return found
+      } else if (entry.name === name) return full
+    }
+    return undefined
+  }
+  return walk(h.dataDir)
+}
+
+/** The session as a client reads it, from a service. */
+async function sessionEvents(
+  service: apisvc.Service,
+  h: TestSession,
+): Promise<Array<{type: string; content?: string; error?: string; message?: string; output?: unknown}>> {
+  const session = await service.message(
+    await apisvc.createSignedEnvelope(h.account, {action: {_: 'GetSession', sessionId: h.sessionId}}),
+  )
+  if (session._ !== 'GetSessionResponse') throw new Error('unexpected response')
+  return session.events.map(
+    (event) => event.event as {type: string; content?: string; error?: string; message?: string; output?: unknown},
+  )
+}
+
+describe('effect outbox in a turn', () => {
+  test('a write cut off mid-effect by a process death is answered as interrupted, naming the effect', async () => {
+    const h = await createSession()
+    const requests: ChatMessage[][] = []
+    let downloads = 0
+    let markDownloadStarted = () => {}
+    const downloadStarted = new Promise<void>((resolve) => {
+      markDownloadStarted = resolve
+    })
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (href.includes('files.example')) {
+        // The process dies while the download is in flight: it never returns.
+        downloads += 1
+        markDownloadStarted()
+        return new Promise<Response>(() => {})
+      }
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      requests.push(providerMessages(init))
+      return requests.length === 1
+        ? toolCallReply('chat-1', 'call-write', 'write', {
+            address: '~/memory/notes.txt',
+            options: {fromUrl: 'https://files.example/notes.txt'},
+          })
+        : textReply('chat-2', 'The download was interrupted; I did not retry it.')
+    }) as unknown as typeof fetch
+
+    void h
+      .send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Save the notes'}]})
+      .catch(() => {})
+    await downloadStarted
+    h.service.stopRunQueue()
+    // The intent was committed before the effect began, under the process that died.
+    const before = effectOutbox.get(h.db, effectOutbox.effectId(h.sessionId, 'call-write'))
+    expect(before?.status).toBe('running')
+    expect(before?.kind).toBe('memory-write')
+
+    h.db = Database.deserialize(h.db.serialize())
+    if (!sqlite.openWithDatabase(h.db).ok) throw new Error('unexpected schema mismatch')
+    cleanups.push(() => sqlite.closeDatabase(h.db))
+    const restarted = new apisvc.Service(h.db, h.dataDir, {})
+    cleanups.push(() => restarted.stopRunQueue())
+    await restarted.awaitQueueIdle()
+
+    // The same run adopted the turn and the harness reran the call; the outbox answered it from
+    // the row the dead process left, so the download did not start again and the model was told
+    // exactly which effect was cut off.
+    expect(downloads).toBe(1)
+    expect(requests).toHaveLength(2)
+    const toolResult = (requests[1] ?? []).find((message) => message.role === 'tool')
+    expect(toolResult?.tool_call_id).toBe('call-write')
+    expect(String(toolResult?.content)).toContain('Interrupted while writing a memory file')
+    const row = effectOutbox.get(h.db, effectOutbox.effectId(h.sessionId, 'call-write'))
+    expect(row?.status).toBe('interrupted')
+
+    const events = await sessionEvents(restarted, h)
+    expect(events.map((event) => event.type)).toEqual(['message', 'message', 'tool_call', 'tool_result', 'message'])
+    expect(events[3]?.error).toContain('writing a memory file')
+    expect(events[4]?.content).toBe('The download was interrupted; I did not retry it.')
+    expect(memoryFile(h, 'notes.txt')).toBeUndefined()
+    const run = h.db.query<{status: string}, [string]>(`SELECT status FROM runs WHERE session_id = ?`).get(h.sessionId)
+    expect(run?.status).toBe('succeeded')
+  })
+
+  test('a call that finished before its run died is answered from its receipt, and its effect is not repeated', async () => {
+    const h = await createSession()
+    const requests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      requests.push(providerMessages(init))
+      return requests.length === 1
+        ? toolCallReply('chat-1', 'call-write', 'write', {address: '~/memory/notes.md', content: 'hello'})
+        : textReply('chat-2', 'Saved.')
+    }) as unknown as typeof fetch
+
+    // The store's next commit is refused as soon as the receipt exists: the tool ran, its receipt
+    // is written, and the process dies before the harness can commit the result.
+    h.db.run(
+      `CREATE TRIGGER die_after_receipt BEFORE INSERT ON session_durable_files
+         WHEN EXISTS (SELECT 1 FROM effect_outbox WHERE status = 'succeeded')
+         BEGIN SELECT RAISE(ABORT, 'simulated process death'); END`,
+    )
+    await expect(
+      h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Save hello'}]}),
+    ).rejects.toThrow()
+    h.db.run(`DROP TRIGGER die_after_receipt`)
+    expect(requests).toHaveLength(1)
+    const notes = memoryFile(h, 'notes.md')
+    if (!notes) throw new Error('the write did not happen')
+    expect(fs.readFileSync(notes, 'utf8')).toBe('hello')
+    const row = effectOutbox.get(h.db, effectOutbox.effectId(h.sessionId, 'call-write'))
+    expect(row?.status).toBe('succeeded')
+    expect(row?.kind).toBe('memory-write')
+    // Anything written after the receipt stays: a repeated write would put 'hello' back.
+    fs.writeFileSync(notes, 'edited after the crash')
+
+    const retried = await h.send({_: 'RetrySession', sessionId: h.sessionId})
+    expect(retried._).toBe('RetrySessionResponse')
+    // The retry is another run: the dead run's call is answered in the log from its receipt, so
+    // the model reads what the write did instead of being told to go and check.
+    expect(requests).toHaveLength(2)
+    const toolResult = (requests[1] ?? []).find((message) => message.role === 'tool')
+    expect(toolResult?.tool_call_id).toBe('call-write')
+    expect(String(toolResult?.content)).toContain('notes.md')
+    expect(String(toolResult?.content)).not.toContain('Interrupted')
+    expect(fs.readFileSync(notes, 'utf8')).toBe('edited after the crash')
+    const events = await sessionEvents(h.service, h)
+    const result = events.find((event) => event.type === 'tool_result')
+    expect(result?.error).toBeUndefined()
+    expect(JSON.stringify(result?.output)).toContain('notes.md')
+    expect(events.at(-1)?.content).toBe('Saved.')
+  })
+
+  test('a turn whose log write fails ends in an error, and the next open writes what was missed', async () => {
+    const h = await createSession()
+    const requests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      requests.push(providerMessages(init))
+      if (requests.length === 1) {
+        // The disk fills while the model answers: every projection of a durable entry into the
+        // log is refused from here on. Seed's own rows (the run's error) still land.
+        h.db.run(
+          `CREATE TRIGGER disk_full BEFORE INSERT ON session_events
+             WHEN NEW.pi_entry_id IS NOT NULL
+             BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END`,
+        )
+      }
+      return textReply('chat-1', 'Here is the answer.')
+    }) as unknown as typeof fetch
+
+    await expect(
+      h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Question'}]}),
+    ).rejects.toThrow(/could not be recorded/)
+    h.db.run(`DROP TRIGGER disk_full`)
+    expect(requests).toHaveLength(1)
+    // The answer is committed in the store and missing from the log, and the run says so.
+    const before = await sessionEvents(h.service, h)
+    expect(before.filter((event) => event.type === 'message')).toHaveLength(1)
+    expect(before.find((event) => event.type === 'error')?.message ?? '').toContain('disk is full')
+    const failed = h.db
+      .query<{status: string}, [string]>(`SELECT status FROM runs WHERE session_id = ? ORDER BY created_at DESC`)
+      .get(h.sessionId)
+    expect(failed?.status).toBe('failed')
+
+    // The next run opens the store, writes the entries the log is missing, finds the question
+    // answered, and does not ask the model again.
+    const retried = await h.send({_: 'RetrySession', sessionId: h.sessionId})
+    expect(retried._).toBe('RetrySessionResponse')
+    expect(requests).toHaveLength(1)
+    const after = await sessionEvents(h.service, h)
+    const answers = after.filter((event) => event.type === 'message' && event.content === 'Here is the answer.')
+    expect(answers).toHaveLength(1)
+  })
+
+  test('a retry while dispatch is paused waits in the queue instead of being cancelled', async () => {
+    const h = await createSession()
+    let healthy = false
+    const requests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      requests.push(providerMessages(init))
+      return healthy ? textReply('chat-ok', 'Back on a roomy disk.') : new Response('boom', {status: 500})
+    }) as unknown as typeof fetch
+    await expect(
+      h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Question'}]}),
+    ).rejects.toThrow()
+    h.service.stopRunQueue()
+
+    // The same database, served by a process whose disk floor no disk can meet.
+    const paused = new apisvc.Service(h.db, h.dataDir, {
+      storage: {path: h.dataDir, minFreeBytes: Number.MAX_SAFE_INTEGER},
+    })
+    cleanups.push(() => paused.stopRunQueue())
+    const send = async (action: unknown) =>
+      paused.message(await apisvc.createSignedEnvelope(h.account, {action: action as never}))
+    healthy = true
+    const requestsBefore = requests.length
+    const retried = await send({_: 'RetrySession', sessionId: h.sessionId})
+    expect(retried._).toBe('RetrySessionResponse')
+    if (retried._ !== 'RetrySessionResponse') throw new Error('unexpected response')
+    expect(retried.assistantEventId).toBe('')
+    const latest = h.db
+      .query<{status: string}, [string]>(`SELECT status FROM runs WHERE session_id = ? ORDER BY created_at DESC`)
+      .get(h.sessionId)
+    // Held, not cancelled: it runs once dispatch resumes, and the model was not asked meanwhile.
+    expect(latest?.status).toBe('queued')
+    expect(requests).toHaveLength(requestsBefore)
   })
 })
 
