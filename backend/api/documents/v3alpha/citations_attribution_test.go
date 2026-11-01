@@ -171,6 +171,34 @@ func refCitations(cs []*pb.Citation) []*pb.Citation {
 	return out
 }
 
+// A metadata value that names an account or a document is a citation of it, attributed to the
+// document that set the attribute like any block link, typed metadata/Link and anchored at the
+// key. This is what lets "set me as owner" show up in the account's citations and count as a
+// mention of it.
+func TestListCitations_MetadataReference(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestDocsAPI(t, "alice")
+	kp := srv.me.Account
+	bob := coretest.NewTester("bob").Account
+	clock := newCitClock()
+
+	bobIRI := citIRI(bob, "")
+	owned := createCitDoc(t, srv.idx, kp, "/owned", 1, clock,
+		citTitleOp(t, "Owned"),
+		blob.NewOpSetAttributes("", []blob.KeyValue{{Key: []string{"owner"}, Value: bobIRI}}),
+	)
+
+	got := refCitations(listCitationsAll(t, srv, bobIRI))
+	require.Len(t, got, 1, "the owner attribute is one citation of the account")
+	require.Equal(t, owned.iri(), got[0].Source)
+	require.Equal(t, owned.ref.String(), got[0].SourceBlob.Cid)
+	require.Equal(t, blob.MetadataLinkType, got[0].CitationType)
+	require.Equal(t, "owner", got[0].SourceContext, "the anchor of a metadata citation is the attribute key")
+	require.Equal(t, bobIRI, got[0].Target)
+	require.Empty(t, got[0].TargetFragment)
+}
+
 func TestListCitations_SharedGenesisSelfLink(t *testing.T) {
 	t.Parallel()
 

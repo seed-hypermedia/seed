@@ -259,10 +259,10 @@ func (srv *Server) ListEvents(ctx context.Context, req *activity.ListEventsReque
 		switch t := strings.ToLower(eventType); t {
 		case "capability", "ref", "comment", "dagpb", "profile", "contact":
 			blobTypes = append(blobTypes, t)
-		case "comment/target", "comment/embed", "doc/embed", "doc/link", "doc/button":
+		case "comment/target", "comment/embed", "doc/embed", "doc/link", "doc/button", "metadata/link":
 			linkTypes = append(linkTypes, t)
 		default:
-			return nil, fmt.Errorf("invalid event type filter [%s]: only Capability | Ref | Comment | DagPB | Profile | Contact | Comment/Target | Comment/Embed | Doc/Embed | Doc/Link | Doc/Button are supported at the moment", eventType)
+			return nil, fmt.Errorf("invalid event type filter [%s]: only Capability | Ref | Comment | DagPB | Profile | Contact | Comment/Target | Comment/Embed | Doc/Embed | Doc/Link | Doc/Button | Metadata/Link are supported at the moment", eventType)
 		}
 	}
 
