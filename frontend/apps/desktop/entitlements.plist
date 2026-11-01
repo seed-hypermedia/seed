@@ -9,6 +9,9 @@
     <!-- The bundled microsandbox `msb` helper creates hardware-isolated microVMs for the agents
          server's execute_code tool; osx-sign re-signs it with these entitlements, so the
          hypervisor grant must be here or VM creation fails in the notarized app. -->
+    <!-- Live agent voice captures audio only after the user starts a call. -->
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
     <key>com.apple.security.hypervisor</key>
     <true/>
   </dict>

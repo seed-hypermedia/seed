@@ -8,6 +8,7 @@ import {type AgentSessionDraftMessage, uploadFileToAgentServer} from './models'
 import {getAgentsPlatform, type AgentsRichEditorGetContent, type AgentsRichEditorSubmitHandle} from './platform'
 import {promptBlocksToMarkdown} from './prompt-editor'
 import {UserToolPalette} from './user-tool-palette'
+import {VoiceButton} from './voice-button'
 
 /**
  * The one rich message composer for agent sessions.
@@ -131,7 +132,7 @@ export function AgentRichMessageComposer({
     ? ({'--hm-editor-placeholder': JSON.stringify(placeholder)} as React.CSSProperties)
     : undefined
   const [draftMarkdown, setDraftMarkdown] = useState('')
-  const {CommentEditor} = getAgentsPlatform()
+  const {CommentEditor, voiceChat} = getAgentsPlatform()
   const internalHandleRef = useRef<AgentsRichEditorSubmitHandle | null>(null)
   const submitHandleRef = composerHandleRef ?? internalHandleRef
   /** In-flight attachment upload shown as a slim progress bar; null when idle. */
@@ -201,6 +202,15 @@ export function AgentRichMessageComposer({
 
   return (
     <div className={frameClassName}>
+      {voiceChat && accountId ? (
+        <VoiceButton
+          serverUrl={serverUrl}
+          accountUid={accountId}
+          sessionId={sessionId}
+          startSession={onToolStartSession}
+          onSessionStarted={onToolSessionStarted}
+        />
+      ) : null}
       {attachmentUpload ? (
         <div className="px-3 pt-2">
           <div className="text-muted-foreground mb-1 flex items-center justify-between gap-2 text-[11px]">

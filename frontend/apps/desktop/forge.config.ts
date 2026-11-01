@@ -234,6 +234,7 @@ const config: ForgeConfig = {
     appBundleId: IS_PROD_DEV ? 'media.hyper.seed.dev' : 'media.hyper.seed',
     executableName: macAppName,
     appCategoryType: 'public.app-category.productivity',
+    extendInfo: {NSMicrophoneUsageDescription: 'Seed uses your microphone for voice conversations with agents.'},
     // packageManager: 'yarn',
     extraResource: extraResources,
     // Runs after ASAR creation and executable renaming, before macOS/Windows signing.

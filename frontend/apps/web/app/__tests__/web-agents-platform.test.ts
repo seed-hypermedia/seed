@@ -80,6 +80,10 @@ afterEach(() => {
 })
 
 describe('web agents platform', () => {
+  it('offers the shared voice interface for a voice-enabled session server', async () => {
+    expect((await loadPlatform()).voiceChat).toBe(true)
+  })
+
   it('omits every capability that needs a local HM node or a loopback socket', async () => {
     const platform = await loadPlatform()
 

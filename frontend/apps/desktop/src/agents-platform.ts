@@ -101,6 +101,8 @@ const desktopAgentsPlatform: AgentsPlatform = {
     }
     return {peerId: config.peerId, addrs: config.addrs}
   },
+  // Voice works with local or hosted servers that advertise the speech capability.
+  voiceChat: true,
   oauthRedirectCatcher: {
     start: (state: string | null) => client.providerOAuth.startCallback.mutate({state}),
     captured: () => client.providerOAuth.capturedCallback.query(),

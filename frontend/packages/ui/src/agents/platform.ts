@@ -154,6 +154,8 @@ export type AgentsPlatform = {
   ) => {unsubscribe: () => void}
   /** Peers the platform's local HM node with the agent server's HM node (desktop only). */
   connectToHmServer?: (hmServerUrl: string) => Promise<{peerId: string; addrs: string[]} | null>
+  /** Offers live voice in session composers; availability comes from the session server. */
+  voiceChat?: boolean
   /** Catches provider OAuth browser redirects on a loopback port (see {@link AgentsOAuthRedirectCatcher}). */
   oauthRedirectCatcher?: AgentsOAuthRedirectCatcher
   /** Hook returning the account UID that signs agent actions for the current user. */
