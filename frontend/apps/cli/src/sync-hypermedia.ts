@@ -78,14 +78,15 @@ const LIBRARY_AUTHORITY = 'hyper.media'
 /**
  * How documents of the space map onto hypermedia/: every page publishes at its path.
  *   index.md      → the home document
- *   README.md     → not published (it describes the folder on GitHub)
+ *   README.md     → not published, at any depth (it describes its folder on GitHub)
  *   <x>.md        → /<x>         (block/image.md → /schema/block/image)
  * A schema file sits beside its document as <basename>.schema.json.
  */
 export const layout: SpaceLayout = {
   pathForFile(file) {
     if (file === 'index.md') return ''
-    if (file === 'README.md') return null
+    // A README describes its folder on GitHub, at the root or beside a tool's code; none publishes.
+    if (file === 'README.md' || file.endsWith('/README.md')) return null
     return '/' + file.replace(/\.md$/, '')
   },
   fileForPath(path) {

@@ -2,7 +2,33 @@ import * as cbor from '@ipld/dag-cbor'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {beforeAll, describe, expect, test} from 'vitest'
-import {inspectorBlobActions} from '../inspect-ipfs-page'
+import {folderEntriesOf, inspectorBlobActions} from '../inspect-ipfs-page'
+
+describe('folderEntriesOf', () => {
+  test('a dag-pb node with named links is a folder, listed in the node order', () => {
+    const node = {
+      Data: {'/': {bytes: 'CAE'}},
+      Links: [
+        {Hash: {'/': 'bafkindex'}, Name: 'index.ts', Tsize: 12},
+        {Hash: {'/': 'bafylib'}, Name: 'lib', Tsize: 40},
+      ],
+    }
+    expect(folderEntriesOf(node)).toEqual([
+      {name: 'index.ts', cid: 'bafkindex'},
+      {name: 'lib', cid: 'bafylib'},
+    ])
+  })
+
+  test('a chunked file, an empty node and plain data are not folders', () => {
+    // A file in several blocks is a dag-pb node whose links carry no names.
+    expect(
+      folderEntriesOf({Data: {'/': {bytes: 'CAI'}}, Links: [{Hash: {'/': 'bafkchunk'}, Name: '', Tsize: 1}]}),
+    ).toBeNull()
+    expect(folderEntriesOf({Data: {'/': {bytes: 'CAE'}}, Links: []})).toBeNull()
+    expect(folderEntriesOf({a: 1})).toBeNull()
+    expect(folderEntriesOf(null)).toBeNull()
+  })
+})
 
 // Two distinct real DAG-CBOR (0x71) CIDv1s: CBOR_CID stands in for the blob's
 // own editable CID; OTHER_CBOR_CID is a schema an instance points at. Under

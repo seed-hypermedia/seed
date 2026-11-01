@@ -1,0 +1,83 @@
+{
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "One-line account of what was converted."
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string",
+            "description": "Memory path of the converted document."
+          },
+          "outputDir": {
+            "type": "string",
+            "description": "Memory folder holding raw.md, seed.md, assets/ and manifest.json."
+          },
+          "markdownPath": {
+            "type": "string",
+            "description": "Memory path of seed.md, the file to review and publish."
+          },
+          "pages": {
+            "type": "integer"
+          },
+          "images": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean",
+            "description": "True when the document had more pages than were converted; manifest.json says why."
+          },
+          "captions": {
+            "type": "integer",
+            "description": "Figure captions folded into their images."
+          },
+          "citationsLinked": {
+            "type": "integer"
+          },
+          "citationsUnlinked": {
+            "type": "integer",
+            "description": "Bracketed citations with no reference entry, left as text."
+          },
+          "markersRepaired": {
+            "type": "integer",
+            "description": "Markers Datalab left unpaired, a code fence, a $$ block or a **, that were repaired so they would not swallow what follows; manifest.json lists each with its line in raw.md."
+          }
+        }
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "keySource": {
+      "type": "string",
+      "enum": ["own", "server"],
+      "description": "Whose Datalab key paid: the space's own, or the server's shared one."
+    },
+    "usage": {
+      "type": "object",
+      "properties": {
+        "units": {
+          "type": "integer"
+        }
+      },
+      "description": "Pages spent on the shared key; absent on a space's own key."
+    }
+  },
+  "required": ["summary", "documents", "failures"]
+}

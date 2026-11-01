@@ -15,8 +15,9 @@ import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Bot, CircleUserRound, Settings} from 'lucide-react'
+import {Bot, CircleUserRound, Package, Settings} from 'lucide-react'
 import {useMemo} from 'react'
+import {AppsDialog} from './apps'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
 import {describeAgentError} from './errors'
 import {AgentBreadcrumb} from './header'
@@ -67,6 +68,7 @@ function AgentServerContent({routeServerUrl, selectedAccountId}: {routeServerUrl
   const localServerUrl = useLocalAgentServerUrl()
   const agents = useAgentList(serverUrl, selectedAccountId)
   const providersDialog = useAppDialog(ModelProvidersDialog)
+  const appsDialog = useAppDialog(AppsDialog)
   const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
   const createAgentDialog = useAppDialog(CreateAgentDialog)
   useAgentWebSocketSubscription(serverUrl, selectedAccountId, `account/${selectedAccountId}`)
@@ -138,10 +140,19 @@ function AgentServerContent({routeServerUrl, selectedAccountId}: {routeServerUrl
                 <Settings className="size-4" />
                 Providers
               </Button>
+              <Button
+                variant="outline"
+                className="max-sm:min-h-10"
+                onClick={() => appsDialog.open({serverUrl, selectedAccountId})}
+              >
+                <Package className="size-4" />
+                Apps
+              </Button>
             </div>
           </header>
 
           {providersDialog.content}
+          {appsDialog.content}
           {manageAccountsDialog.content}
           {createAgentDialog.content}
 

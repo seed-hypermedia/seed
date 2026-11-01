@@ -209,6 +209,9 @@ export type UnsignedAgentAction =
   | SetModelProvider
   | DeleteModelProvider
   | ListMcpServers
+  | ListApps
+  | RefreshApps
+  | GetAppUsage
   | SetMcpServer
   | DeleteMcpServer
   | RefreshMcpServer
@@ -469,6 +472,28 @@ export type DeleteMcpServer = {
 export type RefreshMcpServer = {
   _: 'RefreshMcpServer'
   name: string
+}
+
+/**
+ * Lists the app mounts visible to the account: the server-wide ones and the account's own, with
+ * how the account's space is bound to an agents server. Reader level.
+ */
+export type ListApps = {
+  _: 'ListApps'
+}
+
+/**
+ * Looks for mount documents in the account's space now instead of waiting for the next pass, and
+ * answers like `ListApps`. Writer level.
+ */
+export type RefreshApps = {
+  _: 'RefreshApps'
+}
+
+/** How much of a metered app the account has used this period, when the serving mount is metered. */
+export type GetAppUsage = {
+  _: 'GetAppUsage'
+  slug: string
 }
 
 /**
@@ -1841,6 +1866,101 @@ export type RedactedMcpServer = {
   updatedAt: number
 }
 
+/** One argument an app declares, as the Apps dialog renders it. Secret values never appear. */
+export type AppArgumentInfo = {
+  name: string
+  type: 'string' | 'integer' | 'boolean'
+  secret: boolean
+  required: boolean
+  order?: number
+  description?: string
+  choices?: Record<string, string>
+  /** For a secret argument: whether the account has stored a value for this mount. */
+  hasValue?: boolean
+  /** For a non-secret argument: the value the mount document carries. */
+  value?: string | number | boolean | null
+}
+
+/** One tool of a mounted app, as the tool document the agents of the space receive. */
+export type AppToolInfo = {
+  tool: string
+  summary: string
+  /** The language of the tool page's code, run in the server's sandbox. */
+  runtime: 'ts' | 'python'
+  /** The tool page's `code` reference: `ipfs://<cid>` of the file, or of the folder whose entry the server runs. */
+  code: string
+  /** The tool page's `inputSchema` reference: `ipfs://<cid>` of the DAG-CBOR object holding the JSON Schema. */
+  inputSchema: string
+  /** Likewise the `outputSchema` reference, when the page has one. */
+  outputSchema?: string
+}
+
+/** What the last pass over a mount found. */
+export type AppMountStatus = {
+  state: 'pending' | 'ok' | 'error'
+  /** Why the mount offers no tools, when `state` is `error`. */
+  error?: string
+  checkedAt?: number
+}
+
+/** A mounted app as clients see it: the app page's declaration and the mount's state, never a secret value. */
+export type AppMountInfo = {
+  slug: string
+  /** `server`: mounted from the operator's space for every space on this server; `space`: this account's own mount. */
+  scope: 'server' | 'space'
+  /** The mount document, or the app page itself in the copy form. Absent for the legacy key shim. */
+  mountId?: string
+  /** The app page the mount installs. */
+  app: string
+  /** The app page's version the snapshot was taken from. */
+  version?: string
+  name: string
+  summary: string
+  arguments: AppArgumentInfo[]
+  tools: AppToolInfo[]
+  /** The hosts the app's code may reach, keyed by the app's labels; the sandbox allows exactly these. */
+  network: Record<string, string>
+  /**
+   * Declared by the app when the server counts what it consumes, with the allowance per
+   * space and the ceiling for the server that a server-wide mount page sets.
+   */
+  usage?: {
+    meter: 'none' | 'per-unit'
+    unit?: string
+    period?: 'month'
+    callCap?: number
+    allowance?: number
+    ceiling?: number
+  }
+  enabled: boolean
+  status: AppMountStatus
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * Which agents server an account's space is bound to: the one its home document names as
+ * `agentServerUrl`, else the one its site advertises. Mounts in the space belong to that server.
+ */
+export type SpaceBinding = {
+  agentServerUrl?: string
+  source: 'home' | 'site' | 'none'
+  /** Whether the bound URL proved to be the server answering this request. */
+  isThisServer: boolean
+}
+
+/** An account's consumption of a metered app in the current period. */
+export type AppUsageInfo = {
+  slug: string
+  unit: string
+  period: string
+  used: number
+  allowance: number
+  remaining: number
+  /** What the whole server has left on its shared key this period. */
+  serverRemaining?: number
+}
+
 /** Public model metadata returned from a configured model provider. */
 export type ProviderModelInfo = {
   id: string
@@ -1986,6 +2106,19 @@ export type SetMcpServerResponse = {
 export type DeleteMcpServerResponse = {
   _: 'DeleteMcpServerResponse'
   name: string
+}
+
+/** Successful response for `ListApps` and `RefreshApps`. */
+export type ListAppsResponse = {
+  _: 'ListAppsResponse'
+  apps: AppMountInfo[]
+  binding: SpaceBinding
+}
+
+/** Successful response for `GetAppUsage`; `usage` is absent when the serving mount is not metered. */
+export type GetAppUsageResponse = {
+  _: 'GetAppUsageResponse'
+  usage?: AppUsageInfo
 }
 
 /** Successful response for `StartProviderOAuth`. */
@@ -2166,6 +2299,15 @@ export type ListAgentMemoryDirResponse = {
   totals?: {files: number; bytes: number; truncated: boolean}
 }
 
+/** Which mounted app a tool document was projected from. */
+export type AppToolProvenance = {
+  slug: string
+  version?: string
+  scope: 'server' | 'space'
+  /** The tool page's `code` reference and the entry file the server runs from it; an app tool carries no `source`. */
+  code?: {url: string; entry: string}
+}
+
 /** One tool document from an agent's `~/tools`: a builtin binding, an authored lambda, or an MCP projection. */
 export type AgentToolInfo = {
   name: string
@@ -2174,6 +2316,8 @@ export type AgentToolInfo = {
   server?: string
   /** MCP tools: the tool's name on that server (the document name is `<server>__<remoteName>`). */
   remoteName?: string
+  /** App tools: the mounted app the tool is projected from. */
+  app?: AppToolProvenance
   /** One line for listings and the Space index. */
   summary: string
   /** Full model-facing instructions, shown on expansion. */
@@ -2462,6 +2606,8 @@ export type AgentResponse =
   | SetModelProviderResponse
   | DeleteModelProviderResponse
   | ListMcpServersResponse
+  | ListAppsResponse
+  | GetAppUsageResponse
   | SetMcpServerResponse
   | DeleteMcpServerResponse
   | StartProviderOAuthResponse

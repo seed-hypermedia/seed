@@ -170,6 +170,7 @@ Documentation is part of the change, in the same commit. <!-- id:_-pHvjIO -->
   - provider execution or config: [model providers](./model-providers.md) <!-- id:sXjohtq6 -->
   - verbs, callables, tool documents: [tools](./tools.md), [security](./security.md) <!-- id:RZ6Mkpxu -->
   - MCP servers: [MCP servers](./mcp.md), [tools](./tools.md), [security](./security.md) <!-- id:6Ac5BAtk -->
+  - apps and mounts: [agent apps](./agent-apps.md), [tools](./tools.md), [security](./security.md), [persistence](./persistence.md)
   - triggers: [triggers](./triggers.md) <!-- id:XCxEaSCN -->
   - UI behaviour: [desktop and web UI](./desktop-ui.md) <!-- id:y6OaZfcV -->
   - prompts: [prompt injection map](./prompt-injection-map.md) <!-- id:UNhC5zAi -->

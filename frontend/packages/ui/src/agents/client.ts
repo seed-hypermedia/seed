@@ -85,6 +85,16 @@ export type McpServerTransport = AgentsProtocol.McpServerTransport
 export type McpToolInfo = AgentsProtocol.McpToolInfo
 /** What the last discovery of an MCP server found. */
 export type McpServerStatus = AgentsProtocol.McpServerStatus
+/** A mounted app as the server shows it: the app page's declaration and the mount's state, never a secret value. */
+export type AppMountInfo = AgentsProtocol.AppMountInfo
+/** One argument an app declares. */
+export type AppArgumentInfo = AgentsProtocol.AppArgumentInfo
+/** Which agents server an account's space is bound to. */
+export type SpaceBinding = AgentsProtocol.SpaceBinding
+/** An account's consumption of a metered app this period. */
+export type AppUsageInfo = AgentsProtocol.AppUsageInfo
+/** The answer to `ListApps` and `RefreshApps`. */
+export type ListAppsResponse = AgentsProtocol.ListAppsResponse
 /** Every editable field submitted when creating or updating an authored tool. */
 export type AgentToolInput = AgentsProtocol.AgentToolInput
 /** One file or directory inside an agent's private memory filesystem. */
@@ -146,6 +156,8 @@ export type AgentServerHealth = {
   codeExecReason?: string
   /** Machine-readable cause when codeExec is false (e.g. 'whp-disabled'), for targeted help UI. */
   codeExecReasonCode?: string
+  /** The server's identity principal, what a space's agents-server binding must prove to be. Absent on older servers. */
+  serverUid?: string
   /** Wire protocol the server speaks; absent on servers from before protocol 2 (see agents/protocol/PROTOCOL.md). */
   protocol?: number
   /** Oldest client protocol the server still answers. Absent on servers from before protocol 2. */

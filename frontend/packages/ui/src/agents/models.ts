@@ -24,6 +24,8 @@ import {
   type AgentMemoryEntry,
   type FileUploadTarget,
   type McpServerConfig,
+  type AppUsageInfo,
+  type ListAppsResponse,
   type McpServerInfo,
   type McpServerTransport,
   type ModelProviderType,
@@ -265,6 +267,11 @@ export function invalidateForAccountChange(
       return
     case 'mcp-servers-changed':
       invalidateQueries(['agents', 'mcp-servers', serverUrl, accountUid])
+      invalidateQueries(['agents', 'tools', serverUrl, accountUid])
+      return
+    case 'apps-changed':
+      invalidateQueries(['agents', 'apps', serverUrl, accountUid])
+      invalidateQueries(['agents', 'app-usage', serverUrl, accountUid])
       invalidateQueries(['agents', 'tools', serverUrl, accountUid])
       return
     case 'model-provider-changed':
@@ -2220,6 +2227,95 @@ export function useDeleteMcpServer(serverUrl: string | undefined, accountUid: st
     },
     onSettled() {
       invalidateQueries(['agents', 'mcp-servers'])
+      invalidateQueries(['agents', 'tools'])
+    },
+  })
+}
+
+/** The apps mounted for the account on this server, with how the account's space is bound to an agents server. */
+export function useApps(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useQuery({
+    queryKey: ['agents', 'apps', serverUrl, accountUid],
+    queryFn: async (): Promise<ListAppsResponse> => {
+      if (!serverUrl || !accountUid) {
+        return {_: 'ListAppsResponse', apps: [], binding: {source: 'none', isThisServer: false}}
+      }
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'ListApps'}})
+      if (res._ !== 'ListAppsResponse') throw new Error('Unexpected ListApps response')
+      return res
+    },
+    enabled: !!serverUrl && !!accountUid,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** Asks the server to look at the account's space for mount documents now, instead of on its next pass. */
+export function useRefreshApps(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async () => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'RefreshApps'}})
+      if (res._ !== 'ListAppsResponse') throw new Error('Unexpected RefreshApps response')
+      return res
+    },
+    onSuccess(response) {
+      getQueryClient().setQueryData(['agents', 'apps', serverUrl, accountUid], response)
+      invalidateQueries(['agents', 'tools'])
+    },
+  })
+}
+
+/** What the account has used of a metered app this period; null when its mount is not metered. */
+export function useAppUsage(
+  serverUrl: string | undefined,
+  accountUid: string | null | undefined,
+  slug: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['agents', 'app-usage', serverUrl, accountUid, slug],
+    queryFn: async (): Promise<AppUsageInfo | null> => {
+      if (!serverUrl || !accountUid || !slug) return null
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'GetAppUsage', slug}})
+      if (res._ !== 'GetAppUsageResponse') throw new Error('Unexpected GetAppUsage response')
+      return res.usage ?? null
+    },
+    enabled: !!serverUrl && !!accountUid && !!slug,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/**
+ * Stores a secret argument of the account's own mount on the server, under the `app-<slug>-<arg>`
+ * name the server pairs with the mount, then has it re-read the space's mounts so the app starts
+ * offering its tools.
+ */
+export function useSaveAppSecret(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async ({slug, arg, value}: {slug: string; arg: string; value: string}) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const trimmed = value.trim()
+      if (!trimmed) throw new Error('A value is required')
+      if (!isSafeAgentServerSecretTarget(serverUrl)) {
+        throw new Error('Refusing to send a secret to a non-local HTTP agent server. Use HTTPS for remote servers.')
+      }
+      await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {
+          _: 'SetSecret',
+          name: `app-${slug}-${arg}`,
+          value: new TextEncoder().encode(trimmed),
+          metadata: {kind: 'app-arg', slug, arg},
+        },
+      })
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'RefreshApps'}})
+      if (res._ !== 'ListAppsResponse') throw new Error('Unexpected RefreshApps response')
+      return res
+    },
+    onSuccess(response) {
+      getQueryClient().setQueryData(['agents', 'apps', serverUrl, accountUid], response)
       invalidateQueries(['agents', 'tools'])
     },
   })

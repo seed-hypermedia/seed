@@ -29,6 +29,7 @@ import {Button} from './button'
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Input} from './components/input'
+import {Textarea} from './components/textarea'
 import {Switch} from './components/switch'
 import {base64ToBytes, bytesToBase64, formatByteSize, isDagJsonBytes, isDagJsonLink, parseCidString} from './dag-json'
 import {findIpfsUrlCid, gatewayUrlToIpfs} from './get-file-url'
@@ -2241,6 +2242,36 @@ function CommitOnBlurInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedText])
 
+  // A value with line breaks (a tool's code, a schema as text) is edited in a text area: an input
+  // shows one line and drops the breaks from a paste. Suggestions are for one-line values.
+  if (text.includes('\n')) {
+    return (
+      <Textarea
+        value={text}
+        placeholder={placeholder}
+        className={cn('max-h-96 min-h-24 resize-y overflow-auto font-mono text-xs', className)}
+        spellCheck={false}
+        autoFocus={autoFocus}
+        onFocus={() => {
+          focusedRef.current = true
+          onFocusChange?.(true)
+        }}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => {
+          focusedRef.current = false
+          if (text !== initialValue) commit(text)
+          onFocusChange?.(false)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            setText(initialValue)
+          }
+        }}
+      />
+    )
+  }
+
   return (
     <div className="relative">
       <Input
@@ -2268,21 +2299,30 @@ function CommitOnBlurInput({
           setSuggestionsOpen(true)
           setActiveIndex(null)
         }}
-        onPaste={
-          normalize
-            ? (e) => {
-                // Convert a pasted gateway URL to ipfs:// immediately (so it
-                // renders as a file tag) instead of waiting for blur.
-                const pasted = e.clipboardData.getData('text')
-                const converted = normalize(pasted)
-                if (converted && converted !== pasted) {
-                  e.preventDefault()
-                  setText(converted)
-                  onCommit(converted)
-                }
-              }
-            : undefined
-        }
+        onPaste={(e) => {
+          const pasted = e.clipboardData.getData('text')
+          if (pasted.includes('\n')) {
+            // Keep the line breaks: the field becomes a text area holding the paste.
+            e.preventDefault()
+            const el = e.currentTarget
+            const next =
+              text.slice(0, el.selectionStart ?? text.length) + pasted + text.slice(el.selectionEnd ?? text.length)
+            setText(next)
+            commit(next)
+            focusedRef.current = false
+            setSuggestionsOpen(false)
+            onFocusChange?.(false)
+            return
+          }
+          // Convert a pasted gateway URL to ipfs:// immediately (so it
+          // renders as a file tag) instead of waiting for blur.
+          const converted = normalize?.(pasted)
+          if (converted && converted !== pasted) {
+            e.preventDefault()
+            setText(converted)
+            onCommit(converted)
+          }
+        }}
         onBlur={() => {
           focusedRef.current = false
           setSuggestionsOpen(false)

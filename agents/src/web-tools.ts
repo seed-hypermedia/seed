@@ -77,7 +77,10 @@ function boundedInteger(value: unknown, fallback: number, min: number, max: numb
  * `res.text()` / `res.json()` must therefore happen inside the exchange callback, under the same
  * signal that guards the fetch.
  */
-async function withFetchDeadline<T>(timeoutMs: number, exchange: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export async function withFetchDeadline<T>(
+  timeoutMs: number,
+  exchange: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {

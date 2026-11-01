@@ -79,7 +79,7 @@ A [plan](./plan.md) [step](./step.md) closes when the model says so, or when eve
 
 1. Nonce caching on top of the signed-action timestamp window (5 minutes; duplicates inside it are accepted). <!-- id:IL5IhLQb -->
 2. KMS or OS-keychain storage for the secret encryption key, which today lives in the same SQLite file as the ciphertext. <!-- id:kneZhkch -->
-3. Rate limits and quotas. A reachable server accepts agents from any self-signed [account](../protocol/identity.md). <!-- id:m-HAIpNZ -->
+3. Rate limits and quotas. A reachable server accepts agents from any self-signed [account](../protocol/identity.md). The one metered resource is the shared Datalab key behind `convert` (per-account and server-wide monthly page allowances, `conversion_usage`); nothing else is counted. <!-- id:m-HAIpNZ -->
 4. An audit log for secret, provider, tool, and trigger events. <!-- id:6REDQh-S -->
 5. An outbound network policy for tools and an account-level tool policy above the per-agent one. <!-- id:hIsxUn-h -->
 
@@ -105,6 +105,7 @@ A milestone is done when all of these hold: <!-- id:qlLug2wi -->
 - [Seed Agents](../agent.md) <!-- id:QwtCJ9YU -->
 - [System overview](./system-overview.md) <!-- id:GQdcvCaO -->
 - [Delegation budgets](./plans/delegation-budgets.md) <!-- id:v3blYZON -->
+- [Agent apps](./plans/app-bundles.md)
 - [Speed](./plans/speed.md) <!-- id:DnY_j6h6 -->
 - [Worker-isolated execution](./plans/worker-isolated-execution.md) <!-- id:2iN_PR_6 -->
 - [Multi-server architecture](./plans/multi-server-architecture.md) <!-- id:Z2Wnk1Fs -->

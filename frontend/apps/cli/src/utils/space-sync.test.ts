@@ -1,16 +1,27 @@
 import {describe, expect, test} from 'bun:test'
-import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join, resolve} from 'node:path'
-import {blocksToMarkdown, markdownBlockNodesToHMBlockNodes, parseMarkdown} from '@seed-hypermedia/client'
+import {
+  blocksToMarkdown,
+  directoryToIpfsBlobs,
+  fileToIpfsBlobs,
+  markdownBlockNodesToHMBlockNodes,
+  parseMarkdown,
+} from '@seed-hypermedia/client'
 import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {
   applySchemaMetadata,
+  encodeSchemaBlob,
   exportDocument,
   findMovedFrom,
+  importSpace,
   listMarkdownFiles,
   markdownEquivalent,
   metadataDiffOp,
+  missingAttributeAssets,
+  readAttributeAssets,
+  restoreAttributeAssets,
   swapAuthority,
 } from './space-sync'
 
@@ -156,6 +167,22 @@ describe('metadataDiffOp', () => {
       ],
     })
   })
+
+  test('the home document keeps the keys the directory never names, and drops one named with a null', () => {
+    // The desktop stores the space's agents server and its published agents in the home document;
+    // a full import of the docs wiped both, unbinding the space from its server.
+    const published = {name: 'Docs', agentServerUrl: 'http://localhost:3051', spaceAgents: {a: {id: 'x'}}}
+    expect(metadataDiffOp(published, {name: 'Docs'}, {keepUnlisted: true})).toBeNull()
+    expect(
+      metadataDiffOp(published, {name: 'Docs', summary: 'New', agentServerUrl: null}, {keepUnlisted: true}),
+    ).toEqual({
+      type: 'SetAttributes',
+      attrs: [
+        {key: ['summary'], value: 'New'},
+        {key: ['agentServerUrl'], value: null},
+      ],
+    })
+  })
 })
 
 describe('importSpace file links', () => {
@@ -261,6 +288,170 @@ describe('swapAuthority', () => {
       'see hm://hyper.media/x',
     ]) {
       expect(swapAuthority(other, 'hyper.media', KEY)).toBe(other)
+    }
+  })
+})
+
+describe('attribute assets', () => {
+  const text = (value: string) => new TextEncoder().encode(value)
+  const unpadded = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64').replace(/=+$/, '')
+  /** A page beside a code file, a schema object and a folder, the way the converter's tool page is laid out. */
+  function fixture() {
+    const dir = mkdtempSync(join(tmpdir(), 'sync-assets-'))
+    mkdirSync(join(dir, 'tools', 'bundle', 'lib'), {recursive: true})
+    writeFileSync(join(dir, 'tools', 'tool.ts'), 'export default () => 1')
+    writeFileSync(join(dir, 'tools', 'tool.input.json'), '{"type": "object", "required": ["a"]}\n')
+    writeFileSync(join(dir, 'tools', 'bundle', 'index.ts'), 'index')
+    writeFileSync(join(dir, 'tools', 'bundle', 'lib', 'x.ts'), 'x')
+    writeFileSync(join(dir, 'tools', 'bundle', '.hidden'), 'left out')
+    return dir
+  }
+  const folderFiles = [
+    {path: 'index.ts', content: text('index')},
+    {path: 'lib/x.ts', content: text('x')},
+  ]
+
+  test('import publishes the files a frontmatter names and references them by CID', async () => {
+    const dir = fixture()
+    try {
+      const metadata = {
+        name: 'tool',
+        code: './tool.ts',
+        inputSchema: './tool.input.json',
+        nested: {bundle: './bundle'},
+        summary: './not-a-file',
+      }
+      const {metadata: out, blobs} = await readAttributeAssets(dir, 'tools/tool.md', metadata as any)
+      const file = await fileToIpfsBlobs(text('export default () => 1'))
+      const object = await encodeSchemaBlob({type: 'object', required: ['a']})
+      const folder = await directoryToIpfsBlobs(folderFiles)
+      expect(out).toEqual({
+        name: 'tool',
+        code: `ipfs://${file.cid}`,
+        inputSchema: `ipfs://${object.cid}`,
+        nested: {bundle: `ipfs://${folder.cid}`},
+        summary: './not-a-file',
+      } as any)
+      // Every block of every asset rides with the change; the hidden file is no part of the folder.
+      const cids = new Set(blobs.map((blob) => blob.cid))
+      for (const blob of [...file.blobs, ...folder.blobs]) expect(cids.has(blob.cid)).toBe(true)
+      expect(cids.has(object.cid)).toBe(true)
+      // A folder's CID is a function of its files, whatever order they are listed in.
+      expect(folder.cid).toBe((await directoryToIpfsBlobs([...folderFiles].reverse())).cid)
+      // A path that names nothing is reported, and stops the import like a broken link.
+      expect(missingAttributeAssets(dir, 'tools/tool.md', metadata as any)).toEqual([
+        {file: 'tools/tool.md', link: './not-a-file', reason: 'summary names no file beside the page'},
+      ])
+      writeFileSync(join(dir, 'tools', 'tool.md'), '---\nname: tool\ncode: ./missing.ts\n---\nBody.\n')
+      const client = {request: async () => ({type: 'not-found'})} as any
+      await expect(importSpace({client, signer: {} as any, account: 'z6MkTest', dir, dryRun: true})).rejects.toThrow(
+        'names no file beside the page',
+      )
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+
+  test('export keeps the path when the file encodes to the published CID, and writes the blob back when not', async () => {
+    const dir = fixture()
+    try {
+      writeFileSync(
+        join(dir, 'tools', 'tool.md'),
+        '---\nname: tool\ncode: ./tool.ts\ninput: ./tool.input.json\nbundle: ./bundle\n---\nBody.\n',
+      )
+      const same = {
+        code: (await fileToIpfsBlobs(text('export default () => 1'))).cid,
+        input: (await encodeSchemaBlob({type: 'object', required: ['a']})).cid,
+        bundle: (await directoryToIpfsBlobs(folderFiles)).cid,
+      }
+      // What the app published since: new code, a new object, a folder with one file gone and one added.
+      const code2 = await fileToIpfsBlobs(text('export default () => 2'))
+      const index2 = await fileToIpfsBlobs(text('index 2'))
+      const y = await fileToIpfsBlobs(text('y'))
+      const input2 = await encodeSchemaBlob({type: 'object', required: ['b']})
+      const bundle2 = await directoryToIpfsBlobs([
+        {path: 'index.ts', content: text('index 2')},
+        {path: 'y.ts', content: text('y')},
+      ])
+      const served: Record<string, unknown> = {
+        [code2.cid]: {'/': {bytes: unpadded(text('export default () => 2'))}},
+        [index2.cid]: {'/': {bytes: unpadded(text('index 2'))}},
+        [y.cid]: {'/': {bytes: unpadded(text('y'))}},
+        [input2.cid]: {type: 'object', required: ['b']},
+        [bundle2.cid]: {
+          Data: {'/': {bytes: 'CAE'}},
+          Links: [
+            {Hash: {'/': index2.cid}, Name: 'index.ts', Tsize: 7},
+            {Hash: {'/': y.cid}, Name: 'y.ts', Tsize: 1},
+          ],
+        },
+      }
+      const requested: string[] = []
+      const client = {
+        request: async (name: string, input: {cid: string}) => {
+          requested.push(input.cid)
+          if (name !== 'GetCID' || !(input.cid in served)) throw new Error(`no stand-in for ${name} ${input.cid}`)
+          return {value: served[input.cid]}
+        },
+      } as any
+
+      const kept = await restoreAttributeAssets(client, dir, 'tools/tool.md', {
+        name: 'tool',
+        code: `ipfs://${same.code}`,
+        input: `ipfs://${same.input}`,
+        bundle: `ipfs://${same.bundle}`,
+      } as any)
+      expect(kept.metadata).toEqual({
+        name: 'tool',
+        code: './tool.ts',
+        input: './tool.input.json',
+        bundle: './bundle',
+      } as any)
+      expect(kept.written).toEqual([])
+      expect(kept.unchanged.sort()).toEqual(['tools/bundle', 'tools/tool.input.json', 'tools/tool.ts'])
+      expect(requested).toEqual([])
+
+      const changed = await restoreAttributeAssets(client, dir, 'tools/tool.md', {
+        name: 'tool',
+        code: `ipfs://${code2.cid}`,
+        input: `ipfs://${input2.cid}`,
+        bundle: `ipfs://${bundle2.cid}`,
+      } as any)
+      expect(changed.metadata).toEqual({
+        name: 'tool',
+        code: './tool.ts',
+        input: './tool.input.json',
+        bundle: './bundle',
+      } as any)
+      expect(changed.written.sort()).toEqual(['tools/bundle', 'tools/tool.input.json', 'tools/tool.ts'])
+      expect(readFileSync(join(dir, 'tools', 'tool.ts'), 'utf8')).toBe('export default () => 2')
+      expect(JSON.parse(readFileSync(join(dir, 'tools', 'tool.input.json'), 'utf8'))).toEqual({
+        type: 'object',
+        required: ['b'],
+      })
+      expect(readFileSync(join(dir, 'tools', 'bundle', 'index.ts'), 'utf8')).toBe('index 2')
+      expect(readFileSync(join(dir, 'tools', 'bundle', 'y.ts'), 'utf8')).toBe('y')
+      expect(existsSync(join(dir, 'tools', 'bundle', 'lib'))).toBe(false)
+      expect(existsSync(join(dir, 'tools', 'bundle', '.hidden'))).toBe(true)
+      // The files now encode to what was published: a second export writes nothing.
+      expect((await restoreAttributeAssets(client, dir, 'tools/tool.md', changed.metadata)).written).toEqual([])
+
+      // Through exportDocument, the page on disk names its files, never the CIDs.
+      const doc = documentFromMarkdown('---\nname: tool\n---\nBody.\n')
+      doc.path = '/tools/tool'
+      doc.metadata = {
+        name: 'tool',
+        code: `ipfs://${code2.cid}`,
+        input: `ipfs://${input2.cid}`,
+        bundle: `ipfs://${bundle2.cid}`,
+      } as any
+      const result = await exportDocument({dir, client, preserveSource: true}, doc)
+      expect(result.written).toEqual([])
+      const page = readFileSync(join(dir, 'tools', 'tool.md'), 'utf8')
+      expect(page).toContain('code: ./tool.ts')
+      expect(page).not.toContain('ipfs://')
+    } finally {
+      rmSync(dir, {recursive: true, force: true})
     }
   })
 })
