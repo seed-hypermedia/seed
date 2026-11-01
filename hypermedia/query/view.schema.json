@@ -1,0 +1,42 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "filters": {
+      "value": {
+        "type": "hm://hyper.media/list",
+        "items": {
+          "type": "hm://hyper.media/struct",
+          "properties": {
+            "columnId": {
+              "value": {
+                "type": "hm://hyper.media/string"
+              },
+              "required": true
+            },
+            "operator": {
+              "value": {
+                "anyOf": [
+                  "contains",
+                  "equals",
+                  "notEquals",
+                  "greaterThan",
+                  "lessThan"
+                ]
+              },
+              "required": true
+            },
+            "value": {
+              "value": {
+                "type": "hm://hyper.media/string"
+              },
+              "required": true
+            }
+          }
+        }
+      },
+      "required": true,
+      "description": "Conditions applied across all query results before the display limit, using the same semantics as reader filtering."
+    }
+  },
+  "description": "The shared default View of a Query block. Changes are published with the containing document."
+}

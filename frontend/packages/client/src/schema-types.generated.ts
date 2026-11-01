@@ -400,6 +400,8 @@ export type HMBlockQuery = HMBlockBase & {
     banner?: boolean
     /** Column settings for the `Table` style. */
     table?: HMQueryTableConfig
+    /** Shared default filters for all presentation styles; absent on older documents. */
+    view?: HMQueryView
   }
 }
 
@@ -1427,6 +1429,21 @@ export type HMQueryTableConfig = {
     /** Column width in pixels. · minimum: 0 */
     width?: number
   }[]
+}
+
+/**
+ * Query View
+ * The shared default filters of a Query block, published with its containing document.
+ * The shared default View of a Query block. Changes are published with the containing document.
+ * Schema: hm://hyper.media/query/view
+ */
+export type HMQueryView = {
+  /** Conditions applied across all query results before the display limit, using the same semantics as reader filtering. */
+  filters: Array<{
+    columnId: string
+    operator: 'contains' | 'equals' | 'notEquals' | 'greaterThan' | 'lessThan'
+    value: string
+  }>
 }
 
 /**
