@@ -2845,7 +2845,8 @@ function DocumentBody({
     }
   }, [docId, navigate, route.key, experiments?.developerTools])
   const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
-    if (!canEditCurrentRoute) return null
+    // An agent has its own Settings tab; the document's settings panel is not offered.
+    if (!canEditCurrentRoute || isAgentDocument) return null
     return {
       key: 'options',
       label: 'Document Settings',
@@ -2855,7 +2856,7 @@ function DocumentBody({
         replaceRoute({...route, panel: newPanel} as any)
       },
     }
-  }, [canEditCurrentRoute, panelKey, route, replaceRoute])
+  }, [canEditCurrentRoute, isAgentDocument, panelKey, route, replaceRoute])
   // On the Attributes page, a field outside the attributes schema is added from the options menu.
   const addRawFieldMenuItem = useMemo<MenuItemType | null>(() => {
     if (!canEditCurrentRoute || route.key !== 'metadata') return null
@@ -2890,14 +2891,15 @@ function DocumentBody({
   }, [canEditCurrentRoute, isCollection])
 
   const convertToCollectionMenuItem = useMemo<MenuItemType | null>(() => {
-    if (isCollection || !canEditCurrentRoute) return null
+    // An agent's document is the agent, never a collection.
+    if (isCollection || !canEditCurrentRoute || isAgentDocument) return null
     return {
       key: 'convert-to-collection',
       label: 'Convert to Collection',
       icon: <Grid3X3 className="size-4" />,
       onClick: () => setPendingDocumentConversion('collection'),
     }
-  }, [canEditCurrentRoute, isCollection])
+  }, [canEditCurrentRoute, isAgentDocument, isCollection])
 
   // The schema actions (New Document / New Collection / Extend / New Raw Value) ride in the
   // regular options menu; the list is empty unless the document defines a schema.
@@ -2930,6 +2932,18 @@ function DocumentBody({
     } else unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
+    // An agent's tab bar has no Attributes tab; the options menu opens that panel instead.
+    if (isAgentDocument && !documentPage)
+      unorderedItems.push({
+        key: 'app-attributes',
+        label: 'Attributes',
+        icon: <Info className="size-4" />,
+        onClick: () =>
+          replaceRoute({
+            ...route,
+            panel: {key: 'metadata', id: {...docId, blockRef: null, blockRange: null}},
+          } as NavRoute),
+      })
     if (addRawFieldMenuItem) unorderedItems.push(addRawFieldMenuItem)
     unorderedItems.push(...schemaMenuItems)
     if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
@@ -2953,6 +2967,7 @@ function DocumentBody({
     citationFragmentToggleMenuItem,
     inspectMenuItem,
     documentOptionsMenuItem,
+    isAgentDocument,
     addRawFieldMenuItem,
     convertToCollectionMenuItem,
     convertToDocumentMenuItem,

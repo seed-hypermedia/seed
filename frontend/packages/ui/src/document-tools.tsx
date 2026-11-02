@@ -329,13 +329,12 @@ export function DocumentTools({
             : []),
         ]
   const isAgentTabBar = (hasAgent || agentHome) && mode === 'document'
-  // An agent's tab bar is about the agent: the document tools only show when they have something
-  // to show (a comment, a custom attribute) or are already open; connections and people never do.
+  // An agent's tab bar is about the agent: Comments only shows once a comment exists (or while it
+  // is open); connections, people and attributes never do (attributes live in the options menu).
   const buttons = isAgentTabBar
     ? allButtons.filter((button) => {
-        if (button.kind === 'collaborators' || button.kind === 'citations') return false
+        if (button.kind === 'collaborators' || button.kind === 'citations' || button.kind === 'metadata') return false
         if (button.kind === 'comments') return button.active || commentsCount > 0
-        if (button.kind === 'metadata') return button.active || metadataCount > 0
         return true
       })
     : allButtons
