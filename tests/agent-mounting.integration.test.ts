@@ -397,9 +397,13 @@ describe('agent mounting', () => {
     })
     expect(await client.request('Resource', unpackHmId(newId)!)).toMatchObject({document: {content: []}})
     await page.goto(`${env!.web.baseUrl}/new-local-helper`)
-    await page.getByRole('link', {name: 'Open home document', exact: true}).waitFor()
+    // The agent's Home shows its identity's home document read-only, with no link out of it, no
+    // Content tab, and none of the document chrome (title, byline) above the agent tabs.
     await page.getByText('This is an agentic account.', {exact: true}).waitFor()
+    expect(await page.getByRole('link', {name: 'Open home document', exact: true}).count()).toBe(0)
     expect(await page.getByRole('link', {name: 'Content', exact: true}).count()).toBe(0)
+    expect(await page.getByRole('link', {name: 'Prompt', exact: true}).count()).toBe(0)
+    expect(await page.getByRole('heading', {name: 'New local helper', exact: true}).count()).toBe(0)
     await page.screenshot({path: path.join(tmpdir(), 'seed-agent-home.png')})
     // The prompt's readable domain reference resolves before Resource/discovery sees an account ID.
     await createDocumentUpdate(env!.web.baseUrl, FIXTURE_ACCOUNT, '/agent/guide', [
@@ -446,6 +450,11 @@ describe('agent mounting', () => {
     })
     await page.goto(`${env!.web.baseUrl}/new-local-helper/:settings/prompt`)
     await page.getByText('Domain guide content loaded', {exact: true}).waitFor()
+    // The prompt page is a subpage of Settings: a back button, and Settings stays the lit tab.
+    await page.getByRole('button', {name: 'Back to agent settings', exact: true}).click()
+    await page.waitForURL(`${env!.web.baseUrl}/new-local-helper/:settings`)
+    await page.getByRole('button', {name: 'Edit prompt', exact: true}).click()
+    await page.waitForURL(`${env!.web.baseUrl}/new-local-helper/:settings/prompt`)
     expect(await page.getByText('failed to parse account hyper.media', {exact: false}).count()).toBe(0)
 
     expect(errors).toEqual([])
