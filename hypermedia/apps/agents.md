@@ -104,7 +104,7 @@ cd agents && bun run test:build   # the compiled binary boots
 
 ## In the Seed app <!-- id:Jgb3MPaj -->
 
-The Agents section of the [desktop app](./desktop.md) talks to the bundled local server by default and can add hosted or self-hosted servers. The [web app](./web.md)'s `/hm/agents` page and the [mobile app](./mobile.md) use the hosted server unless configured otherwise. <!-- id:0YhSXMcx -->
+The [desktop app](./desktop.md) talks to the bundled local server by default and can add hosted or self-hosted servers under Settings. An agent is a document: it is created from a home document's New menu and opened from the file browser. The [web app](./web.md)'s agent pages under `/hm/agents/` and the [mobile app](./mobile.md) use the hosted server unless configured otherwise. <!-- id:0YhSXMcx -->
 
 ## CLI <!-- id:K-BtnXe- -->
 

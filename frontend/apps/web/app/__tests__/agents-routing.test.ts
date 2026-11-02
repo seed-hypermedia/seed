@@ -9,7 +9,7 @@ import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
  * live in different packages, so nothing but these round trips keeps them agreeing — a link that
  * serializes a field the parser drops silently loses it on reload.
  */
-function roundTrip(route: NavRoute): NavRoute {
+function roundTrip(route: NavRoute): NavRoute | null {
   const href = routeToHref(route)
   if (typeof href !== 'string') throw new Error(`routeToHref produced no href for ${route.key}`)
   const [pathname, search] = href.split('?')
@@ -17,15 +17,6 @@ function roundTrip(route: NavRoute): NavRoute {
 }
 
 describe('web agents routing', () => {
-  it('round-trips the agents list', () => {
-    expect(roundTrip({key: 'agents'})).toEqual({key: 'agents'})
-  })
-
-  it('round-trips a server, preserving a URL with its own query string', () => {
-    const route: NavRoute = {key: 'agent-server', serverUrl: 'https://agents.example.com:8443/base?x=1'}
-    expect(roundTrip(route)).toEqual(route)
-  })
-
   it('round-trips a run with its server and agent', () => {
     const route: NavRoute = {
       key: 'agent-run',
@@ -76,9 +67,10 @@ describe('web agents routing', () => {
     expect(parsed).toMatchObject({key: 'agent', agentId: 'agent-1', tab: undefined})
   })
 
-  it('falls back to the list for unrecognized agents paths', () => {
-    expect(agentsRouteFromUrl('/hm/agents/nope', new URLSearchParams())).toEqual({key: 'agents'})
-    expect(agentsRouteFromUrl('/hm/agents/server', new URLSearchParams())).toEqual({key: 'agents'})
+  it('names no route for the old index and server URLs, or any unrecognized agents path', () => {
+    expect(agentsRouteFromUrl('/hm/agents', new URLSearchParams())).toBeNull()
+    expect(agentsRouteFromUrl('/hm/agents/nope', new URLSearchParams())).toBeNull()
+    expect(agentsRouteFromUrl('/hm/agents/server', new URLSearchParams('url=https%3A%2F%2Fx'))).toBeNull()
   })
 })
 
@@ -92,8 +84,7 @@ describe('agents links as absolute URLs', () => {
       triggerId: 'trig/1',
     }
     expect(hypermediaUrlToRoute(`https://hyper.media${routeToHref(route)}`)).toEqual(route)
-    expect(hypermediaUrlToRoute('https://hyper.media/hm/agents')).toEqual({key: 'agents'})
-    // Not an agents link: falls through to the ordinary hypermedia parsing.
-    expect(hypermediaUrlToRoute('https://hyper.media/hm/agentsmith')).not.toEqual({key: 'agents'})
+    // The old index URL is no agents route; it falls through to the ordinary hypermedia parsing.
+    expect(hypermediaUrlToRoute('https://hyper.media/hm/agents')).not.toMatchObject({key: 'agent'})
   })
 })

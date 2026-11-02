@@ -59,7 +59,7 @@ import {abbreviateUid} from '@shm/shared/utils/abbreviate'
 import {useAccount} from '@shm/shared/models/entity'
 import {type NavRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {useRouteLink} from '@shm/shared/routing'
 import {Button} from '@shm/ui/button'
 import {copyTextToClipboard} from '../copy-to-clipboard'
@@ -532,7 +532,12 @@ export function AgentDetailPage({
                     selectedAccountId: selectedAccountId ?? null,
                     agentId,
                     agentName: name,
-                    onDeleted: () => navigate({key: 'agents'}),
+                    onDeleted: () => {
+                      // The agent's document goes with it; land on the space that held it.
+                      const mount = unpackHmId(agentId)
+                      const spaceUid = mount?.uid ?? selectedAccountId
+                      if (spaceUid) navigate({key: 'document', id: hmId(spaceUid)})
+                    },
                   }),
               },
             ]

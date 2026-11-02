@@ -64,8 +64,6 @@ var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
 var Drafts = lazy(() => import('./drafts'))
 var Explore = lazy(() => import('./explore'))
-var Agents = lazy(() => import('./agents'))
-var AgentServer = lazy(() => import('@shm/ui/agents/server'))
 var AgentDetail = lazy(() => import('@shm/ui/agents/detail'))
 var AgentSession = lazy(() => import('@shm/ui/agents/session'))
 var AgentRun = lazy(() => import('@shm/ui/agents/run'))
@@ -517,16 +515,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'explore':
       return {
         PageComponent: Explore,
-        Fallback: BaseLoading,
-      }
-    case 'agents':
-      return {
-        PageComponent: Agents,
-        Fallback: BaseLoading,
-      }
-    case 'agent-server':
-      return {
-        PageComponent: AgentServer,
         Fallback: BaseLoading,
       }
     case 'agent':

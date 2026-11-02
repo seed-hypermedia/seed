@@ -304,6 +304,8 @@ export function useWebCreateDocumentMenuItem({
 /**
  * Agent creation under `locationId` for the web New menus: `open` is undefined while no agent server
  * is known (none configured and the site advertises none) or nobody is signed in, hiding the entry.
+ * Agents are only ever children of a home document, so the entry is also hidden under any other
+ * document.
  */
 function useWebCreateAgentAtLocation(
   locationId: UnpackedHypermediaId,
@@ -313,7 +315,7 @@ function useWebCreateAgentAtLocation(
   const dialog = useAppDialog(CreateAgentDialog)
   const serverUrls = useAgentServerUrls().data
   const open = useMemo(() => {
-    if (!serverUrls?.length || !signingAccountId) return undefined
+    if (!serverUrls?.length || !signingAccountId || locationId.path?.length) return undefined
     return () => dialog.open({serverUrls, selectedAccountId: signingAccountId, location: locationId})
   }, [dialog.open, locationId, serverUrls, signingAccountId])
   return {open, content: dialog.content}
@@ -681,16 +683,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <ContactRound className="size-4" />
         <span className="text-sm">My profile</span>
       </button>
-      <button
-        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
-        onClick={() => {
-          navigate({key: 'agents'})
-          setMobileMenuOpen(false)
-        }}
-      >
-        <Bot className="size-4" />
-        <span className="text-sm">Agents</span>
-      </button>
+      <div className="bg-border mx-4 h-px" />
       <button
         className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
         onClick={() => {
@@ -836,10 +829,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
               >
                 <ContactRound className="size-4" />
                 My profile
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
-                <Bot className="size-4" />
-                Agents
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {

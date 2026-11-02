@@ -149,7 +149,7 @@ describe('useSpaceAgents', () => {
 
   it('uses the space hosting the app when the route names no document', async () => {
     // The web app's own /hm/agents pages are served by a space but carry no document route.
-    mockState.route = {key: 'agents'}
+    mockState.route = {key: 'contacts'}
     mockState.originHomeId = {uid: 'origin-uid'}
     mockState.homeMetadata = {agentServerUrl: 'https://agents.space.example', spaceAgents: {only: 0}}
     await render()

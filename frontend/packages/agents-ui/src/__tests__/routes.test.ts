@@ -2,8 +2,6 @@ import {describe, expect, it} from 'vitest'
 import {seedAgentsRouteFromPath, seedAgentsRouteToPath, seedAgentsRouteToWebUrl, type SeedAgentsRoute} from '../routes'
 
 const routes: [SeedAgentsRoute, string][] = [
-  [{key: 'agents'}, ''],
-  [{key: 'agent-server', serverUrl: 'http://127.0.0.1:3053'}, 'server?url=http%3A%2F%2F127.0.0.1%3A3053'],
   [{key: 'agent', agentId: 'a1'}, 'agent/a1'],
   [
     {
@@ -24,13 +22,14 @@ describe('agents routes', () => {
   it.each(routes)('round-trips %j', (route, path) => {
     expect(seedAgentsRouteToPath(route)).toBe(path)
     const parsed = seedAgentsRouteFromPath(path)
-    expect(Object.fromEntries(Object.entries(parsed).filter(([, value]) => value !== undefined))).toEqual(route)
+    expect(Object.fromEntries(Object.entries(parsed!).filter(([, value]) => value !== undefined))).toEqual(route)
   })
 
-  it('opens the list for unknown or empty paths', () => {
-    expect(seedAgentsRouteFromPath('nonsense/x')).toEqual({key: 'agents'})
-    expect(seedAgentsRouteFromPath('/')).toEqual({key: 'agents'})
-    expect(seedAgentsRouteFromPath('agent/')).toEqual({key: 'agents'})
+  it('names no route for unknown or empty paths, including the old list and server paths', () => {
+    expect(seedAgentsRouteFromPath('nonsense/x')).toBeNull()
+    expect(seedAgentsRouteFromPath('/')).toBeNull()
+    expect(seedAgentsRouteFromPath('agent/')).toBeNull()
+    expect(seedAgentsRouteFromPath('server?url=http%3A%2F%2F127.0.0.1%3A3053')).toBeNull()
   })
 
   it('accepts a leading slash and drops unknown tabs', () => {
@@ -45,7 +44,7 @@ describe('agents routes', () => {
   })
 
   it('builds Seed web URLs', () => {
-    expect(seedAgentsRouteToWebUrl({key: 'agents'})).toBe('https://hyper.media/hm/agents')
+    expect(seedAgentsRouteToWebUrl({key: 'agent', agentId: 'a1'})).toBe('https://hyper.media/hm/agents/agent/a1')
     expect(seedAgentsRouteToWebUrl({key: 'agent-session', sessionId: 's1'}, 'https://seed.example/')).toBe(
       'https://seed.example/hm/agents/session/s1',
     )

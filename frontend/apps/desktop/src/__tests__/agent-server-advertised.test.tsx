@@ -90,7 +90,7 @@ describe('site-advertised agent server', () => {
   })
 
   it('advertises nothing without a document route or when the home document has no server', async () => {
-    mockState.route = {key: 'agents'}
+    mockState.route = {key: 'contacts'}
     await render()
     expect(latest!.advertisedServerUrl).toBeNull()
     expect(latest!.data).toEqual(['http://localhost:4200', 'https://mine.example'])

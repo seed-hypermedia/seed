@@ -1,6 +1,6 @@
 # @seed-hypermedia/agents-ui
 
-Seed's agents UI as one React package for any app: the agents list, each agent with its sessions, triggers, memory,
+Seed's agents UI as one React package for any app: each agent with its sessions, triggers, memory,
 tools and MCP servers, system prompt, collaborators and settings, sessions with their tool calls, plans, sub-sessions
 and runs, and the compact assistant panel. It is the same code the Seed desktop and web apps render, so an app that
 embeds it gets every agents feature Seed ships.
@@ -56,7 +56,7 @@ export function Agents() {
 
 ### Routes
 
-`SeedAgentsRoute` is a place in the UI (`agents`, `agent-server`, `agent` with a tab, `agent-session`, `agent-run`),
+`SeedAgentsRoute` is a place in the UI (`agent` with a tab, `agent-session`, `agent-run`),
 identical to Seed's own routes. Keep it in the host URL:
 
 ```tsx

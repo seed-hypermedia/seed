@@ -444,10 +444,6 @@ export function AccountProfileButton() {
               My profile
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
-            <Bot className="size-4" />
-            Agents
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate({key: 'account-settings'})}>
             <KeyRound className="size-5" />
             Manage accounts
@@ -741,8 +737,6 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Welcome to Seed Hypermedia'
     case 'library':
       return 'Library'
-    case 'agents':
-      return 'Agents'
     case 'drafts':
       return 'Drafts'
     case 'contacts':
@@ -923,12 +917,6 @@ function useCurrentRouteUrl(): {
         return {displayUrl: url, copyableUrl: null}
       }
       return {displayUrl: null, copyableUrl: null}
-    }
-
-    if (route.key === 'agent-server') {
-      if (isLocalAgentsRoute) return {displayUrl: null, copyableUrl: null}
-      const url = `${route.serverUrl}/agents`
-      return {displayUrl: url, copyableUrl: url}
     }
 
     if (route.key === 'agent') {

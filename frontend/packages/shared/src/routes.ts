@@ -413,21 +413,6 @@ export const siteSettingsEmailsRouteSchema = z.object({
 })
 export type SiteSettingsEmailsRoute = z.infer<typeof siteSettingsEmailsRouteSchema>
 
-/** Route schema for the desktop Agents page. */
-export const agentsRouteSchema = z.object({
-  key: z.literal('agents'),
-})
-/** Navigation route for the desktop Agents page. */
-export type AgentsRoute = z.infer<typeof agentsRouteSchema>
-
-/** Route schema for one configured agents server. */
-export const agentServerRouteSchema = z.object({
-  key: z.literal('agent-server'),
-  serverUrl: z.string(),
-})
-/** Navigation route for one configured agents server. */
-export type AgentServerRoute = z.infer<typeof agentServerRouteSchema>
-
 /** Route schema for one server-hosted agent. */
 export const agentRouteSchema = z.object({
   key: z.literal('agent'),
@@ -532,8 +517,6 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   draftRebaseRouteSchema,
   bookmarksSchema,
   draftsSchema,
-  agentsRouteSchema,
-  agentServerRouteSchema,
   agentRouteSchema,
   agentSessionRouteSchema,
   agentRunRouteSchema,

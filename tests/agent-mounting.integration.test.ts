@@ -297,11 +297,15 @@ describe('agent mounting', () => {
     expect(await send({_: 'GetAgent', agentId: personal.agentId})).toMatchObject({
       agent: {id: `hm://${FIXTURE_ACCOUNT.accountId}/personal-helper`},
     })
-    // New agents are created from a document's New menu, under that document, at a path derived
-    // from the agent's name. The server sees one CreateAgent action with that document ID.
-    // A site only edits its own space (other spaces are read-only there), so the New menu is
-    // exercised on the site's /team document.
+    // New agents are created from the home document's New menu, as children of home, at a path
+    // derived from the agent's name. The server sees one CreateAgent action with that document ID.
+    // Under any other document the New menu has no Agent entry.
     await page.goto(`${env!.web.baseUrl}/team`)
+    await page.getByRole('button', {name: 'Choose what to create', exact: true}).click()
+    expect(await page.getByRole('menuitem', {name: 'Document', exact: true}).count()).toBe(1)
+    expect(await page.getByRole('menuitem', {name: 'Agent', exact: true}).count()).toBe(0)
+    await page.keyboard.press('Escape')
+    await page.goto(env!.web.baseUrl)
     await page.getByRole('button', {name: 'Choose what to create', exact: true}).click()
     await page.getByRole('menuitem', {name: 'Agent', exact: true}).click()
     await dialog.getByLabel('Name', {exact: true}).fill('New local helper')
@@ -329,11 +333,11 @@ describe('agent mounting', () => {
     })
     await createButton.click()
     await page.getByText('Test response lost', {exact: true}).waitFor()
-    const newId = `hm://${FIXTURE_ACCOUNT.accountId}/team/new-local-helper`
+    const newId = `hm://${FIXTURE_ACCOUNT.accountId}/new-local-helper`
     expect(await send({_: 'GetAgent', agentId: newId})).toMatchObject({agent: {id: newId}})
     // Retry reuses the published document, the signing identity and the request.
     await dialog.getByRole('button', {name: 'Retry', exact: true}).click()
-    await page.waitForURL(`${env!.web.baseUrl}/team/new-local-helper/:sessions`)
+    await page.waitForURL(`${env!.web.baseUrl}/new-local-helper/:sessions`)
     expect(createRequests).toBe(2)
     await page.reload()
     await page.getByRole('link', {name: 'Settings', exact: true}).waitFor()
@@ -392,7 +396,7 @@ describe('agent mounting', () => {
       document: {metadata: {name: 'Owner note'}},
     })
     expect(await client.request('Resource', unpackHmId(newId)!)).toMatchObject({document: {content: []}})
-    await page.goto(`${env!.web.baseUrl}/team/new-local-helper`)
+    await page.goto(`${env!.web.baseUrl}/new-local-helper`)
     await page.getByRole('link', {name: 'Open home document', exact: true}).waitFor()
     await page.getByText('This is an agentic account.', {exact: true}).waitFor()
     expect(await page.getByRole('link', {name: 'Content', exact: true}).count()).toBe(0)
@@ -440,7 +444,7 @@ describe('agent mounting', () => {
         }),
       })
     })
-    await page.goto(`${env!.web.baseUrl}/team/new-local-helper/:prompt`)
+    await page.goto(`${env!.web.baseUrl}/new-local-helper/:prompt`)
     await page.getByText('Domain guide content loaded', {exact: true}).waitFor()
     expect(await page.getByText('failed to parse account hyper.media', {exact: false}).count()).toBe(0)
 

@@ -6,7 +6,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 vi.mock('@shm/ui/agents/platform', () => ({getAgentsPlatform: () => ({})}))
 
 /**
- * The sidebar mirrors the Agents page: the dropdown at the top filters the chat list to one agent
+ * The sidebar is a column of chats: the dropdown at the top filters the chat list to one agent
  * or to all of them, the list has a composer below it, and an open chat has a back button to the
  * list it came from. No dialog stands anywhere in that flow.
  */
@@ -477,52 +477,26 @@ describe('assistant sidebar', () => {
     expect(mockState.navigate).toHaveBeenCalledWith(expect.objectContaining({key: 'agent-session', sessionId: 's-a1'}))
   })
 
-  it('offers agent creation and the full Agents page from the agent dropdown', () => {
+  it('the agent dropdown only filters: it offers neither agent creation nor an agents page', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
 
     click(pickerTrigger())
-    clickInPicker('Agents page')
-    expect(mockState.navigate).toHaveBeenCalledWith({key: 'agents'})
-
-    click(pickerTrigger())
-    clickInPicker('New agent')
-    expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
+    const picker = document.body.querySelector('[role="dialog"]')
+    expect(picker?.textContent).not.toContain('New agent')
+    expect(picker?.textContent).not.toContain('Agents page')
+    expect(mockState.createAgentDialogMounts).toBe(0)
   })
 
-  it('filters to a newly created agent with the composer ready, staying in the sidebar', () => {
+  it('hides the expand button while the list shows all agents, since that has no full page', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
-    click(pickerTrigger())
-    clickInPicker('New agent')
-
-    // The dialog completes: the sidebar switches to the created agent, not away to its full page.
-    act(() => {
-      mockState.createAgentDialogInput?.onCreated?.({serverUrl: REMOTE, agentId: 'researcher'})
-    })
-
-    expect(mockState.navigate).not.toHaveBeenCalled()
-    expect(pickerTrigger()?.textContent).toContain('Researcher')
-    expect(document.body.textContent).not.toContain('Doc questions')
-    expect(composer()).not.toBeNull()
+    expect(buttonByTitle('Expand to full screen')).toBeFalsy()
   })
 
-  it('can create an agent even when none exist yet', () => {
-    mockState.agentLists = [{data: []}, {data: []}]
-    mockState.sessionEntries = []
-    act(() => {
-      root.render(<AssistantPanel />)
-    })
-
-    click(pickerTrigger())
-    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('No agents yet')
-    clickInPicker('New agent')
-    expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
-  })
-
-  it('with no agents, the body is a call to action that opens the create dialog in place', () => {
+  it('with no agents, the body says so and points at the home document New menu, with no composer', () => {
     mockState.agentLists = [{data: []}, {data: []}]
     mockState.sessionEntries = []
     act(() => {
@@ -530,13 +504,12 @@ describe('assistant sidebar', () => {
     })
 
     expect(document.body.textContent).toContain('No agents yet')
+    expect(document.body.textContent).toContain('New menu')
+    expect(document.body.textContent).not.toContain('Create an agent')
     expect(composer()).toBeNull()
-    clickText('Create an agent')
-    expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
-    act(() => {
-      mockState.createAgentDialogInput?.onCreated?.({serverUrl: REMOTE, agentId: 'researcher'})
-    })
-    expect(mockState.navigate).not.toHaveBeenCalled()
+    expect(mockState.createAgentDialogMounts).toBe(0)
+    click(pickerTrigger())
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('No agents yet')
   })
 
   it('a new chat from the footer starts with the agent of the chat that was open', () => {

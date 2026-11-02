@@ -48,7 +48,6 @@ import {
   useMarkAgentSessionRead,
   type AgentRowActivity,
 } from './activity'
-import {CreateAgentDialog} from './dialogs'
 import {useSelectedAccountId} from './account'
 import {useNavigate} from './navigation'
 import {AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
@@ -65,18 +64,17 @@ import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import type {NavRoute} from '@shm/shared/routes'
 import {
   ArrowDown,
   ArrowLeft,
   Bot,
   ChevronDown,
-  LayoutGrid,
   LayoutList,
   Link2,
   Maximize,
   Maximize2,
   MoreHorizontal,
-  Plus,
   Trash2,
   X,
 } from 'lucide-react'
@@ -125,10 +123,11 @@ function isTriggeredSession(session: SessionInfo): boolean {
 /**
  * Assistant sidebar.
  *
- * The Agents page, in a column: the dropdown at the very top filters the chat list to one agent or
- * to all of them, the list shows those chats newest first with a composer below it, and opening a
- * chat replaces the list until the back button returns to it (same filter, same scroll position).
- * A new chat costs nothing until the first send, which creates the session and opens it here.
+ * The dropdown at the very top filters the chat list to one agent or to all of them, the list shows
+ * those chats newest first with a composer below it, and opening a chat replaces the list until
+ * the back button returns to it (same filter, same scroll position). A new chat costs nothing
+ * until the first send, which creates the session and opens it here. Agents are not created here:
+ * an agent is a document, made from the New menu of a space's home document.
  *
  * Shared between desktop (mounted in the main window beside the page, toggled from the footer) and
  * web (mounted beside the site page, toggled from the account menu). Everything host-specific —
@@ -439,25 +438,20 @@ export function AssistantPanel({
 
   const deleteSession = useDeleteAgentSession(activeSession?.serverUrl, accountUid)
   const deleteDialog = useAppDialog(DeleteSessionDialog, {isAlert: true})
-  const createAgentDialog = useAppDialog(CreateAgentDialog)
-  // Creating from the sidebar stays in the sidebar: filter to the new agent and put the cursor in
-  // the composer, so the user can talk to it immediately.
-  const openCreateAgent = () =>
-    createAgentDialog.open({
-      serverUrls: serverUrls.data || [],
-      selectedAccountId: accountUid,
-      onCreated: ({serverUrl, agentId}) => {
-        setChosenAgent({serverUrl, agentId})
-        startNewChat()
-      },
-    })
+  // Where "Expand to full screen" goes: the open chat's page, else the filtered agent's page. With
+  // neither there is no full page for "all agents", so the button is not shown.
+  const expandRoute: NavRoute | null =
+    activeSession && sessionAgentId
+      ? {key: 'agent-session', serverUrl: activeSession.serverUrl, agentId: sessionAgentId, sessionId: activeSession.sessionId}
+      : filterAgent
+        ? {key: 'agent', agentId: filterAgent.agent.id, serverUrl: filterAgent.serverUrl}
+        : null
 
   return (
     <div className="flex h-full flex-col">
       {/* Account-wide live updates are mounted by the shell (desktop title bar, web assistant host)
           so they also run while this panel is closed, feeding the unread indicator. */}
       {deleteDialog.content}
-      {createAgentDialog.content}
       <div className="border-border window-drag flex h-[41px] items-center justify-between gap-1 border-b px-2 py-2">
         <AssistantAgentPicker
           agents={agents}
@@ -471,32 +465,21 @@ export function AssistantPanel({
             setChosenAgent(key)
             setStored(null)
           }}
-          onCreateAgent={openCreateAgent}
-          onOpenAgentsPage={() => navigate({key: 'agents'})}
         />
         {/* Same buttons as the main panel's header (PanelHeader). */}
         <div className="no-window-drag flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            aria-label="Expand to full screen"
-            title="Expand to full screen"
-            onClick={() =>
-              activeSession && sessionAgentId
-                ? navigate({
-                    key: 'agent-session',
-                    serverUrl: activeSession.serverUrl,
-                    agentId: sessionAgentId,
-                    sessionId: activeSession.sessionId,
-                  })
-                : filterAgent
-                  ? navigate({key: 'agent', agentId: filterAgent.agent.id, serverUrl: filterAgent.serverUrl})
-                  : navigate({key: 'agents'})
-            }
-          >
-            <Maximize className="size-4" />
-          </Button>
+          {expandRoute ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              aria-label="Expand to full screen"
+              title="Expand to full screen"
+              onClick={() => navigate(expandRoute)}
+            >
+              <Maximize className="size-4" />
+            </Button>
+          ) : null}
           {onClose ? (
             <Button
               variant="ghost"
@@ -666,20 +649,16 @@ export function AssistantPanel({
         </div>
       ) : (
         // Nothing to talk to yet — neither agents of the user's own on any server nor agents the
-        // space publishes. The sidebar's whole purpose is blocked, so say so prominently and open
-        // the create dialog right here; it walks through provider and model.
+        // space publishes. The sidebar's whole purpose is blocked, so say so prominently and point
+        // at the one place agents are made: the New menu of a space's home document.
         <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
           <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
             <Bot className="size-6" />
           </div>
           <SizableText weight="bold">No agents yet</SizableText>
           <SizableText size="sm" color="muted">
-            Create an agent to start chatting. You choose its model and give it a name and instructions.
+            Create one from the New menu on your home document: pick Agent, then choose its name and model.
           </SizableText>
-          <Button className="mt-2" onClick={openCreateAgent}>
-            <Plus className="size-4" />
-            Create an agent
-          </Button>
         </div>
       )}
     </div>
@@ -691,9 +670,7 @@ export function AssistantPanel({
  *
  * Filters the chat list below to one agent, or to all of them ("All agents", the default); the
  * composer under the list follows the choice. Agents are grouped under their server
- * so the same name on two servers stays distinguishable. The footer actions — creating an agent
- * and jumping to the full Agents page — live here so the sidebar is self-sufficient: on a fresh
- * install with zero agents, this dropdown is where you fix that.
+ * so the same name on two servers stays distinguishable.
  */
 function AssistantAgentPicker({
   agents,
@@ -703,8 +680,6 @@ function AssistantAgentPicker({
   localServerUrl,
   advertisedServerUrl,
   onSelect,
-  onCreateAgent,
-  onOpenAgentsPage,
 }: {
   agents: AssistantAgentOption[]
   activeAgent: AssistantAgentOption | null
@@ -717,8 +692,6 @@ function AssistantAgentPicker({
   advertisedServerUrl?: string | null
   /** Filters to one agent, or to all of them with null. */
   onSelect: (key: AssistantAgentKey | null) => void
-  onCreateAgent: () => void
-  onOpenAgentsPage: () => void
 }) {
   const [open, setOpen] = useState(false)
   const groups = useMemo(() => {
@@ -807,30 +780,6 @@ function AssistantAgentPicker({
               </div>
             ))
           )}
-          <div className="border-border mt-1 flex flex-col border-t pt-1">
-            <button
-              type="button"
-              className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
-              onClick={() => {
-                setOpen(false)
-                onCreateAgent()
-              }}
-            >
-              <Plus className="text-muted-foreground size-3.5 shrink-0" />
-              New agent
-            </button>
-            <button
-              type="button"
-              className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
-              onClick={() => {
-                setOpen(false)
-                onOpenAgentsPage()
-              }}
-            >
-              <LayoutGrid className="text-muted-foreground size-3.5 shrink-0" />
-              Agents page
-            </button>
-          </div>
         </PopoverContent>
       </Popover>
     </div>

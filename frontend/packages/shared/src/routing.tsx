@@ -245,12 +245,6 @@ export function routeToHref(
   if (typeof route !== 'string' && route.key === 'drafts') {
     return '/hm/drafts'
   }
-  if (typeof route !== 'string' && route.key === 'agents') {
-    return '/hm/agents'
-  }
-  if (typeof route !== 'string' && route.key === 'agent-server') {
-    return `/hm/agents/server?url=${encodeURIComponent(route.serverUrl)}`
-  }
   if (typeof route !== 'string' && route.key === 'agent') {
     const query: string[] = []
     if (route.serverUrl) query.push(`server=${encodeURIComponent(route.serverUrl)}`)

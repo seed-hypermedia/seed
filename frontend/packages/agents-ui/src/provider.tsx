@@ -26,6 +26,7 @@ import {toBlobsSigner} from './internal/signer'
 import {isSeedAgentsRoute, seedAgentsRouteToWebUrl, type SeedAgentsRoute} from './routes'
 
 const DEFAULT_GATEWAY_URL = 'https://hyper.media'
+const PLACEHOLDER_ROUTE: NavRoute = {key: 'contacts'}
 const SETTING_STORAGE_PREFIX = 'seed.agents.setting.'
 
 type KitState = {
@@ -53,10 +54,10 @@ export function useSeedAgentsNavigate(): (route: SeedAgentsRoute, mode?: SeedAge
   return (route, mode = 'push') => navigate(route, mode)
 }
 
-/** The route the agents UI currently shows. */
-export function useSeedAgentsRoute(): SeedAgentsRoute {
+/** The route the agents UI currently shows, or null before the host has navigated to one. */
+export function useSeedAgentsRoute(): SeedAgentsRoute | null {
   const route = useNavRoute()
-  return isSeedAgentsRoute(route) ? route : {key: 'agents'}
+  return isSeedAgentsRoute(route) ? route : null
 }
 
 // The shared agents UI reads its platform from a module singleton, registered once. The kit keeps
@@ -213,7 +214,7 @@ function createUniversalClient(hmApiUrl: string): UniversalClient {
  * host's proxy URL differs per origin), and match the route the UI holds whether or not it was set.
  */
 function portableRoute(route: SeedAgentsRoute, serverUrl: string): SeedAgentsRoute {
-  if (!('serverUrl' in route) || !route.serverUrl || route.key === 'agent-server') return route
+  if (!('serverUrl' in route) || !route.serverUrl) return route
   if (normalizeServer(route.serverUrl) !== normalizeServer(serverUrl)) return route
   const {serverUrl: _omit, ...rest} = route
   return rest as SeedAgentsRoute
@@ -275,7 +276,9 @@ export function SeedAgentsProvider({
   const universalClient = useMemo(() => createUniversalClient(hmApiUrl), [hmApiUrl])
 
   const navigation = useMemo<NavigationContext>(() => {
-    const initial: NavState = {routes: [(route ?? {key: 'agents'}) as NavRoute], routeIndex: 0, lastAction: 'replace'}
+    // Without a host route the stack starts on a placeholder that is no agents route, so the view
+    // shows its empty state until the host navigates somewhere.
+    const initial: NavState = {routes: [(route ?? PLACEHOLDER_ROUTE) as NavRoute], routeIndex: 0, lastAction: 'replace'}
     const [write, state] = writeableStateStream(initial)
     return {
       state,

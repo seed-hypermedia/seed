@@ -389,7 +389,7 @@ export function AgentSessionPage({
         backLabel="Back to agent sessions"
         onBack={() => {
           const agentId = session.data?.session.agentId
-          navigate(agentId ? {key: 'agent', agentId, serverUrl} : {key: 'agents'})
+          if (agentId) navigate({key: 'agent', agentId, serverUrl})
         }}
         actions={
           <>

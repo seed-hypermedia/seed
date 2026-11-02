@@ -32,6 +32,28 @@ vi.mock('@shm/ui/agents/models', () => ({
   useSetAgentServerUrls: () => ({isLoading: false, mutateAsync: setServersMutateAsync}),
 }))
 
+let mockAccountId: string | null = 'z6MkAlice'
+vi.mock('@shm/ui/agents/account', () => ({useSelectedAccountId: () => mockAccountId}))
+vi.mock('@shm/ui/agents/dialogs', () => ({
+  ManageAgentAccountsDialog: () => <div>ACCOUNTS DIALOG</div>,
+  ModelProvidersDialog: () => <div>PROVIDERS DIALOG</div>,
+}))
+
+// The real hook needs a navigation provider; the dialogs here only need to open in place.
+vi.mock('@shm/ui/universal-dialog', async () => {
+  const {useState} = await import('react')
+  return {
+    useAppDialog: (Component: React.ComponentType<{input: unknown; onClose: () => void}>) => {
+      const [input, setInput] = useState<unknown>(null)
+      return {
+        open: setInput,
+        close: () => setInput(null),
+        content: input ? <Component input={input} onClose={() => setInput(null)} /> : null,
+      }
+    },
+  }
+})
+
 vi.mock('@shm/ui/toast', () => ({
   toast: {
     error: toastErrorMock,
@@ -118,6 +140,29 @@ describe('AgentServersSettings', () => {
 
     expect(setServersMutateAsync).toHaveBeenCalledWith([])
 
+    cleanupRendered(root, container)
+  })
+
+  it('opens each server\'s Accounts and Providers dialogs, the only place they live now', () => {
+    const {container, root} = renderSettings()
+    const buttons = Array.from(container.querySelectorAll('button'))
+    const accounts = buttons.find((button) => button.textContent?.trim() === 'Accounts')
+    const providers = buttons.find((button) => button.textContent?.trim() === 'Providers')
+    expect(accounts).toBeTruthy()
+    expect(providers).toBeTruthy()
+    act(() => providers!.click())
+    expect(document.body.textContent).toContain('PROVIDERS DIALOG')
+    act(() => accounts!.click())
+    expect(document.body.textContent).toContain('ACCOUNTS DIALOG')
+    cleanupRendered(root, container)
+  })
+
+  it('hides Accounts and Providers without an account to sign their requests', () => {
+    mockAccountId = null
+    const {container, root} = renderSettings()
+    expect(container.textContent).not.toContain('Accounts')
+    expect(container.textContent).not.toContain('Providers')
+    mockAccountId = 'z6MkAlice'
     cleanupRendered(root, container)
   })
 

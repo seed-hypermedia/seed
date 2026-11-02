@@ -434,13 +434,7 @@ export function isLocalAgentServer(serverUrl: string, localServerUrl: string | n
 
 /** The agents-server URL an agents route points at, or null for any other route. */
 export function agentRouteServerUrl(route: {key: string; serverUrl?: string}): string | null {
-  if (
-    route.key !== 'agent-server' &&
-    route.key !== 'agent' &&
-    route.key !== 'agent-session' &&
-    route.key !== 'agent-run'
-  )
-    return null
+  if (route.key !== 'agent' && route.key !== 'agent-session' && route.key !== 'agent-run') return null
   return route.serverUrl || getDefaultAgentServerUrl()
 }
 

@@ -47,7 +47,6 @@ describe('getWindowTitle', () => {
   it('uses static page names', () => {
     expect(getWindowTitle({key: 'contacts'})).toBe('Contacts')
     expect(getWindowTitle({key: 'settings'})).toBe('Settings')
-    expect(getWindowTitle({key: 'agents'})).toBe('Agents')
   })
 
   it('uses the document name for the base document route', () => {

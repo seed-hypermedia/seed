@@ -75,30 +75,9 @@ export function AgentBreadcrumb({
   // The desktop-managed server is a named place, not an address: its port moves between launches,
   // so "localhost:3050" in a breadcrumb is noise at best and wrong at worst.
   const serverLabel = serverUrl ? describeAgentServer(serverUrl, localServerUrl.data) : null
-  const serverIsCurrent = !!serverUrl && !agentName && !items.length
   return (
     <nav className="text-muted-foreground flex items-center gap-1 text-xs" aria-label="Agent breadcrumb">
-      <button
-        className="hover:text-foreground rounded px-1 py-0.5 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center"
-        onClick={() => navigate({key: 'agents'})}
-      >
-        Agents
-      </button>
-      {serverUrl ? (
-        <>
-          <span>&gt;</span>
-          {serverIsCurrent ? (
-            <span className="text-foreground max-w-48 truncate rounded px-1 py-0.5">{serverLabel}</span>
-          ) : (
-            <button
-              className="hover:text-foreground max-w-48 truncate rounded px-1 py-0.5 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center"
-              onClick={() => navigate({key: 'agent-server', serverUrl})}
-            >
-              {serverLabel}
-            </button>
-          )}
-        </>
-      ) : null}
+      {serverUrl ? <span className="max-w-48 truncate rounded px-1 py-0.5">{serverLabel}</span> : null}
       {serverUrl && agentName ? (
         <>
           <span>&gt;</span>

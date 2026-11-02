@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {SizableText} from '@shm/ui/text'
-import {Bot, Check, ChevronDown, LayoutList, Pencil} from 'lucide-react'
+import {Bot, Check, ChevronDown, Pencil} from 'lucide-react'
 import {useMemo} from 'react'
 
 /**
@@ -98,15 +98,6 @@ export function AgentTitleMenu({
         })}
         {!agents.length ? (
           <DropdownMenuItem disabled>{isLoading ? 'Loading agents…' : 'No agents yet.'}</DropdownMenuItem>
-        ) : null}
-        {current ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
-              <LayoutList />
-              All agents
-            </DropdownMenuItem>
-          </>
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>

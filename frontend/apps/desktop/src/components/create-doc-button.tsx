@@ -155,6 +155,8 @@ export function useCreateDocumentMenuItem({
 /**
  * Agent creation under `locationId`, for the New menus: `open` is undefined while no agent server
  * is reachable (the local server is still starting) or no account is selected, which hides the entry.
+ * Agents are only ever children of a home document, so the entry is also hidden under any other
+ * document.
  */
 function useCreateAgentAtLocation(locationId: UnpackedHypermediaId): {
   open?: () => void
@@ -164,7 +166,7 @@ function useCreateAgentAtLocation(locationId: UnpackedHypermediaId): {
   const serverUrls = useAgentServerUrls().data
   const selectedAccountId = useSelectedAccountId()
   const open = useMemo(() => {
-    if (!serverUrls?.length || !selectedAccountId) return undefined
+    if (!serverUrls?.length || !selectedAccountId || locationId.path?.length) return undefined
     return () => dialog.open({serverUrls, selectedAccountId, location: locationId})
   }, [dialog.open, locationId, selectedAccountId, serverUrls])
   return {open, content: dialog.content}

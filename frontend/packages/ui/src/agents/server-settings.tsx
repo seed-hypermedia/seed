@@ -24,8 +24,11 @@ import {NOTICE_TONE_TEXT_CLASS} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
-import {Plus, Trash} from 'lucide-react'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {CircleUserRound, Plus, Settings, Trash} from 'lucide-react'
 import {useState} from 'react'
+import {useSelectedAccountId} from './account'
+import {ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
 import {
   getDefaultAgentServerUrl,
   LOCAL_AGENT_SERVER_LABEL,
@@ -37,7 +40,11 @@ import {
   useSetAgentServerUrls,
 } from './models'
 
-/** Manages the configured agent servers: add, remove, and pick the default. */
+/**
+ * Manages the configured agent servers: add, remove, pick the default, and open each server's
+ * Accounts and Providers dialogs. This is the only place those dialogs live; agents themselves
+ * are made from a home document's New menu.
+ */
 export function AgentServersSettings() {
   // Edits apply to the persisted list only. The locally spawned server is shown separately below
   // because its URL is assigned at startup and must never be written to settings.
@@ -49,6 +56,16 @@ export function AgentServersSettings() {
   const builtInDefaultUrl = getDefaultAgentServerUrl()
   const [draftUrl, setDraftUrl] = useState(builtInDefaultUrl ?? '')
   const [isAddOpen, setIsAddOpen] = useState(false)
+  // Server dialogs are signed by the selected account; without one they stay hidden.
+  const selectedAccountId = useSelectedAccountId()
+  const providersDialog = useAppDialog(ModelProvidersDialog)
+  const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
+  const serverDialogs = selectedAccountId
+    ? {
+        onOpenAccounts: (serverUrl: string) => manageAccountsDialog.open({serverUrl, selectedAccountId}),
+        onOpenProviders: (serverUrl: string) => providersDialog.open({serverUrl, selectedAccountId}),
+      }
+    : {}
 
   async function addServer() {
     try {
@@ -84,8 +101,10 @@ export function AgentServersSettings() {
   return (
     <div className="flex flex-col gap-3 py-3">
       <SizableText size="sm" className="text-muted-foreground">
-        Connect to different AI agent servers, accessible from Agents page.
+        The AI agent servers your agents can run on. New agents are created from a home document's New menu.
       </SizableText>
+      {providersDialog.content}
+      {manageAccountsDialog.content}
       <div className="flex flex-col gap-2">
         {localServerUrl.data ? (
           <AgentServerSettingsRow
@@ -94,6 +113,7 @@ export function AgentServersSettings() {
             isDefault={defaultServer.data === localServerUrl.data}
             isLocal
             onMakeDefault={() => void makeDefault(localServerUrl.data!)}
+            {...serverDialogs}
           />
         ) : null}
         {(servers.data || []).map((serverUrl) => (
@@ -103,6 +123,7 @@ export function AgentServersSettings() {
             isDefault={defaultServer.data === serverUrl}
             onMakeDefault={() => void makeDefault(serverUrl)}
             onRemove={() => void removeServer(serverUrl)}
+            {...serverDialogs}
           />
         ))}
         {!servers.data?.length && !localServerUrl.data ? (
@@ -151,6 +172,8 @@ function AgentServerSettingsRow({
   isLocal = false,
   onMakeDefault,
   onRemove,
+  onOpenAccounts,
+  onOpenProviders,
 }: {
   serverUrl: string
   isDefault: boolean
@@ -158,6 +181,10 @@ function AgentServerSettingsRow({
   isLocal?: boolean
   onMakeDefault: () => void
   onRemove?: () => void
+  /** The server's signing accounts dialog; absent without an account to sign with. */
+  onOpenAccounts?: (serverUrl: string) => void
+  /** The server's model providers dialog; absent without an account to sign with. */
+  onOpenProviders?: (serverUrl: string) => void
 }) {
   const health = useAgentServerHealth(serverUrl)
   return (
@@ -178,6 +205,18 @@ function AgentServerSettingsRow({
         </SizableText>
       </div>
       <div className="flex shrink-0 gap-2">
+        {onOpenAccounts ? (
+          <Button variant="outline" size="sm" onClick={() => onOpenAccounts(serverUrl)}>
+            <CircleUserRound className="size-4" />
+            Accounts
+          </Button>
+        ) : null}
+        {onOpenProviders ? (
+          <Button variant="outline" size="sm" onClick={() => onOpenProviders(serverUrl)}>
+            <Settings className="size-4" />
+            Providers
+          </Button>
+        ) : null}
         {isDefault ? null : (
           <Button
             variant="outline"
@@ -225,7 +264,7 @@ function AgentServerSettingsRow({
 
 /**
  * {@link AgentServersSettings} as a `useAppDialog` content component, for apps with no settings
- * window to navigate to (the web app manages servers right on the agents page).
+ * window to navigate to.
  */
 export function AgentServersDialog({}: {input: true; onClose: () => void}) {
   return (
