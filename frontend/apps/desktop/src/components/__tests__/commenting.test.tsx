@@ -314,6 +314,7 @@ describe('CommentBox publication state', () => {
     await vi.waitFor(() => expect(navigation.route.replyCommentId).toBe('alice/new-comment'))
     expect(navigation.route.openComment).toBe('bob/context')
     expect(submitted?.version).toBe('published-comment-cid')
+    expect(invalidateQueriesMock).toHaveBeenCalledWith([queryKeys.COMMENT_REPLY_COUNT], {refetchType: 'all'})
     const comments = queryClient.getQueryData<HMListCommentsOutput>([queryKeys.DOCUMENT_COMMENTS, id])?.comments
     expect(comments).toHaveLength(1)
     expect(comments?.[0]?.version).toBe('published-comment-cid')
