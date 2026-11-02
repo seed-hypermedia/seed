@@ -91,6 +91,14 @@ export type Config = {
     /** Workflow runs executed concurrently (they mostly park waiting on children). */
     maxConcurrentWorkflows: number
   }
+  storage: {
+    /**
+     * Free space the database's file system must have before the queue starts another run. A turn
+     * that starts on a full disk cannot record itself; below this the queue holds runs instead.
+     * Zero disables the check.
+     */
+    minFreeDiskBytes: number
+  }
 }
 
 /** Parsed command-line flags accepted by the Agents service. */
@@ -128,6 +136,7 @@ export type Flags = {
   'exec-acquire-wait-secs': number
   'max-concurrent-model-runs': number
   'max-concurrent-workflows': number
+  'min-free-disk-mib': number
   'log-level': string
 }
 
@@ -168,6 +177,10 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'exec-acquire-wait-secs': Number(env.SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS) || 30,
     'max-concurrent-model-runs': Number(env.SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS) || 8,
     'max-concurrent-workflows': Number(env.SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS) || 32,
+    'min-free-disk-mib':
+      env.SEED_AGENTS_MIN_FREE_DISK_MIB === undefined || env.SEED_AGENTS_MIN_FREE_DISK_MIB === ''
+        ? 512
+        : Number(env.SEED_AGENTS_MIN_FREE_DISK_MIB),
     'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
   }
 }
@@ -209,6 +222,8 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
       key === 'max-concurrent-workflows'
     ) {
       parsed[key] = parsePositiveInteger(value, key)
+    } else if (key === 'min-free-disk-mib') {
+      parsed[key] = parseNonNegativeInteger(value, key)
     } else {
       parsed[key] = value as never
     }
@@ -276,6 +291,9 @@ export function create(pflags: Flags): Config {
         'max-concurrent-workflows',
       ),
     },
+    storage: {
+      minFreeDiskBytes: parseNonNegativeInteger(String(pflags['min-free-disk-mib']), 'min-free-disk-mib') * 1_048_576,
+    },
     subscriptionAuth: pflags['subscription-auth'],
     titleGeneration: pflags['session-title-generation'],
   }
@@ -332,6 +350,12 @@ function normalizeHttpUrl(value: string, label: string): string {
 function parsePositiveInteger(value: string, label: string): number {
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed <= 0) throw new Error(`Invalid ${label}: ${value}`)
+  return parsed
+}
+
+function parseNonNegativeInteger(value: string, label: string): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`Invalid ${label}: ${value}`)
   return parsed
 }
 

@@ -66,7 +66,7 @@ A [plan](./plan.md) [step](./step.md) closes when the model says so, or when eve
 # Medium priority <!-- id:5vetoXdG -->
 
 - **Grants for `query` and `attributes`.** Both callables exist in the registry. The app's Tools tab offers only search, web search, execute, and publish, and an agent created from the app stores exactly that list in its [grants](./grants.md). The UI normalizer also drops the two names when it resaves. Only an agent whose `tools` array is undefined gets them. Either add the toggles or make them ungated. <!-- id:xFWO-fi7 -->
-- **Idempotency for an interrupted `ctx.call`.** A call journaled without a result re-executes on resume. That is fine for reads and a hazard for writes. <!-- id:lm_AQRfE -->
+- **Idempotency for an interrupted `ctx.call`.** A script call journaled without a result re-executes on resume. That is fine for reads and a hazard for writes. Chat turns have this since the [effect outbox](./effect-outbox.md); the journal could key its calls the same way. <!-- id:lm_AQRfE -->
 - **Steering a running turn.** A message sent while a turn runs waits for the next turn. Pi Durable's inbox can hand it to the running turn at the next tool boundary. <!-- id:EC5-QQmX -->
 - **Forks.** A person branching from an earlier point of a conversation maps onto a fork of the durable conversation. Nothing uses it yet. <!-- id:fvG17Ayh -->
 - **WebSocket protocol v2.** Heartbeat, explicit unsubscribe, CBOR server events, subscription limits, backpressure, reconnect cursors, metrics. Agent-run text partials remain ephemeral across a disconnect. <!-- id:CeAzSzD2 -->

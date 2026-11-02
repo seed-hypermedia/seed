@@ -10,6 +10,7 @@
     "test:build": "bun run build && bun scripts/smoke-build.ts",
     "test:docker": "bun scripts/smoke-docker.ts",
     "test:trigger": "bun scripts/smoke-trigger.ts",
+    "test:outbox": "bun scripts/smoke-outbox.ts",
     "typecheck": "bun tsgo --noEmit",
     "protocol:snapshot": "bun scripts/protocol-surface.ts write",
     "protocol:check": "bun scripts/protocol-surface.ts check",

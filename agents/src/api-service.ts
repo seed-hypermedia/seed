@@ -56,6 +56,7 @@ import {clientProtocolOf, clientProtocolProblem, downgradeResponse} from '@/prot
 import * as cbor from '@/cbor'
 import * as mcp from '@/mcp'
 import * as runs from '@/runs'
+import * as effectOutbox from '@/effect-outbox'
 import * as runEvents from '@/run-events'
 import * as toolDocs from '@/tool-documents'
 import {
@@ -972,6 +973,17 @@ export class Service {
   readonly #subscriptionAuthEnabled: boolean
   /** Durable run records + dispatch queue; every agent execution goes through it. */
   readonly #runQueue: runs.RunQueue
+  /** This process, as the owner of the effects it records (see effect-outbox.ts). */
+  readonly #instanceId = crypto.randomUUID()
+  /** Where the database lives and the free space new runs require there; absent for in-memory databases. */
+  readonly #storage?: {path: string; minFreeBytes: number}
+  /** Why dispatch is paused, while it is. */
+  #dispatchPausedReason?: string
+  /** The last free-space reading, good for a second: the queue asks on every tick. */
+  #diskStatusCache?: {at: number; value: DiskStatus | undefined}
+  #outboxPruneTimer?: ReturnType<typeof setInterval>
+  /** Effects this process is executing right now, by outbox row id. */
+  readonly #effectsInFlight = new Set<string>()
   /** Resolvers awaiting a run's terminal status (workflow children), resolved in the finalizer. */
   readonly #runWaiters = new Map<string, Array<(run: runs.RunRecord) => void>>()
   /** Live workflow VMs whose cancellation was requested; their interrupt handlers check this. */
@@ -1037,6 +1049,12 @@ export class Service {
       titleGeneration?: boolean
       /** Run-queue concurrency caps; see {@link runs.RunQueue} for the defaults. */
       runQueue?: {maxConcurrentModelRuns?: number; maxConcurrentWorkflows?: number}
+      /**
+       * The database's directory and the free space a new run requires there. Below the floor
+       * the queue stops claiming runs, so no turn starts that the database cannot record; see
+       * {@link Service.dispatchStatus}. Zero disables the check.
+       */
+      storage?: {path: string; minFreeBytes: number}
     } = {},
   ) {
     this.#db = db
@@ -1053,9 +1071,11 @@ export class Service {
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
     this.#titleGenerationEnabled = options.titleGeneration ?? false
+    this.#storage = options.storage
     this.#runQueue = new runs.RunQueue(db, {
       maxConcurrentModelRuns: options.runQueue?.maxConcurrentModelRuns,
       maxConcurrentWorkflows: options.runQueue?.maxConcurrentWorkflows,
+      admit: () => this.#admitRuns(),
       executors: {
         agent: (run) =>
           agentMemory.withOwnerAccess(Boolean(this.#interactiveOwner(run)), () => this.#executeAgentRun(run)),
@@ -1073,6 +1093,78 @@ export class Service {
     // parked parents whose children finalized before the crash get their resolutions replayed.
     this.#runQueue.sweepAtBoot()
     this.#reconcileWaitingRunsAtBoot()
+    // Effects a dead process left mid-flight are settled before any turn can ask about them, and
+    // receipts nobody can ask about any more are dropped (see effect-outbox.ts).
+    effectOutbox.sweepAtBoot(db)
+    effectOutbox.prune(db)
+    this.#outboxPruneTimer = setInterval(
+      () => {
+        try {
+          effectOutbox.prune(this.#db)
+        } catch (error) {
+          console.error(
+            '[agents/outbox] pruning receipts failed',
+            error instanceof Error ? error.message : String(error),
+          )
+        }
+      },
+      60 * 60 * 1000,
+    )
+    this.#outboxPruneTimer.unref?.()
+  }
+
+  /**
+   * Whether the queue may start another run. The one condition today is free disk under the
+   * database: a run that starts on a full disk cannot record what it does (its durable store,
+   * its log, its receipts all refuse), so the queue holds the run until space is back. Runs
+   * already in flight continue. The check is skipped when no storage was configured (an
+   * in-memory database) or the floor is zero.
+   */
+  #admitRuns(): runs.Admission {
+    const status = this.dispatchStatus()
+    if (!status.paused) {
+      if (this.#dispatchPausedReason) {
+        console.info('[agents/runs] dispatch resumed', {reason: this.#dispatchPausedReason})
+        this.#dispatchPausedReason = undefined
+      }
+      return {ok: true}
+    }
+    if (this.#dispatchPausedReason !== status.reason) {
+      console.warn('[agents/runs] dispatch paused', {reason: status.reason, path: this.#storage?.path})
+      this.#dispatchPausedReason = status.reason
+    }
+    return {ok: false, reason: status.reason}
+  }
+
+  /**
+   * Free space where the database lives against the floor new runs require, for the health
+   * endpoint and the dispatch check. Undefined when no storage path was configured or the file
+   * system cannot be asked; both admit runs. Read at most once a second.
+   */
+  diskStatus(): DiskStatus | undefined {
+    const storage = this.#storage
+    if (!storage || storage.minFreeBytes <= 0) return undefined
+    const now = Date.now()
+    if (this.#diskStatusCache && now - this.#diskStatusCache.at < 1_000) return this.#diskStatusCache.value
+    let value: DiskStatus | undefined
+    try {
+      const stats = fs.statfsSync(storage.path)
+      const freeBytes = Number(stats.bavail) * Number(stats.bsize)
+      value = {path: storage.path, freeBytes, minFreeBytes: storage.minFreeBytes, ok: freeBytes >= storage.minFreeBytes}
+    } catch {
+      value = undefined
+    }
+    this.#diskStatusCache = {at: now, value}
+    return value
+  }
+
+  /** Whether the run queue may claim work right now, and why not when it may not. Reads the cached figure; logs nothing. */
+  dispatchStatus(): {paused: false} | {paused: true; reason: string} {
+    const disk = this.diskStatus()
+    if (!disk || disk.ok) return {paused: false}
+    const free = Math.floor(disk.freeBytes / 1_048_576)
+    const floor = Math.ceil(disk.minFreeBytes / 1_048_576)
+    return {paused: true, reason: `free disk space under the database is ${free} MiB, below the ${floor} MiB floor`}
   }
 
   /**
@@ -1109,6 +1201,8 @@ export class Service {
   /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
   stopRunQueue(): void {
     this.#runQueue.stop()
+    if (this.#outboxPruneTimer) clearInterval(this.#outboxPruneTimer)
+    this.#outboxPruneTimer = undefined
     this.#browserTools.close()
     for (const timer of this.#sessionListSignalTimer.values()) clearTimeout(timer)
     this.#sessionListSignalTimer.clear()
@@ -5851,6 +5945,28 @@ export class Service {
   }
 
   /**
+   * What an effect cut off mid-flight left behind, for the kinds where the world itself is the
+   * receipt. A delegate call's effect is the child run it enqueued: if that run exists, the spawn
+   * finished, and the call is answered the way the first run answered it (parked on the child).
+   * Everything else stays interrupted, and the model is told what to check.
+   */
+  #recoverInterruptedEffect(
+    sessionId: string,
+    toolCallId: string,
+    row: effectOutbox.EffectRow,
+  ): effectOutbox.EffectRow | null {
+    if (row.kind !== 'delegate') return null
+    const child = runs.findChildByToolCall(this.#db, sessionId, toolCallId)
+    if (!child) return null
+    const receipt: EffectReceipt = {
+      output: [{type: 'text', text: PARKED_TOOL_RESULT_TEXT}],
+      details: {[PARKED_TOOL_RESULT_MARKER]: true},
+      parked: true,
+    }
+    return effectOutbox.recover(this.#db, row.id, receipt)
+  }
+
+  /**
    * A crash between a persisted `tool_call` and its `tool_result` leaves a transcript providers
    * reject. Before an agent run (re)enters the loop, synthesize an error result for every unmatched
    * call so the request is well-formed and the model decides whether to re-issue the tool.
@@ -5885,15 +6001,34 @@ export class Service {
         accountId,
         agentId,
         sessionId,
-        {
-          type: 'tool_result',
-          toolCallId,
-          name,
-          error: INTERRUPTED_TOOL_RESULT_ERROR,
-        },
+        {type: 'tool_result', toolCallId, name, ...this.#interruptedCallOutcome(sessionId, toolCallId)},
         Date.now(),
       )
     }
+  }
+
+  /**
+   * What the log says about a call a dead run never answered. The effect outbox may know more than
+   * "interrupted": a call whose effect finished is answered with its receipt, so the model reads
+   * what was done instead of being told to go and check; one that failed carries its error; one
+   * cut off mid-effect names the effect. A call with no row never began its effect, or had none.
+   */
+  #interruptedCallOutcome(sessionId: string, toolCallId: string): {output: unknown} | {error: string} {
+    const row = effectOutbox.get(this.#db, effectOutbox.effectId(sessionId, toolCallId))
+    if (!row) return {error: INTERRUPTED_TOOL_RESULT_ERROR}
+    if (row.status === 'succeeded') {
+      // The same shape the live projection writes: the details, else the text.
+      const receipt = decodeReceipt(row.response)
+      return {output: piToolResultOutput({content: receipt.output, details: receipt.details ?? undefined})}
+    }
+    if (row.status === 'failed') return {error: row.error || 'The tool failed.'}
+    // A row still running in this process (a stopped turn's tool that has not returned yet) is left
+    // to settle itself; any other running row belongs to a run that is over.
+    const settled =
+      row.status === 'running' && !this.#effectsInFlight.has(row.id)
+        ? effectOutbox.interrupt(this.#db, row.id, effectOutbox.INTERRUPTED_BY_RUN_END) ?? row
+        : row
+    return {error: effectOutbox.interruptedResultText(settled)}
   }
 
   async #abortLiveSessionRun(accountId: string, sessionId: string): Promise<void> {
@@ -7069,6 +7204,12 @@ export class Service {
       maxAttempts: 1,
       dispatch: false,
     })
+    if (this.dispatchStatus().paused) {
+      // The queue is not claiming runs (the disk floor): the retry is durable and the loop runs it
+      // once dispatch resumes, exactly like a message sent while paused.
+      this.#runQueue.wake()
+      return {_: 'RetrySessionResponse', sessionId, assistantEventId: ''}
+    }
     const final = await this.#runQueue.runInline(run.id)
     if (final.status === 'queued') {
       this.#runQueue.cancelTree(accountId, run.id)
@@ -7683,6 +7824,10 @@ export class Service {
     let lastProjectedEntry = 0
     // Whether this run adopted a turn an earlier process left unfinished in the durable store.
     let resumed = false
+    // The first write of the turn's record the database refused: a log row, an effect's intent or
+    // its receipt. The durable store refusing a commit ends the turn by itself; these do not, so
+    // the turn finishes and then fails with this instead of reporting a turn the log does not hold.
+    let recordingFailure: Error | undefined
     // Whether the harness is working on this turn's input. Until then, what the store publishes is
     // this run's own preparation (messages imported from the log, stale work being aborted), which
     // is recorded but is neither streamed nor counted as the turn's output.
@@ -7944,6 +8089,183 @@ export class Service {
     // restart — this turn's tools, prompt and provider — is installed before the store is opened,
     // so work an earlier process left pending can be picked up where it stopped.
     let root: durable.Conversation | undefined
+    /** Runs a tool and shapes its result for the harness: bounded text, images kept out of the store. */
+    const executeTool = async (
+      tool: SeedRuntimeTool,
+      callId: string,
+      args: unknown,
+    ): Promise<durable.ToolExecutionResult> => {
+      try {
+        const result = await tool.execute(callId, args)
+        if (live.parkToolCallIds?.includes(callId)) {
+          // What the model reads if it is asked to speak again before the child finishes.
+          return {
+            output: [{type: 'text' as const, text: PARKED_TOOL_RESULT_TEXT}],
+            details: {[PARKED_TOOL_RESULT_MARKER]: true},
+          }
+        }
+        // Durable state is strict JSON: no undefined, no class instances.
+        const details = JSON.parse(JSON.stringify(result.details ?? null))
+        if (!result.content.some((part) => part.type === 'image')) return {output: result.content, details}
+        turnImages.set(callId, result.content)
+        const text = result.content.filter((part) => part.type === 'text')
+        return {
+          output: text.length
+            ? text
+            : [{type: 'text' as const, text: boundModelToolResultText(safeJSONStringify(details ?? {}))}],
+          details,
+        }
+      } catch (error) {
+        const text = error instanceof Error ? error.message : String(error)
+        return {output: [{type: 'text' as const, text}], isError: true}
+      }
+    }
+    /** What a receipt keeps of a result: its text and details, never image bytes. */
+    const receiptOf = (callId: string, result: durable.ToolExecutionResult): EffectReceipt => {
+      const output = (result.output ?? []).flatMap((part) =>
+        part.type === 'text' ? [{type: 'text' as const, text: part.text}] : [],
+      )
+      const receipt: EffectReceipt = {
+        output,
+        details: result.details ?? null,
+        ...(turnImages.has(callId) ? {hadImages: true} : {}),
+        ...(live.parkToolCallIds?.includes(callId) ? {parked: true} : {}),
+      }
+      if (Buffer.byteLength(safeJSONStringify(receipt), 'utf8') <= RECEIPT_MAX_BYTES) return receipt
+      const text = output.map((part) => part.text).join('')
+      return {
+        ...receipt,
+        output: [{type: 'text', text: boundModelToolResultText(text).slice(0, RECEIPT_TEXT_MAX_CHARS)}],
+        details: null,
+        truncated: true,
+      }
+    }
+    /** Answers a rerun of a call from its receipt, restoring what the first run did to the turn. */
+    const replayReceipt = (callId: string, row: effectOutbox.EffectRow): durable.ToolExecutionResult => {
+      if (row.status === 'failed') {
+        return {output: [{type: 'text' as const, text: row.error || 'The tool failed.'}], isError: true}
+      }
+      const receipt = decodeReceipt(row.response)
+      // The first run parked this turn on the child it spawned; the rerun parks the same way.
+      if (receipt.parked && !live.parkToolCallIds?.includes(callId)) {
+        live.parkToolCallIds = [...(live.parkToolCallIds ?? []), callId]
+      }
+      const output: Array<{type: 'text'; text: string}> = receipt.output.length
+        ? [...receipt.output]
+        : [{type: 'text', text: boundModelToolResultText(safeJSONStringify(receipt.details ?? {}))}]
+      if (receipt.hadImages) {
+        output.push({type: 'text', text: '(An image this call showed before the restart is not shown again.)'})
+      }
+      if (receipt.truncated) {
+        output.push({
+          type: 'text',
+          text: '(The full result was not kept; this is the beginning of it. The effect did complete.)',
+        })
+      }
+      return {output, details: JSON.parse(JSON.stringify(receipt.details ?? null))}
+    }
+    /**
+     * Runs a tool that acts on the world behind its outbox row: the intent is committed before the
+     * tool runs and the receipt after it, and a rerun after a restart is answered from what the row
+     * says instead of performing the effect again.
+     */
+    const executeRecordedEffect = async (
+      tool: SeedRuntimeTool,
+      callId: string,
+      args: unknown,
+      kind: effectOutbox.EffectKind,
+    ): Promise<durable.ToolExecutionResult> => {
+      const effectKey = effectOutbox.effectId(sessionId, callId)
+      if (this.#effectsInFlight.has(effectKey)) {
+        // Two executions of one call in one process: nothing in the harness does this, and running
+        // the effect twice is the one thing this table exists to prevent.
+        return {output: [{type: 'text' as const, text: 'This call is already running.'}], isError: true}
+      }
+      let disposition: effectOutbox.Disposition
+      try {
+        disposition = effectOutbox.begin(this.#db, {
+          accountId,
+          sessionId,
+          runId: run?.id,
+          toolCallId: callId,
+          tool: tool.name,
+          kind: kind,
+          args,
+          owner: this.#instanceId,
+        })
+      } catch (error) {
+        // The database refused the intent. Nothing ran, and the turn must not go on as if the
+        // database could still record what its tools do.
+        const message = error instanceof Error ? error.message : String(error)
+        recordingFailure ??= new Error(`recording the intent of a ${kind} failed: ${message}`)
+        logRunError('recording a tool effect failed', {
+          tool: tool.name,
+          toolCallId: callId,
+          kind: kind,
+          error: message,
+        })
+        return {
+          output: [
+            {
+              type: 'text' as const,
+              text: `This ${kind} was not performed: the server could not record it first (${message}).`,
+            },
+          ],
+          isError: true,
+        }
+      }
+      if (disposition.state === 'settled') {
+        logRun('tool call answered from its receipt', {
+          tool: tool.name,
+          toolCallId: callId,
+          kind: kind,
+          status: disposition.row.status,
+        })
+        return replayReceipt(callId, disposition.row)
+      }
+      if (disposition.state === 'interrupted') {
+        const recovered = this.#recoverInterruptedEffect(sessionId, callId, disposition.row)
+        if (recovered) {
+          logRun('tool call recovered from what its effect left behind', {
+            tool: tool.name,
+            toolCallId: callId,
+            kind: kind,
+          })
+          return replayReceipt(callId, recovered)
+        }
+        logRun('tool call answered as interrupted', {tool: tool.name, toolCallId: callId, kind: kind})
+        return {
+          output: [{type: 'text' as const, text: effectOutbox.interruptedResultText(disposition.row)}],
+          isError: true,
+        }
+      }
+      this.#effectsInFlight.add(effectKey)
+      let result: durable.ToolExecutionResult
+      try {
+        result = await executeTool(tool, callId, args)
+      } finally {
+        this.#effectsInFlight.delete(effectKey)
+      }
+      try {
+        effectOutbox.complete(
+          this.#db,
+          disposition.row.id,
+          result.isError
+            ? {error: piToolResultText({content: result.output}) || 'The tool failed without a message.'}
+            : {response: receiptOf(callId, result)},
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        recordingFailure ??= new Error(`recording the receipt of a ${kind} failed: ${message}`)
+        logRunError('recording a tool receipt failed', {
+          tool: tool.name,
+          toolCallId: callId,
+          kind: kind,
+          error: message,
+        })
+      }
+      return result
+    }
     const registry = durable.createRegistry()
     registry.install(
       durable.defineExtension({
@@ -7953,32 +8275,15 @@ export class Service {
             name: tool.name,
             description: tool.description,
             parameters: tool.parameters as never,
-            ...(REPLAY_SAFE_VERBS.has(tool.name) ? {replay: 'safe' as const} : {}),
+            // Every tool reruns when a turn resumes after a restart; what the rerun does is decided
+            // from the effect outbox, not from the verb's name. A read simply runs again. An effect
+            // that never began runs now; one that ended is answered from its receipt; one cut off
+            // mid-flight is answered as interrupted, naming the effect. See effect-outbox.ts.
+            replay: 'safe' as const,
             execute: async (args: unknown, api: durable.ToolExecutionApi) => {
-              try {
-                const result = await tool.execute(api.callId, args)
-                if (live.parkToolCallIds?.includes(api.callId)) {
-                  // What the model reads if it is asked to speak again before the child finishes.
-                  return {
-                    output: [{type: 'text' as const, text: PARKED_TOOL_RESULT_TEXT}],
-                    details: {[PARKED_TOOL_RESULT_MARKER]: true},
-                  }
-                }
-                // Durable state is strict JSON: no undefined, no class instances.
-                const details = JSON.parse(JSON.stringify(result.details ?? null))
-                if (!result.content.some((part) => part.type === 'image')) return {output: result.content, details}
-                turnImages.set(api.callId, result.content)
-                const text = result.content.filter((part) => part.type === 'text')
-                return {
-                  output: text.length
-                    ? text
-                    : [{type: 'text' as const, text: boundModelToolResultText(safeJSONStringify(details ?? {}))}],
-                  details,
-                }
-              } catch (error) {
-                const text = error instanceof Error ? error.message : String(error)
-                return {output: [{type: 'text' as const, text}], isError: true}
-              }
+              const kind = effectOutbox.classifyEffect(tool.name, args)
+              if (kind === effectOutbox.READ) return executeTool(tool, api.callId, args)
+              return executeRecordedEffect(tool, api.callId, args, kind)
             },
           }),
         ),
@@ -8078,11 +8383,12 @@ export class Service {
               if (record.status === 'done' || record.status === 'unanswered') resolveSettled()
             }
           } catch (error) {
-            // A throwing listener ends the stream; the turn must keep being recorded.
-            logRunError('harness event handling failed', {
-              event: event.type,
-              error: error instanceof Error ? error.message : String(error),
-            })
+            // A throwing listener ends the stream; the turn must keep being recorded. The entries
+            // the failed write stood for are projected again at the next open, and the run fails
+            // once the turn settles so nobody reads a transcript that stops short as a success.
+            const message = error instanceof Error ? error.message : String(error)
+            recordingFailure ??= new Error(`writing the turn to the session log failed: ${message}`)
+            logRunError('harness event handling failed', {event: event.type, error: message})
           }
         }
       })
@@ -8210,6 +8516,13 @@ export class Service {
     if (live.stopped) {
       if (assistantEvent) return assistantEvent
       throw new SessionStoppedError()
+    }
+    if (recordingFailure) {
+      // The model may well have answered; what the database holds of that answer is incomplete,
+      // and a run that reports success over an incomplete record hides exactly the failure a
+      // person needs to see (a full disk, most often). The next open of the session catches the
+      // log up from the durable store.
+      throw new APIError(500, `The turn could not be recorded: ${recordingFailure.message}`)
     }
     if (!settled) throw new APIError(502, 'Agent run failed')
     if (!finalError && settled.status === 'unanswered') {
@@ -12370,6 +12683,45 @@ type SeedRuntimeTool = {
     toolCallId: string,
     params: unknown,
   ) => Promise<{content: piAi.ToolResultMessage['content']; details: unknown}>
+}
+
+/** Free space where the agents database lives, against the floor new runs require. */
+type DiskStatus = {path: string; freeBytes: number; minFreeBytes: number; ok: boolean}
+
+/**
+ * What the effect outbox keeps of a tool result (see effect-outbox.ts): the text the model read and
+ * the details the log keeps. Images are never stored, and a result past {@link RECEIPT_MAX_BYTES}
+ * keeps only its text, bounded; a parked delegate call is marked so a rerun parks the turn again.
+ */
+type EffectReceipt = {
+  output: Array<{type: 'text'; text: string}>
+  details: unknown
+  hadImages?: boolean
+  parked?: boolean
+  /** The details were dropped and the text cut to fit the receipt. */
+  truncated?: boolean
+}
+
+/**
+ * A receipt larger than this keeps the text only, cut to {@link RECEIPT_TEXT_MAX_CHARS}. Receipts
+ * duplicate what the log and the store already hold, for the rare rerun that lost its result, so
+ * a sandbox dump or a long MCP answer is not worth storing a third time in full.
+ */
+const RECEIPT_MAX_BYTES = 64 * 1024
+const RECEIPT_TEXT_MAX_CHARS = 16 * 1024
+
+/** A stored receipt as the code reads it; anything malformed reads as an empty one. */
+function decodeReceipt(response: unknown): EffectReceipt {
+  const raw = isRecord(response) ? (response as Partial<EffectReceipt>) : {}
+  return {
+    output: Array.isArray(raw.output)
+      ? raw.output.filter((part) => isRecord(part) && part.type === 'text' && typeof part.text === 'string')
+      : [],
+    details: raw.details ?? null,
+    ...(raw.hadImages ? {hadImages: true} : {}),
+    ...(raw.parked ? {parked: true} : {}),
+    ...(raw.truncated ? {truncated: true} : {}),
+  }
 }
 
 function defineSeedPiTool(
@@ -17619,16 +17971,6 @@ const BACKGROUND_WORK_UPDATE_INPUT =
 /** The result the runtime writes for a tool call a service restart cut off. */
 const INTERRUPTED_TOOL_RESULT_ERROR =
   'Interrupted by a service restart before this tool finished; whether its side effects happened is unknown. Verify state before retrying.'
-
-/**
- * Verbs whose interrupted call may simply run again when a turn resumes after a restart: reads
- * have no side effects, and plan/status set session state to what the call says.
- */
-const REPLAY_SAFE_VERBS: ReadonlySet<string> = new Set([
-  seedVerbRegistry.read.name,
-  seedVerbRegistry.plan.name,
-  seedVerbRegistry.status.name,
-])
 
 /**
  * The model-facing message of a log event the user side wrote, or undefined for any other event.
