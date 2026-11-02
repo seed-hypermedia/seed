@@ -19,6 +19,14 @@ minimumReleaseAge: 1440
 
 auditConfig:
   ignoreGhsas:
+    # deepmerge has no released fix. Patch both inputs against prototype poisoning;
+    # security CI verifies CJS and UMD in deepmerge-prototype.test.cjs.
+    - GHSA-gcqx-w48m-w2h4
+    # Backport upstream bounds to minimatch 7-10 and abort guards to glob 9-13.
+    # Legacy minimatch 3/5 has no affected preprocessing implementation.
+    # Security CI checks every installed version in glob-bounds.test.cjs.
+    - GHSA-g3hv-75wg-m249
+    - GHSA-3g3m-2fjr-6pw4
     # Tiptap 3.30.4 fix backported to our pinned Tiptap 2 package.
     # Security CI verifies CJS/ESM behavior in tiptap-merge-attributes.test.cjs.
     - GHSA-cp6q-959q-f8rh
