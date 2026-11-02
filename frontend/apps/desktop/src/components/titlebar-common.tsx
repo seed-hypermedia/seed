@@ -1,7 +1,7 @@
 import {DEFAULT_AGENT_SERVER_URL} from '@/agents-defaults'
 import {useAppContext} from '@/app-context'
 import {domainResolver} from '@/grpc-client'
-import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus} from '@/models/daemon'
+import {useForceVaultSync, useLogout, useMyAccountIds, useVaultStatus, useVaultEmail} from '@/models/daemon'
 import {useExistingDraft} from '@/models/drafts'
 import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
 import {useGatewayUrl} from '@/models/gateway-settings'
@@ -16,7 +16,7 @@ import {
   resolveOmnibarNavigation,
   selectValidatedOmnibarSiteUrl,
 } from '@/omnibar-url'
-import {useSelectedAccount, useSelectedAccountId} from '@/selected-account'
+import {useRecentAccountIds, useSelectedAccount, useSelectedAccountId} from '@/selected-account'
 import {SidebarContext} from '@/sidebar-context'
 import {queryDevtoolsOpen, RouteDialog, setQueryDevtoolsOpen} from '@/utils/navigation-container'
 import {pathNameify} from '@/utils/path'
@@ -26,6 +26,14 @@ import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useUniversalAppContext} from '@shm/shared'
 import {VaultBackendMode, VaultConnectionStatus} from '@shm/shared/client/.generated/daemon/v1alpha/daemon_pb'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
+import {useIsSiteOwner, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
+import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
+import {
+  AccountMenuIdentity,
+  AccountMenuSwitcher,
+  AccountMenuSection,
+  accountMenuContentClassName,
+} from '@shm/ui/account-menu'
 import {useAccount, useAccounts, useDomain, useResource} from '@shm/shared/models/entity'
 import {
   createInspectNavRouteFromRoute,
@@ -75,9 +83,13 @@ import {cn} from '@shm/ui/utils'
 import {
   Bell,
   Bot,
-  ChevronDown,
+  Bookmark,
+  ContactRound,
+  Globe,
+  KeyRound,
+  PanelsTopLeft,
+  SquarePen,
   ChevronRight,
-  ChevronUp,
   Database,
   FileCode2,
   Lock,
@@ -90,11 +102,11 @@ import {
   Search,
   Settings,
   User,
-  UserCog,
 } from 'lucide-react'
 import {ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {BookmarkButton} from './bookmarking'
-import {BookmarksPopover} from './bookmarks-popover'
+import {useBookmarksPanel} from './bookmarks-panel'
+import {useCreateSpaceDialog} from './create-space-dialog'
 import {CopyReferenceButton} from './copy-reference-button'
 import {useCreateAccountDialog} from './create-account'
 import {useDesktopAuthDialog} from './desktop-auth-dialog'
@@ -182,6 +194,7 @@ function NotificationButtonForAccount({accountUid, spaceUid}: {accountUid: strin
   )
 }
 
+/** Account menu with identity switching, settings, drafts, and personal sites. */
 export function AccountProfileButton() {
   const navigate = useNavigate()
   const accountUid = useSelectedAccountId()
@@ -190,14 +203,34 @@ export function AccountProfileButton() {
   const selectedIdentityValue = useStream(selectedIdentity)
   const myAccountIds = useMyAccountIds()
   const accountQueries = useAccounts(myAccountIds.data || [])
+  const recentAccountIds = useRecentAccountIds()
   const vaultStatus = useVaultStatus()
   const {isPending: isForceVaultSyncPending, mutate: forceVaultSync} = useForceVaultSync()
   const remoteVaultConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
+  const vaultEmail = useVaultEmail({enabled: remoteVaultConnected})
+  const bookmarksPanel = useBookmarksPanel()
+  const createSpaceDialog = useCreateSpaceDialog()
+  const accountHome = useResource(accountUid ? hmId(accountUid) : undefined)
   const canLogOut = vaultStatus.data?.backendMode === VaultBackendMode.REMOTE
   const [menuOpen, setMenuOpen] = useState(false)
-  const [switcherOpen, setSwitcherOpen] = useState(false)
   const requestedSyncForMenuOpen = useRef(false)
   const route = useNavRoute()
+  const spaceUid = getRouteSpaceUid(route)
+  const capability = useSelectedAccountCapability(spaceUid ? hmId(spaceUid) : undefined)
+  const {isSiteOwner} = useIsSiteOwner(spaceUid ?? undefined)
+  const contacts = useSelectedAccountContacts()
+  const isMember =
+    !!spaceUid && contacts.data?.some((contact) => contact.subject === spaceUid && contact.subscribe?.site)
+  const role =
+    capability?.role === 'owner'
+      ? 'Owner'
+      : capability?.role === 'writer'
+        ? 'Writer'
+        : capability?.role === 'agent'
+          ? 'Agent'
+          : isMember
+            ? 'Member'
+            : undefined
   const {data: experiments} = useExperiments()
   const queryDevtoolsIsOpen = useStream(queryDevtoolsOpen)
   const routeDialog = useAppDialog(RouteDialog)
@@ -228,6 +261,18 @@ export function AccountProfileButton() {
     // instead of being filtered out and stranding a valid daemon key.
     return accountData ?? {id: hmId(uid), metadata: null}
   })
+  accountOptions?.sort((a, b) => {
+    const aRecent = recentAccountIds.indexOf(a.id.uid)
+    const bRecent = recentAccountIds.indexOf(b.id.uid)
+    if (aRecent !== bRecent) {
+      if (aRecent === -1) return 1
+      if (bRecent === -1) return -1
+      return aRecent - bRecent
+    }
+    return (
+      (a.metadata?.name || 'Account').localeCompare(b.metadata?.name || 'Account') || a.id.uid.localeCompare(b.id.uid)
+    )
+  })
   const hasAccounts = !!myAccountIds.data?.length
 
   useEffect(() => {
@@ -257,7 +302,10 @@ export function AccountProfileButton() {
       <>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
+            <Button
+              aria-label="Account menu"
+              className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0"
+            >
               <div className="bg-muted flex size-8 items-center justify-center rounded-full">
                 <User className="text-muted-foreground size-4" />
               </div>
@@ -314,13 +362,16 @@ export function AccountProfileButton() {
   return (
     <>
       <DropdownMenu
+        open={menuOpen}
         onOpenChange={(open) => {
           setMenuOpen(open)
-          if (!open) setSwitcherOpen(false)
         }}
       >
         <DropdownMenuTrigger asChild>
-          <Button className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0">
+          <Button
+            aria-label="Account menu"
+            className="window-no-drag relative size-8 overflow-hidden rounded-full border-1 border-transparent p-0"
+          >
             {accountUid ? (
               <HMIcon
                 id={hmId(accountUid)}
@@ -335,95 +386,63 @@ export function AccountProfileButton() {
             )}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="bottom" align="end" className="w-[260px]">
-          {/* Account header + switcher */}
-          <div className="m-1 rounded-lg border border-black/10 p-1 dark:border-white/10">
-            <button
-              className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
-              onClick={() => setSwitcherOpen(!switcherOpen)}
-            >
-              {accountUid ? (
-                <HMIcon
-                  id={hmId(accountUid)}
-                  name={selectedAccount?.metadata?.name}
-                  icon={selectedAccount?.metadata?.icon}
-                  size={32}
-                />
-              ) : (
-                <div className="bg-muted flex size-8 shrink-0 items-center justify-center rounded-full">
-                  <User className="text-muted-foreground size-4" />
-                </div>
-              )}
-              <div className="min-w-0 flex-1 text-left">
-                <p className="truncate text-sm font-medium">{selectedAccount?.metadata?.name || 'Account'}</p>
-              </div>
-              {switcherOpen ? <ChevronUp className="size-4 shrink-0" /> : <ChevronDown className="size-4 shrink-0" />}
-            </button>
-            {switcherOpen && (
-              <>
-                <div
-                  className="max-h-[200px] overflow-y-auto"
-                  style={{
-                    background: [
-                      'linear-gradient(var(--popover) 33%, transparent) center top',
-                      'linear-gradient(transparent, var(--popover) 66%) center bottom',
-                      'radial-gradient(farthest-side at 50% 0, oklch(0 0 0 / 0.12), transparent) center top',
-                      'radial-gradient(farthest-side at 50% 100%, oklch(0 0 0 / 0.12), transparent) center bottom',
-                    ].join(', '),
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '100% 40px, 100% 40px, 100% 6px, 100% 6px',
-                    backgroundAttachment: 'local, local, scroll, scroll',
-                  }}
-                >
-                  {/* The selected account is already shown in the header above, so it is not repeated as an option. */}
-                  {accountOptions?.map((option) =>
-                    option && option.id.uid !== selectedIdentityValue ? (
-                      <button
-                        key={option.id.uid}
-                        className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
-                        onClick={() => {
-                          setSelectedIdentity?.(option.id.uid)
-                          navigate({key: 'document', id: hmId(option.id.uid)})
-                          setSwitcherOpen(false)
-                        }}
-                      >
-                        <AccountAvatar
-                          id={option.id}
-                          name={option.metadata?.name}
-                          icon={option.metadata?.icon}
-                          size={32}
-                        />
-                        <p className="min-w-0 truncate text-sm">
-                          {option.metadata?.name || `?${option.id.uid?.slice(-8)}`}
-                        </p>
-                      </button>
-                    ) : null,
-                  )}
-                </div>
-                <button
-                  className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2 disabled:opacity-60"
-                  onClick={() => {
+        <DropdownMenuContent side="bottom" align="end" className={accountMenuContentClassName}>
+          <AccountMenuSwitcher
+            identity={
+              <AccountMenuIdentity
+                avatar={
+                  accountUid ? (
+                    <HMIcon
+                      id={hmId(accountUid)}
+                      name={selectedAccount?.metadata?.name}
+                      icon={selectedAccount?.metadata?.icon}
+                      size={40}
+                    />
+                  ) : (
+                    <User className="size-10" />
+                  )
+                }
+                name={selectedAccount?.metadata?.name}
+                role={role}
+                email={remoteVaultConnected ? vaultEmail.data : undefined}
+              />
+            }
+          >
+            {accountOptions?.map((option) =>
+              option && option.id.uid !== selectedIdentityValue ? (
+                <DropdownMenuItem
+                  key={option.id.uid}
+                  onSelect={() => {
                     setMenuOpen(false)
-                    createAccountDialog.open({})
+                    setSelectedIdentity?.(option.id.uid)
+                    navigate({key: 'document', id: hmId(option.id.uid)})
                   }}
                 >
-                  <div className="bg-muted flex size-8 items-center justify-center rounded-full">
-                    <Plus className="size-4" />
-                  </div>
-                  <p className="text-sm">Create account</p>
-                </button>
-              </>
+                  <AccountAvatar id={option.id} name={option.metadata?.name} icon={option.metadata?.icon} size={24} />
+                  <span className="min-w-0 truncate">{option.metadata?.name || 'Account'}</span>
+                </DropdownMenuItem>
+              ) : null,
             )}
-          </div>
-          <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => {
+                setMenuOpen(false)
+                createAccountDialog.open({})
+              }}
+            >
+              <Plus className="size-4" />
+              Create account
+            </DropdownMenuItem>
+          </AccountMenuSwitcher>
+          <AccountMenuSection>Settings</AccountMenuSection>
           {accountUid && (
             <DropdownMenuItem
               onClick={() => {
                 navigate({key: 'profile', id: hmId(accountUid)})
               }}
             >
-              <User className="size-4" />
-              My Profile
+              <ContactRound className="size-5" />
+              My profile
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
@@ -431,13 +450,24 @@ export function AccountProfileButton() {
             Agents
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate({key: 'account-settings'})}>
-            <UserCog className="size-4" />
-            Account Settings
+            <KeyRound className="size-5" />
+            Manage accounts
           </DropdownMenuItem>
-          {/* <DropdownMenuItem disabled>
-            <Monitor className="size-4" />
-            Site settings
-          </DropdownMenuItem> */}
+          {spaceUid && isSiteOwner ? (
+            <DropdownMenuItem onSelect={() => navigate({key: 'site-settings', id: hmId(spaceUid)})}>
+              <PanelsTopLeft className="size-5" />
+              Space settings
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem onSelect={() => bookmarksPanel.open()}>
+            <Bookmark className="size-5" />
+            Bookmarks
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => navigate({key: 'drafts'})}>
+            <SquarePen className="size-5" />
+            Drafts
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => navigate({key: 'settings'})}>
             <Settings className="size-4" />
             App settings
@@ -445,9 +475,7 @@ export function AccountProfileButton() {
           {experiments?.developerTools ? (
             <>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-              <DropdownMenuLabel className="text-muted-foreground text-xs font-bold tracking-wider">
-                DEVELOPERS
-              </DropdownMenuLabel>
+              <DropdownMenuLabel className="text-muted-foreground text-xs font-normal">DEVELOPERS</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => setQueryDevtoolsOpen(!queryDevtoolsIsOpen)}>
                 <Database className="size-4" />
                 {queryDevtoolsIsOpen ? 'Hide React Query Devtools' : 'Show React Query Devtools'}
@@ -464,10 +492,36 @@ export function AccountProfileButton() {
               ) : null}
             </>
           ) : null}
+          <DropdownMenuSeparator />
+          <AccountMenuSection>My sites</AccountMenuSection>
+          {accountHome.data?.type === 'document' ? (
+            <DropdownMenuItem
+              onSelect={() => {
+                if (accountUid) navigate({key: 'document', id: hmId(accountUid)})
+              }}
+            >
+              <Globe className="size-5" />
+              <span className="truncate">
+                {accountHome.data.document.metadata.siteUrl
+                  ? getUrlHostname(accountHome.data.document.metadata.siteUrl)
+                  : accountHome.data.document.metadata.name || 'My space'}
+              </span>
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem
+              disabled={!accountUid || accountHome.isLoading || accountHome.isError}
+              className="font-normal text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
+              onSelect={() => createSpaceDialog.open()}
+            >
+              <Plus className="size-5 text-green-600 dark:text-green-500" />
+              Create new site
+            </DropdownMenuItem>
+          )}
           {canLogOut ? (
             <>
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
               <DropdownMenuItem
+                className="font-normal"
                 variant="destructive"
                 onClick={() => {
                   setMenuOpen(false)
@@ -489,6 +543,7 @@ export function AccountProfileButton() {
       />
       {authDialog.content}
       {createAccountDialog.content}
+      {createSpaceDialog.content}
       {routeDialog.content}
     </>
   )
@@ -536,12 +591,11 @@ export function PageActionButtons(_props: TitleBarProps) {
   )
 }
 
-/** The space's own tools in its header: Agents, bookmarks and the Activity bell. */
+/** The space's own tools in its header: Agents and the Activity bell. */
 export function SpaceHeaderTools() {
   return (
     <div className="flex items-center gap-1">
       <AssistantChatButton />
-      <BookmarksPopover />
       <NotificationButton />
     </div>
   )

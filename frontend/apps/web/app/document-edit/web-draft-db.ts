@@ -400,3 +400,11 @@ export function _resetWebDocDraftDBForTesting(): void {
   }
   dbPromise = null
 }
+
+/** Return all active local document drafts across accounts and spaces, newest first. */
+export async function listWebDocDrafts(): Promise<WebDocDraft[]> {
+  if (!isBrowser()) return []
+  const store = await tx('readonly')
+  const drafts = await reqToPromise<WebDocDraft[]>(store.getAll())
+  return drafts.sort((a, b) => b.updatedAt - a.updatedAt)
+}

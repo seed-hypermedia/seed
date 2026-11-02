@@ -1,5 +1,6 @@
 import {useAppContext, useListen} from '@/app-context'
 
+import {BookmarksPanel, BookmarksPanelProvider, useBookmarksPanel} from '@/components/bookmarks-panel'
 import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {ipc} from '@/ipc'
@@ -60,6 +61,7 @@ var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var SchemaBrowser = lazy(() => import('./schema'))
 var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
+var Drafts = lazy(() => import('./drafts'))
 var Explore = lazy(() => import('./explore'))
 var Agents = lazy(() => import('./agents'))
 var AgentServer = lazy(() => import('@shm/ui/agents/server'))
@@ -109,7 +111,7 @@ export default function Main({className}: {className?: string}) {
   const navigate = useNavigate()
   const replaceRemovedRoute = useNavigate('replace')
   useEffect(() => {
-    if (navR.key === 'library' || navR.key === 'drafts') {
+    if (navR.key === 'library') {
       replaceRemovedRoute(defaultRoute)
     }
   }, [navR.key, replaceRemovedRoute])
@@ -267,45 +269,48 @@ export default function Main({className}: {className?: string}) {
       >
         <Panel id="app-content">
           <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto]">
-            <SidebarContextProvider>
-              {titlebar}
-              <PanelContent>
-                {sidebar}
-                <Panel id="page">
-                  <div className="flex h-full min-h-0 flex-col">
-                    <div className="min-h-0 flex-1">
-                      <ErrorBoundary
-                        resetKeys={[routeKey]}
-                        FallbackComponent={RootAppError}
-                        onReset={() => {
-                          window.location.reload()
-                        }}
-                      >
-                        {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
+            <BookmarksPanelProvider>
+              <SidebarContextProvider>
+                {titlebar}
+                <PanelContent>
+                  {sidebar}
+                  <Panel id="page">
+                    <div className="flex h-full min-h-0 flex-col">
+                      <div className="min-h-0 flex-1">
+                        <ErrorBoundary
+                          resetKeys={[routeKey]}
+                          FallbackComponent={RootAppError}
+                          onReset={() => {
+                            window.location.reload()
+                          }}
+                        >
+                          {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
                         inside the panel. Without this, the lazy import suspends all the way to the
                         root boundary and the whole window — chrome included — becomes a spinner. */}
-                        <Suspense fallback={<Fallback />}>
-                          {(browserMounted || navR.key === 'web') && <WebBrowser />}
-                          {navR.key !== 'web' && (
-                            <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
-                              <NotificationInboxProvider value={DesktopNotificationInbox}>
-                                <PageComponent />
-                              </NotificationInboxProvider>
-                            </AssistantPanelToggleContext.Provider>
-                          )}
-                        </Suspense>
-                      </ErrorBoundary>
+                          <Suspense fallback={<Fallback />}>
+                            {(browserMounted || navR.key === 'web') && <WebBrowser />}
+                            {navR.key !== 'web' && (
+                              <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
+                                <NotificationInboxProvider value={DesktopNotificationInbox}>
+                                  <PageComponent />
+                                </NotificationInboxProvider>
+                              </AssistantPanelToggleContext.Provider>
+                            )}
+                          </Suspense>
+                        </ErrorBoundary>
+                      </div>
                     </div>
-                  </div>
-                </Panel>
-              </PanelContent>
+                  </Panel>
+                  <DesktopBookmarksPanel />
+                </PanelContent>
 
-              <Footer />
+                <Footer />
 
-              <AutoUpdater />
-              <ConfirmConnectionDialog />
-              <HypermediaHighlight />
-            </SidebarContextProvider>
+                <AutoUpdater />
+                <ConfirmConnectionDialog />
+                <HypermediaHighlight />
+              </SidebarContextProvider>
+            </BookmarksPanelProvider>
           </div>
         </Panel>
         <PanelSeparator open={shouldRenderAssistantPanel} onCollapse={handleToggleAssistant} />
@@ -326,6 +331,25 @@ export default function Main({className}: {className?: string}) {
         </AnimatedPanel>
       </Group>
     </div>
+  )
+}
+
+function DesktopBookmarksPanel() {
+  const {isOpen, close} = useBookmarksPanel()
+  return (
+    <>
+      <PanelSeparator open={isOpen} onCollapse={close} />
+      <AnimatedPanel
+        id="bookmarks"
+        open={isOpen}
+        minSize="240px"
+        maxSize="45%"
+        defaultSize="320px"
+        className="border-border overflow-hidden rounded-lg border"
+      >
+        <BookmarksPanel />
+      </AnimatedPanel>
+    </>
   )
 }
 
@@ -371,6 +395,7 @@ function ConfirmConnectionDialog() {
 
 function PanelContent({children}: {children: ReactNode}) {
   const ctx = useSidebarContext()
+  const bookmarksPanel = useBookmarksPanel()
   const isSidebarLocked = useStream(ctx.isLocked)
 
   useListenAppEvent('toggle_sidebar', () => {
@@ -396,6 +421,7 @@ function PanelContent({children}: {children: ReactNode}) {
       className={cn('flex min-h-0 overflow-hidden pr-2', !isSidebarLocked && 'pl-2')}
       onLayoutChanged={(layout, meta) => {
         if (!meta.isUserInteraction) return
+        if (layout.bookmarks === 0 && bookmarksPanel.isOpen) bookmarksPanel.close()
         const width = (meta.requestedLayout ?? layout).sidebar
         if (width && width > 0) ctx.onSidebarResize(width)
         if (layout.sidebar === 0) ctx.onCloseSidebar()
@@ -460,6 +486,8 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: QueryDocuments,
         Fallback: BaseLoading,
       }
+    case 'drafts':
+      return {PageComponent: Drafts, Fallback: BaseLoading}
     case 'explore':
       return {
         PageComponent: Explore,

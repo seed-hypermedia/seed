@@ -240,6 +240,9 @@ export function routeToHref(
   if (typeof route !== 'string' && route.key == 'contact') {
     return `/hm/contact/${route.id.uid}`
   }
+  if (typeof route !== 'string' && route.key === 'drafts') {
+    return '/hm/drafts'
+  }
   if (typeof route !== 'string' && route.key === 'agents') {
     return '/hm/agents'
   }
@@ -410,6 +413,12 @@ export function routeToHref(
     const replyCommentId = getRouteReplyCommentId(route)
     if (replyCommentId) {
       href += `${href.includes('?') ? '&' : '?'}reply=${replyCommentId}`
+    }
+    if (route.key === 'comments' && route.targetBlockId) {
+      href += `${href.includes('?') ? '&' : '?'}quote=${encodeURIComponent(route.targetBlockId)}`
+      if (route.blockRange && 'start' in route.blockRange && 'end' in route.blockRange) {
+        href += `&quoteRange=${route.blockRange.start}:${route.blockRange.end}`
+      }
     }
     const pageInput = pageParamsQuery(route.id.pageParams)
     if (pageInput) href += `${href.includes('?') ? '&' : '?'}${pageInput}`

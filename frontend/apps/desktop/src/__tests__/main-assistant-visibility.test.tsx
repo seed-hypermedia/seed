@@ -206,6 +206,12 @@ vi.mock('../components/desktop-notification-inbox', () => ({
   DesktopNotificationInbox: () => null,
 }))
 
+vi.mock('@/components/bookmarks-panel', () => ({
+  BookmarksPanelProvider: ({children}: {children: React.ReactNode}) => children,
+  BookmarksPanel: () => null,
+  useBookmarksPanel: () => ({isOpen: false, open: () => {}, close: () => {}}),
+}))
+
 vi.mock('@shm/ui/activity-panel', () => ({
   NotificationInboxProvider: ({children}: {children: React.ReactNode}) => children,
 }))

@@ -26,6 +26,7 @@ type ExploreSort = (typeof EXPLORE_SORTS)[number]
  * Converts a directly parseable Hypermedia app URL into an application route.
  */
 export function hypermediaUrlToRoute(url: string): NavRoute | null {
+  if (/^(?:https?:\/\/[^/]+)?\/hm\/drafts\/?(?:[?#].*)?$/.test(url)) return {key: 'drafts'}
   // A link to the web agents UI (what "Copy trigger link" and friends produce) is an app route.
   const agentsRoute = agentsRouteFromAbsoluteUrl(url)
   if (agentsRoute) return agentsRoute
@@ -101,6 +102,25 @@ export function hypermediaUrlToRoute(url: string): NavRoute | null {
       commentVersion,
       query?.reply,
     )
+    if (route.key === 'comments' && query?.quote) {
+      const range = query.quoteRange?.match(/^(\d+):(\d+)$/)
+      const start = range ? Number(range[1]) : undefined
+      const end = range ? Number(range[2]) : undefined
+      return {
+        ...route,
+        targetBlockId: query.quote,
+        blockId: query.quote,
+        ...(start !== undefined &&
+        end !== undefined &&
+        Number.isSafeInteger(start) &&
+        Number.isSafeInteger(end) &&
+        end >= start
+          ? {blockRange: {start, end}}
+          : {}),
+        isReplying: true,
+        autoFocus: true,
+      }
+    }
     if (route.key === 'activity' && activityFilter) {
       return {
         ...route,

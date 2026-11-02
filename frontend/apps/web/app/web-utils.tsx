@@ -12,7 +12,7 @@ import {
 import {documentCreationMachine, inferDocumentSchema, resolveDocumentCreationDestination} from '@shm/shared'
 import {buildCollectionDraftSeed} from '@shm/shared/collection'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
-import {useIsSiteOwner} from '@shm/shared/models/capabilities'
+import {useIsSiteOwner, useSelectedAccountCapability} from '@shm/shared/models/capabilities'
 import {createDefaultCollectionQueryBlock, deriveDocumentType} from '@shm/shared/models/document-machine'
 import {useAccount, useResource} from '@shm/shared/models/entity'
 import {queryQueryBlock} from '@shm/shared/models/queries'
@@ -25,6 +25,7 @@ import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
 import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {Button} from '@shm/ui/button'
+import {accountMenuContentClassName, AccountMenuIdentity, AccountMenuSection} from '@shm/ui/account-menu'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +54,7 @@ import {cn} from '@shm/ui/utils'
 import {
   Bell,
   Bot,
+  ContactRound,
   ExternalLink,
   FilePlus2,
   Globe,
@@ -61,12 +63,13 @@ import {
   Import as ImportIcon,
   Layers,
   LayoutList,
+  KeyRound,
   ListChecks,
   LogOut,
   Plus,
   Search,
   User,
-  UserCog,
+  SquarePen,
 } from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
@@ -501,6 +504,12 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const accountId = keyPair?.delegatedAccountUid ?? keyPair?.id
   const {content: createAccountContent, createAccount} = useCreateAccount({})
   const {isJoined, isLoaded: contactsLoaded, joinSite} = useJoinSite({siteUid})
+  const capability = useSelectedAccountCapability(hmId(siteUid))
+  const accountRole = capability?.role
+    ? {owner: 'Owner', writer: 'Writer', agent: 'Agent', none: undefined}[capability.role]
+    : isJoined
+      ? 'Member'
+      : undefined
   const logoutDialog = useAppDialog(LogoutDialog, {showCloseButton: false})
   const {open: openCreateSpaceDialog, content: createSpaceDialogContent} = useCreateSpaceDialog()
   const universalClient = useUniversalClient()
@@ -601,10 +610,29 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
     else if (accountId) navigate({key: 'document', id: hmId(accountId, {latest: true})})
   }
 
+  const accountHeader = (
+    <div className="flex items-center gap-3 px-4 py-4">
+      <AccountMenuIdentity
+        avatar={
+          <HMIcon
+            id={account?.id ?? hmId(accountId!, {latest: true})}
+            name={account?.metadata?.name}
+            icon={account?.metadata?.icon}
+            size={40}
+          />
+        }
+        name={account?.metadata?.name}
+        role={accountRole}
+        email={keyPair.emailPrevalidation?.email}
+      />
+    </div>
+  )
+
   const menuItems = (
     <>
+      <AccountMenuSection>Settings</AccountMenuSection>
       <button
-        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
         onClick={() => {
           if (accountId) {
             navigate({key: 'profile', id: hmId(accountId, {latest: true})})
@@ -612,22 +640,21 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           setMobileMenuOpen(false)
         }}
       >
-        <User className="size-5" />
-        <span className="text-sm">My Profile</span>
+        <ContactRound className="size-4" />
+        <span className="text-sm">My profile</span>
       </button>
       <button
-        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
         onClick={() => {
           navigate({key: 'agents'})
           setMobileMenuOpen(false)
         }}
       >
-        <Bot className="size-5" />
+        <Bot className="size-4" />
         <span className="text-sm">Agents</span>
       </button>
-      <div className="bg-border mx-4 h-px" />
       <button
-        className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left disabled:opacity-50"
+        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
         onClick={() => {
           if (vaultAccountSettingsUrl) {
             window.open(vaultAccountSettingsUrl, '_blank')
@@ -636,8 +663,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         }}
         disabled={!vaultAccountSettingsUrl}
       >
-        <UserCog className="size-5" />
-        <span className="text-sm">Manage account</span>
+        <KeyRound className="size-4" />
+        <span className="text-sm">Manage accounts</span>
       </button>
       <WebSpaceSettingsMenuItem
         siteUid={siteUid}
@@ -647,56 +674,66 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           navigate({key: 'site-settings', id: hmId(siteUid)})
         }}
       />
+      <button
+        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
+        onClick={() => {
+          navigate({key: 'drafts'})
+          setMobileMenuOpen(false)
+        }}
+      >
+        <SquarePen className="size-4" />
+        <span className="text-sm">Drafts</span>
+      </button>
       {maintenance ? (
         <button
-          className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+          className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
           aria-haspopup="dialog"
           onClick={() => {
             setMobileMenuOpen(false)
             if (accountMenuTriggerRef.current) maintenance.openDialog(accountMenuTriggerRef.current)
           }}
         >
-          <ListChecks className="size-5" />
+          <ListChecks className="size-4" />
           <span className="text-sm">Document maintenance</span>
         </button>
       ) : null}
-      <div className="bg-border mx-4 h-px" />
+      <div className="bg-border h-px" />
+      <AccountMenuSection>My sites</AccountMenuSection>
       {canCreateSpace ? (
         <button
-          className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left text-green-600 dark:text-green-500"
+          className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left font-normal text-green-600 dark:text-green-500"
           onClick={() => {
             setMobileMenuOpen(false)
             openCreateSpaceDialog()
           }}
         >
-          <Plus className="size-5" />
-          <span className="text-sm">Create my space</span>
+          <Plus className="size-4" />
+          <span className="text-sm">Create new site</span>
         </button>
       ) : (
         <>
-          <div className="text-muted-foreground px-4 pt-2 pb-1 text-xs">My space</div>
           <button
-            className="hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+            className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
             onClick={() => {
               setMobileMenuOpen(false)
               goToMySite()
             }}
           >
-            <Globe className="size-5" />
+            <Globe className="size-4" />
             <span className="flex-1 truncate text-sm">{mySiteLabel}</span>
             {mySiteUrl ? <ExternalLink className="text-muted-foreground size-4" /> : null}
           </button>
         </>
       )}
-      <div className="bg-border mx-4 h-px" />
+      <div className="bg-border h-px" />
       <button
-        className="text-destructive hover:bg-accent flex w-full items-center gap-3 px-4 py-3 text-left"
+        className="text-destructive hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left font-normal"
         onClick={() => {
           setMobileMenuOpen(false)
           logoutDialog.open({})
         }}
       >
-        <LogOut className="size-5" />
+        <LogOut className="size-4" />
         <span className="text-sm">Log out</span>
       </button>
     </>
@@ -709,6 +746,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           <NotifsButton signedIn />
           <button
             ref={accountMenuTriggerRef}
+            aria-label="Account menu"
+            aria-expanded={mobileMenuOpen}
             className="flex cursor-pointer rounded-full shadow-lg"
             onClick={() => setMobileMenuOpen(true)}
           >
@@ -716,14 +755,10 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           </button>
           {joinButton}
           <MobilePanelSheet isOpen={mobileMenuOpen} title="" onClose={() => setMobileMenuOpen(false)}>
-            <div className="flex items-center gap-3 px-4 py-4">
-              {avatarIcon}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
-              </div>
+            <div className="font-normal [&_svg]:stroke-[1.5]">
+              {accountHeader}
+              {menuItems}
             </div>
-            <div className="bg-border h-px" />
-            {menuItems}
           </MobilePanelSheet>
         </div>
       ) : (
@@ -731,14 +766,18 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
           <NotifsButton signedIn />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button ref={accountMenuTriggerRef} className="flex cursor-pointer rounded-full shadow-lg">
+              <button
+                ref={accountMenuTriggerRef}
+                aria-label="Account menu"
+                className="flex cursor-pointer rounded-full shadow-lg"
+              >
                 {avatarIcon}
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
               side="bottom"
               align="end"
-              className="min-w-[200px]"
+              className={accountMenuContentClassName}
               onCloseAutoFocus={(event) => {
                 if (!openMaintenanceOnMenuClose.current) return
                 openMaintenanceOnMenuClose.current = false
@@ -748,13 +787,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 }
               }}
             >
-              <div className="flex items-center gap-3 px-2 py-2">
-                {avatarIcon}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{account?.metadata?.name || 'Account'}</p>
-                </div>
-              </div>
-              <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+              {accountHeader}
+              <AccountMenuSection>Settings</AccountMenuSection>
               <DropdownMenuItem
                 onClick={() => {
                   if (accountId) {
@@ -762,8 +796,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                   }
                 }}
               >
-                <User className="size-4" />
-                My Profile
+                <ContactRound className="size-4" />
+                My profile
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
                 <Bot className="size-4" />
@@ -777,8 +811,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 }}
                 disabled={!vaultAccountSettingsUrl}
               >
-                <UserCog className="size-4" />
-                Manage account
+                <KeyRound className="size-4" />
+                Manage accounts
               </DropdownMenuItem>
               <WebSpaceSettingsMenuItem
                 siteUid={siteUid}
@@ -786,6 +820,10 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                   navigate({key: 'site-settings', id: hmId(siteUid)})
                 }}
               />
+              <DropdownMenuItem onSelect={() => navigate({key: 'drafts'})}>
+                <SquarePen className="size-4" />
+                Drafts
+              </DropdownMenuItem>
               {maintenance ? (
                 <DropdownMenuItem
                   aria-haspopup="dialog"
@@ -798,17 +836,17 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 </DropdownMenuItem>
               ) : null}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
+              <AccountMenuSection>My sites</AccountMenuSection>
               {canCreateSpace ? (
                 <DropdownMenuItem
                   onClick={openCreateSpaceDialog}
-                  className="text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
+                  className="font-normal text-green-600 focus:text-green-600 dark:text-green-500 dark:focus:text-green-500"
                 >
                   <Plus className="size-4 text-green-600 dark:text-green-500" />
-                  Create my space
+                  Create new site
                 </DropdownMenuItem>
               ) : (
                 <>
-                  <div className="text-muted-foreground px-2 pt-1 pb-0.5 text-xs">My space</div>
                   <DropdownMenuItem onClick={goToMySite}>
                     <Globe className="size-4" />
                     <span className="flex-1 truncate">{mySiteLabel}</span>
@@ -817,7 +855,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
                 </>
               )}
               <DropdownMenuSeparator className="bg-black/10 dark:bg-white/10" />
-              <DropdownMenuItem variant="destructive" onClick={() => logoutDialog.open({})}>
+              <DropdownMenuItem className="font-normal" variant="destructive" onClick={() => logoutDialog.open({})}>
                 <LogOut className="size-4" />
                 Log out
               </DropdownMenuItem>
