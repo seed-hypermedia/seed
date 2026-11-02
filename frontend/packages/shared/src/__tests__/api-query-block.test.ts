@@ -278,6 +278,49 @@ describe('QueryBlock.getData', () => {
     )
   })
 
+  it('loads metadata for accounts referenced by attributes, not just authors', async () => {
+    const owned = {
+      ...resultA,
+      metadata: {
+        name: 'Owned',
+        Owner: 'hm://owner-only',
+        Reviewers: ['hm://reviewer'],
+        Status: 'To Do',
+        Spec: 'hm://alice/projects/spec',
+      },
+    }
+    const batchGetAccounts = vi.fn().mockResolvedValue({
+      accounts: {
+        'author-a': {profile: {name: 'Author A'}, homeDocumentInfo: {version: 'va'}},
+        'owner-only': {profile: {name: 'Owner'}, homeDocumentInfo: {version: 'vo'}},
+        reviewer: {profile: {name: 'Reviewer'}, homeDocumentInfo: {version: 'vr'}},
+      },
+      errors: {},
+    })
+    const grpcClient = {
+      documents: {
+        queryDocuments: vi.fn().mockResolvedValue({documents: [owned], nextPageToken: ''}),
+        getDocumentInfo: vi.fn().mockResolvedValue({metadata: {toJson: () => ({name: 'Projects'})}}),
+        batchGetAccounts,
+      },
+    } as any
+    const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const result = await QueryBlock.getData(
+      grpcClient,
+      {query: {includes: [{space: 'alice', path: '/projects', mode: 'Children'}]}},
+      undefined as any,
+    )
+
+    expect(batchGetAccounts).toHaveBeenCalledWith({ids: ['author-a', 'owner-only', 'reviewer']})
+    expect(result?.accountsMetadata['owner-only']).toEqual({
+      id: hmId('owner-only', {version: 'vo'}),
+      metadata: {name: 'Owner'},
+    })
+    expect(result?.accountsMetadata.reviewer?.metadata.name).toBe('Reviewer')
+    consoleInfoSpy.mockRestore()
+  })
+
   it('returns null when there is no resolvable target and still logs perf data', async () => {
     const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
     const result = await QueryBlock.getData(
