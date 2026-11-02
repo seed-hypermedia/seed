@@ -117,7 +117,7 @@ describe('hypermediaUrlToRoute', () => {
     expect(hypermediaUrlToRoute('hm://uid1/:activity/citations')).toEqual({
       key: 'activity',
       id: unpackHmId('hm://uid1'),
-      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
       panel: null,
     })
   })
@@ -144,7 +144,7 @@ describe('hypermediaUrlToRoute', () => {
     expect(hypermediaUrlToRoute('hm://uid1/:activity/citations?panel=comments/abc123#blk1')).toEqual({
       key: 'activity',
       id: unpackHmId('hm://uid1#blk1'),
-      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
       panel: {key: 'comments', id: unpackHmId('hm://uid1#blk1'), openComment: 'abc123'},
     })
   })

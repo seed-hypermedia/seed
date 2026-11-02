@@ -6,6 +6,8 @@ A document's **metadata** is the map of attributes its [Changes](./change.md) se
 
 Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -->
 
+A value that names an account or a document is a link. A bare account id (`z6Mk…`), an account's home URL (`hm://<uid>`), a `:profile` URL or any other `hm://` document URL set as an attribute, such as `owner`, is indexed as a [citation](./protocol/comments.md) of type `metadata/Link` whose anchor is the attribute key, attributed to the document that set it. It appears among the target's citations like a link in the body, and when the target is an account it counts as a mention of that account: the notification server emails them and a `user-mention` [trigger](./agent/triggers.md) fires. A URL whose authority is not an account, such as the `type` key's `hm://hyper.media/page`, is not a link.
+
 # The keys Seed understands <!-- id:O1w2gINW -->
 
 <!-- id:zIyn6ExA -->

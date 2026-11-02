@@ -50,7 +50,10 @@ function processResourceCitations(
           type: sourceType as 'd' | 'c',
           author: citation.sourceBlob?.author,
           time: citation.sourceBlob?.createTime,
-          blockId: citation.sourceContext || undefined,
+          // A metadata/Link citation's context is the attribute key, not a block of the source.
+          blockId: citation.citationType?.toLowerCase().startsWith('metadata/')
+            ? undefined
+            : citation.sourceContext || undefined,
         },
         targetFragment,
         isExactVersion: citation.isExactVersion,

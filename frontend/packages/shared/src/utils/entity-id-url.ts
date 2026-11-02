@@ -16,7 +16,7 @@ import type {StateStream} from './stream'
 const ACTIVITY_FILTER_SLUGS: Record<string, string[]> = {
   comments: ['Comment'],
   versions: ['Ref'],
-  citations: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+  citations: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
 }
 
 export function activityFilterToSlug(filterEventType?: string[]): string | null {

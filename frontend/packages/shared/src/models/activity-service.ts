@@ -10,7 +10,7 @@ import {
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {CID} from 'multiformats'
-import {getCitationMentionKind} from './notification-event-classifier'
+import {getCitationMentionKind, getMentionedAccountUid} from './notification-event-classifier'
 import {FeedOrder} from '../client/.generated/activity/v1alpha/activity_pb'
 import {Mention} from '../client/.generated/entities/v1alpha/entities_pb'
 import {prepareHMComment, prepareHMDocument} from '../document-utils'
@@ -129,6 +129,8 @@ export type LoadedCitationEvent = {
   id: string
   type: 'citation'
   citationType: 'd' | 'c' // 'd' = document reference, 'c' = comment reference
+  /** For a `metadata/Link` citation, the attribute key that names the target (owner, attributesSchema…). */
+  metadataKey?: string
   author: HMContactItem
   time: HMTimestamp
   source: HMContactItem // The document/comment containing the citation
@@ -567,8 +569,12 @@ export async function loadCitationEvent(
 
     // Determine citationType: 'd' = document reference, 'c' = comment reference
     const sourceTypeLower = event.newMention.sourceType?.toLowerCase() || ''
+    // A metadata/Link citation is an account or document named by a document attribute (owner,
+    // attributesSchema…). It is a document citation whose sourceContext is the attribute key, where
+    // a block link carries its block id.
+    const isMetadataCitation = sourceTypeLower.startsWith('metadata/')
     const citationType =
-      sourceTypeLower.startsWith('doc/') || sourceTypeLower === 'ref'
+      sourceTypeLower.startsWith('doc/') || sourceTypeLower === 'ref' || isMetadataCitation
         ? 'd'
         : sourceTypeLower.startsWith('comment/') || sourceTypeLower === 'comment'
           ? 'c'
@@ -597,7 +603,7 @@ export async function loadCitationEvent(
     const sourceId = hmId(sourceUnpacked.uid, {
       path: sourceUnpacked.path,
       version: sourceVersion,
-      blockRef: citationType === 'd' ? event.newMention.sourceContext || null : null,
+      blockRef: citationType === 'd' && !isMetadataCitation ? event.newMention.sourceContext || null : null,
     })
 
     // Create target UnpackedHmId from event.newMention.target
@@ -706,17 +712,20 @@ export async function loadCitationEvent(
       }
     }
 
-    const mentionKind = getCitationMentionKind(
-      comment?.content || sourceContent || [],
-      targetId,
-      event.newMention.sourceContext,
-    )
+    // A metadata reference is not in the content: the key names the target directly, and an
+    // account target (its home URL, bare id or :profile URL) is a mention of that account.
+    const mentionKind = isMetadataCitation
+      ? getMentionedAccountUid(targetId)
+        ? 'account'
+        : 'document'
+      : getCitationMentionKind(comment?.content || sourceContent || [], targetId, event.newMention.sourceContext)
 
     return {
       id: eventId,
       type: 'citation',
       mentionKind,
       citationType,
+      metadataKey: isMetadataCitation ? event.newMention.sourceContext || undefined : undefined,
       author,
       time: event.eventTime || '',
       source,

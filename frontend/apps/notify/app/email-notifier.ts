@@ -749,6 +749,7 @@ async function buildImmediateNotificationEmail(
       authorName,
       subjectName,
       documentName,
+      source: notif.source,
       commentBlocks: notif.comment?.content || [],
       actionUrl: notif.actionUrl || notif.url,
       unsubscribeUrl,

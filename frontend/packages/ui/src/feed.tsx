@@ -718,7 +718,8 @@ function EventHeaderContent({
   if (event.type == 'citation') {
     return (
       <InlineDescriptor>
-        <AuthorNameLink author={event.author} /> <span>{event.citationType === 'c' ? 'mentioned' : 'cited'}</span>{' '}
+        <AuthorNameLink author={event.author} />{' '}
+        <span>{event.citationType === 'c' ? 'mentioned' : event.metadataKey ? 'named' : 'cited'}</span>{' '}
         {!isSingleResource ? (
           <>
             <DocumentNameLink metadata={event.target?.metadata} id={event.target?.id} fallback="this document" />{' '}
@@ -728,7 +729,9 @@ function EventHeaderContent({
             <span>this document</span>{' '}
           </>
         )}
-        <span>{event.citationType === 'c' ? 'in a comment on' : 'in'}</span>{' '}
+        <span>
+          {event.citationType === 'c' ? 'in a comment on' : event.metadataKey ? `as ${event.metadataKey} of` : 'in'}
+        </span>{' '}
         <DocumentNameLink metadata={event.source?.metadata} id={event.source?.id} fallback="a document" />{' '}
         <Timestamp time={event.time} route={route} />
       </InlineDescriptor>

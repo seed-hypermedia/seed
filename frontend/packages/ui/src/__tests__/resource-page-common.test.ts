@@ -128,7 +128,13 @@ describe('custom HTML page panel menu', () => {
     expect(open.mock.calls.map(([panel]) => panel.key)).toEqual(['collaborators', 'comments', 'activity', 'metadata'])
     for (const [panel] of open.mock.calls)
       expect(panel.id).toMatchObject({uid: 'alice', path: ['app'], version: 'v1', blockRef: null, blockRange: null})
-    expect(open.mock.calls[2]![0].filterEventType).toEqual(['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'])
+    expect(open.mock.calls[2]![0].filterEventType).toEqual([
+      'comment/Embed',
+      'doc/Embed',
+      'doc/Link',
+      'doc/Button',
+      'metadata/Link',
+    ])
   })
 })
 

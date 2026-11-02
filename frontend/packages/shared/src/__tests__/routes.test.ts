@@ -300,7 +300,7 @@ describe('createDocumentNavRoute', () => {
         panel: {
           key: 'activity',
           id: testDocId,
-          filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+          filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
         },
       })
     })
@@ -332,7 +332,7 @@ describe('createDocumentNavRoute', () => {
       expect(route).toEqual({
         key: 'activity',
         id: testDocId,
-        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
         panel: null,
       })
     })
@@ -462,7 +462,7 @@ describe('createRouteFromInspectNavRoute', () => {
     expect(createRouteFromInspectNavRoute({key: 'inspect', id: testDocId}, 'citations')).toEqual({
       key: 'activity',
       id: testDocId,
-      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
       panel: null,
     })
   })
@@ -570,7 +570,11 @@ describe('routeToHref', () => {
 
   test('activity route with citations filter generates view-term href', () => {
     const href = routeToHref(
-      {key: 'activity', id: hmId('uid1'), filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']},
+      {
+        key: 'activity',
+        id: hmId('uid1'),
+        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
+      },
       {originHomeId: originHome},
     )
     expect(href).toBe('/:activity/citations')
