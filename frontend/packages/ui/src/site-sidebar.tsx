@@ -1,9 +1,11 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmId, useRouteLink, useUniversalAppContext} from '@shm/shared'
+import {hmId, ListAccountsRequest, useRouteLink, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
 import {useAccounts, useDirectory, useSelectedAccountId} from '@shm/shared/models/entity'
-import {ChevronsUpDown, Search} from 'lucide-react'
+import {queryKeys} from '@shm/shared/models/query-keys'
+import {useQuery} from '@tanstack/react-query'
+import {Check, ChevronsUpDown, Search} from 'lucide-react'
 import {useState, type ReactNode} from 'react'
 import {Button} from './button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
@@ -17,6 +19,7 @@ import {cn} from './utils'
 export function SiteSidebar({
   siteId,
   ownSiteUids = [],
+  unreadNotificationsBySite = {},
   onNavigate,
   onAfterNavigate,
   explore,
@@ -24,6 +27,7 @@ export function SiteSidebar({
 }: {
   siteId: UnpackedHypermediaId
   ownSiteUids?: string[]
+  unreadNotificationsBySite?: Record<string, number>
   onNavigate: (id: UnpackedHypermediaId) => void
   onAfterNavigate?: () => void
   explore?: ReactNode
@@ -44,7 +48,29 @@ export function SiteSidebar({
         : []),
     ]),
   )
+  const client = useUniversalClient()
+  const activityOrder = useQuery({
+    queryKey: [queryKeys.LIST_ACCOUNTS, 'sidebar-activity-order'],
+    enabled: (IS_DESKTOP || isGateway) && !!accountUid && !!client.listAccounts,
+    queryFn: async () => {
+      const uids: string[] = []
+      let pageToken = ''
+      do {
+        const response = await client.listAccounts!(new ListAccountsRequest({pageSize: 1000, pageToken}))
+        uids.push(...response.accounts.map((account) => account.id))
+        pageToken = response.nextPageToken
+      } while (pageToken)
+      return uids
+    },
+    refetchInterval: 15_000,
+  })
+  const activityRanks = new Map(activityOrder.data?.map((uid, index) => [uid, index]))
   const accounts = useAccounts(siteUids)
+  const sites = siteUids.map((uid, index) => ({uid, metadata: accounts[index]?.data?.metadata}))
+  sites.sort(
+    (a, b) =>
+      (activityRanks.get(a.uid) ?? Number.MAX_SAFE_INTEGER) - (activityRanks.get(b.uid) ?? Number.MAX_SAFE_INTEGER),
+  )
   const current = accounts[0]?.data
   const directory = useDirectory(siteId, {mode: 'AllDescendants'})
   const route = useNavRouteOrNull()
@@ -99,20 +125,28 @@ export function SiteSidebar({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="max-h-80 w-64 overflow-y-auto">
-              {siteUids.map((uid, index) => {
-                const metadata = accounts[index]?.data?.metadata
+              {sites.map(({uid, metadata}) => {
+                const unreadCount = accountUid ? unreadNotificationsBySite[uid] ?? 0 : 0
                 return (
                   <DropdownMenuItem
                     key={uid}
+                    aria-current={uid === siteId.uid ? 'true' : undefined}
                     onSelect={() => {
                       onNavigate(hmId(uid))
                       onAfterNavigate?.()
                     }}
                   >
                     <HMIcon id={hmId(uid)} name={metadata?.name} icon={metadata?.icon} size={24} />
-                    <span className="truncate">
+                    <span className="min-w-0 flex-1 truncate">
                       {metadata?.name || (uid === siteId.uid ? 'Current site' : 'Untitled site')}
                     </span>
+                    {uid === siteId.uid && <Check aria-hidden="true" className="size-4 shrink-0" />}
+                    {unreadCount > 0 && (
+                      <>
+                        <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-red-500" />
+                        <span className="sr-only">{unreadCount} unread notifications</span>
+                      </>
+                    )}
                   </DropdownMenuItem>
                 )
               })}

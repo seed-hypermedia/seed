@@ -1,6 +1,7 @@
 import {grpcClient} from '@/grpc-client'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import {useUnreadNotificationsBySpace} from '@/models/notification-inbox'
 import {useMyAccountIds} from '@/models/daemon'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
@@ -18,6 +19,7 @@ import {ExploreButton} from './titlebar-common'
 export function AppSidebar() {
   const route = useNavRoute()
   const selectedAccountId = useSelectedAccountId()
+  const unreadNotificationsBySite = useUnreadNotificationsBySpace(selectedAccountId)
   useEffect(() => {
     if (selectedAccountId) return
     grpcClient.subscriptions
@@ -51,6 +53,7 @@ export function AppSidebar() {
       <SiteSidebar
         siteId={siteId}
         ownSiteUids={ownSites.data ?? []}
+        unreadNotificationsBySite={unreadNotificationsBySite}
         onNavigate={(id) => navigate({key: 'document', id})}
         explore={<ExploreButton />}
       >
