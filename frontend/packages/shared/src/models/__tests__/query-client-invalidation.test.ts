@@ -1,6 +1,7 @@
 import {QueryClient} from '@tanstack/react-query'
 import {afterEach, describe, expect, it, vi} from 'vitest'
 import {invalidateQueries, registerQueryClient} from '../query-client'
+import {queryKeys} from '../query-keys'
 
 /**
  * Regression test for #812: on web the query client disables `refetchOnMount`,
@@ -59,5 +60,20 @@ describe('invalidateQueries refetchType', () => {
     invalidateQueries(['DOCUMENT_DISCUSSION'], {refetchType: 'all'})
     await vi.waitFor(() => expect(queryFn).toHaveBeenCalledTimes(2))
     await vi.waitFor(() => expect(client.getQueryData(key)).toEqual({comments: ['old', 'new']}))
+  })
+
+  it('refreshes an inactive reply count before returning to the discussions list', async () => {
+    const client = createWebLikeQueryClient()
+    registerQueryClient(client)
+    const key = [queryKeys.COMMENT_REPLY_COUNT, 'author/root']
+    let replyCount = 0
+    const queryFn = vi.fn(async () => replyCount)
+    await client.fetchQuery({queryKey: key, queryFn})
+
+    replyCount = 1
+    invalidateQueries([queryKeys.COMMENT_REPLY_COUNT], {refetchType: 'all'})
+
+    await vi.waitFor(() => expect(client.getQueryData(key)).toBe(1))
+    expect(queryFn).toHaveBeenCalledTimes(2)
   })
 })

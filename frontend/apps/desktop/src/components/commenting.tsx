@@ -253,6 +253,7 @@ function CommentBoxImpl(props: {
       invalidateQueries([queryKeys.DOCUMENT_ACTIVITY])
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+      if (comment.replyParent) invalidateQueries([queryKeys.COMMENT_REPLY_COUNT], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
       invalidateQueries([queryKeys.ACTIVITY_FEED])
@@ -379,6 +380,7 @@ function CommentBoxImpl(props: {
         invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
         invalidateQueries([queryKeys.DOCUMENT_DISCUSSION])
         invalidateQueries([queryKeys.DOCUMENT_COMMENTS])
+        if (comment.replyParent) invalidateQueries([queryKeys.COMMENT_REPLY_COUNT], {refetchType: 'all'})
         invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY])
         invalidateQueries([queryKeys.BLOCK_DISCUSSIONS])
         navigateToComment(
