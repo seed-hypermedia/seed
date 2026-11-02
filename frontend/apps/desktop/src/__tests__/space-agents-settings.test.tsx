@@ -315,16 +315,18 @@ describe('SpaceAgentsSettings', () => {
     expect(publishedRows()).toHaveLength(1)
   })
 
-  it('leaves the local server out of the options, since no visitor can reach this computer', () => {
+  it('offers the local server, and warns that no visitor can reach this computer once it is chosen', () => {
     mockState.localServerUrl = 'http://localhost:3050'
     mockState.servers = ['http://localhost:3050', 'https://agents.example']
     mockState.metadata = {}
     render()
-    expect(selectOptions('No agents server')).toEqual(['No agents server', 'agents.example'])
+    expect(selectOptions('No agents server')).toEqual(['No agents server', 'Local Agents', 'agents.example'])
+    expect(container.textContent).not.toContain('Visitors can’t reach Local Agents')
+    chooseFromSelect('No agents server', 'Local Agents')
+    expect(container.textContent).toContain('Visitors can’t reach Local Agents')
   })
 
-  it('still explains a space that already advertises this computer', () => {
-    // Not selectable, but a space that somehow holds that value has to be told why it is broken.
+  it('explains a space that already advertises this computer', () => {
     mockState.localServerUrl = 'http://localhost:3050'
     mockState.metadata = {agentServerUrl: 'http://localhost:3050'}
     render()

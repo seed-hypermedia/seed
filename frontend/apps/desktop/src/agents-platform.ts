@@ -3,6 +3,7 @@ import {useAppContext} from '@/app-context'
 import {useDesktopAuthDialog} from '@/components/desktop-auth-dialog'
 import {grpcClient} from '@/grpc-client'
 import {useMyAccountIds} from '@/models/daemon'
+import {useCreateDraft} from '@/models/documents'
 import {useGatewayUrl} from '@/models/gateway-settings'
 import {readWebBrowserEnabled} from '@/models/experiments'
 import {useSelectedAccountId} from '@/selected-account'
@@ -12,7 +13,7 @@ import {CommentEditor} from '@shm/editor/comment-editor'
 import * as blobs from '@shm/shared/blobs'
 import {isHttpUrl} from '@shm/shared/utils/navigation'
 import {hypermediaUrlToRoute} from '@shm/shared/utils/url-to-route'
-import {setAgentsPlatform, type AgentsPlatform} from '@shm/ui/agents/platform'
+import {setAgentsPlatform, type AgentsPlatform, type AgentsTypedDocumentInput} from '@shm/ui/agents/platform'
 import {toast} from '@shm/ui/toast'
 import {base58btc} from 'multiformats/bases/base58'
 import React, {useMemo} from 'react'
@@ -54,6 +55,22 @@ function useDesktopOpenUrl() {
       }
     }
   }, [externalOpen, spawn, push])
+}
+
+/**
+ * A typed draft in the selected account's space, pre-filled and opened in the editor (the same path
+ * New Document takes on a type page, minus the destination picker: the space's root is the place).
+ */
+function useDesktopCreateTypedDocument() {
+  const accountUid = useSelectedAccountId()
+  const createDraft = useCreateDraft()
+  if (!accountUid) return null
+  return async ({schemaUrl, name, metadata}: AgentsTypedDocumentInput) => {
+    await createDraft({
+      location: {locationUid: accountUid, locationPath: []},
+      initialMetadata: {...metadata, name, attributesSchema: schemaUrl},
+    })
+  }
 }
 
 /** The desktop sign-in affordance: its own auth dialog, mounted by the caller. */
@@ -117,6 +134,7 @@ const desktopAgentsPlatform: AgentsPlatform = {
     const navigate = useNavigate()
     return () => navigate({key: 'settings', tab: 'agent-servers'})
   },
+  useCreateTypedDocument: useDesktopCreateTypedDocument,
   CommentEditor,
   ReadOnlyMessageViewer: React.lazy(() =>
     import('@shm/editor/readonly-viewer').then((module) => ({default: module.ReadOnlyViewer})),

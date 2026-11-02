@@ -164,6 +164,8 @@ describe('main routes', () => {
       expect(offBody.hmServerUrl).toBe('https://hyper.media')
       expect(offBody.ipfsServerUrl).toBe('https://hyper.media')
       expect(offBody.webTools).toEqual({search: false, readBrowser: false})
+      // The identity a space's agents-server binding must prove to be (see app-mounts.ts).
+      expect(offBody.serverUid).toMatch(/^z6Mk/)
 
       const on = getGetHandler(
         createAPIRoutes(

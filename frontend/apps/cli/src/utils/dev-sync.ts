@@ -1,16 +1,24 @@
-import type {HMSigner, SeedClient} from '@seed-hypermedia/client'
+import {parseFrontmatter, type HMSigner, type SeedClient} from '@seed-hypermedia/client'
 import {spawnSync} from 'node:child_process'
-import {existsSync, readFileSync, readdirSync, unlinkSync} from 'node:fs'
-import {join, resolve} from 'node:path'
+import {createHash} from 'node:crypto'
+import {existsSync, readFileSync, readdirSync, statSync, unlinkSync} from 'node:fs'
+import {dirname, join, relative, resolve} from 'node:path'
 import type {DevLoopOptions} from './dev-loop'
 import {defaultLayout, exportPath, exportSpace, importSpace, listSpaceVersions, retireMissing} from './space-sync'
 
 /** A temporary checkout or file change; the next ordinary polling pass retries it. */
 export class DevSyncPaused extends Error {}
 
-function readDirectory(dir: string): Map<string, string> {
+/**
+ * What the loop watches on disk: every page and schema file with its text, and every file a
+ * page's frontmatter names by relative path (its attribute assets, a folder's files one by one)
+ * with a digest of its bytes, each asset mapped to the page it belongs to. So an edit to a tool's
+ * code pushes the tool's page, and an asset edited mid-pass is noticed like a page would be.
+ */
+function readDirectory(dir: string): {files: Map<string, string>; pageOf: Map<string, string>} {
   if (!existsSync(dir)) throw new DevSyncPaused('The documentation directory is absent; waiting for it to return.')
   const files = new Map<string, string>()
+  const pageOf = new Map<string, string>()
   const walk = (folder: string) => {
     for (const entry of readdirSync(resolve(dir, folder), {withFileTypes: true})) {
       if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
@@ -21,7 +29,51 @@ function readDirectory(dir: string): Map<string, string> {
     }
   }
   walk('')
-  return files
+  for (const [page, text] of [...files].filter(([file]) => file.endsWith('.md'))) {
+    for (const asset of attributeAssetFiles(dir, page, text)) {
+      if (!files.has(asset)) files.set(asset, digestOf(resolve(dir, asset)))
+      pageOf.set(asset, page)
+    }
+  }
+  return {files, pageOf}
+}
+
+/** A short digest of a file's bytes, enough to notice a change without holding the bytes. */
+function digestOf(file: string): string {
+  return `sha256:${createHash('sha256').update(readFileSync(file)).digest('hex')}`
+}
+
+/** The files a page's frontmatter names by relative path, relative to the directory; a folder is listed file by file. */
+function attributeAssetFiles(dir: string, page: string, text: string): string[] {
+  let metadata: Record<string, unknown>
+  try {
+    metadata = parseFrontmatter(text).metadata as Record<string, unknown>
+  } catch {
+    return []
+  }
+  const out: string[] = []
+  const pageDir = resolve(dir, dirname(page))
+  const leaves = (value: unknown): string[] =>
+    typeof value === 'string'
+      ? [value]
+      : value && typeof value === 'object'
+        ? Object.values(value as Record<string, unknown>).flatMap(leaves)
+        : []
+  for (const value of leaves(metadata)) {
+    if (!/^\.\.?\//.test(value)) continue
+    const abs = resolve(pageDir, value)
+    if (!existsSync(abs)) continue
+    const walk = (folder: string) => {
+      for (const entry of readdirSync(folder, {withFileTypes: true})) {
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+        if (entry.isDirectory()) walk(join(folder, entry.name))
+        else if (entry.isFile()) out.push(relative(dir, join(folder, entry.name)))
+      }
+    }
+    if (statSync(abs).isDirectory()) walk(abs)
+    else out.push(relative(dir, abs))
+  }
+  return out
 }
 
 function sameFiles(a: Map<string, string>, b: Map<string, string>): boolean {
@@ -92,7 +144,7 @@ export class DevDirectorySync {
 
   private async run() {
     const revision = this.checkout()
-    const snapshot = readDirectory(this.opts.dir)
+    const {files: snapshot, pageOf} = readDirectory(this.opts.dir)
     const initial = this.baseline === undefined
     if (
       (!initial || this.opts.push) &&
@@ -115,7 +167,7 @@ export class DevDirectorySync {
         : []
     const layout = this.opts.layout ?? defaultLayout
     const assertCurrent = () => {
-      if (this.checkout() !== revision || !sameFiles(snapshot, readDirectory(this.opts.dir))) {
+      if (this.checkout() !== revision || !sameFiles(snapshot, readDirectory(this.opts.dir).files)) {
         throw new DevSyncPaused('Checkout or source files changed during sync; retrying from disk.')
       }
     }
@@ -141,7 +193,11 @@ export class DevDirectorySync {
       preserveSource: true,
       beforeWrite: assertCurrent,
       onWrite: (file: string) => {
-        const content = readFileSync(resolve(this.opts.dir, file), 'utf8')
+        // A page or schema by its text, an attribute asset by its digest, as readDirectory keeps them.
+        const content =
+          file.endsWith('.md') || file.endsWith('.schema.json')
+            ? readFileSync(resolve(this.opts.dir, file), 'utf8')
+            : digestOf(resolve(this.opts.dir, file))
         snapshot.set(file, content)
         this.baseline?.set(file, content)
         written.push(file)
@@ -156,7 +212,10 @@ export class DevDirectorySync {
         assertCurrent()
         if (switched) this.log('Checkout changed; reconciling the dev site with this branch.')
         const candidates = full ? [...snapshot.keys()] : changed
-        const markdown = [...new Set(candidates.map((file) => file.replace(/\.schema\.json$/, '.md')))]
+        // A schema file or an attribute asset pushes the page it belongs to.
+        const markdown = [
+          ...new Set(candidates.map((file) => pageOf.get(file) ?? file.replace(/\.schema\.json$/, '.md'))),
+        ]
         const only = markdown.filter((file) => snapshot.has(file))
         const result = await importSpace({
           client,

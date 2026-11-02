@@ -1,0 +1,165 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "slug": {
+      "value": {
+        "type": "hm://hyper.media/string",
+        "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
+      },
+      "required": true,
+      "description": "The app's short name, unique among the apps mounted on one agents server. It names the mount, the tool documents it projects and the secrets that belong to it."
+    },
+    "summary": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "One sentence on what the app does, shown in the Apps dialog and in the model's Space index."
+    },
+    "arguments": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/struct",
+          "properties": {
+            "type": {
+              "value": {
+                "anyOf": [
+                  "string",
+                  "integer",
+                  "boolean"
+                ]
+              },
+              "required": true,
+              "description": "The kind of value the argument takes."
+            },
+            "secret": {
+              "value": {
+                "type": "hm://hyper.media/boolean"
+              },
+              "description": "A secret argument (an API key, a token) is never written into a document. The person mounting the app stores it on the agents server, where it is encrypted and paired with the mount."
+            },
+            "required": {
+              "value": {
+                "type": "hm://hyper.media/boolean"
+              },
+              "description": "A mount without this argument offers no tools until it is provided."
+            },
+            "order": {
+              "value": {
+                "type": "hm://hyper.media/integer"
+              },
+              "description": "Where the argument sits in the mount form, lowest first."
+            },
+            "description": {
+              "value": {
+                "type": "hm://hyper.media/string"
+              },
+              "description": "What the argument is for, shown beside its field."
+            },
+            "choices": {
+              "value": {
+                "type": "hm://hyper.media/map",
+                "values": {
+                  "type": "hm://hyper.media/string"
+                }
+              },
+              "description": "The allowed values, keyed by value with a label for each, when the argument is a choice."
+            }
+          }
+        }
+      },
+      "description": "The arguments a mount of this app takes, keyed by argument name. Each entry says what the argument is, whether it is secret and whether it is required."
+    },
+    "permissions": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/boolean"
+        }
+      },
+      "description": "Grants the app's tools need beyond being called, as flags keyed by grant name, such as `publish`. A set of flags is a map because a document's attributes hold scalars and nested maps."
+    },
+    "network": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/string"
+        }
+      },
+      "description": "The hosts the app's code may reach, keyed by a label because map keys cannot contain dots: `{datalab: www.datalab.to}`. The sandbox lets the code reach exactly these hosts and nothing else, and an app that declares none runs without network. Shown to the person mounting the app."
+    },
+    "usage": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "meter": {
+            "value": {
+              "anyOf": [
+                "none",
+                "per-unit"
+              ]
+            },
+            "required": true,
+            "description": "Whether the server counts what the app consumes. `per-unit` means a server-wide mount is metered per space and the Apps dialog shows what is used and what is left."
+          },
+          "unit": {
+            "value": {
+              "type": "hm://hyper.media/string"
+            },
+            "description": "What is counted, such as `pages`."
+          },
+          "period": {
+            "value": {
+              "anyOf": [
+                "month"
+              ]
+            },
+            "description": "How often the count starts over."
+          },
+          "callCap": {
+            "value": {
+              "type": "hm://hyper.media/integer"
+            },
+            "description": "The most units one call may consume. On a metered mount the server reserves up to this many before the run and tells the tool its budget."
+          }
+        }
+      },
+      "description": "How the app's consumption is counted and shown, so a server can offer the app on a shared key with a monthly allowance and tell people where they stand. The allowance itself is set on the server-wide mount."
+    },
+    "mount": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "scope": {
+            "value": {
+              "anyOf": [
+                "space",
+                "server"
+              ]
+            },
+            "required": true,
+            "description": "`space` mounts the app for the space the bundle is published in. `server` mounts it for every space on the agents server, and is honored only in the server operator's space."
+          },
+          "enabled": {
+            "value": {
+              "type": "hm://hyper.media/boolean"
+            },
+            "description": "A disabled mount keeps its arguments but offers no tools."
+          },
+          "arguments": {
+            "value": {
+              "type": "hm://hyper.media/map",
+              "values": {
+                "type": "hm://hyper.media/value"
+              }
+            },
+            "description": "Values for the bundle's non-secret arguments, keyed by argument name."
+          }
+        }
+      },
+      "description": "Set when the app page is published into a space to be mounted there, the copy form of a mount. An app published as a library entry leaves it unset, and spaces mount it through an app-mount document instead."
+    }
+  },
+  "description": "A Seed Agents app: the home page of an app, whose attributes declare its name, the arguments a mount takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads. Its `tools` folder holds one app-tool document per tool, each carrying its own code."
+}

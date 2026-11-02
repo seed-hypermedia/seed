@@ -17,11 +17,24 @@ import {NOTICE_TONE_DOT_CLASS} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {ArrowRight, Bot, Check, ChevronDown, CircleUserRound, Mail, Plus, Server, Settings, X} from 'lucide-react'
+import {
+  ArrowRight,
+  Bot,
+  Check,
+  ChevronDown,
+  CircleUserRound,
+  Mail,
+  Package,
+  Plus,
+  Server,
+  Settings,
+  X,
+} from 'lucide-react'
 import {useMemo} from 'react'
 import {useSelectedAccountId} from './account'
 import {AgentListRow} from './agent-row'
 import {AgentTitleMenu} from './agent-title-menu'
+import {AppsDialog} from './apps'
 import {CreateAgentDialog, ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
 import {describeAgentError} from './errors'
 import {NewSessionComposer, type NewSessionAgent} from './new-session-composer'
@@ -67,6 +80,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
   const inviteQueries = useAgentInviteLists(serverUrls, selectedAccountId)
   const healthQueries = useAgentServerHealths(serverUrls)
   const providersDialog = useAppDialog(ModelProvidersDialog)
+  const appsDialog = useAppDialog(AppsDialog)
   const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
   const createAgentDialog = useAppDialog(CreateAgentDialog)
   const serverSettingsDialog = useAppDialog(AgentServersDialog)
@@ -221,6 +235,10 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                             <Settings />
                             Providers
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => appsDialog.open({serverUrl, selectedAccountId})}>
+                            <Package />
+                            Apps
+                          </DropdownMenuItem>
                         </DropdownMenuSubContent>
                       </DropdownMenuSub>
                     )
@@ -258,6 +276,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
           ))}
 
           {providersDialog.content}
+          {appsDialog.content}
           {manageAccountsDialog.content}
           {createAgentDialog.content}
           {serverSettingsDialog.content}

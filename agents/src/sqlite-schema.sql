@@ -341,6 +341,56 @@ CREATE TABLE tool_documents (
 
 CREATE INDEX tool_documents_by_agent ON tool_documents (account_id, agent_id, updated_at DESC);
 
+-- Apps mounted for a space (account_id) or server-wide from the operator's space (account_id ''),
+-- with a snapshot of the app and its tools, and the usage a server-wide mount page gives away. server_bindings caches which agents-server URLs
+-- proved to be this server.
+CREATE TABLE app_mounts (
+    account_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    mount_id TEXT NOT NULL,
+    bundle_id TEXT NOT NULL, -- the app page; the column kept the name from before the type was called app
+    version TEXT,
+    snapshot_cbor BLOB,
+    args_cbor BLOB,
+    secret_refs_cbor BLOB,
+    status_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    usage_cbor BLOB,
+    PRIMARY KEY (account_id, slug)
+) WITHOUT ROWID;
+
+CREATE INDEX app_mounts_by_slug ON app_mounts (slug, account_id);
+
+CREATE TABLE server_bindings (
+    url TEXT PRIMARY KEY,
+    server_uid TEXT,
+    checked_at INTEGER NOT NULL,
+    error TEXT
+) WITHOUT ROWID;
+
+-- Units (pages, calls, whatever the app's usage block names) consumed on a metered app's
+-- server-wide mount, per account and UTC period. A row is reserved before the tool runs (and is
+-- the budget the tool is told), settled to what the tool reports on success, released on failure.
+-- A space's own mount is not recorded.
+CREATE TABLE app_usage (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT,
+    period TEXT NOT NULL,
+    units_reserved INTEGER NOT NULL,
+    units_charged INTEGER NOT NULL DEFAULT 0,
+    state TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX app_usage_by_account ON app_usage (slug, account_id, period, state);
+
+CREATE INDEX app_usage_by_period ON app_usage (slug, period, state);
+
 CREATE TABLE server_config (
     key TEXT PRIMARY KEY,
     value BLOB NOT NULL

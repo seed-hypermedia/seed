@@ -1,0 +1,57 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "tool": {
+      "value": {
+        "type": "hm://hyper.media/string",
+        "pattern": "^[a-z][a-z0-9_-]{1,63}$"
+      },
+      "required": true,
+      "description": "The name the model calls the tool by, the same rules as an authored tool's name. It is unique among the tools of one agent, so an app must not pick a verb's name."
+    },
+    "summary": {
+      "value": {
+        "type": "hm://hyper.media/string"
+      },
+      "required": true,
+      "description": "One sentence on what the tool does, the line the model sees in its Space index."
+    },
+    "runtime": {
+      "value": {
+        "anyOf": [
+          "ts",
+          "python"
+        ]
+      },
+      "required": true,
+      "description": "The language of `code`: `ts` runs with bun, `python` with the python interpreter, in the agents server's sandbox. A server that cannot run the runtime refuses the mount and says so."
+    },
+    "timeoutSecs": {
+      "value": {
+        "type": "hm://hyper.media/integer"
+      },
+      "description": "How long one call may run, in seconds, up to the server's cap for app tools (thirty minutes). Without it the server's default execution timeout applies."
+    },
+    "inputSchema": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "required": true,
+      "description": "The contract a call is validated against: an `ipfs://<cid>` naming a DAG-CBOR object that holds a JSON Schema, object-rooted and in the subset the server validates, the same an authored lambda's schema follows. An object, because a JSON Schema needs lists (`required`, `enum`) and a document's attributes hold scalars and maps; a reference, so the page carries no payload."
+    },
+    "outputSchema": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "description": "Likewise, what the tool returns, when the result is to be checked."
+    },
+    "code": {
+      "value": {
+        "type": "hm://hyper.media/ipfs-url"
+      },
+      "required": true,
+      "description": "The tool's code: an `ipfs://<cid>` naming one file, or a UnixFS folder whose entry is `index.ts` (`runtime: ts`) or `main.py` (`runtime: python`). The agents server fetches it at mount, checks every file against its content id, and runs the entry in its sandbox for the spaces that mounted the app. The entry follows the lambda ABI with a second argument: `export default async function (input, ctx)` in TypeScript, `def main(input, ctx)` in Python."
+    }
+  },
+  "description": "One tool of a Seed Agents app: a page under the app page's `tools` folder whose attributes name the tool, say what runtime its code needs, and reference the contract (`inputSchema`, `outputSchema`) and the code the agents server runs, each an `ipfs://` content id. The body is the tool's documentation, the instructions the model reads with the contract."
+}

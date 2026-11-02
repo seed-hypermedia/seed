@@ -25,7 +25,7 @@ On startup, `sqlite.open()` either: <!-- id:2_LU9c3d -->
 
 The service never runs against an unknown schema state. On rejection, `main.ts` serves a 500 on every route and logs both versions. <!-- id:Cxj6ftns -->
 
-Migrations live in the `migrations` array in `sqlite.ts` and are **prepend-only**: new entries go at the top of the literal and the array is `.reverse()`d. Index order then equals apply order, and `desiredVersion` is `migrations.length`. Each migration applies inside its own savepoint within one transaction, and a failure rolls the whole batch back. The schema version is 29 as of October 2026. `sqlite-schema.sql` is the fresh-install baseline and must stay equivalent to baseline + every migration. <!-- id:hd8VJE3g -->
+Migrations live in the `migrations` array in `sqlite.ts` and are **prepend-only**: new entries go at the top of the literal and the array is `.reverse()`d. Index order then equals apply order, and `desiredVersion` is `migrations.length`. Each migration applies inside its own savepoint within one transaction, and a failure rolls the whole batch back. The schema version is 30 as of October 2026. `sqlite-schema.sql` is the fresh-install baseline and must stay equivalent to baseline + every migration. <!-- id:hd8VJE3g -->
 
 # Tables <!-- id:6sX7nWzL -->
 
@@ -226,11 +226,25 @@ One row per remote [MCP server](./mcp.md) an account has connected, unique on `(
 
 Every tool an agent holds is a content-addressed [tool document](./tool-document.md), one row per `(account_id, agent_id, name)`: `kind` (`builtin`, `lambda`, or `mcp`), `cid`, `doc_cbor`, `enabled`, timestamps. <!-- id:1FRih0_f -->
 
-`doc_cbor` is the canonical DAG-CBOR encoding of a `ToolDocument` (`agents/src/tool-documents.ts`): `{name, kind, summary, description, input, output?, source?, runtime?, binding?}`. `cid` is the [CIDv1](../cid.md) over exactly those bytes, the same encoding the hypermedia network uses for blobs. The CID is the tool's version. It changes on every edit, so you can always answer "what exactly can this agent run", and publishing a tool to the network later means publishing bytes that already exist. <!-- id:oKNZJ5i3 -->
+`doc_cbor` is the canonical DAG-CBOR encoding of a `ToolDocument` (`agents/src/tool-documents.ts`): `{name, kind, summary, description, input, output?, source?, runtime?, binding?, server?, remoteName?, app?}`. `cid` is the [CIDv1](../cid.md) over exactly those bytes, the same encoding the hypermedia network uses for blobs. The CID is the tool's version. It changes on every edit, so you can always answer "what exactly can this agent run", and publishing a tool to the network later means publishing bytes that already exist. <!-- id:oKNZJ5i3 -->
 
 Builtin rows are materialized (and refreshed when the shipped registry contract changes, detected by CID mismatch) by `ensureBuiltinToolDocuments`, which runs whenever the Space index or a `~/tools` listing is built and on `ListAgentTools`. Builtins carry a `binding` (the runtime executor id) and no source. Lambdas carry authored TypeScript or Python source that runs in the `execute` sandbox when called by name through the [`call`](./call.md) verb. Authored documents are validated before they are ever stored (name pattern `^[a-z][a-z0-9_-]{1,63}$`, 16 KiB description cap, 256 KiB source cap, input and output schemas run through `validateJsonSchemaShape`), because both the Space index and the `call` verb trust stored documents. A lambda may not take a builtin's or a verb's name. Builtins cannot be deleted. They are withheld through the agent's [grants](./grants.md) instead. <!-- id:lWMq9D5P -->
 
 `mcp` rows are projections of `mcp_servers.tools_cbor` filtered by the agent's `definition.mcpServers`, named `<server>__<tool>` and carrying `server` and `remoteName`. `syncMcpToolDocuments` reconciles them (rewrite on CID change, delete when the server is disabled or gone) eagerly on agent and server writes and opportunistically on every listing and run start. They cannot be deleted or replaced by a lambda. A lambda that already holds the name wins. <!-- id:JIVPpvvD -->
+
+App tools are `lambda` rows with `app: {slug, version?, scope}` (`agents/src/app-mounts.ts`, `syncAppToolDocuments`): one per tool of every working mount the account sees, the tool page's code as `source` with the page's schemas under the tool's name and the app's text as the description. They are reconciled wherever the MCP projection is, and after every detection pass that changed something. An authored lambda of the same name wins; an MCP projection yields. They cannot be replaced or deleted by name. A builtin row whose executor left the registry (`convert`, now a mounted app's tool), and an app row an older server projected as a builtin, are swept by `ensureBuiltinToolDocuments`.
+
+## `app_mounts`
+
+One row per app mounted for a space, or server-wide, keyed `(account_id, slug)` with `account_id = ''` for the server scope: `scope`, `mount_id` (the mount page, or the app page in the copy form; `legacy:datalab-api-key` for an account served through its old secret), `bundle_id`, `version` (the app version the snapshot was taken from), `snapshot_cbor` (the app's declaration, its hosts, its skill doc and its tools with their contracts, code and instructions), `args_cbor` (non-secret argument values from the mount page), `secret_refs_cbor` (argument name → secret name, `app-<slug>-<arg>`), `usage_cbor` (the allowance and ceiling a server-wide mount page sets), `status_cbor` (`{state: 'pending' | 'ok' | 'error', error?, checkedAt}`), timestamps. A pass over the mount documents writes it (`refreshAppMounts`); projection and execution read it and never the network. See [agent apps](./agent-apps.md).
+
+## `server_bindings`
+
+Which agents-server URLs proved to be this server: `url` (normalized), `server_uid` (what that URL's `/health` answered), `checked_at`, `error`. A proof is believed for a day, a failed probe for ten minutes, so a binding is checked once and not once per mount.
+
+## `app_usage`
+
+The ledger of metered apps (`agents/src/app-usage.ts`): one row per reservation, `slug`, `account_id`, `agent_id`, `period` (the UTC month), `units_reserved`, `units_charged`, `state` (`reserved`, `settled`, `released`), timestamps. A run on a metered server-wide mount reserves units before it starts and settles them to what the tool reported, or releases them on failure; reserved rows count as used until then, and a reservation older than an hour is taken for lost and released by the next one. A space's own mount is never recorded. The rows of the converter's old `conversion_usage` table were carried over under slug `convert`.
 
 ## `agent_drafts` <!-- id:EtofX1F7 -->
 

@@ -131,9 +131,11 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_SEARXNG_URL` | _(unset)_ | Self-hosted SearXNG base URL. Enables the `web_search` tool. <!-- id:r7A0bkD3 --> |
 | `SEED_AGENTS_CRAWLER_URL` | _(unset)_ | Self-hosted Crawl4AI base URL. Enables browser-render escalation for web reads. <!-- id:0R7M1OGu --> |
 | `SEED_AGENTS_CRAWLER_TOKEN` | _(unset)_ | Bearer token for Crawl4AI (required by Crawl4AI >= 0.9). <!-- id:ABE0a0Tv --> |
+| `SEED_AGENTS_DATALAB_API_KEY` | _(unset)_ | The older spelling of `SEED_AGENTS_APP_CONVERT_APIKEY`: the shared Datalab key of the converter app's server-wide mount. Set it on the hosted server only. The converter's mode, extras and the pages it gives away are on the operator's mount page, not here. |
+| `SEED_AGENTS_APP_<SLUG>_<ARG>` | _(unset)_ | The value of one server-scope app argument, such as a shared API key for an app mounted server-wide from the operator\'s space. See [agent apps](./agent-apps.md). |
 | `SEED_AGENTS_SUBSCRIPTION_AUTH` | _(off)_ | Offer provider OAuth sign-in ("Sign in with ChatGPT"). Only `1`/`true`/`yes`/`on` enables it. <!-- id:Sv4pKPqe --> |
 | `SEED_AGENTS_SESSION_TITLE_GENERATION` | `true` | Name untitled sessions with a dedicated model call. Set exactly `false` to disable. <!-- id:ED7y2rAF --> |
-| `SEED_AGENTS_EXEC_BACKEND` | `microsandbox` | Code-execution backend for `execute` and authored lambda tools. Set empty/`off`/`none` to disable. <!-- id:81BYtsXO --> |
+| `SEED_AGENTS_EXEC_BACKEND` | `microsandbox` | Code-execution backend for `execute`, authored lambda tools and the tools of mounted apps. Set empty/`off`/`none` to disable; a server without it mounts no app. <!-- id:81BYtsXO --> |
 | `SEED_AGENTS_EXEC_IMAGE` | `python` | OCI image used for execution sandboxes. <!-- id:QRvggCQy --> |
 | `SEED_AGENTS_EXEC_TS_IMAGE` | `oven/bun` | OCI image for the `ts` runtime (needs bun). Set empty to withhold ts. <!-- id:yQbjzCnq --> |
 | `SEED_AGENTS_EXEC_CPUS` | `1` | Virtual CPUs per execution sandbox. <!-- id:QRuJer3f --> |
@@ -183,7 +185,9 @@ services:
   searxng:
     image: searxng/searxng:latest
     volumes:
-      - ./searxng:/etc/searxng:rw # settings.yml must enable the json format
+      - ./searxng:/etc/searxng:rw,z # settings.yml must enable the json format; z labels it for SELinux hosts
+    environment:
+      - FORCE_OWNERSHIP=false # the image only reads settings.yml; keep it owned by the operator
     restart: unless-stopped
     # No published ports: reachable on the internal network as http://searxng:8080
 
@@ -217,7 +221,10 @@ environment:
   SEED_AGENTS_SEARXNG_URL: http://searxng:8080
   SEED_AGENTS_CRAWLER_URL: http://crawl4ai:11235
   SEED_AGENTS_CRAWLER_TOKEN: ${CRAWL4AI_API_TOKEN}
+  SEED_AGENTS_DATALAB_API_KEY: ${DATALAB_API_KEY}
 ```
+
+The key is the only converter setting the server takes: the mode, the extras and the allowance and ceiling the server gives away are attributes of the operator's mount page of the [Datalab converter](./apps/convert.md), and the tool's code is the converter's tool page. A server without a key, or without a sandbox, offers no `convert`.
 
 Capacity note: Crawl4AI runs a headless Chromium and documents a >=4 GB RAM minimum plus 1 GB shared memory. Size the host accordingly. The SearXNG and in-process static reader path is lightweight. Crawl4AI is the heavy escalation tier. <!-- id:U9QXiKwN -->
 
@@ -242,7 +249,7 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
 }
 ```
 
-`ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS publication itself chunks [UnixFS](../protocol/files.md) blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from `SEED_AGENTS_SEARXNG_URL` and `SEED_AGENTS_CRAWLER_URL`. `codeExec` derives from the exec backend probe, and `codeExecReason` and `codeExecReasonCode` explain an unavailable sandbox. `codeExecRuntimes` says which runtimes this host offers. `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here. Clients read these fields to grey out what the server cannot run. <!-- id:5FIU-ofh -->
+`ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS publication itself chunks [UnixFS](../protocol/files.md) blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from `SEED_AGENTS_SEARXNG_URL` and `SEED_AGENTS_CRAWLER_URL`. `codeExec` derives from the exec backend probe, and `codeExecReason` and `codeExecReasonCode` explain an unavailable sandbox. `codeExecRuntimes` says which runtimes this host offers. `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here, and whether the apps whose tools are written in it can be mounted. `serverUid` is the server's identity principal, what a space's agents-server binding must prove to be ([agent apps](./agent-apps.md)). Clients read these fields to grey out what the server cannot run. <!-- id:5FIU-ofh -->
 
 # Code execution backend <!-- id:VLdUUR8z -->
 

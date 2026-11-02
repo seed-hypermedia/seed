@@ -60,6 +60,8 @@ Account-owned tables include `account_id`: <!-- id:vuJdoDIn -->
   - sessions; <!-- id:SLr0c6ot -->
   - runs; <!-- id:ekFRPh6l -->
   - tool documents; <!-- id:NqEjnxJ6 -->
+  - MCP servers;
+  - app mounts (a server-wide mount carries an empty account, because it is every account\'s);
   - action idempotency; <!-- id:t-a5Y_Zu -->
   - authorizations. <!-- id:dAsoKOkW -->
 
@@ -120,7 +122,7 @@ Events written by a user's own verb calls carry `actor: 'user'` and are explicit
 # Grants <!-- id:u27bF0_B -->
 
 Two things are [granted](./grants.md) per agent, both stored in `definition.tools`. The verbs themselves are never grants. <!-- id:c2iQDOLW -->
-  - **The callable set**: which of `search`, `query`, `attributes`, `web_search`, `execute` the agent may dispatch. `execute` also drops out when the host cannot run sandboxes. <!-- id:svPa8AfP -->
+  - **The callable set**: which of `search`, `query`, `attributes`, `web_search`, `execute` and the tools of the [apps](./agent-apps.md) mounted for the account (`convert` among them) the agent may dispatch. `execute` drops out when the host cannot run sandboxes, and an app's tools when the app is not mounted or its mount offers nothing. <!-- id:svPa8AfP -->
   - **Publish**: the pseudo-tool `publish` (legacy write-group names still count). Without it, `write` to `hm://` or `ipfs://` returns 403 (`api-service.ts`, `api-service.ts`). Memory writes are never gated. That is the intended line: private files are the agent's workspace, and signed public content is a disclosure. <!-- id:N5F17hzw -->
 
 A [delegate](./delegate.md) child's `tools` narrowing intersects against the parent's full callable set, so delegation can only reduce authority (`narrowDefinitionTools`). The two translations it makes never add authority: a child keeps `publish` only when its `tools` ask for `write` or `publish`, and an authored lambda named in `tools` is kept, without the general `execute`, only when the parent holds `execute`. <!-- id:6GNsOBus -->
@@ -144,6 +146,17 @@ Mitigations present: <!-- id:PtUHslMF -->
   - results are bounded (256 KiB text, 4 MiB per inline image) and server errors become `tool_result.error`; <!-- id:1_EpLlOF -->
   - connections are per run and closed with it. A call has a 120s timeout and a connect has 30s; <!-- id:svG753_g -->
   - deleting a server scrubs it from every agent and deletes the header secrets it owns. <!-- id:DJvUELcZ -->
+
+# App safety
+
+An [app](./agent-apps.md) is a public page any space can publish, and a mount of it is a page in the mounting space. What keeps that safe:
+  - **The sandbox is the boundary.** A tool's code runs in the same microVM the space already trusts with model-written code, under the agent's own principal, with only the mount's arguments and the hosts the app page declares added; nothing a page says can widen that. A tool may not take a builtin's or a verb's name.
+  - **The mount is consent.** The Apps dialog says what an app's code gets before the person publishes the mount, and pins the app's version, so the code consented to is the code that runs until the mount page is edited.
+  - **A mount is acted on only by the server its space is bound to**, and the binding is proven by fetching the bound URL's `/health` and comparing its `serverUid` with the server's own; nothing about URLs is configured. A `scope: server` mount is honored only in the operator's space, the one registered on the site the server reads through.
+  - **Validation is strict on the server**: the app page and every tool page are checked against their types with `checkDocumentSchema`, slugs and tool names against their patterns, argument values against the declarations; the daemon validates nothing on publish and the editor only warns.
+  - **Secrets never come from a document.** A mount page that writes a secret argument is refused; values are stored under `app-<slug>-<arg>` by `SetSecret`, encrypted like every secret, and never appear in a response (`hasValue` only).
+  - **Bounded reads**: every fetch of a pass goes through the read deadline, queries are paged and capped, and an app page may declare at most 32 tools.
+  - Open: `SetSecret` accepts any WRITER of the space as the account, so a writer may store an app secret; whether that should be owner-only is undecided.
 
 # Agent-managed triggers <!-- id:COfrFvPS -->
 
@@ -205,6 +218,7 @@ Mitigations present: <!-- id:bz47yFmI -->
   - raw mode refuses non-text content types; <!-- id:fsh-KI62 -->
   - the Crawl4AI shared token (`SEED_AGENTS_CRAWLER_TOKEN`) gates the crawler so only the agents service can use it; <!-- id:GHxiL2lw -->
   - `web_search` is a granted callable (it is not an always-on verb) and throws a clean error when no SearXNG backend is configured; <!-- id:rIwi_Gnj -->
+  - `convert` is the one tool that carries a third-party key, and the key never leaves the server: the shared key lives in the server's environment, an account's own key in the encrypted secrets table, and both are read only for the duration of the call (`executeConvert`, `api-service.ts`). The model sees the result files, never the request. Spend on the shared key is bounded before each call by the ledger reservation sent to Datalab as `max_pages`, so a runaway document cannot run up the bill. Error messages never echo a key;
   - failures degrade to `tool_result.error` (or a `partial` flag for incomplete search coverage). Nothing is silently made up. <!-- id:i1gzDqSt -->
 
 # Agent memory safety <!-- id:lSwfN2YZ -->
@@ -231,6 +245,7 @@ Agent memory (`agents/src/agent-memory.ts`) exposes a real filesystem directory 
   - sandbox networking is on by default but constrained to a **non-local egress policy** (`NetworkPolicy.fromProfiles(['public'])`, with `nonLocal()` as the older-SDK dialect, `code-exec.ts`). Code reaches the public internet but not the host's private network or cloud-metadata endpoints. DNS uses an explicit resolver set (`SEED_AGENTS_EXEC_DNS`) and never the host's. `SEED_AGENTS_EXEC_ALLOW_NETWORK=false` removes the NIC entirely. On-by-default egress widens the exfiltration surface compared to an offline sandbox. The isolation is the non-local policy plus the memory-only mount. There is no air gap; <!-- id:rVcD6uqo -->
   - CPU count, guest memory, per-exec timeout (clamped to ≤ 300s) and total sandbox lifetime (`timeout + 30s`) are capped server-side. stdout and stderr are bounded to 64 KiB each before reaching the model; <!-- id:V1pbuaC_ -->
   - a lambda's input is baked into its program as a double-`JSON.stringify` literal, so no call input can escape into code (`code-exec.ts`); <!-- id:JI7bmi1s -->
+  - an app's tool runs its page's code with the mount's arguments in the process environment (`SEED_APP_CONTEXT`), never in the program text, which a failed call reports; its egress is limited to the hosts the app page declares (deny by default, DNS allowed, one allow rule per host, or no NIC when it names none; a staged SDK too old to express that refuses the run rather than widening it); it runs under a principal of its own (`app:<slug>:<session>`), so a warm pooled VM never carries a secret into the agent's own code; and it may run up to the page's `timeoutSecs`, at most 30 minutes. It needs no `execute` grant: the mount is the consent and the agent cannot write the code;
   - an authored lambda rides on the **same grant** the `execute` tool needs, or on its own name being listed in the agent's `tools` (how a narrowed child keeps one authored tool without general code execution; see above). Without that check, writing a tool document would be a way around an owner who turned code execution off; <!-- id:5h1AAOPn -->
   - resource note: each concurrent execution boots a microVM with its configured guest memory. There is no per-account concurrency limit yet. A host-wide cap, `SEED_AGENTS_EXEC_MAX_CONCURRENT` (default `CPUs - 2`, at least 1), queues executions first-in first-out and answers 503 after `SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS` (30 s). <!-- id:pU1Hj4Fe -->
 

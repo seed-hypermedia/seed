@@ -108,6 +108,15 @@ export type AgentsSignerDelegation = {
   capabilityBlob?: Uint8Array
 }
 
+/** A typed draft the agents UI asks the platform to start: the type, the name and the attribute values. */
+export type AgentsTypedDocumentInput = {
+  /** The page type, as the draft's `attributesSchema` names it. */
+  schemaUrl: string
+  name: string
+  /** Attribute values written into the draft's metadata beside the binding. */
+  metadata?: Record<string, unknown>
+}
+
 export type AgentsPlatform = {
   /** Session-bound desktop browser bridge and its visible access controls; absent on the web. */
   /** Desktop-only browser access for the agent's owner; the component asks before any website is shared. */
@@ -171,6 +180,14 @@ export type AgentsPlatform = {
    * window). Omitted when the app has none; the agents list then manages servers in a dialog.
    */
   useOpenServerSettings?: () => () => void
+  /**
+   * Hook returning a function that starts a draft typed by `schemaUrl` in the selected account's
+   * space, with its attributes pre-filled, and opens it in the editor; null while no account is
+   * selected. The Apps dialog mounts an app this way: a mount is a page, and the draft carries the
+   * app's address so the person only has to publish. Omitted when the app has no typed-draft
+   * flow; the dialog then leads to the app's page instead.
+   */
+  useCreateTypedDocument?: () => ((input: AgentsTypedDocumentInput) => Promise<void>) | null
   /** Rich block editor used for prompts and chat composition (see {@link AgentsRichEditorProps}). */
   CommentEditor: React.ComponentType<AgentsRichEditorProps>
   /**

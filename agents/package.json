@@ -14,8 +14,8 @@
     "protocol:snapshot": "bun scripts/protocol-surface.ts write",
     "protocol:check": "bun scripts/protocol-surface.ts check",
     "protocol:diff": "bun scripts/protocol-surface.ts diff",
-    "format:check": "prettier --check .",
-    "format:write": "prettier --write .",
+    "format:check": "prettier --check . \"../hypermedia/agent/apps/**/*.{ts,json}\"",
+    "format:write": "prettier --write . \"../hypermedia/agent/apps/**/*.{ts,json}\"",
     "check": "conc 'bun typecheck' 'bun format:write'"
   },
   "overrides": {

@@ -162,7 +162,7 @@ Two packages publish on their own. Pushes to main that touch the [SDK](./sdk.md)
 
 # Contributing to these docs <!-- id:FUbEfrIK -->
 
-This site is the `hypermedia/` folder, and a commit to main publishes it through `.github/workflows/sync-hypermedia.yml`. Pages are plain markdown with a `name` and a one-sentence `summary` in the frontmatter. Links between pages are relative `.md` links. The dialect round-trips losslessly through the [Seed app](../apps/desktop.md). `hypermedia/README.md` explains the layout, and [Publish a folder](./publish-a-folder.md) explains the round trip. <!-- id:N8dBXosg -->
+This site is the `hypermedia/` folder, and a commit to main publishes it through `.github/workflows/sync-hypermedia.yml`. Pages are plain markdown with a `name` and a one-sentence `summary` in the frontmatter. Links between pages are relative `.md` links. The dialect round-trips losslessly through the [Seed app](../apps/desktop.md). `hypermedia/README.md` explains the layout, and [Publish a folder](./publish-a-folder.md) explains the round trip. The home document is also the space's own record, where the desktop keeps settings such as `agentServerUrl` and `spaceAgents`, so on it the sync sets what `index.md` names and leaves the rest alone, and a key is removed by naming it with a null; every other page is owned by its file, and a key missing from the file is removed from the page. <!-- id:N8dBXosg -->
 
 ```sh <!-- id:cKaIfLAn -->
 node scripts/hypermedia/check.mjs     # schemas, lockfile, generated types, bindings, frontmatter
@@ -174,7 +174,8 @@ Rules that matter when you edit: <!-- id:i7YPkwE2 -->
   - Nothing publishes while any relative link is broken, so fix links in the same commit that moves a page. <!-- id:au3AMFtl -->
   - Renaming a file in git publishes a move with a [redirect](../protocol/documents.md) at the old address. <!-- id:Xz4P0KgA -->
   - Deleting a file retires its document on the next push, unless the push runs with `--keep-stale`. <!-- id:n5piDq7x -->
-  - A page with a `*.schema.json` beside it defines a [schema](../schema.md). Keep its path, and let `check.mjs` confirm the lockfile and generated types. <!-- id:NE-QyORm -->
+  - A page with a `*.schema.json` beside it defines a [schema](../schema.md). Keep its path, and let `check.mjs` confirm the lockfile and generated types.
+- A frontmatter value that is a relative path (`code: ./convert.ts`) names a file or folder beside the page; the sync publishes it as the blob the attribute references, and `check.mjs` confirms it exists. <!-- id:NE-QyORm -->
   - Keep the `<!-- id:… -->` comments on lines you keep. They are [block](../protocol/blocks.md) ids. New pages need none. <!-- id:1y4a34hH -->
 
 Corrections are welcome as pull requests, or as [comments](../protocol/comments.md) on the published page. <!-- id:KCHxO4zQ -->

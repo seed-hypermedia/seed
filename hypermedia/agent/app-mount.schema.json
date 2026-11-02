@@ -1,0 +1,58 @@
+{
+  "type": "hm://hyper.media/struct",
+  "properties": {
+    "app": {
+      "value": {
+        "type": "hm://hyper.media/hm-url",
+        "target": "hm://hyper.media/agent/app"
+      },
+      "required": true,
+      "description": "The app to mount, a page typed by agent/app. `?v=` pins the version whose code the space consented to; without a version the mount follows the app's page as it changes."
+    },
+    "scope": {
+      "value": {
+        "anyOf": [
+          "space",
+          "server"
+        ]
+      },
+      "description": "`space`, the default, mounts the app for the space this document is published in. `server` mounts it for every space on the agents server, and is honored only in the server operator's space."
+    },
+    "enabled": {
+      "value": {
+        "type": "hm://hyper.media/boolean"
+      },
+      "description": "A disabled mount keeps its arguments but offers no tools."
+    },
+    "arguments": {
+      "value": {
+        "type": "hm://hyper.media/map",
+        "values": {
+          "type": "hm://hyper.media/value"
+        }
+      },
+      "description": "Values for the bundle's non-secret arguments, keyed by argument name. A secret argument never goes here: it is stored on the agents server and paired with the mount by the app's slug."
+    },
+    "usage": {
+      "value": {
+        "type": "hm://hyper.media/struct",
+        "properties": {
+          "allowance": {
+            "value": {
+              "type": "hm://hyper.media/integer"
+            },
+            "description": "Units each space may consume per period on this mount."
+          },
+          "ceiling": {
+            "value": {
+              "type": "hm://hyper.media/integer"
+            },
+            "description": "Units all spaces together may consume per period on this mount."
+          }
+        }
+      },
+      "description": "What a `scope: server` mount of a metered app gives away: the allowance per space and the ceiling for the whole server, in the app's unit and period. Ignored on a space mount, which spends the space's own key."
+    }
+  },
+  "description": "A mount of a Seed Agents app: a page a space publishes to install an app authored elsewhere, naming the app's page and the argument values. Which agents server acts on it follows from the server the space is bound to."
+}
