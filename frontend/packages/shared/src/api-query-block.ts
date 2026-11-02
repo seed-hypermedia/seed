@@ -9,6 +9,7 @@ import {
 import {GRPCClient} from './grpc-client'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'
 import {entityQueryPathToHmIdPath, hmId} from './utils'
+import {unpackHmId} from './utils/entity-id-url'
 import {HMRequestImplementation} from './api-types'
 import {queryToQueryDocumentsRequest} from './models/query-block-sort'
 import {prepareHMDocumentInfo} from './models/entity'
@@ -98,6 +99,22 @@ function getQueryBlockItemSummary(item: {
     children: item.activitySummary?.childrenCount ?? 0,
     authorUids: [],
   }
+}
+
+/**
+ * Collects bare account references (e.g. an `Owner: hm://<uid>` attribute) from
+ * a result's metadata, so the table can render them without a client round trip.
+ */
+function getMetadataAccountUids(metadata: HMDocumentInfo['metadata']): string[] {
+  const uids: string[] = []
+  for (const value of Object.values(metadata ?? {})) {
+    for (const candidate of Array.isArray(value) ? value : [value]) {
+      if (typeof candidate !== 'string' || !candidate) continue
+      const id = unpackHmId(candidate)
+      if (id && !id.path?.length) uids.push(id.uid)
+    }
+  }
+  return uids
 }
 
 async function loadVisibleAccountsMetadata(
@@ -240,6 +257,7 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
 
         const contributorUids = Array.from(new Set(item.authors))
         contributorUids.slice(0, 3).forEach((uid) => visibleContributorUids.add(uid))
+        getMetadataAccountUids(item.metadata).forEach((uid) => visibleContributorUids.add(uid))
       }
       perf.phaseDurationsMs.itemSummaries += now() - itemSummariesStartedAt
       perf.visibleContributorCount = visibleContributorUids.size
