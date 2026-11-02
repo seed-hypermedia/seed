@@ -63,7 +63,7 @@ export function SidebarFooter({isSidebarVisible = false}: {isSidebarVisible?: bo
     )
   }
   return (
-    <div className="dark:bg-background border-border bg-background mb-px flex w-full items-center rounded-md border transition-all duration-200 ease-in-out">
+    <div className="dark:bg-background border-border bg-background mb-px flex w-full items-center rounded-md border transition-colors duration-200">
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         {selectedAccountData ? (
           <AccountAvatar

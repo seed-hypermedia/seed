@@ -506,7 +506,10 @@ function ImportingStep({onComplete}: {onComplete: (results: ImportResults | null
         {progress && (
           <>
             <div className="h-2 w-full rounded-full bg-gray-200">
-              <div className="h-2 rounded-full bg-blue-600 transition-all" style={{width: `${percent}%`}} />
+              <div
+                className="h-2 w-full origin-left rounded-full bg-blue-600 transition-transform"
+                style={{transform: `scaleX(${percent / 100})`}}
+              />
             </div>
             <SizableText>
               {progress.importedPosts} / {progress.totalPosts} posts imported
