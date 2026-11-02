@@ -120,6 +120,15 @@ beforeAll(async () => {
   await createDocumentUpdate(env.web.baseUrl, sharedSpace, '/team', [
     {type: 'SetAttributes', attrs: [{key: ['name'], value: 'Team agents'}]},
   ])
+  await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, '/team', [
+    {type: 'SetAttributes', attrs: [{key: ['name'], value: 'Site team'}]},
+  ])
+  // The site advertises the test agents server from its home document. The web lists an
+  // advertised server ahead of the configured ones (which default to the hosted server), so the
+  // New menu's Create Agent dialog targets it.
+  await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, '', [
+    {type: 'SetAttributes', attrs: [{key: ['agentServerUrl'], value: serverUrl}]},
+  ])
   const client = createSeedClient(env.web.baseUrl)
   await client.publish(
     await createCapability(
@@ -159,7 +168,7 @@ describe('agent mounting', () => {
     await page.goto(env!.web.baseUrl)
     // Install only this test's deterministic identity in this isolated browser context.
     await page.evaluate(
-      async ({seed, publicKey}) => {
+      async ({seed, publicKey, accountId}) => {
         const prefix = [48, 46, 2, 1, 0, 48, 5, 6, 3, 43, 101, 112, 4, 34, 4, 32]
         const privateKey = await crypto.subtle.importKey(
           'pkcs8',
@@ -177,6 +186,9 @@ describe('agent mounting', () => {
             const transaction = db.transaction('keys-01', 'readwrite')
             transaction.objectStore('keys-01').put(privateKey, 'privateKey')
             transaction.objectStore('keys-01').put(key, 'publicKey')
+            // The key is the account's own key: record it as the signed-in account so the web
+            // page treats this identity as an editor (local-only keys are comment-only).
+            transaction.objectStore('keys-01').put(accountId, 'delegatedAccountUid')
             transaction.oncomplete = () => {
               db.close()
               resolve()
@@ -185,7 +197,11 @@ describe('agent mounting', () => {
           }
         })
       },
-      {seed: Array.from(FIXTURE_ACCOUNT.keyPair.privateKey), publicKey: Array.from(FIXTURE_ACCOUNT.keyPair.publicKey)},
+      {
+        seed: Array.from(FIXTURE_ACCOUNT.keyPair.privateKey),
+        publicKey: Array.from(FIXTURE_ACCOUNT.keyPair.publicKey),
+        accountId: FIXTURE_ACCOUNT.accountId,
+      },
     )
     const directoryUrl = `${env!.web.baseUrl}/server-directory`
     await page.goto(`${directoryUrl}/:sessions`)
@@ -283,7 +299,9 @@ describe('agent mounting', () => {
     })
     // New agents are created from a document's New menu, under that document, at a path derived
     // from the agent's name. The server sees one CreateAgent action with that document ID.
-    await page.goto(`${env!.web.baseUrl}/hm/${sharedSpace.accountId}/team`)
+    // A site only edits its own space (other spaces are read-only there), so the New menu is
+    // exercised on the site's /team document.
+    await page.goto(`${env!.web.baseUrl}/team`)
     await page.getByRole('button', {name: 'Choose what to create', exact: true}).click()
     await page.getByRole('menuitem', {name: 'Agent', exact: true}).click()
     await dialog.getByLabel('Name', {exact: true}).fill('New local helper')
@@ -291,7 +309,8 @@ describe('agent mounting', () => {
     expect(await dialog.getByText('System prompt', {exact: true}).count()).toBe(0)
     expect(await dialog.getByText('Thoroughness').count()).toBe(0)
     const createButton = dialog.getByRole('button', {name: 'Create Agent', exact: true})
-    await vi.waitFor(async () => expect(await createButton.isEnabled()).toBe(true))
+    // The button enables once the provider's model list has been discovered through the server.
+    await vi.waitFor(async () => expect(await createButton.isEnabled()).toBe(true), {timeout: 15_000})
     await page.screenshot({path: path.join(tmpdir(), 'seed-agent-create-location.png')})
     let createRequests = 0
     await page.route(`${localServerUrl}/api/message`, async (route) => {
@@ -310,11 +329,11 @@ describe('agent mounting', () => {
     })
     await createButton.click()
     await page.getByText('Test response lost', {exact: true}).waitFor()
-    const newId = `hm://${sharedSpace.accountId}/team/new-local-helper`
+    const newId = `hm://${FIXTURE_ACCOUNT.accountId}/team/new-local-helper`
     expect(await send({_: 'GetAgent', agentId: newId})).toMatchObject({agent: {id: newId}})
     // Retry reuses the published document, the signing identity and the request.
     await dialog.getByRole('button', {name: 'Retry', exact: true}).click()
-    await page.waitForURL(`${env!.web.baseUrl}/hm/${sharedSpace.accountId}/team/new-local-helper/:sessions`)
+    await page.waitForURL(`${env!.web.baseUrl}/team/new-local-helper/:sessions`)
     expect(createRequests).toBe(2)
     await page.reload()
     await page.getByRole('link', {name: 'Settings', exact: true}).waitFor()
@@ -328,16 +347,16 @@ describe('agent mounting', () => {
     const identity = identities.identities.find((identity) => identity.name === newAgent.agent.definition.signingKey)!
     const home = unpackHmId(`hm://${identity.accountId}`)!
     const {capabilities} = await client.request('ListCapabilities', {targetId: home})
-    const grants = capabilities.filter((cap) => cap.delegate === sharedSpace.accountId && cap.role === 'WRITER')
+    const grants = capabilities.filter((cap) => cap.delegate === FIXTURE_ACCOUNT.accountId && cap.role === 'WRITER')
     expect(grants).toHaveLength(1)
     const grant = grants[0]!
     expect(grant.path || '').toBe('')
     expect(grant.noRecursive).not.toBe(true)
     expect(grant.isExact).not.toBe(true)
-    expect(capabilities.some((cap) => cap.delegate === FIXTURE_ACCOUNT.accountId)).toBe(false)
+    expect(capabilities.some((cap) => cap.delegate === sharedSpace.accountId)).toBe(false)
     // Prove the mount space's key can edit the agent's existing root and create descendants.
     const homeState = await resolveDocumentState(client, home.id)
-    const mountOwnerSigner = createSignerFromKey(sharedSpace.keyPair)
+    const mountOwnerSigner = createSignerFromKey(FIXTURE_ACCOUNT.keyPair)
     const change = createChangeOps({
       genesisCid: CID.parse(homeState.genesis),
       deps: homeState.heads.map((head) => CID.parse(head)),
@@ -373,7 +392,7 @@ describe('agent mounting', () => {
       document: {metadata: {name: 'Owner note'}},
     })
     expect(await client.request('Resource', unpackHmId(newId)!)).toMatchObject({document: {content: []}})
-    await page.goto(`${env!.web.baseUrl}/hm/${sharedSpace.accountId}/team/new-local-helper`)
+    await page.goto(`${env!.web.baseUrl}/team/new-local-helper`)
     await page.getByRole('link', {name: 'Open home document', exact: true}).waitFor()
     await page.getByText('This is an agentic account.', {exact: true}).waitFor()
     expect(await page.getByRole('link', {name: 'Content', exact: true}).count()).toBe(0)
@@ -421,7 +440,7 @@ describe('agent mounting', () => {
         }),
       })
     })
-    await page.goto(`${env!.web.baseUrl}/hm/${sharedSpace.accountId}/team/new-local-helper/:prompt`)
+    await page.goto(`${env!.web.baseUrl}/team/new-local-helper/:prompt`)
     await page.getByText('Domain guide content loaded', {exact: true}).waitFor()
     expect(await page.getByText('failed to parse account hyper.media', {exact: false}).count()).toBe(0)
 
