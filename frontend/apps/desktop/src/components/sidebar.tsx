@@ -2,7 +2,6 @@ import {grpcClient} from '@/grpc-client'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useUnreadNotificationsBySpace} from '@/models/notification-inbox'
-import {useMyAccountIds} from '@/models/daemon'
 import {useSelectedAccountId} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import {defaultJoinedSiteUid, hmId} from '@shm/shared'
@@ -27,7 +26,6 @@ export function AppSidebar() {
       .then(() => invalidateQueries([queryKeys.SUBSCRIPTIONS]))
       .catch((error) => console.error('Failed to subscribe to default joined site', error))
   }, [selectedAccountId])
-  const ownSites = useMyAccountIds()
   const routeSite = getRouteSpaceUid(route)
   const [lastSite, setLastSite] = useState<string | null>(() => {
     try {
@@ -52,7 +50,6 @@ export function AppSidebar() {
     <GenericSidebarContainer>
       <SiteSidebar
         siteId={siteId}
-        ownSiteUids={ownSites.data ?? []}
         unreadNotificationsBySite={unreadNotificationsBySite}
         onNavigate={(id) => navigate({key: 'document', id})}
         explore={<ExploreButton />}

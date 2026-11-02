@@ -8,7 +8,7 @@ import {UniversalAppProvider} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {SiteSidebar} from '../site-sidebar'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
-const viewer = vi.hoisted(() => ({uid: 'own', desktop: false}))
+const viewer = vi.hoisted(() => ({uid: 'own', desktop: false, joined: ['joined', 'joined', 'older', 'missing']}))
 vi.mock('@shm/shared/constants', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   get IS_DESKTOP() {
@@ -18,13 +18,13 @@ vi.mock('@shm/shared/constants', async (importOriginal) => ({
 vi.mock('@shm/shared/models/entity', () => ({
   useDirectory: () => ({data: undefined}),
   useSelectedAccountId: () => viewer.uid || null,
+  useAccount: (uid: string) => ({data: {metadata: {name: uid}}}),
   useAccounts: (uids: string[]) => uids.map((uid) => ({data: {metadata: {name: uid}}})),
 }))
 vi.mock('@shm/shared/models/contacts', () => ({
   useSelectedAccountContacts: () => ({
     data: [
-      {subject: 'joined', subscribe: {site: true}},
-      {subject: 'joined', subscribe: {site: true}},
+      ...viewer.joined.map((subject) => ({subject, subscribe: {site: true}})),
       {subject: 'person', subscribe: {profile: true}},
     ],
   }),
@@ -43,6 +43,7 @@ beforeEach(() => {
   unread = {}
   viewer.uid = 'own'
   viewer.desktop = false
+  viewer.joined = ['joined', 'joined', 'older', 'missing']
   container = document.createElement('div')
   document.body.append(container)
   root = createRoot(container)
@@ -71,12 +72,7 @@ function Page({isGateway = true}: {isGateway?: boolean}) {
           } as any
         }
       >
-        <SiteSidebar
-          siteId={hmId(site)}
-          ownSiteUids={['own', 'other-own']}
-          unreadNotificationsBySite={unread}
-          onNavigate={(id) => setSite(id.uid)}
-        >
+        <SiteSidebar siteId={hmId(site)} unreadNotificationsBySite={unread} onNavigate={(id) => setSite(id.uid)}>
           <main>{site} home</main>
         </SiteSidebar>
       </UniversalAppProvider>
@@ -107,31 +103,56 @@ describe('site selector', () => {
     expect(container.querySelector('[aria-label="Select site"]')).not.toBeNull()
   })
 
-  it('includes current, own and joined sites once and navigates to the selected home', () => {
+  it('includes the selected account and joined sites once and navigates to the selected home', () => {
     openSelector()
     const options = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
-    expect(options.map((option) => option.textContent)).toEqual(['current', 'own', 'other-own', 'joined'])
+    expect(options.map((option) => option.textContent)).toEqual(['own', 'joined', 'older', 'missing'])
     act(() => options.find((option) => option.textContent === 'joined')!.click())
     expect(container.querySelector('main')?.textContent).toBe('joined home')
     expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('joined')
   })
 
   it('sorts by latest activity, keeps missing sites last, and navigates with the matching metadata', async () => {
-    activityOrder = ['joined', 'other-own', 'own']
+    activityOrder = ['other-own', 'older', 'own', 'joined']
     openSelector()
     await vi.waitFor(async () => {
       await act(async () => {})
       expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)).toEqual([
-        'joined',
-        'other-own',
+        'older',
         'own',
-        'current',
+        'joined',
+        'missing',
       ])
     })
     expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('current')
     act(() => (document.querySelector('[role="menuitem"]') as HTMLElement).click())
-    expect(container.querySelector('main')?.textContent).toBe('joined home')
-    expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('joined')
+    expect(container.querySelector('main')?.textContent).toBe('older home')
+    expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('older')
+  })
+
+  it('updates membership when switching accounts and leaving sites', () => {
+    openSelector()
+    viewer.uid = 'other-own'
+    viewer.joined = ['current']
+    act(() => root.render(<Page />))
+    const options = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+    expect(options.map((option) => option.textContent)).toEqual(['other-own', 'current'])
+    expect(options[1]?.getAttribute('aria-current')).toBe('true')
+    viewer.joined = []
+    act(() => root.render(<Page />))
+    expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)).toEqual([
+      'other-own',
+    ])
+    expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('current')
+  })
+
+  it('shows the own site only once when it is also joined', () => {
+    viewer.joined = ['own', 'own']
+    openSelector()
+    const options = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+    expect(options.map((option) => option.textContent)).toEqual(['own'])
+    act(() => options[0]!.click())
+    expect(container.querySelector('main')?.textContent).toBe('own home')
   })
 
   it('clears a site notification indicator when its unread count is cleared', () => {
@@ -143,12 +164,10 @@ describe('site selector', () => {
     expect(document.querySelector('[role="menu"]')?.textContent).not.toContain('unread notifications')
   })
 
-  it('shows only the current site when signed out, even with cached contacts', () => {
+  it('shows no sites when signed out, even with cached contacts', () => {
     viewer.uid = ''
     unread = {current: 3}
     openSelector()
-    expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((option) => option.textContent)).toEqual([
-      'current',
-    ])
+    expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((option) => option.textContent)).toEqual([])
   })
 })

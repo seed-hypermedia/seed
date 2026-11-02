@@ -2,7 +2,7 @@ import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, ListAccountsRequest, useRouteLink, useUniversalAppContext, useUniversalClient} from '@shm/shared'
 import {IS_DESKTOP} from '@shm/shared/constants'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
-import {useAccounts, useDirectory, useSelectedAccountId} from '@shm/shared/models/entity'
+import {useAccount, useAccounts, useDirectory, useSelectedAccountId} from '@shm/shared/models/entity'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {useQuery} from '@tanstack/react-query'
 import {Check, ChevronsUpDown, Search} from 'lucide-react'
@@ -18,7 +18,6 @@ import {cn} from './utils'
 /** Shared sidebar content for web and desktop; platform shells own its size and visibility. */
 export function SiteSidebar({
   siteId,
-  ownSiteUids = [],
   unreadNotificationsBySite = {},
   siteSelectorModal = false,
   onNavigate,
@@ -27,7 +26,6 @@ export function SiteSidebar({
   children,
 }: {
   siteId: UnpackedHypermediaId
-  ownSiteUids?: string[]
   unreadNotificationsBySite?: Record<string, number>
   /** Keeps the portaled menu scrollable inside the mobile sidebar's modal dialog. */
   siteSelectorModal?: boolean
@@ -40,16 +38,14 @@ export function SiteSidebar({
   const accountUid = useSelectedAccountId()
   const contacts = useSelectedAccountContacts()
   const siteUids = Array.from(
-    new Set([
-      siteId.uid,
-      ...(accountUid
+    new Set(
+      accountUid
         ? [
             accountUid,
-            ...ownSiteUids,
             ...(contacts.data?.filter((contact) => contact.subscribe?.site).map((contact) => contact.subject) ?? []),
           ]
-        : []),
-    ]),
+        : [],
+    ),
   )
   const client = useUniversalClient()
   const activityOrder = useQuery({
@@ -74,7 +70,7 @@ export function SiteSidebar({
     (a, b) =>
       (activityRanks.get(a.uid) ?? Number.MAX_SAFE_INTEGER) - (activityRanks.get(b.uid) ?? Number.MAX_SAFE_INTEGER),
   )
-  const current = accounts[0]?.data
+  const current = useAccount(siteId.uid).data
   const directory = useDirectory(siteId, {mode: 'AllDescendants'})
   const route = useNavRouteOrNull()
   const exploreLink = useRouteLink(

@@ -382,7 +382,8 @@ export function AccountProfileButton() {
                         key={option.id.uid}
                         className="hover:bg-accent flex w-full items-center gap-3 rounded-md px-2 py-2"
                         onClick={() => {
-                          setSelectedIdentity?.(option.id.uid || null)
+                          setSelectedIdentity?.(option.id.uid)
+                          navigate({key: 'document', id: hmId(option.id.uid)})
                           setSwitcherOpen(false)
                         }}
                       >
