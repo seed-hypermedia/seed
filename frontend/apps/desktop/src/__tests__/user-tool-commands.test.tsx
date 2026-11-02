@@ -12,16 +12,37 @@ vi.mock('@shm/ui/agents/models', () => ({
 }))
 vi.mock('@shm/ui/toast', () => ({toast: {error: vi.fn(), success: vi.fn()}}))
 
-import {UserToolPalette} from '@shm/ui/agents/user-tool-palette'
+import {useUserToolCommands} from '@shm/ui/agents/user-tool-commands'
 
-function render() {
+/** Renders the `/` menu's tool commands as buttons, as the editor's slash menu would list them. */
+function Harness(props: Partial<Parameters<typeof useUserToolCommands>[0]>) {
+  const {getSlashMenuItems, form} = useUserToolCommands({
+    serverUrl: 'http://localhost:3050',
+    accountId: 'z6MkTest',
+    sessionId: 's1',
+    agentTools: undefined,
+    ...props,
+  })
+  return (
+    <>
+      <div data-testid="menu">
+        {getSlashMenuItems().map((item) => (
+          <button key={item.name} type="button" onClick={item.onSelect}>
+            {item.name}
+          </button>
+        ))}
+      </div>
+      {form}
+    </>
+  )
+}
+
+function render(props: Partial<Parameters<typeof useUserToolCommands>[0]> = {}) {
   const container = document.createElement('div')
   document.body.appendChild(container)
   const root = createRoot(container)
   act(() => {
-    root.render(
-      <UserToolPalette serverUrl="http://localhost:3050" accountId="z6MkTest" sessionId="s1" agentTools={undefined} />,
-    )
+    root.render(<Harness {...props} />)
   })
   return {container, root}
 }
@@ -48,10 +69,9 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('UserToolPalette', () => {
+describe('useUserToolCommands', () => {
   it('runs a read as the user with the typed address', async () => {
     const {container, root} = render()
-    click(container.querySelector('button'))
     click(findByText('Read'))
     const input = document.body.querySelector('input')
     expect(input).toBeTruthy()
@@ -70,41 +90,44 @@ describe('UserToolPalette', () => {
       verb: 'read',
       input: {address: '~/memory/notes.md'},
     })
+    expect(document.body.querySelector('form')).toBeNull()
     cleanup(root, container)
   })
 
-  it('shows a loading state instead of granting all callables while the agent definition loads', () => {
-    const container = document.createElement('div')
-    document.body.appendChild(container)
-    const root = createRoot(container)
-    act(() => {
-      root.render(
-        <UserToolPalette
-          serverUrl="http://localhost:3050"
-          accountId="z6MkTest"
-          sessionId="s1"
-          agentTools={undefined}
-          agentToolsLoading
-        />,
-      )
-    })
-    click(container.querySelector('button'))
-    expect(document.body.textContent).toContain("Loading this agent's tools")
+  it('leaves callables out instead of granting all while the agent definition loads', () => {
+    const {container, root} = render({agentToolsLoading: true})
+    expect(findByText('Read')).toBeTruthy()
     expect(findByText('Web Search')).toBeUndefined()
     cleanup(root, container)
   })
 
   it('hides execute when the server reports code execution unavailable', () => {
     const {container, root} = render()
-    click(container.querySelector('button'))
     expect(findByText('Web Search')).toBeTruthy()
     expect(findByText('Execute Code')).toBeUndefined()
     cleanup(root, container)
   })
 
+  it('offers no commands without a session to target or chat-only access', () => {
+    const draft = render({sessionId: undefined})
+    expect(draft.container.querySelector('[data-testid="menu"]')!.children).toHaveLength(0)
+    cleanup(draft.root, draft.container)
+    const chatOnly = render({enabled: false})
+    expect(chatOnly.container.querySelector('[data-testid="menu"]')!.children).toHaveLength(0)
+    cleanup(chatOnly.root, chatOnly.container)
+  })
+
+  it('keeps a form open but unable to run while blocked', async () => {
+    const {container, root} = render({blockedReason: 'Wait for the agent to finish'})
+    click(findByText('Read'))
+    expect(document.body.textContent).toContain('Wait for the agent to finish')
+    const run = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent === 'Run')
+    expect(run?.disabled).toBe(true)
+    cleanup(root, container)
+  })
+
   it('routes a callable through the call verb envelope', async () => {
     const {container, root} = render()
-    click(container.querySelector('button'))
     click(findByText('Web Search'))
     const input = document.body.querySelector('input')
     act(() => {

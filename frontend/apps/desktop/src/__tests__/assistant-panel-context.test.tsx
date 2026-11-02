@@ -222,7 +222,7 @@ function click(element: Element | null | undefined) {
 
 /** The agent dropdown's trigger, whose label is the current filter. */
 function pickerTrigger() {
-  return document.body.querySelector('.group\\/agentpicker button') as HTMLButtonElement | null
+  return document.body.querySelector('[data-agent-picker] button') as HTMLButtonElement | null
 }
 
 /** Clicks an entry inside the open agent dropdown (list rows can carry the same agent names). */
@@ -468,17 +468,16 @@ describe('assistant sidebar', () => {
     expect(mockState.marked).toEqual([])
   })
 
-  it('New chat in the top bar returns from a chat to the list, cursor in its composer', () => {
+  it('expands an open chat to its full session page from the top bar, with no new-chat button', () => {
     act(() => {
       root.render(<AssistantPanel initialSessionId={`${LOCAL} | s-a1`} />)
     })
     expect(hasActiveSession()).toBe(true)
-    const newChat = buttonByTitle('New chat')
-    // The button lives in the top bar beside the agent dropdown.
-    expect(newChat?.closest('.window-drag')).toBeTruthy()
-    click(newChat)
-    expect(hasActiveSession()).toBe(false)
-    expect(document.activeElement).toBe(composer())
+    expect(buttonByTitle('New chat')).toBeFalsy()
+    const expand = buttonByTitle('Expand to full screen')
+    expect(expand?.closest('.window-drag')).toBeTruthy()
+    click(expand)
+    expect(mockState.navigate).toHaveBeenCalledWith(expect.objectContaining({key: 'agent-session', sessionId: 's-a1'}))
   })
 
   it('offers agent creation and the full Agents page from the agent dropdown', () => {

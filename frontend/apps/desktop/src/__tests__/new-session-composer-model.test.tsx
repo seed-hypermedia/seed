@@ -166,7 +166,7 @@ describe('NewSessionComposer model choice', () => {
     render()
     expect(mockState.badgeProps!.agent.id).toBe('alpha')
     // The empty editor names who the new chat will be with.
-    expect(mockState.composerProps!.placeholder).toBe('Start a chat with Alpha')
+    expect(mockState.composerProps!.placeholder).toBe('New Chat with Alpha')
     act(() => mockState.badgeProps!.draft.onChange({modelOverride: ALPHA_MINI}))
     expect(mockState.badgeProps!.modelOverride).toEqual(ALPHA_MINI)
 
@@ -181,7 +181,7 @@ describe('NewSessionComposer model choice', () => {
 
     pickAgent('Bravo')
     expect(mockState.badgeProps!.agent.id).toBe('bravo')
-    expect(mockState.composerProps!.placeholder).toBe('Start a chat with Bravo')
+    expect(mockState.composerProps!.placeholder).toBe('New Chat with Bravo')
     expect(mockState.badgeProps!.modelOverride).toBeUndefined()
     expect(mockState.badgeProps!.thoroughness).toBeUndefined()
 

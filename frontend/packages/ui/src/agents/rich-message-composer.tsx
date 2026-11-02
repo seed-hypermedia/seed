@@ -1,20 +1,20 @@
 import {trimTrailingEmptyBlocks} from '@seed-hypermedia/client'
 import {Button} from '@shm/ui/button'
 import {cn} from '@shm/ui/utils'
-import {CornerLeftUp, Send, Square} from 'lucide-react'
+import {CornerLeftUp, SendHorizontal, Square} from 'lucide-react'
 import React, {useRef, useState} from 'react'
 import type {RunStatus, SessionAttachmentInfo} from './client'
 import {type AgentSessionDraftMessage, uploadFileToAgentServer} from './models'
 import {getAgentsPlatform, type AgentsRichEditorGetContent, type AgentsRichEditorSubmitHandle} from './platform'
 import {promptBlocksToMarkdown} from './prompt-editor'
-import {UserToolPalette} from './user-tool-palette'
+import {useUserToolCommands} from './user-tool-commands'
 
 /**
  * The one rich message composer for agent sessions.
  *
  * Shared by the full session page and the assistant sidebar so both get the same input: rich
- * blocks with markdown serialization, file attachments as session-private uploads, the user tool
- * palette, queue-aware send, and stop. Any composer feature belongs here, not in a per-surface
+ * blocks with markdown serialization, file attachments as session-private uploads, `/` tool
+ * commands the user runs themselves, queue-aware send, and stop. Any composer feature belongs here, not in a per-surface
  * copy.
  */
 
@@ -101,16 +101,16 @@ export function AgentRichMessageComposer({
   stopPending: boolean
   serverUrl: string
   accountId: string | null
-  /** Absent for a draft: no session exists yet, so attachments stay off and the tool palette —
-   * which needs one to target — renders disabled until the first send creates it. */
+  /** Absent for a draft: no session exists yet, so attachments stay off, and `/` tool commands —
+   * which need one to target — are offered only when {@link onToolStartSession} can create it. */
   sessionId?: string
-  /** The agent definition's tools array, for the user tool palette's callable list. */
+  /** The agent definition's tools array, for the `/` menu's callable tools. */
   agentTools?: string[]
-  /** True while the agent definition is loading; the palette shows a loading state. */
+  /** True while the agent definition is loading; callable tools are left out of the `/` menu until it loads. */
   agentToolsLoading?: boolean
   /** Focus the editor when the composer mounts. On by default, like the full session page. */
   focusOnMount?: boolean
-  /** Whether the user tool palette is offered. Off for chat-only access, which cannot run session tools. */
+  /** Whether `/` tool commands are offered. Off for chat-only access, which cannot run session tools. */
   canInvokeTools?: boolean
   /** External handle for imperative focus/submit (e.g. the sidebar's new-chat flows). */
   composerHandleRef?: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
@@ -139,6 +139,18 @@ export function AgentRichMessageComposer({
   /** Metadata for every attachment uploaded from this composer, keyed by id, so a sent message
    * can carry the infos of the attachments its blocks still reference. */
   const uploadedAttachmentsRef = useRef(new Map<string, SessionAttachmentInfo>())
+  const toolCommands = useUserToolCommands({
+    serverUrl,
+    accountId,
+    sessionId,
+    agentTools,
+    agentToolsLoading,
+    enabled: canInvokeTools,
+    blockedReason: isBusy ? 'Wait for the agent to finish' : undefined,
+    onStartSession: sessionId ? undefined : onToolStartSession,
+    onSessionStarted: onToolSessionStarted,
+    onClose: () => requestAnimationFrame(() => submitHandleRef.current?.focus({moveCursorToEnd: true})),
+  })
 
   // The editor captures handleFileAttachment on creation, so route changing values through a ref.
   const uploadContextRef = useRef({accountId, sessionId})
@@ -217,60 +229,59 @@ export function AgentRichMessageComposer({
           </div>
         </div>
       ) : null}
-      <div className="flex items-end gap-2 px-3 py-2">
-        {/* The compact chat sizing is desktop-only: iOS Safari zooms the whole page whenever a
-            focused field is under 16px, so phones get 16px in the composer instead. */}
-        <div
-          style={placeholderStyle}
-          className="min-w-0 flex-1 font-sans [&_.ProseMirror]:font-sans max-sm:[&_.ProseMirror]:!text-base sm:[&_.ProseMirror]:!text-sm [&_.comment-editor]:!min-h-8 [&_.comment-editor]:!pt-1 [&_.comment-editor]:!pb-1 [&_.comment-editor]:font-sans sm:[&_.comment-editor]:!text-sm [&_.comment-editor_.ProseMirror]:!min-h-0 [&_.comment-editor_.bn-editor]:!min-h-0 sm:[&_.hm-prose]:!text-sm"
-        >
-          <CommentEditor
-            focusOnMount={focusOnMount}
-            hideAvatar
-            hideSubmitToolbar
-            disableTrailingNode
-            submitOnEnter
-            submitHandleRef={submitHandleRef}
-            handleFileAttachment={sessionId ? handleFileAttachment : undefined}
-            initialBlocks={[]}
-            onContentChange={(blocks) => setDraftMarkdown(promptBlocksToMarkdown(trimTrailingEmptyBlocks(blocks)))}
-            handleSubmit={(getContent, reset) => void submitRichMessage(getContent, reset)}
-            submitButton={() => <></>}
-          />
-        </div>
-        <div className="flex shrink-0 gap-1 pb-1">
-          {canInvokeTools ? (
-            <UserToolPalette
-              serverUrl={serverUrl}
-              accountId={accountId}
-              sessionId={sessionId}
-              agentTools={agentTools}
-              agentToolsLoading={agentToolsLoading}
-              disabled={isBusy}
-              onStartSession={sessionId ? undefined : onToolStartSession}
-              onSessionStarted={onToolSessionStarted}
-            />
-          ) : null}
-          {draftMarkdown.trim() ? (
-            <Button
-              size="sm"
-              className="max-sm:size-10"
-              onClick={() => submitHandleRef.current?.submit()}
-              title={isBusy ? 'Send while the agent is working' : 'Send'}
-            >
-              <Send className="size-3.5" />
-            </Button>
-          ) : !isBusy ? (
-            <Button size="sm" className="max-sm:size-10" disabled>
-              <Send className="size-3.5" />
-            </Button>
-          ) : null}
-          {isStreaming ? (
-            <Button size="sm" variant="destructive" className="max-sm:size-10" onClick={onStop} disabled={stopPending}>
-              <Square className="size-3" />
-            </Button>
-          ) : null}
-        </div>
+      {toolCommands.form}
+      {/* The compact comment composer, field and round send button alike, so a chat input reads
+          the same as a comment input. */}
+      <div style={placeholderStyle} className="px-3 py-2">
+        <CommentEditor
+          compact
+          focusOnMount={focusOnMount}
+          hideAvatar
+          disableTrailingNode
+          submitOnEnter
+          submitHandleRef={submitHandleRef}
+          handleFileAttachment={sessionId ? handleFileAttachment : undefined}
+          initialBlocks={[]}
+          onContentChange={(blocks) => setDraftMarkdown(promptBlocksToMarkdown(trimTrailingEmptyBlocks(blocks)))}
+          handleSubmit={(getContent, reset) => void submitRichMessage(getContent, reset)}
+          submitButton={() => (
+            <>
+              {draftMarkdown.trim() || !isBusy ? (
+                <Button
+                  variant="default"
+                  size="icon"
+                  aria-label="Send"
+                  className="size-12 shrink-0 rounded-full"
+                  disabled={!draftMarkdown.trim()}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    submitHandleRef.current?.submit()
+                  }}
+                  title={isBusy ? 'Send while the agent is working' : 'Send'}
+                >
+                  <SendHorizontal className="size-4" />
+                </Button>
+              ) : null}
+              {isStreaming ? (
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  aria-label="Stop"
+                  className="size-12 shrink-0 rounded-full"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onStop()
+                  }}
+                  disabled={stopPending}
+                >
+                  <Square className="size-3.5" />
+                </Button>
+              ) : null}
+            </>
+          )}
+          getExtraSlashMenuItems={toolCommands.getSlashMenuItems}
+          collapsedLabel={placeholder ?? 'Chat'}
+        />
       </div>
     </div>
   )
