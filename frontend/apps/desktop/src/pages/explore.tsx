@@ -5,8 +5,6 @@ import {parseExploreQuery, type HMExploreResult, type HMExploreResultType} from 
 import {useExploreResults} from '@shm/shared/models/explore'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {PanelContainer} from '@shm/ui/container'
-import type {BreadcrumbEntry} from '@shm/ui/document-header'
-import {DocumentTopBar} from '@shm/ui/document-top-bar'
 import {ExplorePage} from '@shm/ui/explore-page'
 import {useEffect, useMemo, useState} from 'react'
 
@@ -54,15 +52,9 @@ export default function ExploreDesktopPage() {
 
   if (!exploreRoute) return null
 
-  const breadcrumbs: BreadcrumbEntry[] =
-    exploreRoute.context.type === 'site'
-      ? [{id: exploreRoute.context.id, metadata: {}}, {label: 'Explore'}]
-      : [{label: 'Explore'}]
-
   return (
     <PanelContainer>
       <MainWrapper scrollable>
-        <DocumentTopBar breadcrumbs={breadcrumbs} />
         <ExplorePage
           contextLabel={contextLabel(exploreRoute)}
           query={query}

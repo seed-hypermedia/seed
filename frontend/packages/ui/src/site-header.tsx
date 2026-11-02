@@ -26,7 +26,6 @@ import {DocNavigationItem, DocumentOutline, DocumentSmallListItem, useNodesOutli
 import {MobileSearch} from './search'
 import {Separator} from './separator'
 import {SiteLogo} from './site-logo'
-import {SiteSidebarToggle} from './site-sidebar-context'
 import {Tooltip} from './tooltip'
 import useMedia from './use-media'
 import {cn} from './utils'
@@ -199,7 +198,6 @@ export function SiteHeader({
           'flex-start gap-2': !isCenterLayout,
         })}
       >
-        <SiteSidebarToggle />
         <div className={cn('flex min-w-0 overflow-hidden', isCenterLayout ? 'flex-1 justify-center' : '')}>
           <SiteLogo id={headerHomeId} metadata={draftMetadata || homeDoc.document?.metadata} />
         </div>

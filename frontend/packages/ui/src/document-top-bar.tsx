@@ -1,7 +1,9 @@
+import {IS_DESKTOP} from '@shm/shared/constants'
 import {Minimize2} from 'lucide-react'
 import {ReactNode, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {Breadcrumbs, type BreadcrumbEntry} from './document-header'
+import {SiteSidebarToggle} from './site-sidebar-context'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
 
@@ -62,6 +64,7 @@ export function DocumentTopBar({
       )}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2">
+        {!IS_DESKTOP && <SiteSidebarToggle />}
         {breadcrumbs?.length ? <Breadcrumbs breadcrumbs={breadcrumbs} /> : null}
         {status ? (
           <div data-document-status="" className="flex shrink-0 items-center gap-1">

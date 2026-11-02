@@ -84,7 +84,7 @@ export function SiteSidebar({
   )
   return (
     <aside aria-label="Site sidebar" className="bg-background text-sidebar-foreground flex h-full min-h-0 flex-col">
-      <div className="border-border flex shrink-0 flex-col gap-3.5 border-b px-2 py-4">
+      <div className="flex shrink-0 flex-col gap-3.5 px-2 py-4">
         {explore ?? (
           <Button
             asChild

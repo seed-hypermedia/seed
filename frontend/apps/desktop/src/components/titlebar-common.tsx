@@ -65,6 +65,7 @@ import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popove
 import {focusExploreSearch} from '@shm/ui/explore-search-focus'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Back, Forward} from '@shm/ui/icons'
+import {SiteSidebarToggle} from '@shm/ui/site-sidebar-context'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
@@ -588,7 +589,8 @@ export function NavigationButtons() {
   const dispatch = useNavigationDispatch()
   if (!state) return null
   return (
-    <div className="no-window-drag flex shrink-0">
+    <div className="no-window-drag flex shrink-0 items-center">
+      <SiteSidebarToggle />
       <Button
         size="icon"
         onClick={() => dispatch({type: 'pop'})}

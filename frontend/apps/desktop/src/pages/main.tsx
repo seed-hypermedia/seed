@@ -1,4 +1,3 @@
-import {SiteSidebarToggle, useSiteSidebar} from '@shm/ui/site-sidebar-context'
 import {useAppContext, useListen} from '@/app-context'
 
 import {CloseButton} from '@/components/window-controls'
@@ -269,7 +268,6 @@ export default function Main({className}: {className?: string}) {
                 {sidebar}
                 <Panel id="page">
                   <div className="flex h-full min-h-0 flex-col">
-                    <NonSitePageHeader />
                     <div className="min-h-0 flex-1">
                       <ErrorBoundary
                         resetKeys={[routeKey]}
@@ -556,17 +554,5 @@ function WindowClose() {
     <div className="no-window-drag absolute top-0 right-0 size-[26px] items-center justify-center">
       <CloseButton />
     </div>
-  )
-}
-
-function NonSitePageHeader() {
-  const sidebar = useSiteSidebar()
-  const route = useNavRoute()
-  if (!sidebar || sidebar.hasPageContent) return null
-  return (
-    <header className="border-border flex h-12 shrink-0 items-center gap-2 border-b px-4">
-      <SiteSidebarToggle />
-      <span className="font-semibold capitalize">{route.key.replaceAll('-', ' ')}</span>
-    </header>
   )
 }

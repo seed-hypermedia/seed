@@ -1,4 +1,4 @@
-import {PanelLeftClose, PanelLeftOpen} from 'lucide-react'
+import {PanelLeft} from 'lucide-react'
 import {createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode} from 'react'
 import {createPortal} from 'react-dom'
 import {Button} from './button'
@@ -81,7 +81,6 @@ export function SiteSidebarToggle() {
   const sidebar = useSiteSidebar()
   if (!sidebar) return null
   const label = sidebar.open ? 'Close sidebar' : 'Open sidebar'
-  const Icon = sidebar.open ? PanelLeftClose : PanelLeftOpen
   return (
     <Tooltip content={label}>
       <Button
@@ -92,7 +91,7 @@ export function SiteSidebarToggle() {
         className="no-window-drag text-muted-foreground hover:text-muted-foreground size-7 min-w-7 shrink-0 opacity-50 focus-visible:ring-2"
         onClick={() => sidebar.setOpen(!sidebar.open)}
       >
-        <Icon className="size-5" />
+        <PanelLeft className="size-5" strokeWidth={1.5} />
       </Button>
     </Tooltip>
   )
