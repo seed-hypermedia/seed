@@ -2,7 +2,7 @@
 # Push to the server with `docker save seedhypermedia/web:dev | ssh -C <user>@<server_IP> docker load`
 # docker run -e ENV_EXAMPLE=yes-it -p 3000:3000 --rm --name seed-web seed-web:latest
 
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 ARG PREBUILT=false
 ARG SENTRY_AUTH_TOKEN
@@ -35,7 +35,7 @@ RUN rm -rf ./frontend/apps/explore
 RUN pnpm install --frozen-lockfile
 RUN if [ "$PREBUILT" != "true" ]; then NODE_OPTIONS="--max-old-space-size=4096" pnpm web:prod; fi
 
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 
 ARG COMMIT_HASH
 ARG BRANCH
