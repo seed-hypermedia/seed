@@ -1,5 +1,6 @@
 import {readFile} from 'node:fs/promises'
 import {pathToFileURL} from 'node:url'
+import {parse as parseYaml} from 'yaml'
 
 /** Rejects prerelease pins and majors outside Electron's latest three stable release lines. */
 export function checkElectronSupport(version, releases) {
@@ -20,10 +21,11 @@ export function checkElectronSupport(version, releases) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const desktop = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
-    const root = JSON.parse(await readFile(new URL('../../../../package.json', import.meta.url), 'utf8'))
+    // pnpm 11 keeps the workspace overrides in pnpm-workspace.yaml, not package.json#pnpm.
+    const workspace = parseYaml(await readFile(new URL('../../../../pnpm-workspace.yaml', import.meta.url), 'utf8'))
     const metadata = JSON.parse(await readFile(new URL('../electron-release.json', import.meta.url), 'utf8'))
     if (
-      root.pnpm.overrides.electron !== desktop.devDependencies.electron ||
+      workspace.overrides?.electron !== desktop.devDependencies.electron ||
       metadata.version !== desktop.devDependencies.electron
     ) {
       throw new Error('Desktop Electron pin, workspace override and electron-release.json must agree')
