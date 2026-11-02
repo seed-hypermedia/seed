@@ -1,7 +1,7 @@
 import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
 import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
-import {createContext, useContext} from 'react'
+import {createContext, useCallback, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
 import type {NavRoute} from './routes'
@@ -20,6 +20,7 @@ import {
   mountedAgentRoute,
 } from './utils'
 import type {StateStream} from './utils/stream'
+import {resolveDomainHmUrl} from './utils/resolve-domain-hm-url'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -157,6 +158,23 @@ export function UniversalAppProvider(props: {
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   domainResolver?: DomainResolverFn
 }) {
+  const {openUrl: hostOpenUrl, domainResolver, universalClient} = props
+  // A link to `hm://<domain>/...` is resolved to its account before the host opens it; on a
+  // failed resolution the host still gets the link as written and shows its own error.
+  const openUrl = useCallback(
+    (url: string, newWindow?: boolean) => {
+      const resolving = resolveDomainHmUrl(url, {domainResolver, universalClient})
+      if (!resolving) return hostOpenUrl(url, newWindow)
+      resolving.then(
+        (resolved) => hostOpenUrl(resolved, newWindow),
+        (error) => {
+          console.error('Could not resolve the domain in', url, error)
+          hostOpenUrl(url, newWindow)
+        },
+      )
+    },
+    [hostOpenUrl, domainResolver, universalClient],
+  )
   return (
     <UniversalAppContext.Provider
       value={{
@@ -165,7 +183,7 @@ export function UniversalAppProvider(props: {
         origin: props.origin,
         ipfsFileUrl: props.ipfsFileUrl,
         getOptimizedImageUrl: props.getOptimizedImageUrl,
-        openUrl: props.openUrl,
+        openUrl,
         openRoute: props.openRoute,
         openRouteNewWindow: props.openRouteNewWindow,
         onCopyReference: props.onCopyReference,
