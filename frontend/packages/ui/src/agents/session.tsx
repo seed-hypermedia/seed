@@ -59,7 +59,8 @@ import {
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {Container, PanelContainer} from '@shm/ui/container'
+import {Container} from '@shm/ui/container'
+import {AgentPane} from './pane'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
@@ -357,7 +358,7 @@ export function AgentSessionPage({
       </p>
     )
   return (
-    <PanelContainer className="flex flex-col overflow-hidden">
+    <AgentPane embedded={embedded} className="flex flex-col overflow-hidden">
       {agent.data && !embedded && <AgentMountBanner agent={agent.data.agent} serverUrl={serverUrl} />}
       {!embedded && (
         <div className="border-border flex-none border-b">
@@ -597,7 +598,7 @@ export function AgentSessionPage({
           </div>
         ) : null}
       </div>
-    </PanelContainer>
+    </AgentPane>
   )
 }
 

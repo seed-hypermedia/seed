@@ -2285,6 +2285,10 @@ function DocumentBody({
   // A mounted agent's document is the agent: no cover, icon, title, byline or timestamp above
   // its tabs, which are the whole page.
   const isAgentDocument = document.metadata.type === 'hm://hyper.media/agent'
+  // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
+  // the page around it stops scrolling and hands it the remaining height, as a document page does.
+  const isAgentView = route.key === 'document' && !!route.agentView
+  const fixedHeightMain = !!documentPage || isAgentView
 
   // Extract blockRef from route for scroll-to-block and highlighting
   const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
@@ -3099,9 +3103,11 @@ function DocumentBody({
     <div
       className={cn(
         'flex flex-col',
-        pageFooter &&
-          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
-        !pageFooter && 'min-h-full',
+        isAgentView
+          ? 'h-full min-h-0'
+          : pageFooter
+            ? 'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]'
+            : 'min-h-full',
       )}
     >
       {documentConversionDialog}
@@ -3276,6 +3282,7 @@ function DocumentBody({
       <div
         className={cn(
           'flex-1',
+          isAgentView && 'flex min-h-0 flex-col',
           activeView !== 'content' && activeView !== 'comments' && 'pb-60',
           isMobile && !expandedPanel && 'px-4',
         )}
@@ -3430,7 +3437,7 @@ function DocumentBody({
     return (
       <>
         <div
-          className={cn('relative flex flex-1 flex-col', documentPage ? 'h-full min-h-0 overflow-hidden' : 'pb-20')}
+          className={cn('relative flex flex-1 flex-col', fixedHeightMain ? 'h-full min-h-0 overflow-hidden' : 'pb-20')}
           ref={elementRef}
         >
           {documentTopBar}
@@ -3495,7 +3502,7 @@ function DocumentBody({
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
-          {documentPage ? (
+          {fixedHeightMain ? (
             mainPageContent
           ) : (
             <ScrollArea
@@ -3510,7 +3517,7 @@ function DocumentBody({
             </ScrollArea>
           )}
           {activeView === 'comments' && <div ref={setMainCommentsFooter} className="shrink-0" />}
-          {activeView === 'content' && !documentPage ? (
+          {activeView === 'content' && !fixedHeightMain ? (
             <Button
               ref={backToTopButtonRef}
               type="button"

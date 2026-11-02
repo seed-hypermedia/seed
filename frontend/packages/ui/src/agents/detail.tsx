@@ -76,7 +76,8 @@ import {SelectDropdown} from '@shm/ui/select-dropdown'
 import {Switch} from '@shm/ui/components/switch'
 import {Textarea} from '@shm/ui/components/textarea'
 import {AccountSearchInput, type SearchResult} from '@shm/ui/collaborators-page'
-import {Container, PanelContainer} from '@shm/ui/container'
+import {Container} from '@shm/ui/container'
+import {AgentPane} from './pane'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
@@ -552,12 +553,14 @@ export function AgentDetailPage({
   ) : null
 
   return (
-    <PanelContainer className="flex flex-col overflow-hidden">
+    <AgentPane embedded={embedded} className="flex flex-col overflow-hidden">
       {agent.data && !embedded && <AgentMountBanner agent={agent.data.agent} serverUrl={serverUrl} />}
-      <div className={isSubpage ? 'border-border flex-none border-b' : 'contents'}>
+      {/* A trigger's back bar is a flat header box; its body renders below. The prompt page keeps
+          the scrolling column so its editor can grow. */}
+      <div className={isTriggerDetail ? 'border-border flex-none border-b' : 'contents'}>
         <Container
           className={
-            isSubpage
+            isTriggerDetail
               ? 'max-w-4xl gap-4 pt-4 pb-4'
               : // The memory browser is a two-pane file explorer: reading width limits do not apply,
                 // so it takes the whole window. The side padding moves inside the header's own
@@ -892,7 +895,7 @@ export function AgentDetailPage({
           readOnly={!canWrite}
         />
       ) : null}
-    </PanelContainer>
+    </AgentPane>
   )
 }
 

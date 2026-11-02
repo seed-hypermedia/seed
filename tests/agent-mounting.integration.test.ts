@@ -455,6 +455,7 @@ describe('agent mounting', () => {
     await page.waitForURL(`${env!.web.baseUrl}/new-local-helper/:settings`)
     await page.getByRole('button', {name: 'Edit prompt', exact: true}).click()
     await page.waitForURL(`${env!.web.baseUrl}/new-local-helper/:settings/prompt`)
+    await page.screenshot({path: path.join(tmpdir(), 'seed-agent-prompt.png')})
     expect(await page.getByText('failed to parse account hyper.media', {exact: false}).count()).toBe(0)
 
     expect(errors).toEqual([])

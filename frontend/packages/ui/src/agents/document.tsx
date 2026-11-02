@@ -59,7 +59,8 @@ export default function MountedAgentDocument({document, route, children, content
       />
     )
   return (
-    <div className="flex h-[70vh] min-h-96 flex-col">
+    // The page gives this column its height (see fixedHeightMain in resource-page-common).
+    <div className="flex min-h-0 flex-1 flex-col">
       {route.agentView === 'session' && route.agentSessionId ? (
         <AgentSessionPage
           embedded
