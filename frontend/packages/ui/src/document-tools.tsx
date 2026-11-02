@@ -183,7 +183,7 @@ export function DocumentTools({
           return slug ? `activity/${slug}` : null
         })()
       : null
-  const buttons: {
+  type ToolButton = {
     label: string
     tooltip: string
     icon: LucideIcon
@@ -193,7 +193,10 @@ export function DocumentTools({
     route: NavRoute
     bg?: string
     leading?: React.ReactNode
-  }[] =
+    /** Which document tool this is; the agent tab bar hides some of them. */
+    kind?: 'comments' | 'collaborators' | 'citations' | 'metadata' | 'schema'
+  }
+  const allButtons: ToolButton[] =
     mode === 'inspect' && inspectRoute
       ? (
           inspectTabs || [
@@ -269,6 +272,7 @@ export function DocumentTools({
         }))
       : [
           {
+            kind: 'comments' as const,
             label: 'Comments',
             tooltip: 'Open Document Comments',
             icon: MessageCircle,
@@ -277,6 +281,7 @@ export function DocumentTools({
             route: openPanel(currentPanel?.key === 'comments' ? currentPanel : {key: 'comments', id: idWithoutBlock}),
           },
           {
+            kind: 'collaborators' as const,
             label: `${collabsCount} ${collabsCount === 1 ? 'person' : 'people'}`,
             tooltip: 'Open Document Collaborators',
             icon: Users,
@@ -285,6 +290,7 @@ export function DocumentTools({
             route: openPanel({key: 'collaborators', id: idWithoutBlock}),
           },
           {
+            kind: 'citations' as const,
             label: 'Connections',
             tooltip: 'Open Document Connections',
             icon: Route,
@@ -297,6 +303,7 @@ export function DocumentTools({
             }),
           },
           {
+            kind: 'metadata' as const,
             label: 'Attributes',
             tooltip: 'Open Document Attributes',
             icon: Info,
@@ -312,6 +319,7 @@ export function DocumentTools({
           ...(activeTab === 'schema'
             ? [
                 {
+                  kind: 'schema' as const,
                   label: 'Schema',
                   tooltip: 'Open the schema this document defines',
                   icon: FileCode2,
@@ -321,7 +329,18 @@ export function DocumentTools({
               ]
             : []),
         ]
-  if ((hasAgent || agentHome) && mode === 'document') {
+  const isAgentTabBar = (hasAgent || agentHome) && mode === 'document'
+  // An agent's tab bar is about the agent: the document tools only show when they have something
+  // to show (a comment, a custom attribute) or are already open; connections and people never do.
+  const buttons = isAgentTabBar
+    ? allButtons.filter((button) => {
+        if (button.kind === 'collaborators' || button.kind === 'citations') return false
+        if (button.kind === 'comments') return button.active || commentsCount > 0
+        if (button.kind === 'metadata') return button.active || metadataCount > 0
+        return true
+      })
+    : allButtons
+  if (isAgentTabBar) {
     // Agent views replace the document body, so the agent tab bar needs a tab back to it.
     // Link to the latest content at the base path, never the resolved version.
     const documentRoute: NavRoute = {

@@ -10,6 +10,8 @@ import {queryKeys} from '@shm/shared/models/query-keys'
 import {UniversalClient} from '@shm/shared/universal-client'
 import {getParentPaths} from '@shm/shared/utils/breadcrumbs'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {registerWebAgentsPlatform} from '@/web-agents-platform'
+import {useMountedAgentDeletion} from '@shm/ui/agents/delete-mounted-agent'
 import {DeleteDocumentDialog} from '@shm/ui/delete-document-dialog'
 import {Spinner} from '@shm/ui/spinner'
 import {Text} from '@shm/ui/text'
@@ -49,6 +51,13 @@ function WebDeleteDocumentDialog({
   const doc = useResource(id)
   const directory = useQuery(queryDirectory(client, id, 'AllDescendants'))
   const childDocs = getChildDocuments(id, directory.data)
+  // A mounted agent goes with its document; the agent server call is signed by the same account.
+  registerWebAgentsPlatform()
+  const agentDeletion = useMountedAgentDeletion(
+    id,
+    doc.data?.type === 'document' ? doc.data.document.metadata : undefined,
+    signingAccountId,
+  )
 
   if (doc.isLoading)
     return (
@@ -78,9 +87,11 @@ function WebDeleteDocumentDialog({
       }))}
       canDelete={canDelete && !!signingAccountId}
       cannotDeleteReason={!signingAccountId ? 'No signing account available' : 'Not allowed to delete'}
-      onConfirm={() => {
+      subject={agentDeletion.isAgent ? 'agent' : 'document'}
+      onConfirm={async () => {
         if (!signingAccountId) throw new Error('No signing account available')
-        return deleteWebDocuments(client, {
+        await agentDeletion.deleteAgent()
+        await deleteWebDocuments(client, {
           ids: [id, ...childDocIds],
           signingAccountId,
           capabilityId,

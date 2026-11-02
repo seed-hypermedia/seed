@@ -1,7 +1,7 @@
 import {useResource} from '@shm/shared/models/entity'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {PageLayout} from '../page-layout'
-import {useRouteLink, hmId} from '@shm/shared'
+import {hmId} from '@shm/shared'
 import type {AgentInfo} from './client'
 import {useAgentDetail, useSigningIdentities} from './models'
 import {AgentServerError} from './client'
@@ -104,7 +104,6 @@ function AgentHome({
   const home = identity?.accountId ? hmId(identity.accountId) : null
   const resource = useResource(home, {subscribed: true})
   const Viewer = useReadOnlyViewer()
-  const homeLink = useRouteLink(home ? {key: 'document', id: home} : null)
   if (identities.isInitialLoading || resource.isInitialLoading) return <Spinner />
   if (identities.isError) return <p role="alert">Could not load the agent home.</p>
   if (!home) return <p>This agent has no home identity.</p>
@@ -114,9 +113,6 @@ function AgentHome({
     <div className="px-5 py-4">
       <PageLayout contentMaxWidth={contentMaxWidth}>
         <div className="flex flex-col gap-4">
-          <a {...homeLink} className="text-primary self-end text-sm underline">
-            Open home document
-          </a>
           {Viewer && (
             <Viewer
               blocks={homeDocument.content}

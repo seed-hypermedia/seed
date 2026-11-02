@@ -662,7 +662,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     if (!effectiveCanEdit || !signingAccountId || isHomeTarget) return null
     return {
       key: 'delete',
-      label: 'Delete Document',
+      // A mounted agent's document is deleted as the agent (server side included).
+      label: currentDocument?.metadata.type === 'hm://hyper.media/agent' ? 'Delete Agent' : 'Delete Document',
       icon: <Trash className="size-4" />,
       variant: 'destructive',
       onClick: () => {
@@ -674,7 +675,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         })
       },
     }
-  }, [docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
+  }, [currentDocument?.metadata.type, docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
   const optionsMenuItems = useMemo(
     () =>
       [

@@ -1177,7 +1177,8 @@ export default function DesktopResourcePage() {
   if (canEdit && docId.path?.length) {
     menuItems.push({
       key: 'delete',
-      label: 'Delete Document',
+      // A mounted agent's document is deleted as the agent (server side included).
+      label: doc?.metadata.type === 'hm://hyper.media/agent' ? 'Delete Agent' : 'Delete Document',
       icon: <Trash className="size-4" />,
       variant: 'destructive',
       onClick: () => {

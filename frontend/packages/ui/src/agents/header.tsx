@@ -27,23 +27,16 @@ import {
   ArrowLeft,
   Brain,
   Check,
-  ChevronDown,
   ChevronsUpDown,
   GitBranch,
-  Globe,
   Loader2,
   MessageSquarePlus,
   MessagesSquare,
   ScrollText,
   Settings,
-  UserRound,
   Users,
   Wrench,
 } from 'lucide-react'
-import {useSigningIdentities} from './models'
-import {SigningIdentityIcon} from './signing-identity-icon'
-import {useRouteLink} from '@shm/shared/routing'
-import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Fragment, type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 
 export type AgentPageTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'collaborators' | 'settings'
@@ -73,7 +66,8 @@ export function AgentBreadcrumb({
   const navigate = useNavigate()
   const localServerUrl = useLocalAgentServerUrl()
   // The desktop-managed server is a named place, not an address: its port moves between launches,
-  // so "localhost:3050" in a breadcrumb is noise at best and wrong at worst.
+  // so "localhost:3050" in a breadcrumb is noise at best and wrong at worst. A server is only a
+  // label here: it has no page of its own, agents are reached through their documents.
   const serverLabel = serverUrl ? describeAgentServer(serverUrl, localServerUrl.data) : null
   return (
     <nav className="text-muted-foreground flex items-center gap-1 text-xs" aria-label="Agent breadcrumb">
@@ -199,65 +193,6 @@ export function AgentSubpageHeader({
   )
 }
 
-/**
- * The one account this agent signs as, worn beside its name: an avatar-and-name pill opening
- * "Open Space" / "Open Profile". Rendered only when the identity picture is unambiguous — exactly
- * one granted signing key, resolved to an account. Zero or several keys is a story the Tools tab
- * tells; a chip picking one of several would misattribute the agent.
- */
-function AgentIdentityChip({
-  serverUrl,
-  agentId,
-  definition,
-}: {
-  serverUrl: string
-  agentId: string
-  definition: AgentDefinition
-}) {
-  const accountUid = useSelectedAccountId()
-  const identities = useSigningIdentities(serverUrl, accountUid, agentId)
-  const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
-  const granted = (identities.data || []).filter((identity) => signingKeys.includes(identity.name))
-  const identity = signingKeys.length === 1 && granted.length === 1 ? granted[0] : undefined
-  const accountId = identity?.accountId
-  const spaceLink = useRouteLink(accountId ? {key: 'document', id: hmId(accountId)} : null)
-  const profileLink = useRouteLink(accountId ? {key: 'site-profile', id: hmId(accountId), tab: 'profile'} : null)
-  if (!identity || !accountId) return null
-
-  const displayName = identity.label || identity.name
-  return (
-    <OptionsDropdown
-      ariaLabel={`Signing identity: ${displayName}`}
-      align="start"
-      button={
-        <button
-          type="button"
-          title={`Signs as ${displayName}`}
-          className="border-border hover:bg-muted/60 flex max-w-56 min-w-0 flex-none items-center gap-1.5 rounded-full border py-0.5 pr-2 pl-0.5"
-        >
-          <SigningIdentityIcon identity={identity} name={displayName} size={20} />
-          <span className="text-muted-foreground min-w-0 truncate text-xs font-medium">{displayName}</span>
-          <ChevronDown className="text-muted-foreground size-3 flex-none" />
-        </button>
-      }
-      menuItems={[
-        {
-          key: 'space',
-          label: 'Open Space',
-          icon: <Globe className="size-4" />,
-          onClick: (event) => spaceLink.onClick?.(event),
-        },
-        {
-          key: 'profile',
-          label: 'Open Profile',
-          icon: <UserRound className="size-4" />,
-          onClick: (event) => profileLink.onClick?.(event),
-        },
-      ]}
-    />
-  )
-}
-
 export function AgentHeader({
   agent,
   agentId,
@@ -371,9 +306,6 @@ export function AgentHeader({
                   onRename={onEditName}
                 />
               )}
-              {agent && agentId ? (
-                <AgentIdentityChip serverUrl={serverUrl} agentId={agentId} definition={agent.definition} />
-              ) : null}
             </div>
             {!agent ? (
               <SizableText color="muted" className="block">

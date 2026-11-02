@@ -498,28 +498,28 @@ export function AgentDetailPage({
       onCreateSession={canChat ? () => startComposerRef.current?.focus({moveCursorToEnd: true}) : undefined}
       onCreateTrigger={canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined}
       canCreateTrigger={!!selectedAccountId && canWrite}
+      // A mounted agent (embedded in its document) has no menu of its own: deleting the document
+      // deletes the agent, and moving happens through the document.
       menuItems={
-        isOwner
+        isOwner && !embedded
           ? [
-              !embedded
-                ? {
-                    key: 'move-server',
-                    label: 'Move to another server…',
-                    icon: <ArrowRightLeft className="size-4" />,
-                    disabled: !selectedAccountId,
-                    onClick: () =>
-                      moveAgentDialog.open({
-                        sourceServerUrl: serverUrl,
-                        selectedAccountId,
-                        agentId,
-                        agentName: name,
-                        modelProvider: agent.data?.agent.definition.modelProvider ?? '',
-                        sessionsCount: sessionCount,
-                        onMoved: ({serverUrl: movedServerUrl, agentId: movedAgentId}) =>
-                          navigate({key: 'agent', agentId: movedAgentId, serverUrl: movedServerUrl}),
-                      }),
-                  }
-                : null,
+              {
+                key: 'move-server',
+                label: 'Move to another server…',
+                icon: <ArrowRightLeft className="size-4" />,
+                disabled: !selectedAccountId,
+                onClick: () =>
+                  moveAgentDialog.open({
+                    sourceServerUrl: serverUrl,
+                    selectedAccountId,
+                    agentId,
+                    agentName: name,
+                    modelProvider: agent.data?.agent.definition.modelProvider ?? '',
+                    sessionsCount: sessionCount,
+                    onMoved: ({serverUrl: movedServerUrl, agentId: movedAgentId}) =>
+                      navigate({key: 'agent', agentId: movedAgentId, serverUrl: movedServerUrl}),
+                  }),
+              },
               {
                 key: 'delete-agent',
                 label: 'Delete agent…',

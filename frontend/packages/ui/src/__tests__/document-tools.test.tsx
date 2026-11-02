@@ -76,8 +76,55 @@ describe('DocumentTools', () => {
       agentView: 'sessions',
       id: {version: null, path: ['helper']},
     })
-    for (const label of ['Content', 'Tools', 'Settings', 'Attributes', 'Comments'])
+    for (const label of ['Content', 'Tools', 'Settings'])
       expect(container.querySelector(`[data-label="${label}"]`)).not.toBeNull()
+  })
+
+  it("trims an agent's tab bar to the document tools that have something to show", () => {
+    act(() =>
+      root.render(
+        <DocumentTools
+          id={hmId('alice', {path: ['helper']})}
+          hasAgent
+          activeTab="content"
+          commentsCount={0}
+          metadataCount={0}
+          citationsCount={4}
+          collabsCount={3}
+        />,
+      ),
+    )
+    const labels = () =>
+      Array.from(container.querySelectorAll('[data-label]'))
+        .filter((tab) => !tab.closest('[aria-hidden="true"]'))
+        .map((tab) => tab.getAttribute('data-label'))
+    // Nothing to show: no comments, no custom attributes; connections and people never show here.
+    expect(labels()).toEqual(['Content', 'Sessions', 'Tools', 'Triggers', 'Memory', 'Prompt', 'Agent access', 'Settings'])
+
+    act(() =>
+      root.render(
+        <DocumentTools id={hmId('alice', {path: ['helper']})} hasAgent activeTab="content" commentsCount={2} metadataCount={1} />,
+      ),
+    )
+    expect(labels()).toContain('Comments')
+    expect(labels()).toContain('Attributes')
+    expect(labels()).not.toContain('Connections')
+    expect(labels()).not.toContain('3 people')
+  })
+
+  it('keeps an open Comments or Attributes panel in the agent tab bar even when empty', () => {
+    act(() =>
+      root.render(
+        <DocumentTools
+          id={hmId('alice', {path: ['helper']})}
+          hasAgent
+          activeTab="comments"
+          currentPanel={{key: 'comments', id: hmId('alice', {path: ['helper']})}}
+          commentsCount={0}
+        />,
+      ),
+    )
+    expect(container.querySelector('[data-label="Comments"]')?.getAttribute('data-active')).toBe('true')
   })
   it('replaces Content with the agent Home tab even before registration finishes', () => {
     act(() => root.render(<DocumentTools id={hmId('alice', {path: ['bob']})} agentHome activeTab="content" />))
