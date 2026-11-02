@@ -248,6 +248,17 @@ type ExecuteInput = {
 - Output: `{summary, exitCode, success, stdout, stderr, truncated, durationMs, changedFiles}`. stdout and stderr are bounded at 64 KiB each. `changedFiles` is a before/after listing diff of memory. Live progress streams a \~2000-char output tail at most every 250 ms. <!-- id:Zr_CQ4Uz -->
 - The SDK loads lazily and `availability()` is memoized. Hosts without virtualization run normally, and the tool is absent there instead of failing (`code-exec.ts`, with codes `config-disabled`, `unsupported-platform`, `whp-disabled`, `kvm-missing`, `kvm-forbidden`, `runtime-error`). <!-- id:nzXZhUiw -->
 
+## What not to keep in /workspace
+
+`/workspace` is a shared mount. Several microVMs can hold the same memory directory at once: one per open session, one per [trigger](./trigger.md) firing, plus overflow VMs when the warm VM is busy. The host side [read](./read.md) and [write](./write.md) verbs touch the same files. Page caches and file locks are not coherent across those VMs, so two of them writing one file at the same time can tear it. The server is moving to one writable VM per memory root at a time, but host verbs and the guest still overlap, so the rules below stay.
+
+- Do not keep a SQLite database under `/workspace`. This has happened in production: an agent kept its inbox state in a SQLite file there, got `disk I/O error` and a corrupt unique index, and then hung in `flock` and `fsync`.
+- Do not keep lock files, or any file that needs atomic or locked writes.
+- Do not append to one shared log from several firings.
+- Do not read a shared JSON file, change it, and write it back from code.
+- Keep durable state in memory files written whole with the [write](./write.md) verb. Prefer one file per event or record over appending to a shared file. Merge them later in a single run when you need a summary.
+- Treat `disk I/O error`, `database is locked`, or a corrupt index under `/workspace` as two writers colliding. The disk is fine. Move the state out of the shared file.
+
 ## Authored (lambda) tools <!-- id:tzwll2x7 -->
 
 A lambda runs its stored source in the same sandbox. The call's validated input goes in and its return value comes back (`executeLambdaTool`, `api-service.ts`). The ABI (`tool-documents.ts`): <!-- id:8p-mQ8J7 -->
