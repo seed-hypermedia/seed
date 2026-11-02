@@ -69,6 +69,10 @@ export function extractAgentDocumentView(
   if (parts.at(-2) === ':triggers' && parts.at(-1)) {
     return {path: parts.slice(0, -2), agentView: 'triggers', agentTriggerId: parts.at(-1)}
   }
+  // The prompt is a page inside Settings; the bare `:prompt` form is older links.
+  if (parts.at(-2) === ':settings' && parts.at(-1) === 'prompt') {
+    return {path: parts.slice(0, -2), agentView: 'prompt'}
+  }
   const term = parts.at(-1)
   if (
     term &&
@@ -101,6 +105,7 @@ export function agentDocumentViewPath(route: DocumentRoute): string | undefined 
   if (!route.agentView) return undefined
   if (route.agentView === 'triggers' && route.agentTriggerId)
     return `:triggers/${encodeURIComponent(route.agentTriggerId)}`
+  if (route.agentView === 'prompt') return ':settings/prompt'
   return route.agentView === 'session'
     ? `:session/${encodeURIComponent(route.agentSessionId || '')}`
     : `:${route.agentView}`
@@ -194,7 +199,7 @@ export function extractViewTermFromUrl(url: string): {
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
   const agentMatch = inspectCleanUrl.match(
-    /\/(:(?:sessions|tools|triggers|memory|prompt|access)|:session\/([^/?#]+)|:triggers\/([^/?#]+))(?=[?#]|$)/,
+    /\/(:(?:sessions|tools|triggers|memory|prompt|access)|:settings\/prompt|:session\/([^/?#]+)|:triggers\/([^/?#]+))(?=[?#]|$)/,
   )
   if (agentMatch) {
     try {
@@ -206,7 +211,9 @@ export function extractViewTermFromUrl(url: string): {
           ? 'session'
           : agentMatch[3]
             ? 'triggers'
-            : agentMatch[1]!.slice(1)) as DocumentRoute['agentView'],
+            : agentMatch[1] === ':settings/prompt'
+              ? 'prompt'
+              : agentMatch[1]!.slice(1)) as DocumentRoute['agentView'],
         ...(agentMatch[2] ? {agentSessionId: decodeURIComponent(agentMatch[2])} : {}),
         ...(agentMatch[3] ? {agentTriggerId: decodeURIComponent(agentMatch[3])} : {}),
       }

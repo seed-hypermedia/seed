@@ -99,6 +99,7 @@ import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
+import {useMountedAgentProfileMenuItem} from '@shm/ui/agents/mounted-agent-menu'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import type {AttributeAutocomplete, AttributeSuggestionKind} from '@shm/ui/value-editor'
 import {SizableText} from '@shm/ui/text'
@@ -962,8 +963,12 @@ export default function DesktopResourcePage() {
   const destinationDialog = useAppDialog(DocumentDestinationDialog, {className: 'w-full max-w-2xl'})
   const worldBuilderDialog = useAppDialog(WorldBuilderDialog, {className: 'w-full max-w-xl'})
 
+  // A mounted agent's menu opens the profile the agent signs as.
+  const agentProfileMenuItem = useMountedAgentProfileMenuItem(docId, doc?.metadata)
+
   const menuItems: MenuItemType[] = []
 
+  if (agentProfileMenuItem) menuItems.push(agentProfileMenuItem)
   menuItems.push(
     createCopyLinkMenuItem({
       advanced: experiments?.advancedCopyLinkOptions,

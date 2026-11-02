@@ -444,7 +444,7 @@ describe('agent mounting', () => {
         }),
       })
     })
-    await page.goto(`${env!.web.baseUrl}/new-local-helper/:prompt`)
+    await page.goto(`${env!.web.baseUrl}/new-local-helper/:settings/prompt`)
     await page.getByText('Domain guide content loaded', {exact: true}).waitFor()
     expect(await page.getByText('failed to parse account hyper.media', {exact: false}).count()).toBe(0)
 

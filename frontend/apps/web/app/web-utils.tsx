@@ -196,7 +196,7 @@ export function useWebCreateDocumentMenuItem({
   const navigate = useNavigate()
   const importInputRef = useRef<HTMLInputElement>(null)
   const client = useUniversalClient()
-  const createAgent = useWebCreateAgentAtLocation(locationId, signingAccountId)
+  const createAgent = useWebCreateAgentAtLocation(locationId, signingAccountId, !locationId.path?.length)
 
   const createDraft = useCallback(
     (visibility?: HMResourceVisibility, collection = false) => {
@@ -310,14 +310,16 @@ export function useWebCreateDocumentMenuItem({
 function useWebCreateAgentAtLocation(
   locationId: UnpackedHypermediaId,
   signingAccountId: string | undefined,
+  /** Whether the document on screen is the home document; the entry is only offered there. */
+  atHome: boolean,
 ): {open?: () => void; content: ReactNode} {
   registerWebAgentsPlatform()
   const dialog = useAppDialog(CreateAgentDialog)
   const serverUrls = useAgentServerUrls().data
   const open = useMemo(() => {
-    if (!serverUrls?.length || !signingAccountId || locationId.path?.length) return undefined
+    if (!serverUrls?.length || !signingAccountId || !atHome || locationId.path?.length) return undefined
     return () => dialog.open({serverUrls, selectedAccountId: signingAccountId, location: locationId})
-  }, [dialog.open, locationId, serverUrls, signingAccountId])
+  }, [atHome, dialog.open, locationId, serverUrls, signingAccountId])
   return {open, content: dialog.content}
 }
 
@@ -352,7 +354,7 @@ function WebActorCreateButton({
     parentIsCollection,
     canEditParent,
   })
-  const createAgent = useWebCreateAgentAtLocation(destination, signingAccountId)
+  const createAgent = useWebCreateAgentAtLocation(destination, signingAccountId, !locationId.path?.length)
   const actor = useActorRef(documentCreationMachine, {
     input: {
       currentId: locationId,

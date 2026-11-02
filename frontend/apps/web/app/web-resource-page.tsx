@@ -1,3 +1,5 @@
+import {registerWebAgentsPlatform} from '@/web-agents-platform'
+import {useMountedAgentProfileMenuItem} from '@shm/ui/agents/mounted-agent-menu'
 import {HMDocument, HMDocumentInfo, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
@@ -522,6 +524,9 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
   const currentResource = useResource(useLocalDraftShell ? undefined : docId)
   const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
+  // A mounted agent's menu opens the profile the agent signs as.
+  registerWebAgentsPlatform()
+  const agentProfileMenuItem = useMountedAgentProfileMenuItem(docId, currentDocument?.metadata)
 
   const editingFloatingActions =
     effectiveCanEdit && showPublishToolbar
@@ -675,10 +680,19 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         })
       },
     }
-  }, [currentDocument?.metadata.type, docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
+  }, [
+    currentDocument?.metadata.type,
+    docId,
+    effectiveCanEdit,
+    isHomeTarget,
+    onDeleteDocument,
+    replaceRoute,
+    signingAccountId,
+  ])
   const optionsMenuItems = useMemo(
     () =>
       [
+        agentProfileMenuItem,
         ...webMenuItems,
         isHomeTarget && effectiveCanEdit && signingAccountId === docId.uid && !placeholderDraftId
           ? {
@@ -693,6 +707,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         ...schemaBuilderMenuItems,
       ].filter(Boolean) as MenuItemType[],
     [
+      agentProfileMenuItem,
       deleteMenuItem,
       moveMenuItem,
       webMenuItems,

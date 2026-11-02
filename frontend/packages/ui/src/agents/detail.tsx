@@ -95,6 +95,7 @@ import {
   MessageSquare,
   Pencil,
   Plus,
+  ScrollText,
   Trash2,
   X,
 } from 'lucide-react'
@@ -465,6 +466,9 @@ export function AgentDetailPage({
 
   const selectedTriggerName = triggerId ? triggers.data?.find((trigger) => trigger.id === triggerId)?.name : undefined
   const isTriggerDetail = tab === 'triggers' && !!triggerId
+  // A subpage (one trigger, the system prompt) replaces the agent header with its own back bar,
+  // the way a session does, so there is one heading under the tabs.
+  const isSubpage = isTriggerDetail || tab === 'prompt'
   const breadcrumbItems = isTriggerDetail
     ? [
         {label: 'Triggers', route: {key: 'agent' as const, agentId, serverUrl, tab: 'triggers' as const}},
@@ -550,10 +554,10 @@ export function AgentDetailPage({
   return (
     <PanelContainer className="flex flex-col overflow-hidden">
       {agent.data && !embedded && <AgentMountBanner agent={agent.data.agent} serverUrl={serverUrl} />}
-      <div className={isTriggerDetail ? 'border-border flex-none border-b' : 'contents'}>
+      <div className={isSubpage ? 'border-border flex-none border-b' : 'contents'}>
         <Container
           className={
-            isTriggerDetail
+            isSubpage
               ? 'max-w-4xl gap-4 pt-4 pb-4'
               : // The memory browser is a two-pane file explorer: reading width limits do not apply,
                 // so it takes the whole window. The side padding moves inside the header's own
@@ -577,7 +581,7 @@ export function AgentDetailPage({
           ) : null}
           {agent.data ? (
             <>
-              {tab === 'memory' ? (
+              {isSubpage ? null : tab === 'memory' ? (
                 // The browser below spans the window; the header keeps the reading width of every other tab.
                 <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4">{header}</div>
               ) : (
@@ -694,8 +698,13 @@ export function AgentDetailPage({
 
               {tab === 'prompt' ? (
                 <section className="flex min-h-0 flex-1 flex-col gap-3">
+                  <AgentSubpageHeader
+                    title="System prompt"
+                    placeholder="System prompt"
+                    backLabel="Back to agent settings"
+                    onBack={() => navigate({key: 'agent', agentId, serverUrl, tab: 'settings'})}
+                  />
                   <div>
-                    <SizableText weight="bold">System prompt</SizableText>
                     <SizableText size="sm" color="muted" className="block">
                       Use the rich editor for formatting, links, embeds, lists, media, and code. The server converts
                       these blocks to markdown before sending them to the model. Changes autosave.
@@ -747,6 +756,26 @@ export function AgentDetailPage({
 
               {tab === 'settings' ? (
                 <section className="flex max-w-2xl flex-col gap-4">
+                  <div className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+                    <div className="min-w-0">
+                      <SizableText size="sm" weight="bold" className="block">
+                        System prompt
+                      </SizableText>
+                      <SizableText size="xs" color="muted" className="block truncate">
+                        {hasPromptContent(systemPrompt)
+                          ? 'Instructions the agent starts every session with.'
+                          : 'Not set yet.'}
+                      </SizableText>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate({key: 'agent', agentId, serverUrl, tab: 'prompt'})}
+                    >
+                      <ScrollText className="size-4" />
+                      {canWrite ? 'Edit prompt' : 'View prompt'}
+                    </Button>
+                  </div>
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex flex-col gap-1">
                       <SizableText size="sm" weight="bold">

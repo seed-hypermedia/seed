@@ -35,7 +35,7 @@ describe('hypermediaUrlToRoute', () => {
     expect(hypermediaUrlToRoute(routeToHmUrl(route)!)).toEqual({...route, id: unpackHmId('hm://uid1?v=v1#block1')})
   })
 
-  test.each(['sessions', 'tools', 'settings', 'triggers', 'memory', 'prompt', 'access'] as const)(
+  test.each(['sessions', 'tools', 'settings', 'triggers', 'memory', 'access'] as const)(
     'round trips mounted agent %s through hm, gateway and custom-site URLs',
     (view) => {
       const id = hmId('alice', {path: ['team', 'helper']})
@@ -51,6 +51,23 @@ describe('hypermediaUrlToRoute', () => {
       expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe(`/team/helper/:${view}`)
     },
   )
+
+  test('the system prompt is a page inside settings: /:settings/prompt, with the old /:prompt still readable', () => {
+    const id = hmId('alice', {path: ['team', 'helper']})
+    const route = {key: 'document' as const, id, agentView: 'prompt' as const}
+    expect(routeToHmUrl(route)).toBe('hm://alice/team/helper/:settings/prompt')
+    expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe('/team/helper/:settings/prompt')
+    for (const url of [
+      'hm://alice/team/helper/:settings/prompt',
+      'https://seed.example/hm/alice/team/helper/:settings/prompt',
+      'hm://alice/team/helper/:prompt',
+    ]) {
+      expect(hypermediaUrlToRoute(url)).toMatchObject({key: 'document', id: {id: id.id}, agentView: 'prompt'})
+    }
+    // Plain settings are untouched, and the site's own settings page keeps its tabs.
+    expect(hypermediaUrlToRoute('hm://alice/team/helper/:settings')).toMatchObject({agentView: 'settings'})
+    expect(hypermediaUrlToRoute('hm://alice/:settings/members')).toMatchObject({key: 'site-settings', tab: 'members'})
+  })
 
   test('canonical agent navigation uses document URLs and preserves session and tool details', () => {
     const agentId = 'hm://alice/helper'

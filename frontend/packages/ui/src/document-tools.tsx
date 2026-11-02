@@ -31,7 +31,6 @@ import {
   Settings,
   Zap,
   Brain,
-  ScrollText,
 } from 'lucide-react'
 import {cloneElement, isValidElement, useRef, useState} from 'react'
 import {PageTab} from './page-tabs'
@@ -354,7 +353,6 @@ export function DocumentTools({
           {view: 'tools', label: 'Tools', icon: Wrench},
           {view: 'triggers', label: 'Triggers', icon: Zap},
           {view: 'memory', label: 'Memory', icon: Brain},
-          {view: 'prompt', label: 'Prompt', icon: ScrollText},
           {view: 'access', label: 'Agent access', icon: Shield},
           {view: 'settings', label: 'Settings', icon: Settings},
         ]
@@ -371,7 +369,11 @@ export function DocumentTools({
         label,
         tooltip: `Open agent ${label.toLowerCase()}`,
         icon,
-        active: activeAgentView === view || (view === 'sessions' && activeAgentView === 'session'),
+        // Subpages keep their tab lit: a transcript under Sessions, the prompt under Settings.
+        active:
+          activeAgentView === view ||
+          (view === 'sessions' && activeAgentView === 'session') ||
+          (view === 'settings' && activeAgentView === 'prompt'),
         route: {...documentRoute, agentView: view},
       })),
     )

@@ -2282,6 +2282,9 @@ function DocumentBody({
   // Explore searches the whole space rather than presenting a document,
   // so it drops the document's chrome.
   const showDocumentChrome = activeView !== 'explore'
+  // A mounted agent's document is the agent: no cover, icon, title, byline or timestamp above
+  // its tabs, which are the whole page.
+  const isAgentDocument = document.metadata.type === 'hm://hyper.media/agent'
 
   // Extract blockRef from route for scroll-to-block and highlighting
   const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
@@ -3087,11 +3090,13 @@ function DocumentBody({
       )}
     >
       {documentConversionDialog}
-      <DocumentCover
-        cover={metadata?.cover}
-        onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
-        onChangeCover={canEditCurrentRoute && metadata?.cover && fileUpload ? changeCover : undefined}
-      />
+      {!isAgentDocument && (
+        <DocumentCover
+          cover={metadata?.cover}
+          onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
+          onChangeCover={canEditCurrentRoute && metadata?.cover && fileUpload ? changeCover : undefined}
+        />
+      )}
       {isHomeDoc && canEditCurrentRoute && activeView === 'content' ? (
         <HomeDocumentMetadataControls metadata={metadata as any} fileUpload={fileUpload} />
       ) : null}
@@ -3119,6 +3124,7 @@ function DocumentBody({
               </div>
             )}
             {!isHomeDoc &&
+              !isAgentDocument &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
                   docId={docId}
@@ -3155,6 +3161,7 @@ function DocumentBody({
             </div>
           )}
           {!isHomeDoc &&
+            !isAgentDocument &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
                 docId={docId}
@@ -3211,7 +3218,7 @@ function DocumentBody({
                   <DocumentTools
                     id={docId}
                     hasAgent={hasAgent}
-                    agentHome={document.metadata.type === 'hm://hyper.media/agent'}
+                    agentHome={isAgentDocument}
                     activeAgentView={route.key === 'document' ? route.agentView : undefined}
                     activeTab={
                       activeView === 'activity' &&
@@ -3258,7 +3265,7 @@ function DocumentBody({
           isMobile && !expandedPanel && 'px-4',
         )}
       >
-        {route.key === 'document' && (route.agentView || document.metadata.type === 'hm://hyper.media/agent') ? (
+        {route.key === 'document' && (route.agentView || isAgentDocument) ? (
           <AgentDocumentView document={document} route={route} contentMaxWidth={contentMaxWidth} />
         ) : (
           <DocumentViewContent

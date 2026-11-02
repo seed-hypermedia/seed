@@ -99,17 +99,33 @@ describe('DocumentTools', () => {
         .filter((tab) => !tab.closest('[aria-hidden="true"]'))
         .map((tab) => tab.getAttribute('data-label'))
     // Nothing to show: no comments, no custom attributes; connections and people never show here.
-    expect(labels()).toEqual(['Content', 'Sessions', 'Tools', 'Triggers', 'Memory', 'Prompt', 'Agent access', 'Settings'])
+    expect(labels()).toEqual(['Content', 'Sessions', 'Tools', 'Triggers', 'Memory', 'Agent access', 'Settings'])
 
     act(() =>
       root.render(
-        <DocumentTools id={hmId('alice', {path: ['helper']})} hasAgent activeTab="content" commentsCount={2} metadataCount={1} />,
+        <DocumentTools
+          id={hmId('alice', {path: ['helper']})}
+          hasAgent
+          activeTab="content"
+          commentsCount={2}
+          metadataCount={1}
+        />,
       ),
     )
     expect(labels()).toContain('Comments')
     expect(labels()).toContain('Attributes')
     expect(labels()).not.toContain('Connections')
     expect(labels()).not.toContain('3 people')
+  })
+
+  it('keeps Settings lit while the prompt page, which lives inside it, is open', () => {
+    act(() =>
+      root.render(
+        <DocumentTools id={hmId('alice', {path: ['helper']})} hasAgent activeTab="content" activeAgentView="prompt" />,
+      ),
+    )
+    expect(container.querySelector('[data-label="Prompt"]')).toBeNull()
+    expect(container.querySelector('[data-label="Settings"]')?.getAttribute('data-active')).toBe('true')
   })
 
   it('keeps an open Comments or Attributes panel in the agent tab bar even when empty', () => {

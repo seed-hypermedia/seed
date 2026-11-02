@@ -59,7 +59,7 @@ export function useCreateDocumentMenuItem({
   const schemasEnabled = !!experiments?.hypermediaSchemas
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
-  const createAgent = useCreateAgentAtLocation(locationId)
+  const createAgent = useCreateAgentAtLocation(locationId, !locationId.path?.length)
 
   const openImportDialog = useCallback(() => {
     importDialog.open({
@@ -158,7 +158,11 @@ export function useCreateDocumentMenuItem({
  * Agents are only ever children of a home document, so the entry is also hidden under any other
  * document.
  */
-function useCreateAgentAtLocation(locationId: UnpackedHypermediaId): {
+function useCreateAgentAtLocation(
+  locationId: UnpackedHypermediaId,
+  /** Whether the document on screen is the home document; the entry is only offered there. */
+  atHome: boolean,
+): {
   open?: () => void
   content: ReactNode
 } {
@@ -166,9 +170,9 @@ function useCreateAgentAtLocation(locationId: UnpackedHypermediaId): {
   const serverUrls = useAgentServerUrls().data
   const selectedAccountId = useSelectedAccountId()
   const open = useMemo(() => {
-    if (!serverUrls?.length || !selectedAccountId || locationId.path?.length) return undefined
+    if (!serverUrls?.length || !selectedAccountId || !atHome || locationId.path?.length) return undefined
     return () => dialog.open({serverUrls, selectedAccountId, location: locationId})
-  }, [dialog.open, locationId, selectedAccountId, serverUrls])
+  }, [atHome, dialog.open, locationId, selectedAccountId, serverUrls])
   return {open, content: dialog.content}
 }
 
@@ -235,7 +239,7 @@ function DesktopActorButton({
     canEditParent,
   })
   const createDraft = useCreateDraft()
-  const createAgent = useCreateAgentAtLocation(destination)
+  const createAgent = useCreateAgentAtLocation(destination, !locationId.path?.length)
   const importStarted = useRef(false)
   const importing = useImporting(destination, schema, onImportFinished)
   const importDialog = useImportDialog(() => {

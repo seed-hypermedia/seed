@@ -32,7 +32,6 @@ import {
   Loader2,
   MessageSquarePlus,
   MessagesSquare,
-  ScrollText,
   Settings,
   Users,
   Wrench,
@@ -133,7 +132,8 @@ export function AgentSubpageHeader({
 }: {
   title: string
   placeholder: string
-  onTitleChange: (title: string) => void
+  /** Edits the title; without it the title is a fixed heading. */
+  onTitleChange?: (title: string) => void
   /** One-line status under the title (e.g. the agent's own session description). */
   subtitle?: string
   saveState?: AgentTitleSaveState
@@ -159,7 +159,7 @@ export function AgentSubpageHeader({
             <div className="flex min-w-0 flex-1 items-center px-1">
               <DelayedSpinner />
             </div>
-          ) : (
+          ) : onTitleChange ? (
             <input
               aria-label={placeholder}
               value={title}
@@ -168,6 +168,8 @@ export function AgentSubpageHeader({
               className="focus:ring-primary/25 min-w-0 flex-1 rounded-md bg-transparent px-1 py-0.5 text-lg font-bold outline-none focus:ring-2"
               disabled={disabled}
             />
+          ) : (
+            <h2 className="min-w-0 flex-1 truncate px-1 py-0.5 text-lg font-bold">{title}</h2>
           )}
           {saveState === 'saving' ? (
             <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" aria-label="Saving title" />
@@ -251,12 +253,13 @@ export function AgentHeader({
     },
     {key: 'memory' as const, label: 'Memory', tooltip: "Browse and edit the agent's memory files", icon: Brain},
     {key: 'tools' as const, label: 'Tools', tooltip: 'Control tools and signing identities', icon: Wrench},
-    {key: 'prompt' as const, label: 'Prompt', tooltip: 'Edit the system prompt', icon: ScrollText},
     {key: 'collaborators' as const, label: 'Collaborators', tooltip: 'Manage who can access this agent', icon: Users},
     {key: 'settings' as const, label: 'Settings', tooltip: 'Edit model settings', icon: Settings},
   ]
 
-  const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label || 'Sessions'
+  // The prompt is a page inside Settings, so that tab stays lit while it is open.
+  const litTab: AgentPageTab = activeTab === 'prompt' ? 'settings' : activeTab
+  const activeTabLabel = tabs.find((tab) => tab.key === litTab)?.label || 'Sessions'
   const currentAgentName = agentName ?? agent?.definition.name ?? 'Agent'
   // From another tab, Sessions returns to the transcript that was open (see sticky-session.ts);
   // while Sessions is already the active tab it always leads to the list.
@@ -355,7 +358,7 @@ export function AgentHeader({
               {tabs.map((tab) => (
                 <PageTab
                   key={tab.key}
-                  active={activeTab === tab.key}
+                  active={litTab === tab.key}
                   route={tabRoute(tab.key)}
                   label={tab.label}
                   tooltip={tab.tooltip}
@@ -369,7 +372,7 @@ export function AgentHeader({
             {tabs.map((tab) => (
               <PageTab
                 key={tab.key}
-                active={activeTab === tab.key}
+                active={litTab === tab.key}
                 route={tabRoute(tab.key)}
                 label={tab.label}
                 tooltip={tab.tooltip}
