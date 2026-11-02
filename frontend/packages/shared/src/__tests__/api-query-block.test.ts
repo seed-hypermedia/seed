@@ -317,7 +317,7 @@ describe('QueryBlock.getData', () => {
       id: hmId('owner-only', {version: 'vo'}),
       metadata: {name: 'Owner'},
     })
-    expect(result?.accountsMetadata.reviewer?.metadata.name).toBe('Reviewer')
+    expect(result?.accountsMetadata.reviewer?.metadata?.name).toBe('Reviewer')
     consoleInfoSpy.mockRestore()
   })
 
