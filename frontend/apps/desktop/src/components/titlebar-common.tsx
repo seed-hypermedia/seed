@@ -554,16 +554,11 @@ function AgentActivityConnection() {
   return <AgentActivityLiveUpdates serverUrls={agentServerUrls.data} accountUid={agentsAccountUid} />
 }
 
-/**
- * Sidebar entry point to Explore page, scoped to the space in the current route.
- * Routes with no space open Explore across the whole node instead.
- */
+/** Opens Explore across the whole node, independent of the selected site. */
 export function ExploreButton({className}: {className?: string}) {
   const route = useNavRoute()
   const navigate = useNavigate()
   const isActive = route.key === 'explore'
-  const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-  const siteId = routeId?.uid ? hmId(routeId.uid) : null
   return (
     <Tooltip content="Explore" asChild>
       <Button
@@ -577,7 +572,7 @@ export function ExploreButton({className}: {className?: string}) {
         aria-current={isActive ? 'page' : undefined}
         onClick={() => {
           focusExploreSearch()
-          navigate({key: 'explore', context: siteId ? {type: 'site', id: siteId} : {type: 'node'}})
+          navigate({key: 'explore', context: {type: 'node'}})
         }}
       >
         <Search className="size-4" />

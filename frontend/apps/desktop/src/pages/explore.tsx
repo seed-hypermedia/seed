@@ -1,4 +1,5 @@
 import {MainWrapper} from '@/components/main-wrapper'
+import {useSidebarContext} from '@/sidebar-context'
 import {useNavigate} from '@/utils/useNavigate'
 import {parseExploreQuery, type HMExploreResult, type HMExploreResultType} from '@shm/shared/explore'
 import {useExploreResults} from '@shm/shared/models/explore'
@@ -7,7 +8,7 @@ import {PanelContainer} from '@shm/ui/container'
 import type {BreadcrumbEntry} from '@shm/ui/document-header'
 import {DocumentTopBar} from '@shm/ui/document-top-bar'
 import {ExplorePage} from '@shm/ui/explore-page'
-import {useMemo, useState} from 'react'
+import {useEffect, useMemo, useState} from 'react'
 
 function contextLabel(route: Extract<ReturnType<typeof useNavRoute>, {key: 'explore'}>) {
   if (route.context.type === 'node') return 'Node'
@@ -16,6 +17,10 @@ function contextLabel(route: Extract<ReturnType<typeof useNavRoute>, {key: 'expl
 }
 
 export default function ExploreDesktopPage() {
+  const {onCloseSidebar} = useSidebarContext()
+  useEffect(() => {
+    onCloseSidebar()
+  }, [onCloseSidebar])
   const route = useNavRoute()
   const exploreRoute = route.key === 'explore' ? route : null
   const navigate = useNavigate()

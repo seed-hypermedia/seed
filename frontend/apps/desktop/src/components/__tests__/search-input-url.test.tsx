@@ -22,7 +22,7 @@ vi.mock('@shm/shared/models/search', () => ({
 }))
 vi.mock('@shm/shared/utils/navigation', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@shm/shared/utils/navigation')>()),
-  useNavRoute: () => ({key: 'favorites'}),
+  useNavRoute: () => ({key: 'document', id: {uid: 'selected-site', path: ['docs']}}),
 }))
 vi.mock('@shm/shared/utils/use-debounce', () => ({useDebounce: (value: string) => value}))
 
@@ -75,4 +75,27 @@ describe('omnibar search-mode pasted URLs', () => {
       })
     }
   }
+})
+
+describe('desktop Explore entry', () => {
+  it('opens node-wide results from a selected site and preserves the search', async () => {
+    const ref = createRef<SearchInputHandle>()
+    let selected: NavRoute | undefined
+    await act(async () => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <SearchInput
+            ref={ref}
+            externalSearch="hello"
+            hideInput
+            onSelect={({route}) => {
+              selected = route
+            }}
+          />
+        </QueryClientProvider>,
+      )
+    })
+    await act(async () => ref.current!.handleEnter())
+    expect(selected).toEqual({key: 'explore', context: {type: 'node'}, q: 'hello'})
+  })
 })

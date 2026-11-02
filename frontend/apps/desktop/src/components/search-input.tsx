@@ -17,7 +17,6 @@ import {useSearch} from '@shm/shared/models/search'
 import {createDocumentNavRoute, createInspectNavRoute, NavRoute} from '@shm/shared/routes'
 import {
   extractViewTermFromUrl,
-  hmId,
   isHypermediaScheme,
   isSiteProfileTab,
   packHmId,
@@ -239,12 +238,10 @@ export const SearchInput = forwardRef<
     onFocus: () => {},
     onMouseEnter: () => {},
     onSelect: () => {
-      const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-      const siteId = routeId?.uid ? hmId(routeId.uid) : null
       onSelect({
         route: {
           key: 'explore',
-          context: siteId ? {type: 'site', id: siteId} : {type: 'node'},
+          context: {type: 'node'},
           q: debouncedSearch || undefined,
         },
       })
