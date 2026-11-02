@@ -1,7 +1,7 @@
 import {hmId} from '@shm/shared'
 import {SEED_AGENT_SERVER_URL} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
-import {MessageCircle} from 'lucide-react'
+import {Bot} from 'lucide-react'
 import {createContext, useContext} from 'react'
 import {AgentActivityDot, type AgentActivityIndicator} from './agents/activity-dot'
 import {parseSpaceAgentIds} from './agents/space-agents'
@@ -79,7 +79,7 @@ export function AssistantPanelHeaderButton({siteUid}: {siteUid: string}) {
         )}
         onClick={toggle.toggle}
       >
-        <MessageCircle className="size-4" />
+        <Bot className="size-4" />
         <AgentActivityDot indicator={toggle.activity} />
       </Button>
     </Tooltip>
@@ -101,7 +101,7 @@ export function AssistantPanelMenuItem({siteUid, onClick}: {siteUid: string; onC
       title={toggle.isOpen ? 'Close Agents' : 'Agents'}
       icon={
         <span className="relative inline-flex">
-          <MessageCircle className="size-4" />
+          <Bot className="size-4" />
           <AgentActivityDot indicator={toggle.activity} className="-top-1 -right-1" />
         </span>
       }

@@ -83,7 +83,6 @@ import {
   Lock,
   LogIn,
   LogOut,
-  MessageCircle,
   PanelLeftClose,
   PanelRightClose,
   Plus,
@@ -522,7 +521,7 @@ function AssistantChatButton() {
         aria-label="Agents"
         onClick={toggle.toggle}
       >
-        <MessageCircle className="size-4" />
+        <Bot className="size-4" />
         <AgentActivityDot indicator={activity} />
       </Button>
     </Tooltip>
