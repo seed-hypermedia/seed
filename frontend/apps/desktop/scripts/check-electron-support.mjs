@@ -1,6 +1,22 @@
 import {readFile} from 'node:fs/promises'
 import {pathToFileURL} from 'node:url'
-import {parse as parseYaml} from 'yaml'
+
+/**
+ * The `electron` entry of the `overrides` map in pnpm-workspace.yaml. This script runs in CI
+ * before `pnpm install`, so it reads the (prettier-formatted) yaml without a parser: the
+ * override is a scalar on one line inside the top-level `overrides:` block.
+ */
+export function electronOverrideFromWorkspace(workspaceYaml) {
+  const lines = workspaceYaml.split('\n')
+  const start = lines.findIndex((line) => /^overrides:\s*$/.test(line))
+  if (start < 0) throw new Error('pnpm-workspace.yaml has no top-level overrides block')
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break // next top-level key
+    const match = line.match(/^\s+["']?electron["']?:\s*["']?([^"'\s#]+)["']?\s*$/)
+    if (match) return match[1]
+  }
+  throw new Error('pnpm-workspace.yaml overrides have no electron entry')
+}
 
 /** Rejects prerelease pins and majors outside Electron's latest three stable release lines. */
 export function checkElectronSupport(version, releases) {
@@ -22,10 +38,12 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     const desktop = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
     // pnpm 11 keeps the workspace overrides in pnpm-workspace.yaml, not package.json#pnpm.
-    const workspace = parseYaml(await readFile(new URL('../../../../pnpm-workspace.yaml', import.meta.url), 'utf8'))
+    const electronOverride = electronOverrideFromWorkspace(
+      await readFile(new URL('../../../../pnpm-workspace.yaml', import.meta.url), 'utf8'),
+    )
     const metadata = JSON.parse(await readFile(new URL('../electron-release.json', import.meta.url), 'utf8'))
     if (
-      workspace.overrides?.electron !== desktop.devDependencies.electron ||
+      electronOverride !== desktop.devDependencies.electron ||
       metadata.version !== desktop.devDependencies.electron
     ) {
       throw new Error('Desktop Electron pin, workspace override and electron-release.json must agree')
