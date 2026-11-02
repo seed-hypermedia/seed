@@ -26,7 +26,7 @@ vi.mock('../tooltip', () => ({
 }))
 
 if (typeof PointerEvent === 'undefined') {
-  ;(globalThis as typeof globalThis & {PointerEvent: typeof MouseEvent}).PointerEvent = MouseEvent
+  vi.stubGlobal('PointerEvent', MouseEvent)
 }
 
 let container: HTMLDivElement

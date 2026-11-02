@@ -1,4 +1,5 @@
 import {useAssistantAutoOpen} from '@/assistant-panel-state'
+import {registerWebAgentsPlatform} from '@/web-agents-platform'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
@@ -308,6 +309,7 @@ function useWebCreateAgentAtLocation(
   locationId: UnpackedHypermediaId,
   signingAccountId: string | undefined,
 ): {open?: () => void; content: ReactNode} {
+  registerWebAgentsPlatform()
   const dialog = useAppDialog(CreateAgentDialog)
   const serverUrls = useAgentServerUrls().data
   const open = useMemo(() => {
