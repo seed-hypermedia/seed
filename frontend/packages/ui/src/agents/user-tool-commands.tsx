@@ -1,7 +1,6 @@
-import React, {useRef, useState} from 'react'
-import {Wrench} from 'lucide-react'
+import React, {createContext, useContext, useRef, useState} from 'react'
+import {PenLine, BookOpenText, X} from 'lucide-react'
 import {Button} from '@shm/ui/button'
-import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {getSeedTool, type JsonSchema} from '@seed-hypermedia/agents-protocol'
@@ -12,39 +11,52 @@ import {
   normalizeStoredAgentTools,
   type AgentServerWebCapabilities,
 } from './agent-tools'
+import type {AgentsSlashMenuItem} from './platform'
+import {getToolIcon} from './tool-icons'
+
+const TOOL_GROUP = 'Run a tool'
 
 /**
  * The user's side of the symmetric log: run read, write, or any callable tool yourself, in this
  * thread. The call and its result land on the shared session log as actor-'user' events the agent
  * reads on its next turn — same verbs, same log, no side channel.
+ *
+ * Tools are offered as commands in the composer's `/` menu; picking one opens its form above the
+ * input. Returns the menu items (read on every query) and that form, or null while none is open.
  */
-export function UserToolPalette({
+export function useUserToolCommands({
   serverUrl,
   accountId,
   sessionId,
   agentTools,
   agentToolsLoading,
-  disabled,
+  enabled = true,
+  blockedReason,
   onStartSession,
   onSessionStarted,
+  onClose,
 }: {
   serverUrl: string
   accountId: string | null
   /** Absent for a draft composer: tool calls land on a session's log, so no session yet means the
-   * first run creates one via {@link onStartSession} — or, without that, a disabled palette. */
+   * first run creates one via {@link onStartSession} — or, without that, no tool commands. */
   sessionId?: string
   /** The agent definition's tools array; undefined means the default grant set. */
   agentTools?: string[]
   /** True while the agent definition is still loading — the callable list must wait, not grant-all. */
   agentToolsLoading?: boolean
-  disabled?: boolean
+  /** Off when the user may not run session tools (e.g. chat-only access): no commands at all. */
+  enabled?: boolean
+  /** When set, an open form stays fillable but cannot run, and says why. */
+  blockedReason?: string
   /** Draft mode: creates the session the first tool run needs, so a tool call can start a session
    * the same way a first message does. */
   onStartSession?: () => Promise<string>
   /** Called once a tool run that created its own session finishes, e.g. to navigate to it. */
   onSessionStarted?: (sessionId: string) => void
-}) {
-  const [open, setOpen] = useState(false)
+  /** Called when the form closes (run, dismissed), e.g. to return focus to the editor. */
+  onClose?: () => void
+}): {getSlashMenuItems: () => AgentsSlashMenuItem[]; form: React.ReactNode} {
   const [selected, setSelected] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const invoke = useInvokeSessionTool(serverUrl, accountId)
@@ -61,11 +73,58 @@ export function UserToolPalette({
         codeExecReasonCode: health.data.codeExecReasonCode,
       }
     : undefined
+  // While the agent definition loads the callable list must wait rather than grant all tools.
   const callables = agentToolsLoading
-    ? null
+    ? []
     : normalizeStoredAgentTools(agentTools ?? DEFAULT_AGENT_TOOLS).filter(
         (name) => name !== 'publish' && getSeedTool(name) && getToolAvailability(name, capabilities).available,
       )
+  const canRun = enabled && !!(sessionId || onStartSession)
+
+  function open(name: string) {
+    setNotice(null)
+    setSelected(name)
+  }
+
+  function close() {
+    setSelected(null)
+    setNotice(null)
+    onClose?.()
+  }
+
+  function getSlashMenuItems(): AgentsSlashMenuItem[] {
+    if (!canRun) return []
+    return [
+      {
+        name: 'Read',
+        aliases: ['read', 'open', 'fetch'],
+        group: TOOL_GROUP,
+        icon: <BookOpenText size={18} />,
+        hint: '~/memory, ~/tools, hm://, https://, activity:',
+        onSelect: () => open('read'),
+      },
+      {
+        name: 'Write',
+        aliases: ['write', 'save'],
+        group: TOOL_GROUP,
+        icon: <PenLine size={18} />,
+        hint: '~/memory, ~/tools, hm://, ipfs://',
+        onSelect: () => open('write'),
+      },
+      ...callables.map((name): AgentsSlashMenuItem => {
+        const tool = getSeedTool(name)
+        const Icon = getToolIcon(name, tool?.render?.kind)
+        return {
+          name: tool?.label ?? name,
+          aliases: [name, ...name.split('_')],
+          group: TOOL_GROUP,
+          icon: <Icon size={18} />,
+          hint: name,
+          onSelect: () => open(name),
+        }
+      }),
+    ]
+  }
 
   /** True when the server answered with the tool's contract instead of running it (touch-expand). */
   function isContractMiss(output: unknown): boolean {
@@ -96,8 +155,7 @@ export function UserToolPalette({
           return
         }
       }
-      setOpen(false)
-      setSelected(null)
+      close()
       // Even a failed call lands on the new session's log, so surface the session either way.
       if (startedHere) onSessionStarted?.(targetSessionId)
     } catch (error) {
@@ -105,134 +163,89 @@ export function UserToolPalette({
     }
   }
 
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) setSelected(null)
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          size="sm"
-          variant="ghost"
-          className="max-sm:size-10"
-          disabled={disabled || (!sessionId && !onStartSession)}
-          title={
-            sessionId || onStartSession
-              ? 'Run a tool yourself — the agent sees the result'
-              : 'Send a message to start the session before running tools'
-          }
+  const form =
+    selected === null || !canRun ? null : (
+      <ToolFormBlockedContext.Provider value={blockedReason ?? null}>
+        <div
+          className="border-border bg-background mx-3 mt-2 rounded-md border p-2"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.stopPropagation()
+              close()
+            }
+          }}
         >
-          <Wrench className="size-3.5" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-2">
-        {notice ? (
-          <div className="border-primary/30 bg-primary/10 text-primary mb-2 rounded-md border px-2 py-1.5 text-[11px]">
-            {notice}
-          </div>
-        ) : null}
-        {selected === null ? (
-          <div className="flex flex-col gap-0.5">
-            <SizableText size="xs" color="muted" className="px-2 pt-1 pb-1.5">
-              Run a tool as yourself. The result lands on this thread's log for both of you.
-            </SizableText>
-            <PaletteRow
-              label="Read"
-              hint="~/memory, ~/tools, hm://, https://, activity:"
-              onPick={() => setSelected('read')}
+          {notice ? (
+            <div className="border-primary/30 bg-primary/10 text-primary mb-2 rounded-md border px-2 py-1.5 text-[11px]">
+              {notice}
+            </div>
+          ) : null}
+          {selected === 'read' ? (
+            <ReadForm busy={invoke.isPending} onClose={close} onRun={(input) => void run('read', input)} />
+          ) : selected === 'write' ? (
+            <WriteForm busy={invoke.isPending} onClose={close} onRun={(input) => void run('write', input)} />
+          ) : (
+            <CallableForm
+              key={selected}
+              name={selected}
+              busy={invoke.isPending}
+              onClose={close}
+              onRun={(input) => void run('call', {tool: selected, input})}
             />
-            <PaletteRow label="Write" hint="~/memory, ~/tools, hm://, ipfs://" onPick={() => setSelected('write')} />
-            {callables === null ? (
-              <SizableText size="xs" color="muted" className="px-2 py-1.5">
-                Loading this agent's tools…
-              </SizableText>
-            ) : (
-              callables.map((name) => (
-                <PaletteRow
-                  key={name}
-                  label={getSeedTool(name)?.label ?? name}
-                  hint={name}
-                  onPick={() => setSelected(name)}
-                />
-              ))
-            )}
-          </div>
-        ) : selected === 'read' ? (
-          <ReadForm
-            busy={invoke.isPending}
-            onBack={() => setSelected(null)}
-            onRun={(input) => void run('read', input)}
-          />
-        ) : selected === 'write' ? (
-          <WriteForm
-            busy={invoke.isPending}
-            onBack={() => setSelected(null)}
-            onRun={(input) => void run('write', input)}
-          />
-        ) : (
-          <CallableForm
-            name={selected}
-            busy={invoke.isPending}
-            onBack={() => setSelected(null)}
-            onRun={(input) => void run('call', {tool: selected, input})}
-          />
-        )}
-      </PopoverContent>
-    </Popover>
-  )
+          )}
+        </div>
+      </ToolFormBlockedContext.Provider>
+    )
+
+  return {getSlashMenuItems, form}
 }
 
-function PaletteRow({label, hint, onPick}: {label: string; hint: string; onPick: () => void}) {
-  return (
-    <button
-      type="button"
-      onClick={onPick}
-      className="hover:bg-accent flex items-baseline justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm"
-    >
-      <span className="font-medium">{label}</span>
-      <span className="text-muted-foreground min-w-0 truncate font-mono text-[10px]">{hint}</span>
-    </button>
-  )
-}
+/** Why an open tool form can't run right now (e.g. the agent is mid-turn), or null when it can. */
+const ToolFormBlockedContext = createContext<string | null>(null)
 
 function FormShell({
   title,
   busy,
   canRun,
-  onBack,
+  onClose,
   onRun,
   children,
 }: {
   title: string
   busy: boolean
   canRun: boolean
-  onBack: () => void
+  onClose: () => void
   onRun: () => void
   children: React.ReactNode
 }) {
+  const blockedReason = useContext(ToolFormBlockedContext)
   return (
     <form
-      className="flex flex-col gap-2 p-1"
+      className="flex flex-col gap-2"
       onSubmit={(event) => {
         event.preventDefault()
-        if (canRun && !busy) onRun()
+        if (canRun && !busy && !blockedReason) onRun()
       }}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <SizableText size="sm" weight="bold">
           {title}
         </SizableText>
-        <Button size="sm" variant="ghost" type="button" onClick={onBack}>
-          Back
+        <Button size="iconSm" variant="ghost" type="button" aria-label="Close tool" onClick={onClose}>
+          <X className="size-3.5" />
         </Button>
       </div>
       {children}
-      <Button size="sm" type="submit" disabled={!canRun || busy}>
-        {busy ? 'Running…' : 'Run'}
-      </Button>
+      <div className="flex items-center justify-end gap-2">
+        {blockedReason ? (
+          <SizableText size="xs" color="muted">
+            {blockedReason}
+          </SizableText>
+        ) : null}
+        <Button size="sm" type="submit" disabled={!canRun || busy || !!blockedReason}>
+          {busy ? 'Running…' : 'Run'}
+        </Button>
+      </div>
     </form>
   )
 }
@@ -240,14 +253,14 @@ function FormShell({
 const fieldClass =
   'border-border bg-background w-full rounded-md border px-2 py-1.5 font-mono text-xs focus:outline-none'
 
-function ReadForm({busy, onBack, onRun}: {busy: boolean; onBack: () => void; onRun: (input: unknown) => void}) {
+function ReadForm({busy, onClose, onRun}: {busy: boolean; onClose: () => void; onRun: (input: unknown) => void}) {
   const [address, setAddress] = useState('')
   return (
     <FormShell
       title="Read"
       busy={busy}
       canRun={!!address.trim()}
-      onBack={onBack}
+      onClose={onClose}
       onRun={() => onRun({address: address.trim()})}
     >
       <input
@@ -261,7 +274,7 @@ function ReadForm({busy, onBack, onRun}: {busy: boolean; onBack: () => void; onR
   )
 }
 
-function WriteForm({busy, onBack, onRun}: {busy: boolean; onBack: () => void; onRun: (input: unknown) => void}) {
+function WriteForm({busy, onClose, onRun}: {busy: boolean; onClose: () => void; onRun: (input: unknown) => void}) {
   const [address, setAddress] = useState('')
   const [content, setContent] = useState('')
   const [optionsJson, setOptionsJson] = useState('')
@@ -278,7 +291,7 @@ function WriteForm({busy, onBack, onRun}: {busy: boolean; onBack: () => void; on
     onRun({address: address.trim(), ...(content ? {content} : {}), ...(options !== undefined ? {options} : {})})
   }
   return (
-    <FormShell title="Write" busy={busy} canRun={!!address.trim()} onBack={onBack} onRun={submit}>
+    <FormShell title="Write" busy={busy} canRun={!!address.trim()} onClose={onClose} onRun={submit}>
       <input
         autoFocus
         className={fieldClass}
@@ -306,12 +319,12 @@ function WriteForm({busy, onBack, onRun}: {busy: boolean; onBack: () => void; on
 function CallableForm({
   name,
   busy,
-  onBack,
+  onClose,
   onRun,
 }: {
   name: string
   busy: boolean
-  onBack: () => void
+  onClose: () => void
   onRun: (input: unknown) => void
 }) {
   const tool = getSeedTool(name)
@@ -331,7 +344,7 @@ function CallableForm({
         title={tool?.label ?? name}
         busy={busy}
         canRun
-        onBack={onBack}
+        onClose={onClose}
         onRun={() => {
           try {
             onRun(JSON.parse(rawJson))
@@ -382,7 +395,7 @@ function CallableForm({
       title={tool?.label ?? name}
       busy={busy}
       canRun={requiredFilled && numericErrors.length === 0}
-      onBack={onBack}
+      onClose={onClose}
       onRun={submit}
     >
       {Object.entries(properties).map(([key, prop], index) => (

@@ -74,8 +74,8 @@ import {
   LayoutGrid,
   LayoutList,
   Link2,
+  Maximize,
   Maximize2,
-  MessageCirclePlus,
   MoreHorizontal,
   Plus,
   Trash2,
@@ -452,7 +452,7 @@ export function AssistantPanel({
           so they also run while this panel is closed, feeding the unread indicator. */}
       {deleteDialog.content}
       {createAgentDialog.content}
-      <div className="border-border window-drag flex h-10 items-center justify-between gap-1 border-b px-2 py-2">
+      <div className="border-border window-drag flex h-[41px] items-center justify-between gap-1 border-b px-2 py-2">
         <AssistantAgentPicker
           agents={agents}
           activeAgent={filterAgent}
@@ -467,25 +467,41 @@ export function AssistantPanel({
           }}
           onCreateAgent={openCreateAgent}
           onOpenAgentsPage={() => navigate({key: 'agents'})}
-          onOpenAgentPage={() =>
-            filterAgent
-              ? navigate({key: 'agent', agentId: filterAgent.agent.id, serverUrl: filterAgent.serverUrl})
-              : navigate({key: 'agents'})
-          }
         />
-        <div className="no-window-drag flex shrink-0 items-center">
-          <button onClick={startNewChat} className="text-muted-foreground hover:text-foreground p-1" title="New chat">
-            <MessageCirclePlus className="size-4" />
-          </button>
+        {/* Same buttons as the main panel's header (PanelHeader). */}
+        <div className="no-window-drag flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            aria-label="Expand to full screen"
+            title="Expand to full screen"
+            onClick={() =>
+              activeSession && sessionAgentId
+                ? navigate({
+                    key: 'agent-session',
+                    serverUrl: activeSession.serverUrl,
+                    agentId: sessionAgentId,
+                    sessionId: activeSession.sessionId,
+                  })
+                : filterAgent
+                  ? navigate({key: 'agent', agentId: filterAgent.agent.id, serverUrl: filterAgent.serverUrl})
+                  : navigate({key: 'agents'})
+            }
+          >
+            <Maximize className="size-4" />
+          </Button>
           {onClose ? (
-            <button
-              onClick={onClose}
-              className="text-muted-foreground hover:text-foreground p-1"
-              title="Close agents panel"
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
               aria-label="Close agents panel"
+              title="Close agents panel"
+              onClick={onClose}
             >
               <X className="size-4" />
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -676,7 +692,6 @@ function AssistantAgentPicker({
   onSelect,
   onCreateAgent,
   onOpenAgentsPage,
-  onOpenAgentPage,
 }: {
   agents: AssistantAgentOption[]
   activeAgent: AssistantAgentOption | null
@@ -691,8 +706,6 @@ function AssistantAgentPicker({
   onSelect: (key: AssistantAgentKey | null) => void
   onCreateAgent: () => void
   onOpenAgentsPage: () => void
-  /** Opens the active agent's full page; the expand affordance shows only while hovering the picker. */
-  onOpenAgentPage?: () => void
 }) {
   const [open, setOpen] = useState(false)
   // The closed trigger carries what the rows would show: anything unread first, else a working agent.
@@ -710,9 +723,7 @@ function AssistantAgentPicker({
   }, [agents])
 
   return (
-    // The expand affordance lives outside the trigger (a button cannot nest a button) but inside
-    // the shared hover group, so it appears whenever the pointer is anywhere over the picker area.
-    <div className="group/agentpicker flex max-w-full min-w-0 items-center">
+    <div data-agent-picker className="flex max-w-full min-w-0 items-center">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
@@ -823,17 +834,6 @@ function AssistantAgentPicker({
           </div>
         </PopoverContent>
       </Popover>
-      {onOpenAgentPage ? (
-        <button
-          type="button"
-          title={activeAgent ? `Open ${activeAgent.agent.definition.name}` : 'Open the Agents page'}
-          aria-label={activeAgent ? `Open the ${activeAgent.agent.definition.name} agent page` : 'Open the Agents page'}
-          onClick={onOpenAgentPage}
-          className="no-window-drag text-muted-foreground hover:text-foreground p-1 opacity-0 transition-opacity group-hover/agentpicker:opacity-100 focus-visible:opacity-100"
-        >
-          <Maximize2 className="size-3.5" />
-        </button>
-      ) : null}
     </div>
   )
 }

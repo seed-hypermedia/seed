@@ -50,12 +50,28 @@ export type AgentsRichEditorProps = {
   focusOnMount?: boolean
   hideAvatar?: boolean
   hideSubmitToolbar?: boolean
+  /** The compact panel-footer field, with its submit button beside it. */
+  compact?: boolean
   disableTrailingNode?: boolean
   submitOnEnter?: boolean
   submitHandleRef?: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[]) => void
   handleFileAttachment?: (file: File) => Promise<AgentsRichEditorAttachment>
+  /** Commands listed ahead of the block types in the editor's `/` menu, read on every query. */
+  getExtraSlashMenuItems?: () => AgentsSlashMenuItem[]
+  /** Text on the collapsed field before it is first focused. */
+  collapsedLabel?: string
+}
+
+/** A host command in the rich editor's `/` menu; the typed `/query` is removed before `onSelect`. */
+export type AgentsSlashMenuItem = {
+  name: string
+  aliases?: string[]
+  group: string
+  icon: React.ReactElement
+  hint?: string
+  onSelect: () => void
 }
 
 /**

@@ -211,7 +211,7 @@ export function NewSessionComposer({
           // Keyed by agent so the editor's captured callbacks never send to the previous choice.
           key={selectedKey}
           isBusy={createSession.isLoading || messageSession.isLoading}
-          placeholder={`Start a chat with ${selected.agent.definition.name || 'this agent'}`}
+          placeholder={`New Chat with ${selected.agent.definition.name || 'this agent'}`}
           isStreaming={false}
           stopPending={false}
           serverUrl={selected.serverUrl}

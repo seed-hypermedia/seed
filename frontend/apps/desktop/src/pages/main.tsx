@@ -150,6 +150,11 @@ export default function Main({className}: {className?: string}) {
     })
   }, [assistantSessionId, sendAssistantState])
 
+  const handleCloseAssistant = useCallback(() => {
+    setAssistantOpen(false)
+    sendAssistantState(false, assistantSessionId)
+  }, [assistantSessionId, sendAssistantState])
+
   const assistantPanelToggle = useMemo<AssistantPanelToggle | null>(
     () => (isAssistantAvailable ? {isOpen: assistantOpen, toggle: handleToggleAssistant} : null),
     [isAssistantAvailable, assistantOpen, handleToggleAssistant],
@@ -313,7 +318,11 @@ export default function Main({className}: {className?: string}) {
           defaultSize={`${assistantLayout.expanded?.assistant ?? 25}%`}
           className="border-l"
         >
-          <AssistantPanel initialSessionId={assistantSessionId} onSessionChange={handleSessionChange} />
+          <AssistantPanel
+            initialSessionId={assistantSessionId}
+            onSessionChange={handleSessionChange}
+            onClose={handleCloseAssistant}
+          />
         </AnimatedPanel>
       </Group>
     </div>
