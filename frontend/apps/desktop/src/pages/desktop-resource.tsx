@@ -1127,7 +1127,8 @@ export default function DesktopResourcePage() {
 
   // Experimental building blocks live behind the Hypermedia Schemas dev toggle
   // (Settings → Developers → Developer Tools); the blob/schema editor pages offer these too.
-  if (experiments?.hypermediaSchemas) {
+  // They publish signed blobs, so they need a selected account.
+  if (experiments?.hypermediaSchemas && selectedAccountId) {
     menuItems.push(...blobBuilderMenuItems(navigate))
 
     // The World Builder: scaffold a typed ontology (types + folders + starter

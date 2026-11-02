@@ -197,9 +197,10 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   // Building-block entry points (desktop shows these under Developer Mode; web
   // enables developerMode by default). "New Schema" is a new instance of the
   // built-in meta-schema. The editor's own menu offers these too once open.
+  // Hidden when logged out: there is no key to publish the blob with.
   const schemaBuilderMenuItems = useMemo<MenuItemType[]>(
-    () => (experiments?.developerMode ? blobBuilderMenuItems(navigate) : []),
-    [experiments?.developerMode, navigate],
+    () => (experiments?.developerMode && userKeyPair ? blobBuilderMenuItems(navigate) : []),
+    [experiments?.developerMode, userKeyPair, navigate],
   )
 
   // Editor accessor — populated by the editor's onEditorReady callback.
