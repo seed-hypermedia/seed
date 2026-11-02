@@ -121,7 +121,9 @@ function WebSiteSidebarLayout({
       ) : (
         <Group
           orientation="horizontal"
-          className="h-dvh max-h-full min-h-0 flex-1"
+          className="max-h-full min-h-0 flex-1"
+          // Override Group's inline 100% height; the web shell has no fixed parent height.
+          style={{height: '100dvh'}}
           onLayoutChanged={(next, meta) => {
             layout.onLayoutChanged(next, meta)
             if (meta.isUserInteraction) setOpen(next['site-sidebar'] !== 0)
