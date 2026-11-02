@@ -3,7 +3,7 @@ import {SEED_AGENT_SERVER_URL} from '@shm/shared/constants'
 import {useResource} from '@shm/shared/models/entity'
 import {Bot} from 'lucide-react'
 import {createContext, useContext} from 'react'
-import {AgentActivityDot, type AgentActivityIndicator} from './agents/activity-dot'
+import type {AgentActivityIndicator} from './agents/activity-dot'
 import {parseSpaceAgentIds} from './agents/space-agents'
 import {Button} from './button'
 import {SmallListItem} from './list-item'
@@ -14,7 +14,7 @@ import {cn} from './utils'
 export type AssistantPanelToggle = {
   isOpen: boolean
   toggle: () => void
-  /** Recent activity to show on the entry points, when the host tracks it. */
+  /** Recent activity for the entry point tooltip, when the host tracks it. */
   activity?: AgentActivityIndicator | null
 }
 
@@ -73,14 +73,10 @@ export function AssistantPanelHeaderButton({siteUid}: {siteUid: string}) {
         size="icon"
         aria-label="Agents"
         aria-pressed={toggle.isOpen}
-        className={cn(
-          'relative h-8 rounded-full border-1 border-transparent p-0',
-          toggle.isOpen && 'dark:bg-muted bg-black/5',
-        )}
+        className={cn('h-8 rounded-full border-1 border-transparent p-0', toggle.isOpen && 'dark:bg-muted bg-black/5')}
         onClick={toggle.toggle}
       >
         <Bot className="size-4" />
-        <AgentActivityDot indicator={toggle.activity} />
       </Button>
     </Tooltip>
   )
@@ -99,12 +95,7 @@ export function AssistantPanelMenuItem({siteUid, onClick}: {siteUid: string; onC
       bold
       active={toggle.isOpen}
       title={toggle.isOpen ? 'Close Agents' : 'Agents'}
-      icon={
-        <span className="relative inline-flex">
-          <Bot className="size-4" />
-          <AgentActivityDot indicator={toggle.activity} className="-top-1 -right-1" />
-        </span>
-      }
+      icon={<Bot className="size-4" />}
       onClick={() => {
         toggle.toggle()
         onClick?.()

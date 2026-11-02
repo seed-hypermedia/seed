@@ -41,7 +41,6 @@ import {AccountAvatar} from '@shm/ui/account-avatar'
 import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
 import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
-import {AgentActivityDot} from '@shm/ui/agents/activity-dot'
 import {
   agentRouteServerUrl,
   isLocalAgentServer,
@@ -522,7 +521,6 @@ function AssistantChatButton() {
         onClick={toggle.toggle}
       >
         <Bot className="size-4" />
-        <AgentActivityDot indicator={activity} />
       </Button>
     </Tooltip>
   )

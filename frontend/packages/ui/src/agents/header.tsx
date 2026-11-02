@@ -196,19 +196,14 @@ export function AgentSubpageHeader({
               disabled={disabled}
             />
           )}
-          {saveState !== 'idle' ? (
-            <span
-              aria-label={
-                saveState === 'saving' ? 'Saving title' : saveState === 'saved' ? 'Title saved' : 'Title save failed'
-              }
-              className={`size-2 flex-none rounded-full ${
-                saveState === 'saving'
-                  ? 'bg-muted-foreground/50'
-                  : saveState === 'saved'
-                    ? 'bg-green-500'
-                    : 'bg-destructive'
-              }`}
-            />
+          {saveState === 'saving' ? (
+            <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" aria-label="Saving title" />
+          ) : saveState === 'saved' ? (
+            <Check className="text-muted-foreground size-3.5 flex-none" aria-label="Title saved" />
+          ) : saveState === 'error' ? (
+            <span className="text-destructive text-xs" role="status">
+              Title save failed
+            </span>
           ) : null}
         </div>
         {actions}

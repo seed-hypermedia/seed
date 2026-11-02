@@ -21,8 +21,7 @@ import type {RootStackParamList} from '../../navigation/types'
 import {theme} from '../../theme'
 import {useAgentsAccount} from '../account'
 import {formatRelativeTime} from '../format'
-import {sessionStatusTone} from '../session-status'
-import {Badge, Button, Card, ErrorNote, Label, Section, StatePanel, StatusDot} from '../ui/primitives'
+import {Badge, Button, Card, ErrorNote, Label, Section, StatePanel} from '../ui/primitives'
 import {errorText} from './AgentsScreen'
 
 type Props = {
@@ -172,7 +171,7 @@ function SessionRow({session, onPress}: {session: SessionInfo; onPress: () => vo
         <Label size="md" weight="600" numberOfLines={1} style={styles.flex}>
           {session.title || 'Untitled conversation'}
         </Label>
-        <StatusDot tone={sessionStatusTone(session.status)} />
+        {session.status === 'error' ? <Label tone="danger">Error</Label> : null}
       </View>
       <Label size="xs" tone="muted">
         {formatRelativeTime(session.updatedAt ?? session.createdAt)}

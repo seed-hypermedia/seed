@@ -333,7 +333,7 @@ describe('assistant sidebar', () => {
     expect(document.body.textContent).not.toContain('Doc questions')
   })
 
-  it('the list marks each chat that holds something unread, or that an agent is working in', () => {
+  it('the list names unread and working chats without colored marks', () => {
     // The device has seen nothing since the baseline; the researcher's chat carries a later reply.
     mockState.sessionEntries = [
       ...mockState.sessionEntries,
@@ -352,15 +352,12 @@ describe('assistant sidebar', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
-    const marks = Array.from(document.body.querySelectorAll('[data-testid="agent-activity-mark"]')).map((el) =>
-      el.getAttribute('data-tone'),
-    )
-    expect(marks).toContain('agent')
-    expect(marks).toContain('busy')
+    expect(document.body.querySelectorAll('[data-testid="agent-activity-mark"]')).toHaveLength(0)
+    expect(document.body.textContent).toContain('New reply')
     expect(document.body.textContent).toContain('Working')
   })
 
-  it('points at the agent with an unread reply from the closed dropdown', () => {
+  it('shows an unread reply in the picker list without a dot on its closed trigger', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
@@ -379,7 +376,7 @@ describe('assistant sidebar', () => {
       root.render(<AssistantPanel />)
     })
     expect(hasActiveSession()).toBe(false)
-    expect(pickerTrigger()?.querySelector('[data-testid="agent-activity-mark"]')).not.toBeNull()
+    expect(pickerTrigger()?.querySelector('[data-testid="agent-activity-mark"]')).toBeNull()
     click(pickerTrigger())
     // The researcher's row names it, in place of the model line.
     expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('New reply')
