@@ -73,7 +73,12 @@ function WebSiteSidebarLayout({
 
   const closeDrawer = () => onMobileOpenChange(false)
   const sidebar = (
-    <SiteSidebar siteId={props.siteId} onNavigate={props.onNavigate} onAfterNavigate={closeDrawer}>
+    <SiteSidebar
+      siteId={props.siteId}
+      siteSelectorModal={isMobile}
+      onNavigate={props.onNavigate}
+      onAfterNavigate={closeDrawer}
+    >
       <SiteSidebarDocuments
         {...props}
         onNavigate={(id) => {

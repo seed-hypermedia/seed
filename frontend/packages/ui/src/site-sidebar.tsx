@@ -20,6 +20,7 @@ export function SiteSidebar({
   siteId,
   ownSiteUids = [],
   unreadNotificationsBySite = {},
+  siteSelectorModal = false,
   onNavigate,
   onAfterNavigate,
   explore,
@@ -28,6 +29,8 @@ export function SiteSidebar({
   siteId: UnpackedHypermediaId
   ownSiteUids?: string[]
   unreadNotificationsBySite?: Record<string, number>
+  /** Keeps the portaled menu scrollable inside the mobile sidebar's modal dialog. */
+  siteSelectorModal?: boolean
   onNavigate: (id: UnpackedHypermediaId) => void
   onAfterNavigate?: () => void
   explore?: ReactNode
@@ -103,7 +106,7 @@ export function SiteSidebar({
           </Button>
         )}
         {(IS_DESKTOP || isGateway) && (
-          <DropdownMenu>
+          <DropdownMenu modal={siteSelectorModal}>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="outline"
