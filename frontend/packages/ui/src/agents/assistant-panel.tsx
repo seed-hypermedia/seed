@@ -11,7 +11,7 @@ import {
   useAllAgentSessionPages,
   useAgentSessions,
   useSiteUidInView,
-  useSpaceAgents,
+  useMountedSiteAgents,
   useDeleteAgentSession,
   useLocalAgentServerUrl,
   useMessageAgentSession,
@@ -139,6 +139,9 @@ function isTriggeredSession(session: SessionInfo): boolean {
  * web (mounted beside the site page, toggled from the account menu). Everything host-specific —
  * signing, navigation, the account, the rich editor — comes through the agents platform seam.
  */
+/** A stable empty server list, so hooks keyed on it never see a fresh array per render. */
+const NO_SERVERS: string[] = []
+
 export function AssistantPanel({
   initialSessionId,
   initialAgentId,
@@ -164,7 +167,12 @@ export function AssistantPanel({
 }) {
   const accountUid = useSelectedAccountId()
   const gatewayUrl = getAgentsPlatform().useGatewayUrl?.()
-  const serverUrls = useAgentServerUrls()
+  // On the web the panel is the site's: only agents mounted in the space on screen, found through
+  // their documents, and no server is asked for anything a document did not name. Desktop adds
+  // the account's own agents from every server it is configured for.
+  const mountedOnly = !!getAgentsPlatform().mountedAgentsOnly
+  const configuredServerUrls = useAgentServerUrls()
+  const serverUrls = mountedOnly ? {...configuredServerUrls, data: NO_SERVERS} : configuredServerUrls
   const localServerUrl = useLocalAgentServerUrl()
   const agentQueries = useAgentLists(serverUrls.data, accountUid)
   // Trigger-started sessions are left out (see the list below). The server filters them before
@@ -173,7 +181,7 @@ export function AssistantPanel({
   const ownSessions = useAllAgentSessionPages(serverUrls.data, accountUid, {excludeTriggered: true})
   const navigate = useNavigate()
 
-  const spaceAgents = useSpaceAgents(accountUid)
+  const spaceAgents = useMountedSiteAgents(accountUid)
   const currentSpaceUid = useSiteUidInView()
 
   // The account-wide lists never include a public agent's chats — the space's agents reach a
@@ -604,7 +612,7 @@ export function AssistantPanel({
         </>
       ) : agents.length ? (
         <>
-          <AgentMountReminder agents={agents} settled={agentsSettled} />
+          {mountedOnly ? null : <AgentMountReminder agents={agents} settled={agentsSettled} />}
           <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
             <AgentSessionsFeed
               compact

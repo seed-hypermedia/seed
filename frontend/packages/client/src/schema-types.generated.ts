@@ -1258,10 +1258,8 @@ export type HMMetadata = {
   cover?: HMIpfsUrl
   /** The web address a space is published at; set on the home document when a site is registered. */
   siteUrl?: HMUrl
-  /** The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers. */
+  /** The agents server that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`. */
   agentServerUrl?: HMUrl
-  /** Agents this space publishes to its readers: `{[agentId]: order}`, each id an agent on `agentServerUrl`; a removed agent leaves a null behind. */
-  spaceAgents?: {[key: string]: HMValue}
   /** The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes. */
   attributesSchema?: HMHmUrl
   /** The attributes schema this document's direct CHILDREN conform to (hm:// URL or ipfs://<cid>). A child may declare its own `attributesSchema` instead. */

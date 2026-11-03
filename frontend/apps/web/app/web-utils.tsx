@@ -25,7 +25,7 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
 import {useAgentServerUrls} from '@shm/ui/agents/models'
-import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
+import {useSiteAgentMounts} from '@shm/ui/site-agents'
 import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {Button} from '@shm/ui/button'
 import {accountMenuContentClassName, AccountMenuIdentity, AccountMenuSection} from '@shm/ui/account-menu'
@@ -303,7 +303,7 @@ export function useWebCreateDocumentMenuItem({
 
 /**
  * Agent creation under `locationId` for the web New menus: `open` is undefined while no agent server
- * is known (none configured and the site advertises none) or nobody is signed in, hiding the entry.
+ * is known (none configured) or nobody is signed in, hiding the entry.
  * Agents are only ever children of a home document, so the entry is also hidden under any other
  * document.
  */
@@ -584,11 +584,11 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle); the
   // space's own agents only matter here for the first-arrival auto-open.
-  const siteAgents = useSiteAgents(siteUid)
-  const hasSiteAgents = !!siteAgents.serverUrl
-  // First arrival: a signed-in reader of a space that publishes agents finds the panel already
-  // open, once, on a viewport wide enough to show it beside the page. Closing it is remembered.
-  useAssistantAutoOpen(!!keyPair && hasSiteAgents && siteAgents.publishesAgents && !isMobile)
+  const siteAgents = useSiteAgentMounts(siteUid)
+  const hasSiteAgents = (siteAgents.data?.length ?? 0) > 0
+  // First arrival: a signed-in reader of a space with agents finds the panel already open, once,
+  // on a viewport wide enough to show it beside the page. Closing it is remembered.
+  useAssistantAutoOpen(!!keyPair && hasSiteAgents && !isMobile)
   // Hide join button if inside a pending space draft.
   const isPendingSpace = isPendingSpaceUid(siteUid)
 

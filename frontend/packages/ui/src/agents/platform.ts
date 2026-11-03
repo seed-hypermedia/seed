@@ -186,6 +186,12 @@ export type AgentsPlatform = {
   connectToHmServer?: (hmServerUrl: string) => Promise<{peerId: string; addrs: string[]} | null>
   /** Catches provider OAuth browser redirects on a loopback port (see {@link AgentsOAuthRedirectCatcher}). */
   oauthRedirectCatcher?: AgentsOAuthRedirectCatcher
+  /**
+   * The assistant panel offers only the agents mounted in the space on screen, found through
+   * their documents, and contacts no agents server a document did not name (the web app). Absent,
+   * the panel also lists the account's own agents on every configured server (desktop).
+   */
+  mountedAgentsOnly?: boolean
   /** Hook returning the account UID that signs agent actions for the current user. */
   useAccountUid: () => string | null | undefined
   /** Hook returning a navigate function for NavRoutes; `spawn` opens a new window where supported. */

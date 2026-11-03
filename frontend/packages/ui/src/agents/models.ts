@@ -42,12 +42,10 @@ import {recordServerClockSample} from './server-clock'
 import {isOptimisticUserEcho} from './agent-session-rows'
 import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform, type AgentsLocalServerState} from './platform'
-import {parseSpaceAgentIds} from './space-agents'
+import {useSiteAgentMounts} from '../site-agents'
 import {getToolReferencedUrls, type AgentActivity, type Thoroughness} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
-import type {HMMetadata} from '@seed-hypermedia/client/hm-types'
-import {useResource} from '@shm/shared/models/entity'
 import {UniversalAppContext} from '@shm/shared/routing'
 import type {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
@@ -563,43 +561,19 @@ export function useConfiguredAgentServerUrls() {
 export function useAgentServerUrls() {
   const localServerUrl = useLocalAgentServerUrl()
   const configured = useConfiguredAgentServerUrls()
-  const advertisedServerUrl = useSiteAdvertisedAgentServerUrl()
 
   // Order is meaning: the assistant panel's default agent context is the first agent of the first
-  // server. The app's own local server keeps that spot; a server the site in view advertises comes
-  // next, ahead of the user's configured list, so on a site (or the gateway, which shows many) the
-  // panel opens on that site's agents.
+  // server, and the app's own local server keeps that spot. The space on screen adds no server of
+  // its own here: its agents are found through their mount documents (see useMountedSiteAgents).
   const data = useMemo(() => {
     if (!configured.data) return undefined
     const urls = new Set<string>()
     if (localServerUrl.data) urls.add(localServerUrl.data)
-    if (advertisedServerUrl) urls.add(advertisedServerUrl)
     for (const url of configured.data) urls.add(url)
     return Array.from(urls)
-  }, [advertisedServerUrl, configured.data, localServerUrl.data])
+  }, [configured.data, localServerUrl.data])
 
-  return {...configured, data, advertisedServerUrl}
-}
-
-/**
- * Home document metadata of the space in view, if any.
- *
- * The space is the account of the current route's document (a draft's edit target counts). Where
- * the app is itself served by a space — the web app and the gateway — that space is the fallback
- * for routes that name no document, so the /hm/agents pages are still "in" the space hosting them.
- * The desktop app sets no origin, so there it is the route or nothing. Code rendered outside a
- * navigation provider (settings windows) reads no space at all rather than throwing.
- */
-function useSiteHomeMetadata(): {metadata: HMMetadata | undefined; isLoading: boolean} {
-  const route = useNavRouteOrNull()
-  const originHomeId = useContext(UniversalAppContext).originHomeId
-  const siteUid = (route ? siteUidOfRoute(route) : undefined) ?? originHomeId?.uid
-  const home = useResource(siteUid ? hmId(siteUid) : undefined)
-  return {
-    metadata: home.data?.type === 'document' ? home.data.document?.metadata : undefined,
-    // A disabled query (no space in view) also reports loading; only a real fetch counts.
-    isLoading: !!siteUid && !!home.isLoading && home.data === undefined,
-  }
+  return {...configured, data}
 }
 
 /** Account uid of the space whose document is on screen, or the space serving the app; null elsewhere. */
@@ -609,66 +583,46 @@ export function useSiteUidInView(): string | null {
   return (route ? siteUidOfRoute(route) : undefined) ?? originHomeId?.uid ?? null
 }
 
-/**
- * The agents server advertised by the site whose document is on screen, if any.
- *
- * Read from the site home document's `agentServerUrl` metadata — the same signed document that
- * names the site — so it is discoverable wherever the site's content is, with no server config.
- * It is never persisted into the user's configured list: it applies while viewing that site.
- */
-export function useSiteAdvertisedAgentServerUrl(): string | null {
-  const raw = useSiteHomeMetadata().metadata?.agentServerUrl
-  return useMemo(() => (typeof raw === 'string' && raw ? tryNormalizeAgentServerUrl(raw) : null), [raw])
-}
-
-/** One agent a space publishes, paired with the server it lives on. */
+/** One agent mounted in the space on screen, paired with the server its document names. */
 export type SpaceAgentOption = {serverUrl: string; agent: AgentInfo}
 
 /**
- * The agents the space in view publishes to its readers, in the order it published them.
+ * The agents mounted in the space in view, in the order of their documents' paths.
  *
- * A reader cannot list a space's agents — `ListAgents` only ever returns agents the caller owns or
- * collaborates on — so each one is fetched by the id the space named in its home document. The
- * server resolves the owning account from the id itself and answers for any signed account once the
- * agent is public-read, which is what lets somebody who just joined a space open the assistant and
- * find something to talk to.
- *
- * Agents that fail to load are dropped rather than surfaced: a space naming an agent that was since
- * deleted, made private, or moved should quietly offer one fewer agent, not an error where a chat
- * belongs. The queries share their cache key with {@link useAgentDetail}, so opening one of these
- * agents in the full view renders from what the panel already loaded.
+ * A space's agents are its mount documents (see `useSiteAgentMounts`): each one names the agent's
+ * id and server, and nothing is asked of any server a document does not name. Each agent is then
+ * fetched by id, which the server answers for the owner, a collaborator, or any signed account
+ * once the agent is public-read. An agent the account cannot see is simply left out: a visitor
+ * gets the agents that were opened to them, not an error where a chat belongs. The queries share
+ * their cache key with {@link useAgentDetail}, so opening one in the full view renders from what
+ * the panel already loaded.
  *
  * Each agent's sessions are fetched alongside with `ListSessions {agentId}` (first page, newest
  * first), because that is the only way a reader gets to see them: the account-wide `ListSessions`
  * the sidebar otherwise relies on covers agents the account owns or collaborates on, never public
- * ones — so a visitor's own chats with a space's agent, let alone everybody else's, would stay
- * hidden behind "no chats yet". They are returned here as list entries (top level only; children
- * nest under their parent's disclosure) for the sidebar to merge into its session list.
+ * ones. They are returned here as list entries (top level only; children nest under their
+ * parent's disclosure) for the sidebar to merge into its session list.
  *
- * `isLoading` covers the space's home document as well as the agent fetches: until the home has
- * loaded there is no way to know whether the space publishes anything, and callers that settle
- * their selection on "the agent lists are in" must not settle on that gap.
+ * `isLoading` covers the document query as well as the agent fetches: until the mounts are known
+ * there is no way to tell whether the space has agents, and callers that settle their selection
+ * on "the agent lists are in" must not settle on that gap.
  */
-export function useSpaceAgents(accountUid: string | null | undefined): {
+export function useMountedSiteAgents(accountUid: string | null | undefined): {
   agents: SpaceAgentOption[]
   sessions: AgentSessionListEntry[]
   isLoading: boolean
 } {
-  const {metadata, isLoading: isHomeLoading} = useSiteHomeMetadata()
-  const rawServerUrl = metadata?.agentServerUrl
-  const serverUrl = useMemo(
-    () => (typeof rawServerUrl === 'string' && rawServerUrl ? tryNormalizeAgentServerUrl(rawServerUrl) : null),
-    [rawServerUrl],
-  )
-  const agentIds = useMemo(() => parseSpaceAgentIds(metadata?.spaceAgents), [metadata?.spaceAgents])
+  const siteUid = useSiteUidInView()
+  const mounts = useSiteAgentMounts(siteUid)
+  const targets = useMemo(() => (accountUid ? mounts.data ?? [] : []), [accountUid, mounts.data])
   const queries = useQueries({
-    queries: (serverUrl && accountUid ? agentIds : []).map((agentId) => ({
-      queryKey: ['agents', 'detail', serverUrl, accountUid, agentId],
+    queries: targets.map((mount) => ({
+      queryKey: ['agents', 'detail', mount.serverUrl, accountUid, mount.agentId],
       queryFn: async () => {
         const res = await sendAgentAction({
-          serverUrl: serverUrl!,
+          serverUrl: mount.serverUrl,
           accountUid: accountUid!,
-          action: {_: 'GetAgent', agentId},
+          action: {_: 'GetAgent', agentId: mount.agentId},
         })
         if (res._ !== 'GetAgentResponse') throw new Error('Unexpected GetAgent response')
         return res
@@ -677,26 +631,24 @@ export function useSpaceAgents(accountUid: string | null | undefined): {
       useErrorBoundary: false,
     })),
   })
-  const responses = queries.map((query) => query.data)
-  const agents = serverUrl
-    ? responses
-        .map((response) => response?.agent)
-        .filter((agent): agent is AgentInfo => !!agent)
-        .map((agent) => ({serverUrl, agent}))
-    : []
+  const agents: SpaceAgentOption[] = targets.flatMap((mount, index) => {
+    const agent = queries[index]?.data?.agent
+    // The server must answer with the document's exact id: a server alias is not a mount here.
+    return agent && agent.id === mount.agentId ? [{serverUrl: mount.serverUrl, agent}] : []
+  })
   // The sidebar shows the newest page only; the agent page pages through the rest. Fetched in
-  // parallel with the agents (one round trip, not two), keyed by the published id; an agent that
-  // failed to load contributes no rows. The cache key extends the agent's paginated-list key so
-  // the same invalidations and optimistic patches reach it, without colliding with the infinite
-  // query the agent page owns.
+  // parallel with the agents (one round trip, not two), keyed by the mount; an agent that failed
+  // to load contributes no rows. The cache key extends the agent's paginated-list key so the same
+  // invalidations and optimistic patches reach it, without colliding with the infinite query the
+  // agent page owns.
   const sessionQueries = useQueries({
-    queries: (serverUrl && accountUid ? agentIds : []).map((agentId) => ({
-      queryKey: [...agentSessionsKey(serverUrl!, accountUid, agentId), 'sidebar'],
+    queries: targets.map((mount) => ({
+      queryKey: [...agentSessionsKey(mount.serverUrl, accountUid, mount.agentId), 'sidebar'],
       queryFn: async (): Promise<AgentSessionsPage> => {
         const res = await sendAgentAction({
-          serverUrl: serverUrl!,
+          serverUrl: mount.serverUrl,
           accountUid: accountUid!,
-          action: {_: 'ListSessions', agentId, includeChildren: false, limit: AGENT_SESSIONS_PAGE_SIZE},
+          action: {_: 'ListSessions', agentId: mount.agentId, includeChildren: false, limit: AGENT_SESSIONS_PAGE_SIZE},
         })
         if (res._ !== 'ListSessionsResponse') throw new Error('Unexpected ListSessions response')
         return {sessions: res.sessions.filter((session) => !session.parentSessionId), nextCursor: res.nextCursor}
@@ -705,17 +657,19 @@ export function useSpaceAgents(accountUid: string | null | undefined): {
       useErrorBoundary: false,
     })),
   })
-  const sessionsByAgent = new Map(agentIds.map((agentId, index) => [agentId, sessionQueries[index]?.data?.sessions]))
-  const sessions: AgentSessionListEntry[] = serverUrl
-    ? agents.flatMap(({agent}) =>
-        (sessionsByAgent.get(agent.id) ?? []).map((session): AgentSessionListEntry => ({serverUrl, session, agent})),
-      )
-    : []
+  const sessions: AgentSessionListEntry[] = agents.flatMap(({serverUrl, agent}) => {
+    const index = targets.findIndex((mount) => mount.agentId === agent.id && mount.serverUrl === serverUrl)
+    return (sessionQueries[index]?.data?.sessions ?? []).map(
+      (session): AgentSessionListEntry => ({serverUrl, session, agent}),
+    )
+  })
   return {
     agents,
     sessions,
     isLoading:
-      isHomeLoading || queries.some((query) => query.isLoading) || sessionQueries.some((query) => query.isLoading),
+      (!!siteUid && mounts.isInitialLoading) ||
+      queries.some((query) => query.isLoading) ||
+      sessionQueries.some((query) => query.isLoading),
   }
 }
 
@@ -1133,7 +1087,7 @@ export function useAgentServerHealths(serverUrls: string[] | undefined) {
  */
 export function useHasAnyAgent(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
   const agentLists = useAgentLists(serverUrls, accountUid)
-  const spaceAgents = useSpaceAgents(accountUid)
+  const spaceAgents = useMountedSiteAgents(accountUid)
   const hasAgents = spaceAgents.agents.length > 0 || agentLists.some((query) => (query.data?.length || 0) > 0)
   // "No agents" is only meaningful once every server has answered. Treating the in-flight state as
   // empty would hide the assistant on each launch and discard the restored sidebar state.

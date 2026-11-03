@@ -115,6 +115,8 @@ export function registerWebAgentsPlatform() {
   registered = true
   setAgentsPlatform({
     defaultServerUrl: () => SEED_AGENT_SERVER_URL ?? null,
+    // A site's agents are its mount documents; the panel on the web shows those and nothing else.
+    mountedAgentsOnly: true,
     getSigner: getWebAgentsSigner,
     getDelegation: getWebAgentsDelegation,
     getSetting: async (key: string) => {

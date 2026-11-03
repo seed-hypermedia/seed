@@ -10,7 +10,6 @@ import {CreateAgentDialog, pickCreateAgentServer} from '../agents/dialogs'
 
 const mocks = vi.hoisted(() => ({
   defaultServer: null as string | null,
-  advertisedServer: null as string | null,
   createAgent: vi.fn(),
   createIdentity: vi.fn(),
   publish: vi.fn(),
@@ -39,7 +38,6 @@ vi.mock('../agents/models', () => ({
   }),
   useLocalAgentServerUrl: () => ({data: 'http://local.test'}),
   useAgentServerUrl: () => ({data: mocks.defaultServer}),
-  useSiteAdvertisedAgentServerUrl: () => mocks.advertisedServer,
   useDeleteModelProvider: vi.fn(),
   useDeleteSigningIdentity: vi.fn(),
   useImportSigningIdentity: vi.fn(),
@@ -90,7 +88,6 @@ beforeEach(() => {
   root = createRoot(container)
   vi.clearAllMocks()
   mocks.defaultServer = null
-  mocks.advertisedServer = null
   mocks.models = [{id: 'gpt-test', name: 'gpt-test'}]
   mocks.createIdentity.mockResolvedValue({
     _: 'CreateSigningIdentityResponse',
@@ -226,7 +223,7 @@ describe('CreateAgentDialog', () => {
     expect(button('Change')).toBeUndefined()
   })
 
-  it('prefers the space on screen, then the configured default, then any remote over the local server', () => {
+  it('prefers the configured default, then any remote over the local server', () => {
     const local = 'http://local.test'
     expect(pickCreateAgentServer([local, 'https://a.example'], {localServerUrl: local})).toBe('https://a.example')
     expect(
@@ -237,8 +234,7 @@ describe('CreateAgentDialog', () => {
     ).toBe('https://a.example')
     expect(
       pickCreateAgentServer([local, 'https://a.example', 'https://b.example'], {
-        advertisedServerUrl: 'https://b.example',
-        defaultServerUrl: 'https://a.example',
+        defaultServerUrl: 'https://b.example',
         localServerUrl: local,
       }),
     ).toBe('https://b.example')

@@ -579,27 +579,12 @@ export const HMDocumentMetadataSchema = z
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
     /**
-     * Agents server a space advertises for its readers (an http(s) origin). Clients viewing the
-     * space's documents connect to it alongside their own configured servers, so a site can host
-     * agents for its audience — on the gateway, each site brings its own agents backend. A document
-     * declares a mount with type hm://hyper.media/agent; this server must register its exact canonical HMID.
+     * The agents server an agent's mount document names (an http(s) origin). A document with
+     * `type: hm://hyper.media/agent` and this field is an agent: its versionless hm:// id is the
+     * agent's id, and that server must register it under exactly that id. A space's agents are
+     * found by querying its documents for this type; nothing else registers an agent with a space.
      */
     agentServerUrl: z.string().optional(),
-    /**
-     * Agents this space publishes to its readers: `{[agentId]: order}`, where each id names an agent
-     * on {@link agentServerUrl} and the number is its position in the picker.
-     *
-     * This is what makes a space's agents reachable by someone who just arrived: an agent server
-     * only ever lists agents you own or collaborate on, so a reader cannot discover them by asking.
-     * Named here, the client fetches each one by id, which the server serves to any signed account
-     * once the agent is public-read.
-     *
-     * Only ids and order live here — an agent's name and icon are read from the agent itself, so
-     * renaming one never strands a stale copy in a signed document. Values are typed loosely
-     * because removal leaves a null attribute behind rather than dropping the key; `parseSpaceAgentIds`
-     * in @shm/ui/agents/space-agents is the reader for this field.
-     */
-    spaceAgents: z.record(z.string(), z.unknown()).optional(),
     /** Resource type; custom HTML pages use hm://hyper.media/page. */
     type: z.string().optional(),
     /** UnixFS folder whose index.html runs as an isolated custom HTML page. */
@@ -655,8 +640,7 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   thumbnail: 'Deprecated image field kept for older documents.',
   cover: 'Wide cover image shown in headers and cards.',
   siteUrl: 'Published website URL for a space.',
-  agentServerUrl: 'Agents server readers of this space connect to.',
-  spaceAgents: 'Agents this space publishes to its readers, by id and order.',
+  agentServerUrl: 'Agents server that hosts the agent this document mounts.',
   layout: 'Legacy space header layout setting.',
   displayPublishTime: 'Publication date shown to readers.',
   displayAuthor: 'Author byline shown to readers.',

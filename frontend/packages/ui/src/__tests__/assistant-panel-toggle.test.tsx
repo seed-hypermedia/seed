@@ -6,23 +6,22 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 /**
  * The site header's way into the agents panel: a button beside search on wide layouts and a row in
  * the mobile menu. Both are offered only where a host provides the toggle (web, signed in) and the
- * reader has an agents server to talk to — the one the space names, or the deployment's default.
+ * space has agents, which means mount documents; a deployment default server adds nothing here.
  */
 
 const mockState = vi.hoisted(() => ({
-  homeMetadata: {} as Record<string, unknown>,
-  envServerUrl: undefined as string | undefined,
+  mounts: [] as Array<{agentId: string; serverUrl: string; name: string; path: string}>,
+  askedFor: [] as string[],
 }))
 
-vi.mock('@shm/shared/models/entity', () => ({
-  useResource: () => ({data: {type: 'document', document: {metadata: mockState.homeMetadata}}}),
-}))
-vi.mock('@shm/shared/constants', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  get SEED_AGENT_SERVER_URL() {
-    return mockState.envServerUrl
+vi.mock('../site-agents', () => ({
+  useSiteAgentMounts: (siteUid: string) => {
+    mockState.askedFor.push(siteUid)
+    return {data: mockState.mounts, isInitialLoading: false}
   },
 }))
+
+const MOUNT = {agentId: 'hm://space-uid/helper', serverUrl: 'https://agents.example', name: 'Helper', path: '/helper'}
 
 import {
   AssistantPanelHeaderButton,
@@ -50,8 +49,8 @@ function render(toggle: AssistantPanelToggle | null, onMenuClick?: () => void) {
 
 beforeEach(() => {
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
-  mockState.homeMetadata = {}
-  mockState.envServerUrl = undefined
+  mockState.mounts = []
+  mockState.askedFor = []
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -63,42 +62,28 @@ afterEach(() => {
 })
 
 describe('agents panel entry points in the site header', () => {
-  it('offers both entry points on a space that names an agents server', () => {
-    mockState.homeMetadata = {agentServerUrl: 'https://agents.example'}
+  it('offers both entry points on a space with a mounted agent, found through its documents', () => {
+    mockState.mounts = [MOUNT]
     render({isOpen: false, toggle: vi.fn()})
+    expect(mockState.askedFor).toContain('space-uid')
     expect(container.querySelector('button[aria-label="Agents"]')).not.toBeNull()
     expect(container.textContent).toContain('Agents')
   })
 
-  it('offers nothing on a space that names none, on a deployment with no default server', () => {
-    mockState.homeMetadata = {name: 'A Space'}
+  it('offers nothing on a space with no mounted agents', () => {
     render({isOpen: false, toggle: vi.fn()})
     expect(container.querySelector('button')).toBeNull()
     expect(container.textContent).not.toContain('Agents')
   })
 
-  it('treats an empty server setting as none', () => {
-    mockState.homeMetadata = {agentServerUrl: ''}
-    render({isOpen: false, toggle: vi.fn()})
-    expect(container.textContent).not.toContain('Agents')
-  })
-
-  it('offers both on any space when the deployment names a default server', () => {
-    mockState.envServerUrl = 'http://localhost:3051'
-    render({isOpen: false, toggle: vi.fn()})
-    expect(container.querySelector('button[aria-label="Agents"]')).not.toBeNull()
-    expect(container.textContent).toContain('Agents')
-  })
-
   it('offers nothing where no host provides the toggle, such as desktop', () => {
-    mockState.envServerUrl = 'http://localhost:3051'
-    mockState.homeMetadata = {agentServerUrl: 'https://agents.example'}
+    mockState.mounts = [MOUNT]
     render(null)
     expect(container.textContent).not.toContain('Agents')
   })
 
   it('keeps activity in the header tooltip without showing dots on either entry point', () => {
-    mockState.envServerUrl = 'http://localhost:3051'
+    mockState.mounts = [MOUNT]
     render({
       isOpen: false,
       toggle: vi.fn(),
@@ -118,7 +103,7 @@ describe('agents panel entry points in the site header', () => {
   })
 
   it('toggles the panel, reflects its open state, and lets the mobile menu close itself', () => {
-    mockState.envServerUrl = 'http://localhost:3051'
+    mockState.mounts = [MOUNT]
     const toggle = vi.fn()
     const onMenuClick = vi.fn()
     render({isOpen: true, toggle}, onMenuClick)
