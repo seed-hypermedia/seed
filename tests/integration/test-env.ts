@@ -134,12 +134,13 @@ export async function setupTestEnv(config: TestEnvConfig = {}): Promise<TestEnv>
     ...(config.gatewayAdminSecret ? {serviceAdminSecret: config.gatewayAdminSecret} : {}),
     ...(config.agentServerUrl ? {agentServerUrl: config.agentServerUrl} : {}),
   }
-  let web: WebServerInstance
+  let web: WebServerInstance | undefined
   try {
     web = await startWebServer(webConfig)
     await web.waitForReady()
     await seedTestFixtures(web.baseUrl)
   } catch (error) {
+    if (web) await web.kill()
     await daemon.kill()
     rmSync(daemonDataDir, {recursive: true, force: true})
     rmSync(webDataDir, {recursive: true, force: true})
@@ -147,14 +148,20 @@ export async function setupTestEnv(config: TestEnvConfig = {}): Promise<TestEnv>
   }
 
   console.log('=== Test environment ready ===')
-  console.log(`Web server: ${web.baseUrl}`)
+  console.log(`Web server: ${web!.baseUrl}`)
 
-  const cleanup = async () => {
-    console.log('=== Cleaning up test environment ===')
-    // Wait for processes to fully exit to avoid "Channel closed" errors from tinypool
-    await Promise.all([web.kill(), daemon.kill()])
-    rmSync(daemonDataDir, {recursive: true, force: true})
-    rmSync(webDataDir, {recursive: true, force: true})
+  let cleanupPromise: Promise<void> | undefined
+  const cleanup = (): Promise<void> => {
+    if (cleanupPromise) return cleanupPromise
+    cleanupPromise = (async () => {
+      process.off('SIGINT', cleanup)
+      process.off('SIGTERM', cleanup)
+      console.log('=== Cleaning up test environment ===')
+      await Promise.all([web!.kill(), daemon.kill()])
+      rmSync(daemonDataDir, {recursive: true, force: true})
+      rmSync(webDataDir, {recursive: true, force: true})
+    })()
+    return cleanupPromise
   }
 
   // Handle process exit
@@ -163,7 +170,7 @@ export async function setupTestEnv(config: TestEnvConfig = {}): Promise<TestEnv>
 
   return {
     daemon,
-    web,
+    web: web!,
     cleanup,
   }
 }

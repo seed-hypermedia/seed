@@ -24,6 +24,17 @@ describe('design capture plan', () => {
       'notes-cards',
       'not-found',
     ])
+    expect(captureViews('desktop')).toEqual([
+      'library-home',
+      'article',
+      'new-draft-slash-menu',
+      'activity-feed',
+      'comments',
+      'settings-general',
+      'site-settings',
+      'account-menu',
+      'search-quick-switcher',
+    ])
   })
 
   it('creates safe screenshot paths and the requested manifest shape', () => {

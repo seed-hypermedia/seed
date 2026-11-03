@@ -27,11 +27,9 @@ export const CAPTURE_VIEWS = {
     'activity-feed',
     'comments',
     'settings-general',
-    'settings-appearance',
     'site-settings',
     'account-menu',
     'search-quick-switcher',
-    'onboarding',
   ],
 } as const
 
