@@ -6,12 +6,22 @@ import {renderToString} from 'react-dom/server'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {hmId} from '@shm/shared'
 import {SiteFileBrowserLayout} from '../site-file-browser-layout'
-import {SiteSidebarToggle} from '../site-sidebar-context'
+import {SiteSidebarProvider, SiteSidebarToggle, useSiteSidebar} from '../site-sidebar-context'
 import {TooltipProvider} from '../tooltip'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 const media = vi.hoisted(() => ({xs: false}))
 const navigation = vi.hoisted(() => ({path: 'one'}))
+const platform = vi.hoisted(() => ({desktop: false}))
 vi.mock('../use-media', () => ({useMedia: () => media}))
+vi.mock('@shm/shared/constants', async () => {
+  const actual = await vi.importActual<typeof import('@shm/shared/constants')>('@shm/shared/constants')
+  return {
+    ...actual,
+    get IS_DESKTOP() {
+      return platform.desktop
+    },
+  }
+})
 vi.mock('@shm/shared/utils/navigation', async () => {
   const actual = await vi.importActual<typeof import('@shm/shared/utils/navigation')>('@shm/shared/utils/navigation')
   return {
@@ -32,6 +42,7 @@ let root: Root
 beforeEach(() => {
   media.xs = false
   navigation.path = 'one'
+  platform.desktop = false
   localStorage.clear()
   container = document.createElement('div')
   document.body.append(container)
@@ -129,6 +140,26 @@ describe('unified site sidebar layout', () => {
     act(() => root.render(<Page hideBrowser />))
     expect(container.querySelector('aside')).not.toBeNull()
     expect(container.textContent).not.toContain('Open document')
+  })
+
+  it('keeps the desktop app sidebar from falling back to its own documents when the space hides the browser', () => {
+    platform.desktop = true
+    // Mirrors the desktop app sidebar, which lists documents itself unless a page fills its slot.
+    function AppSidebar() {
+      const sidebar = useSiteSidebar()!
+      return <div ref={sidebar.setTarget}>{sidebar.hasPageContent ? null : 'Fallback documents'}</div>
+    }
+    act(() =>
+      root.render(
+        <SiteSidebarProvider open setOpen={() => {}}>
+          <AppSidebar />
+          <Page hideBrowser />
+        </SiteSidebarProvider>,
+      ),
+    )
+    expect(container.textContent).not.toContain('Fallback documents')
+    expect(container.textContent).not.toContain('Open document')
+    expect(container.querySelector('main')).not.toBeNull()
   })
 
   it('leaves the documents out of the mobile drawer when the space hides the browser', () => {

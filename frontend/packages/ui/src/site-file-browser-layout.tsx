@@ -1,14 +1,14 @@
-import {IS_DESKTOP} from '@shm/shared/constants'
-import {getRouteKey, useNavigate, useNavRouteOrNull} from '@shm/shared/utils/navigation'
-import {useEffect, useRef, useState, type ReactNode} from 'react'
-import {Group, Panel} from 'react-resizable-panels'
-import {Dialog, DialogContent, DialogTitle} from './components/dialog'
-import {focusExploreSearch} from './explore-search-focus'
-import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from './resizable-panels'
-import {SiteSidebar, SiteSidebarDocuments} from './site-sidebar'
-import {SiteSidebarPortal, SiteSidebarProvider, usePersistedSidebarOpen, useSiteSidebar} from './site-sidebar-context'
-import type {SiteFileBrowserProps} from './site-file-browser'
-import {useMedia} from './use-media'
+import { IS_DESKTOP } from '@shm/shared/constants'
+import { getRouteKey, useNavigate, useNavRouteOrNull } from '@shm/shared/utils/navigation'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Group, Panel } from 'react-resizable-panels'
+import { Dialog, DialogContent, DialogTitle } from './components/dialog'
+import { focusExploreSearch } from './explore-search-focus'
+import { AnimatedPanel, PanelSeparator, useSavedPanelLayout } from './resizable-panels'
+import type { SiteFileBrowserProps } from './site-file-browser'
+import { SiteSidebar, SiteSidebarDocuments } from './site-sidebar'
+import { SiteSidebarPortal, SiteSidebarProvider, usePersistedSidebarOpen, useSiteSidebar } from './site-sidebar-context'
+import { useMedia } from './use-media'
 
 /** Page-owned browser data; desktop renders it in the existing application sidebar. */
 export interface SiteFileBrowserLayoutProps
@@ -27,11 +27,7 @@ export function SiteFileBrowserLayout(props: SiteFileBrowserLayoutProps) {
   if (IS_DESKTOP && sidebar) {
     return (
       <>
-        {props.hideBrowser ? null : (
-          <SiteSidebarPortal>
-            <SiteSidebarDocuments {...props} />
-          </SiteSidebarPortal>
-        )}
+        <SiteSidebarPortal>{props.hideBrowser ? null : <SiteSidebarDocuments {...props} />}</SiteSidebarPortal>
         {props.children}
       </>
     )
@@ -70,7 +66,7 @@ function WebSiteSidebarLayout({
       event.preventDefault()
       focusExploreSearch()
       onMobileOpenChange(false)
-      navigate({key: 'explore', context: {type: 'site', id: {...props.siteId, latest: true, version: null}}})
+      navigate({ key: 'explore', context: { type: 'site', id: { ...props.siteId, latest: true, version: null } } })
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -130,7 +126,7 @@ function WebSiteSidebarLayout({
           orientation="horizontal"
           className="max-h-full min-h-0 flex-1"
           // Override Group's inline 100% height; the web shell has no fixed parent height.
-          style={{height: '100dvh'}}
+          style={{ height: '100dvh' }}
           onLayoutChanged={(next, meta) => {
             layout.onLayoutChanged(next, meta)
             if (meta.isUserInteraction) setOpen(next['site-sidebar'] !== 0)
