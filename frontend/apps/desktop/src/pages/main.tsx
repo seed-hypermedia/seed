@@ -325,6 +325,7 @@ export default function Main({className}: {className?: string}) {
         >
           <AssistantPanel
             initialSessionId={assistantSessionId}
+            visible={shouldRenderAssistantPanel}
             onSessionChange={handleSessionChange}
             onClose={handleCloseAssistant}
           />
