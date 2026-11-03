@@ -1,4 +1,5 @@
-import {useAgentDetail} from './models'
+import {useAcceptAgentInvite, useAgentDetail, useAgentInvites} from './models'
+import {toast} from '../toast'
 import {AgentServerError} from './client'
 import {Spinner} from '../spinner'
 import {Button} from '../button'
@@ -20,6 +21,12 @@ export default function MountedAgentDocument({document, route, children}: AgentD
     isMountableAgentServerUrl(serverUrl)
   const agent = useAgentDetail(validServer ? serverUrl : undefined, accountUid, route.id.id)
   const hasAgent = !!accountUid && validServer && !agent.isError && agent.data?.agent.id === route.id.id
+  // An invited account cannot see the agent until it accepts, so the invite is offered here, on
+  // the page the owner would link to, rather than on a screen of its own.
+  const notFound = agent.error instanceof AgentServerError && agent.error.status === 404
+  const invites = useAgentInvites(validServer && notFound ? serverUrl : undefined, accountUid)
+  const invite = invites.data?.find((candidate) => candidate.agentId === route.id.id)
+  const acceptInvite = useAcceptAgentInvite(validServer ? serverUrl : undefined, accountUid)
   if (children) return children(hasAgent)
   if (!validServer)
     return (
@@ -37,7 +44,6 @@ export default function MountedAgentDocument({document, route, children}: AgentD
   if (!hasAgent) {
     // The server answers 404 both for an agent that is not shared with this account and for one it
     // no longer hosts (orphaned, deleted). The document says an agent lives here, so name both.
-    const notFound = agent.error instanceof AgentServerError && agent.error.status === 404
     const serverHost = (() => {
       try {
         return new URL(serverUrl).host
@@ -49,6 +55,25 @@ export default function MountedAgentDocument({document, route, children}: AgentD
       <div role="alert" className="flex flex-col items-start gap-3 p-5">
         {agent.error && !notFound ? (
           <SizableText>Could not verify this agent. Check your access and server connection.</SizableText>
+        ) : invite ? (
+          <>
+            <SizableText weight="bold">You are invited to this agent</SizableText>
+            <SizableText color="muted">
+              The agent's owner invited your account {accountUid} as a {invite.role}. Accept to open it.
+            </SizableText>
+            <Button
+              disabled={acceptInvite.isLoading}
+              onClick={() =>
+                acceptInvite.mutate(route.id.id, {
+                  onSuccess: () => void agent.refetch(),
+                  onError: (error) =>
+                    toast.error(error instanceof Error ? error.message : 'Could not accept the invite'),
+                })
+              }
+            >
+              Accept invite
+            </Button>
+          </>
         ) : notFound ? (
           <>
             <SizableText weight="bold">This agent is not shared with your account</SizableText>

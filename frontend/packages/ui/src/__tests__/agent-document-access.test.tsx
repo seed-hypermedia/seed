@@ -10,7 +10,13 @@ import {setAgentsPlatform} from '../agents/platform'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const useAgentDetail = vi.fn()
-vi.mock('../agents/models', () => ({useAgentDetail: (...args: unknown[]) => useAgentDetail(...args)}))
+const useAgentInvites = vi.fn(() => ({data: []}))
+const acceptInvite = vi.fn()
+vi.mock('../agents/models', () => ({
+  useAgentDetail: (...args: unknown[]) => useAgentDetail(...args),
+  useAgentInvites: (...args: unknown[]) => useAgentInvites(...args),
+  useAcceptAgentInvite: () => ({mutate: acceptInvite, isLoading: false}),
+}))
 const detailPage = vi.fn()
 vi.mock('../agents/detail', () => ({
   AgentDetailPage: (props: Record<string, unknown>) => {
@@ -37,6 +43,9 @@ describe('MountedAgentDocument access states', () => {
     window.document.body.appendChild(container)
     root = createRoot(container)
     useAgentDetail.mockReset()
+    useAgentInvites.mockReset()
+    useAgentInvites.mockReturnValue({data: []})
+    acceptInvite.mockReset()
     detailPage.mockReset()
     setAgentsPlatform({useAccountUid: () => 'z6MkVisitor'} as never)
   })
@@ -66,6 +75,34 @@ describe('MountedAgentDocument access states', () => {
     expect(text).toContain('Agent access tab')
     expect(text).toContain('orphaned or deleted')
     expect(text).not.toContain('No agent is registered')
+  })
+
+  it('offers to accept a pending invite on the agent instead of the no-access message', () => {
+    const refetch = vi.fn()
+    useAgentDetail.mockReturnValue({
+      data: undefined,
+      error: new AgentServerError('Agent not found', 404),
+      isError: true,
+      isInitialLoading: false,
+      refetch,
+    })
+    useAgentInvites.mockReturnValue({
+      data: [{agentId: documentId.id, agentName: 'Silver Newt', ownerAccountId: 'z6MkOwner', role: 'writer'}],
+    })
+    render()
+    const text = container.textContent ?? ''
+    expect(text).toContain('You are invited to this agent')
+    expect(text).toContain('as a writer')
+    expect(text).not.toContain('not shared with your account')
+    // Invites are only looked up once the server said the agent is out of reach.
+    expect(useAgentInvites).toHaveBeenLastCalledWith('http://localhost:3051', 'z6MkVisitor')
+    const accept = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Accept invite'),
+    )!
+    act(() => accept.click())
+    expect(acceptInvite).toHaveBeenCalledWith(documentId.id, expect.objectContaining({onSuccess: expect.any(Function)}))
+    acceptInvite.mock.calls[0]![1].onSuccess()
+    expect(refetch).toHaveBeenCalled()
   })
 
   it('keeps the connection message for any other error', () => {
