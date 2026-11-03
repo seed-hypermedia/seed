@@ -1429,8 +1429,13 @@ export class Service {
         }
         const response = this.#getAgent(accountId, action.documentId, verified.accountId)
         await this.#grantMountSpaceWriter(accountId, response.agent.definition, action.documentId)
+        // The audience cache is keyed by agent id; neither id may keep a stale list across the rename.
+        this.#collaboratorAudience.delete(action.agentId)
+        this.#collaboratorAudience.delete(action.documentId)
         invalidateSpaceIndex(accountId)
+        // Subscribers of the old key learn the id changed; subscribers of the new one get the agent.
         this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: action.agentId})
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: action.documentId})
         this.#emit({type: 'agent-change', accountId, agent: response.agent})
         return response
       }
@@ -1449,7 +1454,10 @@ export class Service {
           throw new APIError(409, errorMessage(error))
         }
         const response = this.#getAgent(accountId, nextId, verified.accountId)
+        this.#collaboratorAudience.delete(action.agentId)
+        this.#collaboratorAudience.delete(nextId)
         invalidateSpaceIndex(accountId)
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: action.agentId})
         this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: nextId})
         this.#emit({type: 'agent-change', accountId, agent: response.agent})
         return response

@@ -68,6 +68,14 @@ describe('hypermediaUrlToRoute', () => {
     },
   )
 
+  test('a session view without a session id is the sessions list', () => {
+    const id = hmId('alice', {path: ['team', 'helper']})
+    expect(routeToHmUrl({key: 'document', id, agentView: 'session'})).toBe('hm://alice/team/helper/:sessions')
+    expect(routeToHmUrl({key: 'document', id, agentView: 'session', agentSessionId: 's/1'})).toBe(
+      'hm://alice/team/helper/:session/s%2F1',
+    )
+  })
+
   test('the old /:tools links open the permissions page', () => {
     const id = hmId('alice', {path: ['team', 'helper']})
     for (const url of ['hm://alice/team/helper/:tools', 'https://seed.example/hm/alice/team/helper/:tools']) {

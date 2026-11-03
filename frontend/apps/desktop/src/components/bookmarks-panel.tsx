@@ -63,6 +63,16 @@ export function bookmarkRoute(bookmark: BookmarkItem) {
   if (bookmark.key === 'profile') {
     return {key: 'profile' as const, id: bookmark.id, tab: profileTabFromViewTerm(bookmark.viewTerm)}
   }
+  if (bookmark.agentView) {
+    return {
+      key: 'document' as const,
+      id: bookmark.id,
+      agentView: bookmark.agentView,
+      agentSessionId: bookmark.agentSessionId,
+      agentTriggerId: bookmark.agentTriggerId,
+      agentMemoryPath: bookmark.agentMemoryPath,
+    }
+  }
   return bookmark.viewTerm
     ? createDocumentNavRoute(bookmark.id, viewTermToRouteKey(bookmark.viewTerm))
     : {key: 'document' as const, id: bookmark.id}

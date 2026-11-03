@@ -138,6 +138,7 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
     agentView,
     agentSessionId,
     agentTriggerId,
+    settingsTab,
   } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
 
@@ -148,7 +149,8 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   try {
     const result = await resolveHypermediaUrl(cleanUrl, opts)
     if (!result?.hmId) return null
-    if (agentView || (viewTerm === ':settings' && result.hmId.path?.length)) {
+    // `/:settings/<site tab>` is the site's settings even under a path, as in url-to-route.
+    if (agentView || (viewTerm === ':settings' && result.hmId.path?.length && !settingsTab)) {
       const query = new URL(url).searchParams
       return {
         key: 'document',

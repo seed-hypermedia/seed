@@ -554,6 +554,7 @@ function useURLHandler() {
       agentView,
       agentSessionId,
       agentTriggerId,
+      settingsTab,
     } = extractViewTermFromUrl(httpSearch)
     const routeKey = viewTermToRouteKey(viewTerm)
     const replyCommentId = parseCustomURL(cleanUrl)?.query.reply
@@ -563,7 +564,10 @@ function useURLHandler() {
     const directResult = await resolveHypermediaUrl(cleanUrl, {domainResolver}).catch(() => null)
     const directRoute = routeFromResolvedUrl(cleanUrl, directResult)
     if (directRoute) {
-      if (directRoute.key === 'document' && (agentView || (viewTerm === ':settings' && directRoute.id.path?.length))) {
+      if (
+        directRoute.key === 'document' &&
+        (agentView || (viewTerm === ':settings' && directRoute.id.path?.length && !settingsTab))
+      ) {
         const query = new URL(httpSearch).searchParams
         return {
           ...directRoute,

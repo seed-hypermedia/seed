@@ -5,6 +5,7 @@ import {serialize} from 'superjson'
 import * as sqlite from './sqlite'
 import * as mount from './agent-mount'
 import * as api from '@seed-hypermedia/agents-protocol'
+import * as cbor from '@/cbor'
 
 describe('mount server addresses', () => {
   test.each(['file:///agents', 'https://user:password@agents.example', 'not a URL'])(
@@ -110,8 +111,19 @@ describe('mount document authorization', () => {
           throw new Error('Upload started')
         }),
       ).rejects.toThrow('Upload started')
+      // A trigger watching this agent's runs names it inside its source; that follows the id too.
+      db.query(
+        `INSERT INTO agent_triggers (id, account_id, agent_id, name, enabled, source_cbor, prompt, created_at, updated_at)
+         VALUES ('watch', 'owner', 'legacy', 'Watch', 1, ?, '', 1, 1)`,
+      ).run(cbor.encode({type: 'run-completed', agentId: 'legacy', status: 'succeeded'}))
+      const watchedAgent = () =>
+        cbor.decode<api.AgentTriggerSource & {agentId?: string}>(
+          (db.query('SELECT source_cbor FROM agent_triggers WHERE id = ?').get('watch') as {source_cbor: Uint8Array})
+            .source_cbor,
+        ).agentId
       await mount.mountAgent(db, client, 'owner', action)
       expect(mount.resolveAgentId(db, 'legacy')).toBe(documentId)
+      expect(watchedAgent()).toBe(documentId)
       expect(db.query('PRAGMA foreign_key_check').all()).toEqual([])
       await expect(
         mount.mountAgent(db, client, 'owner', {...action, agentId: documentId, documentId: 'hm://shared/team/other'}),
@@ -128,6 +140,7 @@ describe('mount document authorization', () => {
       ).toThrow('Upload started')
       expect(mount.unmountAgent(db, 'owner', unmount)).toBe('legacy')
       expect(db.query('SELECT id FROM agents').get()).toEqual({id: 'legacy'})
+      expect(watchedAgent()).toBe('legacy')
       expect(mount.resolveAgentId(db, 'legacy')).toBe('legacy')
       expect(mount.resolveAgentId(db, documentId)).toBe(documentId)
       expect(db.query('SELECT COUNT(*) AS n FROM agent_id_aliases').get()).toEqual({n: 0})

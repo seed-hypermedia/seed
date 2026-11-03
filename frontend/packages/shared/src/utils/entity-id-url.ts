@@ -118,9 +118,11 @@ export function agentDocumentViewPath(route: DocumentRoute): string | undefined 
     return `:triggers/${encodeURIComponent(route.agentTriggerId)}`
   if (route.agentView === 'tools') return ':settings/permissions'
   if (isAgentSettingsPage(route.agentView)) return `:settings/${route.agentView}`
-  return route.agentView === 'session'
-    ? `:session/${encodeURIComponent(route.agentSessionId || '')}`
-    : `:${route.agentView}`
+  // A session view with no id is the list; `:session/` would parse back as a document path.
+  if (route.agentView === 'session') {
+    return route.agentSessionId ? `:session/${encodeURIComponent(route.agentSessionId)}` : ':sessions'
+  }
+  return `:${route.agentView}`
 }
 
 function appendAgentViewQuery(url: string, route: DocumentRoute): string {

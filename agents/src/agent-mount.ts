@@ -2,6 +2,7 @@ import type {Database} from 'bun:sqlite'
 import {unpackHmId, type SeedClient} from '@seed-hypermedia/client'
 import * as api from '@seed-hypermedia/agents-protocol'
 import {stmt} from './statements'
+import * as cbor from '@/cbor'
 
 /** Resolves a pre-mount server ID without changing the signed envelope. */
 export function resolveAgentId(db: Database, id: string): string {
@@ -48,6 +49,7 @@ export async function mountAgent(
     for (const table of MOUNT_REFERENCE_TABLES) {
       stmt(db, `UPDATE ${table} SET agent_id = ? WHERE agent_id = ?`).run([action.documentId, action.agentId])
     }
+    retargetRunCompletedTriggers(db, accountId, action.agentId, action.documentId)
     stmt(db, 'UPDATE agents SET id = ?, updated_at = ? WHERE id = ? AND account_id = ?').run([
       action.documentId,
       Date.now(),
@@ -94,6 +96,7 @@ export function unmountAgent(
     for (const table of MOUNT_REFERENCE_TABLES) {
       stmt(db, `UPDATE ${table} SET agent_id = ? WHERE agent_id = ?`).run([nextId, action.agentId])
     }
+    retargetRunCompletedTriggers(db, accountId, action.agentId, nextId)
     stmt(db, 'UPDATE agents SET id = ?, updated_at = ? WHERE id = ? AND account_id = ?').run([
       nextId,
       Date.now(),
@@ -104,6 +107,26 @@ export function unmountAgent(
     stmt(db, 'DELETE FROM agent_id_aliases WHERE alias = ?').run([nextId])
   })()
   return nextId
+}
+
+/**
+ * A `run-completed` trigger names the agent it watches inside its source, not in a column, so
+ * the rename has to rewrite those sources too (on any of the account's agents) or the trigger
+ * silently stops matching once the watched agent's runs carry the new id.
+ */
+function retargetRunCompletedTriggers(db: Database, accountId: string, fromId: string, toId: string): void {
+  const rows = stmt<{id: string; source_cbor: Uint8Array}, [string]>(
+    db,
+    'SELECT id, source_cbor FROM agent_triggers WHERE account_id = ?',
+  ).all(accountId)
+  for (const row of rows) {
+    const source = cbor.decode<api.AgentTriggerSource>(row.source_cbor)
+    if (source.type !== 'run-completed' || source.agentId !== fromId) continue
+    stmt(db, 'UPDATE agent_triggers SET source_cbor = ? WHERE id = ?').run([
+      cbor.encode({...source, agentId: toId}),
+      row.id,
+    ])
+  }
 }
 
 /** Every table that names an agent by id and must follow a mount or unmount. */

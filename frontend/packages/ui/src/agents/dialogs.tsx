@@ -1003,7 +1003,8 @@ export function CreateAgentDialog({
   const preparedMount = useRef<{to: UnpackedHypermediaId; mount: PreparedAgentMount} | null>(null)
 
   useEffect(() => {
-    if (serverPicked.current) return
+    // A published mount document names its server; a late-resolving default must not move it.
+    if (serverPicked.current || preparedMount.current) return
     setSelectedServerUrl(pickCreateAgentServer(input.serverUrls, serverChoice))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [input.serverUrls, advertisedServerUrl, defaultServer.data, localServerUrl.data])

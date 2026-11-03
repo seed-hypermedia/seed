@@ -13,7 +13,7 @@ import type {MenuItemType} from '../options-dropdown'
 import {SizableText} from '../text'
 import {toast} from '../toast'
 import {useAppDialog} from '../universal-dialog'
-import type {AgentInfo} from './client'
+import {AgentServerError, type AgentInfo} from './client'
 import {mountedAgentServerUrl} from './delete-mounted-agent'
 import {describeAgentServer, useAgentDetail, useLocalAgentServerUrl, useUnmountAgent} from './models'
 import {useNavigate} from './navigation'
@@ -71,12 +71,21 @@ function OrphanAgentDialog({
     setBusy(true)
     let orphaned = false
     try {
-      const response = await unmount.mutateAsync(input.agent.id)
+      let nextAgentId: string | null = null
+      try {
+        const response = await unmount.mutateAsync(input.agent.id)
+        nextAgentId = response.agent.id
+      } catch (error) {
+        // Already orphaned on the server by an earlier attempt whose document delete failed: the
+        // document is what is left to remove.
+        if (!(error instanceof AgentServerError && error.status === 404)) throw error
+      }
       orphaned = true
       await deleteAgentMountDocument(client, input.accountUid, input.docId)
       toast.success(`Orphaned ${name}`)
       onClose()
-      navigate({key: 'agent', agentId: response.agent.id, serverUrl: input.serverUrl})
+      if (nextAgentId) navigate({key: 'agent', agentId: nextAgentId, serverUrl: input.serverUrl})
+      else navigate({key: 'document', id: hmId(input.docId.uid)})
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       toast.error(
