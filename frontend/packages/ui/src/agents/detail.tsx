@@ -467,9 +467,18 @@ export function AgentDetailPage({
 
   const selectedTriggerName = triggerId ? triggers.data?.find((trigger) => trigger.id === triggerId)?.name : undefined
   const isTriggerDetail = tab === 'triggers' && !!triggerId
-  // A subpage (one trigger, the system prompt) replaces the agent header with its own back bar,
-  // the way a session does, so there is one heading under the tabs.
-  const isSubpage = isTriggerDetail || tab === 'prompt'
+  // A subpage (one trigger, the system prompt) replaces the agent header and the tabs' Container
+  // with its own back bar and scrolling body, the way a session does.
+  const promptStatus =
+    promptSaveState === 'saving'
+      ? 'Saving…'
+      : promptSaveState === 'saved'
+        ? 'Saved'
+        : promptSaveState === 'error'
+          ? hasPromptContent(systemPrompt)
+            ? 'Save failed'
+            : 'System prompt is required'
+          : null
   const breadcrumbItems = isTriggerDetail
     ? [
         {label: 'Triggers', route: {key: 'agent' as const, agentId, serverUrl, tab: 'triggers' as const}},
@@ -555,18 +564,68 @@ export function AgentDetailPage({
   return (
     <AgentPane embedded={embedded} className="flex flex-col overflow-hidden">
       {agent.data && !embedded && <AgentMountBanner agent={agent.data.agent} serverUrl={serverUrl} />}
-      {/* A trigger's back bar is a flat header box; its body renders below. The prompt page keeps
-          the scrolling column so its editor can grow. */}
-      <div className={isTriggerDetail ? 'border-border flex-none border-b' : 'contents'}>
+      {agent.data ? (
+        <>
+          {createTriggerDialog.content}
+          {deleteAgentDialog.content}
+          {moveAgentDialog.content}
+          {addProviderDialog.content}
+          {editNameDialog.content}
+        </>
+      ) : null}
+      {agent.data && isTriggerDetail ? (
+        <AgentTriggersTab
+          agentId={agentId}
+          serverUrl={serverUrl}
+          selectedAccountId={selectedAccountId}
+          selectedTriggerId={triggerId}
+          triggers={triggers.data || []}
+          isLoading={triggers.isLoading}
+          readOnly={!canWrite}
+        />
+      ) : agent.data && tab === 'prompt' ? (
+        // Like a session: the back bar sits flush under the tabs and the editor scrolls below it.
+        <>
+          <AgentSubpageHeader
+            title="System prompt"
+            placeholder="System prompt"
+            backLabel="Back to agent settings"
+            onBack={() => navigate({key: 'agent', agentId, serverUrl, tab: 'settings'})}
+            actions={
+              promptStatus ? (
+                <SizableText size="sm" color={promptSaveState === 'error' ? 'destructive' : 'muted'} role="status">
+                  {promptStatus}
+                </SizableText>
+              ) : undefined
+            }
+          />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-4xl px-4 py-4">
+              {promptEditorDisabled ? (
+                <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm break-words whitespace-pre-wrap">
+                  {!canWrite
+                    ? promptBlocksToMarkdown(systemPrompt) || 'No system prompt configured.'
+                    : 'Connect to the agent server to edit this prompt.'}
+                </pre>
+              ) : (
+                <AgentPromptEditor
+                  key={promptEditorKey}
+                  initialBlocks={systemPrompt}
+                  onChange={(blocks) => {
+                    setSystemPrompt(blocks)
+                    setPromptDirty(true)
+                  }}
+                />
+              )}
+            </div>
+          </div>
+        </>
+      ) : (
         <Container
-          className={
-            isTriggerDetail
-              ? 'max-w-4xl gap-4 pt-4 pb-4'
-              : // The memory browser is a two-pane file explorer: reading width limits do not apply,
-                // so it takes the whole window. The side padding moves inside the header's own
-                // 4xl cap (and onto the browser) so the header's box matches the other tabs exactly.
-                `min-h-0 flex-1 gap-4 pt-4 pb-0 ${tab === 'memory' ? 'px-0' : 'max-w-4xl'}`
-          }
+          // The memory browser is a two-pane file explorer: reading width limits do not apply,
+          // so it takes the whole window. The side padding moves inside the header's own
+          // 4xl cap (and onto the browser) so the header's box matches the other tabs exactly.
+          className={`min-h-0 flex-1 gap-4 pt-4 pb-0 ${tab === 'memory' ? 'px-0' : 'max-w-4xl'}`}
         >
           {agent.isLoading ? (
             <div className="flex flex-1 items-center justify-center py-12">
@@ -584,18 +643,12 @@ export function AgentDetailPage({
           ) : null}
           {agent.data ? (
             <>
-              {isSubpage ? null : tab === 'memory' ? (
+              {tab === 'memory' ? (
                 // The browser below spans the window; the header keeps the reading width of every other tab.
                 <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4">{header}</div>
               ) : (
                 header
               )}
-
-              {createTriggerDialog.content}
-              {deleteAgentDialog.content}
-              {moveAgentDialog.content}
-              {addProviderDialog.content}
-              {editNameDialog.content}
 
               {tab === 'sessions' ? (
                 <section className="flex min-h-0 flex-1 flex-col">
@@ -697,50 +750,6 @@ export function AgentDetailPage({
                   readOnly={!canWrite}
                   canManageIdentities={isOwner}
                 />
-              ) : null}
-
-              {tab === 'prompt' ? (
-                <section className="flex min-h-0 flex-1 flex-col gap-3">
-                  <AgentSubpageHeader
-                    title="System prompt"
-                    placeholder="System prompt"
-                    backLabel="Back to agent settings"
-                    onBack={() => navigate({key: 'agent', agentId, serverUrl, tab: 'settings'})}
-                  />
-                  <div>
-                    <SizableText size="sm" color="muted" className="block">
-                      Use the rich editor for formatting, links, embeds, lists, media, and code. The server converts
-                      these blocks to markdown before sending them to the model. Changes autosave.
-                      {promptSaveState === 'saving'
-                        ? ' Saving…'
-                        : promptSaveState === 'saved'
-                          ? ' Saved.'
-                          : promptSaveState === 'error'
-                            ? hasPromptContent(systemPrompt)
-                              ? ' Save failed.'
-                              : ' System prompt is required.'
-                            : ''}
-                    </SizableText>
-                  </div>
-                  {promptEditorDisabled ? (
-                    <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm break-words whitespace-pre-wrap">
-                      {!canWrite
-                        ? promptBlocksToMarkdown(systemPrompt) || 'No system prompt configured.'
-                        : 'Connect to the agent server to edit this prompt.'}
-                    </pre>
-                  ) : (
-                    <div className="min-h-0 flex-1 overflow-y-auto pr-1 pb-4">
-                      <AgentPromptEditor
-                        key={promptEditorKey}
-                        initialBlocks={systemPrompt}
-                        onChange={(blocks) => {
-                          setSystemPrompt(blocks)
-                          setPromptDirty(true)
-                        }}
-                      />
-                    </div>
-                  )}
-                </section>
               ) : null}
 
               {tab === 'collaborators' ? (
@@ -868,7 +877,7 @@ export function AgentDetailPage({
             </>
           ) : null}
         </Container>
-      </div>
+      )}
       {tab === 'sessions' && agent.data && canChat ? (
         // The same draft composer as the home page, in the same full-width footer, pinned to this
         // agent: the first send (or tool run) creates the session and opens it.
@@ -883,17 +892,6 @@ export function AgentDetailPage({
             />
           </Container>
         </div>
-      ) : null}
-      {isTriggerDetail && agent.data ? (
-        <AgentTriggersTab
-          agentId={agentId}
-          serverUrl={serverUrl}
-          selectedAccountId={selectedAccountId}
-          selectedTriggerId={triggerId}
-          triggers={triggers.data || []}
-          isLoading={triggers.isLoading}
-          readOnly={!canWrite}
-        />
       ) : null}
     </AgentPane>
   )
