@@ -1,0 +1,39 @@
+# Design baseline capture
+
+Run from the repository root with the `direnv` environment loaded:
+
+```sh
+pnpm design:capture
+pnpm design:capture -- --only=storybook,emails
+pnpm design:capture -- --only=web,vault --out=/path/to/captures --skip-build
+pnpm design:capture -- --clips
+```
+
+By default, images are written to `design-captures/<short-commit>/`, which is ignored by Git. Each run writes a
+`manifest.json` with the full commit, creation time, screenshot URL, and any failed views. A view failure is recorded
+without stopping the remaining captures; the process exits non-zero if the manifest contains failures.
+
+Screenshots use `surface/view--theme--viewport.png`. Themes are light and dark. Desktop images use a 1440×900 CSS
+viewport and mobile images use 390×844; device scale is 1, locale is `en-US`, timezone is UTC, and normal capture
+contexts request reduced motion. Before each screenshot the runner waits for network idle and `document.fonts.ready`,
+waits two animation frames, and hides carets. `.relative-time`, `[data-relative-time]`, and `time[data-relative]`
+elements are masked where present.
+
+## Surfaces
+
+| Surface      | What is captured                                                                                                                                                         | Build and runtime notes                                                                                                                                                                                |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `storybook`  | Every `story` entry in the `@shm/ui` Storybook index, in both themes at desktop size.                                                                                    | Builds `storybook-static/` with `pnpm --filter @shm/ui storybook:build`, then serves it locally.                                                                                                       |
+| `playground` | Each composition under `#compositions`, individually, in both themes at desktop and mobile sizes.                                                                        | Built with `pnpm --filter @shm/design-playground build`; theme is set through the playground hash state.                                                                                               |
+| `emails`     | Every rendered email preview, light theme, desktop and mobile.                                                                                                           | Runs `render-all-previews.tsx` from a disposable working directory so generated HTML stays out of the source tree.                                                                                     |
+| `web`        | Home, design article, discussion panel, notes collection in Table/List/Cards, search/command, and 404.                                                                   | Uses `setupTestEnv` on isolated ports, building the web app unless `--skip-build` is set. The fixture has no comments because `account-helpers.ts` has no comment-creation helper.                     |
+| `vault`      | First screen, password sign-up, recovery words, and sign-in, in both themes and viewport sizes.                                                                          | Uses the web fixture daemon and `startVaultServer`; a disposable email and password are used. Chromium is launched with experimental web-platform features for Ed25519 support.                        |
+| `desktop`    | Library/home, article, draft slash menu, activity/feed, comments, General/Appearance settings, site settings, account menu, quick switcher, and first-screen onboarding. | Starts the Linux dev app with a disposable data directory and ports 58100–58106. The Electron window is attached through its local DevTools endpoint and all owned processes are stopped in `finally`. |
+
+The manual full run may take several minutes; Storybook is the largest surface because each indexed story is captured
+twice. `--skip-build` reuses the existing Storybook, playground, and web outputs but still seeds and starts runtime
+services. The web route is read-only after fixture seeding. No production gateway is used.
+
+With `--clips`, the runner records short light-theme Storybook interactions in `clips/`: menu, dialog, popover, tooltip,
+toast, mobile drawer/sheet, button press, and sidebar collapse where a matching story exists. Clip contexts do not
+request reduced motion. Missing interaction stories are skipped; failed interactions are reported in the manifest.
