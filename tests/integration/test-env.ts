@@ -44,6 +44,7 @@ export type TestEnvConfig = {
   daemonHttpPort?: number
   daemonGrpcPort?: number
   daemonP2pPort?: number
+  daemonAllowedOrigins?: string[]
   // Skip building (for faster iteration)
   skipBuild?: boolean
   // Announced by the web server via /hm/api/config notifyServiceHost
@@ -112,6 +113,7 @@ export async function setupTestEnv(config: TestEnvConfig = {}): Promise<TestEnv>
     grpcPort: daemonGrpcPort,
     p2pPort: daemonP2pPort,
     dataDir: daemonDataDir,
+    ...(config.daemonAllowedOrigins ? {allowedOrigins: config.daemonAllowedOrigins} : {}),
   }
   const daemon = await spawnDaemon(daemonConfig)
   try {

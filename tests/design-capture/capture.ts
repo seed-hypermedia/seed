@@ -16,10 +16,19 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {_electron, chromium, type Browser, type BrowserContext, type Locator, type Page, type Video} from 'playwright'
+import {
+  chromium,
+  _electron,
+  type Browser,
+  type BrowserContext,
+  type ElectronApplication,
+  type Locator,
+  type Page,
+  type Video,
+} from 'playwright'
 import {commentRecordIdFromBlob, createComment, createSeedClient, unpackHmId} from '@seed-hypermedia/client'
 import {createDocumentUpdate, type TestAccount} from '../../frontend/apps/cli/src/test/account-helpers'
-import {FIXTURE_ACCOUNT, FIXTURE_ACCOUNT_ID} from '../../frontend/apps/cli/src/test/fixture-seed'
+import {FIXTURE_ACCOUNT, FIXTURE_ACCOUNT_ID, seedTestFixtures} from '../../frontend/apps/cli/src/test/fixture-seed'
 import {createSignerFromKey} from '../../frontend/apps/cli/src/utils/signer'
 import {
   FIXTURE_DESIGN_INVENTORY_MARKDOWN,
@@ -57,6 +66,9 @@ const DAEMON_P2P_PORT = 59103
 const DESKTOP_P2P_PORT = 58100
 const DESKTOP_DAEMON_HTTP_PORT = 58101
 const DESKTOP_DAEMON_GRPC_PORT = 58102
+const DESKTOP_API_PORT = 58104
+const DESKTOP_AGENTS_PORT = 58105
+const DESKTOP_LOCAL_SERVER_PORT = 58106
 const VAULT_PORT = 59104
 const STORYBOOK_PORT = 59200
 const PLAYGROUND_PORT = 59201
@@ -116,6 +128,12 @@ function runCommand(command: string, args: string[], cwd = ROOT): void {
 
 function addFailure(manifest: CaptureManifest, failure: CaptureFailure): void {
   manifest.failures.push(failure)
+}
+
+function addStartupFailure(manifest: CaptureManifest, surface: string, error: string): void {
+  if (!manifest.failures.some((failure) => failure.surface === surface && failure.view === 'startup')) {
+    addFailure(manifest, {surface, view: 'startup', error})
+  }
 }
 
 function ensureSurface(manifest: CaptureManifest, surface: string): CaptureRecord[] {
@@ -743,7 +761,6 @@ async function openWebView(page: Page, baseUrl: string, view: string): Promise<s
     'notes-table': '/design/notes',
     'notes-list': '/design/notes',
     'notes-cards': '/design/notes',
-    'search-command': '/design/article',
     'not-found': '/design/this-page-does-not-exist',
   }
   const url = new URL(paths[view], baseUrl)
@@ -798,11 +815,6 @@ async function captureWeb(browser: Browser, manifest: CaptureManifest, options: 
               await page.reload({waitUntil: 'domcontentloaded'})
             }
           }
-          if (view === 'search-command') {
-            await page.keyboard.press('Control+k')
-            const searchSurface = page.getByRole('textbox', {name: 'Search'})
-            await searchSurface.waitFor({state: 'visible', timeout: 5000})
-          }
           await capturePage(manifest, options.out, 'web', view, theme, viewport, page, true, url)
         }).catch((error) => addFailure(manifest, {surface: 'web', view, theme, viewport, error: errorMessage(error)}))
       }
@@ -843,7 +855,7 @@ async function captureVault(
   try {
     vault = await startVaultServer({
       port: VAULT_PORT,
-      backendHttpPort: DAEMON_HTTP_PORT,
+      backendHttpPort: env.daemon.config.httpPort,
       webBaseUrl: env.web.baseUrl,
     })
     await vault.waitForReady()
@@ -871,16 +883,15 @@ async function captureVault(
       await captureVaultVariants(manifest, options.out, page, 'verification-code', page.url())
       const code = await vault.waitForVerificationCode(email, 30000)
       await enterVaultVerificationCode(page, code)
-
-      currentView = 'auth-choice'
       await page.getByText('Use a password', {exact: true}).waitFor({state: 'visible', timeout: 30000})
+      currentView = 'auth-choice'
       await captureVaultVariants(manifest, options.out, page, 'auth-choice', page.url())
       await page.getByText('Use a password', {exact: true}).click()
 
       currentView = 'signup-password'
       await page.getByText('Create a password', {exact: true}).waitFor({state: 'visible', timeout: 15000})
       await captureVaultVariants(manifest, options.out, page, 'signup-password', page.url())
-      await page.getByLabel('Password').fill(password)
+      await page.getByRole('textbox', {name: 'Password', exact: true}).fill(password)
       await page.getByLabel('Confirm password').fill(password)
       await page.getByRole('button', {name: 'Continue'}).click()
 
@@ -891,12 +902,16 @@ async function captureVault(
       await page.getByText('Your identity is secured', {exact: true}).waitFor({state: 'visible', timeout: 20000})
       await page.getByRole('button', {name: 'Continue'}).click()
       await page.getByText(/create your profile/i).waitFor({state: 'visible', timeout: 20000})
+      currentView = 'signed-in'
+      await captureVaultVariants(manifest, options.out, page, 'signed-in', page.url())
       await page.evaluate(async () => {
         await fetch('/api/logout', {method: 'POST'})
       })
-      await page.goto(vault.vaultUrl, {waitUntil: 'domcontentloaded'})
+      await page.goto(`${vault.vaultUrl.replace(/\/+$/, '')}/login`, {waitUntil: 'domcontentloaded'})
 
       currentView = 'sign-in'
+      await page.locator('body').waitFor({state: 'visible', timeout: 20000})
+      await captureVaultVariants(manifest, options.out, page, 'sign-in', page.url())
       await page.getByLabel(/email/i).fill(email)
       await page.getByRole('button', {name: 'Send code'}).click()
       await page.getByText('Check your inbox').waitFor({state: 'visible', timeout: 15000})
@@ -906,7 +921,7 @@ async function captureVault(
       await page.getByRole('button', {name: 'Sign in with password'}).click()
       await page.getByText('Sign in with password', {exact: true}).waitFor({state: 'visible', timeout: 15000})
       await captureVaultVariants(manifest, options.out, page, 'sign-in', page.url())
-      await page.getByLabel('Password').fill(password)
+      await page.getByRole('textbox', {name: 'Password', exact: true}).fill(password)
       await page.getByRole('button', {name: 'Continue'}).click()
       await page.getByText(/create your profile/i).waitFor({state: 'visible', timeout: 30000})
       currentView = 'signed-in'
@@ -915,16 +930,7 @@ async function captureVault(
       await context.close()
     }
   } catch (error) {
-    const capturedViews = new Set((manifest.surfaces.vault || []).map((record) => record.view))
-    for (const view of captureViews('vault')) {
-      if (!capturedViews.has(view)) {
-        addFailure(manifest, {
-          surface: 'vault',
-          view,
-          error: `${view === currentView ? '' : 'Not reached: '}${errorMessage(error)}`,
-        })
-      }
-    }
+    addFailure(manifest, {surface: 'vault', view: currentView, error: errorMessage(error)})
   } finally {
     await vault?.kill()
   }
@@ -932,23 +938,13 @@ async function captureVault(
 
 async function enterVaultVerificationCode(page: Page, code: string): Promise<void> {
   const codeInputs = page.locator('input[inputmode="numeric"]')
-  await codeInputs.first().click()
-  await page.keyboard.type(code)
-  const enteredCode = await codeInputs.evaluateAll((inputs) =>
-    inputs.map((input) => (input as HTMLInputElement).value).join(''),
-  )
-  if (enteredCode !== code) throw new Error(`Verification code input was incomplete: ${enteredCode.length} digits`)
-  await page.waitForFunction(
-    () => {
-      const button = Array.from(document.querySelectorAll('button')).find(
-        (element) => element.textContent?.trim() === 'Verify',
-      )
-      return Boolean(button && !button.disabled)
-    },
-    undefined,
-    {timeout: 10000},
-  )
-  await page.getByRole('button', {name: 'Verify'}).click()
+  const inputCount = await codeInputs.count()
+  if (inputCount !== code.length) {
+    throw new Error(`Expected ${code.length} verification code inputs, found ${inputCount}`)
+  }
+  for (const [index, digit] of Array.from(code).entries()) {
+    await codeInputs.nth(index).fill(digit)
+  }
 }
 
 async function captureVaultVariants(
@@ -984,15 +980,16 @@ async function waitForUrl(url: string, timeoutMs: number): Promise<void> {
 }
 
 async function setDesktopTheme(page: Page, theme: CaptureTheme): Promise<void> {
-  const settingsButton = page.getByRole('button', {name: /app settings/i}).first()
-  if (await settingsButton.count()) await settingsButton.click()
-  else
-    await page
-      .getByRole('button', {name: /settings/i})
-      .first()
-      .click()
-
   const radio = page.getByRole('radio', {name: new RegExp(`^${theme}$`, 'i')}).first()
+  if (!(await radio.count())) {
+    const settingsButton = page.getByRole('button', {name: /app settings/i}).first()
+    if (await settingsButton.count()) await settingsButton.click()
+    else
+      await page
+        .getByRole('button', {name: /settings/i})
+        .first()
+        .click()
+  }
   await radio.waitFor({state: 'visible', timeout: 10000})
   await radio.check()
   await page.waitForFunction(
@@ -1002,8 +999,9 @@ async function setDesktopTheme(page: Page, theme: CaptureTheme): Promise<void> {
   )
 }
 
-async function openDesktopArticle(page: Page, origin: string): Promise<void> {
-  await page.goto(origin, {waitUntil: 'domcontentloaded'}).catch(() => {})
+async function openDesktopArticle(page: Page): Promise<void> {
+  const home = page.getByText('Home', {exact: true}).first()
+  if (await home.count()) await home.click()
   const title = page.getByText(FIXTURE_DESIGN_INVENTORY_TITLE, {exact: true}).first()
   if (await title.count()) {
     await title.click()
@@ -1036,41 +1034,52 @@ async function captureDesktopView(
   }
 }
 
-async function captureDesktop(manifest: CaptureManifest, options: Options): Promise<void> {
+async function captureDesktop(manifest: CaptureManifest, options: Options, env?: TestEnv): Promise<void> {
   const dataDir = mkdtempSync(path.join(tmpdir(), 'seed-design-desktop-'))
   const startupLog = path.join(options.out, 'desktop-startup.log')
   const rendererServers: ChildProcess[] = []
-  let desktopApp: Awaited<ReturnType<typeof _electron.launch>> | undefined
+  let electronApp: ElectronApplication | undefined
+  let currentView = 'startup'
   try {
+    writeFileSync(startupLog, '')
     const desktopEnv = Object.fromEntries(
-      Object.entries(process.env).filter(([key]) => !/^(DAEMON_|VITE_DESKTOP_)/.test(key)),
+      Object.entries(process.env).filter(
+        ([key]) =>
+          !/^(DAEMON_|VITE_DESKTOP_|SEED_(HTTP|GRPC|P2P)_PORT$|SEED_NO_DAEMON_SPAWN$|DESKTOP_API_HTTP_URL$)/.test(key),
+      ),
     ) as NodeJS.ProcessEnv
+    const desktopDaemonHttpPort = DESKTOP_DAEMON_HTTP_PORT
+    const desktopDaemonGrpcPort = DESKTOP_DAEMON_GRPC_PORT
+    const desktopDaemonP2pPort = DESKTOP_P2P_PORT
     Object.assign(desktopEnv, {
-      DISPLAY: process.env.DISPLAY || ':0',
+      DISPLAY: ':0',
       SEED_FIXTURE_DATA_DIR: dataDir,
-      DAEMON_HTTP_PORT: String(DESKTOP_DAEMON_HTTP_PORT),
-      DAEMON_HTTP_URL: `http://127.0.0.1:${DESKTOP_DAEMON_HTTP_PORT}`,
-      DAEMON_GRPC_PORT: String(DESKTOP_DAEMON_GRPC_PORT),
-      VITE_DESKTOP_P2P_PORT: String(DESKTOP_P2P_PORT),
-      VITE_DESKTOP_HTTP_PORT: String(DESKTOP_DAEMON_HTTP_PORT),
-      VITE_DESKTOP_GRPC_PORT: String(DESKTOP_DAEMON_GRPC_PORT),
-      VITE_DESKTOP_API_PORT: '58104',
+      DAEMON_HTTP_PORT: String(desktopDaemonHttpPort),
+      DAEMON_GRPC_PORT: String(desktopDaemonGrpcPort),
+      DAEMON_P2P_PORT: String(desktopDaemonP2pPort),
+      VITE_DESKTOP_P2P_PORT: String(desktopDaemonP2pPort),
+      VITE_DESKTOP_HTTP_PORT: String(desktopDaemonHttpPort),
+      VITE_DESKTOP_GRPC_PORT: String(desktopDaemonGrpcPort),
+      VITE_DESKTOP_API_PORT: String(DESKTOP_API_PORT),
       VITE_DESKTOP_HOSTNAME: 'http://127.0.0.1',
-      VITE_DESKTOP_DEFAULT_AGENTS_URL: 'http://127.0.0.1:58105',
+      VITE_DESKTOP_DEFAULT_AGENTS_URL: `http://127.0.0.1:${DESKTOP_AGENTS_PORT}`,
       VITE_DESKTOP_APPDATA: `Seed-design-baseline-${path.basename(dataDir)}`,
       XDG_CONFIG_HOME: path.join(dataDir, 'config'),
-      SEED_LOCAL_SERVER_PORT: '58107',
+      SEED_LOCAL_SERVER_PORT: String(DESKTOP_LOCAL_SERVER_PORT),
       NODE_ENV: 'development',
     })
+    if (env) desktopEnv.SEED_NO_DAEMON_SPAWN = '1'
+    if (env?.web.baseUrl) {
+      desktopEnv.VITE_GATEWAY_URL = env.web.baseUrl
+      desktopEnv.VITE_SEED_HOST_URL = env.web.baseUrl
+    }
     const rendererConfigs: ReadonlyArray<[string, number]> = [['vite.renderer.config.mts', 5173]]
     for (const [config, port] of rendererConfigs) {
+      const desktopDirectory = path.join(ROOT, 'frontend/apps/desktop')
       const renderer = spawn(
-        'pnpm',
+        'node',
         [
-          '--filter',
-          '@shm/desktop',
-          'exec',
-          'vite',
+          path.join(desktopDirectory, 'node_modules/vite/bin/vite.js'),
           '--config',
           config,
           '--host',
@@ -1079,33 +1088,68 @@ async function captureDesktop(manifest: CaptureManifest, options: Options): Prom
           String(port),
           '--strictPort',
         ],
-        {cwd: ROOT, env: desktopEnv, detached: true, stdio: ['ignore', 'pipe', 'pipe']},
+        {cwd: desktopDirectory, env: desktopEnv, detached: true, stdio: ['ignore', 'pipe', 'pipe']},
       )
       rendererServers.push(renderer)
       renderer.stdout?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
       renderer.stderr?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
       await waitForUrl(`http://127.0.0.1:${port}/`, 120000)
     }
+    const desktopDaemonUrl = `http://127.0.0.1:${desktopDaemonHttpPort}`
+    if (env) {
+      await waitForUrl(`${desktopDaemonUrl}/debug/version`, 120000)
+      await seedTestFixtures(desktopDaemonUrl)
+      await seedDesignInventory(desktopDaemonUrl, FIXTURE_ACCOUNT)
+    }
     const mainEntry = path.join(ROOT, 'frontend/apps/desktop/.vite/build/main.js')
     if (!existsSync(mainEntry)) throw new Error(`Desktop dev entry was not built: ${mainEntry}`)
     const electronPath = createRequire(path.join(ROOT, 'frontend/apps/desktop/package.json'))('electron') as string
-    desktopApp = await _electron.launch({
+    electronApp = await _electron.launch({
       executablePath: electronPath,
       args: [mainEntry, '--disable-gpu', '--disable-software-rasterizer', '--no-sandbox'],
       env: desktopEnv,
       cwd: path.join(ROOT, 'frontend/apps/desktop'),
       timeout: 120000,
     })
-    const electronProcess = desktopApp.process()
-    electronProcess.stdout?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
-    electronProcess.stderr?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
-    const page = await desktopApp.firstWindow()
-    await page.setViewportSize(CAPTURE_VIEWPORTS.desktop)
+    electronApp.process().stdout?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
+    electronApp.process().stderr?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
+    electronApp.on('window', (window) => {
+      appendFileSync(startupLog, `Electron window opened: ${window.url()}\n`)
+    })
+    let page: Page | undefined
+    const rendererDeadline = Date.now() + 120000
+    while (!page && Date.now() < rendererDeadline) {
+      for (const candidate of electronApp.windows()) {
+        if (candidate.isClosed()) continue
+        try {
+          if (new URL(candidate.url()).port === '5173') {
+            page = candidate
+            break
+          }
+        } catch {}
+      }
+      if (!page) await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    if (!page) {
+      const openWindows = electronApp
+        .windows()
+        .map((window) => (window.isClosed() ? 'closed' : window.url()))
+        .join(', ')
+      throw new Error(`Timed out waiting for a live Electron renderer window on port 5173; windows: ${openWindows}`)
+    }
+    appendFileSync(startupLog, `Renderer window ready: ${page.url()}\n`)
+    await electronApp.evaluate(({BrowserWindow}) => {
+      BrowserWindow.getAllWindows().forEach((window) => window.setContentSize(1440, 900))
+    })
     await page.locator('body').waitFor({state: 'visible', timeout: 20000})
-    const origin = new URL(page.url()).origin
+    await page.waitForFunction(() => window.innerWidth === 1440 && window.innerHeight === 900, undefined, {
+      timeout: 10000,
+    })
     for (const theme of CAPTURE_THEMES) {
+      currentView = 'onboarding'
       await setDesktopTheme(page, theme)
-      await page.goto(origin, {waitUntil: 'domcontentloaded'})
+      const home = page.getByText('Home', {exact: true}).first()
+      if (await home.count()) await home.click()
       await page.waitForFunction(
         (expected) => document.documentElement.classList.contains('dark') === (expected === 'dark'),
         theme,
@@ -1116,21 +1160,27 @@ async function captureDesktop(manifest: CaptureManifest, options: Options): Prom
       await capturePage(manifest, options.out, 'desktop', 'onboarding', theme, 'desktop', page, true)
     }
 
-    await waitForUrl(`http://127.0.0.1:${DESKTOP_DAEMON_HTTP_PORT}/debug/version`, 120000)
-    await seedTestFixtures(`http://127.0.0.1:${DESKTOP_DAEMON_HTTP_PORT}`)
-    await seedDesignInventory(`http://127.0.0.1:${DESKTOP_DAEMON_HTTP_PORT}`, FIXTURE_ACCOUNT)
-    await page.reload({waitUntil: 'domcontentloaded'})
-    await page.locator('body').waitFor({state: 'visible', timeout: 20000})
+    currentView = 'fixture-seed'
+    if (!env) {
+      await waitForUrl(`${desktopDaemonUrl}/debug/version`, 120000)
+      await seedTestFixtures(desktopDaemonUrl)
+      await seedDesignInventory(desktopDaemonUrl, FIXTURE_ACCOUNT)
+      await page.reload({waitUntil: 'domcontentloaded'})
+      await page.locator('body').waitFor({state: 'visible', timeout: 20000})
+    }
 
     for (const theme of CAPTURE_THEMES) {
+      currentView = 'library-home'
       await captureDesktopView(page, manifest, options, 'library-home', theme, async () => {
-        await page.goto(origin, {waitUntil: 'domcontentloaded'})
+        const home = page.getByText('Home', {exact: true}).first()
+        if (await home.count()) await home.click()
         await page
           .getByText(/Design inventory|Design notes/i)
           .first()
           .waitFor({state: 'visible', timeout: 15000})
       })
-      await captureDesktopView(page, manifest, options, 'article', theme, () => openDesktopArticle(page, origin))
+      currentView = 'article'
+      await captureDesktopView(page, manifest, options, 'article', theme, () => openDesktopArticle(page))
       await captureDesktopView(page, manifest, options, 'new-draft-slash-menu', theme, async () => {
         const createButton = page.getByRole('button', {name: /new document|create document|new page/i}).first()
         await createButton.click()
@@ -1144,7 +1194,8 @@ async function captureDesktop(manifest: CaptureManifest, options: Options): Prom
           .waitFor({state: 'visible', timeout: 10000})
       })
       await captureDesktopView(page, manifest, options, 'activity-feed', theme, async () => {
-        await page.goto(origin, {waitUntil: 'domcontentloaded'})
+        const home = page.getByText('Home', {exact: true}).first()
+        if (await home.count()) await home.click()
         const feed = page.getByRole('button', {name: /activity|feed/i}).first()
         await feed.click()
         await page
@@ -1153,7 +1204,7 @@ async function captureDesktop(manifest: CaptureManifest, options: Options): Prom
           .waitFor({state: 'visible', timeout: 10000})
       })
       await captureDesktopView(page, manifest, options, 'comments', theme, async () => {
-        await openDesktopArticle(page, origin)
+        await openDesktopArticle(page)
         const comments = page.getByRole('button', {name: /comments|discussion/i}).first()
         await comments.click()
         await page
@@ -1165,17 +1216,22 @@ async function captureDesktop(manifest: CaptureManifest, options: Options): Prom
         await page.getByText(/General settings/i).waitFor({state: 'visible', timeout: 10000})
       })
       await captureDesktopView(page, manifest, options, 'settings-appearance', theme, async () => {
-        const appearance = page.getByRole('button', {name: /appearance/i}).first()
-        if (await appearance.count()) await appearance.click()
-        await page
-          .getByText(/appearance/i)
-          .first()
-          .waitFor({state: 'visible', timeout: 10000})
+        await page.getByText('APPEARANCE', {exact: true}).waitFor({state: 'visible', timeout: 10000})
       })
       await captureDesktopView(page, manifest, options, 'site-settings', theme, async () => {
-        await openDesktopArticle(page, origin)
+        await openDesktopArticle(page)
         const settings = page.getByRole('button', {name: /space settings|site settings/i}).first()
-        await settings.click()
+        if (await settings.count()) await settings.click()
+        else {
+          await page
+            .getByRole('button', {name: /account|profile|avatar/i})
+            .first()
+            .click()
+          await page
+            .getByRole('menuitem', {name: /site settings|space settings/i})
+            .first()
+            .click()
+        }
         await page
           .getByText(/site settings|space settings/i)
           .first()
@@ -1187,7 +1243,8 @@ async function captureDesktop(manifest: CaptureManifest, options: Options): Prom
         await page.getByRole('menu').waitFor({state: 'visible', timeout: 10000})
       })
       await captureDesktopView(page, manifest, options, 'search-quick-switcher', theme, async () => {
-        await page.goto(origin, {waitUntil: 'domcontentloaded'})
+        const home = page.getByText('Home', {exact: true}).first()
+        if (await home.count()) await home.click()
         await page.keyboard.press('Control+k')
         await page
           .locator('[role="dialog"], input[placeholder*="Search" i]')
@@ -1197,23 +1254,14 @@ async function captureDesktop(manifest: CaptureManifest, options: Options): Prom
     }
   } catch (error) {
     const reason = `${errorMessage(error)}${existsSync(startupLog) ? ` (see ${startupLog})` : ''}`
-    for (const view of captureViews('desktop')) {
-      for (const theme of CAPTURE_THEMES) {
-        const alreadyRecorded = manifest.surfaces.desktop?.some((entry) => entry.view === view && entry.theme === theme)
-        const alreadyFailed = manifest.failures.some(
-          (failure) => failure.surface === 'desktop' && failure.view === view && failure.theme === theme,
-        )
-        if (!alreadyRecorded && !alreadyFailed) {
-          addFailure(manifest, {surface: 'desktop', view, theme, viewport: 'desktop', error: reason})
-        }
-      }
-    }
+    addFailure(manifest, {surface: 'desktop', view: currentView, viewport: 'desktop', error: reason})
   } finally {
-    await desktopApp?.close().catch(() => {})
+    await electronApp?.close().catch(() => {})
     for (const renderer of rendererServers) {
       if (!renderer.pid) continue
       try {
         process.kill(-renderer.pid, 'SIGTERM')
+        renderer.kill('SIGTERM')
         await new Promise<void>((resolve) => {
           const timeout = setTimeout(resolve, 5000)
           renderer.once('exit', () => {
@@ -1221,37 +1269,15 @@ async function captureDesktop(manifest: CaptureManifest, options: Options): Prom
             resolve()
           })
         })
+        if (renderer.exitCode === null && renderer.signalCode === null) {
+          try {
+            process.kill(-renderer.pid, 'SIGKILL')
+          } catch {}
+          renderer.kill('SIGKILL')
+        }
       } catch {}
     }
     rmSync(dataDir, {recursive: true, force: true})
-  }
-}
-
-function recordUnavailable(
-  manifest: CaptureManifest,
-  surface: string,
-  views: readonly string[],
-  error: string,
-  themes: readonly CaptureTheme[] = CAPTURE_THEMES,
-  viewports?: readonly CaptureViewport[],
-): void {
-  const selectedViewports = viewports ?? (Object.keys(CAPTURE_VIEWPORTS) as CaptureViewport[])
-  for (const view of views) {
-    for (const theme of themes) {
-      for (const viewport of selectedViewports) {
-        const alreadyRecorded = manifest.surfaces[surface]?.some(
-          (entry) => entry.view === view && entry.theme === theme && entry.viewport === viewport,
-        )
-        const alreadyFailed = manifest.failures.some(
-          (failure) =>
-            failure.surface === surface &&
-            failure.view === view &&
-            failure.theme === theme &&
-            failure.viewport === viewport,
-        )
-        if (!alreadyRecorded && !alreadyFailed) addFailure(manifest, {surface, view, theme, viewport, error})
-      }
-    }
   }
 }
 
@@ -1274,7 +1300,7 @@ async function main(): Promise<void> {
       const builds = [
         ['storybook', ['--filter', '@shm/ui', 'storybook:build']],
         ['playground', ['--filter', '@shm/design-playground', 'build']],
-        ...(options.only.has('web') || options.only.has('vault')
+        ...(options.only.has('web') || options.only.has('vault') || options.only.has('desktop')
           ? [['web', ['--filter', '@shm/web', 'build']] as [string, string[]]]
           : []),
       ] as Array<[string, string[]]>
@@ -1296,63 +1322,35 @@ async function main(): Promise<void> {
       const message = errorMessage(error)
       for (const surface of ['storybook', 'emails', 'web', 'vault', 'playground']) {
         if (options.only.has(surface)) {
-          const views =
-            surface === 'storybook'
-              ? ['all-stories']
-              : surface === 'playground'
-                ? ['compositions']
-                : captureViews(surface as 'emails' | 'web' | 'vault')
-          recordUnavailable(
-            manifest,
-            surface,
-            views,
-            message,
-            surface === 'emails' ? ['light'] : CAPTURE_THEMES,
-            surface === 'storybook' ? ['desktop'] : surface === 'emails' ? ['desktop', 'mobile'] : undefined,
-          )
+          addStartupFailure(manifest, surface, message)
         }
       }
     }
-    if ((options.only.has('web') || options.only.has('vault')) && browser) {
-      if (buildErrors.has('web')) {
-        for (const surface of ['web', 'vault']) {
-          if (options.only.has(surface))
-            recordUnavailable(manifest, surface, captureViews(surface as 'web' | 'vault'), buildErrors.get('web')!)
-        }
-      } else {
+    if (options.only.has('web') || options.only.has('vault') || options.only.has('desktop')) {
+      if (!buildErrors.has('web')) {
         try {
+          const desktopSelected = options.only.has('desktop')
           env = await setupTestEnv({
             webPort: WEB_PORT,
-            daemonHttpPort: DAEMON_HTTP_PORT,
-            daemonGrpcPort: DAEMON_GRPC_PORT,
-            daemonP2pPort: DAEMON_P2P_PORT,
+            daemonHttpPort: desktopSelected ? DESKTOP_DAEMON_HTTP_PORT : DAEMON_HTTP_PORT,
+            daemonGrpcPort: desktopSelected ? DESKTOP_DAEMON_GRPC_PORT : DAEMON_GRPC_PORT,
+            daemonP2pPort: desktopSelected ? DESKTOP_P2P_PORT : DAEMON_P2P_PORT,
+            ...(desktopSelected ? {daemonAllowedOrigins: ['http://localhost:5173']} : {}),
             skipBuild: true,
           })
         } catch (error) {
           for (const surface of ['web', 'vault']) {
-            if (options.only.has(surface))
-              recordUnavailable(manifest, surface, captureViews(surface as 'web' | 'vault'), errorMessage(error))
+            if (options.only.has(surface)) {
+              addStartupFailure(manifest, surface, errorMessage(error))
+            }
           }
         }
       }
     }
     for (const surface of ['storybook', 'playground', 'emails', 'web', 'vault'] as const) {
       if (!options.only.has(surface)) continue
-      if (buildErrors.has(surface)) {
-        const views =
-          surface === 'storybook'
-            ? ['all-stories']
-            : surface === 'playground'
-              ? ['compositions']
-              : captureViews(surface as 'emails' | 'web' | 'vault')
-        recordUnavailable(
-          manifest,
-          surface,
-          views,
-          buildErrors.get(surface)!,
-          surface === 'emails' ? ['light'] : CAPTURE_THEMES,
-          surface === 'storybook' ? ['desktop'] : surface === 'emails' ? ['desktop', 'mobile'] : undefined,
-        )
+      if (buildErrors.has(surface) || (surface === 'vault' && buildErrors.has('web'))) {
+        addStartupFailure(manifest, surface, buildErrors.get(surface) ?? buildErrors.get('web')!)
         continue
       }
       if (!browser) continue
@@ -1363,27 +1361,22 @@ async function main(): Promise<void> {
         else if (surface === 'web' && env) await captureWeb(browser, manifest, options, env)
         else if (surface === 'vault' && env) await captureVault(browser, manifest, options, env)
       } catch (error) {
-        const views =
-          surface === 'storybook'
-            ? ['all-stories']
-            : surface === 'playground'
-              ? ['compositions']
-              : captureViews(surface as 'emails' | 'web' | 'vault')
-        recordUnavailable(
-          manifest,
-          surface,
-          views,
-          errorMessage(error),
-          surface === 'emails' ? ['light'] : CAPTURE_THEMES,
-          surface === 'storybook' ? ['desktop'] : surface === 'emails' ? ['desktop', 'mobile'] : undefined,
-        )
+        addFailure(manifest, {surface, view: 'capture', error: errorMessage(error)})
       }
     }
-    if (options.only.has('desktop')) await captureDesktop(manifest, options)
+    if (options.only.has('desktop')) {
+      if (browser) {
+        await browser.close()
+        browser = undefined
+      }
+      await captureDesktop(manifest, options, env)
+    }
   } finally {
     await browser?.close().catch(() => {})
     await env?.cleanup().catch((error) => console.error(`Test environment cleanup failed: ${errorMessage(error)}`))
-    const manifestPath = path.join(options.out, 'manifest.json')
+    const selectedSurfaces = [...options.only].sort()
+    const manifestName = selectedSurfaces.length === 6 ? 'manifest.json' : `manifest-${selectedSurfaces.join('-')}.json`
+    const manifestPath = path.join(options.out, manifestName)
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
     const counts = Object.fromEntries(
       Object.entries(manifest.surfaces).map(([surface, captures]) => [surface, captures.length]),

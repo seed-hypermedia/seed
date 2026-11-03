@@ -22,7 +22,6 @@ describe('design capture plan', () => {
       'notes-table',
       'notes-list',
       'notes-cards',
-      'search-command',
       'not-found',
     ])
   })

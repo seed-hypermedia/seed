@@ -10,16 +10,7 @@ export const CAPTURE_VIEWPORTS = {
 /** Stable view names for surfaces whose capture set is known without inspecting the app. */
 export const CAPTURE_VIEWS = {
   emails: ['verification', 'login', 'welcome', 'discussion', 'comment', 'mention', 'reply', 'doc-update'],
-  web: [
-    'home',
-    'article',
-    'article-discussion',
-    'notes-table',
-    'notes-list',
-    'notes-cards',
-    'search-command',
-    'not-found',
-  ],
+  web: ['home', 'article', 'article-discussion', 'notes-table', 'notes-list', 'notes-cards', 'not-found'],
   vault: [
     'first-screen',
     'verification-code',
