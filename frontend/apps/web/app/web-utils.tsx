@@ -501,6 +501,8 @@ export function WebDocumentCreateButton({
 
   if (loading) return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
   if (!canEdit || !signingAccountId) return null
+  // Only documents and collections take children; an agent's page is the agent.
+  if (currentDocument.metadata?.type === 'hm://hyper.media/agent') return null
 
   return (
     <WebActorCreateButton

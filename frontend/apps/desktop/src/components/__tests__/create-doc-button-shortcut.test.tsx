@@ -136,6 +136,24 @@ describe('DesktopDocumentCreateButton Cmd+Shift+N', () => {
     }
   })
 
+  it('is not shown on an agent page', async () => {
+    useResourceMock.mockImplementation(() => ({
+      isLoading: false,
+      data: {type: 'document', document: {content: [], metadata: {type: 'hm://hyper.media/agent'}}},
+    }))
+    const {container, root} = await renderButton()
+    try {
+      expect(container.querySelector('button')).toBeNull()
+      pressNewShortcut()
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(createDraftMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
   it('does nothing when the button is not shown', async () => {
     capabilityRoleMock.role = undefined
     const {container, root} = await renderButton()

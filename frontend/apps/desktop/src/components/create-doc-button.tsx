@@ -390,6 +390,8 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
     return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
   }
   if (!currentDocument || !canEditCurrent) return null
+  // Only documents and collections take children; an agent's page is the agent.
+  if (currentDocument.metadata?.type === 'hm://hyper.media/agent') return null
 
   return (
     <DesktopActorButton
