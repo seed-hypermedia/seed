@@ -2287,7 +2287,8 @@ function DocumentBody({
   const isAgentDocument = document.metadata.type === 'hm://hyper.media/agent'
   // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
   // the page around it stops scrolling and hands it the remaining height, as a document page does.
-  const isAgentView = route.key === 'document' && !!route.agentView
+  // An agent document's base URL opens its sessions, so it lays out like any agent view.
+  const isAgentView = route.key === 'document' && (!!route.agentView || isAgentDocument)
   const fixedHeightMain = !!documentPage || isAgentView
 
   // Extract blockRef from route for scroll-to-block and highlighting

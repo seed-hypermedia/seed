@@ -356,13 +356,19 @@ export function DocumentTools({
         ]
       : []
     buttons.unshift(
-      {
-        label: agentHome ? 'Home' : 'Content',
-        tooltip: agentHome ? 'Open Agent Home' : 'Open Content',
-        icon: Newspaper,
-        active: !activeAgentView && (activeTab == 'draft' || activeTab == 'content'),
-        route: documentRoute,
-      },
+      // An agent document has no Home tab for now: its base URL opens Sessions. A document that
+      // merely advertises a server keeps its Content tab beside the agent tabs.
+      ...(agentHome
+        ? []
+        : [
+            {
+              label: 'Content',
+              tooltip: 'Open Content',
+              icon: Newspaper,
+              active: !activeAgentView && (activeTab == 'draft' || activeTab == 'content'),
+              route: documentRoute,
+            },
+          ]),
       ...agentTabs.map(({view, label, icon}) => ({
         label,
         tooltip: `Open agent ${label.toLowerCase()}`,
@@ -370,7 +376,7 @@ export function DocumentTools({
         // Subpages keep their tab lit: a transcript under Sessions, the settings pages under Settings.
         active:
           activeAgentView === view ||
-          (view === 'sessions' && activeAgentView === 'session') ||
+          (view === 'sessions' && (activeAgentView === 'session' || (!activeAgentView && !!agentHome))) ||
           (view === 'settings' && (isAgentSettingsPage(activeAgentView) || activeAgentView === 'tools')),
         route: {...documentRoute, agentView: view},
       })),

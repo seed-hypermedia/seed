@@ -143,12 +143,16 @@ describe('DocumentTools', () => {
     )
     expect(container.querySelector('[data-label="Comments"]')?.getAttribute('data-active')).toBe('true')
   })
-  it('replaces Content with the agent Home tab even before registration finishes', () => {
+  it('gives an agent document neither a Content nor a Home tab, even before registration finishes', () => {
     act(() => root.render(<DocumentTools id={hmId('alice', {path: ['bob']})} agentHome activeTab="content" />))
     expect(container.querySelector('[data-label="Content"]')).toBeNull()
-    const home = container.querySelector('[data-label="Home"]')!
-    expect(home.getAttribute('data-active')).toBe('true')
-    expect(JSON.parse(home.getAttribute('data-route')!)).toMatchObject({key: 'document', id: {id: 'hm://alice/bob'}})
+    expect(container.querySelector('[data-label="Home"]')).toBeNull()
+  })
+
+  it("lights Sessions at an agent document's base URL", () => {
+    act(() => root.render(<DocumentTools id={hmId('alice', {path: ['bob']})} agentHome hasAgent activeTab="content" />))
+    expect(container.querySelector('[data-label="Home"]')).toBeNull()
+    expect(container.querySelector('[data-label="Sessions"]')?.getAttribute('data-active')).toBe('true')
   })
 
   it('shows the Attributes tab with a zero count when the document has no custom attributes', () => {

@@ -257,6 +257,15 @@ describe('agent mounting', () => {
     // Opening the ordinary document URL also discovers the server-side registration.
     await page.goto(docUrl)
     await page.getByRole('link', {name: 'Sessions', exact: true}).waitFor()
+    // The base URL opens the sessions list; there is no Home tab (the site chrome has its own
+    // Home links, so only the tab bar's document links are checked).
+    await page.getByText('Existing conversation', {exact: true}).first().waitFor()
+    expect(
+      await page
+        .locator('a[data-tab="document"]')
+        .filter({hasText: /^Home$/})
+        .count(),
+    ).toBe(0)
     expect(await send({_: 'GetAgent', agentId: legacyId})).toMatchObject({agent: {id}})
     expect(await send({_: 'ReadAgentMemoryFile', agentId: id, path: 'notes.md'})).toMatchObject({
       file: {content: 'Preserve this memory'},
@@ -267,7 +276,6 @@ describe('agent mounting', () => {
       await page.waitForURL(`${docUrl}/:${view}`)
       expect(await page.getByRole('link', {name: 'Content', exact: true}).count()).toBe(0)
       expect(await page.getByRole('link', {name: 'Tools', exact: true}).count()).toBe(0)
-      expect(await page.getByRole('link', {name: 'Home', exact: true}).count()).toBeGreaterThan(0)
       await page.reload()
       await page.getByRole('link', {name: label, exact: true}).waitFor()
     }
@@ -414,9 +422,16 @@ describe('agent mounting', () => {
     })
     expect(await client.request('Resource', unpackHmId(newId)!)).toMatchObject({document: {content: []}})
     await page.goto(`${env!.web.baseUrl}/new-local-helper`)
-    // The agent's Home shows its identity's home document read-only, with no link out of it, no
-    // Content tab, and none of the document chrome (title, byline) above the agent tabs.
-    await page.getByText('This is an agentic account.', {exact: true}).waitFor()
+    // The agent's base URL opens its sessions (no Home tab for now), with no Content tab and none
+    // of the document chrome (title, byline) above the agent tabs.
+    await page.getByRole('link', {name: 'Sessions', exact: true}).waitFor()
+    expect(await page.getByText('This is an agentic account.', {exact: true}).count()).toBe(0)
+    expect(
+      await page
+        .locator('a[data-tab="document"]')
+        .filter({hasText: /^Home$/})
+        .count(),
+    ).toBe(0)
     expect(await page.getByRole('link', {name: 'Open home document', exact: true}).count()).toBe(0)
     expect(await page.getByRole('link', {name: 'Content', exact: true}).count()).toBe(0)
     expect(await page.getByRole('link', {name: 'Prompt', exact: true}).count()).toBe(0)

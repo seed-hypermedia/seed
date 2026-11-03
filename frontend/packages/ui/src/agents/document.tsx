@@ -1,9 +1,4 @@
-import {useResource} from '@shm/shared/models/entity'
-import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
-import {PageLayout} from '../page-layout'
-import {hmId} from '@shm/shared'
-import type {AgentInfo} from './client'
-import {useAgentDetail, useSigningIdentities} from './models'
+import {useAgentDetail} from './models'
 import {AgentServerError} from './client'
 import {Spinner} from '../spinner'
 import {Button} from '../button'
@@ -15,7 +10,7 @@ import {AgentsNoAccountPage} from './no-account'
 import {getAgentsPlatform} from './platform'
 
 /** Renders agent controls using the document's server attribute and canonical identity. */
-export default function MountedAgentDocument({document, route, children, contentMaxWidth}: AgentDocumentViewProps) {
+export default function MountedAgentDocument({document, route, children}: AgentDocumentViewProps) {
   const accountUid = getAgentsPlatform().useAccountUid()
   const serverUrl = document.metadata.agentServerUrl
   const validServer =
@@ -49,15 +44,7 @@ export default function MountedAgentDocument({document, route, children, content
         </Button>
       </div>
     )
-  if (!route.agentView)
-    return (
-      <AgentHome
-        agent={agent.data!.agent}
-        serverUrl={serverUrl}
-        accountUid={accountUid}
-        contentMaxWidth={contentMaxWidth}
-      />
-    )
+  // No Home tab for now: the base URL opens Sessions.
   return (
     // The page gives this column its height (see fixedHeightMain in resource-page-common).
     <div className="flex min-h-0 flex-1 flex-col">
@@ -80,52 +67,12 @@ export default function MountedAgentDocument({document, route, children, content
                 ? 'sessions'
                 : route.agentView === 'tools'
                   ? 'permissions'
-                  : route.agentView
+                  : route.agentView ?? 'sessions'
           }
           triggerId={route.agentTriggerId}
           memoryPath={route.agentMemoryPath}
         />
       )}
-    </div>
-  )
-}
-
-function AgentHome({
-  agent,
-  serverUrl,
-  accountUid,
-  contentMaxWidth,
-}: {
-  agent: AgentInfo
-  serverUrl: string
-  accountUid: string
-  contentMaxWidth?: number
-}) {
-  const identities = useSigningIdentities(serverUrl, accountUid, agent.id)
-  const key = agent.definition.signingKey || agent.definition.signingKeys?.[0]
-  const identity = identities.data?.find((identity) => identity.name === key)
-  const home = identity?.accountId ? hmId(identity.accountId) : null
-  const resource = useResource(home, {subscribed: true})
-  const Viewer = useReadOnlyViewer()
-  if (identities.isInitialLoading || resource.isInitialLoading) return <Spinner />
-  if (identities.isError) return <p role="alert">Could not load the agent home.</p>
-  if (!home) return <p>This agent has no home identity.</p>
-  const homeDocument = resource.data?.type === 'document' ? resource.data.document : null
-  if (!homeDocument) return <p role="alert">Could not load the agent home document.</p>
-  return (
-    <div className="px-5 py-4">
-      <PageLayout contentMaxWidth={contentMaxWidth}>
-        <div className="flex flex-col gap-4">
-          {Viewer && (
-            <Viewer
-              blocks={homeDocument.content}
-              resourceId={home}
-              resourceKind="document"
-              rootChildrenType={homeDocument.metadata.childrenType}
-            />
-          )}
-        </div>
-      </PageLayout>
     </div>
   )
 }
