@@ -113,3 +113,78 @@ describe('NavigationSettings', () => {
     expect(mutateAsync.mock.calls[0][0].metadata).toMatchObject({showOutline: false})
   })
 })
+
+describe('Add link dialog', () => {
+  // The dialog renders in a portal, outside the tab's container.
+  function dialogButton(label: string) {
+    return Array.from(document.body.querySelectorAll('button')).find((el) => el.textContent?.trim() === label)!
+  }
+  function type(input: HTMLInputElement, value: string) {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value)
+    input.dispatchEvent(new Event('input', {bubbles: true}))
+  }
+  function addExternalLink(url: string, name: string) {
+    act(() => button('Add a link').click())
+    act(() => document.querySelector<HTMLButtonElement>('button[role="radio"][value="external"]')!.click())
+    act(() => type(document.querySelector<HTMLInputElement>('input[aria-label="URL"]')!, url))
+    act(() => type(document.querySelector<HTMLInputElement>('#nav-link-name')!, name))
+  }
+
+  it('adds an external link, completing a bare domain to a web address', async () => {
+    renderTab(homeWithLinks([]))
+
+    addExternalLink('behance.net/alberti', 'Portfolio')
+    act(() => dialogButton('Add link').click())
+    await act(async () => button('Save').click())
+
+    expect(mutateAsync.mock.calls[0][0].navigation).toEqual([
+      expect.objectContaining({text: 'Portfolio', link: 'https://behance.net/alberti'}),
+    ])
+  })
+
+  it('selects the whole URL with Cmd+A', () => {
+    renderTab(homeWithLinks([]))
+
+    addExternalLink('https://behance.net/alberti', 'Portfolio')
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="URL"]')!
+    input.setSelectionRange(0, 0)
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', {key: 'a', metaKey: true, bubbles: true}))
+    })
+
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, input.value.length])
+  })
+
+  it('explains an invalid URL once the owner leaves the field', () => {
+    renderTab(homeWithLinks([]))
+
+    addExternalLink('not a url', 'Portfolio')
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="URL"]')!
+    expect(document.body.textContent).not.toContain('Enter a web address')
+
+    act(() => {
+      input.focus()
+      input.blur()
+    })
+
+    expect(document.body.textContent).toContain('Enter a web address')
+  })
+
+  it('enables Save link only once the edited link differs', () => {
+    renderTab(homeWithLinks([navLink('a')]))
+
+    act(() => button('Edit Link a').click())
+    expect(dialogButton('Save link').disabled).toBe(true)
+
+    act(() => type(document.querySelector<HTMLInputElement>('#nav-link-name')!, 'About'))
+    expect(dialogButton('Save link').disabled).toBe(false)
+  })
+
+  it('keeps Add link disabled until the URL is a web address', () => {
+    renderTab(homeWithLinks([]))
+
+    addExternalLink('not a url', 'Portfolio')
+
+    expect(dialogButton('Add link').disabled).toBe(true)
+  })
+})

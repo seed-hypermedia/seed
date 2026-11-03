@@ -1,6 +1,6 @@
-import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
-import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
+import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
 import {createContext, useCallback, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
@@ -236,6 +236,7 @@ type UseRouteLinkOpts = {
   onClick?: React.MouseEventHandler<HTMLElement>
   origin?: string | null
   originHomeId?: UnpackedHypermediaId
+  newWindow?: boolean
 }
 
 export function routeToHref(
@@ -481,8 +482,9 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
   const onClick = context.openRoute
     ? (e: React.MouseEvent<HTMLElement>) => {
         e?.stopPropagation()
-        const openInNewWindow = e.metaKey || e.ctrlKey || e.shiftKey
+        const openInNewWindow = opts?.newWindow || e.metaKey || e.ctrlKey || e.shiftKey
         if (openInNewWindow) {
+          if (opts?.newWindow) opts.onClick?.(e)
           if (context.openRouteNewWindow) {
             e.preventDefault()
             if (typeof route === 'string') {
@@ -512,5 +514,6 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
     onClick,
     // Panels multiply every document and account into many URLs; keep crawlers on the documents.
     ...(href && isViewTermPath(href) ? {rel: 'nofollow'} : {}),
+    ...(opts?.newWindow ? {target: '_blank', rel: 'noopener noreferrer'} : {}),
   }
 }

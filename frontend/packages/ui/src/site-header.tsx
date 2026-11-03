@@ -331,7 +331,7 @@ function NavItems({items, onClick}: {items?: DocNavigationItem[] | null; onClick
 }
 
 function MobileWebLinkItem({item, onClick}: {item: DocNavigationItem; onClick?: () => void}) {
-  const {linkProps} = useValidatedWebRouteLink(item.webUrl || null, {onClick})
+  const {linkProps} = useValidatedWebRouteLink(item.webUrl || null, {onClick, newWindow: true})
 
   return <SmallListItem bold title={getMetadataName(item.metadata)} {...linkProps} />
 }
@@ -372,6 +372,8 @@ function OverflowMenuItem({
       : item.id
         ? {key: 'document', id: {...item.id, latest: true, version: null}}
         : item.webUrl || '',
+    // External links open in a new tab so readers keep their place on the site.
+    {newWindow: !item.draftId && !item.id && !!item.webUrl},
   )
   return (
     <DropdownMenuItem {...linkProps}>
@@ -411,6 +413,8 @@ function HeaderLinkItem({
             id: {...id, latest: true, version: null},
           }
         : webUrl || null,
+    // External links open in a new tab so readers keep their place on the site.
+    {newWindow: !draftId && !id && !!webUrl},
   )
   return (
     <div className={cn('flex items-center gap-1 px-1')}>
