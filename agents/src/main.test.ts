@@ -4,6 +4,7 @@ import * as apisvc from '@/api-service'
 import type * as api from '@/api'
 import * as cbor from '@/cbor'
 import {AGENTS_API_PREFIX, AGENTS_WS_PATHS, createAPIRoutes, wsShouldDeliver, type WSData} from '@/main'
+import {LOOP_LAG_UNHEALTHY_P95_MS, perfSnapshot, recordLoopLag, resetPerfForTests} from '@/perf'
 import * as sqlite from '@/sqlite'
 import * as blobs from '@shm/shared/blobs'
 import * as fs from 'node:fs'
@@ -212,6 +213,68 @@ describe('main routes', () => {
       const searchOnlyBody = await (await searchOnly()).json()
       expect(searchOnlyBody.webTools).toEqual({search: true, readBrowser: false})
     } finally {
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('GET health turns 503 with the p95 while the event loop is lagging', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    resetPerfForTests()
+    try {
+      const health = getGetHandler(createAPIRoutes(new apisvc.Service(db, dataDir)), '/api/health')
+      // Quiet loop: the lag block is present and the status is 200.
+      const now = Date.now()
+      for (let index = 0; index < 60; index += 1) recordLoopLag(2, now - 59_000 + index * 1_000)
+      const okRes = await health()
+      expect(okRes.status).toBe(200)
+      const okBody = await okRes.json()
+      expect(okBody.status).toBe('ok')
+      expect(okBody.reason).toBeUndefined()
+      expect(okBody.loop.lag).toEqual({p50: 2, p95: 2, max: 2, windowMs: 60_000})
+
+      // Every tick over the last minute fired late: a stalled server, not a spike.
+      resetPerfForTests()
+      const lagMs = LOOP_LAG_UNHEALTHY_P95_MS + 150
+      for (let index = 0; index < 60; index += 1) recordLoopLag(lagMs, now - 59_000 + index * 1_000)
+      const stalledRes = await health()
+      expect(stalledRes.status).toBe(503)
+      const stalledBody = await stalledRes.json()
+      expect(stalledBody.status).toBe('unhealthy')
+      expect(stalledBody.reason).toBe('loop-lag')
+      expect(stalledBody.p95).toBe(lagMs)
+      expect(stalledBody.loop.lag.p95).toBe(lagMs)
+      // The rest of the health payload is still there for the operator who curls it.
+      expect(stalledBody.dispatch).toEqual({paused: false})
+      expect(stalledRes.headers.get('access-control-allow-origin')).toBe('*')
+    } finally {
+      resetPerfForTests()
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('every signed action records api.<ActionName>; an unsupported name records nothing', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    resetPerfForTests()
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}}))
+      await svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'ListAgents'}}))
+      // A failing action is still timed: the failure is the slow path worth seeing.
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'GetAgent', agentId: 'missing'}})),
+      ).rejects.toBeInstanceOf(apisvc.APIError)
+      await expect(
+        svc.message(await apisvc.createSignedEnvelope(account, {action: {_: 'NoSuchAction'} as never})),
+      ).rejects.toThrow('Unsupported action: NoSuchAction')
+      const {metrics} = perfSnapshot()
+      expect(metrics['api.ListAgents']!.count).toBe(2)
+      expect(metrics['api.GetAgent']!.count).toBe(1)
+      expect(Object.keys(metrics).filter((name) => name.startsWith('api.'))).toEqual(['api.GetAgent', 'api.ListAgents'])
+    } finally {
+      resetPerfForTests()
       sqlite.closeDatabase(db)
       cleanup()
     }

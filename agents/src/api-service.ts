@@ -375,6 +375,13 @@ export class APIError extends Error {
   }
 }
 
+/** An action name the server does not dispatch. Kept out of the per-action perf metrics. */
+class UnsupportedActionError extends APIError {
+  constructor(name: string | undefined) {
+    super(400, `Unsupported action: ${name}`)
+  }
+}
+
 class SessionStoppedError extends Error {
   constructor() {
     super('Agent run stopped')
@@ -1249,6 +1256,22 @@ export class Service {
    * declared protocol version (see `protocol-compat.ts`).
    */
   async message(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
+    // Every action's wall time, success or failure, lands in `/api/perf` as `api.<ActionName>` so a
+    // slow action is visible by name. The name is the client's; an unsupported one is not recorded,
+    // which keeps the metric set bounded to the actions the server actually knows.
+    const endSpan = startPerfSpan(`api.${String(envelope?.action?._ ?? 'unknown')}`)
+    let unsupported = false
+    try {
+      return await this.#handleMessage(envelope)
+    } catch (error) {
+      if (error instanceof UnsupportedActionError) unsupported = true
+      throw error
+    } finally {
+      if (!unsupported) endSpan()
+    }
+  }
+
+  async #handleMessage(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
     // Judged before the signature: the answer does not depend on who signed, and a refused client
     // should learn why without the server doing any more work for it.
     const clientProtocol = clientProtocolOf(envelope)
@@ -1586,7 +1609,7 @@ export class Service {
       case 'Subscribe':
         throw new APIError(400, 'Subscribe is only supported over WebSocket')
       default:
-        throw new APIError(400, `Unsupported action: ${(envelope.action as {_?: string})._}`)
+        throw new UnsupportedActionError((envelope.action as {_?: string})._)
     }
   }
 

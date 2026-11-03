@@ -5,7 +5,7 @@ import {getBuildInfo} from '@/build-info'
 import {installHmServerAuth} from '@/hm-server-auth'
 import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
-import {perfSnapshot} from '@/perf'
+import {loopLagHealth, loopLagSnapshot, perfSnapshot, startLoopLagGauge, stopLoopLagGauge} from '@/perf'
 import {withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
@@ -135,9 +135,17 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
   const buildInfo = getBuildInfo()
   const health = async () => {
     const codeExec = await svc.codeExecAvailability()
+    // A stalled event loop is the one failure every other field here hides: the handler that
+    // reports `status: 'ok'` ran late, or not at all. When the p95 lag over the last minute is
+    // past LOOP_LAG_UNHEALTHY_P95_MS the answer is 503 with the number, so the container
+    // healthcheck, Caddy and an operator's curl all see the stall (see perf.ts).
+    const lag = loopLagHealth()
+    const loop = loopLagSnapshot()
     return Response.json(
       {
-        status: 'ok',
+        status: lag.ok ? 'ok' : 'unhealthy',
+        ...(lag.ok ? {} : {reason: lag.reason, p95: lag.p95}),
+        loop: {lag: {p50: loop.p50, p95: loop.p95, max: loop.max, windowMs: loop.windowMs}},
         uptime: process.uptime(),
         version: buildInfo.version,
         protocol: buildInfo.protocol,
@@ -159,7 +167,7 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
         disk: healthDisk(svc.diskStatus()),
         dispatch: svc.dispatchStatus(),
       },
-      {headers: corsHeaders()},
+      {status: lag.ok ? 200 : 503, headers: corsHeaders()},
     )
   }
   const version = () => Response.json(buildInfo, {headers: corsHeaders()})
@@ -467,6 +475,10 @@ async function main(): Promise<void> {
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
   activityMonitor.start()
   scheduleMonitor.start()
+  // Measures how late a 100 ms timer fires: the only signal that the single thread is stalled
+  // when no request gets far enough to record a span. Read at /api/perf (`loop.lag`) and
+  // enforced by /api/health.
+  startLoopLagGauge()
 
   const server = serve({
     port: cfg.http.port,
@@ -548,6 +560,7 @@ async function main(): Promise<void> {
     if (shuttingDown) return
     console.log('Shutting down gracefully...')
     shuttingDown = true
+    stopLoopLagGauge()
     activityMonitor.stop()
     scheduleMonitor.stop()
     for (const ws of clients) ws.close(1001, 'Server shutting down')
