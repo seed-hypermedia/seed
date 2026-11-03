@@ -25,7 +25,7 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
 import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
 import {useAgentServerUrls} from '@shm/ui/agents/models'
-import {useSiteAgentMounts} from '@shm/ui/site-agents'
+import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {Button} from '@shm/ui/button'
 import {accountMenuContentClassName, AccountMenuIdentity, AccountMenuSection} from '@shm/ui/account-menu'
@@ -582,13 +582,12 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const media = useMedia()
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle); the
-  // space's own agents only matter here for the first-arrival auto-open.
-  const siteAgents = useSiteAgentMounts(siteUid)
-  const hasSiteAgents = (siteAgents.data?.length ?? 0) > 0
-  // First arrival: a signed-in reader of a space with agents finds the panel already open, once,
+  // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle). The
+  // host offers the toggle only to a signed-in reader with an agent they can see in this space,
+  // and that is the same word the first-arrival auto-open goes by: the panel opens itself once,
   // on a viewport wide enough to show it beside the page. Closing it is remembered.
-  useAssistantAutoOpen(!!keyPair && hasSiteAgents && !isMobile)
+  const assistantToggle = useAssistantPanelToggle()
+  useAssistantAutoOpen(!!assistantToggle && !isMobile)
   // Hide join button if inside a pending space draft.
   const isPendingSpace = isPendingSpaceUid(siteUid)
 

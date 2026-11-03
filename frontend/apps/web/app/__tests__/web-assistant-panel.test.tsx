@@ -13,6 +13,8 @@ const mockState = vi.hoisted(() => ({
   pathname: '/',
   isMobile: false,
   keyPair: {id: 'reader'} as {id: string} | null,
+  // What the activity tracker reports: whether the reader can see an agent mounted in this site.
+  hasAgents: true,
 }))
 
 vi.mock('@remix-run/react', () => ({
@@ -26,8 +28,17 @@ vi.mock('@/client-lazy', () => ({
   clientLazy: () => () => <div data-testid="panel-content">PANEL</div>,
   ClientOnly: ({children}: {children: React.ReactNode}) => <>{children}</>,
 }))
-// The header's activity tracker is the agents chunk too; the host's job is only to mount it.
-vi.mock('../web-assistant-activity', () => ({default: () => null}))
+// The header's activity tracker is the agents chunk too; the host's job is to mount it and to
+// take its word on whether the reader has an agent here.
+vi.mock('../web-assistant-activity', () => ({
+  default: ({onAgentsChange}: {onAgentsChange: (hasAgents: boolean) => void}) => {
+    const hasAgents = mockState.hasAgents
+    React.useEffect(() => {
+      onAgentsChange(hasAgents)
+    }, [hasAgents, onAgentsChange])
+    return null
+  },
+}))
 
 import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {AssistantPanelProvider, useAssistantAutoOpen, useAssistantPanel} from '../assistant-panel-state'
@@ -90,6 +101,7 @@ beforeEach(() => {
   mockState.pathname = '/'
   mockState.isMobile = false
   mockState.keyPair = {id: 'reader'}
+  mockState.hasAgents = true
   mountCount = 0
   controls = null
   headerToggle = null
@@ -260,6 +272,20 @@ describe('web assistant panel', () => {
 
   it('offers the site header no toggle to a signed-out visitor', () => {
     mockState.keyPair = null
+    act(() => root.render(<App />))
+    expect(headerToggle).toBeNull()
+  })
+
+  it('offers the site header no toggle until the reader has an agent here they can see', () => {
+    mockState.hasAgents = false
+    act(() => root.render(<App />))
+    expect(headerToggle).toBeNull()
+    // A mount document alone is not enough; the toggle arrives once an agent answers for this
+    // account (shared with them, or public), and goes when none does.
+    mockState.hasAgents = true
+    act(() => root.render(<App />))
+    expect(headerToggle).not.toBeNull()
+    mockState.hasAgents = false
     act(() => root.render(<App />))
     expect(headerToggle).toBeNull()
   })

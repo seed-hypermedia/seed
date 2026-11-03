@@ -23,7 +23,8 @@ const WebAssistantPanelContent = clientLazy<{showClose?: boolean; visible?: bool
 
 // The unread indicator needs the agents models (lists, sockets, read marks) — the same chunk the
 // panel body lives in. Loaded for a signed-in reader whether or not the panel is open, so the
-// header dot works with the panel closed; nothing of it enters the initial bundle.
+// header dot works with the panel closed and the header learns whether this reader has an agent
+// here at all; nothing of it enters the initial bundle.
 const WebAssistantActivity = lazy(() => import('./web-assistant-activity'))
 
 const WIDTH_STORAGE_KEY = 'seed.assistant.width'
@@ -161,14 +162,18 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   useEffect(() => () => cancelMotion.current?.(), [])
 
   // The site header's Agents button. Offered only to a signed-in reader, for the same reason the
-  // panel itself is; the header additionally checks that the space names an agents server. It
+  // panel itself is, and only once the activity tracker has found an agent in this site that the
+  // reader's account can see (owner, accepted collaborator, or a public agent): a mount document
+  // the agent is not shared with them through is no reason to show a way into an empty panel. It
   // reflects what is on screen, not the stored preference: on a narrow viewport with a restored
   // "open" that is not showing, the button reads closed and a tap opens the panel rather than
   // silently closing the invisible one.
   const [activity, setActivity] = useState<AgentActivityIndicator | null>(null)
+  const [hasAgents, setHasAgents] = useState(false)
   const headerToggle = useMemo<AssistantPanelToggle | null>(
-    () => (keyPair ? {isOpen: visible, toggle: visible ? panel.close : panel.open, activity} : null),
-    [keyPair, visible, panel.close, panel.open, activity],
+    () =>
+      keyPair && hasAgents ? {isOpen: visible, toggle: visible ? panel.close : panel.open, activity} : null,
+    [keyPair, hasAgents, visible, panel.close, panel.open, activity],
   )
 
   return (
@@ -180,7 +185,7 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
         <ClientOnly>
           <SiteContextScope>
             <Suspense fallback={null}>
-              <WebAssistantActivity onChange={setActivity} />
+              <WebAssistantActivity onChange={setActivity} onAgentsChange={setHasAgents} />
             </Suspense>
           </SiteContextScope>
         </ClientOnly>
