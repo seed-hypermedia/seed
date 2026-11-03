@@ -201,7 +201,7 @@ export function AnimatedPanel({
   const [closing, setClosing] = useState(false)
   const cancel = useRef<(() => void) | undefined>(undefined)
   const returnFocus = useRef<HTMLElement | null>(null)
-  if (open) retained.current = children
+  if (open || (keepMounted && hasOpened.current)) retained.current = children
 
   useEffect(() => {
     const element = elementRef.current

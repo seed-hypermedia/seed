@@ -17,7 +17,7 @@ import React, {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState
 // The panel body pulls in the agents models and the rich editor. Like the /hm/agents pages and the
 // commenting editor, it is a separate client-only chunk that only loads once the panel opens, so
 // nothing agents-related enters the initial bundle.
-const WebAssistantPanelContent = clientLazy<{showClose?: boolean}>(async () => ({
+const WebAssistantPanelContent = clientLazy<{showClose?: boolean; visible?: boolean}>(async () => ({
   default: (await import('./web-assistant-panel-content')).default,
 }))
 
@@ -230,7 +230,7 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
         >
           {keyPair && !isMobile && (showSidePanel || hasOpened) ? (
             <div className="h-full border-l">
-              <PanelBody showClose />
+              <PanelBody showClose visible={showSidePanel} />
             </div>
           ) : null}
         </aside>
@@ -297,14 +297,14 @@ function SiteContextScope({children}: {children: React.ReactNode}) {
  * The lazy panel under the current page's contexts. Before any page has published (first paint,
  * or a page outside the site shell) the panel has nothing to navigate with, so it waits.
  */
-function PanelBody({showClose}: {showClose?: boolean}) {
+function PanelBody({showClose, visible = true}: {showClose?: boolean; visible?: boolean}) {
   const site = useSiteContextSnapshot()
   if (!site) return <PanelLoading />
   return (
     <UniversalAppContext.Provider value={site.universal}>
       <NavContextProvider value={site.navigation}>
         <Suspense fallback={<PanelLoading />}>
-          <WebAssistantPanelContent showClose={showClose} />
+          <WebAssistantPanelContent showClose={showClose} visible={visible} />
         </Suspense>
       </NavContextProvider>
     </UniversalAppContext.Provider>

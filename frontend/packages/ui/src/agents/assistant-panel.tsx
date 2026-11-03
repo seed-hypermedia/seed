@@ -138,6 +138,7 @@ export function AssistantPanel({
   initialSessionId,
   initialAgentId,
   newChatRequest,
+  visible = true,
   onSessionChange,
   onAgentChange,
   onClose,
@@ -147,6 +148,8 @@ export function AssistantPanel({
   /** Serialized agent ref (see `encodeAssistantAgentRef`) the list was filtered to, restored from window state. */
   initialAgentId?: string | null
   newChatRequest?: number
+  /** Whether the host currently shows this panel, even if it keeps the panel mounted while closed. */
+  visible?: boolean
   /** Reports the open chat (serialized), or null when the list is showing, for the host to persist. */
   onSessionChange?: (sessionId: string | null) => void
   /** Reports the list's agent filter (serialized), or null for all agents, for the host to persist. */
@@ -243,13 +246,16 @@ export function AssistantPanel({
   })
   const filterAgent = selection.filterAgent
   const activeSession = selection.session
+  const visibleSessionRef = useRef<AssistantSessionRef | null>(visible ? activeSession : null)
+  visibleSessionRef.current = visible ? activeSession : null
 
   const setStored = useCallback(
     (ref: AssistantSessionRef | null) => {
+      visibleSessionRef.current = visible ? ref : null
       setStoredRaw(ref)
       onSessionChange?.(ref ? encodeAssistantSessionRef(ref) : null)
     },
-    [onSessionChange],
+    [onSessionChange, visible],
   )
 
   const setChosenAgent = useCallback(
@@ -590,7 +596,14 @@ export function AssistantPanel({
             agentHint={selection.sessionAgent?.agent}
             agentsSettled={agentsSettled}
             composerRef={sessionComposerRef}
+            visible={visible}
             onOpenSession={(sessionId) => openSession({serverUrl: activeSession.serverUrl, sessionId})}
+            onFollowSession={(sessionId) => {
+              const current = visibleSessionRef.current
+              if (current?.serverUrl === activeSession.serverUrl && current.sessionId === activeSession.sessionId) {
+                openSession({serverUrl: current.serverUrl, sessionId})
+              }
+            }}
           />
         </>
       ) : agents.length ? (
@@ -830,7 +843,9 @@ function AssistantSessionChat({
   agentHint,
   agentsSettled,
   composerRef,
+  visible,
   onOpenSession,
+  onFollowSession,
 }: {
   sessionRef: AssistantSessionRef
   accountUid: string | null | undefined
@@ -841,8 +856,10 @@ function AssistantSessionChat({
   agentHint?: AgentInfo
   agentsSettled: boolean
   composerRef: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
+  visible: boolean
   /** Switches the panel to another session of this server (a continuation's successor or predecessor). */
   onOpenSession?: (sessionId: string) => void
+  onFollowSession: (sessionId: string) => void
 }) {
   const {serverUrl, sessionId} = sessionRef
   const BrowserTools = getAgentsPlatform().BrowserTools
@@ -893,7 +910,8 @@ function AssistantSessionChat({
   const followContinuation = useFollowContinuation({
     session: sessionInfo,
     isStreaming,
-    onFollow: useCallback((link) => onOpenSession?.(link.sessionId), [onOpenSession]),
+    isVisible: visible,
+    onFollow: useCallback((link) => onFollowSession(link.sessionId), [onFollowSession]),
   })
   const contextTokens = useMemo(() => sessionContextTokens(session.data?.events), [session.data?.events])
   const events = session.data?.events
