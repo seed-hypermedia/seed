@@ -12,12 +12,15 @@ import {
   writeFileSync,
 } from 'node:fs'
 import {createServer, type Server} from 'node:http'
+import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {chromium, type Browser, type BrowserContext, type Locator, type Page, type Video} from 'playwright'
+import {_electron, chromium, type Browser, type BrowserContext, type Locator, type Page, type Video} from 'playwright'
+import {commentRecordIdFromBlob, createComment, createSeedClient, unpackHmId} from '@seed-hypermedia/client'
 import {createDocumentUpdate, type TestAccount} from '../../frontend/apps/cli/src/test/account-helpers'
 import {FIXTURE_ACCOUNT, FIXTURE_ACCOUNT_ID} from '../../frontend/apps/cli/src/test/fixture-seed'
+import {createSignerFromKey} from '../../frontend/apps/cli/src/utils/signer'
 import {
   FIXTURE_DESIGN_INVENTORY_MARKDOWN,
   FIXTURE_DESIGN_INVENTORY_PATH,
@@ -33,6 +36,8 @@ import {
   captureFileName,
   captureViews,
   createManifest,
+  unionCaptureBounds,
+  type CaptureBounds,
   type CaptureFailure,
   type CaptureManifest,
   type CaptureRecord,
@@ -56,6 +61,13 @@ const VAULT_PORT = 59104
 const STORYBOOK_PORT = 59200
 const PLAYGROUND_PORT = 59201
 const MASK_SELECTORS = ['.relative-time', '[data-relative-time]', 'time[data-relative]']
+const STORY_PORTAL_SELECTORS = [
+  '[role="dialog"]',
+  '[role="alertdialog"]',
+  '[data-radix-popper-content-wrapper]',
+  '[data-sonner-toaster] li',
+  '[vaul-drawer]',
+]
 
 type Options = {
   only: Set<string>
@@ -163,6 +175,75 @@ async function capturePage(
   }
 }
 
+async function captureStoryContent(
+  manifest: CaptureManifest,
+  outDir: string,
+  view: string,
+  theme: CaptureTheme,
+  page: Page,
+  fullscreen: boolean,
+  url: string,
+): Promise<void> {
+  const relativeFile = captureFileName('storybook', view, theme, 'desktop')
+  const file = path.join(outDir, relativeFile)
+  mkdirSync(path.dirname(file), {recursive: true})
+  try {
+    await settlePage(page)
+    const viewport = await page.evaluate((portalSelectors) => {
+      const visible = (element: Element) => {
+        const bounds = element.getBoundingClientRect()
+        const style = getComputedStyle(element)
+        return (
+          bounds.width > 0 &&
+          bounds.height > 0 &&
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          Number(style.opacity) > 0
+        )
+      }
+      const getBounds = (element: Element): CaptureBounds => {
+        const bounds = element.getBoundingClientRect()
+        return {x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height}
+      }
+      const contentBounds = (element: Element): CaptureBounds[] => {
+        const bounds = getBounds(element)
+        const children = Array.from(element.children).filter(visible)
+        if (children.length && (bounds.width >= window.innerWidth * 0.9 || bounds.height >= window.innerHeight * 0.9)) {
+          return children.flatMap(contentBounds)
+        }
+        return [bounds]
+      }
+      const root = document.querySelector('#storybook-root')
+      const rootBounds = root ? Array.from(root.children).filter(visible).flatMap(contentBounds) : []
+      const portalBounds = portalSelectors.flatMap((selector) =>
+        Array.from(document.querySelectorAll(selector)).filter(visible).map(getBounds),
+      )
+      return {width: window.innerWidth, height: window.innerHeight, bounds: [...rootBounds, ...portalBounds]}
+    }, STORY_PORTAL_SELECTORS)
+    const clip = fullscreen
+      ? undefined
+      : unionCaptureBounds(viewport.bounds, {width: viewport.width, height: viewport.height}, 24)
+    if (!fullscreen && !clip) throw new Error('empty render')
+    await page.screenshot({
+      path: file,
+      ...(clip ? {clip} : {}),
+      fullPage: false,
+      animations: 'disabled',
+      mask: MASK_SELECTORS.map((selector) => page.locator(selector)),
+    })
+    ensureSurface(manifest, 'storybook').push({
+      view,
+      theme,
+      viewport: 'desktop',
+      file: relativeFile,
+      url,
+    })
+  } catch (error) {
+    rmSync(file, {force: true})
+    addFailure(manifest, {surface: 'storybook', view, theme, viewport: 'desktop', error: errorMessage(error)})
+  }
+}
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
@@ -251,8 +332,67 @@ async function captureStorybook(browser: Browser, manifest: CaptureManifest, opt
           url.searchParams.set('viewMode', 'story')
           url.searchParams.set('globals', `theme:${theme}`)
           await page.goto(url.toString(), {waitUntil: 'domcontentloaded'})
-          await page.locator('#storybook-root').waitFor({state: 'visible', timeout: 20000})
-          await capturePage(manifest, options.out, 'storybook', story.id, theme, 'desktop', page, true, url.toString())
+          const ready = await page
+            .waitForFunction(
+              (portalSelectors) => {
+                const visible = (element: Element) => {
+                  const bounds = element.getBoundingClientRect()
+                  const style = getComputedStyle(element)
+                  return (
+                    bounds.width > 0 &&
+                    bounds.height > 0 &&
+                    style.display !== 'none' &&
+                    style.visibility !== 'hidden' &&
+                    Number(style.opacity) > 0
+                  )
+                }
+                const root = document.querySelector('#storybook-root')
+                return (
+                  Boolean(root?.children.length) ||
+                  portalSelectors.some((selector) => Array.from(document.querySelectorAll(selector)).some(visible))
+                )
+              },
+              STORY_PORTAL_SELECTORS,
+              {timeout: 10000},
+            )
+            .then(() => true)
+            .catch(() => false)
+          if (!ready) {
+            const storyError = await page.evaluate(() =>
+              Array.from(document.querySelectorAll('#error-message, .sb-errordisplay'))
+                .map((element) => element.textContent?.trim())
+                .filter(Boolean)
+                .join('\n'),
+            )
+            addFailure(manifest, {
+              surface: 'storybook',
+              view: story.id,
+              theme,
+              viewport: 'desktop',
+              error: storyError || 'empty render',
+            })
+            return
+          }
+          const layout = await page.evaluate(async (storyId) => {
+            const preview = (window as typeof window & {__STORYBOOK_PREVIEW__?: any}).__STORYBOOK_PREVIEW__
+            try {
+              const store = preview?.storyStoreValue
+              const story = await store?.loadStory({storyId})
+              const context = story ? await store?.getStoryContext?.(story) : undefined
+              return context?.parameters?.layout || story?.parameters?.layout
+            } catch {
+              return undefined
+            }
+          }, story.id)
+          await captureStoryContent(
+            manifest,
+            options.out,
+            story.id,
+            theme,
+            page,
+            layout === 'fullscreen',
+            url.toString(),
+          )
         }).catch((error) =>
           addFailure(manifest, {
             surface: 'storybook',
@@ -534,6 +674,44 @@ async function seedDesignInventory(serverUrl: string, account: TestAccount): Pro
   await createDocumentUpdate(serverUrl, account, FIXTURE_DESIGN_INVENTORY_PATH, articleOps)
 }
 
+async function seedDesignComments(serverUrl: string, account: TestAccount): Promise<void> {
+  const target = `hm://${account.accountId}/design/article`
+  const docId = unpackHmId(target)
+  if (!docId) throw new Error('Design article URL could not be parsed')
+  const client = createSeedClient(serverUrl)
+  const resource = await client.request('Resource', docId)
+  if (resource.type !== 'document' || !resource.document.version) {
+    throw new Error('Design article was not available for comment seeding')
+  }
+  const signer = createSignerFromKey(account.keyPair)
+  const publish = async (text: string, replyTo?: string): Promise<string> => {
+    const comment = await createComment(
+      {
+        content: [
+          {block: {id: `comment-${Date.now()}`, type: 'Paragraph', text, annotations: []}, children: []},
+        ] as any,
+        docId,
+        docVersion: resource.document.version,
+        blobs: [],
+        replyCommentVersion: replyTo,
+        rootReplyCommentVersion: replyTo,
+      } as any,
+      signer,
+    )
+    const blob = comment.blobs[0]?.data
+    if (!blob) throw new Error('Comment has no publishable blob')
+    const commentId = await commentRecordIdFromBlob(blob)
+    await client.publish(comment)
+    return commentId
+  }
+  const firstCommentId = await publish('A clear visual hierarchy makes this article easy to scan.')
+  const firstComment = await client.request('Comment', firstCommentId)
+  const firstCommentVersion = firstComment.version || firstComment.id
+  if (!firstCommentVersion) throw new Error('First design comment has no version')
+  await publish('The light and dark examples are both helpful.', firstCommentVersion)
+  await publish('The spacing between sections feels consistent.')
+}
+
 async function setCollectionStyle(serverUrl: string, style: 'Table' | 'List' | 'Cards'): Promise<void> {
   await createDocumentUpdate(serverUrl, FIXTURE_ACCOUNT, 'design/notes', [
     {
@@ -565,7 +743,7 @@ async function openWebView(page: Page, baseUrl: string, view: string): Promise<s
     'notes-table': '/design/notes',
     'notes-list': '/design/notes',
     'notes-cards': '/design/notes',
-    'search-command': '/',
+    'search-command': '/design/article',
     'not-found': '/design/this-page-does-not-exist',
   }
   const url = new URL(paths[view], baseUrl)
@@ -591,11 +769,25 @@ async function openWebView(page: Page, baseUrl: string, view: string): Promise<s
 
 async function captureWeb(browser: Browser, manifest: CaptureManifest, options: Options, env: TestEnv): Promise<void> {
   await seedDesignInventory(env.web.baseUrl, FIXTURE_ACCOUNT)
+  let commentSeedError: string | undefined
+  try {
+    await seedDesignComments(env.web.baseUrl, FIXTURE_ACCOUNT)
+  } catch (error) {
+    commentSeedError = errorMessage(error)
+  }
+  let fontRecorded = false
   for (const theme of CAPTURE_THEMES) {
     for (const viewport of Object.keys(CAPTURE_VIEWPORTS) as CaptureViewport[]) {
       for (const view of captureViews('web')) {
         await withPage(browser, theme, viewport, async (page) => {
+          if (view === 'article-discussion' && commentSeedError) {
+            throw new Error(`Comment fixture seeding failed: ${commentSeedError}`)
+          }
           const url = await openWebView(page, env.web.baseUrl, view)
+          if (!fontRecorded && view === 'home' && viewport === 'desktop') {
+            await recordWebFont(manifest, page)
+            fontRecorded = true
+          }
           if (view.startsWith('notes-')) {
             const styleName = view === 'notes-list' ? 'List' : view === 'notes-cards' ? 'Cards' : 'Table'
             const viewButton = page.getByRole('button', {name: new RegExp(`^${styleName}$`, 'i')}).first()
@@ -608,13 +800,35 @@ async function captureWeb(browser: Browser, manifest: CaptureManifest, options: 
           }
           if (view === 'search-command') {
             await page.keyboard.press('Control+k')
-            const searchSurface = page.locator('[role="dialog"], [cmdk-root], input[placeholder*="Search" i]').first()
+            const searchSurface = page.getByRole('textbox', {name: 'Search'})
             await searchSurface.waitFor({state: 'visible', timeout: 5000})
           }
           await capturePage(manifest, options.out, 'web', view, theme, viewport, page, true, url)
         }).catch((error) => addFailure(manifest, {surface: 'web', view, theme, viewport, error: errorMessage(error)}))
       }
     }
+  }
+}
+
+async function recordWebFont(manifest: CaptureManifest, page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    await document.fonts.ready
+  })
+  const font = await page.evaluate(() => {
+    const computedFontFamily = getComputedStyle(document.body).fontFamily
+    const firstFamily = computedFontFamily
+      .split(',')[0]
+      .trim()
+      .replace(/^['"]|['"]$/g, '')
+    const loadedFace = Array.from(document.fonts)
+      .find((face) => face.status === 'loaded' && face.family.replace(/^['"]|['"]$/g, '') === firstFamily)
+      ?.family.replace(/^['"]|['"]$/g, '')
+    return {computedFontFamily, firstFamily, loadedFace}
+  })
+  const matched = spawnSync('fc-match', ['-f', '%{family[0]}', font.firstFamily], {encoding: 'utf8'})
+  manifest.fonts.web = {
+    computedFontFamily: font.computedFontFamily,
+    renderedFace: font.loadedFace || (matched.status === 0 ? matched.stdout.trim() : font.firstFamily),
   }
 }
 
@@ -625,6 +839,7 @@ async function captureVault(
   env: TestEnv,
 ): Promise<void> {
   let vault: VaultServerInstance | undefined
+  let currentView = 'first-screen'
   try {
     vault = await startVaultServer({
       port: VAULT_PORT,
@@ -646,48 +861,94 @@ async function captureVault(
       await page.locator('body').waitFor({state: 'visible', timeout: 20000})
       await captureVaultVariants(manifest, options.out, page, 'first-screen', vault.vaultUrl)
 
-      const signup = page.getByRole('button', {name: /create|sign up|new identity/i}).first()
-      await signup.click({timeout: 10000})
-      const passwordField = page.getByLabel(/password/i).first()
-      await passwordField.waitFor({state: 'visible', timeout: 15000})
-      await captureVaultVariants(manifest, options.out, page, 'signup-password', page.url())
-
+      currentView = 'verification-code'
       const email = `design-baseline-${Date.now()}@example.com`
       const password = 'Design-Baseline-Password-7319!'
       const emailField = page.getByLabel(/email/i).first()
-      if (await emailField.count()) await emailField.fill(email)
-      await passwordField.fill(password)
-      const continueButton = page.getByRole('button', {name: /continue|create|sign up|next/i}).last()
-      await continueButton.click()
-      if (await page.getByLabel(/verification code|code/i).count()) {
-        const code = await vault.waitForVerificationCode(email, 30000)
-        await page
-          .getByLabel(/verification code|code/i)
-          .first()
-          .fill(code)
-        await page
-          .getByRole('button', {name: /verify|continue|confirm/i})
-          .last()
-          .click()
-      }
-      await page
-        .getByText(/recovery words|recovery phrase|write these words/i)
-        .waitFor({state: 'visible', timeout: 30000})
-      await captureVaultVariants(manifest, options.out, page, 'recovery-words', page.url())
+      await emailField.fill(email)
+      await page.getByRole('button', {name: 'Send code'}).click()
+      await page.getByText('Check your inbox').waitFor({state: 'visible', timeout: 15000})
+      await captureVaultVariants(manifest, options.out, page, 'verification-code', page.url())
+      const code = await vault.waitForVerificationCode(email, 30000)
+      await enterVaultVerificationCode(page, code)
 
-      const signOut = page.getByRole('button', {name: /sign out|log out/i}).first()
-      if (await signOut.count()) await signOut.click()
-      else await page.goto(vault.vaultUrl, {waitUntil: 'domcontentloaded'})
-      await page.getByLabel(/password/i).waitFor({state: 'visible', timeout: 15000})
+      currentView = 'auth-choice'
+      await page.getByText('Use a password', {exact: true}).waitFor({state: 'visible', timeout: 30000})
+      await captureVaultVariants(manifest, options.out, page, 'auth-choice', page.url())
+      await page.getByText('Use a password', {exact: true}).click()
+
+      currentView = 'signup-password'
+      await page.getByText('Create a password', {exact: true}).waitFor({state: 'visible', timeout: 15000})
+      await captureVaultVariants(manifest, options.out, page, 'signup-password', page.url())
+      await page.getByLabel('Password').fill(password)
+      await page.getByLabel('Confirm password').fill(password)
+      await page.getByRole('button', {name: 'Continue'}).click()
+
+      currentView = 'recovery-words'
+      await page.getByText('Save your recovery words', {exact: true}).waitFor({state: 'visible', timeout: 30000})
+      await captureVaultVariants(manifest, options.out, page, 'recovery-words', page.url())
+      await page.getByRole('button', {name: "I've saved my words"}).click()
+      await page.getByText('Your identity is secured', {exact: true}).waitFor({state: 'visible', timeout: 20000})
+      await page.getByRole('button', {name: 'Continue'}).click()
+      await page.getByText(/create your profile/i).waitFor({state: 'visible', timeout: 20000})
+      await page.evaluate(async () => {
+        await fetch('/api/logout', {method: 'POST'})
+      })
+      await page.goto(vault.vaultUrl, {waitUntil: 'domcontentloaded'})
+
+      currentView = 'sign-in'
+      await page.getByLabel(/email/i).fill(email)
+      await page.getByRole('button', {name: 'Send code'}).click()
+      await page.getByText('Check your inbox').waitFor({state: 'visible', timeout: 15000})
+      const loginCode = await vault.waitForVerificationCode(email, 30000)
+      await enterVaultVerificationCode(page, loginCode)
+      await page.getByRole('button', {name: 'Sign in with password'}).waitFor({state: 'visible', timeout: 30000})
+      await page.getByRole('button', {name: 'Sign in with password'}).click()
+      await page.getByText('Sign in with password', {exact: true}).waitFor({state: 'visible', timeout: 15000})
       await captureVaultVariants(manifest, options.out, page, 'sign-in', page.url())
+      await page.getByLabel('Password').fill(password)
+      await page.getByRole('button', {name: 'Continue'}).click()
+      await page.getByText(/create your profile/i).waitFor({state: 'visible', timeout: 30000})
+      currentView = 'signed-in'
+      await captureVaultVariants(manifest, options.out, page, 'signed-in', page.url())
     } finally {
       await context.close()
     }
   } catch (error) {
-    recordUnavailable(manifest, 'vault', captureViews('vault'), errorMessage(error))
+    const capturedViews = new Set((manifest.surfaces.vault || []).map((record) => record.view))
+    for (const view of captureViews('vault')) {
+      if (!capturedViews.has(view)) {
+        addFailure(manifest, {
+          surface: 'vault',
+          view,
+          error: `${view === currentView ? '' : 'Not reached: '}${errorMessage(error)}`,
+        })
+      }
+    }
   } finally {
     await vault?.kill()
   }
+}
+
+async function enterVaultVerificationCode(page: Page, code: string): Promise<void> {
+  const codeInputs = page.locator('input[inputmode="numeric"]')
+  await codeInputs.first().click()
+  await page.keyboard.type(code)
+  const enteredCode = await codeInputs.evaluateAll((inputs) =>
+    inputs.map((input) => (input as HTMLInputElement).value).join(''),
+  )
+  if (enteredCode !== code) throw new Error(`Verification code input was incomplete: ${enteredCode.length} digits`)
+  await page.waitForFunction(
+    () => {
+      const button = Array.from(document.querySelectorAll('button')).find(
+        (element) => element.textContent?.trim() === 'Verify',
+      )
+      return Boolean(button && !button.disabled)
+    },
+    undefined,
+    {timeout: 10000},
+  )
+  await page.getByRole('button', {name: 'Verify'}).click()
 }
 
 async function captureVaultVariants(
@@ -778,45 +1039,67 @@ async function captureDesktopView(
 async function captureDesktop(manifest: CaptureManifest, options: Options): Promise<void> {
   const dataDir = mkdtempSync(path.join(tmpdir(), 'seed-design-desktop-'))
   const startupLog = path.join(options.out, 'desktop-startup.log')
-  let child: ChildProcess | undefined
-  let cdpBrowser: Browser | undefined
+  const rendererServers: ChildProcess[] = []
+  let desktopApp: Awaited<ReturnType<typeof _electron.launch>> | undefined
   try {
-    const desktopEnv = {
-      ...process.env,
+    const desktopEnv = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !/^(DAEMON_|VITE_DESKTOP_)/.test(key)),
+    ) as NodeJS.ProcessEnv
+    Object.assign(desktopEnv, {
       DISPLAY: process.env.DISPLAY || ':0',
       SEED_FIXTURE_DATA_DIR: dataDir,
       DAEMON_HTTP_PORT: String(DESKTOP_DAEMON_HTTP_PORT),
+      DAEMON_HTTP_URL: `http://127.0.0.1:${DESKTOP_DAEMON_HTTP_PORT}`,
+      DAEMON_GRPC_PORT: String(DESKTOP_DAEMON_GRPC_PORT),
       VITE_DESKTOP_P2P_PORT: String(DESKTOP_P2P_PORT),
       VITE_DESKTOP_HTTP_PORT: String(DESKTOP_DAEMON_HTTP_PORT),
       VITE_DESKTOP_GRPC_PORT: String(DESKTOP_DAEMON_GRPC_PORT),
       VITE_DESKTOP_API_PORT: '58104',
+      VITE_DESKTOP_HOSTNAME: 'http://127.0.0.1',
       VITE_DESKTOP_DEFAULT_AGENTS_URL: 'http://127.0.0.1:58105',
+      VITE_DESKTOP_APPDATA: `Seed-design-baseline-${path.basename(dataDir)}`,
+      XDG_CONFIG_HOME: path.join(dataDir, 'config'),
+      SEED_LOCAL_SERVER_PORT: '58107',
+      NODE_ENV: 'development',
+    })
+    const rendererConfigs: ReadonlyArray<[string, number]> = [['vite.renderer.config.mts', 5173]]
+    for (const [config, port] of rendererConfigs) {
+      const renderer = spawn(
+        'pnpm',
+        [
+          '--filter',
+          '@shm/desktop',
+          'exec',
+          'vite',
+          '--config',
+          config,
+          '--host',
+          '127.0.0.1',
+          '--port',
+          String(port),
+          '--strictPort',
+        ],
+        {cwd: ROOT, env: desktopEnv, detached: true, stdio: ['ignore', 'pipe', 'pipe']},
+      )
+      rendererServers.push(renderer)
+      renderer.stdout?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
+      renderer.stderr?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
+      await waitForUrl(`http://127.0.0.1:${port}/`, 120000)
     }
-    child = spawn(
-      'pnpm',
-      [
-        '--filter',
-        '@shm/desktop',
-        'dev',
-        '--',
-        '--remote-debugging-port=58106',
-        '--disable-gpu',
-        '--disable-software-rasterizer',
-        '--no-sandbox',
-      ],
-      {
-        cwd: ROOT,
-        env: desktopEnv,
-        detached: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    )
-    child.stdout?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
-    child.stderr?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
-    await waitForUrl('http://127.0.0.1:58106/json/version', 120000)
-    cdpBrowser = await chromium.connectOverCDP('http://127.0.0.1:58106')
-    const context = cdpBrowser.contexts()[0]
-    const page = context.pages()[0] ?? (await context.newPage())
+    const mainEntry = path.join(ROOT, 'frontend/apps/desktop/.vite/build/main.js')
+    if (!existsSync(mainEntry)) throw new Error(`Desktop dev entry was not built: ${mainEntry}`)
+    const electronPath = createRequire(path.join(ROOT, 'frontend/apps/desktop/package.json'))('electron') as string
+    desktopApp = await _electron.launch({
+      executablePath: electronPath,
+      args: [mainEntry, '--disable-gpu', '--disable-software-rasterizer', '--no-sandbox'],
+      env: desktopEnv,
+      cwd: path.join(ROOT, 'frontend/apps/desktop'),
+      timeout: 120000,
+    })
+    const electronProcess = desktopApp.process()
+    electronProcess.stdout?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
+    electronProcess.stderr?.on('data', (chunk: Buffer) => appendFileSync(startupLog, chunk))
+    const page = await desktopApp.firstWindow()
     await page.setViewportSize(CAPTURE_VIEWPORTS.desktop)
     await page.locator('body').waitFor({state: 'visible', timeout: 20000})
     const origin = new URL(page.url()).origin
@@ -926,13 +1209,14 @@ async function captureDesktop(manifest: CaptureManifest, options: Options): Prom
       }
     }
   } finally {
-    await cdpBrowser?.close().catch(() => {})
-    if (child?.pid) {
+    await desktopApp?.close().catch(() => {})
+    for (const renderer of rendererServers) {
+      if (!renderer.pid) continue
       try {
-        process.kill(-child.pid, 'SIGTERM')
+        process.kill(-renderer.pid, 'SIGTERM')
         await new Promise<void>((resolve) => {
           const timeout = setTimeout(resolve, 5000)
-          child?.once('exit', () => {
+          renderer.once('exit', () => {
             clearTimeout(timeout)
             resolve()
           })

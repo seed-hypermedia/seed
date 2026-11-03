@@ -20,7 +20,15 @@ export const CAPTURE_VIEWS = {
     'search-command',
     'not-found',
   ],
-  vault: ['first-screen', 'signup-password', 'recovery-words', 'sign-in'],
+  vault: [
+    'first-screen',
+    'verification-code',
+    'auth-choice',
+    'signup-password',
+    'recovery-words',
+    'signed-in',
+    'sign-in',
+  ],
   desktop: [
     'library-home',
     'article',
@@ -40,6 +48,8 @@ export const CAPTURE_VIEWS = {
 export type CaptureTheme = (typeof CAPTURE_THEMES)[number]
 /** A supported screenshot viewport. */
 export type CaptureViewport = keyof typeof CAPTURE_VIEWPORTS
+/** A rectangle in CSS pixels. */
+export type CaptureBounds = {x: number; y: number; width: number; height: number}
 /** One successful screenshot recorded in the manifest. */
 export type CaptureRecord = {
   view: string
@@ -64,6 +74,28 @@ export type CaptureManifest = {
   createdAt: string
   surfaces: Record<string, CaptureRecord[]>
   failures: CaptureFailure[]
+  fonts: Record<string, {computedFontFamily: string; renderedFace: string}>
+}
+
+/** Union, pad, and clamp content rectangles to the screenshot viewport. */
+export function unionCaptureBounds(
+  bounds: readonly CaptureBounds[],
+  viewport: {width: number; height: number},
+  padding = 24,
+): CaptureBounds | null {
+  if (bounds.length === 0) return null
+
+  const left = Math.min(...bounds.map((bound) => bound.x))
+  const top = Math.min(...bounds.map((bound) => bound.y))
+  const right = Math.max(...bounds.map((bound) => bound.x + bound.width))
+  const bottom = Math.max(...bounds.map((bound) => bound.y + bound.height))
+  const x = Math.max(0, left - padding)
+  const y = Math.max(0, top - padding)
+  const maxX = Math.min(viewport.width, right + padding)
+  const maxY = Math.min(viewport.height, bottom + padding)
+
+  if (maxX <= x || maxY <= y) return null
+  return {x, y, width: maxX - x, height: maxY - y}
 }
 
 /** Normalize a view label for use in a screenshot filename. */
@@ -83,7 +115,7 @@ export function captureFileName(surface: string, view: string, theme: CaptureThe
 
 /** Create an empty manifest for one captured commit. */
 export function createManifest(commit: string, createdAt: string): CaptureManifest {
-  return {commit, createdAt, surfaces: {}, failures: []}
+  return {commit, createdAt, surfaces: {}, failures: [], fonts: {}}
 }
 
 /** Return the stable view list for a static surface. */
