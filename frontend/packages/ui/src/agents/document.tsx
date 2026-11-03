@@ -10,6 +10,10 @@ import {AgentDetailPage} from './detail'
 import {AgentSessionPage} from './session'
 import {AgentsNoAccountPage} from './no-account'
 import {getAgentsPlatform} from './platform'
+import {useEffect} from 'react'
+
+/** How often an out-of-reach agent is asked for again, so a grant or an accepted invite shows up on its own. */
+const OUT_OF_REACH_POLL_MS = 10_000
 
 /** Renders agent controls using the document's server attribute and canonical identity. */
 export default function MountedAgentDocument({document, route, children}: AgentDocumentViewProps) {
@@ -27,6 +31,19 @@ export default function MountedAgentDocument({document, route, children}: AgentD
   const invites = useAgentInvites(validServer && notFound ? serverUrl : undefined, accountUid)
   const invite = invites.data?.find((candidate) => candidate.agentId === route.id.id)
   const acceptInvite = useAcceptAgentInvite(validServer ? serverUrl : undefined, accountUid)
+  // Nothing on this page changes the server's answer except someone else's grant or an invite, so
+  // keep asking while the agent is out of reach instead of offering a Retry button.
+  const polling = !!accountUid && validServer && !agent.isInitialLoading && !hasAgent
+  const refetchAgent = agent.refetch
+  const refetchInvites = invites.refetch
+  useEffect(() => {
+    if (!polling) return
+    const timer = setInterval(() => {
+      void refetchAgent()
+      void refetchInvites()
+    }, OUT_OF_REACH_POLL_MS)
+    return () => clearInterval(timer)
+  }, [polling, refetchAgent, refetchInvites])
   if (children) return children(hasAgent)
   if (!validServer)
     return (
@@ -52,43 +69,55 @@ export default function MountedAgentDocument({document, route, children}: AgentD
       }
     })()
     return (
-      <div role="alert" className="flex flex-col items-start gap-3 p-5">
-        {agent.error && !notFound ? (
-          <SizableText>Could not verify this agent. Check your access and server connection.</SizableText>
-        ) : invite ? (
-          <>
-            <SizableText weight="bold">You are invited to this agent</SizableText>
-            <SizableText color="muted">
-              The agent's owner invited your account {accountUid} as a {invite.role}. Accept to open it.
-            </SizableText>
-            <Button
-              disabled={acceptInvite.isLoading}
-              onClick={() =>
-                acceptInvite.mutate(route.id.id, {
-                  onSuccess: () => void agent.refetch(),
-                  onError: (error) =>
-                    toast.error(error instanceof Error ? error.message : 'Could not accept the invite'),
-                })
-              }
-            >
-              Accept invite
-            </Button>
-          </>
-        ) : notFound ? (
-          <>
-            <SizableText weight="bold">This agent is not shared with your account</SizableText>
-            <SizableText color="muted">
-              The agent server at {serverHost} has no agent for this document that your account {accountUid} can see.
-              Ask the agent's owner to share it with you from its Agent access tab, or sign in as the owner. If the
-              agent was orphaned or deleted, the server no longer knows this document.
-            </SizableText>
-          </>
-        ) : (
-          <SizableText>No agent is registered at this document.</SizableText>
-        )}
-        <Button variant="outline" onClick={() => agent.refetch()}>
-          Retry
-        </Button>
+      <div className="flex flex-1 items-start justify-center p-6">
+        <section
+          role="alert"
+          className="border-border bg-card flex w-full max-w-md flex-col items-center gap-3 rounded-lg border p-6 text-center"
+        >
+          {agent.error && !notFound ? (
+            <SizableText>Could not verify this agent. Check your access and server connection.</SizableText>
+          ) : invite ? (
+            <>
+              <SizableText size="lg" weight="bold">
+                You are invited to this agent
+              </SizableText>
+              <SizableText color="muted" className="break-words">
+                The agent's owner invited your account {accountUid} as a {invite.role}.
+              </SizableText>
+              <Button
+                variant="default"
+                size="lg"
+                className="mt-2"
+                disabled={acceptInvite.isLoading}
+                onClick={() =>
+                  acceptInvite.mutate(route.id.id, {
+                    onSuccess: () => void agent.refetch(),
+                    onError: (error) =>
+                      toast.error(error instanceof Error ? error.message : 'Could not accept the invite'),
+                  })
+                }
+              >
+                Accept invite
+              </Button>
+            </>
+          ) : notFound ? (
+            <>
+              <SizableText size="lg" weight="bold">
+                This agent is not shared with your account
+              </SizableText>
+              <SizableText color="muted" className="break-words">
+                The agent server at {serverHost} has no agent for this document that your account {accountUid} can see.
+                Ask the agent's owner to share it with you from its Agent access tab, or sign in as the owner. If the
+                agent was orphaned or deleted, the server no longer knows this document.
+              </SizableText>
+              <SizableText size="xs" color="muted">
+                This page checks again every few seconds.
+              </SizableText>
+            </>
+          ) : (
+            <SizableText>No agent is registered at this document.</SizableText>
+          )}
+        </section>
       </div>
     )
   }

@@ -44,7 +44,7 @@ describe('MountedAgentDocument access states', () => {
     root = createRoot(container)
     useAgentDetail.mockReset()
     useAgentInvites.mockReset()
-    useAgentInvites.mockReturnValue({data: []})
+    useAgentInvites.mockReturnValue({data: [], refetch: vi.fn()})
     acceptInvite.mockReset()
     detailPage.mockReset()
     setAgentsPlatform({useAccountUid: () => 'z6MkVisitor'} as never)
@@ -59,22 +59,37 @@ describe('MountedAgentDocument access states', () => {
     act(() => root.render(<MountedAgentDocument document={document} route={route} />))
   }
 
-  it('tells a signed-in visitor the agent is not shared with their account on a 404', () => {
+  it('tells a signed-in visitor the agent is not shared with their account on a 404, and keeps asking', () => {
+    vi.useFakeTimers()
+    const refetch = vi.fn()
+    const refetchInvites = vi.fn()
     useAgentDetail.mockReturnValue({
       data: undefined,
       error: new AgentServerError('Agent not found', 404),
       isError: true,
       isInitialLoading: false,
-      refetch: vi.fn(),
+      refetch,
     })
-    render()
-    const text = container.textContent ?? ''
-    expect(text).toContain('This agent is not shared with your account')
-    expect(text).toContain('localhost:3051')
-    expect(text).toContain('z6MkVisitor')
-    expect(text).toContain('Agent access tab')
-    expect(text).toContain('orphaned or deleted')
-    expect(text).not.toContain('No agent is registered')
+    useAgentInvites.mockReturnValue({data: [], refetch: refetchInvites})
+    try {
+      render()
+      const text = container.textContent ?? ''
+      expect(text).toContain('This agent is not shared with your account')
+      expect(text).toContain('localhost:3051')
+      expect(text).toContain('z6MkVisitor')
+      expect(text).toContain('Agent access tab')
+      expect(text).toContain('orphaned or deleted')
+      expect(text).not.toContain('No agent is registered')
+      // No Retry button: the page polls until a grant or an invite changes the answer.
+      expect(Array.from(container.querySelectorAll('button')).map((button) => button.textContent)).toEqual([])
+      act(() => {
+        vi.advanceTimersByTime(10_000)
+      })
+      expect(refetch).toHaveBeenCalledTimes(1)
+      expect(refetchInvites).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('offers to accept a pending invite on the agent instead of the no-access message', () => {
@@ -88,6 +103,7 @@ describe('MountedAgentDocument access states', () => {
     })
     useAgentInvites.mockReturnValue({
       data: [{agentId: documentId.id, agentName: 'Silver Newt', ownerAccountId: 'z6MkOwner', role: 'writer'}],
+      refetch: vi.fn(),
     })
     render()
     const text = container.textContent ?? ''
@@ -99,6 +115,8 @@ describe('MountedAgentDocument access states', () => {
     const accept = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent?.includes('Accept invite'),
     )!
+    // The primary (green) button, not an outline one.
+    expect(accept.className).toContain('bg-primary')
     act(() => accept.click())
     expect(acceptInvite).toHaveBeenCalledWith(documentId.id, expect.objectContaining({onSuccess: expect.any(Function)}))
     acceptInvite.mock.calls[0]![1].onSuccess()
