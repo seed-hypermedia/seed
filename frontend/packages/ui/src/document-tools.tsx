@@ -21,6 +21,7 @@ import {
   LucideIcon,
   MessagesSquare,
   Quote,
+  Route,
   Shield,
   Users,
 } from 'lucide-react'
@@ -271,7 +272,7 @@ export function DocumentTools({
           {
             label: 'Connections',
             tooltip: 'Open Document Connections',
-            icon: GitGraph,
+            icon: Route,
             active: selectedTab === 'citations',
             count: citationsCount,
             route: openPanel({
