@@ -41,6 +41,9 @@
  * - `exec.pool_hit` / `exec.pool_miss` / `exec.pool_overflow` — warm-pool acquisition outcomes.
  * - `exec.cap_wait` / `exec.cap_rejected` — an acquire queued behind the host-wide sandbox
  *   concurrency cap, or gave up waiting for a slot (`exec.cap_wait_ms` records the wait).
+ * - `exec.memroot_wait` / `exec.memroot_rejected` — an acquire queued because another sandbox
+ *   already had the same agent's memory directory mounted (another session, a delegated child, a
+ *   trigger firing), or gave up waiting for it (`exec.memroot_wait_ms` records the wait).
  * - `exec.pool_reset_exhausted` / `exec.pool_reset_error` / `exec.pool_probe_failed` — why a
  *   pooled VM was disposed: its park reset ran out of pass budget (the guest's own verdict), the
  *   reset exchange broke, or the reuse probe failed.

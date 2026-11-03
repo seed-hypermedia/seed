@@ -82,8 +82,10 @@ export type Config = {
     poolVmMaxAgeMs: number
     /** Hard cap on sandboxes on loan at once, host-wide (a real limit, unlike poolMaxVms). */
     maxConcurrent: number
-    /** How long an acquire may wait for a slot before failing with a retryable error. */
+    /** How long an acquire may wait for a host-wide slot before failing with a retryable error. */
     acquireWaitMs: number
+    /** How long an acquire may wait for the agent's memory-root lease (one sandbox per agent memory at a time). */
+    memoryRootWaitMs: number
   }
   runQueue: {
     /** Model-backed runs executed concurrently. Everything shares one event loop, so size this to the host. */
@@ -134,6 +136,7 @@ export type Flags = {
   'exec-pool-max-age-secs': number
   'exec-max-concurrent': number
   'exec-acquire-wait-secs': number
+  'exec-memory-root-wait-secs': number
   'max-concurrent-model-runs': number
   'max-concurrent-workflows': number
   'min-free-disk-mib': number
@@ -175,6 +178,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'exec-pool-max-age-secs': Number(env.SEED_AGENTS_EXEC_POOL_MAX_AGE_SECS) || 1800,
     'exec-max-concurrent': Number(env.SEED_AGENTS_EXEC_MAX_CONCURRENT) || defaultExecMaxConcurrent(),
     'exec-acquire-wait-secs': Number(env.SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS) || 30,
+    'exec-memory-root-wait-secs': Number(env.SEED_AGENTS_EXEC_MEMORY_ROOT_WAIT_SECS) || 300,
     'max-concurrent-model-runs': Number(env.SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS) || 8,
     'max-concurrent-workflows': Number(env.SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS) || 32,
     'min-free-disk-mib':
@@ -280,6 +284,8 @@ export function create(pflags: Flags): Config {
       poolVmMaxAgeMs: parsePositiveInteger(String(pflags['exec-pool-max-age-secs']), 'exec-pool-max-age-secs') * 1000,
       maxConcurrent: parsePositiveInteger(String(pflags['exec-max-concurrent']), 'exec-max-concurrent'),
       acquireWaitMs: parsePositiveInteger(String(pflags['exec-acquire-wait-secs']), 'exec-acquire-wait-secs') * 1000,
+      memoryRootWaitMs:
+        parsePositiveInteger(String(pflags['exec-memory-root-wait-secs']), 'exec-memory-root-wait-secs') * 1000,
     },
     runQueue: {
       maxConcurrentModelRuns: parsePositiveInteger(
