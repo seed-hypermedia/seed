@@ -42,6 +42,14 @@ nondeterministic.
 | `vault`      | First screen, verification code, auth choice, password setup, recovery words, signed-in profile, and password sign-in, in both themes and viewport sizes.    | Uses the web fixture daemon and `startVaultServer`; a disposable email and password are used. Chromium is launched with experimental web-platform features for Ed25519 support.                                                                                                                                                                                                                     |
 | `desktop`    | Library/home, article, draft slash menu, activity/feed, comments, General settings (including Appearance), Space settings, account menu, and quick switcher. | Starts the Linux dev app with a disposable data directory and ports 58100–58107. Playwright launches the built Electron entry from the desktop package directory and uses the shared fixture daemon, then stops owned processes on normal exit, errors, and termination. The onboarding view is omitted because the fixture identity loads directly into the library, leaving Welcome hidden.       |
 
+## Known gaps
+
+- **Desktop dark:** Switching `nativeTheme.themeSource` works in a fresh app but times out after the light pass, with
+  `classes: null` on the 5173 window. The cause is not yet diagnosed. The rest of the run continues and records
+  `theme-dark` as a failure.
+- **Vault signed-in profile:** The signed-in profile step times out after password sign-in while waiting for
+  `/create your profile/i` (`Timeout 30000ms exceeded`).
+
 The manual full run may take several minutes; Storybook is the largest surface because each indexed story is captured
 twice. `--skip-build` reuses the existing Storybook, playground, and web outputs but still seeds and starts runtime
 services. The web route is read-only after fixture seeding. No production gateway is used.

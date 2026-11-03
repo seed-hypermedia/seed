@@ -978,19 +978,30 @@ async function waitForUrl(url: string, timeoutMs: number): Promise<void> {
 }
 
 /** Switches the Electron theme source; the app follows it when its own setting is "system". */
-async function setDesktopTheme(app: ElectronApplication, page: Page, theme: CaptureTheme): Promise<void> {
-  await app.evaluate(({nativeTheme, BrowserWindow}, source) => {
+async function setDesktopTheme(app: ElectronApplication, theme: CaptureTheme): Promise<Page> {
+  const page = await waitForDesktopMainPage(app)
+  await app.evaluate(({nativeTheme}, source) => {
     nativeTheme.themeSource = source
-    const darkMode = source === 'dark'
-    BrowserWindow.getAllWindows().forEach((window) => {
-      window.webContents.send('darkMode', darkMode)
-    })
   }, theme)
-  await page.waitForFunction(
-    (expected) => document.documentElement.classList.contains('dark') === (expected === 'dark'),
-    theme,
-    {timeout: 10000},
-  )
+  try {
+    await page.waitForFunction(
+      (expected) => document.documentElement.classList.contains('dark') === (expected === 'dark'),
+      theme,
+      {timeout: 10000},
+    )
+  } catch (error) {
+    const windows = await Promise.all(
+      app.windows().map(async (window) => ({
+        url: window.url(),
+        classes: await window
+          .locator('html')
+          .getAttribute('class')
+          .catch(() => null),
+      })),
+    )
+    throw new Error(`Timed out setting ${theme} theme; windows: ${JSON.stringify(windows)}; ${errorMessage(error)}`)
+  }
+  return page
 }
 
 async function openDesktopArticle(page: Page): Promise<void> {
@@ -1000,7 +1011,8 @@ async function openDesktopArticle(page: Page): Promise<void> {
   await page.getByText('A shared visual language', {exact: true}).waitFor({state: 'visible', timeout: 15000})
 }
 
-async function resetDesktopView(page: Page): Promise<void> {
+async function resetDesktopView(app: ElectronApplication): Promise<Page> {
+  const page = await closeNonMainDesktopWindows(app)
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   const activityTabs = page.getByRole('tablist', {name: 'Activity'})
@@ -1012,6 +1024,7 @@ async function resetDesktopView(page: Page): Promise<void> {
   await home.waitFor({state: 'visible', timeout: 10000})
   await home.click()
   await page.locator('body').waitFor({state: 'visible', timeout: 10000})
+  return page
 }
 
 async function openDesktopAccountMenu(page: Page): Promise<void> {
@@ -1058,7 +1071,8 @@ async function waitForDesktopMainPage(app: ElectronApplication): Promise<Page> {
     for (const page of app.windows()) {
       if (page.isClosed()) continue
       try {
-        if (new URL(page.url()).port !== '5173') continue
+        const url = new URL(page.url())
+        if (url.port !== '5173' || /(?:^|\/)settings(?:\/|$)/i.test(url.pathname)) continue
       } catch {
         continue
       }
@@ -1073,7 +1087,25 @@ async function waitForDesktopMainPage(app: ElectronApplication): Promise<Page> {
     }
     await new Promise((resolve) => setTimeout(resolve, 250))
   }
-  throw new Error('Timed out waiting for the main Desktop window on port 5173')
+  const windows = await Promise.all(
+    app.windows().map(async (page) => ({
+      url: page.url(),
+      classes: await page
+        .locator('html')
+        .getAttribute('class')
+        .catch(() => null),
+    })),
+  )
+  throw new Error(`Timed out waiting for the main Desktop window on port 5173; windows: ${JSON.stringify(windows)}`)
+}
+
+async function closeNonMainDesktopWindows(app: ElectronApplication): Promise<Page> {
+  const mainPage = await waitForDesktopMainPage(app)
+  for (const page of app.windows()) {
+    if (page === mainPage || page.isClosed()) continue
+    await page.close().catch(() => {})
+  }
+  return mainPage
 }
 
 function getProcessTree(pid: number): number[] {
@@ -1115,22 +1147,34 @@ async function terminateProcessTree(pid: number, pids = getProcessTree(pid)): Pr
 }
 
 async function captureDesktopView(
+  app: ElectronApplication,
   page: Page,
   manifest: CaptureManifest,
   options: Options,
   view: string,
   theme: CaptureTheme,
-  setup: () => Promise<Page | void>,
+  setup: (page: Page) => Promise<Page | void>,
 ): Promise<void> {
   let viewPage = page
   try {
-    await resetDesktopView(page)
-    viewPage = (await setup()) ?? page
+    viewPage = await resetDesktopView(app)
+    viewPage = (await setup(viewPage)) ?? viewPage
+    const loading = viewPage.getByText('Loading...', {exact: true})
+    let note: string | undefined
+    try {
+      await loading.waitFor({state: 'detached', timeout: 15000})
+    } catch {
+      note = 'Breadcrumb still showed Loading... after 15 seconds; captured anyway.'
+    }
     await capturePage(manifest, options.out, 'desktop', view, theme, 'desktop', viewPage, false)
+    if (note) {
+      const record = ensureSurface(manifest, 'desktop').find((item) => item.view === view && item.theme === theme)
+      if (record) record.note = note
+    }
   } catch (error) {
     addFailure(manifest, {surface: 'desktop', view, theme, viewport: 'desktop', error: errorMessage(error)})
   } finally {
-    if (viewPage !== page) await viewPage.close().catch(() => {})
+    await closeNonMainDesktopWindows(app).catch(() => {})
   }
 }
 
@@ -1299,78 +1343,97 @@ async function captureDesktop(manifest: CaptureManifest, options: Options, env?:
 
     for (const theme of CAPTURE_THEMES) {
       currentView = `theme-${theme}`
-      page = await waitForDesktopMainPage(electronApp)
-      await setDesktopTheme(electronApp, page, theme)
+      page = await setDesktopTheme(electronApp, theme)
       currentView = 'library-home'
-      await captureDesktopView(page, manifest, options, 'library-home', theme, async () => {
-        const bodyText = await page.locator('body').innerText()
+      await captureDesktopView(electronApp, page, manifest, options, 'library-home', theme, async (viewPage) => {
+        const bodyText = await viewPage.locator('body').innerText()
         if (!bodyText.trim()) throw new Error('Desktop Home view is blank')
       })
       currentView = 'article'
-      await captureDesktopView(page, manifest, options, 'article', theme, () => openDesktopArticle(page))
+      await captureDesktopView(electronApp, page, manifest, options, 'article', theme, (viewPage) =>
+        openDesktopArticle(viewPage),
+      )
       currentView = 'new-draft-slash-menu'
-      await captureDesktopView(page, manifest, options, 'new-draft-slash-menu', theme, async () => {
-        await openDesktopArticle(page)
-        await page.getByRole('button', {name: 'Choose what to create', exact: true}).click()
-        await page.getByRole('menuitem', {name: 'Document', exact: true}).click()
-        const editor = page.locator('[contenteditable="true"]').last()
-        await editor.waitFor({state: 'visible', timeout: 15000})
-        await editor.click()
-        await page.keyboard.press('/')
-        await page
-          .getByText(/heading|paragraph|list/i)
-          .first()
-          .waitFor({state: 'visible', timeout: 10000})
-      })
+      await captureDesktopView(
+        electronApp,
+        page,
+        manifest,
+        options,
+        'new-draft-slash-menu',
+        theme,
+        async (viewPage) => {
+          await openDesktopArticle(viewPage)
+          await viewPage.getByRole('button', {name: 'Choose what to create', exact: true}).click()
+          await viewPage.getByRole('menuitem', {name: 'Document', exact: true}).click()
+          const editor = viewPage.locator('[contenteditable="true"]').last()
+          await editor.waitFor({state: 'visible', timeout: 15000})
+          await editor.click()
+          await viewPage.keyboard.press('/')
+          await viewPage
+            .getByText(/heading|paragraph|list/i)
+            .first()
+            .waitFor({state: 'visible', timeout: 10000})
+        },
+      )
       currentView = 'activity-feed'
-      await captureDesktopView(page, manifest, options, 'activity-feed', theme, async () => {
-        const feed = page.getByRole('button', {name: 'Activity', exact: true})
+      await captureDesktopView(electronApp, page, manifest, options, 'activity-feed', theme, async (viewPage) => {
+        const feed = viewPage.getByRole('button', {name: 'Activity', exact: true})
         await feed.click()
-        await page.getByRole('tablist', {name: 'Activity'}).waitFor({state: 'visible', timeout: 10000})
+        await viewPage.getByRole('tablist', {name: 'Activity'}).waitFor({state: 'visible', timeout: 10000})
       })
       currentView = 'comments'
-      await captureDesktopView(page, manifest, options, 'comments', theme, async () => {
-        await openDesktopArticle(page)
-        const comments = page.getByRole('link', {name: /^Comments/i}).first()
+      await captureDesktopView(electronApp, page, manifest, options, 'comments', theme, async (viewPage) => {
+        await openDesktopArticle(viewPage)
+        const comments = viewPage.getByRole('link', {name: /^Comments/i}).first()
         await comments.click()
-        await page.getByRole('button', {name: 'Close panel', exact: true}).waitFor({state: 'visible', timeout: 10000})
+        await viewPage
+          .getByRole('button', {name: 'Close panel', exact: true})
+          .waitFor({state: 'visible', timeout: 10000})
       })
       currentView = 'settings-general'
-      await captureDesktopView(page, manifest, options, 'settings-general', theme, async () => {
-        await openDesktopAccountMenu(page)
-        await page.getByRole('menuitem', {name: 'App settings', exact: true}).click()
+      await captureDesktopView(electronApp, page, manifest, options, 'settings-general', theme, async (viewPage) => {
+        await openDesktopAccountMenu(viewPage)
+        await viewPage.getByRole('menuitem', {name: 'App settings', exact: true}).click()
         return waitForDesktopPage(electronApp!, 'General settings')
       })
       currentView = 'site-settings'
-      await captureDesktopView(page, manifest, options, 'site-settings', theme, async () => {
-        await openDesktopAccountMenu(page)
-        await page.getByRole('menuitem', {name: 'Space settings', exact: true}).click()
-        await page
+      await captureDesktopView(electronApp, page, manifest, options, 'site-settings', theme, async (viewPage) => {
+        await openDesktopAccountMenu(viewPage)
+        await viewPage.getByRole('menuitem', {name: 'Space settings', exact: true}).click()
+        await viewPage
           .getByText(/space settings/i)
           .first()
           .waitFor({state: 'visible', timeout: 10000})
       })
       currentView = 'account-menu'
-      await captureDesktopView(page, manifest, options, 'account-menu', theme, async () => {
-        await openDesktopAccountMenu(page)
+      await captureDesktopView(electronApp, page, manifest, options, 'account-menu', theme, async (viewPage) => {
+        await openDesktopAccountMenu(viewPage)
       })
       currentView = 'search-quick-switcher'
-      await captureDesktopView(page, manifest, options, 'search-quick-switcher', theme, async () => {
-        await page.keyboard.press('Control+k')
-        const commandDialog = page.locator('[role="dialog"], input[placeholder*="Search" i]').first()
-        const openedByShortcut = await commandDialog
-          .waitFor({state: 'visible', timeout: 2500})
-          .then(() => true)
-          .catch(() => false)
-        if (!openedByShortcut) {
-          const searchButton = page
-            .locator('button')
-            .filter({has: page.locator('svg.lucide-search')})
-            .last()
-          await searchButton.click()
-          await page.getByRole('textbox', {name: 'Filter documents'}).waitFor({state: 'visible', timeout: 10000})
-        }
-      })
+      await captureDesktopView(
+        electronApp,
+        page,
+        manifest,
+        options,
+        'search-quick-switcher',
+        theme,
+        async (viewPage) => {
+          await viewPage.keyboard.press('Control+k')
+          const commandDialog = viewPage.locator('[role="dialog"], input[placeholder*="Search" i]').first()
+          const openedByShortcut = await commandDialog
+            .waitFor({state: 'visible', timeout: 2500})
+            .then(() => true)
+            .catch(() => false)
+          if (!openedByShortcut) {
+            const searchButton = viewPage
+              .locator('button')
+              .filter({has: viewPage.locator('svg.lucide-search')})
+              .last()
+            await searchButton.click()
+            await viewPage.getByRole('textbox', {name: 'Filter documents'}).waitFor({state: 'visible', timeout: 10000})
+          }
+        },
+      )
     }
   } catch (error) {
     const reason = `${errorMessage(error)}${existsSync(startupLog) ? ` (see ${startupLog})` : ''}`

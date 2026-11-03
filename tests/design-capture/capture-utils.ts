@@ -46,6 +46,7 @@ export type CaptureRecord = {
   viewport: CaptureViewport
   file: string
   url: string
+  note?: string
 }
 
 /** A view that could not be captured. */
