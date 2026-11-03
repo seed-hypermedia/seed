@@ -147,7 +147,6 @@ import {AgentPromptEditor, promptBlocksForRequest, promptBlocksToMarkdown} from 
 import {AgentsNoAccountPage} from './no-account'
 import {agentAccessCanChat, agentAccessCanWrite} from './access'
 import {NewSessionComposer} from './new-session-composer'
-import {type AgentsRichEditorSubmitHandle} from './platform'
 import {randomUUID} from './random-id'
 import {AgentMountBanner} from './mount'
 
@@ -227,7 +226,6 @@ export function AgentDetailPage({
   const loadedPromptKeyRef = useRef<string | null>(null)
   /** Request-shaped key of the last prompt this page saved successfully; see the prompt autosave effect. */
   const lastSavedPromptKeyRef = useRef<string | null>(null)
-  const startComposerRef = useRef<AgentsRichEditorSubmitHandle | null>(null)
 
   // Showing the list is what closes the open session: back from a transcript, or Sessions clicked
   // while already active, both land here and the tab goes back to leading to the list.
@@ -507,9 +505,6 @@ export function AgentDetailPage({
       activeTab={tab}
       sessionsCount={sessionCount}
       triggersCount={triggers.data?.length}
-      // The session is only created when the first message is sent, so "New session"
-      // just puts the cursor in the composer that will do it.
-      onCreateSession={canChat ? () => startComposerRef.current?.focus({moveCursorToEnd: true}) : undefined}
       onCreateTrigger={canWrite ? () => createTriggerDialog.open({serverUrl, selectedAccountId, agentId}) : undefined}
       canCreateTrigger={!!selectedAccountId && canWrite}
       // A mounted agent (embedded in its document) has no menu of its own: deleting the document
@@ -888,7 +883,6 @@ export function AgentDetailPage({
               accountUid={selectedAccountId}
               localServerUrl={localServerUrl.data}
               agentToolsLoading={agent.isLoading}
-              composerHandleRef={startComposerRef}
             />
           </Container>
         </div>

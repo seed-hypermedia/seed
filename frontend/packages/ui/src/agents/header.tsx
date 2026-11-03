@@ -30,7 +30,6 @@ import {
   ChevronsUpDown,
   GitBranch,
   Loader2,
-  MessageSquarePlus,
   MessagesSquare,
   Settings,
   Users,
@@ -205,8 +204,6 @@ export function AgentHeader({
   activeTab,
   sessionsCount,
   triggersCount,
-  onCreateSession,
-  creatingSession,
   onCreateTrigger,
   canCreateTrigger,
   menuItems,
@@ -223,8 +220,6 @@ export function AgentHeader({
   activeTab: AgentPageTab
   sessionsCount?: number
   triggersCount?: number
-  onCreateSession?: () => void
-  creatingSession?: boolean
   onCreateTrigger?: () => void
   canCreateTrigger?: boolean
   /** Rows for the top-right options menu; the menu renders only when at least one row is present. */
@@ -329,11 +324,6 @@ export function AgentHeader({
             ) : null}
           </div>
           <div className="flex flex-none items-center gap-2">
-            {activeTab === 'sessions' && onCreateSession ? (
-              <Button className="max-sm:min-h-10" onClick={onCreateSession} disabled={creatingSession}>
-                <MessageSquarePlus className="mr-2 size-4" /> New session
-              </Button>
-            ) : null}
             {activeTab === 'triggers' && onCreateTrigger ? (
               <Button className="max-sm:min-h-10" onClick={onCreateTrigger} disabled={!canCreateTrigger}>
                 <GitBranch className="mr-2 size-4" /> New trigger
