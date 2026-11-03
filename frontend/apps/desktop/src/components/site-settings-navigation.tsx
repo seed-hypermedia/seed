@@ -5,9 +5,12 @@ import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pr
 import type {HMDocument, HMMetadata, HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
+import {createWebHMUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
 import {Input} from '@shm/ui/components/input'
+import {Label} from '@shm/ui/components/label'
+import {RadioGroup, RadioGroupItem} from '@shm/ui/components/radio-group'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@shm/ui/select-dropdown'
@@ -18,9 +21,9 @@ import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useResponsiveItems} from '@shm/ui/use-responsive-items'
 import {cn} from '@shm/ui/utils'
-import {ChevronDown, EllipsisVertical, Lock, Plus, X} from 'lucide-react'
+import {ChevronDown, EllipsisVertical, FileText, Link as LinkIcon, Lock, Plus, X, type LucideIcon} from 'lucide-react'
 import {nanoid} from 'nanoid'
-import {useEffect, useMemo, useRef, useState} from 'react'
+import {useEffect, useMemo, useRef, useState, type KeyboardEvent} from 'react'
 
 // UI values for the header-layout select.
 const HEADER_LAYOUTS = [
@@ -194,7 +197,7 @@ export function NavigationSettings({
           isCenter={layoutValue === 'center'}
         />
         <NavItemList items={navValue} onReorder={setNav} onEdit={openEditDialog} onRemove={removeItem} />
-        <Tooltip content={atLinkLimit ? `The top bar holds up to ${MAX_NAV_LINKS} links` : ''}>
+        <Tooltip asChild content={atLinkLimit ? `The top bar holds up to ${MAX_NAV_LINKS} links` : ''}>
           <div className="w-full max-w-sm">
             <button
               type="button"
@@ -257,6 +260,7 @@ export function NavigationSettings({
           item={dialogItem}
           isNew={dialogIsNew}
           homeId={siteId}
+          siteUrl={publishedMetadata.siteUrl}
           filterPresets={(candidate) => !navValue.some((i) => i.id !== dialogItem.id && i.link === candidate.link)}
           onSubmit={submitDialog}
           onClose={() => setDialogItem(null)}
@@ -354,22 +358,23 @@ function HeaderPreview({
       </div>
     )
 
-  if (isCenter) {
-    return (
-      <div className="border-border bg-muted/30 flex flex-col items-center gap-3 rounded-md border p-4">
-        <div className="flex items-center gap-2">
+  return (
+    <div className="rounded-lg bg-black/5 p-4 dark:bg-black/40">
+      {isCenter ? (
+        <div className="border-border bg-panel flex flex-col items-center gap-3 rounded-md border p-4">
+          <div className="flex items-center gap-2">
+            {iconEl}
+            {name ? <SizableText weight="bold">{name}</SizableText> : null}
+          </div>
+          {navRow}
+        </div>
+      ) : (
+        <div className="border-border bg-panel flex items-center gap-3 rounded-md border p-4">
           {iconEl}
           {name ? <SizableText weight="bold">{name}</SizableText> : null}
+          {navRow}
         </div>
-        {navRow}
-      </div>
-    )
-  }
-  return (
-    <div className="border-border bg-muted/30 flex items-center gap-3 rounded-md border p-4">
-      {iconEl}
-      {name ? <SizableText weight="bold">{name}</SizableText> : null}
-      {navRow}
+      )}
     </div>
   )
 }
@@ -484,10 +489,13 @@ function NavItemRow({
   )
 }
 
+type NavLinkKind = 'external' | 'document'
+
 function NavItemDialog({
   item,
   isNew,
   homeId,
+  siteUrl,
   filterPresets,
   onSubmit,
   onClose,
@@ -495,54 +503,160 @@ function NavItemDialog({
   item: HMNavigationItem
   isNew: boolean
   homeId: UnpackedHypermediaId
+  siteUrl?: string
   filterPresets: (candidate: {link: string}) => boolean
   onSubmit: (item: HMNavigationItem) => void
   onClose: () => void
 }) {
+  const isDocumentLink = !!unpackHmId(item.link)
+  const [kind, setKind] = useState<NavLinkKind | null>(item.link ? (isDocumentLink ? 'document' : 'external') : null)
+  const [url, setUrl] = useState(isDocumentLink ? '' : item.link)
+  const [docLink, setDocLink] = useState(isDocumentLink ? item.link : '')
   const [text, setText] = useState(item.text)
-  const [link, setLink] = useState(item.link)
-  const canAdd = text.trim().length > 0 && link.trim().length > 0
+  // The URL error waits until the owner leaves the field, so it doesn't flag a half-typed address.
+  const [isUrlTouched, setIsUrlTouched] = useState(false)
+
+  const trimmedUrl = url.trim()
+  const externalHref = /^https?:\/\//i.test(trimmedUrl) ? trimmedUrl : `https://${trimmedUrl}`
+  const isUrlValid = URL.canParse(externalHref) && new URL(externalHref).hostname.includes('.')
+  const docId = kind === 'document' ? unpackHmId(docLink) : null
+  // The address readers see on the space's own domain. Without a domain the address holds the account id, so it
+  // stays hidden.
+  const docAddress =
+    siteUrl && docId?.uid === homeId.uid
+      ? createWebHMUrl(docId.uid, {hostname: siteUrl, path: docId.path, originHomeId: homeId}).replace(
+          /^https?:\/\//,
+          '',
+        )
+      : null
+  const showUrlError = isUrlTouched && !!trimmedUrl && !isUrlValid
+  const nextItem: HMNavigationItem = {
+    id: item.id,
+    type: 'Link',
+    text: text.trim(),
+    link: kind === 'external' ? externalHref : docLink,
+  }
+  const isChanged = isNew || nextItem.text !== item.text || nextItem.link !== item.link
+  const canAdd = !!nextItem.text && (kind === 'external' ? isUrlValid : !!docId) && isChanged
+
+  // The desktop Edit menu's Select All has no shortcut, so Cmd+A does nothing in a plain input there.
+  function selectAllOnCmdA(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'a' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      event.currentTarget.select()
+    }
+  }
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
+      {/* Visible overflow lets the document search results float past the dialog's edge. */}
+      <DialogContent className="max-w-md overflow-visible">
         <DialogHeader>
           <DialogTitle>{isNew ? 'Add link to the top bar' : 'Edit link'}</DialogTitle>
         </DialogHeader>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <SizableText size="sm" weight="medium">
-              What should this link to?
-            </SizableText>
-            <HMDocURLInput
-              link={link}
-              homeId={homeId}
-              filterPresets={filterPresets}
-              onUpdate={(nextLink, title) => {
-                setLink(nextLink)
-                // Autofill the name from the selected doc's title if it isn't set.
-                if (title) setText((current) => (current.trim() ? current : title))
-              }}
-            />
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3 rounded-lg bg-black/5 p-4 dark:bg-black/40">
+            <SizableText size="sm">What should this link to?</SizableText>
+            <RadioGroup value={kind ?? ''} onValueChange={(value) => setKind(value as NavLinkKind)} className="gap-3">
+              <NavLinkKindOption
+                value="external"
+                icon={LinkIcon}
+                label="External URL Link"
+                selected={kind === 'external'}
+              />
+              {kind === 'external' ? (
+                <>
+                  <Input
+                    aria-label="URL"
+                    autoFocus
+                    value={url}
+                    aria-invalid={showUrlError}
+                    onChange={(e) => setUrl(e.target.value)}
+                    onBlur={() => setIsUrlTouched(true)}
+                    onKeyDown={selectAllOnCmdA}
+                    placeholder="https://example.com"
+                  />
+                  {showUrlError ? (
+                    <SizableText size="sm" color="destructive">
+                      Enter a web address, like example.com
+                    </SizableText>
+                  ) : null}
+                </>
+              ) : null}
+              <NavLinkKindOption
+                value="document"
+                icon={FileText}
+                label="Existing document"
+                selected={kind === 'document'}
+              />
+              {kind === 'document' ? (
+                <HMDocURLInput
+                  link={docLink}
+                  homeId={homeId}
+                  filterPresets={filterPresets}
+                  overlayResults
+                  onUpdate={(nextLink, title) => {
+                    setDocLink(nextLink)
+                    // Autofill the name from the selected doc's title if it isn't set.
+                    if (title) setText((current) => (current.trim() ? current : title))
+                  }}
+                />
+              ) : null}
+            </RadioGroup>
           </div>
           <div className="flex flex-col gap-2">
-            <SizableText size="sm" weight="medium">
-              Link name (shown in the top bar)
-            </SizableText>
-            <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. About, Contact, Blog" />
+            <Label htmlFor="nav-link-name">Link name (shown in the top bar)</Label>
+            <Input
+              id="nav-link-name"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={selectAllOnCmdA}
+              placeholder="e.g. About, Contact, Blog"
+            />
+            {docAddress ? (
+              <SizableText size="sm" color="muted" className="truncate">
+                {docAddress}
+              </SizableText>
+            ) : null}
           </div>
         </div>
-        <DialogFooter>
-          <Button
-            variant="default"
-            className="w-full"
-            disabled={!canAdd}
-            onClick={() => onSubmit({...item, text: text.trim(), link: link.trim()})}
-          >
+        <DialogFooter className="flex-col items-center gap-3 sm:flex-col">
+          <Button variant="default" className="w-full" disabled={!canAdd} onClick={() => onSubmit(nextItem)}>
             {isNew ? 'Add link' : 'Save link'}
           </Button>
+          {/* <Button variant="link" onClick={onClose}>
+            Manage links
+          </Button> */}
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+// One of the two link kinds, as a card with its radio on the right.
+function NavLinkKindOption({
+  value,
+  icon: Icon,
+  label,
+  selected,
+}: {
+  value: NavLinkKind
+  icon: LucideIcon
+  label: string
+  selected: boolean
+}) {
+  return (
+    <label
+      className={cn(
+        'bg-card flex cursor-pointer items-center gap-3 rounded-md border px-4 py-3 transition-colors',
+        selected ? 'border-primary' : 'border-border hover:border-neutral-400 dark:hover:border-neutral-500',
+      )}
+    >
+      <Icon className="size-4 shrink-0" />
+      <SizableText weight="bold" className="flex-1">
+        {label}
+      </SizableText>
+      <RadioGroupItem value={value} />
+    </label>
   )
 }

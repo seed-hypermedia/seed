@@ -2,11 +2,12 @@
 import {hmId} from '@shm/shared'
 import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {createElement, useState} from 'react'
-import {act} from 'react-dom/test-utils'
 import {createRoot} from 'react-dom/client'
 import {renderToStaticMarkup} from 'react-dom/server'
+import {act} from 'react-dom/test-utils'
 import {describe, expect, it} from 'vitest'
-import {getSiteHeaderItems, isSiteHeaderItemActive, SiteHeaderMenu, MobileMenu} from '../site-header'
+import type {DocNavigationItem} from '../navigation'
+import {getSiteHeaderItems, isSiteHeaderItemActive, MobileMenu, SiteHeaderMenu} from '../site-header'
 import {TooltipProvider} from '../tooltip'
 
 describe('getSiteHeaderItems', () => {
@@ -49,6 +50,37 @@ describe('SiteHeaderMenu', () => {
     expect(markup).not.toContain('data-resourceid')
     expect(markup.match(/<a class="([^"]+)"[^>]*>Home/)?.[1]).not.toContain('hover:border-b-accent')
     expect(markup.match(/<a class="([^"]+)"[^>]*>About/)?.[1]).toContain('hover:border-b-accent')
+  })
+})
+
+describe('SiteHeaderMenu external links', () => {
+  function renderLink(item: Pick<DocNavigationItem, 'id' | 'webUrl'>) {
+    const siteHomeId = hmId('site')
+    return renderToStaticMarkup(
+      createElement(
+        QueryClientProvider,
+        {client: new QueryClient()},
+        createElement(
+          TooltipProvider,
+          null,
+          createElement(SiteHeaderMenu, {
+            siteHomeId,
+            docId: siteHomeId,
+            items: [{key: 'portfolio', ...item, metadata: {name: 'Portfolio'}}],
+          }),
+        ),
+      ),
+    )
+  }
+
+  it('opens an external link in a new tab', () => {
+    expect(renderLink({webUrl: 'https://behance.net/alberti'})).toMatch(
+      /<a [^>]*target="_blank"[^>]*rel="noopener noreferrer"[^>]*>Portfolio/,
+    )
+  })
+
+  it('opens a document of the space in the same tab', () => {
+    expect(renderLink({id: hmId('site', {path: ['portfolio']})})).not.toContain('target="_blank"')
   })
 })
 

@@ -1,10 +1,9 @@
-import React from 'react'
 import {combine} from '@atlaskit/pragmatic-drag-and-drop/combine'
 import {draggable, dropTargetForElements, monitorForElements} from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
+import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {packHmId, SearchResult, unpackHmId, useSearch} from '@shm/shared'
 import {useDirectory} from '@shm/shared/models/entity'
-import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import '@shm/shared/styles/document.css'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
@@ -347,11 +346,13 @@ export function HMDocURLInput({
   onUpdate,
   homeId,
   filterPresets,
+  overlayResults = false,
 }: {
   link: string
   onUpdate: (link: string, title: string) => void
   homeId?: UnpackedHypermediaId
   filterPresets: (item: {link: string}) => boolean
+  overlayResults?: boolean
 }) {
   const [query, setQuery] = useState(getDisplayValueForLink(link))
   const [isOpen, setIsOpen] = useState(false)
@@ -378,7 +379,7 @@ export function HMDocURLInput({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={cn('flex flex-col gap-2', overlayResults && 'relative')}>
       <div className="relative">
         <Icon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
         <Input
@@ -407,6 +408,13 @@ export function HMDocURLInput({
             setFocusedIndex(0)
           }}
           onKeyDown={async (e) => {
+            // The desktop Edit menu's Select All has no shortcut. TODO: find a blocker of cmd A
+            // if (e.key === 'a' && (e.metaKey || e.ctrlKey)) {
+            //   e.preventDefault()
+            //   e.currentTarget.select()
+            //   return
+            // }
+
             if (e.key === 'Escape') {
               e.preventDefault()
               closeAndReset()
@@ -461,23 +469,25 @@ export function HMDocURLInput({
         />
       </div>
       {isOpen ? (
-        <SearchUI
-          query={query}
-          focusedIndex={focusedIndex}
-          isResolvingUrl={isResolvingUrl}
-          onActiveResultChange={setActiveSelection}
-          onFocusedIndexChange={setFocusedIndex}
-          onValue={(nextLink, title) => {
-            onUpdate(nextLink, title)
-            setQuery(getDisplayValueForLink(nextLink))
-            setIsOpen(false)
-            setFocusedIndex(0)
-            setActiveSelection(null)
-            setIsResolvingUrl(false)
-          }}
-          homeId={homeId}
-          filterPresets={filterPresets}
-        />
+        <div className={cn(overlayResults && 'absolute inset-x-0 top-full z-50 mt-2')}>
+          <SearchUI
+            query={query}
+            focusedIndex={focusedIndex}
+            isResolvingUrl={isResolvingUrl}
+            onActiveResultChange={setActiveSelection}
+            onFocusedIndexChange={setFocusedIndex}
+            onValue={(nextLink, title) => {
+              onUpdate(nextLink, title)
+              setQuery(getDisplayValueForLink(nextLink))
+              setIsOpen(false)
+              setFocusedIndex(0)
+              setActiveSelection(null)
+              setIsResolvingUrl(false)
+            }}
+            homeId={homeId}
+            filterPresets={filterPresets}
+          />
+        </div>
       ) : null}
     </div>
   )
