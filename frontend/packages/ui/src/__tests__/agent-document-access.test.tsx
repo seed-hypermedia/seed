@@ -76,7 +76,7 @@ describe('MountedAgentDocument access states', () => {
       const text = container.textContent ?? ''
       expect(text).toContain('This agent is not shared with your account')
       expect(text).toContain('localhost:3051')
-      expect(text).toContain('z6MkVisitor')
+      expect(text).not.toContain('z6MkVisitor')
       expect(text).toContain('Agent access tab')
       expect(text).toContain('orphaned or deleted')
       expect(text).not.toContain('No agent is registered')
@@ -108,7 +108,8 @@ describe('MountedAgentDocument access states', () => {
     render()
     const text = container.textContent ?? ''
     expect(text).toContain('You are invited to this agent')
-    expect(text).toContain('as a writer')
+    expect(text).toContain('invited you as a writer')
+    expect(text).not.toContain('z6MkVisitor')
     expect(text).not.toContain('not shared with your account')
     // Invites are only looked up once the server said the agent is out of reach.
     expect(useAgentInvites).toHaveBeenLastCalledWith('http://localhost:3051', 'z6MkVisitor')

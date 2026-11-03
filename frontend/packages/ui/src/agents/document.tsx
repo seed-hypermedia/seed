@@ -82,7 +82,7 @@ export default function MountedAgentDocument({document, route, children}: AgentD
                 You are invited to this agent
               </SizableText>
               <SizableText color="muted" className="break-words">
-                The agent's owner invited your account {accountUid} as a {invite.role}.
+                The owner of this agent invited you as a {invite.role}.
               </SizableText>
               <Button
                 variant="default"
@@ -106,9 +106,9 @@ export default function MountedAgentDocument({document, route, children}: AgentD
                 This agent is not shared with your account
               </SizableText>
               <SizableText color="muted" className="break-words">
-                The agent server at {serverHost} has no agent for this document that your account {accountUid} can see.
-                Ask the agent's owner to share it with you from its Agent access tab, or sign in as the owner. If the
-                agent was orphaned or deleted, the server no longer knows this document.
+                The agent server at {serverHost} has no agent for this document that your signed-in account can see. Ask
+                the agent's owner to share it with you from its Agent access tab, or sign in as the owner. If the agent
+                was orphaned or deleted, the server no longer knows this document.
               </SizableText>
               <SizableText size="xs" color="muted">
                 This page checks again every few seconds.
