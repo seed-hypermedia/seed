@@ -180,7 +180,18 @@ export function QueryBlockContent({
     [items, availableFilterOptions],
   )
 
-  const citationSummaries = useInteractionSummaries(items.map((item) => item.id))
+  // Let hydration settle before subscribing to every item summary. The SSR shell
+  // is replaced on navigation; starting these queries during that transition
+  // aborts requests that can already have reached the daemon.
+  const [summariesReady, setSummariesReady] = useState(false)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setSummariesReady(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
+  const citationSummaries = useInteractionSummaries(
+    items.map((item) => item.id),
+    {enabled: summariesReady},
+  )
   const citationCounts = useMemo(() => {
     const map: Record<string, number> = {}
     items.forEach((item, index) => {

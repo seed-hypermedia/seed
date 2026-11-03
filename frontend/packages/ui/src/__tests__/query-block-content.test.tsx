@@ -4,9 +4,11 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
+const summarizeItems = vi.hoisted(() => vi.fn(() => [{data: {citations: 2}}, {data: {citations: 8}}]))
+
 vi.mock('@shm/shared/models/interaction-summary', () => ({
   useInteractionSummary: () => ({isLoading: false, data: {citations: 0}}),
-  useInteractionSummaries: () => [{data: {citations: 2}}, {data: {citations: 8}}],
+  useInteractionSummaries: summarizeItems,
 }))
 
 const navigate = vi.hoisted(() => vi.fn())
@@ -79,6 +81,25 @@ function makeItems(count: number) {
     authors: [],
   })) as any
 }
+
+describe('QueryBlockContent summary lifecycle', () => {
+  it('subscribes to item summaries after the first animation frame', () => {
+    const frame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(() => 42)
+    const cancel = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {})
+    summarizeItems.mockClear()
+    act(() => root.render(<QueryBlockContent items={makeItems(2)} style="Table" accountsMetadata={{}} />))
+    expect(summarizeItems).toHaveBeenLastCalledWith(expect.any(Array), {enabled: false})
+    const callback = frame.mock.calls[0]?.[0]
+    expect(callback).toBeDefined()
+    act(() => callback?.(0))
+    expect(summarizeItems).toHaveBeenLastCalledWith(expect.any(Array), {enabled: true})
+    act(() => root.unmount())
+    expect(cancel).toHaveBeenCalledWith(42)
+    root = createRoot(container)
+    frame.mockRestore()
+    cancel.mockRestore()
+  })
+})
 
 describe('QueryBlockContent loading state', () => {
   it('shows a spinner while a list query block is loading', () => {
