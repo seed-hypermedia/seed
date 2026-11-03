@@ -8,6 +8,7 @@ import {ipc} from '@/ipc'
 import {useDraft} from '@/models/accounts'
 import {useConnectPeer} from '@/models/contacts'
 import {useCreateDraft} from '@/models/documents'
+import {useLocalAgentsServerMigration} from '@/models/local-agents-server'
 import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
 import {useSelectedAccountId} from '@/selected-account'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
@@ -135,6 +136,8 @@ export default function Main({className}: {className?: string}) {
   // On a fresh install the local server has no agents, which would keep the assistant hidden
   // forever — provision the built-in Assistant as soon as a model provider exists.
   useEnsureLocalAssistantAgent(selectedAccountId)
+  // After an upgrade, decides whether the bundled local server stays on (it holds agents) or goes.
+  useLocalAgentsServerMigration()
   const {hasAgents, isSettled: agentsSettled} = useHasAnyAgent(agentServerUrls.data, selectedAccountId)
   const isAssistantAvailable = hasAgents || !agentsSettled
   const shouldRenderAssistantPanel = assistantOpen && isAssistantAvailable

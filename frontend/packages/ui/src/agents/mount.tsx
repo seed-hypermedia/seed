@@ -54,11 +54,29 @@ export function AgentMountBanner({agent, serverUrl}: {agent: AgentInfo; serverUr
   )
 }
 
-function MountAgentDialog({
+/**
+ * Agents the account owns that still live under a legacy id on a server that can host mounts: the
+ * ones a user carries over from before agents were documents. Collaborator access cannot mount.
+ */
+export function unmountedOwnedAgents<T extends {serverUrl: string; agent: AgentInfo}>(options: T[]): T[] {
+  return options.filter(
+    ({serverUrl, agent}) =>
+      agent.accessRole === 'owner' && !agent.id.startsWith('hm://') && isMountableAgentServerUrl(serverUrl),
+  )
+}
+
+/** Picks a document for an unmounted agent and mounts it there. */
+export function MountAgentDialog({
   input,
   onClose,
 }: {
-  input: {agent: AgentInfo; serverUrl: string; accountUid: string}
+  input: {
+    agent: AgentInfo
+    serverUrl: string
+    accountUid: string
+    /** Runs instead of opening the new document, for callers that keep the user where they are. */
+    onMounted?: (to: UnpackedHypermediaId) => void
+  }
   onClose: () => void
 }) {
   const navigate = useNavigate()
@@ -76,7 +94,9 @@ function MountAgentDialog({
         })
         invalidateQueries(['agents'])
       }}
-      onSuccess={({to}) => navigate({key: 'document', id: to, agentView: 'sessions'})}
+      onSuccess={({to}) =>
+        input.onMounted ? input.onMounted(to) : navigate({key: 'document', id: to, agentView: 'sessions'})
+      }
     />
   )
 }

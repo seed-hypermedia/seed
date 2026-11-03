@@ -10,6 +10,7 @@ import {
   AlertDialogTrigger,
 } from '@shm/ui/components/alert-dialog'
 import {Badge} from '@shm/ui/components/badge'
+import {Switch} from '@shm/ui/components/switch'
 import {
   Dialog,
   DialogContent,
@@ -35,10 +36,13 @@ import {
   useAgentServerHealth,
   useAgentServerUrl,
   useConfiguredAgentServerUrls,
+  useLocalAgentServerState,
   useLocalAgentServerUrl,
   useSetAgentServerUrl,
   useSetAgentServerUrls,
+  useSetLocalAgentServerEnabled,
 } from './models'
+import {getAgentsPlatform} from './platform'
 
 /**
  * Manages the configured agent servers: add, remove, pick the default, and open each server's
@@ -132,6 +136,7 @@ export function AgentServersSettings() {
           </SizableText>
         ) : null}
       </div>
+      <LocalAgentServerSwitch />
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogTrigger asChild>
           <Button variant="outline" className="self-start">
@@ -162,6 +167,50 @@ export function AgentServersSettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+
+/**
+ * Desktop only: runs or stops the bundled local agents server. Off unless the user (or an upgrade
+ * that found agents in it) turned it on; the dev server the app attaches to cannot be switched.
+ */
+function LocalAgentServerSwitch() {
+  const platform = getAgentsPlatform()
+  const state = useLocalAgentServerState()
+  const setEnabled = useSetLocalAgentServerEnabled()
+  const builtInDefaultUrl = getDefaultAgentServerUrl()
+  if (!platform.setLocalServerEnabled) return null
+  const running = state.data?.t === 'attached' || state.data?.t === 'spawned'
+  const attached = state.data?.t === 'attached'
+  const defaultHost = builtInDefaultUrl ? builtInDefaultUrl.replace(/^https?:\/\//, '') : null
+  return (
+    <div className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <SizableText size="sm" weight="bold">
+          Local agents server
+        </SizableText>
+        <SizableText size="xs" className="text-muted-foreground">
+          {attached
+            ? 'Attached to the agents server already running on this computer.'
+            : state.data?.t === 'error'
+              ? `Could not start: ${state.data.message}`
+              : `Runs an agents server on this computer. Off by default${
+                  defaultHost ? `; agents normally run on ${defaultHost}` : ''
+                }.`}
+        </SizableText>
+      </div>
+      <Switch
+        aria-label="Run a local agents server"
+        checked={running}
+        disabled={attached || state.isLoading || setEnabled.isLoading}
+        onCheckedChange={(checked) =>
+          setEnabled.mutate(checked, {
+            onError: (error) =>
+              toast.error(error instanceof Error ? error.message : 'Could not change the local agents server'),
+          })
+        }
+      />
     </div>
   )
 }

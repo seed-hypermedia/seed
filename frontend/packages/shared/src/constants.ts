@@ -172,6 +172,12 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
  * The dev fallback matches the harness dev agents server port (see agents/.env.vars), not the
  * packaged binary's 3050 — a stale packaged server on 3050 answers but 400s the runs API.
  */
+/**
+ * Agents setting that decides whether the desktop app runs its bundled local agents server.
+ * `'on'` or `'off'`; unset means a build that always ran it has not decided yet.
+ */
+export const AGENTS_LOCAL_SERVER_SETTING_KEY = 'agentsLocalServer'
+
 export const SEED_AGENT_SERVER_URL: string | undefined = (() => {
   // An explicitly empty value means "no agent server" (single-tenant sites set
   // it), so only an unset variable falls back to the shared default.

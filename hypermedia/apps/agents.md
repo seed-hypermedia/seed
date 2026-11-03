@@ -87,7 +87,7 @@ cd agents && bun run test:build   # the compiled binary boots
 
 # Deployments <!-- id:MorvdtVJ -->
 
-**In the desktop app.** `bun run build:binary` compiles the server with `bun build --compile` into `plz-out/bin/agents/seed-agents-<platform>`, and the [desktop app](./desktop.md) ships that folder as a resource. At startup the app skips the server if `SEED_NO_AGENTS_SPAWN` is set, attaches to `SEED_AGENTS_SERVER_URL` if given, attaches to a healthy server already on the default port (the `./dev up` case), and otherwise spawns the binary on the first free port from 3050. The spawned server keeps its data in the app's user data folder under `agents/`, uses the desktop API bridge as its [site](../protocol/sites.md) and the [daemon](./daemon.md)'s HTTP port for `/ipfs`, and has subscription login on. <!-- id:c23jCXqC -->
+**In the desktop app.** `bun run build:binary` compiles the server with `bun build --compile` into `plz-out/bin/agents/seed-agents-<platform>`, and the [desktop app](./desktop.md) ships that folder as a resource. At startup the app skips the server if `SEED_NO_AGENTS_SPAWN` is set, attaches to `SEED_AGENTS_SERVER_URL` if given, attaches to a healthy server already on the default port (the `./dev up` case), and otherwise spawns the binary on the first free port from 3050 only when the `agentsLocalServer` setting is `on` (or, before the setting exists, when an earlier build left a database behind, so the app can check it for agents and settle the setting). The switch under Settings > Agent Servers changes it. The spawned server keeps its data in the app's user data folder under `agents/`, uses the desktop API bridge as its [site](../protocol/sites.md) and the [daemon](./daemon.md)'s HTTP port for `/ipfs`, and has subscription login on. <!-- id:c23jCXqC -->
 
 **Hosted.** Images are `seedhypermedia/agents:dev`, built from `main`, and `seedhypermedia/agents:latest`, built on release. A Watchtower container on the agents host redeploys when a tag is pushed, so pushing `latest` is a production deploy. <!-- id:IiTt1HiF -->
 
@@ -104,7 +104,7 @@ cd agents && bun run test:build   # the compiled binary boots
 
 ## In the Seed app <!-- id:Jgb3MPaj -->
 
-The [desktop app](./desktop.md) talks to the bundled local server by default and can add hosted or self-hosted servers under Settings. An agent is a document: it is created from a home document's New menu and opened from the file browser. The [web app](./web.md)'s agent pages under `/hm/agents/` and the [mobile app](./mobile.md) use the hosted server unless configured otherwise. <!-- id:0YhSXMcx -->
+The [desktop app](./desktop.md) talks to the hosted server by default; the bundled local server is off unless it was already in use or the user turns it on under Settings, where hosted or self-hosted servers can also be added and made the default. An agent is a document: it is created from a home document's New menu and opened from the file browser. The [web app](./web.md)'s agent pages under `/hm/agents/` and the [mobile app](./mobile.md) use the hosted server unless configured otherwise. <!-- id:0YhSXMcx -->
 
 ## CLI <!-- id:K-BtnXe- -->
 

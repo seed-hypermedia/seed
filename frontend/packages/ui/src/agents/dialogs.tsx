@@ -15,6 +15,7 @@ import {
   useModelProviders,
   useProviderModels,
   useSaveModelProvider,
+  useAgentServerUrl,
   useLocalAgentServerUrl,
   useSigningIdentities,
   useUpdateSigningIdentity,
@@ -919,6 +920,20 @@ function AgentAccountRow({
   )
 }
 
+/**
+ * The server a new agent goes to unless the user picks another: the configured default when it is
+ * one of the servers on offer, else the first server that is not the app's own local one.
+ */
+export function pickCreateAgentServer(
+  serverUrls: string[],
+  defaultServerUrl: string | null | undefined,
+  localServerUrl: string | null | undefined,
+): string {
+  if (defaultServerUrl && serverUrls.includes(defaultServerUrl)) return defaultServerUrl
+  const remote = serverUrls.find((serverUrl) => !isLocalAgentServer(serverUrl, localServerUrl))
+  return remote || serverUrls[0] || getDefaultAgentServerUrl() || ''
+}
+
 export function CreateAgentDialog({
   input,
   onClose,
@@ -941,8 +956,14 @@ export function CreateAgentDialog({
   }
   onClose: () => void
 }) {
-  const [selectedServerUrl, setSelectedServerUrl] = useState(input.serverUrls[0] || getDefaultAgentServerUrl() || '')
   const localServerUrl = useLocalAgentServerUrl()
+  const defaultServer = useAgentServerUrl()
+  const [selectedServerUrl, setSelectedServerUrl] = useState(() =>
+    pickCreateAgentServer(input.serverUrls, defaultServer.data, localServerUrl.data),
+  )
+  // The choice stays folded until asked for: agents go to the main server unless the user says so.
+  const [choosingServer, setChoosingServer] = useState(false)
+  const serverPicked = useRef(false)
   const providers = useModelProviders(selectedServerUrl, input.selectedAccountId)
   const createAgent = useCreateAgent(selectedServerUrl, input.selectedAccountId)
   const createSigningIdentity = useCreateSigningIdentity(selectedServerUrl, input.selectedAccountId)
@@ -970,8 +991,9 @@ export function CreateAgentDialog({
   const preparedMount = useRef<{to: UnpackedHypermediaId; mount: PreparedAgentMount} | null>(null)
 
   useEffect(() => {
-    setSelectedServerUrl(input.serverUrls[0] || getDefaultAgentServerUrl() || '')
-  }, [input.serverUrls])
+    if (serverPicked.current) return
+    setSelectedServerUrl(pickCreateAgentServer(input.serverUrls, defaultServer.data, localServerUrl.data))
+  }, [input.serverUrls, defaultServer.data, localServerUrl.data])
 
   // Checked quick-switch entries name providers on one server; a server switch drops them.
   useEffect(() => {
@@ -1099,10 +1121,10 @@ export function CreateAgentDialog({
   // detail whose port moves between launches.
   const describeServer = (serverUrl: string) =>
     isLocalAgentServer(serverUrl, localServerUrl.data) ? 'Local' : serverUrl.replace(/^https?:\/\//, '')
-  // One server (the usual case: the app's own) needs no choice; the dropdown appears only when
-  // other servers are configured.
+  // One server needs no choice. With several, the dropdown stays behind a Change link so the
+  // main server is the default and other servers (the app's own local one included) are opt-in.
   const serverSelector =
-    input.serverUrls.length > 1 ? (
+    input.serverUrls.length > 1 && choosingServer ? (
       <label className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Run on
@@ -1110,15 +1132,25 @@ export function CreateAgentDialog({
         <SelectDropdown
           options={input.serverUrls.map((serverUrl) => ({value: serverUrl, label: describeServer(serverUrl)}))}
           value={selectedServerUrl}
-          onValue={setSelectedServerUrl}
+          onValue={(value) => {
+            serverPicked.current = true
+            setSelectedServerUrl(value)
+          }}
           // The published document names this server; a retry must create the agent there.
           disabled={!!preparedMount.current}
         />
       </label>
     ) : selectedServerUrl ? (
-      <SizableText size="sm" className="text-muted-foreground">
-        Runs on {describeServer(selectedServerUrl)}
-      </SizableText>
+      <div className="flex items-center gap-2">
+        <SizableText size="sm" className="text-muted-foreground">
+          Runs on {describeServer(selectedServerUrl)}
+        </SizableText>
+        {input.serverUrls.length > 1 && !preparedMount.current ? (
+          <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setChoosingServer(true)}>
+            Change
+          </Button>
+        ) : null}
+      </div>
     ) : null
 
   // Force provider setup before agent creation when the selected server has

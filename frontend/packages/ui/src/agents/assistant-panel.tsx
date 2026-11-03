@@ -112,6 +112,7 @@ import {RunRecordCard, SessionRunCard} from './run-card'
 import {DelayedSpinner, SessionModelBadge} from './header'
 import {SessionSummaryBanner} from './session-children'
 import {NewSessionComposer} from './new-session-composer'
+import {AgentMountReminder} from './mount-reminder'
 import {AgentSessionsFeed, type AgentSessionsFeedProblem} from './sessions-feed'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 
@@ -442,7 +443,12 @@ export function AssistantPanel({
   // neither there is no full page for "all agents", so the button is not shown.
   const expandRoute: NavRoute | null =
     activeSession && sessionAgentId
-      ? {key: 'agent-session', serverUrl: activeSession.serverUrl, agentId: sessionAgentId, sessionId: activeSession.sessionId}
+      ? {
+          key: 'agent-session',
+          serverUrl: activeSession.serverUrl,
+          agentId: sessionAgentId,
+          sessionId: activeSession.sessionId,
+        }
       : filterAgent
         ? {key: 'agent', agentId: filterAgent.agent.id, serverUrl: filterAgent.serverUrl}
         : null
@@ -592,6 +598,7 @@ export function AssistantPanel({
         </>
       ) : agents.length ? (
         <>
+          <AgentMountReminder agents={agents} settled={agentsSettled} />
           <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
             <AgentSessionsFeed
               compact

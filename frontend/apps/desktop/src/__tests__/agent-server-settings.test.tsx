@@ -8,18 +8,25 @@ import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
-const {setDefaultServerMutateAsync, setServersMutateAsync, toastErrorMock, toastSuccessMock} = vi.hoisted(() => ({
-  setDefaultServerMutateAsync: vi.fn(),
-  setServersMutateAsync: vi.fn(),
-  toastErrorMock: vi.fn(),
-  toastSuccessMock: vi.fn(),
-}))
+const {setDefaultServerMutateAsync, setServersMutateAsync, setLocalEnabledMutate, toastErrorMock, toastSuccessMock} =
+  vi.hoisted(() => ({
+    setDefaultServerMutateAsync: vi.fn(),
+    setServersMutateAsync: vi.fn(),
+    setLocalEnabledMutate: vi.fn(),
+    toastErrorMock: vi.fn(),
+    toastSuccessMock: vi.fn(),
+  }))
 
 let mockDefaultServer = 'http://localhost:3050'
 /** Servers persisted in settings — the only ones this UI may add to or remove from. */
 let mockServers: string[] = ['http://localhost:3050']
 /** The desktop-managed server, which is always shown but never persisted. */
 let mockLocalServer: string | null = null
+/** What the main process reports about the bundled server. */
+let mockLocalState: {t: string; url?: string; message?: string} = {t: 'disabled', reason: 'setting'} as any
+/** The platform seam: the local-server switch exists only where `setLocalServerEnabled` does. */
+let mockPlatform: Record<string, unknown> = {setLocalServerEnabled: vi.fn()}
+vi.mock('@shm/ui/agents/platform', () => ({getAgentsPlatform: () => mockPlatform}))
 
 vi.mock('@shm/ui/agents/models', () => ({
   getDefaultAgentServerUrl: () => 'http://localhost:3050',
@@ -28,6 +35,8 @@ vi.mock('@shm/ui/agents/models', () => ({
   useAgentServerUrl: () => ({data: mockDefaultServer}),
   useConfiguredAgentServerUrls: () => ({data: mockServers}),
   useLocalAgentServerUrl: () => ({data: mockLocalServer}),
+  useLocalAgentServerState: () => ({data: mockLocalState, isLoading: false}),
+  useSetLocalAgentServerEnabled: () => ({mutate: setLocalEnabledMutate, isLoading: false}),
   useSetAgentServerUrl: () => ({mutateAsync: setDefaultServerMutateAsync}),
   useSetAgentServerUrls: () => ({isLoading: false, mutateAsync: setServersMutateAsync}),
 }))
@@ -98,6 +107,8 @@ function cleanupRendered(root: Root, container: HTMLDivElement) {
 
 describe('AgentServersSettings', () => {
   beforeEach(() => {
+    mockLocalState = {t: 'disabled', reason: 'setting'} as any
+    mockPlatform = {setLocalServerEnabled: vi.fn()}
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     mockDefaultServer = 'http://localhost:3050'
     mockServers = ['http://localhost:3050']
@@ -143,7 +154,7 @@ describe('AgentServersSettings', () => {
     cleanupRendered(root, container)
   })
 
-  it('opens each server\'s Accounts and Providers dialogs, the only place they live now', () => {
+  it("opens each server's Accounts and Providers dialogs, the only place they live now", () => {
     const {container, root} = renderSettings()
     const buttons = Array.from(container.querySelectorAll('button'))
     const accounts = buttons.find((button) => button.textContent?.trim() === 'Accounts')
@@ -174,6 +185,35 @@ describe('AgentServersSettings', () => {
     expect(container.textContent).toContain('No agent servers configured.')
 
     cleanupRendered(root, container)
+  })
+
+  it('offers the local server switch where the platform runs one, off by default, and turns it on', () => {
+    mockServers = ['https://agentic.seed.hyper.media']
+    const {container, root} = renderSettings()
+
+    const toggle = container.querySelector<HTMLButtonElement>('button[role="switch"]')!
+    expect(toggle).toBeTruthy()
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    expect(container.textContent).toContain('Off by default')
+    act(() => toggle.click())
+    expect(setLocalEnabledMutate).toHaveBeenCalledWith(true, expect.anything())
+    act(() => root.unmount())
+  })
+
+  it('shows the switch on and locked while attached to a development server, and hides it on the web', () => {
+    mockLocalServer = 'http://localhost:3051'
+    mockLocalState = {t: 'attached', url: 'http://localhost:3051'}
+    const {container, root} = renderSettings()
+    const toggle = container.querySelector<HTMLButtonElement>('button[role="switch"]')!
+    expect(toggle.getAttribute('aria-checked')).toBe('true')
+    expect(toggle.disabled).toBe(true)
+    expect(container.textContent).toContain('Attached to the agents server already running')
+    act(() => root.unmount())
+
+    mockPlatform = {}
+    const second = renderSettings()
+    expect(second.container.querySelector('button[role="switch"]')).toBeNull()
+    act(() => second.root.unmount())
   })
 
   it('always lists the desktop-managed server and offers no way to remove it', () => {

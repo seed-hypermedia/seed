@@ -41,7 +41,7 @@ import {
 import {recordServerClockSample} from './server-clock'
 import {isOptimisticUserEcho} from './agent-session-rows'
 import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
-import {getAgentsPlatform} from './platform'
+import {getAgentsPlatform, type AgentsLocalServerState} from './platform'
 import {parseSpaceAgentIds} from './space-agents'
 import {getToolReferencedUrls, type AgentActivity, type Thoroughness} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
@@ -51,6 +51,7 @@ import {useResource} from '@shm/shared/models/entity'
 import {UniversalAppContext} from '@shm/shared/routing'
 import type {NavRoute} from '@shm/shared/routes'
 import {hmId} from '@shm/shared/utils/entity-id-url'
+import {AGENTS_LOCAL_SERVER_SETTING_KEY} from '@shm/shared/constants'
 import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
 // Deep import, not the `@shm/shared` barrel: that barrel pulls in protobuf, connectrpc, cheerio,
 // katex, lowlight and react-tweet, none of which belong in a React Native bundle. This module is
@@ -463,6 +464,49 @@ export function useLocalAgentServerUrl() {
     refetchInterval: (data) => (data ? false : AGENT_BACKGROUND_REFETCH_INTERVAL_MS),
     retry: false,
     useErrorBoundary: false,
+  })
+}
+
+/** Lifecycle of the app-managed local agents server; `disabled` on platforms without one. */
+export function useLocalAgentServerState() {
+  const getLocalServerState = getAgentsPlatform().getLocalServerState
+  return useQuery({
+    queryKey: ['agents', 'local-server-state'],
+    queryFn: async (): Promise<AgentsLocalServerState> =>
+      getLocalServerState ? getLocalServerState() : {t: 'disabled', reason: 'env'},
+    // Like the URL query: the server may still be booting, or attach later after an error.
+    refetchInterval: (data) =>
+      data?.t === 'attached' || data?.t === 'spawned' || data?.t === 'disabled'
+        ? false
+        : AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
+    retry: false,
+    useErrorBoundary: false,
+  })
+}
+
+/** The persisted choice about the local agents server: `'on'`, `'off'`, or null before one is made. */
+export function useLocalAgentServerSetting() {
+  return useQuery({
+    queryKey: ['agents', 'settings', AGENTS_LOCAL_SERVER_SETTING_KEY],
+    queryFn: async (): Promise<'on' | 'off' | null> => {
+      const value = await getAgentsPlatform().getSetting(AGENTS_LOCAL_SERVER_SETTING_KEY)
+      return value === 'on' || value === 'off' ? value : null
+    },
+    useErrorBoundary: false,
+  })
+}
+
+/** Turns the local agents server on or off (desktop only), persistently and right away. */
+export function useSetLocalAgentServerEnabled() {
+  return useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const setLocalServerEnabled = getAgentsPlatform().setLocalServerEnabled
+      if (!setLocalServerEnabled) throw new Error('This app runs no local agents server')
+      return setLocalServerEnabled(enabled)
+    },
+    onSettled() {
+      invalidateQueries(['agents'])
+    },
   })
 }
 

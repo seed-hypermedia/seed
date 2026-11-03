@@ -54,6 +54,10 @@ vi.mock('@shm/ui/agents/models', () => ({
 vi.mock('@/models/local-assistant', () => ({
   useEnsureLocalAssistantAgent: () => {},
 }))
+// The local-server migration is exercised by local-agents-server.test.ts.
+vi.mock('@/models/local-agents-server', () => ({
+  useLocalAgentsServerMigration: () => {},
+}))
 
 vi.mock('@/models/contacts', () => ({
   useConnectPeer: () => ({

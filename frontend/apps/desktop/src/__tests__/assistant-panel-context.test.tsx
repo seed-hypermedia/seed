@@ -4,6 +4,8 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 vi.mock('@shm/ui/agents/platform', () => ({getAgentsPlatform: () => ({})}))
+// The card for unmounted agents has its own test (ui mount-reminder.test); the list flow here is about chats.
+vi.mock('@shm/ui/agents/mount-reminder', () => ({AgentMountReminder: () => null}))
 
 /**
  * The sidebar is a column of chats: the dropdown at the top filters the chat list to one agent

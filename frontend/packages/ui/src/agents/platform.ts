@@ -124,6 +124,13 @@ export type AgentsSignerDelegation = {
   capabilityBlob?: Uint8Array
 }
 
+/** Lifecycle of the desktop's bundled agents server, as the main process reports it. */
+export type AgentsLocalServerState =
+  | {t: 'disabled'; reason?: 'env' | 'setting'}
+  | {t: 'attached'; url: string}
+  | {t: 'spawned'; url: string}
+  | {t: 'error'; message: string}
+
 export type AgentsPlatform = {
   /** Session-bound desktop browser bridge and its visible access controls; absent on the web. */
   /** Desktop-only browser access for the agent's owner; the component asks before any website is shared. */
@@ -154,6 +161,13 @@ export type AgentsPlatform = {
   setSetting: (key: string, value: unknown) => Promise<void>
   /** URL of an app-managed local agents server, when the platform runs one (desktop only). */
   getLocalServerUrl?: () => Promise<string | null>
+  /** Lifecycle state of the app-managed local agents server (desktop only). */
+  getLocalServerState?: () => Promise<AgentsLocalServerState>
+  /**
+   * Turns the app-managed local agents server on or off, persistently and immediately; resolves
+   * to its URL while it runs (desktop only). Absent on platforms that run no local server.
+   */
+  setLocalServerEnabled?: (enabled: boolean) => Promise<string | null>
   /** Asks the platform's local HM node to discover/sync a referenced hm:// resource (desktop only). */
   discoverEntity?: (id: string) => Promise<{state?: string; version?: string}>
   /**

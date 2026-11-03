@@ -53,7 +53,7 @@ At runtime the app resolves its agents server in this order (`agents-server-proc
   1. `SEED_NO_AGENTS_SPAWN` set: never spawn. The app only talks to configured remote servers. <!-- id:FHzcCAGI -->
   2. `SEED_AGENTS_SERVER_URL` set: attach to that URL (with retry) and spawn nothing. <!-- id:7leliLB5 -->
   3. A healthy server already answering on the default port: attach to it. This is how the dev app uses env 1. <!-- id:sS4eNf-p -->
-  4. Otherwise, spawn the bundled binary with explicit `--hm-server-url=${API_HTTP_URL}` and `--ipfs-server-url=${DAEMON_HTTP_URL}` flags. The first is the app's typed `/api/*` bridge. The second serves direct `/ipfs/*` gateway reads. Both front the **app's own local daemon**, so the embedded server reads and writes through the same node the user sees, and never through a public gateway. <!-- id:2mVdpAqI -->
+  4. Otherwise, if the `agentsLocalServer` setting allows it (on, or unset with a database left by an earlier build; see the [desktop UI](./desktop-ui.md) page), spawn the bundled binary with explicit `--hm-server-url=${API_HTTP_URL}` and `--ipfs-server-url=${DAEMON_HTTP_URL}` flags. The first is the app's typed `/api/*` bridge. The second serves direct `/ipfs/*` gateway reads. Both front the **app's own local daemon**, so the embedded server reads and writes through the same node the user sees, and never through a public gateway. <!-- id:2mVdpAqI -->
 
 Differences from dev: **no Docker exists here**, so there is no SearXNG or Crawl4AI, and `web_search` is unavailable unless the user configures a remote backend. There is no watcher, because updates come with the app release cycle. Data lives in the app's userData directory, outside the repo. <!-- id:XAKdEOuV -->
 

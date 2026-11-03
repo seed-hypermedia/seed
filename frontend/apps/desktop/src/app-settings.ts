@@ -50,6 +50,16 @@ export function getStoredNetworkConfig(): DaemonNetworkConfig {
   return defaultNetworkConfig()
 }
 
+/** Reads one persisted setting for main-process code that runs before tRPC is ready. */
+export function getStoredSetting(key: string): unknown {
+  return settingsStore[key] ?? null
+}
+
+/** Writes one persisted setting from main-process code. */
+export function writeStoredSetting(key: string, value: unknown): void {
+  writeSettingsStore({...settingsStore, [key]: value})
+}
+
 export function writeNetworkConfig(config: DaemonNetworkConfig) {
   writeSettingsStore({...settingsStore, [NETWORK_CONFIG_SETTINGS_KEY]: config})
 }

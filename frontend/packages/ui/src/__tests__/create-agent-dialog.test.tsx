@@ -4,11 +4,12 @@ import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {CreateAgentDialog} from '../agents/dialogs'
+import {CreateAgentDialog, pickCreateAgentServer} from '../agents/dialogs'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 const mocks = vi.hoisted(() => ({
+  defaultServer: null as string | null,
   createAgent: vi.fn(),
   createIdentity: vi.fn(),
   publish: vi.fn(),
@@ -36,6 +37,7 @@ vi.mock('../agents/models', () => ({
     data: providerName ? mocks.models : undefined,
   }),
   useLocalAgentServerUrl: () => ({data: 'http://local.test'}),
+  useAgentServerUrl: () => ({data: mocks.defaultServer}),
   useDeleteModelProvider: vi.fn(),
   useDeleteSigningIdentity: vi.fn(),
   useImportSigningIdentity: vi.fn(),
@@ -203,11 +205,31 @@ describe('CreateAgentDialog', () => {
     ])
   })
 
-  it('offers a server choice only when several servers are configured', async () => {
+  it('defaults to the configured server and folds the choice behind Change when several are configured', async () => {
+    mocks.defaultServer = 'https://agents.example.com'
     render({serverUrls: ['http://local.test', 'https://agents.example.com'], selectedAccountId: 'alice', location})
     await flush()
+    // The main server wins over the app's own local one, and the dropdown stays hidden.
+    expect(container.textContent).toContain('Runs on agents.example.com')
+    expect(container.textContent).not.toContain('Run on')
+    act(() => button('Change')!.click())
     expect(container.textContent).toContain('Run on')
-    expect(container.textContent).not.toContain('Runs on')
+  })
+
+  it('offers no Change link with a single server', async () => {
+    render({serverUrls: ['http://local.test'], selectedAccountId: 'alice', location})
+    await flush()
+    expect(button('Change')).toBeUndefined()
+  })
+
+  it('prefers a remote server over the local one when no default is among them', () => {
+    expect(pickCreateAgentServer(['http://local.test', 'https://a.example'], null, 'http://local.test')).toBe(
+      'https://a.example',
+    )
+    expect(
+      pickCreateAgentServer(['http://local.test', 'https://a.example'], 'https://b.example', 'http://local.test'),
+    ).toBe('https://a.example')
+    expect(pickCreateAgentServer(['http://local.test'], null, 'http://local.test')).toBe('http://local.test')
   })
 
   it('still asks for a location when opened without one', async () => {
