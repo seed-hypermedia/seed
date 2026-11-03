@@ -58,6 +58,7 @@ export const storyClient: UniversalClient = {
     if (method === 'Account') return {id: storyId, metadata: {name: 'Ada Lovelace'}}
     if (method === 'InteractionSummary')
       return {citations: 0, comments: 0, changes: 0, children: 0, authorUids: [], blocks: {}}
+    if (method === 'Query') return {in: storyId, results: []}
     throw new Error(`No story fixture for ${method}`)
   }) as UniversalClient['request'],
   publish: async () => {
