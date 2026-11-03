@@ -33,11 +33,22 @@ import {
   MessagesSquare,
   Settings,
   Users,
-  Wrench,
 } from 'lucide-react'
 import {Fragment, type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 
-export type AgentPageTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'collaborators' | 'settings'
+export type AgentPageTab =
+  | 'sessions'
+  | 'triggers'
+  | 'memory'
+  | 'tools' // older links; opens the permissions page
+  | 'prompt'
+  | 'permissions'
+  | 'identities'
+  | 'mcp'
+  | 'collaborators'
+  | 'settings'
+/** Pages under Settings, each with a back bar to the tab. */
+export const AGENT_SETTINGS_TABS: readonly AgentPageTab[] = ['prompt', 'permissions', 'identities', 'mcp', 'tools']
 
 export type AgentHeaderInfo = {
   definition: AgentDefinition
@@ -247,13 +258,18 @@ export function AgentHeader({
       count: triggersCount || undefined,
     },
     {key: 'memory' as const, label: 'Memory', tooltip: "Browse and edit the agent's memory files", icon: Brain},
-    {key: 'tools' as const, label: 'Tools', tooltip: 'Control tools and signing identities', icon: Wrench},
     {key: 'collaborators' as const, label: 'Collaborators', tooltip: 'Manage who can access this agent', icon: Users},
-    {key: 'settings' as const, label: 'Settings', tooltip: 'Edit model settings', icon: Settings},
+    {
+      key: 'settings' as const,
+      label: 'Settings',
+      tooltip: 'Model, system prompt, permissions, identities and MCP servers',
+      icon: Settings,
+    },
   ]
 
-  // The prompt is a page inside Settings, so that tab stays lit while it is open.
-  const litTab: AgentPageTab = activeTab === 'prompt' ? 'settings' : activeTab
+  // The prompt, permissions, identities and MCP pages live inside Settings, so that tab stays lit
+  // while one of them is open.
+  const litTab: AgentPageTab = AGENT_SETTINGS_TABS.includes(activeTab) ? 'settings' : activeTab
   const activeTabLabel = tabs.find((tab) => tab.key === litTab)?.label || 'Sessions'
   const currentAgentName = agentName ?? agent?.definition.name ?? 'Agent'
   // From another tab, Sessions returns to the transcript that was open (see sticky-session.ts);

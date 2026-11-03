@@ -78,7 +78,9 @@ export default function MountedAgentDocument({document, route, children, content
               ? 'collaborators'
               : route.agentView === 'session'
                 ? 'sessions'
-                : route.agentView
+                : route.agentView === 'tools'
+                  ? 'permissions'
+                  : route.agentView
           }
           triggerId={route.agentTriggerId}
           memoryPath={route.agentMemoryPath}

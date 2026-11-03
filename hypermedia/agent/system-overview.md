@@ -130,7 +130,7 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 - Session page with debounced inline title editing, optimistic user messages, durable events, live assistant partials, and shared chat rendering. <!-- id:Dy_Snpcf -->
 - A mounted remote session page, or the selected Assistant-sidebar session, keeps `hm://` [documents](../protocol/documents.md) and [comments](../protocol/comments.md) that the agent created or referenced subscribed on the desktop's local node. This includes recursive target discovery for comments and exact versions for document write results. Background sessions do not [sync](../protocol/network.md). <!-- id:JyyRewW4 -->
 - User and assistant bubbles, markdown, streaming cursor, and tool-call bubbles shared with the desktop assistant panel. <!-- id:uWhyPwax -->
-- Tools tab over `ListAgentTools`: the callable [grants](./grants.md) an owner can toggle, and, for an authored lambda, a dialog with its full document: contract, source, and content address. <!-- id:VVqVjmDP -->
+- Settings > Permissions over `ListAgentTools`: the callable [grants](./grants.md) an owner can toggle, and, for an authored lambda, a dialog with its full document: contract, source, and content address. <!-- id:VVqVjmDP -->
 - The pinned run card with its Activity drawer, nested child sessions, and the parked-run Answer action that sends a `SignalRun`. <!-- id:2IpFHfyj -->
 - The composer's [wrench palette](./wrench-palette.md), which runs `read`, `write`, and `call` as the user through `InvokeSessionTool`. <!-- id:e_7FcNsV -->
 - WebSocket diagnostic logs and defensive message parsing. <!-- id:Gow06xE6 -->

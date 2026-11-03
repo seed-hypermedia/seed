@@ -76,7 +76,7 @@ describe('DocumentTools', () => {
       agentView: 'sessions',
       id: {version: null, path: ['helper']},
     })
-    for (const label of ['Content', 'Tools', 'Settings'])
+    for (const label of ['Content', 'Triggers', 'Settings'])
       expect(container.querySelector(`[data-label="${label}"]`)).not.toBeNull()
   })
 
@@ -99,7 +99,7 @@ describe('DocumentTools', () => {
         .filter((tab) => !tab.closest('[aria-hidden="true"]'))
         .map((tab) => tab.getAttribute('data-label'))
     // Nothing to show: no comments; connections, people and attributes never show here.
-    expect(labels()).toEqual(['Content', 'Sessions', 'Tools', 'Triggers', 'Memory', 'Agent access', 'Settings'])
+    expect(labels()).toEqual(['Content', 'Sessions', 'Triggers', 'Memory', 'Agent access', 'Settings'])
 
     act(() =>
       root.render(

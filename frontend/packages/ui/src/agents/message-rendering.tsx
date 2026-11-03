@@ -896,7 +896,7 @@ function useToolLinkOpener() {
       const route =
         target.type === 'memory'
           ? {key: 'agent' as const, agentId, serverUrl, tab: 'memory' as const, memoryPath: target.path}
-          : {key: 'agent' as const, agentId, serverUrl, tab: 'tools' as const}
+          : {key: 'agent' as const, agentId, serverUrl, tab: 'permissions' as const}
       clickNavigate(route, event as never)
     },
   }

@@ -43,7 +43,7 @@ describe.each([
   'https://agent-site.example',
 ])('%s', (baseUrl) => {
   it.each([
-    'tools',
+    'settings/permissions',
     'settings',
     'sessions',
     'session/session-1',
@@ -76,7 +76,8 @@ describe.each([
         route: expect.objectContaining({
           key: 'document',
           id: expect.objectContaining({id: 'hm://z6Mks4xPAL6eNAFVijb4jsj1iByk8izhEyHCWHFE3WYxAgPN/bronze-stoat'}),
-          agentView: suffix.split(/[/?]/)[0],
+          // A settings page is addressed as settings/<page> and routed as that page.
+          agentView: suffix.startsWith('settings/') ? suffix.slice('settings/'.length) : suffix.split(/[/?]/)[0],
           ...(suffix.startsWith('session/') ? {agentSessionId: 'session-1'} : {}),
           ...(suffix.startsWith('memory?') ? {agentMemoryPath: 'notes.md'} : {}),
           ...(suffix.startsWith('triggers') ? {agentTriggerId: 'trigger-2'} : {}),

@@ -261,15 +261,26 @@ describe('agent mounting', () => {
     expect(await send({_: 'ReadAgentMemoryFile', agentId: id, path: 'notes.md'})).toMatchObject({
       file: {content: 'Preserve this memory'},
     })
-    for (const view of ['tools', 'settings', 'sessions']) {
+    for (const view of ['triggers', 'settings', 'sessions']) {
       const label = view[0]!.toUpperCase() + view.slice(1)
       await page.getByRole('link', {name: label, exact: true}).click()
       await page.waitForURL(`${docUrl}/:${view}`)
       expect(await page.getByRole('link', {name: 'Content', exact: true}).count()).toBe(0)
+      expect(await page.getByRole('link', {name: 'Tools', exact: true}).count()).toBe(0)
       expect(await page.getByRole('link', {name: 'Home', exact: true}).count()).toBeGreaterThan(0)
       await page.reload()
       await page.getByRole('link', {name: label, exact: true}).waitFor()
     }
+    // The old Tools tab is the Permissions page under Settings; the old URL still opens it.
+    await page.goto(`${docUrl}/:tools`)
+    await page.getByRole('button', {name: 'Back to agent settings'}).waitFor()
+    // Search, web search, execute, integrated browser, publish.
+    expect(await page.getByRole('checkbox').count()).toBe(5)
+    await page.getByRole('button', {name: 'Back to agent settings'}).click()
+    await page.waitForURL(`${docUrl}/:settings`)
+    await page.getByRole('button', {name: 'Edit MCP servers'}).click()
+    await page.waitForURL(`${docUrl}/:settings/mcp`)
+    await page.getByRole('button', {name: 'Add server'}).waitFor()
     await page.goto(`${docUrl}/:session/${sessionId}`)
     await page.getByPlaceholder('Untitled session').waitFor()
     expect(await page.getByPlaceholder('Untitled session').inputValue()).toBe('Existing conversation')

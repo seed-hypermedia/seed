@@ -315,7 +315,21 @@ export const documentRouteSchema = z.object({
   key: z.literal('document'),
   id: unpackedHmIdSchema,
   /** Agent features share the document's shell and identity. */
-  agentView: z.enum(['sessions', 'session', 'tools', 'settings', 'triggers', 'memory', 'prompt', 'access']).optional(),
+  agentView: z
+    .enum([
+      'sessions',
+      'session',
+      'tools', // older links and saved routes; opens the permissions page
+      'settings',
+      'triggers',
+      'memory',
+      'prompt',
+      'permissions',
+      'identities',
+      'mcp',
+      'access',
+    ])
+    .optional(),
   agentSessionId: z.string().optional(),
   agentTriggerId: z.string().optional(),
   agentMemoryPath: z.string().optional(),
@@ -418,7 +432,20 @@ export const agentRouteSchema = z.object({
   key: z.literal('agent'),
   agentId: z.string(),
   serverUrl: z.string().optional(),
-  tab: z.enum(['sessions', 'triggers', 'memory', 'tools', 'prompt', 'collaborators', 'settings']).optional(),
+  tab: z
+    .enum([
+      'sessions',
+      'triggers',
+      'memory',
+      'tools',
+      'prompt',
+      'permissions',
+      'identities',
+      'mcp',
+      'collaborators',
+      'settings',
+    ])
+    .optional(),
   triggerId: z.string().optional(),
   /** Memory tab: the file to open, so a `~/memory/…` link in a tool row lands on that file. */
   memoryPath: z.string().optional(),

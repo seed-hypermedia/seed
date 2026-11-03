@@ -69,9 +69,10 @@ export function extractAgentDocumentView(
   if (parts.at(-2) === ':triggers' && parts.at(-1)) {
     return {path: parts.slice(0, -2), agentView: 'triggers', agentTriggerId: parts.at(-1)}
   }
-  // The prompt is a page inside Settings; the bare `:prompt` form is older links.
-  if (parts.at(-2) === ':settings' && parts.at(-1) === 'prompt') {
-    return {path: parts.slice(0, -2), agentView: 'prompt'}
+  // Settings pages: `:settings/<page>`. The bare `:prompt` and `:tools` forms are older links.
+  const settingsPage = parts.at(-1)
+  if (parts.at(-2) === ':settings' && settingsPage && isAgentSettingsPage(settingsPage)) {
+    return {path: parts.slice(0, -2), agentView: settingsPage}
   }
   const term = parts.at(-1)
   if (
@@ -79,9 +80,18 @@ export function extractAgentDocumentView(
     [':sessions', ':tools', ':settings', ':triggers', ':memory', ':prompt', ':access'].includes(term) &&
     parts.length > 1
   ) {
-    return {path: parts.slice(0, -1), agentView: term.slice(1) as DocumentRoute['agentView']}
+    const view = term === ':tools' ? 'permissions' : (term.slice(1) as DocumentRoute['agentView'])
+    return {path: parts.slice(0, -1), agentView: view}
   }
   return null
+}
+
+/** The pages under an agent's Settings tab, addressed as `:settings/<page>`. */
+export const AGENT_SETTINGS_PAGES = ['prompt', 'permissions', 'identities', 'mcp'] as const
+export type AgentSettingsPage = (typeof AGENT_SETTINGS_PAGES)[number]
+
+export function isAgentSettingsPage(view: string | undefined): view is AgentSettingsPage {
+  return !!view && (AGENT_SETTINGS_PAGES as readonly string[]).includes(view)
 }
 
 /** Converts canonical agent IDs to document navigation; legacy server IDs retain their routes. */
@@ -94,7 +104,8 @@ export function mountedAgentRoute(route: NavRoute): NavRoute {
     : {
         key: 'document',
         id,
-        agentView: route.tab === 'collaborators' ? 'access' : route.tab || 'sessions',
+        agentView:
+          route.tab === 'collaborators' ? 'access' : route.tab === 'tools' ? 'permissions' : route.tab || 'sessions',
         agentTriggerId: route.triggerId,
         agentMemoryPath: route.memoryPath,
       }
@@ -105,7 +116,8 @@ export function agentDocumentViewPath(route: DocumentRoute): string | undefined 
   if (!route.agentView) return undefined
   if (route.agentView === 'triggers' && route.agentTriggerId)
     return `:triggers/${encodeURIComponent(route.agentTriggerId)}`
-  if (route.agentView === 'prompt') return ':settings/prompt'
+  if (route.agentView === 'tools') return ':settings/permissions'
+  if (isAgentSettingsPage(route.agentView)) return `:settings/${route.agentView}`
   return route.agentView === 'session'
     ? `:session/${encodeURIComponent(route.agentSessionId || '')}`
     : `:${route.agentView}`
@@ -199,7 +211,7 @@ export function extractViewTermFromUrl(url: string): {
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
   const agentMatch = inspectCleanUrl.match(
-    /\/(:(?:sessions|tools|triggers|memory|prompt|access)|:settings\/prompt|:session\/([^/?#]+)|:triggers\/([^/?#]+))(?=[?#]|$)/,
+    /\/(:(?:sessions|tools|triggers|memory|prompt|access)|:settings\/(?:prompt|permissions|identities|mcp)|:session\/([^/?#]+)|:triggers\/([^/?#]+))(?=[?#]|$)/,
   )
   if (agentMatch) {
     try {
@@ -211,9 +223,11 @@ export function extractViewTermFromUrl(url: string): {
           ? 'session'
           : agentMatch[3]
             ? 'triggers'
-            : agentMatch[1] === ':settings/prompt'
-              ? 'prompt'
-              : agentMatch[1]!.slice(1)) as DocumentRoute['agentView'],
+            : agentMatch[1]!.startsWith(':settings/')
+              ? agentMatch[1]!.slice(':settings/'.length)
+              : agentMatch[1] === ':tools'
+                ? 'permissions'
+                : agentMatch[1]!.slice(1)) as DocumentRoute['agentView'],
         ...(agentMatch[2] ? {agentSessionId: decodeURIComponent(agentMatch[2])} : {}),
         ...(agentMatch[3] ? {agentTriggerId: decodeURIComponent(agentMatch[3])} : {}),
       }

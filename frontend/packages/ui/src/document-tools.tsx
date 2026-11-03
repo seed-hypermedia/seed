@@ -10,6 +10,7 @@ import {
 } from '@shm/shared'
 import type {InspectTab} from '@shm/shared/routes'
 import type {DocumentRoute} from '@shm/shared/routes'
+import {isAgentSettingsPage} from '@shm/shared/utils/entity-id-url'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {
   MessageCircle,
@@ -27,7 +28,6 @@ import {
   Shield,
   Users,
   Bot,
-  Wrench,
   Settings,
   Zap,
   Brain,
@@ -349,7 +349,6 @@ export function DocumentTools({
     const agentTabs: {view: NonNullable<DocumentRoute['agentView']>; label: string; icon: LucideIcon}[] = hasAgent
       ? [
           {view: 'sessions', label: 'Sessions', icon: Bot},
-          {view: 'tools', label: 'Tools', icon: Wrench},
           {view: 'triggers', label: 'Triggers', icon: Zap},
           {view: 'memory', label: 'Memory', icon: Brain},
           {view: 'access', label: 'Agent access', icon: Shield},
@@ -368,11 +367,11 @@ export function DocumentTools({
         label,
         tooltip: `Open agent ${label.toLowerCase()}`,
         icon,
-        // Subpages keep their tab lit: a transcript under Sessions, the prompt under Settings.
+        // Subpages keep their tab lit: a transcript under Sessions, the settings pages under Settings.
         active:
           activeAgentView === view ||
           (view === 'sessions' && activeAgentView === 'session') ||
-          (view === 'settings' && activeAgentView === 'prompt'),
+          (view === 'settings' && (isAgentSettingsPage(activeAgentView) || activeAgentView === 'tools')),
         route: {...documentRoute, agentView: view},
       })),
     )

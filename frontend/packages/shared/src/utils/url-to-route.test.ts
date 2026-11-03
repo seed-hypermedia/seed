@@ -35,7 +35,7 @@ describe('hypermediaUrlToRoute', () => {
     expect(hypermediaUrlToRoute(routeToHmUrl(route)!)).toEqual({...route, id: unpackHmId('hm://uid1?v=v1#block1')})
   })
 
-  test.each(['sessions', 'tools', 'settings', 'triggers', 'memory', 'access'] as const)(
+  test.each(['sessions', 'settings', 'triggers', 'memory', 'access'] as const)(
     'round trips mounted agent %s through hm, gateway and custom-site URLs',
     (view) => {
       const id = hmId('alice', {path: ['team', 'helper']})
@@ -51,6 +51,30 @@ describe('hypermediaUrlToRoute', () => {
       expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe(`/team/helper/:${view}`)
     },
   )
+
+  test.each(['permissions', 'identities', 'mcp'] as const)(
+    'the %s page lives under settings: /:settings/<page> round trips',
+    (view) => {
+      const id = hmId('alice', {path: ['team', 'helper']})
+      const route = {key: 'document' as const, id, agentView: view}
+      expect(routeToHmUrl(route)).toBe(`hm://alice/team/helper/:settings/${view}`)
+      expect(routeToHref(route, {originHomeId: hmId('alice')})).toBe(`/team/helper/:settings/${view}`)
+      for (const url of [
+        `hm://alice/team/helper/:settings/${view}`,
+        `https://seed.example/hm/alice/team/helper/:settings/${view}`,
+      ]) {
+        expect(hypermediaUrlToRoute(url)).toMatchObject({key: 'document', id: {id: id.id}, agentView: view})
+      }
+    },
+  )
+
+  test('the old /:tools links open the permissions page', () => {
+    const id = hmId('alice', {path: ['team', 'helper']})
+    for (const url of ['hm://alice/team/helper/:tools', 'https://seed.example/hm/alice/team/helper/:tools']) {
+      expect(hypermediaUrlToRoute(url)).toMatchObject({key: 'document', id: {id: id.id}, agentView: 'permissions'})
+    }
+    expect(routeToHmUrl({key: 'document', id, agentView: 'tools'})).toBe('hm://alice/team/helper/:settings/permissions')
+  })
 
   test('the system prompt is a page inside settings: /:settings/prompt, with the old /:prompt still readable', () => {
     const id = hmId('alice', {path: ['team', 'helper']})

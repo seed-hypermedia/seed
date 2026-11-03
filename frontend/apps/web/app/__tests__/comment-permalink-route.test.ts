@@ -101,7 +101,7 @@ describe('comment permalink route loading', () => {
     mocks.loadSiteResource.mockResolvedValue({ok: true})
   })
 
-  it.each(['sessions', 'tools', 'settings', 'session/session-1'])(
+  it.each(['sessions', 'settings/mcp', 'settings', 'session/session-1'])(
     'loads mounted agent %s under the document on gateways and custom domains',
     async (view) => {
       for (const prefix of ['hm/doc-account/', '']) {
@@ -118,7 +118,7 @@ describe('comment permalink route loading', () => {
           latest: true,
         })
         expect(extraData).toMatchObject({
-          agentView: view.startsWith('session/') ? 'session' : view,
+          agentView: view.startsWith('session/') ? 'session' : view.startsWith('settings/') ? view.slice(9) : view,
           agentTriggerId: 'trigger-1',
         })
         if (view.startsWith('session/')) expect(extraData).toMatchObject({agentSessionId: 'session-1'})

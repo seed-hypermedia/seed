@@ -95,27 +95,31 @@ import {
   Link2,
   MessageSquare,
   Pencil,
+  Plug,
   Plus,
   ScrollText,
+  Shield,
   Trash2,
   X,
 } from 'lucide-react'
 import {AccountAvatar} from '@shm/ui/account-avatar'
 import {SigningIdentityIcon} from './signing-identity-icon'
-import React, {useEffect, useMemo, useRef, useState} from 'react'
+import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {activityConditions, getSeedTool} from '@seed-hypermedia/agents-protocol'
 import {
-  AGENT_BROWSER_TOOL,
-  AGENT_EXECUTE_TOOL,
   AGENT_PUBLISH_GRANT,
-  AGENT_SEARCH_TOOL,
-  AGENT_WEB_SEARCH_TOOL,
   DEFAULT_AGENT_TOOLS,
   normalizeStoredAgentTools,
   getToolAvailability,
   type AgentServerWebCapabilities,
 } from './agent-tools'
 import {AgentMemoryTab} from './memory'
+import {
+  AGENT_TOOL_OPTIONS,
+  describeAgentIdentities,
+  describeAgentMcpServers,
+  describeAgentPermissions,
+} from './settings-summaries'
 import {AgentMcpServersSection} from './mcp-servers'
 import {
   TriggerContinuationFields,
@@ -154,7 +158,7 @@ import {AgentMountBanner} from './mount'
 export function AgentDetailPage({
   agentId,
   routeServerUrl,
-  tab = 'sessions',
+  tab: routeTab = 'sessions',
   triggerId,
   memoryPath,
   embedded = false,
@@ -167,6 +171,8 @@ export function AgentDetailPage({
   memoryPath?: string
   embedded?: boolean
 }) {
+  // The Tools tab became the Permissions page under Settings; older routes still land there.
+  const tab: AgentPageTab = routeTab === 'tools' ? 'permissions' : routeTab
   const selectedAccountId = useSelectedAccountId()
   const navigate = useNavigate()
   const replaceRoute = useNavigate('replace')
@@ -465,6 +471,22 @@ export function AgentDetailPage({
 
   const selectedTriggerName = triggerId ? triggers.data?.find((trigger) => trigger.id === triggerId)?.name : undefined
   const isTriggerDetail = tab === 'triggers' && !!triggerId
+  const settingsPage = tab === 'permissions' || tab === 'identities' || tab === 'mcp' ? tab : null
+  const settingsPageTitle =
+    settingsPage === 'permissions'
+      ? 'Permissions'
+      : settingsPage === 'identities'
+        ? 'Authorship identities'
+        : 'MCP servers'
+  const webCapabilities = serverHealth.data
+    ? {
+        ...(serverHealth.data.webTools ?? {search: true, readBrowser: true}),
+        codeExec: serverHealth.data.codeExec,
+        codeExecReason: serverHealth.data.codeExecReason,
+        codeExecReasonCode: serverHealth.data.codeExecReasonCode,
+        local: isLocalAgentServer(serverUrl, localServerUrl.data),
+      }
+    : undefined
   // A subpage (one trigger, the system prompt) replaces the agent header and the tabs' Container
   // with its own back bar and scrolling body, the way a session does.
   const promptStatus =
@@ -615,6 +637,55 @@ export function AgentDetailPage({
             </div>
           </div>
         </>
+      ) : agent.data && settingsPage ? (
+        <>
+          <AgentSubpageHeader
+            title={settingsPageTitle}
+            placeholder={settingsPageTitle}
+            backLabel="Back to agent settings"
+            onBack={() => navigate({key: 'agent', agentId, serverUrl, tab: 'settings'})}
+          />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="mx-auto w-full max-w-4xl px-4 py-4">
+              {settingsPage === 'permissions' ? (
+                <AgentPermissionsPage
+                  serverUrl={serverUrl}
+                  accountUid={selectedAccountId ?? null}
+                  agentId={agentId}
+                  definition={agent.data.agent.definition}
+                  identities={signingIdentities.data || []}
+                  webCapabilities={webCapabilities}
+                  onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
+                  saving={updateAgent.isLoading}
+                  readOnly={!canWrite}
+                  onOpenIdentities={() => navigate({key: 'agent', agentId, serverUrl, tab: 'identities'})}
+                />
+              ) : settingsPage === 'identities' ? (
+                <AgentIdentitiesPage
+                  serverUrl={serverUrl}
+                  accountUid={selectedAccountId ?? null}
+                  definition={agent.data.agent.definition}
+                  identities={signingIdentities.data || []}
+                  identitiesLoading={signingIdentities.isLoading}
+                  onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
+                  onCreateIdentity={(label) => createSigningIdentity.mutateAsync(label)}
+                  saving={updateAgent.isLoading || createSigningIdentity.isLoading}
+                  canManageIdentities={isOwner}
+                  onOpenPermissions={() => navigate({key: 'agent', agentId, serverUrl, tab: 'permissions'})}
+                />
+              ) : (
+                <AgentMcpPage
+                  serverUrl={serverUrl}
+                  accountUid={selectedAccountId ?? null}
+                  definition={agent.data.agent.definition}
+                  onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
+                  saving={updateAgent.isLoading}
+                  readOnly={!canWrite}
+                />
+              )}
+            </div>
+          </div>
+        </>
       ) : (
         <Container
           // The memory browser is a two-pane file explorer: reading width limits do not apply,
@@ -720,33 +791,6 @@ export function AgentDetailPage({
                 </div>
               ) : null}
 
-              {tab === 'tools' ? (
-                <AgentToolsTab
-                  serverUrl={serverUrl}
-                  accountUid={selectedAccountId ?? null}
-                  agentId={agentId}
-                  definition={agent.data.agent.definition}
-                  identities={signingIdentities.data || []}
-                  identitiesLoading={signingIdentities.isLoading}
-                  webCapabilities={
-                    serverHealth.data
-                      ? {
-                          ...(serverHealth.data.webTools ?? {search: true, readBrowser: true}),
-                          codeExec: serverHealth.data.codeExec,
-                          codeExecReason: serverHealth.data.codeExecReason,
-                          codeExecReasonCode: serverHealth.data.codeExecReasonCode,
-                          local: isLocalAgentServer(serverUrl, localServerUrl.data),
-                        }
-                      : undefined
-                  }
-                  onSave={(definition) => updateAgent.mutateAsync({agentId, definition})}
-                  onCreateIdentity={(label) => createSigningIdentity.mutateAsync(label)}
-                  saving={updateAgent.isLoading || createSigningIdentity.isLoading}
-                  readOnly={!canWrite}
-                  canManageIdentities={isOwner}
-                />
-              ) : null}
-
               {tab === 'collaborators' ? (
                 <AgentCollaboratorsTab
                   serverUrl={serverUrl}
@@ -783,6 +827,27 @@ export function AgentDetailPage({
                       {canWrite ? 'Edit prompt' : 'View prompt'}
                     </Button>
                   </div>
+                  <AgentSettingsPageRow
+                    title="Permissions"
+                    description={describeAgentPermissions(agent.data.agent.definition)}
+                    icon={<Shield className="size-4" />}
+                    actionLabel={canWrite ? 'Edit permissions' : 'View permissions'}
+                    onOpen={() => navigate({key: 'agent', agentId, serverUrl, tab: 'permissions'})}
+                  />
+                  <AgentSettingsPageRow
+                    title="Authorship identities"
+                    description={describeAgentIdentities(agent.data.agent.definition, signingIdentities.data || [])}
+                    icon={<KeyRound className="size-4" />}
+                    actionLabel={isOwner ? 'Manage identities' : 'View identities'}
+                    onOpen={() => navigate({key: 'agent', agentId, serverUrl, tab: 'identities'})}
+                  />
+                  <AgentSettingsPageRow
+                    title="MCP servers"
+                    description={describeAgentMcpServers(agent.data.agent.definition)}
+                    icon={<Plug className="size-4" />}
+                    actionLabel={canWrite ? 'Edit MCP servers' : 'View MCP servers'}
+                    onOpen={() => navigate({key: 'agent', agentId, serverUrl, tab: 'mcp'})}
+                  />
                   <div className="grid gap-3 md:grid-cols-2">
                     <label className="flex flex-col gap-1">
                       <SizableText size="sm" weight="bold">
@@ -1547,23 +1612,6 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
   )
 }
 
-// Reading, memory, publishing, delegation, and plans are verbs — always on, not configuration.
-// What the user toggles here is the CALLABLE tool set dispatched through the call verb.
-const AGENT_TOOL_OPTIONS: {names: string[]; title: string; description?: string; infoTool?: string}[] = [
-  {names: [AGENT_SEARCH_TOOL], title: 'Search Seed content'},
-  {names: [AGENT_WEB_SEARCH_TOOL], title: 'Search the web'},
-  {names: [AGENT_EXECUTE_TOOL], title: 'Execute code'},
-  {
-    names: [AGENT_BROWSER_TOOL],
-    title: 'Use the integrated browser',
-    description:
-      'Let this agent read and act on websites you open in Seed. You still allow each website, and actions on it, when the agent asks.',
-  },
-  // The publish grant is not a registry tool — publishing runs through the always-on `write`
-  // verb, so its info dialog shows the write verb's model-facing contract.
-  {names: [AGENT_PUBLISH_GRANT], title: 'Publish Seed content', infoTool: 'write'},
-]
-
 const AUTHOR_CHIP_CLASS =
   'hover:bg-accent/40 flex min-w-0 cursor-pointer items-center gap-1.5 rounded-full py-0.5 pr-2 pl-0.5 disabled:cursor-default disabled:hover:bg-transparent'
 
@@ -1636,56 +1684,24 @@ function AuthorIdentityChip({
   )
 }
 
-function AgentToolsTab({
-  serverUrl,
-  accountUid,
-  agentId,
-  definition,
-  identities,
-  identitiesLoading,
-  webCapabilities,
-  onSave,
-  onCreateIdentity,
-  saving,
-  readOnly = false,
-  canManageIdentities = false,
-}: {
-  serverUrl: string | undefined
-  accountUid: string | null
-  agentId: string
-  definition: AgentDefinition
-  identities: SigningIdentity[]
-  identitiesLoading: boolean
-  webCapabilities: AgentServerWebCapabilities | undefined
-  onSave: (definition: AgentDefinition) => Promise<unknown>
-  onCreateIdentity: (label: string) => Promise<unknown>
-  saving: boolean
-  readOnly?: boolean
-  /** Owner-only: granting/removing signing accounts and creating new ones. Writers can toggle
-   * tools but must never see or manage the owner's identity list. */
-  canManageIdentities?: boolean
-}) {
-  const toolInfoDialog = useAppDialog(ToolInfoDialog)
-  const authoredToolDialog = useAppDialog(AuthoredToolDialog, {className: 'w-full max-w-3xl'})
-  const deleteAuthoredToolDialog = useAppDialog(DeleteAuthoredToolDialog, {isAlert: true})
-  const editAccountDialog = useAppDialog(EditAgentAccountDialog)
-  const agentTools = useAgentTools(serverUrl, accountUid, agentId)
-  const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda')
-  const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
-  const definitionSigningKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
-  const defaultTools = [...DEFAULT_AGENT_TOOLS]
-  const [enabledTools, setEnabledTools] = useState<string[]>(
-    definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools,
-  )
-  const [signingKeys, setSigningKeys] = useState<string[]>(definitionSigningKeys)
+/** Editing state shared by the settings pages that save parts of the agent definition: the tool
+ * grants, the signing identities, and the enabled MCP servers. Each save is optimistic and rolls
+ * back to the definition on failure. */
+function useAgentDefinitionPatch(
+  definition: AgentDefinition,
+  onSave: (definition: AgentDefinition) => Promise<unknown>,
+) {
+  const storedTools = () => (definition.tools ? normalizeStoredAgentTools(definition.tools) : [...DEFAULT_AGENT_TOOLS])
+  const storedSigningKeys = () => definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
+  const [enabledTools, setEnabledTools] = useState<string[]>(storedTools)
+  const [signingKeys, setSigningKeys] = useState<string[]>(storedSigningKeys)
   const [mcpServers, setMcpServers] = useState<string[]>(definition.mcpServers ?? [])
-  const [showNewIdentityPanel, setShowNewIdentityPanel] = useState(false)
-  const [newIdentityName, setNewIdentityName] = useState('Agent publisher')
 
   useEffect(() => {
-    setEnabledTools(definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools)
-    setSigningKeys(definition.signingKeys || (definition.signingKey ? [definition.signingKey] : []))
+    setEnabledTools(storedTools())
+    setSigningKeys(storedSigningKeys())
     setMcpServers(definition.mcpServers ?? [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [definition])
 
   /** Which of the account's MCP servers this agent may call; the server re-projects their tools. */
@@ -1711,43 +1727,50 @@ function AgentToolsTab({
       }
       await onSave(nextDefinition)
     } catch (error) {
-      setEnabledTools(definition.tools ? normalizeStoredAgentTools(definition.tools) : defaultTools)
-      setSigningKeys(definition.signingKeys || (definition.signingKey ? [definition.signingKey] : []))
+      setEnabledTools(storedTools())
+      setSigningKeys(storedSigningKeys())
       toast.error(error instanceof Error ? error.message : 'Could not update agent tools')
     }
   }
 
-  async function handleCreateIdentity() {
-    try {
-      const label = newIdentityName.trim()
-      if (!label) throw new Error('Account name is required')
-      const response = await onCreateIdentity(label)
-      if (
-        response &&
-        typeof response === 'object' &&
-        '_' in response &&
-        response._ === 'CreateSigningIdentityResponse'
-      ) {
-        const identityName = (response as unknown as {identity: SigningIdentity}).identity.name
-        await saveTools(enabledTools, Array.from(new Set([...signingKeys, identityName])))
-      }
-      setNewIdentityName('Agent publisher')
-      setShowNewIdentityPanel(false)
-      toast.success('Agent account created')
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not create agent account')
-    }
-  }
+  return {enabledTools, signingKeys, mcpServers, saveTools, saveMcpServers}
+}
 
+/** Settings > Permissions: the grant toggles and the authored tools. */
+function AgentPermissionsPage({
+  serverUrl,
+  accountUid,
+  agentId,
+  definition,
+  identities,
+  webCapabilities,
+  onSave,
+  saving,
+  readOnly = false,
+  onOpenIdentities,
+}: {
+  serverUrl: string | undefined
+  accountUid: string | null
+  agentId: string
+  definition: AgentDefinition
+  identities: SigningIdentity[]
+  webCapabilities: AgentServerWebCapabilities | undefined
+  onSave: (definition: AgentDefinition) => Promise<unknown>
+  saving: boolean
+  readOnly?: boolean
+  onOpenIdentities: () => void
+}) {
+  const toolInfoDialog = useAppDialog(ToolInfoDialog)
+  const authoredToolDialog = useAppDialog(AuthoredToolDialog, {className: 'w-full max-w-3xl'})
+  const deleteAuthoredToolDialog = useAppDialog(DeleteAuthoredToolDialog, {isAlert: true})
+  const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
+  const agentTools = useAgentTools(serverUrl, accountUid, agentId)
+  const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda')
+  const {enabledTools, signingKeys, saveTools} = useAgentDefinitionPatch(definition, onSave)
   const grantedIdentities = identities.filter((identity) => signingKeys.includes(identity.name))
-  const ungrantedIdentities = identities.filter((identity) => !signingKeys.includes(identity.name))
 
   return (
-    <section className="flex min-h-0 max-w-3xl flex-1 flex-col gap-4 overflow-y-auto pr-1">
-      <div>
-        <SizableText weight="bold">Tools</SizableText>
-      </div>
-
+    <section className="flex max-w-3xl flex-col gap-4">
       <div className="grid gap-2">
         {AGENT_TOOL_OPTIONS.map((group) => {
           const availability = group.names.map((name) => getToolAvailability(name, webCapabilities))
@@ -1824,110 +1847,20 @@ function AgentToolsTab({
                 </SizableText>
               ) : null}
               {isPublishGroup && checked ? (
-                <div className="border-border/60 flex flex-col gap-2 border-t pt-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <KeyRound className="text-muted-foreground size-4 shrink-0" />
-                    <SizableText size="sm" weight="bold" className="shrink-0">
-                      Author as:
-                    </SizableText>
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 pl-1">
-                      {grantedIdentities.map((identity) => {
-                        const displayName = identity.label || identity.accountId || identity.name
-                        return (
-                          <div key={identity.id} className="group/identity flex min-w-0 items-center gap-1.5">
-                            <AuthorIdentityChip
-                              identity={identity}
-                              displayName={displayName}
-                              canEdit={canManageIdentities}
-                              onEdit={() =>
-                                editAccountDialog.open({serverUrl, selectedAccountId: accountUid, identity})
-                              }
-                            />
-                            {canManageIdentities ? (
-                              <Button
-                                variant="ghost"
-                                size="iconSm"
-                                className="text-muted-foreground hover:text-destructive opacity-0 group-hover/identity:opacity-100"
-                                aria-label={`Remove ${displayName}`}
-                                disabled={saving || identitiesLoading}
-                                onClick={() =>
-                                  void saveTools(
-                                    enabledTools,
-                                    signingKeys.filter((name) => name !== identity.name),
-                                  )
-                                }
-                              >
-                                <X className="size-3.5" />
-                              </Button>
-                            ) : null}
-                          </div>
-                        )
-                      })}
-                      {grantedIdentities.length === 0 ? (
-                        <SizableText size="sm" color="muted">
-                          None
-                        </SizableText>
-                      ) : null}
-                    </div>
-                    {canManageIdentities ? (
-                      <div className="flex shrink-0 items-center gap-1">
-                        {ungrantedIdentities.length > 0 ? (
-                          <OptionsDropdown
-                            ariaLabel="Grant a signing identity"
-                            button={
-                              <Button variant="outline" size="xs" disabled={saving || identitiesLoading}>
-                                Grant
-                              </Button>
-                            }
-                            menuItems={ungrantedIdentities.map((identity) => ({
-                              key: identity.id,
-                              label: identity.label || identity.accountId || identity.name,
-                              icon: identity.accountId ? (
-                                <SigningIdentityIcon identity={identity} name={identity.label} size={20} />
-                              ) : (
-                                <KeyRound className="size-4" />
-                              ),
-                              onClick: () =>
-                                void saveTools(enabledTools, Array.from(new Set([...signingKeys, identity.name]))),
-                            }))}
-                          />
-                        ) : null}
-                        {!showNewIdentityPanel && identities.length > 0 ? (
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => setShowNewIdentityPanel(true)}
-                            disabled={saving}
-                          >
-                            <Plus className="size-3.5" />
-                            New Account
-                          </Button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  {canManageIdentities && !identitiesLoading && identities.length === 0 ? (
-                    <div className="border-border bg-background flex flex-col gap-3 rounded-lg border border-dashed p-3">
-                      <SizableText size="sm" color="muted">
-                        No agent accounts are available on this server yet. Create a new server-side HM account key,
-                        then enable it for this agent.
-                      </SizableText>
-                      <NewAgentAccountPanel
-                        name={newIdentityName}
-                        onNameChange={setNewIdentityName}
-                        onCreate={() => void handleCreateIdentity()}
-                        disabled={saving}
-                      />
-                    </div>
-                  ) : canManageIdentities && showNewIdentityPanel ? (
-                    <NewAgentAccountPanel
-                      name={newIdentityName}
-                      onNameChange={setNewIdentityName}
-                      onCreate={() => void handleCreateIdentity()}
-                      onCancel={() => setShowNewIdentityPanel(false)}
-                      disabled={saving}
-                    />
-                  ) : null}
+                // The identities themselves are managed on their own settings page.
+                <div className="border-border/60 flex min-w-0 items-center gap-2 border-t pt-3">
+                  <KeyRound className="text-muted-foreground size-4 shrink-0" />
+                  <SizableText size="sm" color="muted" className="min-w-0 flex-1 truncate">
+                    {grantedIdentities.length
+                      ? `Authors as ${grantedIdentities
+                          .map((identity) => identity.label || identity.accountId || identity.name)
+                          .join(', ')}`
+                      : 'No authorship identity granted yet'}
+                  </SizableText>
+                  <Button variant="outline" size="xs" className="shrink-0" onClick={onOpenIdentities}>
+                    Authorship identities
+                    <ArrowRight className="size-3.5" />
+                  </Button>
                 </div>
               ) : null}
             </div>
@@ -2009,6 +1942,209 @@ function AgentToolsTab({
         </div>
       </div>
 
+      {toolInfoDialog.content}
+      {authoredToolDialog.content}
+      {deleteAuthoredToolDialog.content}
+      {enableWhpDialog.content}
+
+      {saving ? (
+        <SizableText size="xs" color="muted">
+          Saving changes…
+        </SizableText>
+      ) : null}
+    </section>
+  )
+}
+
+/** Settings > Authorship identities: the signing identities the agent may publish as. Owners grant,
+ * remove and create them; writers only see the list. */
+function AgentIdentitiesPage({
+  serverUrl,
+  accountUid,
+  definition,
+  identities,
+  identitiesLoading,
+  onSave,
+  onCreateIdentity,
+  saving,
+  canManageIdentities = false,
+  onOpenPermissions,
+}: {
+  serverUrl: string | undefined
+  accountUid: string | null
+  definition: AgentDefinition
+  identities: SigningIdentity[]
+  identitiesLoading: boolean
+  onSave: (definition: AgentDefinition) => Promise<unknown>
+  onCreateIdentity: (label: string) => Promise<unknown>
+  saving: boolean
+  /** Owner-only: granting/removing signing accounts and creating new ones. Writers can toggle
+   * tools but must never see or manage the owner's identity list. */
+  canManageIdentities?: boolean
+  onOpenPermissions: () => void
+}) {
+  const editAccountDialog = useAppDialog(EditAgentAccountDialog)
+  const {enabledTools, signingKeys, saveTools} = useAgentDefinitionPatch(definition, onSave)
+  const [showNewIdentityPanel, setShowNewIdentityPanel] = useState(false)
+  const [newIdentityName, setNewIdentityName] = useState('Agent publisher')
+  const publishEnabled = enabledTools.includes(AGENT_PUBLISH_GRANT)
+
+  async function handleCreateIdentity() {
+    try {
+      const label = newIdentityName.trim()
+      if (!label) throw new Error('Account name is required')
+      const response = await onCreateIdentity(label)
+      if (
+        response &&
+        typeof response === 'object' &&
+        '_' in response &&
+        response._ === 'CreateSigningIdentityResponse'
+      ) {
+        const identityName = (response as unknown as {identity: SigningIdentity}).identity.name
+        await saveTools(enabledTools, Array.from(new Set([...signingKeys, identityName])))
+      }
+      setNewIdentityName('Agent publisher')
+      setShowNewIdentityPanel(false)
+      toast.success('Agent account created')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not create agent account')
+    }
+  }
+
+  const grantedIdentities = identities.filter((identity) => signingKeys.includes(identity.name))
+  const ungrantedIdentities = identities.filter((identity) => !signingKeys.includes(identity.name))
+
+  return (
+    <section className="flex max-w-3xl flex-col gap-4">
+      <SizableText size="sm" color="muted">
+        The accounts this agent signs and publishes as. Anything it publishes appears under these names.
+      </SizableText>
+      {!publishEnabled ? (
+        <div className="border-border bg-muted/40 flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+          <SizableText size="sm" color="muted" className="min-w-0">
+            Publishing is off for this agent, so these identities are not used yet.
+          </SizableText>
+          <Button variant="outline" size="xs" className="shrink-0" onClick={onOpenPermissions}>
+            Permissions
+            <ArrowRight className="size-3.5" />
+          </Button>
+        </div>
+      ) : null}
+      <div className="grid gap-2">
+        {grantedIdentities.map((identity) => {
+          const displayName = identity.label || identity.accountId || identity.name
+          return (
+            <div
+              key={identity.id}
+              className="group/identity border-border bg-card flex items-center gap-3 rounded-xl border px-4 py-3"
+            >
+              <div className="min-w-0 flex-1">
+                <AuthorIdentityChip
+                  identity={identity}
+                  displayName={displayName}
+                  canEdit={canManageIdentities}
+                  onEdit={() => editAccountDialog.open({serverUrl, selectedAccountId: accountUid, identity})}
+                />
+              </div>
+              {canManageIdentities ? (
+                <Button
+                  variant="ghost"
+                  size="iconSm"
+                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover/identity:opacity-100 max-sm:opacity-100"
+                  aria-label={`Remove ${displayName}`}
+                  disabled={saving || identitiesLoading}
+                  onClick={() =>
+                    void saveTools(
+                      enabledTools,
+                      signingKeys.filter((name) => name !== identity.name),
+                    )
+                  }
+                >
+                  <X className="size-3.5" />
+                </Button>
+              ) : null}
+            </div>
+          )
+        })}
+        {grantedIdentities.length === 0 && !identitiesLoading ? (
+          <SizableText size="sm" color="muted" className="px-1">
+            {identities.length === 0 && canManageIdentities
+              ? 'No agent accounts are available on this server yet. Create a new server-side HM account key, then enable it for this agent.'
+              : 'No identity granted yet.'}
+          </SizableText>
+        ) : null}
+      </div>
+      {canManageIdentities ? (
+        <div className="flex flex-wrap items-center gap-2 px-1">
+          {ungrantedIdentities.length > 0 ? (
+            <OptionsDropdown
+              ariaLabel="Grant a signing identity"
+              button={
+                <Button variant="outline" size="sm" disabled={saving || identitiesLoading}>
+                  <KeyRound className="size-4" />
+                  Grant
+                </Button>
+              }
+              menuItems={ungrantedIdentities.map((identity) => ({
+                key: identity.id,
+                label: identity.label || identity.accountId || identity.name,
+                icon: identity.accountId ? (
+                  <SigningIdentityIcon identity={identity} name={identity.label} size={20} />
+                ) : (
+                  <KeyRound className="size-4" />
+                ),
+                onClick: () => void saveTools(enabledTools, Array.from(new Set([...signingKeys, identity.name]))),
+              }))}
+            />
+          ) : null}
+          {!showNewIdentityPanel && (identities.length > 0 || identitiesLoading) ? (
+            <Button variant="ghost" size="sm" onClick={() => setShowNewIdentityPanel(true)} disabled={saving}>
+              <Plus className="size-4" />
+              New Account
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      {canManageIdentities && (showNewIdentityPanel || (!identitiesLoading && identities.length === 0)) ? (
+        <NewAgentAccountPanel
+          name={newIdentityName}
+          onNameChange={setNewIdentityName}
+          onCreate={() => void handleCreateIdentity()}
+          onCancel={identities.length > 0 ? () => setShowNewIdentityPanel(false) : undefined}
+          disabled={saving}
+        />
+      ) : null}
+
+      {editAccountDialog.content}
+
+      {saving ? (
+        <SizableText size="xs" color="muted">
+          Saving changes…
+        </SizableText>
+      ) : null}
+    </section>
+  )
+}
+
+/** Settings > MCP servers: which of the account's MCP servers this agent may call. */
+function AgentMcpPage({
+  serverUrl,
+  accountUid,
+  definition,
+  onSave,
+  saving,
+  readOnly = false,
+}: {
+  serverUrl: string | undefined
+  accountUid: string | null
+  definition: AgentDefinition
+  onSave: (definition: AgentDefinition) => Promise<unknown>
+  saving: boolean
+  readOnly?: boolean
+}) {
+  const {mcpServers, saveMcpServers} = useAgentDefinitionPatch(definition, onSave)
+  return (
+    <section className="flex max-w-3xl flex-col gap-4">
       <AgentMcpServersSection
         serverUrl={serverUrl}
         accountUid={accountUid}
@@ -2020,20 +2156,46 @@ function AgentToolsTab({
         }
         readOnly={readOnly}
         saving={saving}
+        showTitle={false}
       />
-
-      {toolInfoDialog.content}
-      {authoredToolDialog.content}
-      {deleteAuthoredToolDialog.content}
-      {enableWhpDialog.content}
-      {editAccountDialog.content}
-
       {saving ? (
         <SizableText size="xs" color="muted">
           Saving changes…
         </SizableText>
       ) : null}
     </section>
+  )
+}
+
+/** One row on the Settings tab that opens a settings page. */
+function AgentSettingsPageRow({
+  title,
+  description,
+  icon,
+  actionLabel,
+  onOpen,
+}: {
+  title: string
+  description: string
+  icon: ReactNode
+  actionLabel: string
+  onOpen: () => void
+}) {
+  return (
+    <div className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
+      <div className="min-w-0">
+        <SizableText size="sm" weight="bold" className="block">
+          {title}
+        </SizableText>
+        <SizableText size="xs" color="muted" className="block truncate">
+          {description}
+        </SizableText>
+      </div>
+      <Button variant="outline" size="sm" className="shrink-0" onClick={onOpen}>
+        {icon}
+        {actionLabel}
+      </Button>
+    </div>
   )
 }
 

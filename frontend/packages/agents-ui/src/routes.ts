@@ -2,8 +2,19 @@ import type {NavRoute} from '@shm/shared/routes'
 import {routeToHref} from '@shm/shared/routing'
 import {agentsRouteFromUrl} from '@shm/shared/utils/agents-routing'
 
-/** One tab of the agent page. */
-export type SeedAgentTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'collaborators' | 'settings'
+/** One tab of the agent page, or one of the pages under Settings (`prompt`, `permissions`,
+ * `identities`, `mcp`). `tools` is the old name of the permissions page. */
+export type SeedAgentTab =
+  | 'sessions'
+  | 'triggers'
+  | 'memory'
+  | 'tools'
+  | 'prompt'
+  | 'permissions'
+  | 'identities'
+  | 'mcp'
+  | 'collaborators'
+  | 'settings'
 
 /** A place in the agents UI. Mirrors Seed's agent NavRoutes, so links are interchangeable with the apps. */
 export type SeedAgentsRoute =
