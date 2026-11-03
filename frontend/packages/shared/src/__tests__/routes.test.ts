@@ -49,7 +49,7 @@ describe('expanded document panels', () => {
   })
 
   test('preserves the block selected in Connections', () => {
-    const filterEventType = ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']
+    const filterEventType = ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link']
     const blockId = {...id, blockRef: 'block123'}
     expect(getExpandedDocumentPanel({key: 'activity', id: blockId, filterEventType})).toEqual({
       title: 'Connections',
