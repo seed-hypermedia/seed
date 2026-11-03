@@ -176,6 +176,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as nodeCrypto from 'node:crypto'
 import {stmt} from '@/statements'
+import {log} from '@/log'
 
 const MAX_NAME_BYTES = 256
 /** How long a resolved system prompt (which may embed fetched remote docs) is served from cache. */
@@ -3156,8 +3157,30 @@ export class Service {
       excludeTriggered,
     )
     const referencedAgentIds = new Set(page.sessions.map((session) => session.agentId))
-    const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
+    const agents = this.#listAgentsById(accountId, [...referencedAgentIds])
     return {_: 'ListSessionsResponse', agents, ...page}
+  }
+
+  /**
+   * The agents among `agentIds` the account owns or collaborates on, newest-updated first: the same
+   * visibility as {@link #listAgents}, fetched by primary key. ListSessions used to list the whole
+   * account and filter in memory on every page, which on production meant the account's full
+   * ListAgents cost (with its per-agent live-run check) for every session list refresh.
+   */
+  #listAgentsById(accountId: string, agentIds: string[]): api.AgentInfo[] {
+    if (agentIds.length === 0) return []
+    const rows = stmt<AgentRow, [string, string, string, string]>(
+      this.#db,
+      `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.public_read, a.public_chat, a.created_at, a.updated_at,
+                ${agentActivityColumns('a')},
+                CASE WHEN a.account_id = ? THEN 'owner' ELSE c.role END AS access_role
+         FROM agents a
+         LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ? AND c.status = 'accepted'
+         WHERE a.id IN (SELECT value FROM json_each(?))
+           AND (a.account_id = ? OR c.account_id IS NOT NULL)
+         ORDER BY a.updated_at DESC`,
+    ).all(accountId, accountId, JSON.stringify(agentIds), accountId)
+    return rows.map((row) => agentRowToInfo(row, row.access_role))
   }
 
   /** One page of {@link #listSessions} without the agent lookup, for callers that only need rows. */
@@ -10023,32 +10046,40 @@ export class Service {
          ORDER BY created_at ASC`,
     ).all(accountId)
     const now = Date.now()
+    const triggers = rows
+      .map((row) => agentTriggerRowToInfo(row))
+      .filter((trigger) => trigger.source.type !== 'schedule' && trigger.source.type !== 'webhook')
+    // One write per activity, not one autocommit (and fsync) per trigger per activity: with a few
+    // dozen triggers and a busy feed the per-trigger writes were a steady stream of tiny
+    // transactions on the server's only thread (2026-11-03).
+    if (triggers.length > 0) {
+      stmt(
+        this.#db,
+        `UPDATE agent_triggers SET last_checked_at = ? WHERE account_id = ? AND id IN (SELECT value FROM json_each(?))`,
+      ).run([now, accountId, JSON.stringify(triggers.map((trigger) => trigger.id))])
+    }
     let checked = 0
     let matched = 0
     let fired = 0
     let skipped = 0
     let errors = 0
-    for (const row of rows) {
-      const trigger = agentTriggerRowToInfo(row)
-      if (trigger.source.type === 'schedule' || trigger.source.type === 'webhook') continue
+    for (const trigger of triggers) {
       checked += 1
-      stmt(this.#db, `UPDATE agent_triggers SET last_checked_at = ? WHERE account_id = ? AND id = ?`).run([
-        now,
-        accountId,
-        trigger.id,
-      ])
       const matchedConditions = protocol
         .activityConditions(trigger.source, trigger.id)
         .filter(({source}) => activityTriggers.activityMatchesTriggerSource(source, event))
       const matches = matchedConditions.length > 0
-      console.log('[Agents Trigger] Checked activity against trigger', {
-        accountId,
-        triggerId: trigger.id,
-        triggerName: trigger.name,
-        source: trigger.source,
-        activity: activityTriggers.activityDebugInfo(event),
-        matches,
-      })
+      // Per trigger per activity: thousands of multi-line dumps an hour on production. Debug only.
+      if (log.debugEnabled) {
+        log.debug('[Agents Trigger] Checked activity against trigger', {
+          accountId,
+          triggerId: trigger.id,
+          triggerName: trigger.name,
+          source: trigger.source,
+          activity: activityTriggers.activityDebugInfo(event),
+          matches,
+        })
+      }
       if (!matches) continue
       matched += 1
       const firingId = crypto.randomUUID()
@@ -11079,13 +11110,16 @@ function agentRowActivity(row: AgentRow): api.AgentActivity | undefined {
 }
 
 /** Selects the activity columns plus a live-run flag for the agent row aliased `alias`. */
-// `busy` pins `runs_dispatch`: its stat1 row says a status matches thousands of runs (the average
-// over mostly `succeeded`), so the planner scanned the whole runs table for every agent instead —
-// 80 ms per agent on production, paid by every ListAgents, GetAgent and ListSessions (2026-09-28).
-// Live statuses match a handful of rows, so the pinned lookup is microseconds.
-function agentActivityColumns(alias: string): string {
+// `busy` is answered by the covering index `runs_by_agent_status (agent_id, status)`: an equality
+// on the agent and a handful of live statuses, read from the index alone. It used to pin
+// `runs_dispatch (status, queue, not_before, created_at)`, which has no agent column, so every
+// non-busy agent re-walked every live run row — 120–200 ms per ListAgents on the production file,
+// paid again by GetAgent, by ListSessions labelling its rows and by every session-event emit
+// (`#agentActivity`), which starved the event loop (2026-11-03). Do not pin an index here again:
+// `list-perf.test.ts` asserts the plan and the budget.
+export function agentActivityColumns(alias: string): string {
   return `${alias}.activity_at, ${alias}.activity_kind, ${alias}.message_at, ${alias}.message_from, ${alias}.activity_session_id,
-          (EXISTS (SELECT 1 FROM runs live_run INDEXED BY runs_dispatch WHERE live_run.agent_id = ${alias}.id
+          (EXISTS (SELECT 1 FROM runs live_run WHERE live_run.agent_id = ${alias}.id
                    AND live_run.status IN ('queued', 'claimed', 'running', 'waiting'))) AS busy`
 }
 

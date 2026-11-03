@@ -14,6 +14,12 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // `busy` (agentActivityColumns) asks "does this agent have a live run?" for every agent row that
+  // ListAgents, GetAgent, ListSessions and every session-event emit touch. The only run index that
+  // mentioned status was `runs_dispatch (status, queue, not_before, created_at)`, which has no agent
+  // column, so each non-busy agent re-walked every live run (120–200 ms per ListAgents on the
+  // production file, 2026-11-03). This covering index answers the EXISTS from the index alone.
+  `CREATE INDEX runs_by_agent_status ON runs (agent_id, status);`,
   // Effect outbox: the intent and receipt of every side effect a tool call performs (publish,
   // memory write, sandbox run, MCP call, delegation). Inserted before the effect begins and
   // settled when it ends, so a turn resumed after a process death knows whether a cut-off call

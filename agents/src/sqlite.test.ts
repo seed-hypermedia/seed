@@ -33,6 +33,7 @@ describe('sqlite', () => {
       expect(columnExists(db, 'runs', 'continued_from_run_id')).toBe(true)
       expect(tableExists(db, 'run_event_waits')).toBe(true)
       expect(columnExists(db, 'agent_triggers', 'continuation_cbor')).toBe(true)
+      expect(indexExists(db, 'runs_by_agent_status')).toBe(true)
     } finally {
       sqlite.closeDatabase(db)
     }
@@ -118,13 +119,14 @@ describe('sqlite', () => {
       expect(columnExists(db, 'runs', 'continued_from_run_id')).toBe(true)
       expect(tableExists(db, 'run_event_waits')).toBe(true)
       expect(columnExists(db, 'agent_triggers', 'continuation_cbor')).toBe(true)
+      expect(indexExists(db, 'runs_by_agent_status')).toBe(true)
       expect(getConfigValue(db, sqlite.SCHEMA_MIGRATION_VERSION_KEY)).toBe(String(sqlite.desiredVersion))
     } finally {
       sqlite.closeDatabase(db)
     }
   })
 
-  test('a database four migrations behind links trigger-launched workflow sessions to their firing', () => {
+  test('a database five migrations behind links trigger-launched workflow sessions to their firing', () => {
     // Before this migration a headless (script/tool) trigger's workflow spawned child sessions that
     // nothing tied back to the firing: no parent session, and the firing's session_id stayed null.
     const db = createMemoryDatabase()
@@ -132,7 +134,7 @@ describe('sqlite', () => {
       db.run(sqlite.schema)
       db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
         sqlite.SCHEMA_MIGRATION_VERSION_KEY,
-        String(sqlite.desiredVersion - 4),
+        String(sqlite.desiredVersion - 5),
       ])
       const now = 1_700_000_000_000
       db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES ('acct', ?, ?)`, [now, now])
@@ -204,9 +206,10 @@ describe('sqlite', () => {
   test('a database behind the trigger-claims migration gains its claims and history fields', () => {
     // The array is prepend-only and reversed on apply, so the newest migration must sit at the
     // top: placed lower, a deployed database would replay an older migration (tolerated as
-    // "already exists") and never receive the new column. The claims migration is fifth from the
-    // top (the effect outbox, the durable-entry column, the top-level session indexes and the
-    // firing-session link migration sit above it), so start five versions behind.
+    // "already exists") and never receive the new column. The claims migration is sixth from the
+    // top (the live-runs-by-agent index, the effect outbox, the durable-entry column, the top-level
+    // session indexes and the firing-session link migration sit above it), so start six versions
+    // behind.
     const db = createMemoryDatabase()
     try {
       db.run(
@@ -218,7 +221,7 @@ describe('sqlite', () => {
       expect(columnExists(db, 'agent_triggers', 'merged_into')).toBe(false)
       db.run(`INSERT INTO server_config (key, value) VALUES (?, ?)`, [
         sqlite.SCHEMA_MIGRATION_VERSION_KEY,
-        String(sqlite.desiredVersion - 5),
+        String(sqlite.desiredVersion - 6),
       ])
       const result = sqlite.openWithDatabase(db)
       expect(result.ok).toBe(true)
@@ -375,6 +378,10 @@ function getConfigValue(db: Database, key: string): string | null {
 
 function tableExists(db: Database, name: string): boolean {
   return db.query(`SELECT 1 FROM sqlite_schema WHERE type = 'table' AND name = ? LIMIT 1`).get(name) !== null
+}
+
+function indexExists(db: Database, name: string): boolean {
+  return db.query(`SELECT 1 FROM sqlite_schema WHERE type = 'index' AND name = ? LIMIT 1`).get(name) !== null
 }
 
 function columnExists(db: Database, table: string, column: string): boolean {
