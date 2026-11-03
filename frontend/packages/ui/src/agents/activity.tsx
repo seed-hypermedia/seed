@@ -60,7 +60,7 @@ export type AgentActivityEntry = {serverUrl: string; agent: AgentInfo}
 /**
  * The unread tone of one agent on this device — red for the agent's own reply, blue for a message
  * from a person or a trigger — or null when its latest message has been seen. Lists use this to
- * point at the agent (and, through `activity.sessionId`, the session) that keeps the dot lit.
+ * point at the agent and, through `activity.sessionId`, its session.
  */
 export function agentUnreadTone(
   activity: AgentActivity | undefined,
@@ -159,7 +159,7 @@ export function summarizeAgentActivity(
 /**
  * One session's own indicator, as a session list shows it: its unread tone when its latest message
  * is unseen on this device, amber while the agent is streaming in it, otherwise nothing (the plain
- * status dot). `agentActivity` — the agent's rollup — names the tool when the busy session is the
+ * status). `agentActivity` — the agent's rollup — names the tool when the busy session is the
  * one it points at.
  */
 export function sessionRowActivity(

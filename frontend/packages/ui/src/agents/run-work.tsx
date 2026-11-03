@@ -9,7 +9,6 @@
 import {type RunInfo, type RunJournalEntryInfo, type RunPlan, type RunStatus} from './client'
 import {useServerNow} from './server-clock'
 import {useAgentRunTreeSubscription, useRunTree, type AgentRunTreeLiveState} from './models'
-import {SessionStatusDot} from './session-children'
 import {useOpenAgentRun} from './open-session-context'
 import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popover'
 import type {ChatToolPart} from './chat-parts'
@@ -104,13 +103,6 @@ export function RunTimerProgress({
 /** A run's title. Mandatory at creation, so the display layer never invents a label. */
 export function runTitle(run: RunInfo): string {
   return run.title
-}
-
-/** Session status a run maps onto, so child affordances reuse the one status dot the lists use. */
-export function runStatusAsSessionStatus(status: RunStatus): 'idle' | 'streaming' | 'error' {
-  if (status === 'failed' || status === 'canceled') return 'error'
-  if (isTerminalRun(status)) return 'idle'
-  return 'streaming'
 }
 
 /**
@@ -285,11 +277,8 @@ function ChildRunPresence({
   onOpenSession?: () => void
 }) {
   const KindIcon = timer ? Clock3 : run.kind === 'workflow' ? Workflow : Bot
-  const status = runStatusAsSessionStatus(run.status)
   return (
     <>
-      {/* A stale "still running" child under a finished parent gets the quiet dot, never the pulse. */}
-      <SessionStatusDot status={status === 'streaming' && !live ? 'idle' : status} className="size-2 flex-none" />
       <KindIcon className="text-muted-foreground size-3 flex-none" />
       {timer ? <TimerProgress run={run} timer={timer} /> : null}
       {live && activityDetail ? (
@@ -449,8 +438,8 @@ function CancelRunButton({run, onCancel, pending}: {run: RunInfo; onCancel: () =
 
 /**
  * One plan step, integrated with the child working it. The step IS the interactive row: when a
- * single child is attached, clicking the row opens its run page, its status dot and live
- * activity ride along, and the child's cancel sits at the row's edge — one list, never a step row
+ * single child is attached, clicking the row opens its run page. Live activity appears alongside
+ * the step, and the child's cancel sits at the row's edge — one list, never a step row
  * with a duplicate child row stacked beneath it.
  *
  * With no child (either a plain step, or a batch step whose children render as peers below) the

@@ -97,7 +97,7 @@ describe('agents panel entry points in the site header', () => {
     expect(container.textContent).not.toContain('Agents')
   })
 
-  it('shows the activity dot on both entry points, colored by tone, with the label for screen readers', () => {
+  it('keeps activity in the header tooltip without showing dots on either entry point', () => {
     mockState.envServerUrl = 'http://localhost:3051'
     render({
       isOpen: false,
@@ -112,10 +112,9 @@ describe('agents panel entry points in the site header', () => {
         label: 'Researcher replied',
       },
     })
-    const dots = container.querySelectorAll('[data-testid="agent-activity-dot"]')
-    expect(dots).toHaveLength(2)
-    expect(dots[0]!.getAttribute('data-tone')).toBe('agent')
-    expect(container.textContent).toContain('Researcher replied')
+    expect(container.querySelectorAll('[data-testid="agent-activity-dot"]')).toHaveLength(0)
+    expect(container.querySelector('button[aria-label="Agents"]')).not.toBeNull()
+    expect(container.textContent).toContain('Agents')
   })
 
   it('toggles the panel, reflects its open state, and lets the mobile menu close itself', () => {

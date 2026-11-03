@@ -160,11 +160,6 @@ function cleanupRendered(root: Root, container: HTMLDivElement) {
   container.remove()
 }
 
-/** Status dots are the only fully-rounded 2.5-size spans in the server rows. */
-function statusDots(container: HTMLElement) {
-  return Array.from(container.querySelectorAll('span.rounded-full.size-2\\.5, span.size-2\\.5.rounded-full'))
-}
-
 describe('agents list — local server presentation', () => {
   beforeEach(() => {
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
@@ -274,18 +269,17 @@ describe('agents list — local server presentation', () => {
     cleanupRendered(root, container)
   })
 
-  it('shows no status dot for a healthy local server, but keeps one for remotes', () => {
+  it('shows server names without status dots', () => {
     const {container, root} = renderList()
 
-    const dots = statusDots(container)
-    expect(dots).toHaveLength(1)
-    expect(dots[0]!.className).toContain('bg-green-500')
+    expect(container.querySelectorAll('span[aria-label="Online"]')).toHaveLength(0)
+    expect(container.textContent).toContain('agentic.seed.hyper.media')
 
     cleanupRendered(root, container)
   })
 
   it('still surfaces a failing local server', () => {
-    // Suppressing the "online" dot must not hide a real failure.
+    // Removing the status dot must not hide a real failure.
     mockState.healths = [
       {isLoading: false, isError: true},
       {isLoading: false, isError: false, data: {uptime: 60}},
@@ -293,10 +287,8 @@ describe('agents list — local server presentation', () => {
 
     const {container, root} = renderList()
 
-    const dots = statusDots(container)
-    expect(dots).toHaveLength(2)
-    // Unreachable is a warning, not an error: the server may simply be starting up.
-    expect(dots.some((dot) => dot.className.includes('bg-amber-500'))).toBe(true)
+    expect(container.textContent).toContain('Unreachable')
+    expect(container.querySelectorAll('span[aria-label="Unreachable"]')).toHaveLength(0)
 
     cleanupRendered(root, container)
   })
@@ -307,7 +299,7 @@ describe('agents list — local server presentation', () => {
     const {container, root} = renderList()
 
     expect(container.textContent).not.toContain('Local Agents')
-    expect(statusDots(container)).toHaveLength(2)
+    expect(container.querySelectorAll('span[aria-label="Online"]')).toHaveLength(0)
 
     cleanupRendered(root, container)
   })

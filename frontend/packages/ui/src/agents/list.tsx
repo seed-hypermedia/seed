@@ -13,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from '@shm/ui/components/dropdown-menu'
 import {Container, PanelContainer} from '@shm/ui/container'
-import {NOTICE_TONE_DOT_CLASS} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -175,9 +174,6 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                     const health = healthQueries[index]
                     const status = health?.isLoading ? 'Checking…' : health?.isError ? 'Unreachable' : 'Online'
                     const isLocal = isLocalAgentServer(serverUrl, localServerUrl.data)
-                    // The local server is part of the app, so an "online" indicator on it is noise. A
-                    // failure still shows, because that is a real problem the user needs to see.
-                    const showStatusDot = !isLocal || health?.isError
                     return (
                       <DropdownMenuSub key={serverUrl}>
                         <DropdownMenuSubTrigger>
@@ -185,18 +181,7 @@ function AgentsListContent({selectedAccountId}: {selectedAccountId: string}) {
                             <SizableText size="sm" className={isLocal ? 'truncate font-medium' : 'truncate font-mono'}>
                               {isLocal ? LOCAL_AGENT_SERVER_LABEL : hostnameStripProtocol(serverUrl)}
                             </SizableText>
-                            {showStatusDot ? (
-                              <span
-                                aria-label={status}
-                                className={`inline-block size-2.5 flex-none rounded-full align-middle ${
-                                  health?.isLoading
-                                    ? 'bg-muted-foreground/40'
-                                    : health?.isError
-                                      ? NOTICE_TONE_DOT_CLASS.warning
-                                      : 'bg-green-500'
-                                } `}
-                              />
-                            ) : null}
+                            {health?.isError ? <span className="text-destructive text-xs">{status}</span> : null}
                           </span>
                         </DropdownMenuSubTrigger>
                         <DropdownMenuSubContent className="min-w-48">

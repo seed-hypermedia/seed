@@ -19,7 +19,7 @@ import {StyleSheet, View} from 'react-native'
 import {radius, theme} from '../../theme'
 import {formatDuration, formatTokens} from '../format'
 import {isRunLive, runStatusLabel, runStatusTone} from '../session-status'
-import {Badge, Button, Card, Label, StatusDot} from '../ui/primitives'
+import {Badge, Button, Card, Label} from '../ui/primitives'
 
 const STEP_GLYPH: Record<RunPlanStep['status'], string> = {
   pending: '○',
@@ -54,7 +54,6 @@ export function RunCard({
   return (
     <Card style={styles.card}>
       <View style={styles.header}>
-        <StatusDot tone={runStatusTone(run.status)} />
         <Label size="sm" weight="600" numberOfLines={1} style={styles.flex}>
           {run.title}
         </Label>
@@ -181,7 +180,6 @@ function ChildRow({
       style={[styles.childRow, indented && styles.childIndented]}
       onPress={onPress ? () => onPress(child) : undefined}
     >
-      <StatusDot tone={runStatusTone(child.status)} size={6} />
       <Label size="xs" numberOfLines={1} style={styles.flex}>
         {child.title}
       </Label>

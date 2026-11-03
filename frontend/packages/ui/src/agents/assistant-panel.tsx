@@ -48,7 +48,6 @@ import {
   useMarkAgentSessionRead,
   type AgentRowActivity,
 } from './activity'
-import {AgentActivityMark} from './activity-dot'
 import {CreateAgentDialog} from './dialogs'
 import {useSelectedAccountId} from './account'
 import {useNavigate} from './navigation'
@@ -708,10 +707,6 @@ function AssistantAgentPicker({
   onOpenAgentsPage: () => void
 }) {
   const [open, setOpen] = useState(false)
-  // The closed trigger carries what the rows would show: anything unread first, else a working agent.
-  const triggerTone =
-    Object.values(rowActivities).find((row) => row.unread)?.tone ?? Object.values(rowActivities)[0]?.tone ?? null
-
   const groups = useMemo(() => {
     const byServer = new Map<string, AssistantAgentOption[]>()
     for (const option of agents) {
@@ -730,16 +725,7 @@ function AssistantAgentPicker({
             type="button"
             className="no-window-drag hover:bg-muted flex max-w-full min-w-0 items-center gap-2 rounded px-1.5 py-1"
           >
-            <span className="relative inline-flex shrink-0">
-              <Bot className="text-muted-foreground size-4 shrink-0" />
-              {triggerTone ? (
-                <AgentActivityMark
-                  tone={triggerTone}
-                  className="absolute -top-1 -right-1"
-                  label={triggerTone === 'busy' ? 'An agent is working' : 'Unread messages'}
-                />
-              ) : null}
-            </span>
+            <Bot className="text-muted-foreground size-4 shrink-0" />
             <SizableText size="sm" className="min-w-0 truncate font-medium">
               {activeAgent ? activeAgent.agent.definition.name : pending ? 'Loading…' : 'All agents'}
             </SizableText>
@@ -797,7 +783,6 @@ function AssistantAgentPicker({
                         <span className="min-w-0 flex-1 truncate text-xs font-medium">
                           {option.agent.definition.name}
                         </span>
-                        <AgentActivityMark tone={row?.tone} label={row?.label} />
                       </span>
                       <span className="text-muted-foreground w-full truncate text-[10px]">
                         {row?.short ?? option.agent.definition.model}
