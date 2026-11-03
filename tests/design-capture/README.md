@@ -23,11 +23,13 @@ The manifest records the computed web body font family and resolved rendered fac
 to DejaVu Sans when Inter is unavailable, so pre-Inter baselines do not show the typography macOS users see.
 
 When Desktop is selected, `setupTestEnv` starts the shared fixture daemon on HTTP, gRPC, and P2P ports `58101`, `58102`,
-and `58100`, allowing the renderer origin `http://localhost:5173`. The desktop app skips spawning another daemon and
-seeds its design inventory into the fixture daemon. Its API, agents, and local-server ports are `58104`, `58105`, and
-`58106`. Web and Vault-only runs use a separate disposable fixture daemon on ports `59101`–`59103` and a web fixture on
-port `59100`. The desktop sidebar still subscribes to the default joined site whenever no identity is selected; the app
-has no environment switch to disable that subscription, so network-provided sidebar content can remain nondeterministic.
+and `58100`, allowing the renderer origin `http://localhost:5173`. The runner seeds design fixtures through the shared
+web API and registers the fixture identity with the daemon over gRPC before launch; the app itself uses the omnibar to
+open the fixture HM URL. It skips spawning another daemon. The app API, agents, and local-server ports are `58104`,
+`58105`, and `58106`. Web and Vault-only runs use a separate disposable fixture daemon on ports `59101`–`59103` and a
+web fixture on port `59100`. The desktop sidebar still subscribes to the default joined site whenever no identity is
+selected; the app has no environment switch to disable that subscription, so network-provided sidebar content can remain
+nondeterministic.
 
 ## Surfaces
 

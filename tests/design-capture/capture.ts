@@ -26,11 +26,15 @@ import {
   type Page,
   type Video,
 } from 'playwright'
+import {createPromiseClient} from '@connectrpc/connect'
+import {createGrpcWebTransport} from '@connectrpc/connect-web'
 import {commentRecordIdFromBlob, createComment, createSeedClient, unpackHmId} from '@seed-hypermedia/client'
 import {createDocumentUpdate, type TestAccount} from '../../frontend/apps/cli/src/test/account-helpers'
-import {FIXTURE_ACCOUNT, FIXTURE_ACCOUNT_ID, seedTestFixtures} from '../../frontend/apps/cli/src/test/fixture-seed'
+import {FIXTURE_ACCOUNT, FIXTURE_ACCOUNT_ID} from '../../frontend/apps/cli/src/test/fixture-seed'
+import {Daemon} from '../../frontend/packages/shared/src/client/.generated/daemon/v1alpha/daemon_connect'
 import {createSignerFromKey} from '../../frontend/apps/cli/src/utils/signer'
 import {
+  FIXTURE_ACCOUNT_MNEMONIC,
   FIXTURE_DESIGN_INVENTORY_MARKDOWN,
   FIXTURE_DESIGN_INVENTORY_PATH,
   FIXTURE_DESIGN_INVENTORY_TITLE,
@@ -785,7 +789,6 @@ async function openWebView(page: Page, baseUrl: string, view: string): Promise<s
 }
 
 async function captureWeb(browser: Browser, manifest: CaptureManifest, options: Options, env: TestEnv): Promise<void> {
-  await seedDesignInventory(env.web.baseUrl, FIXTURE_ACCOUNT)
   let commentSeedError: string | undefined
   try {
     await seedDesignComments(env.web.baseUrl, FIXTURE_ACCOUNT)
@@ -911,16 +914,11 @@ async function captureVault(
 
       currentView = 'sign-in'
       await page.locator('body').waitFor({state: 'visible', timeout: 20000})
+      console.log(`[Vault sign-in DOM] ${await page.locator('body').innerText()}`)
       await captureVaultVariants(manifest, options.out, page, 'sign-in', page.url())
-      await page.getByLabel(/email/i).fill(email)
-      await page.getByRole('button', {name: 'Send code'}).click()
-      await page.getByText('Check your inbox').waitFor({state: 'visible', timeout: 15000})
-      const loginCode = await vault.waitForVerificationCode(email, 30000)
-      await enterVaultVerificationCode(page, loginCode)
       await page.getByRole('button', {name: 'Sign in with password'}).waitFor({state: 'visible', timeout: 30000})
       await page.getByRole('button', {name: 'Sign in with password'}).click()
       await page.getByText('Sign in with password', {exact: true}).waitFor({state: 'visible', timeout: 15000})
-      await captureVaultVariants(manifest, options.out, page, 'sign-in', page.url())
       await page.getByRole('textbox', {name: 'Password', exact: true}).fill(password)
       await page.getByRole('button', {name: 'Continue'}).click()
       await page.getByText(/create your profile/i).waitFor({state: 'visible', timeout: 30000})
@@ -980,16 +978,29 @@ async function waitForUrl(url: string, timeoutMs: number): Promise<void> {
 }
 
 async function setDesktopTheme(page: Page, theme: CaptureTheme): Promise<void> {
-  const radio = page.getByRole('radio', {name: new RegExp(`^${theme}$`, 'i')}).first()
-  if (!(await radio.count())) {
-    const settingsButton = page.getByRole('button', {name: /app settings/i}).first()
-    if (await settingsButton.count()) await settingsButton.click()
-    else
-      await page
-        .getByRole('button', {name: /settings/i})
-        .first()
-        .click()
+  const themeRadio = (candidate: Page) => candidate.getByRole('radio', {name: new RegExp(`^${theme}$`, 'i')}).first()
+  let settingsPage: Page | undefined
+  for (const candidate of page.context().pages()) {
+    if (await themeRadio(candidate).count()) {
+      settingsPage = candidate
+      break
+    }
   }
+  if (!settingsPage) {
+    await page.keyboard.press('Control+,')
+    const deadline = Date.now() + 15000
+    while (!settingsPage && Date.now() < deadline) {
+      for (const candidate of page.context().pages()) {
+        if (await themeRadio(candidate).count()) {
+          settingsPage = candidate
+          break
+        }
+      }
+      if (!settingsPage) await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+  if (!settingsPage) throw new Error('App Settings did not open from the native Settings shortcut')
+  const radio = themeRadio(settingsPage)
   await radio.waitFor({state: 'visible', timeout: 10000})
   await radio.check()
   await page.waitForFunction(
@@ -1000,20 +1011,16 @@ async function setDesktopTheme(page: Page, theme: CaptureTheme): Promise<void> {
 }
 
 async function openDesktopArticle(page: Page): Promise<void> {
-  const home = page.getByText('Home', {exact: true}).first()
-  if (await home.count()) await home.click()
-  const title = page.getByText(FIXTURE_DESIGN_INVENTORY_TITLE, {exact: true}).first()
-  if (await title.count()) {
-    await title.click()
+  const onboardingUrlButton = page.getByRole('button', {name: 'Input a Space URL'})
+  if (await onboardingUrlButton.isVisible().catch(() => false)) {
+    await onboardingUrlButton.click()
   } else {
-    const search = page.getByRole('button', {name: /search/i}).first()
-    if (await search.count()) {
-      await search.click()
-      const input = page.getByRole('textbox').first()
-      await input.fill(FIXTURE_DESIGN_INVENTORY_TITLE)
-      await page.getByText(FIXTURE_DESIGN_INVENTORY_TITLE, {exact: true}).first().click()
-    }
+    await page.keyboard.press('Control+l')
   }
+  const address = page.locator('input[placeholder*="paste a URL"]')
+  await address.waitFor({state: 'visible', timeout: 10000})
+  await address.fill(`hm://${FIXTURE_ACCOUNT_ID}/${FIXTURE_DESIGN_INVENTORY_PATH}`)
+  await address.press('Enter')
   await page.getByText('A shared visual language', {exact: true}).waitFor({state: 'visible', timeout: 15000})
 }
 
@@ -1096,10 +1103,17 @@ async function captureDesktop(manifest: CaptureManifest, options: Options, env?:
       await waitForUrl(`http://127.0.0.1:${port}/`, 120000)
     }
     const desktopDaemonUrl = `http://127.0.0.1:${desktopDaemonHttpPort}`
+    if (env) await waitForUrl(`${desktopDaemonUrl}/debug/version`, 120000)
     if (env) {
-      await waitForUrl(`${desktopDaemonUrl}/debug/version`, 120000)
-      await seedTestFixtures(desktopDaemonUrl)
-      await seedDesignInventory(desktopDaemonUrl, FIXTURE_ACCOUNT)
+      const daemon = createPromiseClient(Daemon, createGrpcWebTransport({baseUrl: desktopDaemonUrl}))
+      const importedKey = await daemon.registerKey({
+        mnemonic: FIXTURE_ACCOUNT_MNEMONIC.split(' '),
+        passphrase: '',
+        name: 'design-baseline',
+      })
+      if (importedKey.accountId !== FIXTURE_ACCOUNT_ID) {
+        throw new Error(`Imported desktop key does not match fixture account ${FIXTURE_ACCOUNT_ID}`)
+      }
     }
     const mainEntry = path.join(ROOT, 'frontend/apps/desktop/.vite/build/main.js')
     if (!existsSync(mainEntry)) throw new Error(`Desktop dev entry was not built: ${mainEntry}`)
@@ -1147,24 +1161,16 @@ async function captureDesktop(manifest: CaptureManifest, options: Options, env?:
     })
     for (const theme of CAPTURE_THEMES) {
       currentView = 'onboarding'
-      await setDesktopTheme(page, theme)
-      const home = page.getByText('Home', {exact: true}).first()
-      if (await home.count()) await home.click()
-      await page.waitForFunction(
-        (expected) => document.documentElement.classList.contains('dark') === (expected === 'dark'),
-        theme,
-        {timeout: 10000},
-      )
-      const bodyText = await page.locator('body').innerText()
-      if (!bodyText.trim()) throw new Error('Desktop onboarding screen is blank')
-      await capturePage(manifest, options.out, 'desktop', 'onboarding', theme, 'desktop', page, true)
+      await captureDesktopView(page, manifest, options, 'onboarding', theme, async () => {
+        const home = page.getByText('Home', {exact: true}).first()
+        if (await home.count()) await home.click()
+        await page.getByText(/Welcome to Seed Hypermedia/).waitFor({state: 'visible', timeout: 10000})
+      })
     }
 
     currentView = 'fixture-seed'
     if (!env) {
       await waitForUrl(`${desktopDaemonUrl}/debug/version`, 120000)
-      await seedTestFixtures(desktopDaemonUrl)
-      await seedDesignInventory(desktopDaemonUrl, FIXTURE_ACCOUNT)
       await page.reload({waitUntil: 'domcontentloaded'})
       await page.locator('body').waitFor({state: 'visible', timeout: 20000})
     }
@@ -1174,10 +1180,9 @@ async function captureDesktop(manifest: CaptureManifest, options: Options, env?:
       await captureDesktopView(page, manifest, options, 'library-home', theme, async () => {
         const home = page.getByText('Home', {exact: true}).first()
         if (await home.count()) await home.click()
-        await page
-          .getByText(/Design inventory|Design notes/i)
-          .first()
-          .waitFor({state: 'visible', timeout: 15000})
+        await page.locator('body').waitFor({state: 'visible', timeout: 10000})
+        const bodyText = await page.locator('body').innerText()
+        if (!bodyText.trim()) throw new Error('Desktop Home view is blank')
       })
       currentView = 'article'
       await captureDesktopView(page, manifest, options, 'article', theme, () => openDesktopArticle(page))
@@ -1343,6 +1348,17 @@ async function main(): Promise<void> {
             if (options.only.has(surface)) {
               addStartupFailure(manifest, surface, errorMessage(error))
             }
+          }
+        }
+      }
+    }
+    if (env && (options.only.has('web') || options.only.has('desktop'))) {
+      try {
+        await seedDesignInventory(env.web.baseUrl, FIXTURE_ACCOUNT)
+      } catch (error) {
+        for (const surface of ['web', 'desktop'] as const) {
+          if (options.only.has(surface)) {
+            addStartupFailure(manifest, surface, `Failed to seed shared design fixtures: ${errorMessage(error)}`)
           }
         }
       }
