@@ -1,9 +1,7 @@
-import {invalidateQueries} from '@shm/shared/models/query-client'
 import {Bot, ChevronDown, ChevronUp} from 'lucide-react'
 import {useMemo, useState} from 'react'
 import {Button} from '../button'
 import {SizableText} from '../text'
-import {toast} from '../toast'
 import {useAppDialog} from '../universal-dialog'
 import type {AgentInfo} from './client'
 import {describeAgentServer, useLocalAgentServerUrl} from './models'
@@ -80,17 +78,9 @@ export function AgentMountReminder({
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() =>
-                    dialog.open({
-                      agent,
-                      serverUrl,
-                      accountUid,
-                      onMounted: () => {
-                        toast.success(`Adopted ${agent.definition.name || 'the agent'}`)
-                        invalidateQueries(['agents'])
-                      },
-                    })
-                  }
+                  // Adopting opens the agent's new page (the dialog navigates there), so the
+                  // user lands where the agent now lives.
+                  onClick={() => dialog.open({agent, serverUrl, accountUid})}
                 >
                   Adopt
                 </Button>

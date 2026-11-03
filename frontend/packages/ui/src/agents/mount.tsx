@@ -70,13 +70,7 @@ export function MountAgentDialog({
   input,
   onClose,
 }: {
-  input: {
-    agent: AgentInfo
-    serverUrl: string
-    accountUid: string
-    /** Runs instead of opening the new document, for callers that keep the user where they are. */
-    onMounted?: (to: UnpackedHypermediaId) => void
-  }
+  input: {agent: AgentInfo; serverUrl: string; accountUid: string}
   onClose: () => void
 }) {
   const navigate = useNavigate()
@@ -94,9 +88,7 @@ export function MountAgentDialog({
         })
         invalidateQueries(['agents'])
       }}
-      onSuccess={({to}) =>
-        input.onMounted ? input.onMounted(to) : navigate({key: 'document', id: to, agentView: 'sessions'})
-      }
+      onSuccess={({to}) => navigate({key: 'document', id: to, agentView: 'sessions'})}
     />
   )
 }

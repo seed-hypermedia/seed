@@ -28,8 +28,6 @@ vi.mock('../agents/models', () => ({
 }))
 vi.mock('../agents/navigation', () => ({useNavigate: () => mocks.navigate}))
 vi.mock('../universal-dialog', () => ({useAppDialog: () => ({open: mocks.open, content: null})}))
-vi.mock('../toast', () => ({toast: {success: vi.fn(), error: vi.fn()}}))
-vi.mock('@shm/shared/models/query-client', () => ({invalidateQueries: vi.fn()}))
 
 import {AgentMountReminder} from '../agents/mount-reminder'
 import {unmountedOwnedAgents} from '../agents/mount'
@@ -108,8 +106,6 @@ describe('AgentMountReminder', () => {
         agent: expect.objectContaining({id: 'legacy-1'}),
       }),
     )
-    // Mounting from the panel keeps the user in the panel: no navigation to the new document.
-    expect(mocks.navigate).not.toHaveBeenCalled()
   })
 
   it('folds to a one-line count and back, and reveals a long list on demand', () => {
