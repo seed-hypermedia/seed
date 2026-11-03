@@ -65,3 +65,63 @@ describe('schema parsing compatibility', () => {
     expect(isKnownBlockType('CustomWidget')).toBe(false)
   })
 })
+
+describe('HMPrepareDocumentChangeInputSchema protobuf instances', () => {
+  it('serializes message instances to JSON instead of passing their in-memory shape through', () => {
+    // A protobuf-es Struct instance looks like {fields: {x: {kind: {case, value}}}}
+    // in memory; the CBOR request body is built by walking own properties, so
+    // without this conversion the daemon would store that shape verbatim.
+    const struct = {
+      fields: {query: {kind: {case: 'structValue', value: {fields: {}}}}},
+      toJson: () => ({query: {includes: [{space: 'uid', path: 'projects', mode: 'Children'}]}, style: 'List'}),
+    }
+    const block = {
+      id: 'q1',
+      type: 'Query',
+      attributes: struct,
+      annotations: [],
+      toJson: (options?: {emitDefaultValues?: boolean}) => ({
+        id: 'q1',
+        type: 'Query',
+        text: options?.emitDefaultValues ? '' : undefined,
+        attributes: struct.toJson(),
+        annotations: [],
+      }),
+    }
+    const parsed = HMPrepareDocumentChangeInputSchema.parse({
+      account: 'account',
+      changes: [{op: {case: 'replaceBlock', value: block}}],
+    })
+    expect(parsed.changes[0]!.op).toEqual({
+      case: 'replaceBlock',
+      value: {
+        id: 'q1',
+        type: 'Query',
+        text: '',
+        attributes: {query: {includes: [{space: 'uid', path: 'projects', mode: 'Children'}]}, style: 'List'},
+        annotations: [],
+      },
+    })
+  })
+
+  it('still converts a bare Struct instance in a plain block object', () => {
+    const parsed = HMPrepareDocumentChangeInputSchema.parse({
+      account: 'account',
+      changes: [
+        {
+          op: {
+            case: 'replaceBlock',
+            value: {
+              id: 'h1',
+              type: 'Heading',
+              attributes: {fields: {}, toJson: () => ({childrenType: 'Group'})},
+            },
+          },
+        },
+      ],
+    })
+    expect(parsed.changes[0]!.op.case === 'replaceBlock' && parsed.changes[0]!.op.value.attributes).toEqual({
+      childrenType: 'Group',
+    })
+  })
+})

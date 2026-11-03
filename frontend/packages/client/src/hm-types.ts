@@ -2294,8 +2294,20 @@ export type HMPublishBlobsRequest = z.infer<typeof HMPublishBlobsRequestSchema>
 
 // PrepareDocumentChange - call gRPC PrepareChange, returns unsigned CBOR bytes for client signing
 
-// Accept protobuf Struct instances: z.record rejects non-plain objects in Zod 4.
-const ProtoStructSchema = z.object({}).catchall(z.any())
+// Callers sometimes hand us protobuf-es message instances (a Block built with
+// Block.fromJson, whose attributes are a Struct). The request body is CBOR
+// built by walking own properties, so an instance would travel in its
+// in-memory shape ({fields: {x: {kind: {case, value}}}}) and the daemon would
+// store that verbatim. Serialize any message to its JSON form before
+// validating, so every caller sends plain JSON.
+function protoMessageToJson(value: unknown): unknown {
+  if (value && typeof value === 'object' && typeof (value as {toJson?: unknown}).toJson === 'function') {
+    return (value as {toJson: (options?: {emitDefaultValues?: boolean}) => unknown}).toJson({emitDefaultValues: true})
+  }
+  return value
+}
+
+const ProtoStructSchema = z.preprocess(protoMessageToJson, z.object({}).catchall(z.any()))
 
 const ProtoAnnotationSchema = z.object({
   type: z.string(),
@@ -2305,15 +2317,18 @@ const ProtoAnnotationSchema = z.object({
   ends: z.array(z.number()).optional(),
 })
 
-const ProtoBlockSchema = z.object({
-  id: z.string().optional(),
-  type: z.string().optional(),
-  text: z.string().optional(),
-  link: z.string().optional(),
-  attributes: ProtoStructSchema.optional(),
-  annotations: z.array(ProtoAnnotationSchema).optional(),
-  revision: z.string().optional(),
-})
+const ProtoBlockSchema = z.preprocess(
+  protoMessageToJson,
+  z.object({
+    id: z.string().optional(),
+    type: z.string().optional(),
+    text: z.string().optional(),
+    link: z.string().optional(),
+    attributes: ProtoStructSchema.optional(),
+    annotations: z.array(ProtoAnnotationSchema).optional(),
+    revision: z.string().optional(),
+  }),
+)
 
 // Accept protobuf Empty instances and strip their runtime fields during parsing.
 const ProtoEmptySchema: z.ZodType<object> = z.object({})
