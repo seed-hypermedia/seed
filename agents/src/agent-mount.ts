@@ -45,17 +45,7 @@ export async function mountAgent(
       throw new Error('This document already represents another agent')
     }
     db.run('PRAGMA defer_foreign_keys = ON')
-    for (const table of [
-      'agent_collaborators',
-      'agent_triggers',
-      'sessions',
-      'trigger_firings',
-      'runs',
-      'agent_drafts',
-      'tool_documents',
-      'session_continuations',
-      'agent_id_aliases',
-    ]) {
+    for (const table of MOUNT_REFERENCE_TABLES) {
       stmt(db, `UPDATE ${table} SET agent_id = ? WHERE agent_id = ?`).run([action.documentId, action.agentId])
     }
     stmt(db, 'UPDATE agents SET id = ?, updated_at = ? WHERE id = ? AND account_id = ?').run([
@@ -67,6 +57,67 @@ export async function mountAgent(
     stmt(db, 'INSERT INTO agent_id_aliases (alias, agent_id) VALUES (?, ?)').run([action.agentId, action.documentId])
   })()
 }
+
+/**
+ * Reverses a mount: the agent gets back the server id it carried before the mount when one is on
+ * record (links from that time keep resolving), else a fresh id, and every relational reference
+ * follows. The `hm://` id stops resolving: the client deletes that document. Returns the new id.
+ */
+export function unmountAgent(
+  db: Database,
+  accountId: string,
+  action: api.UnmountAgent,
+  beforeCommit?: () => void,
+): string {
+  const existing = stmt<{id: string}, [string, string]>(
+    db,
+    'SELECT id FROM agents WHERE id = ? AND account_id = ?',
+  ).get(action.agentId, accountId)
+  if (!existing) throw new Error('Only the agent owner can orphan it')
+  if (!action.agentId.startsWith('hm://')) throw new Error('This agent is not adopted into a space')
+  const prior = stmt<{alias: string}, [string]>(
+    db,
+    "SELECT alias FROM agent_id_aliases WHERE agent_id = ? AND alias NOT LIKE 'hm://%' ORDER BY alias LIMIT 1",
+  ).get(action.agentId)?.alias
+  const nextId = prior ?? crypto.randomUUID()
+  db.transaction(() => {
+    beforeCommit?.()
+    if (!stmt(db, 'SELECT id FROM agents WHERE id = ? AND account_id = ?').get([action.agentId, accountId])) {
+      throw new Error('The agent changed while orphaning. Reload and try again.')
+    }
+    const busy = stmt<{id: string}, [string]>(
+      db,
+      "SELECT id FROM runs WHERE agent_id = ? AND status IN ('queued', 'claimed', 'running', 'waiting') LIMIT 1",
+    ).get(action.agentId)
+    if (busy) throw new Error('Wait for this agent’s running work to finish before orphaning')
+    db.run('PRAGMA defer_foreign_keys = ON')
+    for (const table of MOUNT_REFERENCE_TABLES) {
+      stmt(db, `UPDATE ${table} SET agent_id = ? WHERE agent_id = ?`).run([nextId, action.agentId])
+    }
+    stmt(db, 'UPDATE agents SET id = ?, updated_at = ? WHERE id = ? AND account_id = ?').run([
+      nextId,
+      Date.now(),
+      action.agentId,
+      accountId,
+    ])
+    // The restored id is the agent's own again, not an alias of anything.
+    stmt(db, 'DELETE FROM agent_id_aliases WHERE alias = ?').run([nextId])
+  })()
+  return nextId
+}
+
+/** Every table that names an agent by id and must follow a mount or unmount. */
+const MOUNT_REFERENCE_TABLES = [
+  'agent_collaborators',
+  'agent_triggers',
+  'sessions',
+  'trigger_firings',
+  'runs',
+  'agent_drafts',
+  'tool_documents',
+  'session_continuations',
+  'agent_id_aliases',
+]
 
 /** Verifies a mount's canonical path, published document and the caller's write authority. */
 export async function verifyMountDocument(

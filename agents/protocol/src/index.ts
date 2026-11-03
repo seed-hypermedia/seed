@@ -200,6 +200,7 @@ export type UnsignedAgentAction =
   | DeclineAgentInvite
   | CreateAgent
   | MountAgent
+  | UnmountAgent
   | ListModelProviders
   | ListProviderModels
   | ListSigningIdentities
@@ -367,6 +368,17 @@ export type MountAgent = {
   documentId: string
   /** Signed document blobs, also published locally by the client, for immediate server discovery. */
   blobs?: {cid: string; data: Uint8Array}[]
+}
+
+/**
+ * Takes a mounted agent out of its document: it gets back the server id it had before the mount
+ * (or a fresh one) and keeps its sessions, memory and triggers. The client deletes the document.
+ * Owner-only; a developer tool for undoing an adoption.
+ */
+export type UnmountAgent = {
+  _: 'UnmountAgent'
+  /** The agent's current `hm://` id. */
+  agentId: string
 }
 
 /** Whether an agent address is an HTTP(S) endpoint without embedded credentials. */

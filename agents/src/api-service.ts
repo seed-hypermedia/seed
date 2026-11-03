@@ -1434,6 +1434,26 @@ export class Service {
         this.#emit({type: 'agent-change', accountId, agent: response.agent})
         return response
       }
+      case 'UnmountAgent': {
+        const action = envelope.action
+        let nextId: string
+        try {
+          nextId = agentMount.unmountAgent(this.#db, verified.accountId, action, () => {
+            for (const upload of this.#uploads.values()) {
+              if (upload.target.kind === 'memory' && upload.target.agentId === action.agentId) {
+                throw new Error('Finish uploading files before orphaning this agent')
+              }
+            }
+          })
+        } catch (error) {
+          throw new APIError(409, errorMessage(error))
+        }
+        const response = this.#getAgent(accountId, nextId, verified.accountId)
+        invalidateSpaceIndex(accountId)
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: nextId})
+        this.#emit({type: 'agent-change', accountId, agent: response.agent})
+        return response
+      }
       case 'ListModelProviders':
         return this.#listModelProviders(accountId)
       case 'ListProviderModels':
@@ -1748,6 +1768,7 @@ export class Service {
         return fromAgent(action.agentId, 'chat')
       case 'DeleteAgent':
       case 'MountAgent':
+      case 'UnmountAgent':
         return this.#requireAgentAccess(actorAccountId, action.agentId, 'owner').ownerAccountId
       case 'GetAgentTrigger':
         return fromTrigger(action.triggerId)

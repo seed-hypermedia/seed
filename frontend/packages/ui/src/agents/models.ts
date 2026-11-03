@@ -1848,6 +1848,21 @@ export function useDeclineAgentInvite(serverUrl: string | undefined, accountUid:
 }
 
 /** Deletes an existing server-hosted agent, dropping it from the cached lists immediately. */
+/** Developer tool: takes a mounted agent out of its document on the server; the agent's new id comes back. */
+export function useUnmountAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (agentId: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({serverUrl, accountUid, action: {_: 'UnmountAgent', agentId}})
+      if (res._ !== 'GetAgentResponse') throw new Error('Unexpected UnmountAgent response')
+      return res
+    },
+    onSuccess() {
+      invalidateQueries(['agents'])
+    },
+  })
+}
+
 export function useDeleteAgent(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useMutation({
     mutationFn: async (agentId: string) => {

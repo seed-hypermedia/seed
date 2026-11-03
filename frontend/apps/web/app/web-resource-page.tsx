@@ -1,5 +1,6 @@
 import {registerWebAgentsPlatform} from '@/web-agents-platform'
 import {useMountedAgentProfileMenuItem} from '@shm/ui/agents/mounted-agent-menu'
+import {useOrphanAgentMenu} from '@shm/ui/agents/orphan-agent'
 import {HMDocument, HMDocumentInfo, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
@@ -527,6 +528,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   // A mounted agent's menu opens the profile the agent signs as.
   registerWebAgentsPlatform()
   const agentProfileMenuItem = useMountedAgentProfileMenuItem(docId, currentDocument?.metadata)
+  // Developer mode: undo an adoption.
+  const orphanAgent = useOrphanAgentMenu(docId, currentDocument?.metadata)
 
   const editingFloatingActions =
     effectiveCanEdit && showPublishToolbar
@@ -693,6 +696,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     () =>
       [
         agentProfileMenuItem,
+        orphanAgent.item,
         ...webMenuItems,
         isHomeTarget && effectiveCanEdit && signingAccountId === docId.uid && !placeholderDraftId
           ? {
@@ -708,6 +712,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       ].filter(Boolean) as MenuItemType[],
     [
       agentProfileMenuItem,
+      orphanAgent.item,
       deleteMenuItem,
       moveMenuItem,
       webMenuItems,
@@ -879,6 +884,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       {createSpaceDialogContent}
       {createAccountContent}
       {deleteDialog.content}
+      {orphanAgent.content}
       {destinationDialog.content}
       {vaultSuccessContent}
     </WebSitePageShell>

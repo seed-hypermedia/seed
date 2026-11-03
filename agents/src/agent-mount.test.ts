@@ -116,6 +116,31 @@ describe('mount document authorization', () => {
       await expect(
         mount.mountAgent(db, client, 'owner', {...action, agentId: documentId, documentId: 'hm://shared/team/other'}),
       ).rejects.toThrow('already mounted')
+
+      // Orphaning reverses the mount: the pre-mount id comes back as the agent's own, every
+      // reference follows, and the document id resolves to nothing.
+      const unmount = {_: 'UnmountAgent' as const, agentId: documentId}
+      expect(() => mount.unmountAgent(db, 'stranger', unmount)).toThrow('owner')
+      expect(() =>
+        mount.unmountAgent(db, 'owner', unmount, () => {
+          throw new Error('Upload started')
+        }),
+      ).toThrow('Upload started')
+      expect(mount.unmountAgent(db, 'owner', unmount)).toBe('legacy')
+      expect(db.query('SELECT id FROM agents').get()).toEqual({id: 'legacy'})
+      expect(mount.resolveAgentId(db, 'legacy')).toBe('legacy')
+      expect(mount.resolveAgentId(db, documentId)).toBe(documentId)
+      expect(db.query('SELECT COUNT(*) AS n FROM agent_id_aliases').get()).toEqual({n: 0})
+      expect(db.query('PRAGMA foreign_key_check').all()).toEqual([])
+      expect(() => mount.unmountAgent(db, 'owner', {...unmount, agentId: 'legacy'})).toThrow('not adopted')
+      // Mounting again works, and orphaning an agent created mounted (no prior id) mints one.
+      await mount.mountAgent(db, client, 'owner', action)
+      expect(mount.resolveAgentId(db, 'legacy')).toBe(documentId)
+      db.query('DELETE FROM agent_id_aliases').run()
+      const minted = mount.unmountAgent(db, 'owner', unmount)
+      expect(minted).not.toBe(documentId)
+      expect(minted.startsWith('hm://')).toBe(false)
+      expect(db.query('SELECT id FROM agents').get()).toEqual({id: minted})
     } finally {
       hm.stop(true)
       sqlite.closeDatabase(db)

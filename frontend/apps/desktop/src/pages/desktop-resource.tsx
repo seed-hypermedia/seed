@@ -100,6 +100,7 @@ import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {useMountedAgentProfileMenuItem} from '@shm/ui/agents/mounted-agent-menu'
+import {useOrphanAgentMenu} from '@shm/ui/agents/orphan-agent'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import type {AttributeAutocomplete, AttributeSuggestionKind} from '@shm/ui/value-editor'
 import {SizableText} from '@shm/ui/text'
@@ -965,10 +966,13 @@ export default function DesktopResourcePage() {
 
   // A mounted agent's menu opens the profile the agent signs as.
   const agentProfileMenuItem = useMountedAgentProfileMenuItem(docId, doc?.metadata)
+  // Developer mode: undo an adoption.
+  const orphanAgent = useOrphanAgentMenu(docId, doc?.metadata)
 
   const menuItems: MenuItemType[] = []
 
   if (agentProfileMenuItem) menuItems.push(agentProfileMenuItem)
+  if (orphanAgent.item) menuItems.push(orphanAgent.item)
   menuItems.push(
     createCopyLinkMenuItem({
       advanced: experiments?.advancedCopyLinkOptions,
@@ -1356,6 +1360,7 @@ export default function DesktopResourcePage() {
       {copyGatewayContent}
       {copySiteUrlContent}
       {deleteEntity.content}
+      {orphanAgent.content}
       {destinationDialog.content}
       {worldBuilderDialog.content}
       {editProfileDialog.content}

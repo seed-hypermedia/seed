@@ -489,6 +489,12 @@
         "key": "`account/${string}` | `agents/${string}` | `runs/${string}` | `sessions/${string}`"
       }
     },
+    "UnmountAgent": {
+      "fields": {
+        "_": "\"UnmountAgent\"",
+        "agentId": "string"
+      }
+    },
     "UpdateAgent": {
       "fields": {
         "_": "\"UpdateAgent\"",
