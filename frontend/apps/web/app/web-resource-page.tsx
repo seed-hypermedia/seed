@@ -523,6 +523,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   )
 
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
+  // An agent page is the agent, so Publish only appears once attributes or content are dirty.
+  const isAgentPage = route.key === 'document' && !!route.agentView
   const currentResource = useResource(useLocalDraftShell ? undefined : docId)
   const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
   // A mounted agent's menu opens the profile the agent signs as.
@@ -546,6 +548,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                 capabilityCid={effectiveCapabilityCid}
               />
             }
+            hidePublishWhenClean={isAgentPage}
             {...webToolbarCallbacks}
           />
         )

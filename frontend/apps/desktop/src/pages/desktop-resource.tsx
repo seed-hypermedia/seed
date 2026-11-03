@@ -1210,6 +1210,8 @@ export default function DesktopResourcePage() {
   }
 
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
+  // An agent page is the agent, so Publish only appears once attributes or content are dirty.
+  const isAgentPage = route.key === 'document' && !!route.agentView
 
   // Walk the editor's blocks for embed blocks with a draftId.
   // Called at Publish click time so the popover always opens
@@ -1236,6 +1238,7 @@ export default function DesktopResourcePage() {
             existingMenuItems={menuItems}
             getUnpublishedChildCount={getUnpublishedChildCount}
             beforePublish={<DesktopDocumentCreateButton locationId={docId} />}
+            hidePublishWhenClean={isAgentPage}
           />
         )
       : undefined
