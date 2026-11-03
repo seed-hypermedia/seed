@@ -65,7 +65,9 @@ describe('api service', () => {
               authors: [ownerId],
               genesis: 'test-genesis',
               visibility: 'PUBLIC',
-              metadata: validDocument ? {type: 'hm://hyper.media/agent', agentServerUrl: 'http://localhost:3051'} : {},
+              metadata: validDocument
+                ? {type: 'hm://hyper.media/agent', agentServerUrl: 'http://localhost:3051', name: 'Document helper'}
+                : {},
             },
           }),
         )
@@ -100,7 +102,10 @@ describe('api service', () => {
       expect(await retry).toEqual({_: 'CreateAgentResponse', agentId: documentId})
       expect(await send(action)).toEqual({_: 'CreateAgentResponse', agentId: documentId})
       expect(db.query('SELECT count(*) AS count FROM agents').get()).toEqual({count: countBefore + 2})
-      expect(await send({_: 'GetAgent', agentId: documentId})).toMatchObject({agent: {id: documentId}})
+      // The document names the agent, not the request.
+      expect(await send({_: 'GetAgent', agentId: documentId})).toMatchObject({
+        agent: {id: documentId, definition: {name: 'Document helper'}},
+      })
       const row = db.query<{state_dir: string}, [string]>('SELECT state_dir FROM agents WHERE id = ?').get(documentId)!
       expect(path.relative(dataDir, row.state_dir)).toMatch(/^agents\/[^/]+$/)
       await expect(send({...action, clientRequestId: 'different-request'})).rejects.toThrow('another agent')
@@ -157,8 +162,17 @@ describe('api service', () => {
       expect(db.query('SELECT id FROM agents').get()).toEqual({id: before.id})
       db.run("UPDATE runs SET status = 'succeeded'")
       const result = await send(owner, {_: 'MountAgent', agentId: before.id, documentId})
-      expect(result).toMatchObject({_: 'GetAgentResponse', agent: {id: documentId}})
+      expect(result).toMatchObject({_: 'GetAgentResponse', agent: {id: documentId, definition: {name: 'Helper'}}})
       expect(db.query('SELECT id, state_dir FROM agents').get()).toEqual({id: documentId, state_dir: before.state_dir})
+      // Renaming a mounted agent goes through its document: a definition edit keeps the document's name.
+      if (result._ !== 'GetAgentResponse') throw new Error('unreachable')
+      expect(
+        await send(owner, {
+          _: 'UpdateAgent',
+          agentId: documentId,
+          definition: {...result.agent.definition, name: 'Renamed in settings'},
+        }),
+      ).toMatchObject({agent: {definition: {name: 'Helper'}}})
       expect(db.query('PRAGMA foreign_key_check').all()).toEqual([])
       expect(await send(collaborator, {_: 'GetAgent', agentId: before.id})).toMatchObject({
         agent: {id: documentId, accessRole: 'reader'},

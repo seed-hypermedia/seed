@@ -2164,16 +2164,25 @@ export class Service {
       clientRequestId,
       {definition: rawDefinition, ...(mount ? {mount} : {})},
       async () => {
+        // The mount document's name attribute is the agent's name; the request's name only
+        // matters for an agent that has no document.
+        let definitionToCreate = rawDefinition
         if (mount) {
           const definition = normalizeDefinition(rawDefinition)
           this.#validateSigningKeys(accountId, definition)
           if (stmt(this.#db, 'SELECT id FROM agents WHERE id = ?').get(mount.documentId)) {
             throw new APIError(409, 'This document already represents another agent')
           }
-          await agentMount.verifyMountDocument(createSeedClient(this.#hmServerUrl), accountId, mount, signerId)
+          const {name} = await agentMount.verifyMountDocument(
+            createSeedClient(this.#hmServerUrl),
+            accountId,
+            mount,
+            signerId,
+          )
+          if (name) definitionToCreate = {...rawDefinition, name}
           await this.#grantMountSpaceWriter(accountId, definition, mount.documentId)
         }
-        return () => this.#createAgentOnce(accountId, rawDefinition, mount?.documentId)
+        return () => this.#createAgentOnce(accountId, definitionToCreate, mount?.documentId)
       },
     )
   }
@@ -3268,6 +3277,21 @@ export class Service {
     }
   }
 
+  /**
+   * Brings mounted agents' names in step with their documents (see
+   * {@link agentMount.syncMountedAgentNames}) and tells subscribers about each agent that changed.
+   */
+  async syncMountedAgentNames(options: {agentIds?: string[]; signal?: AbortSignal} = {}): Promise<number> {
+    const synced = await agentMount.syncMountedAgentNames(this.#db, createSeedClient(this.#hmServerUrl), options)
+    for (const {accountId, agentId} of synced) {
+      invalidateSpaceIndex(accountId, agentId)
+      const agent = this.#getAgentInfo(accountId, agentId)
+      if (agent) this.#emit({type: 'agent-change', accountId, agent})
+      this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
+    }
+    return synced.length
+  }
+
   #getAgent(accountId: string, agentId: string, viewerAccountId = accountId): api.GetAgentResponse {
     const agent = stmt<AgentRow, [string, string]>(
       this.#db,
@@ -3445,6 +3469,8 @@ export class Service {
     ).get(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
     const prior = cbor.decode<api.AgentDefinition>(existing.definition_cbor)
+    // A mounted agent is named by its document's name attribute, never by a definition edit.
+    if (agentId.startsWith('hm://') && prior.name) definition.name = prior.name
     if (viewerAccountId !== accountId) {
       // Writers may edit the agent, but granting signing accounts stays with the owner: the keys
       // live on the owner's account and the grant set decides what the agent can publish as.

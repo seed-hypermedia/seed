@@ -2,6 +2,7 @@ import {useAgentDetail} from './models'
 import {AgentServerError} from './client'
 import {Spinner} from '../spinner'
 import {Button} from '../button'
+import {SizableText} from '../text'
 import type {AgentDocumentViewProps} from '../agent-document-view'
 import {isMountableAgentServerUrl} from '@seed-hypermedia/agents-protocol'
 import {AgentDetailPage} from './detail'
@@ -33,17 +34,39 @@ export default function MountedAgentDocument({document, route, children}: AgentD
         <Spinner />
       </div>
     )
-  if (!hasAgent)
+  if (!hasAgent) {
+    // The server answers 404 both for an agent that is not shared with this account and for one it
+    // no longer hosts (orphaned, deleted). The document says an agent lives here, so name both.
+    const notFound = agent.error instanceof AgentServerError && agent.error.status === 404
+    const serverHost = (() => {
+      try {
+        return new URL(serverUrl).host
+      } catch {
+        return serverUrl
+      }
+    })()
     return (
-      <div role="alert" className="flex items-center gap-3 p-5">
-        {agent.error && !(agent.error instanceof AgentServerError && agent.error.status === 404)
-          ? 'Could not verify this agent. Check your access and server connection.'
-          : 'No agent is registered at this document.'}
+      <div role="alert" className="flex flex-col items-start gap-3 p-5">
+        {agent.error && !notFound ? (
+          <SizableText>Could not verify this agent. Check your access and server connection.</SizableText>
+        ) : notFound ? (
+          <>
+            <SizableText weight="bold">This agent is not shared with your account</SizableText>
+            <SizableText color="muted">
+              The agent server at {serverHost} has no agent for this document that your account {accountUid} can see.
+              Ask the agent's owner to share it with you from its Agent access tab, or sign in as the owner. If the
+              agent was orphaned or deleted, the server no longer knows this document.
+            </SizableText>
+          </>
+        ) : (
+          <SizableText>No agent is registered at this document.</SizableText>
+        )}
         <Button variant="outline" onClick={() => agent.refetch()}>
           Retry
         </Button>
       </div>
     )
+  }
   // No Home tab for now: the base URL opens Sessions.
   return (
     // The page gives this column its height (see fixedHeightMain in resource-page-common).
@@ -59,6 +82,7 @@ export default function MountedAgentDocument({document, route, children}: AgentD
         <AgentDetailPage
           embedded
           agentId={route.id.id}
+          documentName={document.metadata.name}
           routeServerUrl={serverUrl}
           tab={
             route.agentView === 'access'

@@ -162,6 +162,7 @@ export function AgentDetailPage({
   triggerId,
   memoryPath,
   embedded = false,
+  documentName,
 }: {
   agentId: string
   routeServerUrl?: string
@@ -170,6 +171,12 @@ export function AgentDetailPage({
   /** Memory file the route asked to open, set when a tool row linked to it. */
   memoryPath?: string
   embedded?: boolean
+  /**
+   * The mount document's name attribute. It names a mounted agent: the server copies it onto the
+   * definition, and the page shows it right away rather than waiting for that sync. Renaming
+   * happens on the document, so the rename dialog stays out when it is given.
+   */
+  documentName?: string
 }) {
   // The Tools tab became the Permissions page under Settings; older routes still land there.
   const tab: AgentPageTab = routeTab === 'tools' ? 'permissions' : routeTab
@@ -511,9 +518,9 @@ export function AgentDetailPage({
     <AgentHeader
       embedded={embedded}
       agent={agent.data.agent}
-      agentName={name}
+      agentName={documentName?.trim() || name}
       onEditName={
-        canWrite
+        canWrite && !documentName
           ? () =>
               editNameDialog.open({
                 currentName: name,

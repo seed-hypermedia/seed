@@ -51,6 +51,74 @@ describe('mount server addresses', () => {
   })
 })
 
+function storedName(db: Database, agentId: string): string | undefined {
+  const row = db.query('SELECT definition_cbor FROM agents WHERE id = ?').get(agentId) as {definition_cbor: Uint8Array}
+  return cbor.decode<api.AgentDefinition>(row.definition_cbor).name
+}
+
+describe('mounted agent names', () => {
+  test('follow the document name attribute, skipping unreadable or unnamed documents', async () => {
+    const db = new Database(':memory:', {strict: true})
+    sqlite.openWithDatabase(db)
+    db.run("INSERT INTO accounts (id, created_at, updated_at) VALUES ('owner', 1, 1)")
+    const definition = (name: string) => cbor.encode({name, systemPrompt: '', modelProvider: 'p', model: 'm'})
+    const insert = db.prepare(
+      "INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at) VALUES (?, 'owner', ?, ?, 'idle', 1, 1)",
+    )
+    insert.run('hm://owner/renamed', definition('Old name'), '/a')
+    insert.run('hm://owner/same', definition('Same'), '/b')
+    insert.run('hm://owner/unnamed', definition('Kept'), '/c')
+    insert.run('hm://owner/missing', definition('Also kept'), '/d')
+    insert.run('orphan', definition('Orphan'), '/e')
+    const names: Record<string, string | undefined> = {renamed: 'New name', same: 'Same', unnamed: ''}
+    let requests = 0
+    const hm = Bun.serve({
+      port: 0,
+      fetch: (request) => {
+        requests += 1
+        const key = (new URL(request.url).searchParams.get('id') ?? '').split('/').pop() ?? ''
+        if (key === 'missing') return new Response('gone', {status: 500})
+        return Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId(`hm://owner/${key}`),
+            document: {
+              authors: ['owner'],
+              genesis: 'genesis',
+              visibility: 'PUBLIC',
+              metadata: {type: 'hm://hyper.media/agent', agentServerUrl: 'http://localhost:3051', name: names[key]},
+            },
+          }),
+        )
+      },
+    })
+    try {
+      const client = createSeedClient(hm.url.origin)
+      const synced = await mount.syncMountedAgentNames(db, client)
+      expect(synced).toEqual([{agentId: 'hm://owner/renamed', accountId: 'owner', name: 'New name'}])
+      expect(storedName(db, 'hm://owner/renamed')).toBe('New name')
+      expect(storedName(db, 'hm://owner/same')).toBe('Same')
+      expect(storedName(db, 'hm://owner/unnamed')).toBe('Kept')
+      expect(storedName(db, 'hm://owner/missing')).toBe('Also kept')
+      expect(storedName(db, 'orphan')).toBe('Orphan')
+      // Only mounted agents are looked up; the orphan never reaches the server.
+      expect(requests).toBe(4)
+      // A second pass finds nothing to change.
+      expect(await mount.syncMountedAgentNames(db, client)).toEqual([])
+      // A targeted pass only reads the agents it was given.
+      requests = 0
+      names.same = 'Changed'
+      expect(await mount.syncMountedAgentNames(db, client, {agentIds: ['hm://owner/same', 'orphan']})).toEqual([
+        {agentId: 'hm://owner/same', accountId: 'owner', name: 'Changed'},
+      ])
+      expect(requests).toBe(1)
+    } finally {
+      hm.stop(true)
+      sqlite.closeDatabase(db)
+    }
+  })
+})
+
 describe('mount document authorization', () => {
   test('requires a mount document and a covering write grant in another space', async () => {
     const db = new Database(':memory:', {strict: true})
@@ -121,9 +189,12 @@ describe('mount document authorization', () => {
           (db.query('SELECT source_cbor FROM agent_triggers WHERE id = ?').get('watch') as {source_cbor: Uint8Array})
             .source_cbor,
         ).agentId
+      metadata = {...metadata, name: '  Team helper '}
       await mount.mountAgent(db, client, 'owner', action)
       expect(mount.resolveAgentId(db, 'legacy')).toBe(documentId)
       expect(watchedAgent()).toBe(documentId)
+      // The document's name attribute names the agent from the mount on.
+      expect(storedName(db, documentId)).toBe('Team helper')
       expect(db.query('PRAGMA foreign_key_check').all()).toEqual([])
       await expect(
         mount.mountAgent(db, client, 'owner', {...action, agentId: documentId, documentId: 'hm://shared/team/other'}),

@@ -30,7 +30,7 @@ export async function mountAgent(
   if (action.agentId.startsWith('hm://')) throw new Error('This agent is already mounted')
   const occupied = stmt<{id: string}, [string]>(db, 'SELECT id FROM agents WHERE id = ?').get(action.documentId)
   if (occupied) throw new Error('This document already represents another agent')
-  await verifyMountDocument(client, accountId, action, signerId)
+  const {name} = await verifyMountDocument(client, accountId, action, signerId)
   // There is no await between the busy check and commit: a queue/trigger cannot start in between.
   db.transaction(() => {
     beforeCommit?.()
@@ -57,7 +57,75 @@ export async function mountAgent(
       accountId,
     ])
     stmt(db, 'INSERT INTO agent_id_aliases (alias, agent_id) VALUES (?, ?)').run([action.agentId, action.documentId])
+    // The document's name attribute is the agent's name from here on.
+    if (name) setStoredAgentName(db, action.documentId, name)
   })()
+}
+
+/** The document's `name` attribute, trimmed, when it has one. */
+export function mountDocumentName(resource: {
+  type: string
+  document?: {metadata?: Record<string, unknown>}
+}): string | undefined {
+  if (resource.type !== 'document') return undefined
+  const name = resource.document?.metadata?.name
+  return typeof name === 'string' && name.trim() ? name.trim() : undefined
+}
+
+/** Rewrites only the stored definition's name; returns whether it changed. */
+export function setStoredAgentName(db: Database, agentId: string, name: string): boolean {
+  const row = stmt<{definition_cbor: Uint8Array}, [string]>(db, 'SELECT definition_cbor FROM agents WHERE id = ?').get(
+    agentId,
+  )
+  if (!row) return false
+  const definition = cbor.decode<api.AgentDefinition>(row.definition_cbor)
+  if (definition.name === name) return false
+  stmt(db, 'UPDATE agents SET definition_cbor = ?, updated_at = ? WHERE id = ?').run([
+    cbor.encode({...definition, name}),
+    Date.now(),
+    agentId,
+  ])
+  return true
+}
+
+/** A mounted agent whose stored name was brought in step with its document. */
+export type SyncedAgentName = {agentId: string; accountId: string; name: string}
+
+/**
+ * Brings every mounted agent's name in step with its document's `name` attribute: the document is
+ * the agent's name, and renaming it (a title edit, published) is how an adopted agent is renamed.
+ * Runs at server start (agents adopted before this rule catch up) and on a sweep afterwards. A
+ * document that cannot be read, or that has no name, leaves the stored name alone; one agent's
+ * failure never stops the others.
+ */
+export async function syncMountedAgentNames(
+  db: Database,
+  client: Pick<SeedClient, 'request'>,
+  options: {agentIds?: string[]; signal?: AbortSignal} = {},
+): Promise<SyncedAgentName[]> {
+  const rows = options.agentIds
+    ? options.agentIds.flatMap((id) =>
+        stmt<{id: string; account_id: string}, [string]>(db, 'SELECT id, account_id FROM agents WHERE id = ?').all(id),
+      )
+    : stmt<{id: string; account_id: string}, []>(db, "SELECT id, account_id FROM agents WHERE id LIKE 'hm://%'").all()
+  const synced: SyncedAgentName[] = []
+  for (const row of rows) {
+    if (options.signal?.aborted) break
+    const target = unpackHmId(row.id)
+    if (!target || !row.id.startsWith('hm://')) continue
+    let name: string | undefined
+    try {
+      name = mountDocumentName(await client.request('Resource', target, {signal: options.signal}))
+    } catch (error) {
+      console.warn('[agents/mount] could not read the mount document for a name check', {
+        agentId: row.id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      continue
+    }
+    if (name && setStoredAgentName(db, row.id, name)) synced.push({agentId: row.id, accountId: row.account_id, name})
+  }
+  return synced
 }
 
 /**
@@ -148,7 +216,7 @@ export async function verifyMountDocument(
   accountId: string,
   action: Pick<api.MountAgent, 'documentId' | 'blobs'>,
   signerId = accountId,
-): Promise<void> {
+): Promise<{name?: string}> {
   const target = unpackHmId(action.documentId)
   if (
     !target ||
@@ -194,4 +262,5 @@ export async function verifyMountDocument(
       throw new Error('You need write access to the mount document')
     }
   }
+  return {name: mountDocumentName(resource)}
 }
