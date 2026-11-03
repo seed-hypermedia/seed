@@ -132,7 +132,9 @@ beforeAll(async () => {
   const client = createSeedClient(env.web.baseUrl)
   await client.publish(
     await createCapability(
-      {delegateUid: FIXTURE_ACCOUNT.accountId, role: 'WRITER', path: '/team'},
+      // A grant on the whole space: adoption always lands directly under a space's home, so a
+      // grant on a location inside the space would not offer the space at all.
+      {delegateUid: FIXTURE_ACCOUNT.accountId, role: 'WRITER', path: ''},
       createSignerFromKey(sharedSpace.keyPair),
     ),
   )
@@ -230,16 +232,20 @@ describe('agent mounting', () => {
     await page.unroute(`${localServerUrl}/api/message`)
     await page.goto(`${env!.web.baseUrl}/hm/agents/agent/${legacyId}?server=${encodeURIComponent(localServerUrl)}`)
     expect(await page.getByText('Local agents cannot be mounted', {exact: true}).count()).toBe(0)
-    await page.getByRole('button', {name: 'Mount agent', exact: true}).click()
+    await page.getByRole('button', {name: 'Adopt agent', exact: true}).click()
     const dialog = page.getByRole('dialog')
-    await dialog.getByRole('button', {name: /Team agents/}).click()
+    // Only whole spaces are offered, nothing inside them, and the document keeps the agent's name.
+    expect(await dialog.getByRole('button', {name: /Team agents/}).count()).toBe(0)
+    expect(await dialog.getByPlaceholder('Search location…').count()).toBe(0)
+    await dialog.getByRole('button', {name: /Shared team/}).click()
+    expect(await dialog.getByRole('button', {name: 'Back', exact: true}).count()).toBe(0)
     await dialog.getByPlaceholder('url-path').fill('helper')
-    await dialog.getByRole('button', {name: 'Mount Agent', exact: true}).click()
-    const docUrl = `${env!.web.baseUrl}/hm/${sharedSpace.accountId}/team/helper`
+    await dialog.getByRole('button', {name: 'Adopt Agent', exact: true}).click()
+    const docUrl = `${env!.web.baseUrl}/hm/${sharedSpace.accountId}/helper`
     await page.waitForURL(`${docUrl}/:sessions`)
     await page.getByText('Existing conversation', {exact: true}).first().waitFor()
-    expect(await page.getByRole('region', {name: 'Mount agent'}).count()).toBe(0)
-    const id = `hm://${sharedSpace.accountId}/team/helper`
+    expect(await page.getByRole('region', {name: 'Adopt agent'}).count()).toBe(0)
+    const id = `hm://${sharedSpace.accountId}/helper`
     const client = createSeedClient(env!.web.baseUrl)
     const document = await client.request('Resource', unpackHmId(id)!)
     expect(document).toMatchObject({
@@ -287,10 +293,10 @@ describe('agent mounting', () => {
     if (personal._ !== 'CreateAgentResponse') throw new Error('Agent creation failed')
     await page.setViewportSize({width: 1440, height: 1000})
     await page.goto(`${env!.web.baseUrl}/hm/agents/agent/${personal.agentId}?server=${encodeURIComponent(serverUrl)}`)
-    await page.getByRole('button', {name: 'Mount agent', exact: true}).click()
+    await page.getByRole('button', {name: 'Adopt agent', exact: true}).click()
     await dialog.getByRole('button', {name: 'Minimal Fixture Site', exact: true}).click()
     await dialog.getByPlaceholder('url-path').fill('personal-helper')
-    await dialog.getByRole('button', {name: 'Mount Agent', exact: true}).click()
+    await dialog.getByRole('button', {name: 'Adopt Agent', exact: true}).click()
     await page.waitForURL(`${env!.web.baseUrl}/personal-helper/:sessions`)
     await page.goto(`${env!.web.baseUrl}/personal-helper/:settings`)
     await page.getByRole('link', {name: 'Settings', exact: true}).waitFor()
@@ -341,7 +347,7 @@ describe('agent mounting', () => {
     expect(createRequests).toBe(2)
     await page.reload()
     await page.getByRole('link', {name: 'Settings', exact: true}).waitFor()
-    expect(await page.getByRole('region', {name: 'Mount agent'}).count()).toBe(0)
+    expect(await page.getByRole('region', {name: 'Adopt agent'}).count()).toBe(0)
     await page.getByText('No sessions yet.', {exact: true}).waitFor()
     await page.screenshot({path: path.join(tmpdir(), 'seed-agent-created-local.png')})
     const newAgent = await send({_: 'GetAgent', agentId: newId})

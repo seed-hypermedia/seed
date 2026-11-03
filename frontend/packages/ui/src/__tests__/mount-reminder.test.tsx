@@ -84,7 +84,7 @@ describe('AgentMountReminder', () => {
     expect(container.textContent).toBe('')
   })
 
-  it('lists each owned unmounted agent with a Mount button that opens the destination dialog', () => {
+  it('lists each owned orphan agent with an Adopt button that opens the destination dialog', () => {
     render({
       agents: [
         {serverUrl: HOSTED, agent: agent('legacy-1', 'Scout')},
@@ -93,14 +93,14 @@ describe('AgentMountReminder', () => {
       ],
       settled: true,
     })
-    expect(container.textContent).toContain('Give your agents a home')
-    expect(container.textContent).toContain('2 agents you own are not mounted')
+    expect(container.textContent).toContain('Give your orphan agents a home')
+    expect(container.textContent).toContain('2 agents you own live in no space yet')
     expect(container.textContent).toContain('Scout')
     expect(container.textContent).toContain('Editor')
     expect(container.textContent).not.toContain('Shared')
-    expect(buttons('Mount')).toHaveLength(2)
+    expect(buttons('Adopt')).toHaveLength(2)
 
-    act(() => buttons('Mount')[0]!.click())
+    act(() => buttons('Adopt')[0]!.click())
     expect(mocks.open).toHaveBeenCalledWith(
       expect.objectContaining({
         serverUrl: HOSTED,
@@ -117,14 +117,14 @@ describe('AgentMountReminder', () => {
       agents: Array.from({length: 6}, (_, i) => ({serverUrl: HOSTED, agent: agent(`legacy-${i}`, `Agent ${i}`)})),
       settled: true,
     })
-    expect(buttons('Mount')).toHaveLength(4)
+    expect(buttons('Adopt')).toHaveLength(4)
     act(() => buttons('Show all 6')[0]!.click())
-    expect(buttons('Mount')).toHaveLength(6)
+    expect(buttons('Adopt')).toHaveLength(6)
 
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Hide agents to mount"]')!.click())
-    expect(container.textContent).toContain('6 agents to mount')
-    expect(buttons('Mount')).toHaveLength(0)
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Show agents to mount"]')!.click())
-    expect(buttons('Mount')).toHaveLength(6)
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Hide orphan agents"]')!.click())
+    expect(container.textContent).toContain('6 agents to adopt')
+    expect(buttons('Adopt')).toHaveLength(0)
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="Show orphan agents"]')!.click())
+    expect(buttons('Adopt')).toHaveLength(6)
   })
 })

@@ -29,7 +29,7 @@ export function AgentMountBanner({agent, serverUrl}: {agent: AgentInfo; serverUr
     <>
       <div
         role="region"
-        aria-label="Mount agent"
+        aria-label="Adopt agent"
         className="bg-muted border-border flex shrink-0 items-center justify-between gap-4 border-b px-5 py-3"
       >
         <div className="flex items-center gap-3">
@@ -38,14 +38,14 @@ export function AgentMountBanner({agent, serverUrl}: {agent: AgentInfo; serverUr
             <span className="text-sm font-medium">Give this agent a home</span>
             <span className="text-muted-foreground text-xs">
               {agent.accessRole === 'owner'
-                ? 'Mount it in a document to share links to sessions, tools and settings.'
-                : 'Ask the owner to mount this agent in a document.'}
+                ? 'Adopt it into a space to share links to its sessions, tools and settings.'
+                : 'Ask the owner to adopt this agent into a space.'}
             </span>
           </div>
         </div>
         {canMount && accountUid && agent.accessRole === 'owner' && (
           <Button variant="default" onClick={() => dialog.open({agent, serverUrl, accountUid})}>
-            Mount agent
+            Adopt agent
           </Button>
         )}
       </div>
@@ -65,7 +65,7 @@ export function unmountedOwnedAgents<T extends {serverUrl: string; agent: AgentI
   )
 }
 
-/** Picks a document for an unmounted agent and mounts it there. */
+/** Picks a document for an orphan agent and adopts it there (the protocol action is MountAgent). */
 export function MountAgentDialog({
   input,
   onClose,

@@ -10,6 +10,7 @@ import {CreateAgentDialog, pickCreateAgentServer} from '../agents/dialogs'
 
 const mocks = vi.hoisted(() => ({
   defaultServer: null as string | null,
+  advertisedServer: null as string | null,
   createAgent: vi.fn(),
   createIdentity: vi.fn(),
   publish: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('../agents/models', () => ({
   }),
   useLocalAgentServerUrl: () => ({data: 'http://local.test'}),
   useAgentServerUrl: () => ({data: mocks.defaultServer}),
+  useSiteAdvertisedAgentServerUrl: () => mocks.advertisedServer,
   useDeleteModelProvider: vi.fn(),
   useDeleteSigningIdentity: vi.fn(),
   useImportSigningIdentity: vi.fn(),
@@ -87,6 +89,8 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   vi.clearAllMocks()
+  mocks.defaultServer = null
+  mocks.advertisedServer = null
   mocks.models = [{id: 'gpt-test', name: 'gpt-test'}]
   mocks.createIdentity.mockResolvedValue({
     _: 'CreateSigningIdentityResponse',
@@ -222,14 +226,23 @@ describe('CreateAgentDialog', () => {
     expect(button('Change')).toBeUndefined()
   })
 
-  it('prefers a remote server over the local one when no default is among them', () => {
-    expect(pickCreateAgentServer(['http://local.test', 'https://a.example'], null, 'http://local.test')).toBe(
-      'https://a.example',
-    )
+  it('prefers the space on screen, then the configured default, then any remote over the local server', () => {
+    const local = 'http://local.test'
+    expect(pickCreateAgentServer([local, 'https://a.example'], {localServerUrl: local})).toBe('https://a.example')
     expect(
-      pickCreateAgentServer(['http://local.test', 'https://a.example'], 'https://b.example', 'http://local.test'),
+      pickCreateAgentServer([local, 'https://a.example'], {
+        defaultServerUrl: 'https://b.example',
+        localServerUrl: local,
+      }),
     ).toBe('https://a.example')
-    expect(pickCreateAgentServer(['http://local.test'], null, 'http://local.test')).toBe('http://local.test')
+    expect(
+      pickCreateAgentServer([local, 'https://a.example', 'https://b.example'], {
+        advertisedServerUrl: 'https://b.example',
+        defaultServerUrl: 'https://a.example',
+        localServerUrl: local,
+      }),
+    ).toBe('https://b.example')
+    expect(pickCreateAgentServer([local], {localServerUrl: local})).toBe(local)
   })
 
   it('still asks for a location when opened without one', async () => {

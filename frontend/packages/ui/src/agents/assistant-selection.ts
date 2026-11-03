@@ -75,6 +75,42 @@ export function orderAssistantAgents(
   return options
 }
 
+/** One section of the agent picker: a space's agents, or the orphans that live in no space yet. */
+export type AssistantAgentGroup = {
+  /** The space's account uid, or null for the orphan section. */
+  spaceUid: string | null
+  options: AssistantAgentOption[]
+}
+
+/**
+ * Groups agents by the space they live in (the account of their document id), in the order the
+ * spaces first appear, with agents that are not adopted into any space in one trailing group.
+ * The server an agent runs on is not a grouping: it is where the agent lives that people know.
+ */
+export function groupAssistantAgentsBySpace(agents: AssistantAgentOption[]): AssistantAgentGroup[] {
+  const bySpace = new Map<string, AssistantAgentOption[]>()
+  const orphans: AssistantAgentOption[] = []
+  for (const option of agents) {
+    const spaceUid = agentSpaceUid(option.agent.id)
+    if (!spaceUid) {
+      orphans.push(option)
+      continue
+    }
+    const list = bySpace.get(spaceUid)
+    if (list) list.push(option)
+    else bySpace.set(spaceUid, [option])
+  }
+  const groups: AssistantAgentGroup[] = Array.from(bySpace, ([spaceUid, options]) => ({spaceUid, options}))
+  if (orphans.length) groups.push({spaceUid: null, options: orphans})
+  return groups
+}
+
+/** The account uid of the space an agent's document lives in, or null for an agent without one. */
+export function agentSpaceUid(agentId: string): string | null {
+  const match = /^hm:\/\/([^/?#]+)/.exec(agentId)
+  return match?.[1] ?? null
+}
+
 function findAgent(agents: AssistantAgentOption[], key: {serverUrl: string; agentId: string}) {
   return agents.find((option) => option.serverUrl === key.serverUrl && option.agent.id === key.agentId) ?? null
 }

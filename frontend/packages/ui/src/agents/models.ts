@@ -600,6 +600,13 @@ function useSiteHomeMetadata(): {metadata: HMMetadata | undefined; isLoading: bo
   }
 }
 
+/** Account uid of the space whose document is on screen, or the space serving the app; null elsewhere. */
+export function useSiteUidInView(): string | null {
+  const route = useNavRouteOrNull()
+  const originHomeId = useContext(UniversalAppContext).originHomeId
+  return (route ? siteUidOfRoute(route) : undefined) ?? originHomeId?.uid ?? null
+}
+
 /**
  * The agents server advertised by the site whose document is on screen, if any.
  *

@@ -96,7 +96,7 @@ export type DocumentDestinationSubmitInput = {
 
 const modeCopy: Record<DocumentDestinationMode, {eyebrow: string; action: string; success: string}> = {
   'create-agent': {eyebrow: 'Create Agent', action: 'Create Agent', success: 'Agent created'},
-  'mount-agent': {eyebrow: 'Mount Agent', action: 'Mount Agent', success: 'Agent mounted'},
+  'mount-agent': {eyebrow: 'Adopt Agent', action: 'Adopt Agent', success: 'Agent adopted'},
   move: {eyebrow: 'Move', action: 'Move', success: 'Document moved'},
   republish: {eyebrow: 'Republish', action: 'Republish', success: 'Document republished'},
   'extend-schema': {eyebrow: 'Extend Schema', action: 'Create Draft', success: 'Draft created'},
@@ -127,6 +127,9 @@ export function DocumentDestinationDialog({
 }) {
   const isDraftSource = !!input.draft
   const isMount = input.mode === 'mount-agent' || input.mode === 'create-agent'
+  // An agent is adopted straight under a space's home: pick the space and the path, nothing deeper,
+  // and the document keeps the agent's name.
+  const spacesOnly = isMount
   const {data: resource, isLoading, isError, error} = useResource(isDraftSource || isMount ? null : input.id)
   const document = resource?.type === 'document' ? resource.document : undefined
   const sourceId = input.id
@@ -229,7 +232,13 @@ export function DocumentDestinationDialog({
       signingAccountId: selectedAccountUid,
       origin: input.origin,
       draft: input.draft,
-      ...(isCreate ? {name: name.trim() || slug, extendSchema: input.extendSchema, typed: input.typed} : {}),
+      ...(isCreate
+        ? {
+            name: isMount ? input.mountName || slug : name.trim() || slug,
+            extendSchema: input.extendSchema,
+            typed: input.typed,
+          }
+        : {}),
     }
     setIsSubmitting(true)
     try {
@@ -260,25 +269,34 @@ export function DocumentDestinationDialog({
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-              {targetParent ? 'Location' : 'Choose a space'}
+              {targetParent ? (spacesOnly ? 'Space' : 'Location') : 'Choose a space'}
             </SizableText>
-            {targetParent ? <LocationBreadcrumb location={targetParent} onSelect={setTargetParent} /> : null}
+            {targetParent ? (
+              spacesOnly ? (
+                <SelectedSpaceRow location={targetParent} onChange={() => setTargetParent(null)} />
+              ) : (
+                <LocationBreadcrumb location={targetParent} onSelect={setTargetParent} />
+              )
+            ) : null}
           </div>
-          <div className="relative">
-            <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-            <Input
-              className="h-11 rounded-xl pl-10 text-base"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Search location…"
-            />
-          </div>
+          {spacesOnly ? null : (
+            <div className="relative">
+              <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+              <Input
+                className="h-11 rounded-xl pl-10 text-base"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search location…"
+              />
+            </div>
+          )}
         </div>
 
         <DestinationBrowser
           mode={input.mode}
           sourceId={sourceId}
           targetParent={targetParent}
+          spacesOnly={spacesOnly}
           searchQuery={searchQuery}
           writableDocuments={writableDocuments}
           selectedAccountUid={selectedAccountUid}
@@ -292,7 +310,7 @@ export function DocumentDestinationDialog({
           }}
         />
 
-        {isCreate ? (
+        {isCreate && !isMount ? (
           <div className="flex flex-col gap-2">
             <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
               {isExtend ? 'New Schema Name' : 'Name'}
@@ -359,6 +377,7 @@ function DestinationBrowser({
   mode,
   sourceId,
   targetParent,
+  spacesOnly = false,
   searchQuery,
   writableDocuments,
   selectedAccountUid,
@@ -368,6 +387,8 @@ function DestinationBrowser({
   mode: DocumentDestinationMode
   sourceId: UnpackedHypermediaId
   targetParent: UnpackedHypermediaId | null
+  /** Offer whole spaces only (their home documents), never a location inside one. */
+  spacesOnly?: boolean
   searchQuery: string
   writableDocuments: WritableDocumentDestination[]
   selectedAccountUid: string
@@ -386,12 +407,15 @@ function DestinationBrowser({
       />
     )
   }
-  if (!targetParent) {
+  if (spacesOnly && targetParent) return null
+  if (!targetParent || spacesOnly) {
+    const roots = getWritableRoots(writableDocuments, selectedAccountUid)
     return (
       <WritableRoots
         mode={mode}
         sourceId={sourceId}
-        roots={getWritableRoots(writableDocuments, selectedAccountUid)}
+        // A grant on a location inside a space does not make the space's home writable.
+        roots={spacesOnly ? roots.filter((root) => !root.id.path?.length) : roots}
         onSelect={onSelect}
       />
     )
@@ -558,6 +582,22 @@ function LocationRow({
       </div>
       <Forward className="text-muted-foreground size-4" />
     </button>
+  )
+}
+
+/** The chosen space, with a way to pick another; the adopt flow never goes deeper than this. */
+function SelectedSpaceRow({location, onChange}: {location: UnpackedHypermediaId; onChange: () => void}) {
+  const {data} = useResource(hmId(location.uid, {latest: true}))
+  const document = data?.type === 'document' ? data.document : null
+  const title = document ? getMetadataName(document.metadata) : location.uid
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <HMIcon id={hmId(location.uid)} name={title} icon={document?.metadata.icon} size={28} />
+      <SizableText className="min-w-0 flex-1 truncate text-base font-medium">{title}</SizableText>
+      <Button variant="link" size="sm" className="h-auto p-0" onClick={onChange}>
+        Change
+      </Button>
+    </div>
   )
 }
 

@@ -17,6 +17,7 @@ import {
   useSaveModelProvider,
   useAgentServerUrl,
   useLocalAgentServerUrl,
+  useSiteAdvertisedAgentServerUrl,
   useSigningIdentities,
   useUpdateSigningIdentity,
 } from './models'
@@ -921,14 +922,23 @@ function AgentAccountRow({
 }
 
 /**
- * The server a new agent goes to unless the user picks another: the configured default when it is
- * one of the servers on offer, else the first server that is not the app's own local one.
+ * The server a new agent goes to unless the user picks another: the server the space on screen
+ * advertises (its agents belong there), else the configured default, else the first server that
+ * is not the app's own local one.
  */
 export function pickCreateAgentServer(
   serverUrls: string[],
-  defaultServerUrl: string | null | undefined,
-  localServerUrl: string | null | undefined,
+  {
+    advertisedServerUrl,
+    defaultServerUrl,
+    localServerUrl,
+  }: {
+    advertisedServerUrl?: string | null
+    defaultServerUrl?: string | null
+    localServerUrl?: string | null
+  },
 ): string {
+  if (advertisedServerUrl && serverUrls.includes(advertisedServerUrl)) return advertisedServerUrl
   if (defaultServerUrl && serverUrls.includes(defaultServerUrl)) return defaultServerUrl
   const remote = serverUrls.find((serverUrl) => !isLocalAgentServer(serverUrl, localServerUrl))
   return remote || serverUrls[0] || getDefaultAgentServerUrl() || ''
@@ -958,8 +968,10 @@ export function CreateAgentDialog({
 }) {
   const localServerUrl = useLocalAgentServerUrl()
   const defaultServer = useAgentServerUrl()
+  const advertisedServerUrl = useSiteAdvertisedAgentServerUrl()
+  const serverChoice = {advertisedServerUrl, defaultServerUrl: defaultServer.data, localServerUrl: localServerUrl.data}
   const [selectedServerUrl, setSelectedServerUrl] = useState(() =>
-    pickCreateAgentServer(input.serverUrls, defaultServer.data, localServerUrl.data),
+    pickCreateAgentServer(input.serverUrls, serverChoice),
   )
   // The choice stays folded until asked for: agents go to the main server unless the user says so.
   const [choosingServer, setChoosingServer] = useState(false)
@@ -992,8 +1004,9 @@ export function CreateAgentDialog({
 
   useEffect(() => {
     if (serverPicked.current) return
-    setSelectedServerUrl(pickCreateAgentServer(input.serverUrls, defaultServer.data, localServerUrl.data))
-  }, [input.serverUrls, defaultServer.data, localServerUrl.data])
+    setSelectedServerUrl(pickCreateAgentServer(input.serverUrls, serverChoice))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [input.serverUrls, advertisedServerUrl, defaultServer.data, localServerUrl.data])
 
   // Checked quick-switch entries name providers on one server; a server switch drops them.
   useEffect(() => {

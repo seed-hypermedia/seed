@@ -14,11 +14,11 @@ import {getAgentsPlatform} from './platform'
 const VISIBLE_ROWS = 4
 
 /**
- * Sticky card at the top of the assistant panel's list for agents the account owns that are not
- * mounted in a document yet. Agents became documents: the pages that used to list them are gone,
- * so this is where somebody with agents from before finds them and gives each a home. It stays
- * until every owned agent is mounted (it can fold to one line for the session), and never shows
- * for a new account or one whose agents are all mounted.
+ * Sticky card at the top of the assistant panel's list for agents the account owns that live in
+ * no space yet (orphans). Agents became documents: the pages that used to list them are gone, so
+ * this is where somebody with agents from before finds them and adopts each into a space. It
+ * stays until every owned agent is adopted (it can fold to one line for the session), and never
+ * shows for a new account or one whose agents all have a home.
  */
 export function AgentMountReminder({
   agents,
@@ -41,20 +41,20 @@ export function AgentMountReminder({
   const count = pending.length === 1 ? '1 agent' : `${pending.length} agents`
   return (
     <section
-      aria-label="Agents to mount"
+      aria-label="Orphan agents"
       className="border-border bg-muted/40 flex flex-none flex-col gap-2 border-b px-3 py-2"
     >
       {dialog.content}
       <div className="flex items-center gap-2">
         <Bot className="text-muted-foreground size-4 shrink-0" />
         <SizableText size="sm" weight="bold" className="min-w-0 flex-1 truncate">
-          {folded ? `${count} to mount` : 'Give your agents a home'}
+          {folded ? `${count} to adopt` : 'Give your orphan agents a home'}
         </SizableText>
         <Button
           variant="ghost"
           size="icon"
           className="size-6"
-          aria-label={folded ? 'Show agents to mount' : 'Hide agents to mount'}
+          aria-label={folded ? 'Show orphan agents' : 'Hide orphan agents'}
           onClick={() => setFolded((value) => !value)}
         >
           {folded ? <ChevronDown className="size-4" /> : <ChevronUp className="size-4" />}
@@ -63,8 +63,8 @@ export function AgentMountReminder({
       {folded ? null : (
         <>
           <SizableText size="xs" color="muted">
-            {count} you own {pending.length === 1 ? 'is' : 'are'} not mounted in a document yet. A mounted agent gets a
-            page of its own, with its chats, tools and settings, that you can link to.
+            {count} you own {pending.length === 1 ? 'lives' : 'live'} in no space yet. Adopting one into a space gives
+            it a page of its own, with its chats, tools and settings, that you can link to.
           </SizableText>
           <ul className="flex flex-col gap-1">
             {rows.map(({serverUrl, agent}) => (
@@ -86,13 +86,13 @@ export function AgentMountReminder({
                       serverUrl,
                       accountUid,
                       onMounted: () => {
-                        toast.success(`Mounted ${agent.definition.name || 'the agent'}`)
+                        toast.success(`Adopted ${agent.definition.name || 'the agent'}`)
                         invalidateQueries(['agents'])
                       },
                     })
                   }
                 >
-                  Mount
+                  Adopt
                 </Button>
               </li>
             ))}

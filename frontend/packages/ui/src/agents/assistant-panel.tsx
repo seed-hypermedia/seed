@@ -10,6 +10,7 @@ import {
   useAgentWebSocketSubscription,
   useAllAgentSessionPages,
   useAgentSessions,
+  useSiteUidInView,
   useSpaceAgents,
   useDeleteAgentSession,
   useLocalAgentServerUrl,
@@ -34,11 +35,15 @@ import {
   retryableErrorRowKey,
 } from './agent-session-rows'
 import {
+  groupAssistantAgentsBySpace,
   orderAssistantAgents,
   resolveAssistantSelection,
   type AssistantAgentKey,
   type AssistantAgentOption,
 } from './assistant-selection'
+import {getMetadataName} from '@shm/shared/content'
+import {useResources} from '@shm/shared/models/entity'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   agentRowActivity,
   latestSessionEventAt,
@@ -169,6 +174,7 @@ export function AssistantPanel({
   const navigate = useNavigate()
 
   const spaceAgents = useSpaceAgents(accountUid)
+  const currentSpaceUid = useSiteUidInView()
 
   // The account-wide lists never include a public agent's chats — the space's agents reach a
   // visitor through GetAgent instead, which carries them along. Merge both, so "All agents" lists a
@@ -465,7 +471,7 @@ export function AssistantPanel({
           pending={selection.filterPending}
           rowActivities={rowActivities}
           localServerUrl={localServerUrl.data ?? null}
-          advertisedServerUrl={serverUrls.advertisedServerUrl}
+          currentSpaceUid={currentSpaceUid}
           onSelect={(key) => {
             // Choosing whose chats to see always lands on that list, as on the Agents page.
             setChosenAgent(key)
@@ -676,8 +682,8 @@ export function AssistantPanel({
  * Agent-context dropdown at the very top of the sidebar.
  *
  * Filters the chat list below to one agent, or to all of them ("All agents", the default); the
- * composer under the list follows the choice. Agents are grouped under their server
- * so the same name on two servers stays distinguishable.
+ * composer under the list follows the choice. Agents are grouped under the space they live in,
+ * with agents adopted into no space yet in an "Orphan agents" group at the end.
  */
 function AssistantAgentPicker({
   agents,
@@ -685,7 +691,7 @@ function AssistantAgentPicker({
   pending = false,
   rowActivities,
   localServerUrl,
-  advertisedServerUrl,
+  currentSpaceUid,
   onSelect,
 }: {
   agents: AssistantAgentOption[]
@@ -695,21 +701,22 @@ function AssistantAgentPicker({
   /** Each agent's own indicator (unread, or working), keyed `${serverUrl}${agentId}`. */
   rowActivities: Record<string, AgentRowActivity>
   localServerUrl: string | null
-  /** Server the site on screen advertises; its group is labeled so the user knows why it is here. */
-  advertisedServerUrl?: string | null
+  /** The space on screen; its group is labeled so the user knows why its agents lead the list. */
+  currentSpaceUid?: string | null
   /** Filters to one agent, or to all of them with null. */
   onSelect: (key: AssistantAgentKey | null) => void
 }) {
   const [open, setOpen] = useState(false)
-  const groups = useMemo(() => {
-    const byServer = new Map<string, AssistantAgentOption[]>()
-    for (const option of agents) {
-      const list = byServer.get(option.serverUrl)
-      if (list) list.push(option)
-      else byServer.set(option.serverUrl, [option])
-    }
-    return Array.from(byServer, ([serverUrl, options]) => ({serverUrl, options}))
-  }, [agents])
+  const groups = useMemo(() => groupAssistantAgentsBySpace(agents), [agents])
+  // Each space is named by its home document; a space the node has not synced yet shows its id.
+  const spaceIds = useMemo(() => groups.flatMap((group) => (group.spaceUid ? [hmId(group.spaceUid)] : [])), [groups])
+  const spaceHomes = useResources(spaceIds)
+  const spaceNames = new Map<string, string>()
+  spaceIds.forEach((id, index) => {
+    const data = spaceHomes[index]?.data
+    const name = data?.type === 'document' ? getMetadataName(data.document.metadata) : ''
+    spaceNames.set(id.uid, name || `${id.uid.slice(0, 12)}…`)
+  })
 
   return (
     <div data-agent-picker className="flex max-w-full min-w-0 items-center">
@@ -746,12 +753,12 @@ function AssistantAgentPicker({
             <div className="text-muted-foreground px-2 py-3 text-center text-xs">No agents yet.</div>
           ) : (
             groups.map((group) => (
-              <div key={group.serverUrl} className="flex flex-col">
+              <div key={group.spaceUid ?? 'orphans'} className="flex flex-col">
                 <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                  <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
-                    {describeAgentServer(group.serverUrl, localServerUrl)}
+                  <span className="text-muted-foreground truncate text-[10px] font-medium tracking-wide uppercase">
+                    {group.spaceUid ? spaceNames.get(group.spaceUid) : 'Orphan agents'}
                   </span>
-                  {advertisedServerUrl && group.serverUrl === advertisedServerUrl ? (
+                  {currentSpaceUid && group.spaceUid === currentSpaceUid ? (
                     <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px] font-medium">
                       This space
                     </span>
@@ -779,7 +786,14 @@ function AssistantAgentPicker({
                         </span>
                       </span>
                       <span className="text-muted-foreground w-full truncate text-[10px]">
-                        {row?.short ?? option.agent.definition.model}
+                        {row?.short ??
+                          (group.spaceUid
+                            ? option.agent.definition.model
+                            : // An orphan lives nowhere but its server, so say which one.
+                              `${option.agent.definition.model} · ${describeAgentServer(
+                                option.serverUrl,
+                                localServerUrl,
+                              )}`)}
                       </span>
                     </button>
                   )

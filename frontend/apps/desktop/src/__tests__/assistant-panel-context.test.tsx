@@ -48,6 +48,7 @@ vi.mock('@shm/ui/agents/models', () => ({
   // The create-agent dialog checks the server before offering models; here it is never reached.
   useAgentServerHealth: () => ({data: undefined, isLoading: false}),
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
+  useSiteUidInView: () => null,
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     !!localServerUrl && serverUrl === localServerUrl,
   describeAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
@@ -117,7 +118,7 @@ vi.mock('@shm/ui/agents/navigation', () => ({
   resolveHypermediaRoute: () => null,
 }))
 vi.mock('@/utils/useNavigate', () => ({useNavigate: () => mockState.navigate}))
-vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
+vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined}), useResources: () => []}))
 // The real composer drags in the ProseMirror editor stack, which does not load under jsdom. The
 // mock honors the contract these tests care about: a textarea stands in for the editor, it
 // focuses itself when told to focus on mount (the default, as in the real component), it renders
@@ -305,7 +306,9 @@ describe('assistant sidebar', () => {
       root.render(<AssistantPanel />)
     })
     click(pickerTrigger())
-    // Grouped by server.
+    // Grouped by the space an agent lives in; these legacy ids live nowhere, so they are orphans,
+    // and an orphan's row still says which server it runs on.
+    expect(document.body.textContent).toContain('Orphan agents')
     expect(document.body.textContent).toContain('Local Agents')
     expect(document.body.textContent).toContain('agentic.seed.hyper.media')
     clickInPicker('Researcher')
