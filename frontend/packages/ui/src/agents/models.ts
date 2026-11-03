@@ -474,9 +474,11 @@ export function useLocalAgentServerState() {
     queryKey: ['agents', 'local-server-state'],
     queryFn: async (): Promise<AgentsLocalServerState> =>
       getLocalServerState ? getLocalServerState() : {t: 'disabled', reason: 'env'},
-    // Like the URL query: the server may still be booting, or attach later after an error.
+    // Like the URL query: the server may still be booting, or attach later after an error. A
+    // `disabled` without a reason is the main process's initial state while it is still probing
+    // or spawning, so that one keeps polling too.
     refetchInterval: (data) =>
-      data?.t === 'attached' || data?.t === 'spawned' || data?.t === 'disabled'
+      data?.t === 'attached' || data?.t === 'spawned' || (data?.t === 'disabled' && !!data.reason)
         ? false
         : AGENT_BACKGROUND_REFETCH_INTERVAL_MS,
     retry: false,

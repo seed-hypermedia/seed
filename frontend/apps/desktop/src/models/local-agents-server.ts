@@ -34,6 +34,9 @@ export function resolveLocalAgentsServerMigration(input: LocalAgentsServerMigrat
   // Only a server this app spawned is ours to retire; the dev one is attached, never touched.
   if (input.state?.t !== 'spawned') return null
   if (!input.lists) return null
+  // No accounts to ask is indistinguishable from a failed key listing (`useMyAccountIds` answers
+  // `[]` on error), so that launch decides nothing; the server runs once more next time.
+  if (input.lists.length === 0) return null
   if (input.lists.some((list) => list === undefined)) return null
   if (input.lists.some((list) => Array.isArray(list) && list.length > 0)) return 'keep'
   if (input.lists.some((list) => list === 'error')) return null

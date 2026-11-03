@@ -1211,7 +1211,8 @@ export default function DesktopResourcePage() {
 
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
   // An agent page is the agent, so Publish only appears once attributes or content are dirty.
-  const isAgentPage = route.key === 'document' && !!route.agentView
+  // The base URL (no agentView) opens the agent's sessions, so the document's type decides too.
+  const isAgentPage = route.key === 'document' && (!!route.agentView || doc?.metadata.type === 'hm://hyper.media/agent')
 
   // Walk the editor's blocks for embed blocks with a draftId.
   // Called at Publish click time so the popover always opens

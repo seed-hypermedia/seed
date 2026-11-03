@@ -523,10 +523,12 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   )
 
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
-  // An agent page is the agent, so Publish only appears once attributes or content are dirty.
-  const isAgentPage = route.key === 'document' && !!route.agentView
   const currentResource = useResource(useLocalDraftShell ? undefined : docId)
   const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
+  // An agent page is the agent, so Publish only appears once attributes or content are dirty.
+  // The base URL (no agentView) opens the agent's sessions, so the document's type decides too.
+  const isAgentPage =
+    route.key === 'document' && (!!route.agentView || currentDocument?.metadata.type === 'hm://hyper.media/agent')
   // A mounted agent's menu opens the profile the agent signs as.
   registerWebAgentsPlatform()
   const agentProfileMenuItem = useMountedAgentProfileMenuItem(docId, currentDocument?.metadata)

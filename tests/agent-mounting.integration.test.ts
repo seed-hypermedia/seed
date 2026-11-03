@@ -231,6 +231,8 @@ describe('agent mounting', () => {
     expect(await page.getByRole('link', {name: 'Sessions', exact: true}).count()).toBe(0)
     await page.unroute(`${localServerUrl}/api/message`)
     await page.goto(`${env!.web.baseUrl}/hm/agents/agent/${legacyId}?server=${encodeURIComponent(localServerUrl)}`)
+    // The banner and any refusal render from the same agent data, so check after the banner shows.
+    await page.getByRole('button', {name: 'Adopt agent', exact: true}).waitFor()
     expect(await page.getByText('Local agents cannot be mounted', {exact: true}).count()).toBe(0)
     await page.getByRole('button', {name: 'Adopt agent', exact: true}).click()
     const dialog = page.getByRole('dialog')

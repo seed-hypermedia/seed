@@ -41,8 +41,8 @@ describe('resolveLocalAgentsServerMigration', () => {
 
   it('retires the server only when every account answered with no agents', () => {
     expect(resolveLocalAgentsServerMigration({setting: null, state: spawned, lists: [[], []]})).toBe('retire')
-    // No local accounts at all: nothing can be in the server for anybody.
-    expect(resolveLocalAgentsServerMigration({setting: null, state: spawned, lists: []})).toBe('retire')
+    // No local accounts at all looks the same as a failed key listing: decide next launch.
+    expect(resolveLocalAgentsServerMigration({setting: null, state: spawned, lists: []})).toBeNull()
     // A failed list may hide agents: leave it for the next launch.
     expect(resolveLocalAgentsServerMigration({setting: null, state: spawned, lists: [[], 'error']})).toBeNull()
   })

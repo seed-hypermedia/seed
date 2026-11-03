@@ -33,6 +33,8 @@ function defaultAgentsPort(): number {
 const MAX_PORT_PROBES = 20
 const HEALTH_TIMEOUT_MS = 1_500
 const SPAWN_READY_TIMEOUT_MS = 30_000
+/** How long a stop waits for the child to exit before giving up on the close event. */
+const STOP_TIMEOUT_MS = 5_000
 
 export type AgentsServerState =
   | {t: 'disabled'; reason?: 'env' | 'setting'}
@@ -310,22 +312,36 @@ export async function setLocalAgentsServerEnabled(enabled: boolean): Promise<str
     return startLocalAgentsServer({force: true})
   }
   if (state.t === 'attached') return state.url
-  stopLocalAgentsServer()
+  // Wait for the exit: an immediate re-enable probes the default port first and would otherwise
+  // attach to the server that is still shutting down, then be left on a dead URL.
+  await stopLocalAgentsServer()
   state = {t: 'disabled', reason: 'setting'}
   return null
 }
 
 let quitHookInstalled = false
 
-/** Stops a spawned agents server. Attached servers are left alone — we do not own them. */
-export function stopLocalAgentsServer(): void {
+/**
+ * Stops a spawned agents server; resolves once it has exited (or after a short timeout). Attached
+ * servers are left alone — we do not own them.
+ */
+export function stopLocalAgentsServer(): Promise<void> {
   const child = serverProcess
-  if (!child || child.killed) return
+  if (!child || child.killed) return Promise.resolve()
   expectingClose = true
+  const closed = new Promise<void>((resolve) => {
+    if (child.exitCode !== null) return resolve()
+    const timer = setTimeout(resolve, STOP_TIMEOUT_MS)
+    child.once('close', () => {
+      clearTimeout(timer)
+      resolve()
+    })
+  })
   if (process.platform === 'win32') {
     forceKillChildProcess(child)
   } else {
     child.kill()
   }
   serverProcess = null
+  return closed
 }
