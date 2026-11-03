@@ -961,7 +961,7 @@ describe('memory-root lock', () => {
         },
       })
       const executor = createCodeExecutor(
-        {...defaultCodeExecConfig(), maxConcurrent: 4, acquireWaitMs: 40},
+        {...defaultCodeExecConfig(), maxConcurrent: 4, memoryRootWaitMs: 40},
         unusedSdk,
         factory,
       )
@@ -975,11 +975,11 @@ describe('memory-root lock', () => {
     })
   })
 
-  test('a waiter that outlives acquireWaitMs fails with a retryable 503 that names the cause', async () => {
+  test('a waiter that outlives memoryRootWaitMs fails with a retryable 503 that names the cause', async () => {
     await withStateDir(async (stateDir) => {
       const source = mountWatchingSource()
       const executor = createCodeExecutor(
-        {...defaultCodeExecConfig(), maxConcurrent: 4, acquireWaitMs: 40},
+        {...defaultCodeExecConfig(), maxConcurrent: 4, memoryRootWaitMs: 40},
         unusedSdk,
         source.factory,
       )
@@ -1020,7 +1020,7 @@ describe('memory-root lock', () => {
         }
       },
     }
-    const locked = withMemoryRootLock(inner, {acquireWaitMs: 40})
+    const locked = withMemoryRootLock(inner, {memoryRootWaitMs: 40})
     const spec = {principal: sessionA, image: 'python', memoryRoot: '/tmp/some-agent/memory/', timeoutSecs: 1}
     const first = await locked.acquire(spec)
     await expect(first.release({healthy: true})).rejects.toThrow('teardown exploded')

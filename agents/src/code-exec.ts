@@ -97,10 +97,19 @@ export type CodeExecConfig = {
    */
   maxConcurrent: number
   /**
-   * How long an acquire may wait before failing with a clear, retryable error. Applies to each
-   * wait separately: first for the agent's memory-root lease, then for a host-wide slot.
+   * How long an acquire may wait for a host-wide slot before failing with a clear, retryable
+   * error.
    */
   acquireWaitMs: number
+  /**
+   * How long an acquire may wait for the agent's memory-root lease (`withMemoryRootLock`) before
+   * failing with a retryable error. Deliberately much longer than `acquireWaitMs`: the lease is
+   * held for one execution at most, so a waiter is behind a bounded amount of that agent's own
+   * work (a trigger firing behind its main run, a delegated child behind its parent), and a
+   * queued call that completes a few minutes late is far more useful to the model than a 503 it
+   * has to retry. Defaults to the longest an execution can run (`MAX_EXEC_TIMEOUT_SECS`).
+   */
+  memoryRootWaitMs: number
   /** Override for EXEC_TIMEOUT_GRACE_MS, so tests can exercise the watchdog without real waits. */
   timeoutGraceMs?: number
   /** Override for EXEC_TEARDOWN_TIMEOUT_MS, so tests can exercise stop→kill escalation quickly. */
@@ -335,6 +344,7 @@ export function defaultCodeExecConfig(): CodeExecConfig {
     poolVmMaxAgeMs: 30 * 60_000,
     maxConcurrent: defaultExecMaxConcurrent(),
     acquireWaitMs: 30_000,
+    memoryRootWaitMs: MAX_EXEC_TIMEOUT_SECS * 1000,
   }
 }
 
@@ -964,7 +974,7 @@ export function withConcurrencyCap(
  * of exclusion here, keyed on the normalized path: whoever asks for the same root waits.
  *
  * Semantics mirror `withConcurrencyCap`: waiters queue FIFO per root, inherit the lease straight
- * from the releasing call, and fail after `acquireWaitMs` with a retryable 503. The lease is
+ * from the releasing call, and fail after `memoryRootWaitMs` with a retryable 503. The lease is
  * handed back in `finally` — a boot that throws or a release whose teardown throws still frees
  * the root, so a wedged guest cannot lock an agent out of its own memory for good.
  *
@@ -977,11 +987,12 @@ export function withConcurrencyCap(
  * A delegated child runs as the same agent and shares the parent's memory root, so parent and
  * child executions serialize rather than overlap. Neither holds the lease outside its own
  * sandbox exchange, so one can never wait on the other for anything but a running execution;
- * waiting is therefore bounded by that execution's timeout, and past `acquireWaitMs` by the 503.
+ * waiting is therefore bounded by that execution's timeout, and past `memoryRootWaitMs` by the
+ * 503. That wait is long on purpose (see `CodeExecConfig.memoryRootWaitMs`).
  */
 export function withMemoryRootLock(
   source: SandboxSource,
-  config: Pick<CodeExecConfig, 'acquireWaitMs'>,
+  config: Pick<CodeExecConfig, 'memoryRootWaitMs'>,
 ): SandboxSource {
   type Waiter = {grant: () => void; timer: ReturnType<typeof setTimeout>}
   // A root is on loan exactly while it has an entry; the entry is the FIFO of calls waiting for it.
@@ -1021,11 +1032,11 @@ export function withMemoryRootLock(
             new CodeExecError(
               503,
               `Another execution is already using this agent's memory workspace (waited ${Math.round(
-                config.acquireWaitMs / 1000,
+                config.memoryRootWaitMs / 1000,
               )}s). Only one sandbox may have it mounted at a time; retry once that execution finishes, and avoid parallel execute calls for the same agent.`,
             ),
           )
-        }, config.acquireWaitMs),
+        }, config.memoryRootWaitMs),
       }
       waiters.push(waiter)
     })
