@@ -76,6 +76,9 @@ export function useSiteAgentMounts(siteUid: string | null | undefined) {
   return useQuery({
     queryKey: siteAgentMountsQueryKey(siteUid),
     enabled: !!siteUid && canQuery,
+    // The header, the auto-open and the panel all ask; one answer serves them for a while, and a
+    // newly mounted agent shows up on the next navigation or within the minute.
+    staleTime: 60_000,
     queryFn: async ({signal}: {signal?: AbortSignal} = {}): Promise<SiteAgentMount[]> => {
       if (!siteUid || !client.queryDocuments) return []
       const filter = new DocumentFilter({
