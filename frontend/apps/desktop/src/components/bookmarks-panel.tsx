@@ -1,4 +1,6 @@
 import {useBookmarks, useRemoveBookmark, type BookmarkItem} from '@/models/bookmarks'
+import {getRoutePanel} from '@shm/shared/routes'
+import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {useRouteLink} from '@shm/shared'
 import {getContactMetadata} from '@shm/shared/content'
 import {useSelectedAccountContacts} from '@shm/shared/models/contacts'
@@ -24,7 +26,7 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import React, {createContext, useCallback, useContext, useMemo, useState} from 'react'
+import React, {createContext, useCallback, useContext, useMemo, useState, useEffect} from 'react'
 
 /** Return a copy of the stored bookmark list ordered from newest to oldest. */
 export function newestBookmarksFirst<T>(bookmarks: readonly T[]): T[] {
@@ -70,8 +72,18 @@ const BookmarksPanelContext = createContext({isOpen: false, open: () => {}, clos
 
 /** Keeps the desktop bookmark panel open while the user navigates between spaces. */
 export function BookmarksPanelProvider({children}: {children?: React.ReactNode}) {
-  const [isOpen, setOpen] = useState(false)
-  const open = useCallback(() => setOpen(true), [])
+  const route = useNavRoute()
+  const navigate = useNavigate('replace')
+  const activityOpen = getRoutePanel(route)?.key === 'feed'
+  const [bookmarksOpen, setOpen] = useState(false)
+  const isOpen = bookmarksOpen && !activityOpen
+  useEffect(() => {
+    if (activityOpen) setOpen(false)
+  }, [activityOpen])
+  const open = useCallback(() => {
+    if (activityOpen && 'panel' in route) navigate({...route, panel: null})
+    setOpen(true)
+  }, [activityOpen, route, navigate])
   const close = useCallback(() => setOpen(false), [])
   const value = useMemo(() => ({isOpen, open, close}), [isOpen, open, close])
   return <BookmarksPanelContext.Provider value={value}>{children}</BookmarksPanelContext.Provider>

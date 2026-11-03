@@ -5,9 +5,21 @@ import {createRoot} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 
-const state = vi.hoisted(() => ({bookmarks: [] as any[], navigate: vi.fn()}))
+const state = vi.hoisted(() => ({
+  bookmarks: [] as any[],
+  navigate: vi.fn(),
+  route: {key: 'document', id: {uid: 'alice'}, panel: null} as any,
+}))
+
+vi.mock('@shm/shared/utils/navigation', () => ({
+  useNavRoute: () => state.route,
+  useNavigate: () => (route: unknown) => {
+    state.route = route
+  },
+}))
 
 beforeEach(() => {
+  state.route = {key: 'document', id: {uid: 'alice'}, panel: null}
   state.bookmarks = []
   state.navigate.mockClear()
 })
@@ -163,5 +175,33 @@ describe('comment bookmarks', () => {
     expect(popover).toContain('<AccountAvatar')
     expect(popover).toContain('id={authorId}')
     expect(popover).toContain('<MessageSquare className="text-foreground size-3" />')
+  })
+})
+
+describe('Activity and Bookmarks selection', () => {
+  it('replaces Activity with Bookmarks and does not restore Bookmarks after Activity closes', () => {
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    function Controls() {
+      const panel = useBookmarksPanel()
+      return React.createElement('button', {onClick: panel.open}, panel.isOpen ? 'Bookmarks open' : 'Bookmarks closed')
+    }
+    const render = () => root.render(React.createElement(BookmarksPanelProvider, null, React.createElement(Controls)))
+    try {
+      state.route = {...state.route, panel: {key: 'feed', tab: 'to-you'}}
+      act(render)
+      act(() => container.querySelector('button')!.click())
+      act(render)
+      expect(state.route.panel).toBeNull()
+      expect(container.textContent).toBe('Bookmarks open')
+      state.route = {...state.route, panel: {key: 'feed', tab: 'all-updates'}}
+      act(render)
+      expect(container.textContent).toBe('Bookmarks closed')
+      state.route = {...state.route, panel: null}
+      act(render)
+      expect(container.textContent).toBe('Bookmarks closed')
+    } finally {
+      act(() => root.unmount())
+    }
   })
 })

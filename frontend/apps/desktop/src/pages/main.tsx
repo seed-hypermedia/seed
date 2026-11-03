@@ -1,3 +1,4 @@
+import {ActivityPanelProvider, ActivityPanelOutlet} from '@shm/ui/activity-panel-layout'
 import {useAppContext, useListen} from '@/app-context'
 
 import {BookmarksPanel, BookmarksPanelProvider, useBookmarksPanel} from '@/components/bookmarks-panel'
@@ -15,7 +16,7 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {hmId} from '@shm/shared'
-import {defaultRoute, NavRoute} from '@shm/shared/routes'
+import {defaultRoute, getRoutePanel, NavRoute} from '@shm/shared/routes'
 import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {NotificationInboxProvider} from '@shm/ui/activity-panel'
@@ -269,48 +270,50 @@ export default function Main({className}: {className?: string}) {
       >
         <Panel id="app-content">
           <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto]">
-            <BookmarksPanelProvider>
-              <SidebarContextProvider>
-                {titlebar}
-                <PanelContent>
-                  {sidebar}
-                  <Panel id="page">
-                    <div className="flex h-full min-h-0 flex-col">
-                      <div className="min-h-0 flex-1">
-                        <ErrorBoundary
-                          resetKeys={[routeKey]}
-                          FallbackComponent={RootAppError}
-                          onReset={() => {
-                            window.location.reload()
-                          }}
-                        >
-                          {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
+            <ActivityPanelProvider>
+              <BookmarksPanelProvider>
+                <SidebarContextProvider>
+                  {titlebar}
+                  <PanelContent>
+                    {sidebar}
+                    <Panel id="page">
+                      <div className="flex h-full min-h-0 flex-col">
+                        <div className="min-h-0 flex-1">
+                          <ErrorBoundary
+                            resetKeys={[routeKey]}
+                            FallbackComponent={RootAppError}
+                            onReset={() => {
+                              window.location.reload()
+                            }}
+                          >
+                            {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
                         inside the panel. Without this, the lazy import suspends all the way to the
                         root boundary and the whole window — chrome included — becomes a spinner. */}
-                          <Suspense fallback={<Fallback />}>
-                            {(browserMounted || navR.key === 'web') && <WebBrowser />}
-                            {navR.key !== 'web' && (
-                              <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
-                                <NotificationInboxProvider value={DesktopNotificationInbox}>
-                                  <PageComponent />
-                                </NotificationInboxProvider>
-                              </AssistantPanelToggleContext.Provider>
-                            )}
-                          </Suspense>
-                        </ErrorBoundary>
+                            <Suspense fallback={<Fallback />}>
+                              {(browserMounted || navR.key === 'web') && <WebBrowser />}
+                              {navR.key !== 'web' && (
+                                <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
+                                  <NotificationInboxProvider value={DesktopNotificationInbox}>
+                                    <PageComponent />
+                                  </NotificationInboxProvider>
+                                </AssistantPanelToggleContext.Provider>
+                              )}
+                            </Suspense>
+                          </ErrorBoundary>
+                        </div>
                       </div>
-                    </div>
-                  </Panel>
-                  <DesktopBookmarksPanel />
-                </PanelContent>
+                    </Panel>
+                    <DesktopAccessoryPanel />
+                  </PanelContent>
 
-                <Footer />
+                  <Footer />
 
-                <AutoUpdater />
-                <ConfirmConnectionDialog />
-                <HypermediaHighlight />
-              </SidebarContextProvider>
-            </BookmarksPanelProvider>
+                  <AutoUpdater />
+                  <ConfirmConnectionDialog />
+                  <HypermediaHighlight />
+                </SidebarContextProvider>
+              </BookmarksPanelProvider>
+            </ActivityPanelProvider>
           </div>
         </Panel>
         <PanelSeparator open={shouldRenderAssistantPanel} onCollapse={handleToggleAssistant} />
@@ -335,8 +338,17 @@ export default function Main({className}: {className?: string}) {
   )
 }
 
-function DesktopBookmarksPanel() {
-  const {isOpen, close} = useBookmarksPanel()
+function DesktopAccessoryPanel() {
+  const saved = useSavedPanelLayout('desktop-accessory', ['page', 'bookmarks'])
+  const bookmarks = useBookmarksPanel()
+  const route = useNavRoute()
+  const navigate = useNavigate()
+  const activityOpen = getRoutePanel(route)?.key === 'feed'
+  const isOpen = bookmarks.isOpen || activityOpen
+  const close = () => {
+    if (activityOpen && 'panel' in route) navigate({...route, panel: null})
+    else bookmarks.close()
+  }
   return (
     <>
       <PanelSeparator open={isOpen} onCollapse={close} />
@@ -345,10 +357,10 @@ function DesktopBookmarksPanel() {
         open={isOpen}
         minSize="240px"
         maxSize="45%"
-        defaultSize="320px"
+        defaultSize={saved.expanded?.bookmarks ? `${saved.expanded.bookmarks}%` : '320px'}
         className="border-border overflow-hidden rounded-lg border"
       >
-        <BookmarksPanel />
+        {activityOpen ? <ActivityPanelOutlet /> : <BookmarksPanel />}
       </AnimatedPanel>
     </>
   )
@@ -395,8 +407,12 @@ function ConfirmConnectionDialog() {
 }
 
 function PanelContent({children}: {children: ReactNode}) {
+  const saved = useSavedPanelLayout('desktop-accessory', ['page', 'bookmarks'])
   const ctx = useSidebarContext()
   const bookmarksPanel = useBookmarksPanel()
+  const route = useNavRoute()
+  const navigate = useNavigate()
+  const activityOpen = getRoutePanel(route)?.key === 'feed'
   const isSidebarLocked = useStream(ctx.isLocked)
 
   useListenAppEvent('toggle_sidebar', () => {
@@ -422,7 +438,16 @@ function PanelContent({children}: {children: ReactNode}) {
       className={cn('flex min-h-0 overflow-hidden pr-2', !isSidebarLocked && 'pl-2')}
       onLayoutChanged={(layout, meta) => {
         if (!meta.isUserInteraction) return
-        if (layout.bookmarks === 0 && bookmarksPanel.isOpen) bookmarksPanel.close()
+        const accessoryWidth = (meta.requestedLayout ?? layout).bookmarks ?? 0
+        // Store the accessory share independently of the optional app sidebar.
+        saved.onLayoutChanged(
+          {page: 100 - accessoryWidth, bookmarks: accessoryWidth},
+          {...meta, requestedLayout: undefined},
+        )
+        if (layout.bookmarks === 0) {
+          if (activityOpen && 'panel' in route) navigate({...route, panel: null})
+          else if (bookmarksPanel.isOpen) bookmarksPanel.close()
+        }
         const width = (meta.requestedLayout ?? layout).sidebar
         if (width && width > 0) ctx.onSidebarResize(width)
         if (layout.sidebar === 0) ctx.onCloseSidebar()

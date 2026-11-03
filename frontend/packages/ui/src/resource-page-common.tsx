@@ -1,3 +1,4 @@
+import {ActivityPanelPortal, WebActivityPanelLayout} from './activity-panel-layout'
 import {ConnectionsPanel} from './connections-panel'
 import {PanelHeader} from './panel-header'
 import {groupDocumentConnections} from '@shm/shared/connections'
@@ -1787,52 +1788,54 @@ export function PageShell({
   const itemsForHeader = liveNavigationItems ?? headerData.items
 
   return (
-    <SiteFileBrowserLayout
-      siteId={hmId(siteHomeId.uid)}
-      activeDocumentId={docId}
-      siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Space documents'}
-      mobileOpen={isFileBrowserOpen}
-      onMobileOpenChange={setIsFileBrowserOpen}
-      onPrefetch={onPrefetchDocument}
-      createMenuItem={fileBrowserCreateMenuItem}
-      onIncludeDocument={fileBrowserOnIncludeDocument}
-      getIncludeDocumentState={fileBrowserGetIncludeDocumentState}
-      onNavigate={(id) => {
-        setIsFileBrowserOpen(false)
-        navigate({key: 'document', id})
-      }}
-    >
-      <div
-        // The SSR fallback for the measured --site-header-live-h. The values
-        // live in a stylesheet (web app styles.css) rather than an inline
-        // style because the header height is responsive; only the pre-hydration
-        // web paint ever reads them.
-        data-header-layout={headerData.isCenterLayout ? 'center' : 'bar'}
-        className={cn(
-          'dark:bg-background flex max-h-full flex-col bg-white',
-          // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
-          // On mobile: natural height for document scrolling
-          isMobile ? 'min-h-dvh has-[[data-document-page-main]]:h-dvh' : 'h-dvh',
-        )}
+    <WebActivityPanelLayout>
+      <SiteFileBrowserLayout
+        siteId={hmId(siteHomeId.uid)}
+        activeDocumentId={docId}
+        siteName={getMetadataName(headerData.siteHomeDocument?.metadata) || 'Space documents'}
+        mobileOpen={isFileBrowserOpen}
+        onMobileOpenChange={setIsFileBrowserOpen}
+        onPrefetch={onPrefetchDocument}
+        createMenuItem={fileBrowserCreateMenuItem}
+        onIncludeDocument={fileBrowserOnIncludeDocument}
+        getIncludeDocumentState={fileBrowserGetIncludeDocumentState}
+        onNavigate={(id) => {
+          setIsFileBrowserOpen(false)
+          navigate({key: 'document', id})
+        }}
       >
-        <SiteHeader
-          siteHomeId={siteHomeId}
-          docId={docId}
-          items={itemsForHeader}
-          homeNavigationItems={headerData.homeNavigationItems}
-          directoryItems={headerData.directoryItems}
-          isCenterLayout={headerData.isCenterLayout}
-          document={document}
-          siteHomeDocument={headerData.siteHomeDocument}
-          notifyServiceHost={NOTIFY_SERVICE_HOST}
-          rightActions={rightActions}
-          editNavPane={editNavPanePortalRef ? undefined : editNavPane}
-          editNavPanePortalRef={editNavPanePortalRef}
-        />
-        <TransientResourceBanner error={transientResourceError ?? null} />
-        <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-      </div>
-    </SiteFileBrowserLayout>
+        <div
+          // The SSR fallback for the measured --site-header-live-h. The values
+          // live in a stylesheet (web app styles.css) rather than an inline
+          // style because the header height is responsive; only the pre-hydration
+          // web paint ever reads them.
+          data-header-layout={headerData.isCenterLayout ? 'center' : 'bar'}
+          className={cn(
+            'dark:bg-background flex max-h-full flex-col bg-white',
+            // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
+            // On mobile: natural height for document scrolling
+            isMobile ? 'min-h-dvh has-[[data-document-page-main]]:h-dvh' : 'h-dvh',
+          )}
+        >
+          <SiteHeader
+            siteHomeId={siteHomeId}
+            docId={docId}
+            items={itemsForHeader}
+            homeNavigationItems={headerData.homeNavigationItems}
+            directoryItems={headerData.directoryItems}
+            isCenterLayout={headerData.isCenterLayout}
+            document={document}
+            siteHomeDocument={headerData.siteHomeDocument}
+            notifyServiceHost={NOTIFY_SERVICE_HOST}
+            rightActions={rightActions}
+            editNavPane={editNavPanePortalRef ? undefined : editNavPane}
+            editNavPanePortalRef={editNavPanePortalRef}
+          />
+          <TransientResourceBanner error={transientResourceError ?? null} />
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        </div>
+      </SiteFileBrowserLayout>
+    </WebActivityPanelLayout>
   )
 }
 
@@ -3425,10 +3428,18 @@ function DocumentBody({
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
+      <ActivityPanelPortal active={panelKey === 'feed'}>
+        {activityPanelHeader}
+        <ScrollArea className="min-h-0 flex-1">{panelContent}</ScrollArea>
+      </ActivityPanelPortal>
       <PanelLayout
-        panelKey={panelKey}
+        panelKey={panelKey === 'feed' ? null : panelKey}
         panelContent={
-          panelKey === 'comments' ? panelContent : <ScrollArea className="flex-1">{panelContent}</ScrollArea>
+          panelKey === 'feed' ? null : panelKey === 'comments' ? (
+            panelContent
+          ) : (
+            <ScrollArea className="flex-1">{panelContent}</ScrollArea>
+          )
         }
         onPanelClose={handlePanelClose}
         commentsCount={commentsPanelSummary.data?.comments}
