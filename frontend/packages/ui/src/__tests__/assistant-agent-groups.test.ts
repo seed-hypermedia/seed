@@ -8,7 +8,8 @@ import {agentSpaceUid, groupAssistantAgentsBySpace} from '../agents/assistant-se
  * close the list as orphans.
  */
 
-const agent = (id: string, name: string): AgentInfo => ({id, definition: {name}}) as AgentInfo
+const agent = (id: string, name: string, accessRole: AgentInfo['accessRole'] = 'owner'): AgentInfo =>
+  ({id, definition: {name}, accessRole}) as AgentInfo
 const HOSTED = 'https://agents.example.com'
 const LOCAL = 'http://localhost:3050'
 
@@ -35,5 +36,16 @@ describe('groupAssistantAgentsBySpace', () => {
     const groups = groupAssistantAgentsBySpace([{serverUrl: HOSTED, agent: agent('hm://z6MkTeam/scout', 'Scout')}])
     expect(groups).toHaveLength(1)
     expect(groups[0]!.spaceUid).toBe('z6MkTeam')
+  })
+
+  it('keeps agents in no space that someone else owns out of the orphans', () => {
+    const groups = groupAssistantAgentsBySpace([
+      {serverUrl: HOSTED, agent: agent('legacy-theirs', 'Theirs', 'writer')},
+      {serverUrl: LOCAL, agent: agent('legacy-mine', 'Mine')},
+      {serverUrl: HOSTED, agent: agent('legacy-old-server', 'Old', undefined)},
+    ])
+    expect(groups.map((group) => group.kind)).toEqual(['orphans', 'shared'])
+    expect(groups[0]!.options.map((option) => option.agent.definition.name)).toEqual(['Mine', 'Old'])
+    expect(groups[1]!.options.map((option) => option.agent.definition.name)).toEqual(['Theirs'])
   })
 })

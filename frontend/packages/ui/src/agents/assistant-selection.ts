@@ -75,33 +75,48 @@ export function orderAssistantAgents(
   return options
 }
 
-/** One section of the agent picker: a space's agents, or the orphans that live in no space yet. */
+/**
+ * One section of the agent picker: a space's agents, the reader's own orphans that live in no
+ * space yet, or agents in no space that someone else owns and shares with the reader.
+ */
 export type AssistantAgentGroup = {
-  /** The space's account uid, or null for the orphan section. */
+  /** The space's account uid, or null for the orphan and shared sections. */
   spaceUid: string | null
+  /** 'orphans' are the reader's to adopt; 'shared' ones only their owner can adopt. */
+  kind: 'space' | 'orphans' | 'shared'
   options: AssistantAgentOption[]
 }
 
 /**
  * Groups agents by the space they live in (the account of their document id), in the order the
- * spaces first appear, with agents that are not adopted into any space in one trailing group.
+ * spaces first appear. Agents adopted into no space close the list: first the reader's own
+ * orphans, then ones shared by their owners, which the reader cannot adopt.
  * The server an agent runs on is not a grouping: it is where the agent lives that people know.
  */
 export function groupAssistantAgentsBySpace(agents: AssistantAgentOption[]): AssistantAgentGroup[] {
   const bySpace = new Map<string, AssistantAgentOption[]>()
   const orphans: AssistantAgentOption[] = []
+  const shared: AssistantAgentOption[] = []
   for (const option of agents) {
     const spaceUid = agentSpaceUid(option.agent.id)
     if (!spaceUid) {
-      orphans.push(option)
+      // A missing role comes from a server that predates roles, where the reader was the owner.
+      const role = option.agent.accessRole
+      if (role && role !== 'owner') shared.push(option)
+      else orphans.push(option)
       continue
     }
     const list = bySpace.get(spaceUid)
     if (list) list.push(option)
     else bySpace.set(spaceUid, [option])
   }
-  const groups: AssistantAgentGroup[] = Array.from(bySpace, ([spaceUid, options]) => ({spaceUid, options}))
-  if (orphans.length) groups.push({spaceUid: null, options: orphans})
+  const groups: AssistantAgentGroup[] = Array.from(bySpace, ([spaceUid, options]) => ({
+    spaceUid,
+    kind: 'space' as const,
+    options,
+  }))
+  if (orphans.length) groups.push({spaceUid: null, kind: 'orphans', options: orphans})
+  if (shared.length) groups.push({spaceUid: null, kind: 'shared', options: shared})
   return groups
 }
 

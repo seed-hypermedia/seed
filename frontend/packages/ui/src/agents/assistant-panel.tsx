@@ -702,7 +702,8 @@ export function AssistantPanel({
  *
  * Filters the chat list below to one agent, or to all of them ("All agents", the default); the
  * composer under the list follows the choice. Agents are grouped under the space they live in,
- * with agents adopted into no space yet in an "Orphan agents" group at the end.
+ * with agents adopted into no space yet at the end: the reader's own under "Orphan agents", other
+ * owners' under "Shared with you".
  */
 function AssistantAgentPicker({
   agents,
@@ -772,10 +773,14 @@ function AssistantAgentPicker({
             <div className="text-muted-foreground px-2 py-3 text-center text-xs">No agents yet.</div>
           ) : (
             groups.map((group) => (
-              <div key={group.spaceUid ?? 'orphans'} className="flex flex-col">
+              <div key={group.spaceUid ?? group.kind} className="flex flex-col">
                 <div className="flex items-center gap-2 px-2 pt-2 pb-1">
                   <span className="text-muted-foreground truncate text-[10px] font-medium tracking-wide uppercase">
-                    {group.spaceUid ? spaceNames.get(group.spaceUid) : 'Orphan agents'}
+                    {group.spaceUid
+                      ? spaceNames.get(group.spaceUid)
+                      : group.kind === 'shared'
+                        ? 'Shared with you'
+                        : 'Orphan agents'}
                   </span>
                   {currentSpaceUid && group.spaceUid === currentSpaceUid ? (
                     <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px] font-medium">
@@ -808,7 +813,7 @@ function AssistantAgentPicker({
                         {row?.short ??
                           (group.spaceUid
                             ? option.agent.definition.model
-                            : // An orphan lives nowhere but its server, so say which one.
+                            : // An agent in no space lives nowhere but its server, so say which one.
                               `${option.agent.definition.model} · ${describeAgentServer(
                                 option.serverUrl,
                                 localServerUrl,
