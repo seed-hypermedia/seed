@@ -35,12 +35,13 @@ import {toast, Toaster} from '@shm/ui/toast'
 import {NotificationInboxProvider} from '@shm/ui/activity-panel'
 import {TooltipProvider} from '@shm/ui/tooltip'
 import {DehydratedState, hydrate, QueryClient, QueryClientProvider, useQueryClient} from '@tanstack/react-query'
-import {createContext, useContext, useEffect, useMemo, useState} from 'react'
+import {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {keyPairStore} from './auth'
 import {webUniversalClient} from './universal-client'
 import {WebNotificationInboxClientOnly} from './web-notification-inbox'
 import {isPerfEnabled, markNavEnd, markNavStart} from './web-perf-marks'
 import {installWebDocumentPages} from './web-document-pages'
+import {getHrefLocation, PendingNavRoute, shouldDeferNavRoute, takePendingNavRoute} from './pending-nav-route'
 
 installWebDocumentPages()
 
@@ -356,14 +357,100 @@ export function WebSiteProvider(props: {
 
   // Track whether navigation was initiated by openRoute (vs browser back/forward)
   const isInternalNav = useMemo(() => ({current: false}), [])
+  // A route for another document, held until Remix commits its location (see shouldDeferNavRoute).
+  const pendingNavRoute = useMemo(() => ({current: null as PendingNavRoute | null}), [])
   const routerLocation = useLocation()
   const {pathname: routerPathname, search: routerSearch} = routerLocation
   const copyHmLink = useCopyHmLink()
+  /** Pushes or replaces `route` in NavContext, now or once Remix lands `href`. */
+  const dispatchNavRoute = (route: NavRoute, href: string, replace?: boolean) => {
+    const {routes, routeIndex} = navigation.state.get()
+    const location = getHrefLocation(href, window.location.origin)
+    if (shouldDeferNavRoute(routes[routeIndex], route) && location !== `${routerPathname}${routerSearch}`) {
+      pendingNavRoute.current = {route, location, replace: !!replace}
+      return
+    }
+    pendingNavRoute.current = null
+    navigation.dispatch({type: replace ? 'replace' : 'push', route})
+  }
+
+  // `openUrl` and `openRoute` keep stable identities: read-only editors are rebuilt whenever
+  // `openUrl` changes, and this provider re-renders on every router state change. Rebuilding them
+  // mid-navigation flushSyncs table node views, which restarts the navigation render so the
+  // pending state (and its loading indicator) never commits.
+  const navHandlersRef = useRef<{
+    openUrl: (url: string, newWindow?: boolean) => void
+    openRoute: (route: NavRoute, replace?: boolean) => void
+  }>()
+  navHandlersRef.current = {
+    openUrl: (url, newWindow) => {
+      if (!url) return
+      const route = hypermediaUrlToRoute(url)
+      if (route) {
+        const href = routeToHref(route, {originHomeId: props.originHomeId}) || undefined
+        if (href !== undefined) {
+          if (newWindow) {
+            window.open(href, '_blank')
+          } else {
+            isInternalNav.current = true
+            dispatchNavRoute(route, href)
+            navigate(href)
+          }
+          return
+        }
+      }
+      if (isHttpUrl(url)) {
+        window.open(url, newWindow ? '_blank' : '_self')
+        return
+      }
+      console.warn(`[openUrl] Failed to resolve route for "${url}"`)
+    },
+    openRoute: (route, replace) => {
+      if (isPerfEnabled()) markNavStart()
+      const href =
+        routeToHref(route, {
+          originHomeId: props.originHomeId,
+        }) || undefined
+      if (href === undefined) {
+        navigation.dispatch({type: replace ? 'replace' : 'push', route})
+        toast.error('Failed to open route')
+        return
+      }
+      // Update navigation state, then handle browser navigation
+      dispatchNavRoute(route, href, replace)
+      if (
+        // this is a HACK to redirect to the home page when the user is on the home page of seed.hyper.media because we have an external landing page.
+        window.location.host == 'seed.hyper.media' &&
+        typeof href == 'string' &&
+        (href == '/' || href == '')
+      ) {
+        console.log('redirecting to seed.hyper.media')
+        window.location.assign('https://seed.hyper.media')
+      } else {
+        isInternalNav.current = true
+        navigate(href, {
+          replace,
+        })
+      }
+    },
+  }
+  const openUrl = useCallback((url: string, newWindow?: boolean) => navHandlersRef.current!.openUrl(url, newWindow), [])
+  const openRoute = useCallback(
+    (route: NavRoute, replace?: boolean) => navHandlersRef.current!.openRoute(route, replace),
+    [],
+  )
 
   // Sync browser back/forward into NavContext
   // When Remix re-runs the loader on popstate, initialRoute updates but NavContext
   // doesn't. Detect location changes not initiated by openRoute and sync the route.
   useEffect(() => {
+    const pending = takePendingNavRoute(pendingNavRoute.current, `${routerPathname}${routerSearch}`)
+    pendingNavRoute.current = null
+    if (pending) {
+      isInternalNav.current = false
+      navigation.dispatch({type: pending.replace ? 'replace' : 'push', route: pending.route})
+      return
+    }
     if (isInternalNav.current) {
       isInternalNav.current = false
       return
@@ -400,64 +487,11 @@ export function WebSiteProvider(props: {
       languagePack={languagePack}
       getOptimizedImageUrl={getOptimizedImageUrl}
       ipfsFileUrl={DAEMON_FILE_URL}
-      openUrl={(url, newWindow) => {
-        if (!url) return
-        const route = hypermediaUrlToRoute(url)
-        if (route) {
-          const href = routeToHref(route, {originHomeId: props.originHomeId}) || undefined
-          if (href !== undefined) {
-            if (newWindow) {
-              window.open(href, '_blank')
-            } else {
-              isInternalNav.current = true
-              navigation.dispatch({type: 'push', route})
-              navigate(href)
-            }
-            return
-          }
-        }
-        if (isHttpUrl(url)) {
-          window.open(url, newWindow ? '_blank' : '_self')
-          return
-        }
-        console.warn(`[openUrl] Failed to resolve route for "${url}"`)
-      }}
+      openUrl={openUrl}
       universalClient={webUniversalClient}
       selectedIdentity={selectedIdentity}
       signingIdentity={signingIdentity}
-      openRoute={(route: NavRoute, replace?: boolean) => {
-        if (isPerfEnabled()) markNavStart()
-        // Update navigation state
-        if (replace) {
-          navigation.dispatch({type: 'replace', route})
-        } else {
-          navigation.dispatch({type: 'push', route})
-        }
-
-        // Handle browser navigation
-        const href =
-          routeToHref(route, {
-            originHomeId: props.originHomeId,
-          }) || undefined
-        if (href !== undefined) {
-          if (
-            // this is a HACK to redirect to the home page when the user is on the home page of seed.hyper.media because we have an external landing page.
-            window.location.host == 'seed.hyper.media' &&
-            typeof href == 'string' &&
-            (href == '/' || href == '')
-          ) {
-            console.log('redirecting to seed.hyper.media')
-            window.location.assign('https://seed.hyper.media')
-          } else {
-            isInternalNav.current = true
-            navigate(href, {
-              replace,
-            })
-          }
-        } else {
-          toast.error('Failed to open route')
-        }
-      }}
+      openRoute={openRoute}
       onCopyReference={async (hmId: UnpackedHypermediaId) => {
         // Keep the link pointing at this deployment's origin (passed as the
         // gateway URL) so gateway-format links (/hm/<uid>/...) resolve here.
