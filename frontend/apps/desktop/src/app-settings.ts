@@ -1,6 +1,7 @@
 import {nativeTheme} from 'electron'
 import z from 'zod'
 import {appStore} from './app-store.mts'
+import {readSettingsStore, writeSettingsStore} from './app-settings-store'
 import {t} from './app-trpc'
 import {broadcastUseDarkColors} from './app-windows'
 import {DEFAULT_TESTNET_NAME, type DaemonNetworkConfig} from './daemon'
@@ -12,17 +13,6 @@ const AutoUpdateTypes = z.literal('true').or(z.literal('false'))
 export type AutoUpdateValues = z.infer<typeof AutoUpdateTypes>
 
 export const APP_AUTO_UPDATE_PREFERENCE = 'AutoUpdatePreference'
-
-const SETTINGS_STORE_KEY = 'Settings-v001'
-
-type SettingsStore = Record<string, any>
-
-let settingsStore: SettingsStore = (appStore.get(SETTINGS_STORE_KEY) as SettingsStore) || {}
-
-function writeSettingsStore(newState: SettingsStore) {
-  settingsStore = newState
-  appStore.set(SETTINGS_STORE_KEY, newState)
-}
 
 var autoUpdatePreference: AutoUpdateValues = (appStore.get(APP_AUTO_UPDATE_PREFERENCE) as AutoUpdateValues) || 'true'
 
@@ -45,23 +35,13 @@ function defaultNetworkConfig(): DaemonNetworkConfig {
  * Used by main.ts to determine daemon startup flags before tRPC is ready.
  */
 export function getStoredNetworkConfig(): DaemonNetworkConfig {
-  const parsed = networkConfigSchema.safeParse(settingsStore[NETWORK_CONFIG_SETTINGS_KEY])
+  const parsed = networkConfigSchema.safeParse(readSettingsStore()[NETWORK_CONFIG_SETTINGS_KEY])
   if (parsed.success) return parsed.data
   return defaultNetworkConfig()
 }
 
-/** Reads one persisted setting for main-process code that runs before tRPC is ready. */
-export function getStoredSetting(key: string): unknown {
-  return settingsStore[key] ?? null
-}
-
-/** Writes one persisted setting from main-process code. */
-export function writeStoredSetting(key: string, value: unknown): void {
-  writeSettingsStore({...settingsStore, [key]: value})
-}
-
 export function writeNetworkConfig(config: DaemonNetworkConfig) {
-  writeSettingsStore({...settingsStore, [NETWORK_CONFIG_SETTINGS_KEY]: config})
+  writeSettingsStore({...readSettingsStore(), [NETWORK_CONFIG_SETTINGS_KEY]: config})
 }
 
 export const appSettingsApi = t.router({
@@ -72,10 +52,10 @@ export const appSettingsApi = t.router({
     return writeAutoUpdateValue(input)
   }),
   getSetting: t.procedure.input(z.string()).query(async ({input}) => {
-    return settingsStore[input] ?? null
+    return readSettingsStore()[input] ?? null
   }),
   setSetting: t.procedure.input(z.object({key: z.string(), value: z.any()})).mutation(async ({input}) => {
-    const newState = {...settingsStore, [input.key]: input.value}
+    const newState = {...readSettingsStore(), [input.key]: input.value}
     writeSettingsStore(newState)
     if (input.key === 'theme') {
       broadcastUseDarkColors()
@@ -85,7 +65,7 @@ export const appSettingsApi = t.router({
 })
 
 export function getAppTheme() {
-  const theme = settingsStore['theme']
+  const theme = readSettingsStore()['theme']
   return theme || 'system'
 }
 

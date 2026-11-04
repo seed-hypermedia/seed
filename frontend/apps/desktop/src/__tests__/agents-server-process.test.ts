@@ -37,7 +37,7 @@ vi.mock('node:fs', () => ({
   mkdirSync: vi.fn(),
   default: {existsSync, mkdirSync: vi.fn()},
 }))
-vi.mock('../app-settings', () => ({
+vi.mock('../app-settings-store', () => ({
   getStoredSetting: (key: string) => mockState.settings[key] ?? null,
   writeStoredSetting: (key: string, value: unknown) => {
     mockState.settings[key] = value
