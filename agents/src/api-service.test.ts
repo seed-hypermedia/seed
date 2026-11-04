@@ -865,6 +865,29 @@ describe('api service', () => {
     }
   })
 
+  test('read tool reads the named account for :profile/<uid> URLs', async () => {
+    // A site's `/:profile/<uid>` view shows <uid>'s profile, not the site account's.
+    const originalFetch = globalThis.fetch
+    const accountsAsked: string[] = []
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      if (href.includes('/api/Account?')) {
+        const uid = new URL(String(url)).searchParams.get('id') || ''
+        accountsAsked.push(uid)
+        return Response.json(serialize({type: 'account', id: unpackHmId(`hm://${uid}`), metadata: {name: 'Other'}}))
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+    try {
+      const result = await apisvc.readHypermedia({id: 'hm://z6MkSite/:profile/z6MkOther'})
+      expect(accountsAsked).toEqual(['z6MkOther'])
+      expect(result).toMatchObject({type: 'hypermedia_profile', accountUid: 'z6MkOther', id: 'hm://z6MkOther/:profile'})
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test('read tool lists child documents for :directory URLs', async () => {
     // `<doc>/:directory` is a view term like `:attributes`: it must trigger a Query listing of
     // the children (the desktop's directory tab), never a Resource fetch of a document at the

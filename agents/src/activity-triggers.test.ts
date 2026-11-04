@@ -206,6 +206,16 @@ describe('activity trigger matching', () => {
     }
     expect(triggers.activityMatchesTriggerSource(source, commentMention)).toBe(true)
 
+    // A site's `/:profile/<uid>` view names <uid>; a document's view term names no account.
+    const viaSiteProfile = (link: string) => ({
+      ...commentMention,
+      comment: {content: [{block: {annotations: [{type: 'Embed', link}]}, children: []}]},
+    })
+    expect(triggers.activityMatchesTriggerSource(source, viaSiteProfile('hm://z6Mksite/:profile/z6Mkmentioned'))).toBe(
+      true,
+    )
+    expect(triggers.activityMatchesTriggerSource(source, viaSiteProfile('hm://z6Mkmentioned/:comments'))).toBe(false)
+
     // Comment authored BY the account, mentioning someone else, must not match.
     const commentByAccount = {
       type: 'comment',

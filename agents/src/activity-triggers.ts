@@ -1,4 +1,6 @@
 import type * as api from '@/api'
+import {packBaseId, unpackHmId} from '@seed-hypermedia/client/hm-types'
+import {extractViewTermFromUrl} from '@shm/shared/utils/entity-id-url'
 
 /** Activity event shape returned by the HM ActivityFeed API. */
 export type ActivityFeedEvent = Record<string, unknown>
@@ -410,14 +412,12 @@ function mentionedAccountFromLink(link: unknown): string | null {
   if (typeof link !== 'string') return null
   const trimmed = link.trim()
   if (!trimmed.startsWith('hm://')) return null
-  const withoutScheme = trimmed.slice('hm://'.length)
-  const pathOnly = withoutScheme.split('?')[0]?.split('#')[0] || ''
-  const segments = pathOnly.split('/').filter(Boolean)
-  const uid = segments[0]
-  if (!uid) return null
-  if (segments.length === 1) return uid // account root
-  if (segments[1] === ':profile') return uid // profile mention
-  return null // points at a document, not the account itself
+  const view = extractViewTermFromUrl(trimmed)
+  const id = unpackHmId(view.url)
+  if (!id) return null
+  if (view.viewTerm === ':profile') return view.accountUid || id.uid // profile mention
+  if (view.viewTerm || id.path?.length) return null // points at a document or a view, not the account
+  return id.uid // account root
 }
 
 /** Resolves the account UID from a resolved `UnpackedHypermediaId` record, when it names an account. */
@@ -426,9 +426,8 @@ function mentionedAccountFromIdRecord(idRecord: Record<string, unknown> | null):
   const uid = stringField(idRecord, 'uid')
   if (!uid) return null
   const path = idRecord['path']
-  if (!Array.isArray(path) || path.length === 0) return uid // account root
-  if (path[0] === ':profile') return uid // profile mention
-  return null // points at a document, not the account itself
+  const segments = Array.isArray(path) ? path.filter((segment): segment is string => typeof segment === 'string') : []
+  return mentionedAccountFromLink(packBaseId(uid, segments))
 }
 
 /** Returns true when a resolved comment's content embeds a mention of `mentionedAccount`. */
