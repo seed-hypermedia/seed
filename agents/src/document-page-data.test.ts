@@ -118,9 +118,9 @@ describe('Seed-backed page authoring recipe', () => {
         publishDocument: (input: unknown) => call('publishDocument', {input}),
       }
     }
-    const page = await createTaskData(seed(), {dataRoot, taskType})
+    const page = await createTaskData(seed(), {dataRoot})
     const created = await page.create('Plan the garden')
-    expect(created.document.metadata).toEqual({name: 'Plan the garden', status: 'todo', attributesSchema: taskType})
+    expect(created.document.metadata).toEqual({name: 'Plan the garden', status: 'todo'})
     expect(created.document.visibility).toBe('PRIVATE')
     expect((await page.list()).map((row: any) => row.metadata.name)).toEqual(['Plan the garden'])
     const changed = await page.setStatus(created.id.id, 'done')
@@ -129,7 +129,7 @@ describe('Seed-backed page authoring recipe', () => {
     expect(changed.document.version).not.toBe(created.document.version)
     expect(changed.document.metadata.name).toBe('Plan the garden')
     expect(prepared.at(-1)).toMatchObject({baseVersion: created.document.version, visibility: 2})
-    const reopened = await createTaskData(seed(), {dataRoot, taskType})
+    const reopened = await createTaskData(seed(), {dataRoot})
     expect((await reopened.list())[0].metadata.status).toBe('done')
     await reopened.setStatus(created.id.id, 'archived')
     expect((await reopened.list())[0].metadata.status).toBe('archived')
