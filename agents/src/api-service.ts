@@ -981,6 +981,8 @@ export class Service {
   readonly #liveUserVerbs = new Map<string, number>()
   /** Whether subscription (OAuth) provider sign-in is offered (server opt-in). */
   readonly #subscriptionAuthEnabled: boolean
+  /** Latest released Codex CLI version, looked up for the subscription model catalog. */
+  readonly #codexClientVersion = new CodexClientVersionResolver()
   /** Durable run records + dispatch queue; every agent execution goes through it. */
   readonly #runQueue: runs.RunQueue
   /** This process, as the owner of the effects it records (see effect-outbox.ts). */
@@ -1465,7 +1467,7 @@ export class Service {
       case 'ListModelProviders':
         return this.#listModelProviders(accountId)
       case 'ListProviderModels':
-        return this.#listProviderModels(accountId, envelope.action.provider)
+        return this.#listProviderModels(accountId, envelope.action.provider, envelope.action.refresh === true)
       case 'ListSigningIdentities': {
         // Collaborators on a shared agent may render the granted "Author as" accounts, but the
         // owner's remaining keys are private to the owner — non-owners only see the granted set.
@@ -2338,7 +2340,11 @@ export class Service {
     }
   }
 
-  async #listProviderModels(accountId: string, rawProviderName: string): Promise<api.ListProviderModelsResponse> {
+  async #listProviderModels(
+    accountId: string,
+    rawProviderName: string,
+    refresh: boolean,
+  ): Promise<api.ListProviderModelsResponse> {
     const providerName = normalizeBoundedString(rawProviderName, 'Model provider', MAX_NAME_BYTES)
     const row = stmt<{config_cbor: Uint8Array}, [string, string]>(
       this.#db,
@@ -2349,7 +2355,7 @@ export class Service {
     const provider = cbor.decode<api.ModelProviderConfig>(row.config_cbor)
     const spec = providerSpec(provider.type)
     if (provider.authMode === 'subscription') {
-      return {_: 'ListProviderModelsResponse', models: await this.#listSubscriptionModels(accountId, provider)}
+      return {_: 'ListProviderModelsResponse', models: await this.#listSubscriptionModels(accountId, provider, refresh)}
     }
     const apiKeySecretName = provider.secretRefs?.apiKey
     if (spec.requireApiKey && !apiKeySecretName) throw new APIError(400, `${provider.type} API key is not configured`)
@@ -3056,6 +3062,7 @@ export class Service {
   async #listSubscriptionModels(
     accountId: string,
     provider: api.ModelProviderConfig,
+    refresh: boolean,
   ): Promise<api.ProviderModelInfo[]> {
     const oauthSecretName = provider.secretRefs?.oauth
     if (!oauthSecretName) throw new APIError(400, `${provider.type} subscription sign-in is not configured`)
@@ -3065,7 +3072,8 @@ export class Service {
     const credential = (await store.read(SUBSCRIPTION_PI_PROVIDER_ID)) as {accountId?: unknown} | undefined
     const chatgptAccountId = typeof credential?.accountId === 'string' ? credential.accountId : undefined
     try {
-      return await fetchCodexSubscriptionModels(accessToken, chatgptAccountId)
+      const clientVersion = await this.#codexClientVersion.resolve({refresh})
+      return await fetchCodexSubscriptionModels(accessToken, chatgptAccountId, clientVersion)
     } catch (error) {
       if (error instanceof APIError && error.status === 401) {
         this.#markOAuthSecretNeedsReauth(accountId, oauthSecretName)
@@ -12520,11 +12528,79 @@ function subscriptionOAuthSecretName(providerType: string): string {
 
 /**
  * Codex client version sent to the ChatGPT backend's models endpoint. The query
- * parameter is required, and the backend hides models that need a newer client
- * than the one reported (each entry carries a `minimal_client_version`), so bump
- * this alongside the Codex CLI when a new generation stops showing up.
+ * parameter is required, and the backend only lists the models it has released
+ * to that client version, so a stale version silently hides each new generation.
+ * The version is therefore looked up from the latest published Codex CLI
+ * release; this floor is only used when that lookup fails, and is never
+ * reported over a newer published version.
  */
-const SUBSCRIPTION_CODEX_CLIENT_VERSION = '0.155.0'
+const SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION = '0.166.0'
+
+/** npm metadata for the latest published Codex CLI (`@openai/codex`). */
+const CODEX_LATEST_RELEASE_URL = 'https://registry.npmjs.org/@openai/codex/latest'
+const CODEX_RELEASE_LOOKUP_TIMEOUT_MS = 5_000
+/** How long a looked-up release version is reused before asking npm again. */
+const CODEX_RELEASE_TTL_MS = 6 * 60 * 60 * 1000
+/** How long to wait before retrying after a failed lookup (the floor is served meanwhile). */
+const CODEX_RELEASE_RETRY_MS = 5 * 60 * 1000
+
+/** Compares dotted numeric versions (`0.166.0`); non-numeric parts count as 0. */
+export function compareCodexVersions(a: string, b: string): number {
+  const left = a.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  const right = b.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const diff = (left[i] ?? 0) - (right[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
+/**
+ * Resolves the Codex client version to report to the ChatGPT backend: the
+ * latest published `@openai/codex` release, cached for a few hours, never below
+ * {@link SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION}. A failed lookup serves the
+ * floor (or the last good version) and retries after a short delay; `refresh`
+ * skips the cache, for the provider settings' "Refresh models" button.
+ */
+export class CodexClientVersionResolver {
+  #cached: {version: string; expiresAt: number} | undefined
+  #pending: Promise<string> | undefined
+
+  async resolve({refresh = false}: {refresh?: boolean} = {}): Promise<string> {
+    if (!refresh && this.#cached && this.#cached.expiresAt > Date.now()) return this.#cached.version
+    this.#pending ??= this.#lookup().finally(() => {
+      this.#pending = undefined
+    })
+    return this.#pending
+  }
+
+  async #lookup(): Promise<string> {
+    const fallback = this.#cached?.version ?? SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION
+    try {
+      const response = await fetch(CODEX_LATEST_RELEASE_URL, {
+        headers: {Accept: 'application/json'},
+        signal: AbortSignal.timeout(CODEX_RELEASE_LOOKUP_TIMEOUT_MS),
+      })
+      if (!response.ok) throw new Error(`npm registry answered ${response.status}`)
+      const body: unknown = await response.json()
+      const published = isRecord(body) && typeof body.version === 'string' ? body.version : ''
+      if (!/^\d+\.\d+\.\d+$/.test(published)) throw new Error(`unexpected version ${JSON.stringify(published)}`)
+      const version =
+        compareCodexVersions(published, SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION) > 0
+          ? published
+          : SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION
+      this.#cached = {version, expiresAt: Date.now() + CODEX_RELEASE_TTL_MS}
+      return version
+    } catch (error) {
+      console.warn('[agents] latest Codex release lookup failed; using a known client version', {
+        version: fallback,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      this.#cached = {version: fallback, expiresAt: Date.now() + CODEX_RELEASE_RETRY_MS}
+      return fallback
+    }
+  }
+}
 
 /**
  * Snapshot of the Codex picker, served only when the live catalog cannot be
@@ -12534,11 +12610,14 @@ const SUBSCRIPTION_CODEX_CLIENT_VERSION = '0.155.0'
  * Codex with a ChatGPT account"). Refresh when Codex changes its picker.
  */
 const SUBSCRIPTION_CODEX_FALLBACK_MODELS: api.ProviderModelInfo[] = [
+  {id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol'},
   {id: 'gpt-6-astra', name: 'GPT-6 Astra'},
+  {id: 'gpt-6.1-terra', name: 'GPT-6.1 Terra'},
+  {id: 'gpt-6-sol', name: 'GPT-6 Sol'},
+  {id: 'gpt-6-luna', name: 'GPT-6 Luna'},
   {id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol'},
   {id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra'},
   {id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna'},
-  {id: 'gpt-5.5', name: 'GPT-5.5'},
 ]
 
 /**
@@ -12553,9 +12632,10 @@ const SUBSCRIPTION_CODEX_FALLBACK_MODELS: api.ProviderModelInfo[] = [
 async function fetchCodexSubscriptionModels(
   accessToken: string,
   chatgptAccountId: string | undefined,
+  clientVersion: string,
 ): Promise<api.ProviderModelInfo[]> {
   const url = new URL(joinUrlPath(SUBSCRIPTION_CODEX_BASE_URL, 'codex/models'))
-  url.searchParams.set('client_version', SUBSCRIPTION_CODEX_CLIENT_VERSION)
+  url.searchParams.set('client_version', clientVersion)
   const headers: Record<string, string> = {Authorization: `Bearer ${accessToken}`}
   if (chatgptAccountId) headers['ChatGPT-Account-Id'] = chatgptAccountId
   const response = await fetch(url, {headers})

@@ -14,6 +14,7 @@ import {
   useImportSigningIdentity,
   useModelProviders,
   useProviderModels,
+  useRefreshProviderModels,
   useSaveModelProvider,
   useAgentServerUrl,
   useLocalAgentServerUrl,
@@ -51,12 +52,13 @@ import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Camera, Copy, ExternalLink, FileKey, Plus, Trash2} from 'lucide-react'
+import {Camera, ChevronDown, ChevronRight, Copy, ExternalLink, FileKey, Plus, RefreshCw, Trash2} from 'lucide-react'
 import {useEffect, useRef, useState} from 'react'
 import {generateAgentName} from './agent-name'
 import {DEFAULT_AGENT_TOOLS} from './agent-tools'
 import {ProviderModelSelect} from './provider-model-select'
-import {pickDefaultEnabledModels, pickDefaultProviderModel} from './model-utils'
+import {curateProviderModels, modelLabel, pickDefaultEnabledModels, pickDefaultProviderModel} from './model-utils'
+import {describeAgentError} from './errors'
 import {promptBlocksForRequest} from './prompt-editor'
 import {ProviderIcon} from './provider-icons'
 import {isSubscriptionSignInAvailable, SubscriptionSignIn} from './provider-oauth'
@@ -162,6 +164,12 @@ export function ModelProvidersDialog({
                 )}
               </div>
             ) : null}
+            <ProviderModelsDetails
+              serverUrl={input.serverUrl}
+              selectedAccountId={input.selectedAccountId}
+              providerName={provider.name}
+              providerType={provider.type}
+            />
           </div>
         ))}
         {!providers.data?.length ? <SizableText color="muted">No providers configured yet.</SizableText> : null}
@@ -173,6 +181,85 @@ export function ModelProvidersDialog({
         </Button>
       </div>
       {addProviderDialog.content}
+    </div>
+  )
+}
+
+/**
+ * The models a provider currently offers, as every model dropdown sees them, with
+ * a refresh that bypasses both the client cache and the server's own caches (the
+ * looked-up Codex client version, for subscription providers).
+ */
+function ProviderModelsDetails({
+  serverUrl,
+  selectedAccountId,
+  providerName,
+  providerType,
+}: {
+  serverUrl: string
+  selectedAccountId: string | null | undefined
+  providerName: string
+  providerType: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const models = useProviderModels(serverUrl, selectedAccountId, providerName)
+  const refresh = useRefreshProviderModels(serverUrl, selectedAccountId)
+  const chatModels = curateProviderModels(models.data, providerType).all
+  const error = refresh.error ?? models.error
+  const notice = error ? describeAgentError(error, {failed: 'Couldn’t load models'}) : null
+
+  async function handleRefresh() {
+    try {
+      const fresh = await refresh.mutateAsync(providerName)
+      toast.success(`${providerName}: ${fresh.length} model${fresh.length === 1 ? '' : 's'} available`)
+    } catch {
+      // Shown inline below.
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-sm"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((value) => !value)}
+        >
+          {expanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+          {models.isLoading
+            ? 'Loading models…'
+            : models.data
+              ? `${chatModels.length} model${chatModels.length === 1 ? '' : 's'} available`
+              : 'Models'}
+        </button>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label={`Refresh ${providerName} models`}
+          onClick={() => void handleRefresh()}
+          disabled={refresh.isLoading}
+        >
+          {refresh.isLoading ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
+          Refresh
+        </Button>
+      </div>
+      {notice && !refresh.isLoading ? (
+        <Notice size="sm" tone={notice.tone} title={notice.title}>
+          {notice.detail}
+        </Notice>
+      ) : null}
+      {expanded && chatModels.length ? (
+        <ul className="flex flex-col gap-0.5 pl-5">
+          {chatModels.map((model) => (
+            <li key={model.id}>
+              <SizableText size="xs" color="muted">
+                {modelLabel(model)}
+              </SizableText>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   )
 }

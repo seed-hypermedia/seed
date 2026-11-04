@@ -1182,6 +1182,30 @@ export function useProviderModels(
 }
 
 /**
+ * Re-lists a provider's models, asking the server to skip its own caches too, and
+ * replaces the cached catalog so every model dropdown sees the fresh list.
+ */
+export function useRefreshProviderModels(serverUrl: string | undefined, accountUid: string | null | undefined) {
+  return useMutation({
+    mutationFn: async (provider: string) => {
+      if (!serverUrl || !accountUid) throw new Error('Select an account and agent server first')
+      const res = await sendAgentAction({
+        serverUrl,
+        accountUid,
+        action: {_: 'ListProviderModels', provider, refresh: true},
+      })
+      if (res._ !== 'ListProviderModelsResponse') throw new Error('Unexpected ListProviderModels response')
+      return res.models
+    },
+    onSuccess(models, provider) {
+      getQueryClient().setQueryData(['agents', 'provider-models', serverUrl, accountUid, provider, undefined], models)
+      // Agent-scoped copies of this catalog refetch against the server's refreshed state.
+      invalidateQueries(['agents', 'provider-models', serverUrl, accountUid, provider])
+    },
+  })
+}
+
+/**
  * Fetches the model catalogs of several providers at once, keyed by provider
  * name. Shares query keys (and therefore cache) with {@link useProviderModels}.
  * A provider whose catalog has not loaded (or failed) maps to undefined so
