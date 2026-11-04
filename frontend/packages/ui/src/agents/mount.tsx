@@ -19,12 +19,20 @@ import {sendAgentAction, type AgentInfo} from './client'
 import {useNavigate} from './navigation'
 import {getAgentsPlatform} from './platform'
 
-/** Persistent invitation to give an unmounted agent a document and usable UI links. */
+/**
+ * Persistent invitation to give an unmounted agent a document and usable UI links. Shown only to
+ * someone who can act on it: the owner, on a server that hosts mounts. Collaborators see nothing,
+ * since there is nothing they can do about it.
+ */
 export function AgentMountBanner({agent, serverUrl}: {agent: AgentInfo; serverUrl: string}) {
   const accountUid = getAgentsPlatform().useAccountUid()
   const dialog = useAppDialog(MountAgentDialog)
-  const canMount = isMountableAgentServerUrl(serverUrl)
-  if (agent.id.startsWith('hm://')) return null
+  const canAdopt =
+    !agent.id.startsWith('hm://') &&
+    agent.accessRole === 'owner' &&
+    !!accountUid &&
+    isMountableAgentServerUrl(serverUrl)
+  if (!canAdopt) return null
   return (
     <>
       <div
@@ -37,17 +45,13 @@ export function AgentMountBanner({agent, serverUrl}: {agent: AgentInfo; serverUr
           <div className="flex flex-col gap-0.5">
             <span className="text-sm font-medium">Give this agent a home</span>
             <span className="text-muted-foreground text-xs">
-              {agent.accessRole === 'owner'
-                ? 'Adopt it into a space to share links to its sessions, tools and settings.'
-                : 'Ask the owner to adopt this agent into a space.'}
+              Adopt it into a space to share links to its sessions, tools and settings.
             </span>
           </div>
         </div>
-        {canMount && accountUid && agent.accessRole === 'owner' && (
-          <Button variant="default" onClick={() => dialog.open({agent, serverUrl, accountUid})}>
-            Adopt agent
-          </Button>
-        )}
+        <Button variant="default" onClick={() => dialog.open({agent, serverUrl, accountUid: accountUid!})}>
+          Adopt agent
+        </Button>
       </div>
       {dialog.content}
     </>
