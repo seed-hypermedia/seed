@@ -15,6 +15,8 @@ export type WebServerConfig = {
   notifyServiceHost?: string
   /** Secret of the gateway admin API (/hm/api/admin), which the hosting service uses to create sites. */
   serviceAdminSecret?: string
+  /** The agents server the web app offers by default (SEED_AGENT_SERVER_URL), such as a test server. */
+  agentServerUrl?: string
 }
 
 export type WebServerInstance = {
@@ -58,6 +60,7 @@ export async function startWebServer(config: WebServerConfig): Promise<WebServer
     DAEMON_HTTP_PORT: String(config.daemonHttpPort),
     DAEMON_HTTP_URL: `http://localhost:${config.daemonHttpPort}`,
     DAEMON_FILE_URL: `http://localhost:${config.daemonHttpPort}/ipfs`,
+    ...(config.agentServerUrl ? {SEED_AGENT_SERVER_URL: config.agentServerUrl} : {}),
     DATA_DIR: config.dataDir,
     SEED_BASE_URL: baseUrl,
     NODE_ENV: 'production',

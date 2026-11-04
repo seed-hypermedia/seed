@@ -51,6 +51,8 @@ beforeAll(async () => {
     daemonGrpcPort: 59412,
     daemonP2pPort: 59413,
     skipBuild: process.env.SKIP_BUILD === 'true',
+    // The web app's default agents server, which the New menu's Create Agent dialog targets.
+    agentServerUrl: localServerUrl,
   })
   agentDataDir = mkdtempSync(path.join(tmpdir(), 'seed-agent-mount-'))
   agentProcess = spawn('bun', ['src/main.ts'], {
@@ -123,9 +125,8 @@ beforeAll(async () => {
   await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, '/team', [
     {type: 'SetAttributes', attrs: [{key: ['name'], value: 'Site team'}]},
   ])
-  // The site advertises the test agents server from its home document. The web lists an
-  // advertised server ahead of the configured ones (which default to the hosted server), so the
-  // New menu's Create Agent dialog targets it.
+  // A space advertising agentServerUrl on its own is not an agent; the home document carries it so
+  // the site's pages prove that. The Create Agent dialog targets the web app's default server.
   await createDocumentUpdate(env.web.baseUrl, FIXTURE_ACCOUNT, '', [
     {type: 'SetAttributes', attrs: [{key: ['agentServerUrl'], value: serverUrl}]},
   ])

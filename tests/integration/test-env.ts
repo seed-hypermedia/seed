@@ -53,6 +53,8 @@ export type TestEnvConfig = {
    * with its admin API (/hm/api/admin) open to this secret. The fixture site stays the root site.
    */
   gatewayAdminSecret?: string
+  /** The agents server the web app offers by default (its SEED_AGENT_SERVER_URL). */
+  agentServerUrl?: string
 }
 
 export type TestEnv = {
@@ -128,6 +130,7 @@ export async function setupTestEnv(config: TestEnvConfig = {}): Promise<TestEnv>
     dataDir: webDataDir,
     ...(config.notifyServiceHost ? {notifyServiceHost: config.notifyServiceHost} : {}),
     ...(config.gatewayAdminSecret ? {serviceAdminSecret: config.gatewayAdminSecret} : {}),
+    ...(config.agentServerUrl ? {agentServerUrl: config.agentServerUrl} : {}),
   }
   let web: WebServerInstance
   try {
