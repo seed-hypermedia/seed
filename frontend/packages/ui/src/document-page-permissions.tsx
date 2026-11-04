@@ -1,5 +1,5 @@
 import React from 'react'
-import {Eye, PenLine, ShieldCheck, Upload} from 'lucide-react'
+import {Eye, Play, PenLine, ShieldCheck, Upload} from 'lucide-react'
 import {useQuery} from '@tanstack/react-query'
 import {queryAccount} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
@@ -37,6 +37,99 @@ function PermissionTarget({site, resource}: {site?: string; resource?: string}) 
       )}
     </div>
   ) : null
+}
+
+function AccountName({uid}: {uid: string}) {
+  const client = useUniversalClient()
+  const account = useQuery(queryAccount(client, uid))
+  return <>{account.data?.metadata?.name || `${uid.slice(0, 12)}…`}</>
+}
+
+function AccountNames({uids}: {uids: readonly string[]}) {
+  return (
+    <>
+      {uids.map((uid, index) => (
+        <React.Fragment key={uid}>
+          {index > 0 && (index === uids.length - 1 ? ' and ' : ', ')}
+          <strong className="text-foreground">
+            <AccountName uid={uid} />
+          </strong>
+        </React.Fragment>
+      ))}
+    </>
+  )
+}
+
+/** Launch review in place of the page; approval is remembered for this page and, optionally, its authors. */
+export function DocumentPageRunPrompt({
+  pageName,
+  authors,
+  onRun,
+}: {
+  pageName: string
+  authors: readonly string[]
+  onRun: (trustAuthors: boolean) => void
+}) {
+  const [trustAuthors, setTrustAuthors] = React.useState(false)
+  return (
+    <div className="flex h-full items-center justify-center p-6">
+      <div className="border-border bg-background flex max-w-md flex-col gap-4 rounded-xl border p-6 shadow-sm">
+        <div className="text-muted-foreground flex items-center gap-2 text-xs font-medium">
+          <ShieldCheck className="size-4" />
+          Seed · Page permissions
+        </div>
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <Play className="size-5 shrink-0" />
+          Run {pageName}?
+        </h2>
+        <p className="text-muted-foreground text-sm">
+          This page is from a site you haven’t joined
+          {authors.length ? (
+            <>
+              , by <AccountNames uids={authors} />
+            </>
+          ) : null}
+          . Pages can show misleading screens, use device resources and open links.
+        </p>
+        <p className="text-sm">
+          This page can read content in its own space that you can access. Seed will ask before reading other spaces,
+          sharing your account identity or saved page data, or signing anything. Joining is optional.
+        </p>
+        {authors.length > 0 && (
+          <label className="border-border flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm">
+            <input
+              className="mt-1"
+              type="checkbox"
+              checked={trustAuthors}
+              onChange={(event) => setTrustAuthors(event.target.checked)}
+            />
+            <span>
+              Always run pages by {authors.length === 1 ? 'this author' : 'these authors'}
+              <span className="text-muted-foreground block">
+                Pages written only by authors you trust run without asking. A page with any other author still asks.
+              </span>
+            </span>
+          </label>
+        )}
+        <p className="text-muted-foreground text-xs">
+          Seed remembers this choice for this page and its updates. You can revoke it in Page permissions.
+        </p>
+        <Button onClick={() => onRun(trustAuthors)}>Run page</Button>
+      </div>
+    </div>
+  )
+}
+
+/** How a page came to run, and which remembered launch rules apply to it. */
+export type DocumentPageRunStatus = {
+  /** The viewer's own pages, joined sites and the serving site run without a launch approval. */
+  implicit: boolean
+  /** This page was approved to run. */
+  page: boolean
+  /** This page's authors whose pages run without asking. */
+  trustedAuthors: string[]
+  onRevokePage: () => void
+  onRevokeAuthor: (author: string) => void
 }
 
 /** Seed-owned action review with narrow defaults and an explanation of the selected policy. */
@@ -185,6 +278,7 @@ export function DocumentPagePermissionSettings({
   grants,
   onRemove,
   onReset,
+  run,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -192,6 +286,7 @@ export function DocumentPagePermissionSettings({
   grants: PagePermissionGrant[]
   onRemove: (index: number) => void
   onReset: () => void
+  run?: DocumentPageRunStatus
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -202,6 +297,39 @@ export function DocumentPagePermissionSettings({
             {pageName} · Rules apply to this page and future updates, for your selected account on this device.
           </DialogDescription>
         </DialogHeader>
+        {run && (
+          <section className="border-border flex flex-col gap-3 border-t pt-4">
+            <h3 className="text-sm font-semibold">Running</h3>
+            {run.implicit && (
+              <p className="text-sm">This page is from your account or a site you joined, so it runs without asking.</p>
+            )}
+            {!run.implicit && !run.page && !run.trustedAuthors.length && (
+              <p className="text-muted-foreground text-sm">Ask before running</p>
+            )}
+            {run.page && (
+              <div className="flex items-start justify-between gap-4 text-sm">
+                <span>Run this page without asking</span>
+                <Button variant="ghost" size="sm" onClick={run.onRevokePage}>
+                  Revoke
+                </Button>
+              </div>
+            )}
+            {run.trustedAuthors.map((author) => (
+              <div key={author} className="flex items-start justify-between gap-4 text-sm">
+                <span>
+                  Run pages by{' '}
+                  <strong>
+                    <AccountName uid={author} />
+                  </strong>{' '}
+                  without asking
+                </span>
+                <Button variant="ghost" size="sm" onClick={() => run.onRevokeAuthor(author)}>
+                  Revoke
+                </Button>
+              </div>
+            ))}
+          </section>
+        )}
         {(['read', 'sign', 'publish'] as const).map((kind) => (
           <section key={kind} className="border-border flex flex-col gap-3 border-t pt-4">
             <h3 className="text-sm font-semibold">

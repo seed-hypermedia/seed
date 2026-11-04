@@ -328,3 +328,56 @@ export function pageReadRequest(key: HMRequest['key'], input: unknown): PagePerm
     details: object ?? input,
   }
 }
+
+/** Launch approvals belong to one viewer on this device and span every page they run. */
+export type PageRunTrust = {
+  /** Canonical page documents approved to run, including their future updates. */
+  pages: string[]
+  /** Authors whose pages may run without asking, when every author of the page is listed. */
+  authors: string[]
+}
+
+/** Per-viewer persistence key; author trust has to reach pages the viewer has never opened. */
+export function pageRunStorageKey(account: string | null): string {
+  return `seed-page-run:v1:${JSON.stringify([account])}`
+}
+
+/** Deserialize launch approvals at the host boundary, ignoring malformed or obsolete records. */
+export function readPageRunTrust(storage: Pick<Storage, 'getItem'>, key: string): PageRunTrust {
+  try {
+    return z
+      .object({pages: z.array(z.string()).max(4096), authors: z.array(z.string()).max(1024)})
+      .strict()
+      .parse(JSON.parse(storage.getItem(key) || '{"pages":[],"authors":[]}'))
+  } catch {
+    return {pages: [], authors: []}
+  }
+}
+
+/** A page runs once approved, or when no author is outside the trusted set; an unknown author asks again. */
+export function pageRunAllowed(trust: PageRunTrust, document: string, authors: readonly string[]): boolean {
+  return (
+    trust.pages.includes(document) || (authors.length > 0 && authors.every((author) => trust.authors.includes(author)))
+  )
+}
+
+/** Record a launch approval, optionally extending trust to every author of this page. */
+export function grantPageRun(
+  trust: PageRunTrust,
+  document: string,
+  authors: readonly string[],
+  trustAuthors: boolean,
+): PageRunTrust {
+  return {
+    pages: trust.pages.includes(document) ? trust.pages : [...trust.pages, document],
+    authors: trustAuthors ? Array.from(new Set([...trust.authors, ...authors])) : trust.authors,
+  }
+}
+
+/** Withdraw this page's own approval and any listed author trust. */
+export function revokePageRun(trust: PageRunTrust, document: string, authors: readonly string[] = []): PageRunTrust {
+  return {
+    pages: trust.pages.filter((page) => page !== document),
+    authors: trust.authors.filter((author) => !authors.includes(author)),
+  }
+}
