@@ -13,8 +13,10 @@ const mockState = vi.hoisted(() => ({
   pathname: '/',
   isMobile: false,
   keyPair: {id: 'reader'} as {id: string} | null,
-  // What the activity tracker reports: whether the reader can see an agent mounted in this site.
+  // What the activity tracker reports: whether the reader can see an agent mounted in this site,
+  // and how many orphan agents of their own they have to adopt.
   hasAgents: true,
+  orphans: 0,
 }))
 
 vi.mock('@remix-run/react', () => ({
@@ -31,11 +33,12 @@ vi.mock('@/client-lazy', () => ({
 // The header's activity tracker is the agents chunk too; the host's job is to mount it and to
 // take its word on whether the reader has an agent here.
 vi.mock('../web-assistant-activity', () => ({
-  default: ({onAgentsChange}: {onAgentsChange: (hasAgents: boolean) => void}) => {
-    const hasAgents = mockState.hasAgents
+  default: ({onAgentsChange}: {onAgentsChange: (agents: {usable: boolean; orphans: number}) => void}) => {
+    const usable = mockState.hasAgents
+    const orphans = mockState.orphans
     React.useEffect(() => {
-      onAgentsChange(hasAgents)
-    }, [hasAgents, onAgentsChange])
+      onAgentsChange({usable, orphans})
+    }, [usable, orphans, onAgentsChange])
     return null
   },
 }))
@@ -102,6 +105,7 @@ beforeEach(() => {
   mockState.isMobile = false
   mockState.keyPair = {id: 'reader'}
   mockState.hasAgents = true
+  mockState.orphans = 0
   mountCount = 0
   controls = null
   headerToggle = null
@@ -288,6 +292,16 @@ describe('web assistant panel', () => {
     mockState.hasAgents = false
     act(() => root.render(<App />))
     expect(headerToggle).toBeNull()
+  })
+
+  it('offers the toggle, with the orphan count, to a reader whose only agents are orphans to adopt', () => {
+    mockState.hasAgents = false
+    mockState.orphans = 3
+    act(() => root.render(<App />))
+    expect(headerToggle).not.toBeNull()
+    expect(headerToggle?.orphans).toBe(3)
+    act(() => headerToggle!.toggle())
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).not.toBeNull()
   })
 
   it('never shows the panel to a signed-out visitor, even with a stored open preference', () => {

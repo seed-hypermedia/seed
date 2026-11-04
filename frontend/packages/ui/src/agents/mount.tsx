@@ -54,16 +54,7 @@ export function AgentMountBanner({agent, serverUrl}: {agent: AgentInfo; serverUr
   )
 }
 
-/**
- * Agents the account owns that still live under a legacy id on a server that can host mounts: the
- * ones a user carries over from before agents were documents. Collaborator access cannot mount.
- */
-export function unmountedOwnedAgents<T extends {serverUrl: string; agent: AgentInfo}>(options: T[]): T[] {
-  return options.filter(
-    ({serverUrl, agent}) =>
-      agent.accessRole === 'owner' && !agent.id.startsWith('hm://') && isMountableAgentServerUrl(serverUrl),
-  )
-}
+export {unmountedOwnedAgents} from './orphan-agents'
 
 /** Picks a document for an orphan agent and adopts it there (the protocol action is MountAgent). */
 export function MountAgentDialog({

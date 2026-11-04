@@ -2,38 +2,48 @@ import {registerWebAgentsPlatform} from '@/web-agents-platform'
 import {useSelectedAccountId} from '@shm/ui/agents/account'
 import {AgentActivityLiveUpdates, useSiteAgentActivityIndicator} from '@shm/ui/agents/activity'
 import type {AgentActivityIndicator} from '@shm/ui/agents/activity-dot'
-import {useMountedSiteAgents} from '@shm/ui/agents/models'
+import {useMountedSiteAgents, useOrphanAgents} from '@shm/ui/agents/models'
 import {useEffect, useMemo} from 'react'
 
 registerWebAgentsPlatform()
 
+/** What the site header needs to know about the signed-in account's agents here. */
+export type WebAssistantAgents = {
+  /** Whether the account can see at least one agent mounted in the site on screen. */
+  usable: boolean
+  /** How many agents the account owns that live in no space yet, so the header can flag them. */
+  orphans: number
+}
+
 /**
- * Watches the agents mounted in this site on behalf of the signed-in account, for the site header.
+ * Watches the agents of this site on behalf of the signed-in account, for the site header.
  *
- * Two things come out of it. Whether the account can use any of the site's agents at all: each
+ * Three things come out of it. Whether the account can use any of the site's mounted agents: each
  * mount is fetched by id, which the server answers for the owner, an accepted collaborator, or
  * any signed account once the agent is public, so a mount document alone proves nothing and a
- * reader the agents are not shared with gets no entry point. And the recent-activity indicator
- * for the header's unread dot, kept current by one account socket per server those agents live
- * on (so hints arrive with the panel closed). Both are reported up to the assistant host, which
- * hands them to the header through the toggle context. No server a mount document does not name
- * is contacted.
+ * reader the agents are not shared with gets no entry point. Whether the account owns orphan
+ * agents (from before agents were documents, on the deployment's server or on the servers the
+ * mounts name), since the entry point is the only place they can be discovered and adopted. And
+ * the recent-activity indicator for the header's unread dot, kept current by one account socket
+ * per server the mounted agents live on (so hints arrive with the panel closed). All are reported
+ * up to the assistant host, which hands them to the header through the toggle context.
  */
 export default function WebAssistantActivity({
   onChange,
   onAgentsChange,
 }: {
   onChange: (indicator: AgentActivityIndicator | null) => void
-  /** Whether the signed-in account can see at least one agent mounted in the site on screen. */
-  onAgentsChange: (hasAgents: boolean) => void
+  onAgentsChange: (agents: WebAssistantAgents) => void
 }) {
   const accountUid = useSelectedAccountId()
   const site = useMountedSiteAgents(accountUid)
+  const orphans = useOrphanAgents(accountUid)
   const serverUrls = useMemo(() => Array.from(new Set(site.agents.map((entry) => entry.serverUrl))), [site.agents])
-  const hasAgents = site.agents.length > 0
+  const usable = site.agents.length > 0
+  const orphanCount = orphans.settled ? orphans.agents.length : 0
   useEffect(() => {
-    onAgentsChange(hasAgents)
-  }, [hasAgents, onAgentsChange])
+    onAgentsChange({usable, orphans: orphanCount})
+  }, [usable, orphanCount, onAgentsChange])
   const indicator = useSiteAgentActivityIndicator(accountUid)
   useEffect(() => {
     onChange(indicator)

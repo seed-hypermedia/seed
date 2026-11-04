@@ -61,6 +61,7 @@ vi.mock('@shm/ui/agents/models', () => ({
   useAgentLists: () =>
     mockState.agentLists.map((query) => ({...query, isSuccess: mockState.agentListsSettled, isError: false})),
   useMountedSiteAgents: () => mockState.spaceAgents,
+  useOrphanAgents: () => ({agents: [], settled: true}),
   useAgentServerUrls: () => ({data: mockState.serverUrls, isSuccess: true, isLoading: false}),
   useAgentSession: () => ({data: undefined}),
   useAgentWebSocketSubscription: () => ({text: ''}),

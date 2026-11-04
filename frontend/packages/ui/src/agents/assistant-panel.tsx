@@ -12,6 +12,7 @@ import {
   useAgentSessions,
   useSiteUidInView,
   useMountedSiteAgents,
+  useOrphanAgents,
   useDeleteAgentSession,
   useLocalAgentServerUrl,
   useMessageAgentSession,
@@ -183,6 +184,12 @@ export function AssistantPanel({
 
   const spaceAgents = useMountedSiteAgents(accountUid)
   const currentSpaceUid = useSiteUidInView()
+  // Orphans (owned agents in no space yet) are the one thing the panel looks for beyond what it
+  // lists: on the web the list is the site's mounted agents, but somebody with agents from before
+  // still has to be able to find and adopt them, so the card shows above the list, or in place of
+  // the empty state, on every platform.
+  const orphans = useOrphanAgents(accountUid)
+  const mountReminder = <AgentMountReminder agents={orphans.agents} settled={orphans.settled} />
 
   // The account-wide lists never include a public agent's chats — the space's agents reach a
   // visitor through GetAgent instead, which carries them along. Merge both, so "All agents" lists a
@@ -612,7 +619,7 @@ export function AssistantPanel({
         </>
       ) : agents.length ? (
         <>
-          {mountedOnly ? null : <AgentMountReminder agents={agents} settled={agentsSettled} />}
+          {mountReminder}
           <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
             <AgentSessionsFeed
               compact
@@ -671,16 +678,20 @@ export function AssistantPanel({
       ) : (
         // Nothing to talk to yet — neither agents of the user's own on any server nor agents the
         // space publishes. The sidebar's whole purpose is blocked, so say so prominently and point
-        // at the one place agents are made: the New menu of a space's home document.
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
-          <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
-            <Bot className="size-6" />
+        // at the one place agents are made: the New menu of a space's home document. Orphans are
+        // the exception: adopting one is how such an account gets its first listed agent.
+        <>
+          {mountReminder}
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+            <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
+              <Bot className="size-6" />
+            </div>
+            <SizableText weight="bold">No agents yet</SizableText>
+            <SizableText size="sm" color="muted">
+              Create one from the New menu on your home document: pick Agent, then choose its name and model.
+            </SizableText>
           </div>
-          <SizableText weight="bold">No agents yet</SizableText>
-          <SizableText size="sm" color="muted">
-            Create one from the New menu on your home document: pick Agent, then choose its name and model.
-          </SizableText>
-        </div>
+        </>
       )}
     </div>
   )

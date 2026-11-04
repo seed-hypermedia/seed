@@ -44,6 +44,7 @@ vi.mock('@/ipc', () => ({
 
 vi.mock('@shm/ui/agents/models', () => ({
   useAgentServerUrls: () => ({data: mockState.serverUrls, isLoading: false, isSuccess: true}),
+  useOrphanAgents: () => ({agents: [], settled: true}),
   useHasAnyAgent: () => ({
     hasAgents: mockState.hasAgents,
     isSettled: mockState.agentsStatus === 'success',

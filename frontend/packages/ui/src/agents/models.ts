@@ -43,6 +43,7 @@ import {isOptimisticUserEcho} from './agent-session-rows'
 import {moveAgentToServer, type MoveAgentOptions} from './move-agent'
 import {getAgentsPlatform, type AgentsLocalServerState} from './platform'
 import {useSiteAgentMounts} from '../site-agents'
+import {unmountedOwnedAgents} from './orphan-agents'
 import {getToolReferencedUrls, type AgentActivity, type Thoroughness} from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
@@ -671,6 +672,35 @@ export function useMountedSiteAgents(accountUid: string | null | undefined): {
       queries.some((query) => query.isLoading) ||
       sessionQueries.some((query) => query.isLoading),
   }
+}
+
+/**
+ * The account's orphan agents (see {@link unmountedOwnedAgents}), wherever they may be: on the
+ * app's own servers (the local and configured ones; on the web, the deployment default) and on
+ * the servers the mount documents of the space on screen name. Those are the places an agent from
+ * before agents were documents can sit unnoticed, and the one `ListAgents` a client makes beyond
+ * the mounted agents, since nothing else can surface them: the agents entry point stays visible
+ * and marked while any remain, and the panel's card offers to adopt them.
+ */
+export function useOrphanAgents(accountUid: string | null | undefined): {
+  agents: SpaceAgentOption[]
+  /** False while a server has not answered, so a card never flashes in and out. */
+  settled: boolean
+} {
+  const own = useAgentServerUrls()
+  const mounts = useSiteAgentMounts(useSiteUidInView())
+  const serverUrls = useMemo(() => {
+    if (!own.data) return undefined
+    const urls = new Set(own.data)
+    for (const mount of mounts.data ?? []) urls.add(mount.serverUrl)
+    return Array.from(urls)
+  }, [own.data, mounts.data])
+  const lists = useAgentLists(serverUrls, accountUid)
+  const agents = unmountedOwnedAgents(
+    (serverUrls ?? []).flatMap((serverUrl, index) => (lists[index]?.data ?? []).map((agent) => ({serverUrl, agent}))),
+  )
+  const settled = !!accountUid && serverUrls !== undefined && lists.every((query) => query.isSuccess || query.isError)
+  return {agents, settled}
 }
 
 /** Account uid of the site a route is looking at, when the route is about a document. */

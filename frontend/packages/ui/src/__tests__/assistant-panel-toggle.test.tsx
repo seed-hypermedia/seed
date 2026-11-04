@@ -60,7 +60,16 @@ describe('agents panel entry points in the site header', () => {
     expect(container.textContent).not.toContain('Agents')
   })
 
-  it('keeps activity in the header tooltip without showing dots on either entry point', () => {
+  it('flags orphan agents with a red dot on both entry points and counts them in the labels', () => {
+    render({isOpen: false, toggle: vi.fn(), orphans: 2})
+    expect(container.querySelectorAll('[data-testid="agent-orphans-dot"]')).toHaveLength(2)
+    expect(container.textContent).toContain('2 orphan agents to adopt')
+    render({isOpen: false, toggle: vi.fn(), orphans: 0})
+    expect(container.querySelectorAll('[data-testid="agent-orphans-dot"]')).toHaveLength(0)
+    expect(container.textContent).not.toContain('to adopt')
+  })
+
+  it('keeps activity in the header tooltip without showing activity dots on either entry point', () => {
     render({
       isOpen: false,
       toggle: vi.fn(),
