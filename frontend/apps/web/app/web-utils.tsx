@@ -1,4 +1,5 @@
 import {useAssistantAutoOpen} from '@/assistant-panel-state'
+import {registerWebAgentsPlatform} from '@/web-agents-platform'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {
@@ -22,7 +23,9 @@ import {hmIdToURL, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {getActivityBellTarget, getRouteSpaceUid, isActivityOpen} from '@shm/shared/routes'
 import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {isPendingSpaceUid} from '@shm/shared/utils/pending-space'
-import {useSiteAgents} from '@shm/ui/assistant-panel-toggle'
+import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
+import {useAgentServerUrls} from '@shm/ui/agents/models'
+import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {Button} from '@shm/ui/button'
 import {accountMenuContentClassName, AccountMenuIdentity, AccountMenuSection} from '@shm/ui/account-menu'
@@ -193,6 +196,7 @@ export function useWebCreateDocumentMenuItem({
   const navigate = useNavigate()
   const importInputRef = useRef<HTMLInputElement>(null)
   const client = useUniversalClient()
+  const createAgent = useWebCreateAgentAtLocation(locationId, signingAccountId, !locationId.path?.length)
 
   const createDraft = useCallback(
     (visibility?: HMResourceVisibility, collection = false) => {
@@ -240,6 +244,16 @@ export function useWebCreateDocumentMenuItem({
           icon: <Grid3X3 className="size-4" />,
           onClick: () => createDraft('PUBLIC', true),
         },
+        ...(createAgent.open
+          ? [
+              {
+                key: 'new-agent',
+                label: 'Agent',
+                icon: <Bot className="size-4" />,
+                onClick: createAgent.open,
+              },
+            ]
+          : []),
         {
           key: 'import',
           label: 'Import Markdown File',
@@ -248,40 +262,65 @@ export function useWebCreateDocumentMenuItem({
         },
       ],
     }
-  }, [canCreate, canCreateChildren, createDraft, signingAccountId])
+  }, [canCreate, canCreateChildren, createAgent.open, createDraft, signingAccountId])
 
   return {
     menuItem,
     content:
       canCreate && canCreateChildren && signingAccountId ? (
-        <input
-          ref={importInputRef}
-          type="file"
-          accept=".md,.markdown,text/markdown,text/plain"
-          className="hidden"
-          onChange={(event) => {
-            const file = event.currentTarget.files?.[0]
-            event.currentTarget.value = ''
-            if (!file) return
-            toast.promise(
-              createWebDocumentDraftFromMarkdownFile({
-                client,
-                file,
-                locationId,
-                signingAccountId,
-                capabilityCid,
-                navigate: (route) => navigate(route),
-              }),
-              {
-                loading: 'Importing Markdown…',
-                success: 'Markdown imported.',
-                error: 'Failed to import Markdown.',
-              },
-            )
-          }}
-        />
+        <>
+          {createAgent.content}
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".md,.markdown,text/markdown,text/plain"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.currentTarget.files?.[0]
+              event.currentTarget.value = ''
+              if (!file) return
+              toast.promise(
+                createWebDocumentDraftFromMarkdownFile({
+                  client,
+                  file,
+                  locationId,
+                  signingAccountId,
+                  capabilityCid,
+                  navigate: (route) => navigate(route),
+                }),
+                {
+                  loading: 'Importing Markdown…',
+                  success: 'Markdown imported.',
+                  error: 'Failed to import Markdown.',
+                },
+              )
+            }}
+          />
+        </>
       ) : null,
   }
+}
+
+/**
+ * Agent creation under `locationId` for the web New menus: `open` is undefined while no agent server
+ * is known (none configured) or nobody is signed in, hiding the entry.
+ * Agents are only ever children of a home document, so the entry is also hidden under any other
+ * document.
+ */
+function useWebCreateAgentAtLocation(
+  locationId: UnpackedHypermediaId,
+  signingAccountId: string | undefined,
+  /** Whether the document on screen is the home document; the entry is only offered there. */
+  atHome: boolean,
+): {open?: () => void; content: ReactNode} {
+  registerWebAgentsPlatform()
+  const dialog = useAppDialog(CreateAgentDialog)
+  const serverUrls = useAgentServerUrls().data
+  const open = useMemo(() => {
+    if (!serverUrls?.length || !signingAccountId || !atHome || locationId.path?.length) return undefined
+    return () => dialog.open({serverUrls, selectedAccountId: signingAccountId, location: locationId})
+  }, [atHome, dialog.open, locationId, serverUrls, signingAccountId])
+  return {open, content: dialog.content}
 }
 
 function WebActorCreateButton({
@@ -315,6 +354,7 @@ function WebActorCreateButton({
     parentIsCollection,
     canEditParent,
   })
+  const createAgent = useWebCreateAgentAtLocation(destination, signingAccountId, !locationId.path?.length)
   const actor = useActorRef(documentCreationMachine, {
     input: {
       currentId: locationId,
@@ -366,11 +406,13 @@ function WebActorCreateButton({
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         importLabel="Import Markdown File"
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
+        onCreateAgent={createAgent.open}
         onImport={() => {
           actor.send({type: 'import.requested'})
           if (actor.getSnapshot().output?.type === 'import') inputRef.current?.click()
         }}
       />
+      {createAgent.content}
       <input
         ref={inputRef}
         type="file"
@@ -459,6 +501,8 @@ export function WebDocumentCreateButton({
 
   if (loading) return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
   if (!canEdit || !signingAccountId) return null
+  // Only documents and collections take children; an agent's page is the agent.
+  if (currentDocument.metadata?.type === 'hm://hyper.media/agent') return null
 
   return (
     <WebActorCreateButton
@@ -538,13 +582,12 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const media = useMedia()
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle); the
-  // space's own agents only matter here for the first-arrival auto-open.
-  const siteAgents = useSiteAgents(siteUid)
-  const hasSiteAgents = !!siteAgents.serverUrl
-  // First arrival: a signed-in reader of a space that publishes agents finds the panel already
-  // open, once, on a viewport wide enough to show it beside the page. Closing it is remembered.
-  useAssistantAutoOpen(!!keyPair && hasSiteAgents && siteAgents.publishesAgents && !isMobile)
+  // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle). The
+  // host offers the toggle only to a signed-in reader with an agent they can see in this space,
+  // and that is the same word the first-arrival auto-open goes by: the panel opens itself once,
+  // on a viewport wide enough to show it beside the page. Closing it is remembered.
+  const assistantToggle = useAssistantPanelToggle()
+  useAssistantAutoOpen(!!assistantToggle && !isMobile)
   // Hide join button if inside a pending space draft.
   const isPendingSpace = isPendingSpaceUid(siteUid)
 
@@ -643,16 +686,7 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
         <ContactRound className="size-4" />
         <span className="text-sm">My profile</span>
       </button>
-      <button
-        className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left"
-        onClick={() => {
-          navigate({key: 'agents'})
-          setMobileMenuOpen(false)
-        }}
-      >
-        <Bot className="size-4" />
-        <span className="text-sm">Agents</span>
-      </button>
+      <div className="bg-border mx-4 h-px" />
       <button
         className="hover:bg-accent flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left disabled:opacity-50"
         onClick={() => {
@@ -798,10 +832,6 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
               >
                 <ContactRound className="size-4" />
                 My profile
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
-                <Bot className="size-4" />
-                Agents
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {

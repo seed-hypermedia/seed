@@ -9,6 +9,8 @@ import {
   NavRoute,
 } from '@shm/shared'
 import type {InspectTab} from '@shm/shared/routes'
+import type {DocumentRoute} from '@shm/shared/routes'
+import {isAgentSettingsPage} from '@shm/shared/utils/entity-id-url'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 import {
   MessageCircle,
@@ -20,10 +22,15 @@ import {
   Info,
   LucideIcon,
   MessagesSquare,
+  Newspaper,
   Quote,
   Route,
   Shield,
   Users,
+  Bot,
+  Settings,
+  Zap,
+  Brain,
 } from 'lucide-react'
 import {cloneElement, isValidElement, useRef, useState} from 'react'
 import {PageTab} from './page-tabs'
@@ -75,8 +82,15 @@ export function DocumentTools({
   inspectRoute,
   inspectTabs,
   layoutProps,
+  hasAgent,
+  agentHome,
+  activeAgentView,
 }: {
   id: UnpackedHypermediaId
+  hasAgent?: boolean
+  /** Agent resources display their identity home instead of mount content. */
+  agentHome?: boolean
+  activeAgentView?: DocumentRoute['agentView']
   activeTab?: 'draft' | 'content' | 'comments' | 'collaborators' | 'citations' | 'metadata' | 'schema'
   commentsCount?: number
   citationsCount?: number
@@ -168,7 +182,7 @@ export function DocumentTools({
           return slug ? `activity/${slug}` : null
         })()
       : null
-  const buttons: {
+  type ToolButton = {
     label: string
     tooltip: string
     icon: LucideIcon
@@ -178,7 +192,10 @@ export function DocumentTools({
     route: NavRoute
     bg?: string
     leading?: React.ReactNode
-  }[] =
+    /** Which document tool this is; the agent tab bar hides some of them. */
+    kind?: 'comments' | 'collaborators' | 'citations' | 'metadata' | 'schema'
+  }
+  const allButtons: ToolButton[] =
     mode === 'inspect' && inspectRoute
       ? (
           inspectTabs || [
@@ -254,6 +271,7 @@ export function DocumentTools({
         }))
       : [
           {
+            kind: 'comments' as const,
             label: 'Comments',
             tooltip: 'Open Document Comments',
             icon: MessageCircle,
@@ -262,6 +280,7 @@ export function DocumentTools({
             route: openPanel(currentPanel?.key === 'comments' ? currentPanel : {key: 'comments', id: idWithoutBlock}),
           },
           {
+            kind: 'collaborators' as const,
             label: `${collabsCount} ${collabsCount === 1 ? 'person' : 'people'}`,
             tooltip: 'Open Document Collaborators',
             icon: Users,
@@ -270,6 +289,7 @@ export function DocumentTools({
             route: openPanel({key: 'collaborators', id: idWithoutBlock}),
           },
           {
+            kind: 'citations' as const,
             label: 'Connections',
             tooltip: 'Open Document Connections',
             icon: Route,
@@ -282,6 +302,7 @@ export function DocumentTools({
             }),
           },
           {
+            kind: 'metadata' as const,
             label: 'Attributes',
             tooltip: 'Open Document Attributes',
             icon: Info,
@@ -297,6 +318,7 @@ export function DocumentTools({
           ...(activeTab === 'schema'
             ? [
                 {
+                  kind: 'schema' as const,
                   label: 'Schema',
                   tooltip: 'Open the schema this document defines',
                   icon: FileCode2,
@@ -306,6 +328,60 @@ export function DocumentTools({
               ]
             : []),
         ]
+  const isAgentTabBar = (hasAgent || agentHome) && mode === 'document'
+  // An agent's tab bar is about the agent: Comments only shows once a comment exists (or while it
+  // is open); connections, people and attributes never do (attributes live in the options menu).
+  const buttons = isAgentTabBar
+    ? allButtons.filter((button) => {
+        if (button.kind === 'collaborators' || button.kind === 'citations' || button.kind === 'metadata') return false
+        if (button.kind === 'comments') return button.active || commentsCount > 0
+        return true
+      })
+    : allButtons
+  if (isAgentTabBar) {
+    // Agent views replace the document body, so the agent tab bar needs a tab back to it.
+    // Link to the latest content at the base path, never the resolved version.
+    const documentRoute: NavRoute = {
+      key: 'document',
+      id: {...idWithoutBlock, version: null, latest: true},
+      panel: currentPanel || undefined,
+    }
+    const agentTabs: {view: NonNullable<DocumentRoute['agentView']>; label: string; icon: LucideIcon}[] = hasAgent
+      ? [
+          {view: 'sessions', label: 'Sessions', icon: Bot},
+          {view: 'triggers', label: 'Triggers', icon: Zap},
+          {view: 'memory', label: 'Memory', icon: Brain},
+          {view: 'access', label: 'Agent access', icon: Shield},
+          {view: 'settings', label: 'Settings', icon: Settings},
+        ]
+      : []
+    buttons.unshift(
+      // An agent document has no Home tab for now: its base URL opens Sessions. A document that
+      // merely advertises a server keeps its Content tab beside the agent tabs.
+      ...(agentHome
+        ? []
+        : [
+            {
+              label: 'Content',
+              tooltip: 'Open Content',
+              icon: Newspaper,
+              active: !activeAgentView && (activeTab == 'draft' || activeTab == 'content'),
+              route: documentRoute,
+            },
+          ]),
+      ...agentTabs.map(({view, label, icon}) => ({
+        label,
+        tooltip: `Open agent ${label.toLowerCase()}`,
+        icon,
+        // Subpages keep their tab lit: a transcript under Sessions, the settings pages under Settings.
+        active:
+          activeAgentView === view ||
+          (view === 'sessions' && (activeAgentView === 'session' || (!activeAgentView && !!agentHome))) ||
+          (view === 'settings' && (isAgentSettingsPage(activeAgentView) || activeAgentView === 'tools')),
+        route: {...documentRoute, agentView: view},
+      })),
+    )
+  }
   const hasActive = buttons.some((b) => b.active)
   const standaloneAction =
     !hasActive && activeTabAction
@@ -355,7 +431,7 @@ export function DocumentTools({
           count={button.count}
           showZeroCount={button.showZeroCount}
           bg={button.bg}
-          showLabel={showLabels}
+          showLabel={hasAgent || showLabels}
           collapsedCount={
             mode === 'document' && 'panel' in button.route && button.route.panel?.key === 'collaborators'
               ? collabsCount
@@ -375,6 +451,13 @@ export function DocumentTools({
       {standaloneAction}
     </>
   )
+
+  if (hasAgent)
+    return (
+      <div ref={containerRef} className="flex min-w-0 items-center gap-2 overflow-x-auto p-1">
+        {tabButtons}
+      </div>
+    )
 
   if (layoutProps) {
     const {wrapperProps, sidebarProps, mainContentProps, showSidebars} = layoutProps

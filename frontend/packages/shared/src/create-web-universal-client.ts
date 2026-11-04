@@ -20,6 +20,7 @@ import type {
 } from './client/grpc-types'
 
 export type WebClientDependencies = Pick<UniversalClient, 'request' | 'publish'> & {
+  listWritableLocations?: UniversalClient['listWritableLocations']
   listUnreferencedDocuments?: UniversalClient['listUnreferencedDocuments']
   queryDocuments?: (request: QueryDocumentsRequest, options?: {signal?: AbortSignal}) => Promise<QueryDocumentsResponse>
   listAccounts?: (request: ListAccountsRequest, options?: {signal?: AbortSignal}) => Promise<ListAccountsResponse>
@@ -130,6 +131,7 @@ export function createWebUniversalClient(deps: WebClientDependencies): Universal
   }
 
   return {
+    listWritableLocations: deps.listWritableLocations,
     CommentEditor: deps.CommentEditor,
     fetchRecents: deps.fetchRecents,
     deleteRecent: deps.deleteRecent,

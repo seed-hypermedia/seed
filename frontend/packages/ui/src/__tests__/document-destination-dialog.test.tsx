@@ -94,6 +94,7 @@ function renderDialog(props: {
   input?: DocumentDestinationDialogInput
   onSubmit?: ReturnType<typeof vi.fn>
   writableDocuments?: WritableDocumentDestination[]
+  enabledModes?: React.ComponentProps<typeof DocumentDestinationDialog>['enabledModes']
 }) {
   const onSubmit = (props.onSubmit || vi.fn(async () => undefined)) as any
   act(() => {
@@ -108,6 +109,7 @@ function renderDialog(props: {
           input={props.input || {id: sourceId, mode: 'move'}}
           onClose={vi.fn()}
           selectedAccountUid="site"
+          enabledModes={props.enabledModes}
           writableDocuments={
             props.writableDocuments || [
               {
@@ -152,6 +154,50 @@ describe('DocumentDestinationDialog', () => {
       signingAccountId: 'site',
     })
   })
+  it('adopts an agent by choosing a space and a path only, keeping the agent name', async () => {
+    const deepGrant = hmId('other', {path: ['team', 'docs']})
+    const {onSubmit} = renderDialog({
+      input: {id: siteId, mode: 'mount-agent', mountName: 'Scout'},
+      enabledModes: ['mount-agent'],
+      writableDocuments: [
+        {id: siteId, title: 'Docs', document: {version: 'v1', metadata: {name: 'Docs'}} as any},
+        // A grant inside another space is not a space: it must not be offered.
+        {id: deepGrant, title: 'Deep', document: {version: 'v1', metadata: {name: 'Deep'}} as any},
+      ],
+    })
+
+    expect(container.textContent).toContain('Choose a space')
+    expect(container.textContent).toContain('Docs')
+    expect(container.textContent).not.toContain('Deep')
+    // No search, no name field: the document keeps the agent's name.
+    expect(container.querySelector('input[placeholder="Search location…"]')).toBeNull()
+    expect(container.querySelector('input[placeholder="New Scout"]')).toBeNull()
+    expect((container.querySelector('input[placeholder="url-path"]') as HTMLInputElement).value).toBe('scout')
+
+    const spaceRow = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent?.includes('Docs'),
+    )
+    await act(async () => {
+      spaceRow?.click()
+    })
+    // The chosen space is shown with a way to change it, and nothing inside it is offered.
+    expect(container.textContent).toContain('Space')
+    expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'Change')).toBe(
+      true,
+    )
+    expect(Array.from(container.querySelectorAll('button')).some((button) => button.textContent === 'Back')).toBe(false)
+
+    const adoptButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Adopt Agent',
+    )
+    await act(async () => {
+      adoptButton?.click()
+    })
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({to: hmId('site', {path: ['scout']}), mode: 'mount-agent', name: 'Scout'}),
+    )
+  })
+
   it('passes destination metadata icons into location rows', async () => {
     renderDialog({})
     await clearToWritableRoots()

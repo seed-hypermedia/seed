@@ -54,6 +54,7 @@ import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import {clientProtocolOf, clientProtocolProblem, downgradeResponse} from '@/protocol-compat'
 import * as cbor from '@/cbor'
+import * as agentMount from '@/agent-mount'
 import * as mcp from '@/mcp'
 import * as runs from '@/runs'
 import * as effectOutbox from '@/effect-outbox'
@@ -1279,6 +1280,18 @@ export class Service {
     const clientProtocol = clientProtocolOf(envelope)
     this.#assertClientProtocol(clientProtocol)
     const verified = await this.#verifyEnvelope(envelope)
+    const action = envelope.action
+    if ('agentId' in action && action.agentId) {
+      envelope = {...envelope, action: {...action, agentId: agentMount.resolveAgentId(this.#db, action.agentId)}}
+    } else if (action._ === 'BeginFileUpload' && action.target.kind === 'memory') {
+      envelope = {
+        ...envelope,
+        action: {
+          ...action,
+          target: {...action.target, agentId: agentMount.resolveAgentId(this.#db, action.target.agentId)},
+        },
+      }
+    }
     const ownerAccountId = this.#actionAccountId(verified.accountId, envelope.action)
     const response = await withMemoryErrorsAsync(() =>
       agentMemory.withOwnerAccess(ownerAccountId === verified.accountId, () =>
@@ -1385,7 +1398,70 @@ export class Service {
       case 'DeclineAgentInvite':
         return this.#declineAgentInvite(verified.accountId, envelope.action.agentId)
       case 'CreateAgent':
-        return this.#createAgent(verified.accountId, envelope.action.definition, envelope.action.clientRequestId)
+        return this.#createAgent(
+          verified.accountId,
+          envelope.action.definition,
+          envelope.action.clientRequestId,
+          envelope.action.mount,
+          verified.signerId,
+        )
+      case 'MountAgent': {
+        const action = envelope.action
+        const checkUploads = () => {
+          for (const upload of this.#uploads.values()) {
+            if (upload.target.kind === 'memory' && upload.target.agentId === action.agentId) {
+              throw new APIError(409, 'Finish uploading files before mounting this agent')
+            }
+          }
+        }
+        checkUploads()
+        try {
+          await agentMount.mountAgent(
+            this.#db,
+            createSeedClient(this.#hmServerUrl),
+            verified.accountId,
+            action,
+            checkUploads,
+            verified.signerId,
+          )
+        } catch (error) {
+          throw new APIError(409, errorMessage(error))
+        }
+        const response = this.#getAgent(accountId, action.documentId, verified.accountId)
+        await this.#grantMountSpaceWriter(accountId, response.agent.definition, action.documentId)
+        // The audience cache is keyed by agent id; neither id may keep a stale list across the rename.
+        this.#collaboratorAudience.delete(action.agentId)
+        this.#collaboratorAudience.delete(action.documentId)
+        invalidateSpaceIndex(accountId)
+        // Subscribers of the old key learn the id changed; subscribers of the new one get the agent.
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: action.agentId})
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: action.documentId})
+        this.#emit({type: 'agent-change', accountId, agent: response.agent})
+        return response
+      }
+      case 'UnmountAgent': {
+        const action = envelope.action
+        let nextId: string
+        try {
+          nextId = agentMount.unmountAgent(this.#db, verified.accountId, action, () => {
+            for (const upload of this.#uploads.values()) {
+              if (upload.target.kind === 'memory' && upload.target.agentId === action.agentId) {
+                throw new Error('Finish uploading files before orphaning this agent')
+              }
+            }
+          })
+        } catch (error) {
+          throw new APIError(409, errorMessage(error))
+        }
+        const response = this.#getAgent(accountId, nextId, verified.accountId)
+        this.#collaboratorAudience.delete(action.agentId)
+        this.#collaboratorAudience.delete(nextId)
+        invalidateSpaceIndex(accountId)
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: action.agentId})
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: nextId})
+        this.#emit({type: 'agent-change', accountId, agent: response.agent})
+        return response
+      }
       case 'ListModelProviders':
         return this.#listModelProviders(accountId)
       case 'ListProviderModels':
@@ -1699,6 +1775,8 @@ export class Service {
       case 'CreateSession':
         return fromAgent(action.agentId, 'chat')
       case 'DeleteAgent':
+      case 'MountAgent':
+      case 'UnmountAgent':
         return this.#requireAgentAccess(actorAccountId, action.agentId, 'owner').ownerAccountId
       case 'GetAgentTrigger':
         return fromTrigger(action.triggerId)
@@ -2077,13 +2155,82 @@ export class Service {
     accountId: string,
     rawDefinition: api.AgentDefinition,
     clientRequestId?: string,
+    mount?: api.CreateAgent['mount'],
+    signerId = accountId,
   ): Promise<api.CreateAgentResponse> {
-    return this.#withIdempotency(accountId, 'CreateAgent', clientRequestId, {definition: rawDefinition}, () =>
-      this.#createAgentOnce(accountId, rawDefinition),
+    return this.#withAsyncIdempotency(
+      accountId,
+      'CreateAgent',
+      clientRequestId,
+      {definition: rawDefinition, ...(mount ? {mount} : {})},
+      async () => {
+        // The mount document's name attribute is the agent's name; the request's name only
+        // matters for an agent that has no document.
+        let definitionToCreate = rawDefinition
+        if (mount) {
+          const definition = normalizeDefinition(rawDefinition)
+          this.#validateSigningKeys(accountId, definition)
+          if (stmt(this.#db, 'SELECT id FROM agents WHERE id = ?').get(mount.documentId)) {
+            throw new APIError(409, 'This document already represents another agent')
+          }
+          const {name} = await agentMount.verifyMountDocument(
+            createSeedClient(this.#hmServerUrl),
+            accountId,
+            mount,
+            signerId,
+          )
+          if (name) definitionToCreate = {...rawDefinition, name}
+          await this.#grantMountSpaceWriter(accountId, definition, mount.documentId)
+        }
+        return () => this.#createAgentOnce(accountId, definitionToCreate, mount?.documentId)
+      },
     )
   }
 
-  #createAgentOnce(accountId: string, rawDefinition: api.AgentDefinition): api.CreateAgentResponse {
+  /** Grants the mount's owning space recursive write access to the agent's primary identity. */
+  async #grantMountSpaceWriter(accountId: string, definition: api.AgentDefinition, documentId: string): Promise<void> {
+    const signingKey = definition.signingKey || definition.signingKeys?.[0]
+    // Legacy agents without an HM identity have no home space to delegate.
+    if (!signingKey) return
+    const homeAccount = this.#signingIdentityAccountId(accountId, signingKey)
+    const mountId = unpackHmId(documentId)
+    if (!homeAccount || !mountId) throw new APIError(400, 'Agent home identity is unavailable')
+    if (homeAccount === mountId.uid) return
+    const client = createSeedClient(this.#hmServerUrl)
+    const {capabilities} = await client.request('ListCapabilities', {targetId: unpackHmId(`hm://${homeAccount}`)!})
+    if (
+      capabilities.some(
+        (cap) =>
+          cap.delegate === mountId.uid &&
+          cap.role === 'WRITER' &&
+          (!cap.path || cap.path === '/') &&
+          !cap.noRecursive &&
+          !cap.isExact,
+      )
+    )
+      return
+    const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
+      this.#db,
+      'SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?',
+    ).get(accountId, signingKey)
+    if (!row) throw new APIError(400, 'Agent home signing key is unavailable')
+    const keyPair = blobs.nobleKeyPairFromSeed(decryptSecret(this.#db, row.ciphertext))
+    await client.publish(
+      await createCapability(
+        {delegateUid: mountId.uid, role: 'WRITER'},
+        {
+          getPublicKey: async () => keyPair.principal,
+          sign: (data) => keyPair.sign(data),
+        },
+      ),
+    )
+  }
+
+  #createAgentOnce(
+    accountId: string,
+    rawDefinition: api.AgentDefinition,
+    documentId?: string,
+  ): api.CreateAgentResponse {
     const definition = normalizeDefinition(rawDefinition)
     const provider = stmt<{name: string; type: string}, [string, string]>(
       this.#db,
@@ -2094,8 +2241,12 @@ export class Service {
     this.#validateSigningKeys(accountId, definition)
 
     const now = Date.now()
-    const agentId = crypto.randomUUID()
-    const stateDir = path.join(this.#dataDir, 'agents', agentId)
+    const storageId = crypto.randomUUID()
+    const agentId = documentId ?? storageId
+    if (stmt(this.#db, 'SELECT id FROM agents WHERE id = ?').get(agentId)) {
+      throw new APIError(409, 'This document already represents another agent')
+    }
+    const stateDir = path.join(this.#dataDir, 'agents', storageId)
 
     stmt(
       this.#db,
@@ -3126,6 +3277,21 @@ export class Service {
     }
   }
 
+  /**
+   * Brings mounted agents' names in step with their documents (see
+   * {@link agentMount.syncMountedAgentNames}) and tells subscribers about each agent that changed.
+   */
+  async syncMountedAgentNames(options: {agentIds?: string[]; signal?: AbortSignal} = {}): Promise<number> {
+    const synced = await agentMount.syncMountedAgentNames(this.#db, createSeedClient(this.#hmServerUrl), options)
+    for (const {accountId, agentId} of synced) {
+      invalidateSpaceIndex(accountId, agentId)
+      const agent = this.#getAgentInfo(accountId, agentId)
+      if (agent) this.#emit({type: 'agent-change', accountId, agent})
+      this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
+    }
+    return synced.length
+  }
+
   #getAgent(accountId: string, agentId: string, viewerAccountId = accountId): api.GetAgentResponse {
     const agent = stmt<AgentRow, [string, string]>(
       this.#db,
@@ -3303,6 +3469,8 @@ export class Service {
     ).get(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
     const prior = cbor.decode<api.AgentDefinition>(existing.definition_cbor)
+    // A mounted agent is named by its document's name attribute, never by a definition edit.
+    if (agentId.startsWith('hm://') && prior.name) definition.name = prior.name
     if (viewerAccountId !== accountId) {
       // Writers may edit the agent, but granting signing accounts stays with the owner: the keys
       // live on the owner's account and the grant set decides what the agent can publish as.
@@ -9584,12 +9752,12 @@ export class Service {
     if (envelope.action._ !== 'Subscribe') throw new APIError(400, 'Expected Subscribe action')
     const key = envelope.action.key
     if (key === `account/${verified.accountId}`) return {accountId: verified.accountId, key}
-    const agentMatch = /^agents\/([^/]+)$/.exec(key)
+    const agentMatch = /^agents\/(.+)$/.exec(key)
     if (agentMatch) {
-      const agentId = agentMatch[1]
+      const agentId = agentMount.resolveAgentId(this.#db, agentMatch[1]!)
       if (!agentId) throw new APIError(400, 'Subscription key is invalid')
       const access = this.#requireAgentAccess(verified.accountId, agentId, 'reader')
-      return {accountId: verified.accountId, key, ...publicReadOf(access)}
+      return {accountId: verified.accountId, key: `agents/${agentId}`, ...publicReadOf(access)}
     }
     const sessionMatch = /^sessions\/([^/]+)$/.exec(key)
     if (sessionMatch) {

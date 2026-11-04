@@ -1,3 +1,6 @@
+import {registerWebAgentsPlatform} from '@/web-agents-platform'
+import {useMountedAgentProfileMenuItem} from '@shm/ui/agents/mounted-agent-menu'
+import {useOrphanAgentMenu} from '@shm/ui/agents/orphan-agent'
 import {HMDocument, HMDocumentInfo, HMExistingDraft, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {QuerySearchInputProvider} from '@shm/editor/query-search-context'
 import {hmId, useJoinSite, useUniversalAppContext, useUniversalClient} from '@shm/shared'
@@ -31,6 +34,8 @@ import {InlineSubscribeBox} from '@shm/ui/inline-subscribe-box'
 import {InspectorPage} from '@shm/ui/inspector-page'
 import type {MenuItemType} from '@shm/ui/options-dropdown'
 import {CommentEditorProps, ResourcePage} from '@shm/ui/resource-page-common'
+import {AgentDocumentViewContext, type AgentDocumentViewProps} from '@shm/ui/agent-document-view'
+import {clientLazy} from './client-lazy'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
@@ -152,6 +157,8 @@ function WebDocumentRenameNavigator({onRenamed}: {onRenamed: (payload: {oldId: s
   useOnDocumentRenamed(onRenamed)
   return null
 }
+
+const WebAgentDocument = clientLazy<AgentDocumentViewProps>(() => import('./web-agent-document'))
 
 export interface WebResourcePageProps {
   docId: UnpackedHypermediaId
@@ -518,6 +525,15 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
   const currentResource = useResource(useLocalDraftShell ? undefined : docId)
   const currentDocument = currentResource.data?.type === 'document' ? currentResource.data.document : undefined
+  // An agent page is the agent, so Publish only appears once attributes or content are dirty.
+  // The base URL (no agentView) opens the agent's sessions, so the document's type decides too.
+  const isAgentPage =
+    route.key === 'document' && (!!route.agentView || currentDocument?.metadata.type === 'hm://hyper.media/agent')
+  // A mounted agent's menu opens the profile the agent signs as.
+  registerWebAgentsPlatform()
+  const agentProfileMenuItem = useMountedAgentProfileMenuItem(docId, currentDocument?.metadata)
+  // Developer mode: undo an adoption.
+  const orphanAgent = useOrphanAgentMenu(docId, currentDocument?.metadata)
 
   const editingFloatingActions =
     effectiveCanEdit && showPublishToolbar
@@ -534,6 +550,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                 capabilityCid={effectiveCapabilityCid}
               />
             }
+            hidePublishWhenClean={isAgentPage}
             {...webToolbarCallbacks}
           />
         )
@@ -581,7 +598,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
   )
   const canCreateChildDocs =
     !!currentDocument?.version && canCreateChildDocuments(currentDocument?.visibility, draftData?.visibility)
-  const {menuItem: fileBrowserCreateMenuItem} = useWebCreateDocumentMenuItem({
+  // The file browser's plus menu opens dialogs (Create Agent) whose content mounts here.
+  const {menuItem: fileBrowserCreateMenuItem, content: fileBrowserCreateContent} = useWebCreateDocumentMenuItem({
     locationId: hmId(docId.uid),
     signingAccountId: signingAccountId ?? undefined,
     canCreate: effectiveCanEdit && !!signingAccountId,
@@ -657,7 +675,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     if (!effectiveCanEdit || !signingAccountId || isHomeTarget) return null
     return {
       key: 'delete',
-      label: 'Delete Document',
+      // A mounted agent's document is deleted as the agent (server side included).
+      label: currentDocument?.metadata.type === 'hm://hyper.media/agent' ? 'Delete Agent' : 'Delete Document',
       icon: <Trash className="size-4" />,
       variant: 'destructive',
       onClick: () => {
@@ -669,10 +688,20 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         })
       },
     }
-  }, [docId, effectiveCanEdit, isHomeTarget, onDeleteDocument, replaceRoute, signingAccountId])
+  }, [
+    currentDocument?.metadata.type,
+    docId,
+    effectiveCanEdit,
+    isHomeTarget,
+    onDeleteDocument,
+    replaceRoute,
+    signingAccountId,
+  ])
   const optionsMenuItems = useMemo(
     () =>
       [
+        agentProfileMenuItem,
+        orphanAgent.item,
         ...webMenuItems,
         isHomeTarget && effectiveCanEdit && signingAccountId === docId.uid && !placeholderDraftId
           ? {
@@ -687,6 +716,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
         ...schemaBuilderMenuItems,
       ].filter(Boolean) as MenuItemType[],
     [
+      agentProfileMenuItem,
+      orphanAgent.item,
       deleteMenuItem,
       moveMenuItem,
       webMenuItems,
@@ -764,6 +795,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
 
   return (
     <WebSitePageShell siteUid={docId.uid}>
+      {fileBrowserCreateContent}
       <CommentsProvider
         onReplyClick={onReplyClick}
         onReplyCountClick={onReplyCountClick}
@@ -794,53 +826,55 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
                   <HomeDraftProvider value={homeDraftOverride}>
                     <WebDocumentPrefetch originHomeId={originHomeId}>
                       {(onPrefetchDocument) => (
-                        <ResourcePage
-                          docId={docId}
-                          resourceId={useLocalDraftShell ? null : docId}
-                          CommentEditor={CommentEditor}
-                          pageFooter={<PageFooter id={docId} />}
-                          onEditProfile={onEditProfile}
-                          profileHeaderButtons={profileHeaderButtons}
-                          onFollowClick={onFollowClick}
-                          rightActions={<WebHeaderActions siteUid={docId.uid} />}
-                          optionsMenuItems={optionsMenuItems}
-                          fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
-                          fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
-                          fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
-                          inlineInsert={inlineInsert}
-                          DocumentContentComponent={DocumentContentComponent}
-                          ssrContentHTML={ssrContentHTML}
-                          perspectiveAccountUid={ownAccountUid}
-                          linkExtensionOptions={linkExtensionOptions}
-                          canEdit={effectiveCanEdit}
-                          machine={machine}
-                          machineExtras={
-                            <>
-                              <WebDraftExternalModificationListener />
-                              <WebDocumentRenameNavigator onRenamed={handleDocumentRenamed} />
-                            </>
-                          }
-                          signingAccountId={signingAccountId ?? undefined}
-                          publishAccountUid={signingAccountId ?? undefined}
-                          onEditorReady={onEditorReady}
-                          existingDraft={existingDraft}
-                          reservedDraftId={reservedDraftId}
-                          existingDraftVisibility={draftData?.visibility}
-                          existingDraftContent={existingDraftContent}
-                          existingDraftCursorPosition={existingDraftCursorPosition}
-                          existingDraftPublishPath={existingDraftPublishPath}
-                          existingDraftSchemaDraft={existingDraftSchemaDraft}
-                          existingDraftBindingSchemaDrafts={existingDraftBindingSchemaDrafts}
-                          existingDraftDeps={draftData?.deps}
-                          existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
-                          existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
-                          existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
-                          existingDraftMineTouchedIds={draftData?.mineTouchedIds}
-                          draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
-                          editingFloatingActions={editingFloatingActions}
-                          fileUpload={fileUpload}
-                          onPrefetchDocument={onPrefetchDocument}
-                        />
+                        <AgentDocumentViewContext.Provider value={WebAgentDocument}>
+                          <ResourcePage
+                            docId={docId}
+                            resourceId={useLocalDraftShell ? null : docId}
+                            CommentEditor={CommentEditor}
+                            pageFooter={<PageFooter id={docId} />}
+                            onEditProfile={onEditProfile}
+                            profileHeaderButtons={profileHeaderButtons}
+                            onFollowClick={onFollowClick}
+                            rightActions={<WebHeaderActions siteUid={docId.uid} />}
+                            optionsMenuItems={optionsMenuItems}
+                            fileBrowserCreateMenuItem={fileBrowserCreateMenuItem}
+                            fileBrowserOnIncludeDocument={fileBrowserOnIncludeDocument}
+                            fileBrowserGetIncludeDocumentState={fileBrowserGetIncludeDocumentState}
+                            inlineInsert={inlineInsert}
+                            DocumentContentComponent={DocumentContentComponent}
+                            ssrContentHTML={ssrContentHTML}
+                            perspectiveAccountUid={ownAccountUid}
+                            linkExtensionOptions={linkExtensionOptions}
+                            canEdit={effectiveCanEdit}
+                            machine={machine}
+                            machineExtras={
+                              <>
+                                <WebDraftExternalModificationListener />
+                                <WebDocumentRenameNavigator onRenamed={handleDocumentRenamed} />
+                              </>
+                            }
+                            signingAccountId={signingAccountId ?? undefined}
+                            publishAccountUid={signingAccountId ?? undefined}
+                            onEditorReady={onEditorReady}
+                            existingDraft={existingDraft}
+                            reservedDraftId={reservedDraftId}
+                            existingDraftVisibility={draftData?.visibility}
+                            existingDraftContent={existingDraftContent}
+                            existingDraftCursorPosition={existingDraftCursorPosition}
+                            existingDraftPublishPath={existingDraftPublishPath}
+                            existingDraftSchemaDraft={existingDraftSchemaDraft}
+                            existingDraftBindingSchemaDrafts={existingDraftBindingSchemaDrafts}
+                            existingDraftDeps={draftData?.deps}
+                            existingDraftBaseBlocks={draftData?.baseBlocks ?? undefined}
+                            existingDraftMaintenanceRevision={draftData?.maintenanceRevision}
+                            existingDraftRemovedChildDocumentIds={draftData?.removedChildDocumentIds}
+                            existingDraftMineTouchedIds={draftData?.mineTouchedIds}
+                            draftVersionOnDiscardConfirm={webToolbarCallbacks.onDiscardConfirm}
+                            editingFloatingActions={editingFloatingActions}
+                            fileUpload={fileUpload}
+                            onPrefetchDocument={onPrefetchDocument}
+                          />
+                        </AgentDocumentViewContext.Provider>
                       )}
                     </WebDocumentPrefetch>
                   </HomeDraftProvider>
@@ -855,6 +889,7 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       {createSpaceDialogContent}
       {createAccountContent}
       {deleteDialog.content}
+      {orphanAgent.content}
       {destinationDialog.content}
       {vaultSuccessContent}
     </WebSitePageShell>

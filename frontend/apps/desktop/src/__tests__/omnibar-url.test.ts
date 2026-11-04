@@ -109,6 +109,32 @@ describe('omnibar url resolution', () => {
     )
   })
 
+  it('resolves trigger detail paths on custom domains', async () => {
+    resolveHypermediaUrlMock.mockResolvedValue({hmId: unpackHmId('hm://uid1/helper')})
+    await expect(
+      resolveOmnibarUrlToRoute('https://example.com/helper/:triggers/trigger-2?trigger=old'),
+    ).resolves.toMatchObject({
+      key: 'document',
+      id: {id: 'hm://uid1/helper'},
+      agentView: 'triggers',
+      agentTriggerId: 'trigger-2',
+    })
+  })
+
+  it('resolves mounted agent views on a custom site without dropping the suffix', async () => {
+    resolveHypermediaUrlMock.mockResolvedValue({hmId: unpackHmId('hm://uid1/helper'), panel: null})
+    await expect(resolveOmnibarUrlToRoute('https://example.com/helper/:session/session-1')).resolves.toMatchObject({
+      key: 'document',
+      agentView: 'session',
+      agentSessionId: 'session-1',
+      id: {id: 'hm://uid1/helper'},
+    })
+    await expect(resolveOmnibarUrlToRoute('https://example.com/helper/:settings')).resolves.toMatchObject({
+      key: 'document',
+      agentView: 'settings',
+    })
+  })
+
   it('returns inspect hm urls unchanged when they are already parseable', async () => {
     await expect(resolveOmnibarUrlToHypermediaUrl('hm://inspect/uid1/:comments/comment123')).resolves.toBe(
       'hm://inspect/uid1/:comments/comment123',
@@ -225,14 +251,14 @@ describe('omnibar url resolution', () => {
   })
 
   it('builds and resolves agent tab urls', async () => {
-    const url = agentUrl('https://agents.example', 'agent-1', 'tools')
+    const url = agentUrl('https://agents.example', 'agent-1', 'permissions')
 
-    expect(url).toBe('https://agents.example/agents/agent-1/:tools')
+    expect(url).toBe('https://agents.example/agents/agent-1/:permissions')
     await expect(resolveOmnibarUrlToRoute(url)).resolves.toEqual({
       key: 'agent',
       serverUrl: 'https://agents.example',
       agentId: 'agent-1',
-      tab: 'tools',
+      tab: 'permissions',
     })
   })
 

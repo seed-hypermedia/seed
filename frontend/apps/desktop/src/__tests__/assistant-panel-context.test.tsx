@@ -4,9 +4,11 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 vi.mock('@shm/ui/agents/platform', () => ({getAgentsPlatform: () => ({})}))
+// The card for unmounted agents has its own test (ui mount-reminder.test); the list flow here is about chats.
+vi.mock('@shm/ui/agents/mount-reminder', () => ({AgentMountReminder: () => null}))
 
 /**
- * The sidebar mirrors the Agents page: the dropdown at the top filters the chat list to one agent
+ * The sidebar is a column of chats: the dropdown at the top filters the chat list to one agent
  * or to all of them, the list has a composer below it, and an open chat has a back button to the
  * list it came from. No dialog stands anywhere in that flow.
  */
@@ -46,6 +48,7 @@ vi.mock('@shm/ui/agents/models', () => ({
   // The create-agent dialog checks the server before offering models; here it is never reached.
   useAgentServerHealth: () => ({data: undefined, isLoading: false}),
   LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
+  useSiteUidInView: () => null,
   isLocalAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
     !!localServerUrl && serverUrl === localServerUrl,
   describeAgentServer: (serverUrl: string, localServerUrl?: string | null) =>
@@ -57,7 +60,8 @@ vi.mock('@shm/ui/agents/models', () => ({
   useRun: () => ({data: undefined}),
   useAgentLists: () =>
     mockState.agentLists.map((query) => ({...query, isSuccess: mockState.agentListsSettled, isError: false})),
-  useSpaceAgents: () => mockState.spaceAgents,
+  useMountedSiteAgents: () => mockState.spaceAgents,
+  useOrphanAgents: () => ({agents: [], settled: true}),
   useAgentServerUrls: () => ({data: mockState.serverUrls, isSuccess: true, isLoading: false}),
   useAgentSession: () => ({data: undefined}),
   useAgentWebSocketSubscription: () => ({text: ''}),
@@ -115,7 +119,7 @@ vi.mock('@shm/ui/agents/navigation', () => ({
   resolveHypermediaRoute: () => null,
 }))
 vi.mock('@/utils/useNavigate', () => ({useNavigate: () => mockState.navigate}))
-vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined})}))
+vi.mock('@shm/shared/models/entity', () => ({useResource: () => ({data: undefined}), useResources: () => []}))
 // The real composer drags in the ProseMirror editor stack, which does not load under jsdom. The
 // mock honors the contract these tests care about: a textarea stands in for the editor, it
 // focuses itself when told to focus on mount (the default, as in the real component), it renders
@@ -303,7 +307,9 @@ describe('assistant sidebar', () => {
       root.render(<AssistantPanel />)
     })
     click(pickerTrigger())
-    // Grouped by server.
+    // Grouped by the space an agent lives in; these legacy ids live nowhere, so they are orphans,
+    // and an orphan's row still says which server it runs on.
+    expect(document.body.textContent).toContain('Orphan agents')
     expect(document.body.textContent).toContain('Local Agents')
     expect(document.body.textContent).toContain('agentic.seed.hyper.media')
     clickInPicker('Researcher')
@@ -477,52 +483,26 @@ describe('assistant sidebar', () => {
     expect(mockState.navigate).toHaveBeenCalledWith(expect.objectContaining({key: 'agent-session', sessionId: 's-a1'}))
   })
 
-  it('offers agent creation and the full Agents page from the agent dropdown', () => {
+  it('the agent dropdown only filters: it offers neither agent creation nor an agents page', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
 
     click(pickerTrigger())
-    clickInPicker('Agents page')
-    expect(mockState.navigate).toHaveBeenCalledWith({key: 'agents'})
-
-    click(pickerTrigger())
-    clickInPicker('New agent')
-    expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
+    const picker = document.body.querySelector('[role="dialog"]')
+    expect(picker?.textContent).not.toContain('New agent')
+    expect(picker?.textContent).not.toContain('Agents page')
+    expect(mockState.createAgentDialogMounts).toBe(0)
   })
 
-  it('filters to a newly created agent with the composer ready, staying in the sidebar', () => {
+  it('hides the expand button while the list shows all agents, since that has no full page', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
-    click(pickerTrigger())
-    clickInPicker('New agent')
-
-    // The dialog completes: the sidebar switches to the created agent, not away to its full page.
-    act(() => {
-      mockState.createAgentDialogInput?.onCreated?.({serverUrl: REMOTE, agentId: 'researcher'})
-    })
-
-    expect(mockState.navigate).not.toHaveBeenCalled()
-    expect(pickerTrigger()?.textContent).toContain('Researcher')
-    expect(document.body.textContent).not.toContain('Doc questions')
-    expect(composer()).not.toBeNull()
+    expect(buttonByTitle('Expand to full screen')).toBeFalsy()
   })
 
-  it('can create an agent even when none exist yet', () => {
-    mockState.agentLists = [{data: []}, {data: []}]
-    mockState.sessionEntries = []
-    act(() => {
-      root.render(<AssistantPanel />)
-    })
-
-    click(pickerTrigger())
-    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('No agents yet')
-    clickInPicker('New agent')
-    expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
-  })
-
-  it('with no agents, the body is a call to action that opens the create dialog in place', () => {
+  it('with no agents, the body says so and points at the home document New menu, with no composer', () => {
     mockState.agentLists = [{data: []}, {data: []}]
     mockState.sessionEntries = []
     act(() => {
@@ -530,13 +510,12 @@ describe('assistant sidebar', () => {
     })
 
     expect(document.body.textContent).toContain('No agents yet')
+    expect(document.body.textContent).toContain('New menu')
+    expect(document.body.textContent).not.toContain('Create an agent')
     expect(composer()).toBeNull()
-    clickText('Create an agent')
-    expect(mockState.createAgentDialogMounts).toBeGreaterThan(0)
-    act(() => {
-      mockState.createAgentDialogInput?.onCreated?.({serverUrl: REMOTE, agentId: 'researcher'})
-    })
-    expect(mockState.navigate).not.toHaveBeenCalled()
+    expect(mockState.createAgentDialogMounts).toBe(0)
+    click(pickerTrigger())
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('No agents yet')
   })
 
   it('a new chat from the footer starts with the agent of the chat that was open', () => {

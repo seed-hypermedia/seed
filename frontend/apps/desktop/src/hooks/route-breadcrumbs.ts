@@ -86,8 +86,6 @@ const STATIC_WINDOW_TITLES: Partial<Record<NavRoute['key'], string>> = {
   'api-inspector': 'API Inspector',
   'query-documents': 'Query Documents',
   explore: 'Explore',
-  agents: 'Agents',
-  'agent-server': 'Agents',
   agent: 'Agent',
   'agent-session': 'Agent Session',
   'agent-run': 'Agent Run',

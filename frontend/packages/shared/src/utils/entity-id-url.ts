@@ -6,7 +6,7 @@ import {
   unpackHmId as _unpackHmId,
 } from '@seed-hypermedia/client/hm-types'
 import {DEFAULT_GATEWAY_URL, HYPERMEDIA_SCHEME, OS_PROTOCOL_SCHEME} from '../constants'
-import type {NavRoute} from '../routes'
+import type {NavRoute, DocumentRoute} from '../routes'
 import {entityQueryPathToHmIdPath} from './path-api'
 import type {StateStream} from './stream'
 
@@ -59,6 +59,81 @@ export const VIEW_TERMS = [
 ] as const
 export type ViewTerm = (typeof VIEW_TERMS)[number]
 
+/** Parses agent views without confusing space settings with a mounted document's settings. */
+export function extractAgentDocumentView(
+  parts: string[],
+): {path: string[]; agentView: DocumentRoute['agentView']; agentSessionId?: string; agentTriggerId?: string} | null {
+  if (parts.at(-2) === ':session' && parts.at(-1)) {
+    return {path: parts.slice(0, -2), agentView: 'session', agentSessionId: parts.at(-1)}
+  }
+  if (parts.at(-2) === ':triggers' && parts.at(-1)) {
+    return {path: parts.slice(0, -2), agentView: 'triggers', agentTriggerId: parts.at(-1)}
+  }
+  // Settings pages: `:settings/<page>`. The bare `:prompt` and `:tools` forms are older links.
+  const settingsPage = parts.at(-1)
+  if (parts.at(-2) === ':settings' && settingsPage && isAgentSettingsPage(settingsPage)) {
+    return {path: parts.slice(0, -2), agentView: settingsPage}
+  }
+  const term = parts.at(-1)
+  if (
+    term &&
+    [':sessions', ':tools', ':settings', ':triggers', ':memory', ':prompt', ':access'].includes(term) &&
+    parts.length > 1
+  ) {
+    const view = term === ':tools' ? 'permissions' : (term.slice(1) as DocumentRoute['agentView'])
+    return {path: parts.slice(0, -1), agentView: view}
+  }
+  return null
+}
+
+/** The pages under an agent's Settings tab, addressed as `:settings/<page>`. */
+export const AGENT_SETTINGS_PAGES = ['prompt', 'permissions', 'identities', 'mcp'] as const
+export type AgentSettingsPage = (typeof AGENT_SETTINGS_PAGES)[number]
+
+export function isAgentSettingsPage(view: string | undefined): view is AgentSettingsPage {
+  return !!view && (AGENT_SETTINGS_PAGES as readonly string[]).includes(view)
+}
+
+/** Converts canonical agent IDs to document navigation; legacy server IDs retain their routes. */
+export function mountedAgentRoute(route: NavRoute): NavRoute {
+  if (route.key !== 'agent' && route.key !== 'agent-session') return route
+  const id = route.agentId ? unpackHmId(route.agentId) : null
+  if (!id?.path?.length) return route
+  return route.key === 'agent-session'
+    ? {key: 'document', id, agentView: 'session', agentSessionId: route.sessionId}
+    : {
+        key: 'document',
+        id,
+        agentView:
+          route.tab === 'collaborators' ? 'access' : route.tab === 'tools' ? 'permissions' : route.tab || 'sessions',
+        agentTriggerId: route.triggerId,
+        agentMemoryPath: route.memoryPath,
+      }
+}
+
+/** Suffix used by every mounted-agent URL producer. */
+export function agentDocumentViewPath(route: DocumentRoute): string | undefined {
+  if (!route.agentView) return undefined
+  if (route.agentView === 'triggers' && route.agentTriggerId)
+    return `:triggers/${encodeURIComponent(route.agentTriggerId)}`
+  if (route.agentView === 'tools') return ':settings/permissions'
+  if (isAgentSettingsPage(route.agentView)) return `:settings/${route.agentView}`
+  // A session view with no id is the list; `:session/` would parse back as a document path.
+  if (route.agentView === 'session') {
+    return route.agentSessionId ? `:session/${encodeURIComponent(route.agentSessionId)}` : ':sessions'
+  }
+  return `:${route.agentView}`
+}
+
+function appendAgentViewQuery(url: string, route: DocumentRoute): string {
+  if (!route.agentView) return url
+  const query = new URLSearchParams()
+  if (route.agentMemoryPath) query.set('file', route.agentMemoryPath)
+  if (!query.size) return url
+  const [base, fragment] = url.split('#')
+  return `${base}${base!.includes('?') ? '&' : '?'}${query}${fragment ? `#${fragment}` : ''}`
+}
+
 /**
  * Whether a path or URL addresses a view-term panel (`/:followers`, `/:comments`, ...)
  * rather than a document itself. Panels are alternate views of documents and accounts
@@ -73,7 +148,13 @@ export function isViewTermPath(pathOrUrl: string): boolean {
     path = pathStart >= 0 ? path.slice(pathStart) : '/'
   }
   path = path.split(/[?#]/)[0] || ''
-  return path.split('/').some((segment) => (VIEW_TERMS as readonly string[]).includes(segment))
+  return path
+    .split('/')
+    .some(
+      (segment) =>
+        (VIEW_TERMS as readonly string[]).includes(segment) ||
+        [':sessions', ':session', ':tools', ':triggers', ':memory', ':prompt', ':access'].includes(segment),
+    )
 }
 
 // Route keys that correspond to view terms (excludes 'options' which is panel-only)
@@ -126,8 +207,36 @@ export function extractViewTermFromUrl(url: string): {
   accountUid?: string
   settingsTab?: string
   settingsDomain?: string
+  agentView?: DocumentRoute['agentView']
+  agentSessionId?: string
+  agentTriggerId?: string
 } {
   const {url: inspectCleanUrl, isInspect} = extractInspectPrefixFromUrl(url)
+  const agentMatch = inspectCleanUrl.match(
+    /\/(:(?:sessions|tools|triggers|memory|prompt|access)|:settings\/(?:prompt|permissions|identities|mcp)|:session\/([^/?#]+)|:triggers\/([^/?#]+))(?=[?#]|$)/,
+  )
+  if (agentMatch) {
+    try {
+      return {
+        url: inspectCleanUrl.replace(agentMatch[0], ''),
+        isInspect,
+        viewTerm: null,
+        agentView: (agentMatch[2]
+          ? 'session'
+          : agentMatch[3]
+            ? 'triggers'
+            : agentMatch[1]!.startsWith(':settings/')
+              ? agentMatch[1]!.slice(':settings/'.length)
+              : agentMatch[1] === ':tools'
+                ? 'permissions'
+                : agentMatch[1]!.slice(1)) as DocumentRoute['agentView'],
+        ...(agentMatch[2] ? {agentSessionId: decodeURIComponent(agentMatch[2])} : {}),
+        ...(agentMatch[3] ? {agentTriggerId: decodeURIComponent(agentMatch[3])} : {}),
+      }
+    } catch {
+      return {url: inspectCleanUrl, isInspect, viewTerm: null}
+    }
+  }
 
   // Check for the :feed/to-you pattern (the Activity page on its To you tab)
   const feedTabMatch = inspectCleanUrl.match(/\/\:feed\/(to-you)(?=[?#]|$)/)
@@ -652,6 +761,7 @@ export function routeToUrl(
     originHomeId?: UnpackedHypermediaId | undefined
   },
 ): string | null {
+  route = mountedAgentRoute(route)
   const panelParam = getRoutePanelParam(route)
 
   if (route.key === 'inspect') {
@@ -679,13 +789,15 @@ export function routeToUrl(
   if (route.key === 'document') {
     const url = createWebHMUrl(route.id.uid, {
       ...route.id,
+      ...(route.agentView ? {version: null, latest: true, blockRef: null, blockRange: null} : {}),
       hostname: opts?.hostname,
       originHomeId: opts?.originHomeId,
       panel: panelParam,
       reply: getRouteReplyCommentId(route),
       pageParams: route.id.pageParams,
+      viewTerm: agentDocumentViewPath(route),
     })
-    return url
+    return appendAgentViewQuery(url, route)
   }
   if (
     route.key === 'feed' ||
@@ -782,6 +894,7 @@ export function getRouteReplyCommentId(route: NavRoute): string | undefined {
  * Serializes an application route into an hm:// URL.
  */
 export function routeToHmUrl(route: NavRoute): string | null {
+  route = mountedAgentRoute(route)
   const panelParam = getRoutePanelParam(route)
 
   if (route.key === 'inspect') {
@@ -799,17 +912,18 @@ export function routeToHmUrl(route: NavRoute): string | null {
 
   if (route.key === 'document') {
     let url = packBaseId(route.id.uid, route.id.path)
+    if (route.agentView) url += `/${agentDocumentViewPath(route)}`
     url += getHMQueryString({
-      version: route.id.version,
-      latest: route.id.latest,
+      version: route.agentView ? null : route.id.version,
+      latest: route.agentView ? true : route.id.latest,
       panel: panelParam,
       reply: getRouteReplyCommentId(route),
       pageParams: route.id.pageParams,
     })
-    if (route.id.blockRef) {
+    if (route.id.blockRef && !route.agentView) {
       url += `#${route.id.blockRef}${serializeBlockRange(route.id.blockRange)}`
     }
-    return url
+    return appendAgentViewQuery(url, route)
   }
 
   if (
@@ -876,6 +990,7 @@ export function routeToHmUrl(route: NavRoute): string | null {
 
 /** Build a bookmark URL from a NavRoute, keeping only baseId + view term. */
 export function bookmarkUrlFromRoute(route: NavRoute): string | null {
+  route = mountedAgentRoute(route)
   if (route.key === 'inspect') {
     return createHmInspectUrl(route)
   }
@@ -883,7 +998,10 @@ export function bookmarkUrlFromRoute(route: NavRoute): string | null {
     return createHmInspectIpfsUrl(route)
   }
   if (route.key === 'document') {
-    return packBaseId(route.id.uid, route.id.path)
+    return appendAgentViewQuery(
+      packBaseId(route.id.uid, route.id.path) + (route.agentView ? `/${agentDocumentViewPath(route)}` : ''),
+      route,
+    )
   }
   if (
     route.key === 'feed' ||

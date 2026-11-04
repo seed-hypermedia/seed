@@ -263,11 +263,15 @@ describe('activity conditions and combination', () => {
     h.db.run('DROP TABLE trigger_event_claims')
     h.db.run('ALTER TABLE trigger_firings DROP COLUMN context_cbor')
     h.db.run('ALTER TABLE agent_triggers DROP COLUMN merged_into')
-    // Six versions behind: the claims migration sits under the firing-session link migration, the
-    // top-level session indexes, the durable-entry column, the effect outbox and the live-runs-by-
-    // agent index.
+    // Start immediately before the claims migration, independent of newer migrations.
     h.db.run('UPDATE server_config SET value = ? WHERE key = ?', [
-      String(sqlite.desiredVersion - 6),
+      String(
+        sqlite.desiredVersion -
+          sqlite.migrations.findIndex((migration) =>
+            migration.includes('ALTER TABLE agent_triggers ADD COLUMN merged_into'),
+          ) -
+          1,
+      ),
       sqlite.SCHEMA_MIGRATION_VERSION_KEY,
     ])
     expect(sqlite.openWithDatabase(h.db).ok).toBe(true)

@@ -27,26 +27,28 @@ import {
   ArrowLeft,
   Brain,
   Check,
-  ChevronDown,
   ChevronsUpDown,
   GitBranch,
-  Globe,
   Loader2,
-  MessageSquarePlus,
   MessagesSquare,
-  ScrollText,
   Settings,
-  UserRound,
   Users,
-  Wrench,
 } from 'lucide-react'
-import {useSigningIdentities} from './models'
-import {SigningIdentityIcon} from './signing-identity-icon'
-import {useRouteLink} from '@shm/shared/routing'
-import {hmId} from '@shm/shared/utils/entity-id-url'
 import {Fragment, type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 
-export type AgentPageTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'collaborators' | 'settings'
+export type AgentPageTab =
+  | 'sessions'
+  | 'triggers'
+  | 'memory'
+  | 'tools' // older links; opens the permissions page
+  | 'prompt'
+  | 'permissions'
+  | 'identities'
+  | 'mcp'
+  | 'collaborators'
+  | 'settings'
+/** Pages under Settings, each with a back bar to the tab. */
+export const AGENT_SETTINGS_TABS: readonly AgentPageTab[] = ['prompt', 'permissions', 'identities', 'mcp', 'tools']
 
 export type AgentHeaderInfo = {
   definition: AgentDefinition
@@ -73,32 +75,12 @@ export function AgentBreadcrumb({
   const navigate = useNavigate()
   const localServerUrl = useLocalAgentServerUrl()
   // The desktop-managed server is a named place, not an address: its port moves between launches,
-  // so "localhost:3050" in a breadcrumb is noise at best and wrong at worst.
+  // so "localhost:3050" in a breadcrumb is noise at best and wrong at worst. A server is only a
+  // label here: it has no page of its own, agents are reached through their documents.
   const serverLabel = serverUrl ? describeAgentServer(serverUrl, localServerUrl.data) : null
-  const serverIsCurrent = !!serverUrl && !agentName && !items.length
   return (
     <nav className="text-muted-foreground flex items-center gap-1 text-xs" aria-label="Agent breadcrumb">
-      <button
-        className="hover:text-foreground rounded px-1 py-0.5 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center"
-        onClick={() => navigate({key: 'agents'})}
-      >
-        Agents
-      </button>
-      {serverUrl ? (
-        <>
-          <span>&gt;</span>
-          {serverIsCurrent ? (
-            <span className="text-foreground max-w-48 truncate rounded px-1 py-0.5">{serverLabel}</span>
-          ) : (
-            <button
-              className="hover:text-foreground max-w-48 truncate rounded px-1 py-0.5 max-sm:inline-flex max-sm:min-h-10 max-sm:items-center"
-              onClick={() => navigate({key: 'agent-server', serverUrl})}
-            >
-              {serverLabel}
-            </button>
-          )}
-        </>
-      ) : null}
+      {serverUrl ? <span className="max-w-48 truncate rounded px-1 py-0.5">{serverLabel}</span> : null}
       {serverUrl && agentName ? (
         <>
           <span>&gt;</span>
@@ -160,7 +142,8 @@ export function AgentSubpageHeader({
 }: {
   title: string
   placeholder: string
-  onTitleChange: (title: string) => void
+  /** Edits the title; without it the title is a fixed heading. */
+  onTitleChange?: (title: string) => void
   /** One-line status under the title (e.g. the agent's own session description). */
   subtitle?: string
   saveState?: AgentTitleSaveState
@@ -186,7 +169,7 @@ export function AgentSubpageHeader({
             <div className="flex min-w-0 flex-1 items-center px-1">
               <DelayedSpinner />
             </div>
-          ) : (
+          ) : onTitleChange ? (
             <input
               aria-label={placeholder}
               value={title}
@@ -195,6 +178,8 @@ export function AgentSubpageHeader({
               className="focus:ring-primary/25 min-w-0 flex-1 rounded-md bg-transparent px-1 py-0.5 text-lg font-bold outline-none focus:ring-2"
               disabled={disabled}
             />
+          ) : (
+            <h2 className="min-w-0 flex-1 truncate px-1 py-0.5 text-lg font-bold">{title}</h2>
           )}
           {saveState === 'saving' ? (
             <Loader2 className="text-muted-foreground size-3.5 flex-none animate-spin" aria-label="Saving title" />
@@ -220,65 +205,6 @@ export function AgentSubpageHeader({
   )
 }
 
-/**
- * The one account this agent signs as, worn beside its name: an avatar-and-name pill opening
- * "Open Space" / "Open Profile". Rendered only when the identity picture is unambiguous — exactly
- * one granted signing key, resolved to an account. Zero or several keys is a story the Tools tab
- * tells; a chip picking one of several would misattribute the agent.
- */
-function AgentIdentityChip({
-  serverUrl,
-  agentId,
-  definition,
-}: {
-  serverUrl: string
-  agentId: string
-  definition: AgentDefinition
-}) {
-  const accountUid = useSelectedAccountId()
-  const identities = useSigningIdentities(serverUrl, accountUid, agentId)
-  const signingKeys = definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
-  const granted = (identities.data || []).filter((identity) => signingKeys.includes(identity.name))
-  const identity = signingKeys.length === 1 && granted.length === 1 ? granted[0] : undefined
-  const accountId = identity?.accountId
-  const spaceLink = useRouteLink(accountId ? {key: 'document', id: hmId(accountId)} : null)
-  const profileLink = useRouteLink(accountId ? {key: 'site-profile', id: hmId(accountId), tab: 'profile'} : null)
-  if (!identity || !accountId) return null
-
-  const displayName = identity.label || identity.name
-  return (
-    <OptionsDropdown
-      ariaLabel={`Signing identity: ${displayName}`}
-      align="start"
-      button={
-        <button
-          type="button"
-          title={`Signs as ${displayName}`}
-          className="border-border hover:bg-muted/60 flex max-w-56 min-w-0 flex-none items-center gap-1.5 rounded-full border py-0.5 pr-2 pl-0.5"
-        >
-          <SigningIdentityIcon identity={identity} name={displayName} size={20} />
-          <span className="text-muted-foreground min-w-0 truncate text-xs font-medium">{displayName}</span>
-          <ChevronDown className="text-muted-foreground size-3 flex-none" />
-        </button>
-      }
-      menuItems={[
-        {
-          key: 'space',
-          label: 'Open Space',
-          icon: <Globe className="size-4" />,
-          onClick: (event) => spaceLink.onClick?.(event),
-        },
-        {
-          key: 'profile',
-          label: 'Open Profile',
-          icon: <UserRound className="size-4" />,
-          onClick: (event) => profileLink.onClick?.(event),
-        },
-      ]}
-    />
-  )
-}
-
 export function AgentHeader({
   agent,
   agentId,
@@ -289,12 +215,11 @@ export function AgentHeader({
   activeTab,
   sessionsCount,
   triggersCount,
-  onCreateSession,
-  creatingSession,
   onCreateTrigger,
   canCreateTrigger,
   menuItems,
   breadcrumbItems,
+  embedded = false,
 }: {
   agent?: AgentHeaderInfo
   agentId?: string
@@ -306,13 +231,13 @@ export function AgentHeader({
   activeTab: AgentPageTab
   sessionsCount?: number
   triggersCount?: number
-  onCreateSession?: () => void
-  creatingSession?: boolean
   onCreateTrigger?: () => void
   canCreateTrigger?: boolean
   /** Rows for the top-right options menu; the menu renders only when at least one row is present. */
   menuItems?: (MenuItemType | null)[]
   breadcrumbItems?: AgentBreadcrumbItem[]
+  /** Document shell supplies identity and tabs; retain only agent actions. */
+  embedded?: boolean
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
@@ -333,13 +258,19 @@ export function AgentHeader({
       count: triggersCount || undefined,
     },
     {key: 'memory' as const, label: 'Memory', tooltip: "Browse and edit the agent's memory files", icon: Brain},
-    {key: 'tools' as const, label: 'Tools', tooltip: 'Control tools and signing identities', icon: Wrench},
-    {key: 'prompt' as const, label: 'Prompt', tooltip: 'Edit the system prompt', icon: ScrollText},
     {key: 'collaborators' as const, label: 'Collaborators', tooltip: 'Manage who can access this agent', icon: Users},
-    {key: 'settings' as const, label: 'Settings', tooltip: 'Edit model settings', icon: Settings},
+    {
+      key: 'settings' as const,
+      label: 'Settings',
+      tooltip: 'Model, system prompt, permissions, identities and MCP servers',
+      icon: Settings,
+    },
   ]
 
-  const activeTabLabel = tabs.find((tab) => tab.key === activeTab)?.label || 'Sessions'
+  // The prompt, permissions, identities and MCP pages live inside Settings, so that tab stays lit
+  // while one of them is open.
+  const litTab: AgentPageTab = AGENT_SETTINGS_TABS.includes(activeTab) ? 'settings' : activeTab
+  const activeTabLabel = tabs.find((tab) => tab.key === litTab)?.label || 'Sessions'
   const currentAgentName = agentName ?? agent?.definition.name ?? 'Agent'
   // From another tab, Sessions returns to the transcript that was open (see sticky-session.ts);
   // while Sessions is already the active tab it always leads to the list.
@@ -370,24 +301,25 @@ export function AgentHeader({
 
   return (
     <>
-      <AgentBreadcrumb
-        serverUrl={serverUrl}
-        agentId={agentId}
-        agentName={currentAgentName}
-        items={breadcrumbItems || [{label: activeTabLabel}]}
-      />
+      {!embedded && (
+        <AgentBreadcrumb
+          serverUrl={serverUrl}
+          agentId={agentId}
+          agentName={currentAgentName}
+          items={breadcrumbItems || [{label: activeTabLabel}]}
+        />
+      )}
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 sm:flex-nowrap">
           <div className="flex min-w-0 flex-col gap-1">
             <div className="flex min-w-0 items-center gap-2.5">
-              <AgentTitleMenu
-                title={currentAgentName}
-                current={agentId ? {serverUrl, agentId} : undefined}
-                onRename={onEditName}
-              />
-              {agent && agentId ? (
-                <AgentIdentityChip serverUrl={serverUrl} agentId={agentId} definition={agent.definition} />
-              ) : null}
+              {!embedded && (
+                <AgentTitleMenu
+                  title={currentAgentName}
+                  current={agentId ? {serverUrl, agentId} : undefined}
+                  onRename={onEditName}
+                />
+              )}
             </div>
             {!agent ? (
               <SizableText color="muted" className="block">
@@ -408,11 +340,6 @@ export function AgentHeader({
             ) : null}
           </div>
           <div className="flex flex-none items-center gap-2">
-            {activeTab === 'sessions' && onCreateSession ? (
-              <Button className="max-sm:min-h-10" onClick={onCreateSession} disabled={creatingSession}>
-                <MessageSquarePlus className="mr-2 size-4" /> New session
-              </Button>
-            ) : null}
             {activeTab === 'triggers' && onCreateTrigger ? (
               <Button className="max-sm:min-h-10" onClick={onCreateTrigger} disabled={!canCreateTrigger}>
                 <GitBranch className="mr-2 size-4" /> New trigger
@@ -424,7 +351,7 @@ export function AgentHeader({
           </div>
         </div>
 
-        {agentId ? (
+        {agentId && !embedded ? (
           <div
             ref={containerRef}
             className="bg-panel/95 sticky top-0 z-10 -mx-1 flex items-center gap-2 p-1 backdrop-blur md:gap-4"
@@ -437,7 +364,7 @@ export function AgentHeader({
               {tabs.map((tab) => (
                 <PageTab
                   key={tab.key}
-                  active={activeTab === tab.key}
+                  active={litTab === tab.key}
                   route={tabRoute(tab.key)}
                   label={tab.label}
                   tooltip={tab.tooltip}
@@ -451,7 +378,7 @@ export function AgentHeader({
             {tabs.map((tab) => (
               <PageTab
                 key={tab.key}
-                active={activeTab === tab.key}
+                active={litTab === tab.key}
                 route={tabRoute(tab.key)}
                 label={tab.label}
                 tooltip={tab.tooltip}

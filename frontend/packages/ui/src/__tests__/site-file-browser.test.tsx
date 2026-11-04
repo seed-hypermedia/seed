@@ -25,6 +25,10 @@ vi.mock('../tooltip', () => ({
   ),
 }))
 
+if (typeof PointerEvent === 'undefined') {
+  vi.stubGlobal('PointerEvent', MouseEvent)
+}
+
 let container: HTMLDivElement
 let root: Root
 
@@ -163,6 +167,24 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelectorAll('[aria-label="Collection"]')).toHaveLength(2)
     expect(container.querySelector('[aria-label="Private document"]')).toBeNull()
     expect(container.querySelector('[aria-label="Document"]')).toBeTruthy()
+  })
+
+  it('marks mounted agents with an agent icon', () => {
+    const agent = makeDoc(['helper'], 'Helper')
+    agent.metadata = {name: 'Helper', type: 'hm://hyper.media/agent'}
+    useDirectoryWithDraftsMock.mockReturnValue({
+      directory: [agent, makeCollection(['collections'], 'Collections'), makeDoc(['document'], 'Document')],
+      drafts: [],
+      isLoading: false,
+    })
+
+    act(() => {
+      root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
+    })
+
+    expect(container.querySelectorAll('[aria-label="Agent"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[aria-label="Collection"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[aria-label="Document"]')).toHaveLength(1)
   })
 
   it('reveals the active document and marks private rows', () => {
@@ -352,5 +374,37 @@ describe('SiteFileBrowser', () => {
       ),
     )
     expect(container.querySelector('[aria-label="Create root document"]')).toBeTruthy()
+  })
+
+  it('offers Agent from the root creation menu when the New menu has it', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
+    const createAgent = vi.fn()
+    act(() =>
+      root.render(
+        <SiteFileBrowser
+          siteId={hmId('site')}
+          activeDocumentId={null}
+          onNavigate={vi.fn()}
+          createMenuItem={{
+            key: 'new',
+            label: 'New',
+            icon: null,
+            children: [
+              {key: 'new-document', label: 'Document', icon: null, onClick: vi.fn()},
+              {key: 'new-agent', label: 'Agent', icon: null, onClick: createAgent},
+              {key: 'import', label: 'Import', icon: null, onClick: vi.fn()},
+            ],
+          }}
+        />,
+      ),
+    )
+    const trigger = container.querySelector('[aria-label="Create root document"]') as HTMLElement
+    act(() => {
+      trigger.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, button: 0}))
+    })
+    const items = Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent?.trim())
+    expect(items).toEqual(['Document', 'Agent'])
+    act(() => (document.querySelectorAll('[role="menuitem"]')[1] as HTMLElement).click())
+    expect(createAgent).toHaveBeenCalledTimes(1)
   })
 })

@@ -18,6 +18,18 @@ export type HMBytes = Uint8Array | {'/': {bytes: string}}
 export type HMAccount = string
 
 /**
+ * Seed Agents
+ * Seed Agents is the hosted agent runtime that lets an account run language-model agents which read and write Hypermedia through the Seed API with their own signing keys.
+ * Resource attributes for an agent mounted at a Hypermedia document. The server must also register the agent at this exact document ID.
+ * Schema: hm://hyper.media/agent
+ */
+export type HMAgent = {
+  type: 'hm://hyper.media/agent'
+  /** HTTP(S) agent server registering this resource's exact versionless HMID as the agent ID. */
+  agentServerUrl: HMUrl
+} & {[key: string]: HMValue}
+
+/**
  * Blob
  * The signed envelope every Hypermedia blob extends, with a type tag, the signer's public key, an Ed25519 signature over the canonical CBOR with the signature zeroed, and a millisecond timestamp.
  * The signed envelope every Hypermedia blob extends: a type tag, the signer's key, a signature and a millisecond timestamp.
@@ -1246,10 +1258,8 @@ export type HMMetadata = {
   cover?: HMIpfsUrl
   /** The web address a space is published at; set on the home document when a site is registered. */
   siteUrl?: HMUrl
-  /** The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers. */
+  /** The agents server that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`. */
   agentServerUrl?: HMUrl
-  /** Agents this space publishes to its readers: `{[agentId]: order}`, each id an agent on `agentServerUrl`; a removed agent leaves a null behind. */
-  spaceAgents?: {[key: string]: HMValue}
   /** The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes. */
   attributesSchema?: HMHmUrl
   /** The attributes schema this document's direct CHILDREN conform to (hm:// URL or ipfs://<cid>). A child may declare its own `attributesSchema` instead. */

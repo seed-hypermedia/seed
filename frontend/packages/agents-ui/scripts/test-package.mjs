@@ -116,7 +116,10 @@ export async function read(sessionId: string) {
 // @ts-expect-error not an agents action
 void client.send({_: 'DropDatabase'})
 
-const route: SeedAgentsRoute = seedAgentsRouteFromPath(seedAgentsRouteToPath({key: 'agent', agentId: 'a1', tab: 'prompt'}))
+const route: SeedAgentsRoute = seedAgentsRouteFromPath(seedAgentsRouteToPath({key: 'agent', agentId: 'a1', tab: 'prompt'})) ?? {
+  key: 'agent',
+  agentId: 'a1',
+}
 export const app = (
   <SeedAgentsProvider host={host} route={route} onRouteChange={(next, mode: 'push' | 'replace') => void [next, mode]}>
     <SeedAgentsView className="h-full" />

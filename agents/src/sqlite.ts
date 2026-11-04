@@ -14,6 +14,10 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  `CREATE TABLE agent_id_aliases (
+      alias TEXT PRIMARY KEY,
+      agent_id TEXT NOT NULL REFERENCES agents (id) ON DELETE CASCADE
+  ) WITHOUT ROWID;`,
   // `busy` (agentActivityColumns) asks "does this agent have a live run?" for every agent row that
   // ListAgents, GetAgent, ListSessions and every session-event emit touch. The only run index that
   // mentioned status was `runs_dispatch (status, queue, not_before, created_at)`, which has no agent

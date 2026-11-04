@@ -9,19 +9,16 @@ const AGENT_TABS = agentRouteSchema.shape.tab.unwrap().options
  * `routing.tsx`; the web agents page reads its location through this, and `hypermediaUrlToRoute`
  * uses it so a copied agents link opens in-app on the desktop too:
  *
- * - `/hm/agents` → agents
- * - `/hm/agents/server?url=…` → agent-server
  * - `/hm/agents/agent/:agentId?server=…&tab=…&trigger=…&file=…` → agent
  * - `/hm/agents/session/:sessionId?server=…&agent=…` → agent-session
  * - `/hm/agents/run/:runId?server=…&agent=…` → agent-run
+ *
+ * Anything else under `/hm/agents` names no place: there is no agents index, agents live in the
+ * file browser as documents.
  */
-export function agentsRouteFromUrl(pathname: string, searchParams: URLSearchParams): NavRoute {
+export function agentsRouteFromUrl(pathname: string, searchParams: URLSearchParams): NavRoute | null {
   const segments = pathname.split('/').filter(Boolean).map(decodeURIComponent)
   const rest = segments[0] === 'hm' && segments[1] === 'agents' ? segments.slice(2) : []
-  if (rest[0] === 'server') {
-    const serverUrl = searchParams.get('url')
-    if (serverUrl) return {key: 'agent-server', serverUrl}
-  }
   if (rest[0] === 'agent' && rest[1]) {
     const tabParam = searchParams.get('tab')
     const tab = AGENT_TABS.find((candidate) => candidate === tabParam)
@@ -50,7 +47,7 @@ export function agentsRouteFromUrl(pathname: string, searchParams: URLSearchPara
       agentId: searchParams.get('agent') || undefined,
     }
   }
-  return {key: 'agents'}
+  return null
 }
 
 /** True for an absolute http(s) URL whose path is the web agents UI. */

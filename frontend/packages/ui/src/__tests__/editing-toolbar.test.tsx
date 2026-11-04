@@ -139,6 +139,36 @@ describe('editing-toolbar publish disabled states', () => {
     }
   })
 
+  it.each([
+    {published: true, changes: 0, visible: false},
+    {published: true, changes: 1, visible: true},
+    {published: false, changes: 0, visible: true},
+  ])('with hidePublishWhenClean shows Publish only for dirty state: %j', ({published, changes, visible}) => {
+    selectMock.document = {version: published ? 'published-version' : '', metadata: {}}
+    unpublishedChangeCountMock.mockReturnValue(changes)
+    const {container, root} = renderNode(
+      <PublishButtonWithPopover
+        docId={hmId('alice', {path: ['agent']})}
+        existingMenuItems={[{key: 'profile', label: 'Open profile', icon: null, onClick: () => {}}]}
+        unpublishedChildCount={0}
+        hidePublishWhenClean
+      />,
+    )
+    try {
+      expect(!!findButtonByText(container, 'Publish')).toBe(visible)
+      // The options dropdown stays so the page menu is still reachable.
+      expect(container.querySelector('[aria-label="Open options"]')).toBeTruthy()
+      if (!visible) {
+        act(() => {
+          window.dispatchEvent(new KeyboardEvent('keydown', {key: 'Enter', metaKey: true, bubbles: true}))
+        })
+        expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull()
+      }
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
   it('greys out the trigger when publish is unavailable', () => {
     const docId = hmId('acct-1', {path: ['my-doc']})
     const {container, root} = renderNode(

@@ -8,6 +8,7 @@ import {ipc} from '@/ipc'
 import {useDraft} from '@/models/accounts'
 import {useConnectPeer} from '@/models/contacts'
 import {useCreateDraft} from '@/models/documents'
+import {useLocalAgentsServerMigration} from '@/models/local-agents-server'
 import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
 import {useSelectedAccountId} from '@/selected-account'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
@@ -64,8 +65,6 @@ var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
 var Drafts = lazy(() => import('./drafts'))
 var Explore = lazy(() => import('./explore'))
-var Agents = lazy(() => import('./agents'))
-var AgentServer = lazy(() => import('@shm/ui/agents/server'))
 var AgentDetail = lazy(() => import('@shm/ui/agents/detail'))
 var AgentSession = lazy(() => import('@shm/ui/agents/session'))
 var AgentRun = lazy(() => import('@shm/ui/agents/run'))
@@ -137,6 +136,8 @@ export default function Main({className}: {className?: string}) {
   // On a fresh install the local server has no agents, which would keep the assistant hidden
   // forever — provision the built-in Assistant as soon as a model provider exists.
   useEnsureLocalAssistantAgent(selectedAccountId)
+  // After an upgrade, decides whether the bundled local server stays on (it holds agents) or goes.
+  useLocalAgentsServerMigration()
   const {hasAgents, isSettled: agentsSettled} = useHasAnyAgent(agentServerUrls.data, selectedAccountId)
   const isAssistantAvailable = hasAgents || !agentsSettled
   const shouldRenderAssistantPanel = assistantOpen && isAssistantAvailable
@@ -517,16 +518,6 @@ function getPageComponent(navRoute: NavRoute) {
     case 'explore':
       return {
         PageComponent: Explore,
-        Fallback: BaseLoading,
-      }
-    case 'agents':
-      return {
-        PageComponent: Agents,
-        Fallback: BaseLoading,
-      }
-    case 'agent-server':
-      return {
-        PageComponent: AgentServer,
         Fallback: BaseLoading,
       }
     case 'agent':

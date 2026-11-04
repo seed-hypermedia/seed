@@ -5,24 +5,11 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 /**
  * The site header's way into the agents panel: a button beside search on wide layouts and a row in
- * the mobile menu. Both are offered only where a host provides the toggle (web, signed in) and the
- * reader has an agents server to talk to — the one the space names, or the deployment's default.
+ * the mobile menu. Both go by the toggle the host offers, and nothing else: the host hands one
+ * over only to a signed-in reader with an agent they can see in the space (the web host decides
+ * that from the mounted agents its activity tracker could fetch), so the header itself asks no
+ * document query and no server.
  */
-
-const mockState = vi.hoisted(() => ({
-  homeMetadata: {} as Record<string, unknown>,
-  envServerUrl: undefined as string | undefined,
-}))
-
-vi.mock('@shm/shared/models/entity', () => ({
-  useResource: () => ({data: {type: 'document', document: {metadata: mockState.homeMetadata}}}),
-}))
-vi.mock('@shm/shared/constants', async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
-  get SEED_AGENT_SERVER_URL() {
-    return mockState.envServerUrl
-  },
-}))
 
 import {
   AssistantPanelHeaderButton,
@@ -40,8 +27,8 @@ function render(toggle: AssistantPanelToggle | null, onMenuClick?: () => void) {
     root.render(
       <TooltipProvider>
         <AssistantPanelToggleContext.Provider value={toggle}>
-          <AssistantPanelHeaderButton siteUid="space-uid" />
-          <AssistantPanelMenuItem siteUid="space-uid" onClick={onMenuClick} />
+          <AssistantPanelHeaderButton />
+          <AssistantPanelMenuItem onClick={onMenuClick} />
         </AssistantPanelToggleContext.Provider>
       </TooltipProvider>,
     )
@@ -50,8 +37,6 @@ function render(toggle: AssistantPanelToggle | null, onMenuClick?: () => void) {
 
 beforeEach(() => {
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
-  mockState.homeMetadata = {}
-  mockState.envServerUrl = undefined
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -63,42 +48,28 @@ afterEach(() => {
 })
 
 describe('agents panel entry points in the site header', () => {
-  it('offers both entry points on a space that names an agents server', () => {
-    mockState.homeMetadata = {agentServerUrl: 'https://agents.example'}
+  it('offers both entry points where the host provides a toggle', () => {
     render({isOpen: false, toggle: vi.fn()})
     expect(container.querySelector('button[aria-label="Agents"]')).not.toBeNull()
     expect(container.textContent).toContain('Agents')
   })
 
-  it('offers nothing on a space that names none, on a deployment with no default server', () => {
-    mockState.homeMetadata = {name: 'A Space'}
-    render({isOpen: false, toggle: vi.fn()})
+  it('offers nothing where no host provides the toggle: desktop, signed out, or no agent the reader can see', () => {
+    render(null)
     expect(container.querySelector('button')).toBeNull()
     expect(container.textContent).not.toContain('Agents')
   })
 
-  it('treats an empty server setting as none', () => {
-    mockState.homeMetadata = {agentServerUrl: ''}
-    render({isOpen: false, toggle: vi.fn()})
-    expect(container.textContent).not.toContain('Agents')
+  it('flags orphan agents with a red dot on both entry points and counts them in the labels', () => {
+    render({isOpen: false, toggle: vi.fn(), orphans: 2})
+    expect(container.querySelectorAll('[data-testid="agent-orphans-dot"]')).toHaveLength(2)
+    expect(container.textContent).toContain('2 orphan agents to adopt')
+    render({isOpen: false, toggle: vi.fn(), orphans: 0})
+    expect(container.querySelectorAll('[data-testid="agent-orphans-dot"]')).toHaveLength(0)
+    expect(container.textContent).not.toContain('to adopt')
   })
 
-  it('offers both on any space when the deployment names a default server', () => {
-    mockState.envServerUrl = 'http://localhost:3051'
-    render({isOpen: false, toggle: vi.fn()})
-    expect(container.querySelector('button[aria-label="Agents"]')).not.toBeNull()
-    expect(container.textContent).toContain('Agents')
-  })
-
-  it('offers nothing where no host provides the toggle, such as desktop', () => {
-    mockState.envServerUrl = 'http://localhost:3051'
-    mockState.homeMetadata = {agentServerUrl: 'https://agents.example'}
-    render(null)
-    expect(container.textContent).not.toContain('Agents')
-  })
-
-  it('keeps activity in the header tooltip without showing dots on either entry point', () => {
-    mockState.envServerUrl = 'http://localhost:3051'
+  it('keeps activity in the header tooltip without showing activity dots on either entry point', () => {
     render({
       isOpen: false,
       toggle: vi.fn(),
@@ -118,7 +89,6 @@ describe('agents panel entry points in the site header', () => {
   })
 
   it('toggles the panel, reflects its open state, and lets the mobile menu close itself', () => {
-    mockState.envServerUrl = 'http://localhost:3051'
     const toggle = vi.fn()
     const onMenuClick = vi.fn()
     render({isOpen: true, toggle}, onMenuClick)

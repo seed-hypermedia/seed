@@ -139,7 +139,7 @@ export function SiteHeader({
       {siteHomeId && !IS_DESKTOP ? (
         <div className="hidden items-center gap-4 md:flex">
           <div className="flex items-center gap-1">
-            <AssistantPanelHeaderButton siteUid={siteHomeId.uid} />
+            <AssistantPanelHeaderButton />
             <DocumentMaintenanceTrigger compact />
           </div>
         </div>
@@ -262,7 +262,7 @@ export function SiteHeader({
                 )}
                 {!IS_DESKTOP && (
                   <div className="mb-4 flex flex-col gap-2 px-1">
-                    <AssistantPanelMenuItem siteUid={siteHomeId.uid} onClick={() => setIsMobileMenuOpen(false)} />
+                    <AssistantPanelMenuItem onClick={() => setIsMobileMenuOpen(false)} />
                     <DocumentMaintenanceTrigger onClick={() => setIsMobileMenuOpen(false)} />
                   </div>
                 )}

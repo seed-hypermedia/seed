@@ -4,7 +4,14 @@ import {pickDefaultProviderModel} from '@shm/ui/agents/model-utils'
 import type {ProviderModelInfo} from '@shm/ui/agents/client'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {useEffect, useMemo, useRef} from 'react'
-import {useAgentLists, useLocalAgentServerUrl, useModelProviders, useProviderModels} from '@shm/ui/agents/models'
+import {
+  useAgentLists,
+  useLocalAgentServerSetting,
+  useLocalAgentServerState,
+  useLocalAgentServerUrl,
+  useModelProviders,
+  useProviderModels,
+} from '@shm/ui/agents/models'
 
 /**
  * Auto-provisioning for the built-in local Assistant.
@@ -86,7 +93,13 @@ export function resolveLocalAssistantProvisioning(input: LocalAssistantProvision
  */
 export function useEnsureLocalAssistantAgent(accountUid: string | null | undefined) {
   const localServerUrl = useLocalAgentServerUrl()
-  const serverUrl = localServerUrl.data || undefined
+  const serverState = useLocalAgentServerState()
+  const serverSetting = useLocalAgentServerSetting()
+  // Not while the upgrade migration (see local-agents-server.ts) is still deciding whether the
+  // bundled server stays: creating the Assistant then would count as the server being in use. The
+  // attached dev server and a server the user chose to keep on are always fair game.
+  const serverSettled = serverState.data?.t === 'attached' || serverSetting.data === 'on'
+  const serverUrl = serverSettled ? localServerUrl.data || undefined : undefined
   const serverUrls = useMemo(() => (serverUrl ? [serverUrl] : []), [serverUrl])
   const agentsQuery = useAgentLists(serverUrls, accountUid)[0]
   const providers = useModelProviders(serverUrl, accountUid)

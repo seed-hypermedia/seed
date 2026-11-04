@@ -1,5 +1,5 @@
 import {createSeedClient, type SeedClient} from './client'
-import {resolveId, type DomainResolverFn} from './hm-resolver'
+import {resolveId, hmDomainUrlToWebUrl, type DomainResolverFn} from './hm-resolver'
 import {unpackHmId, type UnpackedHypermediaId} from './hm-types'
 
 /** Options for resolving a user-supplied hypermedia ID or web URL. */
@@ -28,6 +28,11 @@ export async function resolveIdWithClient(
   options: ResolveIdWithClientOptions = {},
 ): Promise<ResolvedIdWithClient> {
   const commentId = extractCommentIdFromReadableUrl(rawId)
+  if (!commentId && hmDomainUrlToWebUrl(rawId)) {
+    const id = await resolveId(rawId, {domainResolver: options.domainResolver})
+    const client = options.client ?? createSeedClient(normalizeServerUrl(options.serverUrl || 'https://hyper.media'))
+    return {id, client, serverUrl: client.baseUrl}
+  }
   const parsed = commentId ? commentIdToHmId(commentId) : unpackHmId(rawId)
   if (parsed) {
     if (isWebUrl(rawId)) {

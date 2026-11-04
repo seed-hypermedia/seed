@@ -348,11 +348,11 @@ describe('lossless: metadata', () => {
       childAttributesSchema: 'ipfs://bafyschema',
       schemaDefinition: 'ipfs://bafyschema2',
     } as HMMetadata))
-  it('nested object metadata (spaceAgents, agentServerUrl)', () =>
+  it('nested object metadata (a passthrough map beside agentServerUrl)', () =>
     expectLossless([p('a1', 'x')], {
       name: 'Space',
       agentServerUrl: 'https://agents.example.com',
-      spaceAgents: {ion: {name: 'Ion', enabled: true, models: ['a', 'b']}},
+      agentOptions: {ion: {name: 'Ion', enabled: true, models: ['a', 'b']}},
     } as HMMetadata))
   it('passthrough (unknown) metadata keys', () =>
     expectLossless([p('a1', 'x')], {

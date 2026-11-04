@@ -10,7 +10,9 @@ import {
   useAgentWebSocketSubscription,
   useAllAgentSessionPages,
   useAgentSessions,
-  useSpaceAgents,
+  useSiteUidInView,
+  useMountedSiteAgents,
+  useOrphanAgents,
   useDeleteAgentSession,
   useLocalAgentServerUrl,
   useMessageAgentSession,
@@ -34,11 +36,15 @@ import {
   retryableErrorRowKey,
 } from './agent-session-rows'
 import {
+  groupAssistantAgentsBySpace,
   orderAssistantAgents,
   resolveAssistantSelection,
   type AssistantAgentKey,
   type AssistantAgentOption,
 } from './assistant-selection'
+import {getMetadataName} from '@shm/shared/content'
+import {useResources} from '@shm/shared/models/entity'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   agentRowActivity,
   latestSessionEventAt,
@@ -48,7 +54,6 @@ import {
   useMarkAgentSessionRead,
   type AgentRowActivity,
 } from './activity'
-import {CreateAgentDialog} from './dialogs'
 import {useSelectedAccountId} from './account'
 import {useNavigate} from './navigation'
 import {AlertDialogFooter, AlertDialogTitle} from '@shm/ui/components/alert-dialog'
@@ -65,18 +70,17 @@ import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import type {NavRoute} from '@shm/shared/routes'
 import {
   ArrowDown,
   ArrowLeft,
   Bot,
   ChevronDown,
-  LayoutGrid,
   LayoutList,
   Link2,
   Maximize,
   Maximize2,
   MoreHorizontal,
-  Plus,
   Trash2,
   X,
 } from 'lucide-react'
@@ -114,6 +118,7 @@ import {RunRecordCard, SessionRunCard} from './run-card'
 import {DelayedSpinner, SessionModelBadge} from './header'
 import {SessionSummaryBanner} from './session-children'
 import {NewSessionComposer} from './new-session-composer'
+import {AgentMountReminder} from './mount-reminder'
 import {AgentSessionsFeed, type AgentSessionsFeedProblem} from './sessions-feed'
 import {useIsomorphicLayoutEffect} from '@shm/shared/utils/use-isomorphic-layout-effect'
 
@@ -125,15 +130,19 @@ function isTriggeredSession(session: SessionInfo): boolean {
 /**
  * Assistant sidebar.
  *
- * The Agents page, in a column: the dropdown at the very top filters the chat list to one agent or
- * to all of them, the list shows those chats newest first with a composer below it, and opening a
- * chat replaces the list until the back button returns to it (same filter, same scroll position).
- * A new chat costs nothing until the first send, which creates the session and opens it here.
+ * The dropdown at the very top filters the chat list to one agent or to all of them, the list shows
+ * those chats newest first with a composer below it, and opening a chat replaces the list until
+ * the back button returns to it (same filter, same scroll position). A new chat costs nothing
+ * until the first send, which creates the session and opens it here. Agents are not created here:
+ * an agent is a document, made from the New menu of a space's home document.
  *
  * Shared between desktop (mounted in the main window beside the page, toggled from the footer) and
  * web (mounted beside the site page, toggled from the account menu). Everything host-specific —
  * signing, navigation, the account, the rich editor — comes through the agents platform seam.
  */
+/** A stable empty server list, so hooks keyed on it never see a fresh array per render. */
+const NO_SERVERS: string[] = []
+
 export function AssistantPanel({
   initialSessionId,
   initialAgentId,
@@ -158,7 +167,13 @@ export function AssistantPanel({
   onClose?: () => void
 }) {
   const accountUid = useSelectedAccountId()
-  const serverUrls = useAgentServerUrls()
+  const gatewayUrl = getAgentsPlatform().useGatewayUrl?.()
+  // On the web the panel is the site's: only agents mounted in the space on screen, found through
+  // their documents, and no server is asked for anything a document did not name. Desktop adds
+  // the account's own agents from every server it is configured for.
+  const mountedOnly = !!getAgentsPlatform().mountedAgentsOnly
+  const configuredServerUrls = useAgentServerUrls()
+  const serverUrls = mountedOnly ? {...configuredServerUrls, data: NO_SERVERS} : configuredServerUrls
   const localServerUrl = useLocalAgentServerUrl()
   const agentQueries = useAgentLists(serverUrls.data, accountUid)
   // Trigger-started sessions are left out (see the list below). The server filters them before
@@ -167,7 +182,14 @@ export function AssistantPanel({
   const ownSessions = useAllAgentSessionPages(serverUrls.data, accountUid, {excludeTriggered: true})
   const navigate = useNavigate()
 
-  const spaceAgents = useSpaceAgents(accountUid)
+  const spaceAgents = useMountedSiteAgents(accountUid)
+  const currentSpaceUid = useSiteUidInView()
+  // Orphans (owned agents in no space yet) are the one thing the panel looks for beyond what it
+  // lists: on the web the list is the site's mounted agents, but somebody with agents from before
+  // still has to be able to find and adopt them, so the card shows above the list, or in place of
+  // the empty state, on every platform.
+  const orphans = useOrphanAgents(accountUid)
+  const mountReminder = <AgentMountReminder agents={orphans.agents} settled={orphans.settled} />
 
   // The account-wide lists never include a public agent's chats — the space's agents reach a
   // visitor through GetAgent instead, which carries them along. Merge both, so "All agents" lists a
@@ -438,25 +460,25 @@ export function AssistantPanel({
 
   const deleteSession = useDeleteAgentSession(activeSession?.serverUrl, accountUid)
   const deleteDialog = useAppDialog(DeleteSessionDialog, {isAlert: true})
-  const createAgentDialog = useAppDialog(CreateAgentDialog)
-  // Creating from the sidebar stays in the sidebar: filter to the new agent and put the cursor in
-  // the composer, so the user can talk to it immediately.
-  const openCreateAgent = () =>
-    createAgentDialog.open({
-      serverUrls: serverUrls.data || [],
-      selectedAccountId: accountUid,
-      onCreated: ({serverUrl, agentId}) => {
-        setChosenAgent({serverUrl, agentId})
-        startNewChat()
-      },
-    })
+  // Where "Expand to full screen" goes: the open chat's page, else the filtered agent's page. With
+  // neither there is no full page for "all agents", so the button is not shown.
+  const expandRoute: NavRoute | null =
+    activeSession && sessionAgentId
+      ? {
+          key: 'agent-session',
+          serverUrl: activeSession.serverUrl,
+          agentId: sessionAgentId,
+          sessionId: activeSession.sessionId,
+        }
+      : filterAgent
+        ? {key: 'agent', agentId: filterAgent.agent.id, serverUrl: filterAgent.serverUrl}
+        : null
 
   return (
     <div className="flex h-full flex-col">
       {/* Account-wide live updates are mounted by the shell (desktop title bar, web assistant host)
           so they also run while this panel is closed, feeding the unread indicator. */}
       {deleteDialog.content}
-      {createAgentDialog.content}
       <div className="border-border window-drag flex h-[41px] items-center justify-between gap-1 border-b px-2 py-2">
         <AssistantAgentPicker
           agents={agents}
@@ -464,38 +486,27 @@ export function AssistantPanel({
           pending={selection.filterPending}
           rowActivities={rowActivities}
           localServerUrl={localServerUrl.data ?? null}
-          advertisedServerUrl={serverUrls.advertisedServerUrl}
+          currentSpaceUid={currentSpaceUid}
           onSelect={(key) => {
             // Choosing whose chats to see always lands on that list, as on the Agents page.
             setChosenAgent(key)
             setStored(null)
           }}
-          onCreateAgent={openCreateAgent}
-          onOpenAgentsPage={() => navigate({key: 'agents'})}
         />
         {/* Same buttons as the main panel's header (PanelHeader). */}
         <div className="no-window-drag flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            aria-label="Expand to full screen"
-            title="Expand to full screen"
-            onClick={() =>
-              activeSession && sessionAgentId
-                ? navigate({
-                    key: 'agent-session',
-                    serverUrl: activeSession.serverUrl,
-                    agentId: sessionAgentId,
-                    sessionId: activeSession.sessionId,
-                  })
-                : filterAgent
-                  ? navigate({key: 'agent', agentId: filterAgent.agent.id, serverUrl: filterAgent.serverUrl})
-                  : navigate({key: 'agents'})
-            }
-          >
-            <Maximize className="size-4" />
-          </Button>
+          {expandRoute ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              aria-label="Expand to full screen"
+              title="Expand to full screen"
+              onClick={() => navigate(expandRoute)}
+            >
+              <Maximize className="size-4" />
+            </Button>
+          ) : null}
           {onClose ? (
             <Button
               variant="ghost"
@@ -557,7 +568,7 @@ export function AssistantPanel({
                   onClick={() => {
                     const url =
                       sessionAgentId &&
-                      buildAgentSessionUrl(activeSession.serverUrl, sessionAgentId, activeSession.sessionId)
+                      buildAgentSessionUrl(activeSession.serverUrl, sessionAgentId, activeSession.sessionId, gatewayUrl)
                     if (!url) return
                     void navigator.clipboard?.writeText(url)
                     toast.success('Session URL copied')
@@ -608,6 +619,7 @@ export function AssistantPanel({
         </>
       ) : agents.length ? (
         <>
+          {mountReminder}
           <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
             <AgentSessionsFeed
               compact
@@ -665,21 +677,21 @@ export function AssistantPanel({
         </div>
       ) : (
         // Nothing to talk to yet — neither agents of the user's own on any server nor agents the
-        // space publishes. The sidebar's whole purpose is blocked, so say so prominently and open
-        // the create dialog right here; it walks through provider and model.
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
-          <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
-            <Bot className="size-6" />
+        // space publishes. The sidebar's whole purpose is blocked, so say so prominently and point
+        // at the one place agents are made: the New menu of a space's home document. Orphans are
+        // the exception: adopting one is how such an account gets its first listed agent.
+        <>
+          {mountReminder}
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-8 text-center">
+            <div className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full">
+              <Bot className="size-6" />
+            </div>
+            <SizableText weight="bold">No agents yet</SizableText>
+            <SizableText size="sm" color="muted">
+              Create one from the New menu on your home document: pick Agent, then choose its name and model.
+            </SizableText>
           </div>
-          <SizableText weight="bold">No agents yet</SizableText>
-          <SizableText size="sm" color="muted">
-            Create an agent to start chatting. You choose its model and give it a name and instructions.
-          </SizableText>
-          <Button className="mt-2" onClick={openCreateAgent}>
-            <Plus className="size-4" />
-            Create an agent
-          </Button>
-        </div>
+        </>
       )}
     </div>
   )
@@ -689,10 +701,8 @@ export function AssistantPanel({
  * Agent-context dropdown at the very top of the sidebar.
  *
  * Filters the chat list below to one agent, or to all of them ("All agents", the default); the
- * composer under the list follows the choice. Agents are grouped under their server
- * so the same name on two servers stays distinguishable. The footer actions — creating an agent
- * and jumping to the full Agents page — live here so the sidebar is self-sufficient: on a fresh
- * install with zero agents, this dropdown is where you fix that.
+ * composer under the list follows the choice. Agents are grouped under the space they live in,
+ * with agents adopted into no space yet in an "Orphan agents" group at the end.
  */
 function AssistantAgentPicker({
   agents,
@@ -700,10 +710,8 @@ function AssistantAgentPicker({
   pending = false,
   rowActivities,
   localServerUrl,
-  advertisedServerUrl,
+  currentSpaceUid,
   onSelect,
-  onCreateAgent,
-  onOpenAgentsPage,
 }: {
   agents: AssistantAgentOption[]
   activeAgent: AssistantAgentOption | null
@@ -712,23 +720,22 @@ function AssistantAgentPicker({
   /** Each agent's own indicator (unread, or working), keyed `${serverUrl}${agentId}`. */
   rowActivities: Record<string, AgentRowActivity>
   localServerUrl: string | null
-  /** Server the site on screen advertises; its group is labeled so the user knows why it is here. */
-  advertisedServerUrl?: string | null
+  /** The space on screen; its group is labeled so the user knows why its agents lead the list. */
+  currentSpaceUid?: string | null
   /** Filters to one agent, or to all of them with null. */
   onSelect: (key: AssistantAgentKey | null) => void
-  onCreateAgent: () => void
-  onOpenAgentsPage: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const groups = useMemo(() => {
-    const byServer = new Map<string, AssistantAgentOption[]>()
-    for (const option of agents) {
-      const list = byServer.get(option.serverUrl)
-      if (list) list.push(option)
-      else byServer.set(option.serverUrl, [option])
-    }
-    return Array.from(byServer, ([serverUrl, options]) => ({serverUrl, options}))
-  }, [agents])
+  const groups = useMemo(() => groupAssistantAgentsBySpace(agents), [agents])
+  // Each space is named by its home document; a space the node has not synced yet shows its id.
+  const spaceIds = useMemo(() => groups.flatMap((group) => (group.spaceUid ? [hmId(group.spaceUid)] : [])), [groups])
+  const spaceHomes = useResources(spaceIds)
+  const spaceNames = new Map<string, string>()
+  spaceIds.forEach((id, index) => {
+    const data = spaceHomes[index]?.data
+    const name = data?.type === 'document' ? getMetadataName(data.document.metadata) : ''
+    spaceNames.set(id.uid, name || `${id.uid.slice(0, 12)}…`)
+  })
 
   return (
     <div data-agent-picker className="flex max-w-full min-w-0 items-center">
@@ -765,12 +772,12 @@ function AssistantAgentPicker({
             <div className="text-muted-foreground px-2 py-3 text-center text-xs">No agents yet.</div>
           ) : (
             groups.map((group) => (
-              <div key={group.serverUrl} className="flex flex-col">
+              <div key={group.spaceUid ?? 'orphans'} className="flex flex-col">
                 <div className="flex items-center gap-2 px-2 pt-2 pb-1">
-                  <span className="text-muted-foreground text-[10px] font-medium tracking-wide uppercase">
-                    {describeAgentServer(group.serverUrl, localServerUrl)}
+                  <span className="text-muted-foreground truncate text-[10px] font-medium tracking-wide uppercase">
+                    {group.spaceUid ? spaceNames.get(group.spaceUid) : 'Orphan agents'}
                   </span>
-                  {advertisedServerUrl && group.serverUrl === advertisedServerUrl ? (
+                  {currentSpaceUid && group.spaceUid === currentSpaceUid ? (
                     <span className="bg-muted text-muted-foreground rounded-full px-1.5 text-[10px] font-medium">
                       This space
                     </span>
@@ -798,7 +805,14 @@ function AssistantAgentPicker({
                         </span>
                       </span>
                       <span className="text-muted-foreground w-full truncate text-[10px]">
-                        {row?.short ?? option.agent.definition.model}
+                        {row?.short ??
+                          (group.spaceUid
+                            ? option.agent.definition.model
+                            : // An orphan lives nowhere but its server, so say which one.
+                              `${option.agent.definition.model} · ${describeAgentServer(
+                                option.serverUrl,
+                                localServerUrl,
+                              )}`)}
                       </span>
                     </button>
                   )
@@ -806,30 +820,6 @@ function AssistantAgentPicker({
               </div>
             ))
           )}
-          <div className="border-border mt-1 flex flex-col border-t pt-1">
-            <button
-              type="button"
-              className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
-              onClick={() => {
-                setOpen(false)
-                onCreateAgent()
-              }}
-            >
-              <Plus className="text-muted-foreground size-3.5 shrink-0" />
-              New agent
-            </button>
-            <button
-              type="button"
-              className="hover:bg-muted text-foreground flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs"
-              onClick={() => {
-                setOpen(false)
-                onOpenAgentsPage()
-              }}
-            >
-              <LayoutGrid className="text-muted-foreground size-3.5 shrink-0" />
-              Agents page
-            </button>
-          </div>
         </PopoverContent>
       </Popover>
     </div>
@@ -862,6 +852,7 @@ function AssistantSessionChat({
   onFollowSession: (sessionId: string) => void
 }) {
   const {serverUrl, sessionId} = sessionRef
+  const gatewayUrl = getAgentsPlatform().useGatewayUrl?.()
   const BrowserTools = getAgentsPlatform().BrowserTools
   const navigate = useNavigate()
   const session = useAgentSession(serverUrl, accountUid, sessionId)
@@ -922,6 +913,7 @@ function AssistantSessionChat({
         interleaveRunRecords(
           buildAgentSessionChatRows(events || [], {
             serverUrl,
+            gatewayUrl,
             agentId: session.data?.session.agentId,
             sessionId,
             triggerContext: session.data?.triggerContext,
@@ -936,6 +928,7 @@ function AssistantSessionChat({
     [
       events,
       serverUrl,
+      gatewayUrl,
       sessionId,
       session.data?.session.agentId,
       session.data?.session.plan,

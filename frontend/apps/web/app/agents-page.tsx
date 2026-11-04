@@ -18,8 +18,9 @@ const WebAgentsContent = clientLazy(async () => ({
 }))
 
 /**
- * Shared body for the /hm/agents routes (index and splat). The loader payload is the standard site
- * header payload; the agents UI itself is client-only and talks straight to the agent server.
+ * Shared body for the /hm/agents/* routes. The loader payload is the standard site header payload;
+ * the agents UI itself is client-only and talks straight to the agent server. The loader has
+ * already redirected URLs that name no agent, session, or run, so `initialRoute` is set here.
  */
 export function AgentsPage() {
   const {originHomeId, siteHost, origin, homeMetadata, dehydratedState} = unwrap<SiteHeaderPayload>(useLoaderData())
@@ -37,7 +38,7 @@ export function AgentsPage() {
       originHomeId={originHomeId}
       siteHost={siteHost}
       dehydratedState={dehydratedState}
-      initialRoute={initialRoute}
+      initialRoute={initialRoute ?? undefined}
     >
       <WebSidebarLayout siteHomeId={originHomeId}>
         {/* The agents pages are full-height panels (PanelContainer uses h-full and scrolls

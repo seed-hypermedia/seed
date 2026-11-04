@@ -3,7 +3,7 @@ import {getQueryClient} from '@shm/shared/models/query-client'
 import {useQuery} from '@tanstack/react-query'
 import {useEffect, useMemo} from 'react'
 import type {AgentActivityIndicator, AgentActivityTone} from './activity-dot'
-import {useAgentLists, useAgentWebSocketSubscription} from './models'
+import {useAgentLists, useAgentWebSocketSubscription, useMountedSiteAgents} from './models'
 import {getAgentsPlatform} from './platform'
 
 /**
@@ -288,13 +288,29 @@ export function useAgentActivityIndicator(
   accountUid: string | null | undefined,
 ): AgentActivityIndicator | null {
   const lists = useAgentLists(serverUrls, accountUid)
-  const read = useAgentActivityReadState()
   const settled = lists.length > 0 && lists.every((query) => query.isSuccess || query.isError)
   // Cheap enough to rebuild per render (a handful of agents); useQueries hands back a fresh array
   // anyway, so memoizing on it would buy nothing.
   const entries = (serverUrls ?? []).flatMap((serverUrl, index) =>
     (lists[index]?.data ?? []).map((agent): AgentActivityEntry => ({serverUrl, agent})),
   )
+  return useAgentActivityIndicatorForEntries(entries, settled)
+}
+
+/**
+ * The indicator over the agents mounted in the space on screen (the web's panel; see the
+ * platform seam's `mountedAgentsOnly`): no server is asked for a list, only for those agents.
+ */
+export function useSiteAgentActivityIndicator(accountUid: string | null | undefined): AgentActivityIndicator | null {
+  const site = useMountedSiteAgents(accountUid)
+  return useAgentActivityIndicatorForEntries(site.agents, !site.isLoading)
+}
+
+function useAgentActivityIndicatorForEntries(
+  entries: AgentActivityEntry[],
+  settled: boolean,
+): AgentActivityIndicator | null {
+  const read = useAgentActivityReadState()
 
   // First run on this device: everything that already happened is read. The baseline is the newest
   // message known right now, in the server's clock, rather than this device's clock.

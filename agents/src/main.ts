@@ -6,7 +6,7 @@ import {installHmServerAuth} from '@/hm-server-auth'
 import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
 import {loopLagHealth, loopLagSnapshot, perfSnapshot, startLoopLagGauge, stopLoopLagGauge} from '@/perf'
-import {withTimeout} from '@/poll-loop'
+import {PollLoop, withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
 import * as config from '@/config'
@@ -14,6 +14,10 @@ import * as sqlite from '@/sqlite'
 import {type BunRequest, type Server, type ServerWebSocket, serve} from 'bun'
 import * as fs from 'node:fs'
 import * as filepath from 'node:path'
+
+/** How often mounted agents' names are checked against their documents. */
+const MOUNT_NAME_SYNC_INTERVAL_MS = 60_000
+const MOUNT_NAME_SYNC_TIMEOUT_MS = 55_000
 
 /** Data attached to each WebSocket connection. */
 export type WSData = {
@@ -473,12 +477,24 @@ async function main(): Promise<void> {
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
+  // A mounted agent is named by its document: the first tick migrates agents adopted before that
+  // rule, later ticks pick up renames (a title edit, published).
+  const mountNameSync = new PollLoop({
+    label: 'Agents Mount Names',
+    intervalMs: MOUNT_NAME_SYNC_INTERVAL_MS,
+    timeoutMs: MOUNT_NAME_SYNC_TIMEOUT_MS,
+    run: async (signal) => {
+      const synced = await svc.syncMountedAgentNames({signal})
+      if (synced > 0) console.log('[Agents Mount Names] Renamed mounted agents after their documents', {synced})
+    },
+  })
   activityMonitor.start()
   scheduleMonitor.start()
   // Measures how late a 100 ms timer fires: the only signal that the single thread is stalled
   // when no request gets far enough to record a span. Read at /api/perf (`loop.lag`) and
   // enforced by /api/health.
   startLoopLagGauge()
+  mountNameSync.start()
 
   const server = serve({
     port: cfg.http.port,
@@ -563,6 +579,7 @@ async function main(): Promise<void> {
     stopLoopLagGauge()
     activityMonitor.stop()
     scheduleMonitor.stop()
+    mountNameSync.stop()
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
     // stop() waits for every open connection; clients whose sockets never finish closing would keep

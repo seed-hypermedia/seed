@@ -4,7 +4,6 @@ import {expect, test, vi} from 'vitest'
 import {useEffect} from 'react'
 
 const mocks = vi.hoisted(() => ({process: vi.fn(), prepare: vi.fn(), crop: vi.fn(), upload: vi.fn(), save: vi.fn()}))
-vi.mock('@/components/site-settings-agents', () => ({SpaceAgentsSettings: () => null}))
 vi.mock('@/components/site-settings-members', () => ({MembersSettings: () => null}))
 vi.mock('@/components/site-settings-navigation', () => ({NavigationSettings: () => null}))
 vi.mock('@/components/site-settings-web-domain', () => ({WebDomainSettings: () => null}))

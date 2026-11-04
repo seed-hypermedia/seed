@@ -56,8 +56,9 @@ import {
   useAgentServerUrls,
   useAgentSession,
   useLocalAgentServerUrl,
+  useOrphanAgents,
 } from '@shm/ui/agents/models'
-import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
+import {assistantToggleLabel, OrphanAgentsDot, useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -444,10 +445,6 @@ export function AccountProfileButton() {
               My profile
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onClick={() => navigate({key: 'agents'})}>
-            <Bot className="size-4" />
-            Agents
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate({key: 'account-settings'})}>
             <KeyRound className="size-5" />
             Manage accounts
@@ -559,9 +556,13 @@ function AssistantChatButton() {
   const agentsAccountUid = useSelectedAgentsAccountId()
   const agentServerUrls = useAgentServerUrls()
   const activity = useAgentActivityIndicator(agentServerUrls.data, agentsAccountUid)
+  // Orphan agents (owned, in no space yet) are flagged here too: the panel's card is where they get
+  // adopted, and this button is how someone learns to open it.
+  const orphanAgents = useOrphanAgents(agentsAccountUid)
   if (!toggle) return null
   const isActive = toggle.isOpen
-  const tooltip = activity?.label ?? (isActive ? 'Close Agents' : 'Open Agents')
+  const orphans = orphanAgents.settled ? orphanAgents.agents.length : 0
+  const tooltip = assistantToggleLabel({isOpen: isActive, activity, orphans})
   return (
     <Tooltip content={tooltip} asChild>
       <Button
@@ -576,6 +577,7 @@ function AssistantChatButton() {
         onClick={toggle.toggle}
       >
         <Bot className="size-4" />
+        <OrphanAgentsDot orphans={orphans} />
       </Button>
     </Tooltip>
   )
@@ -741,8 +743,6 @@ function getRouteLabel(route: NavRoute): string | null {
       return 'Welcome to Seed Hypermedia'
     case 'library':
       return 'Library'
-    case 'agents':
-      return 'Agents'
     case 'drafts':
       return 'Drafts'
     case 'contacts':
@@ -923,12 +923,6 @@ function useCurrentRouteUrl(): {
         return {displayUrl: url, copyableUrl: null}
       }
       return {displayUrl: null, copyableUrl: null}
-    }
-
-    if (route.key === 'agent-server') {
-      if (isLocalAgentsRoute) return {displayUrl: null, copyableUrl: null}
-      const url = `${route.serverUrl}/agents`
-      return {displayUrl: url, copyableUrl: url}
     }
 
     if (route.key === 'agent') {

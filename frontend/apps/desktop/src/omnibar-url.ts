@@ -128,7 +128,18 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   const agentRoute = agentUrlToRoute(url)
   if (agentRoute) return agentRoute
 
-  const {url: cleanUrl, isInspect, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
+  const {
+    url: cleanUrl,
+    isInspect,
+    viewTerm,
+    activityFilter,
+    commentId,
+    accountUid,
+    agentView,
+    agentSessionId,
+    agentTriggerId,
+    settingsTab,
+  } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
 
   if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
@@ -138,6 +149,18 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   try {
     const result = await resolveHypermediaUrl(cleanUrl, opts)
     if (!result?.hmId) return null
+    // `/:settings/<site tab>` is the site's settings even under a path, as in url-to-route.
+    if (agentView || (viewTerm === ':settings' && result.hmId.path?.length && !settingsTab)) {
+      const query = new URL(url).searchParams
+      return {
+        key: 'document',
+        id: result.hmId,
+        agentView: agentView || 'settings',
+        agentSessionId,
+        agentTriggerId: agentTriggerId || query.get('trigger') || undefined,
+        agentMemoryPath: query.get('file') || undefined,
+      }
+    }
 
     const replyCommentId = new URL(cleanUrl).searchParams.get('reply')
     const baseRoute = result.panel
@@ -243,12 +266,8 @@ export function agentUrlToRoute(input: string): NavRoute | null {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
     const segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
     if (segments[0] !== 'agents') return null
-    if (segments.length === 1) {
-      url.pathname = '/'
-      url.search = ''
-      url.hash = ''
-      return {key: 'agent-server', serverUrl: normalizeAgentServerUrl(url.toString())}
-    }
+    // A bare `/agents` names the server, not a place in the app: there is no server page.
+    if (segments.length === 1) return null
     const agentId = segments[1]
     url.pathname = '/'
     url.search = ''

@@ -1,10 +1,6 @@
-import {hmId} from '@shm/shared'
-import {SEED_AGENT_SERVER_URL} from '@shm/shared/constants'
-import {useResource} from '@shm/shared/models/entity'
 import {Bot} from 'lucide-react'
 import {createContext, useContext} from 'react'
 import type {AgentActivityIndicator} from './agents/activity-dot'
-import {parseSpaceAgentIds} from './agents/space-agents'
 import {Button} from './button'
 import {SmallListItem} from './list-item'
 import {Tooltip} from './tooltip'
@@ -16,12 +12,21 @@ export type AssistantPanelToggle = {
   toggle: () => void
   /** Recent activity for the entry point tooltip, when the host tracks it. */
   activity?: AgentActivityIndicator | null
+  /**
+   * How many agents the reader owns that live in no space yet. Agents became documents and the
+   * pages that listed them are gone, so the entry point is how someone with agents from before
+   * learns they have something to adopt: it stays visible and carries a red dot while any remain.
+   */
+  orphans?: number
 }
 
 /**
  * Provided by whoever hosts the assistant panel beside the page (on web, the assistant host above
- * the Remix outlet). Absent — the default — where there is no panel to toggle or nobody signed in
- * to use it, and the header shows no button. Desktop has its own toggle in the window title bar.
+ * the Remix outlet), and only while the reader has something to do there: signed in, on a space
+ * with at least one mounted agent their account can see (owner, accepted collaborator, or public
+ * agent), or owning orphan agents to adopt. Absent — the default — otherwise, and the header shows
+ * no button: a reader the space's agents are not shared with gets no way into an empty panel.
+ * Desktop has its own toggle in the window title bar.
  */
 export const AssistantPanelToggleContext = createContext<AssistantPanelToggle | null>(null)
 
@@ -29,54 +34,50 @@ export function useAssistantPanelToggle(): AssistantPanelToggle | null {
   return useContext(AssistantPanelToggleContext)
 }
 
-/**
- * The agents server this space names for its readers, if any.
- *
- * Read straight from the home document rather than through `useSiteAdvertisedAgentServerUrl`: that
- * lives in the agents models, and importing them here would pull the whole agents chunk — editor
- * included — into the initial bundle, which the assistant panel and the /hm/agents pages go out of
- * their way to avoid.
- */
-export function useSiteAgents(siteUid: string): {serverUrl: string | null; publishesAgents: boolean} {
-  const home = useResource(hmId(siteUid))
-  const metadata = home.data?.type === 'document' ? home.data.document?.metadata : undefined
-  const raw = metadata?.agentServerUrl
-  return {
-    serverUrl: typeof raw === 'string' && raw ? raw : null,
-    publishesAgents: parseSpaceAgentIds(metadata?.spaceAgents).length > 0,
-  }
+/** Tooltip for an agents entry point: what just happened, else what waits, else what a click does. */
+export function assistantToggleLabel(toggle: Pick<AssistantPanelToggle, 'isOpen' | 'activity' | 'orphans'>): string {
+  return toggle.activity?.label ?? orphanAgentsLabel(toggle.orphans) ?? (toggle.isOpen ? 'Close Agents' : 'Open Agents')
 }
 
-/**
- * Whether a reader of this space has an agents server to talk to: the one the space names in its
- * home document, or the deployment's own default server (`SEED_AGENT_SERVER_URL`). With a default
- * server the panel is always on offer, showing the reader's own agents there even on a space that
- * publishes none.
- */
-export function useHasAgentServer(siteUid: string): boolean {
-  const siteAgents = useSiteAgents(siteUid)
-  return !!siteAgents.serverUrl || !!SEED_AGENT_SERVER_URL
+export function orphanAgentsLabel(orphans: number | undefined): string | undefined {
+  if (!orphans) return undefined
+  return orphans === 1 ? '1 orphan agent to adopt' : `${orphans} orphan agents to adopt`
+}
+
+/** The red dot on an agents entry point while the reader owns orphan agents. */
+export function OrphanAgentsDot({orphans}: {orphans: number | undefined}) {
+  if (!orphans) return null
+  return (
+    <span
+      data-testid="agent-orphans-dot"
+      aria-hidden
+      className="bg-destructive pointer-events-none absolute top-0.5 right-0.5 size-2 rounded-full"
+    />
+  )
 }
 
 /**
  * Site-header toggle for the agents panel, shown beside the search button. Renders nothing unless
- * a host offers the toggle and there is an agents server for the reader to talk to.
+ * a host offers the toggle, which it does only while the reader has an agent here.
  */
-export function AssistantPanelHeaderButton({siteUid}: {siteUid: string}) {
+export function AssistantPanelHeaderButton() {
   const toggle = useAssistantPanelToggle()
-  const hasAgentServer = useHasAgentServer(siteUid)
-  if (!toggle || !hasAgentServer) return null
+  if (!toggle) return null
   return (
-    <Tooltip content={toggle.activity?.label ?? (toggle.isOpen ? 'Close Agents' : 'Open Agents')}>
+    <Tooltip content={assistantToggleLabel(toggle)}>
       <Button
         variant="ghost"
         size="icon"
         aria-label="Agents"
         aria-pressed={toggle.isOpen}
-        className={cn('h-8 rounded-full border-1 border-transparent p-0', toggle.isOpen && 'dark:bg-muted bg-black/5')}
+        className={cn(
+          'relative h-8 rounded-full border-1 border-transparent p-0',
+          toggle.isOpen && 'dark:bg-muted bg-black/5',
+        )}
         onClick={toggle.toggle}
       >
         <Bot className="size-4" />
+        <OrphanAgentsDot orphans={toggle.orphans} />
       </Button>
     </Tooltip>
   )
@@ -86,16 +87,20 @@ export function AssistantPanelHeaderButton({siteUid}: {siteUid: string}) {
  * The same toggle as a row in the site header's mobile menu, where there is no room for the
  * button. `onClick` runs after the toggle so the menu can close over the panel it just opened.
  */
-export function AssistantPanelMenuItem({siteUid, onClick}: {siteUid: string; onClick?: () => void}) {
+export function AssistantPanelMenuItem({onClick}: {onClick?: () => void}) {
   const toggle = useAssistantPanelToggle()
-  const hasAgentServer = useHasAgentServer(siteUid)
-  if (!toggle || !hasAgentServer) return null
+  if (!toggle) return null
   return (
     <SmallListItem
       bold
       active={toggle.isOpen}
-      title={toggle.isOpen ? 'Close Agents' : 'Agents'}
-      icon={<Bot className="size-4" />}
+      title={toggle.isOpen ? 'Close Agents' : orphanAgentsLabel(toggle.orphans) ?? 'Agents'}
+      icon={
+        <span className="relative flex">
+          <Bot className="size-4" />
+          <OrphanAgentsDot orphans={toggle.orphans} />
+        </span>
+      }
       onClick={() => {
         toggle.toggle()
         onClick?.()
