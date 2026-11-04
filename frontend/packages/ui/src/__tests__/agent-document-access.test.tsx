@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -9,8 +8,8 @@ import MountedAgentDocument from '../agents/document'
 import {setAgentsPlatform} from '../agents/platform'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const useAgentDetail = vi.fn()
-const useAgentInvites = vi.fn(() => ({data: []}))
+const useAgentDetail = vi.fn<(...args: unknown[]) => unknown>()
+const useAgentInvites = vi.fn<(...args: unknown[]) => unknown>(() => ({data: []}))
 const acceptInvite = vi.fn()
 vi.mock('../agents/models', () => ({
   useAgentDetail: (...args: unknown[]) => useAgentDetail(...args),

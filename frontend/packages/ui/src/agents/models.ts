@@ -49,7 +49,6 @@ import * as cbor from '@shm/shared/cbor'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
 import {UniversalAppContext} from '@shm/shared/routing'
 import type {NavRoute} from '@shm/shared/routes'
-import {hmId} from '@shm/shared/utils/entity-id-url'
 import {AGENTS_LOCAL_SERVER_SETTING_KEY} from '@shm/shared/constants'
 import {useNavRouteOrNull} from '@shm/shared/utils/navigation'
 // Deep import, not the `@shm/shared` barrel: that barrel pulls in protobuf, connectrpc, cheerio,

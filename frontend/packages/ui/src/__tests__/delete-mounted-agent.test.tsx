@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import {hmId} from '@shm/shared'
-import React from 'react'
 import {createRoot} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {describe, expect, it, vi} from 'vitest'

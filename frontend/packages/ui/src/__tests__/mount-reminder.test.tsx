@@ -42,7 +42,7 @@ describe('unmountedOwnedAgents', () => {
     const options = [
       {serverUrl: HOSTED, agent: agent('legacy', 'Scout')},
       {serverUrl: HOSTED, agent: agent('hm://z6Mk/scout', 'Mounted')},
-      {serverUrl: HOSTED, agent: agent('shared', 'Shared', 'collaborator')},
+      {serverUrl: HOSTED, agent: agent('shared', 'Shared', 'writer')},
       {serverUrl: 'ws://agents.example.com', agent: agent('odd', 'Odd server')},
     ]
     expect(unmountedOwnedAgents(options).map((o) => o.agent.id)).toEqual(['legacy'])
@@ -87,7 +87,7 @@ describe('AgentMountReminder', () => {
       agents: [
         {serverUrl: HOSTED, agent: agent('legacy-1', 'Scout')},
         {serverUrl: HOSTED, agent: agent('legacy-2', 'Editor')},
-        {serverUrl: HOSTED, agent: agent('shared', 'Shared', 'collaborator')},
+        {serverUrl: HOSTED, agent: agent('shared', 'Shared', 'writer')},
       ],
       settled: true,
     })

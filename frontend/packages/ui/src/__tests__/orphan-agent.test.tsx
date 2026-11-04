@@ -80,7 +80,7 @@ describe('useOrphanAgentMenu', () => {
     expect(item).toBeNull()
     render(true)
     expect(item?.label).toBe('Orphan agent')
-    act(() => item!.onClick!())
+    act(() => item!.onClick!({} as never))
     expect(mocks.open).toHaveBeenCalledWith(
       expect.objectContaining({serverUrl: 'https://agents.example.com', accountUid: 'alice', docId}),
     )

@@ -207,7 +207,7 @@ describe('agent mounting', () => {
     )
     const directoryUrl = `${env!.web.baseUrl}/server-directory`
     await page.goto(`${directoryUrl}/:sessions`)
-    await page.getByRole('alert').filter({hasText: 'No agent is registered at this document.'}).waitFor()
+    await page.getByRole('alert').filter({hasText: 'This agent is not shared with your account'}).waitFor()
     expect(await page.getByRole('link', {name: 'Sessions', exact: true}).count()).toBe(0)
     await page.goto(directoryUrl)
     await page.getByText('Server directory', {exact: true}).first().waitFor()

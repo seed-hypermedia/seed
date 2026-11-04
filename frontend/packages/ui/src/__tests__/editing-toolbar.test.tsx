@@ -149,7 +149,7 @@ describe('editing-toolbar publish disabled states', () => {
     const {container, root} = renderNode(
       <PublishButtonWithPopover
         docId={hmId('alice', {path: ['agent']})}
-        existingMenuItems={[{key: 'profile', label: 'Open profile', onClick: () => {}}]}
+        existingMenuItems={[{key: 'profile', label: 'Open profile', icon: null, onClick: () => {}}]}
         unpublishedChildCount={0}
         hidePublishWhenClean
       />,
