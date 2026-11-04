@@ -17694,7 +17694,12 @@ export async function assertHmContentLinks(
     await Promise.all(
       queue.slice(i, i + CONCURRENCY).map(async ({link, id}) => {
         try {
-          const resource = await client.request('Resource', {...id, blockRef: null})
+          // A view term (`/:profile`, `/:comments/…`) names a view of the resource before it, not a
+          // path of its own: `hm://UID/:profile` is the web editor's account mention and resolves as
+          // the account. Look up the resource the view is of.
+          const viewAt = id.path?.findIndex((segment) => segment.startsWith(':')) ?? -1
+          const path = viewAt === -1 ? id.path : id.path!.slice(0, viewAt)
+          const resource = await client.request('Resource', {...id, path, blockRef: null})
           if (isRecord(resource) && resource.type === 'not-found') broken.push(link)
         } catch {
           // Unreachable/erroring HM server: unverifiable, not broken. The write proceeds.
