@@ -1,4 +1,3 @@
-import type {AgentActivityTone} from './activity-dot'
 import type {AgentRowActivity} from './activity'
 import type {SessionInfo} from './client'
 import {ContinuedFromListChip} from './continuation'
@@ -8,16 +7,10 @@ import {SizableText} from '@shm/ui/text'
 import {Bot} from 'lucide-react'
 import type React from 'react'
 
-const TONE_DOT: Record<AgentActivityTone, string> = {
-  agent: 'bg-destructive',
-  user: 'bg-blue-500',
-  busy: 'bg-amber-500 animate-pulse',
-}
-
 /**
- * The right edge of a session row: a dot for something unread or the agent working, then how long
- * ago the chat last moved (exact time on hover). Errors replace the time, since the time says
- * nothing useful about a broken chat.
+ * The right edge of a session row: how long ago the chat last moved, with the exact time (and any
+ * unread or working state) on hover. No colored dots here: they were removed on purpose (#1310).
+ * Errors replace the time, since the time says nothing useful about a broken chat.
  */
 function SessionRowMeta({
   activity,
@@ -33,18 +26,12 @@ function SessionRowMeta({
   const date = new Date(updatedAt)
   return (
     <span className={`text-muted-foreground flex shrink-0 items-center gap-1.5 whitespace-nowrap ${className ?? ''}`}>
-      {activity ? (
-        <span
-          role="img"
-          aria-label={activity.label}
-          title={activity.label}
-          className={`size-2 rounded-full ${TONE_DOT[activity.tone]}`}
-        />
-      ) : null}
       {status === 'error' ? (
         <span className="text-destructive">Error</span>
       ) : (
-        <span title={formattedDateMedium(date)}>{formattedTimeAgo(date)}</span>
+        <span title={activity ? `${activity.label} · ${formattedDateMedium(date)}` : formattedDateMedium(date)}>
+          {formattedTimeAgo(date)}
+        </span>
       )}
     </span>
   )
