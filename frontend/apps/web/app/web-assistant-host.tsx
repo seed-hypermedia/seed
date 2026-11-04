@@ -77,8 +77,7 @@ function usePanelWidth(): [number, (width: number) => void] {
  * the aside sticks to the viewport beside them. Narrow screens have no room for a split: the panel
  * takes the whole viewport and a "Back to page" bar returns to the page. Because that covers the
  * page, it only happens when the reader opened the panel themselves during this page load — a
- * preference restored from an earlier (wider) visit, or an auto-open on a window that has since
- * shrunk, keeps the panel out of the way until they ask for it from the header.
+ * state restored by a reload keeps the panel out of the way until they ask for it from the header.
  */
 export function WebAssistantHost({children}: {children: React.ReactNode}) {
   const panel = useAssistantPanel()

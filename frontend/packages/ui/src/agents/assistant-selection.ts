@@ -40,6 +40,14 @@ export type AssistantSelectionInput = {
    * yet is then pending rather than gone. Defaults to true.
    */
   agentsSettled?: boolean
+  /**
+   * True where the dropdown lists only the agents of the site in view (web) and the stored chat was
+   * restored from an earlier page rather than opened just now. A chat whose agent is not listed
+   * then belongs to some other site: once the lists have settled and the chat's agent is known, it
+   * is closed instead of resumed, so the panel never opens onto a conversation unrelated to the
+   * page. Desktop lists the account's own agents everywhere and keeps its window's chat regardless.
+   */
+  listedAgentsOnly?: boolean
 }
 
 export type AssistantSelection = {
@@ -120,7 +128,8 @@ function findAgent(agents: AssistantAgentOption[], key: {serverUrl: string; agen
  *
  * The filter is the agent the user chose, or all agents when they chose none (or chose one that
  * no longer exists once the lists have settled). The open chat is the stored one until its server
- * refuses it: a chat is never opened from the list on the user's behalf, and never closed just
+ * refuses it, or — with `listedAgentsOnly` — until the settled lists show its agent is not one of
+ * this site's: a chat is never opened from the list on the user's behalf, and never closed just
  * because lists are still loading or the filter points elsewhere — the list is one back-press away.
  */
 export function resolveAssistantSelection(input: AssistantSelectionInput): AssistantSelection {
@@ -134,5 +143,8 @@ export function resolveAssistantSelection(input: AssistantSelectionInput): Assis
   )
   const agentId = entry?.session.agentId ?? input.storedSessionAgentId
   const sessionAgent = agentId ? findAgent(input.agents, {serverUrl: stored.serverUrl, agentId}) : null
+  if (input.listedAgentsOnly && agentsSettled && agentId && !sessionAgent) {
+    return {filterAgent, filterPending, session: null, sessionAgent: null}
+  }
   return {filterAgent, filterPending, session: stored, sessionAgent}
 }

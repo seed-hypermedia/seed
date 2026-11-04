@@ -1,4 +1,3 @@
-import {useAssistantAutoOpen} from '@/assistant-panel-state'
 import {registerWebAgentsPlatform} from '@/web-agents-platform'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client'
 import type {HMDocument, HMResourceVisibility, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -583,11 +582,8 @@ export function WebHeaderActions({siteUid}: {siteUid: string}) {
   const isMobile = media.xs
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   // The panel's entry points live in the site header (see @shm/ui/assistant-panel-toggle). The
-  // host offers the toggle only to a signed-in reader with an agent they can see in this space,
-  // and that is the same word the first-arrival auto-open goes by: the panel opens itself once,
-  // on a viewport wide enough to show it beside the page. Closing it is remembered.
+  // host offers the toggle only to a signed-in reader with an agent they can see in this space.
   const assistantToggle = useAssistantPanelToggle()
-  useAssistantAutoOpen(!!assistantToggle && !isMobile)
   // Hide join button if inside a pending space draft.
   const isPendingSpace = isPendingSpaceUid(siteUid)
 
