@@ -270,6 +270,8 @@ CREATE INDEX runs_by_root ON runs (root_run_id, created_at);
 CREATE INDEX runs_by_parent ON runs (parent_run_id);
 CREATE INDEX runs_by_session ON runs (session_id, created_at DESC);
 CREATE INDEX runs_by_account ON runs (account_id, created_at DESC);
+-- Live-run flag per agent (`busy` in agentActivityColumns): answered from the index alone.
+CREATE INDEX runs_by_agent_status ON runs (agent_id, status);
 
 CREATE TABLE run_journal (
     run_id TEXT NOT NULL REFERENCES runs (id),
