@@ -78,6 +78,8 @@ CREATE TABLE agent_id_aliases (
     agent_id TEXT NOT NULL REFERENCES agents (id) ON DELETE CASCADE
 ) WITHOUT ROWID;
 
+CREATE INDEX agent_id_aliases_by_agent ON agent_id_aliases (agent_id);
+
 CREATE TABLE agent_collaborators (
     agent_id TEXT NOT NULL REFERENCES agents (id),
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -175,6 +177,8 @@ CREATE TABLE session_continuations (
     UNIQUE (predecessor_session_id, tool_call_id)
 ) WITHOUT ROWID;
 
+CREATE INDEX session_continuations_by_agent ON session_continuations (agent_id);
+
 CREATE INDEX session_continuations_by_predecessor ON session_continuations (predecessor_session_id, created_at DESC);
 
 CREATE TABLE trigger_firings (
@@ -197,6 +201,7 @@ CREATE TABLE trigger_firings (
 CREATE INDEX trigger_firings_by_trigger ON trigger_firings (trigger_id, created_at DESC);
 
 CREATE INDEX trigger_firings_by_session ON trigger_firings (account_id, session_id, created_at);
+CREATE INDEX trigger_firings_by_agent ON trigger_firings (agent_id);
 
 CREATE TABLE activity_watermarks (
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -322,6 +327,7 @@ CREATE TABLE agent_drafts (
 CREATE INDEX agent_drafts_account_updated_idx ON agent_drafts (account_id, updated_at DESC);
 CREATE INDEX agent_drafts_agent_updated_idx ON agent_drafts (account_id, agent_id, updated_at DESC);
 CREATE INDEX agent_drafts_status_idx ON agent_drafts (account_id, status);
+CREATE INDEX agent_drafts_by_agent ON agent_drafts (agent_id);
 
 CREATE TABLE action_idempotency (
     account_id TEXT NOT NULL,
@@ -372,6 +378,7 @@ CREATE TABLE tool_documents (
 ) WITHOUT ROWID;
 
 CREATE INDEX tool_documents_by_agent ON tool_documents (account_id, agent_id, updated_at DESC);
+CREATE INDEX tool_documents_by_agent_id ON tool_documents (agent_id);
 
 CREATE TABLE server_config (
     key TEXT PRIMARY KEY,
