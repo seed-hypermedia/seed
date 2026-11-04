@@ -71,7 +71,7 @@ import {
 import {runWorkflowInWorker} from '@/workflow-worker-host'
 import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
 import * as blobs from '@shm/shared/blobs'
-import {extractViewTermFromUrl} from '@shm/shared/utils/entity-id-url'
+import {extractViewTermFromUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {
   blocksToMarkdown,
   commentToResolvedMarkdown,
@@ -128,7 +128,7 @@ import type {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
+import {hmIdPathToEntityQueryPath, packBaseId, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as clientCbor from '@seed-hypermedia/client/cbor'
 import type {
   HMDocumentFilter,
@@ -18139,17 +18139,19 @@ const fetchWithReadDeadline = ((input: RequestInfo | URL, init?: RequestInit) =>
   fetch(input, {...init, signal: init?.signal ?? AbortSignal.timeout(HM_READ_TIMEOUT_MS)})) as typeof globalThis.fetch
 
 /**
- * Detects a trailing `:attributes` view term (or its legacy `:metadata` spelling) on a resolved id
- * and strips it, so the underlying document can be fetched. The caller then returns only the
- * document's metadata — the same thing the desktop's attributes tab shows.
+ * Splits a view term (`:profile`, `:directory`, `:comments`, `:attributes`, …) off a resolved id
+ * with the shared URL parser. `id` is the resource the view shows, keeping the requested version;
+ * `accountUid` is the account a `:profile/<uid>` view names.
  */
-function stripAttributesViewTerm(id: UnpackedHypermediaId): {
+function splitViewTerm(id: UnpackedHypermediaId): {
   id: UnpackedHypermediaId
-  attributesOnly: boolean
+  viewTerm: ReturnType<typeof extractViewTermFromUrl>['viewTerm']
+  accountUid?: string
 } {
-  const lastTerm = id.path?.[id.path.length - 1]
-  if (lastTerm !== ':attributes' && lastTerm !== ':metadata') return {id, attributesOnly: false}
-  return {id: {...id, path: id.path!.slice(0, -1)}, attributesOnly: true}
+  const view = extractViewTermFromUrl(packBaseId(id.uid, id.path))
+  const base = view.viewTerm ? unpackHmId(view.url) : null
+  if (!base) return {id, viewTerm: null}
+  return {id: {...id, id: base.id, path: base.path}, viewTerm: view.viewTerm, accountUid: view.accountUid}
 }
 
 /** Exported for tests. Implements the agent `read` tool. */
@@ -18191,16 +18193,15 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
   const client = createSeedClient(serverUrl, {fetch: fetchWithReadDeadline})
   let id = resolved.id
   const outputFormat = format || 'markdown'
-  if (id.path?.[0] === ':profile') {
-    return readProfileHypermedia({requestedId, id, client, serverUrl})
+  const view = splitViewTerm(id)
+  if (view.viewTerm === ':profile') {
+    return readProfileHypermedia({requestedId, accountUid: view.accountUid || view.id.uid, client, serverUrl})
   }
-  if (id.path?.[id.path.length - 1] === ':directory') {
-    return readDirectoryHypermedia({requestedId, id: {...id, path: id.path.slice(0, -1)}, client, serverUrl})
+  if (view.viewTerm === ':directory') {
+    return readDirectoryHypermedia({requestedId, id: view.id, client, serverUrl})
   }
-  const lastSegment = id.path?.[id.path.length - 1]
-  if (id.path && lastSegment && DISCUSSION_VIEW_TERMS.has(lastSegment)) {
-    const targetPath = id.path.slice(0, -1)
-    const targetId = unpackHmId(`hm://${id.uid}${targetPath.length ? `/${targetPath.join('/')}` : ''}`)
+  if (view.viewTerm && DISCUSSION_VIEW_TERMS.has(view.viewTerm)) {
+    const targetId = unpackHmId(view.id.id)
     if (!targetId) throw new APIError(400, `Invalid hypermedia id: ${requestedId}`)
     return readDiscussionHypermedia({
       requestedId,
@@ -18238,9 +18239,10 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
       })
     }
   }
-  const stripped = stripAttributesViewTerm(id)
-  id = stripped.id
-  const attributesOnly = stripped.attributesOnly
+  // `:attributes` (legacy `:metadata`) reads only the document's metadata — the same thing the
+  // desktop's attributes tab shows.
+  const attributesOnly = view.viewTerm === ':attributes' || view.viewTerm === ':metadata'
+  if (attributesOnly) id = view.id
   // Redirects (a moved path, or a "republished" path that re-publishes another document as its
   // own) are followed so the agent gets content — but never silently: `id` is the address the
   // content was actually read from, and `redirect` spells out where the request went and what a
@@ -18642,16 +18644,16 @@ async function readDiscussionHypermedia(input: {
 
 async function readProfileHypermedia(input: {
   requestedId: string
-  id: ReturnType<typeof unpackHmId> & {}
+  accountUid: string
   client: ReturnType<typeof createSeedClient>
   serverUrl: string
 }): Promise<Record<string, unknown>> {
-  const accountUid = input.id.path?.[1] || input.id.uid
+  const accountUid = input.accountUid
   const client = input.client
   const serverUrl = input.serverUrl
   const account = await client.request('Account', accountUid)
   const profileId = `hm://${accountUid}/:profile`
-  const targetId = unpackHmId(`hm://${accountUid}`) || input.id
+  const targetId = hmId(accountUid)
   const [activity, contacts, capabilities] = await Promise.all([
     client
       .request('ListEvents', {pageSize: 10, filterAuthors: [accountUid], currentAccount: accountUid})
