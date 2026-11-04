@@ -339,7 +339,7 @@ describe('assistant sidebar', () => {
     expect(document.body.textContent).not.toContain('Doc questions')
   })
 
-  it('the list names unread and working chats without colored marks', () => {
+  it('the list marks unread and working chats with a dot instead of words', () => {
     // The device has seen nothing since the baseline; the researcher's chat carries a later reply.
     mockState.sessionEntries = [
       ...mockState.sessionEntries,
@@ -358,9 +358,13 @@ describe('assistant sidebar', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
-    expect(document.body.querySelectorAll('[data-testid="agent-activity-mark"]')).toHaveLength(0)
-    expect(document.body.textContent).toContain('New reply')
-    expect(document.body.textContent).toContain('Working')
+    expect(document.body.textContent).not.toContain('New reply')
+    expect(document.body.textContent).not.toContain('New message')
+    const marks = Array.from(document.body.querySelectorAll('[role="img"][aria-label]')).map((el) =>
+      el.getAttribute('aria-label'),
+    )
+    expect(marks).toContain('Unread reply')
+    expect(marks).toContain('Working')
   })
 
   it('shows an unread reply in the picker list without a dot on its closed trigger', () => {

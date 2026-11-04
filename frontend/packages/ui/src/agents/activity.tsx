@@ -1,7 +1,7 @@
 import type {AgentActivity, AgentInfo, SessionInfo} from '@seed-hypermedia/agents-protocol'
 import {getQueryClient} from '@shm/shared/models/query-client'
 import {useQuery} from '@tanstack/react-query'
-import {useEffect, useMemo} from 'react'
+import {useEffect} from 'react'
 import type {AgentActivityIndicator, AgentActivityTone} from './activity-dot'
 import {useAgentLists, useAgentWebSocketSubscription, useMountedSiteAgents} from './models'
 import {getAgentsPlatform} from './platform'
@@ -280,53 +280,38 @@ export function latestSessionEventAt(events: {createdAt?: number}[] | undefined)
 }
 
 /**
- * The indicator for the given servers' agents, kept current by the agent lists (which the account
- * sockets update in place from the server's activity hints) and this device's read marks.
+ * Sets this device's read baseline for the given servers' agents: on first run, everything that
+ * already happened counts as read. The agent entry points call it so unread marks work before
+ * the panel is ever opened.
  */
-export function useAgentActivityIndicator(
-  serverUrls: string[] | undefined,
-  accountUid: string | null | undefined,
-): AgentActivityIndicator | null {
+export function useAgentReadBaseline(serverUrls: string[] | undefined, accountUid: string | null | undefined) {
   const lists = useAgentLists(serverUrls, accountUid)
   const settled = lists.length > 0 && lists.every((query) => query.isSuccess || query.isError)
-  // Cheap enough to rebuild per render (a handful of agents); useQueries hands back a fresh array
-  // anyway, so memoizing on it would buy nothing.
   const entries = (serverUrls ?? []).flatMap((serverUrl, index) =>
     (lists[index]?.data ?? []).map((agent): AgentActivityEntry => ({serverUrl, agent})),
   )
-  return useAgentActivityIndicatorForEntries(entries, settled)
+  useReadBaselineForEntries(entries, settled)
 }
 
 /**
- * The indicator over the agents mounted in the space on screen (the web's panel; see the
+ * The same baseline over the agents mounted in the space on screen (the web's panel; see the
  * platform seam's `mountedAgentsOnly`): no server is asked for a list, only for those agents.
  */
-export function useSiteAgentActivityIndicator(accountUid: string | null | undefined): AgentActivityIndicator | null {
+export function useSiteAgentReadBaseline(accountUid: string | null | undefined) {
   const site = useMountedSiteAgents(accountUid)
-  return useAgentActivityIndicatorForEntries(site.agents, !site.isLoading)
+  useReadBaselineForEntries(site.agents, !site.isLoading)
 }
 
-function useAgentActivityIndicatorForEntries(
-  entries: AgentActivityEntry[],
-  settled: boolean,
-): AgentActivityIndicator | null {
+function useReadBaselineForEntries(entries: AgentActivityEntry[], settled: boolean) {
   const read = useAgentActivityReadState()
-
-  // First run on this device: everything that already happened is read. The baseline is the newest
-  // message known right now, in the server's clock, rather than this device's clock.
+  // The baseline is the newest message known right now, in the server's clock, rather than this
+  // device's clock.
   const stored = read.data
   const newestMessageAt = Math.max(0, ...entries.map((entry) => entry.agent.activity?.messageAt ?? 0))
   useEffect(() => {
     if (!stored || stored.allBefore !== undefined || !settled) return
     writeReadState({...stored, allBefore: newestMessageAt})
   }, [stored, settled, newestMessageAt])
-
-  // Referentially stable while nothing changed: consumers report it upward through effects and
-  // context, and a fresh object per render would make those fire every render.
-  const indicator = summarizeAgentActivity(entries, read.data)
-  const signature = JSON.stringify(indicator)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => indicator, [signature])
 }
 
 /** Keeps one account-wide socket per server open, so activity hints arrive with the panel closed. */

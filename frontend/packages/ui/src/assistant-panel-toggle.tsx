@@ -1,6 +1,5 @@
 import {Bot} from 'lucide-react'
 import {createContext, useContext} from 'react'
-import type {AgentActivityIndicator} from './agents/activity-dot'
 import {Button} from './button'
 import {SmallListItem} from './list-item'
 import {Tooltip} from './tooltip'
@@ -10,8 +9,6 @@ import {cn} from './utils'
 export type AssistantPanelToggle = {
   isOpen: boolean
   toggle: () => void
-  /** Recent activity for the entry point tooltip, when the host tracks it. */
-  activity?: AgentActivityIndicator | null
   /**
    * How many agents the reader owns that live in no space yet. Agents became documents and the
    * pages that listed them are gone, so the entry point is how someone with agents from before
@@ -34,15 +31,8 @@ export function useAssistantPanelToggle(): AssistantPanelToggle | null {
   return useContext(AssistantPanelToggleContext)
 }
 
-/** Tooltip for an agents entry point: what just happened, else what waits, else what a click does. */
-export function assistantToggleLabel(toggle: Pick<AssistantPanelToggle, 'isOpen' | 'activity' | 'orphans'>): string {
-  return toggle.activity?.label ?? orphanAgentsLabel(toggle.orphans) ?? (toggle.isOpen ? 'Close Agents' : 'Open Agents')
-}
-
-export function orphanAgentsLabel(orphans: number | undefined): string | undefined {
-  if (!orphans) return undefined
-  return orphans === 1 ? '1 orphan agent to adopt' : `${orphans} orphan agents to adopt`
-}
+/** Tooltip and label of every agents entry point. The red dot, not the label, flags orphans. */
+export const ASSISTANT_TOGGLE_LABEL = 'Agents'
 
 /** The red dot on an agents entry point while the reader owns orphan agents. */
 export function OrphanAgentsDot({orphans}: {orphans: number | undefined}) {
@@ -64,7 +54,7 @@ export function AssistantPanelHeaderButton() {
   const toggle = useAssistantPanelToggle()
   if (!toggle) return null
   return (
-    <Tooltip content={assistantToggleLabel(toggle)}>
+    <Tooltip content={ASSISTANT_TOGGLE_LABEL}>
       <Button
         variant="ghost"
         size="icon"
@@ -94,7 +84,7 @@ export function AssistantPanelMenuItem({onClick}: {onClick?: () => void}) {
     <SmallListItem
       bold
       active={toggle.isOpen}
-      title={toggle.isOpen ? 'Close Agents' : orphanAgentsLabel(toggle.orphans) ?? 'Agents'}
+      title={ASSISTANT_TOGGLE_LABEL}
       icon={
         <span className="relative flex">
           <Bot className="size-4" />
