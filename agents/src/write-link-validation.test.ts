@@ -86,6 +86,22 @@ describe('assertHmContentLinks', () => {
     expect(client.asked.sort()).toEqual([GOOD, GOOD2].sort())
   })
 
+  test('view-term links resolve as the account, comment or document they show', async () => {
+    // The web editor stores account mentions as hm://UID/:profile; ":profile" is not a document path.
+    const uid = 'z6MkpFjnYQfWrMVoDsBoHwzXvvRMGjKRNTsezab9x8CpGr63'
+    const other = 'z6MkhgQbfWS2PAxNHTFuCrKvqymnNizhvrzzLuc1ukVx7myy'
+    const comment = `${uid}/z6KLRhcYH5zvjG`
+    const expected = [`hm://${uid}`, `hm://${other}`, `hm://${comment}`, GOOD]
+    const client = fakeClient((link) => (expected.includes(link) ? 'found' : 'not-found'))
+    await assertHmContentLinks(client, [
+      linkedParagraph(`hm://${uid}/:profile`, 'Embed'),
+      linkedParagraph(`hm://${uid}/:profile/${other}`),
+      linkedParagraph(`${GOOD}/:comments/${comment}`),
+      linkedParagraph(`${GOOD}/:directory`),
+    ])
+    expect(client.asked.sort()).toEqual(expected.sort())
+  })
+
   test('an unreachable HM server never blocks publishing', async () => {
     // Infra flake must not hold content hostage: only a definitive not-found is a broken link.
     const client = fakeClient(() => 'throw')

@@ -71,6 +71,7 @@ import {
 import {runWorkflowInWorker} from '@/workflow-worker-host'
 import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
 import * as blobs from '@shm/shared/blobs'
+import {extractViewTermFromUrl} from '@shm/shared/utils/entity-id-url'
 import {
   blocksToMarkdown,
   commentToResolvedMarkdown,
@@ -17667,8 +17668,12 @@ export async function assertHmContentLinks(
   const targets: Array<{link: string; id: NonNullable<ReturnType<typeof unpackHmId>>}> = []
   for (const link of links) {
     // unpackHmId parses shape only; a link is well-formed when its uid is also a real Ed25519
-    // principal — "hm://my-doc/notes" parses but can never resolve anywhere.
-    const id = unpackHmId(link)
+    // principal — "hm://my-doc/notes" parses but can never resolve anywhere. A view term
+    // (`/:profile`, `/:comments/<id>`) is not a path segment: the link's target is the account,
+    // comment or document the view shows.
+    const view = extractViewTermFromUrl(link)
+    const target = view.accountUid ? `hm://${view.accountUid}` : view.commentId ? `hm://${view.commentId}` : view.url
+    const id = unpackHmId(target)
     if (!id) {
       malformed.push(link)
       continue
