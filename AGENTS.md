@@ -39,6 +39,7 @@ identified unauthorized publications; it is not permission for subsequent direct
 
 ## Repo Rules
 
+
 - Use `pnpm` for the JavaScript/TypeScript workspace; `agents/**` and `vault/**` use Bun. Follow package scripts.
 - Code inside `ops/**` uses a pinned Bun version (see `ops/package.json` `engines.bun`). Always build
   `ops/dist/deploy.js` with that exact version (`bunx --bun bun@<version> build ...`) or CI will fail the staleness
@@ -62,21 +63,15 @@ identified unauthorized publications; it is not permission for subsequent direct
 ## Required checks before completion
 
 - For changes affecting the pnpm JavaScript/TypeScript workspace, its dependencies, build configuration, or shared
-  interfaces, run all of these commands from the repository root before reporting the task complete:
-  `direnv exec . sh -c 'pnpm typecheck && pnpm test && pnpm format:write && pnpm audit'`
-- Run these checks after the final change, not on every turn or after every intermediate edit. Targeted package checks
-  are useful during iteration but do not replace this final workflow for changes in scope.
-- All four commands must pass. If a command fails, correct the cause and run the required checks again.
-- Review changes made by `pnpm format:write`. If it changes code, run typecheck and tests again against the final files.
-- Do not skip applicable checks just because a change appears small.
-- Unrelated Go-only or documentation-only changes do not require the pnpm workflow. Run checks relevant to the affected
-  area instead, including formatting and any relevant documentation link/schema checks.
-- Before committing, check formatting of touched files with the appropriate formatter (for example, `gofmt` for Go and
-  Prettier for supported JavaScript/TypeScript/Markdown files).
-- If a check cannot run or a failure remains unresolved, report the command, the cause, and the task as incomplete. Do
-  not claim that all checks passed.
-- Include the check results in the final response.
-- These checks are required in addition to checks specified by subtree instructions.
+  interfaces, run the checks required by the affected subtree instructions after the final change. Choose scope from the full task
+  diff, including committed, staged, unstaged, and untracked files; include affected callers and dependents.
+- For documentation-only changes, check formatting and references; application tests and typechecks are not required.
+- Format touched files with the owning area's formatter before completion or a commit. Review formatter changes; if they
+  change code, rerun the affected checks against the final files.
+- If impact is unclear or a change affects shared configuration, expand the checks rather than assuming file-only checks
+  are sufficient. Targeted checks do not prove that the full CI suite passes.
+- Report the commands run, their scope, and results. If a required check cannot run or remains failing, report its cause
+  and mark verification incomplete. Do not claim that all checks passed.
 
 ## Local CI
 
@@ -100,6 +95,3 @@ identified unauthorized publications; it is not permission for subsequent direct
 - Document exported symbols.
 - Test observable behavior; use real dependencies unless impractical or unsafe. Bug fixes should have regression
   coverage where practical.
-- When writing Tailwind:
-  - Prefer built-in utilities and consistent spacing scales; use arbitrary values only when needed.
-  - Use parent `gap` for flex/grid spacing instead of child margins when possible.

@@ -1,6 +1,7 @@
 # Backend Rules
 
 - Applies to `backend/**`, except paths with more specific local rules.
+- Code under `backend/util/llama-go/llama.cpp` is vendored third-party code. Don't touch unless explicitly asked.
 - Use `go mod` commands for dependency changes instead of editing `go.mod` or `go.sum` directly.
 - Use `dqb.Str` for SQL queries, with explicit query variants for conditional logic.
 - In Go tests, use `github.com/stretchr/testify/require`.
