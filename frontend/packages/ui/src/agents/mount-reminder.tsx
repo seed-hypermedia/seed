@@ -6,6 +6,7 @@ import {useAppDialog} from '../universal-dialog'
 import type {AgentInfo} from './client'
 import {describeAgentServer, useLocalAgentServerUrl} from './models'
 import {MountAgentDialog, unmountedOwnedAgents} from './mount'
+import {useNavigate} from './navigation'
 import {getAgentsPlatform} from './platform'
 
 /** Rows shown before the list folds behind "Show all". */
@@ -30,6 +31,7 @@ export function AgentMountReminder({
   const accountUid = getAgentsPlatform().useAccountUid()
   const localServerUrl = useLocalAgentServerUrl()
   const dialog = useAppDialog(MountAgentDialog)
+  const navigate = useNavigate()
   const [folded, setFolded] = useState(false)
   const [showAll, setShowAll] = useState(false)
   const pending = useMemo(() => unmountedOwnedAgents(agents), [agents])
@@ -67,14 +69,19 @@ export function AgentMountReminder({
           <ul className="flex flex-col gap-1">
             {rows.map(({serverUrl, agent}) => (
               <li key={`${serverUrl} ${agent.id}`} className="flex items-center gap-2">
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <SizableText size="sm" className="truncate">
+                {/* The agent's own page, to look it over (chats, settings) before choosing a home. */}
+                <button
+                  type="button"
+                  className="hover:bg-muted -mx-1 flex min-w-0 flex-1 flex-col rounded px-1 text-left"
+                  onClick={() => navigate({key: 'agent', agentId: agent.id, serverUrl})}
+                >
+                  <SizableText size="sm" className="w-full truncate">
                     {agent.definition.name || 'Untitled agent'}
                   </SizableText>
-                  <SizableText size="xs" color="muted" className="truncate">
+                  <SizableText size="xs" color="muted" className="w-full truncate">
                     {describeAgentServer(serverUrl, localServerUrl.data)}
                   </SizableText>
-                </div>
+                </button>
                 <Button
                   size="sm"
                   variant="outline"
