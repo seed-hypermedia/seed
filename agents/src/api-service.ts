@@ -71,6 +71,7 @@ import {
 import {runWorkflowInWorker} from '@/workflow-worker-host'
 import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
 import * as blobs from '@shm/shared/blobs'
+import {extractViewTermFromUrl} from '@shm/shared/utils/entity-id-url'
 import {
   blocksToMarkdown,
   commentToResolvedMarkdown,
@@ -17667,8 +17668,12 @@ export async function assertHmContentLinks(
   const targets: Array<{link: string; id: NonNullable<ReturnType<typeof unpackHmId>>}> = []
   for (const link of links) {
     // unpackHmId parses shape only; a link is well-formed when its uid is also a real Ed25519
-    // principal — "hm://my-doc/notes" parses but can never resolve anywhere.
-    const id = unpackHmId(link)
+    // principal — "hm://my-doc/notes" parses but can never resolve anywhere. A view term
+    // (`/:profile`, `/:comments/<id>`) is not a path segment: the link's target is the account,
+    // comment or document the view shows.
+    const view = extractViewTermFromUrl(link)
+    const target = view.accountUid ? `hm://${view.accountUid}` : view.commentId ? `hm://${view.commentId}` : view.url
+    const id = unpackHmId(target)
     if (!id) {
       malformed.push(link)
       continue
@@ -17694,12 +17699,7 @@ export async function assertHmContentLinks(
     await Promise.all(
       queue.slice(i, i + CONCURRENCY).map(async ({link, id}) => {
         try {
-          // A view term (`/:profile`, `/:comments/…`) names a view of the resource before it, not a
-          // path of its own: `hm://UID/:profile` is the web editor's account mention and resolves as
-          // the account. Look up the resource the view is of.
-          const viewAt = id.path?.findIndex((segment) => segment.startsWith(':')) ?? -1
-          const path = viewAt === -1 ? id.path : id.path!.slice(0, viewAt)
-          const resource = await client.request('Resource', {...id, path, blockRef: null})
+          const resource = await client.request('Resource', {...id, blockRef: null})
           if (isRecord(resource) && resource.type === 'not-found') broken.push(link)
         } catch {
           // Unreachable/erroring HM server: unverifiable, not broken. The write proceeds.
