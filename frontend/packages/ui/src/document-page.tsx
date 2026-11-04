@@ -8,9 +8,20 @@ import {DocumentPageParameters} from './document-page-parameters'
 import {toast} from './toast'
 import {queryKeys} from '@shm/shared/models/query-keys'
 import {documentPageContent, createDocumentPageAccess} from '@shm/shared/document-page-content'
-import {DocumentPagePermissionPrompt, DocumentPagePermissionSettings} from './document-page-permissions'
 import {
+  DocumentPagePermissionPrompt,
+  DocumentPagePermissionSettings,
+  DocumentPageRunPrompt,
+  type DocumentPageRunStatus,
+} from './document-page-permissions'
+import {
+  grantPageRun,
   pagePermissionStorageKey,
+  pageRunAllowed,
+  pageRunStorageKey,
+  readPageRunTrust,
+  revokePageRun,
+  type PageRunTrust,
   readPagePermissionGrants,
   type PagePermissionRequest,
   type PagePermissionDecision,
@@ -81,31 +92,75 @@ function DocumentPageLaunch(props: DocumentPageViewProps) {
   const contacts = useSelectedAccountContacts()
   const {originHomeId} = useUniversalAppContext()
   const platform = getDocumentPagePlatform()
-  const [accepted, setAccepted] = React.useState(false)
-  const known =
+  const documentId = hmId(props.docId.uid, {path: props.docId.path}).id
+  const authors = React.useMemo(() => Array.from(new Set(props.document.authors || [])), [props.document.authors])
+  const [trust, saveTrust] = usePageRunTrust(account)
+  const implicit =
     props.docId.uid === account ||
-    contacts.data?.some((contact) => contact.subject === props.docId.uid && contact.subscribe?.site) ||
-    (platform && 'loadPageHtml' in platform && originHomeId?.uid === props.docId.uid)
-  if (known || accepted) return <DocumentPageSession {...props} />
+    !!contacts.data?.some((contact) => contact.subject === props.docId.uid && contact.subscribe?.site) ||
+    !!(platform && 'loadPageHtml' in platform && originHomeId?.uid === props.docId.uid)
+  const run: DocumentPageRunStatus = {
+    implicit,
+    page: trust.pages.includes(documentId),
+    trustedAuthors: authors.filter((author) => trust.authors.includes(author)),
+    onRevokePage: () => saveTrust(revokePageRun(trust, documentId)),
+    onRevokeAuthor: (author) => saveTrust(revokePageRun(trust, '', [author])),
+  }
+  if (implicit || pageRunAllowed(trust, documentId, authors)) return <DocumentPageSession {...props} run={run} />
   return (
-    <div className="flex h-full items-center justify-center p-6">
-      <div className="border-border bg-background flex max-w-md flex-col gap-4 rounded-xl border p-6 shadow-sm">
-        <h2 className="text-lg font-semibold">Run {props.document.metadata?.name || 'this page'}?</h2>
-        <p className="text-muted-foreground text-sm">
-          This page is from a site you haven’t joined. Pages can show misleading screens, use device resources and open
-          links.
-        </p>
-        <p className="text-sm">
-          This page can read content in its own space that you can access. Seed will ask before reading other spaces,
-          sharing your account identity or saved page data, or signing anything. Joining is optional.
-        </p>
-        <Button onClick={() => setAccepted(true)}>Run page</Button>
-      </div>
-    </div>
+    <DocumentPageRunPrompt
+      pageName={props.document.metadata?.name || 'this page'}
+      authors={authors}
+      onRun={(trustAuthors) => saveTrust(grantPageRun(trust, documentId, authors, trustAuthors))}
+    />
   )
 }
 
-function DocumentPageSession(props: DocumentPageViewProps) {
+/** The viewer's launch approvals, kept in sync across every page view on this device. */
+function usePageRunTrust(account: string | null) {
+  const key = pageRunStorageKey(account)
+  const source = React.useRef(Symbol())
+  const read = React.useCallback(() => {
+    try {
+      return readPageRunTrust(window.localStorage, key)
+    } catch {
+      return {pages: [], authors: []}
+    }
+  }, [key])
+  const [trust, setTrust] = React.useState<PageRunTrust>(read)
+  React.useEffect(() => {
+    const refresh = (event: Event) => {
+      if (
+        event instanceof StorageEvent
+          ? event.key !== key && event.key !== null
+          : (event as CustomEvent).detail?.key !== key || (event as CustomEvent).detail?.source === source.current
+      )
+        return
+      setTrust(read())
+    }
+    window.addEventListener('storage', refresh)
+    window.addEventListener('seed-page-run-changed', refresh)
+    return () => {
+      window.removeEventListener('storage', refresh)
+      window.removeEventListener('seed-page-run-changed', refresh)
+    }
+  }, [key, read])
+  const save = React.useCallback(
+    (next: PageRunTrust) => {
+      setTrust(next)
+      try {
+        window.localStorage.setItem(key, JSON.stringify(next))
+        window.dispatchEvent(new CustomEvent('seed-page-run-changed', {detail: {key, source: source.current}}))
+      } catch {
+        toast.error('Could not save this choice. It will last only while this page is open.')
+      }
+    },
+    [key],
+  )
+  return [trust, save] as const
+}
+
+function DocumentPageSession({run, ...props}: DocumentPageViewProps & {run: DocumentPageRunStatus}) {
   const account = useSelectedAccountId()
   const client = useUniversalClient()
   const openUrl = useOpenUrl()
@@ -352,6 +407,7 @@ function DocumentPageSession(props: DocumentPageViewProps) {
         grants={grants}
         onRemove={(index) => access.remove(index)}
         onReset={() => access.revoke()}
+        run={run}
       />
     </div>
   )

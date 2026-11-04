@@ -44,7 +44,7 @@ import type {HMDocument} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@seed-hypermedia/client'
 import {base58btc} from 'multiformats/bases/base58'
 import {decode} from '@ipld/dag-cbor'
-import {pagePermissionStorageKey} from '@shm/shared/document-page-permissions'
+import {pagePermissionStorageKey, pageRunStorageKey} from '@shm/shared/document-page-permissions'
 
 const cid = 'bafybeibowhl2ypujel2qrmcps2qy2szwv3ruyjqliqejr6jg4kil437y3e'
 const host = 'c'.repeat(40)
@@ -157,6 +157,39 @@ describe('DocumentPageView', () => {
     expect(resolvePageUrl).toHaveBeenCalledTimes(1)
     expect(container.querySelector('iframe')).not.toBeNull()
     expect(mocks.request).not.toHaveBeenCalled()
+  })
+
+  it('remembers a run approval for the page, and trusts its authors only when asked', async () => {
+    mocks.joined = false
+    setDocumentPagePlatform({resolvePageUrl: async () => `seed-page://${host}/`})
+    const authored = {...document, authors: ['alice', 'bob']} as HMDocument
+    await act(async () => root.render(<DocumentPageView docId={docId} document={authored} cid={cid} />))
+    await click('Run page')
+    expect(container.querySelector('iframe')).not.toBeNull()
+    await act(async () => root.render(<div />))
+    await act(async () =>
+      root.render(<DocumentPageView docId={docId} document={{...authored, version: 'v2'}} cid={cid} />),
+    )
+    expect(container.textContent).not.toContain('Run page')
+
+    const other = unpackHmId('hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/pages/other')!
+    await act(async () => root.render(<DocumentPageView docId={other} document={authored} cid={cid} />))
+    expect(container.textContent).toContain('Run page')
+    await act(async () => (container.querySelector('input[type="checkbox"]') as HTMLInputElement).click())
+    await click('Run page')
+    expect(JSON.parse(window.localStorage.getItem(pageRunStorageKey('viewer'))!).authors).toEqual(['alice', 'bob'])
+
+    const fewer = unpackHmId('hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/pages/fewer')!
+    await act(async () =>
+      root.render(<DocumentPageView docId={fewer} document={{...authored, authors: ['bob']}} cid={cid} />),
+    )
+    expect(container.textContent).not.toContain('Run page')
+
+    const unknown = unpackHmId('hm://z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/pages/unknown')!
+    await act(async () =>
+      root.render(<DocumentPageView docId={unknown} document={{...authored, authors: ['bob', 'carol']}} cid={cid} />),
+    )
+    expect(container.textContent).toContain('Run page')
   })
 
   it('runs a same-site web page without a join or launch prompt', async () => {
