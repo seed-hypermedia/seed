@@ -2,10 +2,10 @@ import {Crop, X} from 'lucide-react'
 import {ChangeEvent, ReactNode, useEffect, useState} from 'react'
 import {Button} from './button'
 import {useImageCropper, type ImageCropConfig} from './image-crop-dialog'
-import {SizableText} from './text'
-import {cn} from './utils'
-import {toast} from './toast'
 import {COVER_IMAGE_POLICY, IMAGE_FILE_ACCEPT, processImage} from './image-processing'
+import {SizableText} from './text'
+import {toast} from './toast'
+import {cn} from './utils'
 
 /** Props for the ImageForm component. */
 export interface ImageFormProps {
@@ -17,6 +17,7 @@ export interface ImageFormProps {
   uploadOnChange?: boolean
   height?: number
   width?: number
+  fit?: 'cover' | 'contain'
   emptyContent?: ReactNode
   /**
    * Enables cropping. Choosing a file opens the cropper rather than accepting
@@ -53,6 +54,7 @@ export function ImageForm({
   uploadOnChange = true,
   height,
   width,
+  fit = 'cover',
   fileUpload,
   emptyContent,
   crop,
@@ -120,7 +122,7 @@ export function ImageForm({
           position: 'absolute',
           top: 0,
           left: 0,
-          objectFit: 'cover',
+          objectFit: fit,
         }}
       />
     </div>
