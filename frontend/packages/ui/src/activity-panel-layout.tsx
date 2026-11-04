@@ -56,7 +56,9 @@ function WebActivityPanelGroup({children}: {children: ReactNode}) {
   return (
     <Group
       orientation="horizontal"
-      className="h-dvh max-h-full min-h-0"
+      className="max-h-full min-h-0"
+      // Override Group's inline 100% height; the web shell has no fixed parent height.
+      style={{height: '100dvh'}}
       onLayoutChanged={(layout, meta) => {
         saved.onLayoutChanged(layout, meta)
         if (meta.isUserInteraction && open && layout.activity === 0) close()
