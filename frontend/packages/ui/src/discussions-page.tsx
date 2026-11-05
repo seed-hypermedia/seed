@@ -1,6 +1,6 @@
 import {createPortal} from 'react-dom'
 import {BlockRange, HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {hmId, packHmId, commentIdToHmId} from '@shm/shared'
+import {getCommentTargetId, hmId, packHmId, commentIdToHmId} from '@shm/shared'
 import {
   cloneElement,
   createContext,
@@ -19,7 +19,7 @@ import {
 } from '@shm/shared/comments-service-provider'
 import {getCommentThread} from '@shm/shared/comments'
 import {useDocumentComments} from '@shm/shared/models/comments'
-import {useDocumentCollaborators} from '@shm/shared/models/entity'
+import {useDocumentCollaborators, useResource} from '@shm/shared/models/entity'
 import {useTxString} from '@shm/shared/translation'
 import {FileText, MessageCirclePlus, LetterText} from 'lucide-react'
 import type {CommentEditorProps} from './resource-page-common'
@@ -71,58 +71,64 @@ export function DiscussionsPageContent({
   const comments = useDocumentComments(docId)
   const thread = openComment ? getCommentThread(comments.data?.comments, openComment) : null
   const root = thread?.root && !thread.root.replyParent ? thread.root : undefined
+  // A thread opened from a notification or an embed can be focused before the document's
+  // comment list contains it, so the reply target comes from the comment itself.
+  const pendingThreadId = openComment && !root ? commentIdToHmId(openComment) : null
+  const pendingThread = useResource(pendingThreadId, {subscribed: true})
+  const pendingComment = pendingThread.data?.type === 'comment' ? pendingThread.data.comment : undefined
+  const replyTarget = getThreadReplyTarget({docId, root, fallbackComment: pendingComment})
   const commentsContext = useCommentsServiceContext()
   const draftReferences = useCommentDraftReferences()
   const appendReference = draftReferences?.appendReference
   const onThreadReplyClick = useCallback(
     (comment: HMComment) => {
-      if (!root || !appendReference) return
+      if (!replyTarget || !appendReference) return
       appendReference({
         documentId: docId.id,
-        commentId: root.id,
+        commentId: replyTarget.id,
         link: packHmId({...commentIdToHmId(comment.id), version: comment.version, latest: null}),
       })
     },
-    [docId.id, root?.id, appendReference],
+    [docId.id, replyTarget?.id, appendReference],
   )
   const appliedReply = useRef<string>()
   const selectedReply = thread?.replies.find((comment) => comment.id === replyCommentId)
   useEffect(() => {
-    const selection = replyCommentId ? `${docId.id}:${root?.id}:${replyCommentId}` : undefined
+    const selection = replyCommentId ? `${docId.id}:${replyTarget?.id}:${replyCommentId}` : undefined
     if (!selection) {
       appliedReply.current = undefined
       return
     }
-    if (!selectedReply || !root || !appendReference || appliedReply.current === selection) return
+    if (!selectedReply || !replyTarget || !appendReference || appliedReply.current === selection) return
     appliedReply.current = selection
     appendReference({
       documentId: docId.id,
-      commentId: root.id,
+      commentId: replyTarget.id,
       link: packHmId({...commentIdToHmId(selectedReply.id), version: selectedReply.version, latest: null}),
     })
-  }, [docId.id, root?.id, replyCommentId, selectedReply, appendReference])
+  }, [docId.id, replyTarget?.id, replyCommentId, selectedReply, appendReference])
   useEffect(() => {
     setSubmittedRoots([])
   }, [docId.id, openComment, targetBlockId])
   let editor = commentEditor
   if (isValidElement<CommentEditorProps>(commentEditor)) {
     editor =
-      openComment && !root
+      openComment && !replyTarget
         ? null
         : cloneElement(commentEditor, {
             key: [
-              root?.id || 'root',
+              replyTarget?.id || 'root',
               targetBlockId || '',
               JSON.stringify(blockRange),
               commentEditor.props.focusOnMount ? 'focus' : 'browse',
             ].join(':'),
             compact: true,
-            commentId: root?.id,
-            replyCommentVersion: root?.version,
-            rootReplyCommentVersion: root?.version,
+            commentId: replyTarget?.id,
+            replyCommentVersion: replyTarget?.version,
+            rootReplyCommentVersion: replyTarget?.version,
             onCommentSubmitted: (comment: HMComment) => {
               // Submission selects the new reply; it is not a request to quote it again.
-              if (root) appliedReply.current = `${docId.id}:${root.id}:${comment.id}`
+              if (replyTarget) appliedReply.current = `${docId.id}:${replyTarget.id}:${comment.id}`
               if (!openComment)
                 setSubmittedRoots((roots) => [...roots.filter((root) => root.id !== comment.id), comment])
               commentEditor.props.onCommentSubmitted?.(comment)
@@ -220,6 +226,24 @@ export function DiscussionsPageContent({
       {layout}
     </CommentsProvider>
   )
+}
+
+/** The root comment a thread's reply editor targets, from the loaded list or the comment itself. */
+function getThreadReplyTarget(input: {
+  docId: UnpackedHypermediaId
+  root?: HMComment
+  fallbackComment?: HMComment
+}): {id: string; version: string} | undefined {
+  const {docId, root, fallbackComment} = input
+  if (root) return {id: root.id, version: root.version}
+  if (!fallbackComment) return undefined
+  const id = fallbackComment.threadRoot || fallbackComment.id
+  const version = fallbackComment.threadRoot ? fallbackComment.threadRootVersion : fallbackComment.version
+  if (!version) return undefined
+  const targetId = getCommentTargetId(fallbackComment)
+  if (!targetId) return undefined
+  if (hmId(targetId.uid, {path: targetId.path}).id !== hmId(docId.uid, {path: docId.path}).id) return undefined
+  return {id, version}
 }
 
 function CommentsPanelEmptyState({docId, hasEditor}: {docId: UnpackedHypermediaId; hasEditor: boolean}) {
