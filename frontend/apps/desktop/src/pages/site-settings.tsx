@@ -1,10 +1,9 @@
 import {MembersSettings} from '@/components/site-settings-members'
-import {NavigationSettings} from '@/components/site-settings-navigation'
 import {WebDomainSettings} from '@/components/site-settings-web-domain'
 import {useUpdateHomeDocument} from '@/models/site'
 import {fileUpload} from '@/utils/file-upload'
 import {useNavigate} from '@/utils/useNavigate'
-import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
@@ -16,33 +15,28 @@ import {
   useNavRoute,
 } from '@shm/shared/utils/navigation'
 import {UIAvatar} from '@shm/ui/avatar'
-import {Button} from '@shm/ui/button'
-import {Input} from '@shm/ui/components/input'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
-import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import type {ImageCropConfig} from '@shm/ui/image-crop-dialog'
-import {ImageForm} from '@shm/ui/image-form'
 import {
-  AVATAR_IMAGE_POLICY,
-  CONTENT_IMAGE_POLICY,
-  COVER_IMAGE_POLICY,
-  type ImageProcessingPolicy,
-} from '@shm/ui/image-processing'
-import {DiscardChangesDialog, SpaceSettingsGeneral, useSpaceSettingsForm} from '@shm/ui/space-settings'
+  DiscardChangesDialog,
+  SpaceSettingsBackLink,
+  SpaceSettingsGeneralTab,
+  SpaceSettingsNav,
+} from '@shm/ui/space-settings'
+import {SpaceSettingsIdentity} from '@shm/ui/space-settings-identity'
+import {SpaceSettingsNavigation} from '@shm/ui/space-settings-navigation'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {ArrowLeft, Globe, Image as ImageIcon, MonitorCog, Navigation as NavigationIcon, Plus, Users} from 'lucide-react'
-import {type ReactNode, useEffect, useState} from 'react'
+import {Globe, Image as ImageIcon, MonitorCog, Navigation as NavigationIcon, Users, type LucideIcon} from 'lucide-react'
+import {type ReactNode, useState} from 'react'
 
 // Tabs of the site settings page
 type SiteSettingsSection = 'general' | 'identity' | 'navigation' | 'web-domain' | 'members'
 
 type SiteSettingsTabConfig = {
   key: SiteSettingsSection
-  icon: any
+  icon: LucideIcon
   label: string
 }
 
@@ -90,34 +84,48 @@ export default function SiteSettings() {
         <div className="flex flex-1 overflow-hidden">
           <div className="flex flex-1 overflow-hidden rounded-lg">
             {/* Sidebar */}
-            <div className="border-border flex w-[220px] shrink-0 flex-col gap-1 border-r p-2">
-              <SizableText size="xs" weight="bold" color="muted" className="px-3 py-2 uppercase">
-                Space Settings
-              </SizableText>
-              {SITE_SETTINGS_TAB_CONFIG.map((tab) => (
-                <SidebarTab
-                  key={tab.key}
-                  active={activeSection === tab.key}
-                  icon={tab.icon}
-                  label={tab.label}
-                  onClick={() => setActiveTab(tab.key)}
-                />
-              ))}
-            </div>
+            <SpaceSettingsNav
+              tabs={SITE_SETTINGS_TAB_CONFIG}
+              activeTab={activeSection}
+              onSelect={setActiveTab}
+              className="border-border w-[220px] shrink-0 border-r"
+            />
             {/* Content */}
             <ScrollArea className="flex-1">
               <div className="flex flex-col gap-6 p-6">
-                <button
-                  type="button"
-                  onClick={backToSpace}
-                  className="text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-start text-sm transition-colors"
-                >
-                  <ArrowLeft className="size-4" />
-                  Back to space
-                </button>
-                {activeSection === 'general' && <GeneralTab siteId={route.id} onDirtyChange={setIsDirty} />}
-                {activeSection === 'identity' && <IdentityTab siteId={route.id} onDirtyChange={setIsDirty} />}
-                {activeSection === 'navigation' && <NavigationSettings siteId={route.id} onDirtyChange={setIsDirty} />}
+                <SpaceSettingsBackLink onClick={backToSpace} />
+                {activeSection === 'general' && (
+                  <OwnerTab siteId={route.id} title="General">
+                    {(_document, updateHome) => (
+                      <SpaceSettingsGeneralTab siteId={route.id} updateHome={updateHome} onDirtyChange={setIsDirty} />
+                    )}
+                  </OwnerTab>
+                )}
+                {activeSection === 'identity' && (
+                  <OwnerTab siteId={route.id} title="Identity">
+                    {(document, updateHome) => (
+                      <SpaceSettingsIdentity
+                        siteId={route.id}
+                        metadata={document.metadata}
+                        updateHome={updateHome}
+                        uploadImage={fileUpload}
+                        onDirtyChange={setIsDirty}
+                      />
+                    )}
+                  </OwnerTab>
+                )}
+                {activeSection === 'navigation' && (
+                  <OwnerTab siteId={route.id} title="Navigation">
+                    {(document, updateHome) => (
+                      <SpaceSettingsNavigation
+                        siteId={route.id}
+                        document={document}
+                        updateHome={updateHome}
+                        onDirtyChange={setIsDirty}
+                      />
+                    )}
+                  </OwnerTab>
+                )}
                 {activeSection === 'web-domain' && <WebDomainSettings siteId={route.id} />}
                 {activeSection === 'members' && <MembersSettings siteId={route.id} activeTab={route.tab} />}
               </div>
@@ -130,87 +138,20 @@ export default function SiteSettings() {
   )
 }
 
-function GeneralTab({
+/** Loads the home document and limits a tab to the space's owner. */
+function OwnerTab({
   siteId,
-  onDirtyChange,
+  title,
+  children,
 }: {
   siteId: UnpackedHypermediaId
-  onDirtyChange: (isDirty: boolean) => void
+  title: string
+  children: (document: HMDocument, updateHome: ReturnType<typeof useUpdateHomeDocument>) => ReactNode
 }) {
-  const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(siteId.uid)
-  const form = useSpaceSettingsForm(siteId.uid)
-  useReportDirty(form.isDirty, onDirtyChange)
-
-  if (isOwnerLoading || !form.isReady) {
-    return (
-      <div className="flex justify-center py-10">
-        <Spinner />
-      </div>
-    )
-  }
-  if (!isSiteOwner) {
-    return (
-      <>
-        <SizableText size="2xl" weight="bold">
-          General
-        </SizableText>
-        <SizableText color="muted">Only the space owner can edit these settings.</SizableText>
-      </>
-    )
-  }
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <SizableText size="2xl" weight="bold">
-          General
-        </SizableText>
-        <Button variant="default" disabled={!form.isDirty || form.isSaving} onClick={form.save}>
-          {form.isSaving ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-      <SpaceSettingsGeneral
-        metadata={form.metadata}
-        onMetadata={form.onMetadata}
-        className="grid grid-cols-1 gap-3 lg:grid-cols-2"
-      />
-    </>
-  )
-}
-
-/** Tells the page whether a tab has unsaved edits, and that it has none once it closes. */
-function useReportDirty(isDirty: boolean, onDirtyChange: (isDirty: boolean) => void) {
-  useEffect(() => {
-    onDirtyChange(isDirty)
-  }, [isDirty, onDirtyChange])
-  useEffect(() => () => onDirtyChange(false), [onDirtyChange])
-}
-
-/** A picked image is either an existing metadata value or a freshly selected file. */
-type ImageValue = string | File | null
-
-function IdentityTab({
-  siteId,
-  onDirtyChange,
-}: {
-  siteId: UnpackedHypermediaId
-  onDirtyChange: (isDirty: boolean) => void
-}) {
-  const accountUid = siteId.uid
   const resource = useResource(siteId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
-  const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(accountUid)
-  const updateHome = useUpdateHomeDocument(accountUid)
-
-  // Form state, seeded from the published metadata once loaded.
-  const [name, setName] = useState<string | null>(null)
-  const [logo, setLogo] = useState<ImageValue | undefined>(undefined)
-  const [favicon, setFavicon] = useState<ImageValue | undefined>(undefined)
-  const [cover, setCover] = useState<ImageValue | undefined>(undefined)
-  const [logoProcessing, setLogoProcessing] = useState(false)
-  const [faviconProcessing, setFaviconProcessing] = useState(false)
-  const [coverProcessing, setCoverProcessing] = useState(false)
-  const isDirty = name !== null || logo !== undefined || favicon !== undefined || cover !== undefined
-  useReportDirty(isDirty, onDirtyChange)
+  const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(siteId.uid)
+  const updateHome = useUpdateHomeDocument(siteId.uid)
 
   if (resource.isInitialLoading || isOwnerLoading) {
     return (
@@ -226,289 +167,11 @@ function IdentityTab({
     return (
       <>
         <SizableText size="2xl" weight="bold">
-          Identity
+          {title}
         </SizableText>
         <SizableText color="muted">Only the space owner can edit these settings.</SizableText>
       </>
     )
   }
-
-  const metadata = document.metadata
-  // Fall back to the published value until the field has been edited.
-  const nameValue = name ?? metadata.name ?? ''
-  const logoValue = logo === undefined ? metadata.seedExperimentalLogo || null : logo
-  const faviconValue = favicon === undefined ? metadata.icon || null : favicon
-  const coverValue = cover === undefined ? metadata.cover || null : cover
-
-  const canSave =
-    isDirty &&
-    nameValue.trim().length > 0 &&
-    !updateHome.isPending &&
-    !logoProcessing &&
-    !faviconProcessing &&
-    !coverProcessing
-
-  async function handleSave() {
-    if (!canSave) return
-    try {
-      // Pass full desired metadata. The hook diffs against the published values.
-      const nextMetadata: HMMetadata = {
-        ...metadata,
-        name: nameValue.trim(),
-        seedExperimentalLogo:
-          logo !== undefined ? await resolveImageValue(logo, CONTENT_IMAGE_POLICY) : metadata.seedExperimentalLogo,
-        icon: favicon !== undefined ? await resolveImageValue(favicon, AVATAR_IMAGE_POLICY) : metadata.icon,
-        cover: cover !== undefined ? await resolveImageValue(cover, COVER_IMAGE_POLICY) : metadata.cover,
-      }
-      await updateHome.mutateAsync({metadata: nextMetadata})
-      toast.success('Space identity updated')
-      setName(null)
-      setLogo(undefined)
-      setFavicon(undefined)
-      setCover(undefined)
-    } catch (error) {
-      // Edits stay in place, so retrying sends the same changes again.
-      toast.error(error instanceof Error ? error.message : 'Failed to update space identity', {
-        action: {label: 'Retry', onClick: () => void handleSave()},
-      })
-    }
-  }
-
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <SizableText size="2xl" weight="bold">
-          Identity
-        </SizableText>
-        <Button variant="default" disabled={!canSave} onClick={handleSave}>
-          {updateHome.isPending ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-
-      <SettingsField label="Space name">
-        <Input value={nameValue} onChange={(e) => setName(e.target.value)} placeholder="Your space name" />
-      </SettingsField>
-
-      <SettingsField label="Space logo">
-        <div className="flex flex-wrap gap-4">
-          <div className="w-56 shrink-0">
-            {/* Logos keep their own proportions, so nothing is cropped or cut off. */}
-            <ImagePicker
-              value={logoValue}
-              onProcessingChange={setLogoProcessing}
-              onChange={setLogo}
-              onClear={() => setLogo(null)}
-              height={100}
-              fit="contain"
-              emptyContent={
-                <div className="flex flex-col items-center gap-2">
-                  {addImageMark}
-                  <SizableText size="xs" color="muted">
-                    100px height JPG or PNG.
-                  </SizableText>
-                </div>
-              }
-            />
-          </div>
-          <SpaceLogoPreview siteId={siteId} logo={logoValue} favicon={faviconValue} name={nameValue} />
-        </div>
-      </SettingsField>
-
-      <SettingsField label="Favicon">
-        <div className="flex items-center gap-4">
-          <ImagePicker
-            value={faviconValue}
-            onProcessingChange={setFaviconProcessing}
-            onChange={setFavicon}
-            onClear={() => setFavicon(null)}
-            height={100}
-            width={100}
-            crop={{aspect: 1, maxDimension: 512}}
-            emptyContent={addImageMark}
-          />
-          <SizableText size="xs" color="muted">
-            512 × 512px JPG or PNG.
-          </SizableText>
-        </div>
-      </SettingsField>
-
-      <SettingsField label="Cover image">
-        <div className="max-w-2xl">
-          <ImagePicker
-            value={coverValue}
-            onProcessingChange={setCoverProcessing}
-            onChange={setCover}
-            onClear={() => setCover(null)}
-            height={160}
-            crop={{aspect: 4, maxDimension: 1600, format: 'image/jpeg'}}
-            emptyContent={
-              <>
-                <div className="bg-background absolute top-3 left-3 flex items-center gap-2 rounded-md px-2 py-1 shadow-xs">
-                  <ImageIcon className="text-muted-foreground size-4" />
-                  <SizableText size="sm" weight="medium" color="muted">
-                    Cover image
-                  </SizableText>
-                  <SizableText size="xs" color="muted">
-                    1600 × 400px
-                  </SizableText>
-                </div>
-                {addImageMark}
-              </>
-            }
-          />
-        </div>
-      </SettingsField>
-    </>
-  )
-}
-
-/* Green plus icon in the empty image box. */
-const addImageMark = (
-  <span className="bg-brand/20 text-brand flex size-8 items-center justify-center rounded-md">
-    <Plus className="size-4" />
-  </span>
-)
-
-/** Upload a picked file and return its ipfs ref, or pass through an existing ref. */
-async function resolveImageValue(value: ImageValue, policy: ImageProcessingPolicy): Promise<string> {
-  if (value instanceof File) {
-    const cid = await fileUpload(value, policy)
-    return `ipfs://${cid}`
-  }
-  return value ?? ''
-}
-
-function SettingsField({label, hint, children}: {label: string; hint?: string; children: ReactNode}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <SizableText weight="medium">{label}</SizableText>
-      {children}
-      {hint ? (
-        <SizableText size="xs" color="muted">
-          {hint}
-        </SizableText>
-      ) : null}
-    </div>
-  )
-}
-
-/** The address to show an image at, whether it is published or freshly picked. */
-function useImageValueUrl(value: ImageValue) {
-  // Created inside the effect so React's development double mount, which runs
-  // the cleanup once before settling, cannot leave a revoked URL behind.
-  const [pickedUrl, setPickedUrl] = useState('')
-  useEffect(() => {
-    if (!(value instanceof File)) {
-      setPickedUrl('')
-      return
-    }
-    const objectUrl = URL.createObjectURL(value)
-    setPickedUrl(objectUrl)
-    return () => URL.revokeObjectURL(objectUrl)
-  }, [value])
-  return value instanceof File ? pickedUrl : value ? getDaemonFileUrl(value) : ''
-}
-
-/** Site header preview, with logo or favicon and name. */
-function SpaceLogoPreview({
-  siteId,
-  logo,
-  favicon,
-  name,
-}: {
-  siteId: UnpackedHypermediaId
-  logo: ImageValue
-  favicon: ImageValue
-  name: string
-}) {
-  const logoUrl = useImageValueUrl(logo)
-  const faviconUrl = useImageValueUrl(favicon)
-  return (
-    <div className="flex min-w-64 flex-1 flex-col gap-1">
-      <SizableText size="xs" color="muted">
-        Preview
-      </SizableText>
-      <div className="border-border flex items-center rounded-md border py-2 pr-4 pl-2">
-        {logoUrl ? (
-          <img alt="Space logo preview" src={logoUrl} className="h-15 object-contain" />
-        ) : (
-          <div className="flex min-w-0 items-center gap-2">
-            <UIAvatar
-              size={24}
-              id={siteId.id}
-              label={name}
-              url={faviconUrl || undefined}
-              className="flex-none rounded-full bg-white"
-            />
-            <p className="text-foreground min-w-0 truncate font-bold select-none">{name}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function ImagePicker({
-  value,
-  onProcessingChange,
-  onChange,
-  onClear,
-  height,
-  width,
-  fit,
-  crop,
-  emptyContent,
-}: {
-  value: ImageValue
-  onProcessingChange: (processing: boolean) => void
-  onChange: (file: File) => void
-  onClear: () => void
-  height: number
-  width?: number
-  fit?: 'cover' | 'contain'
-  crop?: ImageCropConfig
-  emptyContent?: ReactNode
-}) {
-  const previewUrl = useImageValueUrl(value)
-  return (
-    <ImageForm
-      url={previewUrl}
-      height={height}
-      width={width}
-      fit={fit}
-      emptyContent={emptyContent}
-      uploadOnChange={false}
-      crop={crop}
-      onPendingChange={onProcessingChange}
-      onImageUpload={(file) => {
-        if (file instanceof File) onChange(file)
-      }}
-      onRemove={onClear}
-    />
-  )
-}
-
-function SidebarTab({
-  active,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  active: boolean
-  icon: any
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      className={cn(
-        'flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors',
-        active ? 'bg-brand/10 text-brand-2 font-medium' : 'text-muted-foreground hover:bg-muted',
-      )}
-      onClick={onClick}
-    >
-      <Icon className="size-4" />
-      {label}
-    </button>
-  )
+  return <>{children(document, updateHome)}</>
 }

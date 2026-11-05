@@ -40,7 +40,7 @@ import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {useQuery} from '@tanstack/react-query'
-import {FileCode2, FileInput, Globe} from 'lucide-react'
+import {FileCode2, FileInput, Globe, Settings} from 'lucide-react'
 import {blobBuilderMenuItems} from '@shm/ui/schema/blob-menu-items'
 import {Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
@@ -74,6 +74,7 @@ import {setPendingIntent} from './local-db'
 import {PageFooter} from './page-footer'
 import {processPendingIntent} from './pending-intent'
 import {openWebDomainSettings} from './models/domain-publishing'
+import {useCanOpenSpaceSettings} from './components/web-space-settings-menu'
 import {useCreateSpaceDialog, useHasExistingSpace, usePublishSpaceDraft} from './web-create-space-dialog'
 import {useWebDeleteDocumentDialog} from './web-delete-document-dialog'
 import {WebDocumentPrefetch} from './web-document-prefetch'
@@ -697,12 +698,21 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
     replaceRoute,
     signingAccountId,
   ])
+  const canOpenSpaceSettings = useCanOpenSpaceSettings(docId.uid)
   const optionsMenuItems = useMemo(
     () =>
       [
         agentProfileMenuItem,
         orphanAgent.item,
         ...webMenuItems,
+        isHomeTarget && canOpenSpaceSettings && !placeholderDraftId
+          ? {
+              key: 'space-settings',
+              label: 'Space settings',
+              icon: <Settings className="size-4" />,
+              onClick: () => navigate({key: 'site-settings', id: hmId(docId.uid)}),
+            }
+          : null,
         isHomeTarget && effectiveCanEdit && signingAccountId === docId.uid && !placeholderDraftId
           ? {
               key: 'web-domain',
@@ -723,6 +733,8 @@ export function WebResourcePage({docId, CommentEditor, ssrContentHTML}: WebResou
       webMenuItems,
       schemaBuilderMenuItems,
       isHomeTarget,
+      canOpenSpaceSettings,
+      navigate,
       effectiveCanEdit,
       signingAccountId,
       docId.uid,

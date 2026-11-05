@@ -7,18 +7,14 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 // The daemon is the one thing these tests cannot run: the home document it
-// would serve, and the publish call it would receive.
+// would serve, and the publish call each platform makes.
 const home = vi.hoisted(() => ({current: null as null | Partial<HMDocument>}))
-const publishDocument = vi.hoisted(() => vi.fn())
+const mutateAsync = vi.hoisted(() => vi.fn())
 vi.mock('@shm/shared/models/entity', () => ({
   useResource: () => ({data: home.current ? {type: 'document', document: home.current} : undefined}),
 }))
-vi.mock('@shm/shared/routing', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@shm/shared/routing')>()),
-  useUniversalClient: () => ({publishDocument}),
-}))
 
-import {SpaceSettingsGeneral, useSpaceSettingsForm} from '../space-settings'
+import {SettingsToggle, SpaceSettingsGeneral, useSpaceSettingsForm} from '../space-settings'
 import {TooltipProvider} from '../tooltip'
 
 let root: Root | null = null
@@ -51,7 +47,7 @@ function button(text: string) {
 
 beforeEach(() => {
   home.current = {version: 'v1', genesis: 'g', metadata: {name: 'Space'}}
-  publishDocument.mockReset().mockResolvedValue(undefined)
+  mutateAsync.mockReset().mockResolvedValue(undefined)
 })
 
 afterEach(() => {
@@ -101,7 +97,7 @@ describe('SpaceSettingsGeneral', () => {
 
 /** The General tab's form, as the settings page wires it up. */
 function FormHarness() {
-  const form = useSpaceSettingsForm('space')
+  const form = useSpaceSettingsForm('space', {mutateAsync, isPending: false})
   return (
     <>
       <SpaceSettingsGeneral metadata={form.metadata} onMetadata={form.onMetadata} />
@@ -111,6 +107,53 @@ function FormHarness() {
     </>
   )
 }
+
+describe('SettingsToggle hint', () => {
+  beforeEach(() => {
+    // Positioning the tooltip measures it, which jsdom can't do.
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as any
+  })
+
+  function hint() {
+    return document.querySelector('[data-slot="tooltip-content"]')
+  }
+  function tap(element: Element) {
+    act(() => {
+      element.dispatchEvent(new MouseEvent('pointerdown', {bubbles: true}))
+    })
+    act(() => {
+      element.dispatchEvent(new MouseEvent('click', {bubbles: true}))
+    })
+  }
+  function renderToggle() {
+    render(<SettingsToggle id="toggle" label="Toggle" hint="What it does" checked onCheckedChange={() => {}} />)
+    return container!.querySelector('[aria-label="About Toggle"]')!
+  }
+
+  it('opens when its question mark is tapped', () => {
+    tap(renderToggle())
+    expect(hint()?.textContent).toContain('What it does')
+  })
+
+  it('closes when the question mark is tapped again', () => {
+    const icon = renderToggle()
+    tap(icon)
+    tap(icon)
+    expect(hint()).toBeNull()
+  })
+
+  it('closes when anything else is tapped, including a blank area that sends no click', () => {
+    tap(renderToggle())
+    act(() => {
+      document.body.dispatchEvent(new MouseEvent('pointerdown', {bubbles: true}))
+    })
+    expect(hint()).toBeNull()
+  })
+})
 
 describe('useSpaceSettingsForm', () => {
   it('is only dirty while a setting actually differs from the published one', () => {
@@ -125,16 +168,14 @@ describe('useSpaceSettingsForm', () => {
     expect(button('Save').disabled).toBe(true)
   })
 
-  it('publishes the home document with only the settings that changed', async () => {
+  it('saves only the settings that changed, over the latest published metadata', async () => {
     render(<FormHarness />)
 
     act(() => switchFor('Show Document Browser').click())
     await act(async () => button('Save').click())
 
-    expect(publishDocument).toHaveBeenCalledTimes(1)
-    const [input] = publishDocument.mock.lastCall!
-    expect(input).toMatchObject({signerAccountUid: 'space', account: 'space', baseVersion: 'v1', genesis: 'g'})
-    expect(JSON.stringify(input.changes)).toContain('showDocumentBrowser')
-    expect(JSON.stringify(input.changes)).not.toContain('showConversations')
+    expect(mutateAsync).toHaveBeenCalledTimes(1)
+    const published = {name: 'Renamed', showConversations: false}
+    expect(mutateAsync.mock.lastCall![0].updateMetadata(published)).toEqual({...published, showDocumentBrowser: false})
   })
 })

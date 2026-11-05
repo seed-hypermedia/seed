@@ -1,14 +1,13 @@
-import type {HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
+import type {HMDocument, HMMetadata, HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
 import {getQueryClient, invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {useUniversalClient} from '@shm/shared/routing'
 import {readSpaceSettings, SPACE_SETTING_KEYS, type SpaceSettings} from '@shm/shared/space-settings'
-import {getDocAttributeChanges} from '@shm/shared/utils/document-changes'
 import {useMutation} from '@tanstack/react-query'
-import {HelpCircle} from 'lucide-react'
-import {useState} from 'react'
+import {ArrowLeft, HelpCircle, type LucideIcon} from 'lucide-react'
+import {useEffect, useRef, useState, type ReactNode} from 'react'
+import {Button} from './button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,9 +20,23 @@ import {
 } from './components/alert-dialog'
 import {Label} from './components/label'
 import {Switch} from './components/switch'
+import {SizableText} from './text'
 import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {cn} from './utils'
+
+/** A change to a space's home document. */
+export type SpaceHomeUpdate = {
+  /** Merges edited fields into the latest published metadata, so concurrent changes survive. */
+  updateMetadata?: (current: HMMetadata) => HMMetadata
+  navigation?: HMNavigationItem[]
+}
+
+/** How a platform publishes a space's home document: desktop signs with the account, web with its delegation. */
+export type SpaceHomeUpdater = {
+  mutateAsync: (update: SpaceHomeUpdate) => Promise<unknown>
+  isPending: boolean
+}
 
 /**
  * The published home document of a space, which carries its settings. Uses the
@@ -47,8 +60,7 @@ export function useSpaceSettings(spaceUid: string | null | undefined): SpaceSett
  * document straight away rather than going through a draft, so a setting never
  * waits on, or ships with, unrelated content edits to the home page.
  */
-export function useSpaceSettingsForm(spaceUid: string) {
-  const client = useUniversalClient()
+export function useSpaceSettingsForm(spaceUid: string, updateHome: SpaceHomeUpdater) {
   const home = useSpaceHome(spaceUid)
   const [edits, setEdits] = useState<Partial<HMMetadata>>({})
   const metadata = {...home?.metadata, ...edits} as HMMetadata
@@ -56,19 +68,9 @@ export function useSpaceSettingsForm(spaceUid: string) {
 
   const mutation = useMutation({
     mutationFn: async (next: HMMetadata) => {
-      if (!home || !client.publishDocument) throw new Error('Space settings can only be saved from the desktop app.')
-      const target = {...home.metadata} as Record<string, unknown>
-      for (const key of changedSettingKeys(home.metadata, next)) target[key] = next[key]
-      const changes = getDocAttributeChanges(target as HMMetadata, home.metadata)
-      if (!changes.length) return
-      await client.publishDocument({
-        signerAccountUid: spaceUid,
-        account: spaceUid,
-        baseVersion: home.version,
-        genesis: home.genesis,
-        generation: home.generationInfo?.generation,
-        changes,
-      })
+      const changes: Partial<HMMetadata> = {}
+      for (const key of changedSettingKeys(home?.metadata, next)) changes[key] = next[key]
+      await updateHome.mutateAsync({updateMetadata: (current) => ({...current, ...changes})})
     },
     onSuccess: async () => {
       const homeId = hmId(spaceUid).id
@@ -107,10 +109,46 @@ function changedSettingKeys(published: HMMetadata | undefined, next: HMMetadata)
   return SPACE_SETTING_KEYS.filter((key) => before[key] !== after[key])
 }
 
-/**
- * The General section of Space Settings, shown both in the home document's side
- * panel and on the full settings page.
- */
+/** Tells the page whether a tab has unsaved edits, and that it has none once it closes. */
+export function useReportDirty(isDirty: boolean, onDirtyChange: (isDirty: boolean) => void) {
+  useEffect(() => {
+    onDirtyChange(isDirty)
+  }, [isDirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange(false), [onDirtyChange])
+}
+
+/** The General tab of Space Settings. */
+export function SpaceSettingsGeneralTab({
+  siteId,
+  updateHome,
+  onDirtyChange,
+}: {
+  siteId: UnpackedHypermediaId
+  updateHome: SpaceHomeUpdater
+  onDirtyChange: (isDirty: boolean) => void
+}) {
+  const form = useSpaceSettingsForm(siteId.uid, updateHome)
+  useReportDirty(form.isDirty, onDirtyChange)
+  return (
+    <>
+      <div className="flex items-center justify-between">
+        <SizableText size="2xl" weight="bold">
+          General
+        </SizableText>
+        <Button variant="default" disabled={!form.isDirty || form.isSaving} onClick={form.save}>
+          {form.isSaving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+      <SpaceSettingsGeneral
+        metadata={form.metadata}
+        onMetadata={form.onMetadata}
+        className="grid grid-cols-1 gap-3 lg:grid-cols-2"
+      />
+    </>
+  )
+}
+
+/** The switches of the General tab. */
 export function SpaceSettingsGeneral({
   metadata,
   onMetadata,
@@ -181,12 +219,103 @@ export function SettingsToggle({
         <Label htmlFor={id} className={disabled ? 'text-muted-foreground' : undefined}>
           {label}
         </Label>
-        <Tooltip content={hint}>
-          <HelpCircle className="text-muted-foreground size-4 shrink-0" />
-        </Tooltip>
+        <SettingHint label={label} hint={hint} />
       </div>
       <Switch id={id} size="lg" checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
     </div>
+  )
+}
+
+/** The list of space settings tabs. */
+export function SpaceSettingsNav<Tab extends string>({
+  tabs,
+  activeTab,
+  onSelect,
+  className,
+  children,
+}: {
+  tabs: readonly {key: Tab; icon: LucideIcon; label: string}[]
+  activeTab: Tab
+  onSelect: (tab: Tab) => void
+  className?: string
+  /** Shown above the tabs. */
+  children?: ReactNode
+}) {
+  return (
+    <nav aria-label="Space Settings" className={cn('flex flex-col gap-1 p-2', className)}>
+      {children}
+      <SizableText size="xs" weight="bold" color="muted" className="px-3 py-2 uppercase">
+        Space Settings
+      </SizableText>
+      {tabs.map(({key, icon: Icon, label}) => (
+        <button
+          key={key}
+          type="button"
+          aria-current={activeTab === key ? 'page' : undefined}
+          className={cn(
+            'flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors',
+            activeTab === key ? 'bg-brand/10 text-brand-2 font-medium' : 'text-muted-foreground hover:bg-muted',
+          )}
+          onClick={() => onSelect(key)}
+        >
+          <Icon className="size-4" />
+          {label}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
+export function SpaceSettingsBackLink({onClick, className}: {onClick: () => void; className?: string}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'text-muted-foreground hover:text-foreground flex items-center gap-1.5 self-start text-sm transition-colors',
+        className,
+      )}
+    >
+      <ArrowLeft className="size-4" />
+      Back to space
+    </button>
+  )
+}
+
+/** A tooltip for a space settings switch */
+function SettingHint({label, hint}: {label: string; hint: string}) {
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const wasOpenOnPress = useRef(false)
+
+  // iOS sends no click for a tap on a blank area, which is what the tooltip's own dismissal waits for.
+  useEffect(() => {
+    if (!open) return
+    const closeOnPressElsewhere = (event: globalThis.PointerEvent) => {
+      if (!buttonRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnPressElsewhere)
+    return () => document.removeEventListener('pointerdown', closeOnPressElsewhere)
+  }, [open])
+
+  return (
+    <Tooltip asChild content={hint} open={open} onOpenChange={setOpen}>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={`About ${label}`}
+        className="shrink-0"
+        onPointerDown={() => {
+          wasOpenOnPress.current = open
+        }}
+        onClick={(event) => {
+          event.preventDefault()
+          setOpen(!wasOpenOnPress.current)
+        }}
+      >
+        <HelpCircle className="text-muted-foreground size-4" />
+      </button>
+    </Tooltip>
   )
 }
 

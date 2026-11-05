@@ -1876,6 +1876,9 @@ importers:
       '@ariakit/react':
         specifier: 0.3.5
         version: 0.3.5(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
+      '@atlaskit/pragmatic-drag-and-drop':
+        specifier: ^1.7.2
+        version: 1.7.7
       '@hookform/resolvers':
         specifier: 5.7.0
         version: 5.7.0(@sinclair/typebox@0.27.8)(@standard-schema/spec@1.1.0)(ajv-formats@2.1.1)(ajv@8.18.0)(react-hook-form@7.71.1(react@18.2.0))(valibot@1.4.2(typescript@5.8.3))(zod@4.6.6(patch_hash=6f3e769c01c6e839bad013af447cce269dee38a9f4f7adc5b5d46eb01859fe1e))
@@ -1969,6 +1972,9 @@ importers:
       multiformats:
         specifier: ^13.4.1
         version: 13.4.2
+      nanoid:
+        specifier: ^5.1.16
+        version: 5.1.16
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@18.2.0(react@18.2.0))(react@18.2.0)
