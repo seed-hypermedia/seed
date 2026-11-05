@@ -416,8 +416,10 @@ function HeaderLinkItem({
     <div className={cn('flex items-center gap-1 px-1')}>
       <a
         className={cn(
-          'cursor-pointer truncate border-b-2 px-1 pb-1 font-bold transition-colors select-none',
-          active ? 'border-foreground text-foreground' : 'text-muted-foreground hover:border-accent border-transparent',
+          'cursor-pointer truncate border-y-2 border-t-transparent px-1 py-1 font-bold transition-colors select-none',
+          active
+            ? 'border-b-foreground text-foreground'
+            : 'text-muted-foreground hover:border-b-accent border-b-transparent',
         )}
         {...linkProps}
       >
@@ -466,7 +468,7 @@ export function SiteHeaderMenu({
       ref={containerRef}
       className={cn(
         'relative hidden w-full flex-1 items-center gap-5 overflow-hidden p-0',
-        'md:flex md:py-2 md:pr-0 md:pl-2',
+        'md:flex md:py-1 md:pr-0 md:pl-2',
         isCenterLayout ? 'justify-center' : 'justify-start',
       )}
     >

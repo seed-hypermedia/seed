@@ -45,10 +45,10 @@ describe('SiteHeaderMenu', () => {
     )
 
     expect(markup.indexOf('Home')).toBeLessThan(markup.indexOf('Edit navigation'))
-    expect(markup).toContain('border-foreground')
+    expect(markup).toContain('border-b-foreground')
     expect(markup).not.toContain('data-resourceid')
-    expect(markup.match(/<a class="([^"]+)"[^>]*>Home/)?.[1]).not.toContain('hover:border-accent')
-    expect(markup.match(/<a class="([^"]+)"[^>]*>About/)?.[1]).toContain('hover:border-accent')
+    expect(markup.match(/<a class="([^"]+)"[^>]*>Home/)?.[1]).not.toContain('hover:border-b-accent')
+    expect(markup.match(/<a class="([^"]+)"[^>]*>About/)?.[1]).toContain('hover:border-b-accent')
   })
 })
 
