@@ -1,5 +1,5 @@
 import {createSeedClient, type SeedClient} from './client'
-import {resolveId, hmDomainUrlToWebUrl, type DomainResolverFn} from './hm-resolver'
+import {extractCommentIdFromUrl, resolveId, hmDomainUrlToWebUrl, type DomainResolverFn} from './hm-resolver'
 import {unpackHmId, type UnpackedHypermediaId} from './hm-types'
 
 /** Options for resolving a user-supplied hypermedia ID or web URL. */
@@ -27,7 +27,7 @@ export async function resolveIdWithClient(
   rawId: string,
   options: ResolveIdWithClientOptions = {},
 ): Promise<ResolvedIdWithClient> {
-  const commentId = extractCommentIdFromReadableUrl(rawId)
+  const commentId = extractCommentIdFromUrl(rawId)
   if (!commentId && hmDomainUrlToWebUrl(rawId)) {
     const id = await resolveId(rawId, {domainResolver: options.domainResolver})
     const client = options.client ?? createSeedClient(normalizeServerUrl(options.serverUrl || 'https://hyper.media'))
@@ -46,46 +46,6 @@ export async function resolveIdWithClient(
   const id = await resolveId(rawId, {domainResolver: options.domainResolver})
   const origin = new URL(rawId).origin
   return {id, client: createSeedClient(origin), serverUrl: origin}
-}
-
-const COMMENT_VIEW_TERMS = new Set([':comments', ':comment', ':discussions'])
-
-function extractCommentIdFromReadableUrl(rawId: string): string | null {
-  if (isWebUrl(rawId)) {
-    const url = new URL(rawId)
-    const panelCommentId = extractCommentIdFromPanel(url.searchParams.get('panel'))
-    if (panelCommentId) return panelCommentId
-    return extractCommentIdFromPath(url.pathname.split('/').filter(Boolean))
-  }
-
-  const [withoutHash] = rawId.split('#')
-  const [withoutQuery] = withoutHash!.split('?')
-  const parsed = unpackHmId(withoutQuery)
-  return parsed?.path ? extractCommentIdFromPath(parsed.path) : null
-}
-
-function extractCommentIdFromPanel(panel: string | null): string | null {
-  if (!panel) return null
-  const [viewTerm, first, second] = panel.split('/')
-  if (viewTerm !== 'comments' && viewTerm !== 'comment' && viewTerm !== 'discussions') return null
-  if (first && second) return `${first}/${second}`
-  return first || null
-}
-
-function extractCommentIdFromPath(pathParts: string[]): string | null {
-  if (pathParts.length >= 3) {
-    const thirdToLast = pathParts[pathParts.length - 3]
-    if (thirdToLast && COMMENT_VIEW_TERMS.has(thirdToLast)) {
-      return `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`
-    }
-  }
-
-  if (pathParts.length >= 2) {
-    const secondToLast = pathParts[pathParts.length - 2]
-    if (secondToLast && COMMENT_VIEW_TERMS.has(secondToLast)) return pathParts[pathParts.length - 1] || null
-  }
-
-  return null
 }
 
 function commentIdToHmId(commentId: string): UnpackedHypermediaId {

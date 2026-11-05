@@ -3,7 +3,7 @@ import {ConnectionsPanel} from './connections-panel'
 import {PanelHeader} from './panel-header'
 import {groupDocumentConnections} from '@shm/shared/connections'
 import {useQueryClient} from '@tanstack/react-query'
-import {getCommentThread} from '@shm/shared/comments'
+import {commentThreadSelection, getCommentThread} from '@shm/shared/comments'
 import {queryDocumentComments} from '@shm/shared/models/queries'
 import type {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
 import {AgentDocumentView} from './agent-document-view'
@@ -924,8 +924,7 @@ export function getCommentReplyPanelRoute({
   return {
     key: 'comments',
     id: targetRoute || docId,
-    openComment: comment.threadRoot || comment.id,
-    replyCommentId: comment.threadRoot && comment.threadRoot !== comment.id ? comment.id : undefined,
+    ...commentThreadSelection(comment),
     ...replyVersionData,
   }
 }

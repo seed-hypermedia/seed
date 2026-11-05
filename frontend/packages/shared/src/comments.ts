@@ -1,6 +1,14 @@
 import {normalizeDate} from './utils/date'
 import {HMBlockNode, HMComment, HMCommentGroup, HMExternalCommentGroup} from '@seed-hypermedia/client/hm-types'
 
+/** Selects a comment within its thread: the thread root opens, and a reply stays selected inside it. */
+export function commentThreadSelection(comment: HMComment): {openComment: string; replyCommentId?: string} {
+  return {
+    openComment: comment.threadRoot || comment.id,
+    replyCommentId: comment.threadRoot && comment.threadRoot !== comment.id ? comment.id : undefined,
+  }
+}
+
 /**
  * Removes trailing empty blocks from comment content before publishing.
  * The editor always keeps a trailing empty paragraph for UX, but we

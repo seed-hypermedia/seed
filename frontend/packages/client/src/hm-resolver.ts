@@ -308,3 +308,89 @@ function resolveProfilePath(siteUid: string, pathSegments: string[]): {uid: stri
     path: [':profile'],
   }
 }
+
+const COMMENT_VIEW_TERMS = new Set([':comments', ':comment', ':discussions'])
+const COMMENT_PANEL_PREFIXES = new Set(['comments', 'comment', 'discussions'])
+
+/** Extracts a two-segment `<uid>/<tsid>` comment id from a `?panel=…` value, or null.
+ * Only the two-segment comment-id form resolves; `comments/<block id>` opens a block's
+ * discussion rather than a comment. */
+function extractCommentIdFromPanel(panel: string | null): string | null {
+  if (!panel) return null
+  const [viewTerm, first, second] = panel.split('/')
+  if (!viewTerm || !COMMENT_PANEL_PREFIXES.has(viewTerm)) return null
+  if (first && second) return `${first}/${second}`
+  return null
+}
+
+/** Extracts a comment id from a path ending in `/:comments/<id>` or `/:comments/<uid>/<tsid>`.
+ * Kept permissive: the single-segment `/:comments/<id>` path form still resolves. */
+function extractCommentIdFromPath(pathParts: string[]): string | null {
+  if (pathParts.length >= 3) {
+    const thirdToLast = pathParts[pathParts.length - 3]!
+    if (thirdToLast && COMMENT_VIEW_TERMS.has(thirdToLast)) {
+      return `${pathParts[pathParts.length - 2]}/${pathParts[pathParts.length - 1]}`
+    }
+  }
+  if (pathParts.length >= 2) {
+    const secondToLast = pathParts[pathParts.length - 2]
+    if (secondToLast && COMMENT_VIEW_TERMS.has(secondToLast)) return pathParts[pathParts.length - 1] || null
+  }
+  return null
+}
+
+/** Parses a `?reply=<uid>/<tsid>` value, requiring the two-segment comment-id form. */
+function parseReplyCommentId(reply: string | null): string | null {
+  if (!reply) return null
+  const [first, second] = reply.split('/')
+  if (first && second) return `${first}/${second}`
+  return null
+}
+
+/**
+ * The comment a Hypermedia URL addresses, as `<author uid>/<tsid>`, or null when the URL
+ * addresses no single comment.
+ *
+ * A comment appears in a URL as the `/:comments/<uid>/<tsid>` main view or the
+ * `?panel=comments/<uid>/<tsid>` side panel, either of which may carry
+ * `?reply=<uid>/<tsid>`. A selected reply is the comment the URL is about, so it wins over
+ * the thread root. `?panel=comments/<block id>` opens a block's discussion rather than a
+ * comment, so only the two-segment comment-id form resolves from the panel parameter.
+ */
+export function extractCommentIdFromUrl(url: string): string | null {
+  const isWeb = url.startsWith('http://') || url.startsWith('https://')
+  let panelCommentId: string | null = null
+  let pathCommentId: string | null = null
+  let reply: string | null = null
+
+  if (isWeb) {
+    let parsedUrl: URL
+    try {
+      parsedUrl = new URL(url)
+    } catch {
+      return null
+    }
+    panelCommentId = extractCommentIdFromPanel(parsedUrl.searchParams.get('panel'))
+    reply = parseReplyCommentId(parsedUrl.searchParams.get('reply'))
+    // Gateway `/hm/…` URLs expose the canonical path through unpackHmId; site URLs
+    // expose it through the pathname.
+    const unpacked = unpackHmId(url)
+    const pathParts = unpacked?.path ?? parsedUrl.pathname.split('/').filter(Boolean)
+    pathCommentId = extractCommentIdFromPath(pathParts)
+  } else {
+    // `hm://` is a custom scheme; read the query off the raw string so `new URL`'s
+    // scheme validation does not reject it.
+    const [withoutHash] = url.split('#')
+    const [withoutQuery, queryString] = withoutHash!.split('?')
+    const searchParams = new URLSearchParams(queryString)
+    panelCommentId = extractCommentIdFromPanel(searchParams.get('panel'))
+    reply = parseReplyCommentId(searchParams.get('reply'))
+    const parsed = unpackHmId(withoutQuery)
+    pathCommentId = parsed?.path ? extractCommentIdFromPath(parsed.path) : null
+  }
+
+  const threadCommentId = panelCommentId || pathCommentId
+  if (!threadCommentId) return null
+  // `?reply=` is honored only when the URL already names a comment thread.
+  return reply ?? threadCommentId
+}

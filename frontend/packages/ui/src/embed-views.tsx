@@ -19,6 +19,7 @@ import {
 } from '@shm/shared'
 import {useAccount, useResource, useResources, useResolvedHmId} from '@shm/shared/models/entity'
 import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
+import {commentThreadSelection} from '@shm/shared/comments'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {DocumentPanelRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -642,19 +643,16 @@ export function BlockEmbedContentComment({
             : undefined,
       }
     }
-    if (activePanel) {
-      return {
-        key: 'document' as const,
-        id: targetDocId,
-        panel: activePanel,
-      }
-    }
+    const documentId =
+      currentRoute.key === 'document' && currentRoute.id.id === targetDocId.id
+        ? {...currentRoute.id, blockRef: null, blockRange: null}
+        : targetDocId
     return {
-      key: 'comments' as const,
-      id: targetDocId,
-      openComment: comment.id,
+      key: 'document' as const,
+      id: documentId,
+      panel: {key: 'comments' as const, id: documentId, ...commentThreadSelection(comment)},
     }
-  }, [targetDocId, activePanel, comment.id, comment.version, id])
+  }, [targetDocId, activePanel, comment, id, currentRoute])
 
   return (
     <ContentEmbed
