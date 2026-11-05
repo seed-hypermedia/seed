@@ -110,6 +110,33 @@ describe('document connections', () => {
       ),
     ).toEqual([])
   })
+
+  // Regression for seed#921: before the daemon fix, every comment citation reported the
+  // requested document as its sourceDocument, so groupDocumentConnections dropped every
+  // comment backlink (id.id === targetDocId.id). Now that the daemon reports the
+  // comment's own target document, a comment written on another document groups under
+  // that document, while a comment on the target is still correctly dropped.
+  it('groups a comment backlink under its real source document, not the cited target', () => {
+    const target = hmId('alice', {path: ['notes']})
+    const groups = groupDocumentConnections(target, [
+      link({
+        source: 'hm://bob/reply',
+        sourceType: 'Comment',
+        sourceDocument: 'hm://bob/discussion',
+        citationType: 'comment/Embed',
+      }),
+      link({
+        source: 'hm://bob/self-comment',
+        sourceType: 'Comment',
+        sourceDocument: 'hm://alice/notes',
+        citationType: 'comment/Embed',
+      }),
+    ])
+    expect(groups.map((group) => group.id.id)).toEqual(['hm://bob/discussion'])
+    expect(groups[0]?.sources).toHaveLength(1)
+    expect(groups[0]?.sources[0]?.isComment).toBe(true)
+    expect(groups[0]?.sources[0]?.id.uid).toBe('bob')
+  })
 })
 
 describe('connection graph', () => {

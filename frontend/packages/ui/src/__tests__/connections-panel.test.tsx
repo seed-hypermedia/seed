@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   hasChild: false,
   isComment: true,
   loaded: true,
+  threadRoot: '' as string,
   destination: null as NavRoute | null,
 }))
 
@@ -39,7 +40,7 @@ vi.mock('@shm/shared/models/entity', () => ({
     data:
       id?.uid === 'author'
         ? state.loaded
-          ? {type: 'comment', comment: {id: 'author/comment', content: []}}
+          ? {type: 'comment', comment: {id: 'author/comment', threadRoot: state.threadRoot || undefined, content: []}}
           : undefined
         : {type: 'document', document: {metadata: {name: 'Source document'}, content: []}},
   }),
@@ -62,6 +63,7 @@ beforeEach(() => {
   state.hasChild = false
   state.isComment = true
   state.loaded = true
+  state.threadRoot = ''
   state.destination = null
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -153,6 +155,21 @@ describe('connection locations', () => {
       key: 'document',
       id: {uid: 'site', path: ['doc']},
       panel: {key: 'comments', openComment: 'author/comment', blockId: 'block'},
+    })
+  })
+
+  it('opens a reply backlink at its thread root with the reply selected', () => {
+    state.threadRoot = 'author/root'
+    expect(openLocation()).toContain('/hm/site/doc?panel=comments/author/root')
+    expect(state.destination).toMatchObject({
+      key: 'document',
+      id: {uid: 'site', path: ['doc']},
+      panel: {
+        key: 'comments',
+        openComment: 'author/root',
+        replyCommentId: 'author/comment',
+        blockId: 'block',
+      },
     })
   })
 
