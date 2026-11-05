@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useLayoutEffect, useRef} from 'react'
+import {toast} from './toast'
 
 // Use useLayoutEffect on client, useEffect on server (SSR safe)
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect
@@ -11,6 +12,8 @@ export type BlockScrollOptions = {
   behavior?: ScrollBehavior
   /** A new navigation can select the same block after the reader has scrolled away. */
   navigationKey?: unknown
+  /** False only after the source content has loaded and the block is absent. */
+  blockExists?: boolean
 }
 
 // Breathing room above the target block. Nothing is pinned over the scroll
@@ -38,7 +41,11 @@ function findSourceBlock(blockId: string): HTMLElement | null {
   for (const element of Array.from(document.querySelectorAll<HTMLElement>('[data-node-type="blockNode"][data-id]'))) {
     if (element.dataset.id === blockId && !element.closest('[data-content-type="embed"]')) return element
   }
-  return document.getElementById(blockId)
+  return (
+    Array.from(document.querySelectorAll<HTMLElement>('[id]')).find(
+      (element) => element.id === blockId && !element.closest('[data-content-type="embed"]'),
+    ) ?? null
+  )
 }
 
 const defaultOptions: BlockScrollOptions = {
@@ -67,7 +74,7 @@ const defaultOptions: BlockScrollOptions = {
  * }
  */
 export function useBlockScroll(blockRef: string | null | undefined, options: BlockScrollOptions = {}) {
-  const {block, behavior, navigationKey} = {...defaultOptions, ...options}
+  const {block, behavior, navigationKey, blockExists} = {...defaultOptions, ...options}
   const lastScrolledBlockRef = useRef<string | null>(null)
 
   // Scroll to blockRef when it changes via URL (e.g., clicking embed in panel, initial load)
@@ -76,6 +83,11 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
   useIsomorphicLayoutEffect(() => {
     if (!blockRef || blockRef === lastScrolledBlockRef.current) {
       lastScrolledBlockRef.current = null
+      return
+    }
+
+    if (blockExists === false) {
+      toast.error('Block not found')
       return
     }
 
@@ -122,7 +134,7 @@ export function useBlockScroll(blockRef: string | null | undefined, options: Blo
       cancelAnimationFrame(rafId)
       observer.disconnect()
     }
-  }, [blockRef, behavior, block, navigationKey])
+  }, [blockRef, behavior, block, navigationKey, blockExists])
 
   // Call this when manually scrolling to prevent double-scroll from effect
   const scrollToBlock = useCallback(

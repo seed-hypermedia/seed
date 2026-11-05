@@ -1,5 +1,6 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useRouteLink} from '@shm/shared'
+import {commentThreadSelection} from '@shm/shared/comments'
 import {groupDocumentConnections, type DocumentConnection, type DocumentConnectionSource} from '@shm/shared/connections'
 import {useCitations, useResource} from '@shm/shared/models/entity'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
@@ -136,6 +137,11 @@ function ConnectionSource({source, documentId}: {source: DocumentConnectionSourc
   const content = resource.data?.type === 'document' ? resource.data.document.content : comment?.content
   const block = source.id.blockRef && content ? getBlockNodeById(content, source.id.blockRef) : undefined
   const blocks = block ? [block] : !source.id.blockRef && source.isComment ? content : undefined
+  // A reply opens its thread root with the reply selected, not as a thread root of its own.
+  // Keep the raw id fallback for before useResource has resolved the comment.
+  const commentSelection = comment ? commentThreadSelection(comment) : undefined
+  const openComment =
+    commentSelection?.openComment ?? comment?.id ?? [source.id.uid, ...(source.id.path || [])].join('/')
   const link = useRouteLink(
     source.isComment
       ? {
@@ -144,7 +150,8 @@ function ConnectionSource({source, documentId}: {source: DocumentConnectionSourc
           panel: {
             key: 'comments',
             id: documentId,
-            openComment: comment?.id || [source.id.uid, ...(source.id.path || [])].join('/'),
+            openComment,
+            replyCommentId: commentSelection?.replyCommentId,
             blockId: source.id.blockRef || undefined,
           },
         }

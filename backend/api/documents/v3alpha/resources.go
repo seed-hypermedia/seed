@@ -771,7 +771,15 @@ live_sources AS MATERIALIZED (
   )
 )
 SELECT
-    (SELECT iri FROM redirect_ancestors WHERE depth = 0) AS source_iri,
+    -- The comment's own target document, not the requested resource. A Comment blob's
+    -- structural_blobs.resource is set to its target IRI at index time (blob_comment.go:
+    -- iri = NewIRI(v.Space(), v.Path)), so this is the document the comment was written on.
+    -- Known limitation: it is the location at write time, so a document that has since
+    -- moved reports its old path here; that path still resolves through the document's
+    -- redirect, and it is strictly better than the requested IRI the old select returned.
+    -- A LEFT JOIN keeps a row whose resource is somehow null as a citation with an empty
+    -- source document (the frontend tolerates that via sourceDocument || source).
+    src.iri AS source_iri,
     blobs.codec,
     blobs.multihash,
 	public_keys.principal AS author,
@@ -789,6 +797,7 @@ SELECT
 FROM redirect_ancestors ra
 CROSS JOIN resource_links ON resource_links.target = ra.resource
 CROSS JOIN structural_blobs ON structural_blobs.id = resource_links.source
+LEFT JOIN resources src ON src.id = structural_blobs.resource
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb ON pb.id = blobs.id

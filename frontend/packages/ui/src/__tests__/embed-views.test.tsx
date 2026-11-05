@@ -270,7 +270,7 @@ describe('HM link embed title navigation', () => {
   })
 })
 
-function renderBlockEmbedContentComment(fragment = false) {
+function renderBlockEmbedContentComment(fragment = false, threadRoot?: string) {
   const embeddedCommentId = hmId('uid-comment', {
     path: ['comment'],
     ...(fragment ? {version: 'comment-version', blockRef: 'comment-block', blockRange: {start: 2, end: 8}} : {}),
@@ -286,6 +286,7 @@ function renderBlockEmbedContentComment(fragment = false) {
     createTime: {seconds: 0, nanos: 0},
     updateTime: {seconds: 0, nanos: 0},
     visibility: 'PUBLIC',
+    ...(threadRoot ? {threadRoot} : {}),
   }
   const block: HMBlockEmbed = {
     id: 'embed-1',
@@ -317,7 +318,7 @@ function renderBlockEmbedContentComment(fragment = false) {
 }
 
 describe('BlockEmbedContentComment routing', () => {
-  it('navigates the main view to the comment target while preserving an active panel', () => {
+  it('opens the embedded comment instead of preserving an unrelated panel', () => {
     const sourceDocId = hmId('uid-source', {path: ['source-document']})
     currentRoute.value = {
       key: 'comments',
@@ -330,17 +331,40 @@ describe('BlockEmbedContentComment routing', () => {
     expect(JSON.parse(wrapper?.dataset.route ?? 'null')).toEqual({
       key: 'document',
       id: hmId('uid-target', {path: ['target-document'], version: 'target-version'}),
-      panel: {key: 'comments', id: sourceDocId, openComment: 'source-comment'},
+      panel: {
+        key: 'comments',
+        id: hmId('uid-target', {path: ['target-document'], version: 'target-version'}),
+        openComment: 'embedded-comment',
+      },
     })
   })
 
-  it('uses a standalone comments destination focused on the embedded comment without an active panel', () => {
+  it('opens the target document with the embedded comment in its panel', () => {
     const {wrapper} = renderBlockEmbedContentComment()
 
     expect(JSON.parse(wrapper?.dataset.route ?? 'null')).toEqual({
-      key: 'comments',
+      key: 'document',
       id: hmId('uid-target', {path: ['target-document'], version: 'target-version'}),
-      openComment: 'embedded-comment',
+      panel: {
+        key: 'comments',
+        id: hmId('uid-target', {path: ['target-document'], version: 'target-version'}),
+        openComment: 'embedded-comment',
+      },
+    })
+  })
+
+  it('opens the thread root with the embedded reply selected when the comment has a threadRoot', () => {
+    const {wrapper} = renderBlockEmbedContentComment(false, 'uid-root/root-tsid')
+
+    expect(JSON.parse(wrapper?.dataset.route ?? 'null')).toEqual({
+      key: 'document',
+      id: hmId('uid-target', {path: ['target-document'], version: 'target-version'}),
+      panel: {
+        key: 'comments',
+        id: hmId('uid-target', {path: ['target-document'], version: 'target-version'}),
+        openComment: 'uid-root/root-tsid',
+        replyCommentId: 'embedded-comment',
+      },
     })
   })
 })

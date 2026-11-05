@@ -51,7 +51,7 @@ Because the quote is an ordinary link inside the body, the daemon indexes it lik
 
 # Citations and backlinks <!-- id:fvUUw6AL -->
 
-Every `hm://` link the daemon meets while indexing becomes a link record from the source blob to the target [resource](../glossary.md). The link can sit in a document [block](./blocks.md), an annotation, or a comment body. The record is, tagged with the source block, the fragment and the version. A pinned version marks the link as exact. A link that follows the latest marks its version as a suggested minimum. `ListCitations` on a target returns these records as citations, ordered by when the citing blob arrived locally. The order ignores the blob's claimed time, so a late-arriving old blob can never hide a newer citation on the next page. Four links from one version count as four citations. <!-- id:cQdIVT1x -->
+Every `hm://` link the daemon meets while indexing becomes a link record from the source blob to the target [resource](../glossary.md). The link can sit in a document [block](./blocks.md), an annotation, or a comment body. The record is, tagged with the source block, the fragment and the version. A pinned version marks the link as exact. A link that follows the latest marks its version as a suggested minimum. `ListCitations` on a target returns these records as citations, ordered by when the citing blob arrived locally. The order ignores the blob's claimed time, so a late-arriving old blob can never hide a newer citation on the next page. Four links from one version count as four citations. A comment citation's `sourceDocument` is the document the comment was written on (its target at write time), not the document it links to, so a comment elsewhere that mentions a page shows up among that page's connections, grouped under its own document. <!-- id:cQdIVT1x -->
 
 The older `ListEntityMentions` call is deprecated. Use `ListCitations`. <!-- id:s094t8hZ -->
 
@@ -99,7 +99,7 @@ Bodies are markdown, parsed into blocks with the same dialect documents use. See
 | --- | --- |
 | `Comment` | one comment by `<author>/<tsid>` <!-- id:t5pw26UX --> |
 | `ListComments` | every comment on a target, with the authors' metadata <!-- id:1Snj4zjP --> |
-| `ListDiscussions` | the same comments grouped into threads, plus discussions on other documents that cite this one <!-- id:5plJM3ss --> |
+| `ListDiscussions` | the same comments grouped into threads <!-- id:5plJM3ss --> |
 | `ListCommentsByReference` | comments elsewhere that quote or link this document <!-- id:TLoyOZwr --> |
 | `ListCommentsByAuthor`, `ListCommentVersions`, `GetCommentReplyCount` | by author, edit history, reply count <!-- id:pG0tTn4x --> |
 | `ListCitations` | every link record pointing at a resource <!-- id:VrmOtJ35 --> |

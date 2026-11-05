@@ -391,7 +391,7 @@ describe('comment query options', () => {
   })
 
   test('queryDocumentDiscussions preserves the document discussion cache key', async () => {
-    const output = {discussions: [], citingDiscussions: [], authors: {}}
+    const output = {discussions: [], authors: {}}
     const client = createMockClient(() => output)
     const query = queryDocumentDiscussions(client, docA, 'author/comment')
 

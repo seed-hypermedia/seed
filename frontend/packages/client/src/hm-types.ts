@@ -728,15 +728,6 @@ export const HMCommentGroupSchema = z.object({
 })
 export type HMCommentGroup = z.infer<typeof HMCommentGroupSchema>
 
-export const HMExternalCommentGroupSchema = z.object({
-  comments: z.array(HMCommentSchema),
-  moreCommentsCount: z.number(),
-  id: z.string(),
-  target: z.lazy(() => HMMetadataPayloadSchema),
-  type: z.literal('externalCommentGroup'),
-})
-export type HMExternalCommentGroup = z.infer<typeof HMExternalCommentGroupSchema>
-
 export type HMBlockType = HMBlock['type']
 
 export const HMActivitySummarySchema = z.object({
@@ -1902,7 +1893,6 @@ export type HMListDiscussionsInput = z.infer<typeof HMListDiscussionsInputSchema
 export const HMListDiscussionsOutputSchema = z.object({
   discussions: z.array(HMCommentGroupSchema),
   authors: z.record(z.string(), HMMetadataPayloadSchema),
-  citingDiscussions: z.array(HMExternalCommentGroupSchema),
 })
 export type HMListDiscussionsOutput = z.infer<typeof HMListDiscussionsOutputSchema>
 

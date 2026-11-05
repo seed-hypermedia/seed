@@ -54,8 +54,15 @@ export const InteractionSummary: HMRequestImplementation<HMInteractionSummaryReq
         version: latestDoc.version,
       })
       const childrenCount = docInfo.activitySummary?.childrenCount ?? 0
+      // The top-level comment count comes from the daemon's per-document
+      // document_comment_stats.comment_count, which reads the same comment_live
+      // rows ListComments returns under the same genesis key. Counting distinct
+      // comment citations instead would (a) truncate past one page of citations
+      // and (b) be a no-op today, because the daemon reports every comment
+      // citation's source as the requested document (seed#921, still open).
+      const commentCount = docInfo.activitySummary?.commentCount ?? 0
 
-      return calculateInteractionSummary(citationsPage.citations, changes.changes, id, childrenCount)
+      return calculateInteractionSummary(citationsPage.citations, changes.changes, id, childrenCount, commentCount)
     } catch (e) {
       // If the document has been redirected, return empty summary.
       // queryResource handles following redirects, so this query will be

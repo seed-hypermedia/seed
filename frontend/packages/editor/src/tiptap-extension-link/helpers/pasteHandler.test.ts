@@ -276,4 +276,52 @@ describe('pasteHandler', () => {
       'hm://z6MkfopTfn1vwUZiPsFK82w8BTuV4ewV6zZKaU4sTtnuU5bt/:profile',
     )
   })
+
+  it('inserts a comment permalink as a link to the selected reply, not the document', async () => {
+    // Real pasted-URL shape from the bug report: a site URL with ?panel=comments/<root>&reply=<reply>.
+    const url =
+      'https://seedteamtalks.hyper.media/tasks/something-s-wrong-with-navbar-alignment?panel=comments/z6Mkrootuid/z6FCroottsid&reply=z6Mkreplyuid/z6FCreplytsid'
+    const view = createPasteView()
+    const universalClient = {
+      request: async (_key: string, input: any) => {
+        // The paste resolves to the reply comment hmId, so the request carries the
+        // reply author uid and the reply tsid as its path.
+        if (!input.path?.length) {
+          return {
+            type: 'document',
+            document: {
+              content: [],
+              metadata: {name: 'Replier'},
+              path: '',
+              version: 'author-version',
+            },
+          }
+        }
+        return {
+          type: 'comment',
+          comment: {
+            author: 'z6Mkreplyuid',
+            content: [{block: {type: 'Paragraph', text: 'Reply body text'}, children: []}],
+            version: 'reply-version',
+          },
+        }
+      },
+    }
+    const plugin = pasteHandler({
+      editor: {schema} as any,
+      type: schema.marks.link,
+      universalClient: universalClient as any,
+      // No domainResolver: the comment id is self-contained and must resolve without site resolution.
+      gwUrl: {get: () => 'https://hyper.media'} as any,
+      checkWebUrl: async () => null,
+    })
+
+    const handled = plugin.props.handlePaste?.(view, {} as any, new Slice(Fragment.from(schema.text(url)), 0, 0))
+
+    expect(handled).toBe(true)
+    await flushPasteHandler()
+    expect(view.state.doc.textContent).toBe('Comment from Replier')
+    // The link href is the reply comment, not the thread root and not the document.
+    expect(view.state.doc.nodeAt(0)?.marks[0]?.attrs.href).toBe('hm://z6Mkreplyuid/z6FCreplytsid')
+  })
 })

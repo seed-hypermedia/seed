@@ -498,7 +498,8 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
         if (typeof route === 'string') {
           context.openUrl(route.startsWith('http') ? route : `https://${route}`)
         } else if (context.openRoute) {
-          context.openRoute(route, opts?.replace)
+          // A click is a new navigation even when its URL and route object are unchanged.
+          context.openRoute({...route}, opts?.replace)
         } else {
           console.error('No openRoute function in UniversalAppContext. Cannot open route', route)
         }
