@@ -1,5 +1,5 @@
 import {normalizeDate} from './utils/date'
-import {HMBlockNode, HMComment, HMCommentGroup, HMExternalCommentGroup} from '@seed-hypermedia/client/hm-types'
+import {HMBlockNode, HMComment, HMCommentGroup} from '@seed-hypermedia/client/hm-types'
 
 /** Selects a comment within its thread: the thread root opens, and a reply stays selected inside it. */
 export function commentThreadSelection(comment: HMComment): {openComment: string; replyCommentId?: string} {
@@ -123,10 +123,8 @@ export function getSubmittedCommentGroups(
   return rootGroups
 }
 
-/** Orders root and citing discussions by creation time without changing activity feeds or the source list. */
-export function sortCommentGroupsByCreation<T extends HMCommentGroup | HMExternalCommentGroup>(
-  groups: readonly T[],
-): T[] {
+/** Orders root discussions by creation time without changing activity feeds or the source list. */
+export function sortCommentGroupsByCreation(groups: readonly HMCommentGroup[]): HMCommentGroup[] {
   return [...groups].sort(
     (a, b) =>
       (normalizeDate(a.comments[0]?.createTime)?.getTime() ?? 0) -

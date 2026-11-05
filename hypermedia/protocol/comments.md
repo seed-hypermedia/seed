@@ -99,7 +99,7 @@ Bodies are markdown, parsed into blocks with the same dialect documents use. See
 | --- | --- |
 | `Comment` | one comment by `<author>/<tsid>` <!-- id:t5pw26UX --> |
 | `ListComments` | every comment on a target, with the authors' metadata <!-- id:1Snj4zjP --> |
-| `ListDiscussions` | the same comments grouped into threads, plus discussions on other documents that cite this one <!-- id:5plJM3ss --> |
+| `ListDiscussions` | the same comments grouped into threads <!-- id:5plJM3ss --> |
 | `ListCommentsByReference` | comments elsewhere that quote or link this document <!-- id:TLoyOZwr --> |
 | `ListCommentsByAuthor`, `ListCommentVersions`, `GetCommentReplyCount` | by author, edit history, reply count <!-- id:pG0tTn4x --> |
 | `ListCitations` | every link record pointing at a resource <!-- id:VrmOtJ35 --> |

@@ -54,108 +54,36 @@ function makeGrpcClient({
 }
 
 describe('createDiscussionsResolver', () => {
-  // Regression test for https://github.com/seed-hypermedia/seed/issues/921:
-  // the backend reports citation.sourceDocument as the requested IRI for every
-  // comment citation, so the resolver must not rely on it to find the citing
-  // comment's own document.
-  it('renders a comment on another document that links here as a citing discussion', async () => {
-    const citingComment = makeComment()
-    const client = makeGrpcClient({
-      listComments: vi
-        .fn()
-        .mockImplementation(async ({targetPath}) =>
-          targetPath === '/design/pending-us' ? {comments: [citingComment]} : {comments: []},
-        ),
-      getComment: vi.fn().mockImplementation(async ({id}) => {
-        if (id !== citingComment.id) throw new Error('not found')
-        return citingComment
-      }),
-      listCitations: vi.fn().mockResolvedValue({
-        citations: [
-          {
-            source: `hm://${citingComment.id}`,
-            sourceType: 'Comment',
-            // The backend (wrongly) reports the requested doc here; the resolver
-            // must ignore it and resolve the comment's real target itself.
-            sourceDocument: targetDocId.id,
-            target: targetDocId.id,
-          },
-        ],
-      }),
-    })
-
-    const result = await createDiscussionsResolver(client)(targetDocId)
-
-    expect(result.discussions).toEqual([])
-    expect(result.citingDiscussions).toHaveLength(1)
-    const group = result.citingDiscussions[0]!
-    expect(group.type).toBe('externalCommentGroup')
-    expect(group.id).toBe(`hm://${citingComment.id}`)
-    expect(group.comments[0]?.id).toBe(citingComment.id)
-    expect(group.target.id.id).toBe(citingDocId.id)
-  })
-
-  it('does not duplicate a citing comment that links to this document multiple times', async () => {
-    const citingComment = makeComment()
-    const getComment = vi.fn().mockResolvedValue(citingComment)
-    const client = makeGrpcClient({
-      listComments: vi
-        .fn()
-        .mockImplementation(async ({targetPath}) =>
-          targetPath === '/design/pending-us' ? {comments: [citingComment]} : {comments: []},
-        ),
-      getComment,
-      listCitations: vi.fn().mockResolvedValue({
-        citations: [
-          {source: `hm://${citingComment.id}`, sourceType: 'Comment', sourceDocument: targetDocId.id},
-          {source: `hm://${citingComment.id}`, sourceType: 'Comment', sourceDocument: targetDocId.id},
-        ],
-      }),
-    })
-
-    const result = await createDiscussionsResolver(client)(targetDocId)
-
-    expect(getComment).toHaveBeenCalledTimes(1)
-    expect(result.citingDiscussions).toHaveLength(1)
-  })
-
-  it('does not treat comments of this document as citing discussions', async () => {
+  it('returns only comments targeting the requested document and makes no citation calls', async () => {
     const directComment = makeComment({
       id: 'z6MkCommentAuthor/z6TsidDirect',
       targetPath: '/notes/layout-problems',
     })
+    const listComments = vi
+      .fn()
+      .mockImplementation(async ({targetPath}) =>
+        targetPath === '/notes/layout-problems' ? {comments: [directComment]} : {comments: []},
+      )
     const getComment = vi.fn().mockRejectedValue(new Error('should not be called'))
-    const client = makeGrpcClient({
-      listComments: vi
-        .fn()
-        .mockImplementation(async ({targetPath}) =>
-          targetPath === '/notes/layout-problems' ? {comments: [directComment]} : {comments: []},
-        ),
-      getComment,
-      listCitations: vi.fn().mockResolvedValue({
-        citations: [{source: `hm://${directComment.id}`, sourceType: 'Comment', sourceDocument: targetDocId.id}],
-      }),
-    })
+    const listCitations = vi.fn().mockRejectedValue(new Error('should not be called'))
+    const client = makeGrpcClient({listComments, getComment, listCitations})
 
     const result = await createDiscussionsResolver(client)(targetDocId)
 
+    expect(listCitations).not.toHaveBeenCalled()
     expect(getComment).not.toHaveBeenCalled()
     expect(result.discussions).toHaveLength(1)
-    expect(result.citingDiscussions).toEqual([])
+    expect(result.discussions[0]!.comments[0]?.id).toBe(directComment.id)
   })
 
-  it('skips a citing comment that cannot be loaded instead of failing the request', async () => {
-    const client = makeGrpcClient({
-      getComment: vi.fn().mockRejectedValue(new Error('comment has been deleted')),
-      listCitations: vi.fn().mockResolvedValue({
-        citations: [{source: 'hm://z6MkOther/z6TsidGone', sourceType: 'Comment', sourceDocument: targetDocId.id}],
-      }),
-    })
+  it('returns an empty discussion list when the document has no comments', async () => {
+    const listCitations = vi.fn().mockRejectedValue(new Error('should not be called'))
+    const client = makeGrpcClient({listCitations})
 
     const result = await createDiscussionsResolver(client)(targetDocId)
 
+    expect(listCitations).not.toHaveBeenCalled()
     expect(result.discussions).toEqual([])
-    expect(result.citingDiscussions).toEqual([])
   })
 })
 

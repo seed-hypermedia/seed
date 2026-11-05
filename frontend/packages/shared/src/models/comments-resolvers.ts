@@ -4,19 +4,16 @@ import {
   HMComment,
   HMCommentGroup,
   HMCommentSchema,
-  HMDocumentMetadataSchema,
-  HMExternalCommentGroup,
   HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {BIG_INT} from '../constants'
 import {LIST_PAGE_SIZE, listAllPages} from '../list-all-pages'
-import {entityQueryPathToHmIdPath, hmIdPathToEntityQueryPath} from '../utils/path-api'
+import {hmIdPathToEntityQueryPath} from '../utils/path-api'
 import {getCommentGroups} from '../comments'
 import {extractAllContentRefs} from '../content'
 import {normalizeDate} from '../utils/date'
-import {hmId, parseFragment} from '../utils'
-import {documentMetadataParseAdjustments} from './entity'
+import {parseFragment} from '../utils'
 
 /**
  * Maps items to async results with at most `limit` requests in flight. The daemon has no
@@ -75,39 +72,6 @@ function extractAuthorUids(comments: HMComment[]): Set<string> {
 }
 
 /**
- * Loads document metadata for a given ID with validation
- * @param client - gRPC client instance
- * @param id - Unpacked hypermedia ID
- * @returns HMMetadataPayload or empty metadata on error
- */
-async function loadDocumentMetadata(client: GRPCClient, id: UnpackedHypermediaId): Promise<HMMetadataPayload> {
-  try {
-    const rawDoc = await client.documents.getDocument({
-      account: id.uid,
-      path: hmIdPathToEntityQueryPath(id.path),
-      version: id.latest ? undefined : id.version || undefined,
-    })
-    const metadataJSON = rawDoc.metadata?.toJson({
-      emitDefaultValues: true,
-      enumAsInteger: false,
-    })
-    documentMetadataParseAdjustments(metadataJSON)
-    const parsed = HMDocumentMetadataSchema.safeParse(metadataJSON)
-    if (!parsed.success) {
-      console.error(`Failed to parse document metadata for ${id.id}:`, parsed.error)
-      return {id, metadata: {}}
-    }
-    return {
-      id,
-      metadata: parsed.data,
-    }
-  } catch (e) {
-    console.error(`Failed to load document metadata for ${id.id}:`, e)
-    return {id, metadata: {}}
-  }
-}
-
-/**
  * Creates a resolver for loading comments for a target document
  * @param client - gRPC client instance
  * @returns Async function that loads comments and authors
@@ -154,7 +118,7 @@ export function createCommentsResolver(client: GRPCClient) {
 }
 
 /**
- * Creates a resolver for loading discussions (comment groups + citations)
+ * Creates a resolver for loading discussions (comment groups targeting this document).
  */
 export function createDiscussionsResolver(client: GRPCClient) {
   return async (
@@ -163,108 +127,28 @@ export function createDiscussionsResolver(client: GRPCClient) {
   ): Promise<{
     discussions: HMCommentGroup[]
     authors: Record<string, HMMetadataPayload>
-    citingDiscussions: HMExternalCommentGroup[]
   }> => {
     const authorAccounts = new Set<string>()
     const addAuthor = (c: HMComment) => {
       if (c.author?.trim()) authorAccounts.add(c.author)
     }
 
-    // Fetch direct comments and citations in parallel
-    const [directCommentsResult, citationsResult] = await Promise.all([
-      client.comments
-        .listComments({
-          targetAccount: targetId.uid,
-          targetPath: hmIdPathToEntityQueryPath(targetId.path),
-          pageSize: BIG_INT,
-        })
-        .catch(() => null),
-      // maxPages bounded on purpose: unbounded ListCitations enumeration took
-      // production down on 2026-08-11 (hypermedia/apps/daemon.md, "Load and the read pool").
-      listAllPages(
-        (pageToken) => client.resources.listCitations({iri: targetId.id, pageSize: LIST_PAGE_SIZE, pageToken}),
-        (r) => ({items: r.citations, nextPageToken: r.nextPageToken}),
-        {maxPages: 1},
-      ).catch(() => null),
-    ])
+    const directCommentsResult = await client.comments
+      .listComments({
+        targetAccount: targetId.uid,
+        targetPath: hmIdPathToEntityQueryPath(targetId.path),
+        pageSize: BIG_INT,
+      })
+      .catch(() => null)
 
-    // Process direct comments
     const allComments = directCommentsResult?.comments.map(parseComment).filter((c): c is HMComment => c !== null) ?? []
     const discussions = getCommentGroups(allComments, commentId)
     discussions.forEach((g) => g.comments.forEach(addAuthor))
 
-    // Process citing discussions: comments on other documents that link to this one.
-    // citation.sourceDocument can't be used to find the citing comment's own document,
-    // because the backend sets it to the requested IRI for every comment citation (see
-    // seed-hypermedia/seed#921), so fetch each candidate comment and read its real target.
-    const directCommentIds = new Set(allComments.map((c) => c.id))
-    const citingCommentIds = new Set(
-      citationsResult
-        ?.filter((m) => m.sourceType === 'Comment')
-        .map((m) => m.source.slice('hm://'.length))
-        .filter((id) => !directCommentIds.has(id)) ?? [],
-    )
-
-    const citingComments = (
-      await mapWithConcurrency(Array.from(citingCommentIds), CITING_LOOKUP_CONCURRENCY, (id) =>
-        client.comments
-          .getComment({id})
-          .then(parseComment)
-          .catch(() => null),
-      )
-    ).filter((c): c is HMComment => c !== null)
-
-    // Group by the citing comment's own document to dedupe listComments calls
-    const citingByDoc = new Map<string, {docId: UnpackedHypermediaId; comments: HMComment[]}>()
-    citingComments.forEach((comment) => {
-      const docId = hmId(comment.targetAccount, {path: entityQueryPathToHmIdPath(comment.targetPath)})
-      // A comment targeting this document that listComments didn't return
-      // (e.g. deleted or private) is not a citing discussion.
-      if (!docId.uid || docId.id === targetId.id) return
-      const group = citingByDoc.get(docId.id) ?? {docId, comments: []}
-      group.comments.push(comment)
-      citingByDoc.set(docId.id, group)
-    })
-
-    const citingResults = await mapWithConcurrency(
-      Array.from(citingByDoc.values()),
-      CITING_LOOKUP_CONCURRENCY,
-      async ({docId, comments: docCitingComments}) => {
-        const [commentsRes, metadata] = await Promise.all([
-          client.comments
-            .listComments({
-              targetAccount: docId.uid,
-              targetPath: hmIdPathToEntityQueryPath(docId.path),
-              pageSize: BIG_INT,
-            })
-            .catch(() => null),
-          loadDocumentMetadata(client, docId),
-        ])
-
-        const comments = commentsRes?.comments.map(parseComment).filter((c): c is HMComment => c !== null) ?? []
-
-        return docCitingComments.map((citingComment): HMExternalCommentGroup => {
-          addAuthor(citingComment)
-          const replies = getCommentGroups(comments, citingComment.id)[0]?.comments ?? []
-          replies.forEach(addAuthor)
-
-          return {
-            comments: [citingComment, ...replies],
-            moreCommentsCount: 0,
-            id: `hm://${citingComment.id}`,
-            target: metadata,
-            type: 'externalCommentGroup',
-          }
-        })
-      },
-    )
-
-    const citingDiscussions = citingResults.flat().filter((d): d is HMExternalCommentGroup => d !== null)
-
     const authors =
       authorAccounts.size > 0 ? await loadAccounts(client, Array.from(authorAccounts)).catch(() => ({})) : {}
 
-    return {discussions, authors, citingDiscussions}
+    return {discussions, authors}
   }
 }
 

@@ -102,13 +102,19 @@ function calculateBlocksFromCitations(dedupedCitations: HMCitation[]): {
 }
 
 /**
- * Calculates interaction summary from citations, comments, changes, and children
+ * Calculates interaction summary from citations, comments, changes, and children.
+ *
+ * `commentCount` is the daemon's per-document count (document_comment_stats.comment_count),
+ * passed in from `getDocumentInfo().activitySummary.commentCount`. Per-block comment
+ * counts in `blocks` are still citation-derived, because a block comment quotes the
+ * block and so is a citation of it.
  */
 export function calculateInteractionSummary(
   citations: ListCitationsResponse['citations'],
   changes: ListDocumentChangesResponse['changes'],
   targetDocId: UnpackedHypermediaId,
   childrenCount: number = 0,
+  commentCount: number = 0,
 ): InteractionSummaryPayload {
   const allCitations = processResourceCitations(citations, targetDocId)
   const dedupedCitations = deduplicateCitations(allCitations)
@@ -121,12 +127,6 @@ export function calculateInteractionSummary(
     dedupedCitations.filter((citation) => citation.source.type === 'd').map((citation) => citation.source.id.id),
   )
 
-  // Count distinct comment sources, not all comment citations
-  // A single comment can cite multiple blocks, but should only count as one comment
-  const uniqueCommentSources = new Set(
-    dedupedCitations.filter((citation) => citation.source.type === 'c').map((citation) => citation.source.id.id),
-  )
-
   // Collect unique author UIDs from all citations (both document and comment sources)
   const authorUids = Array.from(
     new Set(dedupedCitations.map((citation) => citation.source.author).filter((author): author is string => !!author)),
@@ -134,7 +134,7 @@ export function calculateInteractionSummary(
 
   return {
     citations: uniqueDocSources.size, // Count distinct document sources citing this document
-    comments: uniqueCommentSources.size, // Count distinct comment sources
+    comments: commentCount, // Daemon's per-document comment count, not citation-derived
     changes: changes.length,
     children: childrenCount,
     authorUids,

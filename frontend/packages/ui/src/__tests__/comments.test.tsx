@@ -4,12 +4,19 @@ import {hmId} from '@shm/shared'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {commentBookmarkTitle, CommentDiscussions} from '../comments'
+import {commentBookmarkTitle, CommentDiscussions, Discussions} from '../comments'
 import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {focusedComment, useDocumentCommentsMock, onBookmarkToggleMock, currentRoute} = vi.hoisted(() => {
+const {
+  focusedComment,
+  useDocumentCommentsMock,
+  useDocumentDiscussionsMock,
+  onBookmarkToggleMock,
+  currentRoute,
+  resourceState,
+} = vi.hoisted(() => {
   const focusedComment = {
     id: 'alice/comment',
     version: 'focused-version',
@@ -25,11 +32,17 @@ const {focusedComment, useDocumentCommentsMock, onBookmarkToggleMock, currentRou
 
   return {
     focusedComment,
+    resourceState: {missing: false},
     currentRoute: {value: {key: 'document', panel: null} as any},
     useDocumentCommentsMock: vi.fn<() => any>(() => ({
       data: null,
       error: null,
       isLoading: true,
+    })),
+    useDocumentDiscussionsMock: vi.fn<() => any>(() => ({
+      data: null,
+      error: null,
+      isLoading: false,
     })),
     onBookmarkToggleMock: vi.fn(),
   }
@@ -71,7 +84,7 @@ vi.mock('@shm/shared/models/comments', () => ({
     isLoading: false,
   }),
   useDocumentComments: useDocumentCommentsMock,
-  useDocumentDiscussions: () => ({data: null, isLoading: false}),
+  useDocumentDiscussions: useDocumentDiscussionsMock,
 }))
 
 vi.mock('@shm/shared/models/entity', () => ({
@@ -80,7 +93,7 @@ vi.mock('@shm/shared/models/entity', () => ({
   useIsCurrentUser: () => false,
   useResources: () => [],
   useResource: () => ({
-    data: {type: 'comment', comment: focusedComment},
+    data: resourceState.missing ? {type: 'not-found'} : {type: 'comment', comment: focusedComment},
     error: null,
     isDiscovering: false,
     isFetching: false,
@@ -102,7 +115,6 @@ vi.mock('@shm/shared/routes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@shm/shared/routes')>()
   return {
     ...actual,
-    getRoutePanel: () => null,
   }
 })
 
@@ -134,9 +146,45 @@ function renderCommentDiscussions(selection?: {blockId: string; blockRange: {sta
   })
 }
 
+function renderDiscussions() {
+  container = document.createElement('div')
+  document.body.appendChild(container)
+  root = createRoot(container)
+
+  act(() => {
+    root!.render(
+      <TooltipProvider>
+        <Discussions targetId={hmId('alice', {path: ['doc']})} />
+      </TooltipProvider>,
+    )
+  })
+}
+
 beforeEach(() => {
   // jsdom does not implement the browser scroll API used by thread focus.
   HTMLElement.prototype.scrollIntoView = vi.fn()
+  // jsdom does not implement IntersectionObserver/ResizeObserver, used by LazyCommentGroup.
+  class MockIntersectionObserver {
+    callback: any
+    observe = vi.fn((el: Element) => {
+      // LazyCommentGroup renders children only once an entry reports intersecting.
+      // Fire synchronously so the first render inside act() includes the children.
+      this.callback([{isIntersecting: true, target: el}])
+    })
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+    takeRecords = vi.fn(() => [])
+    constructor(cb: any) {
+      this.callback = cb
+    }
+  }
+  ;(globalThis as any).IntersectionObserver = MockIntersectionObserver
+  class MockResizeObserver {
+    observe = vi.fn()
+    unobserve = vi.fn()
+    disconnect = vi.fn()
+  }
+  ;(globalThis as any).ResizeObserver = MockResizeObserver
 })
 
 afterEach(() => {
@@ -147,9 +195,13 @@ afterEach(() => {
   root = null
   container = null
   useDocumentCommentsMock.mockReturnValue({data: null, error: null, isLoading: true})
+  useDocumentDiscussionsMock.mockReturnValue({data: null, error: null, isLoading: false})
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
+  Reflect.deleteProperty(globalThis as any, 'IntersectionObserver')
+  Reflect.deleteProperty(globalThis as any, 'ResizeObserver')
   Reflect.deleteProperty(navigator, 'clipboard')
   onBookmarkToggleMock.mockReset()
+  resourceState.missing = false
   currentRoute.value = {key: 'document', panel: null}
 })
 
@@ -166,6 +218,51 @@ describe('CommentDiscussions', () => {
     renderCommentDiscussions()
 
     expect(scrollIntoView).toHaveBeenCalledWith({behavior: 'instant', block: 'start'})
+  })
+
+  it('scrolls to the exact reply again after repeated panel navigation', () => {
+    const reply = {
+      ...focusedComment,
+      id: 'bob/reply',
+      replyParent: focusedComment.id,
+      content: [{block: {id: 'reply-text', type: 'Paragraph', text: 'Selected reply'}}],
+    }
+    useDocumentCommentsMock.mockReturnValue({data: {comments: [focusedComment, reply], authors: {}}, isLoading: false})
+    const id = hmId('alice', {path: ['doc']})
+    currentRoute.value = {key: 'document', id, panel: {key: 'comments', id, openComment: reply.id}}
+    const scrolled: HTMLElement[] = []
+    HTMLElement.prototype.scrollIntoView = function () {
+      scrolled.push(this)
+    }
+    renderCommentDiscussions()
+    const renderReply = () =>
+      act(() =>
+        root!.render(
+          <TooltipProvider>
+            <CommentDiscussions targetId={id} commentId={reply.id} isEntirelyHighlighted />
+          </TooltipProvider>,
+        ),
+      )
+    renderReply()
+    expect(scrolled.at(-1)?.textContent).toContain('Selected reply')
+    expect(scrolled.at(-1)?.querySelector('.bg-highlight')).not.toBeNull()
+    scrolled.length = 0
+    currentRoute.value = {...currentRoute.value, panel: {...currentRoute.value.panel}}
+    renderReply()
+    expect(scrolled).toHaveLength(1)
+    expect(scrolled[0]?.textContent).toContain('Selected reply')
+  })
+
+  it('shows a missing comment without scrolling to another comment', () => {
+    resourceState.missing = true
+    useDocumentCommentsMock.mockReturnValue({data: {comments: [], authors: {}}, isLoading: false})
+    const scrolled: HTMLElement[] = []
+    HTMLElement.prototype.scrollIntoView = function () {
+      scrolled.push(this)
+    }
+    renderCommentDiscussions()
+    expect(container?.textContent).toContain('Comment not found')
+    expect(scrolled).toEqual([])
   })
 
   it.each(['panel', 'expanded'] as const)('copies root and reply panel links from the %s layout', async (layout) => {
@@ -278,5 +375,47 @@ describe('comment version fragment links', () => {
     expect(content?.textContent).toBe('Original fragment text')
     expect(content?.getAttribute('data-focus')).toBe('text')
     expect(content?.getAttribute('data-range')).toBe('{"start":9,"end":17}')
+  })
+})
+
+describe('Discussions', () => {
+  it('renders only comments targeting the current document', () => {
+    const directComment = {
+      ...focusedComment,
+      id: 'alice/direct',
+      content: [{block: {id: 'text', type: 'Paragraph', text: 'A direct comment on this document'}}],
+    }
+    useDocumentDiscussionsMock.mockReturnValue({
+      data: {
+        discussions: [
+          {
+            id: directComment.id,
+            type: 'commentGroup',
+            comments: [directComment],
+            moreCommentsCount: 0,
+          },
+        ],
+        authors: {alice: {id: hmId('alice'), metadata: {name: 'Alice'}}},
+      },
+      error: null,
+      isLoading: false,
+    })
+
+    renderDiscussions()
+
+    expect(container?.textContent).toContain('A direct comment on this document')
+  })
+
+  it('renders the empty state when the document has no discussions', () => {
+    useDocumentDiscussionsMock.mockReturnValue({
+      data: {discussions: [], authors: {}},
+      error: null,
+      isLoading: false,
+    })
+
+    renderDiscussions()
+
+    // NoComments empty state renders; the discussions list is empty.
+    expect(container?.querySelector('[data-comment-id]')).toBeNull()
   })
 })
