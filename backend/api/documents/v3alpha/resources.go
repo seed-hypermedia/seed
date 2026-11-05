@@ -868,9 +868,9 @@ func (srv *Server) getSnapshotResource(ctx context.Context, authority core.Princ
 			return nil, err
 		}
 
-		tsidReal := blob.NewTSID(out.BlobTime(), blk.RawData())
+		tsidReal := blob.RecordTSID(out, blk.RawData())
 		if tsid != tsidReal {
-			return nil, status.Errorf(codes.InvalidArgument, "getResource: blob TSID '%s' does not match requested TSID '%s'", tsid, tsidReal)
+			return nil, status.Errorf(codes.InvalidArgument, "getResource: blob TSID '%s' does not match requested TSID '%s'", tsidReal, tsid)
 		}
 
 		return &snapshotBlob{
