@@ -7,9 +7,8 @@ import SiteSettings from './site-settings'
 
 const mocks = vi.hoisted(() => ({process: vi.fn(), prepare: vi.fn(), crop: vi.fn(), upload: vi.fn(), save: vi.fn()}))
 vi.mock('@/components/site-settings-members', () => ({MembersSettings: () => null}))
-vi.mock('@/components/site-settings-navigation', () => ({NavigationSettings: () => null}))
 vi.mock('@/components/site-settings-web-domain', () => ({WebDomainSettings: () => null}))
-vi.mock('@/models/site', () => ({useUpdateHomeDocument: () => ({mutateAsync: mocks.save})}))
+vi.mock('@/models/site', () => ({useUpdateHomeDocument: () => ({mutateAsync: mocks.save, isPending: false})}))
 vi.mock('@/utils/file-upload', () => ({fileUpload: mocks.upload}))
 vi.mock('@/utils/useNavigate', () => ({useNavigate: () => vi.fn()}))
 vi.mock('@shm/shared/models/capabilities', () => ({useIsSiteOwner: () => ({isSiteOwner: true})}))
@@ -28,6 +27,10 @@ vi.mock('@shm/ui/image-processing', async (original) => ({
   prepareImageForCrop: mocks.prepare,
 }))
 vi.mock('@shm/ui/image-crop', () => ({cropImageFile: mocks.crop}))
+vi.mock('@shm/ui/get-file-url', async (original) => ({
+  ...(await original<typeof import('@shm/ui/get-file-url')>()),
+  useImageUrl: () => (url: string) => url,
+}))
 vi.mock('react-easy-crop', () => ({
   default: ({onCropComplete}: any) => {
     useEffect(() => {
@@ -103,9 +106,9 @@ test.each([
     expect(button('Save').disabled).toBe(false)
     await act(async () => button('Save').click())
     expect(mocks.upload).toHaveBeenCalledWith(output, policy)
-    expect(mocks.save).toHaveBeenCalledWith({
-      metadata: expect.objectContaining(index === 1 ? {icon: 'ipfs://cropped-cid'} : {cover: 'ipfs://cropped-cid'}),
-    })
+    expect(mocks.save.mock.calls[0]![0].updateMetadata({name: 'Test'})).toMatchObject(
+      index === 1 ? {icon: 'ipfs://cropped-cid'} : {cover: 'ipfs://cropped-cid'},
+    )
   } finally {
     act(() => root.unmount())
     host.remove()
@@ -143,8 +146,8 @@ test('saves an uncropped space logo and previews it as the header shows it', asy
     expect(host.querySelector('[data-jdenticon-value]')).toBeNull()
     await act(async () => button('Save').click())
     expect(mocks.upload).toHaveBeenCalledWith(output, CONTENT_IMAGE_POLICY)
-    expect(mocks.save).toHaveBeenCalledWith({
-      metadata: expect.objectContaining({seedExperimentalLogo: 'ipfs://logo-cid'}),
+    expect(mocks.save.mock.calls[0]![0].updateMetadata({name: 'Test'})).toMatchObject({
+      seedExperimentalLogo: 'ipfs://logo-cid',
     })
   } finally {
     act(() => root.unmount())

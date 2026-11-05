@@ -13,7 +13,7 @@ import {lazy, Suspense, useMemo} from 'react'
 export type WebSpaceSettingsPayload = SiteHeaderPayload & {
   kind: 'site-settings'
   siteUid: string
-  section?: 'identity' | 'navigation' | 'web-domain'
+  section?: 'general' | 'identity' | 'navigation' | 'web-domain'
   domain?: string
 }
 

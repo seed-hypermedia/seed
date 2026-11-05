@@ -375,7 +375,8 @@ async function loadRoute({params, request}: {params: Params; request: Request}) 
     if (
       rawSitePath.length > settingsOffset + 3 ||
       (domain !== undefined && (section !== 'web-domain' || !!validateDomain(domain))) ||
-      (section !== undefined && !['identity', 'navigation', 'web-domain', 'email-subscribers'].includes(section))
+      (section !== undefined &&
+        !['general', 'identity', 'navigation', 'web-domain', 'email-subscribers'].includes(section))
     ) {
       throw new Response('Settings page not found', {status: 404})
     }
