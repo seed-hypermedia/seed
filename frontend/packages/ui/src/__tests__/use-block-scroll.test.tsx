@@ -3,6 +3,7 @@ import {act} from 'react-dom/test-utils'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {useBlockScroll} from '../use-block-scroll'
+import {Toaster, toast} from '../toast'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
 /**
@@ -21,6 +22,7 @@ describe('useBlockScroll', () => {
   let scrollCalls: ScrollToOptions[]
 
   beforeEach(() => {
+    vi.stubGlobal('matchMedia', () => ({matches: false, addEventListener() {}, removeEventListener() {}}))
     host = document.createElement('div')
     document.body.appendChild(host)
     root = createRoot(host)
@@ -47,6 +49,8 @@ describe('useBlockScroll', () => {
     act(() => root.unmount())
     host.remove()
     scrollContainer.remove()
+    toast.dismiss()
+    vi.unstubAllGlobals()
   })
 
   it('leaves only a small margin above the target block', () => {
@@ -107,6 +111,38 @@ describe('useBlockScroll', () => {
     expect(scrollCalls).toEqual([])
     scrollContainer.appendChild(block)
     await vi.waitFor(() => expect(scrollCalls).toEqual([{top: 1284, behavior: 'smooth'}]))
+  })
+
+  it('does not scroll to a quoted copy when the source block is missing', async () => {
+    block.remove()
+    const embed = document.createElement('div')
+    embed.dataset.contentType = 'embed'
+    embed.appendChild(block)
+    scrollContainer.appendChild(embed)
+    function Harness() {
+      useBlockScroll('block-1')
+      return null
+    }
+    act(() => root.render(<Harness />))
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    expect(scrollCalls).toEqual([])
+  })
+
+  it('reports a missing block only after content loads, without moving the view', async () => {
+    block.remove()
+    function Harness({exists}: {exists?: boolean}) {
+      useBlockScroll('block-1', {blockExists: exists})
+      return <Toaster />
+    }
+    act(() => root.render(<Harness />))
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    expect(document.body.textContent).not.toContain('Block not found')
+    await act(async () => root.render(<Harness exists={false} />))
+    await vi.waitFor(() => expect(document.body.textContent).toContain('Block not found'))
+    expect(scrollCalls).toEqual([])
+    scrollContainer.appendChild(block)
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+    expect(scrollCalls).toEqual([])
   })
 
   it('clears the pinned document top bar when the document itself scrolls', () => {

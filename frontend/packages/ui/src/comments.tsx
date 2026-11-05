@@ -87,6 +87,11 @@ export function CommentDiscussions({
   }
 }) {
   const focusedCommentRef = useRef<HTMLDivElement>(null)
+  const currentRoute = useNavRoute()
+  // Document block navigation can retain this panel; only selecting the thread
+  // again should move its scroll position.
+  const navigationKey =
+    currentRoute.key === 'comments' ? currentRoute : 'panel' in currentRoute ? currentRoute.panel : null
 
   // Fetch all comments for the document
   const commentsService = useDocumentComments(targetId)
@@ -126,7 +131,7 @@ export function CommentDiscussions({
   const deletedVersions = useCommentVersions(showDeletedContent && isDeletedComment ? commentId : null)
   const deletedLastVersion = deletedVersions.data?.versions?.[0]
   // Wait for the resource query to fully settle before deciding deleted/not-found, so we don't
-  // flash "This comment was deleted." while peer sync is still in flight (issue #435).
+  // flash "Comment not found" while peer sync is still in flight (issue #435).
   const isFocusedCommentLoading =
     !focusedComment &&
     (commentResource.isFetching ||
@@ -162,7 +167,7 @@ export function CommentDiscussions({
       observer.disconnect()
       for (const event of events) interactionTarget.removeEventListener(event, stopFollowing)
     }
-  }, [highlightedCommentId, thread?.root.id, selectedCommentLoaded, !!focusedComment])
+  }, [highlightedCommentId, thread?.root.id, selectedCommentLoaded, !!focusedComment, navigationKey])
 
   if (!commentId) return null
 
@@ -214,7 +219,7 @@ export function CommentDiscussions({
         <SelectionContent>
           <div className="flex flex-col items-center gap-2 p-4">
             <SizableText color="muted" size="sm">
-              This comment was deleted.
+              Comment not found
             </SizableText>
           </div>
         </SelectionContent>
@@ -224,7 +229,7 @@ export function CommentDiscussions({
       <SelectionContent>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
-            This comment could not be found.
+            Comment not found
           </SizableText>
         </div>
       </SelectionContent>

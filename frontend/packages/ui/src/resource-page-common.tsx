@@ -2292,8 +2292,16 @@ function DocumentBody({
   const fixedHeightMain = !!documentPage || isAgentView
 
   // Extract blockRef from route for scroll-to-block and highlighting
-  const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
-  const {scrollToBlock} = useBlockScroll(routeBlockRef, {navigationKey: 'id' in route ? route.id : null})
+  const routeBlockRef = route.key === 'document' ? route.id.blockRef : null
+  const sourceBlocks = shouldUseDraftOverlay ? effectiveContent : document.content
+  const blockExists = useMemo(
+    () =>
+      routeBlockRef && !documentIsPlaceholderData && (!shouldUseDraftOverlay || draftResolution !== undefined)
+        ? !!findContentBlock(sourceBlocks ?? [], routeBlockRef)
+        : undefined,
+    [routeBlockRef, documentIsPlaceholderData, shouldUseDraftOverlay, draftResolution, sourceBlocks],
+  )
+  const {scrollToBlock} = useBlockScroll(routeBlockRef, {navigationKey: route, blockExists})
 
   // On mount, sync URL hash (#blockId) into route if not already present
   useEffect(() => {
