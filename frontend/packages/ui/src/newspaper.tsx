@@ -23,11 +23,12 @@ import {
 } from '@shm/shared/utils/document-actions'
 import {createWebHMUrl, getVersionHeads, hmIdToURL} from '@shm/shared/utils/entity-id-url'
 import {useNavigate} from '@shm/shared/utils/navigation'
-import {Copy, FilePen, FileText, Forward, Grid3X3, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
+import {Copy, FilePen, Forward, History, Layers, MessageSquare, Pencil, Split} from 'lucide-react'
 import {HTMLAttributes, ReactNode, useMemo} from 'react'
 import {Button} from './button'
 import {createCopyLinkMenuItem, getWebCopyLinkHostname} from './copy-link-menu'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
+import {DocumentKindIcon, getDocumentKind, type DocumentKind} from './document-kind-icon'
 import {createDocumentVersionsPanelRoute} from './document-versions-panel'
 import {DraftBadge} from './draft-badge'
 import {FacePile} from './face-pile'
@@ -232,13 +233,13 @@ export function documentCardContainerClassName({
 export function DocumentCardThumbnail({
   coverImage,
   iconImage,
-  isCollection = false,
+  kind = 'document',
   banner = false,
 }: {
   coverImage?: string
   iconImage?: string
-  /** Uses the collection icon when no image is available. */
-  isCollection?: boolean
+  /** Picks the placeholder icon when no image is available. */
+  kind?: DocumentKind
   banner?: boolean
 }) {
   const imageUrl = useImageUrl()
@@ -267,14 +268,9 @@ export function DocumentCardThumbnail({
     )
   }
   // Neither cover nor icon — use the document type placeholder.
-  const Icon = isCollection ? Grid3X3 : FileText
   return (
     <div className="m-3 flex aspect-square size-12 shrink-0 items-center justify-center rounded-md bg-emerald-100 @md:size-14 dark:bg-emerald-900/30">
-      <Icon
-        aria-label={isCollection ? 'Collection' : 'Document'}
-        className="size-6 text-emerald-700 dark:text-emerald-400"
-        strokeWidth={1.5}
-      />
+      <DocumentKindIcon kind={kind} className="size-6 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
     </div>
   )
 }
@@ -459,7 +455,7 @@ export function DocumentCard({
         <DocumentCardThumbnail
           coverImage={coverImage}
           iconImage={iconImage}
-          isCollection={isCollection}
+          kind={getDocumentKind({metadata: resolvedMetadata, isCollection, visibility: resolvedVisibility})}
           banner={banner}
         />
       }

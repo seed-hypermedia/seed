@@ -13,6 +13,7 @@ import {
 import {Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
+import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Input} from './components/input'
 import {ScrollArea} from './components/scroll-area'
@@ -248,6 +249,7 @@ export function SiteFileBrowser({
                 const isActive = doc.id.id === activeDocumentId?.id
                 const isExpanded = row ? expandedPaths.has(row.pathKey) : false
                 const navigationId = unpublishedDraftIds.has(doc.id.id) ? doc.id : latestId(doc.id)
+                const kind = getDocumentKind(doc)
                 return (
                   <div
                     key={doc.id.id}
@@ -279,17 +281,10 @@ export function SiteFileBrowser({
                       onClick={() => onNavigate(navigationId)}
                       className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left text-sm outline-none focus-visible:ring-2"
                     >
-                      {' '}
-                      {doc.metadata?.type === 'hm://hyper.media/agent' ? (
-                        <Bot aria-label="Agent" className="size-4 shrink-0" />
-                      ) : doc.isCollection ? (
-                        <Grid3X3 aria-label="Collection" className="size-4 shrink-0" />
-                      ) : doc.visibility === 'PRIVATE' ? (
-                        <Lock aria-label="Private document" className="size-4 shrink-0" />
-                      ) : unpublishedDraftIds.has(doc.id.id) ? (
+                      {kind === 'document' && unpublishedDraftIds.has(doc.id.id) ? (
                         <FileText aria-label="Unpublished draft" className="size-4 shrink-0 text-yellow-500" />
                       ) : (
-                        <FileText aria-label="Document" className="size-4 shrink-0" />
+                        <DocumentKindIcon kind={kind} className="size-4 shrink-0" />
                       )}
                       <span className="truncate">{titleOf(doc)}</span>
                     </button>

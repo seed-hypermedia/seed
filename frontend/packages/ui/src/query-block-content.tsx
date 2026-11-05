@@ -21,7 +21,6 @@ import {
   FileText,
   Filter,
   GitCompareArrows,
-  Grid3X3,
   MessageSquare,
   Plus,
   Search,
@@ -30,6 +29,7 @@ import {
 } from 'lucide-react'
 import {ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {Button} from './button'
+import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
 import {badgeVariants} from './components/badge'
 import {Input} from './components/input'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
@@ -1035,11 +1035,7 @@ function QueryBlockListItem({
     >
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="bg-muted text-muted-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-md">
-          {item.isCollection ? (
-            <Grid3X3 aria-label="Collection" className="size-5" />
-          ) : (
-            <FileText aria-label="Document" className="size-5" />
-          )}
+          <DocumentKindIcon kind={getDocumentKind(item)} className="size-5" />
         </div>
         <QueryBlockItemTitle item={item} className="truncate font-medium hover:underline">
           {title}
