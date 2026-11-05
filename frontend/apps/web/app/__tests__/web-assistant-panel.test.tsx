@@ -5,8 +5,7 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 /**
- * The web assistant panel host: state that survives route changes, persisted like desktop's window
- * state, and a layout that never remounts the page when the panel opens or closes.
+ * The web assistant panel host: state that survives route changes, persisted for the tab, and a layout that never remounts the page when the panel opens or closes.
  */
 
 const mockState = vi.hoisted(() => ({
@@ -44,7 +43,7 @@ vi.mock('../web-assistant-activity', () => ({
 }))
 
 import {useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
-import {AssistantPanelProvider, useAssistantAutoOpen, useAssistantPanel} from '../assistant-panel-state'
+import {AssistantPanelProvider, useAssistantPanel} from '../assistant-panel-state'
 import {publishSiteContext} from '../site-context-bridge'
 import {WebAssistantHost} from '../web-assistant-host'
 
@@ -63,7 +62,6 @@ let container: HTMLDivElement
 let root: Root
 let mountCount = 0
 let controls: ReturnType<typeof useAssistantPanel> | null = null
-let autoOpenAvailable = false
 
 let headerToggle: ReturnType<typeof useAssistantPanelToggle> = null
 
@@ -78,8 +76,6 @@ function Page() {
 
 function Probe() {
   controls = useAssistantPanel()
-  // Stands in for the site header, which reports whether a signed-in reader has an agent to use.
-  useAssistantAutoOpen(autoOpenAvailable)
   return null
 }
 
@@ -101,6 +97,7 @@ function App() {
 beforeEach(() => {
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
   window.localStorage.clear()
+  window.sessionStorage.clear()
   mockState.pathname = '/'
   mockState.isMobile = false
   mockState.keyPair = {id: 'reader'}
@@ -109,7 +106,6 @@ beforeEach(() => {
   mountCount = 0
   controls = null
   headerToggle = null
-  autoOpenAvailable = false
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -158,9 +154,9 @@ describe('web assistant panel', () => {
       controls!.setSessionId('https://agents.example | s-1')
       controls!.setAgentId('https://agents.example | docs')
     })
-    expect(window.localStorage.getItem('seed.assistant.open')).toBe('1')
-    expect(window.localStorage.getItem('seed.assistant.session')).toBe('https://agents.example | s-1')
-    expect(window.localStorage.getItem('seed.assistant.agent')).toBe('https://agents.example | docs')
+    expect(window.sessionStorage.getItem('seed.assistant.open')).toBe('1')
+    expect(window.sessionStorage.getItem('seed.assistant.session')).toBe('https://agents.example | s-1')
+    expect(window.sessionStorage.getItem('seed.assistant.agent')).toBe('https://agents.example | docs')
 
     act(() => root.unmount())
     root = createRoot(container)
@@ -172,53 +168,43 @@ describe('web assistant panel', () => {
 
     // Clearing the choice clears the stored key too, so a stale agent does not come back later.
     act(() => controls!.setAgentId(null))
-    expect(window.localStorage.getItem('seed.assistant.agent')).toBeNull()
+    expect(window.sessionStorage.getItem('seed.assistant.agent')).toBeNull()
   })
 
-  it('remembers a close as a decision, so the panel stays closed on the next visit', () => {
+  it('remembers a close, so the panel stays closed when the tab reloads', () => {
     act(() => root.render(<App />))
     act(() => controls!.open())
     act(() => controls!.close())
-    expect(window.localStorage.getItem('seed.assistant.open')).toBe('0')
+    expect(window.sessionStorage.getItem('seed.assistant.open')).toBe('0')
 
     act(() => root.unmount())
     root = createRoot(container)
     act(() => root.render(<App />))
     expect(controls!.isOpen).toBe(false)
-    expect(controls!.openDecided).toBe(true)
   })
 
-  it('stores no open preference until the reader makes one', () => {
+  it('never opens on its own, even for a reader with an agent here and nothing decided', () => {
     act(() => root.render(<App />))
-    expect(controls!.openDecided).toBe(false)
-    expect(window.localStorage.getItem('seed.assistant.open')).toBeNull()
+    act(() => root.render(<App />))
+    expect(headerToggle).not.toBeNull()
+    expect(controls!.isOpen).toBe(false)
+    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBeNull()
   })
 
-  it('opens itself on first arrival once an agent is available, and only until the reader closes it', () => {
+  it('starts a new tab closed, with no chat, whatever an earlier tab or visit left behind', () => {
+    // What earlier versions kept in localStorage, shared by every tab and site on the origin.
+    window.localStorage.setItem('seed.assistant.open', '1')
+    window.localStorage.setItem('seed.assistant.session', 'https://agents.example | s-1')
     act(() => root.render(<App />))
     expect(controls!.isOpen).toBe(false)
-    // The site header learns there is an agent to use (home loaded, reader signed in).
-    autoOpenAvailable = true
-    act(() => root.render(<App />))
-    expect(controls!.isOpen).toBe(true)
-    expect(window.localStorage.getItem('seed.assistant.open')).toBe('1')
-
-    act(() => controls!.close())
-    expect(controls!.isOpen).toBe(false)
-    // Still available, but the close was a decision: no re-opening on this or a later visit.
-    act(() => root.render(<App />))
-    expect(controls!.isOpen).toBe(false)
-    act(() => root.unmount())
-    root = createRoot(container)
-    act(() => root.render(<App />))
-    expect(controls!.isOpen).toBe(false)
+    expect(controls!.sessionId).toBeNull()
   })
 
   it('does not overwrite a saved open state with the pre-hydration default', () => {
-    window.localStorage.setItem('seed.assistant.open', '1')
+    window.sessionStorage.setItem('seed.assistant.open', '1')
     act(() => root.render(<App />))
     expect(controls!.isOpen).toBe(true)
-    expect(window.localStorage.getItem('seed.assistant.open')).toBe('1')
+    expect(window.sessionStorage.getItem('seed.assistant.open')).toBe('1')
   })
 
   it('a new-chat request opens the panel and bumps the counter, which a route change resets', () => {
@@ -306,7 +292,7 @@ describe('web assistant panel', () => {
 
   it('never shows the panel to a signed-out visitor, even with a stored open preference', () => {
     // A previous signed-in visit left the panel open; a signed-out visitor must not see it.
-    window.localStorage.setItem('seed.assistant.open', '1')
+    window.sessionStorage.setItem('seed.assistant.open', '1')
     mockState.keyPair = null
     act(() => root.render(<App />))
     expect(controls!.isOpen).toBe(true) // The preference survives for the next sign-in…
@@ -344,7 +330,7 @@ describe('web assistant panel', () => {
 
   it('never takes over a narrow viewport on its own: a restored open preference waits for the header', () => {
     // A previous (wide) visit left the panel open; arriving on a phone must show the page, not the panel.
-    window.localStorage.setItem('seed.assistant.open', '1')
+    window.sessionStorage.setItem('seed.assistant.open', '1')
     mockState.isMobile = true
     act(() => root.render(<App />))
     expect(controls!.isOpen).toBe(true) // The preference survives for a wider window…
@@ -358,28 +344,6 @@ describe('web assistant panel', () => {
     expect(headerToggle?.isOpen).toBe(true)
     act(() => headerToggle!.toggle())
     expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).toBeNull()
-    expect(window.localStorage.getItem('seed.assistant.open')).toBe('0')
-  })
-
-  it('an auto-opened panel does not take over the page when the window shrinks; a reader-opened one does', () => {
-    autoOpenAvailable = true
-    act(() => root.render(<App />))
-    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).not.toBeNull()
-    expect(controls!.openedByReader).toBe(false)
-
-    mockState.isMobile = true
-    act(() => root.render(<App />))
-    expect(container.querySelector('[data-testid="web-assistant-panel"]:not([aria-hidden="true"])')).toBeNull()
-    expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).toBeNull()
-
-    // Opened on purpose on a wide window, the panel stays with the reader when the window narrows.
-    mockState.isMobile = false
-    act(() => root.render(<App />))
-    act(() => controls!.close())
-    act(() => controls!.open())
-    expect(controls!.openedByReader).toBe(true)
-    mockState.isMobile = true
-    act(() => root.render(<App />))
-    expect(container.querySelector('[data-testid="web-assistant-panel-fullscreen"]')).not.toBeNull()
+    expect(window.sessionStorage.getItem('seed.assistant.open')).toBe('0')
   })
 })

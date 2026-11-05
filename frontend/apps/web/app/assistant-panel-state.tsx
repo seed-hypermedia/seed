@@ -7,30 +7,22 @@ import React, {createContext, useCallback, useContext, useEffect, useMemo, useRe
  * Desktop keeps this in the window's persisted nav state (`assistantOpen`, `assistantSessionId`)
  * and toggles it from the footer. Web has no window state, so the same three facts live here, in a
  * context mounted above the Remix outlet — it survives route changes, which remount every page and
- * with it the panel host — and are mirrored to localStorage so a reload restores the panel the way
- * a desktop relaunch does. Storage is read after mount: the server and the first client render
- * agree on "closed", and the panel body is client-only anyway.
- *
- * Open state is a three-way preference: open, closed, or never decided. The distinction matters
- * for first arrival — the panel opens itself once for a reader who has never chosen (see
- * {@link useAssistantAutoOpen}), and only an actual close is remembered as "closed", so a visit
- * that never surfaced the panel (signed out, on a phone) does not count as a decision.
+ * with it the panel host — and are mirrored to sessionStorage so a reload of the same tab restores
+ * the panel. Not localStorage: a page opened in a new tab, from a link or a search result, is a
+ * fresh visit and starts with the panel closed and no chat open, rather than carrying over whatever
+ * chat was last open on some other site. The panel only ever opens because the reader asked.
+ * Storage is read after mount: the server and the first client render agree on "closed", and the
+ * panel body is client-only anyway.
  *
  * Narrow viewports add one more fact, not persisted: whether the reader opened the panel themselves
  * during this page load. There the panel covers the whole page, which only an explicit open may do
- * — a restored preference or an auto-open on a window that later shrank must not take the page
- * over. See {@link AssistantPanelState.openedByReader}.
+ * — a state restored by a reload must not take the page over. See {@link AssistantPanelState.openedByReader}.
  */
 export type AssistantPanelState = {
   isOpen: boolean
   /**
-   * Whether the reader has ever opened or closed the panel: true once a preference is stored,
-   * false when none is, undefined until storage has been read. Only `false` invites auto-open.
-   */
-  openDecided: boolean | undefined
-  /**
    * True once the reader opened the panel themselves (header toggle, menu item, new chat) during
-   * this page load; false after a close, and never set by a restored preference or an auto-open.
+   * this page load; false after a close, and never set by a restored preference.
    * The host shows the full-screen panel on narrow viewports only while this is true.
    */
   openedByReader: boolean
@@ -45,11 +37,6 @@ export type AssistantPanelState = {
   newChatRequest: number
   /** Opens the panel at the reader's request. */
   open: () => void
-  /**
-   * Opens the panel on the app's initiative (first-arrival introduction). Counts as a decision like
-   * `open`, but not as the reader's own, so it never surfaces the full-screen panel.
-   */
-  autoOpen: () => void
   close: () => void
   toggle: () => void
   /** Opens the panel (if needed) and starts a new chat in the last-used agent context. */
@@ -60,13 +47,13 @@ export type AssistantPanelState = {
 
 const OPEN_STORAGE_KEY = 'seed.assistant.open'
 const SESSION_STORAGE_KEY = 'seed.assistant.session'
-/** Stored open preference: '1' open, '0' closed; absent means never decided. */
+/** Stored open state: '1' open, '0' closed. */
 type OpenPreference = '1' | '0'
 const AGENT_STORAGE_KEY = 'seed.assistant.agent'
 
 function readStorage(key: string): string | null {
   try {
-    return window.localStorage.getItem(key)
+    return window.sessionStorage.getItem(key)
   } catch {
     return null
   }
@@ -74,8 +61,8 @@ function readStorage(key: string): string | null {
 
 function writeStorage(key: string, value: string | null) {
   try {
-    if (value === null) window.localStorage.removeItem(key)
-    else window.localStorage.setItem(key, value)
+    if (value === null) window.sessionStorage.removeItem(key)
+    else window.sessionStorage.setItem(key, value)
   } catch {
     // Private mode or a full quota: the panel still works for this page load.
   }
@@ -85,7 +72,6 @@ const AssistantPanelContext = createContext<AssistantPanelState | null>(null)
 
 export function AssistantPanelProvider({children}: {children: React.ReactNode}) {
   const [isOpen, setIsOpen] = useState(false)
-  const [openDecided, setOpenDecided] = useState<boolean | undefined>(undefined)
   const [openedByReader, setOpenedByReader] = useState(false)
   const [sessionId, setSessionIdState] = useState<string | null>(null)
   const [agentId, setAgentIdState] = useState<string | null>(null)
@@ -100,7 +86,6 @@ export function AssistantPanelProvider({children}: {children: React.ReactNode}) 
   useEffect(() => {
     const storedOpen = readStorage(OPEN_STORAGE_KEY)
     setIsOpen(storedOpen === '1')
-    setOpenDecided(storedOpen === '1' || storedOpen === '0')
     setSessionIdState(readStorage(SESSION_STORAGE_KEY))
     setAgentIdState(readStorage(AGENT_STORAGE_KEY))
     setHydrated(true)
@@ -118,12 +103,10 @@ export function AssistantPanelProvider({children}: {children: React.ReactNode}) 
     setNewChatRequest(0)
   }, [location.pathname])
 
-  // Written only once decided: the pre-decision default would otherwise be stored as a "closed"
-  // preference on the first visit, and the panel would never get to introduce itself.
   useEffect(() => {
-    if (!hydrated || !openDecided) return
+    if (!hydrated) return
     writeStorage(OPEN_STORAGE_KEY, (isOpen ? '1' : '0') satisfies OpenPreference)
-  }, [hydrated, openDecided, isOpen])
+  }, [hydrated, isOpen])
 
   useEffect(() => {
     if (!hydrated) return
@@ -137,26 +120,18 @@ export function AssistantPanelProvider({children}: {children: React.ReactNode}) 
 
   const open = useCallback(() => {
     setIsOpen(true)
-    setOpenDecided(true)
     setOpenedByReader(true)
-  }, [])
-  const autoOpen = useCallback(() => {
-    setIsOpen(true)
-    setOpenDecided(true)
   }, [])
   const close = useCallback(() => {
     setIsOpen(false)
-    setOpenDecided(true)
     setOpenedByReader(false)
   }, [])
   const toggle = useCallback(() => {
     setIsOpen(!isOpen)
-    setOpenDecided(true)
     setOpenedByReader(!isOpen)
   }, [isOpen])
   const requestNewChat = useCallback(() => {
     setIsOpen(true)
-    setOpenDecided(true)
     setOpenedByReader(true)
     setNewChatRequest((prev) => prev + 1)
   }, [])
@@ -166,13 +141,11 @@ export function AssistantPanelProvider({children}: {children: React.ReactNode}) 
   const value = useMemo<AssistantPanelState>(
     () => ({
       isOpen,
-      openDecided,
       openedByReader,
       sessionId,
       agentId,
       newChatRequest,
       open,
-      autoOpen,
       close,
       toggle,
       requestNewChat,
@@ -181,13 +154,11 @@ export function AssistantPanelProvider({children}: {children: React.ReactNode}) 
     }),
     [
       isOpen,
-      openDecided,
       openedByReader,
       sessionId,
       agentId,
       newChatRequest,
       open,
-      autoOpen,
       close,
       toggle,
       requestNewChat,
@@ -204,37 +175,14 @@ export function useAssistantPanel(): AssistantPanelState {
   return context ?? INERT_STATE
 }
 
-/** Narrow viewports get the panel over the whole page, which is not something to spring on arrival. */
-const NARROW_VIEWPORT_QUERY = '(max-width: 660px)'
-
-/**
- * Opens the panel on its own the first time a reader could use it.
- *
- * `available` is the host's word that there is an agent to talk to and someone signed in to talk
- * to it. Only a reader who has never opened or closed the panel is introduced this way — once they
- * close it, that is remembered and it stays closed until they ask for it. Phones are exempt: there
- * the panel covers the page. The viewport is re-checked at the moment of opening, since the media
- * hook settles a render after mount and an effect in that first pass would still read "wide".
- */
-export function useAssistantAutoOpen(available: boolean) {
-  const {openDecided, autoOpen} = useAssistantPanel()
-  useEffect(() => {
-    if (!available || openDecided !== false) return
-    if (typeof window.matchMedia === 'function' && window.matchMedia(NARROW_VIEWPORT_QUERY).matches) return
-    autoOpen()
-  }, [available, openDecided, autoOpen])
-}
-
 const noop = () => {}
 const INERT_STATE: AssistantPanelState = {
   isOpen: false,
-  openDecided: true,
   openedByReader: false,
   sessionId: null,
   agentId: null,
   newChatRequest: 0,
   open: noop,
-  autoOpen: noop,
   close: noop,
   toggle: noop,
   requestNewChat: noop,

@@ -388,7 +388,7 @@ describe('assistant sidebar', () => {
     expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('New reply')
   })
 
-  it('opens straight onto the unread chat when there is one, marked read on arrival', () => {
+  it('opens onto the list even with an unread chat, leaving it unread for the user to pick', () => {
     mockState.agentLists[1] = {
       data: [
         {
@@ -401,9 +401,8 @@ describe('assistant sidebar', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
-    expect(document.body.textContent).toContain('Web research')
-    expect(hasActiveSession()).toBe(true)
-    expect(mockState.marked).toEqual([{serverUrl: REMOTE, sessionId: 's-r1', seenAt: 100}])
+    expect(hasActiveSession()).toBe(false)
+    expect(mockState.marked).toEqual([])
   })
 
   it('a restored chat stays open even with something unread elsewhere', () => {

@@ -48,8 +48,6 @@ import {hmId} from '@shm/shared/utils/entity-id-url'
 import {
   agentRowActivity,
   latestSessionEventAt,
-  markAgentSessionRead,
-  summarizeAgentActivity,
   useAgentActivityReadState,
   useMarkAgentSessionRead,
   type AgentRowActivity,
@@ -237,6 +235,8 @@ export function AssistantPanel({
   )
 
   const [stored, setStoredRaw] = useState<AssistantSessionRef | null>(() => decodeAssistantSessionRef(initialSessionId))
+  // Whether `stored` is still the chat the host restored, rather than one opened in this panel.
+  const storedIsRestoredRef = useRef(true)
   const [chosenAgent, setChosenAgentRaw] = useState<AssistantAgentKey | null>(() =>
     decodeAssistantAgentRef(initialAgentId),
   )
@@ -265,6 +265,8 @@ export function AssistantPanel({
     storedSessionUnavailable:
       storedSessionQuery.error instanceof AgentServerError && !(storedSessionQuery.error instanceof AgentProtocolError),
     agentsSettled,
+    // Only a restored chat is held to the site in view; one the user just opened stays open.
+    listedAgentsOnly: mountedOnly && storedIsRestoredRef.current,
   })
   const filterAgent = selection.filterAgent
   const activeSession = selection.session
@@ -274,6 +276,7 @@ export function AssistantPanel({
   const setStored = useCallback(
     (ref: AssistantSessionRef | null) => {
       visibleSessionRef.current = visible ? ref : null
+      storedIsRestoredRef.current = false
       setStoredRaw(ref)
       onSessionChange?.(ref ? encodeAssistantSessionRef(ref) : null)
     },
@@ -288,7 +291,8 @@ export function AssistantPanel({
     [onAgentChange],
   )
 
-  // A chat its server refused is closed, and the host's remembered ref cleared with it.
+  // A chat its server refused, or a restored one from another site, is closed, and the host's
+  // remembered ref cleared with it.
   useEffect(() => {
     if (stored && !activeSession) setStored(null)
   }, [stored, activeSession, setStored])
@@ -362,27 +366,6 @@ export function AssistantPanel({
     }
     return rows
   }, [agents, readState.data])
-
-  // Opening the panel onto the list with something unread lands on it: the newest unread chat
-  // across agents, marked read on arrival. Decided once per mount, as soon as the lists have
-  // settled, so a message that lands later never yanks the user out of what they are doing. The
-  // lists settle only when the slowest server answers, which can be seconds after the panel
-  // appears — so a chat that is open by then, restored from window state or opened by hand in the
-  // meantime, stays where it is. A panel opened to start a new chat keeps that intent too.
-  const jumpedToUnreadRef = useRef(false)
-  useEffect(() => {
-    if (jumpedToUnreadRef.current || !agentsSettled || ownSessions.isLoading || !readState.data) return
-    jumpedToUnreadRef.current = true
-    if (newChatRequest || stored) return
-    const indicator = summarizeAgentActivity(agents, readState.data)
-    if (!indicator?.unread) return
-    const picked = agents.find(
-      (option) => option.serverUrl === indicator.serverUrl && option.agent.id === indicator.agentId,
-    )
-    if (!picked?.agent.activity) return
-    openSession({serverUrl: indicator.serverUrl, sessionId: indicator.sessionId})
-    markAgentSessionRead(indicator.serverUrl, indicator.sessionId, picked.agent.activity.messageAt)
-  }, [agentsSettled, ownSessions.isLoading, readState.data, agents, newChatRequest, stored, openSession])
 
   // The list: every agent's chats, or the chosen agent's own paged list — filtered on the server,
   // so a quiet agent is not found by paging through everyone else's.
