@@ -151,6 +151,7 @@ export type EditorQueryBlock = EditorBaseBlock & {
     queryIncludes?: string
     querySort?: string
     queryFilters?: string
+    queryView?: string
     banner?: 'true' | 'false'
     defaultOpen?: 'true' | 'false'
     tableConfig?: string

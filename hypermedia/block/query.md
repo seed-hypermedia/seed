@@ -11,3 +11,5 @@ A **query block** is a live listing. The author stores a [query](../query.md) in
 - [Seed API](../build/web-api.md): `QueryBlock` runs a query block. <!-- id:j1Ki_W9h -->
 - [Query grammar](../build/query-grammar.md): filtering by attributes. <!-- id:GURAxYKd -->
 - [Blocks](../protocol/blocks.md): the block model. <!-- id:l_kiOAY_ -->
+
+The optional `attributes.view` stores the [shared default View](hm://hyper.media/query/view), including filters used across all presentation styles. Editors publish View changes with the document; readers may temporarily override them without write access.

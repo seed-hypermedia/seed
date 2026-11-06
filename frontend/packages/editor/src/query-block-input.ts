@@ -7,7 +7,7 @@
  * client refetches after mount).
  */
 
-import {normalizeQuerySort} from '@seed-hypermedia/client/hm-types'
+import {normalizeQuerySort, parseHMQueryViewJSON, type HMQueryView} from '@seed-hypermedia/client/hm-types'
 
 export const defaultQueryIncludes = '[{"space":"","path":"","mode":"Children"}]'
 // Newest-first (updated descending), matching the previous UpdateTime default.
@@ -19,6 +19,7 @@ export type QueryBlockInputProps = {
   querySort?: string
   queryLimit?: string
   queryFilters?: string
+  queryView?: string
 }
 
 /** The document a query block sits in; an include with an empty space targets it. */
@@ -35,7 +36,8 @@ export function getQueryBlockInput(
   props: QueryBlockInputProps,
   container?: QueryBlockContainer | null,
 ): {
-  query: {includes: any[]; sort: {term: string; reverse: boolean}[]; limit: number | undefined; filters: any[]}
+  query: {includes: any[]; sort: {term: string; reverse: boolean}[]; limit: number | undefined; filters?: any[]}
+  viewer?: HMQueryView
 } | null {
   const queryIncludes = resolveQueryIncludes(JSON.parse(props.queryIncludes || defaultQueryIncludes), container)
   const parsedSort = JSON.parse(props.querySort || defaultQuerySort)
@@ -43,12 +45,16 @@ export function getQueryBlockInput(
   const queryFilters = JSON.parse(props.queryFilters || defaultQueryFilters)
   const parsedLimit = parseInt(props.queryLimit || '', 10)
   if (!queryIncludes?.[0]?.space) return null
+  const view = parseHMQueryViewJSON(props.queryView)
   return {
+    ...(view?.filters.some((filter) => filter.value.trim())
+      ? {viewer: {filters: view.filters.filter((filter) => filter.value.trim())}}
+      : {}),
     query: {
       includes: queryIncludes,
       sort: querySort,
       limit: parsedLimit > 0 ? parsedLimit : undefined,
-      filters: queryFilters,
+      ...(queryFilters.length ? {filters: queryFilters} : {}),
     },
   }
 }
