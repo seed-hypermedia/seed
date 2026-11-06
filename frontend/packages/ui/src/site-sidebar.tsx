@@ -84,7 +84,7 @@ export function SiteSidebar({
   )
   return (
     <aside aria-label="Site sidebar" className="bg-background text-sidebar-foreground flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-col gap-3.5 px-2 py-4">
+      <div className="flex shrink-0 flex-col px-2 py-4">
         {explore ?? (
           <Button
             asChild
@@ -102,55 +102,58 @@ export function SiteSidebar({
           </Button>
         )}
         {(IS_DESKTOP || isGateway) && (
-          <DropdownMenu modal={siteSelectorModal}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                aria-label="Select site"
-                className="bg-card border-border hover:bg-card/80 text-card-foreground h-15 w-full justify-start gap-3 rounded-xl px-3 py-2 shadow-xs"
-              >
-                <HMIcon id={siteId} name={current?.metadata?.name} icon={current?.metadata?.icon} size={36} />
-                <span className="flex min-w-0 flex-1 flex-col items-start text-left">
-                  <span className="w-full truncate text-sm font-semibold">
-                    {current?.metadata?.name || 'Current site'}
-                  </span>
-                  {directory.data && (
-                    <span className="text-icon text-xs font-normal">
-                      {directory.data.length} {directory.data.length === 1 ? 'document' : 'documents'}
+          <div className="mt-8 flex flex-col gap-2">
+            <span className="text-icon px-1 text-xs font-semibold tracking-wide uppercase">Spaces</span>
+            <DropdownMenu modal={siteSelectorModal}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  aria-label="Select site"
+                  className="bg-card border-border hover:bg-card/80 text-card-foreground h-15 w-full justify-start gap-3 rounded-xl px-3 py-2 shadow-xs"
+                >
+                  <HMIcon id={siteId} name={current?.metadata?.name} icon={current?.metadata?.icon} size={36} />
+                  <span className="flex min-w-0 flex-1 flex-col items-start text-left">
+                    <span className="w-full truncate text-sm font-semibold">
+                      {current?.metadata?.name || 'Current site'}
                     </span>
-                  )}
-                </span>
-                <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-h-80 w-64 overflow-y-auto">
-              {sites.map(({uid, metadata}) => {
-                const unreadCount = accountUid ? unreadNotificationsBySite[uid] ?? 0 : 0
-                return (
-                  <DropdownMenuItem
-                    key={uid}
-                    aria-current={uid === siteId.uid ? 'true' : undefined}
-                    onSelect={() => {
-                      onNavigate(hmId(uid))
-                      onAfterNavigate?.()
-                    }}
-                  >
-                    <HMIcon id={hmId(uid)} name={metadata?.name} icon={metadata?.icon} size={24} />
-                    <span className="min-w-0 flex-1 truncate">
-                      {metadata?.name || (uid === siteId.uid ? 'Current site' : 'Untitled site')}
-                    </span>
-                    {uid === siteId.uid && <Check aria-hidden="true" className="size-4 shrink-0" />}
-                    {unreadCount > 0 && (
-                      <>
-                        <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-red-500" />
-                        <span className="sr-only">{unreadCount} unread notifications</span>
-                      </>
+                    {directory.data && (
+                      <span className="text-icon text-xs font-normal">
+                        {directory.data.length} {directory.data.length === 1 ? 'document' : 'documents'}
+                      </span>
                     )}
-                  </DropdownMenuItem>
-                )
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  </span>
+                  <ChevronsUpDown className="text-muted-foreground size-4 shrink-0" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="max-h-80 w-64 overflow-y-auto">
+                {sites.map(({uid, metadata}) => {
+                  const unreadCount = accountUid ? unreadNotificationsBySite[uid] ?? 0 : 0
+                  return (
+                    <DropdownMenuItem
+                      key={uid}
+                      aria-current={uid === siteId.uid ? 'true' : undefined}
+                      onSelect={() => {
+                        onNavigate(hmId(uid))
+                        onAfterNavigate?.()
+                      }}
+                    >
+                      <HMIcon id={hmId(uid)} name={metadata?.name} icon={metadata?.icon} size={24} />
+                      <span className="min-w-0 flex-1 truncate">
+                        {metadata?.name || (uid === siteId.uid ? 'Current site' : 'Untitled site')}
+                      </span>
+                      {uid === siteId.uid && <Check aria-hidden="true" className="size-4 shrink-0" />}
+                      {unreadCount > 0 && (
+                        <>
+                          <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-red-500" />
+                          <span className="sr-only">{unreadCount} unread notifications</span>
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                  )
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
       </div>
       <div className="min-h-0 flex-1">{children}</div>
