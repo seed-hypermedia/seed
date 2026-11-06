@@ -8,8 +8,8 @@ import {Bot} from 'lucide-react'
 import type React from 'react'
 
 /**
- * The right edge of a session row: how long ago the chat last moved, with the exact time (and any
- * unread or working state) on hover. No colored dots here: they were removed on purpose (#1310).
+ * The right edge of a session row: any unread or working state in words, then how long ago the chat
+ * last moved, with the exact time on hover. No colored dots here: they were removed on purpose (#1310).
  * Errors replace the time, since the time says nothing useful about a broken chat.
  */
 function SessionRowMeta({
@@ -29,9 +29,13 @@ function SessionRowMeta({
       {status === 'error' ? (
         <span className="text-destructive">Error</span>
       ) : (
-        <span title={activity ? `${activity.label} · ${formattedDateMedium(date)}` : formattedDateMedium(date)}>
-          {formattedTimeAgo(date)}
-        </span>
+        <>
+          {/* Unread or working state stays visible as words ("New reply", "Working"), never a dot. */}
+          {activity ? <span className="text-foreground">{activity.short}</span> : null}
+          <span title={activity ? `${activity.label} · ${formattedDateMedium(date)}` : formattedDateMedium(date)}>
+            {formattedTimeAgo(date)}
+          </span>
+        </>
       )}
     </span>
   )
