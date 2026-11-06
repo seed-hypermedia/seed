@@ -44,6 +44,20 @@ export function mentionCandidateKey(id: HMMentionCandidate['id'], mode: HMMentio
   return `${mode}:${id.uid}:${mode === 'document' ? JSON.stringify(id.path || []) : ''}`
 }
 
+/**
+ * How well a set of labels matches the query: 0 exact, 1 prefix, 2 every token contained,
+ * 4 no match. No subsequence tier: almost any title holds a three-letter query's letters in order.
+ */
+function textMatchTier(labels: string[], normalized: string) {
+  let tier = normalized ? 4 : 0
+  for (const label of labels) {
+    if (label === normalized) tier = Math.min(tier, 0)
+    else if (label.startsWith(normalized)) tier = Math.min(tier, 1)
+    else if (normalized.split(/\s+/).every((token) => label.includes(token))) tier = Math.min(tier, 2)
+  }
+  return tier
+}
+
 /** Deterministic text-first ranking with blended local and public relevance signals. */
 export function rankMentionCandidates(
   candidates: HMMentionCandidate[],
@@ -64,6 +78,7 @@ export function rankMentionCandidates(
     if (candidate.type !== 'account') continue
     const identities = accountIdentities.get(candidate.id.uid) || new Set([candidate.id.uid])
     if (candidate.sourceAccountUid) identities.add(candidate.sourceAccountUid)
+    candidate.sourceAccountUids?.forEach((uid) => identities.add(uid))
     accountIdentities.set(candidate.id.uid, identities)
   }
   const seen = new Set<string>()
@@ -82,17 +97,18 @@ export function rankMentionCandidates(
       const labels = [candidate.title, candidate.publicName, candidate.petname, candidate.id.path?.join('/')]
         .filter((v): v is string => !!v && v !== candidate.id.uid)
         .map((v) => v.toLocaleLowerCase())
-      let tier = normalized ? 4 : 0
+      let currentTier = textMatchTier(labels, normalized)
       // A base58 ID holds nearly any short word as a subsequence, so a pasted ID matches by prefix only.
       const uid = candidate.id.uid.toLocaleLowerCase()
-      if (uid === normalized) tier = 0
-      else if (uid.startsWith(normalized)) tier = Math.min(tier, 1)
-      // No subsequence tier: almost any title holds a three-letter query's letters in order.
-      for (const label of labels) {
-        if (label === normalized) tier = Math.min(tier, 0)
-        else if (label.startsWith(normalized)) tier = Math.min(tier, 1)
-        else if (normalized.split(/\s+/).every((token) => label.includes(token))) tier = Math.min(tier, 2)
-      }
+      if (uid === normalized) currentTier = 0
+      else if (uid.startsWith(normalized)) currentTier = Math.min(currentTier, 1)
+      // A name the entity no longer has is a legitimate match, but only when nothing current matches,
+      // and it sorts after every current-name match below (#1147).
+      const formerTier = candidate.formerName
+        ? textMatchTier([candidate.formerName.toLocaleLowerCase()], normalized)
+        : 4
+      const isFormerNameMatch = currentTier === 4 && formerTier < 4
+      const tier = isFormerNameMatch ? formerTier : currentTier
       if (tier === 4) return []
       const visit = visits.get(key)
       const visitScore = visit === undefined ? 0 : Math.pow(0.5, Math.max(0, now - visit) / VISIT_HALF_LIFE)
@@ -152,10 +168,20 @@ export function rankMentionCandidates(
         hint = activityHint || visitHint || (candidate.sameSite ? 'In this space' : undefined)
         if (!candidate.id.path?.length) hint = ['Home document', hint].filter(Boolean).join(' · ')
       }
-      return [{candidate: {...candidate, hint}, tier, score, key}]
+      if (isFormerNameMatch) hint = [`Formerly ${candidate.formerName}`, hint].filter(Boolean).join(' · ')
+      return [
+        {
+          candidate: {...candidate, formerName: isFormerNameMatch ? candidate.formerName : undefined, hint},
+          tier,
+          score,
+          key,
+          isFormerNameMatch,
+        },
+      ]
     })
     .sort(
       (a, b) =>
+        Number(a.isFormerNameMatch) - Number(b.isFormerNameMatch) ||
         a.tier - b.tier ||
         b.score - a.score ||
         a.candidate.title.localeCompare(b.candidate.title) ||
