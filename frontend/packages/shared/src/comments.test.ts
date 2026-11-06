@@ -1,4 +1,4 @@
-import {HMComment, HMExternalCommentGroup} from '@seed-hypermedia/client/hm-types'
+import {HMComment} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, test} from 'vitest'
 import {getCommentGroups, getSubmittedCommentGroups, getCommentThread, sortCommentGroupsByCreation} from './comments'
 
@@ -92,13 +92,13 @@ describe('sortCommentGroupsByCreation', () => {
     expect(groups.map((group) => group.id)).toEqual(original)
   })
 
-  test('interleaves citing groups and protobuf timestamps with local roots', () => {
+  test('interleaves protobuf timestamps with local roots', () => {
     const external = {
       id: 'external',
-      type: 'externalCommentGroup',
+      type: 'commentGroup',
       comments: [{...older, id: 'external', createTime: {seconds: 1768435200n, nanos: 0}}],
       moreCommentsCount: 0,
-    } as HMExternalCommentGroup
+    } as ReturnType<typeof getCommentGroups>[number]
     expect(sortCommentGroupsByCreation([...getCommentGroups([newer, older]), external]).map((g) => g.id)).toEqual([
       'older',
       'external',

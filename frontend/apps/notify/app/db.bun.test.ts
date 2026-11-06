@@ -27,6 +27,7 @@ import {
   setSubscription,
   unsetNotificationConfig,
   updateSubscription,
+  replaceNotificationReadState,
 } from './db'
 
 interface TableInfo {
@@ -99,7 +100,7 @@ describe('Database', () => {
     it('should handle database version correctly', async () => {
       const db = new Database(join(tmpDir, 'web-db.sqlite'))
       const version = (db.query('PRAGMA user_version').get() as {user_version: number}).user_version
-      expect(version).toBe(11)
+      expect(version).toBe(12)
       db.close()
     })
   })
@@ -438,6 +439,16 @@ describe('Database', () => {
 
       const state = getNotificationReadState(accountId)
       expect(state.markAllReadAtMs).toBe(1000)
+    })
+
+    it('replaces the watermark outright, even lower, when the actions API writes twice in one millisecond', () => {
+      replaceNotificationReadState('replace-lower', {markAllReadAtMs: 5000, readEvents: []})
+      const state = replaceNotificationReadState('replace-lower', {
+        markAllReadAtMs: 999,
+        readEvents: [{eventId: 'evt-2', eventAtMs: 2000}],
+      })
+      expect(state.markAllReadAtMs).toBe(999)
+      expect(state.readEvents).toEqual([{eventId: 'evt-2', eventAtMs: 2000}])
     })
 
     it('should accept lower watermark when stateUpdatedAtMs is newer', () => {

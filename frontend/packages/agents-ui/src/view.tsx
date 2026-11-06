@@ -1,35 +1,46 @@
+import {useSelectedAccountId} from '@shm/ui/agents/account'
 import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
 import AgentDetailRoutePage from '@shm/ui/agents/detail'
-import AgentsListPage from '@shm/ui/agents/list'
+import {AgentsNoAccountPage} from '@shm/ui/agents/no-account'
 import AgentRunRoutePage from '@shm/ui/agents/run'
-import AgentServerPage from '@shm/ui/agents/server'
 import AgentSessionRoutePage from '@shm/ui/agents/session'
+import {SizableText} from '@shm/ui/text'
 import {cn} from '@shm/ui/utils'
 import {useSeedAgentsRoute} from './provider'
+import type {SeedAgentsRoute} from './routes'
 
 /**
- * The full agents UI at the current route: the agents list, a server, an agent with its tabs
- * (sessions, triggers, memory, tools, system prompt, collaborators, settings), a session, or a run.
- * It fills its container; give the container a height.
+ * The full agents UI at the current route: an agent with its tabs (sessions, triggers, memory,
+ * tools, system prompt, collaborators, settings), a session, or a run. It fills its container;
+ * give the container a height.
  */
 export function SeedAgentsView({className}: {className?: string}) {
   const route = useSeedAgentsRoute()
-  return <div className={cn('seed-agents flex h-full min-h-0 flex-1 flex-col', className)}>{page(route.key)}</div>
+  return <div className={cn('seed-agents flex h-full min-h-0 flex-1 flex-col', className)}>{page(route?.key)}</div>
 }
 
-function page(key: ReturnType<typeof useSeedAgentsRoute>['key']) {
+function page(key: SeedAgentsRoute['key'] | undefined) {
   switch (key) {
-    case 'agent-server':
-      return <AgentServerPage />
     case 'agent':
       return <AgentDetailRoutePage />
     case 'agent-session':
       return <AgentSessionRoutePage />
     case 'agent-run':
       return <AgentRunRoutePage />
-    case 'agents':
-      return <AgentsListPage />
+    default:
+      return <NoRoutePage />
   }
+}
+
+/** Before the host navigates to an agent, a session, or a run: there is no agents index to show. */
+function NoRoutePage() {
+  const selectedAccountId = useSelectedAccountId()
+  if (!selectedAccountId) return <AgentsNoAccountPage />
+  return (
+    <div className="flex flex-1 items-center justify-center p-8">
+      <SizableText color="muted">Open an agent, a session, or a run to see it here.</SizableText>
+    </div>
+  )
 }
 
 export type SeedAgentsAssistantProps = {

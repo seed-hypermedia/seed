@@ -5,9 +5,7 @@ import {
   HMComment,
   HMCommentGroup,
   HMDocument,
-  HMExternalCommentGroup,
   HMMetadata,
-  HMMetadataPayload,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
 import {
@@ -16,20 +14,20 @@ import {
   getCommentTargetId,
   hmId,
   NavRoute,
-  useRouteLink,
   useUniversalAppContext,
 } from '@shm/shared'
 
 import {HMListDiscussionsOutput} from '@seed-hypermedia/client/hm-types'
+import {getCommentThread, getSubmittedCommentGroups, sortCommentGroupsByCreation} from '@shm/shared/comments'
 import {
   useCommentsServiceContext,
   useDeleteComment,
   useHackyAuthorsSubscriptions,
   useUpdateComment,
 } from '@shm/shared/comments-service-provider'
-import {getCommentThread, getSubmittedCommentGroups, sortCommentGroupsByCreation} from '@shm/shared/comments'
-import {useDocumentActions} from '@shm/shared/document-actions-context'
+import {extractRefs} from '@shm/shared/content'
 import {commentToText} from '@shm/shared/content-to-text'
+import {useDocumentActions} from '@shm/shared/document-actions-context'
 import {
   useBlockDiscussions,
   useCommentReplyCount,
@@ -39,7 +37,6 @@ import {
 } from '@shm/shared/models/comments'
 import {useIsCurrentUser, useResource} from '@shm/shared/models/entity'
 import {useMentionNames} from '@shm/shared/models/inline-mentions'
-import {extractRefs} from '@shm/shared/content'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
 import {getRoutePanel} from '@shm/shared/routes'
 import {useTxString} from '@shm/shared/translation'
@@ -47,20 +44,20 @@ import {useNavigate, useNavRoute} from '@shm/shared/utils/navigation'
 import {Bookmark, Link, MessageSquare, Pencil, Trash2, X} from 'lucide-react'
 import {memo, ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {SelectionContent} from './accessories'
+import {AccountAvatar} from './account-avatar'
 import {getBlockNodeById} from './blocks-content-utils'
-import {ContentEmbed} from './content-embed'
 import {Button} from './button'
 import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
-import {AccountAvatar} from './account-avatar'
+import {ContentEmbed} from './content-embed'
 import {AuthorNameLink, InlineDescriptor, Timestamp} from './inline-descriptor'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
 import {useAppDialog} from './universal-dialog'
+import {useCommentsScroll} from './use-comments-scroll'
 import {useCopyHmLink} from './use-copy-hm-link'
 import {cn} from './utils'
-import {useCommentsScroll} from './use-comments-scroll'
 
 /** Return a normalized 50-character snapshot for a comment bookmark title. */
 export function commentBookmarkTitle(content: HMBlockNode[], resolvedNames?: Readonly<Record<string, string>>): string {
@@ -87,6 +84,11 @@ export function CommentDiscussions({
   }
 }) {
   const focusedCommentRef = useRef<HTMLDivElement>(null)
+  const currentRoute = useNavRoute()
+  // Document block navigation can retain this panel; only selecting the thread
+  // again should move its scroll position.
+  const navigationKey =
+    currentRoute.key === 'comments' ? currentRoute : 'panel' in currentRoute ? currentRoute.panel : null
 
   // Fetch all comments for the document
   const commentsService = useDocumentComments(targetId)
@@ -126,7 +128,7 @@ export function CommentDiscussions({
   const deletedVersions = useCommentVersions(showDeletedContent && isDeletedComment ? commentId : null)
   const deletedLastVersion = deletedVersions.data?.versions?.[0]
   // Wait for the resource query to fully settle before deciding deleted/not-found, so we don't
-  // flash "This comment was deleted." while peer sync is still in flight (issue #435).
+  // flash "Comment not found" while peer sync is still in flight (issue #435).
   const isFocusedCommentLoading =
     !focusedComment &&
     (commentResource.isFetching ||
@@ -140,11 +142,29 @@ export function CommentDiscussions({
   const selectedCommentLoaded =
     thread?.root.id === highlightedCommentId || thread?.replies.some((comment) => comment.id === highlightedCommentId)
   useLayoutEffect(() => {
-    focusedCommentRef.current?.scrollIntoView({
-      behavior: 'instant',
-      block: highlightedCommentId === thread?.root.id ? 'start' : 'nearest',
-    })
-  }, [highlightedCommentId, thread?.root.id, selectedCommentLoaded, !!focusedComment])
+    const focusedElement = focusedCommentRef.current
+    if (!focusedElement) return
+    const scrollToComment = () =>
+      focusedElement.scrollIntoView({
+        behavior: 'instant',
+        block: highlightedCommentId === thread?.root.id ? 'start' : 'nearest',
+      })
+    scrollToComment()
+
+    // The reply editor can grow after entry, reducing the thread's visible height.
+    const viewport = focusedElement.closest('[data-slot="scroll-area-viewport"]')
+    if (!viewport) return
+    const observer = new ResizeObserver(scrollToComment)
+    observer.observe(viewport)
+    const stopFollowing = () => observer.disconnect()
+    const interactionTarget = viewport.parentElement ?? viewport
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const
+    for (const event of events) interactionTarget.addEventListener(event, stopFollowing, {passive: true})
+    return () => {
+      observer.disconnect()
+      for (const event of events) interactionTarget.removeEventListener(event, stopFollowing)
+    }
+  }, [highlightedCommentId, thread?.root.id, selectedCommentLoaded, !!focusedComment, navigationKey])
 
   if (!commentId) return null
 
@@ -196,7 +216,7 @@ export function CommentDiscussions({
         <SelectionContent>
           <div className="flex flex-col items-center gap-2 p-4">
             <SizableText color="muted" size="sm">
-              This comment was deleted.
+              Comment not found
             </SizableText>
           </div>
         </SelectionContent>
@@ -206,7 +226,7 @@ export function CommentDiscussions({
       <SelectionContent>
         <div className="flex flex-col items-center gap-2 p-4">
           <SizableText color="muted" size="sm">
-            This comment could not be found.
+            Comment not found
           </SizableText>
         </div>
       </SelectionContent>
@@ -222,7 +242,7 @@ export function CommentDiscussions({
               <div
                 key={comment.id}
                 ref={comment.id === highlightedCommentId ? focusedCommentRef : undefined}
-                className={index ? 'border-border ml-4 border-t' : 'scroll-mt-4 pb-3'}
+                className={index ? 'border-border ml-4 border-t' : 'scroll-mt-4'}
               >
                 <Comment
                   comment={comment}
@@ -274,15 +294,8 @@ export const Discussions = memo(function Discussions({
         })
       })
     }
-    if (discussionsService.data?.citingDiscussions) {
-      discussionsService.data?.citingDiscussions.forEach((cg) => {
-        cg.comments.forEach((c) => {
-          if (c.author) authors.add(c.author)
-        })
-      })
-    }
     return Array.from(authors)
-  }, [discussionsService.data?.discussions, discussionsService.data?.citingDiscussions])
+  }, [discussionsService.data?.discussions])
 
   useHackyAuthorsSubscriptions(allAuthorIds)
 
@@ -300,7 +313,7 @@ export const Discussions = memo(function Discussions({
     submittedRoots,
     acknowledgedRoots.current,
   )
-  const groups = sortCommentGroupsByCreation([...rootGroups, ...(discussionsService.data?.citingDiscussions ?? [])])
+  const groups = sortCommentGroupsByCreation(rootGroups)
   const {listRef, hasNewComments, scrollToBottom, heights} = useCommentsScroll(
     scrollKey ?? targetId.id,
     groups.map((group) => group.id),
@@ -338,7 +351,7 @@ export const Discussions = memo(function Discussions({
       </div>
     )
   } else if (discussionsService.data || submittedRoots.length) {
-    const totalCount = rootGroups.length + (discussionsService.data?.citingDiscussions?.length ?? 0)
+    const totalCount = rootGroups.length
     panelContent =
       totalCount > 0 ? (
         <>
@@ -366,7 +379,6 @@ export const Discussions = memo(function Discussions({
                     comment={comment}
                     authorId={comment.author}
                     authorMetadata={discussionsService.data?.authors?.[comment.author]?.metadata}
-                    externalTarget={group.type === 'externalCommentGroup' ? group.target : undefined}
                     highlight={newCommentIds.has(group.id)}
                     onCommentDeleted={onCommentDeleted}
                     targetDomain={targetDomain}
@@ -560,7 +572,7 @@ export const CommentGroup = memo(function CommentGroup({
   onCommentDeleted,
   targetDomain,
 }: {
-  commentGroup: HMCommentGroup | HMExternalCommentGroup
+  commentGroup: HMCommentGroup
   authors?: HMListDiscussionsOutput['authors']
   enableReplies?: boolean
   highlightLastComment?: boolean
@@ -569,18 +581,13 @@ export const CommentGroup = memo(function CommentGroup({
   targetDomain?: string
 }) {
   const lastComment = commentGroup.comments.at(-1)
-  const firstComment = commentGroup.comments[0]
 
   return (
     <div className="relative flex flex-col gap-2 p-2">
       {commentGroup.comments.map((comment) => {
         const isLastCommentInGroup = !!lastComment && comment === lastComment
-        const isFirstCommentInGroup = !!lastComment && comment === firstComment
         return (
           <Comment
-            externalTarget={
-              isFirstCommentInGroup && commentGroup.type === 'externalCommentGroup' ? commentGroup.target : undefined
-            }
             key={comment.id}
             comment={comment}
             onCommentDeleted={onCommentDeleted}
@@ -609,7 +616,6 @@ export const Comment = memo(function Comment({
   threadRootId,
   targetDomain,
   heading,
-  externalTarget,
   selection,
 }: {
   comment: HMComment
@@ -624,7 +630,6 @@ export const Comment = memo(function Comment({
   threadRootId?: string
   targetDomain?: string
   heading?: ReactNode
-  externalTarget?: HMMetadataPayload
   selection?: {
     blockId?: string
     blockRange?: BlockRange
@@ -652,8 +657,6 @@ export const Comment = memo(function Comment({
   const bookmarkAuthorAccountId = comment.author || authorId
   const isBookmarked = documentActions.isBookmarked?.(commentHmId) ?? false
   const copyHmLink = useCopyHmLink()
-
-  const externalTargetLink = useRouteLink(externalTarget ? {key: 'document', id: externalTarget.id} : null)
 
   const navigate = useNavigate('replace')
 
@@ -739,9 +742,11 @@ export const Comment = memo(function Comment({
     <>
       {deleteCommentDialog.content}
       <div
+        data-resourceid={commentHmId.id}
         className={cn(
           'highlight-transition group relative flex flex-col gap-1 rounded-lg px-3 py-3',
           isEntirelyHighlighted && 'bg-highlight',
+          !!threadRootId && 'pb-4',
         )}
       >
         <div className="flex min-w-0 items-center gap-1">
@@ -772,17 +777,6 @@ export const Comment = memo(function Comment({
                 ) : (
                   <span>Someone</span>
                 )}{' '}
-                {externalTarget ? (
-                  <>
-                    <span>on</span>{' '}
-                    <button
-                      {...externalTargetLink}
-                      className="hover:bg-accent text-foreground h-5 truncate rounded px-1 text-sm font-bold transition-colors"
-                    >
-                      {externalTarget.metadata?.name}
-                    </button>
-                  </>
-                ) : null}
                 <CommentDate comment={comment} />
                 {JSON.stringify(comment.createTime) !== JSON.stringify(comment.updateTime) ? (
                   <EditedIndicator commentId={comment.id} onSelectVersion={selectViewingVersion} />
@@ -835,7 +829,6 @@ export const Comment = memo(function Comment({
                         },
                         commentId: commentIdToHmId(rootId),
                         replyCommentId: rootId !== comment.id ? comment.id : undefined,
-                        commentView: currentRoute.key === 'comments' ? 'expanded' : 'panel',
                         gatewayUrl: appOrigin ?? undefined,
                       })
                     }}

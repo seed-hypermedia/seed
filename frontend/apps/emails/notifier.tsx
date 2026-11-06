@@ -46,6 +46,11 @@ export type CreateMentionEmailInput = {
   authorName: string
   subjectName: string
   documentName: string
+  /**
+   * Where the mention is: a comment on the document (the default), or the document itself, in its
+   * body or in an attribute such as `owner` set to the subject.
+   */
+  source?: 'comment' | 'document'
   sectionName?: string
   commentBlocks: HMBlockNode[]
   actionUrl: string
@@ -56,11 +61,13 @@ export type CreateMentionEmailInput = {
 
 /** Build an individual "mention" notification email matching the design mockup. */
 export async function createMentionEmail(input: CreateMentionEmailInput) {
-  const subject = `${input.authorName} mentioned ${input.subjectName} in a comment on ${input.documentName}`
+  const inDocument = input.source === 'document'
+  const where = inDocument ? 'in' : 'in a comment on'
+  const subject = `${input.authorName} mentioned ${input.subjectName} ${where} ${input.documentName}`
 
   const text = `${subject}
 ${input.sectionName ? `Section: ${input.sectionName}\n` : ''}
-View comment: ${input.actionUrl}
+View ${inDocument ? 'document' : 'comment'}: ${input.actionUrl}
 
 Manage notifications: ${input.unsubscribeUrl}`
 
@@ -76,7 +83,7 @@ Manage notifications: ${input.unsubscribeUrl}`
         <MjmlSection padding={`24px ${emailTheme.gutter} 0`}>
           <MjmlColumn>
             <MjmlText fontSize="24px" fontWeight="bold" lineHeight="1.25" color={emailTheme.heading} padding="0">
-              {input.authorName} mentioned {input.subjectName} in a comment on <em>{input.documentName}</em>
+              {input.authorName} mentioned {input.subjectName} {where} <em>{input.documentName}</em>
             </MjmlText>
           </MjmlColumn>
         </MjmlSection>
@@ -95,7 +102,7 @@ Manage notifications: ${input.unsubscribeUrl}`
           <QuotedContent blocks={input.commentBlocks} resolvedNames={input.resolvedNames} variant="border" />
         ) : null}
 
-        <EmailButtonSection href={input.actionUrl}>See comment</EmailButtonSection>
+        <EmailButtonSection href={input.actionUrl}>{inDocument ? 'See document' : 'See comment'}</EmailButtonSection>
 
         <EmailFooter
           siteUrl={input.siteUrl}

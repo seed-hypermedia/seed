@@ -1,5 +1,6 @@
 ---
-name: Seed Hypermedia
+name: Hypermedia
+icon: ipfs://bafkreicavdhyxlnlw5o67sbsq5lu5jiwsuvikmnh6r4m3kh3vckg6uzjpi
 summary: The developer knowledge base for the Hypermedia protocol and the Seed software that implements it, published from the Seed repository itself.
 ---
 Hypermedia is a protocol for publishing [documents](./protocol/documents.md) and [discussions](./protocol/comments.md) that belong to their authors, with no server in charge of them. Every document is a [signed](./protocol/blobs.md), content-addressed history of changes. Every [account](./protocol/identity.md) is a cryptographic key. Every [link](./protocol/urls.md) can point at an exact version, an exact [block](./protocol/blocks.md), or an exact range of text. Content stays readable and verifiable as long as anyone still holds a copy. <!-- id:-gK0HbNj -->

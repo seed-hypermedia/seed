@@ -14,6 +14,8 @@ vi.mock('@sentry/remix', () => ({withSentry: (component: unknown) => component})
 vi.mock('../auth', () => ({useLocalKeyPairLoaded: () => state.loaded}))
 vi.mock('../providers', () => ({Providers: ({children}: React.PropsWithChildren) => children}))
 vi.mock('@shm/editor/editor-styles', () => ({}))
+// This component test does not run the loader or need deployment config files.
+vi.mock('../site-config.server', () => ({getServiceConfig: async () => null}))
 import App from '../root'
 
 let root: Root

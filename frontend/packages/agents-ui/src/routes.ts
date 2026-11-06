@@ -2,15 +2,22 @@ import type {NavRoute} from '@shm/shared/routes'
 import {routeToHref} from '@shm/shared/routing'
 import {agentsRouteFromUrl} from '@shm/shared/utils/agents-routing'
 
-/** One tab of the agent page. */
-export type SeedAgentTab = 'sessions' | 'triggers' | 'memory' | 'tools' | 'prompt' | 'collaborators' | 'settings'
+/** One tab of the agent page, or one of the pages under Settings (`prompt`, `permissions`,
+ * `identities`, `mcp`). `tools` is the old name of the permissions page. */
+export type SeedAgentTab =
+  | 'sessions'
+  | 'triggers'
+  | 'memory'
+  | 'tools'
+  | 'prompt'
+  | 'permissions'
+  | 'identities'
+  | 'mcp'
+  | 'collaborators'
+  | 'settings'
 
 /** A place in the agents UI. Mirrors Seed's agent NavRoutes, so links are interchangeable with the apps. */
 export type SeedAgentsRoute =
-  /** Every agent the account can use, across its servers. */
-  | {key: 'agents'}
-  /** One agents server: its agents and providers. */
-  | {key: 'agent-server'; serverUrl: string}
   /** One agent, on one of its tabs. */
   | {
       key: 'agent'
@@ -31,7 +38,7 @@ type AgentNavRoute = Extract<NavRoute, {key: SeedAgentsRoute['key']}>
 const _routesMatch: [SeedAgentsRoute, AgentNavRoute] = [{} as AgentNavRoute, {} as SeedAgentsRoute]
 void _routesMatch
 
-const ROUTE_KEYS = new Set<string>(['agents', 'agent-server', 'agent', 'agent-session', 'agent-run'])
+const ROUTE_KEYS = new Set<string>(['agent', 'agent-session', 'agent-run'])
 
 /** True when a Seed NavRoute is one the agents UI renders itself. */
 export function isSeedAgentsRoute(route: {key: string}): route is SeedAgentsRoute {
@@ -41,19 +48,19 @@ export function isSeedAgentsRoute(route: {key: string}): route is SeedAgentsRout
 const PREFIX = '/hm/agents'
 
 /**
- * The route as a relative path with query, e.g. `session/<id>?agent=<id>`, or `''` for the agents
- * list. It is the part after `/hm/agents/` in Seed's web URLs, so a host can mount it anywhere.
+ * The route as a relative path with query, e.g. `session/<id>?agent=<id>`. It is the part after
+ * `/hm/agents/` in Seed's web URLs, so a host can mount it anywhere.
  */
 export function seedAgentsRouteToPath(route: SeedAgentsRoute): string {
   const href = routeToHref(route as NavRoute) ?? PREFIX
   return href.startsWith(PREFIX) ? href.slice(PREFIX.length).replace(/^\//, '') : ''
 }
 
-/** Parses a path produced by {@link seedAgentsRouteToPath}. Unknown paths open the agents list. */
-export function seedAgentsRouteFromPath(path: string): SeedAgentsRoute {
+/** Parses a path produced by {@link seedAgentsRouteToPath}; null for a path that names no place. */
+export function seedAgentsRouteFromPath(path: string): SeedAgentsRoute | null {
   const [pathname = '', search = ''] = path.replace(/^\/+/, '').split('?', 2)
   const route = agentsRouteFromUrl(`${PREFIX}/${pathname}`, new URLSearchParams(search))
-  return isSeedAgentsRoute(route) ? route : {key: 'agents'}
+  return route && isSeedAgentsRoute(route) ? route : null
 }
 
 /** Seed's public web URL for a route, e.g. to open it in the Seed web app. */

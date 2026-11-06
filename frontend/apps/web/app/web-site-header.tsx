@@ -1,3 +1,8 @@
+import {useState, type ReactNode} from 'react'
+import {useNavigate} from '@shm/shared/utils/navigation'
+import {SiteFileBrowserLayout} from '@shm/ui/site-file-browser-layout'
+import {useWebCanEdit} from './document-edit/use-web-can-edit'
+import {useWebCreateDocumentMenuItem} from './web-utils'
 import {HMDocument, HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {unpackHmId} from '@shm/shared'
 import {NOTIFY_SERVICE_HOST} from '@shm/shared/constants'
@@ -94,6 +99,38 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
         notifyServiceHost={NOTIFY_SERVICE_HOST}
         rightActions={props.rightActions}
       />
+    </>
+  )
+}
+
+/** Gives standalone web pages the same sidebar as document pages. */
+export function WebSidebarLayout({siteHomeId, children}: {siteHomeId: UnpackedHypermediaId; children: ReactNode}) {
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const navigate = useNavigate()
+  const {canEdit, signingAccountId, capability} = useWebCanEdit(siteHomeId)
+  const {menuItem, content} = useWebCreateDocumentMenuItem({
+    locationId: siteHomeId,
+    signingAccountId: signingAccountId ?? undefined,
+    canCreate: canEdit && !!signingAccountId,
+    capabilityCid: capability && capability.id !== '_owner' ? capability.id : undefined,
+  })
+  return (
+    <>
+      <SiteFileBrowserLayout
+        siteId={siteHomeId}
+        activeDocumentId={null}
+        siteName="Site"
+        mobileOpen={mobileOpen}
+        onMobileOpenChange={setMobileOpen}
+        createMenuItem={menuItem}
+        onNavigate={(id) => {
+          setMobileOpen(false)
+          navigate({key: 'document', id})
+        }}
+      >
+        <div className="h-full overflow-y-auto">{children}</div>
+      </SiteFileBrowserLayout>
+      {content}
     </>
   )
 }

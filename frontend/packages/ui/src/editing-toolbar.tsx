@@ -18,10 +18,11 @@ import {useUnpublishedChangeCount} from '@shm/shared/models/use-unpublished-chan
 import {type AnyTimestamp, formattedDateMedium, formattedDateShort, normalizeDate} from '@shm/shared/utils/date'
 import {pathNameify} from '@shm/shared/utils/path'
 import {Check, ChevronRight, Clock, Copy, FileDiff, Pencil, Trash, X} from 'lucide-react'
-import React, {forwardRef, useEffect, useRef, useState} from 'react'
+import React, {forwardRef, useCallback, useEffect, useRef, useState} from 'react'
 import {Button} from './button'
 import {PathInput} from './path-input'
 import {Popover, PopoverAnchor, PopoverContent} from './components/popover'
+import {Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle} from './components/dialog'
 import {copyTextToClipboard} from './copy-to-clipboard'
 import {MenuItemType, OptionsDropdown} from './options-dropdown'
 import {Separator} from './separator'
@@ -30,6 +31,54 @@ import {toast} from './toast'
 import {Tooltip} from './tooltip'
 import {usePopoverState} from './use-popover-state'
 import {cn} from './utils'
+
+/** Show a compact publication error with a dialog for viewing and copying its details. */
+export function usePublishError() {
+  const [details, setDetails] = useState<string | null>(null)
+  const showError = useCallback((error: unknown) => {
+    const errorDetails = error instanceof Error ? error.stack || error.message : String(error)
+    toast.error('Failed to publish', {
+      id: 'document-publish-error',
+      duration: 10_000,
+      closeButton: true,
+      action: {
+        label: 'Show error details',
+        onClick: () => setDetails(errorDetails),
+      },
+    })
+  }, [])
+
+  return {
+    showError,
+    content: (
+      <Dialog open={details !== null} onOpenChange={(open) => !open && setDetails(null)}>
+        <DialogContent aria-describedby={undefined}>
+          <DialogHeader className="pr-6">
+            <DialogTitle>Error details</DialogTitle>
+          </DialogHeader>
+          <pre
+            tabIndex={0}
+            className="bg-muted max-h-96 overflow-auto rounded-md p-3 text-xs break-words whitespace-pre-wrap select-text"
+          >
+            {details}
+          </pre>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (details === null) return
+                void copyTextToClipboard(details).catch(() => toast.error('Failed to copy error details'))
+              }}
+            >
+              <Copy className="size-4" />
+              Copy
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    ),
+  }
+}
 
 /** Platform callbacks injected by the host (desktop or web). */
 export type EditingToolbarCallbacks = {
@@ -432,16 +481,23 @@ export function PublishButtonWithPopover({
   onGoToVersions,
   getUnpublishedChildCount,
   onPublishIntercept,
+  hidePublishWhenClean = false,
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
   /** When greater than 0, publish is blocked because the doc embeds child drafts that haven't been published yet. */
   unpublishedChildCount?: number
+  /**
+   * Show only the options dropdown until the draft holds something to publish. Agent pages use
+   * this: their content is the agent, so a Publish button with nothing behind it is noise.
+   */
+  hidePublishWhenClean?: boolean
 } & EditingToolbarCallbacks) {
   const draftId = useDocumentSelector(selectDraftId)
   const publishedDoc = useDocumentSelector(selectDocument)
   const isUnpublishedDraft = !!draftId && !publishedDoc?.version
   const changeCount = useUnpublishedChangeCount()
+  const showPublish = !hidePublishWhenClean || isUnpublishedDraft || changeCount > 0
   const effectiveUnpublishedChildCount = Math.max(unpublishedChildCount, getUnpublishedChildCount?.() ?? 0)
   const canPublish = canPublishDocument({
     changeCount,
@@ -453,7 +509,7 @@ export function PublishButtonWithPopover({
 
   const editingTrailingItems: MenuItemType[] = []
 
-  if (draftId) {
+  if (draftId && (isUnpublishedDraft || changeCount > 0)) {
     editingTrailingItems.push({
       key: 'discard-changes',
       label: isUnpublishedDraft ? 'Delete Draft' : 'Discard Changes',
@@ -498,12 +554,13 @@ export function PublishButtonWithPopover({
   // runs in the capture phase because the title field, inline draft cards and other inputs swallow
   // Enter before it would bubble up here; `isPublishShortcutTarget` decides which editable surfaces
   // the shortcut applies to.
-  const shortcutRef = useRef({open: popoverState.open, publishNow, setOpen: popoverState.onOpenChange})
-  shortcutRef.current = {open: popoverState.open, publishNow, setOpen: popoverState.onOpenChange}
+  const shortcutRef = useRef({open: popoverState.open, publishNow, setOpen: popoverState.onOpenChange, showPublish})
+  shortcutRef.current = {open: popoverState.open, publishNow, setOpen: popoverState.onOpenChange, showPublish}
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Enter' || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return
       if (!isPublishShortcutTarget(event.target)) return
+      if (!shortcutRef.current.showPublish) return
       event.preventDefault()
       event.stopPropagation()
       const {open, publishNow: publish, setOpen} = shortcutRef.current
@@ -540,29 +597,31 @@ export function PublishButtonWithPopover({
 
   return (
     <div className="flex items-center gap-2">
-      <Popover open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
-        <PopoverAnchor asChild>
-          <PublishTrigger canPublish={canPublish} onClick={handlePublishTriggerClick} />
-        </PopoverAnchor>
-        <PopoverContent
-          tabIndex={-1}
-          align="end"
-          className="w-[26rem] max-w-[calc(100vw-2rem)] p-6"
-          onOpenAutoFocus={focusPublishButton}
-        >
-          <PublishPopoverBody
-            docId={docId}
-            changeCount={changeCount}
-            onPublish={publishNow}
-            onClose={() => popoverState.onOpenChange(false)}
-            publishDisabled={!canPublish}
-            unpublishedChildCount={effectiveUnpublishedChildCount}
-            publishButtonRef={publishButtonRef}
-            getDocumentUrl={getDocumentUrl}
-            onGoToVersions={onGoToVersions}
-          />
-        </PopoverContent>
-      </Popover>
+      {showPublish ? (
+        <Popover open={popoverState.open} onOpenChange={popoverState.onOpenChange}>
+          <PopoverAnchor asChild>
+            <PublishTrigger canPublish={canPublish} onClick={handlePublishTriggerClick} />
+          </PopoverAnchor>
+          <PopoverContent
+            tabIndex={-1}
+            align="end"
+            className="w-[26rem] max-w-[calc(100vw-2rem)] p-6"
+            onOpenAutoFocus={focusPublishButton}
+          >
+            <PublishPopoverBody
+              docId={docId}
+              changeCount={changeCount}
+              onPublish={publishNow}
+              onClose={() => popoverState.onOpenChange(false)}
+              publishDisabled={!canPublish}
+              unpublishedChildCount={effectiveUnpublishedChildCount}
+              publishButtonRef={publishButtonRef}
+              getDocumentUrl={getDocumentUrl}
+              onGoToVersions={onGoToVersions}
+            />
+          </PopoverContent>
+        </Popover>
+      ) : null}
       <OptionsDropdown menuItems={allItems} align="end" side="bottom" />
     </div>
   )
@@ -577,6 +636,7 @@ export function EditingDocToolsRight({
   existingMenuItems,
   unpublishedChildCount,
   beforePublish,
+  hidePublishWhenClean,
   ...callbacks
 }: {
   docId: UnpackedHypermediaId
@@ -584,6 +644,8 @@ export function EditingDocToolsRight({
   unpublishedChildCount?: number
   /** Contextual actions rendered immediately before Publish. */
   beforePublish?: React.ReactNode
+  /** Hide the Publish button until the draft holds changes. */
+  hidePublishWhenClean?: boolean
 } & EditingToolbarCallbacks) {
   return (
     <div className="relative flex items-center gap-2">
@@ -595,6 +657,7 @@ export function EditingDocToolsRight({
         docId={docId}
         existingMenuItems={existingMenuItems}
         unpublishedChildCount={unpublishedChildCount}
+        hidePublishWhenClean={hidePublishWhenClean}
         {...callbacks}
       />
     </div>

@@ -19,6 +19,14 @@ minimumReleaseAge: 1440
 
 auditConfig:
   ignoreGhsas:
+    # deepmerge has no released fix. Patch both inputs against prototype poisoning;
+    # security CI verifies CJS and UMD in deepmerge-prototype.test.cjs.
+    - GHSA-gcqx-w48m-w2h4
+    # Backport upstream bounds to minimatch 7-10 and abort guards to glob 9-13.
+    # Legacy minimatch 3/5 has no affected preprocessing implementation.
+    # Security CI checks every installed version in glob-bounds.test.cjs.
+    - GHSA-g3hv-75wg-m249
+    - GHSA-3g3m-2fjr-6pw4
     # Tiptap 3.30.4 fix backported to our pinned Tiptap 2 package.
     # Security CI verifies CJS/ESM behavior in tiptap-merge-attributes.test.cjs.
     - GHSA-cp6q-959q-f8rh
@@ -31,14 +39,14 @@ auditConfig:
     # It is only used by the desktop packaging toolchain with trusted archives.
     - GHSA-7pqw-9j4j-h8q3
     - GHSA-jmr9-qjv8-65gv
-  ignoreCves:
-    # The CNA rejected this sprintf-js CVE; GitHub still lists the stale advisory.
-    # https://cveawg.mitre.org/api/cve/CVE-2026-97058
-    - CVE-2026-97058
-    # Remix 2 is coupled to React Router 6, which has no patched release.
-    # The notify app cannot move to React Router 7 independently of Remix.
-    - CVE-2026-53666
-    - CVE-2026-53669
+    # The CNA rejected this sprintf-js CVE (CVE-2026-97058); GitHub still lists the
+    # withdrawn advisory. https://cveawg.mitre.org/api/cve/CVE-2026-97058
+    - GHSA-hp3w-g68c-fv3c
+    # Remix 2 is coupled to React Router 6, which has no patched release
+    # (CVE-2026-53666, CVE-2026-53669). The notify app cannot move to React
+    # Router 7 independently of Remix.
+    - GHSA-337j-9hxr-rhxg
+    - GHSA-wrjc-x8rr-h8h6
 # trustPolicy: "no-downgrade"
 # Blocks installation if a package's trust level has decreased compared to its
 # previous release (e.g. was provenance-attested, now unsigned).
@@ -48,13 +56,9 @@ auditConfig:
 # supply-chain incidents. Re-enable once the dep tree stabilises or when pnpm
 # adds a way to bulk-accept historical workflow changes.
 
-# blockExoticSubdeps: true
+# blockExoticSubdeps
 # Prevents transitive dependencies from being resolved from exotic sources
-# (git repositories, direct tarball URLs). All transitive deps must come
-# from the configured registry.
-# BLOCKED: @electron/node-gyp is resolved from a git repo as a transitive dep
-# of @electron-forge/shared-types → @electron/rebuild@3.7.2. Needs an upstream
-# fix in @electron-forge before this can be enabled.
+# (git repositories, direct tarball URLs). Set explicitly to false below.
 
 # TypeScript settings — https://pnpm.io/typescript
 #
@@ -64,13 +68,262 @@ auditConfig:
 # resolve types correctly. The recommended fix is either:
 #   (a) packageExtensions — declare the missing peerDependency on the culprit package, or
 #   (b) @pnpm/plugin-types-fixer — automates option (a) across the workspace
-# We use approach (c): pnpm.overrides in package.json to pin @types/react and
-# @types/react-dom workspace-wide. This is a valid alternative and keeps all packages
+# We use approach (c): the `overrides` map at the bottom of this file pins @types/react
+# and @types/react-dom workspace-wide. This is a valid alternative and keeps all packages
 # on a single, consistent set of type definitions.
-# Pinned versions: @types/react@18.2.64, @types/react-dom@18.2.21 (see package.json).
+# Pinned versions: @types/react@18.2.64, @types/react-dom@18.2.21 (see `overrides` below).
 #
 # preserveSymlinks
 # Never set "preserveSymlinks": true in any tsconfig.json when using pnpm.
 # TypeScript cannot resolve type dependencies correctly through pnpm's symlinked
 # node_modules with that option enabled. If you ever need symlink preservation for
 # Node.js runtime behaviour, set pnpm's nodeLinker to "hoisted" instead.
+
+# ── Settings moved here from .npmrc and package.json#pnpm for pnpm 11 ──────────
+# pnpm 11 reads only auth/registry settings from .npmrc and no longer reads the
+# `pnpm` field in package.json; everything project-level lives in this file.
+
+# Node modules layout (was .npmrc node-linker / shamefully-hoist).
+nodeLinker: hoisted
+shamefullyHoist: true
+strictPeerDependencies: false
+autoInstallPeers: false
+
+# blockExoticSubdeps defaults to true in pnpm 11. Keep it off for now:
+# @electron/node-gyp is resolved from a git repo as a transitive dep of
+# @electron-forge/shared-types → @electron/rebuild@3.7.2. Needs an upstream
+# fix in @electron-forge before this can be enabled.
+blockExoticSubdeps: false
+
+# Lifecycle scripts run only for the packages listed here (was onlyBuiltDependencies).
+# pnpm 11 fails the install for any package with build scripts that is not
+# listed, so the packages whose scripts we deliberately skip are listed as false.
+allowBuilds:
+  '@sentry-internal/node-cpu-profiler': false
+  'core-js': false
+  'msw': false
+  '@ipshipyard/node-datachannel': true
+  '@sentry/cli': true
+  '@sentry/profiling-node': true
+  'better-sqlite3': true
+  'canvas': true
+  'electron': true
+  'electron-winstaller': true
+  'esbuild': true
+  'fs-xattr': true
+  'macos-alias': true
+  'sharp': true
+
+# Local patches (was package.json#pnpm.patchedDependencies).
+patchedDependencies:
+  'electron-installer-redhat': 'patches/electron-installer-redhat.patch'
+  'extract-zip@2.0.1': 'patches/extract-zip@2.0.1.patch'
+  'braces@3.0.3': 'patches/braces@3.0.3.patch'
+  'http-cache-semantics@4.3.0': 'patches/http-cache-semantics@4.3.0.patch'
+  '@tiptap/core@2.0.3': 'patches/@tiptap__core@2.0.3.patch'
+  'appdmg@0.6.6': 'patches/appdmg@0.6.6.patch'
+  '@electron/notarize@2.5.0': 'patches/@electron__notarize@2.5.0.patch'
+  'zod@4.6.6': 'patches/zod@4.6.6.patch'
+  'deepmerge@4.3.1': 'patches/deepmerge@4.3.1.patch'
+  'minimatch@8.0.7': 'patches/minimatch@8.0.7.patch'
+  'minimatch@9.0.7': 'patches/minimatch@9.0.7.patch'
+  'minimatch@10.2.4': 'patches/minimatch@10.2.4.patch'
+  'glob@9.3.5': 'patches/glob@9.3.5.patch'
+  'glob@10.5.0': 'patches/glob@10.5.0.patch'
+  'glob@11.1.0': 'patches/glob@11.1.0.patch'
+  'glob@13.0.6': 'patches/glob@13.0.6.patch'
+  'minimatch@7.4.8': 'patches/minimatch@7.4.8.patch'
+
+# Version pins and security overrides (was package.json#pnpm.overrides).
+overrides:
+  'react': '18.2.0'
+  'react-dom': '18.2.0'
+  '@types/react': '18.2.64'
+  '@types/react-dom': '18.2.21'
+  'prettier': '3.1.1'
+  'zod': '4.6.6'
+  'rollup': '4.59.0'
+  'prosemirror-model': '1.25.4'
+  'prosemirror-state': '1.4.4'
+  'prosemirror-transform': '1.10.4'
+  'prosemirror-view': '1.42.3'
+  'backslash': '<=0.2.0'
+  'chalk': '4.1.2'
+  'chalk-template': '<=1.1.0'
+  'color-convert': '<=2.0.1'
+  'color-name': '<=1.1.4'
+  'color-string': '<=1.9.1'
+  'debug': '<=4.4.1'
+  'error-ex': '<=1.3.2'
+  'has-ansi': '<=6.0.0'
+  'is-arrayish': '<=0.3.2'
+  'simple-swizzle': '<=0.2.2'
+  'supports-color': '7.2.0'
+  'supports-hyperlinks': '<=3.1.0'
+  'ansi-regex': '5.0.1'
+  'ansi-styles': '4.3.0'
+  'slice-ansi': '3.0.0'
+  'string-width': '4.2.3'
+  'strip-ansi': '6.0.1'
+  'wrap-ansi': '7.0.0'
+  'cliui': '7.0.4'
+  'unist-util-visit': '4.1.2'
+  'unist-util-visit-parents': '5.1.3'
+  'unist-util-is': '5.2.1'
+  'tar': '7.5.21'
+  'fast-xml-parser@^4': '5.7.2'
+  'fast-xml-parser@^5': '5.7.2'
+  'toml': '5.0.1'
+  'fast-xml-builder': '1.1.7'
+  'fast-uri': '3.1.9'
+  'minimatch@^3': '3.1.4'
+  'minimatch@^5': '5.1.8'
+  'minimatch@^7': '7.4.8'
+  'minimatch@^9': '9.0.7'
+  'minimatch@^10': '10.2.4'
+  'cross-spawn': '7.0.6'
+  'shell-quote': '1.11.0'
+  'basic-ftp': '5.3.1'
+  'lodash': '4.18.1'
+  'lodash-es': '4.18.1'
+  'linkifyjs': '4.3.2'
+  'valibot': '1.4.2'
+  'hono': '4.13.11'
+  'dompurify': '3.4.17'
+  'katex': '0.18.2'
+  '@babel/plugin-transform-modules-systemjs': '7.29.4'
+  '@babel/runtime': '7.29.2'
+  'electron': '44.9.3'
+  'prosemirror-dev-tools>nanoid': '3.3.18'
+  '@hono/node-server': '2.1.3'
+  '@modelcontextprotocol/sdk': '1.32.0'
+  '@remix-run/router': '1.23.3'
+  '@trpc/server': '10.45.4'
+  'rfc6902': '5.2.0'
+  'nodemailer': '10.1.4'
+  'happy-dom': '21.0.4'
+  'flatted': '3.4.2'
+  'undici': '6.29.1'
+  'handlebars': '4.7.10'
+  'node-forge': '1.4.0'
+  'path-to-regexp@<0.1.13': '0.1.13'
+  'path-to-regexp@>=8.0.0 <8.4.0': '8.4.0'
+  'picomatch@<2.3.2': '2.3.2'
+  'picomatch@>=4.0.0 <4.0.4': '4.0.4'
+  '@xmldom/xmldom': '0.8.15'
+  'tmp': '0.2.7'
+  'turbo-stream': '3.2.0'
+  'js-cookie': '3.0.7'
+  'got@<11.8.5': '11.8.5'
+  'phin@<3.7.1': '3.7.1'
+  '@sentry/browser@>=8.0.0-alpha.1 <8.33.0': '8.33.0'
+  '@sentry/remix@>=8.10.0 <8.49.0': '8.49.0'
+  '@sentry/node@>=8.10.0 <8.49.0': '8.49.0'
+  'esbuild@<=0.24.2': '0.25.0'
+  'estree-util-value-to-estree@<3.3.3': '3.3.3'
+  'cookie@<0.7.0': '0.7.0'
+  'jsondiffpatch@<0.7.6': '0.7.6'
+  'qs@>=6.7.0 <6.16.1': '6.16.1'
+  'markdown-it@<14.3.3': '14.3.3'
+  'ajv@<6.14.0': '6.14.0'
+  'ajv@>=7.0.0-alpha.0 <8.18.0': '8.18.0'
+  'file-type@>=13.0.0 <21.3.1': '21.3.2'
+  'nodemailer@<8.0.4': '10.1.4'
+  'brace-expansion@<1.1.13': '1.1.21'
+  'brace-expansion@>=2.0.0 <2.0.3': '2.1.7'
+  'brace-expansion@>=4.0.0 <5.0.5': '5.0.12'
+  'yaml@>=1.0.0 <1.10.3': '1.10.3'
+  'yaml@>=2.0.0 <2.8.3': '2.8.3'
+  'vite@<6.4.5': '6.4.5'
+  'hono@<4.12.12': '4.13.11'
+  'nodemailer@<=8.0.4': '10.1.4'
+  'hono@>=4.0.0 <=4.12.11': '4.13.11'
+  '@hono/node-server@<1.19.13': '2.1.3'
+  'fast-xml-parser@>=5.0.0 <5.5.7': '5.5.7'
+  'follow-redirects@<=1.15.11': '1.16.0'
+  'dompurify@<=3.3.3': '3.4.17'
+  'postcss@<8.5.23': '8.5.23'
+  'dompurify@<3.4.0': '3.4.17'
+  'dompurify@>=1.0.10 <3.4.0': '3.4.17'
+  'dompurify@>=3.0.1 <3.4.0': '3.4.17'
+  'fast-xml-parser@<5.7.0': '5.7.2'
+  'hono@<4.12.18': '4.13.11'
+  'ip-address@<=10.1.0': '10.7.4'
+  'hono@<4.12.16': '4.13.11'
+  'ws@>=8.0.0 <8.20.1': '8.20.1'
+  '@tootallnate/once@<2.0.1': '2.0.1'
+  'uuid@<11.1.1': '11.1.1'
+  'hono@<4.12.21': '4.13.11'
+  'mermaid@>=11.0.0-alpha.1 <11.16.1': '11.16.1'
+  'brace-expansion@>=5.0.0 <5.0.6': '5.0.12'
+  'joi@<17.13.4': '17.13.4'
+  'ws@>=8.0.0 <8.21.0': '8.21.0'
+  'ws@>=7.0.0 <7.5.11': '7.5.11'
+  'ws@>=6.0.0 <6.2.4': '6.2.4'
+  'form-data@>=4.0.0 <4.0.6': '4.0.6'
+  'tar@<=7.5.20': '7.5.21'
+  '@babel/core@<=7.29.0': '7.29.6'
+  'nodemailer@<=8.0.8': '10.1.4'
+  'nodemailer@<=8.0.7': '10.1.4'
+  'dompurify@<3.4.7': '3.4.17'
+  'dompurify@<=3.4.5': '3.4.17'
+  'dompurify@<3.4.9': '3.4.17'
+  'dompurify@>=3.0.0 <=3.4.7': '3.4.17'
+  'dompurify@<=3.4.6': '3.4.17'
+  '@opentelemetry/core@<2.8.0': '2.8.0'
+  '@opentelemetry/sdk-trace-base@<2.7.0': '2.7.0'
+  'hono@<4.12.34': '4.13.11'
+  'nodemailer@<=9.0.0': '10.1.4'
+  'dompurify@<=3.4.10': '3.4.17'
+  'undici@<6.28.0': '6.29.1'
+  'nanoid@<3.3.18': '3.3.18'
+  'nanoid@>=4.0.0 <5.1.16': '5.1.16'
+  'hono@<4.12.14': '4.13.11'
+  'linkify-it@<=5.0.0': '5.0.1'
+  'js-yaml@<3.15.0': '3.15.2'
+  'gray-matter@4.0.3>js-yaml': '3.15.2'
+  'js-yaml@>=4.0.0 <=4.1.1': '4.2.0'
+  'ws': '8.21.0'
+  'js-yaml': '5.4.1'
+  'esbuild': '0.27.2'
+  'fast-xml-parser': '5.7.2'
+  'file-type@>=20.0.0 <=21.3.1': '21.3.2'
+  'brace-expansion@<1.1.16': '1.1.21'
+  'brace-expansion@>=2.0.0 <2.1.2': '2.1.7'
+  'brace-expansion@>=5.0.0 <5.0.7': '5.0.12'
+  'morgan': '1.12.1'
+  'ip-address@<=10.3.0': '10.7.4'
+  'postcss@<=8.5.17': '8.5.23'
+  'brace-expansion@<1.1.17': '1.1.21'
+  'brace-expansion@<1.1.18': '1.1.21'
+  'brace-expansion@>=2.0.0 <2.1.3': '2.1.7'
+  'brace-expansion@>=2.0.0 <2.1.4': '2.1.7'
+  'brace-expansion@>=4.0.0 <5.0.8': '5.0.12'
+  'brace-expansion@>=4.0.0 <5.0.9': '5.0.12'
+  'brace-expansion@>=5.0.0 <5.0.8': '5.0.12'
+  'brace-expansion@>=5.0.0 <5.0.9': '5.0.12'
+  'js-yaml@<3.15.1': '3.15.2'
+  'js-yaml@>=5.0.0 <=5.2.1': '5.4.1'
+  'sharp': '0.35.5'
+  'svgo@>=4.0.0 <4.1.0': '4.1.0'
+  '@humanfs/node@<0.16.8': '0.16.8'
+  'fflate@>=0.7.0 <0.7.5': '0.7.5'
+  '@simplewebauthn/server@>=13.0.0 <13.3.2': '13.3.2'
+  'moment@<2.31.0': '2.31.0'
+  'proxy-addr@<2.0.8': '2.0.8'
+  'source-map-js@<1.2.2': '1.2.2'
+  'compression@<1.8.2': '1.8.2'
+  'http-cache-semantics@<4.3.0': '4.3.0'
+  'image-size': '2.0.3'
+  'react-router-dom@>=6.30.2 <=6.30.5': '6.30.6'
+  'react-router@>=6.30.2 <=6.30.5': '6.30.6'
+  'postcss-selector-parser@<7.1.6': '7.1.6'
+  '@opentelemetry/instrumentation-pg@<0.73.0': '0.73.0'
+  '@opentelemetry/instrumentation-mysql2@<0.67.0': '0.67.0'
+  '@opentelemetry/instrumentation-knex@<0.65.0': '0.65.0'
+  '@opentelemetry/instrumentation-mysql@<0.67.0': '0.67.0'
+  '@opentelemetry/instrumentation-mongoose@<0.67.0': '0.67.0'
+  '@opentelemetry/instrumentation-tedious@<0.40.0': '0.40.0'
+  'body-parser@<1.20.9': '1.20.9'
+  'body-parser@>=2.0.0 <2.4.0': '2.4.0'
+  'vitest@>=4.0.0 <4.1.12': '4.1.12'

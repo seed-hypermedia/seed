@@ -1,12 +1,13 @@
-import {resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
+import {hmDomainUrlToWebUrl} from '@seed-hypermedia/client/hm-resolver'
+import {extractCommentIdFromUrl, resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {HMBlockEmbed, HMEmbedViewSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRouteLink} from '@shm/shared'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
-import {useResource} from '@shm/shared/models/entity'
+import {useResource, useResolvedHmId} from '@shm/shared/models/entity'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
-import {packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {commentIdToHmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {Button} from '@shm/ui/button'
 import {Input} from '@shm/ui/components/input'
 import {DraftBadge} from '@shm/ui/draft-badge'
@@ -319,7 +320,11 @@ export async function resolveEmbedUrl(
     domainResolver?: DomainResolverFn
   } = {},
 ): Promise<EmbedResolveResult> {
-  const directHmId = unpackHmId(url)
+  // A comment URL embeds the comment it names (the selected reply when there is one), not
+  // the document it sits on.
+  const commentId = url.includes('#') ? null : extractCommentIdFromUrl(url)
+  if (commentId) return {kind: 'direct', url: packHmId(commentIdToHmId(commentId))}
+  const directHmId = hmDomainUrlToWebUrl(url) ? null : unpackHmId(url)
   if (directHmId) {
     return {kind: 'direct', url: packHmId(directHmId)}
   }
@@ -570,7 +575,7 @@ function SelectedEmbedActions({
   isSelected: boolean
 }) {
   const url = block.props.url as string
-  const docId = useMemo(() => (url ? unpackHmId(url) : null), [url])
+  const {id: docId} = useResolvedHmId(url)
 
   // External URLs have no embed-specific action bar.
   if (!docId) return null

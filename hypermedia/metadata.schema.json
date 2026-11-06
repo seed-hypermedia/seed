@@ -41,16 +41,7 @@
       "value": {
         "type": "hm://hyper.media/url"
       },
-      "description": "The agents server this space advertises to its readers (an http(s) origin); clients connect to it beside their own servers."
-    },
-    "spaceAgents": {
-      "value": {
-        "type": "hm://hyper.media/map",
-        "values": {
-          "type": "hm://hyper.media/value"
-        }
-      },
-      "description": "Agents this space publishes to its readers: `{[agentId]: order}`, each id an agent on `agentServerUrl`; a removed agent leaves a null behind."
+      "description": "The agents server that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`."
     },
     "attributesSchema": {
       "value": {

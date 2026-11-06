@@ -1,6 +1,7 @@
 import {decode as cborDecode, encode as cborEncode} from '@ipld/dag-cbor'
 import type {HMBlockNode, HMDocument, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
-import {ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
+import {createSeedClient} from '@seed-hypermedia/client'
+import {Block as ProtoBlock, ResourceVisibility} from '@shm/shared/client/.generated/documents/v3alpha/documents_pb'
 import type {PublishInput} from '@shm/shared/models/document-machine'
 import type {UniversalClient} from '@shm/shared/universal-client'
 import {indexedDB} from 'fake-indexeddb'
@@ -817,7 +818,8 @@ describe('publishWebDocument', () => {
       (change) => change.op?.case === 'replaceBlock' && change.op.value.id === 'q1',
     )
 
-    const attrs = replaceBlock.op.value.attributes.toJson()
+    // The prepare input is plain JSON, never protobuf instances (see the wire-format test).
+    const attrs = replaceBlock.op.value.attributes
     expect(attrs.query.includes[0]).toMatchObject({
       space: OWNER,
       path: 'parent/hello-web',
@@ -1156,5 +1158,90 @@ describe('deleteAllDocumentDrafts', () => {
 
     expect(await getWebDocDraft('mine')).toBeNull()
     expect(await getWebDocDraft('other')).not.toBeNull()
+  })
+})
+
+describe('publishWebDocument wire format', () => {
+  beforeEach(async () => {
+    inviteDomainMock.mockClear()
+    enqueueWebDocumentCardCleanupMock.mockClear()
+    _resetWebDocDraftDBForTesting()
+    await dropDB()
+  })
+
+  afterEach(async () => {
+    _resetWebDocDraftDBForTesting()
+    await dropDB()
+  })
+
+  it('sends query block attributes as plain JSON through the real client transport', async () => {
+    // Regression: seedteamtalks.hyper.media/team/eric (2026-11-03). The publish
+    // actor handed protobuf Block instances to PrepareDocumentChange; the client
+    // CBOR-encodes its input by walking own properties, so the attributes went
+    // over the wire as the protobuf-es in-memory Struct shape
+    // ({fields: {query: {kind: {case: 'structValue', ...}}}}) and the daemon
+    // stored that verbatim. Readers then found no `query` and the block hung.
+    await putWebDocDraft({
+      draftId,
+      docId: makeDocId(OWNER).id,
+      signingAccountId: OWNER,
+      content: [paragraph('b1', 'hello')],
+      metadata: {},
+      deps: ['old-head'],
+      navigation: null,
+      locationUid: null,
+      locationPath: null,
+      editUid: null,
+      editPath: null,
+      cursorPosition: null,
+    })
+    const includes = [{space: OWNER, path: 'projects', mode: 'Children'}]
+    const sort = [{term: 'updated', reverse: true}]
+    const deps = makeDeps({
+      editorBlocks: [
+        {
+          id: 'q1',
+          type: 'query',
+          props: {
+            childrenType: 'Group',
+            style: 'List',
+            columnCount: '3',
+            queryIncludes: JSON.stringify(includes),
+            querySort: JSON.stringify(sort),
+            queryFilters: '[]',
+            banner: 'false',
+          },
+          content: [],
+          children: [],
+        },
+      ],
+    })
+
+    await publishWebDocument(baseInput, deps)
+    const prepareCall = deps.requestMock.mock.calls.find((c: any) => c[0] === 'PrepareDocumentChange')!
+    const prepareInput = prepareCall[1]
+
+    // Replay the exact input through the real client: it validates and
+    // CBOR-encodes the request body the way the browser does.
+    let body: Uint8Array | undefined
+    const fetchMock = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      body = init?.body as Uint8Array
+      return new Response('{}', {status: 500})
+    })
+    const client = createSeedClient('http://site.test', {fetch: fetchMock as unknown as typeof fetch})
+    await client.request('PrepareDocumentChange', prepareInput).catch(() => undefined)
+    expect(body).toBeDefined()
+
+    const wire = cborDecode(body!) as any
+    const replace = wire.changes.find((c: any) => c.op?.case === 'replaceBlock' && c.op.value.id === 'q1')
+    expect(replace).toBeDefined()
+    const attributes = replace.op.value.attributes
+    expect(attributes.fields).toBeUndefined()
+    expect(attributes.query).toEqual({includes, sort, filters: []})
+    expect(attributes.style).toBe('List')
+
+    // What the daemon would materialize from that wire payload.
+    const daemonBlock = ProtoBlock.fromJson(replace.op.value)
+    expect(daemonBlock.attributes?.toJson()).toEqual(attributes)
   })
 })

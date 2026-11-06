@@ -2,6 +2,8 @@
 
 This folder is the source of the Seed developer docs and the Hypermedia Schemas library. A commit to `main` publishes it to staging. A tagged Seed release publishes that release's `hypermedia/` tree to production through `.github/workflows/sync-hypermedia.yml`. Production `hyper.media` content must never be edited directly through the CLI, SDK, agents or UI. The home page of the published site is [index.md](./index.md). This README is not published.
 
+Publishing to `staging.hyper.media` adds ` [STAGING]` to the home document's name (for example, `Hypermedia [STAGING]`). This happens during import, leaving `index.md` and all other page titles unchanged. Tagged production releases use the original name without the suffix.
+
 The pages are markdown in the lossless dialect of `@seed-hypermedia/client` (`blocksToMarkdown` and `parseMarkdown`). Every block type, annotation, attribute and metadata key survives a round trip. Block ids ride in trailing `<!-- id:… -->` comments. Links between pages are relative `.md` links, so they work on GitHub and become `hm://` links when published.
 
 ## Layout
@@ -24,6 +26,8 @@ A page publishes at its path: `protocol/documents.md` is `/protocol/documents`. 
 | `schemas.lock.json` | not published: every schema's CID |
 
 A `*.schema.json` beside a page is the schema that page defines. The sync encodes it to canonical DAG-CBOR, publishes it as a blob, and sets the page's `schemaDefinition` to `ipfs://<cid>` at publish time. Don't put `schemaDefinition` in frontmatter; `check.mjs` rejects it. A page without a schema can still be an instance of a type by naming one in `attributesSchema` in its frontmatter (see `example/bob.md`). How documents bind to schemas is explained in [Typed documents](./schema/typed-documents.md).
+
+The home icon is `assets/HyperMedia_IconInverse.png`, referenced by its `ipfs://` CID in `index.md` frontmatter. The release and dev sync upload that image alongside the schema blobs and reject a mismatched icon CID. When replacing the image, update the frontmatter to the CID reported by the sync's mismatch error.
 
 ## Writing pages
 

@@ -16,6 +16,9 @@ vi.mock('@/models/access-control', () => ({
   useSelectedAccountCapability: () => ({role: capabilityRoleMock.role}),
 }))
 vi.mock('@/models/daemon', () => ({useMyAccountIds: () => ({data: ['alice']})}))
+vi.mock('@/selected-account', () => ({useSelectedAccountId: () => 'alice'}))
+vi.mock('@shm/ui/agents/models', () => ({useAgentServerUrls: () => ({data: []})}))
+vi.mock('@shm/ui/universal-dialog', () => ({useAppDialog: () => ({open: vi.fn(), content: null})}))
 vi.mock('@/models/documents', () => ({
   useCreateDraft: () => createDraftMock,
   useChildDrafts: () => [],
@@ -124,6 +127,24 @@ describe('DesktopDocumentCreateButton Cmd+Shift+N', () => {
       act(() => {
         window.dispatchEvent(handled)
       })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(createDraftMock).not.toHaveBeenCalled()
+    } finally {
+      cleanup(root, container)
+    }
+  })
+
+  it('is not shown on an agent page', async () => {
+    useResourceMock.mockImplementation(() => ({
+      isLoading: false,
+      data: {type: 'document', document: {content: [], metadata: {type: 'hm://hyper.media/agent'}}},
+    }))
+    const {container, root} = await renderButton()
+    try {
+      expect(container.querySelector('button')).toBeNull()
+      pressNewShortcut()
       await act(async () => {
         await Promise.resolve()
       })

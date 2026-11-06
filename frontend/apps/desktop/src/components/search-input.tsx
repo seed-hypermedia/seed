@@ -3,7 +3,6 @@ import appError from '@/errors'
 import {domainResolver} from '@/grpc-client'
 import {useConnectPeer} from '@/models/contacts'
 import {readWebBrowserEnabled, useExperiments} from '@/models/experiments'
-import {useGatewayHost_DEPRECATED} from '@/models/gateway-settings'
 import {agentUrlToRoute, ipfsUrlToRoute, parseBrowserAddress} from '@/omnibar-url'
 import {useSelectedAccountId} from '@/selected-account'
 import {client} from '@/trpc'
@@ -13,13 +12,11 @@ import {resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {SearchResult} from '@seed-hypermedia/client/editor-types'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {SearchType} from '@shm/shared/client/.generated/entities/v1alpha/entities_pb'
-import {HYPERMEDIA_SCHEME} from '@shm/shared/constants'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {createDocumentNavRoute, createInspectNavRoute, NavRoute} from '@shm/shared/routes'
 import {
   extractViewTermFromUrl,
-  hmId,
   isHypermediaScheme,
   isSiteProfileTab,
   packHmId,
@@ -74,7 +71,6 @@ export const SearchInput = forwardRef<
 
   const [focusedIndex, setFocusedIndex] = useState(0)
   const [actionPromise, setActionPromise] = useState<Promise<void> | null>(null)
-  const gwHost = useGatewayHost_DEPRECATED()
   const handleUrl = useURLHandler()
   const recents = useRecents()
   const selectedAccountId = useSelectedAccountId()
@@ -115,33 +111,11 @@ export const SearchInput = forwardRef<
             onSelect({route: ipfsRoute})
             return
           }
-
-          // Extract view term before processing
-          const {
-            url: cleanSearch,
-            isInspect: searchIsInspect,
-            viewTerm: searchViewTerm,
-            activityFilter: searchActivityFilter,
-            commentId: searchCommentId,
-            accountUid: searchAccountUid,
-          } = extractViewTermFromUrl(query)
-          const searchRouteKey = viewTermToRouteKey(searchViewTerm)
-          const unpacked = unpackHmId(cleanSearch)
-          const appRoute = unpacked ? appRouteOfId(unpacked) : null
-
-          if ((unpacked?.scheme === HYPERMEDIA_SCHEME || unpacked?.hostname === gwHost) && appRoute && unpacked) {
+          // Keep view suffixes and query state through the shared route parser.
+          const directRoute = hypermediaUrlToRoute(query)
+          if (directRoute) {
             onClose?.()
-            onSelect({
-              route: applyViewTermToRoute(
-                appRoute,
-                searchRouteKey,
-                searchCommentId,
-                searchAccountUid,
-                searchActivityFilter,
-                searchIsInspect,
-              ),
-              id: unpacked,
-            })
+            onSelect({route: directRoute, id: unpackHmId(extractViewTermFromUrl(query).url) ?? undefined})
           } else if (query.startsWith('http://') || query.startsWith('https://') || query.includes('.')) {
             if (allowWebURL) {
               onSelect({webUrl: query})
@@ -264,12 +238,10 @@ export const SearchInput = forwardRef<
     onFocus: () => {},
     onMouseEnter: () => {},
     onSelect: () => {
-      const routeId = route && 'id' in route && typeof route.id !== 'string' ? route.id : null
-      const siteId = routeId?.uid ? hmId(routeId.uid) : null
       onSelect({
         route: {
           key: 'explore',
-          context: siteId ? {type: 'site', id: siteId} : {type: 'node'},
+          context: {type: 'node'},
           q: debouncedSearch || undefined,
         },
       })
@@ -464,6 +436,7 @@ function applyViewTermToRoute(
   accountUid?: string,
   activityFilter?: string,
   isInspect?: boolean,
+  replyCommentId?: string,
 ): NavRoute {
   if (route.key !== 'document') return route
   if (isInspect) {
@@ -483,6 +456,7 @@ function applyViewTermToRoute(
       id: {...route.id, version: null, latest: true},
       openComment: commentId,
       openCommentVersion: route.id.version || undefined,
+      replyCommentId,
     }
   }
   if (isSiteProfileTab(routeKey)) {
@@ -541,7 +515,15 @@ function useURLHandler() {
       }
 
       if (result.panel) {
-        return createDocumentNavRoute({...result.hmId, ...idFragment}, null, result.panel)
+        return createDocumentNavRoute(
+          {...result.hmId, ...idFragment},
+          null,
+          result.panel,
+          null,
+          null,
+          null,
+          parsedUrl?.query.reply,
+        )
       }
 
       return appRouteOfId({...result.hmId, ...idFragment})
@@ -569,15 +551,41 @@ function useURLHandler() {
       activityFilter,
       commentId,
       accountUid,
+      agentView,
+      agentSessionId,
+      agentTriggerId,
+      settingsTab,
     } = extractViewTermFromUrl(httpSearch)
     const routeKey = viewTermToRouteKey(viewTerm)
+    const replyCommentId = parseCustomURL(cleanUrl)?.query.reply
 
     connect.mutate(cleanUrl)
 
     const directResult = await resolveHypermediaUrl(cleanUrl, {domainResolver}).catch(() => null)
     const directRoute = routeFromResolvedUrl(cleanUrl, directResult)
     if (directRoute) {
-      return applyViewTermToRoute(directRoute, routeKey, commentId, accountUid, activityFilter, isInspect)
+      if (
+        directRoute.key === 'document' &&
+        (agentView || (viewTerm === ':settings' && directRoute.id.path?.length && !settingsTab))
+      ) {
+        const query = new URL(httpSearch).searchParams
+        return {
+          ...directRoute,
+          agentView: agentView || 'settings',
+          agentSessionId,
+          agentTriggerId: agentTriggerId || query.get('trigger') || undefined,
+          agentMemoryPath: query.get('file') || undefined,
+        }
+      }
+      return applyViewTermToRoute(
+        directRoute,
+        routeKey,
+        commentId,
+        accountUid,
+        activityFilter,
+        isInspect,
+        replyCommentId,
+      )
     }
 
     if (experiments.data?.webImporting) {
@@ -588,7 +596,15 @@ function useURLHandler() {
           await resolveHypermediaUrl(webResult.hypermedia.url, {domainResolver}),
         )
         if (resolvedWebRoute) {
-          return applyViewTermToRoute(resolvedWebRoute, routeKey, commentId, accountUid, activityFilter, isInspect)
+          return applyViewTermToRoute(
+            resolvedWebRoute,
+            routeKey,
+            commentId,
+            accountUid,
+            activityFilter,
+            isInspect,
+            replyCommentId,
+          )
         }
         console.log('Failed to open this hypermedia content', webResult.hypermedia)
         toast.error('Failed to open this hypermedia content')

@@ -334,6 +334,16 @@ export function pendingWaitToolCallIds(db: Database, sessionId: string): Set<str
     const wait = cbor.decode<RunWait>(row.wait_cbor)
     if (wait.reason === 'children') for (const id of wait.toolCallIds) pending.add(id)
   }
+  // A child still working whose parent run is over (it failed or was canceled across a restart)
+  // is pending too: its finalizer will answer the call, so nothing else may answer it first.
+  const placeholders = TERMINAL_RUN_STATUSES.map(() => '?').join(', ')
+  const live = stmt<{parent_tool_call_id: string}, string[]>(
+    db,
+    `SELECT parent_tool_call_id FROM runs
+       WHERE parent_tool_call_id IS NOT NULL AND status NOT IN (${placeholders})
+         AND parent_run_id IN (SELECT id FROM runs WHERE session_id = ?)`,
+  ).all(...TERMINAL_RUN_STATUSES, sessionId)
+  for (const row of live) pending.add(row.parent_tool_call_id)
   return pending
 }
 
@@ -367,8 +377,23 @@ export function latestSessionRun(db: Database, sessionId: string): RunRecord | n
   return row ? rowToRun(row) : null
 }
 
+/** Whether the queue may start another run right now, and why not when it may not. */
+export type Admission = {ok: true} | {ok: false; reason: string}
+
+/** The child a model turn spawned with one delegate call, found by the call that spawned it. */
+export function findChildByToolCall(db: Database, sessionId: string, toolCallId: string): RunRecord | null {
+  const row = stmt<RunRow, [string, string]>(
+    db,
+    `SELECT ${RUN_COLUMNS} FROM runs
+       WHERE parent_tool_call_id = ? AND parent_run_id IN (SELECT id FROM runs WHERE session_id = ?)
+       ORDER BY created_at ASC LIMIT 1`,
+  ).get(toolCallId, sessionId)
+  return row ? rowToRun(row) : null
+}
+
 export class RunQueue {
   readonly #db: Database
+  readonly #admit?: () => Admission
   readonly #instanceId: string
   readonly #executors: Partial<Record<RunKind, RunExecutor>>
   readonly #onRunChanged?: (run: RunRecord) => void
@@ -395,6 +420,11 @@ export class RunQueue {
       onRunFinalized?: (run: RunRecord) => void
       /** Asked to abort a currently-executing run during cancellation. */
       abortRun?: (run: RunRecord) => void
+      /**
+       * Asked before any run is claimed, by the loop and by {@link RunQueue.runInline}. A refusal
+       * leaves queued work where it is; the loop keeps polling and claims it once admitted.
+       */
+      admit?: () => Admission
       maxConcurrentModelRuns?: number
       /** Workflow runs hold no provider stream and get their own, higher cap. */
       maxConcurrentWorkflows?: number
@@ -410,6 +440,7 @@ export class RunQueue {
     this.#onRunChanged = opts.onRunChanged
     this.#onRunFinalized = opts.onRunFinalized
     this.#abortRun = opts.abortRun
+    this.#admit = opts.admit
     this.#maxConcurrentModelRuns = opts.maxConcurrentModelRuns ?? 8
     this.#maxConcurrentWorkflows = opts.maxConcurrentWorkflows ?? 32
     this.#retryBaseMs = opts.retryBaseMs ?? RETRY_BASE_MS
@@ -507,7 +538,10 @@ export class RunQueue {
    * through the same claim/finalize machinery as loop-dispatched runs.
    */
   async runInline(runId: string): Promise<RunRecord> {
-    const claimed = this.#claimSpecific(runId)
+    // Not admitted: the run stays queued, durable, and the caller sees a run that has not started.
+    // The loop claims it once admitted, like any other queued run.
+    const claimed = this.#admit && !this.#admit().ok ? null : this.#claimSpecific(runId)
+    if (!claimed) this.#ensureInterval()
     if (claimed) await this.#execute(claimed)
     const run = this.#getRunAnyAccount(runId)
     if (!run) throw new Error(`Run not found after inline execution: ${runId}`)
@@ -750,6 +784,12 @@ export class RunQueue {
   #pump(): void {
     try {
       this.#wakeDueTimers()
+      if (this.#admit && !this.#admit().ok) {
+        // Not claiming anything; queued work stays queued. The interval keeps asking, so dispatch
+        // resumes on its own once the condition clears.
+        this.#ensureInterval()
+        return
+      }
       for (;;) {
         const kinds: RunKind[] = []
         let agentInflight = 0

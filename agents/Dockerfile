@@ -51,4 +51,10 @@ ENV NODE_ENV=production
 ENV SEED_AGENTS_DB_PATH=/data/agents.sqlite
 ENV SEED_AGENTS_DATA_DIR=/data
 EXPOSE 3050
+# /api/health answers 503 while the event loop's p95 lag over the last minute is above the
+# threshold in perf.ts, and does not answer at all while the loop is stalled outright; both read
+# as unhealthy here, so `docker ps`, Watchtower and compose see a stalled server instead of "Up".
+# The image has no curl; bun's fetch with a 4 s abort stays inside the 5 s timeout.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+  CMD ["bun", "-e", "fetch(`http://127.0.0.1:${process.env.SEED_AGENTS_HTTP_PORT || 3050}/api/health`, {signal: AbortSignal.timeout(4000)}).then((res) => process.exit(res.ok ? 0 : 1), () => process.exit(1))"]
 CMD ["bun", "run", "--no-install", "main.js"]

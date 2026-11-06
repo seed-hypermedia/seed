@@ -3,6 +3,10 @@ import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {useEffect, useRef, useState} from 'react'
 
 interface CommentDraft {
+  docId?: string
+  replyCommentId?: string | null
+  quotingBlockId?: string
+  quotingRange?: QuotingRange
   blocks: HMBlockNode[]
   mediaRefs?: Record<string, string> // blockId to serialized mediaRef JSON map
   timestamp: number
@@ -125,7 +129,15 @@ export function useCommentDraftPersistence(
 
     pendingSaveRef.current = {
       key: draftKey,
-      draft: {blocks, timestamp: Date.now(), ...(mediaRefs && Object.keys(mediaRefs).length ? {mediaRefs} : {})},
+      draft: {
+        blocks,
+        docId,
+        replyCommentId,
+        quotingBlockId,
+        quotingRange,
+        timestamp: Date.now(),
+        ...(mediaRefs && Object.keys(mediaRefs).length ? {mediaRefs} : {}),
+      },
     }
     // The editor can emit its final content during child cleanup after this
     // hook has unmounted. Save that content before the next editor loads it.
@@ -169,4 +181,56 @@ export function useCommentDraftPersistence(
     saveDraft,
     removeDraft,
   }
+}
+
+/** A local comment draft and its exact storage key, used to resume or discard it. */
+export interface ListedWebCommentDraft extends CommentDraft {
+  storageKey: string
+  docId: string
+  ambiguousTarget?: boolean
+}
+
+/** List nonempty comment drafts across all local targets without deleting stored data. */
+export function listWebCommentDrafts(): ListedWebCommentDraft[] {
+  if (typeof localStorage === 'undefined') return []
+  const drafts: ListedWebCommentDraft[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const storageKey = localStorage.key(i)
+    if (!storageKey?.startsWith('comment-draft-')) continue
+    const raw = localStorage.getItem(storageKey)
+    try {
+      const draft = JSON.parse(raw || '{}') as CommentDraft
+      if (!Array.isArray(draft.blocks) || !draft.blocks.some(hasBlockContent) || !Number.isFinite(draft.timestamp))
+        continue
+      // Older records stored the target only in the key. New records keep the
+      // fields explicitly so paths containing separator words remain unambiguous.
+      const legacy = storageKey
+        .slice('comment-draft-'.length)
+        .match(/^(.*?)(?:-reply-(.*?))?(?:-quote-(.*?))?(?:-range-(\d+)-(\d+))?$/)
+      const docId = draft.docId || legacy?.[1]
+      if (!docId) continue
+      drafts.push({
+        ...draft,
+        storageKey,
+        docId,
+        ambiguousTarget: !draft.docId && /-(?:reply|quote|range)-/.test(storageKey.slice('comment-draft-'.length)),
+        replyCommentId: draft.docId ? draft.replyCommentId : legacy?.[2],
+        quotingBlockId: draft.docId ? draft.quotingBlockId : legacy?.[3],
+        quotingRange: draft.docId
+          ? draft.quotingRange
+          : legacy?.[4] && legacy?.[5]
+            ? {start: Number(legacy[4]), end: Number(legacy[5])}
+            : undefined,
+      })
+    } catch {
+      // Leave unreadable records intact; one corrupt record must not hide other drafts.
+    }
+  }
+  return drafts.sort((a, b) => b.timestamp - a.timestamp)
+}
+
+/** Discard only the selected comment draft, including legacy keys. */
+export function deleteWebCommentDraft(storageKey: string): void {
+  if (!storageKey.startsWith('comment-draft-')) throw new Error('Invalid comment draft key')
+  localStorage.removeItem(storageKey)
 }

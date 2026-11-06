@@ -793,3 +793,22 @@ describe('QueryBlockContent progressive list rendering', () => {
     expect(container.querySelectorAll('[data-testid="query-row"]')).toHaveLength(8)
   })
 })
+
+describe('QueryBlockContent item icons', () => {
+  function makeKindItems() {
+    const [agent, collection, document] = makeItems(3)
+    agent.metadata = {name: 'Helper', type: 'hm://hyper.media/agent'}
+    collection.isCollection = true
+    return [agent, collection, document]
+  }
+
+  it.each(['List', 'Table'] as const)('marks agents, collections and documents in the %s view', (style) => {
+    act(() => {
+      root.render(<QueryBlockContent items={makeKindItems()} style={style} accountsMetadata={{}} />)
+    })
+
+    expect(container.querySelectorAll('[aria-label="Agent"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[aria-label="Collection"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[aria-label="Document"]')).toHaveLength(1)
+  })
+})

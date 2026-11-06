@@ -1,5 +1,5 @@
-import {unpackHmId} from '@shm/shared/utils/entity-id-url'
-import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {hmId, routeToUrl, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const {resolveHypermediaUrlMock} = vi.hoisted(() => ({
   resolveHypermediaUrlMock: vi.fn(),
@@ -23,6 +23,47 @@ import {
 } from '../omnibar-url'
 
 describe('omnibar url resolution', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it.each(['hm://uid1/path', 'https://gateway.example/hm/uid1/path'])(
+    'preserves the selected reply in directly parsed URLs: %s',
+    async (base) => {
+      await expect(
+        resolveOmnibarUrlToHypermediaUrl(`${base}?panel=comments/author/root&reply=author%2Freply`),
+      ).resolves.toBe('hm://uid1/path?panel=comments/author/root&reply=author/reply')
+    },
+  )
+
+  it.each(['cached', 'http'] as const)(
+    'preserves reply selection through real %s site resolution and HM serialization',
+    async (resolution) => {
+      const actual = await vi.importActual<typeof import('@seed-hypermedia/client')>('@seed-hypermedia/client')
+      resolveHypermediaUrlMock.mockImplementation(actual.resolveHypermediaUrl)
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response(null, {
+          status: 200,
+          headers: {'x-hypermedia-id': 'hm://uid1/path'},
+        }),
+      )
+      const opts = resolution === 'cached' ? {domainResolver: async () => 'uid1'} : undefined
+      for (const suffix of [
+        '?panel=comments/author/root&reply=author%2Freply',
+        '/:comments/author/root?reply=author%2Freply',
+      ]) {
+        const url = `https://site.example/path${suffix}`
+        const route = await resolveOmnibarUrlToRoute(url, opts)
+        const comments = route?.key === 'comments' ? route : route && 'panel' in route ? route.panel : null
+        expect(comments).toMatchObject({openComment: 'author/root', replyCommentId: 'author/reply'})
+        const hmUrl = await resolveOmnibarUrlToHypermediaUrl(url, opts)
+        expect(hmUrl).toContain('reply=author/reply')
+        const roundTrip = await resolveOmnibarUrlToRoute(hmUrl!)
+        const roundTripComments =
+          roundTrip?.key === 'comments' ? roundTrip : roundTrip && 'panel' in roundTrip ? roundTrip.panel : null
+        expect(roundTripComments).toMatchObject({openComment: 'author/root', replyCommentId: 'author/reply'})
+      }
+    },
+  )
+
   it('accepts full URLs and bare domains without turning search text or unsafe schemes into websites', () => {
     expect(parseBrowserAddress(' example.com/path?q=seed#section ')).toBe('https://example.com/path?q=seed#section')
     expect(parseBrowserAddress('https://example.com/path')).toBe('https://example.com/path')
@@ -66,6 +107,32 @@ describe('omnibar url resolution', () => {
     await expect(resolveOmnibarUrlToHypermediaUrl('hm://uid1/:comments/comment123')).resolves.toBe(
       'hm://uid1/:comments/comment123',
     )
+  })
+
+  it('resolves trigger detail paths on custom domains', async () => {
+    resolveHypermediaUrlMock.mockResolvedValue({hmId: unpackHmId('hm://uid1/helper')})
+    await expect(
+      resolveOmnibarUrlToRoute('https://example.com/helper/:triggers/trigger-2?trigger=old'),
+    ).resolves.toMatchObject({
+      key: 'document',
+      id: {id: 'hm://uid1/helper'},
+      agentView: 'triggers',
+      agentTriggerId: 'trigger-2',
+    })
+  })
+
+  it('resolves mounted agent views on a custom site without dropping the suffix', async () => {
+    resolveHypermediaUrlMock.mockResolvedValue({hmId: unpackHmId('hm://uid1/helper'), panel: null})
+    await expect(resolveOmnibarUrlToRoute('https://example.com/helper/:session/session-1')).resolves.toMatchObject({
+      key: 'document',
+      agentView: 'session',
+      agentSessionId: 'session-1',
+      id: {id: 'hm://uid1/helper'},
+    })
+    await expect(resolveOmnibarUrlToRoute('https://example.com/helper/:settings')).resolves.toMatchObject({
+      key: 'document',
+      agentView: 'settings',
+    })
   })
 
   it('returns inspect hm urls unchanged when they are already parseable', async () => {
@@ -184,14 +251,14 @@ describe('omnibar url resolution', () => {
   })
 
   it('builds and resolves agent tab urls', async () => {
-    const url = agentUrl('https://agents.example', 'agent-1', 'tools')
+    const url = agentUrl('https://agents.example', 'agent-1', 'permissions')
 
-    expect(url).toBe('https://agents.example/agents/agent-1/:tools')
+    expect(url).toBe('https://agents.example/agents/agent-1/:permissions')
     await expect(resolveOmnibarUrlToRoute(url)).resolves.toEqual({
       key: 'agent',
       serverUrl: 'https://agents.example',
       agentId: 'agent-1',
-      tab: 'tools',
+      tab: 'permissions',
     })
   })
 
@@ -231,7 +298,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'alice',
         domainStatus: 'success',
@@ -243,7 +309,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         isDomainLoading: true,
       }),
@@ -254,7 +319,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'bob',
         domainStatus: 'success',
@@ -262,23 +326,61 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     ).toBeNull()
   })
 
-  it('returns null for the gateway host even when the account matches', () => {
+  it('keeps the gateway host when it serves the current account', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://gateway.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: 'alice',
         domainStatus: 'success',
       }),
-    ).toBeNull()
+    ).toBe('https://gateway.example')
+  })
+
+  it.each(['', '/build/cli', '/:activity'])(
+    'preserves a gateway home-space URL %s through desktop routing',
+    async (path) => {
+      const {resolveHypermediaUrl} =
+        await vi.importActual<typeof import('@seed-hypermedia/client')>('@seed-hypermedia/client')
+      resolveHypermediaUrlMock.mockImplementation(resolveHypermediaUrl)
+      const url = `https://hyper.media${path}`
+      const route = await resolveOmnibarUrlToRoute(url, {
+        domainResolver: async () => ({registeredAccountUid: 'home', isGateway: true}),
+      })
+      expect(route).toBeTruthy()
+      if (!route || !('id' in route) || typeof route.id !== 'object' || !route.id)
+        throw new Error('Expected resource route')
+      const siteUrl = selectValidatedOmnibarSiteUrl({
+        candidateSiteUrl: route.id.hostname,
+        accountUid: route.id.uid,
+        registeredAccountUid: 'home',
+        domainStatus: 'success',
+      })
+      expect(siteUrl).toBe('https://hyper.media')
+      expect(routeToUrl(route, {hostname: siteUrl, originHomeId: hmId('home')})).toBe(url)
+    },
+  )
+
+  it('keeps the account prefix for another account served through the gateway', () => {
+    const siteUrl = selectValidatedOmnibarSiteUrl({
+      candidateSiteUrl: 'https://hyper.media',
+      accountUid: 'other',
+      registeredAccountUid: 'home',
+      domainStatus: 'success',
+    })
+    expect(siteUrl).toBeNull()
+    expect(
+      routeToUrl(
+        {key: 'document', id: hmId('other', {path: ['notes']})},
+        {hostname: siteUrl || 'https://hyper.media', originHomeId: siteUrl ? hmId('other') : undefined},
+      ),
+    ).toBe('https://hyper.media/hm/other/notes')
   })
 
   it('keeps the candidate domain when the domain check status is error', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
         domainStatus: 'error',
@@ -290,7 +392,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
         domainStatus: 'unreachable',
@@ -302,7 +403,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
         domainStatus: undefined,
@@ -314,7 +414,6 @@ describe('selectValidatedOmnibarSiteUrl', () => {
     expect(
       selectValidatedOmnibarSiteUrl({
         candidateSiteUrl: 'https://alice.example',
-        gatewayUrl: 'https://gateway.example',
         accountUid: 'alice',
         registeredAccountUid: undefined,
         domainStatus: 'success',

@@ -72,7 +72,7 @@ export function CreateAgentSheet({
       model,
       tools: DEFAULT_AGENT_TOOLS,
     }
-    createAgent.mutate(definition, {
+    createAgent.mutate({definition}, {
       onSuccess: (response) => {
         if (response._ !== 'CreateAgentResponse') {
           setError('Unexpected response from the agent server')

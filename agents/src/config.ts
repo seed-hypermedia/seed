@@ -82,14 +82,24 @@ export type Config = {
     poolVmMaxAgeMs: number
     /** Hard cap on sandboxes on loan at once, host-wide (a real limit, unlike poolMaxVms). */
     maxConcurrent: number
-    /** How long an acquire may wait for a slot before failing with a retryable error. */
+    /** How long an acquire may wait for a host-wide slot before failing with a retryable error. */
     acquireWaitMs: number
+    /** How long an acquire may wait for the agent's memory-root lease (one sandbox per agent memory at a time). */
+    memoryRootWaitMs: number
   }
   runQueue: {
     /** Model-backed runs executed concurrently. Everything shares one event loop, so size this to the host. */
     maxConcurrentModelRuns: number
     /** Workflow runs executed concurrently (they mostly park waiting on children). */
     maxConcurrentWorkflows: number
+  }
+  storage: {
+    /**
+     * Free space the database's file system must have before the queue starts another run. A turn
+     * that starts on a full disk cannot record itself; below this the queue holds runs instead.
+     * Zero disables the check.
+     */
+    minFreeDiskBytes: number
   }
 }
 
@@ -126,8 +136,10 @@ export type Flags = {
   'exec-pool-max-age-secs': number
   'exec-max-concurrent': number
   'exec-acquire-wait-secs': number
+  'exec-memory-root-wait-secs': number
   'max-concurrent-model-runs': number
   'max-concurrent-workflows': number
+  'min-free-disk-mib': number
   'log-level': string
 }
 
@@ -166,8 +178,13 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
     'exec-pool-max-age-secs': Number(env.SEED_AGENTS_EXEC_POOL_MAX_AGE_SECS) || 1800,
     'exec-max-concurrent': Number(env.SEED_AGENTS_EXEC_MAX_CONCURRENT) || defaultExecMaxConcurrent(),
     'exec-acquire-wait-secs': Number(env.SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS) || 30,
+    'exec-memory-root-wait-secs': Number(env.SEED_AGENTS_EXEC_MEMORY_ROOT_WAIT_SECS) || 300,
     'max-concurrent-model-runs': Number(env.SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS) || 8,
     'max-concurrent-workflows': Number(env.SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS) || 32,
+    'min-free-disk-mib':
+      env.SEED_AGENTS_MIN_FREE_DISK_MIB === undefined || env.SEED_AGENTS_MIN_FREE_DISK_MIB === ''
+        ? 512
+        : Number(env.SEED_AGENTS_MIN_FREE_DISK_MIB),
     'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
   }
 }
@@ -209,6 +226,8 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
       key === 'max-concurrent-workflows'
     ) {
       parsed[key] = parsePositiveInteger(value, key)
+    } else if (key === 'min-free-disk-mib') {
+      parsed[key] = parseNonNegativeInteger(value, key)
     } else {
       parsed[key] = value as never
     }
@@ -265,6 +284,8 @@ export function create(pflags: Flags): Config {
       poolVmMaxAgeMs: parsePositiveInteger(String(pflags['exec-pool-max-age-secs']), 'exec-pool-max-age-secs') * 1000,
       maxConcurrent: parsePositiveInteger(String(pflags['exec-max-concurrent']), 'exec-max-concurrent'),
       acquireWaitMs: parsePositiveInteger(String(pflags['exec-acquire-wait-secs']), 'exec-acquire-wait-secs') * 1000,
+      memoryRootWaitMs:
+        parsePositiveInteger(String(pflags['exec-memory-root-wait-secs']), 'exec-memory-root-wait-secs') * 1000,
     },
     runQueue: {
       maxConcurrentModelRuns: parsePositiveInteger(
@@ -275,6 +296,9 @@ export function create(pflags: Flags): Config {
         String(pflags['max-concurrent-workflows']),
         'max-concurrent-workflows',
       ),
+    },
+    storage: {
+      minFreeDiskBytes: parseNonNegativeInteger(String(pflags['min-free-disk-mib']), 'min-free-disk-mib') * 1_048_576,
     },
     subscriptionAuth: pflags['subscription-auth'],
     titleGeneration: pflags['session-title-generation'],
@@ -332,6 +356,12 @@ function normalizeHttpUrl(value: string, label: string): string {
 function parsePositiveInteger(value: string, label: string): number {
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed <= 0) throw new Error(`Invalid ${label}: ${value}`)
+  return parsed
+}
+
+function parseNonNegativeInteger(value: string, label: string): number {
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`Invalid ${label}: ${value}`)
   return parsed
 }
 

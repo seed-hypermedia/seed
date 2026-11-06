@@ -38,6 +38,167 @@ function withoutMeta(payload: unknown): unknown {
 }
 
 describe('api service', () => {
+  test('creates a local mounted agent directly, rejects invalid locations, and deduplicates concurrent retries', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const owner = blobs.generateNobleKeyPair()
+    const ownerId = blobs.principalToString(owner.principal)
+    const documentId = `hm://${ownerId}/agents/new-helper`
+    let validDocument = false
+    let release: (() => void) | undefined
+    let entered: (() => void) | undefined
+    const hm = Bun.serve({
+      port: 0,
+      fetch: async () => {
+        if (entered) {
+          const ready = entered
+          entered = undefined
+          await new Promise<void>((resolve) => {
+            release = resolve
+            ready()
+          })
+        }
+        return Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId(documentId),
+            document: {
+              authors: [ownerId],
+              genesis: 'test-genesis',
+              visibility: 'PUBLIC',
+              metadata: validDocument
+                ? {type: 'hm://hyper.media/agent', agentServerUrl: 'http://localhost:3051', name: 'Document helper'}
+                : {},
+            },
+          }),
+        )
+      },
+    })
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: hm.url.origin, runQueue: {maxConcurrentModelRuns: 0}})
+    const send = async (action: import('@/api').UnsignedAgentAction) =>
+      svc.message(await apisvc.createSignedEnvelope(owner, {action}))
+    try {
+      await seedAgentSession(svc, owner, 'Existing agent')
+      const countBefore = db.query<{count: number}, []>('SELECT count(*) AS count FROM agents').get()!.count
+      const action: import('@/api').CreateAgent = {
+        _: 'CreateAgent',
+        clientRequestId: 'create-at-location',
+        definition: {name: 'New helper', systemPrompt: 'Test', modelProvider: 'openai', model: 'gpt-test', tools: []},
+        mount: {documentId},
+      }
+      await expect(send(action)).rejects.toThrow('mount document')
+      expect(db.query('SELECT count(*) AS count FROM agents').get()).toEqual({count: countBefore})
+      validDocument = true
+      const started = new Promise<void>((resolve) => {
+        entered = resolve
+      })
+      const first = send(action)
+      await started
+      // Network discovery must not leave a transaction open on the shared SQLite connection.
+      const unrelated = await send({...action, clientRequestId: 'other-agent', mount: undefined})
+      expect(unrelated._).toBe('CreateAgentResponse')
+      const retry = send(action)
+      release!()
+      expect(await first).toEqual({_: 'CreateAgentResponse', agentId: documentId})
+      expect(await retry).toEqual({_: 'CreateAgentResponse', agentId: documentId})
+      expect(await send(action)).toEqual({_: 'CreateAgentResponse', agentId: documentId})
+      expect(db.query('SELECT count(*) AS count FROM agents').get()).toEqual({count: countBefore + 2})
+      // The document names the agent, not the request.
+      expect(await send({_: 'GetAgent', agentId: documentId})).toMatchObject({
+        agent: {id: documentId, definition: {name: 'Document helper'}},
+      })
+      const row = db.query<{state_dir: string}, [string]>('SELECT state_dir FROM agents WHERE id = ?').get(documentId)!
+      expect(path.relative(dataDir, row.state_dir)).toMatch(/^agents\/[^/]+$/)
+      await expect(send({...action, clientRequestId: 'different-request'})).rejects.toThrow('another agent')
+      expect(db.query('PRAGMA foreign_key_check').all()).toEqual([])
+    } finally {
+      release?.()
+      svc.stopRunQueue()
+      hm.stop(true)
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('mounts an idle agent at its document ID while preserving sessions, files, permissions, and old links', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const owner = blobs.generateNobleKeyPair()
+    const collaborator = blobs.generateNobleKeyPair()
+    const ownerId = blobs.principalToString(owner.principal)
+    const collaboratorId = blobs.principalToString(collaborator.principal)
+    const documentId = `hm://${ownerId}/agents/helper`
+    const hm = Bun.serve({
+      port: 0,
+      fetch: () =>
+        Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId(documentId),
+            document: {
+              authors: [ownerId],
+              genesis: 'test-genesis',
+              visibility: 'PUBLIC',
+              metadata: {type: 'hm://hyper.media/agent', name: 'Helper', agentServerUrl: 'https://agent.example'},
+            },
+          }),
+        ),
+    })
+    const svc = new apisvc.Service(db, dataDir, {hmServerUrl: hm.url.origin, runQueue: {maxConcurrentModelRuns: 0}})
+    const send = async (signer: blobs.Signer, action: import('@/api').UnsignedAgentAction) =>
+      svc.message(await apisvc.createSignedEnvelope(signer, {action}))
+    try {
+      const sessionId = await seedAgentSession(svc, owner, 'Keep my history')
+      const before = db.query<{id: string; state_dir: string}, []>('SELECT id, state_dir FROM agents').get()!
+      await send(owner, {_: 'WriteAgentMemoryFile', agentId: before.id, path: 'notes.md', content: 'Remember me'})
+      await send(owner, {_: 'InviteAgentCollaborator', agentId: before.id, accountId: collaboratorId, role: 'reader'})
+      await send(collaborator, {_: 'AcceptAgentInvite', agentId: before.id})
+      await expect(send(collaborator, {_: 'MountAgent', agentId: before.id, documentId})).rejects.toMatchObject({
+        status: 403,
+      })
+      db.run(
+        `INSERT INTO runs (id, account_id, root_run_id, kind, agent_id, session_id, origin, input_cbor, status, created_at, updated_at) VALUES ('busy', ?, 'busy', 'agent', ?, ?, 'interactive', ?, 'running', 1, 1)`,
+        [ownerId, before.id, sessionId, cbor.encode({})],
+      )
+      await expect(send(owner, {_: 'MountAgent', agentId: before.id, documentId})).rejects.toThrow('running work')
+      expect(db.query('SELECT id FROM agents').get()).toEqual({id: before.id})
+      db.run("UPDATE runs SET status = 'succeeded'")
+      const result = await send(owner, {_: 'MountAgent', agentId: before.id, documentId})
+      expect(result).toMatchObject({_: 'GetAgentResponse', agent: {id: documentId, definition: {name: 'Helper'}}})
+      expect(db.query('SELECT id, state_dir FROM agents').get()).toEqual({id: documentId, state_dir: before.state_dir})
+      // Renaming a mounted agent goes through its document: a definition edit keeps the document's name.
+      if (result._ !== 'GetAgentResponse') throw new Error('unreachable')
+      expect(
+        await send(owner, {
+          _: 'UpdateAgent',
+          agentId: documentId,
+          definition: {...result.agent.definition, name: 'Renamed in settings'},
+        }),
+      ).toMatchObject({agent: {definition: {name: 'Helper'}}})
+      expect(db.query('PRAGMA foreign_key_check').all()).toEqual([])
+      expect(await send(collaborator, {_: 'GetAgent', agentId: before.id})).toMatchObject({
+        agent: {id: documentId, accessRole: 'reader'},
+      })
+      expect(await send(owner, {_: 'GetSession', sessionId})).toMatchObject({session: {agentId: documentId}})
+      expect(await send(owner, {_: 'ReadAgentMemoryFile', agentId: documentId, path: 'notes.md'})).toMatchObject({
+        file: {content: 'Remember me'},
+      })
+      expect(
+        await svc.verifySubscription(
+          await apisvc.createSignedEnvelope(owner, {action: {_: 'Subscribe', key: `agents/${before.id}`}}),
+        ),
+      ).toMatchObject({key: `agents/${documentId}`})
+      expect(await send(owner, {_: 'MountAgent', agentId: before.id, documentId})).toMatchObject({
+        agent: {id: documentId},
+      })
+      await send(owner, {_: 'DeleteAgent', agentId: before.id})
+      expect(db.query('SELECT * FROM agent_id_aliases').all()).toEqual([])
+    } finally {
+      svc.stopRunQueue()
+      hm.stop(true)
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
   test('browser transport is owner-only, refuses public agents, and direct tool invocation cannot dispatch', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const svc = new apisvc.Service(db, dataDir, {runQueue: {maxConcurrentModelRuns: 0}})
@@ -860,6 +1021,29 @@ describe('api service', () => {
       expect(degradedText).toContain('\n<trigger_thread>\n')
       expect(degradedText).toContain('Thread context could not be loaded')
       expect(degradedText).toContain(`hm://${DOC_UID}/:comments`)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test('read tool reads the named account for :profile/<uid> URLs', async () => {
+    // A site's `/:profile/<uid>` view shows <uid>'s profile, not the site account's.
+    const originalFetch = globalThis.fetch
+    const accountsAsked: string[] = []
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      if (href.includes('/api/Account?')) {
+        const uid = new URL(String(url)).searchParams.get('id') || ''
+        accountsAsked.push(uid)
+        return Response.json(serialize({type: 'account', id: unpackHmId(`hm://${uid}`), metadata: {name: 'Other'}}))
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+    try {
+      const result = await apisvc.readHypermedia({id: 'hm://z6MkSite/:profile/z6MkOther'})
+      expect(accountsAsked).toEqual(['z6MkOther'])
+      expect(result).toMatchObject({type: 'hypermedia_profile', accountUid: 'z6MkOther', id: 'hm://z6MkOther/:profile'})
     } finally {
       globalThis.fetch = originalFetch
     }
@@ -2551,6 +2735,8 @@ describe('api service', () => {
       await seedSubscriptionProvider(svc, account)
       const requests: {url: string; headers: Record<string, string>}[] = []
       globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
+        if (String(input) === 'https://registry.npmjs.org/@openai/codex/latest')
+          return Response.json({version: '9.1.0'})
         requests.push({url: String(input), headers: (init?.headers ?? {}) as Record<string, string>})
         return new Response(
           JSON.stringify({
@@ -2573,7 +2759,8 @@ describe('api service', () => {
       expect(requests).toHaveLength(1)
       const url = new URL(requests[0]!.url)
       expect(url.origin + url.pathname).toBe('https://chatgpt.com/backend-api/codex/models')
-      expect(url.searchParams.get('client_version')).toMatch(/^\d+\.\d+\.\d+$/)
+      // The client version follows the latest published Codex CLI, so new generations are listed.
+      expect(url.searchParams.get('client_version')).toBe('9.1.0')
       expect(requests[0]!.headers.Authorization).toBe('Bearer access-token')
       expect(requests[0]!.headers['ChatGPT-Account-Id']).toBe('acct_1')
       // Hidden entries are dropped; the rest keep the backend's priority order and display names.
@@ -2582,6 +2769,45 @@ describe('api service', () => {
         {id: 'gpt-5.6-sol', name: 'GPT-5.6-Sol'},
         {id: 'gpt-5.5', name: 'GPT-5.5'},
       ])
+    } finally {
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('subscription provider caches the Codex release lookup until a refresh', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await seedSubscriptionProvider(svc, account)
+      let published = '9.1.0'
+      let releaseLookups = 0
+      const clientVersions: (string | null)[] = []
+      globalThis.fetch = mock(async (input: string | URL | Request) => {
+        if (String(input) === 'https://registry.npmjs.org/@openai/codex/latest') {
+          releaseLookups++
+          return Response.json({version: published})
+        }
+        clientVersions.push(new URL(String(input)).searchParams.get('client_version'))
+        return Response.json({models: [{slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol', visibility: 'list'}]})
+      }) as unknown as typeof fetch
+
+      const list = async (refresh?: boolean) =>
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'ListProviderModels', provider: 'ChatGPT', ...(refresh ? {refresh} : {})},
+          }),
+        )
+      await list()
+      published = '9.2.0'
+      await list()
+      expect(releaseLookups).toBe(1)
+      await list(true)
+      expect(releaseLookups).toBe(2)
+      expect(clientVersions).toEqual(['9.1.0', '9.1.0', '9.2.0'])
     } finally {
       globalThis.fetch = originalFetch
       sqlite.closeDatabase(db)
@@ -6618,7 +6844,9 @@ describe('api service', () => {
       expect(createResult?.output?.command).toBe('document.create')
       expect(createResult?.output?.id).toBe(`hm://${signerPublicKey}/weekly-report`)
       expect(createResult?.output?.imagesUploaded).toBe(1)
-      expect(createResult?.output?.summary).toContain('Published reports/weekly.md')
+      // This fixture deliberately returns not-found until the second write: the commit succeeded,
+      // but the media read-back must not claim success without the published version.
+      expect(createResult?.output?.summary).toContain('Document published, but asset verification failed')
       expect(createResult?.output?.version).toBeTruthy()
 
       // Published blobs hold genesis + change + ref + the image's UnixFS blob, with the
@@ -12990,5 +13218,52 @@ describe('markdown write guards', () => {
     expect((error as apisvc.APIError).status).toBe(400)
     expect((error as Error).message).toContain('Invalid mermaid diagram')
     await expect(apisvc.assertPublishableMermaid(toBlocks(validDiagram))).resolves.toBeUndefined()
+  })
+})
+
+describe('CodexClientVersionResolver', () => {
+  async function withFetch<T>(impl: () => Promise<Response>, run: () => Promise<T>): Promise<T> {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = mock(impl) as unknown as typeof fetch
+    try {
+      return await run()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  }
+
+  test('reports the latest published Codex release', async () => {
+    const version = await withFetch(
+      async () => Response.json({version: '9.1.0'}),
+      () => new apisvc.CodexClientVersionResolver().resolve(),
+    )
+    expect(version).toBe('9.1.0')
+  })
+
+  test('never reports a version below the known floor', async () => {
+    const version = await withFetch(
+      async () => Response.json({version: '0.1.0'}),
+      () => new apisvc.CodexClientVersionResolver().resolve(),
+    )
+    expect(apisvc.compareCodexVersions(version, '0.166.0')).toBe(0)
+  })
+
+  test('falls back to the floor when the registry is unreachable or malformed', async () => {
+    for (const impl of [
+      async () => {
+        throw new Error('network down')
+      },
+      async () => new Response('nope', {status: 503}),
+      async () => Response.json({version: 'latest'}),
+    ]) {
+      const version = await withFetch(impl, () => new apisvc.CodexClientVersionResolver().resolve())
+      expect(version).toBe('0.166.0')
+    }
+  })
+
+  test('compares dotted versions numerically', () => {
+    expect(apisvc.compareCodexVersions('0.166.0', '0.155.0')).toBeGreaterThan(0)
+    expect(apisvc.compareCodexVersions('0.99.0', '0.155.0')).toBeLessThan(0)
+    expect(apisvc.compareCodexVersions('1.0.0', '0.999.9')).toBeGreaterThan(0)
   })
 })

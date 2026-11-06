@@ -209,16 +209,19 @@ export function parseContinuationProjection(content: string): ContinuationProjec
  * A session that already had a successor when it was opened is one the person chose to come back
  * to (to read it, or to branch by writing there), and is never redirected — that is what the
  * transition row is for. Following the turn: this client saw the session streaming, or sent the
- * message itself (the send response names the successor directly). Fires once per successor, so
- * Back returns to the predecessor without being redirected again.
+ * message itself (the send response names the successor directly). The predecessor must still be
+ * visible when the successor arrives. Fires once per successor, so Back returns to the predecessor
+ * without being redirected again.
  */
 export function useFollowContinuation({
   session,
   isStreaming,
+  isVisible = true,
   onFollow,
 }: {
   session: SessionInfo | undefined
   isStreaming: boolean
+  isVisible?: boolean
   onFollow: (link: SessionContinuationLink) => void
 }) {
   const followingRef = useRef(false)
@@ -227,14 +230,23 @@ export function useFollowContinuation({
   const baselineRef = useRef<{sessionId: string; successorId: string | null} | null>(null)
   const sessionId = session?.id
   const successorId = session?.continuedTo?.sessionId ?? null
+  const visibleRef = useRef(isVisible)
+  visibleRef.current = isVisible
+  useEffect(
+    () => () => {
+      visibleRef.current = false
+    },
+    [],
+  )
   useEffect(() => {
     followingRef.current = false
     followedRef.current = null
     baselineRef.current = null
   }, [sessionId])
   useEffect(() => {
-    if (isStreaming) followingRef.current = true
-  }, [isStreaming])
+    if (!isVisible) followingRef.current = false
+    else if (isStreaming) followingRef.current = true
+  }, [isStreaming, isVisible])
   useEffect(() => {
     if (!session) return
     if (baselineRef.current?.sessionId !== session.id) {
@@ -242,19 +254,25 @@ export function useFollowContinuation({
       baselineRef.current = {sessionId: session.id, successorId}
       return
     }
+    if (!isVisible) {
+      // A successor seen while this transcript is hidden becomes history, not a pending jump.
+      if (successorId) baselineRef.current.successorId = successorId
+      return
+    }
     if (!session.continuedTo || !successorId) return
     if (successorId === baselineRef.current.successorId) return
     if (!followingRef.current || followedRef.current === successorId) return
     followedRef.current = successorId
     onFollow(session.continuedTo)
-  }, [onFollow, session, successorId])
+  }, [isVisible, onFollow, session, successorId])
   return {
     /** Marks this client as following the turn (call when it sends a message). */
     markFollowing: () => {
-      followingRef.current = true
+      if (visibleRef.current) followingRef.current = true
     },
     /** Follows a successor the send response named, once. */
     followNow: (link: SessionContinuationLink) => {
+      if (!visibleRef.current) return
       if (followedRef.current === link.sessionId) return
       followedRef.current = link.sessionId
       onFollow(link)

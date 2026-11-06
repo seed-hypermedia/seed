@@ -4,10 +4,15 @@ import {hmBlocksToEditorContent} from '@seed-hypermedia/client/hmblock-to-editor
 import {createRoot, Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
-import {fromPromise} from 'xstate'
+import {fromPromise, waitFor} from 'xstate'
 import {documentMachine} from '../document-machine'
 import {useEditorHandlersRef} from '../editor-handlers-context'
-import {DocumentMachineProvider, useDocumentSend} from '../use-document-machine'
+import {
+  DocumentMachineProvider,
+  useDocumentSend,
+  useDocumentMachineRef,
+  type DocumentMachineActorRef,
+} from '../use-document-machine'
 import {useUnpublishedChangeCount} from '../use-unpublished-change-count'
 
 const mockDocumentId = {
@@ -51,10 +56,12 @@ function mockMachine() {
 
 let container: HTMLDivElement
 let root: Root
+let actor: DocumentMachineActorRef
 let changeCount = -1
 let send: (event: any) => void = () => {}
 
 function Probe() {
+  actor = useDocumentMachineRef()
   changeCount = useUnpublishedChangeCount()
   send = useDocumentSend()
   return null
@@ -111,6 +118,32 @@ function renderProviderWithEditor(machine: ReturnType<typeof mockMachine>, block
   })
 }
 
+describe('publish button state after refreshing a published document', () => {
+  it('ignores a read-only editor snapshot while the published document loads', () => {
+    const content = [
+      {
+        block: {id: 'block-1', type: 'Paragraph', text: 'Published text', annotations: [], attributes: {}},
+        children: [],
+      },
+    ]
+    const liveEditorBlocks: any[] = []
+    renderProviderWithEditor(mockMachine(), liveEditorBlocks)
+    act(() => send({type: 'document.loaded', document: {...mockDocument, content}}))
+    act(() => send({type: 'draft.resolved', draftId: null, content: null, cursorPosition: null}))
+
+    // The editor registers its new content after render. Updating the handler ref
+    // alone does not invalidate the memoized change count.
+    liveEditorBlocks.push(...hmBlocksToEditorContent(content as any))
+    expect(changeCount).toBe(0)
+
+    act(() => send({type: 'edit.start'}))
+    expect(changeCount).toBe(0)
+    liveEditorBlocks.length = 0
+    act(() => send({type: 'change'}))
+    expect(changeCount).toBe(1)
+  })
+})
+
 describe('publish button state after publishing an attribute edit', () => {
   it('resets the unpublished change count to 0 after publishing metadata', async () => {
     renderProvider(mockMachine())
@@ -162,29 +195,52 @@ describe('publish button state after publishing an attribute edit', () => {
 })
 
 describe('publish button state after discarding a draft', () => {
-  it('resets the live editor to published content so the change count becomes 0', async () => {
-    const publishedContent = [
-      {
-        block: {id: 'block-1', type: 'Paragraph', text: 'Published text', annotations: [], attributes: {}},
-        children: [],
-      },
-    ]
-    const draftContent = [
-      {block: {id: 'block-1', type: 'Paragraph', text: 'Draft text', annotations: [], attributes: {}}, children: []},
-    ]
-    const document = {...mockDocument, content: publishedContent} as HMDocument
-    const liveEditorBlocks = hmBlocksToEditorContent(draftContent as any)
+  it.each(['edited content', 'deleted content'])(
+    'clears %s on discard and stays clean when editing resumes',
+    async (change) => {
+      const publishedContent = [
+        {
+          block: {id: 'block-1', type: 'Paragraph', text: 'Published text', annotations: [], attributes: {}},
+          children: [],
+        },
+      ]
+      const draftContent =
+        change === 'deleted content'
+          ? []
+          : [
+              {
+                block: {id: 'block-1', type: 'Paragraph', text: 'Draft text', annotations: [], attributes: {}},
+                children: [],
+              },
+            ]
+      const document = {...mockDocument, content: publishedContent} as HMDocument
+      const liveEditorBlocks = hmBlocksToEditorContent(draftContent as any)
 
-    renderProviderWithEditor(mockMachine(), liveEditorBlocks)
-    act(() => send({type: 'draft.resolved', draftId: 'draft-123', content: draftContent, cursorPosition: null}))
-    act(() => send({type: 'document.loaded', document}))
-    act(() => send({type: 'editor.baselineUpdate', blocks: liveEditorBlocks}))
+      renderProviderWithEditor(mockMachine(), liveEditorBlocks)
+      act(() => send({type: 'draft.resolved', draftId: 'draft-123', content: draftContent, cursorPosition: null}))
+      act(() => send({type: 'document.loaded', document}))
+      act(() => send({type: 'editor.baselineUpdate', blocks: structuredClone(liveEditorBlocks)}))
 
-    expect(changeCount).toBe(1)
+      expect(changeCount).toBe(1)
 
-    act(() => send({type: 'edit.discard'}))
-    await flush()
+      await act(async () => {
+        send({type: 'edit.discard'})
+        await waitFor(actor, (snapshot) => snapshot.matches('loaded'))
+      })
 
-    expect(changeCount).toBe(0)
-  })
+      expect(actor.getSnapshot().context.draftId).toBeNull()
+      expect(liveEditorBlocks).toEqual(hmBlocksToEditorContent(publishedContent as any, {childrenType: 'Group'}))
+      expect(changeCount).toBe(0)
+
+      act(() => send({type: 'edit.start'}))
+      expect(changeCount).toBe(0)
+      act(() => send({type: 'change', metadata: {name: 'Edited title'}}))
+      expect(changeCount).toBe(1)
+      await act(async () => {
+        send({type: 'edit.discard'})
+        await waitFor(actor, (snapshot) => snapshot.matches('loaded'))
+      })
+      expect(changeCount).toBe(0)
+    },
+  )
 })

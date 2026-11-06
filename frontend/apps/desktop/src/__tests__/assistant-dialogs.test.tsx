@@ -29,6 +29,7 @@ vi.mock('@shm/ui/agents/models', () => ({
   addOptimisticSessionMessage: vi.fn(),
   removeOptimisticSessionFromLists: vi.fn(),
   useAgentLists: () => [],
+  useOrphanAgents: () => ({agents: [], settled: true}),
   useAgentServerUrls: () => ({data: [], isSuccess: true, isLoading: false}),
   useAgentSession: () => ({data: undefined}),
   useAgentWebSocketSubscription: () => ({text: ''}),

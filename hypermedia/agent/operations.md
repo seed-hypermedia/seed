@@ -22,9 +22,12 @@ direnv exec . bash -lc 'cd agents && bun check && bun test'
 direnv exec . bash -lc 'cd agents && bun run test:build'
 direnv exec . bash -lc 'cd agents && bun run test:docker'
 direnv exec . bash -lc 'cd agents && bun run test:trigger'
+direnv exec . bash -lc 'cd agents && bun run test:outbox'
 ```
 
 `test:trigger` boots the real daemon against a local stand-in for hyper.media's `/api/ListEvents`, creates an agent and a user-mention trigger over the [signed API](./signed-api.md), and asserts that a comment mention fires exactly one session. It guards the comment and citation sibling race. See [triggers](./triggers.md). <!-- id:PN41rCE- -->
+
+`test:outbox` boots the real daemon on a real SQLite file with a local OpenAI-compatible stand-in for the model and drives the [effect outbox](./effect-outbox.md) over the wire: a memory write leaves a receipt; `kill -9` while a download is in flight and a restart answer the call as interrupted without repeating the download; on macOS the database moves to a 32 MiB RAM disk to show the disk floor pausing dispatch and a real ENOSPC mid-turn failing the run and recovering into one well-formed transcript. `SEED_AGENTS_SMOKE_REAL_DB=<path>` first boots on a copy of that database so the migration runs against real rows; `SEED_AGENTS_SMOKE_ONLY=restart,floor` selects scenarios by a word in their names.
 
 The [desktop app](../apps/desktop.md): <!-- id:nzMipXzR -->
 
@@ -142,11 +145,13 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_EXEC_ALLOW_NETWORK` | `true` | Sandbox internet access. Set `false`/`off`/`0` to isolate sandboxes. <!-- id:YZQgb6sX --> |
 | `SEED_AGENTS_EXEC_DNS` | `1.1.1.1,8.8.8.8` | Comma-separated DNS resolvers used inside execution sandboxes. <!-- id:J926ue8T --> |
 | `SEED_AGENTS_EXEC_MAX_CONCURRENT` | CPU count minus 2, at least 1 | Host-wide cap on sandboxes in use at once; a call past the cap waits for a slot. <!-- id:8sZw4vce --> |
-| `SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS` | `30` | How long a call waits for a sandbox slot before failing with a retryable error. <!-- id:kO3J-GJE --> |
+| `SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS` | `30` | How long a call waits for a sandbox slot under the host-wide cap before failing with a retryable error. <!-- id:kO3J-GJE --> |
+| `SEED_AGENTS_EXEC_MEMORY_ROOT_WAIT_SECS` | `300` | How long a call waits for the agent's memory to be free of other sandboxes (another session, a delegated child, a trigger firing of the same agent) before failing with a retryable error. Long by default so those calls queue behind the agent's own running execution instead of failing. |
 | `SEED_AGENTS_EXEC_WARM_POOL` | off | Set `1` to keep microVMs alive between calls instead of booting one per call. Opt-in until it is the proven default. <!-- id:dXJDYAaT --> |
 | `SEED_AGENTS_EXEC_MAX_VMS` | `3` | Warm pool only: pooled VMs retained; extra concurrent calls boot transient VMs rather than wait. <!-- id:8tLQhClP --> |
 | `SEED_AGENTS_EXEC_POOL_IDLE_TTL_SECS` | `180` | Warm pool only: how long a parked VM may sit idle before it is disposed. <!-- id:pZDEsB5o --> |
 | `SEED_AGENTS_EXEC_POOL_MAX_AGE_SECS` | `1800` | Warm pool only: maximum age of a pooled VM, enforced between calls. <!-- id:yTmSdS1y --> |
+| `SEED_AGENTS_MIN_FREE_DISK_MIB` | `512` | Free space the database's file system must have before the queue starts another run; below it runs stay queued and `/api/health` reports `dispatch.paused`. `0` disables the check. See the [effect outbox](./effect-outbox.md). |
 | `SEED_AGENTS_LOG_LEVEL` | `info` | Minimum log level (`debug`, `info`, `warn`, `error`). `debug` re-enables hot-path lines. <!-- id:5TX4N4wb --> |
 
 CLI flags override env vars and defaults: <!-- id:ZtCaYR7h -->
@@ -238,11 +243,13 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
   "codeExec": true,
   "codeExecReason": "…",
   "codeExecReasonCode": "…",
-  "codeExecRuntimes": ["ts", "python", "shell"]
+  "codeExecRuntimes": ["ts", "python", "shell"],
+  "disk": {"path": "/data", "freeBytes": 123456789, "minFreeBytes": 536870912, "ok": true},
+  "dispatch": {"paused": false}
 }
 ```
 
-`ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS publication itself chunks [UnixFS](../protocol/files.md) blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from `SEED_AGENTS_SEARXNG_URL` and `SEED_AGENTS_CRAWLER_URL`. `codeExec` derives from the exec backend probe, and `codeExecReason` and `codeExecReasonCode` explain an unavailable sandbox. `codeExecRuntimes` says which runtimes this host offers. `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here. Clients read these fields to grey out what the server cannot run. <!-- id:5FIU-ofh -->
+`ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS publication itself chunks [UnixFS](../protocol/files.md) blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from `SEED_AGENTS_SEARXNG_URL` and `SEED_AGENTS_CRAWLER_URL`. `codeExec` derives from the exec backend probe, and `codeExecReason` and `codeExecReasonCode` explain an unavailable sandbox. `codeExecRuntimes` says which runtimes this host offers. `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here. Clients read these fields to grey out what the server cannot run. `disk` is the free space where the database lives against the floor new runs require (`null` when the check is off), and `dispatch` says whether the queue is claiming runs; `{paused: true, reason}` names what stopped it. See the [effect outbox](./effect-outbox.md). <!-- id:5FIU-ofh -->
 
 # Code execution backend <!-- id:VLdUUR8z -->
 
@@ -288,7 +295,7 @@ Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service
 | `/agents/api/version` | `GET` | Build metadata under `/agents`. <!-- id:UrIALpko --> |
 | `/agents/ws` | WebSocket | Signed live subscriptions. <!-- id:Em_QCmeP --> |
 
-`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)); a trigger's `endpointPath` names the canonical form. Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on the message endpoint and the WebSocket. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `/api/health` answers 503 with `reason: 'loop-lag'` while the server's event loop is stalled; see [Is the server stalled](#is-the-server-stalled). `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)); a trigger's `endpointPath` names the canonical form. Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on the message endpoint and the WebSocket. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
 
 # Where the service lives <!-- id:CJWNG9gR -->
 
@@ -313,7 +320,7 @@ The server also starts a background schedule monitor. It evaluates enabled `sche
 Every agent execution is a durable row in the `runs` table, which is also the dispatch queue (`agents/src/runs.ts`). See [Runs](./runs.md): <!-- id:Cdw3Ljyi -->
   - **Queues**: interactive user turns are claimed inline by `MessageSession` (unchanged latency). Everything else (trigger firings, agent-started sessions, delegated model children, script children) dispatches on the `background` queue. Agent runs are capped at `SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS` (default 8, flag `--max-concurrent-model-runs`) concurrent provider streams. Script runs get their own pool, `SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS` (default 32, `--max-concurrent-workflows`; they hold no provider stream). `SEED_AGENTS_WORKFLOW_WORKER=1` runs scripts in the isolated worker process described in the [worker plan](./plans/worker-isolated-execution.md); `SEED_AGENTS_STANDALONE` is injected into the desktop's bundled binary at build time, so a script awaiting its children can never starve them. <!-- id:db3BA2As -->
   - **One live agent run per session** is enforced at claim time (lease-based). This replaced the old racy status-column 409. <!-- id:ST5DHKVV -->
-  - **Boot sweep**: on service construction, runs a dead process left `claimed` or `running` are requeued, and any queued backlog resumes. Agent runs resume by replaying their durable session events. A crash between a persisted `tool_call` and its `tool_result` gets a synthesized "interrupted by service restart" result so the provider request is well-formed and the model decides whether to retry. Script runs resume by [journal](./journal.md) replay. <!-- id:fGRoe2ad -->
+  - **Boot sweep**: on service construction, runs a dead process left `claimed` or `running` are requeued, and any queued backlog resumes. Agent runs resume by replaying their durable session events. A crash between a persisted `tool_call` and its `tool_result` is answered from the [effect outbox](./effect-outbox.md): the receipt when the effect finished, an interrupted result naming the effect when it did not, so the provider request is well-formed and the model knows what to check. The same sweep marks every effect the dead process left running as interrupted. Script runs resume by [journal](./journal.md) replay. <!-- id:fGRoe2ad -->
   - **Retry classification**: provider 5xx and network failures are retryable with exponential backoff (base 5s, cap 5min). Validation and config errors fail immediately. `maxAttempts` is 3 (`AGENT_RUN_MAX_ATTEMPTS`) for background agent runs: trigger firings, agent-started sessions, delegated model children. It is 1 for interactive turns, which have a person waiting, and for script runs, which resume from their journal and never restart. <!-- id:it4z5p55 -->
   - **Parking**: a run [parks](./park.md) for one of four reasons: its children; a timer (`ctx.sleep` of 60s or more parks with `not_before`, and the dispatcher's 1-second interval wakes due timers); an event (`ctx.waitForEvent`, woken by a `SignalRun`, a trigger `wake` continuation, an activity event, or its timeout); or a budget pause a person resumes. Parked runs hold no resources. <!-- id:wYXSdipo -->
   - **Planner statistics**: every open runs `ANALYZE` on the small planner tables and sets the WAL, cache, and mmap pragmas; see [persistence](./persistence.md). Nothing runs `VACUUM`. <!-- id:bGD8yhPc -->
@@ -421,6 +428,9 @@ Activity trigger diagnostics use: <!-- id:LZjDOFOi -->
 
 Run, runtime, and script diagnostics: <!-- id:0OVrLoWY -->
   - `[agents/runs] boot sweep requeued interrupted runs` <!-- id:eh_YCZuP -->
+  - `[agents/outbox] boot sweep settled effects a dead process left running`
+  - `[agents/runs] dispatch paused` / `[agents/runs] dispatch resumed`
+  - `[agents/runtime] tool call answered from its receipt` / `tool call answered as interrupted` / `recording a tool effect failed`
   - `[agents/runs] boot reconcile: replaying finished child into parked parent` <!-- id:_RsqNClX -->
   - `[agents/runs] activity woke a waiting run` <!-- id:tpFxLg1i -->
   - `[agents/runtime] sending provider request` <!-- id:C2_CfkIS -->
@@ -453,6 +463,16 @@ Desktop WebSocket and UI logs: <!-- id:Fmgbj2nL -->
   - `[agents/ws] partial marked done; keeping visible until durable append` <!-- id:qJve8KM3 -->
   - `[agents/ui] sending session message` <!-- id:kDAKLiRi -->
   - `[agents/ui] rendering streaming assistant partial` <!-- id:LA86XvUl -->
+
+## Is the server stalled
+
+Everything on this server runs on one thread: HTTP, WebSockets, every SQLite statement, trigger evaluation and the agent runs themselves. When that thread is busy, `/api/health` is late or never answers, Caddy logs dial timeouts, and the provider and tool spans in `/api/perf` look normal because nothing reaches them. Three things make that visible without a profiler:
+
+  - **`loop.lag` in `GET /api/perf`** — a 100 ms timer records how late it fires. `p50`, `p95` and `max` cover the last minute (`windowMs`); `maxSinceStart` keeps the worst stall since boot so a spike that already passed is still visible. A healthy server shows single-digit milliseconds. The same snapshot carries `api.<ActionName>` (wall time of every signed action, by name), `sql.<keyword>` (time inside every prepared statement, by its first keyword) and the `sql.slow` counter, so "slow, and where" is one curl: `curl -s http://127.0.0.1:3050/api/perf | jq '.loop, (.metrics | with_entries(select(.key | startswith("api.") or startswith("sql."))))'`.
+  - **`GET /api/health` is 503** with `{status: 'unhealthy', reason: 'loop-lag', p95}` while the p95 lag over the last minute exceeds 250 ms (`LOOP_LAG_UNHEALTHY_P95_MS` in `agents/src/perf.ts`); a healthy answer still carries `loop.lag` with the current numbers. The image's `HEALTHCHECK` fetches it every 30 s with a 5 s timeout and three retries, so a stalled server shows as `unhealthy` in `docker ps` and to Watchtower instead of "Up".
+  - **`[agents/sql] slow statement`** at `warn`: any prepared-statement call over 20 ms logs its duration, first keyword and the first 200 characters of the SQL (never the bindings), at most three lines per statement per minute, with the number of suppressed repeats on the next line.
+
+When the lag is high and nothing above names the cause, sample the thread with the inspector. The container must have been started with the inspector listening on its own port (override the command to `bun --inspect=127.0.0.1:9230 run --no-install main.js`; the inspector is unauthenticated, so never bind it to a public interface), and the session id is in the startup log: `docker logs agents-stable | grep ws://`. The protocol is WebKit's: `ScriptProfiler.startTracking {includeSamples: true}`, wait, `ScriptProfiler.stopTracking`; the samples arrive in the `ScriptProfiler.trackingComplete` event as `samples.stackTraces[].stackFrames` with `sourceID`, `line` and `column`. A \~40-line script that opens the WebSocket, sends those two commands, and counts the top frame of every sample is enough: `docker exec agents-stable bun /tmp/prof2.js ws://127.0.0.1:9230/<id> 15` samples for 15 s and prints the hottest frames. The bundle is minified, so map each `line:column` back into `/app/main.js` (`sed -n '<line>p' /app/main.js | cut -c<column-40>-<column+80>`) to read the function that was running; the 2026-11-03 outage was found this way in under a minute once the recipe existed.
 
 # Troubleshooting <!-- id:QDNGqfkn -->
 

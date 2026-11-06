@@ -217,6 +217,7 @@ export function useDeleteComment() {
       invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
+      if (params.comment.replyParent) invalidateQueries([queryKeys.COMMENT_REPLY_COUNT], {refetchType: 'all'})
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})
       invalidateQueries([queryKeys.ACTIVITY_FEED], {refetchType: 'all'})
       invalidateQueries([queryKeys.SEARCH], {refetchType: 'all'})

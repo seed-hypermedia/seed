@@ -13,6 +13,8 @@ export type DeleteDocumentDialogProps = {
   childDocuments?: DeleteDocumentDialogItem[]
   canDelete?: boolean
   cannotDeleteReason?: string
+  /** What is being deleted: a mounted agent's document is deleted as the agent, server side included. */
+  subject?: 'document' | 'agent'
   onConfirm: () => Promise<void> | void
   onClose?: () => void
   onSuccess?: () => void
@@ -25,6 +27,7 @@ export function DeleteDocumentDialog({
   childDocuments = [],
   canDelete = true,
   cannotDeleteReason = 'Not allowed to delete',
+  subject = 'document',
   onConfirm,
   onClose,
   onSuccess,
@@ -32,7 +35,7 @@ export function DeleteDocumentDialog({
 }: DeleteDocumentDialogProps) {
   const [isDeleting, setIsDeleting] = React.useState(false)
   const deletedDocumentCount = childDocuments.length + 1
-  const documentLabel = deletedDocumentCount === 1 ? 'document' : 'documents'
+  const documentLabel = deletedDocumentCount === 1 ? subject : 'documents'
   const hasChildren = childDocuments.length > 0
 
   async function handleConfirm() {
@@ -44,16 +47,14 @@ export function DeleteDocumentDialog({
     const deletePromise = Promise.resolve(onConfirm())
     setIsDeleting(true)
     toast.promise(deletePromise, {
-      loading: deletedDocumentCount === 1 ? 'Deleting document…' : `Deleting ${deletedDocumentCount} documents…`,
+      loading: deletedDocumentCount === 1 ? `Deleting ${subject}…` : `Deleting ${deletedDocumentCount} documents…`,
       success:
         deletedDocumentCount === 1
-          ? 'Successfully deleted document'
+          ? `Successfully deleted ${subject}`
           : `Successfully deleted ${deletedDocumentCount} documents`,
       error: (error) => {
         const message = error instanceof Error ? error.message : 'Unknown error'
-        return deletedDocumentCount === 1
-          ? `Failed to delete document: ${message}`
-          : `Failed to delete ${documentLabel}: ${message}`
+        return `Failed to delete ${documentLabel}: ${message}`
       },
     })
 
@@ -80,8 +81,9 @@ export function DeleteDocumentDialog({
           <Text className="min-w-0 text-2xl leading-tight font-semibold">Delete &quot;{document.title}&quot;?</Text>
         </div>
         <Text className="text-muted-foreground text-base leading-7">
-          This permanently removes the document and all its content. Links pointing to it from other documents will
-          break.
+          {subject === 'agent'
+            ? 'This permanently removes the agent: its sessions, memory and triggers on its server, and its document. Links pointing to it from other documents will break.'
+            : 'This permanently removes the document and all its content. Links pointing to it from other documents will break.'}
         </Text>
       </div>
 
@@ -101,7 +103,7 @@ export function DeleteDocumentDialog({
           Cancel
         </Button>
         <Button variant="destructive" onClick={handleConfirm} disabled={isDeleting}>
-          Delete document
+          {subject === 'agent' ? 'Delete agent' : 'Delete document'}
         </Button>
       </div>
     </div>

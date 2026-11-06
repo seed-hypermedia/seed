@@ -88,10 +88,23 @@ describe('calculateInteractionSummary', () => {
       makeMention('hm://commenter/zComment1', 'Comment', 'commenter', 'b1', 'c1'),
       makeMention('hm://commenter/zComment1', 'Comment', 'commenter', 'b1', 'c2'),
     ]
-    const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId)
+    const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId, 0, 0)
     expect(result.blocks['b1']).toEqual({citations: 1, comments: 1})
     expect(result.citations).toBe(1)
-    expect(result.comments).toBe(1)
+    // The top-level comments count is the daemon's per-document value (0 here),
+    // not the count of distinct comment citations.
+    expect(result.comments).toBe(0)
+  })
+
+  it('reports the daemon comment count for the top-level comments field, not citation-derived', () => {
+    const mentions = [
+      makeMention('hm://commenter-a/zComment1', 'Comment', 'commenter-a'),
+      makeMention('hm://commenter-b/zComment2', 'Comment', 'commenter-b'),
+    ]
+    const result = calculateInteractionSummary(mentions, emptyChanges, targetDocId, 0, 7)
+    expect(result.comments).toBe(7)
+    // Per-block comment counts stay citation-derived.
+    expect(result.blocks).toEqual({})
   })
 
   it('includes both comment and document citation authors', () => {

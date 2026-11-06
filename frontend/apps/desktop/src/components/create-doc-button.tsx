@@ -1,5 +1,6 @@
 import {roleCanWrite, useSelectedAccountCapability} from '@/models/access-control'
 import {useMyAccountIds} from '@/models/daemon'
+import {useSelectedAccountId} from '@/selected-account'
 import {useCreateDraft} from '@/models/documents'
 import {useChildDrafts} from '@/models/documents'
 import {useExperiments} from '@/models/experiments'
@@ -12,6 +13,8 @@ import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
+import {useAgentServerUrls} from '@shm/ui/agents/models'
 import {Button} from '@shm/ui/button'
 import {DocumentCreateButton} from '@shm/ui/document-create-button'
 import {toast} from '@shm/ui/toast'
@@ -25,7 +28,8 @@ import {
 import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {emptyStructSchema} from '@shm/ui/schema/schema-editor'
-import {FileCode2, FilePlus2, Grid3X3, Import} from 'lucide-react'
+import {useAppDialog} from '@shm/ui/universal-dialog'
+import {Bot, FileCode2, FilePlus2, Grid3X3, Import} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useActorRef, useSelector} from '@xstate/react'
@@ -55,6 +59,7 @@ export function useCreateDocumentMenuItem({
   const schemasEnabled = !!experiments?.hypermediaSchemas
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
+  const createAgent = useCreateAgentAtLocation(locationId, !locationId.path?.length)
 
   const openImportDialog = useCallback(() => {
     importDialog.open({
@@ -107,6 +112,16 @@ export function useCreateDocumentMenuItem({
             void createDraft({initialMetadata: seed.metadata, initialContent: seed.content})
           },
         },
+        ...(createAgent.open
+          ? [
+              {
+                key: 'new-agent',
+                label: 'Agent',
+                icon: <Bot className="size-4" />,
+                onClick: createAgent.open,
+              },
+            ]
+          : []),
         {
           key: 'import',
           label: 'Import',
@@ -115,7 +130,15 @@ export function useCreateDocumentMenuItem({
         },
       ],
     }
-  }, [canCreateChildren, canEdit, createDraft, myAccountIds.data?.length, openImportDialog, schemasEnabled])
+  }, [
+    canCreateChildren,
+    canEdit,
+    createAgent.open,
+    createDraft,
+    myAccountIds.data?.length,
+    openImportDialog,
+    schemasEnabled,
+  ])
 
   return {
     menuItem,
@@ -123,9 +146,34 @@ export function useCreateDocumentMenuItem({
       <>
         {importDialog.content}
         {importing.content}
+        {createAgent.content}
       </>
     ),
   }
+}
+
+/**
+ * Agent creation under `locationId`, for the New menus: `open` is undefined while no agent server
+ * is reachable (the local server is still starting) or no account is selected, which hides the entry.
+ * Agents are only ever children of a home document, so the entry is also hidden under any other
+ * document.
+ */
+function useCreateAgentAtLocation(
+  locationId: UnpackedHypermediaId,
+  /** Whether the document on screen is the home document; the entry is only offered there. */
+  atHome: boolean,
+): {
+  open?: () => void
+  content: ReactNode
+} {
+  const dialog = useAppDialog(CreateAgentDialog)
+  const serverUrls = useAgentServerUrls().data
+  const selectedAccountId = useSelectedAccountId()
+  const open = useMemo(() => {
+    if (!serverUrls?.length || !selectedAccountId || !atHome || locationId.path?.length) return undefined
+    return () => dialog.open({serverUrls, selectedAccountId, location: locationId})
+  }, [atHome, dialog.open, locationId, selectedAccountId, serverUrls])
+  return {open, content: dialog.content}
 }
 
 function CreateDocumentButtonContent({locationId}: {locationId: UnpackedHypermediaId}) {
@@ -191,6 +239,7 @@ function DesktopActorButton({
     canEditParent,
   })
   const createDraft = useCreateDraft()
+  const createAgent = useCreateAgentAtLocation(destination, !locationId.path?.length)
   const importStarted = useRef(false)
   const importing = useImporting(destination, schema, onImportFinished)
   const importDialog = useImportDialog(() => {
@@ -253,6 +302,7 @@ function DesktopActorButton({
         disabled={!isReady}
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
+        onCreateAgent={createAgent.open}
         onImport={() => {
           actor.send({type: 'import.requested'})
           if (actor.getSnapshot().output?.type !== 'import') return
@@ -286,6 +336,7 @@ function DesktopActorButton({
       />
       {importDialog.content}
       {importing.content}
+      {createAgent.content}
     </>
   )
 }
@@ -339,6 +390,8 @@ export function DesktopDocumentCreateButton({locationId}: {locationId: UnpackedH
     return <DocumentCreateButton disabled onCreate={() => {}} onImport={() => {}} />
   }
   if (!currentDocument || !canEditCurrent) return null
+  // Only documents and collections take children; an agent's page is the agent.
+  if (currentDocument.metadata?.type === 'hm://hyper.media/agent') return null
 
   return (
     <DesktopActorButton

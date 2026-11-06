@@ -5,8 +5,8 @@ import {getBuildInfo} from '@/build-info'
 import {installHmServerAuth} from '@/hm-server-auth'
 import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
-import {perfSnapshot} from '@/perf'
-import {withTimeout} from '@/poll-loop'
+import {loopLagHealth, loopLagSnapshot, perfSnapshot, startLoopLagGauge, stopLoopLagGauge} from '@/perf'
+import {PollLoop, withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
 import * as config from '@/config'
@@ -14,6 +14,10 @@ import * as sqlite from '@/sqlite'
 import {type BunRequest, type Server, type ServerWebSocket, serve} from 'bun'
 import * as fs from 'node:fs'
 import * as filepath from 'node:path'
+
+/** How often mounted agents' names are checked against their documents. */
+const MOUNT_NAME_SYNC_INTERVAL_MS = 60_000
+const MOUNT_NAME_SYNC_TIMEOUT_MS = 55_000
 
 /** Data attached to each WebSocket connection. */
 export type WSData = {
@@ -135,9 +139,17 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
   const buildInfo = getBuildInfo()
   const health = async () => {
     const codeExec = await svc.codeExecAvailability()
+    // A stalled event loop is the one failure every other field here hides: the handler that
+    // reports `status: 'ok'` ran late, or not at all. When the p95 lag over the last minute is
+    // past LOOP_LAG_UNHEALTHY_P95_MS the answer is 503 with the number, so the container
+    // healthcheck, Caddy and an operator's curl all see the stall (see perf.ts).
+    const lag = loopLagHealth()
+    const loop = loopLagSnapshot()
     return Response.json(
       {
-        status: 'ok',
+        status: lag.ok ? 'ok' : 'unhealthy',
+        ...(lag.ok ? {} : {reason: lag.reason, p95: lag.p95}),
+        loop: {lag: {p50: loop.p50, p95: loop.p95, max: loop.max, windowMs: loop.windowMs}},
         uptime: process.uptime(),
         version: buildInfo.version,
         protocol: buildInfo.protocol,
@@ -153,8 +165,13 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
         // Which runtimes this server can actually run: `ts` needs an image with bun, so an
         // operator can see at a glance whether TypeScript execution is on here.
         codeExecRuntimes: codeExec.runtimes,
+        // Free space where the database lives, against the floor new runs require (null when the
+        // check is off), and whether the queue is claiming runs right now. A full disk shows up
+        // here before it shows up as failed turns.
+        disk: healthDisk(svc.diskStatus()),
+        dispatch: svc.dispatchStatus(),
       },
-      {headers: corsHeaders()},
+      {status: lag.ok ? 200 : 503, headers: corsHeaders()},
     )
   }
   const version = () => Response.json(buildInfo, {headers: corsHeaders()})
@@ -195,6 +212,13 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
   }
 }
 
+/** The free-space figures for health, without the directory they were read from. */
+function healthDisk(
+  status: ReturnType<apisvc.Service['diskStatus']>,
+): {freeBytes: number; minFreeBytes: number; ok: boolean} | null {
+  return status ? {freeBytes: status.freeBytes, minFreeBytes: status.minFreeBytes, ok: status.ok} : null
+}
+
 async function readWebhookBody(req: Request): Promise<Uint8Array> {
   const contentLength = req.headers.get('content-length')
   if (contentLength && /^\d+$/u.test(contentLength) && Number(contentLength) > apisvc.WEBHOOK_MAX_BODY_BYTES) {
@@ -231,30 +255,6 @@ function sendWS(ws: ServerWebSocket<WSData>, event: api.AgentWSEvent): void {
   ws.send(JSON.stringify(event))
 }
 
-function summarizeWSEvent(event: api.AgentWSEvent): Record<string, unknown> {
-  if (event._ === 'appendPartial') {
-    const patch = event.patch as {
-      textDelta?: string
-      done?: boolean
-      usage?: api.AgentRunUsage
-      activity?: api.AgentRunActivity
-    }
-    return {
-      type: event._,
-      key: event.key,
-      partialId: event.partialId,
-      textDeltaBytes: patch.textDelta ? new TextEncoder().encode(patch.textDelta).byteLength : 0,
-      done: patch.done === true,
-      activity: patch.activity?.phase,
-      totalTokens: patch.usage?.total,
-    }
-  }
-  if (event._ === 'append') return {type: event._, key: event.key, seq: 'seq' in event ? event.seq : event.event.seq}
-  if (event._ === 'change') return {type: event._, key: event.key}
-  if (event._ === 'subscribed') return {type: event._, key: event.key, accountId: event.accountId}
-  return {type: event._}
-}
-
 /**
  * How far a published event travels: only to sockets subscribed to its exact key (`direct`), or
  * also to the account-wide `account/<id>` subscription (`account`).
@@ -283,16 +283,7 @@ function sendIfSubscribed(
   event: api.AgentWSEvent,
   scope: WSDeliveryScope = 'account',
 ): void {
-  if (!wsShouldDeliver(ws.data, sourceAccountId, key, scope)) {
-    if (event._ === 'appendPartial' && ws.data.accountId === sourceAccountId) {
-      log.debug('[agents/ws] skip partial; no subscription', {
-        key,
-        accountId: ws.data.accountId,
-        subscriptions: Array.from(ws.data.subscriptions),
-      })
-    }
-    return
-  }
+  if (!wsShouldDeliver(ws.data, sourceAccountId, key, scope)) return
   if (ws.data.accountId !== sourceAccountId && event._ === 'change' && event.key.startsWith('agents/')) {
     // A public reader never sees the owner's access role — it gets the role public access grants,
     // which the snapshot's own flags determine.
@@ -300,9 +291,6 @@ function sendIfSubscribed(
     const value = {...agent, accessRole: agent.publicChat ? 'chatter' : 'reader'} satisfies api.AgentInfo
     sendWS(ws, {...event, value} as api.AgentWSEvent)
     return
-  }
-  if (event._ === 'appendPartial') {
-    log.debug('[agents/ws] send partial', {...summarizeWSEvent(event), direct: ws.data.subscriptions.has(key)})
   }
   sendWS(ws, svc.redactForViewer(event, ws.data.accountId ?? ''))
 }
@@ -368,20 +356,6 @@ async function main(): Promise<void> {
   const db = result.db
   const clients = new Set<ServerWebSocket<WSData>>()
   const publish = (event: apisvc.ServiceEvent) => {
-    if (event.type === 'session-partial') {
-      log.debug('[agents/ws] publish partial', {
-        accountId: event.accountId,
-        sessionId: event.sessionId,
-        partialId: event.partialId,
-        textDeltaBytes: event.textDelta ? new TextEncoder().encode(event.textDelta).byteLength : 0,
-        done: event.done === true,
-        activity: event.activity
-          ? event.activity.phase + (event.activity.toolName ? `:${event.activity.toolName}` : '')
-          : undefined,
-        totalTokens: event.usage?.total,
-        clients: clients.size,
-      })
-    }
     // Truncated once per publish, not per client: a giant tool result would otherwise be encoded
     // whole into a multi-megabyte frame for every subscriber.
     const wireSessionEvent =
@@ -499,11 +473,28 @@ async function main(): Promise<void> {
     subscriptionAuth: cfg.subscriptionAuth,
     titleGeneration: cfg.titleGeneration,
     runQueue: cfg.runQueue,
+    storage: {path: filepath.dirname(filepath.resolve(cfg.dbPath)), minFreeBytes: cfg.storage.minFreeDiskBytes},
   })
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
+  // A mounted agent is named by its document: the first tick migrates agents adopted before that
+  // rule, later ticks pick up renames (a title edit, published).
+  const mountNameSync = new PollLoop({
+    label: 'Agents Mount Names',
+    intervalMs: MOUNT_NAME_SYNC_INTERVAL_MS,
+    timeoutMs: MOUNT_NAME_SYNC_TIMEOUT_MS,
+    run: async (signal) => {
+      const synced = await svc.syncMountedAgentNames({signal})
+      if (synced > 0) console.log('[Agents Mount Names] Renamed mounted agents after their documents', {synced})
+    },
+  })
   activityMonitor.start()
   scheduleMonitor.start()
+  // Measures how late a 100 ms timer fires: the only signal that the single thread is stalled
+  // when no request gets far enough to record a span. Read at /api/perf (`loop.lag`) and
+  // enforced by /api/health.
+  startLoopLagGauge()
+  mountNameSync.start()
 
   const server = serve({
     port: cfg.http.port,
@@ -524,7 +515,6 @@ async function main(): Promise<void> {
     websocket: {
       open(ws: ServerWebSocket<WSData>) {
         clients.add(ws)
-        console.info('[agents/ws] open', {connectedAt: ws.data.connectedAt, clients: clients.size})
         sendWS(ws, {_: 'connected', connectedAt: ws.data.connectedAt})
       },
       message(ws: ServerWebSocket<WSData>, message: string | Buffer) {
@@ -543,11 +533,6 @@ async function main(): Promise<void> {
             ws.data.subscriptions.add(sub.key)
             if (sub.publicReadOf) ws.data.publicSubscriptions.set(sub.key, sub.publicReadOf)
             else ws.data.publicSubscriptions.delete(sub.key)
-            console.info('[agents/ws] subscribed', {
-              accountId: sub.accountId,
-              key: sub.key,
-              replayEvents: replay?.events.length ?? 0,
-            })
             sendWS(ws, {_: 'subscribed', key: sub.key, accountId: sub.accountId})
             if (replay) {
               sendWS(ws, {_: 'change', key: `sessions/${replay.session.id}`, value: replay.session})
@@ -582,7 +567,6 @@ async function main(): Promise<void> {
       },
       close(ws: ServerWebSocket<WSData>) {
         clients.delete(ws)
-        console.info('[agents/ws] close', {accountId: ws.data.accountId, clients: clients.size})
       },
     },
   })
@@ -592,8 +576,10 @@ async function main(): Promise<void> {
     if (shuttingDown) return
     console.log('Shutting down gracefully...')
     shuttingDown = true
+    stopLoopLagGauge()
     activityMonitor.stop()
     scheduleMonitor.stop()
+    mountNameSync.stop()
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
     // stop() waits for every open connection; clients whose sockets never finish closing would keep

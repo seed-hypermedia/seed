@@ -98,7 +98,7 @@ A JSON object in \`content\` publishes as one content-addressed DAG-CBOR blob (d
 - \`options.sign: true\` — a signed blob: the object's own fields are wrapped in the Hypermedia signed-blob envelope (\`type\`, \`signer\`, \`ts\`, \`sig\`) and signed by one of the agent's identities (\`options.signer\` chooses one as for hm:// writes). \`type\` comes from the schema when it pins one (a signed type extends \`blob\` and fixes \`type\` to a literal), else from \`options.type\`. Leave \`signer\`, \`ts\` and \`sig\` out of the content. The result carries the CID, \`signer\`, \`ts\` and \`blobType\`.
 - \`dryRun: true\` validates and returns the CID and the exact value that would publish, without publishing.
 
-Define a type: publish its schema as an object that follows \`schema\`, then bind it to a page with a document write whose \`options.metadata.schemaDefinition\` is the schema's \`ipfs://<cid>\`. The page's \`hm://\` URL is the type's name from then on.
+Define a type: publish its schema as an object that follows \`schema\`, then bind it to a page with a document write whose \`options.metadata.schemaDefinition\` is the schema's \`ipfs://<cid>\`. The page's \`hm://\` URL is the type's name from then on. To change the type, publish the new schema and update that same page's \`schemaDefinition\`: the page's version history is the schema's history, and everything bound to its URL follows. Don't publish a second type page with a version suffix; pin \`?v=<version>\` or the CID where a fixed contract is needed.
 
 \`\`\`json
 {"address":"ipfs://","content":"{\\"type\\":\\"hm://hyper.media/struct\\",\\"properties\\":{\\"name\\":{\\"value\\":{\\"type\\":\\"hm://hyper.media/string\\"},\\"required\\":true}}}","options":{"schema":"schema"}}
@@ -158,15 +158,21 @@ Read \`~/tools/write/pages\` before building a custom HTML page. Durable page da
 
 Any metadata key is allowed: \`options.metadata\` is merged into the document's metadata as given (\`{surname: "Smith"}\` becomes a \`surname\` attribute). Three keys bind documents to Hypermedia schemas:
 
-- \`attributesSchema\` — the type this document conforms to: the \`hm://\` URL of a schema document (or an \`ipfs://\` schema CID) whose struct describes the document's attributes.
+- \`attributesSchema\` — the type this document conforms to: the \`hm://\` URL of a schema document whose struct describes the document's attributes (an \`ipfs://\` schema CID also works, but it pins one version and hides the type's page).
 - \`childAttributesSchema\` — the type every direct child of this document conforms to, unless a child sets its own \`attributesSchema\`.
-- \`schemaDefinition\` — this document defines a type: the \`ipfs://<cid>\` of a schema blob (publish it first with \`write ipfs://\` and \`options.schema: "schema"\`; see \`~/tools/write/ipfs\`).
+- \`schemaDefinition\` — this document defines a type: the \`ipfs://<cid>\` of a schema blob (publish it first with \`write ipfs://\` and \`options.schema: "schema"\`; see \`~/tools/write/ipfs\`). A changed schema is an update of this same document, not a new one.
+
+These keys already say what a document is. Don't add \`kind\` or \`type\` fields that repeat them, and don't give a folder a type of its own because it groups documents: a plain parent with \`childAttributesSchema\` is the collection.
 
 Conformance is advisory: a document that violates its type still publishes, and the result says so beside the id — \`schema\` ({schema, via, required, missing, violations}) and \`warnings\`, one line per violation (a \`schemaDefinition\` that is not a valid schema warns too). A \`dryRun\` reports the same, so check before publishing. A \`read\` of a typed document returns the same \`schema\` block.
 
 \`\`\`json
 {"address":"hm://ACCOUNT_UID/people/bob","content":"Bob is a person.","options":{"name":"Bob","metadata":{"surname":"Smith","born":"1990-01-01","attributesSchema":"hm://ACCOUNT_UID/types/person"}},"dryRun":true}
 \`\`\`
+
+Document create/update (including memory files and draft publication) checks Image, Video and File blocks plus icon/cover metadata. HTTP(S) media checks GET the exact embedded URL (never substitute another gateway), require a successful nonempty response, and require image/video MIME types and recognized signatures. Requests use public destinations only, standard ports, no credentials, bounded redirects, at most 64 distinct URLs, four requests at once, a 20-second batch deadline and a 1024-byte sample. These checks do not prove full decoding, full-file hashes, future availability or browser playback. Embed blocks, ordinary text hyperlinks and assets inside custom HTML pages are outside this check.
+
+Native ipfs:// assets may not be served until a public document references them, so preflight marks them pending-publication rather than falsely rejecting an upload. After publication, media-bearing documents are read back at the committed version; their literal asset URLs are compared and checked again (native IPFS uses the configured HM gateway). The response's assetVerification distinguishes preflight, verified and unverified. A post-publication failure returns hypermedia_write_error with published: true, the committed id/version/cids and repair guidance: the document already exists; do not blindly retry creation. Dry runs check preflight only, including draft publication, and never claim read-back verification. skipLinkCheck does not bypass media checks.
 
 Every hm:// link in document content is resolved before publishing. Use \`options.skipLinkCheck: true\` only when a linked resource is about to be created. Read the resulting document before citing block-level links because publishing can change block IDs.`,
   },
@@ -176,9 +182,9 @@ Every hm:// link in document content is resolved before publishing. Use \`option
 
 **Default: model first, resources second, UI third.** A request such as “build me a task tracker” means a working page backed by Seed data, not a browser-local demo. Use existing types and collections where suitable. Stateless calculators need no invented schema; local-only primary data requires an explicit user request.
 
-1. Infer the entities, fields, interactions, data owner/space and visibility from the user's specifications and current context. Distinguish a shared collection from per-user collections. Follow **Resolve access before building the UI** below; do not ship a collection only the authoring agent can edit.
-2. Read ~/tools/write/ipfs. Publish each needed HM schema with write ipfs:// and options.schema: "schema"; bind the returned CID to a type document via metadata.schemaDefinition. These are Hypermedia schemas (type/properties/value/required), not JSON Schema. Reuse existing schemas without overwriting them.
-3. Read ~/tools/write/documents. Create required parent documents, then a data collection with childAttributesSchema pointing to the type document. Store each independently editable record as a document with attributesSchema, structured metadata fields and optional body content. Do not pack the whole database into a JSON string, one localStorage entry or a comment thread. Schema conformance is advisory in today's document API: fix dry-run/read-back schema warnings before calling it valid.
+1. Infer the entities, fields, interactions, data owner/space and visibility from the user's specifications and current context. Model only what the current workflow needs: every type, field and constraint should serve a concrete action, query or invariant. Distinguish a shared collection from per-user collections. Follow **Resolve access before building the UI** below; do not ship a collection only the authoring agent can edit.
+2. Read ~/tools/write/ipfs. Publish each needed HM schema with write ipfs:// and options.schema: "schema"; bind the returned CID to a type document via metadata.schemaDefinition. These are Hypermedia schemas (type/properties/value/required), not JSON Schema. Reuse existing types; to change one, update its type document in place rather than publishing a versioned sibling.
+3. Read ~/tools/write/documents. Create required parent documents, then a data collection with childAttributesSchema pointing to the type document. Store each independently editable record as a child document with structured metadata fields and optional body content. Do not pack the whole database into a JSON string, one localStorage entry or a comment thread. Schema conformance is advisory in today's document API: fix dry-run/read-back schema warnings before calling it valid.
 4. Keep real collection/type HM URLs in one place: constants in the bundle, or page metadata only when the code actually reads that configuration. Do not add redundant dataRoot/type/collection attributes. Build the HTML against these resources through seed.directory, seed.resource and seed.publishDocument. When publishing, pass options.pageData: ["hm://DATA_OWNER/collection", ...] for every writable collection. The publisher checks child-record write access for the agent owner, not the agent signing key, and stops publication when access is missing. Its structured missingAccess result includes whether an enabled identity can grant access and exact dry-run grant inputs; use these to offer the repair, then recheck access after authorized publication of the grant. This is an access preflight, not an interaction test; shared apps must verify access for their other intended users too. Keep the URLs stable across page revisions and preserve existing records. Respect collection visibility and runtime protocol capabilities; do not silently publish private records publicly. UI permission approval is separate from having protocol write authority.
 5. Exercise create → read → edit → read-back against the actual target, then reopen with local page state empty. Verify the same record through an ordinary Seed document/attributes view. Test deletion/archive and denied/error states where offered. A second host reading the same resource is sync evidence; browser refresh alone is not. Report which checks ran. Never report local state as Seed persistence, and never fall back to local-only saves when permission is denied or Seed is unavailable.
 
@@ -208,13 +214,13 @@ Use seed.input.get() to get {values, schema, errors}. Incoming malformed or sche
 Adapt the fields/statuses to the requested tracker. Publish this schema with options.schema: "schema", then a type document at hm://DATA_OWNER/types/task with schemaDefinition: "ipfs://<returned CID>". Create parents first. Create hm://DATA_OWNER/tasks with childAttributesSchema: "hm://DATA_OWNER/types/task"; choose its privacy deliberately. Configure the bundle with those real URLs; page metadata is optional and should only be added if the code reads it. DATA_OWNER is the intended data space, not a guessed viewer or agent account.
 
 \`\`\`json
-{"type":"hm://hyper.media/struct","properties":{"name":{"value":{"type":"hm://hyper.media/string"},"required":true},"status":{"value":{"anyOf":["todo","doing","done","archived"]},"required":true},"attributesSchema":{"value":{"type":"hm://hyper.media/url"},"required":true}}}
+{"type":"hm://hyper.media/struct","properties":{"name":{"value":{"type":"hm://hyper.media/string"},"required":true},"status":{"value":{"anyOf":["todo","doing","done","archived"]},"required":true}}}
 \`\`\`
 
-The following data adapter uses the bridge's real protobuf change shapes. Pass the configured collection/type URLs. The host resolves an existing writer capability for the selected viewer; it never creates a grant. No page approval can substitute for protocol write authority. Create parents and verify access during setup; never embed a secret or an agent signing key. If configuration lives in metadata, read the page document identified by seed.context().document. Use the initial resource only for configuration; mutable task reads use unversioned HM URLs.
+The following data adapter uses the bridge's real protobuf change shapes. Pass the configured collection URL; its \`childAttributesSchema\` types every record, so records carry no type field of their own. The host resolves an existing writer capability for the selected viewer; it never creates a grant. No page approval can substitute for protocol write authority. Create parents and verify access during setup; never embed a secret or an agent signing key. If configuration lives in metadata, read the page document identified by seed.context().document. Use the initial resource only for configuration; mutable task reads use unversioned HM URLs.
 
 \`\`\`js
-async function createTaskData(seed, {dataRoot, taskType}) {
+async function createTaskData(seed, {dataRoot}) {
   const root = await seed.resource(dataRoot)
   if (root.type !== 'document') throw new Error('Task collection is unavailable')
   const collection = root.id
@@ -223,8 +229,7 @@ async function createTaskData(seed, {dataRoot, taskType}) {
   const statuses = ['todo', 'doing', 'done', 'archived']
   return {
     async list() {
-      const rows = await seed.directory(dataRoot)
-      return rows.filter(row => row.metadata.attributesSchema === taskType)
+      return seed.directory(dataRoot)
     },
     async create(name) {
       name = name.trim()
@@ -232,7 +237,7 @@ async function createTaskData(seed, {dataRoot, taskType}) {
       const taskPath = path + '/task-' + crypto.randomUUID()
       const result = await seed.publishDocument({
         account: collection.uid, path: taskPath, visibility,
-        changes: Object.entries({name, status: 'todo', attributesSchema: taskType}).map(([key, value]) => ({
+        changes: Object.entries({name, status: 'todo'}).map(([key, value]) => ({
           op: {case: 'setMetadata', value: {key, value}},
         })),
       })
@@ -242,8 +247,7 @@ async function createTaskData(seed, {dataRoot, taskType}) {
       if (!statuses.includes(status)) throw new Error('Invalid task status')
       const current = await seed.resource(taskUrl)
       if (current.type !== 'document' || current.id.uid !== collection.uid ||
-          current.document.path.slice(0, current.document.path.lastIndexOf('/')) !== path ||
-          current.document.metadata.attributesSchema !== taskType) throw new Error('Not a task in this collection')
+          current.document.path.slice(0, current.document.path.lastIndexOf('/')) !== path) throw new Error('Not a task in this collection')
       const doc = current.document
       await seed.publishDocument({
         account: current.id.uid, path: doc.path,

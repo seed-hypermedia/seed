@@ -26,6 +26,7 @@
   --brand-12: #e4f6e5;
   --brand: var(--brand-5);
   --highlight: hsl(214, 100%, 97%);
+  --highlight-fragment: hsl(214, 100%, 93%);
   --link: lch(44.196 70 286.91);
   --link-hover: lch(38 70 286.91);
   --background: oklch(0.98 0 0);
@@ -101,6 +102,7 @@
   --brand-12: hsl(180, 29%, 17%);
   --brand: var(--brand-8);
   --highlight: hsl(214, 48%, 22%);
+  --highlight-fragment: var(--highlight);
   --link: lch(59.472 70 288.421);
   --link-hover: lch(65 70 288.421);
   --background: oklch(0.2046 0 0);
@@ -291,5 +293,34 @@
 @media (prefers-reduced-motion: reduce) {
   .comments-view {
     animation: none !important;
+  }
+}
+
+/* The mobile sidebar enters from the left and leaves past the viewport's right edge. */
+.site-sidebar-drawer[data-state='open'] {
+  animation: site-sidebar-enter var(--duration-normal) var(--ease-out-smooth) both;
+}
+.site-sidebar-drawer[data-state='closed'] {
+  animation: site-sidebar-exit var(--duration-normal) var(--ease-out-smooth) both;
+}
+@keyframes site-sidebar-enter {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes site-sidebar-exit {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100vw);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-sidebar-drawer[data-state] {
+    animation: none;
   }
 }

@@ -3,7 +3,7 @@ import {ClientOnly} from '@/client-lazy'
 import type {SiteHeaderPayload} from '@/loaders'
 import {PageFooter} from '@/page-footer'
 import {NavigationLoadingContent, WebSiteProvider} from '@/providers'
-import {WebSiteHeader} from '@/web-site-header'
+import {WebSiteHeader, WebSidebarLayout} from '@/web-site-header'
 import {useWebNotificationSigner} from '@/web-notifications'
 import {WebHeaderActions} from '@/web-utils'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
@@ -33,24 +33,26 @@ export function SiteSettingsEmailsScreen({payload}: {payload: SiteSettingsEmails
   }
   return (
     <WebSiteProvider origin={origin} originHomeId={originHomeId} siteHost={siteHost} dehydratedState={dehydratedState}>
-      <GeneralPageSurface className="min-h-screen items-center">
-        <WebSiteHeader
-          homeMetadata={homeMetadata}
-          originHomeId={originHomeId}
-          siteHomeId={originHomeId}
-          docId={null}
-          origin={origin}
-          rightActions={<WebHeaderActions siteUid={originHomeId.uid} />}
-        />
-        <NavigationLoadingContent className="flex w-full flex-1 flex-col gap-4 pt-[var(--site-header-h)] sm:pt-0">
-          <ClientOnly>
-            <Suspense fallback={<Spinner />}>
-              <WebSiteSettingsEmailsPage siteAccountUid={siteAccountUid} notifyServiceHost={notifyServiceHost} />
-            </Suspense>
-          </ClientOnly>
-        </NavigationLoadingContent>
-        <PageFooter className="w-full" />
-      </GeneralPageSurface>
+      <WebSidebarLayout siteHomeId={originHomeId}>
+        <GeneralPageSurface className="min-h-screen items-center">
+          <WebSiteHeader
+            homeMetadata={homeMetadata}
+            originHomeId={originHomeId}
+            siteHomeId={originHomeId}
+            docId={null}
+            origin={origin}
+            rightActions={<WebHeaderActions siteUid={originHomeId.uid} />}
+          />
+          <NavigationLoadingContent className="flex w-full flex-1 flex-col gap-4 pt-[var(--site-header-h)] sm:pt-0">
+            <ClientOnly>
+              <Suspense fallback={<Spinner />}>
+                <WebSiteSettingsEmailsPage siteAccountUid={siteAccountUid} notifyServiceHost={notifyServiceHost} />
+              </Suspense>
+            </ClientOnly>
+          </NavigationLoadingContent>
+          <PageFooter className="w-full" />
+        </GeneralPageSurface>
+      </WebSidebarLayout>
     </WebSiteProvider>
   )
 }

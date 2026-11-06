@@ -1,3 +1,4 @@
+import * as publicationAssets from '@/publication-assets'
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
 import {
@@ -53,8 +54,10 @@ import * as scheduleTriggers from '@/schedule-triggers'
 import * as auth from '@/auth'
 import {clientProtocolOf, clientProtocolProblem, downgradeResponse} from '@/protocol-compat'
 import * as cbor from '@/cbor'
+import * as agentMount from '@/agent-mount'
 import * as mcp from '@/mcp'
 import * as runs from '@/runs'
+import * as effectOutbox from '@/effect-outbox'
 import * as runEvents from '@/run-events'
 import * as toolDocs from '@/tool-documents'
 import {
@@ -69,6 +72,7 @@ import {
 import {runWorkflowInWorker} from '@/workflow-worker-host'
 import {executeWebRead, executeWebSearch, type WebToolsConfig} from '@/web-tools'
 import * as blobs from '@shm/shared/blobs'
+import {extractViewTermFromUrl, hmId} from '@shm/shared/utils/entity-id-url'
 import {
   blocksToMarkdown,
   commentToResolvedMarkdown,
@@ -125,7 +129,7 @@ import type {
   HMMetadata,
   UnpackedHypermediaId,
 } from '@seed-hypermedia/client/hm-types'
-import {hmIdPathToEntityQueryPath, unpackHmId} from '@seed-hypermedia/client/hm-types'
+import {hmIdPathToEntityQueryPath, packBaseId, unpackHmId} from '@seed-hypermedia/client/hm-types'
 import * as clientCbor from '@seed-hypermedia/client/cbor'
 import type {
   HMDocumentFilter,
@@ -174,6 +178,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import * as nodeCrypto from 'node:crypto'
 import {stmt} from '@/statements'
+import {log} from '@/log'
 
 const MAX_NAME_BYTES = 256
 /** How long a resolved system prompt (which may embed fetched remote docs) is served from cache. */
@@ -370,6 +375,13 @@ export class APIError extends Error {
     super(message)
     this.status = status
     if (code) this.code = code
+  }
+}
+
+/** An action name the server does not dispatch. Kept out of the per-action perf metrics. */
+class UnsupportedActionError extends APIError {
+  constructor(name: string | undefined) {
+    super(400, `Unsupported action: ${name}`)
   }
 }
 
@@ -969,8 +981,21 @@ export class Service {
   readonly #liveUserVerbs = new Map<string, number>()
   /** Whether subscription (OAuth) provider sign-in is offered (server opt-in). */
   readonly #subscriptionAuthEnabled: boolean
+  /** Latest released Codex CLI version, looked up for the subscription model catalog. */
+  readonly #codexClientVersion = new CodexClientVersionResolver()
   /** Durable run records + dispatch queue; every agent execution goes through it. */
   readonly #runQueue: runs.RunQueue
+  /** This process, as the owner of the effects it records (see effect-outbox.ts). */
+  readonly #instanceId = crypto.randomUUID()
+  /** Where the database lives and the free space new runs require there; absent for in-memory databases. */
+  readonly #storage?: {path: string; minFreeBytes: number}
+  /** Why dispatch is paused, while it is. */
+  #dispatchPausedReason?: string
+  /** The last free-space reading, good for a second: the queue asks on every tick. */
+  #diskStatusCache?: {at: number; value: DiskStatus | undefined}
+  #outboxPruneTimer?: ReturnType<typeof setInterval>
+  /** Effects this process is executing right now, by outbox row id. */
+  readonly #effectsInFlight = new Set<string>()
   /** Resolvers awaiting a run's terminal status (workflow children), resolved in the finalizer. */
   readonly #runWaiters = new Map<string, Array<(run: runs.RunRecord) => void>>()
   /** Live workflow VMs whose cancellation was requested; their interrupt handlers check this. */
@@ -1036,6 +1061,12 @@ export class Service {
       titleGeneration?: boolean
       /** Run-queue concurrency caps; see {@link runs.RunQueue} for the defaults. */
       runQueue?: {maxConcurrentModelRuns?: number; maxConcurrentWorkflows?: number}
+      /**
+       * The database's directory and the free space a new run requires there. Below the floor
+       * the queue stops claiming runs, so no turn starts that the database cannot record; see
+       * {@link Service.dispatchStatus}. Zero disables the check.
+       */
+      storage?: {path: string; minFreeBytes: number}
     } = {},
   ) {
     this.#db = db
@@ -1052,9 +1083,11 @@ export class Service {
     this.#codeExec = options.codeExecutor ?? createCodeExecutor(options.exec ?? defaultCodeExecConfig())
     this.#subscriptionAuthEnabled = options.subscriptionAuth ?? false
     this.#titleGenerationEnabled = options.titleGeneration ?? false
+    this.#storage = options.storage
     this.#runQueue = new runs.RunQueue(db, {
       maxConcurrentModelRuns: options.runQueue?.maxConcurrentModelRuns,
       maxConcurrentWorkflows: options.runQueue?.maxConcurrentWorkflows,
+      admit: () => this.#admitRuns(),
       executors: {
         agent: (run) =>
           agentMemory.withOwnerAccess(Boolean(this.#interactiveOwner(run)), () => this.#executeAgentRun(run)),
@@ -1072,6 +1105,78 @@ export class Service {
     // parked parents whose children finalized before the crash get their resolutions replayed.
     this.#runQueue.sweepAtBoot()
     this.#reconcileWaitingRunsAtBoot()
+    // Effects a dead process left mid-flight are settled before any turn can ask about them, and
+    // receipts nobody can ask about any more are dropped (see effect-outbox.ts).
+    effectOutbox.sweepAtBoot(db)
+    effectOutbox.prune(db)
+    this.#outboxPruneTimer = setInterval(
+      () => {
+        try {
+          effectOutbox.prune(this.#db)
+        } catch (error) {
+          console.error(
+            '[agents/outbox] pruning receipts failed',
+            error instanceof Error ? error.message : String(error),
+          )
+        }
+      },
+      60 * 60 * 1000,
+    )
+    this.#outboxPruneTimer.unref?.()
+  }
+
+  /**
+   * Whether the queue may start another run. The one condition today is free disk under the
+   * database: a run that starts on a full disk cannot record what it does (its durable store,
+   * its log, its receipts all refuse), so the queue holds the run until space is back. Runs
+   * already in flight continue. The check is skipped when no storage was configured (an
+   * in-memory database) or the floor is zero.
+   */
+  #admitRuns(): runs.Admission {
+    const status = this.dispatchStatus()
+    if (!status.paused) {
+      if (this.#dispatchPausedReason) {
+        console.info('[agents/runs] dispatch resumed', {reason: this.#dispatchPausedReason})
+        this.#dispatchPausedReason = undefined
+      }
+      return {ok: true}
+    }
+    if (this.#dispatchPausedReason !== status.reason) {
+      console.warn('[agents/runs] dispatch paused', {reason: status.reason, path: this.#storage?.path})
+      this.#dispatchPausedReason = status.reason
+    }
+    return {ok: false, reason: status.reason}
+  }
+
+  /**
+   * Free space where the database lives against the floor new runs require, for the health
+   * endpoint and the dispatch check. Undefined when no storage path was configured or the file
+   * system cannot be asked; both admit runs. Read at most once a second.
+   */
+  diskStatus(): DiskStatus | undefined {
+    const storage = this.#storage
+    if (!storage || storage.minFreeBytes <= 0) return undefined
+    const now = Date.now()
+    if (this.#diskStatusCache && now - this.#diskStatusCache.at < 1_000) return this.#diskStatusCache.value
+    let value: DiskStatus | undefined
+    try {
+      const stats = fs.statfsSync(storage.path)
+      const freeBytes = Number(stats.bavail) * Number(stats.bsize)
+      value = {path: storage.path, freeBytes, minFreeBytes: storage.minFreeBytes, ok: freeBytes >= storage.minFreeBytes}
+    } catch {
+      value = undefined
+    }
+    this.#diskStatusCache = {at: now, value}
+    return value
+  }
+
+  /** Whether the run queue may claim work right now, and why not when it may not. Reads the cached figure; logs nothing. */
+  dispatchStatus(): {paused: false} | {paused: true; reason: string} {
+    const disk = this.diskStatus()
+    if (!disk || disk.ok) return {paused: false}
+    const free = Math.floor(disk.freeBytes / 1_048_576)
+    const floor = Math.ceil(disk.minFreeBytes / 1_048_576)
+    return {paused: true, reason: `free disk space under the database is ${free} MiB, below the ${floor} MiB floor`}
   }
 
   /**
@@ -1108,6 +1213,8 @@ export class Service {
   /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
   stopRunQueue(): void {
     this.#runQueue.stop()
+    if (this.#outboxPruneTimer) clearInterval(this.#outboxPruneTimer)
+    this.#outboxPruneTimer = undefined
     this.#browserTools.close()
     for (const timer of this.#sessionListSignalTimer.values()) clearTimeout(timer)
     this.#sessionListSignalTimer.clear()
@@ -1154,11 +1261,39 @@ export class Service {
    * declared protocol version (see `protocol-compat.ts`).
    */
   async message(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
+    // Every action's wall time, success or failure, lands in `/api/perf` as `api.<ActionName>` so a
+    // slow action is visible by name. The name is the client's; an unsupported one is not recorded,
+    // which keeps the metric set bounded to the actions the server actually knows.
+    const endSpan = startPerfSpan(`api.${String(envelope?.action?._ ?? 'unknown')}`)
+    let unsupported = false
+    try {
+      return await this.#handleMessage(envelope)
+    } catch (error) {
+      if (error instanceof UnsupportedActionError) unsupported = true
+      throw error
+    } finally {
+      if (!unsupported) endSpan()
+    }
+  }
+
+  async #handleMessage(envelope: api.SignedActionEnvelope): Promise<api.AgentResponse> {
     // Judged before the signature: the answer does not depend on who signed, and a refused client
     // should learn why without the server doing any more work for it.
     const clientProtocol = clientProtocolOf(envelope)
     this.#assertClientProtocol(clientProtocol)
     const verified = await this.#verifyEnvelope(envelope)
+    const action = envelope.action
+    if ('agentId' in action && action.agentId) {
+      envelope = {...envelope, action: {...action, agentId: agentMount.resolveAgentId(this.#db, action.agentId)}}
+    } else if (action._ === 'BeginFileUpload' && action.target.kind === 'memory') {
+      envelope = {
+        ...envelope,
+        action: {
+          ...action,
+          target: {...action.target, agentId: agentMount.resolveAgentId(this.#db, action.target.agentId)},
+        },
+      }
+    }
     const ownerAccountId = this.#actionAccountId(verified.accountId, envelope.action)
     const response = await withMemoryErrorsAsync(() =>
       agentMemory.withOwnerAccess(ownerAccountId === verified.accountId, () =>
@@ -1265,11 +1400,74 @@ export class Service {
       case 'DeclineAgentInvite':
         return this.#declineAgentInvite(verified.accountId, envelope.action.agentId)
       case 'CreateAgent':
-        return this.#createAgent(verified.accountId, envelope.action.definition, envelope.action.clientRequestId)
+        return this.#createAgent(
+          verified.accountId,
+          envelope.action.definition,
+          envelope.action.clientRequestId,
+          envelope.action.mount,
+          verified.signerId,
+        )
+      case 'MountAgent': {
+        const action = envelope.action
+        const checkUploads = () => {
+          for (const upload of this.#uploads.values()) {
+            if (upload.target.kind === 'memory' && upload.target.agentId === action.agentId) {
+              throw new APIError(409, 'Finish uploading files before mounting this agent')
+            }
+          }
+        }
+        checkUploads()
+        try {
+          await agentMount.mountAgent(
+            this.#db,
+            createSeedClient(this.#hmServerUrl),
+            verified.accountId,
+            action,
+            checkUploads,
+            verified.signerId,
+          )
+        } catch (error) {
+          throw new APIError(409, errorMessage(error))
+        }
+        const response = this.#getAgent(accountId, action.documentId, verified.accountId)
+        await this.#grantMountSpaceWriter(accountId, response.agent.definition, action.documentId)
+        // The audience cache is keyed by agent id; neither id may keep a stale list across the rename.
+        this.#collaboratorAudience.delete(action.agentId)
+        this.#collaboratorAudience.delete(action.documentId)
+        invalidateSpaceIndex(accountId)
+        // Subscribers of the old key learn the id changed; subscribers of the new one get the agent.
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: action.agentId})
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: action.documentId})
+        this.#emit({type: 'agent-change', accountId, agent: response.agent})
+        return response
+      }
+      case 'UnmountAgent': {
+        const action = envelope.action
+        let nextId: string
+        try {
+          nextId = agentMount.unmountAgent(this.#db, verified.accountId, action, () => {
+            for (const upload of this.#uploads.values()) {
+              if (upload.target.kind === 'memory' && upload.target.agentId === action.agentId) {
+                throw new Error('Finish uploading files before orphaning this agent')
+              }
+            }
+          })
+        } catch (error) {
+          throw new APIError(409, errorMessage(error))
+        }
+        const response = this.#getAgent(accountId, nextId, verified.accountId)
+        this.#collaboratorAudience.delete(action.agentId)
+        this.#collaboratorAudience.delete(nextId)
+        invalidateSpaceIndex(accountId)
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: action.agentId})
+        this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId: nextId})
+        this.#emit({type: 'agent-change', accountId, agent: response.agent})
+        return response
+      }
       case 'ListModelProviders':
         return this.#listModelProviders(accountId)
       case 'ListProviderModels':
-        return this.#listProviderModels(accountId, envelope.action.provider)
+        return this.#listProviderModels(accountId, envelope.action.provider, envelope.action.refresh === true)
       case 'ListSigningIdentities': {
         // Collaborators on a shared agent may render the granted "Author as" accounts, but the
         // owner's remaining keys are private to the owner — non-owners only see the granted set.
@@ -1491,7 +1689,7 @@ export class Service {
       case 'Subscribe':
         throw new APIError(400, 'Subscribe is only supported over WebSocket')
       default:
-        throw new APIError(400, `Unsupported action: ${(envelope.action as {_?: string})._}`)
+        throw new UnsupportedActionError((envelope.action as {_?: string})._)
     }
   }
 
@@ -1579,6 +1777,8 @@ export class Service {
       case 'CreateSession':
         return fromAgent(action.agentId, 'chat')
       case 'DeleteAgent':
+      case 'MountAgent':
+      case 'UnmountAgent':
         return this.#requireAgentAccess(actorAccountId, action.agentId, 'owner').ownerAccountId
       case 'GetAgentTrigger':
         return fromTrigger(action.triggerId)
@@ -1957,13 +2157,82 @@ export class Service {
     accountId: string,
     rawDefinition: api.AgentDefinition,
     clientRequestId?: string,
+    mount?: api.CreateAgent['mount'],
+    signerId = accountId,
   ): Promise<api.CreateAgentResponse> {
-    return this.#withIdempotency(accountId, 'CreateAgent', clientRequestId, {definition: rawDefinition}, () =>
-      this.#createAgentOnce(accountId, rawDefinition),
+    return this.#withAsyncIdempotency(
+      accountId,
+      'CreateAgent',
+      clientRequestId,
+      {definition: rawDefinition, ...(mount ? {mount} : {})},
+      async () => {
+        // The mount document's name attribute is the agent's name; the request's name only
+        // matters for an agent that has no document.
+        let definitionToCreate = rawDefinition
+        if (mount) {
+          const definition = normalizeDefinition(rawDefinition)
+          this.#validateSigningKeys(accountId, definition)
+          if (stmt(this.#db, 'SELECT id FROM agents WHERE id = ?').get(mount.documentId)) {
+            throw new APIError(409, 'This document already represents another agent')
+          }
+          const {name} = await agentMount.verifyMountDocument(
+            createSeedClient(this.#hmServerUrl),
+            accountId,
+            mount,
+            signerId,
+          )
+          if (name) definitionToCreate = {...rawDefinition, name}
+          await this.#grantMountSpaceWriter(accountId, definition, mount.documentId)
+        }
+        return () => this.#createAgentOnce(accountId, definitionToCreate, mount?.documentId)
+      },
     )
   }
 
-  #createAgentOnce(accountId: string, rawDefinition: api.AgentDefinition): api.CreateAgentResponse {
+  /** Grants the mount's owning space recursive write access to the agent's primary identity. */
+  async #grantMountSpaceWriter(accountId: string, definition: api.AgentDefinition, documentId: string): Promise<void> {
+    const signingKey = definition.signingKey || definition.signingKeys?.[0]
+    // Legacy agents without an HM identity have no home space to delegate.
+    if (!signingKey) return
+    const homeAccount = this.#signingIdentityAccountId(accountId, signingKey)
+    const mountId = unpackHmId(documentId)
+    if (!homeAccount || !mountId) throw new APIError(400, 'Agent home identity is unavailable')
+    if (homeAccount === mountId.uid) return
+    const client = createSeedClient(this.#hmServerUrl)
+    const {capabilities} = await client.request('ListCapabilities', {targetId: unpackHmId(`hm://${homeAccount}`)!})
+    if (
+      capabilities.some(
+        (cap) =>
+          cap.delegate === mountId.uid &&
+          cap.role === 'WRITER' &&
+          (!cap.path || cap.path === '/') &&
+          !cap.noRecursive &&
+          !cap.isExact,
+      )
+    )
+      return
+    const row = stmt<{ciphertext: Uint8Array}, [string, string]>(
+      this.#db,
+      'SELECT ciphertext FROM secrets WHERE account_id = ? AND name = ?',
+    ).get(accountId, signingKey)
+    if (!row) throw new APIError(400, 'Agent home signing key is unavailable')
+    const keyPair = blobs.nobleKeyPairFromSeed(decryptSecret(this.#db, row.ciphertext))
+    await client.publish(
+      await createCapability(
+        {delegateUid: mountId.uid, role: 'WRITER'},
+        {
+          getPublicKey: async () => keyPair.principal,
+          sign: (data) => keyPair.sign(data),
+        },
+      ),
+    )
+  }
+
+  #createAgentOnce(
+    accountId: string,
+    rawDefinition: api.AgentDefinition,
+    documentId?: string,
+  ): api.CreateAgentResponse {
     const definition = normalizeDefinition(rawDefinition)
     const provider = stmt<{name: string; type: string}, [string, string]>(
       this.#db,
@@ -1974,8 +2243,12 @@ export class Service {
     this.#validateSigningKeys(accountId, definition)
 
     const now = Date.now()
-    const agentId = crypto.randomUUID()
-    const stateDir = path.join(this.#dataDir, 'agents', agentId)
+    const storageId = crypto.randomUUID()
+    const agentId = documentId ?? storageId
+    if (stmt(this.#db, 'SELECT id FROM agents WHERE id = ?').get(agentId)) {
+      throw new APIError(409, 'This document already represents another agent')
+    }
+    const stateDir = path.join(this.#dataDir, 'agents', storageId)
 
     stmt(
       this.#db,
@@ -2067,7 +2340,11 @@ export class Service {
     }
   }
 
-  async #listProviderModels(accountId: string, rawProviderName: string): Promise<api.ListProviderModelsResponse> {
+  async #listProviderModels(
+    accountId: string,
+    rawProviderName: string,
+    refresh: boolean,
+  ): Promise<api.ListProviderModelsResponse> {
     const providerName = normalizeBoundedString(rawProviderName, 'Model provider', MAX_NAME_BYTES)
     const row = stmt<{config_cbor: Uint8Array}, [string, string]>(
       this.#db,
@@ -2078,7 +2355,7 @@ export class Service {
     const provider = cbor.decode<api.ModelProviderConfig>(row.config_cbor)
     const spec = providerSpec(provider.type)
     if (provider.authMode === 'subscription') {
-      return {_: 'ListProviderModelsResponse', models: await this.#listSubscriptionModels(accountId, provider)}
+      return {_: 'ListProviderModelsResponse', models: await this.#listSubscriptionModels(accountId, provider, refresh)}
     }
     const apiKeySecretName = provider.secretRefs?.apiKey
     if (spec.requireApiKey && !apiKeySecretName) throw new APIError(400, `${provider.type} API key is not configured`)
@@ -2785,6 +3062,7 @@ export class Service {
   async #listSubscriptionModels(
     accountId: string,
     provider: api.ModelProviderConfig,
+    refresh: boolean,
   ): Promise<api.ProviderModelInfo[]> {
     const oauthSecretName = provider.secretRefs?.oauth
     if (!oauthSecretName) throw new APIError(400, `${provider.type} subscription sign-in is not configured`)
@@ -2794,7 +3072,8 @@ export class Service {
     const credential = (await store.read(SUBSCRIPTION_PI_PROVIDER_ID)) as {accountId?: unknown} | undefined
     const chatgptAccountId = typeof credential?.accountId === 'string' ? credential.accountId : undefined
     try {
-      return await fetchCodexSubscriptionModels(accessToken, chatgptAccountId)
+      const clientVersion = await this.#codexClientVersion.resolve({refresh})
+      return await fetchCodexSubscriptionModels(accessToken, chatgptAccountId, clientVersion)
     } catch (error) {
       if (error instanceof APIError && error.status === 401) {
         this.#markOAuthSecretNeedsReauth(accountId, oauthSecretName)
@@ -3006,6 +3285,21 @@ export class Service {
     }
   }
 
+  /**
+   * Brings mounted agents' names in step with their documents (see
+   * {@link agentMount.syncMountedAgentNames}) and tells subscribers about each agent that changed.
+   */
+  async syncMountedAgentNames(options: {agentIds?: string[]; signal?: AbortSignal} = {}): Promise<number> {
+    const synced = await agentMount.syncMountedAgentNames(this.#db, createSeedClient(this.#hmServerUrl), options)
+    for (const {accountId, agentId} of synced) {
+      invalidateSpaceIndex(accountId, agentId)
+      const agent = this.#getAgentInfo(accountId, agentId)
+      if (agent) this.#emit({type: 'agent-change', accountId, agent})
+      this.#emit({type: 'account-change', accountId, reason: 'agent-updated', agentId})
+    }
+    return synced.length
+  }
+
   #getAgent(accountId: string, agentId: string, viewerAccountId = accountId): api.GetAgentResponse {
     const agent = stmt<AgentRow, [string, string]>(
       this.#db,
@@ -3061,8 +3355,30 @@ export class Service {
       excludeTriggered,
     )
     const referencedAgentIds = new Set(page.sessions.map((session) => session.agentId))
-    const agents = this.#listAgents(accountId).agents.filter((agent) => referencedAgentIds.has(agent.id))
+    const agents = this.#listAgentsById(accountId, [...referencedAgentIds])
     return {_: 'ListSessionsResponse', agents, ...page}
+  }
+
+  /**
+   * The agents among `agentIds` the account owns or collaborates on, newest-updated first: the same
+   * visibility as {@link #listAgents}, fetched by primary key. ListSessions used to list the whole
+   * account and filter in memory on every page, which on production meant the account's full
+   * ListAgents cost (with its per-agent live-run check) for every session list refresh.
+   */
+  #listAgentsById(accountId: string, agentIds: string[]): api.AgentInfo[] {
+    if (agentIds.length === 0) return []
+    const rows = stmt<AgentRow, [string, string, string, string]>(
+      this.#db,
+      `SELECT a.id, a.account_id, a.definition_cbor, a.state_dir, a.status, a.public_read, a.public_chat, a.created_at, a.updated_at,
+                ${agentActivityColumns('a')},
+                CASE WHEN a.account_id = ? THEN 'owner' ELSE c.role END AS access_role
+         FROM agents a
+         LEFT JOIN agent_collaborators c ON c.agent_id = a.id AND c.account_id = ? AND c.status = 'accepted'
+         WHERE a.id IN (SELECT value FROM json_each(?))
+           AND (a.account_id = ? OR c.account_id IS NOT NULL)
+         ORDER BY a.updated_at DESC`,
+    ).all(accountId, accountId, JSON.stringify(agentIds), accountId)
+    return rows.map((row) => agentRowToInfo(row, row.access_role))
   }
 
   /** One page of {@link #listSessions} without the agent lookup, for callers that only need rows. */
@@ -3161,6 +3477,8 @@ export class Service {
     ).get(accountId, agentId)
     if (!existing) throw new APIError(404, 'Agent not found')
     const prior = cbor.decode<api.AgentDefinition>(existing.definition_cbor)
+    // A mounted agent is named by its document's name attribute, never by a definition edit.
+    if (agentId.startsWith('hm://') && prior.name) definition.name = prior.name
     if (viewerAccountId !== accountId) {
       // Writers may edit the agent, but granting signing accounts stays with the owner: the keys
       // live on the owner's account and the grant set decides what the agent can publish as.
@@ -5850,6 +6168,28 @@ export class Service {
   }
 
   /**
+   * What an effect cut off mid-flight left behind, for the kinds where the world itself is the
+   * receipt. A delegate call's effect is the child run it enqueued: if that run exists, the spawn
+   * finished, and the call is answered the way the first run answered it (parked on the child).
+   * Everything else stays interrupted, and the model is told what to check.
+   */
+  #recoverInterruptedEffect(
+    sessionId: string,
+    toolCallId: string,
+    row: effectOutbox.EffectRow,
+  ): effectOutbox.EffectRow | null {
+    if (row.kind !== 'delegate') return null
+    const child = runs.findChildByToolCall(this.#db, sessionId, toolCallId)
+    if (!child) return null
+    const receipt: EffectReceipt = {
+      output: [{type: 'text', text: PARKED_TOOL_RESULT_TEXT}],
+      details: {[PARKED_TOOL_RESULT_MARKER]: true},
+      parked: true,
+    }
+    return effectOutbox.recover(this.#db, row.id, receipt)
+  }
+
+  /**
    * A crash between a persisted `tool_call` and its `tool_result` leaves a transcript providers
    * reject. Before an agent run (re)enters the loop, synthesize an error result for every unmatched
    * call so the request is well-formed and the model decides whether to re-issue the tool.
@@ -5884,15 +6224,34 @@ export class Service {
         accountId,
         agentId,
         sessionId,
-        {
-          type: 'tool_result',
-          toolCallId,
-          name,
-          error: INTERRUPTED_TOOL_RESULT_ERROR,
-        },
+        {type: 'tool_result', toolCallId, name, ...this.#interruptedCallOutcome(sessionId, toolCallId)},
         Date.now(),
       )
     }
+  }
+
+  /**
+   * What the log says about a call a dead run never answered. The effect outbox may know more than
+   * "interrupted": a call whose effect finished is answered with its receipt, so the model reads
+   * what was done instead of being told to go and check; one that failed carries its error; one
+   * cut off mid-effect names the effect. A call with no row never began its effect, or had none.
+   */
+  #interruptedCallOutcome(sessionId: string, toolCallId: string): {output: unknown} | {error: string} {
+    const row = effectOutbox.get(this.#db, effectOutbox.effectId(sessionId, toolCallId))
+    if (!row) return {error: INTERRUPTED_TOOL_RESULT_ERROR}
+    if (row.status === 'succeeded') {
+      // The same shape the live projection writes: the details, else the text.
+      const receipt = decodeReceipt(row.response)
+      return {output: piToolResultOutput({content: receipt.output, details: receipt.details ?? undefined})}
+    }
+    if (row.status === 'failed') return {error: row.error || 'The tool failed.'}
+    // A row still running in this process (a stopped turn's tool that has not returned yet) is left
+    // to settle itself; any other running row belongs to a run that is over.
+    const settled =
+      row.status === 'running' && !this.#effectsInFlight.has(row.id)
+        ? effectOutbox.interrupt(this.#db, row.id, effectOutbox.INTERRUPTED_BY_RUN_END) ?? row
+        : row
+    return {error: effectOutbox.interruptedResultText(settled)}
   }
 
   async #abortLiveSessionRun(accountId: string, sessionId: string): Promise<void> {
@@ -7068,6 +7427,12 @@ export class Service {
       maxAttempts: 1,
       dispatch: false,
     })
+    if (this.dispatchStatus().paused) {
+      // The queue is not claiming runs (the disk floor): the retry is durable and the loop runs it
+      // once dispatch resumes, exactly like a message sent while paused.
+      this.#runQueue.wake()
+      return {_: 'RetrySessionResponse', sessionId, assistantEventId: ''}
+    }
     const final = await this.#runQueue.runInline(run.id)
     if (final.status === 'queued') {
       this.#runQueue.cancelTree(accountId, run.id)
@@ -7682,6 +8047,10 @@ export class Service {
     let lastProjectedEntry = 0
     // Whether this run adopted a turn an earlier process left unfinished in the durable store.
     let resumed = false
+    // The first write of the turn's record the database refused: a log row, an effect's intent or
+    // its receipt. The durable store refusing a commit ends the turn by itself; these do not, so
+    // the turn finishes and then fails with this instead of reporting a turn the log does not hold.
+    let recordingFailure: Error | undefined
     // Whether the harness is working on this turn's input. Until then, what the store publishes is
     // this run's own preparation (messages imported from the log, stale work being aborted), which
     // is recorded but is neither streamed nor counted as the turn's output.
@@ -7943,6 +8312,183 @@ export class Service {
     // restart — this turn's tools, prompt and provider — is installed before the store is opened,
     // so work an earlier process left pending can be picked up where it stopped.
     let root: durable.Conversation | undefined
+    /** Runs a tool and shapes its result for the harness: bounded text, images kept out of the store. */
+    const executeTool = async (
+      tool: SeedRuntimeTool,
+      callId: string,
+      args: unknown,
+    ): Promise<durable.ToolExecutionResult> => {
+      try {
+        const result = await tool.execute(callId, args)
+        if (live.parkToolCallIds?.includes(callId)) {
+          // What the model reads if it is asked to speak again before the child finishes.
+          return {
+            output: [{type: 'text' as const, text: PARKED_TOOL_RESULT_TEXT}],
+            details: {[PARKED_TOOL_RESULT_MARKER]: true},
+          }
+        }
+        // Durable state is strict JSON: no undefined, no class instances.
+        const details = JSON.parse(JSON.stringify(result.details ?? null))
+        if (!result.content.some((part) => part.type === 'image')) return {output: result.content, details}
+        turnImages.set(callId, result.content)
+        const text = result.content.filter((part) => part.type === 'text')
+        return {
+          output: text.length
+            ? text
+            : [{type: 'text' as const, text: boundModelToolResultText(safeJSONStringify(details ?? {}))}],
+          details,
+        }
+      } catch (error) {
+        const text = error instanceof Error ? error.message : String(error)
+        return {output: [{type: 'text' as const, text}], isError: true}
+      }
+    }
+    /** What a receipt keeps of a result: its text and details, never image bytes. */
+    const receiptOf = (callId: string, result: durable.ToolExecutionResult): EffectReceipt => {
+      const output = (result.output ?? []).flatMap((part) =>
+        part.type === 'text' ? [{type: 'text' as const, text: part.text}] : [],
+      )
+      const receipt: EffectReceipt = {
+        output,
+        details: result.details ?? null,
+        ...(turnImages.has(callId) ? {hadImages: true} : {}),
+        ...(live.parkToolCallIds?.includes(callId) ? {parked: true} : {}),
+      }
+      if (Buffer.byteLength(safeJSONStringify(receipt), 'utf8') <= RECEIPT_MAX_BYTES) return receipt
+      const text = output.map((part) => part.text).join('')
+      return {
+        ...receipt,
+        output: [{type: 'text', text: boundModelToolResultText(text).slice(0, RECEIPT_TEXT_MAX_CHARS)}],
+        details: null,
+        truncated: true,
+      }
+    }
+    /** Answers a rerun of a call from its receipt, restoring what the first run did to the turn. */
+    const replayReceipt = (callId: string, row: effectOutbox.EffectRow): durable.ToolExecutionResult => {
+      if (row.status === 'failed') {
+        return {output: [{type: 'text' as const, text: row.error || 'The tool failed.'}], isError: true}
+      }
+      const receipt = decodeReceipt(row.response)
+      // The first run parked this turn on the child it spawned; the rerun parks the same way.
+      if (receipt.parked && !live.parkToolCallIds?.includes(callId)) {
+        live.parkToolCallIds = [...(live.parkToolCallIds ?? []), callId]
+      }
+      const output: Array<{type: 'text'; text: string}> = receipt.output.length
+        ? [...receipt.output]
+        : [{type: 'text', text: boundModelToolResultText(safeJSONStringify(receipt.details ?? {}))}]
+      if (receipt.hadImages) {
+        output.push({type: 'text', text: '(An image this call showed before the restart is not shown again.)'})
+      }
+      if (receipt.truncated) {
+        output.push({
+          type: 'text',
+          text: '(The full result was not kept; this is the beginning of it. The effect did complete.)',
+        })
+      }
+      return {output, details: JSON.parse(JSON.stringify(receipt.details ?? null))}
+    }
+    /**
+     * Runs a tool that acts on the world behind its outbox row: the intent is committed before the
+     * tool runs and the receipt after it, and a rerun after a restart is answered from what the row
+     * says instead of performing the effect again.
+     */
+    const executeRecordedEffect = async (
+      tool: SeedRuntimeTool,
+      callId: string,
+      args: unknown,
+      kind: effectOutbox.EffectKind,
+    ): Promise<durable.ToolExecutionResult> => {
+      const effectKey = effectOutbox.effectId(sessionId, callId)
+      if (this.#effectsInFlight.has(effectKey)) {
+        // Two executions of one call in one process: nothing in the harness does this, and running
+        // the effect twice is the one thing this table exists to prevent.
+        return {output: [{type: 'text' as const, text: 'This call is already running.'}], isError: true}
+      }
+      let disposition: effectOutbox.Disposition
+      try {
+        disposition = effectOutbox.begin(this.#db, {
+          accountId,
+          sessionId,
+          runId: run?.id,
+          toolCallId: callId,
+          tool: tool.name,
+          kind: kind,
+          args,
+          owner: this.#instanceId,
+        })
+      } catch (error) {
+        // The database refused the intent. Nothing ran, and the turn must not go on as if the
+        // database could still record what its tools do.
+        const message = error instanceof Error ? error.message : String(error)
+        recordingFailure ??= new Error(`recording the intent of a ${kind} failed: ${message}`)
+        logRunError('recording a tool effect failed', {
+          tool: tool.name,
+          toolCallId: callId,
+          kind: kind,
+          error: message,
+        })
+        return {
+          output: [
+            {
+              type: 'text' as const,
+              text: `This ${kind} was not performed: the server could not record it first (${message}).`,
+            },
+          ],
+          isError: true,
+        }
+      }
+      if (disposition.state === 'settled') {
+        logRun('tool call answered from its receipt', {
+          tool: tool.name,
+          toolCallId: callId,
+          kind: kind,
+          status: disposition.row.status,
+        })
+        return replayReceipt(callId, disposition.row)
+      }
+      if (disposition.state === 'interrupted') {
+        const recovered = this.#recoverInterruptedEffect(sessionId, callId, disposition.row)
+        if (recovered) {
+          logRun('tool call recovered from what its effect left behind', {
+            tool: tool.name,
+            toolCallId: callId,
+            kind: kind,
+          })
+          return replayReceipt(callId, recovered)
+        }
+        logRun('tool call answered as interrupted', {tool: tool.name, toolCallId: callId, kind: kind})
+        return {
+          output: [{type: 'text' as const, text: effectOutbox.interruptedResultText(disposition.row)}],
+          isError: true,
+        }
+      }
+      this.#effectsInFlight.add(effectKey)
+      let result: durable.ToolExecutionResult
+      try {
+        result = await executeTool(tool, callId, args)
+      } finally {
+        this.#effectsInFlight.delete(effectKey)
+      }
+      try {
+        effectOutbox.complete(
+          this.#db,
+          disposition.row.id,
+          result.isError
+            ? {error: piToolResultText({content: result.output}) || 'The tool failed without a message.'}
+            : {response: receiptOf(callId, result)},
+        )
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        recordingFailure ??= new Error(`recording the receipt of a ${kind} failed: ${message}`)
+        logRunError('recording a tool receipt failed', {
+          tool: tool.name,
+          toolCallId: callId,
+          kind: kind,
+          error: message,
+        })
+      }
+      return result
+    }
     const registry = durable.createRegistry()
     registry.install(
       durable.defineExtension({
@@ -7952,32 +8498,15 @@ export class Service {
             name: tool.name,
             description: tool.description,
             parameters: tool.parameters as never,
-            ...(REPLAY_SAFE_VERBS.has(tool.name) ? {replay: 'safe' as const} : {}),
+            // Every tool reruns when a turn resumes after a restart; what the rerun does is decided
+            // from the effect outbox, not from the verb's name. A read simply runs again. An effect
+            // that never began runs now; one that ended is answered from its receipt; one cut off
+            // mid-flight is answered as interrupted, naming the effect. See effect-outbox.ts.
+            replay: 'safe' as const,
             execute: async (args: unknown, api: durable.ToolExecutionApi) => {
-              try {
-                const result = await tool.execute(api.callId, args)
-                if (live.parkToolCallIds?.includes(api.callId)) {
-                  // What the model reads if it is asked to speak again before the child finishes.
-                  return {
-                    output: [{type: 'text' as const, text: PARKED_TOOL_RESULT_TEXT}],
-                    details: {[PARKED_TOOL_RESULT_MARKER]: true},
-                  }
-                }
-                // Durable state is strict JSON: no undefined, no class instances.
-                const details = JSON.parse(JSON.stringify(result.details ?? null))
-                if (!result.content.some((part) => part.type === 'image')) return {output: result.content, details}
-                turnImages.set(api.callId, result.content)
-                const text = result.content.filter((part) => part.type === 'text')
-                return {
-                  output: text.length
-                    ? text
-                    : [{type: 'text' as const, text: boundModelToolResultText(safeJSONStringify(details ?? {}))}],
-                  details,
-                }
-              } catch (error) {
-                const text = error instanceof Error ? error.message : String(error)
-                return {output: [{type: 'text' as const, text}], isError: true}
-              }
+              const kind = effectOutbox.classifyEffect(tool.name, args)
+              if (kind === effectOutbox.READ) return executeTool(tool, api.callId, args)
+              return executeRecordedEffect(tool, api.callId, args, kind)
             },
           }),
         ),
@@ -8077,11 +8606,12 @@ export class Service {
               if (record.status === 'done' || record.status === 'unanswered') resolveSettled()
             }
           } catch (error) {
-            // A throwing listener ends the stream; the turn must keep being recorded.
-            logRunError('harness event handling failed', {
-              event: event.type,
-              error: error instanceof Error ? error.message : String(error),
-            })
+            // A throwing listener ends the stream; the turn must keep being recorded. The entries
+            // the failed write stood for are projected again at the next open, and the run fails
+            // once the turn settles so nobody reads a transcript that stops short as a success.
+            const message = error instanceof Error ? error.message : String(error)
+            recordingFailure ??= new Error(`writing the turn to the session log failed: ${message}`)
+            logRunError('harness event handling failed', {event: event.type, error: message})
           }
         }
       })
@@ -8209,6 +8739,13 @@ export class Service {
     if (live.stopped) {
       if (assistantEvent) return assistantEvent
       throw new SessionStoppedError()
+    }
+    if (recordingFailure) {
+      // The model may well have answered; what the database holds of that answer is incomplete,
+      // and a run that reports success over an incomplete record hides exactly the failure a
+      // person needs to see (a full disk, most often). The next open of the session catches the
+      // log up from the durable store.
+      throw new APIError(500, `The turn could not be recorded: ${recordingFailure.message}`)
     }
     if (!settled) throw new APIError(502, 'Agent run failed')
     if (!finalError && settled.status === 'unanswered') {
@@ -9223,12 +9760,12 @@ export class Service {
     if (envelope.action._ !== 'Subscribe') throw new APIError(400, 'Expected Subscribe action')
     const key = envelope.action.key
     if (key === `account/${verified.accountId}`) return {accountId: verified.accountId, key}
-    const agentMatch = /^agents\/([^/]+)$/.exec(key)
+    const agentMatch = /^agents\/(.+)$/.exec(key)
     if (agentMatch) {
-      const agentId = agentMatch[1]
+      const agentId = agentMount.resolveAgentId(this.#db, agentMatch[1]!)
       if (!agentId) throw new APIError(400, 'Subscription key is invalid')
       const access = this.#requireAgentAccess(verified.accountId, agentId, 'reader')
-      return {accountId: verified.accountId, key, ...publicReadOf(access)}
+      return {accountId: verified.accountId, key: `agents/${agentId}`, ...publicReadOf(access)}
     }
     const sessionMatch = /^sessions\/([^/]+)$/.exec(key)
     if (sessionMatch) {
@@ -9709,32 +10246,40 @@ export class Service {
          ORDER BY created_at ASC`,
     ).all(accountId)
     const now = Date.now()
+    const triggers = rows
+      .map((row) => agentTriggerRowToInfo(row))
+      .filter((trigger) => trigger.source.type !== 'schedule' && trigger.source.type !== 'webhook')
+    // One write per activity, not one autocommit (and fsync) per trigger per activity: with a few
+    // dozen triggers and a busy feed the per-trigger writes were a steady stream of tiny
+    // transactions on the server's only thread (2026-11-03).
+    if (triggers.length > 0) {
+      stmt(
+        this.#db,
+        `UPDATE agent_triggers SET last_checked_at = ? WHERE account_id = ? AND id IN (SELECT value FROM json_each(?))`,
+      ).run([now, accountId, JSON.stringify(triggers.map((trigger) => trigger.id))])
+    }
     let checked = 0
     let matched = 0
     let fired = 0
     let skipped = 0
     let errors = 0
-    for (const row of rows) {
-      const trigger = agentTriggerRowToInfo(row)
-      if (trigger.source.type === 'schedule' || trigger.source.type === 'webhook') continue
+    for (const trigger of triggers) {
       checked += 1
-      stmt(this.#db, `UPDATE agent_triggers SET last_checked_at = ? WHERE account_id = ? AND id = ?`).run([
-        now,
-        accountId,
-        trigger.id,
-      ])
       const matchedConditions = protocol
         .activityConditions(trigger.source, trigger.id)
         .filter(({source}) => activityTriggers.activityMatchesTriggerSource(source, event))
       const matches = matchedConditions.length > 0
-      console.log('[Agents Trigger] Checked activity against trigger', {
-        accountId,
-        triggerId: trigger.id,
-        triggerName: trigger.name,
-        source: trigger.source,
-        activity: activityTriggers.activityDebugInfo(event),
-        matches,
-      })
+      // Per trigger per activity: thousands of multi-line dumps an hour on production. Debug only.
+      if (log.debugEnabled) {
+        log.debug('[Agents Trigger] Checked activity against trigger', {
+          accountId,
+          triggerId: trigger.id,
+          triggerName: trigger.name,
+          source: trigger.source,
+          activity: activityTriggers.activityDebugInfo(event),
+          matches,
+        })
+      }
       if (!matches) continue
       matched += 1
       const firingId = crypto.randomUUID()
@@ -10765,13 +11310,16 @@ function agentRowActivity(row: AgentRow): api.AgentActivity | undefined {
 }
 
 /** Selects the activity columns plus a live-run flag for the agent row aliased `alias`. */
-// `busy` pins `runs_dispatch`: its stat1 row says a status matches thousands of runs (the average
-// over mostly `succeeded`), so the planner scanned the whole runs table for every agent instead —
-// 80 ms per agent on production, paid by every ListAgents, GetAgent and ListSessions (2026-09-28).
-// Live statuses match a handful of rows, so the pinned lookup is microseconds.
-function agentActivityColumns(alias: string): string {
+// `busy` is answered by the covering index `runs_by_agent_status (agent_id, status)`: an equality
+// on the agent and a handful of live statuses, read from the index alone. It used to pin
+// `runs_dispatch (status, queue, not_before, created_at)`, which has no agent column, so every
+// non-busy agent re-walked every live run row — 120–200 ms per ListAgents on the production file,
+// paid again by GetAgent, by ListSessions labelling its rows and by every session-event emit
+// (`#agentActivity`), which starved the event loop (2026-11-03). Do not pin an index here again:
+// `list-perf.test.ts` asserts the plan and the budget.
+export function agentActivityColumns(alias: string): string {
   return `${alias}.activity_at, ${alias}.activity_kind, ${alias}.message_at, ${alias}.message_from, ${alias}.activity_session_id,
-          (EXISTS (SELECT 1 FROM runs live_run INDEXED BY runs_dispatch WHERE live_run.agent_id = ${alias}.id
+          (EXISTS (SELECT 1 FROM runs live_run WHERE live_run.agent_id = ${alias}.id
                    AND live_run.status IN ('queued', 'claimed', 'running', 'waiting'))) AS busy`
 }
 
@@ -11980,11 +12528,79 @@ function subscriptionOAuthSecretName(providerType: string): string {
 
 /**
  * Codex client version sent to the ChatGPT backend's models endpoint. The query
- * parameter is required, and the backend hides models that need a newer client
- * than the one reported (each entry carries a `minimal_client_version`), so bump
- * this alongside the Codex CLI when a new generation stops showing up.
+ * parameter is required, and the backend only lists the models it has released
+ * to that client version, so a stale version silently hides each new generation.
+ * The version is therefore looked up from the latest published Codex CLI
+ * release; this floor is only used when that lookup fails, and is never
+ * reported over a newer published version.
  */
-const SUBSCRIPTION_CODEX_CLIENT_VERSION = '0.155.0'
+const SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION = '0.166.0'
+
+/** npm metadata for the latest published Codex CLI (`@openai/codex`). */
+const CODEX_LATEST_RELEASE_URL = 'https://registry.npmjs.org/@openai/codex/latest'
+const CODEX_RELEASE_LOOKUP_TIMEOUT_MS = 5_000
+/** How long a looked-up release version is reused before asking npm again. */
+const CODEX_RELEASE_TTL_MS = 6 * 60 * 60 * 1000
+/** How long to wait before retrying after a failed lookup (the floor is served meanwhile). */
+const CODEX_RELEASE_RETRY_MS = 5 * 60 * 1000
+
+/** Compares dotted numeric versions (`0.166.0`); non-numeric parts count as 0. */
+export function compareCodexVersions(a: string, b: string): number {
+  const left = a.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  const right = b.split('.').map((part) => Number.parseInt(part, 10) || 0)
+  for (let i = 0; i < Math.max(left.length, right.length); i++) {
+    const diff = (left[i] ?? 0) - (right[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
+/**
+ * Resolves the Codex client version to report to the ChatGPT backend: the
+ * latest published `@openai/codex` release, cached for a few hours, never below
+ * {@link SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION}. A failed lookup serves the
+ * floor (or the last good version) and retries after a short delay; `refresh`
+ * skips the cache, for the provider settings' "Refresh models" button.
+ */
+export class CodexClientVersionResolver {
+  #cached: {version: string; expiresAt: number} | undefined
+  #pending: Promise<string> | undefined
+
+  async resolve({refresh = false}: {refresh?: boolean} = {}): Promise<string> {
+    if (!refresh && this.#cached && this.#cached.expiresAt > Date.now()) return this.#cached.version
+    this.#pending ??= this.#lookup().finally(() => {
+      this.#pending = undefined
+    })
+    return this.#pending
+  }
+
+  async #lookup(): Promise<string> {
+    const fallback = this.#cached?.version ?? SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION
+    try {
+      const response = await fetch(CODEX_LATEST_RELEASE_URL, {
+        headers: {Accept: 'application/json'},
+        signal: AbortSignal.timeout(CODEX_RELEASE_LOOKUP_TIMEOUT_MS),
+      })
+      if (!response.ok) throw new Error(`npm registry answered ${response.status}`)
+      const body: unknown = await response.json()
+      const published = isRecord(body) && typeof body.version === 'string' ? body.version : ''
+      if (!/^\d+\.\d+\.\d+$/.test(published)) throw new Error(`unexpected version ${JSON.stringify(published)}`)
+      const version =
+        compareCodexVersions(published, SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION) > 0
+          ? published
+          : SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION
+      this.#cached = {version, expiresAt: Date.now() + CODEX_RELEASE_TTL_MS}
+      return version
+    } catch (error) {
+      console.warn('[agents] latest Codex release lookup failed; using a known client version', {
+        version: fallback,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      this.#cached = {version: fallback, expiresAt: Date.now() + CODEX_RELEASE_RETRY_MS}
+      return fallback
+    }
+  }
+}
 
 /**
  * Snapshot of the Codex picker, served only when the live catalog cannot be
@@ -11994,11 +12610,14 @@ const SUBSCRIPTION_CODEX_CLIENT_VERSION = '0.155.0'
  * Codex with a ChatGPT account"). Refresh when Codex changes its picker.
  */
 const SUBSCRIPTION_CODEX_FALLBACK_MODELS: api.ProviderModelInfo[] = [
+  {id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol'},
   {id: 'gpt-6-astra', name: 'GPT-6 Astra'},
+  {id: 'gpt-6.1-terra', name: 'GPT-6.1 Terra'},
+  {id: 'gpt-6-sol', name: 'GPT-6 Sol'},
+  {id: 'gpt-6-luna', name: 'GPT-6 Luna'},
   {id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol'},
   {id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra'},
   {id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna'},
-  {id: 'gpt-5.5', name: 'GPT-5.5'},
 ]
 
 /**
@@ -12013,9 +12632,10 @@ const SUBSCRIPTION_CODEX_FALLBACK_MODELS: api.ProviderModelInfo[] = [
 async function fetchCodexSubscriptionModels(
   accessToken: string,
   chatgptAccountId: string | undefined,
+  clientVersion: string,
 ): Promise<api.ProviderModelInfo[]> {
   const url = new URL(joinUrlPath(SUBSCRIPTION_CODEX_BASE_URL, 'codex/models'))
-  url.searchParams.set('client_version', SUBSCRIPTION_CODEX_CLIENT_VERSION)
+  url.searchParams.set('client_version', clientVersion)
   const headers: Record<string, string> = {Authorization: `Bearer ${accessToken}`}
   if (chatgptAccountId) headers['ChatGPT-Account-Id'] = chatgptAccountId
   const response = await fetch(url, {headers})
@@ -12369,6 +12989,45 @@ type SeedRuntimeTool = {
     toolCallId: string,
     params: unknown,
   ) => Promise<{content: piAi.ToolResultMessage['content']; details: unknown}>
+}
+
+/** Free space where the agents database lives, against the floor new runs require. */
+type DiskStatus = {path: string; freeBytes: number; minFreeBytes: number; ok: boolean}
+
+/**
+ * What the effect outbox keeps of a tool result (see effect-outbox.ts): the text the model read and
+ * the details the log keeps. Images are never stored, and a result past {@link RECEIPT_MAX_BYTES}
+ * keeps only its text, bounded; a parked delegate call is marked so a rerun parks the turn again.
+ */
+type EffectReceipt = {
+  output: Array<{type: 'text'; text: string}>
+  details: unknown
+  hadImages?: boolean
+  parked?: boolean
+  /** The details were dropped and the text cut to fit the receipt. */
+  truncated?: boolean
+}
+
+/**
+ * A receipt larger than this keeps the text only, cut to {@link RECEIPT_TEXT_MAX_CHARS}. Receipts
+ * duplicate what the log and the store already hold, for the rare rerun that lost its result, so
+ * a sandbox dump or a long MCP answer is not worth storing a third time in full.
+ */
+const RECEIPT_MAX_BYTES = 64 * 1024
+const RECEIPT_TEXT_MAX_CHARS = 16 * 1024
+
+/** A stored receipt as the code reads it; anything malformed reads as an empty one. */
+function decodeReceipt(response: unknown): EffectReceipt {
+  const raw = isRecord(response) ? (response as Partial<EffectReceipt>) : {}
+  return {
+    output: Array.isArray(raw.output)
+      ? raw.output.filter((part) => isRecord(part) && part.type === 'text' && typeof part.text === 'string')
+      : [],
+    details: raw.details ?? null,
+    ...(raw.hadImages ? {hadImages: true} : {}),
+    ...(raw.parked ? {parked: true} : {}),
+    ...(raw.truncated ? {truncated: true} : {}),
+  }
 }
 
 function defineSeedPiTool(
@@ -15583,6 +16242,87 @@ async function ensureParentDocumentExists(
   }
 }
 
+/** Check parsed content, not a second Markdown regex that could disagree with the writer. */
+async function preflightDocumentAssets(
+  client: ReturnType<typeof createSeedClient>,
+  blocks: HMBlockNode[],
+  metadata: HMMetadata,
+): Promise<publicationAssets.AssetCheck[]> {
+  try {
+    return await publicationAssets.checkPublicationAssets(
+      publicationAssets.collectPublicationAssets(blocks, metadata),
+      {
+        // Native IPFS assets (including a previous ipfs:// upload) may be gateway-inaccessible
+        // until a public document references them. Verify their literal serving URL after publish.
+        gateway: client.baseUrl,
+        deferIpfs: true,
+      },
+    )
+  } catch (error) {
+    throw new APIError(
+      400,
+      `${errorMessage(
+        error,
+      )}. Nothing was published. Repair the exact URL and retry; skipLinkCheck does not bypass media validation.`,
+    )
+  }
+}
+
+/** Publication already committed: never throw away its receipt or imply that retrying is safe. */
+export async function readBackDocumentAssets(
+  client: ReturnType<typeof createSeedClient>,
+  id: string,
+  version: string,
+  expected: publicationAssets.PublicationAsset[],
+): Promise<Record<string, unknown>> {
+  if (!expected.length) return {}
+  try {
+    const target = unpackHmId(id)
+    if (!target) throw new Error('Invalid published document identifier')
+    const signal = AbortSignal.timeout(10000)
+    let resource = await client.request('Resource', {...target, version, latest: false}, {signal})
+    // Indexing can lag a successful PublishBlobs response. Retry only visibility/version lag,
+    // under one deadline; immutable content mismatches and asset failures are not hidden.
+    for (
+      let attempt = 0;
+      attempt < 2 && (resource.type !== 'document' || resource.document.version !== version);
+      attempt++
+    ) {
+      await Bun.sleep(150 * (attempt + 1))
+      resource = await client.request('Resource', {...target, version, latest: false}, {signal})
+    }
+    if (resource.type !== 'document' || resource.document.version !== version)
+      throw new Error('Published version is not available for read-back yet')
+    const actual = publicationAssets.collectPublicationAssets(
+      resource.document.content || [],
+      resource.document.metadata,
+    )
+    const key = (assets: publicationAssets.PublicationAsset[]) =>
+      assets
+        .map((a) => `${a.kind}:${a.url}`)
+        .sort()
+        .join('\n')
+    if (key(actual) !== key(expected)) throw new Error('Published asset URLs differ from preflight')
+    const assets = await publicationAssets.checkPublicationAssets(actual, {gateway: client.baseUrl})
+    return {
+      assetVerification: {
+        status: 'verified',
+        version,
+        assets,
+        scope: 'bounded GET and media signature; not full-file integrity',
+      },
+    }
+  } catch (error) {
+    return {
+      type: 'hypermedia_write_error',
+      published: true,
+      message:
+        'Document published, but asset verification failed. Inspect the committed version and repair it; do not blindly recreate it.',
+      assetVerification: {status: 'unverified', version, error: errorMessage(error)},
+    }
+  }
+}
+
 async function writeDocumentCreate(
   client: ReturnType<typeof createSeedClient>,
   signer: ResolvedAgentSigner,
@@ -15612,11 +16352,13 @@ async function writeDocumentCreate(
   // reporting a success that publish would silently lose.
   const capability = await requireWriteCapability(client, account, signer.publicKey, path)
   const typed = await documentSchemaReport(client, `hm://${account}${path}`, metadata)
+  const assets = await preflightDocumentAssets(client, parsed.blocks, metadata)
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: `hm://${account}${path}`,
       metadata,
       blockCount: parsed.blocks.length,
+      ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
       ...typed,
       dryRun: true,
     })
@@ -15633,6 +16375,7 @@ async function writeDocumentCreate(
     version: created.version,
     cids: published.cids,
     ...typed,
+    ...(await readBackDocumentAssets(client, `hm://${account}${path}`, created.version, assets)),
   })
 }
 
@@ -15750,6 +16493,10 @@ async function writeDocumentUpdate(
     hmIdPathToEntityQueryPath(targetId.path),
   )
   const typed = await documentSchemaReport(client, packHmId(targetId), {...resource.document.metadata, ...metadata})
+  const assets = await preflightDocumentAssets(client, parsed?.blocks ?? resource.document.content ?? [], {
+    ...resource.document.metadata,
+    ...metadata,
+  })
   if (request.dryRun)
     return writeToolResult(request.command, signer, {
       id: packHmId(id),
@@ -15760,6 +16507,7 @@ async function writeDocumentUpdate(
         republish: hop.republish,
       })),
       ...(parsed ? {blockCount: parsed.blocks.length} : {metadataOnly: true}),
+      ...(assets.length ? {assetVerification: {status: 'preflight', assets}} : {}),
       ...typed,
       dryRun: true,
     })
@@ -15800,6 +16548,7 @@ async function writeDocumentUpdate(
     version: changeBlock.cid.toString(),
     cids: published.cids,
     ...typed,
+    ...(await readBackDocumentAssets(client, packHmId(targetId), changeBlock.cid.toString(), assets)),
   })
 }
 
@@ -16291,10 +17040,10 @@ async function writeDraftPublish(
         }
       : {content: blocks, format: 'json', metadata, name: row.title, path: row.path_name || undefined},
   }
-  if (request.dryRun) return writeToolResult(request.command, signer, {draftId, name: row.title, dryRun: true})
   const result = row.edit_target
     ? await writeDocumentUpdate(client, signer, publishRequest)
     : await writeDocumentCreate(client, signer, publishRequest)
+  if (request.dryRun) return {...result, command: request.command, draftId}
   stmt(
     context.db,
     `UPDATE agent_drafts SET status = ?, published_at = ?, published_id = ?, published_version = ?, updated_at = ? WHERE account_id = ? AND agent_id = ? AND id = ?`,
@@ -16399,7 +17148,7 @@ async function publishMemoryDocument(
     : `${existing ? 'Updated' : 'Published'} ${file.path} ${existing ? 'at' : 'as'} ${target}${imagesNote}.`
   return {
     ...result,
-    summary,
+    summary: result.published === true ? result.message : summary,
     memoryPath: file.path,
     url: `${context.hmServerUrl.replace(/\/+$/, '')}/hm/${account}${docPath}`,
     ...(imagesUploaded ? {imagesUploaded} : {}),
@@ -17026,8 +17775,16 @@ function parseWriteDocumentContent(input: Record<string, unknown>): ParsedWriteD
 function parseWriteJsonBlocks(rawContent: unknown): HMBlockNode[] {
   const parsed =
     typeof rawContent === 'string' ? JSON.parse(normalizeWriteContent(rawContent, 'Document content')) : rawContent
-  // `z` here is Zod v3; the block schema is Zod v4, so build the array from the schema itself.
-  return HMBlockNodeSchema.array().parse(parsed)
+  // Persisted drafts encode absent children as CBOR null. Normalize only that absent-child
+  // representation; the SDK schema still validates every node and block field.
+  const normalizeChildren = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map((node) =>
+          isRecord(node) ? {...node, children: node.children == null ? [] : normalizeChildren(node.children)} : node,
+        )
+      : value
+  // The SDK owns this v4 schema; wrapping it in the service's v3 array breaks draft/memory publication.
+  return HMBlockNodeSchema.array().parse(normalizeChildren(parsed))
 }
 
 function hmBlockNodesToOperations(nodes: HMBlockNode[], parentId = ''): DocumentOperation[] {
@@ -17216,8 +17973,12 @@ export async function assertHmContentLinks(
   const targets: Array<{link: string; id: NonNullable<ReturnType<typeof unpackHmId>>}> = []
   for (const link of links) {
     // unpackHmId parses shape only; a link is well-formed when its uid is also a real Ed25519
-    // principal — "hm://my-doc/notes" parses but can never resolve anywhere.
-    const id = unpackHmId(link)
+    // principal — "hm://my-doc/notes" parses but can never resolve anywhere. A view term
+    // (`/:profile`, `/:comments/<id>`) is not a path segment: the link's target is the account,
+    // comment or document the view shows.
+    const view = extractViewTermFromUrl(link)
+    const target = view.accountUid ? `hm://${view.accountUid}` : view.commentId ? `hm://${view.commentId}` : view.url
+    const id = unpackHmId(target)
     if (!id) {
       malformed.push(link)
       continue
@@ -17522,16 +18283,6 @@ const INTERRUPTED_TOOL_RESULT_ERROR =
   'Interrupted by a service restart before this tool finished; whether its side effects happened is unknown. Verify state before retrying.'
 
 /**
- * Verbs whose interrupted call may simply run again when a turn resumes after a restart: reads
- * have no side effects, and plan/status set session state to what the call says.
- */
-const REPLAY_SAFE_VERBS: ReadonlySet<string> = new Set([
-  seedVerbRegistry.read.name,
-  seedVerbRegistry.plan.name,
-  seedVerbRegistry.status.name,
-])
-
-/**
  * The model-facing message of a log event the user side wrote, or undefined for any other event.
  * A user message carries its window context, attachment metadata and signed sender; a verb the
  * user ran replays as a tagged message, because provider transcripts have no notion of user-made
@@ -17636,17 +18387,19 @@ const fetchWithReadDeadline = ((input: RequestInfo | URL, init?: RequestInit) =>
   fetch(input, {...init, signal: init?.signal ?? AbortSignal.timeout(HM_READ_TIMEOUT_MS)})) as typeof globalThis.fetch
 
 /**
- * Detects a trailing `:attributes` view term (or its legacy `:metadata` spelling) on a resolved id
- * and strips it, so the underlying document can be fetched. The caller then returns only the
- * document's metadata — the same thing the desktop's attributes tab shows.
+ * Splits a view term (`:profile`, `:directory`, `:comments`, `:attributes`, …) off a resolved id
+ * with the shared URL parser. `id` is the resource the view shows, keeping the requested version;
+ * `accountUid` is the account a `:profile/<uid>` view names.
  */
-function stripAttributesViewTerm(id: UnpackedHypermediaId): {
+function splitViewTerm(id: UnpackedHypermediaId): {
   id: UnpackedHypermediaId
-  attributesOnly: boolean
+  viewTerm: ReturnType<typeof extractViewTermFromUrl>['viewTerm']
+  accountUid?: string
 } {
-  const lastTerm = id.path?.[id.path.length - 1]
-  if (lastTerm !== ':attributes' && lastTerm !== ':metadata') return {id, attributesOnly: false}
-  return {id: {...id, path: id.path!.slice(0, -1)}, attributesOnly: true}
+  const view = extractViewTermFromUrl(packBaseId(id.uid, id.path))
+  const base = view.viewTerm ? unpackHmId(view.url) : null
+  if (!base) return {id, viewTerm: null}
+  return {id: {...id, id: base.id, path: base.path}, viewTerm: view.viewTerm, accountUid: view.accountUid}
 }
 
 /** Exported for tests. Implements the agent `read` tool. */
@@ -17688,16 +18441,15 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
   const client = createSeedClient(serverUrl, {fetch: fetchWithReadDeadline})
   let id = resolved.id
   const outputFormat = format || 'markdown'
-  if (id.path?.[0] === ':profile') {
-    return readProfileHypermedia({requestedId, id, client, serverUrl})
+  const view = splitViewTerm(id)
+  if (view.viewTerm === ':profile') {
+    return readProfileHypermedia({requestedId, accountUid: view.accountUid || view.id.uid, client, serverUrl})
   }
-  if (id.path?.[id.path.length - 1] === ':directory') {
-    return readDirectoryHypermedia({requestedId, id: {...id, path: id.path.slice(0, -1)}, client, serverUrl})
+  if (view.viewTerm === ':directory') {
+    return readDirectoryHypermedia({requestedId, id: view.id, client, serverUrl})
   }
-  const lastSegment = id.path?.[id.path.length - 1]
-  if (id.path && lastSegment && DISCUSSION_VIEW_TERMS.has(lastSegment)) {
-    const targetPath = id.path.slice(0, -1)
-    const targetId = unpackHmId(`hm://${id.uid}${targetPath.length ? `/${targetPath.join('/')}` : ''}`)
+  if (view.viewTerm && DISCUSSION_VIEW_TERMS.has(view.viewTerm)) {
+    const targetId = unpackHmId(view.id.id)
     if (!targetId) throw new APIError(400, `Invalid hypermedia id: ${requestedId}`)
     return readDiscussionHypermedia({
       requestedId,
@@ -17735,9 +18487,10 @@ export async function readHypermedia(input: unknown): Promise<Record<string, unk
       })
     }
   }
-  const stripped = stripAttributesViewTerm(id)
-  id = stripped.id
-  const attributesOnly = stripped.attributesOnly
+  // `:attributes` (legacy `:metadata`) reads only the document's metadata — the same thing the
+  // desktop's attributes tab shows.
+  const attributesOnly = view.viewTerm === ':attributes' || view.viewTerm === ':metadata'
+  if (attributesOnly) id = view.id
   // Redirects (a moved path, or a "republished" path that re-publishes another document as its
   // own) are followed so the agent gets content — but never silently: `id` is the address the
   // content was actually read from, and `redirect` spells out where the request went and what a
@@ -18139,16 +18892,16 @@ async function readDiscussionHypermedia(input: {
 
 async function readProfileHypermedia(input: {
   requestedId: string
-  id: ReturnType<typeof unpackHmId> & {}
+  accountUid: string
   client: ReturnType<typeof createSeedClient>
   serverUrl: string
 }): Promise<Record<string, unknown>> {
-  const accountUid = input.id.path?.[1] || input.id.uid
+  const accountUid = input.accountUid
   const client = input.client
   const serverUrl = input.serverUrl
   const account = await client.request('Account', accountUid)
   const profileId = `hm://${accountUid}/:profile`
-  const targetId = unpackHmId(`hm://${accountUid}`) || input.id
+  const targetId = hmId(accountUid)
   const [activity, contacts, capabilities] = await Promise.all([
     client
       .request('ListEvents', {pageSize: 10, filterAuthors: [accountUid], currentAccount: accountUid})

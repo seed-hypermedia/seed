@@ -1,6 +1,7 @@
 import {Comment, Document} from './client'
 import {HMComment, HMCommentSchema, HMDocument, HMDocumentSchema} from '@seed-hypermedia/client/hm-types'
 import {documentMetadataParseAdjustments} from './models/entity'
+import {repairProtoStructAttributes} from './utils/proto-struct-shape'
 
 const REQUIRES_LINK_TYPES = new Set(['Link', 'Image', 'Video', 'File', 'WebEmbed', 'Nostr', 'Embed', 'Button'])
 
@@ -216,6 +217,8 @@ function prepareHMDocumentUncached(apiDoc: Document): HMDocument {
   }) as any
   documentMetadataParseAdjustments(docJSON.metadata)
   docJSON = sanitizeDocumentStructure(docJSON)
+  repairProtoStructAttributes(docJSON.content)
+  repairProtoStructAttributes(Object.values(docJSON.detachedBlocks ?? {}))
   try {
     const document = HMDocumentSchema.parse(docJSON)
     return document

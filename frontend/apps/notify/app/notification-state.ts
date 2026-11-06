@@ -12,6 +12,7 @@ import {
   setNotificationEmailVerification,
 } from './db'
 import {sendEmail} from './mailer'
+import {captureMessage} from './sentry'
 import {
   buildNotificationEmailVerificationUrl,
   isNotificationEmailVerificationExpired,
@@ -34,6 +35,11 @@ type NotificationStatePageOptions = {
   beforeMs?: number
   limit?: number
   siteUid?: string
+}
+
+type NotificationActionAudit = {
+  /** The key that signed the request: the account itself, or a delegated web/mobile session key. */
+  signerUid: string
 }
 
 function normalizeEmail(email: string) {
@@ -179,11 +185,32 @@ export function getNotificationStateSnapshot(
   }
 }
 
+/**
+ * Notifications a read-state write turned from read to unread. Every read action and the compaction are monotonic,
+ * so only an unread toggle may do this, and only to its one event. Anything more is a bug worth a Sentry event.
+ */
+export function findReadRegressions(
+  before: NotificationReadLikeState,
+  after: NotificationReadLikeState,
+  notifications: NotificationPayload[],
+): string[] {
+  return notifications
+    .filter((notification) => {
+      const input = {eventId: notification.feedEventId, eventAtMs: notification.eventAtMs}
+      return (
+        isNotificationEventRead({readState: before, ...input}) && !isNotificationEventRead({readState: after, ...input})
+      )
+    })
+    .sort((left, right) => left.eventAtMs - right.eventAtMs)
+    .map((notification) => notification.feedEventId)
+}
+
 /** Applies shared notification actions on the notify service and returns canonical state. */
 export async function applyNotificationActionsForAccount(
   accountId: string,
   actions: NotificationMutationAction[],
   opts: NotificationStatePageOptions = {},
+  audit?: NotificationActionAudit,
 ): Promise<NotificationStateSnapshot> {
   if (!actions.length) {
     return getNotificationStateSnapshot(accountId, opts)
@@ -206,22 +233,52 @@ export async function applyNotificationActionsForAccount(
       continue
     }
 
+    if (action.type === 'mark-event-unread') {
+      // The reducer keeps only the listed events read below the lowered watermark. A client lists the page it
+      // loaded (the web app: one space), so resolve against every notification the service holds instead, at the
+      // service's own time for the event, and the toggle affects exactly that one event.
+      const allNotifications = getAllNotifications(accountId)
+      nextState = reduceNotificationState(nextState, {
+        ...action,
+        eventAtMs: allNotifications.find((n) => n.feedEventId === action.eventId)?.eventAtMs ?? action.eventAtMs,
+        otherLoadedEvents: allNotifications.map((n) => ({eventId: n.feedEventId, eventAtMs: n.eventAtMs})),
+      })
+      hasReadStateChanges = true
+      continue
+    }
+
     nextState = reduceNotificationState(nextState, action)
     hasReadStateChanges = hasReadStateChanges || isReadStateMutation(action)
   }
 
   if (hasReadStateChanges) {
+    const allNotifications = getAllNotifications(accountId)
     nextState = {
       ...nextState,
       readState: {
         ...nextState.readState,
-        ...compactNotificationReadState(nextState.readState, getAllNotifications(accountId)),
+        ...compactNotificationReadState(nextState.readState, allNotifications),
       },
     }
     replaceNotificationReadState(accountId, {
       markAllReadAtMs: nextState.readState.markAllReadAtMs,
       readEvents: nextState.readState.readEvents,
     })
+
+    const regressed = findReadRegressions(currentState.readState, nextState.readState, allNotifications)
+    const unreadToggles = actions.filter((action) => action.type === 'mark-event-unread').length
+    if (regressed.length > unreadToggles) {
+      captureMessage('notify read marks regressed', {
+        accountId,
+        signerUid: audit?.signerUid ?? null,
+        siteUid: opts.siteUid ?? null,
+        actions: actions.map((action) => action.type),
+        markBefore: currentState.readState.markAllReadAtMs,
+        markAfter: nextState.readState.markAllReadAtMs,
+        regressed: regressed.length,
+        sample: regressed.slice(0, 5),
+      })
+    }
   }
 
   await persistNotificationConfigState(accountId, currentState.config, nextState.config)

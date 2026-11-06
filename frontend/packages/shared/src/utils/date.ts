@@ -183,3 +183,31 @@ function difference(date1: Date, date2: Date) {
     minute: (date1utc - date2utc) / minute,
   }
 }
+
+const spokenRelativeFormatter = hasRelativeDate
+  ? new Intl.RelativeTimeFormat('en-US', {numeric: 'auto', style: 'long'})
+  : null
+
+/**
+ * How long ago, the way people say it: "just now", "5 minutes ago", "3 hours ago", "yesterday",
+ * "4 days ago", "last week", "2 months ago". Falls back to a short date without Intl support.
+ */
+export function formattedTimeAgo(value?: AnyTimestamp, now: Date = new Date()): string {
+  const date = normalizeDate(value)
+  if (!date) return ''
+  if (!spokenRelativeFormatter) return formattedDateShort(date)
+  const seconds = (date.getTime() - now.getTime()) / 1000
+  const ago = -seconds
+  if (ago < 60) return 'just now'
+  const minutes = ago / 60
+  if (minutes < 60) return spokenRelativeFormatter.format(-Math.floor(minutes), 'minute')
+  const hours = minutes / 60
+  if (hours < 24) return spokenRelativeFormatter.format(-Math.floor(hours), 'hour')
+  // Days count calendar days, so something from last night reads "yesterday" this morning.
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((startOf(now) - startOf(date)) / 86_400_000)
+  if (days < 7) return spokenRelativeFormatter.format(-Math.max(days, 1), 'day')
+  if (days < 30) return spokenRelativeFormatter.format(-Math.floor(days / 7), 'week')
+  if (days < 365) return spokenRelativeFormatter.format(-Math.floor(days / 30), 'month')
+  return spokenRelativeFormatter.format(-Math.floor(days / 365), 'year')
+}

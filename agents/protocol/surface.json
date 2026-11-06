@@ -81,7 +81,8 @@
       "fields": {
         "_": "\"CreateAgent\"",
         "clientRequestId?": "string",
-        "definition": "AgentDefinition"
+        "definition": "AgentDefinition",
+        "mount?": "Pick<MountAgent, \"blobs\" | \"documentId\">"
       }
     },
     "CreateAgentTrigger": {
@@ -308,7 +309,8 @@
       "fields": {
         "_": "\"ListProviderModels\"",
         "agentId?": "string",
-        "provider": "string"
+        "provider": "string",
+        "refresh?": "boolean"
       }
     },
     "ListRuns": {
@@ -344,6 +346,14 @@
         "clientMessageId?": "string",
         "content": "MessageSessionContentPart[]",
         "sessionId": "string"
+      }
+    },
+    "MountAgent": {
+      "fields": {
+        "_": "\"MountAgent\"",
+        "agentId": "string",
+        "blobs?": "{cid: string; data: Uint8Array<ArrayBufferLike>}[]",
+        "documentId": "string"
       }
     },
     "PollSessionBrowser": {
@@ -478,6 +488,12 @@
         "_": "\"Subscribe\"",
         "afterSeq?": "number",
         "key": "`account/${string}` | `agents/${string}` | `runs/${string}` | `sessions/${string}`"
+      }
+    },
+    "UnmountAgent": {
+      "fields": {
+        "_": "\"UnmountAgent\"",
+        "agentId": "string"
       }
     },
     "UpdateAgent": {
@@ -1454,6 +1470,14 @@
         "modelDefaults?": "Record<string, unknown>",
         "secretRefs?": "Record<string, string>",
         "type": "string"
+      }
+    },
+    "MountAgent": {
+      "fields": {
+        "_": "\"MountAgent\"",
+        "agentId": "string",
+        "blobs?": "{cid: string; data: Uint8Array<ArrayBufferLike>}[]",
+        "documentId": "string"
       }
     },
     "ProviderModelInfo": {

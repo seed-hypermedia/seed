@@ -40,6 +40,14 @@ export type AssistantSelectionInput = {
    * yet is then pending rather than gone. Defaults to true.
    */
   agentsSettled?: boolean
+  /**
+   * True where the dropdown lists only the agents of the site in view (web) and the stored chat was
+   * restored from an earlier page rather than opened just now. A chat whose agent is not listed
+   * then belongs to some other site: once the lists have settled and the chat's agent is known, it
+   * is closed instead of resumed, so the panel never opens onto a conversation unrelated to the
+   * page. Desktop lists the account's own agents everywhere and keeps its window's chat regardless.
+   */
+  listedAgentsOnly?: boolean
 }
 
 export type AssistantSelection = {
@@ -75,6 +83,57 @@ export function orderAssistantAgents(
   return options
 }
 
+/**
+ * One section of the agent picker: a space's agents, the reader's own orphans that live in no
+ * space yet, or agents in no space that someone else owns and shares with the reader.
+ */
+export type AssistantAgentGroup = {
+  /** The space's account uid, or null for the orphan and shared sections. */
+  spaceUid: string | null
+  /** 'orphans' are the reader's to adopt; 'shared' ones only their owner can adopt. */
+  kind: 'space' | 'orphans' | 'shared'
+  options: AssistantAgentOption[]
+}
+
+/**
+ * Groups agents by the space they live in (the account of their document id), in the order the
+ * spaces first appear. Agents adopted into no space close the list: first the reader's own
+ * orphans, then ones shared by their owners, which the reader cannot adopt.
+ * The server an agent runs on is not a grouping: it is where the agent lives that people know.
+ */
+export function groupAssistantAgentsBySpace(agents: AssistantAgentOption[]): AssistantAgentGroup[] {
+  const bySpace = new Map<string, AssistantAgentOption[]>()
+  const orphans: AssistantAgentOption[] = []
+  const shared: AssistantAgentOption[] = []
+  for (const option of agents) {
+    const spaceUid = agentSpaceUid(option.agent.id)
+    if (!spaceUid) {
+      // A missing role comes from a server that predates roles, where the reader was the owner.
+      const role = option.agent.accessRole
+      if (role && role !== 'owner') shared.push(option)
+      else orphans.push(option)
+      continue
+    }
+    const list = bySpace.get(spaceUid)
+    if (list) list.push(option)
+    else bySpace.set(spaceUid, [option])
+  }
+  const groups: AssistantAgentGroup[] = Array.from(bySpace, ([spaceUid, options]) => ({
+    spaceUid,
+    kind: 'space' as const,
+    options,
+  }))
+  if (orphans.length) groups.push({spaceUid: null, kind: 'orphans', options: orphans})
+  if (shared.length) groups.push({spaceUid: null, kind: 'shared', options: shared})
+  return groups
+}
+
+/** The account uid of the space an agent's document lives in, or null for an agent without one. */
+export function agentSpaceUid(agentId: string): string | null {
+  const match = /^hm:\/\/([^/?#]+)/.exec(agentId)
+  return match?.[1] ?? null
+}
+
 function findAgent(agents: AssistantAgentOption[], key: {serverUrl: string; agentId: string}) {
   return agents.find((option) => option.serverUrl === key.serverUrl && option.agent.id === key.agentId) ?? null
 }
@@ -84,7 +143,8 @@ function findAgent(agents: AssistantAgentOption[], key: {serverUrl: string; agen
  *
  * The filter is the agent the user chose, or all agents when they chose none (or chose one that
  * no longer exists once the lists have settled). The open chat is the stored one until its server
- * refuses it: a chat is never opened from the list on the user's behalf, and never closed just
+ * refuses it, or — with `listedAgentsOnly` — until the settled lists show its agent is not one of
+ * this site's: a chat is never opened from the list on the user's behalf, and never closed just
  * because lists are still loading or the filter points elsewhere — the list is one back-press away.
  */
 export function resolveAssistantSelection(input: AssistantSelectionInput): AssistantSelection {
@@ -98,5 +158,8 @@ export function resolveAssistantSelection(input: AssistantSelectionInput): Assis
   )
   const agentId = entry?.session.agentId ?? input.storedSessionAgentId
   const sessionAgent = agentId ? findAgent(input.agents, {serverUrl: stored.serverUrl, agentId}) : null
+  if (input.listedAgentsOnly && agentsSettled && agentId && !sessionAgent) {
+    return {filterAgent, filterPending, session: null, sessionAgent: null}
+  }
   return {filterAgent, filterPending, session: stored, sessionAgent}
 }

@@ -199,6 +199,8 @@ export type UnsignedAgentAction =
   | AcceptAgentInvite
   | DeclineAgentInvite
   | CreateAgent
+  | MountAgent
+  | UnmountAgent
   | ListModelProviders
   | ListProviderModels
   | ListSigningIdentities
@@ -354,7 +356,39 @@ export type DeclineAgentInvite = {
 export type CreateAgent = {
   _: 'CreateAgent'
   definition: AgentDefinition
+  /** Create directly at this published document; omitted by legacy clients. */
+  mount?: Pick<MountAgent, 'documentId' | 'blobs'>
   clientRequestId?: string
+}
+
+/** Gives an existing agent a published document's canonical identity. Owner-only. */
+export type MountAgent = {
+  _: 'MountAgent'
+  agentId: string
+  documentId: string
+  /** Signed document blobs, also published locally by the client, for immediate server discovery. */
+  blobs?: {cid: string; data: Uint8Array}[]
+}
+
+/**
+ * Takes a mounted agent out of its document: it gets back the server id it had before the mount
+ * (or a fresh one) and keeps its sessions, memory and triggers. The client deletes the document.
+ * Owner-only; a developer tool for undoing an adoption.
+ */
+export type UnmountAgent = {
+  _: 'UnmountAgent'
+  /** The agent's current `hm://` id. */
+  agentId: string
+}
+
+/** Whether an agent address is an HTTP(S) endpoint without embedded credentials. */
+export function isMountableAgentServerUrl(serverUrl: string): boolean {
+  try {
+    const url = new URL(serverUrl)
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password
+  } catch {
+    return false
+  }
 }
 
 /** Lists configured model providers for the signed account. */
@@ -370,6 +404,8 @@ export type ListProviderModels = {
   provider: string
   /** Resolves the provider against the owning account of a shared agent. */
   agentId?: string
+  /** Skips server-side caches behind the listing (e.g. the looked-up Codex client version). */
+  refresh?: boolean
 }
 
 /** Lists uploaded Seed account keys available to the signed account. */

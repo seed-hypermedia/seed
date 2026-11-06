@@ -284,9 +284,55 @@ const documentPanelRoute = z.discriminatedUnion('key', [
 export type DocumentPanelRoute = z.infer<typeof documentPanelRoute>
 export type PanelSelectionOptions = DocumentPanelRoute['key']
 
+/** Resolves an expanded document panel's title and the panel to reopen when it collapses. */
+export function getExpandedDocumentPanel(route: NavRoute): {title: string; panel: DocumentPanelRoute} | null {
+  switch (route.key) {
+    case 'comments': {
+      const {panel: _panel, ...panel} = route
+      return {title: 'Comments', panel}
+    }
+    case 'metadata':
+      return {title: 'Attributes', panel: {key: 'metadata', id: route.id}}
+    case 'collaborators':
+      return {title: 'People', panel: {key: 'collaborators', id: route.id}}
+    case 'activity':
+      if (activityFilterToSlug(route.filterEventType) === 'citations') {
+        return {
+          title: 'Connections',
+          panel: {
+            key: 'activity',
+            id: route.id,
+            filterEventType: route.filterEventType,
+            targetBlockId: route.targetBlockId || route.id.blockRef || undefined,
+          },
+        }
+      }
+  }
+  return null
+}
+
 export const documentRouteSchema = z.object({
   key: z.literal('document'),
   id: unpackedHmIdSchema,
+  /** Agent features share the document's shell and identity. */
+  agentView: z
+    .enum([
+      'sessions',
+      'session',
+      'tools', // older links and saved routes; opens the permissions page
+      'settings',
+      'triggers',
+      'memory',
+      'prompt',
+      'permissions',
+      'identities',
+      'mcp',
+      'access',
+    ])
+    .optional(),
+  agentSessionId: z.string().optional(),
+  agentTriggerId: z.string().optional(),
+  agentMemoryPath: z.string().optional(),
   isBlockFocused: z.boolean().optional(),
   immediatelyPromptPush: z.boolean().optional(),
   immediatelyPromptNotifs: z.boolean().optional(),
@@ -358,7 +404,6 @@ export const siteSettingsTabSchema = z.enum([
   'members',
   'writers',
   'email-subscribers',
-  'agents',
 ])
 export type SiteSettingsTab = z.infer<typeof siteSettingsTabSchema>
 
@@ -381,27 +426,25 @@ export const siteSettingsEmailsRouteSchema = z.object({
 })
 export type SiteSettingsEmailsRoute = z.infer<typeof siteSettingsEmailsRouteSchema>
 
-/** Route schema for the desktop Agents page. */
-export const agentsRouteSchema = z.object({
-  key: z.literal('agents'),
-})
-/** Navigation route for the desktop Agents page. */
-export type AgentsRoute = z.infer<typeof agentsRouteSchema>
-
-/** Route schema for one configured agents server. */
-export const agentServerRouteSchema = z.object({
-  key: z.literal('agent-server'),
-  serverUrl: z.string(),
-})
-/** Navigation route for one configured agents server. */
-export type AgentServerRoute = z.infer<typeof agentServerRouteSchema>
-
 /** Route schema for one server-hosted agent. */
 export const agentRouteSchema = z.object({
   key: z.literal('agent'),
   agentId: z.string(),
   serverUrl: z.string().optional(),
-  tab: z.enum(['sessions', 'triggers', 'memory', 'tools', 'prompt', 'collaborators', 'settings']).optional(),
+  tab: z
+    .enum([
+      'sessions',
+      'triggers',
+      'memory',
+      'tools',
+      'prompt',
+      'permissions',
+      'identities',
+      'mcp',
+      'collaborators',
+      'settings',
+    ])
+    .optional(),
   triggerId: z.string().optional(),
   /** Memory tab: the file to open, so a `~/memory/…` link in a tool row lands on that file. */
   memoryPath: z.string().optional(),
@@ -500,8 +543,6 @@ export const navRouteSchema = z.discriminatedUnion('key', [
   draftRebaseRouteSchema,
   bookmarksSchema,
   draftsSchema,
-  agentsRouteSchema,
-  agentServerRouteSchema,
   agentRouteSchema,
   agentSessionRouteSchema,
   agentRunRouteSchema,

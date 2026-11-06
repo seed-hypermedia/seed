@@ -3,9 +3,11 @@ package blob
 import (
 	"crypto/sha256"
 	"fmt"
+	"seed/backend/core/coretest"
 	"testing"
 	"time"
 
+	"github.com/ipfs/go-cid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -253,4 +255,60 @@ func TestTSID_StringLength(t *testing.T) {
 		tsid := NewTSIDWithHash(maxTS, [4]byte{255, 255, 255})
 		require.Equal(t, MaxTSIDLength, len(tsid), "Max TSID string length should also be 14 characters")
 	}
+}
+
+func TestTSID_RejectsNonBase58Strings(t *testing.T) {
+	// These are valid multibase strings of exactly 10 bytes in other encodings,
+	// so without the base58btc check they would be mistaken for TSIDs.
+	// "user-story-maps" is a real document path that broke GetResource in production.
+	for _, s := range []string{
+		"user-story-maps", // base64url ('u' prefix).
+	} {
+		_, _, err := TSID(s).Parse()
+		require.Error(t, err, s)
+	}
+
+	for _, s := range []string{
+		"",
+		"z",
+		"user-stories",
+		"zebra-notes-xx",
+		"z6KGJG2P1vLD31z6KGJG2P1vLD31",
+	} {
+		_, _, err := TSID(s).Parse()
+		require.Error(t, err, s)
+	}
+
+	_, _, err := TSID("z6KGJG2P1vLD31").Parse()
+	require.NoError(t, err)
+}
+
+func TestRecordTSID(t *testing.T) {
+	alice := coretest.NewTester("alice")
+	ts := time.Now().UTC().Round(ClockPrecision)
+
+	body := []CommentBlock{
+		{Block: Block{
+			Type: "paragraph",
+			Text: "hello",
+		}},
+	}
+
+	// A record's initial blob carries no explicit id, so RecordTSID derives
+	// the TSID from the blob's timestamp and raw bytes.
+	initial, err := NewComment(alice.Account, "", alice.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, body, VisibilityPublic, ts)
+	require.NoError(t, err)
+
+	derived := NewTSID(initial.Decoded.BlobTime(), initial.Data)
+	require.Equal(t, derived, RecordTSID(initial.Decoded, initial.Data))
+
+	// An update blob carries the original record's TSID explicitly and has a
+	// later timestamp, so the derived value would differ. RecordTSID must
+	// return the explicit id verbatim.
+	update, err := NewComment(alice.Account, derived, alice.Account.Principal(), "/test", nil, cid.Undef, cid.Undef, body, VisibilityPublic, ts.Add(time.Second))
+	require.NoError(t, err)
+
+	updateDerived := NewTSID(update.Decoded.BlobTime(), update.Data)
+	require.NotEqual(t, derived, updateDerived)
+	require.Equal(t, derived, RecordTSID(update.Decoded, update.Data))
 }

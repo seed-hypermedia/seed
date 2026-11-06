@@ -5,10 +5,12 @@ import {createContext, useContext, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {createRoot, type Root} from 'react-dom/client'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {ActivityPanelPortal} from '../activity-panel-layout'
 import {DocumentViewContent, PageWrapper} from '../resource-page-common'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-vi.mock('../use-media', () => ({useMedia: () => ({xs: false})}))
+const layoutState = vi.hoisted(() => ({route: null as any, mobile: false}))
+vi.mock('../use-media', () => ({useMedia: () => ({xs: layoutState.mobile})}))
 
 vi.mock('../site-header', () => ({
   SiteHeader: ({
@@ -53,13 +55,23 @@ vi.mock('../site-file-browser-layout', () => {
 
 vi.mock('@shm/shared/utils/navigation', async () => {
   const actual = await vi.importActual<typeof import('@shm/shared/utils/navigation')>('@shm/shared/utils/navigation')
-  return {...actual, useNavigate: () => vi.fn()}
+  return {...actual, useNavigate: () => vi.fn(), useNavRouteOrNull: () => layoutState.route}
 })
 
 let container: HTMLDivElement
 let root: Root
 
 beforeEach(() => {
+  layoutState.route = null
+  layoutState.mobile = false
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  )
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -221,5 +233,84 @@ describe('DocumentViewContent', () => {
       )
     })
     expect(container.textContent).toBe('Document content')
+  })
+})
+
+describe('Activity outside the site shell', () => {
+  it('keeps document input and file browser state when Activity opens, switches tabs, and closes', () => {
+    const siteHomeId = hmId('site')
+    const headerData = {
+      items: [],
+      homeNavigationItems: [],
+      directoryItems: [],
+      isCenterLayout: false,
+      siteHomeDocument: null,
+    }
+    function Document() {
+      const [text, setText] = useState('')
+      return (
+        <>
+          <input value={text} onChange={(event) => setText(event.target.value)} />
+          <ActivityPanelPortal active={layoutState.route?.panel?.key === 'feed'}>
+            <button>Activity content</button>
+          </ActivityPanelPortal>
+        </>
+      )
+    }
+    const render = (panel: any) => {
+      layoutState.route = {key: 'document', id: siteHomeId, panel}
+      act(() =>
+        root.render(
+          <PageWrapper siteHomeId={siteHomeId} docId={siteHomeId} headerData={headerData}>
+            <Document />
+          </PageWrapper>,
+        ),
+      )
+    }
+    render(null)
+    const input = container.querySelector('input')!
+    const browser = container.querySelector('[data-testid="file-browser-layout"]')!
+    act(() => {
+      input.value = 'Unfinished edit'
+      Simulate.change(input)
+      input.focus()
+    })
+    for (const panel of [{key: 'feed', tab: 'to-you'}, {key: 'feed', tab: 'all-updates'}, null]) {
+      render(panel)
+      expect(container.querySelector('input')).toBe(input)
+      expect(input.value).toBe('Unfinished edit')
+      expect(container.querySelector('[data-testid="file-browser-layout"]')).toBe(browser)
+      if (panel) {
+        expect(container.querySelector('#activity')?.textContent).toContain('Activity content')
+        expect(browser.textContent).not.toContain('Activity content')
+        container.querySelector<HTMLButtonElement>('#activity button')!.focus()
+      } else {
+        expect(document.activeElement).toBe(input)
+      }
+    }
+  })
+
+  it('does not create an outer panel on mobile', () => {
+    layoutState.mobile = true
+    layoutState.route = {key: 'document', id: hmId('site'), panel: {key: 'feed'}}
+    act(() =>
+      root.render(
+        <PageWrapper
+          siteHomeId={hmId('site')}
+          docId={hmId('site')}
+          headerData={{
+            items: [],
+            homeNavigationItems: [],
+            directoryItems: [],
+            isCenterLayout: false,
+            siteHomeDocument: null,
+          }}
+        >
+          <input defaultValue="Mobile document" />
+        </PageWrapper>,
+      ),
+    )
+    expect(container.querySelector('#activity')).toBeNull()
+    expect(container.querySelector('input')?.value).toBe('Mobile document')
   })
 })

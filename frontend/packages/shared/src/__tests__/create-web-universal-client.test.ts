@@ -5,6 +5,8 @@ import {
   signDocumentChange,
 } from '@seed-hypermedia/client'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {HMPrepareDocumentChangeInputSchema} from '@seed-hypermedia/client/hm-types'
+import {compareBlocksWithMap, createBlocksMap} from '../utils/document-changes'
 import {createWebUniversalClient} from '../create-web-universal-client'
 
 vi.mock('@seed-hypermedia/client', async () => {
@@ -21,6 +23,42 @@ vi.mock('@seed-hypermedia/client', async () => {
 describe('createWebUniversalClient publishDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('prepares text added to an empty document using plain block attributes', async () => {
+    const {changes} = compareBlocksWithMap(
+      createBlocksMap([], ''),
+      [
+        {
+          id: 'added',
+          type: 'paragraph',
+          props: {textAlignment: 'center'},
+          content: [{type: 'text', text: 'New text', styles: {}}],
+          children: [],
+        },
+      ],
+      '',
+    )
+    const request = vi.fn(async (_key, input) => {
+      const parsed = HMPrepareDocumentChangeInputSchema.parse(input)
+      expect(parsed.changes.find(({op}) => op.case === 'replaceBlock')?.op.value).toMatchObject({
+        text: 'New text',
+        attributes: {textAlignment: 'center'},
+      })
+      return {unsignedChange: new Uint8Array([1])}
+    })
+    vi.mocked(signDocumentChange).mockResolvedValueOnce({publishInput: {blobs: []}} as any)
+    const publish = vi.fn(async () => ({cids: []}))
+    const client = createWebUniversalClient({request, publish, getSigner: vi.fn()} as any)
+    await client.publishDocument!({
+      account: 'alice',
+      signerAccountUid: 'alice',
+      path: '/empty',
+      baseVersion: 'empty-version',
+      changes,
+    })
+    expect(request).toHaveBeenCalledOnce()
+    expect(publish).toHaveBeenCalledOnce()
   })
 
   it('creates brand-new site home metadata without PrepareDocumentChange', async () => {

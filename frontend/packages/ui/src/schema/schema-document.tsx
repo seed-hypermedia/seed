@@ -19,6 +19,7 @@ import {
   type BindingSchemaDrafts,
   type SchemaDraft,
 } from '@shm/shared/models/schema-draft'
+import {useSelectedAccountId} from '@shm/shared/models/entity'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {Button} from '../button'
 import {Tooltip} from '../tooltip'
@@ -192,9 +193,11 @@ export function useSchemaMenuItems(
   const bundledName = cid ? nameForCid(cid) : undefined
   const {byCid} = useSchemaRegistry(cid && !bundledName ? [cid] : [])
   const schema = !cid ? undefined : bundledName ? schemaForCid(cid) : byCid[cid]
+  // Extending a schema or starting a raw value publishes a blob: needs an account.
+  const canAuthor = !!useSelectedAccountId()
   return useMemo(() => {
     if (!cid) return []
-    const canCreate = !!schema && !schema.anyOf && !schema.$type
+    const canCreate = canAuthor && !!schema && !schema.anyOf && !schema.$type
     const typed = isAttributesSchema(schema) && !!docUrl
     return [
       ...(typed && onNewTypedDocument
@@ -240,7 +243,7 @@ export function useSchemaMenuItems(
         onClick: () => navigate({key: 'inspect-ipfs', ipfsPath: cid}),
       },
     ]
-  }, [cid, schema, docUrl, navigate, onExtendSchema, onNewTypedDocument, onNewTypedCollection])
+  }, [cid, schema, canAuthor, docUrl, navigate, onExtendSchema, onNewTypedDocument, onNewTypedCollection])
 }
 
 /**
@@ -269,9 +272,10 @@ export function SchemaDocumentHeaderActions({
   const bundledName = cid ? nameForCid(cid) : undefined
   const schema = cid ? byCid[cid] : undefined
   const [createOpen, setCreateOpen] = useState(false)
+  const canAuthor = !!useSelectedAccountId()
   if (!cid) return null
   const typeName = bundledName || 'Schema'
-  const isInstantiable = !!schema && !schema.anyOf // a union has no single seed shape
+  const isInstantiable = canAuthor && !!schema && !schema.anyOf // a union has no single seed shape
   const typed = isAttributesSchema(schema) && !!docUrl && !!(onNewTypedDocument || onNewTypedCollection)
 
   if (typed) {

@@ -27,6 +27,12 @@
  *                              minus these
  * - `provider.ttft.<provider>.<model>` / `provider.turn.<provider>.<model>` — the provider spans
  *   tagged by provider+model, so one slow model is visible next to the blend
+ * - `api.<ActionName>`       — each signed action handled by `Service.message`, envelope receipt →
+ *                              response (names only; unsupported action names are not recorded,
+ *                              so a client cannot grow the metric set)
+ * - `sql.<keyword>`          — every prepared-statement `.get/.all/.run/.values` call, by the
+ *                              statement's first keyword (`select`, `insert`, `update`, ...), so
+ *                              the share of loop time spent inside SQLite is visible
  *
  * Per-session attribution lives elsewhere: each turn's ttft/turn duration is stamped on the
  * session events it appends (`SessionEventMeta.turn`), and `GET /api/perf/sessions/:id` serves a
@@ -41,9 +47,20 @@
  * - `exec.pool_hit` / `exec.pool_miss` / `exec.pool_overflow` — warm-pool acquisition outcomes.
  * - `exec.cap_wait` / `exec.cap_rejected` — an acquire queued behind the host-wide sandbox
  *   concurrency cap, or gave up waiting for a slot (`exec.cap_wait_ms` records the wait).
+ * - `exec.memroot_wait` / `exec.memroot_rejected` — an acquire queued because another sandbox
+ *   already had the same agent's memory directory mounted (another session, a delegated child, a
+ *   trigger firing), or gave up waiting for it (`exec.memroot_wait_ms` records the wait).
  * - `exec.pool_reset_exhausted` / `exec.pool_reset_error` / `exec.pool_probe_failed` — why a
  *   pooled VM was disposed: its park reset ran out of pass budget (the guest's own verdict), the
  *   reset exchange broke, or the reuse probe failed.
+ * - `sql.slow`               — a prepared statement took longer than the slow-statement threshold
+ *                              (`statements.ts` also logs the SQL at `warn`, rate-limited).
+ *
+ * Event-loop lag (`loop.lag` in the snapshot) is the one metric that is not a span: a 100 ms timer
+ * measures how late it fires, and the snapshot reports the lag distribution over the last minute.
+ * It is the only number that says "the server is stalled" when every span looks fine — a stall
+ * that never reaches `accept()` records no spans at all. `/api/health` turns 503 on it; see
+ * {@link loopLagHealth}.
  */
 
 /** Samples kept per metric for percentile estimates. Old samples fall off; totals keep counting. */
@@ -70,6 +87,8 @@ export type PerfSnapshot = {
   metrics: Record<string, PerfMetricSnapshot>
   /** Occurrence counters (errors, retries) — events with no duration to measure. */
   counters: Record<string, {count: number; lastAt: number}>
+  /** Event-loop health: how late the lag timer fires, over the last minute. */
+  loop: {lag: LoopLagSnapshot}
 }
 
 /**
@@ -178,11 +197,161 @@ export function perfSnapshot(): PerfSnapshot {
   }
   const countersOut: Record<string, {count: number; lastAt: number}> = {}
   for (const name of [...counters.keys()].sort()) countersOut[name] = {...counters.get(name)!}
-  return {since: startedAt, metrics: out, counters: countersOut}
+  return {since: startedAt, metrics: out, counters: countersOut, loop: {lag: loopLagSnapshot()}}
+}
+
+// ---------------------------------------------------------------------------------------------
+// Event-loop lag
+// ---------------------------------------------------------------------------------------------
+
+/** How often the lag gauge's timer fires. Lag is how much later than this it actually ran. */
+export const LOOP_LAG_INTERVAL_MS = 100
+
+/** The window the lag percentiles and `max` cover: the last minute of samples. */
+export const LOOP_LAG_WINDOW_MS = 60_000
+
+/**
+ * `/api/health` answers 503 (`reason: 'loop-lag'`) while the p95 lag over the last minute is above
+ * this. 250 ms is a quarter of the interval Bun resets idle HTTP requests at, is far above the
+ * few-millisecond lag a healthy server shows under load, and is below the point where clients
+ * start timing out. The same rule drives the container healthcheck, so a stalled server shows as
+ * unhealthy in `docker ps` instead of "Up".
+ */
+export const LOOP_LAG_UNHEALTHY_P95_MS = 250
+
+/**
+ * Samples the ring keeps: two minutes at the default interval, so the one-minute window is always
+ * fully covered even when the timer fires early. Older samples are overwritten in place.
+ */
+const LOOP_LAG_CAPACITY = Math.ceil((2 * LOOP_LAG_WINDOW_MS) / LOOP_LAG_INTERVAL_MS)
+
+export type LoopLagSnapshot = {
+  /** Timer interval the lag is measured against. */
+  intervalMs: number
+  /** The window the percentiles and `max` are computed over. */
+  windowMs: number
+  /** Samples inside the window. Zero until the gauge has fired once. */
+  samples: number
+  /** Milliseconds late over the window. */
+  p50: number
+  p95: number
+  max: number
+  /** The largest lag seen since the process started, so a past stall is still visible. */
+  maxSinceStart: number
+  /** Most recent sample and when it was recorded (epoch ms). */
+  last: number
+  lastAt: number
+}
+
+type LoopLagState = {
+  at: Float64Array
+  lag: Float64Array
+  length: number
+  next: number
+  maxSinceStart: number
+  last: number
+  lastAt: number
+}
+
+const loopLag: LoopLagState = createLoopLagState()
+
+function createLoopLagState(): LoopLagState {
+  return {
+    at: new Float64Array(LOOP_LAG_CAPACITY),
+    lag: new Float64Array(LOOP_LAG_CAPACITY),
+    length: 0,
+    next: 0,
+    maxSinceStart: 0,
+    last: 0,
+    lastAt: 0,
+  }
+}
+
+/**
+ * Records one lag sample taken at `at` (epoch ms). The gauge calls this on every tick; tests call
+ * it directly to drive the window math with chosen timestamps.
+ */
+export function recordLoopLag(lagMs: number, at: number = Date.now()): void {
+  const value = lagMs < 0 ? 0 : lagMs
+  loopLag.at[loopLag.next] = at
+  loopLag.lag[loopLag.next] = value
+  loopLag.next = (loopLag.next + 1) % LOOP_LAG_CAPACITY
+  if (loopLag.length < LOOP_LAG_CAPACITY) loopLag.length += 1
+  if (value > loopLag.maxSinceStart) loopLag.maxSinceStart = value
+  loopLag.last = value
+  loopLag.lastAt = at
+}
+
+/** The lag distribution over the window `(now - LOOP_LAG_WINDOW_MS, now]` (epoch ms). */
+export function loopLagSnapshot(now: number = Date.now()): LoopLagSnapshot {
+  const since = now - LOOP_LAG_WINDOW_MS
+  const inWindow: number[] = []
+  for (let index = 0; index < loopLag.length; index += 1) {
+    if (loopLag.at[index]! > since && loopLag.at[index]! <= now) inWindow.push(loopLag.lag[index]!)
+  }
+  inWindow.sort((a, b) => a - b)
+  return {
+    intervalMs: LOOP_LAG_INTERVAL_MS,
+    windowMs: LOOP_LAG_WINDOW_MS,
+    samples: inWindow.length,
+    p50: tenths(percentile(inWindow, 0.5)),
+    p95: tenths(percentile(inWindow, 0.95)),
+    max: tenths(inWindow.length ? inWindow[inWindow.length - 1]! : 0),
+    maxSinceStart: tenths(loopLag.maxSinceStart),
+    last: tenths(loopLag.last),
+    lastAt: loopLag.lastAt,
+  }
+}
+
+/** Lag comes from `performance.now()` with sub-microsecond noise; a tenth of a millisecond reads. */
+function tenths(value: number): number {
+  return Math.round(value * 10) / 10
+}
+
+export type LoopLagHealth = {ok: true; p95: number} | {ok: false; reason: 'loop-lag'; p95: number}
+
+/**
+ * The health rule: unhealthy while the p95 lag over the last minute exceeds
+ * {@link LOOP_LAG_UNHEALTHY_P95_MS}. A single long stall does not trip it (one sample out of six
+ * hundred is not the 95th percentile); a loop that stays busy for a minute does. With no samples
+ * (gauge not started, as in tests and one-shot commands) the server is healthy.
+ */
+export function loopLagHealth(now: number = Date.now()): LoopLagHealth {
+  const {p95} = loopLagSnapshot(now)
+  return p95 > LOOP_LAG_UNHEALTHY_P95_MS ? {ok: false, reason: 'loop-lag', p95} : {ok: true, p95}
+}
+
+let loopLagTimer: ReturnType<typeof setInterval> | undefined
+
+/**
+ * Starts the lag gauge: a timer every {@link LOOP_LAG_INTERVAL_MS} that records how late it fired.
+ * Lag is measured against the previous tick, not the scheduled time, so a sequence of late ticks
+ * attributes each delay once. The timer is unref'd and never keeps the process alive. Returns the
+ * function that stops it; starting twice stops the earlier gauge first.
+ */
+export function startLoopLagGauge(intervalMs: number = LOOP_LAG_INTERVAL_MS): () => void {
+  stopLoopLagGauge()
+  let previous = performance.now()
+  const timer = setInterval(() => {
+    const now = performance.now()
+    recordLoopLag(now - previous - intervalMs)
+    previous = now
+  }, intervalMs)
+  timer.unref?.()
+  loopLagTimer = timer
+  return stopLoopLagGauge
+}
+
+/** Stops the lag gauge if one is running. Recorded samples stay in the window. */
+export function stopLoopLagGauge(): void {
+  if (loopLagTimer !== undefined) clearInterval(loopLagTimer)
+  loopLagTimer = undefined
 }
 
 /** Drops all recorded metrics. Tests only — production stats live for the process lifetime. */
 export function resetPerfForTests(): void {
   metrics.clear()
   counters.clear()
+  stopLoopLagGauge()
+  Object.assign(loopLag, createLoopLagState())
 }

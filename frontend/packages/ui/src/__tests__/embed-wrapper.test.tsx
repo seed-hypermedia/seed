@@ -94,6 +94,36 @@ describe('EmbedWrapper', () => {
     expect(routeOnClickMock).not.toHaveBeenCalled()
   })
 
+  it('leaves editor selection clicks active when embed navigation is disabled', () => {
+    const id = hmId('uid-1', {path: ['doc']})
+    act(() =>
+      root.render(
+        <EmbedWrapper id={id} route={{key: 'document', id}} parentBlockId={null} openOnClick={false}>
+          <span>Editable embed</span>
+        </EmbedWrapper>,
+      ),
+    )
+    const event = new MouseEvent('click', {bubbles: true, cancelable: true})
+    container.querySelector('span')!.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('does not cancel navigation clicks within a nested embed', () => {
+    const id = hmId('uid-1', {path: ['doc']})
+    act(() =>
+      root.render(
+        <EmbedWrapper id={id} route={{key: 'document', id}} parentBlockId={null}>
+          <div data-content-type="embed">
+            <span>Nested source</span>
+          </div>
+        </EmbedWrapper>,
+      ),
+    )
+    const event = new MouseEvent('click', {bubbles: true, cancelable: true})
+    container.querySelector('span')!.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
   it('preserves an active comments panel while passing a block-ref document embed id unchanged', () => {
     const panelId = hmId('uid-source', {path: ['source']})
     const targetId = hmId('uid-target', {

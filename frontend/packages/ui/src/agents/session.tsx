@@ -59,7 +59,8 @@ import {
   AlertDialogTitle,
 } from '@shm/ui/components/alert-dialog'
 import {DialogTitle} from '@shm/ui/components/dialog'
-import {Container, PanelContainer} from '@shm/ui/container'
+import {Container} from '@shm/ui/container'
+import {AgentPane} from './pane'
 import {OptionsDropdown} from '@shm/ui/options-dropdown'
 import {Notice} from '@shm/ui/notice'
 import {SizableText} from '@shm/ui/text'
@@ -78,23 +79,34 @@ import {
 } from './rich-message-composer'
 import {SessionProviderGate, useMissingSessionProvider} from './session-provider-gate'
 import {TriggerContextView} from './trigger-types'
+import {AgentMountBanner} from './mount'
+import {getAgentsPlatform} from './platform'
 
-function AgentSessionPage({
+/** Session transcript, optionally embedded below a mounted document's tabs. */
+export function AgentSessionPage({
   sessionId,
   routeServerUrl,
   routeAgentId,
+  embedded = false,
 }: {
   sessionId: string
   routeServerUrl?: string
   routeAgentId?: string
+  embedded?: boolean
 }) {
   const selectedAccountId = useSelectedAccountId()
+  const gatewayUrl = getAgentsPlatform().useGatewayUrl?.()
   const navigate = useNavigate()
+  const replaceRoute = useNavigate('replace')
   const serverUrlQuery = useAgentServerUrl()
   const serverUrl = routeServerUrl || serverUrlQuery.data || getDefaultAgentServerUrl() || ''
   const session = useAgentSession(serverUrl, selectedAccountId, sessionId)
   const agentId = routeAgentId || session.data?.session.agentId
   const agent = useAgentDetail(serverUrl, selectedAccountId, agentId)
+  useEffect(() => {
+    if (!embedded && agent.data?.agent.id.startsWith('hm://'))
+      replaceRoute({key: 'agent-session', agentId: agent.data.agent.id, serverUrl, sessionId})
+  }, [embedded, agent.data?.agent.id, replaceRoute, serverUrl, sessionId])
   const triggers = useAgentTriggers(serverUrl, selectedAccountId, agentId)
   const messageSession = useMessageAgentSession(serverUrl, selectedAccountId)
   const stopSession = useStopAgentSession(serverUrl, selectedAccountId)
@@ -138,6 +150,7 @@ function AgentSessionPage({
         interleaveRunRecords(
           buildAgentSessionChatRows(session.data?.events || [], {
             serverUrl,
+            gatewayUrl,
             agentId,
             sessionId,
             triggerContext: session.data?.triggerContext ?? null,
@@ -152,6 +165,7 @@ function AgentSessionPage({
     [
       agentId,
       serverUrl,
+      gatewayUrl,
       session.data?.events,
       session.data?.session.plan,
       session.data?.triggerContext,
@@ -337,26 +351,35 @@ function AgentSessionPage({
     }
   }
 
+  if (embedded && session.data && session.data.session.agentId !== routeAgentId)
+    return (
+      <p role="alert" className="p-5">
+        This session belongs to another agent.
+      </p>
+    )
   return (
-    <PanelContainer className="flex flex-col overflow-hidden">
-      <div className="border-border flex-none border-b">
-        <Container className="max-w-4xl gap-4 pt-4 pb-4">
-          <AgentHeader
-            agent={agent.data?.agent}
-            agentId={agentId}
-            serverUrl={serverUrl}
-            activeTab="sessions"
-            sessionsCount={agent.data?.sessionCount}
-            triggersCount={triggers.data?.length}
-            breadcrumbItems={[
-              ...(agentId
-                ? [{label: 'Sessions', route: {key: 'agent' as const, agentId, serverUrl}}]
-                : [{label: 'Sessions'}]),
-              {label: titleDraft || persistedTitle || '…'},
-            ]}
-          />
-        </Container>
-      </div>
+    <AgentPane embedded={embedded} className="flex flex-col overflow-hidden">
+      {agent.data && !embedded && <AgentMountBanner agent={agent.data.agent} serverUrl={serverUrl} />}
+      {!embedded && (
+        <div className="border-border flex-none border-b">
+          <Container className="max-w-4xl gap-4 pt-4 pb-4">
+            <AgentHeader
+              agent={agent.data?.agent}
+              agentId={agentId}
+              serverUrl={serverUrl}
+              activeTab="sessions"
+              sessionsCount={agent.data?.sessionCount}
+              triggersCount={triggers.data?.length}
+              breadcrumbItems={[
+                ...(agentId
+                  ? [{label: 'Sessions', route: {key: 'agent' as const, agentId, serverUrl}}]
+                  : [{label: 'Sessions'}]),
+                {label: titleDraft || persistedTitle || '…'},
+              ]}
+            />
+          </Container>
+        </div>
+      )}
       <AgentSubpageHeader
         title={titleDraft}
         placeholder="Untitled session"
@@ -367,7 +390,7 @@ function AgentSessionPage({
         backLabel="Back to agent sessions"
         onBack={() => {
           const agentId = session.data?.session.agentId
-          navigate(agentId ? {key: 'agent', agentId, serverUrl} : {key: 'agents'})
+          if (agentId) navigate({key: 'agent', agentId, serverUrl})
         }}
         actions={
           <>
@@ -406,7 +429,7 @@ function AgentSessionPage({
                   label: 'Copy session URL',
                   disabled: !agentId,
                   onClick: () => {
-                    const url = buildAgentSessionUrl(serverUrl, agentId, sessionId)
+                    const url = buildAgentSessionUrl(serverUrl, agentId, sessionId, gatewayUrl)
                     if (!url) return
                     void navigator.clipboard?.writeText(url)
                     toast.success('Session URL copied')
@@ -575,7 +598,7 @@ function AgentSessionPage({
           </div>
         ) : null}
       </div>
-    </PanelContainer>
+    </AgentPane>
   )
 }
 

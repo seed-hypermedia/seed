@@ -50,31 +50,23 @@ import {ParkedRunActions} from './run-parked-actions'
 import {useSelectedAccountId} from './account'
 import {useClickNavigate} from './navigation'
 import {getAgentsPlatform} from './platform'
+import {getToolIcon} from './tool-icons'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {Button} from '@shm/ui/button'
 import {AccountAvatar} from '@shm/ui/account-avatar'
 import {cn} from '@shm/ui/utils'
 import {
   Activity,
-  BookOpenText,
-  Bot,
   ChevronDown,
   ChevronRight,
   ChevronUp,
   Clock3,
-  Compass,
   Info,
   Globe,
-  ListChecks,
   Loader2,
-  PackageCheck,
-  PenLine,
-  Route,
-  Search,
   SquareTerminal,
   UserRound,
   Workflow,
-  Wrench,
 } from 'lucide-react'
 import React, {Fragment, Suspense, useMemo, useRef, useState} from 'react'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@shm/ui/components/dialog'
@@ -904,7 +896,7 @@ function useToolLinkOpener() {
       const route =
         target.type === 'memory'
           ? {key: 'agent' as const, agentId, serverUrl, tab: 'memory' as const, memoryPath: target.path}
-          : {key: 'agent' as const, agentId, serverUrl, tab: 'tools' as const}
+          : {key: 'agent' as const, agentId, serverUrl, tab: 'permissions' as const}
       clickNavigate(route, event as never)
     },
   }
@@ -2069,35 +2061,6 @@ const toolColorClasses = {
   hidden: 'border-border bg-muted/60 text-muted-foreground',
 }
 
-/** Kind-keyed fallback icons. Every icon is distinct — a shared wrench says nothing about a row. */
-const toolIcons = {
-  search: Search,
-  read: BookOpenText,
-  resolve: Route,
-  navigate: Compass,
-  write: PenLine,
-  generic: Wrench,
-  // Hidden-kind rows are the session's own bookkeeping (status, plan) — notes about the work,
-  // not work.
-  hidden: Info,
-}
-
-/**
- * Name-keyed icons for calls whose kind icon would say the wrong thing: delegation and code
- * execution are registered as "write" tools, but a pen tells the reader nothing about spawning a
- * child or running a script.
- */
-const toolIconsByName: Record<string, typeof Wrench> = {
-  delegate: Bot,
-  sub_session: Bot,
-  run_workflow: Workflow,
-  execute: SquareTerminal,
-  execute_code: SquareTerminal,
-  return_result: PackageCheck,
-  status: Info,
-  plan: ListChecks,
-}
-
 /** Last few non-empty lines of a live output tail. */
 function lastOutputLines(outputTail: string, maxLines: number): string {
   return outputTail
@@ -2470,7 +2433,7 @@ export function ToolCallLine({
       ? Workflow
       : isExecuteRow
         ? SquareTerminal
-        : toolIconsByName[item.name] ?? toolIcons[render?.kind || 'generic']
+        : getToolIcon(item.name, render?.kind)
   const isPending = item.result === undefined && item.rawOutput === undefined
   const rowLabel = isTimerWorkflow
     ? isPending

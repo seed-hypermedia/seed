@@ -96,6 +96,7 @@ let stmtDeleteNotificationEmailVerificationForAccount: Statement
 let stmtMarkNotificationConfigVerified: Statement
 let stmtGetNotificationReadState: Statement
 let stmtUpsertNotificationReadState: Statement
+let stmtReplaceNotificationReadState: Statement
 let stmtGetNotificationReadEvents: Statement
 let stmtUpsertNotificationReadEvent: Statement
 let stmtDeleteNotificationReadEventsForAccount: Statement
@@ -367,6 +368,17 @@ export async function initDatabase(): Promise<void> {
     version = 11
   }
 
+  if (version === 11) {
+    // Version 12 briefly held a read-state audit table; regressions are reported to Sentry instead.
+    db.exec(`
+      BEGIN;
+      DROP TABLE IF EXISTS notification_read_audit;
+      PRAGMA user_version = 12;
+      COMMIT;
+    `)
+    version = 12
+  }
+
   // Initialize all prepared statements
   stmtInsertEmail = db.prepare('INSERT OR IGNORE INTO emails (email, adminToken) VALUES (?, ?)')
   stmtInsertSubscription = db.prepare(
@@ -486,6 +498,16 @@ export async function initDatabase(): Promise<void> {
         END
       END,
       stateUpdatedAtMs = MAX(excluded.stateUpdatedAtMs, notification_read_state.stateUpdatedAtMs),
+      updatedAt = CURRENT_TIMESTAMP
+  `)
+  // The actions API computes the next state from the row it just read, so its write replaces the watermark
+  // outright: a lowered watermark (an unread toggle) must land even when the previous write shares its millisecond.
+  stmtReplaceNotificationReadState = db.prepare(`
+    INSERT INTO notification_read_state (accountId, markAllReadAtMs, stateUpdatedAtMs, updatedAt)
+    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(accountId) DO UPDATE SET
+      markAllReadAtMs = excluded.markAllReadAtMs,
+      stateUpdatedAtMs = MAX(excluded.stateUpdatedAtMs, notification_read_state.stateUpdatedAtMs + 1),
       updatedAt = CURRENT_TIMESTAMP
   `)
   stmtGetNotificationReadEvents = db.prepare(`
@@ -928,7 +950,7 @@ export function replaceNotificationReadState(
     }))
 
   const transaction = db.transaction(() => {
-    stmtUpsertNotificationReadState.run(accountId, snapshot.markAllReadAtMs, Date.now())
+    stmtReplaceNotificationReadState.run(accountId, snapshot.markAllReadAtMs, Date.now())
     stmtDeleteNotificationReadEventsForAccount.run(accountId)
     for (const evt of normalizedReadEvents) {
       if (snapshot.markAllReadAtMs !== null && evt.eventAtMs <= snapshot.markAllReadAtMs) {

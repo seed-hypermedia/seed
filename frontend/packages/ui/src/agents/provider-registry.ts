@@ -20,6 +20,11 @@ export type ProviderMetadata = {
   /** Models preferred as the initial default in agent creation/edit flows. */
   preferredDefaultModelIds: string[]
   /**
+   * Models checked for a new agent's quick-switch list when the catalog offers them, in list
+   * order. The default model is always checked on top of these.
+   */
+  preferredEnabledModelIds?: string[]
+  /**
    * OAuth subscription sign-in support (server `StartProviderOAuth`). When set,
    * the add-provider form offers an auth-mode toggle between API key and
    * subscription sign-in.
@@ -40,10 +45,13 @@ export const PROVIDER_METADATA: Record<ModelProviderType, ProviderMetadata> = {
     defaultBaseUrl: 'https://api.openai.com/v1',
     showBaseUrlField: false,
     requiresApiKey: true,
-    priorityPrefixes: ['gpt-5', 'gpt-4.1', 'gpt-4o', 'o4', 'o3', 'o1', 'gpt-4', 'gpt-3.5', 'chatgpt'],
+    priorityPrefixes: ['gpt-6', 'gpt-5', 'gpt-4.1', 'gpt-4o', 'o4', 'o3', 'o1', 'gpt-4', 'gpt-3.5', 'chatgpt'],
     // gpt-5.6-sol is the Codex subscription flagship (never listed by the API-key
     // models endpoint, so it cannot shadow the API-mode defaults after it).
     preferredDefaultModelIds: ['gpt-5.6-sol', 'gpt-5-mini', 'gpt-5.2', 'gpt-5.1'],
+    // The ChatGPT subscription catalog: Sol is the default, Astra and Luna ride along as
+    // quick-switch alternatives (the API-key catalog lists none of these).
+    preferredEnabledModelIds: ['gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-luna'],
     subscription: {
       label: 'ChatGPT subscription',
       signInLabel: 'Sign in with ChatGPT',

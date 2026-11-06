@@ -579,26 +579,12 @@ export const HMDocumentMetadataSchema = z
     cover: z.string().optional(),
     siteUrl: z.string().optional(),
     /**
-     * Agents server a space advertises for its readers (an http(s) origin). Clients viewing the
-     * space's documents connect to it alongside their own configured servers, so a site can host
-     * agents for its audience — on the gateway, each site brings its own agents backend.
+     * The agents server an agent's mount document names (an http(s) origin). A document with
+     * `type: hm://hyper.media/agent` and this field is an agent: its versionless hm:// id is the
+     * agent's id, and that server must register it under exactly that id. A space's agents are
+     * found by querying its documents for this type; nothing else registers an agent with a space.
      */
     agentServerUrl: z.string().optional(),
-    /**
-     * Agents this space publishes to its readers: `{[agentId]: order}`, where each id names an agent
-     * on {@link agentServerUrl} and the number is its position in the picker.
-     *
-     * This is what makes a space's agents reachable by someone who just arrived: an agent server
-     * only ever lists agents you own or collaborate on, so a reader cannot discover them by asking.
-     * Named here, the client fetches each one by id, which the server serves to any signed account
-     * once the agent is public-read.
-     *
-     * Only ids and order live here — an agent's name and icon are read from the agent itself, so
-     * renaming one never strands a stale copy in a signed document. Values are typed loosely
-     * because removal leaves a null attribute behind rather than dropping the key; `parseSpaceAgentIds`
-     * in @shm/ui/agents/space-agents is the reader for this field.
-     */
-    spaceAgents: z.record(z.string(), z.unknown()).optional(),
     /** Resource type; custom HTML pages use hm://hyper.media/page. */
     type: z.string().optional(),
     /** UnixFS folder whose index.html runs as an isolated custom HTML page. */
@@ -654,8 +640,7 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   thumbnail: 'Deprecated image field kept for older documents.',
   cover: 'Wide cover image shown in headers and cards.',
   siteUrl: 'Published website URL for a space.',
-  agentServerUrl: 'Agents server readers of this space connect to.',
-  spaceAgents: 'Agents this space publishes to its readers, by id and order.',
+  agentServerUrl: 'Agents server that hosts the agent this document mounts.',
   layout: 'Legacy space header layout setting.',
   displayPublishTime: 'Publication date shown to readers.',
   displayAuthor: 'Author byline shown to readers.',
@@ -742,15 +727,6 @@ export const HMCommentGroupSchema = z.object({
   type: z.literal('commentGroup'),
 })
 export type HMCommentGroup = z.infer<typeof HMCommentGroupSchema>
-
-export const HMExternalCommentGroupSchema = z.object({
-  comments: z.array(HMCommentSchema),
-  moreCommentsCount: z.number(),
-  id: z.string(),
-  target: z.lazy(() => HMMetadataPayloadSchema),
-  type: z.literal('externalCommentGroup'),
-})
-export type HMExternalCommentGroup = z.infer<typeof HMExternalCommentGroupSchema>
 
 export type HMBlockType = HMBlock['type']
 
@@ -1932,7 +1908,6 @@ export type HMListDiscussionsInput = z.infer<typeof HMListDiscussionsInputSchema
 export const HMListDiscussionsOutputSchema = z.object({
   discussions: z.array(HMCommentGroupSchema),
   authors: z.record(z.string(), HMMetadataPayloadSchema),
-  citingDiscussions: z.array(HMExternalCommentGroupSchema),
 })
 export type HMListDiscussionsOutput = z.infer<typeof HMListDiscussionsOutputSchema>
 
@@ -2134,6 +2109,7 @@ export const HMRawCapabilitySchema = z.object({
   path: z.string().optional(),
   role: z.string().optional(),
   noRecursive: z.boolean().optional(),
+  isExact: z.boolean().optional(),
   label: z.string().optional(),
   createTime: z.string().optional(),
 })
@@ -2309,8 +2285,20 @@ export type HMPublishBlobsRequest = z.infer<typeof HMPublishBlobsRequestSchema>
 
 // PrepareDocumentChange - call gRPC PrepareChange, returns unsigned CBOR bytes for client signing
 
-// Accept protobuf Struct instances: z.record rejects non-plain objects in Zod 4.
-const ProtoStructSchema = z.object({}).catchall(z.any())
+// Callers sometimes hand us protobuf-es message instances (a Block built with
+// Block.fromJson, whose attributes are a Struct). The request body is CBOR
+// built by walking own properties, so an instance would travel in its
+// in-memory shape ({fields: {x: {kind: {case, value}}}}) and the daemon would
+// store that verbatim. Serialize any message to its JSON form before
+// validating, so every caller sends plain JSON.
+function protoMessageToJson(value: unknown): unknown {
+  if (value && typeof value === 'object' && typeof (value as {toJson?: unknown}).toJson === 'function') {
+    return (value as {toJson: (options?: {emitDefaultValues?: boolean}) => unknown}).toJson({emitDefaultValues: true})
+  }
+  return value
+}
+
+const ProtoStructSchema = z.preprocess(protoMessageToJson, z.object({}).catchall(z.any()))
 
 const ProtoAnnotationSchema = z.object({
   type: z.string(),
@@ -2320,15 +2308,18 @@ const ProtoAnnotationSchema = z.object({
   ends: z.array(z.number()).optional(),
 })
 
-const ProtoBlockSchema = z.object({
-  id: z.string().optional(),
-  type: z.string().optional(),
-  text: z.string().optional(),
-  link: z.string().optional(),
-  attributes: ProtoStructSchema.optional(),
-  annotations: z.array(ProtoAnnotationSchema).optional(),
-  revision: z.string().optional(),
-})
+const ProtoBlockSchema = z.preprocess(
+  protoMessageToJson,
+  z.object({
+    id: z.string().optional(),
+    type: z.string().optional(),
+    text: z.string().optional(),
+    link: z.string().optional(),
+    attributes: ProtoStructSchema.optional(),
+    annotations: z.array(ProtoAnnotationSchema).optional(),
+    revision: z.string().optional(),
+  }),
+)
 
 // Accept protobuf Empty instances and strip their runtime fields during parsing.
 const ProtoEmptySchema: z.ZodType<object> = z.object({})

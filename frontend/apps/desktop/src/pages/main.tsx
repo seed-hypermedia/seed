@@ -1,11 +1,14 @@
+import {ActivityPanelProvider, ActivityPanelOutlet} from '@shm/ui/activity-panel-layout'
 import {useAppContext, useListen} from '@/app-context'
 
+import {BookmarksPanel, BookmarksPanelProvider, useBookmarksPanel} from '@/components/bookmarks-panel'
 import {CloseButton} from '@/components/window-controls'
 import appError from '@/errors'
 import {ipc} from '@/ipc'
 import {useDraft} from '@/models/accounts'
 import {useConnectPeer} from '@/models/contacts'
 import {useCreateDraft} from '@/models/documents'
+import {useLocalAgentsServerMigration} from '@/models/local-agents-server'
 import {useEnsureLocalAssistantAgent} from '@/models/local-assistant'
 import {useSelectedAccountId} from '@/selected-account'
 import {SidebarContextProvider, useSidebarContext} from '@/sidebar-context'
@@ -14,7 +17,8 @@ import {useNavigate} from '@/utils/useNavigate'
 import {useListenAppEvent} from '@/utils/window-events'
 import {getWindowType} from '@/utils/window-types'
 import {hmId} from '@shm/shared'
-import {defaultRoute, NavRoute} from '@shm/shared/routes'
+import {defaultRoute, getRoutePanel, NavRoute} from '@shm/shared/routes'
+import {useStream} from '@shm/shared/use-stream'
 import {getRouteKey, useNavRoute} from '@shm/shared/utils/navigation'
 import {NotificationInboxProvider} from '@shm/ui/activity-panel'
 import {AssistantPanel} from '@shm/ui/agents/assistant-panel'
@@ -59,9 +63,8 @@ var InspectIpfs = lazy(() => import('./inspect-ipfs'))
 var SchemaBrowser = lazy(() => import('./schema'))
 var ApiInspector = lazy(() => import('./api-inspector'))
 var QueryDocuments = lazy(() => import('./query-documents'))
+var Drafts = lazy(() => import('./drafts'))
 var Explore = lazy(() => import('./explore'))
-var Agents = lazy(() => import('./agents'))
-var AgentServer = lazy(() => import('@shm/ui/agents/server'))
 var AgentDetail = lazy(() => import('@shm/ui/agents/detail'))
 var AgentSession = lazy(() => import('@shm/ui/agents/session'))
 var AgentRun = lazy(() => import('@shm/ui/agents/run'))
@@ -108,7 +111,7 @@ export default function Main({className}: {className?: string}) {
   const navigate = useNavigate()
   const replaceRemovedRoute = useNavigate('replace')
   useEffect(() => {
-    if (navR.key === 'library' || navR.key === 'drafts') {
+    if (navR.key === 'library') {
       replaceRemovedRoute(defaultRoute)
     }
   }, [navR.key, replaceRemovedRoute])
@@ -133,6 +136,8 @@ export default function Main({className}: {className?: string}) {
   // On a fresh install the local server has no agents, which would keep the assistant hidden
   // forever — provision the built-in Assistant as soon as a model provider exists.
   useEnsureLocalAssistantAgent(selectedAccountId)
+  // After an upgrade, decides whether the bundled local server stays on (it holds agents) or goes.
+  useLocalAgentsServerMigration()
   const {hasAgents, isSettled: agentsSettled} = useHasAnyAgent(agentServerUrls.data, selectedAccountId)
   const isAssistantAvailable = hasAgents || !agentsSettled
   const shouldRenderAssistantPanel = assistantOpen && isAssistantAvailable
@@ -147,6 +152,11 @@ export default function Main({className}: {className?: string}) {
       sendAssistantState(next, assistantSessionId)
       return next
     })
+  }, [assistantSessionId, sendAssistantState])
+
+  const handleCloseAssistant = useCallback(() => {
+    setAssistantOpen(false)
+    sendAssistantState(false, assistantSessionId)
   }, [assistantSessionId, sendAssistantState])
 
   const assistantPanelToggle = useMemo<AssistantPanelToggle | null>(
@@ -261,41 +271,50 @@ export default function Main({className}: {className?: string}) {
       >
         <Panel id="app-content">
           <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto]">
-            <SidebarContextProvider>
-              {titlebar}
-              <PanelContent>
-                {sidebar}
-                <Panel id="page" className="pl-1">
-                  <ErrorBoundary
-                    resetKeys={[routeKey]}
-                    FallbackComponent={RootAppError}
-                    onReset={() => {
-                      window.location.reload()
-                    }}
-                  >
-                    {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
+            <ActivityPanelProvider>
+              <BookmarksPanelProvider>
+                <SidebarContextProvider>
+                  {titlebar}
+                  <PanelContent>
+                    {sidebar}
+                    <Panel id="page">
+                      <div className="flex h-full min-h-0 flex-col">
+                        <div className="min-h-0 flex-1">
+                          <ErrorBoundary
+                            resetKeys={[routeKey]}
+                            FallbackComponent={RootAppError}
+                            onReset={() => {
+                              window.location.reload()
+                            }}
+                          >
+                            {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
                         inside the panel. Without this, the lazy import suspends all the way to the
                         root boundary and the whole window — chrome included — becomes a spinner. */}
-                    <Suspense fallback={<Fallback />}>
-                      {(browserMounted || navR.key === 'web') && <WebBrowser />}
-                      {navR.key !== 'web' && (
-                        <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
-                          <NotificationInboxProvider value={DesktopNotificationInbox}>
-                            <PageComponent />
-                          </NotificationInboxProvider>
-                        </AssistantPanelToggleContext.Provider>
-                      )}
-                    </Suspense>
-                  </ErrorBoundary>
-                </Panel>
-              </PanelContent>
+                            <Suspense fallback={<Fallback />}>
+                              {(browserMounted || navR.key === 'web') && <WebBrowser />}
+                              {navR.key !== 'web' && (
+                                <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
+                                  <NotificationInboxProvider value={DesktopNotificationInbox}>
+                                    <PageComponent />
+                                  </NotificationInboxProvider>
+                                </AssistantPanelToggleContext.Provider>
+                              )}
+                            </Suspense>
+                          </ErrorBoundary>
+                        </div>
+                      </div>
+                    </Panel>
+                    <DesktopAccessoryPanel />
+                  </PanelContent>
 
-              <Footer />
+                  <Footer />
 
-              <AutoUpdater />
-              <ConfirmConnectionDialog />
-              <HypermediaHighlight />
-            </SidebarContextProvider>
+                  <AutoUpdater />
+                  <ConfirmConnectionDialog />
+                  <HypermediaHighlight />
+                </SidebarContextProvider>
+              </BookmarksPanelProvider>
+            </ActivityPanelProvider>
           </div>
         </Panel>
         <PanelSeparator open={shouldRenderAssistantPanel} onCollapse={handleToggleAssistant} />
@@ -308,10 +327,43 @@ export default function Main({className}: {className?: string}) {
           defaultSize={`${assistantLayout.expanded?.assistant ?? 25}%`}
           className="border-l"
         >
-          <AssistantPanel initialSessionId={assistantSessionId} onSessionChange={handleSessionChange} />
+          <AssistantPanel
+            initialSessionId={assistantSessionId}
+            visible={shouldRenderAssistantPanel}
+            onSessionChange={handleSessionChange}
+            onClose={handleCloseAssistant}
+          />
         </AnimatedPanel>
       </Group>
     </div>
+  )
+}
+
+function DesktopAccessoryPanel() {
+  const saved = useSavedPanelLayout('desktop-accessory', ['page', 'bookmarks'])
+  const bookmarks = useBookmarksPanel()
+  const route = useNavRoute()
+  const navigate = useNavigate()
+  const activityOpen = getRoutePanel(route)?.key === 'feed'
+  const isOpen = bookmarks.isOpen || activityOpen
+  const close = () => {
+    if (activityOpen && 'panel' in route) navigate({...route, panel: null})
+    else bookmarks.close()
+  }
+  return (
+    <>
+      <PanelSeparator open={isOpen} onCollapse={close} />
+      <AnimatedPanel
+        id="bookmarks"
+        open={isOpen}
+        minSize="240px"
+        maxSize="45%"
+        defaultSize={saved.expanded?.bookmarks ? `${saved.expanded.bookmarks}%` : '320px'}
+        className="border-border overflow-hidden rounded-lg border"
+      >
+        {activityOpen ? <ActivityPanelOutlet /> : <BookmarksPanel />}
+      </AnimatedPanel>
+    </>
   )
 }
 
@@ -356,7 +408,13 @@ function ConfirmConnectionDialog() {
 }
 
 function PanelContent({children}: {children: ReactNode}) {
+  const saved = useSavedPanelLayout('desktop-accessory', ['page', 'bookmarks'])
   const ctx = useSidebarContext()
+  const bookmarksPanel = useBookmarksPanel()
+  const route = useNavRoute()
+  const navigate = useNavigate()
+  const activityOpen = getRoutePanel(route)?.key === 'feed'
+  const isSidebarLocked = useStream(ctx.isLocked)
 
   useListenAppEvent('toggle_sidebar', () => {
     const activeEl = document.activeElement
@@ -378,9 +436,19 @@ function PanelContent({children}: {children: ReactNode}) {
   return (
     <Group
       orientation="horizontal"
-      className={cn('flex min-h-0 overflow-hidden px-2')}
+      className={cn('flex min-h-0 overflow-hidden pr-2', !isSidebarLocked && 'pl-2')}
       onLayoutChanged={(layout, meta) => {
         if (!meta.isUserInteraction) return
+        const accessoryWidth = (meta.requestedLayout ?? layout).bookmarks ?? 0
+        // Store the accessory share independently of the optional app sidebar.
+        saved.onLayoutChanged(
+          {page: 100 - accessoryWidth, bookmarks: accessoryWidth},
+          {...meta, requestedLayout: undefined},
+        )
+        if (layout.bookmarks === 0) {
+          if (activityOpen && 'panel' in route) navigate({...route, panel: null})
+          else if (bookmarksPanel.isOpen) bookmarksPanel.close()
+        }
         const width = (meta.requestedLayout ?? layout).sidebar
         if (width && width > 0) ctx.onSidebarResize(width)
         if (layout.sidebar === 0) ctx.onCloseSidebar()
@@ -445,19 +513,11 @@ function getPageComponent(navRoute: NavRoute) {
         PageComponent: QueryDocuments,
         Fallback: BaseLoading,
       }
+    case 'drafts':
+      return {PageComponent: Drafts, Fallback: BaseLoading}
     case 'explore':
       return {
         PageComponent: Explore,
-        Fallback: BaseLoading,
-      }
-    case 'agents':
-      return {
-        PageComponent: Agents,
-        Fallback: BaseLoading,
-      }
-    case 'agent-server':
-      return {
-        PageComponent: AgentServer,
         Fallback: BaseLoading,
       }
     case 'agent':

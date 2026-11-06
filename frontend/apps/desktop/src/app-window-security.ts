@@ -1,5 +1,11 @@
 import {shell, type BrowserWindow, type Session, type WebContents} from 'electron'
-import {appContentSecurityPolicy, isAllowedFrameURL, parseWebURL, type AppWindowPolicy} from './app-window-policy'
+import {
+  appContentSecurityPolicy,
+  isAllowedFrameURL,
+  isEmbedFrameURL,
+  parseWebURL,
+  type AppWindowPolicy,
+} from './app-window-policy'
 
 // This world is separate from both page scripts and the preload bridge. Never pass
 // userGesture=true: doing so would manufacture the authorization being checked.
@@ -68,10 +74,12 @@ export function installWindowGuards(window: BrowserWindow, policy: AppWindowPoli
     // Disposition/referrer are filters, not evidence of a gesture. Electron 39
     // has no userGesture field here, so also check Chromium's isolated-world
     // activation and fail closed if window.open has already consumed it.
+    // Embed subframes (tweets, Instagram posts) open their content in new tabs;
+    // a user's click there activates the main frame too, so the same gate holds.
+    const fromAppFrame = !!policy.appOrigin && parseWebURL(referrer.url)?.origin === policy.appOrigin
     if (
       ['foreground-tab', 'background-tab', 'new-window'].includes(disposition) &&
-      policy.appOrigin &&
-      parseWebURL(referrer.url)?.origin === policy.appOrigin
+      (fromAppFrame || isEmbedFrameURL(referrer.url))
     ) {
       void openAppExternalLink(contents, url, policy, false).catch(console.warn)
     }

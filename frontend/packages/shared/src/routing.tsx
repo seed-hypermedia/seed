@@ -1,7 +1,7 @@
 import {pageParamsQuery} from '@seed-hypermedia/client/page-input'
 import type {HMContactRecord, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import type {DomainResolverFn} from '@seed-hypermedia/client'
-import {createContext, useContext} from 'react'
+import {createContext, useCallback, useContext} from 'react'
 import z from 'zod'
 import {DAEMON_FILE_URL} from './constants'
 import type {NavRoute} from './routes'
@@ -17,8 +17,10 @@ import {
   routeToUrl,
   serializeBlockRange,
   unpackHmId,
+  mountedAgentRoute,
 } from './utils'
 import type {StateStream} from './utils/stream'
+import {resolveDomainHmUrl} from './utils/resolve-domain-hm-url'
 
 export type OptimizedImageSize = 'S' | 'M' | 'L' | 'XL'
 
@@ -55,6 +57,8 @@ type UniversalAppContextValue = {
   getOptimizedImageUrl?: (cid: string, size?: OptimizedImageSize) => string
   openRoute?: null | ((route: NavRoute, replace?: boolean) => void)
   openRouteNewWindow?: null | ((route: NavRoute) => void)
+  /** Whether the current web hostname serves a gateway rather than a single site. */
+  isGateway?: boolean
   originHomeId?: UnpackedHypermediaId | undefined
 
   // the web URL in the current context. If null, the hm URL should be used.
@@ -130,6 +134,8 @@ export type AppEvent =
 
 export function UniversalAppProvider(props: {
   children: React.ReactNode
+  /** Whether the current web hostname is a gateway. */
+  isGateway?: boolean
   originHomeId?: UnpackedHypermediaId
   origin?: string | null
   ipfsFileUrl?: string
@@ -152,14 +158,32 @@ export function UniversalAppProvider(props: {
   saveCidAsFile?: (cid: string, name: string) => Promise<void>
   domainResolver?: DomainResolverFn
 }) {
+  const {openUrl: hostOpenUrl, domainResolver, universalClient} = props
+  // A link to `hm://<domain>/...` is resolved to its account before the host opens it; on a
+  // failed resolution the host still gets the link as written and shows its own error.
+  const openUrl = useCallback(
+    (url: string, newWindow?: boolean) => {
+      const resolving = resolveDomainHmUrl(url, {domainResolver, universalClient})
+      if (!resolving) return hostOpenUrl(url, newWindow)
+      resolving.then(
+        (resolved) => hostOpenUrl(resolved, newWindow),
+        (error) => {
+          console.error('Could not resolve the domain in', url, error)
+          hostOpenUrl(url, newWindow)
+        },
+      )
+    },
+    [hostOpenUrl, domainResolver, universalClient],
+  )
   return (
     <UniversalAppContext.Provider
       value={{
+        isGateway: props.isGateway,
         originHomeId: props.originHomeId,
         origin: props.origin,
         ipfsFileUrl: props.ipfsFileUrl,
         getOptimizedImageUrl: props.getOptimizedImageUrl,
-        openUrl: props.openUrl,
+        openUrl,
         openRoute: props.openRoute,
         openRouteNewWindow: props.openRouteNewWindow,
         onCopyReference: props.onCopyReference,
@@ -222,6 +246,7 @@ export function routeToHref(
     origin?: string | null
   },
 ) {
+  if (typeof route !== 'string') route = mountedAgentRoute(route)
   if (typeof route !== 'string' && route.key === 'site-profile') {
     const docId = route.id
     const siteBase = options?.originHomeId?.uid === docId.uid ? '' : `/hm/${docId.uid}`
@@ -235,11 +260,8 @@ export function routeToHref(
   if (typeof route !== 'string' && route.key == 'contact') {
     return `/hm/contact/${route.id.uid}`
   }
-  if (typeof route !== 'string' && route.key === 'agents') {
-    return '/hm/agents'
-  }
-  if (typeof route !== 'string' && route.key === 'agent-server') {
-    return `/hm/agents/server?url=${encodeURIComponent(route.serverUrl)}`
+  if (typeof route !== 'string' && route.key === 'drafts') {
+    return '/hm/drafts'
   }
   if (typeof route !== 'string' && route.key === 'agent') {
     const query: string[] = []
@@ -406,6 +428,12 @@ export function routeToHref(
     if (replyCommentId) {
       href += `${href.includes('?') ? '&' : '?'}reply=${replyCommentId}`
     }
+    if (route.key === 'comments' && route.targetBlockId) {
+      href += `${href.includes('?') ? '&' : '?'}quote=${encodeURIComponent(route.targetBlockId)}`
+      if (route.blockRange && 'start' in route.blockRange && 'end' in route.blockRange) {
+        href += `&quoteRange=${route.blockRange.start}:${route.blockRange.end}`
+      }
+    }
     const pageInput = pageParamsQuery(route.id.pageParams)
     if (pageInput) href += `${href.includes('?') ? '&' : '?'}${pageInput}`
     // Append block fragment if present
@@ -442,6 +470,8 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
     }
   if (!context) throw new Error('useRouteLink must be used in a UniversalRoutingProvider')
 
+  if (typeof route !== 'string') route = mountedAgentRoute(route)
+
   const href = routeToHref(route, {
     hmUrlHref: context.hmUrlHref,
     originHomeId: opts?.originHomeId || context.originHomeId,
@@ -468,7 +498,8 @@ export function useRouteLink(route: NavRoute | string | null, opts?: UseRouteLin
         if (typeof route === 'string') {
           context.openUrl(route.startsWith('http') ? route : `https://${route}`)
         } else if (context.openRoute) {
-          context.openRoute(route, opts?.replace)
+          // A click is a new navigation even when its URL and route object are unchanged.
+          context.openRoute({...route}, opts?.replace)
         } else {
           console.error('No openRoute function in UniversalAppContext. Cannot open route', route)
         }

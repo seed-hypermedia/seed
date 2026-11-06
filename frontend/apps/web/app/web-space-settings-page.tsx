@@ -1,7 +1,7 @@
 import {ClientOnly} from '@/client-lazy'
 import type {SiteHeaderPayload} from '@/loaders'
 import {NavigationLoadingContent, WebSiteProvider} from '@/providers'
-import {WebSiteHeader} from '@/web-site-header'
+import {WebSiteHeader, WebSidebarLayout} from '@/web-site-header'
 import {WebHeaderActions} from '@/web-utils'
 import {hmId} from '@shm/shared'
 import {useResource} from '@shm/shared/models/entity'
@@ -48,35 +48,37 @@ function SettingsScreenContent({payload}: {payload: WebSpaceSettingsPayload}) {
   const resource = useResource(siteId)
   const viewedMetadata = resource.data?.type === 'document' ? resource.data.document.metadata : null
   return (
-    <GeneralPageSurface className="h-dvh min-h-0 overflow-hidden">
-      <div className="shrink-0">
-        <WebSiteHeader
-          homeMetadata={viewedMetadata ?? (originHomeId?.uid === siteUid ? homeMetadata : null)}
-          originHomeId={originHomeId!}
-          siteHomeId={siteId}
-          docId={null}
-          origin={origin}
-          noScroll
-          rightActions={<WebHeaderActions siteUid={siteUid} />}
-        />
-      </div>
-      <NavigationLoadingContent className="flex min-h-0 w-full flex-1 flex-col pt-[var(--site-header-h)] sm:pt-0">
-        <ClientOnly>
-          <Suspense
-            fallback={
-              <div className="flex flex-1 items-center justify-center">
-                <Spinner />
-              </div>
-            }
-          >
-            {domain ? (
-              <LazyDomainSetupPage key={`${siteUid}:${domain}`} siteId={siteId} hostname={domain} />
-            ) : (
-              <LazySettingsPage key={siteUid} siteUid={siteUid} section={section} />
-            )}
-          </Suspense>
-        </ClientOnly>
-      </NavigationLoadingContent>
-    </GeneralPageSurface>
+    <WebSidebarLayout siteHomeId={siteId}>
+      <GeneralPageSurface className="h-dvh min-h-0 overflow-hidden">
+        <div className="shrink-0">
+          <WebSiteHeader
+            homeMetadata={viewedMetadata ?? (originHomeId?.uid === siteUid ? homeMetadata : null)}
+            originHomeId={originHomeId!}
+            siteHomeId={siteId}
+            docId={null}
+            origin={origin}
+            noScroll
+            rightActions={<WebHeaderActions siteUid={siteUid} />}
+          />
+        </div>
+        <NavigationLoadingContent className="flex min-h-0 w-full flex-1 flex-col pt-[var(--site-header-h)] sm:pt-0">
+          <ClientOnly>
+            <Suspense
+              fallback={
+                <div className="flex flex-1 items-center justify-center">
+                  <Spinner />
+                </div>
+              }
+            >
+              {domain ? (
+                <LazyDomainSetupPage key={`${siteUid}:${domain}`} siteId={siteId} hostname={domain} />
+              ) : (
+                <LazySettingsPage key={siteUid} siteUid={siteUid} section={section} />
+              )}
+            </Suspense>
+          </ClientOnly>
+        </NavigationLoadingContent>
+      </GeneralPageSurface>
+    </WebSidebarLayout>
   )
 }

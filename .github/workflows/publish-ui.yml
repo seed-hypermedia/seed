@@ -44,8 +44,6 @@ jobs:
 
       # Keep versions aligned with mise.toml and package.json#packageManager.
       - uses: pnpm/action-setup@v4
-        with:
-          version: '10.32.0'
 
       - uses: actions/setup-node@v4
         with:

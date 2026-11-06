@@ -13,13 +13,13 @@ import {
   getDocumentTitle,
   RenderResourceProvider,
   shouldBlockEmbeddedResource,
-  unpackHmId,
   useRenderResourceStack,
   useRouteLink,
   useUniversalClient,
 } from '@shm/shared'
-import {useAccount, useResource, useResources} from '@shm/shared/models/entity'
+import {useAccount, useResource, useResources, useResolvedHmId} from '@shm/shared/models/entity'
 import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
+import {commentThreadSelection} from '@shm/shared/comments'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import type {DocumentPanelRoute} from '@shm/shared/routes'
 import {useNavRoute} from '@shm/shared/utils/navigation'
@@ -122,7 +122,8 @@ export function BlockEmbedCard({
   titleLinkOnly?: boolean
   hideInlineActions?: boolean
 }) {
-  const id = unpackHmId(block.link) ?? undefined
+  const resolved = useResolvedHmId(block.link)
+  const id = resolved.id ?? undefined
   const currentRoute = useNavRoute()
   const documentRoute = useMemo(() => (id ? getEmbedDocumentRoute(id, currentRoute) : undefined), [id, currentRoute])
   const renderResourceStack = useRenderResourceStack()
@@ -139,7 +140,8 @@ export function BlockEmbedCard({
     doc.data?.type === 'tombstone' ||
     latestCheck.data?.type === 'tombstone' ||
     latestCheck.isTombstone
-  if (doc.isInitialLoading)
+  if (resolved.error) return <ErrorBlock message={`Could not resolve embed: ${String(resolved.error)}`} />
+  if (resolved.isLoading || doc.isInitialLoading)
     return (
       <div className="flex items-center justify-center">
         <Spinner />
@@ -225,7 +227,10 @@ export function BlockEmbedLink({
   openOnClick?: boolean
 }) {
   const url = block.link
-  const id = useMemo(() => unpackHmId(url) ?? undefined, [url])
+  const resolved = useResolvedHmId(url)
+  const id = resolved.id
+  if (resolved.isLoading) return <Spinner />
+  if (resolved.error) return <ErrorBlock message={`Could not resolve embed: ${String(resolved.error)}`} />
   const isHm = !!id
 
   if (isHm && id) {
@@ -418,14 +423,15 @@ export function BlockEmbedContent({
   const renderResourceStack = useRenderResourceStack()
   // Memoize on `block.link` so `id` (and `id.blockRange`) keep a stable reference
   // across re-renders so the shared content presentation has a stable source.
+  const resolved = useResolvedHmId(block.link)
   const id = useMemo(() => {
-    const rawId = unpackHmId(block.link)
+    const rawId = resolved.id
     // When the link targets a specific codepoint range we MUST resolve against
     // the pinned version, otherwise later edits to the source doc shift the
     // range and the highlight lands on different text. Force `latest:false`
     // whenever blockRange is present, even on legacy links that still carry `&l`.
     return rawId && rawId.blockRange && rawId.version ? {...rawId, latest: false} : rawId
-  }, [block.link])
+  }, [resolved.id])
 
   const resource = useResource(id, {subscribed: true})
   // Check tombstone on latest version for version-pinned embeds.
@@ -448,6 +454,8 @@ export function BlockEmbedContent({
     latestCheck.data?.type === 'tombstone' ||
     latestCheck.isTombstone
 
+  if (resolved.isLoading) return <Spinner />
+  if (resolved.error) return <ErrorBlock message={`Could not resolve embed: ${String(resolved.error)}`} />
   if (!id) return <ErrorBlock message="Invalid embed link" />
   if (isCyclicEmbed) return <CyclicEmbedBlock entityLabel={candidateKind || 'document'} />
   // No content available at all — banner without toggle
@@ -540,7 +548,8 @@ export function BlockEmbedComments({
   openOnClick = true,
 }: BlockContentProps<HMBlockEmbed> & {openOnClick?: boolean}) {
   const client = useUniversalClient()
-  const id = unpackHmId(block.link)
+  const resolved = useResolvedHmId(block.link)
+  const id = resolved.id
   const renderResourceStack = useRenderResourceStack()
 
   const resource = useResource(id, {
@@ -551,6 +560,8 @@ export function BlockEmbedComments({
   const latestCheckId = id?.version && !id?.latest ? hmId(id.uid, {path: id.path}) : null
   const latestCheck = useResource(latestCheckId)
 
+  if (resolved.isLoading) return <Spinner />
+  if (resolved.error) return <ErrorBlock message={`Could not resolve embed: ${String(resolved.error)}`} />
   if (!id) {
     return <ErrorBlock message="Invalid embed link" />
   }
@@ -618,7 +629,7 @@ export function BlockEmbedContentComment({
   const route = useMemo(() => {
     if (!targetDocId) return undefined
 
-    if (id.blockRef && typeof id.blockRange?.start === 'number' && typeof id.blockRange?.end === 'number') {
+    if (id.blockRef) {
       return {
         key: 'comments' as const,
         id: {...targetDocId, blockRef: id.blockRef, blockRange: id.blockRange},
@@ -632,19 +643,16 @@ export function BlockEmbedContentComment({
             : undefined,
       }
     }
-    if (activePanel) {
-      return {
-        key: 'document' as const,
-        id: targetDocId,
-        panel: activePanel,
-      }
-    }
+    const documentId =
+      currentRoute.key === 'document' && currentRoute.id.id === targetDocId.id
+        ? {...currentRoute.id, blockRef: null, blockRange: null}
+        : targetDocId
     return {
-      key: 'comments' as const,
-      id: targetDocId,
-      openComment: comment.id,
+      key: 'document' as const,
+      id: documentId,
+      panel: {key: 'comments' as const, id: documentId, ...commentThreadSelection(comment)},
     }
-  }, [targetDocId, activePanel, comment.id, comment.version, id])
+  }, [targetDocId, activePanel, comment, id, currentRoute])
 
   return (
     <ContentEmbed

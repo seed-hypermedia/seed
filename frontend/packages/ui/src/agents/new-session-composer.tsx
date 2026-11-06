@@ -77,7 +77,7 @@ export function NewSessionComposer({
   localServerUrl: string | null | undefined
   /** Preselected agent, typically the one behind the most recent session; may arrive late. */
   defaultAgent?: NewSessionAgentKey
-  /** External handle for imperative focus (e.g. the page's "New session" button). */
+  /** External handle for imperative focus (e.g. a host that wants to put the cursor in the composer). */
   composerHandleRef?: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
   /** True while the agent definition is still loading, for the tool palette's loading state. */
   agentToolsLoading?: boolean
@@ -211,7 +211,7 @@ export function NewSessionComposer({
           // Keyed by agent so the editor's captured callbacks never send to the previous choice.
           key={selectedKey}
           isBusy={createSession.isLoading || messageSession.isLoading}
-          placeholder={`Start a chat with ${selected.agent.definition.name || 'this agent'}`}
+          placeholder={`New Chat with ${selected.agent.definition.name || 'this agent'}`}
           isStreaming={false}
           stopPending={false}
           serverUrl={selected.serverUrl}

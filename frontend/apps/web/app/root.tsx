@@ -31,6 +31,8 @@ import {FileDropGuard} from '@shm/ui/file-drop-guard'
 import '@shm/editor/editor-styles'
 import sonnerStyles from 'sonner/dist/styles.css?url'
 import {Providers} from './providers'
+import {parseRequest} from './request'
+import {getServiceConfig} from './site-config.server'
 import {useLocalKeyPairLoaded} from './auth'
 import {isOpenPath} from './require-sign-in'
 import {requireSignInEnabled} from './require-sign-in.server'
@@ -64,7 +66,9 @@ function getBaseDomain(host: string) {
 }
 
 export async function loader({request}: LoaderFunctionArgs) {
-  const url = new URL(request.url)
+  const {url, hostname} = parseRequest(request)
+  const serviceConfig = await getServiceConfig()
+  const isGateway = WEB_IS_GATEWAY && (!serviceConfig || hostname === serviceConfig.rootHostname)
   const runtimeDomain = getBaseDomain(url.hostname)
 
   // Gate everything on the server so no client env access is needed
@@ -81,7 +85,7 @@ export async function loader({request}: LoaderFunctionArgs) {
     process.env.SEED_HOST_URL ||
     process.env.VITE_SEED_HOST_URL ||
     (isProd ? 'https://host.seed.hyper.media' : SEED_HOST_URL)
-  const result = {isProd, enableStats, domain, siteHost, seedHostUrl, requireSignIn: requireSignInEnabled()}
+  const result = {isProd, enableStats, domain, siteHost, seedHostUrl, isGateway, requireSignIn: requireSignInEnabled()}
 
   return json(result)
 }

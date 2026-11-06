@@ -131,6 +131,21 @@ describe('logical comment notification claims', () => {
     expect(getAllNotifications('third')).toHaveLength(1)
   })
 
+  it.each(['reply', 'mention', 'discussion', 'site-new-discussion', 'user-comment'] as const)(
+    'preserves the thread root for %s notifications in the inbox',
+    (reason) => {
+      const notif = {
+        reason,
+        source: 'comment',
+        authorAccountId: 'author',
+        comment: {id: comment, author: 'author', threadRoot: 'other/root'},
+        targetId: {uid: 'site', path: ['post']},
+      } as unknown as Notification
+      persistNotificationsForInboxAccounts([{accountId: 'owner', eventId: 'event1000', eventAtMs: 1000, notif}])
+      expect(getAllNotifications('owner')[0]).toMatchObject({commentId: comment, threadRoot: 'other/root'})
+    },
+  )
+
   it('returns accepted flags at the persistence boundary used to gate immediate email', () => {
     const notification = (reason: 'discussion' | 'mention') =>
       ({

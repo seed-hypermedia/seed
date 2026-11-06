@@ -1,6 +1,7 @@
 import {client} from '@/trpc'
 import {invalidateQueries} from '@shm/shared/models/query-client'
 import {queryKeys} from '@shm/shared/models/query-keys'
+import type {DocumentRoute} from '@shm/shared/routes'
 // @ts-expect-error
 import {UnpackedHypermediaId, unpackHmId} from '@shm/shared/utils/entity-id-url'
 import {extractViewTermFromUrl, hmId, ViewTerm} from '@shm/shared/utils/entity-id-url'
@@ -12,6 +13,11 @@ type ResourceBookmarkItem = {
   id: UnpackedHypermediaId
   url: string
   viewTerm: ViewTerm | null
+  /** A mounted agent's view (`/:sessions`, `/:session/ID`, ...), kept so the bookmark reopens it. */
+  agentView?: DocumentRoute['agentView']
+  agentSessionId?: string
+  agentTriggerId?: string
+  agentMemoryPath?: string
 }
 
 export type CommentBookmarkItem = {
@@ -70,11 +76,26 @@ export function bookmarkItemsFromStored(bookmarks: StoredBookmark[]): BookmarkIt
         }
       }
 
-      const {url: cleanUrl, viewTerm, accountUid} = extractViewTermFromUrl(bookmark.url)
+      const {
+        url: cleanUrl,
+        viewTerm,
+        accountUid,
+        agentView,
+        agentSessionId,
+        agentTriggerId,
+      } = extractViewTermFromUrl(bookmark.url)
       const id = unpackHmId(cleanUrl)
       if (!id) return null
       const key = isProfileViewTerm(viewTerm) ? 'profile' : 'document'
-      return {key, id: accountUid ? hmId(accountUid) : id, url: bookmark.url, viewTerm}
+      const item: ResourceBookmarkItem = {key, id: accountUid ? hmId(accountUid) : id, url: bookmark.url, viewTerm}
+      if (agentView) {
+        item.agentView = agentView
+        if (agentSessionId) item.agentSessionId = agentSessionId
+        if (agentTriggerId) item.agentTriggerId = agentTriggerId
+        const file = bookmark.url.match(/[?&]file=([^&#]+)/)?.[1]
+        if (file) item.agentMemoryPath = decodeURIComponent(file)
+      }
+      return item
     })
     .filter((bookmark): bookmark is BookmarkItem => bookmark !== null)
 }

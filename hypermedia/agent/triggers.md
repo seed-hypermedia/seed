@@ -26,7 +26,7 @@ Prompts accept the same rich Seed [block](../protocol/blocks.md) format as agent
 | source <!-- col:rpXTaztr --> | fires when <!-- col:y58r3u6I --> | fields <!-- col:KRwHxbA4 --> <!-- id:JZv2m3xq --> |
 | --- | --- | --- |
 | `document-comment` | a new comment appears on a resource | `resource`, optional `author` <!-- id:6QPvQAAG --> |
-| `user-mention` | a comment or document mentions one of the listed accounts | `mentionedAccounts[]`, optional `resourcePrefix` <!-- id:tQpu4TSH --> |
+| `user-mention` | a comment or document mentions one of the listed accounts, including a document attribute such as `owner` set to one of them | `mentionedAccounts[]`, optional `resourcePrefix` <!-- id:tQpu4TSH --> |
 | `comment-reply` | a comment replies directly to a comment by one of the listed accounts; an account's reply to itself never matches | `repliedToAccounts[]`, optional `resourcePrefix` <!-- id:jlCK6tbO --> |
 | `document-author-comment` | a comment appears on a document one of the listed accounts authored; the author's own comments never match | `documentAuthors[]`, optional `resourcePrefix` <!-- id:mf2zxBhI --> |
 | `site-update` | new activity appears under a resource prefix | `resourcePrefix`, optional `eventTypes[]` (`doc-update`, `comment`) <!-- id:fyoQw9B_ --> |

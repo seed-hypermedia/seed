@@ -1,3 +1,4 @@
+import {SiteSidebarProvider} from '@shm/ui/site-sidebar-context'
 import {useStream} from '@shm/shared/use-stream'
 import {useNavigationDispatch, useNavigationState} from '@shm/shared/utils/navigation'
 import {StateStream, writeableStateStream} from '@shm/shared/utils/stream'
@@ -39,7 +40,7 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
         const [setIsLocked, isLocked] = writeableStateStream<boolean>(
           typeof state?.sidebarLocked === 'boolean' ? state.sidebarLocked : true,
         )
-        const [setSidebarWidth, sidebarWidth] = writeableStateStream<number>(state?.sidebarWidth || 15)
+        const [setSidebarWidth, sidebarWidth] = writeableStateStream<number>(state?.sidebarWidth || 22)
         const [setSidebarWidthPx, sidebarWidthPx] = writeableStateStream<number | null>(null)
         function onToggleMenuLock() {
           const wasLocked = isLocked.get()
@@ -84,7 +85,7 @@ export function SidebarContextProvider(props: PropsWithChildren<{}>) {
         }
       }, [])}
     >
-      {props.children}
+      <SharedSidebarBridge>{props.children}</SharedSidebarBridge>
     </SidebarContext.Provider>
   )
 }
@@ -105,4 +106,17 @@ export function useSidebarWidth() {
   }, [isLocked, sidebarWidthPx])
 
   return minWidth
+}
+
+function SharedSidebarBridge({children}: PropsWithChildren) {
+  const sidebar = useSidebarContext()
+  const open = !!useStream(sidebar.isLocked)
+  return (
+    <SiteSidebarProvider
+      open={open}
+      setOpen={(next) => (next ? sidebar.onLockSidebarOpen() : sidebar.onCloseSidebar())}
+    >
+      {children}
+    </SiteSidebarProvider>
+  )
 }

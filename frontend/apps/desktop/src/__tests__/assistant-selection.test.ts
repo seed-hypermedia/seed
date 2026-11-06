@@ -118,6 +118,56 @@ describe('resolveAssistantSelection', () => {
     expect(result.sessionAgent).toBeNull()
   })
 
+  it("closes a restored chat whose agent is not one of the site's, where only the site's agents are listed", () => {
+    // Web: the chat was left open on another site, whose researcher is not mounted here.
+    const siteAgents = [agent(LOCAL, 'assistant', 'Assistant')]
+    const result = resolveAssistantSelection({
+      ...base,
+      agents: siteAgents,
+      storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
+      listedAgentsOnly: true,
+    })
+    expect(result.session).toBeNull()
+    expect(result.sessionAgent).toBeNull()
+
+    // The same chat is kept where the list is not limited to one site (desktop).
+    const unscoped = resolveAssistantSelection({
+      ...base,
+      agents: siteAgents,
+      storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
+    })
+    expect(unscoped.session).toEqual({serverUrl: REMOTE, sessionId: 's-r1'})
+  })
+
+  it("resumes a restored chat with one of the site's agents, where only the site's agents are listed", () => {
+    const result = resolveAssistantSelection({
+      ...base,
+      storedSession: {serverUrl: LOCAL, sessionId: 's-a1'},
+      listedAgentsOnly: true,
+    })
+    expect(result.session).toEqual({serverUrl: LOCAL, sessionId: 's-a1'})
+    expect(result.sessionAgent?.agent.id).toBe('assistant')
+  })
+
+  it("keeps a restored chat until the site's agents have loaded and its agent is known", () => {
+    const stillLoading = resolveAssistantSelection({
+      ...base,
+      agents: [],
+      storedSession: {serverUrl: REMOTE, sessionId: 's-r1'},
+      agentsSettled: false,
+      listedAgentsOnly: true,
+    })
+    expect(stillLoading.session).toEqual({serverUrl: REMOTE, sessionId: 's-r1'})
+
+    const agentUnknown = resolveAssistantSelection({
+      ...base,
+      sessions: [],
+      storedSession: {serverUrl: REMOTE, sessionId: 's-unlisted'},
+      listedAgentsOnly: true,
+    })
+    expect(agentUnknown.session).toEqual({serverUrl: REMOTE, sessionId: 's-unlisted'})
+  })
+
   it('treats a remembered agent that has not loaded yet as pending, not as all agents', () => {
     const result = resolveAssistantSelection({
       ...base,

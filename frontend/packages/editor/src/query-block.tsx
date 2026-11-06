@@ -214,7 +214,10 @@ function Render(block: Block<HMBlockSchema>, editor: BlockNoteEditor<HMBlockSche
         accountsMetadata={accountsMetadata}
         itemContributors={itemContributors}
         interactionSummaries={interactionSummaries}
-        isDiscovering={queryBlock.isLoading}
+        // A block without a target (no includes) has a disabled query, which
+        // React Query still reports as loading: it would spin forever.
+        isDiscovering={!!queryBlockInput && queryBlock.isLoading}
+        emptyMessage={queryBlockInput ? undefined : 'This Query Block has no target. Choose a space in its settings.'}
         onCreateDocument={slot?.onCreateDraft}
         prependItems={prependItems}
         tableDrafts={tableDrafts}

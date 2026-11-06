@@ -16,7 +16,7 @@ import {resolveToolRowSummary, toolRowSourceChip} from '@shm/ui/agents/tool-summ
 import React, {useMemo, useState} from 'react'
 import {Pressable, StyleSheet, View} from 'react-native'
 import {radius, theme} from '../../theme'
-import {Label, Spinner, StatusDot} from '../ui/primitives'
+import {Label, Spinner} from '../ui/primitives'
 
 const MAX_PAYLOAD_CHARS = 4000
 
@@ -39,7 +39,7 @@ export function ToolRow({part, onOpenUrl}: {part: ChatToolPart; onOpenUrl?: (url
         onPress={() => setExpanded((open) => !open)}
         style={({pressed}) => [styles.header, pressed && styles.pressed]}
       >
-        {pending ? <Spinner /> : <StatusDot tone={part.isError ? 'error' : 'done'} />}
+        {pending ? <Spinner /> : null}
         <View style={styles.headerText}>
           <Label size="sm" weight="600" numberOfLines={1}>
             {verb}
@@ -55,6 +55,11 @@ export function ToolRow({part, onOpenUrl}: {part: ChatToolPart; onOpenUrl?: (url
         {part.actor === 'user' ? (
           <Label size="xs" tone="brand">
             You
+          </Label>
+        ) : null}
+        {part.isError ? (
+          <Label size="xs" tone="danger">
+            Failed
           </Label>
         ) : null}
         {chip ? (

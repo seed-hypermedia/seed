@@ -5,7 +5,6 @@ import {Notice} from '@shm/ui/notice'
 import {ChevronDown, ChevronRight} from 'lucide-react'
 import React, {useState} from 'react'
 
-/** Status dot shown beside a session title in every session list. */
 /**
  * The agent's own summary of a session (status verb, or the server's namer), pinned above the
  * chat so a reader knows what the session is doing without scrolling the transcript.
@@ -34,39 +33,12 @@ export function SessionSummaryBanner({
   )
 }
 
-export function SessionStatusDot({status, className}: {status: SessionInfo['status']; className?: string}) {
-  const statusClass =
-    status === 'error'
-      ? 'bg-destructive'
-      : status === 'streaming'
-        ? 'bg-muted-foreground animate-pulse'
-        : 'bg-green-500'
-  return (
-    <span
-      className={`${statusClass} ${className || 'size-2.5'} flex-none rounded-full`}
-      aria-label={status}
-      title={status}
-    />
-  )
-}
-
-/**
- * Rolls the children's statuses into the one dot shown on a collapsed parent row: a failure has to
- * be visible without opening the disclosure, and anything still streaming keeps the row animated.
- */
-function summarizeChildStatus(children: SessionInfo[] | undefined): SessionInfo['status'] | undefined {
-  if (!children?.length) return undefined
-  if (children.some((child) => child.status === 'error')) return 'error'
-  if (children.some((child) => child.status === 'streaming')) return 'streaming'
-  return 'idle'
-}
-
 /**
  * Disclosure for the sub-sessions spawned under one session.
  *
  * Session lists exclude children, so a parent carries only `childSessionCount` until the user opens
  * this — the child list is fetched on first expand and then kept live by the existing WebSocket
- * invalidations. Until that first fetch the summary dot has nothing to summarize and stays neutral.
+ * invalidations.
  */
 export function SubSessionsDisclosure({
   serverUrl,
@@ -88,7 +60,6 @@ export function SubSessionsDisclosure({
 }) {
   const [expanded, setExpanded] = useState(false)
   const children = useChildSessions(serverUrl, accountUid, parentSessionId, {enabled: expanded})
-  const summaryStatus = summarizeChildStatus(children.data)
   const textClass = compact ? 'text-[11px]' : 'text-xs'
 
   return (
@@ -103,11 +74,6 @@ export function SubSessionsDisclosure({
         }}
       >
         {expanded ? <ChevronDown className="size-3 flex-none" /> : <ChevronRight className="size-3 flex-none" />}
-        {summaryStatus ? (
-          <SessionStatusDot status={summaryStatus} className="size-2" />
-        ) : (
-          <span className="bg-muted-foreground/40 size-2 flex-none rounded-full" />
-        )}
         <span>
           {childSessionCount} sub-session{childSessionCount === 1 ? '' : 's'}
         </span>
@@ -144,11 +110,11 @@ export function SubSessionsDisclosure({
               }}
             >
               <span className="flex w-full items-center gap-2">
-                <SessionStatusDot status={child.status} className="size-2" />
                 <span className="min-w-0 flex-1 truncate">{child.title || 'Untitled sub-session'}</span>
+                {child.status === 'error' ? <span className="text-destructive shrink-0">Error</span> : null}
               </span>
               {child.description ? (
-                <span className="text-muted-foreground line-clamp-3 w-full pl-4 text-xs">{child.description}</span>
+                <span className="text-muted-foreground line-clamp-3 w-full text-xs">{child.description}</span>
               ) : null}
             </button>
           ))}

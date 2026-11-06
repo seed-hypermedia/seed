@@ -5,7 +5,7 @@ import {clientLazy, ClientOnly} from '@/client-lazy'
 import {useSiteContextSnapshot} from '@/site-context-bridge'
 import {UniversalAppContext} from '@shm/shared'
 import {NavContextProvider} from '@shm/shared/utils/navigation'
-import type {AgentActivityIndicator} from '@shm/ui/agents/activity-dot'
+import type {WebAssistantAgents} from './web-assistant-activity'
 import {AssistantPanelToggleContext, type AssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
 import {Spinner} from '@shm/ui/spinner'
@@ -17,13 +17,14 @@ import React, {lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState
 // The panel body pulls in the agents models and the rich editor. Like the /hm/agents pages and the
 // commenting editor, it is a separate client-only chunk that only loads once the panel opens, so
 // nothing agents-related enters the initial bundle.
-const WebAssistantPanelContent = clientLazy<{showClose?: boolean}>(async () => ({
+const WebAssistantPanelContent = clientLazy<{showClose?: boolean; visible?: boolean}>(async () => ({
   default: (await import('./web-assistant-panel-content')).default,
 }))
 
 // The unread indicator needs the agents models (lists, sockets, read marks) — the same chunk the
 // panel body lives in. Loaded for a signed-in reader whether or not the panel is open, so the
-// header dot works with the panel closed; nothing of it enters the initial bundle.
+// header dot works with the panel closed and the header learns whether this reader has an agent
+// here at all; nothing of it enters the initial bundle.
 const WebAssistantActivity = lazy(() => import('./web-assistant-activity'))
 
 const WIDTH_STORAGE_KEY = 'seed.assistant.width'
@@ -75,8 +76,7 @@ function usePanelWidth(): [number, (width: number) => void] {
  * the aside sticks to the viewport beside them. Narrow screens have no room for a split: the panel
  * takes the whole viewport and a "Back to page" bar returns to the page. Because that covers the
  * page, it only happens when the reader opened the panel themselves during this page load — a
- * preference restored from an earlier (wider) visit, or an auto-open on a window that has since
- * shrunk, keeps the panel out of the way until they ask for it from the header.
+ * state restored by a reload keeps the panel out of the way until they ask for it from the header.
  */
 export function WebAssistantHost({children}: {children: React.ReactNode}) {
   const panel = useAssistantPanel()
@@ -161,14 +161,20 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   useEffect(() => () => cancelMotion.current?.(), [])
 
   // The site header's Agents button. Offered only to a signed-in reader, for the same reason the
-  // panel itself is; the header additionally checks that the space names an agents server. It
-  // reflects what is on screen, not the stored preference: on a narrow viewport with a restored
-  // "open" that is not showing, the button reads closed and a tap opens the panel rather than
-  // silently closing the invisible one.
-  const [activity, setActivity] = useState<AgentActivityIndicator | null>(null)
+  // panel itself is, and only once the activity tracker has found something for them: an agent in
+  // this site that the reader's account can see (owner, accepted collaborator, or a public agent),
+  // or orphan agents of their own to adopt, which the button then flags with a dot. A mount
+  // document the agent is not shared with them through is no reason to show a way into an empty
+  // panel. It reflects what is on screen, not the stored preference: on a narrow viewport with a
+  // restored "open" that is not showing, the button reads closed and a tap opens the panel rather
+  // than silently closing the invisible one.
+  const [agents, setAgents] = useState<WebAssistantAgents>({usable: false, orphans: 0})
   const headerToggle = useMemo<AssistantPanelToggle | null>(
-    () => (keyPair ? {isOpen: visible, toggle: visible ? panel.close : panel.open, activity} : null),
-    [keyPair, visible, panel.close, panel.open, activity],
+    () =>
+      keyPair && (agents.usable || agents.orphans > 0)
+        ? {isOpen: visible, toggle: visible ? panel.close : panel.open, orphans: agents.orphans}
+        : null,
+    [keyPair, agents, visible, panel.close, panel.open],
   )
 
   return (
@@ -180,7 +186,7 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
         <ClientOnly>
           <SiteContextScope>
             <Suspense fallback={null}>
-              <WebAssistantActivity onChange={setActivity} />
+              <WebAssistantActivity onAgentsChange={setAgents} />
             </Suspense>
           </SiteContextScope>
         </ClientOnly>
@@ -230,7 +236,7 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
         >
           {keyPair && !isMobile && (showSidePanel || hasOpened) ? (
             <div className="h-full border-l">
-              <PanelBody showClose />
+              <PanelBody showClose visible={showSidePanel} />
             </div>
           ) : null}
         </aside>
@@ -297,14 +303,14 @@ function SiteContextScope({children}: {children: React.ReactNode}) {
  * The lazy panel under the current page's contexts. Before any page has published (first paint,
  * or a page outside the site shell) the panel has nothing to navigate with, so it waits.
  */
-function PanelBody({showClose}: {showClose?: boolean}) {
+function PanelBody({showClose, visible = true}: {showClose?: boolean; visible?: boolean}) {
   const site = useSiteContextSnapshot()
   if (!site) return <PanelLoading />
   return (
     <UniversalAppContext.Provider value={site.universal}>
       <NavContextProvider value={site.navigation}>
         <Suspense fallback={<PanelLoading />}>
-          <WebAssistantPanelContent showClose={showClose} />
+          <WebAssistantPanelContent showClose={showClose} visible={visible} />
         </Suspense>
       </NavContextProvider>
     </UniversalAppContext.Provider>

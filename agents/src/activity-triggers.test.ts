@@ -104,6 +104,15 @@ describe('activity trigger matching', () => {
       ),
     ).toBe(true)
 
+    // A document attribute set to the account (owner, maintainer…) is a mention too. The daemon
+    // emits it as a metadata/Link mention whose context is the attribute key.
+    expect(
+      triggers.activityMatchesTriggerSource(
+        {type: 'user-mention', mentionedAccounts: ['z6Mkmentioned']},
+        {newMention: {...event.newMention, sourceType: 'metadata/Link', sourceContext: 'owner'}},
+      ),
+    ).toBe(true)
+
     // Matches when any account in the list is mentioned.
     expect(
       triggers.activityMatchesTriggerSource(
@@ -197,6 +206,16 @@ describe('activity trigger matching', () => {
     }
     expect(triggers.activityMatchesTriggerSource(source, commentMention)).toBe(true)
 
+    // A site's `/:profile/<uid>` view names <uid>; a document's view term names no account.
+    const viaSiteProfile = (link: string) => ({
+      ...commentMention,
+      comment: {content: [{block: {annotations: [{type: 'Embed', link}]}, children: []}]},
+    })
+    expect(triggers.activityMatchesTriggerSource(source, viaSiteProfile('hm://z6Mksite/:profile/z6Mkmentioned'))).toBe(
+      true,
+    )
+    expect(triggers.activityMatchesTriggerSource(source, viaSiteProfile('hm://z6Mkmentioned/:comments'))).toBe(false)
+
     // Comment authored BY the account, mentioning someone else, must not match.
     const commentByAccount = {
       type: 'comment',
@@ -219,6 +238,17 @@ describe('activity trigger matching', () => {
     // polls (and the comment event is sometimes dropped by the staleness watermark), so either must be
     // able to fire. Duplicate firings are prevented downstream by activityFiringKey, not here.
     expect(triggers.activityMatchesTriggerSource(source, {...documentMention, citationType: 'c'})).toBe(true)
+
+    // A document attribute naming the account (owner…) resolves as a document citation of the account
+    // root that carries the attribute key. It is a genuine mention.
+    const metadataMention = {
+      type: 'citation',
+      citationType: 'd',
+      metadataKey: 'owner',
+      source: {id: {uid: 'z6Mksite', id: 'hm://z6Mksite/notes', path: ['notes']}},
+      target: {id: {uid: 'z6Mkmentioned', id: 'hm://z6Mkmentioned', path: []}},
+    }
+    expect(triggers.activityMatchesTriggerSource(source, metadataMention)).toBe(true)
 
     // A citation that merely *cites a document owned by* the account is not an account mention.
     const documentCitation = {
@@ -354,6 +384,15 @@ describe('activity trigger matching', () => {
         target: {id: {id: 'hm://z6Mkagent/:profile'}},
       }),
     ).toBe('Mention in a reply on hm://z6Mkagent')
+    expect(
+      triggers.activitySummary({
+        type: 'citation',
+        citationType: 'd',
+        metadataKey: 'owner',
+        source: {id: {id: 'hm://z6Mksite/notes'}},
+        target: {id: {id: 'hm://z6Mkagent'}},
+      }),
+    ).toBe('Named as owner of hm://z6Mksite/notes')
     expect(
       triggers.activitySummary({
         type: 'comment',

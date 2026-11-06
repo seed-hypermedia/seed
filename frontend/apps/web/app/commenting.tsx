@@ -223,6 +223,7 @@ export default function WebCommenting({
       invalidateQueries([queryKeys.QUERY_BLOCK], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_DISCUSSION], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_COMMENTS], {refetchType: 'all'})
+      if (comment.replyParent) invalidateQueries([queryKeys.COMMENT_REPLY_COUNT], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOCUMENT_INTERACTION_SUMMARY], {refetchType: 'all'})
       invalidateQueries([queryKeys.DOC_CITATIONS], {refetchType: 'all'})
       invalidateQueries([queryKeys.BLOCK_DISCUSSIONS], {refetchType: 'all'})

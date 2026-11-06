@@ -7,6 +7,7 @@ import {getDocumentTitle, getMetadataName} from '@shm/shared/content'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 
 import {useResource} from '@shm/shared/models/entity'
+import {useMountedAgentDeletion} from '@shm/ui/agents/delete-mounted-agent'
 import {Button, ButtonProps} from '@shm/ui/button'
 import {DeleteDocumentDialog as SharedDeleteDocumentDialog} from '@shm/ui/delete-document-dialog'
 import {Spinner} from '@shm/ui/spinner'
@@ -45,6 +46,12 @@ export function DeleteDocumentDialog({
   const deleteEntity = useDeleteEntities({})
   const cap = useSelectedAccountCapability(id)
   const doc = useResource(id)
+  // A mounted agent goes with its document; the agent server call is signed by the same account.
+  const agentDeletion = useMountedAgentDeletion(
+    id,
+    doc.data?.type === 'document' ? doc.data.document.metadata : undefined,
+    cap?.accountUid,
+  )
 
   if (doc.isLoading)
     return (
@@ -72,13 +79,15 @@ export function DeleteDocumentDialog({
         path: item.path,
       }))}
       canDelete={!!cap && roleCanWrite(cap.role)}
-      onConfirm={() =>
-        deleteEntity.mutateAsync({
+      subject={agentDeletion.isAgent ? 'agent' : 'document'}
+      onConfirm={async () => {
+        await agentDeletion.deleteAgent()
+        await deleteEntity.mutateAsync({
           ids: [id, ...childDocIds],
           signingAccountUid: cap!.accountUid,
           capabilityId: cap!.capabilityId,
         })
-      }
+      }}
       onClose={onClose}
       onSuccess={onSuccess}
     />

@@ -124,7 +124,7 @@ describe('shared agents session rows', () => {
 
   it('builds the shareable session URL', () => {
     expect(buildAgentSessionUrl('http://localhost:3051', 'agent-1', 'session-1')).toBe(
-      'http://localhost:3051/agents/agent-1/sessions/session-1',
+      'https://hyper.media/hm/agents/session/session-1?server=http%3A%2F%2Flocalhost%3A3051&agent=agent-1',
     )
   })
 

@@ -749,6 +749,7 @@ async function buildImmediateNotificationEmail(
       authorName,
       subjectName,
       documentName,
+      source: notif.source,
       commentBlocks: notif.comment?.content || [],
       actionUrl: notif.actionUrl || notif.url,
       unsubscribeUrl,
@@ -1371,6 +1372,7 @@ async function buildVerifiedResourceUrl(
     path?: string[] | null
     viewTerm?: string | null
     panel?: string | null
+    reply?: string | null
     blockRef?: string | null
   },
 ): Promise<string> {
@@ -1384,6 +1386,7 @@ async function buildVerifiedResourceUrl(
           path: opts.path,
           viewTerm: opts.viewTerm,
           panel: opts.panel,
+          reply: opts.reply,
           blockRef: opts.blockRef,
           originHomeId: hmId(opts.siteOwnerUid),
         })
@@ -1396,6 +1399,7 @@ async function buildVerifiedResourceUrl(
     path: opts.path,
     viewTerm: opts.viewTerm,
     panel: opts.panel,
+    reply: opts.reply,
     blockRef: opts.blockRef,
   })
 }
@@ -1485,12 +1489,6 @@ async function evaluateMentionEventForNotifications(
     if (!sourceCommentId || !commentPath) {
       return
     }
-    mentionUrl = await buildVerifiedResourceUrl(sourceDocId.uid, {
-      siteUrl,
-      siteOwnerUid: sourceDocId.uid,
-      path: sourceDocId.path,
-      panel: `comments/${sourceCommentId.uid}/${commentPath}`,
-    })
     try {
       const sourceBlobCid = mentionEvent.sourceBlob?.cid
       if (sourceBlobCid) {
@@ -1508,6 +1506,13 @@ async function evaluateMentionEventForNotifications(
     // Never send/claim an unresolvable comment mention as a null-comment row.
     // A later retry or the comment blob event can still deliver it.
     if (!mentionComment?.id) return
+    mentionUrl = await buildVerifiedResourceUrl(sourceDocId.uid, {
+      siteUrl,
+      siteOwnerUid: sourceDocId.uid,
+      path: sourceDocId.path,
+      panel: `comments/${mentionComment.threadRoot || mentionComment.id}`,
+      reply: mentionComment.threadRoot ? mentionComment.id : undefined,
+    })
   } else {
     const sourceDocument = await getDocument(
       hmId(sourceId.uid, {
@@ -1648,7 +1653,8 @@ async function evaluateNewCommentForNotifications(
     siteUrl: commentSiteUrl,
     siteOwnerUid: comment.targetAccount,
     path: targetDocId.path,
-    panel: `comments/${comment.id}`,
+    panel: `comments/${comment.threadRoot || comment.id}`,
+    reply: comment.threadRoot ? comment.id : undefined,
   })
 
   // Get all mentioned users in this comment

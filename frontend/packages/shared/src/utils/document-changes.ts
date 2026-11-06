@@ -1,11 +1,34 @@
 import {Empty} from '@bufbuild/protobuf'
 import type {EditorBlock} from '@seed-hypermedia/client/editor-types'
 import {editorBlockToHMBlock} from '@seed-hypermedia/client/editorblock-to-hmblock'
-import type {HMBlock, HMBlockNode, HMMetadata, HMQuery} from '@seed-hypermedia/client/hm-types'
+import type {
+  HMBlock,
+  HMBlockNode,
+  HMMetadata,
+  HMPrepareDocumentChangeInput,
+  HMQuery,
+} from '@seed-hypermedia/client/hm-types'
 import isEqual from 'lodash/isEqual'
 import {nanoid} from 'nanoid'
 import {DocumentChange_SetAttribute} from '../client'
 import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
+
+type PlainDocumentChange = HMPrepareDocumentChangeInput['changes'][number]
+
+/** Convert protobuf blocks (including Struct attributes) to plain API change payloads. */
+export function documentChangesToPlain(changes: (DocumentChange | PlainDocumentChange)[]): PlainDocumentChange[] {
+  return changes.map(({op}) => {
+    if (op.case === 'replaceBlock') {
+      return {
+        op: {
+          case: 'replaceBlock',
+          value: op.value instanceof Block ? op.value.toJson({emitDefaultValues: true}) : op.value,
+        },
+      } as PlainDocumentChange
+    }
+    return {op}
+  })
+}
 
 export type AttributeValueType = 'boolValue' | 'nullValue' | 'intValue' | 'stringValue'
 

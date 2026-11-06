@@ -387,7 +387,14 @@ func (srv *Server) GetResource(ctx context.Context, in *documents.GetResourceReq
 		if _, _, err := tsid.Parse(); err == nil {
 			blb, err := srv.getSnapshotResource(ctx, acc, tsid, heads)
 			if err != nil {
-				return nil, err
+				if !errors.Is(err, errNotSnapshotResource) {
+					return nil, err
+				}
+
+				// The path parses as a TSID, but whatever lives there is not a snapshot blob
+				// (e.g. a document whose path happens to look like a TSID, pinned to a Change version).
+				// Fall through and treat it as a document path.
+				blb = &snapshotBlob{}
 			}
 
 			switch v := blb.Blob.(type) {
@@ -764,7 +771,15 @@ live_sources AS MATERIALIZED (
   )
 )
 SELECT
-    (SELECT iri FROM redirect_ancestors WHERE depth = 0) AS source_iri,
+    -- The comment's own target document, not the requested resource. A Comment blob's
+    -- structural_blobs.resource is set to its target IRI at index time (blob_comment.go:
+    -- iri = NewIRI(v.Space(), v.Path)), so this is the document the comment was written on.
+    -- Known limitation: it is the location at write time, so a document that has since
+    -- moved reports its old path here; that path still resolves through the document's
+    -- redirect, and it is strictly better than the requested IRI the old select returned.
+    -- A LEFT JOIN keeps a row whose resource is somehow null as a citation with an empty
+    -- source document (the frontend tolerates that via sourceDocument || source).
+    src.iri AS source_iri,
     blobs.codec,
     blobs.multihash,
 	public_keys.principal AS author,
@@ -782,6 +797,7 @@ SELECT
 FROM redirect_ancestors ra
 CROSS JOIN resource_links ON resource_links.target = ra.resource
 CROSS JOIN structural_blobs ON structural_blobs.id = resource_links.source
+LEFT JOIN resources src ON src.id = structural_blobs.resource
 JOIN blobs INDEXED BY blobs_metadata ON blobs.id = structural_blobs.id
 JOIN public_keys ON public_keys.id = structural_blobs.author
 LEFT JOIN public_blobs pb ON pb.id = blobs.id
@@ -861,9 +877,9 @@ func (srv *Server) getSnapshotResource(ctx context.Context, authority core.Princ
 			return nil, err
 		}
 
-		tsidReal := blob.NewTSID(out.BlobTime(), blk.RawData())
+		tsidReal := blob.RecordTSID(out, blk.RawData())
 		if tsid != tsidReal {
-			return nil, status.Errorf(codes.InvalidArgument, "getResource: blob TSID '%s' does not match requested TSID '%s'", tsid, tsidReal)
+			return nil, status.Errorf(codes.InvalidArgument, "getResource: blob TSID '%s' does not match requested TSID '%s'", tsidReal, tsid)
 		}
 
 		return &snapshotBlob{
@@ -931,6 +947,10 @@ var qGetResource = dqb.Str(`
 	LIMIT 1
 `)
 
+// errNotSnapshotResource is returned when a TSID lookup resolves to a blob
+// that is not a state-based (snapshot) resource, such as a document Change.
+var errNotSnapshotResource = errors.New("not a snapshot resource")
+
 func decodeSnapshotBlob(bt blob.Type, data []byte) (blob.Blob, error) {
 	var out blob.Blob
 	switch bt {
@@ -939,7 +959,7 @@ func decodeSnapshotBlob(bt blob.Type, data []byte) (blob.Blob, error) {
 	case blob.TypeContact:
 		out = &blob.Contact{}
 	default:
-		return nil, status.Errorf(codes.InvalidArgument, "getResource: blob type '%s' is not supported", bt)
+		return nil, fmt.Errorf("getResource: blob type '%s' is not supported: %w", bt, errNotSnapshotResource)
 	}
 
 	if err := cbornode.DecodeInto(data, out); err != nil {

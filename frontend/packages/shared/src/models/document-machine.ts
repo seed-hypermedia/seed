@@ -1234,6 +1234,9 @@ export const documentMachine = setup({
     applyInitialContentToEditor: () => {
       // Provided via .provide() in the React layer (editor handlers ref)
     },
+    notifyPublishError: (_, _params: {error: unknown}) => {
+      // Provided by the host so publication failures are visible in the UI.
+    },
     placeCursorFromPendingOrDraft: () => {
       // Provided via .provide() in the React layer (editor handlers ref)
     },
@@ -1625,8 +1628,9 @@ export const documentMachine = setup({
         'logEnterEditing',
         {type: 'setEditorEditable'},
         enqueueActions(({event, enqueue}) => {
-          // Canceling review resumes the live editor, rather than initializing a new editing session.
-          if (event.type === 'publish.cancelChildDeletion') return
+          // Canceled or failed publication resumes the same live editing session.
+          const eventType: string = event.type
+          if (eventType === 'publish.cancelChildDeletion' || eventType === 'xstate.error.actor.publishDocument') return
           enqueue('applyInitialContentToEditor')
           enqueue('placeCursorFromPendingOrDraft')
         }),
@@ -2269,7 +2273,7 @@ export const documentMachine = setup({
             },
             onError: {
               target: '#DocumentLifecycle.editing.draft.idle',
-              actions: ['clearPathOverride'],
+              actions: ['clearPathOverride', {type: 'notifyPublishError', params: ({event}) => ({error: event.error})}],
             },
           },
         },

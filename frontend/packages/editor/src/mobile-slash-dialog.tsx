@@ -10,15 +10,19 @@ interface MobileSlashDialogProps {
   isOpen: boolean
   onClose: () => void
   editor: BlockNoteEditor<HMBlockSchema>
+  /** Host commands listed ahead of the block types. */
+  extraItems?: {name: string; group: string; icon: JSX.Element; hint?: string; execute: () => void}[]
 }
 
-export function MobileSlashDialog({isOpen, onClose, editor}: MobileSlashDialogProps) {
-  const slashMenuItems = getSlashMenuItems()
+export function MobileSlashDialog({isOpen, onClose, editor, extraItems = []}: MobileSlashDialogProps) {
+  const slashMenuItems = [...extraItems, ...getSlashMenuItems()]
 
   const handleSelectBlockType = (item: any) => {
     item.execute(editor)
     onClose()
 
+    // A host command may open its own UI that should keep focus.
+    if (extraItems.includes(item)) return
     setTimeout(() => {
       editor._tiptapEditor.commands.focus()
     }, 100)

@@ -1,6 +1,10 @@
+import type {JsonObject} from '@bufbuild/protobuf'
 import {describe, expect, it, vi} from 'vitest'
 import {encode as cborEncode, decode as cborDecode} from '@ipld/dag-cbor'
 import {deserialize} from 'superjson'
+import {Block, DocumentChange} from '../client/.generated/documents/v3alpha/documents_pb'
+import {documentChangesToPlain} from '../utils/document-changes'
+import {HMPrepareDocumentChangeInputSchema} from '@seed-hypermedia/client/hm-types'
 import {handleApiAction, handleApiRequest} from '../api-server'
 
 describe('handleApiAction', () => {
@@ -94,6 +98,40 @@ describe('handleApiAction', () => {
     expect(calledChanges[0].op.case).toBe('setMetadata')
     expect(calledChanges[0].op.value).toEqual(expect.objectContaining({key: 'name', value: 'Test'}))
   })
+
+  it.each<JsonObject>([{}, {textAlignment: 'center', query: {includes: [{space: 'alice', path: '/'}]}}])(
+    'preserves block and annotation attributes through API and protobuf serialization: %j',
+    async (attributes) => {
+      const block = {
+        id: 'new-paragraph',
+        type: 'Paragraph',
+        text: 'New text',
+        attributes,
+        annotations: [{type: 'Bold', starts: [0], ends: [8], attributes: {enabled: true}}],
+      }
+      const changes = [new DocumentChange({op: {case: 'replaceBlock', value: Block.fromJson(block)}})]
+      const payload = HMPrepareDocumentChangeInputSchema.parse({
+        account: 'test-uid',
+        baseVersion: 'empty-version',
+        changes: documentChangesToPlain(changes),
+      })
+      const prepareChange = vi.fn(async (request) => {
+        const restored = DocumentChange.fromBinary(request.changes[0].toBinary())
+        expect(restored.op.case).toBe('replaceBlock')
+        if (restored.op.case !== 'replaceBlock') throw new Error('Expected replaceBlock')
+        expect(restored.op.value.toJson({emitDefaultValues: true})).toMatchObject(block)
+        return {unsignedChange: new Uint8Array([1])}
+      })
+      const result = await handleApiAction(
+        'PrepareDocumentChange',
+        cborEncode(payload),
+        {documents: {prepareChange}} as any,
+        vi.fn(),
+      )
+      expect(result.status).toBe(200)
+      expect(prepareChange).toHaveBeenCalledOnce()
+    },
+  )
 
   it('accepts PublishBlobs with Buffer-like byte data from CBOR decode', async () => {
     // Simulate what happens in Electron's bundled main process where

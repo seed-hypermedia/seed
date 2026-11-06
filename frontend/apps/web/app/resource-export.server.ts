@@ -291,8 +291,13 @@ function eventToMarkdown(event: Record<string, unknown>): string {
       return `${time} — ${authorName} granted a collaborator role`
     case 'contact':
       return `${time} — ${authorName} updated a contact`
-    case 'citation':
-      return `${time} — ${authorName} cited this document`
+    case 'citation': {
+      // A metadata/Link citation: a document attribute (owner, attributesSchema…) names this resource.
+      const metadataKey = typeof event.metadataKey === 'string' ? event.metadataKey : ''
+      return metadataKey
+        ? `${time} — ${authorName} named this document as ${metadataKey}`
+        : `${time} — ${authorName} cited this document`
+    }
     default:
       return `${time} — ${type} event by ${authorName}`
   }

@@ -1,5 +1,6 @@
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId, useRouteLink} from '@shm/shared'
+import {commentThreadSelection} from '@shm/shared/comments'
 import {groupDocumentConnections, type DocumentConnection, type DocumentConnectionSource} from '@shm/shared/connections'
 import {useCitations, useResource} from '@shm/shared/models/entity'
 import {useReadOnlyViewer} from '@shm/shared/readonly-viewer-context'
@@ -9,17 +10,28 @@ import {useId, useMemo, useState} from 'react'
 import {AccountIdentity} from './account-avatar'
 import {getBlockNodeById} from './blocks-content-utils'
 import {Button} from './button'
+import {ConnectionsGraph} from './connections-graph'
 import {cn} from './utils'
 
 /** Incoming backlinks grouped by source document, with source content loaded on expansion. */
 export function ConnectionsPanel({docId, targetBlockId}: {docId: UnpackedHypermediaId; targetBlockId?: string}) {
   const citations = useCitations(docId)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set())
   const groups = useMemo(
     () => groupDocumentConnections(docId, citations.data?.citations, targetBlockId),
     [docId, citations.data, targetBlockId],
   )
+  const toggleDocument = (id: string) => {
+    setExpandedIds((previous) => {
+      const next = new Set(previous)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   return (
     <div className="bg-card flex min-h-full flex-col gap-4 p-4">
+      <ConnectionsGraph docId={docId} groups={groups} expandedIds={expandedIds} onSelect={toggleDocument} />
       <p className="text-sm">Connections show where other documents or comments link to this document.</p>
       <h2 className="text-sm font-semibold">Related documents</h2>
       {citations.isInitialLoading ? (
@@ -34,7 +46,12 @@ export function ConnectionsPanel({docId, targetBlockId}: {docId: UnpackedHyperme
       ) : groups.length ? (
         <div className="divide-border border-border divide-y border-t">
           {groups.map((group) => (
-            <ConnectionDocument key={group.id.id} group={group} />
+            <ConnectionDocument
+              key={group.id.id}
+              group={group}
+              expanded={expandedIds.has(group.id.id)}
+              onToggle={() => toggleDocument(group.id.id)}
+            />
           ))}
         </div>
       ) : (
@@ -44,8 +61,15 @@ export function ConnectionsPanel({docId, targetBlockId}: {docId: UnpackedHyperme
   )
 }
 
-function ConnectionDocument({group}: {group: DocumentConnection}) {
-  const [expanded, setExpanded] = useState(false)
+function ConnectionDocument({
+  group,
+  expanded,
+  onToggle,
+}: {
+  group: DocumentConnection
+  expanded: boolean
+  onToggle: () => void
+}) {
   const contentId = useId()
   const resource = useResource(group.id)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
@@ -55,7 +79,7 @@ function ConnectionDocument({group}: {group: DocumentConnection}) {
         type="button"
         aria-expanded={expanded}
         aria-controls={contentId}
-        onClick={() => setExpanded((value) => !value)}
+        onClick={onToggle}
         className="hover:bg-muted focus-visible:ring-ring flex w-full items-start gap-3 rounded-md p-1 text-left transition-colors duration-(--duration-normal) focus-visible:ring-2"
       >
         <span className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded">
@@ -113,6 +137,11 @@ function ConnectionSource({source, documentId}: {source: DocumentConnectionSourc
   const content = resource.data?.type === 'document' ? resource.data.document.content : comment?.content
   const block = source.id.blockRef && content ? getBlockNodeById(content, source.id.blockRef) : undefined
   const blocks = block ? [block] : !source.id.blockRef && source.isComment ? content : undefined
+  // A reply opens its thread root with the reply selected, not as a thread root of its own.
+  // Keep the raw id fallback for before useResource has resolved the comment.
+  const commentSelection = comment ? commentThreadSelection(comment) : undefined
+  const openComment =
+    commentSelection?.openComment ?? comment?.id ?? [source.id.uid, ...(source.id.path || [])].join('/')
   const link = useRouteLink(
     source.isComment
       ? {
@@ -121,7 +150,8 @@ function ConnectionSource({source, documentId}: {source: DocumentConnectionSourc
           panel: {
             key: 'comments',
             id: documentId,
-            openComment: comment?.id || [source.id.uid, ...(source.id.path || [])].join('/'),
+            openComment,
+            replyCommentId: commentSelection?.replyCommentId,
             blockId: source.id.blockRef || undefined,
           },
         }

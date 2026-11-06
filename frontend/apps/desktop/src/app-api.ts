@@ -34,7 +34,7 @@ import {providerOAuthApi} from './app-provider-oauth'
 import {recentSignersApi} from './app-recent-signers'
 import {recentsApi} from './app-recents'
 import {secureStorageApi} from './app-secure-storage'
-import {getAgentsServerState, getLocalAgentsServerUrl} from './agents-server-process'
+import {getAgentsServerState, getLocalAgentsServerUrl, setLocalAgentsServerEnabled} from './agents-server-process'
 import {appSettingsApi, getStoredNetworkConfig, networkConfigSchema, writeNetworkConfig} from './app-settings'
 import {sitesApi} from './app-sites'
 import {syncApi} from './app-sync'
@@ -348,6 +348,11 @@ export const router = t.router({
   /** Reports the local agents server the desktop spawned or attached to, if any. */
   localAgentsServer: t.procedure.query(async () => {
     return {url: getLocalAgentsServerUrl(), state: getAgentsServerState()}
+  }),
+  /** Persists whether the desktop runs its bundled agents server, and starts or stops it now. */
+  setLocalAgentsServerEnabled: t.procedure.input(z.boolean()).mutation(async ({input}) => {
+    const url = await setLocalAgentsServerEnabled(input)
+    return {url, state: getAgentsServerState()}
   }),
   closeAppWindow: t.procedure.input(z.string()).mutation(async ({input}) => {
     closeAppWindow(input)

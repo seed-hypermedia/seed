@@ -2,14 +2,13 @@
 
 ## Usage Model
 
-- Read this file first.
 - Read subtree `AGENTS.md` files only when writing files in their scope, or when local behavior is unclear or confusing.
 - Read `AGENTS.local.md` files if they exist. These are local instructions not checked into the repo. They have
   precedence over other instructions.
 
 ## Primary Docs
 
-See `hypermedia/*` for the available docs, which you are responsible for helping keep up-to-date.
+Documentation lives in `hypermedia/`. Update relevant docs when behavior or interfaces change.
 
 **Production documentation is release-derived.** The content of the `hyper.media` documentation space
 (`hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB`) comes exclusively from the `hypermedia/` Markdown and schema
@@ -40,38 +39,19 @@ identified unauthorized publications; it is not permission for subsequent direct
 
 ## Repo Rules
 
-- Use `pnpm` for main repo, `bun` for `vault/**`.
+
+- Use `pnpm` for the JavaScript/TypeScript workspace; `agents/**` and `vault/**` use Bun. Follow package scripts.
 - Code inside `ops/**` uses a pinned Bun version (see `ops/package.json` `engines.bun`). Always build
   `ops/dist/deploy.js` with that exact version (`bunx --bun bun@<version> build ...`) or CI will fail the staleness
   check.
 - Code under `backend/util/llama-go/llama.cpp` is vendored third-party code. Don't touch unless explicitly asked.
-- Never modify the `.git` directory directly.
-- Do not run git commands that write state, including commit, amend, rebase, reset, checkout, merge, cherry-pick, stash,
-  tag, branch deletion, or push, unless explicitly asked.
-- If you need to write a commit message, explain why the change was made, not what the commit is doing mechanically.
-
-## Fork-only custom-images rebase rules
-
-These rules apply while query-block author and publish-date filters remain fork-only.
-
-- `custom-images` contains query-block filters that are not yet upstream.
-- Treat conflicts between the fork's query-filter changes and upstream query/table changes as additive. Preserve both
-  features instead of choosing one conflict side wholesale.
-- In particular, preserve separate test cases from both sides in:
-  - `frontend/packages/shared/src/client/__tests__/editorblock-to-hmblock.test.ts`
-  - `frontend/packages/shared/src/client/__tests__/hmblock-to-editorblock.test.ts`
-- After resolving conflicts, format the affected files and run `pnpm --filter @shm/shared test` before continuing or
-  pushing the rebase.
-- Never force-push a rebased `custom-images` branch unless those checks pass.
-- Remove this section after the query-filter feature is upstreamed.
+- Never modify Git internals directly. Run state-changing Git commands only when explicitly asked.
+- Commit messages should explain why the change was made.
 
 ## Workflow
 
 - To cut a release, follow `hypermedia/build/releasing.md` (interactive runbook: `.agents/skills/run-release`).
-
-- Ask clarifying questions when ambiguity matters.
 - Use OS temp dir for scratch files. Clean up after you're done.
-- Ask for elevated permissions instead of working around sandboxing issues (if you can run in a sandbox).
 - This repo uses `mise` + `direnv` for toolchain setup. Run repository commands as `direnv exec . <command>`.
 - If direnv blocks the environment, inspect `.envrc` and its referenced repository bootstrap tasks, then run
   `direnv allow .` yourself as ordinary setup, without asking for a new user confirmation.
@@ -82,62 +62,36 @@ These rules apply while query-block author and publish-date filters remain fork-
 
 ## Required checks before completion
 
-- After any repository change, run all of these commands from the repository root before reporting the task complete:
-  `direnv exec . sh -c 'pnpm typecheck && pnpm test && pnpm format:write && pnpm audit'`
-- Run these checks after the final change, not after every intermediate edit.
-- All four commands must pass. If a command fails, correct the cause and run the required checks again.
-- Review changes made by `pnpm format:write`. If it changes code, run typecheck and tests again against the final files.
-- Do not skip checks because a change appears small or unrelated.
-- If a check cannot run or a failure remains unresolved, report the command, the cause, and the task as incomplete. Do
-  not claim that all checks passed.
-- Include the check results in the final response.
-- These checks are required in addition to checks specified by subtree instructions.
+- For changes affecting the pnpm JavaScript/TypeScript workspace, its dependencies, build configuration, or shared
+  interfaces, run the checks required by the affected subtree instructions after the final change. Choose scope from the full task
+  diff, including committed, staged, unstaged, and untracked files; include affected callers and dependents.
+- For documentation-only changes, check formatting and references; application tests and typechecks are not required.
+- Format touched files with the owning area's formatter before completion or a commit. Review formatter changes; if they
+  change code, rerun the affected checks against the final files.
+- If impact is unclear or a change affects shared configuration, expand the checks rather than assuming file-only checks
+  are sufficient. Targeted checks do not prove that the full CI suite passes.
+- Report the commands run, their scope, and results. If a required check cannot run or remains failing, report its cause
+  and mark verification incomplete. Do not claim that all checks passed.
 
 ## Local CI
 
 - Validate changes with [agent-ci](https://agent-ci.dev) before pushing. Full guide: `hypermedia/build/local-ci.md`.
-- Pick the workflow that matches what you touched (subtree `AGENTS.md` files list the canonical command for each area):
-  - Frontend: `npx @redwoodjs/agent-ci run -w .github/workflows/test-frontend-parallel.yml -p --github-token`
-  - Backend lint: `npx @redwoodjs/agent-ci run -w .github/workflows/lint-go.yml -p`
-  - Backend tests: `npx @redwoodjs/agent-ci run -w .github/workflows/test-go.yml -p`
-  - Vault: `npx @redwoodjs/agent-ci run -w .github/workflows/dev-vault-image.yml -p --github-token`
-  - Ops deploy script: `npx @redwoodjs/agent-ci run -w .github/workflows/check-deploy-script.yml -p --github-token`
-- On failure, fix in place and `npx @redwoodjs/agent-ci retry --name <runner-name>` instead of starting a fresh run. Use
-  `npx @redwoodjs/agent-ci abort --name <runner-name>` to give up.
+- Select workflows relevant to the change; commands, setup, and platform limitations are in the runbook.
+- Use `-p` (`--pause-on-failure`). On failure, fix in place and run `npx @redwoodjs/agent-ci retry --name <runner-name>`
+  rather than starting a fresh runner.
 - Avoid `--all` and `dev-docker-images.yml` for routine work — they include heavy llama.cpp Vulkan builds and Docker
   image assembly without extra signal beyond `test-go.yml`.
-- Skipped automatically: `windows-*` jobs (unsupported); `macos-*` jobs require `tart` + `sshpass`.
 
 ## Coding Guidelines
 
-- Keep changes minimal and consistent with nearby code.
 - Normalize, trim, canonicalize, or otherwise clean input at system boundaries only (HTTP handlers, CLI parsing, config
   loading, deserialization edges). Do not repeat defensive string normalization in deeper internal functions; internal
   APIs should receive already-normalized values and compare them exactly unless the domain explicitly requires
   otherwise.
-- Prefer existing files over creating new tiny one-off modules. Add a new file only when it materially improves
-  structure, ownership, or reuse.
-- Avoid writing tiny helper functions, especially if they are not used elsewhere. Colocate related code for better
-  comprehension. Think twice before leaving one-liner functions.
-- Think twice before doing any "defense-in-depth" coding, to avoid it ending up being totally unreasonable.
+- Follow nearby patterns. Add helpers or files when they improve ownership, reuse, or clarity, not for speculative
+  abstraction or defensive handling of impossible internal states.
 - Never fix race conditions with sleeps and timeouts, unless there's absolutely no other way. In this case, always ask
   the user for permission first.
-- Write doc comments on every exported symbol. Even trivial ones.
-- Avoid banner-style comments splitting the file into sections — they are often forgotten when code is moved around.
-- Most code should have tests.
-  - Prefer tests that exercise real behavior — avoid mocks unless the real dependency is impractical or unsafe.
-  - If the test is full of mocks — think twice whether it's actually useful, or it's just there to give false
-    confidence.
-- When writing Tailwind:
-  - Prefer built-in utilities over arbitrary values.
-  - Use arbitrary values only when standard Tailwind classes cannot reasonably express the requirement.
-  - Prefer layout scales that follow a consistent rhythm.
-  - Do not use random pixel values for spacing or sizing.
-  - Use parent `gap` for flex/grid spacing instead of child margins when possible.
-- Before every commit, make sure the files you touched are Prettier-formatted (`pnpm format:write` in the touched
-  packages, or `./node_modules/.bin/prettier --ignore-unknown --write <files>` from the repo root). CI's `Lint` job runs
-  `prettier --check` across every package plus `agents/` and `vault/`; one unformatted file fails it and blocks the web
-  image build. Formatting produces no local error signal — typecheck and tests pass on unformatted code — so it must be
-  checked explicitly, on the last commit of a session as much as the first. (Claude Code sessions get this automatically
-  via the `.claude/settings.json` PostToolUse hook running `scripts/format-hook.mjs`; other agents and editors without
-  format-on-save must run it themselves.)
+- Document exported symbols.
+- Test observable behavior; use real dependencies unless impractical or unsafe. Bug fixes should have regression
+  coverage where practical.

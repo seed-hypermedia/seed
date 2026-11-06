@@ -5,6 +5,11 @@ import {
   pagePermissionStorageKey,
   createDocumentPageAccess,
   readPagePermissionGrants,
+  grantPageRun,
+  pageRunAllowed,
+  pageRunStorageKey,
+  readPageRunTrust,
+  revokePageRun,
   type PagePermissionDecision,
   type PagePermissionRequest,
 } from './document-page-permissions'
@@ -107,5 +112,32 @@ describe('page permission rules', () => {
       {spaceMatch: {space: 'alice'}, or: {filters: []}},
     ])
       expect(pageReadRequest('QueryDocuments', {filter}).site).toBeUndefined()
+  })
+})
+
+describe('page run trust', () => {
+  const empty = {pages: [], authors: []}
+
+  it('remembers an approved page across updates without trusting its authors elsewhere', () => {
+    const trust = grantPageRun(empty, 'hm://site/app', ['alice'], false)
+    expect(pageRunAllowed(trust, 'hm://site/app', ['alice', 'mallory'])).toBe(true)
+    expect(pageRunAllowed(trust, 'hm://site/other', ['alice'])).toBe(false)
+  })
+
+  it('runs pages whose authors are all trusted, and asks again for any unknown author', () => {
+    const trust = grantPageRun(empty, 'hm://site/app', ['alice', 'bob'], true)
+    expect(pageRunAllowed(trust, 'hm://other/one', ['alice', 'bob'])).toBe(true)
+    expect(pageRunAllowed(trust, 'hm://other/two', ['bob'])).toBe(true)
+    expect(pageRunAllowed(trust, 'hm://other/three', ['alice', 'carol'])).toBe(false)
+    expect(pageRunAllowed(trust, 'hm://other/four', [])).toBe(false)
+  })
+
+  it('revokes a page or author and ignores malformed storage', () => {
+    const trust = grantPageRun(empty, 'hm://site/app', ['alice', 'bob'], true)
+    expect(revokePageRun(trust, 'hm://site/app', ['bob'])).toEqual({pages: [], authors: ['alice']})
+    const key = pageRunStorageKey('viewer')
+    expect(readPageRunTrust({getItem: () => JSON.stringify(trust)}, key)).toEqual(trust)
+    expect(readPageRunTrust({getItem: () => '{"pages":"x"}'}, key)).toEqual(empty)
+    expect(readPageRunTrust({getItem: () => null}, key)).toEqual(empty)
   })
 })

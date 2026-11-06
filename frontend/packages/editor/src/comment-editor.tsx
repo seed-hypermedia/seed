@@ -82,6 +82,7 @@ export function useCommentEditor(
   domainResolver?: DomainResolverFn,
   disableTrailingNode?: boolean,
   submitOnEnter?: boolean,
+  getExtraSlashMenuItems?: () => CommentEditorSlashMenuItem[],
 ) {
   // Use refs so extensions created once by useBlockNote can access the latest callbacks.
   // useBlockNote only creates the editor on the first render, but these callbacks may
@@ -96,6 +97,9 @@ export function useCommentEditor(
   const editorRef = useRef<BlockNoteEditor<typeof hmBlockSchema> | null>(null)
   const submitOnEnterRef = useRef(submitOnEnter)
   submitOnEnterRef.current = submitOnEnter
+  // The slash menu reads items on every keystroke, so a ref keeps host-provided items current.
+  const getExtraSlashMenuItemsRef = useRef(getExtraSlashMenuItems)
+  getExtraSlashMenuItemsRef.current = getExtraSlashMenuItems
 
   const editor = useBlockNote<typeof hmBlockSchema>({
     onEditorContentChange(editor: BlockNoteEditor<typeof hmBlockSchema>) {
@@ -127,7 +131,10 @@ export function useCommentEditor(
     //   initDraft();
     // },
     blockSchema: hmBlockSchema,
-    getSlashMenuItems: () => getSlashMenuItems(),
+    getSlashMenuItems: () => [
+      ...toBlockNoteSlashMenuItems(getExtraSlashMenuItemsRef.current?.() ?? []),
+      ...getSlashMenuItems(),
+    ],
     importWebFile,
     handleFileAttachment,
     _tiptapOptions: {
@@ -248,6 +255,21 @@ export interface CommentEditorProps {
  *
  */
 
+/** A host command in the comment editor's `/` menu. The typed `/query` is removed before
+ * {@link CommentEditorSlashMenuItem.onSelect} runs. */
+export type CommentEditorSlashMenuItem = {
+  name: string
+  aliases?: string[]
+  group: string
+  icon: JSX.Element
+  hint?: string
+  onSelect: () => void
+}
+
+function toBlockNoteSlashMenuItems(items: CommentEditorSlashMenuItem[]) {
+  return items.map(({onSelect, ...item}) => ({...item, execute: () => onSelect()}))
+}
+
 export type CommentEditorSubmitHandle = {
   submit: () => void
   reset: () => void
@@ -290,6 +312,8 @@ export function CommentEditor({
   disableTrailingNode,
   submitOnEnter,
   domainResolver,
+  getExtraSlashMenuItems,
+  collapsedLabel,
 }: {
   submitButton: (opts: {
     reset: () => void
@@ -361,6 +385,12 @@ export function CommentEditor({
   disableTrailingNode?: boolean
   /** Submits on plain Enter while allowing mention/slash menus to handle Enter first. */
   submitOnEnter?: boolean
+  /** Host commands listed ahead of the block types in the `/` menu. Read on every query, so the
+   * list may change between renders. */
+  getExtraSlashMenuItems?: () => CommentEditorSlashMenuItem[]
+  /** Text on the collapsed field before it is first focused; "Start a Discussion" / "Write a
+   * Reply" otherwise. */
+  collapsedLabel?: string
   /** Optional resolver that maps a hostname to a Seed account UID, used when
    * pasting Hypermedia URLs in embed/link inputs nested inside this comment. */
   domainResolver?: DomainResolverFn
@@ -384,6 +414,7 @@ export function CommentEditor({
     domainResolver,
     disableTrailingNode,
     submitOnEnter,
+    getExtraSlashMenuItems,
   )
   // Check if we have non-empty draft content
   const hasDraftContent = blocksHaveDraftContent(initialBlocks)
@@ -1142,7 +1173,7 @@ export function CommentEditor({
                 variant="ghost"
                 size="sm"
               >
-                {tx(isReplying ? 'Write a Reply' : 'Start a Discussion')}
+                {collapsedLabel ?? tx(isReplying ? 'Write a Reply' : 'Start a Discussion')}
               </Button>
             )}
           </div>
@@ -1189,7 +1220,12 @@ export function CommentEditor({
       {/* Mobile dialogs */}
       {isMobile && (
         <>
-          <MobileSlashDialog isOpen={isSlashDialogOpen} onClose={() => setIsSlashDialogOpen(false)} editor={editor} />
+          <MobileSlashDialog
+            isOpen={isSlashDialogOpen}
+            onClose={() => setIsSlashDialogOpen(false)}
+            editor={editor}
+            extraItems={toBlockNoteSlashMenuItems(getExtraSlashMenuItems?.() ?? [])}
+          />
         </>
       )}
     </>

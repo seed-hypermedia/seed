@@ -82,15 +82,15 @@ export function ContentEmbed({
   const Viewer = useReadOnlyViewer()
   const currentRoute = useNavRoute()
   const sourceKey = packHmId(id)
-  const [expansion, setExpansion] = useState({sourceKey, expanded: false})
+  const [expansion, setExpansion] = useState<{sourceKey: string; expanded?: boolean}>({sourceKey})
   if (expansion.sourceKey !== sourceKey) {
-    setExpansion({sourceKey, expanded: false})
+    setExpansion({sourceKey})
   }
-  const expanded = expansion.sourceKey === sourceKey && expansion.expanded
   const selectedBlock = useMemo(
     () => (id.blockRef ? getBlockNodeById(blocks, id.blockRef) : null),
     [blocks, id.blockRef],
   )
+  const expanded = expansion.sourceKey === sourceKey && (expansion.expanded ?? selectedBlock?.block.type === 'Image')
   const fragment = useMemo(
     () => (selectedBlock ? getBlockFragment(selectedBlock, id.blockRange) : null),
     [selectedBlock, id.blockRange],
@@ -151,7 +151,10 @@ export function ContentEmbed({
       expandTo === 'resource' || !!(id.blockRange && 'expanded' in id.blockRange && id.blockRange.expanded)
     return [{...selectedBlock, children: includeChildren ? selectedBlock.children : []}]
   }, [blocks, selectedBlock, id.blockRange, quote, collapsed, expanded, expandTo])
-  const highlight = getContentEmbedHighlight(id, currentRoute, resourceKind, collapsed)
+  const highlight =
+    expanded && fragment && id.blockRef && id.blockRange
+      ? {focusBlockId: id.blockRef, blockRange: id.blockRange}
+      : getContentEmbedHighlight(id, currentRoute, resourceKind, collapsed)
   const author = identity ? (
     <span className="inline-flex items-center gap-1 align-baseline">
       <AccountIdentity
@@ -195,6 +198,12 @@ export function ContentEmbed({
           <p className="text-muted-foreground text-sm" role="status">
             The referenced block was not found in this version.
           </p>
+        ) : media?.type === 'Image' && collapsed ? (
+          <img
+            src={mediaUrl}
+            alt={media.text || media.attributes?.name || 'Embedded image'}
+            className="pointer-events-none block h-auto max-h-10 w-auto max-w-10 shrink-0 object-contain"
+          />
         ) : media && !collapsed ? (
           <div className="embed-media-container">
             <div

@@ -5653,7 +5653,11 @@ func TestMovedDocumentCommentsFollowRedirects(t *testing.T) {
 		require.Len(t, dstCitations.Citations, 1, "interaction summary must count comments after document moves")
 		require.Equal(t, "Comment", dstCitations.Citations[0].SourceType)
 		require.Equal(t, "hm://"+comment.Id, dstCitations.Citations[0].Source)
-		require.Equal(t, "hm://"+account+"/comments-move-dst", dstCitations.Citations[0].SourceDocument)
+		// SourceDocument is the comment's own target at write time (structural_blobs.resource),
+		// not the requested destination. The document moved from /comments-move-src to
+		// /comments-move-dst after the comment was written, so the reported home is the
+		// original path; it still resolves through the document's redirect chain.
+		require.Equal(t, "hm://"+account+"/comments-move-src", dstCitations.Citations[0].SourceDocument)
 	})
 }
 

@@ -25,6 +25,10 @@ vi.mock('../tooltip', () => ({
   ),
 }))
 
+if (typeof PointerEvent === 'undefined') {
+  vi.stubGlobal('PointerEvent', MouseEvent)
+}
+
 let container: HTMLDivElement
 let root: Root
 
@@ -52,6 +56,15 @@ afterEach(() => {
 })
 
 describe('SiteFileBrowser', () => {
+  it('marks Home active only when the home document is selected', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
+    const props = {siteId: hmId('site'), onNavigate: vi.fn()}
+    act(() => root.render(<SiteFileBrowser {...props} activeDocumentId={null} />))
+    expect(container.querySelector('[aria-current="page"]')).toBeNull()
+    act(() => root.render(<SiteFileBrowser {...props} activeDocumentId={hmId('site')} />))
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toBe('Home')
+  })
+
   it('does not load or render unreferenced documents', () => {
     const install = makeDoc(['guides', 'install'], 'Install Seed', 'PRIVATE')
     useDirectoryWithDraftsMock.mockReturnValue({directory: [install], drafts: [], isLoading: false})
@@ -156,13 +169,11 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelector('[aria-label="Document"]')).toBeTruthy()
   })
 
-  it('colors collection, private and document icons with the shared icon token', () => {
+  it('marks mounted agents with an agent icon', () => {
+    const agent = makeDoc(['helper'], 'Helper')
+    agent.metadata = {name: 'Helper', type: 'hm://hyper.media/agent'}
     useDirectoryWithDraftsMock.mockReturnValue({
-      directory: [
-        makeCollection(['collection'], 'Collection'),
-        makeDoc(['private'], 'Private', 'PRIVATE'),
-        makeDoc(['document'], 'Document'),
-      ],
+      directory: [agent, makeCollection(['collections'], 'Collections'), makeDoc(['document'], 'Document')],
       drafts: [],
       isLoading: false,
     })
@@ -171,9 +182,9 @@ describe('SiteFileBrowser', () => {
       root.render(<SiteFileBrowser siteId={hmId('site')} activeDocumentId={null} onNavigate={vi.fn()} />)
     })
 
-    for (const label of ['Collection', 'Private document', 'Document']) {
-      expect(container.querySelector(`[aria-label="${label}"]`)?.getAttribute('class')).toContain('text-icon')
-    }
+    expect(container.querySelectorAll('[aria-label="Agent"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[aria-label="Collection"]')).toHaveLength(1)
+    expect(container.querySelectorAll('[aria-label="Document"]')).toHaveLength(1)
   })
 
   it('reveals the active document and marks private rows', () => {
@@ -197,14 +208,6 @@ describe('SiteFileBrowser', () => {
     expect(container.querySelector('[data-slot="scroll-area"]')).toBeTruthy()
     expect(container.querySelector('[aria-label="Private document"]')).toBeTruthy()
     expect(container.querySelector('[aria-current="page"]')?.textContent).toContain('Private guide')
-    const caretButton = container.querySelector('[aria-label="Collapse Guides"]')
-    expect(caretButton?.className).toContain('size-6')
-    expect(caretButton?.className).toContain('p-0')
-    expect(caretButton?.className).not.toContain('min-w-8')
-    const activeDocumentButton = container.querySelector('[aria-current="page"]')
-    expect(activeDocumentButton?.className).toContain('h-6')
-    expect(activeDocumentButton?.className).toContain('text-sm')
-    expect(activeDocumentButton?.className).not.toContain('text-xs')
   })
 
   it('shows title matches as a flat list and navigates', () => {
@@ -341,7 +344,6 @@ describe('SiteFileBrowser', () => {
     })
     const home = Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Home')!
     expect(home).toBeTruthy()
-    expect(home.querySelector('svg')).toBeNull()
     act(() => home.click())
     expect(onNavigate).toHaveBeenCalledWith(hmId('site'))
   })
@@ -372,5 +374,37 @@ describe('SiteFileBrowser', () => {
       ),
     )
     expect(container.querySelector('[aria-label="Create root document"]')).toBeTruthy()
+  })
+
+  it('offers Agent from the root creation menu when the New menu has it', () => {
+    useDirectoryWithDraftsMock.mockReturnValue({directory: [], drafts: [], isLoading: false})
+    const createAgent = vi.fn()
+    act(() =>
+      root.render(
+        <SiteFileBrowser
+          siteId={hmId('site')}
+          activeDocumentId={null}
+          onNavigate={vi.fn()}
+          createMenuItem={{
+            key: 'new',
+            label: 'New',
+            icon: null,
+            children: [
+              {key: 'new-document', label: 'Document', icon: null, onClick: vi.fn()},
+              {key: 'new-agent', label: 'Agent', icon: null, onClick: createAgent},
+              {key: 'import', label: 'Import', icon: null, onClick: vi.fn()},
+            ],
+          }}
+        />,
+      ),
+    )
+    const trigger = container.querySelector('[aria-label="Create root document"]') as HTMLElement
+    act(() => {
+      trigger.dispatchEvent(new PointerEvent('pointerdown', {bubbles: true, cancelable: true, button: 0}))
+    })
+    const items = Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent?.trim())
+    expect(items).toEqual(['Document', 'Agent'])
+    act(() => (document.querySelectorAll('[role="menuitem"]')[1] as HTMLElement).click())
+    expect(createAgent).toHaveBeenCalledTimes(1)
   })
 })

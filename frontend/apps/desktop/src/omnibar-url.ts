@@ -42,22 +42,19 @@ export function parseBrowserAddress(input: string): string | null {
 }
 
 /**
- * Returns the current site's custom domain only when it is actively resolving
- * to the same account as the page shown in the desktop omnibar.
+ * Selects the site's URL for the desktop omnibar, including a gateway's own
+ * home space. A successful domain check must resolve to the current account.
  */
 export function selectValidatedOmnibarSiteUrl(params: {
   candidateSiteUrl?: string | null
-  gatewayUrl: string
   accountUid?: string | null
   registeredAccountUid?: string | null
   domainStatus?: string | null
   isDomainLoading?: boolean
 }): string | null {
   const candidateHostname = getUrlHostname(params.candidateSiteUrl)
-  const gatewayHostname = getUrlHostname(params.gatewayUrl)
 
   if (!params.candidateSiteUrl || !candidateHostname) return null
-  if (gatewayHostname && candidateHostname === gatewayHostname) return null
 
   // Domain check still in flight — optimistically show what the user typed.
   if (params.isDomainLoading) return params.candidateSiteUrl
@@ -131,7 +128,18 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   const agentRoute = agentUrlToRoute(url)
   if (agentRoute) return agentRoute
 
-  const {url: cleanUrl, isInspect, viewTerm, activityFilter, commentId, accountUid} = extractViewTermFromUrl(url)
+  const {
+    url: cleanUrl,
+    isInspect,
+    viewTerm,
+    activityFilter,
+    commentId,
+    accountUid,
+    agentView,
+    agentSessionId,
+    agentTriggerId,
+    settingsTab,
+  } = extractViewTermFromUrl(url)
   const routeKey = viewTermToRouteKey(viewTerm)
 
   if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
@@ -141,11 +149,26 @@ export async function resolveOmnibarUrlToRoute(url: string, opts?: ResolveOption
   try {
     const result = await resolveHypermediaUrl(cleanUrl, opts)
     if (!result?.hmId) return null
+    // `/:settings/<site tab>` is the site's settings even under a path, as in url-to-route.
+    if (agentView || (viewTerm === ':settings' && result.hmId.path?.length && !settingsTab)) {
+      const query = new URL(url).searchParams
+      return {
+        key: 'document',
+        id: result.hmId,
+        agentView: agentView || 'settings',
+        agentSessionId,
+        agentTriggerId: agentTriggerId || query.get('trigger') || undefined,
+        agentMemoryPath: query.get('file') || undefined,
+      }
+    }
 
-    const baseRoute = result.panel ? createDocumentNavRoute(result.hmId, null, result.panel) : appRouteOfId(result.hmId)
+    const replyCommentId = new URL(cleanUrl).searchParams.get('reply')
+    const baseRoute = result.panel
+      ? createDocumentNavRoute(result.hmId, null, result.panel, null, null, null, replyCommentId)
+      : appRouteOfId(result.hmId)
     if (!baseRoute) return null
 
-    return applyResolvedViewTerm(baseRoute, routeKey, activityFilter, commentId, accountUid, isInspect)
+    return applyResolvedViewTerm(baseRoute, routeKey, activityFilter, commentId, accountUid, isInspect, replyCommentId)
   } catch {
     return null
   }
@@ -243,12 +266,8 @@ export function agentUrlToRoute(input: string): NavRoute | null {
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null
     const segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent)
     if (segments[0] !== 'agents') return null
-    if (segments.length === 1) {
-      url.pathname = '/'
-      url.search = ''
-      url.hash = ''
-      return {key: 'agent-server', serverUrl: normalizeAgentServerUrl(url.toString())}
-    }
+    // A bare `/agents` names the server, not a place in the app: there is no server page.
+    if (segments.length === 1) return null
     const agentId = segments[1]
     url.pathname = '/'
     url.search = ''
@@ -291,6 +310,7 @@ function applyResolvedViewTerm(
   commentId?: string,
   accountUid?: string,
   isInspect?: boolean,
+  replyCommentId?: string | null,
 ): NavRoute {
   if (route.key !== 'document') return route
 
@@ -313,6 +333,7 @@ function applyResolvedViewTerm(
       id: {...route.id, version: null, latest: true},
       openComment: commentId,
       openCommentVersion: route.id.version || undefined,
+      replyCommentId: replyCommentId || undefined,
     }
   }
 

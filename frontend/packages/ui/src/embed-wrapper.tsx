@@ -41,8 +41,10 @@ export function getEmbedDocumentRoute(id: UnpackedHypermediaId, currentRoute: Na
       },
     }
   }
-  if (currentRoute.key === 'document' && currentRoute.id.id === id.id && id.blockRef) {
-    return {...currentRoute, id: {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange}}
+  if (currentRoute.key === 'document' && currentRoute.id.id === id.id) {
+    return id.blockRef
+      ? {...currentRoute, id: {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange}}
+      : currentRoute
   }
   const panel = getRoutePanel(currentRoute) as DocumentPanelRoute | null
   return panel ? {key: 'document', id, panel} : {key: 'document', id}
@@ -84,7 +86,7 @@ export function EmbedWrapper({
     return route
   }, [route, currentRoute])
 
-  const linkProps = useRouteLink(openOnClick && effectiveRoute ? effectiveRoute : null, {replace: !!id?.blockRef})
+  const linkProps = useRouteLink(effectiveRoute ?? null, {replace: !!id?.blockRef})
   const {onClick: routeOnClick, tag: _routeTag, ...linkAttributes} = linkProps
   const sourceLink = useRef<HTMLAnchorElement>(null)
   const canNavigate = !!(openOnClick && effectiveRoute)
@@ -144,6 +146,20 @@ export function EmbedWrapper({
       data-url={packHmId(id)}
       data-view={viewType}
       data-resourceid={id?.blockRef ? undefined : id?.id}
+      onClickCapture={(event) => {
+        // A whole-document embed is already at its destination. Keep its reading position,
+        // including the current selection, but leave modified clicks and nested controls alone.
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+        if (id.blockRef || effectiveRoute?.key !== 'document' || id.id !== effectiveRoute.id.id) return
+        if (currentRoute.key !== 'document' || currentRoute.id.id !== id.id) return
+        const target = event.target as HTMLElement
+        if (target.closest('[data-content-type="embed"]') !== event.currentTarget) return
+        const anchor = target.closest('a[href]')
+        if (!canNavigate && !anchor) return
+        if (isInteractiveEmbedClickTarget(event) && anchor?.getAttribute('href') !== linkAttributes.href) return
+        event.preventDefault()
+        event.stopPropagation()
+      }}
       onClick={canNavigate ? openSource : undefined}
       onAuxClick={canNavigate ? openSource : undefined}
       {...highlight(id)}

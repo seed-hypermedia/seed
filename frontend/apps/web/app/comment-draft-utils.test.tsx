@@ -3,7 +3,7 @@ import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {createRoot, type Root} from 'react-dom/client'
 import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, expect, it, vi} from 'vitest'
-import {useCommentDraftPersistence} from './comment-draft-utils'
+import {useCommentDraftPersistence, listWebCommentDrafts} from './comment-draft-utils'
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 let persistence: ReturnType<typeof useCommentDraftPersistence>
 let root: Root
@@ -56,4 +56,10 @@ it('does not restore a submitted draft during cleanup or a later timer', () => {
   act(() => root.render(<Draft />))
   expect(persistence.draft).toBeNull()
   expect(persistence.draftMediaRefs).toBeNull()
+})
+
+it('saves explicit targets so the Drafts page can resume a local reply', () => {
+  persistence.saveDraft(blocks, mediaRefs)
+  act(() => root.render(null))
+  expect(listWebCommentDrafts()).toMatchObject([{docId: 'hm://doc', replyCommentId: 'parent', blocks, mediaRefs}])
 })

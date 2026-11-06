@@ -43,7 +43,7 @@ Subscription provider: <!-- id:7jCnLfG9 -->
 
 These are [signed API](./signed-api.md) actions. <!-- id:oSxv44bd -->
   - `ListModelProviders`: redacted provider metadata. <!-- id:obDhDqLd -->
-  - `ListProviderModels`: decrypts the API key server-side and queries the provider's model-list endpoint. <!-- id:emMglq7O -->
+  - `ListProviderModels`: resolves credentials server-side and queries the provider's model-list endpoint. Optional `refresh: true` bypasses the server's cached Codex release lookup for subscription providers. <!-- id:emMglq7O -->
   - `SetModelProvider`: upserts provider config. <!-- id:z3UJn0_5 -->
   - `SetSecret`: encrypts and upserts a secret value. <!-- id:vEMVC60a -->
   - `DeleteModelProvider`: removes a provider record and its API-key secret. <!-- id:EPPvk15T -->
@@ -71,7 +71,7 @@ No provider API returns plaintext secrets. `ListProviderModels` (`api-service.ts
   - **anthropic**: `GET {base}/v1/models` with `x-api-key` and `anthropic-version: 2023-06-01` instead of Bearer. `name` is `display_name` when present; <!-- id:hr1emxf1 -->
   - **google**: `GET {base}/models?key=…` with the key in the **query string**. It drops models whose `supportedGenerationMethods` exists and lacks `generateContent`, strips the `models/` id prefix, and prefers `displayName`. <!-- id:5FUg382Z -->
 
-Errors: a missing key on a `requireApiKey` provider fails with 400 before any fetch. An unknown provider name is 404. A non-OK upstream response is `502 "<label> request failed: HTTP <status>"`, and a malformed body is `502 "<label> response is invalid"`. `joinUrlPath()` (`api-service.ts`) clears `search` and `hash`, so a custom base URL carrying a query string loses it on the model-list request. <!-- id:heoA52Dh -->
+Errors: a missing key on a `requireApiKey` provider fails with 400 before any fetch. An unknown provider name is 404. A non-OK upstream response is `502 "<label> request failed: HTTP <status>"`, and a malformed body is `502 "<label> response is invalid"`. `joinUrlPath()` (`api-service.ts`) clears `search` and `hash`, so a custom base URL carrying a query string loses it on the model-list request. The Model providers dialog shows an expandable list for each provider and a **Refresh** button. Refresh replaces the cached catalog used by model pickers; failures appear inline. <!-- id:heoA52Dh -->
 
 # Supported provider types <!-- id:dO5T0qHa -->
 
@@ -104,7 +104,7 @@ An OpenAI provider can authenticate with the user's ChatGPT plan instead of an A
   - **Execution** re-points the provider entirely (`api-service.ts`): the Pi provider id becomes `openai-codex` (`SUBSCRIPTION_PI_PROVIDER_ID`), the base URL becomes `https://chatgpt.com/backend-api` (`SUBSCRIPTION_CODEX_BASE_URL`), and the API becomes `openai-codex-responses`. Credentials live in a credential store (`PersistedOAuthStore`) rather than as a fixed API key, so pi-ai re-resolves them per request and refreshes an expired access token under the store's lock (`openaiCodexSubscriptionAuth`). Rotated tokens are written back to the encrypted secret for future runs. <!-- id:i17XC_-M -->
   - **Failure is explicit.** The access token is resolved, and refreshed if needed, up front. If that fails, the secret is marked `needs-reauth` and the run fails with "Your OpenAI subscription sign-in has expired or was revoked. Open model provider settings and sign in with ChatGPT again." The user sees this message instead of a cryptic mid-stream 401 (`api-service.ts`). <!-- id:JGWi-2ic -->
   - **Models** come from the same ChatGPT backend endpoint the Codex CLI fills its picker from (`fetchCodexSubscriptionModels`): `GET {SUBSCRIPTION_CODEX_BASE_URL}/codex/models?client_version=…` with the access token as bearer auth and the workspace id in `ChatGPT-Account-Id`. The backend has no public docs for this; the response is `{models: [{slug, display_name, visibility, priority, supported_reasoning_levels, context_window, …}]}`. Entries with `visibility: "hide"` (internal review models) are dropped and the rest keep `priority` order. <!-- id:Zlrkeuct -->
-    - `client_version` (`SUBSCRIPTION_CODEX_CLIENT_VERSION`) is required and gates what the backend returns (each entry has a `minimal_client_version`). Bump it with the Codex CLI when a new generation stops showing up. <!-- id:lU_L8GOQ -->
+    - `client_version` is required and gates what the backend returns (each entry has a `minimal_client_version`). `CodexClientVersionResolver` looks up the latest published `@openai/codex` version from npm and caches it for six hours, with a minimum of `SUBSCRIPTION_CODEX_MIN_CLIENT_VERSION`. A failed lookup uses the last successful version or that minimum and retries after five minutes. The provider's **Refresh** button bypasses this cache. <!-- id:lU_L8GOQ -->
     - A network or backend failure falls back to `SUBSCRIPTION_CODEX_FALLBACK_MODELS`, a snapshot of the picker, so the agent form never gets an empty list. Pi-ai's `openai-codex` catalog is not used for this: it lags a generation and the backend rejects its older ids ("model is not supported when using Codex with a ChatGPT account"). <!-- id:QszbxdcN -->
     - A 401 from the endpoint flags the secret `needsReauth` and fails the listing with the re-auth message above. <!-- id:PRy_hkvO -->
 

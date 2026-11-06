@@ -12,6 +12,8 @@ import {isContinuationProjection, parseContinuationProjection, type Continuation
 import {isPendingToolPart, isThinkingToolPart, type ChatToolChild, type ChatToolPart} from './chat-parts'
 import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
+import {routeToUrl} from '@shm/shared/utils/entity-id-url'
+import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'
 
 /**
  * Turns a session's durable event log into renderable chat rows.
@@ -401,6 +403,7 @@ export function retryableErrorRowKey(rows: AgentSessionChatRow[], isBusy: boolea
 /** Identifies which session the events belong to, for building per-event share links. */
 export type AgentSessionRowContext = {
   serverUrl: string
+  gatewayUrl?: string
   agentId?: string
   sessionId: string
   triggerContext?: AgentSessionTriggerContext | null
@@ -447,16 +450,19 @@ export function extractTriggerInstructions(content: string): string | undefined 
   return text ? text : undefined
 }
 
-/** Builds the shareable link to a session on its agent server. */
+/** Builds a UI link, using the document URL for mounted agents. */
 export function buildAgentSessionUrl(
   serverUrl: string,
   agentId: string | undefined,
   sessionId: string,
+  gatewayUrl = DEFAULT_GATEWAY_URL,
 ): string | undefined {
   if (!agentId) return undefined
-  return `${serverUrl.replace(/\/+$/, '')}/agents/${encodeURIComponent(agentId)}/sessions/${encodeURIComponent(
-    sessionId,
-  )}`
+  if (!agentId.startsWith('hm://'))
+    return `${gatewayUrl.replace(/\/+$/, '')}/hm/agents/session/${encodeURIComponent(
+      sessionId,
+    )}?server=${encodeURIComponent(serverUrl)}&agent=${encodeURIComponent(agentId)}`
+  return routeToUrl({key: 'agent-session', agentId, serverUrl, sessionId}, {hostname: gatewayUrl}) || undefined
 }
 
 /** Builds the deep link to one event, used by the per-message share action. */
@@ -465,8 +471,9 @@ export function buildAgentSessionEventUrl(
   agentId: string | undefined,
   sessionId: string,
   eventId: string,
+  gatewayUrl?: string,
 ): string | undefined {
-  const sessionUrl = buildAgentSessionUrl(serverUrl, agentId, sessionId)
+  const sessionUrl = buildAgentSessionUrl(serverUrl, agentId, sessionId, gatewayUrl)
   return sessionUrl ? `${sessionUrl}#event=${encodeURIComponent(eventId)}` : undefined
 }
 
@@ -642,7 +649,13 @@ export function buildAgentSessionChatRows(
           eventId: event.id,
           sessionId: event.sessionId,
           seq: event.seq,
-          shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
+          shareUrl: buildAgentSessionEventUrl(
+            context.serverUrl,
+            context.agentId,
+            context.sessionId,
+            event.id,
+            context.gatewayUrl,
+          ),
         },
       })
       continue
@@ -671,7 +684,13 @@ export function buildAgentSessionChatRows(
           eventId: event.id,
           sessionId: event.sessionId,
           seq: event.seq,
-          shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
+          shareUrl: buildAgentSessionEventUrl(
+            context.serverUrl,
+            context.agentId,
+            context.sessionId,
+            event.id,
+            context.gatewayUrl,
+          ),
         },
       }
       rows.push(row)
@@ -714,7 +733,13 @@ export function buildAgentSessionChatRows(
             eventId: event.id,
             sessionId: event.sessionId,
             seq: event.seq,
-            shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
+            shareUrl: buildAgentSessionEventUrl(
+              context.serverUrl,
+              context.agentId,
+              context.sessionId,
+              event.id,
+              context.gatewayUrl,
+            ),
           },
         }
         rows.push(row)
@@ -766,7 +791,13 @@ export function buildAgentSessionChatRows(
             eventId: event.id,
             sessionId: event.sessionId,
             seq: event.seq,
-            shareUrl: buildAgentSessionEventUrl(context.serverUrl, context.agentId, context.sessionId, event.id),
+            shareUrl: buildAgentSessionEventUrl(
+              context.serverUrl,
+              context.agentId,
+              context.sessionId,
+              event.id,
+              context.gatewayUrl,
+            ),
           },
         })
       }

@@ -45,9 +45,15 @@ const comment = new Comment({
 })
 mock.module('./mailer', () => ({sendEmail: sent}))
 mock.module('./notify-request', () => ({
-  grpcClient: {comments: {getComment: async () => comment}},
+  grpcClient: {
+    comments: {
+      getComment: async ({id: requestedId}: {id: string}) =>
+        requestedId === cid ? comment : new Comment({...comment, id: requestedId, replyParent: '', threadRoot: ''}),
+    },
+  },
   requestAPI: async (kind: string, input: any) => {
     if (kind === 'Resource') return {type: 'document', document: {metadata: {name: 'Post'}, authors: [owner]}}
+    if (kind === 'Comment') return {author}
     if (kind === 'ResourceMetadata') return {metadata: {name: 'Post'}}
     if (kind === 'Account')
       return {type: 'account', id: {uid: input}, metadata: {name: input === author ? 'Author' : 'Owner'}}
@@ -79,6 +85,8 @@ beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'seed-comment-email-priority-'))
   process.env.DATA_DIR = dir
   sent.mockClear()
+  comment.threadRoot = ''
+  comment.replyParent = ''
   await initDatabase()
   createSubscription({id: owner, email})
   setNotificationConfig(owner, email)
@@ -113,4 +121,16 @@ it.each([blob, mention])('comment notification emails target the containing docu
   expect(sent).toHaveBeenCalledTimes(1)
   const emailContent = (sent.mock.calls[0]![2] as {text: string}).text
   expect(decodeURIComponent(emailContent)).toContain(`/hm/${owner}/post?panel=comments/${id}`)
+})
+
+it.each([blob, mention])('reply notification emails open the root and highlight the source (%p)', async (makeEvent) => {
+  comment.threadRoot = author + '/root'
+  comment.replyParent = author + '/parent'
+  await processImmediateNotifications([makeEvent()])
+  expect(sent).toHaveBeenCalledTimes(1)
+  const emailContent = (sent.mock.calls[0]![2] as {text: string}).text
+  expect(decodeURIComponent(emailContent)).toContain(
+    `/hm/${owner}/post?panel=comments/${comment.threadRoot}&reply=${id}`,
+  )
+  expect(getAllNotifications(owner)[0]).toMatchObject({commentId: id, threadRoot: comment.threadRoot})
 })

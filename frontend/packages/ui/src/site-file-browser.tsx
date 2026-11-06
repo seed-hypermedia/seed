@@ -10,9 +10,10 @@ import {
   flattenTree,
   getAncestorPathKeys,
 } from '@shm/shared/utils/all-documents-tree'
-import {ChevronDown, ChevronRight, FileText, Grid3X3, Lock, Plus, Search, X} from 'lucide-react'
+import {Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
+import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from './components/dropdown-menu'
 import {Input} from './components/input'
 import {ScrollArea} from './components/scroll-area'
@@ -29,6 +30,8 @@ export interface SiteFileBrowserProps {
   activeDocumentId: UnpackedHypermediaId | null
   onNavigate: (id: UnpackedHypermediaId) => void
   onPrefetch?: (id: UnpackedHypermediaId) => void
+  /** Shows the sidebar Documents heading with filter and creation actions. */
+  showHeader?: boolean
   searchVisible?: boolean
   onSearchVisibleChange?: (visible: boolean) => void
   createMenuItem?: MenuItemType | null
@@ -50,6 +53,7 @@ export function SiteFileBrowser({
   activeDocumentId,
   onNavigate,
   onPrefetch,
+  showHeader = false,
   searchVisible = false,
   onSearchVisibleChange,
   createMenuItem,
@@ -113,7 +117,9 @@ export function SiteFileBrowser({
   const visibleDocuments = query.trim() ? matches : rows.map((row) => row.doc)
   const rowById = useMemo(() => new Map(rows.map((row) => [row.doc.id.id, row])), [rows])
   const createItems = createMenuItem?.children?.filter((item) =>
-    ['new-document', 'new-document-collection', 'new-collection', 'new-private-document'].includes(item.key),
+    ['new-document', 'new-document-collection', 'new-collection', 'new-agent', 'new-private-document'].includes(
+      item.key,
+    ),
   )
 
   function toggle(pathKey: string) {
@@ -130,8 +136,56 @@ export function SiteFileBrowser({
     onSearchVisibleChange?.(false)
   }
 
+  const isHomeActive = activeDocumentId?.uid === siteId.uid && !activeDocumentId.path?.length
+  const createButton = createItems?.length ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="iconSm" aria-label="Create root document" className="text-icon shrink-0">
+          <Plus className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {createItems.map((item) => (
+          <DropdownMenuItem
+            key={item.key}
+            onSelect={() => {
+              item.onClick?.(undefined as never)
+              onCreate?.()
+            }}
+          >
+            {item.key === 'new-document' ? (
+              <FileText className="size-4" />
+            ) : item.key === 'new-document-collection' || item.key === 'new-collection' ? (
+              <Grid3X3 className="size-4" />
+            ) : item.key === 'new-agent' ? (
+              <Bot className="size-4" />
+            ) : (
+              <Lock className="size-4" />
+            )}
+            {item.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null
+
   return (
-    <div className="dark:bg-background flex h-full min-h-0 flex-col bg-white">
+    <div className="flex h-full min-h-0 flex-col bg-transparent">
+      {showHeader && (
+        <div className="flex h-12 shrink-0 items-center gap-1 px-3 pt-2">
+          <span className="text-icon min-w-0 flex-1 text-xs font-semibold tracking-wide uppercase">Documents</span>
+          <Button
+            variant="ghost"
+            size="iconSm"
+            aria-label="Filter documents"
+            className="text-icon"
+            onClick={() => onSearchVisibleChange?.(!searchVisible)}
+          >
+            <Search className="size-4" />
+          </Button>
+          {createButton}
+        </div>
+      )}
       {searchVisible ? (
         <div className="border-border border-b p-3">
           <div className="relative">
@@ -164,50 +218,20 @@ export function SiteFileBrowser({
       ) : null}
 
       <ScrollArea className="scroll-area-full-height min-h-0 flex-1" viewportClassName="[&>div]:!block">
-        <div className="p-2">
+        <div className="px-2 pb-4">
           <div
-            className={cn(
-              'mb-1 flex min-w-0 items-center rounded-md',
-              !activeDocumentId?.path?.length && 'bg-accent text-accent-foreground',
-            )}
+            className={cn('flex min-w-0 items-center rounded-md', isHomeActive && 'bg-accent text-accent-foreground')}
           >
             <button
               type="button"
-              aria-current={!activeDocumentId?.path?.length ? 'page' : undefined}
-              className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center rounded-md px-2 text-left text-sm font-medium outline-none focus-visible:ring-2"
+              aria-current={isHomeActive ? 'page' : undefined}
+              className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 pl-5 text-left text-sm outline-none focus-visible:ring-2"
               onClick={() => onNavigate(siteId)}
             >
+              <Home className="size-4 shrink-0" />
               <span className="truncate">Home</span>
-            </button>
-            {createItems?.length ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="iconSm" aria-label="Create root document" className="ml-auto shrink-0">
-                    <Plus className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {createItems.map((item) => (
-                    <DropdownMenuItem
-                      key={item.key}
-                      onSelect={() => {
-                        item.onClick?.(undefined as never)
-                        onCreate?.()
-                      }}
-                    >
-                      {item.key === 'new-document' ? (
-                        <FileText className="size-4" />
-                      ) : item.key === 'new-document-collection' || item.key === 'new-collection' ? (
-                        <Grid3X3 className="size-4" />
-                      ) : (
-                        <Lock className="size-4" />
-                      )}
-                      {item.label}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
+            </button>{' '}
+            {!showHeader && createButton}{' '}
           </div>
           {isLoading ? (
             <div className="flex h-24 items-center justify-center" aria-label="Loading documents">
@@ -225,6 +249,7 @@ export function SiteFileBrowser({
                 const isActive = doc.id.id === activeDocumentId?.id
                 const isExpanded = row ? expandedPaths.has(row.pathKey) : false
                 const navigationId = unpublishedDraftIds.has(doc.id.id) ? doc.id : latestId(doc.id)
+                const kind = getDocumentKind(doc)
                 return (
                   <div
                     key={doc.id.id}
@@ -239,14 +264,14 @@ export function SiteFileBrowser({
                     {!isFiltered && row?.hasChildren ? (
                       <button
                         type="button"
-                        className="hover:bg-accent/60 focus-visible:ring-ring flex size-6 shrink-0 items-center justify-center rounded-md p-0 outline-none focus-visible:ring-2"
+                        className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 w-5 shrink-0 items-center justify-center rounded-md p-0 outline-none focus-visible:ring-2"
                         aria-label={isExpanded ? `Collapse ${titleOf(doc)}` : `Expand ${titleOf(doc)}`}
                         onClick={() => toggle(row.pathKey)}
                       >
                         {isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                       </button>
                     ) : (
-                      <span className="size-6 shrink-0" />
+                      <span className="h-8 w-5 shrink-0" />
                     )}
                     <button
                       type="button"
@@ -254,16 +279,12 @@ export function SiteFileBrowser({
                       onPointerEnter={() => onPrefetch?.(navigationId)}
                       onFocus={() => onPrefetch?.(navigationId)}
                       onClick={() => onNavigate(navigationId)}
-                      className="hover:bg-accent/60 focus-visible:ring-ring flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-sm outline-none focus-visible:ring-2"
+                      className="hover:bg-accent/60 focus-visible:ring-ring flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md pr-2 text-left text-sm outline-none focus-visible:ring-2"
                     >
-                      {doc.isCollection ? (
-                        <Grid3X3 aria-label="Collection" className="text-icon size-3 shrink-0" />
-                      ) : doc.visibility === 'PRIVATE' ? (
-                        <Lock aria-label="Private document" className="text-icon size-3 shrink-0" />
-                      ) : unpublishedDraftIds.has(doc.id.id) ? (
-                        <FileText aria-label="Unpublished draft" className="size-3 shrink-0 text-yellow-500" />
+                      {kind === 'document' && unpublishedDraftIds.has(doc.id.id) ? (
+                        <FileText aria-label="Unpublished draft" className="size-4 shrink-0 text-yellow-500" />
                       ) : (
-                        <FileText aria-label="Document" className="text-icon size-3 shrink-0" />
+                        <DocumentKindIcon kind={kind} className="size-4 shrink-0" />
                       )}
                       <span className="truncate">{titleOf(doc)}</span>
                     </button>

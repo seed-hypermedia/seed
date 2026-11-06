@@ -73,6 +73,13 @@ CREATE TABLE agents (
 
 CREATE INDEX agents_by_account ON agents (account_id, updated_at DESC);
 
+CREATE TABLE agent_id_aliases (
+    alias TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL REFERENCES agents (id) ON DELETE CASCADE
+) WITHOUT ROWID;
+
+CREATE INDEX agent_id_aliases_by_agent ON agent_id_aliases (agent_id);
+
 CREATE TABLE agent_collaborators (
     agent_id TEXT NOT NULL REFERENCES agents (id),
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -170,6 +177,8 @@ CREATE TABLE session_continuations (
     UNIQUE (predecessor_session_id, tool_call_id)
 ) WITHOUT ROWID;
 
+CREATE INDEX session_continuations_by_agent ON session_continuations (agent_id);
+
 CREATE INDEX session_continuations_by_predecessor ON session_continuations (predecessor_session_id, created_at DESC);
 
 CREATE TABLE trigger_firings (
@@ -192,6 +201,7 @@ CREATE TABLE trigger_firings (
 CREATE INDEX trigger_firings_by_trigger ON trigger_firings (trigger_id, created_at DESC);
 
 CREATE INDEX trigger_firings_by_session ON trigger_firings (account_id, session_id, created_at);
+CREATE INDEX trigger_firings_by_agent ON trigger_firings (agent_id);
 
 CREATE TABLE activity_watermarks (
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -270,6 +280,8 @@ CREATE INDEX runs_by_root ON runs (root_run_id, created_at);
 CREATE INDEX runs_by_parent ON runs (parent_run_id);
 CREATE INDEX runs_by_session ON runs (session_id, created_at DESC);
 CREATE INDEX runs_by_account ON runs (account_id, created_at DESC);
+-- Live-run flag per agent (`busy` in agentActivityColumns): answered from the index alone.
+CREATE INDEX runs_by_agent_status ON runs (agent_id, status);
 
 CREATE TABLE run_journal (
     run_id TEXT NOT NULL REFERENCES runs (id),
@@ -315,6 +327,7 @@ CREATE TABLE agent_drafts (
 CREATE INDEX agent_drafts_account_updated_idx ON agent_drafts (account_id, updated_at DESC);
 CREATE INDEX agent_drafts_agent_updated_idx ON agent_drafts (account_id, agent_id, updated_at DESC);
 CREATE INDEX agent_drafts_status_idx ON agent_drafts (account_id, status);
+CREATE INDEX agent_drafts_by_agent ON agent_drafts (agent_id);
 
 CREATE TABLE action_idempotency (
     account_id TEXT NOT NULL,
@@ -325,6 +338,31 @@ CREATE TABLE action_idempotency (
     created_at INTEGER NOT NULL,
     PRIMARY KEY (account_id, action, client_request_id)
 ) WITHOUT ROWID;
+
+-- The intent and receipt of every side effect a tool call performs (see effect-outbox.ts): a
+-- row is inserted before the effect begins and settled when it ends, keyed by session and tool
+-- call id. `status` is running, succeeded, failed, or interrupted; `response_cbor` is what the
+-- tool returned. Settled rows are pruned after two days.
+CREATE TABLE effect_outbox (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+    run_id TEXT,
+    tool_call_id TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    input_digest TEXT NOT NULL,
+    status TEXT NOT NULL,
+    lease_owner TEXT,
+    response_cbor BLOB,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    completed_at INTEGER
+);
+
+CREATE INDEX effect_outbox_by_session ON effect_outbox (session_id, created_at);
+CREATE INDEX effect_outbox_by_status ON effect_outbox (status, completed_at);
 
 CREATE TABLE tool_documents (
     account_id TEXT NOT NULL REFERENCES accounts (id),
@@ -340,6 +378,7 @@ CREATE TABLE tool_documents (
 ) WITHOUT ROWID;
 
 CREATE INDEX tool_documents_by_agent ON tool_documents (account_id, agent_id, updated_at DESC);
+CREATE INDEX tool_documents_by_agent_id ON tool_documents (agent_id);
 
 CREATE TABLE server_config (
     key TEXT PRIMARY KEY,

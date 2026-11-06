@@ -112,6 +112,10 @@ export function markNotificationEventReadInState(input: {
 
 /**
  * Returns the next read state after marking a single notification event as unread.
+ *
+ * Below the watermark this lowers the watermark and keeps `otherLoadedEvents` read, so any event in that span that
+ * is not listed becomes unread. Clients pass what they loaded for an optimistic update; the notify service passes
+ * its whole inbox, and its answer replaces the client's on the next sync.
  */
 export function markNotificationEventUnreadInState(input: {
   readState: NotificationReadLikeState | undefined

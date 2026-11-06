@@ -1,4 +1,6 @@
-import {describe, expect, test} from 'vitest'
+import {describe, expect, test, vi} from 'vitest'
+import {createElement, useContext, type MouseEvent} from 'react'
+import {renderToStaticMarkup} from 'react-dom/server'
 import {
   commentsRouteSchema,
   createDocumentNavRoute,
@@ -7,18 +9,87 @@ import {
   createRouteFromInspectNavRoute,
   defaultRoute,
   getActivityBellTarget,
+  getExpandedDocumentPanel,
   getRecentsRouteEntityUrl,
   isActivityOpen,
   navRouteSchema,
   replaceRouteDocumentId,
   type NavRoute,
 } from '../routes'
-import {routeToHref} from '../routing'
+import {routeToHref, UniversalAppContext, useRouteLink} from '../routing'
 import {extractViewTermFromUrl, hmId, routeToUrl, unpackHmId, viewTermToRouteKey} from '../utils/entity-id-url'
 import {appRouteOfId} from '../utils/navigation'
 import {hypermediaUrlToRoute} from '../utils/url-to-route'
 
 const testDocId = hmId('testuid123')
+describe('expanded document panels', () => {
+  const id = hmId('testuid123', {path: ['random', 'path'], version: 'version123'})
+
+  test.each([
+    ['comments', 'Comments'],
+    ['metadata', 'Attributes'],
+    ['collaborators', 'People'],
+  ] as const)('collapses %s onto the same document', (key, title) => {
+    const expanded = getExpandedDocumentPanel({key, id})
+    expect(expanded).toEqual({title, panel: {key, id}})
+    const collapsed: NavRoute = {key: 'document', id, panel: expanded!.panel}
+    expect(hypermediaUrlToRoute(routeToUrl(collapsed)!)).toMatchObject({
+      key: 'document',
+      id: {uid: id.uid, path: id.path, version: id.version},
+      panel: {key},
+    })
+  })
+
+  test('preserves the selected comment thread', () => {
+    expect(
+      getExpandedDocumentPanel({key: 'comments', id, openComment: 'author/root', replyCommentId: 'author/reply'}),
+    ).toEqual({
+      title: 'Comments',
+      panel: {key: 'comments', id, openComment: 'author/root', replyCommentId: 'author/reply'},
+    })
+  })
+
+  test('preserves the block selected in Connections', () => {
+    const filterEventType = ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link']
+    const blockId = {...id, blockRef: 'block123'}
+    expect(getExpandedDocumentPanel({key: 'activity', id: blockId, filterEventType})).toEqual({
+      title: 'Connections',
+      panel: {key: 'activity', id: blockId, filterEventType, targetBlockId: 'block123'},
+    })
+  })
+
+  test('does not replace tools on document and other activity views', () => {
+    expect(getExpandedDocumentPanel({key: 'document', id})).toBeNull()
+    expect(getExpandedDocumentPanel({key: 'activity', id})).toBeNull()
+  })
+})
+
+test('mounted agent links open the document route for clicks and new windows', () => {
+  const id = hmId('owner', {path: ['helper']})
+  const openRoute = vi.fn()
+  const openRouteNewWindow = vi.fn()
+  let link: ReturnType<typeof useRouteLink> | undefined
+  function Link() {
+    link = useRouteLink({key: 'agent-session', agentId: id.id, sessionId: 'conversation'})
+    return null
+  }
+  function Harness() {
+    const defaults = useContext(UniversalAppContext)
+    return createElement(
+      UniversalAppContext.Provider,
+      {value: {...defaults, openRoute, openRouteNewWindow}},
+      createElement(Link),
+    )
+  }
+  renderToStaticMarkup(createElement(Harness))
+  expect(link?.href).toBe('/hm/owner/helper/:session/conversation')
+  const event = {stopPropagation: vi.fn(), preventDefault: vi.fn()} as unknown as MouseEvent<HTMLElement>
+  link?.onClick?.(event)
+  link?.onClick?.({...event, metaKey: true})
+  const expected = {key: 'document', id: unpackHmId(id.id), agentView: 'session', agentSessionId: 'conversation'}
+  expect(openRoute).toHaveBeenCalledWith(expected, undefined)
+  expect(openRouteNewWindow).toHaveBeenCalledWith(expected)
+})
 
 test('defaults new windows to onboarding', () => {
   expect(defaultRoute).toEqual({key: 'onboarding'})
@@ -257,7 +328,7 @@ describe('createDocumentNavRoute', () => {
         panel: {
           key: 'activity',
           id: testDocId,
-          filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+          filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
         },
       })
     })
@@ -289,7 +360,7 @@ describe('createDocumentNavRoute', () => {
       expect(route).toEqual({
         key: 'activity',
         id: testDocId,
-        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
         panel: null,
       })
     })
@@ -419,7 +490,7 @@ describe('createRouteFromInspectNavRoute', () => {
     expect(createRouteFromInspectNavRoute({key: 'inspect', id: testDocId}, 'citations')).toEqual({
       key: 'activity',
       id: testDocId,
-      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button'],
+      filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
       panel: null,
     })
   })
@@ -527,7 +598,11 @@ describe('routeToHref', () => {
 
   test('activity route with citations filter generates view-term href', () => {
     const href = routeToHref(
-      {key: 'activity', id: hmId('uid1'), filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button']},
+      {
+        key: 'activity',
+        id: hmId('uid1'),
+        filterEventType: ['comment/Embed', 'doc/Embed', 'doc/Link', 'doc/Button', 'metadata/Link'],
+      },
       {originHomeId: originHome},
     )
     expect(href).toBe('/:activity/citations')

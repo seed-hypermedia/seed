@@ -12,7 +12,7 @@ import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const state = vi.hoisted(() => ({comments: [] as HMComment[]}))
+const state = vi.hoisted(() => ({comments: [] as HMComment[], detachedComments: [] as HMComment[]}))
 vi.mock('@shm/shared', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@shm/shared')>()),
   useRouteLink: () => ({href: '#'}),
@@ -33,7 +33,13 @@ vi.mock('@shm/shared/models/entity', () => ({
   useAccounts: (ids: Array<string | null>) => ids.map(() => ({data: {metadata: {name: 'Alice'}}})),
   useIsCurrentUser: () => false,
   useResources: () => [],
-  useResource: () => ({data: {type: 'comment', comment: state.comments[0]}, isLoading: false}),
+  useResource: (id: {uid: string; path?: string[]} | null) => {
+    if (!id) return {data: {type: 'not-found'}, isLoading: false}
+    const key = `${id.uid}/${id.path?.[0] ?? ''}`
+    const found = [...state.comments, ...state.detachedComments].find((comment) => comment.id === key)
+    if (found) return {data: {type: 'comment', comment: found}, isLoading: false}
+    return {data: {type: 'not-found'}, isLoading: false}
+  },
 }))
 vi.mock('@shm/shared/document-actions-context', () => ({
   useDocumentActions: () => ({isBookmarked: () => false}),
@@ -52,7 +58,7 @@ vi.mock('@shm/shared/utils/navigation', () => ({
 }))
 vi.mock('../page-layout', () => ({PageLayout: ({children}: {children: React.ReactNode}) => <div>{children}</div>}))
 vi.mock('../components/scroll-area', () => ({
-  ScrollArea: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
+  ScrollArea: ({children}: {children: React.ReactNode}) => <div data-slot="scroll-area-viewport">{children}</div>,
 }))
 vi.mock('../collaborators-page', () => ({getRenderedCollaboratorsCount: () => 0}))
 
@@ -85,6 +91,7 @@ let references: ReturnType<typeof useCommentDraftReferences>
 let editorProps: CommentEditorProps
 let updateDraft: (text: string) => void
 let scrolled: HTMLElement[]
+const resizeCallbacks = new Set<() => void>()
 
 function DraftEditor(props: CommentEditorProps) {
   editorProps = props
@@ -96,7 +103,7 @@ function ReferenceProbe() {
   references = useCommentDraftReferences()
   return null
 }
-function render(isPanel: boolean, replyCommentId?: string) {
+function render(isPanel: boolean, replyCommentId?: string, openComment: string = rootComment.id) {
   act(() => {
     root.render(
       <CommentDraftReferenceProvider>
@@ -105,7 +112,7 @@ function render(isPanel: boolean, replyCommentId?: string) {
           <DiscussionsPageContent
             docId={docId}
             isPanel={isPanel}
-            openComment={rootComment.id}
+            openComment={openComment}
             replyCommentId={replyCommentId}
             commentEditor={<DraftEditor docId={docId} />}
           />
@@ -115,7 +122,21 @@ function render(isPanel: boolean, replyCommentId?: string) {
   })
 }
 beforeEach(() => {
+  resizeCallbacks.clear()
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      constructor(private callback: () => void) {}
+      observe() {
+        resizeCallbacks.add(this.callback)
+      }
+      disconnect() {
+        resizeCallbacks.delete(this.callback)
+      }
+    },
+  )
   state.comments = [rootComment, reply]
+  state.detachedComments = []
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -129,10 +150,33 @@ afterEach(() => {
   container.remove()
   Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
   vi.useRealTimers()
+  vi.unstubAllGlobals()
 })
 
 for (const isPanel of [true, false]) {
   describe(isPanel ? 'Panel reply selection' : 'Expanded reply selection', () => {
+    it('scrolls to the highlighted reply on entry and keeps the root reply editor visible', () => {
+      render(isPanel, reply.id)
+      expect(scrolled.at(-1)?.textContent).toContain('Selected reply')
+      expect(scrolled.at(-1)?.contains(container.querySelector('.bg-highlight')!)).toBe(true)
+      expect(container.querySelector('textarea')).not.toBeNull()
+      expect(editorProps.commentId).toBe(rootComment.id)
+    })
+
+    if (isPanel)
+      it('keeps the reply visible as the editor grows, until the user scrolls', () => {
+        render(isPanel, reply.id)
+        scrolled = []
+        act(() => resizeCallbacks.forEach((callback) => callback()))
+        expect(scrolled.at(-1)?.textContent).toContain('Selected reply')
+        container
+          .querySelector('[data-slot="scroll-area-viewport"]')!
+          .dispatchEvent(new WheelEvent('wheel', {bubbles: true}))
+        scrolled = []
+        act(() => resizeCallbacks.forEach((callback) => callback()))
+        expect(scrolled).toEqual([])
+      })
+
     it('queues the selected reply once without changing the root draft or submission target', () => {
       render(isPanel)
       act(() => updateDraft('Keep my unsent text'))
@@ -195,6 +239,33 @@ for (const isPanel of [true, false]) {
       render(isPanel)
       expect(container.querySelectorAll('.bg-highlight')).toHaveLength(1)
       expect(container.querySelector('.bg-highlight')?.textContent).toContain('Root message')
+    })
+
+    it('renders the reply editor from the comment itself when the list lags behind the notification', () => {
+      state.comments = []
+      state.detachedComments = [rootComment]
+      render(isPanel, undefined, rootComment.id)
+      expect(container.querySelector('textarea')).not.toBeNull()
+      expect(editorProps.commentId).toBe(rootComment.id)
+      expect(editorProps.replyCommentVersion).toBe(rootComment.version)
+      expect(editorProps.rootReplyCommentVersion).toBe(rootComment.version)
+    })
+
+    it('targets the thread root when a lagging list opens a reply directly', () => {
+      state.comments = []
+      state.detachedComments = [reply]
+      render(isPanel, undefined, reply.id)
+      expect(container.querySelector('textarea')).not.toBeNull()
+      expect(editorProps.commentId).toBe(rootComment.id)
+      expect(editorProps.replyCommentVersion).toBe(rootComment.version)
+      expect(editorProps.rootReplyCommentVersion).toBe(rootComment.version)
+    })
+
+    it('hides the reply editor when the opened comment belongs to another document', () => {
+      state.comments = []
+      state.detachedComments = [{...rootComment, targetPath: '/other-doc'}]
+      render(isPanel, undefined, rootComment.id)
+      expect(container.querySelector('textarea')).toBeNull()
     })
   })
 }

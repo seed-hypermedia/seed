@@ -25,7 +25,7 @@ import '@seed-hypermedia/agents-ui/styles.css'
 
 # Routes and links <!-- id:FY4W5CCT -->
 
-A `SeedAgentsRoute` is one place in the UI: the agents list, a server, an agent and one of its tabs, a session, or a run. The routes are the Seed apps' own, and `seedAgentsRouteToPath` writes one as the part of a web URL after `/hm/agents/`, for example `session/<id>?agent=<id>`. An app keeps that path in its own URL and passes the route back in. Links therefore open the same place in the app, in the Seed web app and on the desktop. <!-- id:t88HurUU -->
+A `SeedAgentsRoute` is one place in the UI: an agent and one of its tabs, a session, or a run. The routes are the Seed apps' own, and `seedAgentsRouteToPath` writes one as the part of a web URL after `/hm/agents/`, for example `session/<id>?agent=<id>`. An app keeps that path in its own URL and passes the route back in. Links therefore open the same place in the app, in the Seed web app and on the desktop. <!-- id:t88HurUU -->
 
 # Calling the service from code <!-- id:wn6hRGVV -->
 

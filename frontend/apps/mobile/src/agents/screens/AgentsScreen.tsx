@@ -17,7 +17,7 @@ import type {RootStackParamList} from '../../navigation/types'
 import {useAgentsAccount} from '../account'
 import {CreateAgentSheet} from '../components/CreateAgentSheet'
 import {ProvidersSheet} from '../components/ProvidersSheet'
-import {Badge, Button, Card, ErrorNote, Field, Label, Section, Sheet, StatePanel, StatusDot} from '../ui/primitives'
+import {Badge, Button, Card, ErrorNote, Field, Label, Section, Sheet, StatePanel} from '../ui/primitives'
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Agents'>
@@ -55,7 +55,6 @@ export function AgentsScreen({navigation}: Props) {
     )
   }
 
-  const healthTone = health.isLoading ? 'idle' : health.data ? 'active' : 'error'
   const healthText = health.isLoading ? 'Checking…' : health.data ? 'Online' : 'Offline'
 
   return (
@@ -88,7 +87,6 @@ export function AgentsScreen({navigation}: Props) {
                 {serverUrl ?? 'Not configured'}
               </Label>
               <View style={styles.statusRow}>
-                <StatusDot tone={healthTone} />
                 <Label size="xs" tone="muted">
                   {healthText}
                 </Label>

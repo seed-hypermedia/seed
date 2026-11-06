@@ -1,11 +1,13 @@
+import {ActivityPanelPortal, WebActivityPanelLayout} from './activity-panel-layout'
 import {ConnectionsPanel} from './connections-panel'
 import {PanelHeader} from './panel-header'
 import {groupDocumentConnections} from '@shm/shared/connections'
 import {useQueryViewFilters} from '@shm/shared/models/use-query-view-filters'
 import {useQueryClient} from '@tanstack/react-query'
-import {getCommentThread} from '@shm/shared/comments'
+import {commentThreadSelection, getCommentThread} from '@shm/shared/comments'
 import {queryDocumentComments} from '@shm/shared/models/queries'
 import type {EditorBlock, EditorQueryBlock} from '@seed-hypermedia/client/editor-types'
+import {AgentDocumentView} from './agent-document-view'
 import {
   BlockRange,
   countCustomMetadataFields,
@@ -14,6 +16,8 @@ import {
   HMComment,
   HMDocument,
   HMExistingDraft,
+  HMListedDraft,
+  HMMetadata,
   HMQueryTableConfig,
   HMQueryBlockInput,
   HMRawCitation,
@@ -109,10 +113,11 @@ import {
   useVersionLatestSync,
 } from '@shm/shared/models/use-document-machine'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
-import {getRoutePanel} from '@shm/shared/routes'
+import {getExpandedDocumentPanel, getRoutePanel} from '@shm/shared/routes'
 import {ActivityContent, ActivityHeader} from './activity-panel'
 import {useOpenUrl, useUniversalClient} from '@shm/shared/routing'
 import {DocumentPageView, documentPageCid} from './document-page'
+import {usePublishError} from './editing-toolbar'
 import {getBreadcrumbDocumentIds, isDraftPathSegment} from '@shm/shared/utils/breadcrumbs'
 import {
   activitySlugToFilter,
@@ -137,6 +142,7 @@ import {
   Grid3X3,
   Info,
   MessagesSquare,
+  Minimize2,
   ShieldCheck,
   SlidersHorizontal,
   Users,
@@ -184,7 +190,7 @@ import {RequiredAttributesEditor} from './required-attributes-editor'
 import {schemaDefinitionCid, SchemaDocumentHeaderActions, useSchemaMenuItems} from './schema/schema-document'
 import {HMEntityField, HMEntityLink} from './hm-entity-field'
 import {emptyStructSchema, SchemaEditor} from './schema/schema-editor'
-import {SizableText} from './text'
+import {SizableText, Text} from './text'
 import {SchemaBrowserPage} from './schema/schema-browser'
 import {
   classifyRef,
@@ -230,6 +236,40 @@ import {useCopyHmLink} from './use-copy-hm-link'
 import {useMedia} from './use-media'
 import {cn} from './utils'
 import {AttributeAutocomplete, AttributeAutocompleteProvider} from './value-editor'
+
+/** Build a draft breadcrumb while preserving published metadata omitted by partial draft edits. */
+export function getDraftBreadcrumbEntry({
+  id,
+  draft,
+  publishedMetadata,
+  currentMetadata,
+  isUnpublishedDraft,
+  isLoading,
+}: {
+  id: UnpackedHypermediaId
+  draft: HMListedDraft
+  publishedMetadata?: HMMetadata
+  currentMetadata?: HMMetadata
+  isUnpublishedDraft: boolean
+  isLoading: boolean
+}): BreadcrumbEntry {
+  const metadata = {...publishedMetadata, ...draft.metadata, ...currentMetadata}
+  return {
+    id,
+    metadata,
+    draftId: draft.id,
+    fallbackName: isUnpublishedDraft
+      ? draft.visibility === 'PRIVATE'
+        ? 'New Private Document'
+        : 'New Document'
+      : 'Untitled Document',
+    isLoading: !metadata.name && isLoading,
+    isTombstone: false,
+    isNotFound: false,
+    isError: false,
+    isUnpublishedDraft,
+  }
+}
 
 /** Creates a right-panel route showing citations to one block. */
 export function getBlockCitationsPanelRoute(
@@ -885,8 +925,7 @@ export function getCommentReplyPanelRoute({
   return {
     key: 'comments',
     id: targetRoute || docId,
-    openComment: comment.threadRoot || comment.id,
-    replyCommentId: comment.threadRoot && comment.threadRoot !== comment.id ? comment.id : undefined,
+    ...commentThreadSelection(comment),
     ...replyVersionData,
   }
 }
@@ -1128,6 +1167,7 @@ function ResourcePageContent({
   const isSiteProfile = route.key === 'site-profile'
   const media = useMedia()
   const [liveNavigationItems, setLiveNavigationItems] = useState<DocNavigationItem[] | undefined>()
+  const publishError = usePublishError()
   const [editNavPanePortalElement, setEditNavPanePortalElement] = useState<HTMLDivElement | null>(null)
 
   const handleResourceRedirect = useCallback(
@@ -1528,6 +1568,7 @@ function ResourcePageContent({
       transientResourceError={transientResourceError}
       liveNavigationItems={liveNavigationItems}
     >
+      {publishError.content}
       <DocumentMachineProvider
         // Recreate the machine only when the identity it's bound to changes: the
         // resolved doc id (path change on first publish) or the ROUTE's pinned
@@ -1549,6 +1590,7 @@ function ResourcePageContent({
         }}
         machine={machine}
         inspect={inspect}
+        onPublishError={publishError.showError}
       >
         <DocumentNavigationItemsBridge docId={renderedDocId} onItemsChange={setLiveNavigationItems} />
         {editNavPane && editNavPanePortalElement ? createPortal(editNavPane, editNavPanePortalElement) : null}
@@ -1747,34 +1789,7 @@ export function PageShell({
   const itemsForHeader = liveNavigationItems ?? headerData.items
 
   return (
-    <div
-      // The SSR fallback for the measured --site-header-live-h. The values
-      // live in a stylesheet (web app styles.css) rather than an inline
-      // style because the header height is responsive; only the pre-hydration
-      // web paint ever reads them.
-      data-header-layout={headerData.isCenterLayout ? 'center' : 'bar'}
-      className={cn(
-        'dark:bg-background flex max-h-full flex-col bg-white',
-        // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
-        // On mobile: natural height for document scrolling
-        isMobile ? 'min-h-dvh has-[[data-document-page-main]]:h-dvh' : 'h-dvh',
-      )}
-    >
-      <SiteHeader
-        siteHomeId={siteHomeId}
-        docId={docId}
-        items={itemsForHeader}
-        homeNavigationItems={headerData.homeNavigationItems}
-        directoryItems={headerData.directoryItems}
-        isCenterLayout={headerData.isCenterLayout}
-        document={document}
-        siteHomeDocument={headerData.siteHomeDocument}
-        notifyServiceHost={NOTIFY_SERVICE_HOST}
-        rightActions={rightActions}
-        editNavPane={editNavPanePortalRef ? undefined : editNavPane}
-        editNavPanePortalRef={editNavPanePortalRef}
-      />
-      <TransientResourceBanner error={transientResourceError ?? null} />
+    <WebActivityPanelLayout>
       <SiteFileBrowserLayout
         siteId={hmId(siteHomeId.uid)}
         activeDocumentId={docId}
@@ -1790,9 +1805,38 @@ export function PageShell({
           navigate({key: 'document', id})
         }}
       >
-        {children}
+        <div
+          // The SSR fallback for the measured --site-header-live-h. The values
+          // live in a stylesheet (web app styles.css) rather than an inline
+          // style because the header height is responsive; only the pre-hydration
+          // web paint ever reads them.
+          data-header-layout={headerData.isCenterLayout ? 'center' : 'bar'}
+          className={cn(
+            'dark:bg-background flex max-h-full flex-col bg-white',
+            // On desktop: fill viewport height for element scrolling (use dvh for mobile browsers)
+            // On mobile: natural height for document scrolling
+            isMobile ? 'min-h-dvh has-[[data-document-page-main]]:h-dvh' : 'h-dvh',
+          )}
+        >
+          <SiteHeader
+            siteHomeId={siteHomeId}
+            docId={docId}
+            items={itemsForHeader}
+            homeNavigationItems={headerData.homeNavigationItems}
+            directoryItems={headerData.directoryItems}
+            isCenterLayout={headerData.isCenterLayout}
+            document={document}
+            siteHomeDocument={headerData.siteHomeDocument}
+            notifyServiceHost={NOTIFY_SERVICE_HOST}
+            rightActions={rightActions}
+            editNavPane={editNavPanePortalRef ? undefined : editNavPane}
+            editNavPanePortalRef={editNavPanePortalRef}
+          />
+          <TransientResourceBanner error={transientResourceError ?? null} />
+          <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+        </div>
       </SiteFileBrowserLayout>
-    </div>
+    </WebActivityPanelLayout>
   )
 }
 
@@ -2201,6 +2245,12 @@ function DocumentBody({
   const panelRoute = getRoutePanel(route) as DocumentPanelRoute | null
   const panelKey = panelRoute?.key ?? null
   const commentsPanelTarget = getCommentsPanelTarget(docId, panelRoute)
+  const expandedPanel = getExpandedDocumentPanel(route)
+  const fullWidthHeader = isCollection && !expandedPanel
+  const [inlineCollapseButton, setInlineCollapseButton] = useState<HTMLButtonElement | null>(null)
+  const collapseExpandedPanel = () => {
+    if (expandedPanel) navigate({key: 'document', id: docId, panel: expandedPanel.panel})
+  }
 
   // Extract discussions-specific params from route or from explicit props
   const discussionsParams =
@@ -2232,10 +2282,26 @@ function DocumentBody({
   // Explore searches the whole space rather than presenting a document,
   // so it drops the document's chrome.
   const showDocumentChrome = activeView !== 'explore'
+  // A mounted agent's document is the agent: no cover, icon, title, byline or timestamp above
+  // its tabs, which are the whole page.
+  const isAgentDocument = document.metadata.type === 'hm://hyper.media/agent'
+  // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
+  // the page around it stops scrolling and hands it the remaining height, as a document page does.
+  // An agent document's base URL opens its sessions, so it lays out like any agent view.
+  const isAgentView = route.key === 'document' && (!!route.agentView || isAgentDocument)
+  const fixedHeightMain = !!documentPage || isAgentView
 
   // Extract blockRef from route for scroll-to-block and highlighting
-  const routeBlockRef = 'id' in route && typeof route.id === 'object' ? route.id.blockRef : null
-  const {scrollToBlock} = useBlockScroll(routeBlockRef, {navigationKey: 'id' in route ? route.id : null})
+  const routeBlockRef = route.key === 'document' ? route.id.blockRef : null
+  const sourceBlocks = shouldUseDraftOverlay ? effectiveContent : document.content
+  const blockExists = useMemo(
+    () =>
+      routeBlockRef && !documentIsPlaceholderData && (!shouldUseDraftOverlay || draftResolution !== undefined)
+        ? !!findContentBlock(sourceBlocks ?? [], routeBlockRef)
+        : undefined,
+    [routeBlockRef, documentIsPlaceholderData, shouldUseDraftOverlay, draftResolution, sourceBlocks],
+  )
+  const {scrollToBlock} = useBlockScroll(routeBlockRef, {navigationKey: route, blockExists})
 
   // On mount, sync URL hash (#blockId) into route if not already present
   useEffect(() => {
@@ -2325,10 +2391,7 @@ function DocumentBody({
   // current web), so the daemon-fetch path stays unchanged there.
   const accountDrafts = useDraftsForAccountSafe(docId.uid)
 
-  // Resolve each breadcrumb segment to a local draft when possible. A draft
-  // match short-circuits the daemon fetch and the discovery subscription —
-  // we pass `null` at draft positions to `useResources` (see below) which
-  // honours `enabled: !!id` and skips both.
+  // Resolve draft overlays without losing the published metadata they inherit.
   const draftsForBreadcrumbs = useMemo(
     () => breadcrumbIds.map((id) => findDraftForPath(accountDrafts.data, id.uid, id.path ?? [])),
     [breadcrumbIds, accountDrafts.data],
@@ -2352,13 +2415,16 @@ function DocumentBody({
     [breadcrumbIds, accountDrafts.isLoading, reservedDraftBreadcrumbNames],
   )
 
-  // Mask draft positions so `useResources` skips the daemon `Resource`
-  // request and the discovery subscription for them. Array length is
-  // preserved so downstream index-based access stays aligned.
+  // Only unpublished placeholders lack a server resource. Existing documents
+  // still supply the title when their draft contains only body edits.
   const resourceFetchIds = useMemo(
     () =>
       breadcrumbIds.map((id, i) =>
-        draftsForBreadcrumbs[i] || pendingDraftLookup[i] || reservedDraftBreadcrumbNames[i] ? null : id,
+        isDraftPlaceholderPath(id.path, draftsForBreadcrumbs[i]?.id) ||
+        pendingDraftLookup[i] ||
+        reservedDraftBreadcrumbNames[i]
+          ? null
+          : id,
       ),
     [breadcrumbIds, draftsForBreadcrumbs, pendingDraftLookup, reservedDraftBreadcrumbNames],
   )
@@ -2384,23 +2450,23 @@ function DocumentBody({
           ? ctx.metadata?.name || (existingDraft ? existingDraft.metadata?.name : undefined)
           : undefined
       const reservedDraftBreadcrumbName = reservedDraftBreadcrumbNames[i]
-      const fallbackName = currentDraftName || reservedDraftBreadcrumbName || id.path?.at(-1) || id.uid.slice(0, 8)
+      const fallbackName = currentDraftName || reservedDraftBreadcrumbName || 'Untitled Document'
 
       if (draft) {
         const draftIsUnpublished = isDraftPlaceholderPath(id.path, draft.id) || (isCurrent && isUnpublishedDraft)
-        const draftMetadata = draft.metadata ?? {}
-        const draftName = currentDraftName || draftMetadata.name
-        return {
+        const result = breadcrumbResults[i]
+        return getDraftBreadcrumbEntry({
           id,
-          metadata: draftName ? {...draftMetadata, name: draftName} : draftMetadata,
-          draftId: draft.id,
-          fallbackName: draftName || fallbackName,
-          isLoading: false,
-          isTombstone: false,
-          isNotFound: false,
-          isError: false,
+          draft,
+          publishedMetadata: isCurrent
+            ? ctx.document?.metadata ?? document.metadata
+            : result?.data?.type === 'document'
+              ? result.data.document.metadata
+              : undefined,
+          currentMetadata: isCurrent && draftOverlayAllowed ? ctx.metadata : undefined,
           isUnpublishedDraft: draftIsUnpublished,
-        }
+          isLoading: !isCurrent && !draftIsUnpublished && (!result || result.isLoading || result.isDiscovering),
+        })
       }
 
       if (reservedDraftBreadcrumbName) {
@@ -2497,7 +2563,10 @@ function DocumentBody({
     metadata,
     isUnpublishedDraft,
     existingDraft,
-    ctx.metadata?.name,
+    ctx.metadata,
+    ctx.document?.metadata,
+    document.metadata,
+    draftOverlayAllowed,
     activeView,
     focusedBlock,
     focusedBlockMentionNames,
@@ -2789,7 +2858,8 @@ function DocumentBody({
     }
   }, [docId, navigate, route.key, experiments?.developerTools])
   const documentOptionsMenuItem = useMemo<MenuItemType | null>(() => {
-    if (!canEditCurrentRoute) return null
+    // An agent has its own Settings tab; the document's settings panel is not offered.
+    if (!canEditCurrentRoute || isAgentDocument) return null
     return {
       key: 'options',
       label: 'Document Settings',
@@ -2799,7 +2869,7 @@ function DocumentBody({
         replaceRoute({...route, panel: newPanel} as any)
       },
     }
-  }, [canEditCurrentRoute, panelKey, route, replaceRoute])
+  }, [canEditCurrentRoute, isAgentDocument, panelKey, route, replaceRoute])
   // On the Attributes page, a field outside the attributes schema is added from the options menu.
   const addRawFieldMenuItem = useMemo<MenuItemType | null>(() => {
     if (!canEditCurrentRoute || route.key !== 'metadata') return null
@@ -2834,14 +2904,15 @@ function DocumentBody({
   }, [canEditCurrentRoute, isCollection])
 
   const convertToCollectionMenuItem = useMemo<MenuItemType | null>(() => {
-    if (isCollection || !canEditCurrentRoute) return null
+    // An agent's document is the agent, never a collection.
+    if (isCollection || !canEditCurrentRoute || isAgentDocument) return null
     return {
       key: 'convert-to-collection',
       label: 'Convert to Collection',
       icon: <Grid3X3 className="size-4" />,
       onClick: () => setPendingDocumentConversion('collection'),
     }
-  }, [canEditCurrentRoute, isCollection])
+  }, [canEditCurrentRoute, isAgentDocument, isCollection])
 
   // The schema actions (New Document / New Collection / Extend / New Raw Value) ride in the
   // regular options menu; the list is empty unless the document defines a schema.
@@ -2874,6 +2945,18 @@ function DocumentBody({
     } else unorderedItems.push(citationFragmentToggleMenuItem)
     if (inspectMenuItem) unorderedItems.push(inspectMenuItem)
     if (documentOptionsMenuItem) unorderedItems.push(documentOptionsMenuItem)
+    // An agent's tab bar has no Attributes tab; the options menu opens that panel instead.
+    if (isAgentDocument && !documentPage)
+      unorderedItems.push({
+        key: 'app-attributes',
+        label: 'Attributes',
+        icon: <Info className="size-4" />,
+        onClick: () =>
+          replaceRoute({
+            ...route,
+            panel: {key: 'metadata', id: {...docId, blockRef: null, blockRange: null}},
+          } as NavRoute),
+      })
     if (addRawFieldMenuItem) unorderedItems.push(addRawFieldMenuItem)
     unorderedItems.push(...schemaMenuItems)
     if (convertToCollectionMenuItem) unorderedItems.push(convertToCollectionMenuItem)
@@ -2897,6 +2980,7 @@ function DocumentBody({
     citationFragmentToggleMenuItem,
     inspectMenuItem,
     documentOptionsMenuItem,
+    isAgentDocument,
     addRawFieldMenuItem,
     convertToCollectionMenuItem,
     convertToDocumentMenuItem,
@@ -2996,6 +3080,11 @@ function DocumentBody({
       }
       actions={topBarActions}
       isMobile={isMobile}
+      collapseAction={
+        expandedPanel
+          ? {inlineButton: inlineCollapseButton, title: expandedPanel.title, onCollapse: collapseExpandedPanel}
+          : undefined
+      }
     />
   )
 
@@ -3023,17 +3112,21 @@ function DocumentBody({
     <div
       className={cn(
         'flex flex-col',
-        pageFooter &&
-          'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]',
-        !pageFooter && 'min-h-full',
+        isAgentView
+          ? 'h-full min-h-0'
+          : pageFooter
+            ? 'min-h-[calc(100dvh-var(--site-header-live-h,var(--site-header-default-h,60px))-var(--hm-host-banner-h,0px))]'
+            : 'min-h-full',
       )}
     >
       {documentConversionDialog}
-      <DocumentCover
-        cover={metadata?.cover}
-        onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
-        onChangeCover={canEditCurrentRoute && metadata?.cover && fileUpload ? changeCover : undefined}
-      />
+      {!isAgentDocument && (
+        <DocumentCover
+          cover={metadata?.cover}
+          onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
+          onChangeCover={canEditCurrentRoute && metadata?.cover && fileUpload ? changeCover : undefined}
+        />
+      )}
       {isHomeDoc && canEditCurrentRoute && activeView === 'content' ? (
         <HomeDocumentMetadataControls metadata={metadata as any} fileUpload={fileUpload} />
       ) : null}
@@ -3045,15 +3138,15 @@ function DocumentBody({
             wrapperProps.className,
             'flex-none',
             !showSidebars && 'justify-center',
-            isCollection && '!block w-full',
+            fullWidthHeader && '!block w-full',
           )}
-          style={isCollection ? {...wrapperProps.style, maxWidth: undefined} : wrapperProps.style}
+          style={fullWidthHeader ? {...wrapperProps.style, maxWidth: undefined} : wrapperProps.style}
         >
           {showSidebars && !isCollection && <div {...sidebarProps} className={cn(sidebarProps.className, '!h-auto')} />}
           <div
             {...mainContentProps}
-            className={cn(mainContentProps.className, 'flex flex-col', isCollection && '!w-full !max-w-none')}
-            style={isCollection ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
+            className={cn(mainContentProps.className, 'flex flex-col', fullWidthHeader && '!w-full !max-w-none')}
+            style={fullWidthHeader ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
             {showMembersFacepile && (
               <div className="pt-4">
@@ -3061,6 +3154,7 @@ function DocumentBody({
               </div>
             )}
             {!isHomeDoc &&
+              !isAgentDocument &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
                   docId={docId}
@@ -3088,8 +3182,8 @@ function DocumentBody({
         </div>
       ) : (
         <div
-          className={cn('mx-auto flex w-full flex-col px-4')}
-          style={{maxWidth: isCollection ? undefined : contentMaxWidth}}
+          className={cn('mx-auto flex w-full flex-col', !expandedPanel && 'px-4')}
+          style={{maxWidth: fullWidthHeader ? undefined : contentMaxWidth}}
         >
           {showMembersFacepile && (
             <div className="pt-4">
@@ -3097,6 +3191,7 @@ function DocumentBody({
             </div>
           )}
           {!isHomeDoc &&
+            !isAgentDocument &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
                 docId={docId}
@@ -3121,99 +3216,140 @@ function DocumentBody({
             ))}
         </div>
       )}
-
-      {/* Document tools scroll with the page and are hidden when showActivity is false. */}
-      {showActivity && showDocumentChrome && (
-        <div className="px-5 py-1">
-          <DocumentTools
-            id={docId}
-            activeTab={
-              activeView === 'activity' &&
-              activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
-                ? 'citations'
-                : activeView === 'activity' ||
-                    activeView === 'directory' ||
-                    activeView === 'site-profile' ||
-                    activeView === 'all-documents'
-                  ? undefined
-                  : activeView
-            }
-            currentPanel={panelRoute}
-            currentRoute={route}
-            commentsCount={interactionSummary.data?.comments || 0}
-            citationsCount={connectionCount}
-            collabsCount={peopleCount}
-            collaborators={collaborators.data}
-            metadataCount={countCustomMetadataFields(metadata)}
-            schemaCid={schemaDefinitionCid(metadata)}
-            layoutProps={
-              isMobile || isCollection
-                ? undefined
-                : {
-                    wrapperProps,
-                    sidebarProps,
-                    mainContentProps,
-                    showSidebars,
-                  }
-            }
-          />
+      {/* Document tools scroll with the page and are hidden when showActivity is false,
+          except on a mounted agent document, whose views live behind these tabs. */}
+      {expandedPanel ? (
+        <div className="pt-4 pb-2">
+          <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
+            <div className="border-border flex items-center justify-between gap-2 border-b pb-4">
+              <Text weight="semibold" size="lg">
+                {expandedPanel.title}
+              </Text>
+              <Tooltip content="Collapse">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={`Collapse ${expandedPanel.title}`}
+                  ref={setInlineCollapseButton}
+                  onClick={collapseExpandedPanel}
+                >
+                  <Minimize2 className="size-4" />
+                </Button>
+              </Tooltip>
+            </div>
+          </PageLayout>
         </div>
+      ) : (
+        showDocumentChrome && (
+          <AgentDocumentView document={document} route={{key: 'document', id: docId}}>
+            {(hasAgent) =>
+              (showActivity || hasAgent) && (
+                <div className="px-5 py-1">
+                  <DocumentTools
+                    id={docId}
+                    hasAgent={hasAgent}
+                    agentHome={isAgentDocument}
+                    activeAgentView={route.key === 'document' ? route.agentView : undefined}
+                    activeTab={
+                      activeView === 'activity' &&
+                      activityFilterToSlug(route.key === 'activity' ? route.filterEventType : undefined) === 'citations'
+                        ? 'citations'
+                        : activeView === 'activity' ||
+                            activeView === 'directory' ||
+                            activeView === 'site-profile' ||
+                            activeView === 'all-documents'
+                          ? undefined
+                          : activeView
+                    }
+                    currentPanel={panelRoute}
+                    currentRoute={route}
+                    commentsCount={interactionSummary.data?.comments || 0}
+                    citationsCount={connectionCount}
+                    collabsCount={peopleCount}
+                    collaborators={collaborators.data}
+                    metadataCount={countCustomMetadataFields(metadata)}
+                    schemaCid={schemaDefinitionCid(metadata)}
+                    layoutProps={
+                      isMobile || isCollection
+                        ? undefined
+                        : {
+                            wrapperProps,
+                            sidebarProps,
+                            mainContentProps,
+                            showSidebars,
+                          }
+                    }
+                  />
+                </div>
+              )
+            }
+          </AgentDocumentView>
+        )
       )}
 
       {/* Main content based on activeView */}
       <div
-        className={cn('flex-1', activeView !== 'content' && activeView !== 'comments' && 'pb-60', isMobile && 'px-4')}
+        className={cn(
+          'flex-1',
+          isAgentView && 'flex min-h-0 flex-col',
+          activeView !== 'content' && activeView !== 'comments' && 'pb-60',
+          isMobile && !expandedPanel && 'px-4',
+        )}
       >
-        <DocumentViewContent
-          activeView={activeView}
-          collection={
-            isCollection ? (
-              <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
-            ) : undefined
-          }
-        >
-          <CommentsFooterContext.Provider value={mainCommentsFooter}>
-            <MainContent
-              docId={docId}
-              resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
-              document={document}
-              activeView={activeView}
-              contentMaxWidth={contentMaxWidth}
-              wrapperProps={wrapperProps}
-              sidebarProps={sidebarProps}
-              mainContentProps={mainContentProps}
-              showSidebars={showSidebars}
-              showCollapsed={showCollapsed}
-              discussionsParams={discussionsParams}
-              suppressCommentEditor={suppressMainCommentEditor}
-              activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
-              onActivityFilterChange={handleMainActivityFilterChange}
-              blockCitations={blockCitations}
-              citationFragmentHighlights={citationFragmentHighlights}
-              onCitationFragmentClick={handleCitationFragmentClick}
-              onBlockCitationClick={handleBlockCitationClick}
-              onBlockCommentClick={handleBlockCommentClick}
-              onBlockSelect={handleBlockSelect}
-              onTextSelection={handleTextSelection}
-              isUnpublishedDraft={isUnpublishedDraft}
-              isBlockInPublishedVersion={isBlockInPublishedVersion}
-              CommentEditor={CommentEditor}
-              directory={directory.data}
-              siteUrl={siteUrl}
-              inlineCards={inlineCards}
-              inlineInsert={inlineInsert}
-              DocumentContentComponent={DocumentContentComponent}
-              onEditorReady={handleEditorReadyWrapped}
-              existingDraftContent={effectiveContent}
-              existingDraftCursorPosition={existingDraftCursorPosition}
-              ssrContentHTML={ssrContentHTML}
-              perspectiveAccountUid={perspectiveAccountUid}
-              linkExtensionOptions={linkExtensionOptions}
-              fileUpload={fileUpload}
-              draftVersionEntry={draftVersionEntry}
-            />
-          </CommentsFooterContext.Provider>
-        </DocumentViewContent>
+        {route.key === 'document' && (route.agentView || isAgentDocument) ? (
+          <AgentDocumentView document={document} route={route} contentMaxWidth={contentMaxWidth} />
+        ) : (
+          <DocumentViewContent
+            activeView={activeView}
+            collection={
+              isCollection ? (
+                <DocumentCollection docId={docId} queryBlock={collectionQueryBlock} canEdit={canEditCurrentRoute} />
+              ) : undefined
+            }
+          >
+            <CommentsFooterContext.Provider value={mainCommentsFooter}>
+              <MainContent
+                docId={docId}
+                resourceId={'id' in route && typeof route.id === 'object' ? route.id : docId}
+                document={document}
+                activeView={activeView}
+                contentMaxWidth={contentMaxWidth}
+                wrapperProps={wrapperProps}
+                sidebarProps={sidebarProps}
+                mainContentProps={mainContentProps}
+                showSidebars={showSidebars}
+                showCollapsed={showCollapsed}
+                discussionsParams={discussionsParams}
+                suppressCommentEditor={suppressMainCommentEditor}
+                activityFilterEventType={route.key === 'activity' ? route.filterEventType : undefined}
+                onActivityFilterChange={handleMainActivityFilterChange}
+                blockCitations={blockCitations}
+                citationFragmentHighlights={citationFragmentHighlights}
+                onCitationFragmentClick={handleCitationFragmentClick}
+                onBlockCitationClick={handleBlockCitationClick}
+                onBlockCommentClick={handleBlockCommentClick}
+                onBlockSelect={handleBlockSelect}
+                onTextSelection={handleTextSelection}
+                isUnpublishedDraft={isUnpublishedDraft}
+                isBlockInPublishedVersion={isBlockInPublishedVersion}
+                CommentEditor={CommentEditor}
+                directory={directory.data}
+                siteUrl={siteUrl}
+                inlineCards={inlineCards}
+                inlineInsert={inlineInsert}
+                DocumentContentComponent={DocumentContentComponent}
+                onEditorReady={handleEditorReadyWrapped}
+                existingDraftContent={effectiveContent}
+                existingDraftCursorPosition={existingDraftCursorPosition}
+                ssrContentHTML={ssrContentHTML}
+                perspectiveAccountUid={perspectiveAccountUid}
+                linkExtensionOptions={linkExtensionOptions}
+                fileUpload={fileUpload}
+                draftVersionEntry={draftVersionEntry}
+              />
+            </CommentsFooterContext.Provider>
+          </DocumentViewContent>
+        )}
         {citationFragmentClick ? (
           <CitationFragmentPopover
             click={citationFragmentClick}
@@ -3263,7 +3399,7 @@ function DocumentBody({
       />
     ) : undefined
 
-  const connectionsPanelHeader = isConnectionsPanel ? (
+  const documentPanelHeader = isConnectionsPanel ? (
     <PanelHeader
       title="Connections"
       count={
@@ -3281,6 +3417,12 @@ function DocumentBody({
                 filterEventType: activitySlugToFilter('citations'),
               })
       }
+    />
+  ) : panelRoute?.key === 'metadata' || panelRoute?.key === 'collaborators' ? (
+    <PanelHeader
+      title={panelRoute.key === 'metadata' ? 'Attributes' : 'People'}
+      onClose={handlePanelClose}
+      onExpand={isMobile ? undefined : () => navigate({key: panelRoute.key, id: panelRoute.id ?? docId})}
     />
   ) : undefined
 
@@ -3304,7 +3446,7 @@ function DocumentBody({
     return (
       <>
         <div
-          className={cn('relative flex flex-1 flex-col', documentPage ? 'h-full min-h-0 overflow-hidden' : 'pb-20')}
+          className={cn('relative flex flex-1 flex-col', fixedHeightMain ? 'h-full min-h-0 overflow-hidden' : 'pb-20')}
           ref={elementRef}
         >
           {documentTopBar}
@@ -3318,7 +3460,7 @@ function DocumentBody({
             isOpen={mobilePanelOpen}
             title={isConnectionsPanel ? 'Connections' : getPanelTitle(panelKey)}
             onClose={handlePanelClose}
-            header={connectionsPanelHeader ?? activityPanelHeader}
+            header={documentPanelHeader ?? activityPanelHeader}
             resizable
             scrollContent={panelKey !== 'comments' && panelKey !== 'feed'}
             onBack={
@@ -3337,10 +3479,18 @@ function DocumentBody({
 
   return (
     <div className="relative flex flex-1 flex-col overflow-hidden" ref={elementRef}>
+      <ActivityPanelPortal active={panelKey === 'feed'}>
+        {activityPanelHeader}
+        <ScrollArea className="min-h-0 flex-1">{panelContent}</ScrollArea>
+      </ActivityPanelPortal>
       <PanelLayout
-        panelKey={panelKey}
+        panelKey={panelKey === 'feed' ? null : panelKey}
         panelContent={
-          panelKey === 'comments' ? panelContent : <ScrollArea className="flex-1">{panelContent}</ScrollArea>
+          panelKey === 'feed' ? null : panelKey === 'comments' ? (
+            panelContent
+          ) : (
+            <ScrollArea className="flex-1">{panelContent}</ScrollArea>
+          )
         }
         onPanelClose={handlePanelClose}
         commentsCount={commentsPanelSummary.data?.comments}
@@ -3357,11 +3507,11 @@ function DocumentBody({
         }
         filterEventType={panelRoute?.key === 'activity' ? panelRoute.filterEventType : undefined}
         onFilterChange={handleFilterChange}
-        header={connectionsPanelHeader ?? activityPanelHeader}
+        header={documentPanelHeader ?? activityPanelHeader}
       >
         <div className="relative flex h-full min-h-0 flex-col">
           {documentTopBar}
-          {documentPage ? (
+          {fixedHeightMain ? (
             mainPageContent
           ) : (
             <ScrollArea
@@ -3376,7 +3526,7 @@ function DocumentBody({
             </ScrollArea>
           )}
           {activeView === 'comments' && <div ref={setMainCommentsFooter} className="shrink-0" />}
-          {activeView === 'content' && !documentPage ? (
+          {activeView === 'content' && !fixedHeightMain ? (
             <Button
               ref={backToTopButtonRef}
               type="button"
@@ -4693,18 +4843,15 @@ function MainContent({
 
     case 'collaborators':
       return (
-        <PageLayout contentMaxWidth={contentMaxWidth}>
+        <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
           <CollaboratorsPage docId={docId} />
         </PageLayout>
       )
 
     case 'metadata':
       return (
-        <PageLayout contentMaxWidth={contentMaxWidth}>
-          {/* Extra left padding in the main view; the panel render keeps its own. */}
-          <div className="pl-4">
-            <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
-          </div>
+        <PageLayout contentMaxWidth={contentMaxWidth} contentClassName="px-4">
+          <DocumentMetadataPage docId={docId} document={document} fileUpload={fileUpload} />
         </PageLayout>
       )
 

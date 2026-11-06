@@ -48,7 +48,7 @@ The service connects to a server to list its tools at these times: <!-- id:GcPRK
   - on `RefreshMcpServer`; <!-- id:f9tEWTJb -->
   - quietly, whenever a run opens a connection to the server (see below). A server that added tools yesterday is current the next time any agent calls it. <!-- id:H5rigbeb -->
 
-A failed discovery records the error and keeps the last good tool list. An outage must not strip tools from agents that will call them once the server is back. A changed tool list is projected again onto every agent that enables the server, and emits `agent-tools-changed`, so an open Tools tab updates live. <!-- id:r_UXCaDW -->
+A failed discovery records the error and keeps the last good tool list. An outage must not strip tools from agents that will call them once the server is back. A changed tool list is projected again onto every agent that enables the server, and emits `agent-tools-changed`, so an open MCP servers page updates live. <!-- id:r_UXCaDW -->
 
 # Runtime <!-- id:4uUfX7oE -->
 
@@ -79,13 +79,13 @@ These are account-scoped and use the standard envelope ([signed API](./signed-ap
 
 # Desktop and web UI <!-- id:RUHSVzo5 -->
 
-The Tools tab ends with an **MCP servers** section (see [desktop UI](./desktop-ui.md)). Each account server has one row with a per-agent checkbox, the tool count (or an **Unreachable** chip with the error underneath), an **Auth** chip when a secret header is set, the host, and refresh and remove buttons that show on hover. Clicking the row expands its tools, and a tool opens its contract. **Add server** takes a URL (the name is suggested from the host), an optional auth header, and the transport under Advanced. The dialog reports the connect result and enables the server for the current agent. <!-- id:de103FVW -->
+The agent's Settings tab has an **MCP servers** page (see [desktop UI](./desktop-ui.md)). Each account server has one row with a per-agent checkbox, the tool count (or an **Unreachable** chip with the error underneath), an **Auth** chip when a secret header is set, the host, and refresh and remove buttons that show on hover. Clicking the row expands its tools, and a tool opens its contract. **Add server** takes a URL (the name is suggested from the host), an optional auth header, and the transport under Advanced. The dialog reports the connect result and enables the server for the current agent. <!-- id:de103FVW -->
 
 # Screenshots <!-- id:qIYK5ezJ -->
 
-The Tools tab with two connected servers, one expanded: <!-- id:17Xg_wEo -->
+The MCP servers page with two connected servers, one expanded: <!-- id:17Xg_wEo -->
 
-![Tools tab with MCP servers](ipfs://bafybeidwdn2m5uk3hfcbg7xdqftall32rzuum7qkj3ooluqbq7fvof4e64) <!-- id:XLYrrLZA -->
+![MCP servers page](ipfs://bafybeidwdn2m5uk3hfcbg7xdqftall32rzuum7qkj3ooluqbq7fvof4e64) <!-- id:XLYrrLZA -->
 
 Adding a server. The name is suggested from the URL, and the record connects on save: <!-- id:BwtA2LBC -->
 

@@ -29,10 +29,9 @@ vi.mock('@/auth', () => ({
 // Registering the platform reaches for the editor and localStorage; the gate is what is under test.
 vi.mock('@/web-agents-platform', () => ({registerWebAgentsPlatform: vi.fn()}))
 
-vi.mock('@shm/shared/utils/navigation', () => ({useNavRoute: () => ({key: 'agents'})}))
-vi.mock('@shm/ui/agents/list', () => ({default: () => <div>AGENTS LIST</div>}))
+vi.mock('@shm/shared/utils/navigation', () => ({useNavRoute: () => ({key: 'agent', agentId: 'a1'})}))
 vi.mock('@shm/ui/agents/detail', () => ({default: () => <div>AGENT DETAIL</div>}))
-vi.mock('@shm/ui/agents/server', () => ({default: () => <div>AGENT SERVER</div>}))
+vi.mock('@shm/ui/agents/run', () => ({default: () => <div>AGENT RUN</div>}))
 vi.mock('@shm/ui/agents/session', () => ({default: () => <div>AGENT SESSION</div>}))
 
 import WebAgentsContent from '../agents-page-content'
@@ -45,7 +44,7 @@ beforeEach(() => {
 describe('web agents page content', () => {
   it('shows neither the agents UI nor a sign-in prompt while the identity is still loading', () => {
     const markup = renderToStaticMarkup(<WebAgentsContent />)
-    expect(markup).not.toContain('AGENTS LIST')
+    expect(markup).not.toContain('AGENT DETAIL')
     expect(markup).not.toContain('Sign in')
   })
 
@@ -54,14 +53,14 @@ describe('web agents page content', () => {
     const markup = renderToStaticMarkup(<WebAgentsContent />)
     expect(markup).toContain('Sign in')
     expect(markup).toContain('<button')
-    expect(markup).not.toContain('AGENTS LIST')
+    expect(markup).not.toContain('AGENT DETAIL')
   })
 
   it('renders the agents UI once an identity is present', () => {
     mockState.keyPairLoaded = true
     mockState.keyPair = {id: 'z6MkDevice'}
     const markup = renderToStaticMarkup(<WebAgentsContent />)
-    expect(markup).toContain('AGENTS LIST')
+    expect(markup).toContain('AGENT DETAIL')
     expect(markup).not.toContain('Sign in')
   })
 })

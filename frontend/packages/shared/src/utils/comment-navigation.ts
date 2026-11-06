@@ -1,4 +1,5 @@
 import {HMComment, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {commentThreadSelection} from '../comments'
 import {isRouteEqualToCommentTarget} from '../comments-service-provider'
 import {type NavRoute} from '../routes'
 import {useCallback} from 'react'
@@ -25,11 +26,7 @@ export function useCommentNavigation({
 }: UseCommentNavigationOptions) {
   const onReplyClick = useCallback(
     (replyComment: HMComment) => {
-      const threadSelection = {
-        openComment: replyComment.threadRoot || replyComment.id,
-        replyCommentId:
-          replyComment.threadRoot && replyComment.threadRoot !== replyComment.id ? replyComment.id : undefined,
-      }
+      const threadSelection = commentThreadSelection(replyComment)
       const currentThread =
         route.key === 'comments'
           ? route.openComment
@@ -84,11 +81,7 @@ export function useCommentNavigation({
 
   const onReplyCountClick = useCallback(
     (replyComment: HMComment) => {
-      const threadSelection = {
-        openComment: replyComment.threadRoot || replyComment.id,
-        replyCommentId:
-          replyComment.threadRoot && replyComment.threadRoot !== replyComment.id ? replyComment.id : undefined,
-      }
+      const threadSelection = commentThreadSelection(replyComment)
       const currentThread =
         route.key === 'comments'
           ? route.openComment

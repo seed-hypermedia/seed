@@ -440,8 +440,8 @@ export function toolDocumentContractMarkdown(row: ToolDocumentRow): string {
     parts.push(
       '',
       doc.runtime === 'python'
-        ? '> Runs in the execute sandbox: `main(input)` receives the validated input and returns the result.'
-        : '> Runs in the execute sandbox: the default export receives the validated input and returns the result.',
+        ? '> Runs in the execute sandbox: `main(input)` receives the validated input and returns the result. `/workspace` is shared with other runs of this agent, so do not keep SQLite databases, lock files, or shared append logs there (see `~/tools/execute`).'
+        : '> Runs in the execute sandbox: the default export receives the validated input and returns the result. `/workspace` is shared with other runs of this agent, so do not keep SQLite databases, lock files, or shared append logs there (see `~/tools/execute`).',
       '',
       '## Source',
       '```' + (doc.runtime === 'python' ? 'python' : 'ts'),

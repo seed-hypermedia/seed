@@ -50,12 +50,28 @@ export type AgentsRichEditorProps = {
   focusOnMount?: boolean
   hideAvatar?: boolean
   hideSubmitToolbar?: boolean
+  /** The compact panel-footer field, with its submit button beside it. */
+  compact?: boolean
   disableTrailingNode?: boolean
   submitOnEnter?: boolean
   submitHandleRef?: React.MutableRefObject<AgentsRichEditorSubmitHandle | null>
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[]) => void
   handleFileAttachment?: (file: File) => Promise<AgentsRichEditorAttachment>
+  /** Commands listed ahead of the block types in the editor's `/` menu, read on every query. */
+  getExtraSlashMenuItems?: () => AgentsSlashMenuItem[]
+  /** Text on the collapsed field before it is first focused. */
+  collapsedLabel?: string
+}
+
+/** A host command in the rich editor's `/` menu; the typed `/query` is removed before `onSelect`. */
+export type AgentsSlashMenuItem = {
+  name: string
+  aliases?: string[]
+  group: string
+  icon: React.ReactElement
+  hint?: string
+  onSelect: () => void
 }
 
 /**
@@ -108,6 +124,13 @@ export type AgentsSignerDelegation = {
   capabilityBlob?: Uint8Array
 }
 
+/** Lifecycle of the desktop's bundled agents server, as the main process reports it. */
+export type AgentsLocalServerState =
+  | {t: 'disabled'; reason?: 'env' | 'setting'}
+  | {t: 'attached'; url: string}
+  | {t: 'spawned'; url: string}
+  | {t: 'error'; message: string}
+
 export type AgentsPlatform = {
   /** Session-bound desktop browser bridge and its visible access controls; absent on the web. */
   /** Desktop-only browser access for the agent's owner; the component asks before any website is shared. */
@@ -138,6 +161,13 @@ export type AgentsPlatform = {
   setSetting: (key: string, value: unknown) => Promise<void>
   /** URL of an app-managed local agents server, when the platform runs one (desktop only). */
   getLocalServerUrl?: () => Promise<string | null>
+  /** Lifecycle state of the app-managed local agents server (desktop only). */
+  getLocalServerState?: () => Promise<AgentsLocalServerState>
+  /**
+   * Turns the app-managed local agents server on or off, persistently and immediately; resolves
+   * to its URL while it runs (desktop only). Absent on platforms that run no local server.
+   */
+  setLocalServerEnabled?: (enabled: boolean) => Promise<string | null>
   /** Asks the platform's local HM node to discover/sync a referenced hm:// resource (desktop only). */
   discoverEntity?: (id: string) => Promise<{state?: string; version?: string}>
   /**
@@ -156,6 +186,12 @@ export type AgentsPlatform = {
   connectToHmServer?: (hmServerUrl: string) => Promise<{peerId: string; addrs: string[]} | null>
   /** Catches provider OAuth browser redirects on a loopback port (see {@link AgentsOAuthRedirectCatcher}). */
   oauthRedirectCatcher?: AgentsOAuthRedirectCatcher
+  /**
+   * The assistant panel offers only the agents mounted in the space on screen, found through
+   * their documents, and contacts no agents server a document did not name (the web app). Absent,
+   * the panel also lists the account's own agents on every configured server (desktop).
+   */
+  mountedAgentsOnly?: boolean
   /** Hook returning the account UID that signs agent actions for the current user. */
   useAccountUid: () => string | null | undefined
   /** Hook returning a navigate function for NavRoutes; `spawn` opens a new window where supported. */

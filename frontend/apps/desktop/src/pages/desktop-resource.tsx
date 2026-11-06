@@ -99,6 +99,8 @@ import {copyUrlToClipboardWithFeedback} from '@shm/ui/copy-to-clipboard'
 import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
+import {useMountedAgentProfileMenuItem} from '@shm/ui/agents/mounted-agent-menu'
+import {useOrphanAgentMenu} from '@shm/ui/agents/orphan-agent'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import type {AttributeAutocomplete, AttributeSuggestionKind} from '@shm/ui/value-editor'
 import {SizableText} from '@shm/ui/text'
@@ -635,8 +637,6 @@ export default function DesktopResourcePage() {
 
   // Create publishDocument actor that uses the stored publish mutation ref.
   // Account UID flows through machine context → actor input (no closure deps).
-  const navigateRef = useRef(navigate)
-  navigateRef.current = navigate
   const broadcastWindowEvent = useBroadcastWindowEvent()
   const broadcastWindowEventRef = useRef(broadcastWindowEvent)
   broadcastWindowEventRef.current = broadcastWindowEvent
@@ -709,7 +709,7 @@ export default function DesktopResourcePage() {
         // navigate this window to the new URL and broadcast the change so any
         // other window stuck on the old draft URL can react.
         if (pathChanged) {
-          navigateRef.current({key: 'document', id: newRouteId})
+          replaceRouteRef.current({key: 'document', id: newRouteId})
           broadcastWindowEventRef.current({
             type: 'document_path_changed',
             oldId: oldRouteId.id,
@@ -876,7 +876,8 @@ export default function DesktopResourcePage() {
   // Tracks drafts created from query blocks so the corresponding inline draft card can focus its title.
   const [lastCreatedDraftId, setLastCreatedDraftId] = useState<string | null>(null)
   const canCreateChildDocs = !!doc?.version && canCreateChildDocuments(doc?.visibility, draftData?.visibility)
-  const {menuItem: fileBrowserCreateMenuItem} = useCreateDocumentMenuItem({
+  // The file browser's plus menu opens dialogs (Create Agent) whose content mounts here.
+  const {menuItem: fileBrowserCreateMenuItem, content: fileBrowserCreateContent} = useCreateDocumentMenuItem({
     locationId: hmId(docId.uid),
   })
   const cleanupSnapshot = useQuery({
@@ -963,8 +964,15 @@ export default function DesktopResourcePage() {
   const destinationDialog = useAppDialog(DocumentDestinationDialog, {className: 'w-full max-w-2xl'})
   const worldBuilderDialog = useAppDialog(WorldBuilderDialog, {className: 'w-full max-w-xl'})
 
+  // A mounted agent's menu opens the profile the agent signs as.
+  const agentProfileMenuItem = useMountedAgentProfileMenuItem(docId, doc?.metadata)
+  // Developer mode: undo an adoption.
+  const orphanAgent = useOrphanAgentMenu(docId, doc?.metadata)
+
   const menuItems: MenuItemType[] = []
 
+  if (agentProfileMenuItem) menuItems.push(agentProfileMenuItem)
+  if (orphanAgent.item) menuItems.push(orphanAgent.item)
   menuItems.push(
     createCopyLinkMenuItem({
       advanced: experiments?.advancedCopyLinkOptions,
@@ -1129,7 +1137,8 @@ export default function DesktopResourcePage() {
 
   // Experimental building blocks live behind the Hypermedia Schemas dev toggle
   // (Settings → Developers → Developer Tools); the blob/schema editor pages offer these too.
-  if (experiments?.hypermediaSchemas) {
+  // They publish signed blobs, so they need a selected account.
+  if (experiments?.hypermediaSchemas && selectedAccountId) {
     menuItems.push(...blobBuilderMenuItems(navigate))
 
     // The World Builder: scaffold a typed ontology (types + folders + starter
@@ -1177,7 +1186,8 @@ export default function DesktopResourcePage() {
   if (canEdit && docId.path?.length) {
     menuItems.push({
       key: 'delete',
-      label: 'Delete Document',
+      // A mounted agent's document is deleted as the agent (server side included).
+      label: doc?.metadata.type === 'hm://hyper.media/agent' ? 'Delete Agent' : 'Delete Document',
       icon: <Trash className="size-4" />,
       variant: 'destructive',
       onClick: () => {
@@ -1200,6 +1210,9 @@ export default function DesktopResourcePage() {
   }
 
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
+  // An agent page is the agent, so Publish only appears once attributes or content are dirty.
+  // The base URL (no agentView) opens the agent's sessions, so the document's type decides too.
+  const isAgentPage = route.key === 'document' && (!!route.agentView || doc?.metadata.type === 'hm://hyper.media/agent')
 
   // Walk the editor's blocks for embed blocks with a draftId.
   // Called at Publish click time so the popover always opens
@@ -1226,6 +1239,7 @@ export default function DesktopResourcePage() {
             existingMenuItems={menuItems}
             getUnpublishedChildCount={getUnpublishedChildCount}
             beforePublish={<DesktopDocumentCreateButton locationId={docId} />}
+            hidePublishWhenClean={isAgentPage}
           />
         )
       : undefined
@@ -1249,6 +1263,7 @@ export default function DesktopResourcePage() {
 
   return (
     <div className={pageFrameStyles}>
+      {fileBrowserCreateContent}
       <CommentsProvider
         useHackyAuthorsSubscriptions={useHackyAuthorsSubscriptions}
         onReplyClick={onReplyClick}
@@ -1349,6 +1364,7 @@ export default function DesktopResourcePage() {
       {copyGatewayContent}
       {copySiteUrlContent}
       {deleteEntity.content}
+      {orphanAgent.content}
       {destinationDialog.content}
       {worldBuilderDialog.content}
       {editProfileDialog.content}

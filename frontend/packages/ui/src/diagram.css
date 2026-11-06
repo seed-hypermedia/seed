@@ -10,3 +10,39 @@
   --pele-font: var(--font-sans);
   --pele-font-mono: var(--font-mono);
 }
+
+/* Keep the graph geometry fixed while the surrounding dialog chrome appears. */
+.connections-graph-dialog {
+  transition:
+    background-color var(--duration-normal) var(--ease-out-smooth),
+    border-color var(--duration-normal) var(--ease-out-smooth),
+    box-shadow var(--duration-normal) var(--ease-out-smooth);
+}
+
+.connections-graph-dialog :is([data-graph-chrome], [data-slot='dialog-close'], .pele-zoom) {
+  transition:
+    opacity var(--duration-normal) var(--ease-out-smooth),
+    transform var(--duration-normal) var(--ease-out-smooth);
+}
+
+.connections-graph-dialog[data-chrome-visible='false'] {
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  transition: none;
+}
+
+.connections-graph-dialog[data-chrome-visible='false']
+  :is([data-graph-chrome], [data-slot='dialog-close'], .pele-zoom) {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateY(0.25rem);
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connections-graph-dialog,
+  .connections-graph-dialog :is([data-graph-chrome], [data-slot='dialog-close'], .pele-zoom) {
+    transition: none;
+  }
+}

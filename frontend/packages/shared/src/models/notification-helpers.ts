@@ -18,7 +18,12 @@ export function notificationRouteForPayload(payload: NotificationPayload): NavRo
     return {
       key: 'document',
       id: targetId,
-      panel: {key: 'comments', id: targetId, openComment: payload.commentId ?? undefined},
+      panel: {
+        key: 'comments',
+        id: targetId,
+        openComment: payload.threadRoot || payload.commentId || undefined,
+        replyCommentId: payload.threadRoot ? payload.commentId ?? undefined : undefined,
+      },
     }
   }
 
@@ -30,7 +35,12 @@ export function notificationRouteForPayload(payload: NotificationPayload): NavRo
       return {
         key: 'document',
         id: sourceId,
-        panel: {key: 'comments', id: sourceId, openComment: payload.commentId},
+        panel: {
+          key: 'comments',
+          id: sourceId,
+          openComment: payload.threadRoot || payload.commentId,
+          replyCommentId: payload.threadRoot ? payload.commentId : undefined,
+        },
       }
     }
     return {

@@ -31,7 +31,7 @@ describe.each([false, true])('Space Settings account menu (mobile=%s)', (mobile)
     state.identity = {id: 'device-key', delegatedAccountUid: 'owner'}
     const open = vi.fn()
     act(() => root.render(<WebSpaceSettingsMenuItem siteUid="owner" mobile={mobile} onSelect={open} />))
-    expect(container.textContent).toBe('Space Settings')
+    expect(container.textContent).toBe('Space settings')
     act(() => container.querySelector('button')!.click())
     expect(open).toHaveBeenCalledOnce()
   })

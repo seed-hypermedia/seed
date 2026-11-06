@@ -124,7 +124,7 @@ export const POST = cborApiAction<NotificationAction, any>(async (signedPayload)
   }
 
   if (restPayload.action === 'apply-notification-actions') {
-    return applyNotificationActionsForAccount(accountId, restPayload.actions, page)
+    return applyNotificationActionsForAccount(accountId, restPayload.actions, page, {signerUid})
   }
 
   throw new BadRequestError('Invalid action')

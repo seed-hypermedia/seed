@@ -1,5 +1,11 @@
 import {describe, expect, it} from 'vitest'
-import {canonicalModelId, curateProviderModels, isChatModel, pickDefaultProviderModel} from '@shm/ui/agents/model-utils'
+import {
+  canonicalModelId,
+  curateProviderModels,
+  isChatModel,
+  pickDefaultEnabledModels,
+  pickDefaultProviderModel,
+} from '@shm/ui/agents/model-utils'
 
 const m = (id: string, name?: string) => ({id, name: name ?? id})
 
@@ -60,6 +66,12 @@ describe('pickDefaultProviderModel', () => {
 })
 
 describe('curateProviderModels', () => {
+  it('lists GPT-6 models ahead of older OpenAI model families', () => {
+    const {all} = curateProviderModels([m('gpt-4o'), m('gpt-5.6-sol'), m('gpt-6.1-sol')], 'openai')
+
+    expect(all.map((model) => model.id)).toEqual(['gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-4o'])
+  })
+
   it('removes non-chat models, dedupes snapshots, and floats flagships', () => {
     const models = [
       m('text-embedding-3-small'),
@@ -96,5 +108,29 @@ describe('curateProviderModels', () => {
   it('handles an empty or missing model list', () => {
     expect(curateProviderModels(undefined, 'openai')).toEqual({recommended: [], all: [], hasMore: false})
     expect(curateProviderModels([], undefined)).toEqual({recommended: [], all: [], hasMore: false})
+  })
+})
+
+describe('pickDefaultEnabledModels', () => {
+  const codex = [m('gpt-6-astra'), m('gpt-5.6-sol'), m('gpt-5.6-terra'), m('gpt-5.6-luna'), m('gpt-5.5')]
+
+  it('checks Astra, Sol and Luna from the ChatGPT subscription catalog, with Sol as the default', () => {
+    expect(pickDefaultEnabledModels(codex, 'openai').map((model) => model.id)).toEqual([
+      'gpt-6-astra',
+      'gpt-5.6-sol',
+      'gpt-5.6-luna',
+    ])
+    expect(pickDefaultProviderModel(codex, 'openai')?.id).toBe('gpt-5.6-sol')
+  })
+
+  it('skips preferred models the catalog does not offer', () => {
+    expect(pickDefaultEnabledModels([m('gpt-5.2'), m('gpt-5.6-sol')], 'openai').map((model) => model.id)).toEqual([
+      'gpt-5.6-sol',
+    ])
+    expect(pickDefaultEnabledModels([m('gpt-5.2')], 'openai')).toEqual([])
+  })
+
+  it('is empty for providers without a preferred set', () => {
+    expect(pickDefaultEnabledModels([m('claude-sonnet-4.6')], 'anthropic')).toEqual([])
   })
 })

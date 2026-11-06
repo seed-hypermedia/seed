@@ -13,6 +13,10 @@ const mockState = vi.hoisted(() => ({
   healthy: new Set<string>(),
   fetched: [] as string[],
   binaryExists: false,
+  /** Whether a previous build's agents database exists in user data. */
+  dbExists: false,
+  /** The persisted local-server setting, as app-settings would return it. */
+  settings: {} as Record<string, unknown>,
 }))
 
 vi.mock('electron', () => ({app: {addListener: vi.fn()}}))
@@ -25,10 +29,19 @@ vi.mock('../logger', () => ({
   rawMessage: vi.fn(),
 }))
 vi.mock('../win32-process', () => ({forceKillChildProcess: vi.fn()}))
+const existsSync = vi.hoisted(
+  () => (file: string) => (String(file).endsWith('agents.sqlite') ? mockState.dbExists : mockState.binaryExists),
+)
 vi.mock('node:fs', () => ({
-  existsSync: () => mockState.binaryExists,
+  existsSync,
   mkdirSync: vi.fn(),
-  default: {existsSync: () => mockState.binaryExists, mkdirSync: vi.fn()},
+  default: {existsSync, mkdirSync: vi.fn()},
+}))
+vi.mock('../app-settings-store', () => ({
+  getStoredSetting: (key: string) => mockState.settings[key] ?? null,
+  writeStoredSetting: (key: string, value: unknown) => {
+    mockState.settings[key] = value
+  },
 }))
 vi.mock('../agents-server-path', () => ({
   getAgentsServerBinaryPath: () => '/nonexistent/seed-agents',
@@ -36,7 +49,13 @@ vi.mock('../agents-server-path', () => ({
 }))
 vi.mock('child_process', () => ({spawn: vi.fn(), default: {spawn: vi.fn()}}))
 
-import {getAgentsServerState, startLocalAgentsServer} from '../agents-server-process'
+import {
+  getAgentsServerState,
+  resolveLocalAgentsServerSpawn,
+  setLocalAgentsServerEnabled,
+  startLocalAgentsServer,
+} from '../agents-server-process'
+import {AGENTS_LOCAL_SERVER_SETTING_KEY} from '@shm/shared/constants'
 
 const ORIGINAL_ENV = {...process.env}
 
@@ -44,6 +63,9 @@ beforeEach(() => {
   mockState.healthy = new Set()
   mockState.fetched = []
   mockState.binaryExists = false
+  mockState.dbExists = false
+  // Most cases below exercise the spawn path; the policy cases override this.
+  mockState.settings = {[AGENTS_LOCAL_SERVER_SETTING_KEY]: 'on'}
   delete process.env.SEED_NO_AGENTS_SPAWN
   delete process.env.SEED_AGENTS_SERVER_URL
   // The dev shell exports this (.env.vars); tests exercise the release default unless set explicitly.
@@ -67,7 +89,7 @@ describe('local agents server resolution', () => {
     process.env.SEED_NO_AGENTS_SPAWN = '1'
 
     expect(await startLocalAgentsServer()).toBeNull()
-    expect(getAgentsServerState()).toEqual({t: 'disabled'})
+    expect(getAgentsServerState()).toEqual({t: 'disabled', reason: 'env'})
     // Disabled means disabled: no probing at all.
     expect(mockState.fetched).toHaveLength(0)
   })
@@ -134,6 +156,68 @@ describe('local agents server resolution', () => {
     const state = getAgentsServerState()
     expect(state.t).toBe('error')
     expect(state.t === 'error' && state.message).toContain('binary not found')
+  })
+
+  it('does not spawn when the user turned the local server off, but still attaches to a dev server', async () => {
+    mockState.settings = {[AGENTS_LOCAL_SERVER_SETTING_KEY]: 'off'}
+    mockState.binaryExists = true
+
+    expect(await startLocalAgentsServer()).toBeNull()
+    expect(getAgentsServerState()).toEqual({t: 'disabled', reason: 'setting'})
+
+    // The `./dev up` server is attached to regardless of the setting.
+    mockState.healthy.add('http://localhost:3050')
+    expect(await startLocalAgentsServer()).toBe('http://localhost:3050')
+    expect(getAgentsServerState().t).toBe('attached')
+  })
+
+  it('still attaches later to a dev server that was down at startup when the setting is off', async () => {
+    mockState.settings = {[AGENTS_LOCAL_SERVER_SETTING_KEY]: 'off'}
+    vi.useFakeTimers()
+    try {
+      expect(await startLocalAgentsServer()).toBeNull()
+      expect(getAgentsServerState()).toEqual({t: 'disabled', reason: 'setting'})
+      mockState.healthy.add('http://localhost:3050')
+      await vi.advanceTimersByTimeAsync(11_000)
+      expect(getAgentsServerState()).toEqual({t: 'attached', url: 'http://localhost:3050'})
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('settles a fresh install to off without spawning, and runs once more for an upgrade with data', async () => {
+    // No setting yet and no database: nothing to look for, so the local system starts off.
+    mockState.settings = {}
+    mockState.binaryExists = true
+    expect(await startLocalAgentsServer()).toBeNull()
+    expect(getAgentsServerState()).toEqual({t: 'disabled', reason: 'setting'})
+    expect(mockState.settings[AGENTS_LOCAL_SERVER_SETTING_KEY]).toBe('off')
+
+    // No setting yet but a database from a build that always spawned: spawn, so the renderer can
+    // look for agents in it and settle the setting. (The binary is missing here, so the spawn
+    // fails, which is enough to show it was attempted.)
+    mockState.settings = {}
+    mockState.dbExists = true
+    mockState.binaryExists = false
+    expect(await startLocalAgentsServer()).toBeNull()
+    expect(getAgentsServerState().t).toBe('error')
+    expect(mockState.settings[AGENTS_LOCAL_SERVER_SETTING_KEY]).toBeUndefined()
+  })
+
+  it('turning the server off persists the choice and ignores a dev server it only attached to', async () => {
+    mockState.healthy.add('http://localhost:3050')
+    expect(await startLocalAgentsServer()).toBe('http://localhost:3050')
+
+    expect(await setLocalAgentsServerEnabled(false)).toBe('http://localhost:3050')
+    expect(mockState.settings[AGENTS_LOCAL_SERVER_SETTING_KEY]).toBe('off')
+    expect(getAgentsServerState().t).toBe('attached')
+  })
+
+  it('spawn policy: on spawns, off never does, unset depends on leftover data', () => {
+    expect(resolveLocalAgentsServerSpawn('on', false)).toEqual({spawn: true})
+    expect(resolveLocalAgentsServerSpawn('off', true)).toEqual({spawn: false})
+    expect(resolveLocalAgentsServerSpawn('unset', true)).toEqual({spawn: true})
+    expect(resolveLocalAgentsServerSpawn('unset', false)).toEqual({spawn: false, settle: 'off'})
   })
 
   it('ignores a non-agents process squatting on the port', async () => {

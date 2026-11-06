@@ -44,6 +44,7 @@ vi.mock('@/ipc', () => ({
 
 vi.mock('@shm/ui/agents/models', () => ({
   useAgentServerUrls: () => ({data: mockState.serverUrls, isLoading: false, isSuccess: true}),
+  useOrphanAgents: () => ({agents: [], settled: true}),
   useHasAnyAgent: () => ({
     hasAgents: mockState.hasAgents,
     isSettled: mockState.agentsStatus === 'success',
@@ -53,6 +54,10 @@ vi.mock('@shm/ui/agents/models', () => ({
 // Provisioning is exercised by local-assistant.test.ts; here it must only not interfere.
 vi.mock('@/models/local-assistant', () => ({
   useEnsureLocalAssistantAgent: () => {},
+}))
+// The local-server migration is exercised by local-agents-server.test.ts.
+vi.mock('@/models/local-agents-server', () => ({
+  useLocalAgentsServerMigration: () => {},
 }))
 
 vi.mock('@/models/contacts', () => ({
@@ -204,6 +209,12 @@ vi.mock('../components/auto-updater', async () => {
 
 vi.mock('../components/desktop-notification-inbox', () => ({
   DesktopNotificationInbox: () => null,
+}))
+
+vi.mock('@/components/bookmarks-panel', () => ({
+  BookmarksPanelProvider: ({children}: {children: React.ReactNode}) => children,
+  BookmarksPanel: () => null,
+  useBookmarksPanel: () => ({isOpen: false, open: () => {}, close: () => {}}),
 }))
 
 vi.mock('@shm/ui/activity-panel', () => ({

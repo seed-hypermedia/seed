@@ -159,7 +159,7 @@ Inputs are given as the fields you send; read the exact shapes from `GET /api/sc
 | `Query` | `includes: [{space, path?, mode: 'Children' or 'AllDescendants'}]`, `sort?`, `limit?` | `{in, results: DocumentInfo[], mode?}` or `null`; the same shape a Query block embeds <!-- id:G5vqSMth --> |
 | `QueryBlock` | `{query}` | the query results plus interaction summaries and author metadata, as the block renders them <!-- id:toYw2iFJ --> |
 | `ListComments` | `targetId` | `{comments, authors}` for one document <!-- id:lWprdM77 --> |
-| `ListDiscussions` | `targetId`, `commentId?` | comments grouped into threads, plus discussions that cite the document <!-- id:Atpoi3Yk --> |
+| `ListDiscussions` | `targetId`, `commentId?` | comments grouped into threads <!-- id:Atpoi3Yk --> |
 | `ListCommentsByReference` | `targetId` | comments elsewhere that reference the document <!-- id:bqidcjBi --> |
 | `ListCommentsByAuthor` | `authorId` | `{comments, authors}` <!-- id:iC_zxkdR --> |
 | `ListCommentVersions` | `id` | every version of one comment <!-- id:CpA7DumD --> |

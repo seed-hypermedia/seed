@@ -6,6 +6,8 @@ A document's **metadata** is the map of attributes its [Changes](./change.md) se
 
 Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -->
 
+A value that names an account or a document is a link. A bare account id (`z6Mk…`), an account's home URL (`hm://<uid>`), a `:profile` URL or any other `hm://` document URL set as an attribute, such as `owner`, is indexed as a [citation](./protocol/comments.md) of type `metadata/Link` whose anchor is the attribute key, attributed to the document that set it. It appears among the target's citations like a link in the body, and when the target is an account it counts as a mention of that account: the notification server emails them and a `user-mention` [trigger](./agent/triggers.md) fires. A URL whose authority is not an account, such as the `type` key's `hm://hyper.media/page`, is not a link.
+
 # The keys Seed understands <!-- id:O1w2gINW -->
 
 <!-- id:zIyn6ExA -->
@@ -17,8 +19,7 @@ Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -
 | `cover` | `ipfs://` | a wide cover image shown in headers and cards <!-- id:X5v-dwDB --> |
 | `thumbnail` | `ipfs://` | deprecated image field kept for older documents; use `icon` or `cover` <!-- id:Wdqe6bUa --> |
 | `siteUrl` | URL | the web address a space is published at; set on the home document when a site is registered, see [Sites](./protocol/sites.md) <!-- id:AyiR8yjR --> |
-| `agentServerUrl` | URL | the agents server a space advertises to its readers (an http(s) origin); clients viewing the space connect to it beside their own servers, see [Environments](./agent/environments.md) <!-- id:Y7jh1Rjp --> |
-| `spaceAgents` | map | the agents the space publishes to readers, as `{[agentId]: order}`; each id is an agent on `agentServerUrl`, and a removed agent leaves a null behind. Names and icons are read from the agent itself, so renaming one never strands a stale copy in a signed document <!-- id:_WXOlj66 --> |
+| `agentServerUrl` | URL | the agents server that hosts the agent this document mounts (an http(s) origin), set together with `type: hm://hyper.media/agent`; the document's versionless id is the agent's id, and a space's agents are found by querying its documents for that type, see [Agents](./agent.md) <!-- id:Y7jh1Rjp --> |
 | `type` | URL | the resource type; custom HTML pages declare [hm://hyper.media/page](./page.md) <!-- id:3-HON7jT --> |
 | `inputSchema` | URL | a published HM struct defining a custom HTML page's URL input; see [Page input](./page-input.md) <!-- id:lGfreYXM --> |
 | `html` | `ipfs://` | a [custom HTML page](./apps/document-pages.md): a UnixFS folder whose `index.html` is a self-contained HTML page that Seed opens in place of the document body, sandboxed, with a bridge to read Hypermedia as the viewer |

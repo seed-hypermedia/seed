@@ -121,11 +121,13 @@ export function EditingDocToolsRight({
   existingMenuItems,
   getUnpublishedChildCount,
   beforePublish,
+  hidePublishWhenClean,
 }: {
   docId: UnpackedHypermediaId
   existingMenuItems: MenuItemType[]
   getUnpublishedChildCount?: () => number
   beforePublish?: ReactNode
+  hidePublishWhenClean?: boolean
 }) {
   const {callbacks, deleteDraftDialog} = useDesktopToolbarCallbacks(docId)
   const unpublishedChildCount = useUnpublishedChildCount()
@@ -137,6 +139,7 @@ export function EditingDocToolsRight({
         unpublishedChildCount={unpublishedChildCount}
         getUnpublishedChildCount={getUnpublishedChildCount}
         beforePublish={beforePublish}
+        hidePublishWhenClean={hidePublishWhenClean}
         {...callbacks}
       />
       {deleteDraftDialog.content}
