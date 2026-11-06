@@ -5,7 +5,6 @@ import {clientLazy, ClientOnly} from '@/client-lazy'
 import {useSiteContextSnapshot} from '@/site-context-bridge'
 import {UniversalAppContext} from '@shm/shared'
 import {NavContextProvider} from '@shm/shared/utils/navigation'
-import type {AgentActivityIndicator} from '@shm/ui/agents/activity-dot'
 import type {WebAssistantAgents} from './web-assistant-activity'
 import {AssistantPanelToggleContext, type AssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
@@ -169,14 +168,13 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
   // panel. It reflects what is on screen, not the stored preference: on a narrow viewport with a
   // restored "open" that is not showing, the button reads closed and a tap opens the panel rather
   // than silently closing the invisible one.
-  const [activity, setActivity] = useState<AgentActivityIndicator | null>(null)
   const [agents, setAgents] = useState<WebAssistantAgents>({usable: false, orphans: 0})
   const headerToggle = useMemo<AssistantPanelToggle | null>(
     () =>
       keyPair && (agents.usable || agents.orphans > 0)
-        ? {isOpen: visible, toggle: visible ? panel.close : panel.open, activity, orphans: agents.orphans}
+        ? {isOpen: visible, toggle: visible ? panel.close : panel.open, orphans: agents.orphans}
         : null,
-    [keyPair, agents, visible, panel.close, panel.open, activity],
+    [keyPair, agents, visible, panel.close, panel.open],
   )
 
   return (
@@ -188,7 +186,7 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
         <ClientOnly>
           <SiteContextScope>
             <Suspense fallback={null}>
-              <WebAssistantActivity onChange={setActivity} onAgentsChange={setAgents} />
+              <WebAssistantActivity onAgentsChange={setAgents} />
             </Suspense>
           </SiteContextScope>
         </ClientOnly>

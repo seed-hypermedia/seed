@@ -60,32 +60,12 @@ describe('agents panel entry points in the site header', () => {
     expect(container.textContent).not.toContain('Agents')
   })
 
-  it('flags orphan agents with a red dot on both entry points and counts them in the labels', () => {
+  it('flags orphan agents with a red dot on both entry points, keeping the label plain', () => {
     render({isOpen: false, toggle: vi.fn(), orphans: 2})
     expect(container.querySelectorAll('[data-testid="agent-orphans-dot"]')).toHaveLength(2)
-    expect(container.textContent).toContain('2 orphan agents to adopt')
+    expect(container.textContent).toBe('Agents')
     render({isOpen: false, toggle: vi.fn(), orphans: 0})
     expect(container.querySelectorAll('[data-testid="agent-orphans-dot"]')).toHaveLength(0)
-    expect(container.textContent).not.toContain('to adopt')
-  })
-
-  it('keeps activity in the header tooltip without showing activity dots on either entry point', () => {
-    render({
-      isOpen: false,
-      toggle: vi.fn(),
-      activity: {
-        tone: 'agent',
-        unread: true,
-        serverUrl: 'http://localhost:3051',
-        agentId: 'a',
-        agentName: 'Researcher',
-        sessionId: 's',
-        label: 'Researcher replied',
-      },
-    })
-    expect(container.querySelectorAll('[data-testid="agent-activity-dot"]')).toHaveLength(0)
-    expect(container.querySelector('button[aria-label="Agents"]')).not.toBeNull()
-    expect(container.textContent).toContain('Agents')
   })
 
   it('toggles the panel, reflects its open state, and lets the mobile menu close itself', () => {
@@ -95,14 +75,14 @@ describe('agents panel entry points in the site header', () => {
 
     const button = container.querySelector<HTMLButtonElement>('button[aria-label="Agents"]')!
     expect(button.getAttribute('aria-pressed')).toBe('true')
-    expect(container.textContent).toContain('Close Agents')
+    expect(container.textContent).toBe('Agents')
 
     act(() => button.click())
     expect(toggle).toHaveBeenCalledTimes(1)
     expect(onMenuClick).not.toHaveBeenCalled()
 
     const row = Array.from(container.querySelectorAll<HTMLElement>('*')).find(
-      (el) => el !== button && el.textContent === 'Close Agents' && el.closest('button') !== button,
+      (el) => el !== button && el.textContent === 'Agents' && el.closest('button') !== button,
     )!
     act(() => row.closest('button')!.click())
     expect(toggle).toHaveBeenCalledTimes(2)

@@ -48,7 +48,7 @@ import {useNavigationDispatch, useNavigationState, useNavRoute} from '@shm/share
 import {AccountAvatar} from '@shm/ui/account-avatar'
 import {useCollapseActivity} from '@shm/ui/activity-panel'
 import {useSelectedAccountId as useSelectedAgentsAccountId} from '@shm/ui/agents/account'
-import {AgentActivityLiveUpdates, useAgentActivityIndicator} from '@shm/ui/agents/activity'
+import {AgentActivityLiveUpdates, useAgentReadBaseline} from '@shm/ui/agents/activity'
 import {
   agentRouteServerUrl,
   isLocalAgentServer,
@@ -58,7 +58,7 @@ import {
   useLocalAgentServerUrl,
   useOrphanAgents,
 } from '@shm/ui/agents/models'
-import {assistantToggleLabel, OrphanAgentsDot, useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
+import {ASSISTANT_TOGGLE_LABEL, OrphanAgentsDot, useAssistantPanelToggle} from '@shm/ui/assistant-panel-toggle'
 import {Button} from '@shm/ui/button'
 import {
   DropdownMenu,
@@ -550,21 +550,20 @@ export function AccountProfileButton() {
  * agent/session (the panel resolves that itself). Styled like the bookmarks button while open.
  */
 function AssistantChatButton() {
-  // The unread indicator: the agents lists, kept live by `AgentActivityConnection` in the window bar, against this
-  // device's read marks.
   const toggle = useAssistantPanelToggle()
   const agentsAccountUid = useSelectedAgentsAccountId()
+  // First run on this device: what already happened counts as read, so the panel's unread marks
+  // start from now.
   const agentServerUrls = useAgentServerUrls()
-  const activity = useAgentActivityIndicator(agentServerUrls.data, agentsAccountUid)
+  useAgentReadBaseline(agentServerUrls.data, agentsAccountUid)
   // Orphan agents (owned, in no space yet) are flagged here too: the panel's card is where they get
   // adopted, and this button is how someone learns to open it.
   const orphanAgents = useOrphanAgents(agentsAccountUid)
   if (!toggle) return null
   const isActive = toggle.isOpen
   const orphans = orphanAgents.settled ? orphanAgents.agents.length : 0
-  const tooltip = assistantToggleLabel({isOpen: isActive, activity, orphans})
   return (
-    <Tooltip content={tooltip} asChild>
+    <Tooltip content={ASSISTANT_TOGGLE_LABEL} asChild>
       <Button
         className={cn(
           'window-no-drag relative h-8 w-8 rounded-full border p-0',

@@ -108,6 +108,14 @@ describe('AgentMountReminder', () => {
     )
   })
 
+  it("opens an agent's own page when its name is clicked", () => {
+    render({agents: [{serverUrl: HOSTED, agent: agent('legacy-1', 'Scout')}], settled: true})
+    const row = Array.from(container.querySelectorAll('button')).find((b) => b.textContent?.startsWith('Scout'))!
+    act(() => row.click())
+    expect(mocks.navigate).toHaveBeenCalledWith({key: 'agent', agentId: 'legacy-1', serverUrl: HOSTED})
+    expect(mocks.open).not.toHaveBeenCalled()
+  })
+
   it('folds to a one-line count and back, and reveals a long list on demand', () => {
     render({
       agents: Array.from({length: 6}, (_, i) => ({serverUrl: HOSTED, agent: agent(`legacy-${i}`, `Agent ${i}`)})),

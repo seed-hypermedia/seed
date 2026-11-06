@@ -1,7 +1,6 @@
 import {registerWebAgentsPlatform} from '@/web-agents-platform'
 import {useSelectedAccountId} from '@shm/ui/agents/account'
-import {AgentActivityLiveUpdates, useSiteAgentActivityIndicator} from '@shm/ui/agents/activity'
-import type {AgentActivityIndicator} from '@shm/ui/agents/activity-dot'
+import {AgentActivityLiveUpdates, useSiteAgentReadBaseline} from '@shm/ui/agents/activity'
 import {useMountedSiteAgents, useOrphanAgents} from '@shm/ui/agents/models'
 import {useEffect, useMemo} from 'react'
 
@@ -18,23 +17,17 @@ export type WebAssistantAgents = {
 /**
  * Watches the agents of this site on behalf of the signed-in account, for the site header.
  *
- * Three things come out of it. Whether the account can use any of the site's mounted agents: each
+ * Two things come out of it. Whether the account can use any of the site's mounted agents: each
  * mount is fetched by id, which the server answers for the owner, an accepted collaborator, or
  * any signed account once the agent is public, so a mount document alone proves nothing and a
  * reader the agents are not shared with gets no entry point. Whether the account owns orphan
  * agents (from before agents were documents, on the deployment's server or on the servers the
- * mounts name), since the entry point is the only place they can be discovered and adopted. And
- * the recent-activity indicator for the header's unread dot, kept current by one account socket
- * per server the mounted agents live on (so hints arrive with the panel closed). All are reported
- * up to the assistant host, which hands them to the header through the toggle context.
+ * mounts name), since the entry point is the only place they can be discovered and adopted. Both
+ * are reported up to the assistant host, which hands them to the header through the toggle
+ * context. It also keeps one account socket per server the mounted agents live on, so the agent
+ * lists stay current while the panel is closed.
  */
-export default function WebAssistantActivity({
-  onChange,
-  onAgentsChange,
-}: {
-  onChange: (indicator: AgentActivityIndicator | null) => void
-  onAgentsChange: (agents: WebAssistantAgents) => void
-}) {
+export default function WebAssistantActivity({onAgentsChange}: {onAgentsChange: (agents: WebAssistantAgents) => void}) {
   const accountUid = useSelectedAccountId()
   const site = useMountedSiteAgents(accountUid)
   const orphans = useOrphanAgents(accountUid)
@@ -44,9 +37,7 @@ export default function WebAssistantActivity({
   useEffect(() => {
     onAgentsChange({usable, orphans: orphanCount})
   }, [usable, orphanCount, onAgentsChange])
-  const indicator = useSiteAgentActivityIndicator(accountUid)
-  useEffect(() => {
-    onChange(indicator)
-  }, [indicator, onChange])
+  // First run on this device: what already happened counts as read.
+  useSiteAgentReadBaseline(accountUid)
   return <AgentActivityLiveUpdates serverUrls={serverUrls} accountUid={accountUid} />
 }
