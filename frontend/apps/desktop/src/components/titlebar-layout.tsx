@@ -31,7 +31,10 @@ export function TitlebarMainRow({
         {sidebarControl}
       </div>
       <div className="window-drag flex min-w-0 flex-1 items-center" data-titlebar-main-region>
-        <div className="window-drag flex shrink-0 items-center" data-titlebar-navigation-region>
+        <div
+          className={cn('window-drag flex shrink-0 items-center', sidebarLocked ? 'pl-0.5' : 'pl-2')}
+          data-titlebar-navigation-region
+        >
           {navigation}
         </div>
         <div className="flex min-w-0 flex-1 items-center overflow-hidden px-2" data-titlebar-omnibar-region>

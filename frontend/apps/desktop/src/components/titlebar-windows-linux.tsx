@@ -1,6 +1,7 @@
 import {CloseButton, WindowsLinuxWindowControls} from '@/components/window-controls'
 import {useSidebarContext, useSidebarWidth} from '@/sidebar-context'
 import {useStream} from '@shm/shared/use-stream'
+import {SiteSidebarToggle} from '@shm/ui/site-sidebar-context'
 import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {TitleBarProps} from './titlebar'
 import {NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
@@ -34,7 +35,7 @@ export default function TitleBarWindows(props: TitleBarProps) {
         <TitlebarMainRow
           sidebarLocked={isSidebarLocked}
           sidebarWidth={sidebarWidth}
-          sidebarControl={null}
+          sidebarControl={<SiteSidebarToggle />}
           navigation={<NavigationButtons />}
           omnibar={<Omnibar />}
           actions={

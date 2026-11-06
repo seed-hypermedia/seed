@@ -1,5 +1,6 @@
 import {useSidebarContext, useSidebarWidth} from '@/sidebar-context'
 import {useStream} from '@shm/shared/use-stream'
+import {SiteSidebarToggle} from '@shm/ui/site-sidebar-context'
 import {TitleText, TitlebarWrapper} from '@shm/ui/titlebar'
 import {TitleBarProps} from './titlebar'
 import {NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
@@ -25,7 +26,12 @@ export default function TitleBarMacos(props: TitleBarProps) {
       <TitlebarMainRow
         sidebarLocked={isSidebarLocked}
         sidebarWidth={sidebarWidth}
-        sidebarControl={<div className="w-[72px]" />}
+        sidebarControl={
+          <>
+            <div className="w-[72px]" />
+            <SiteSidebarToggle />
+          </>
+        }
         navigation={<NavigationButtons />}
         omnibar={<Omnibar />}
         actions={<PageActionButtons assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} />}

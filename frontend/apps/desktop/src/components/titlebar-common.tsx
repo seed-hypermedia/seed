@@ -73,7 +73,6 @@ import {Popover, PopoverContent, PopoverTrigger} from '@shm/ui/components/popove
 import {focusExploreSearch} from '@shm/ui/explore-search-focus'
 import {HMIcon} from '@shm/ui/hm-icon'
 import {Back, Forward} from '@shm/ui/icons'
-import {SiteSidebarToggle} from '@shm/ui/site-sidebar-context'
 import {Spinner} from '@shm/ui/spinner'
 import {TitlebarSection} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
@@ -642,24 +641,23 @@ export function NavigationButtons() {
   if (!state) return null
   return (
     <div className="no-window-drag flex shrink-0 items-center">
-      <SiteSidebarToggle />
       <Button
-        size="icon"
+        size="iconSm"
         onClick={() => dispatch({type: 'pop'})}
         variant="ghost"
         disabled={state.routeIndex <= 0}
-        className="rounded-tl-0 rounded-bl-0 shrink-0"
+        className="rounded-tl-0 rounded-bl-0 shrink-0 has-[>svg]:px-0.5"
       >
-        <Back className="size-4" />
+        <Back className="size-4.5" />
       </Button>
 
       <Button
-        size="icon"
+        size="iconSm"
         onClick={() => dispatch({type: 'forward'})}
         disabled={state.routeIndex >= state.routes.length - 1}
-        className="rounded-tr-0 rounded-br-0 shrink-0"
+        className="rounded-tr-0 rounded-br-0 shrink-0 has-[>svg]:px-0.5"
       >
-        <Forward className="size-4" />
+        <Forward className="size-4.5" />
       </Button>
     </div>
   )

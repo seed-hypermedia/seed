@@ -88,10 +88,10 @@ export function SiteSidebarToggle() {
         size="iconSm"
         aria-label={label}
         aria-expanded={sidebar.open}
-        className="no-window-drag text-muted-foreground hover:text-muted-foreground size-7 min-w-7 shrink-0 opacity-50 focus-visible:ring-2"
+        className="no-window-drag shrink-0 focus-visible:ring-2"
         onClick={() => sidebar.setOpen(!sidebar.open)}
       >
-        <PanelLeft className="size-5" strokeWidth={1.5} />
+        <PanelLeft className="size-4" />
       </Button>
     </Tooltip>
   )
