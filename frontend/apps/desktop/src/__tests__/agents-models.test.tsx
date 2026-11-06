@@ -12,6 +12,8 @@ const syncUnsubscribeMock = vi.fn()
 const getAgentServerHealthMock = vi.fn()
 const getAgentWebSocketUrlMock = vi.fn()
 const signAgentActionMock = vi.fn()
+const sendAgentActionMock = vi.fn()
+const getQueryClientMock = vi.fn()
 
 const storeData: Record<string, any> = {}
 
@@ -33,11 +35,12 @@ vi.mock('@shm/ui/agents/client', () => ({
   getAgentWebSocketUrl: getAgentWebSocketUrlMock,
   isSafeAgentServerSecretTarget: vi.fn(),
   normalizeAgentServerUrl: vi.fn((input: string) => new URL(input).toString().replace(/\/$/, '')),
-  sendAgentAction: vi.fn(),
+  sendAgentAction: sendAgentActionMock,
   signAgentAction: signAgentActionMock,
 }))
 
 vi.mock('@shm/shared/models/query-client', () => ({
+  getQueryClient: getQueryClientMock,
   invalidateQueries: invalidateQueriesMock,
   queryClient: {
     removeQueries: vi.fn(),
@@ -154,6 +157,43 @@ describe('agent server models', () => {
     document.body.innerHTML = ''
     process.env.NODE_ENV = originalNodeEnv
     vi.unstubAllGlobals()
+  })
+
+  it('refreshes a provider catalog in every picker sharing its cached list', async () => {
+    const oldModels = [{id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol'}]
+    const freshModels = [{id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol'}]
+    sendAgentActionMock.mockResolvedValueOnce({_: 'ListProviderModelsResponse', models: oldModels})
+    sendAgentActionMock.mockResolvedValueOnce({_: 'ListProviderModelsResponse', models: freshModels})
+
+    vi.resetModules()
+    const mod = await import('@shm/ui/agents/models')
+    const rendered = renderHook(() => ({
+      firstPicker: mod.useProviderModels('http://agents.test', 'alice', 'ChatGPT'),
+      secondPicker: mod.useProviderModels('http://agents.test', 'alice', 'ChatGPT'),
+      refresh: mod.useRefreshProviderModels('http://agents.test', 'alice'),
+    }))
+    getQueryClientMock.mockReturnValue(rendered.queryClient)
+
+    try {
+      await waitForCondition(() => rendered.result().firstPicker.data !== undefined)
+      expect(rendered.result().firstPicker.data).toEqual(oldModels)
+      expect(rendered.result().secondPicker.data).toEqual(oldModels)
+
+      await act(async () => {
+        await rendered.result().refresh.mutateAsync('ChatGPT')
+      })
+      await waitForCondition(() => rendered.result().firstPicker.data?.[0]?.id === 'gpt-6.1-sol')
+
+      expect(sendAgentActionMock).toHaveBeenLastCalledWith({
+        serverUrl: 'http://agents.test',
+        accountUid: 'alice',
+        action: {_: 'ListProviderModels', provider: 'ChatGPT', refresh: true},
+      })
+      expect(rendered.result().firstPicker.data).toEqual(freshModels)
+      expect(rendered.result().secondPicker.data).toEqual(freshModels)
+    } finally {
+      cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
+    }
   })
 
   it('seeds the configured server list with the built-in default in development', async () => {

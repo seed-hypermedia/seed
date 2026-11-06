@@ -2735,6 +2735,8 @@ describe('api service', () => {
       await seedSubscriptionProvider(svc, account)
       const requests: {url: string; headers: Record<string, string>}[] = []
       globalThis.fetch = mock(async (input: string | URL | Request, init?: RequestInit) => {
+        if (String(input) === 'https://registry.npmjs.org/@openai/codex/latest')
+          return Response.json({version: '9.1.0'})
         requests.push({url: String(input), headers: (init?.headers ?? {}) as Record<string, string>})
         return new Response(
           JSON.stringify({
@@ -2757,7 +2759,8 @@ describe('api service', () => {
       expect(requests).toHaveLength(1)
       const url = new URL(requests[0]!.url)
       expect(url.origin + url.pathname).toBe('https://chatgpt.com/backend-api/codex/models')
-      expect(url.searchParams.get('client_version')).toMatch(/^\d+\.\d+\.\d+$/)
+      // The client version follows the latest published Codex CLI, so new generations are listed.
+      expect(url.searchParams.get('client_version')).toBe('9.1.0')
       expect(requests[0]!.headers.Authorization).toBe('Bearer access-token')
       expect(requests[0]!.headers['ChatGPT-Account-Id']).toBe('acct_1')
       // Hidden entries are dropped; the rest keep the backend's priority order and display names.
@@ -2766,6 +2769,45 @@ describe('api service', () => {
         {id: 'gpt-5.6-sol', name: 'GPT-5.6-Sol'},
         {id: 'gpt-5.5', name: 'GPT-5.5'},
       ])
+    } finally {
+      globalThis.fetch = originalFetch
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('subscription provider caches the Codex release lookup until a refresh', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const originalFetch = globalThis.fetch
+    try {
+      const account = blobs.generateNobleKeyPair()
+      const svc = new apisvc.Service(db, dataDir)
+      await seedSubscriptionProvider(svc, account)
+      let published = '9.1.0'
+      let releaseLookups = 0
+      const clientVersions: (string | null)[] = []
+      globalThis.fetch = mock(async (input: string | URL | Request) => {
+        if (String(input) === 'https://registry.npmjs.org/@openai/codex/latest') {
+          releaseLookups++
+          return Response.json({version: published})
+        }
+        clientVersions.push(new URL(String(input)).searchParams.get('client_version'))
+        return Response.json({models: [{slug: 'gpt-6.1-sol', display_name: 'GPT-6.1-Sol', visibility: 'list'}]})
+      }) as unknown as typeof fetch
+
+      const list = async (refresh?: boolean) =>
+        svc.message(
+          await apisvc.createSignedEnvelope(account, {
+            action: {_: 'ListProviderModels', provider: 'ChatGPT', ...(refresh ? {refresh} : {})},
+          }),
+        )
+      await list()
+      published = '9.2.0'
+      await list()
+      expect(releaseLookups).toBe(1)
+      await list(true)
+      expect(releaseLookups).toBe(2)
+      expect(clientVersions).toEqual(['9.1.0', '9.1.0', '9.2.0'])
     } finally {
       globalThis.fetch = originalFetch
       sqlite.closeDatabase(db)
@@ -13176,5 +13218,52 @@ describe('markdown write guards', () => {
     expect((error as apisvc.APIError).status).toBe(400)
     expect((error as Error).message).toContain('Invalid mermaid diagram')
     await expect(apisvc.assertPublishableMermaid(toBlocks(validDiagram))).resolves.toBeUndefined()
+  })
+})
+
+describe('CodexClientVersionResolver', () => {
+  async function withFetch<T>(impl: () => Promise<Response>, run: () => Promise<T>): Promise<T> {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = mock(impl) as unknown as typeof fetch
+    try {
+      return await run()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  }
+
+  test('reports the latest published Codex release', async () => {
+    const version = await withFetch(
+      async () => Response.json({version: '9.1.0'}),
+      () => new apisvc.CodexClientVersionResolver().resolve(),
+    )
+    expect(version).toBe('9.1.0')
+  })
+
+  test('never reports a version below the known floor', async () => {
+    const version = await withFetch(
+      async () => Response.json({version: '0.1.0'}),
+      () => new apisvc.CodexClientVersionResolver().resolve(),
+    )
+    expect(apisvc.compareCodexVersions(version, '0.166.0')).toBe(0)
+  })
+
+  test('falls back to the floor when the registry is unreachable or malformed', async () => {
+    for (const impl of [
+      async () => {
+        throw new Error('network down')
+      },
+      async () => new Response('nope', {status: 503}),
+      async () => Response.json({version: 'latest'}),
+    ]) {
+      const version = await withFetch(impl, () => new apisvc.CodexClientVersionResolver().resolve())
+      expect(version).toBe('0.166.0')
+    }
+  })
+
+  test('compares dotted versions numerically', () => {
+    expect(apisvc.compareCodexVersions('0.166.0', '0.155.0')).toBeGreaterThan(0)
+    expect(apisvc.compareCodexVersions('0.99.0', '0.155.0')).toBeLessThan(0)
+    expect(apisvc.compareCodexVersions('1.0.0', '0.999.9')).toBeGreaterThan(0)
   })
 })

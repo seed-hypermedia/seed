@@ -404,6 +404,8 @@ export type ListProviderModels = {
   provider: string
   /** Resolves the provider against the owning account of a shared agent. */
   agentId?: string
+  /** Skips server-side caches behind the listing (e.g. the looked-up Codex client version). */
+  refresh?: boolean
 }
 
 /** Lists uploaded Seed account keys available to the signed account. */
