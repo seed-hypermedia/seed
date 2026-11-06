@@ -14,6 +14,17 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Mounting, orphaning or deleting an agent rewrites or removes its row in `agents`, and every
+  // table whose agent_id references it is rewritten too. SQLite checks the foreign key on each
+  // child table for the old and the new key, and the mount rewrites each child with
+  // `WHERE agent_id = ?`; a child table with no index led by agent_id is scanned whole for every
+  // one of those, inside the write transaction. On the production file that made "Adopt agent"
+  // take minutes (2026-11-04). These indexes turn every such lookup into a seek.
+  `CREATE INDEX trigger_firings_by_agent ON trigger_firings (agent_id);
+  CREATE INDEX session_continuations_by_agent ON session_continuations (agent_id);
+  CREATE INDEX agent_drafts_by_agent ON agent_drafts (agent_id);
+  CREATE INDEX tool_documents_by_agent_id ON tool_documents (agent_id);
+  CREATE INDEX agent_id_aliases_by_agent ON agent_id_aliases (agent_id);`,
   `CREATE TABLE agent_id_aliases (
       alias TEXT PRIMARY KEY,
       agent_id TEXT NOT NULL REFERENCES agents (id) ON DELETE CASCADE

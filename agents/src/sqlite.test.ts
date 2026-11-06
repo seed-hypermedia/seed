@@ -58,7 +58,7 @@ describe('sqlite', () => {
     try {
       db.run(
         sqlite.schema
-          .replace(/CREATE TABLE agent_id_aliases[\s\S]*?\) WITHOUT ROWID;\n\n/u, '')
+          .replace(/CREATE TABLE agent_id_aliases[\s\S]*?CREATE INDEX agent_id_aliases_by_agent[^\n]*\n\n/u, '')
           .replace(/    title_source TEXT NOT NULL DEFAULT 'system',\n/u, '')
           .replace(/    model_override_cbor BLOB,\n/u, '')
           .replace(/    description TEXT,\n/u, '')
