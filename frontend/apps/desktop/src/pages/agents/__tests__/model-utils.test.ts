@@ -66,6 +66,12 @@ describe('pickDefaultProviderModel', () => {
 })
 
 describe('curateProviderModels', () => {
+  it('lists GPT-6 models ahead of older OpenAI model families', () => {
+    const {all} = curateProviderModels([m('gpt-4o'), m('gpt-5.6-sol'), m('gpt-6.1-sol')], 'openai')
+
+    expect(all.map((model) => model.id)).toEqual(['gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-4o'])
+  })
+
   it('removes non-chat models, dedupes snapshots, and floats flagships', () => {
     const models = [
       m('text-embedding-3-small'),

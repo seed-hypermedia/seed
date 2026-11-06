@@ -309,7 +309,8 @@
       "fields": {
         "_": "\"ListProviderModels\"",
         "agentId?": "string",
-        "provider": "string"
+        "provider": "string",
+        "refresh?": "boolean"
       }
     },
     "ListRuns": {
