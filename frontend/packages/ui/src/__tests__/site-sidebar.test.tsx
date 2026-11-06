@@ -112,20 +112,23 @@ describe('site selector', () => {
     expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('joined')
   })
 
-  it('sorts by latest activity, keeps missing sites last, and navigates with the matching metadata', async () => {
+  it('keeps the own space first, sorts joined spaces by latest activity, and keeps missing sites last', async () => {
     activityOrder = ['other-own', 'older', 'own', 'joined']
     openSelector()
     await vi.waitFor(async () => {
       await act(async () => {})
       expect(Array.from(document.querySelectorAll('[role="menuitem"]')).map((item) => item.textContent)).toEqual([
-        'older',
         'own',
+        'older',
         'joined',
         'missing',
       ])
     })
+    const groups = Array.from(document.querySelectorAll('[role="group"]'))
+    expect(groups.map((group) => group.firstElementChild?.textContent)).toEqual(['My Space', 'Joined Spaces'])
+    expect(groups[0]?.querySelectorAll('[role="menuitem"]')).toHaveLength(1)
     expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('current')
-    act(() => (document.querySelector('[role="menuitem"]') as HTMLElement).click())
+    act(() => (document.querySelectorAll('[role="menuitem"]')[1] as HTMLElement).click())
     expect(container.querySelector('main')?.textContent).toBe('older home')
     expect(container.querySelector('[aria-label="Select site"]')?.textContent).toBe('older')
   })
