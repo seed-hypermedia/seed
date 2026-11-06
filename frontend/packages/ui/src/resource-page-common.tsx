@@ -73,7 +73,6 @@ import {
   useIsLatest,
   useResource,
   useResources,
-  useSiteMembers,
 } from '@shm/shared/models/entity'
 import {useMentionNames} from '@shm/shared/models/inline-mentions'
 import {blockToPlainText} from '@shm/shared/content-to-text'
@@ -213,7 +212,6 @@ import {FeedFilters} from './feed-filters'
 import {SelectField, SwitchField, TextField} from './form-fields'
 import {HMIcon} from './hm-icon'
 import {useDocumentLayout} from './layout'
-import {MembersFacepile} from './members-facepile'
 import {MergedBadge} from './merged-badge'
 import {MobilePanelSheet} from './mobile-panel-sheet'
 import {DocNavigationItem, DocNavigationWrapper, DocumentOutline, isValidSiteHeaderItem} from './navigation'
@@ -2344,10 +2342,8 @@ function DocumentBody({
   const headerVisibility =
     document.visibility === 'PRIVATE' || draftVisibility === 'PRIVATE' ? 'PRIVATE' : document.visibility
   const versionHeadCount = getVersionHeads(document.version).length
-  const siteId = useMemo(() => hmId(docId.uid), [docId.uid])
   // Skip the queries for anonymous pending drafts.
   const isLocalOnlyDoc = isPendingSpaceUid(docId.uid)
-  const siteMembers = useSiteMembers(isLocalOnlyDoc ? null : siteId)
   const directory = useDirectory(isLocalOnlyDoc ? null : docId)
   const interactionSummary = useInteractionSummary(isLocalOnlyDoc ? null : docId)
   const commentsPanelSummary = useInteractionSummary(
@@ -2358,12 +2354,6 @@ function DocumentBody({
     () => getRenderedCollaboratorsCount(collaborators.data, isHomeDoc),
     [collaborators.data, isHomeDoc],
   )
-  const showMembersFacepile =
-    isHomeDoc &&
-    showDocumentChrome &&
-    activeView !== 'all-documents' &&
-    !siteMembers.isInitialLoading &&
-    siteMembers.members.length > 0
   const citationsTargetId = useMemo(
     () => getCitationsTargetId({docId, documentVersion: document.version}),
     [docId, document.version],
@@ -3147,11 +3137,6 @@ function DocumentBody({
             className={cn(mainContentProps.className, 'flex flex-col', fullWidthHeader && '!w-full !max-w-none')}
             style={fullWidthHeader ? {...mainContentProps.style, maxWidth: undefined} : mainContentProps.style}
           >
-            {showMembersFacepile && (
-              <div className="pt-4">
-                <MembersFacepile members={siteMembers.members} siteId={siteId} />
-              </div>
-            )}
             {!isHomeDoc &&
               !isAgentDocument &&
               (canEditCurrentRoute ? (
@@ -3184,11 +3169,6 @@ function DocumentBody({
           className={cn('mx-auto flex w-full flex-col', !expandedPanel && 'px-4')}
           style={{maxWidth: fullWidthHeader ? undefined : contentMaxWidth}}
         >
-          {showMembersFacepile && (
-            <div className="pt-4">
-              <MembersFacepile members={siteMembers.members} siteId={siteId} />
-            </div>
-          )}
           {!isHomeDoc &&
             !isAgentDocument &&
             (canEditCurrentRoute ? (
