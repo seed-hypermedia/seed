@@ -2,10 +2,10 @@ import {Crop, X} from 'lucide-react'
 import {ChangeEvent, ReactNode, useEffect, useState} from 'react'
 import {Button} from './button'
 import {useImageCropper, type ImageCropConfig} from './image-crop-dialog'
-import {SizableText} from './text'
-import {cn} from './utils'
-import {toast} from './toast'
 import {COVER_IMAGE_POLICY, IMAGE_FILE_ACCEPT, processImage} from './image-processing'
+import {SizableText} from './text'
+import {toast} from './toast'
+import {cn} from './utils'
 
 /** Props for the ImageForm component. */
 export interface ImageFormProps {
@@ -17,6 +17,7 @@ export interface ImageFormProps {
   uploadOnChange?: boolean
   height?: number
   width?: number
+  fit?: 'cover' | 'contain'
   emptyContent?: ReactNode
   /**
    * Enables cropping. Choosing a file opens the cropper rather than accepting
@@ -53,6 +54,7 @@ export function ImageForm({
   uploadOnChange = true,
   height,
   width,
+  fit = 'cover',
   fileUpload,
   emptyContent,
   crop,
@@ -120,7 +122,7 @@ export function ImageForm({
           position: 'absolute',
           top: 0,
           left: 0,
-          objectFit: 'cover',
+          objectFit: fit,
         }}
       />
     </div>
@@ -185,7 +187,10 @@ export function ImageForm({
         <Button
           size="icon"
           aria-label="Adjust crop"
-          className={cn('absolute top-0 z-50 opacity-0 group-hover:opacity-100', onRemove ? 'right-8' : 'right-0')}
+          className={cn(
+            'absolute top-0 z-50 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100',
+            onRemove ? 'right-8' : 'right-0',
+          )}
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
@@ -198,7 +203,8 @@ export function ImageForm({
       {onRemove && url ? (
         <Button
           size="icon"
-          className="grouo-hover:pointer-events-all absolute top-0 right-0 z-50 opacity-0 group-hover:opacity-100"
+          aria-label="Remove image"
+          className="grouo-hover:pointer-events-all absolute top-0 right-0 z-50 opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()

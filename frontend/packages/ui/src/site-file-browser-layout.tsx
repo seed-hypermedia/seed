@@ -5,9 +5,9 @@ import {Group, Panel} from 'react-resizable-panels'
 import {Dialog, DialogContent, DialogTitle} from './components/dialog'
 import {focusExploreSearch} from './explore-search-focus'
 import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from './resizable-panels'
+import type {SiteFileBrowserProps} from './site-file-browser'
 import {SiteSidebar, SiteSidebarDocuments} from './site-sidebar'
 import {SiteSidebarPortal, SiteSidebarProvider, usePersistedSidebarOpen, useSiteSidebar} from './site-sidebar-context'
-import type {SiteFileBrowserProps} from './site-file-browser'
 import {useMedia} from './use-media'
 
 /** Page-owned browser data; desktop renders it in the existing application sidebar. */
@@ -16,6 +16,8 @@ export interface SiteFileBrowserLayoutProps
   siteName: string
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
+  /** Leaves the space's documents out of the sidebar, per the space's settings. */
+  hideBrowser?: boolean
   children: ReactNode
 }
 
@@ -25,9 +27,7 @@ export function SiteFileBrowserLayout(props: SiteFileBrowserLayoutProps) {
   if (IS_DESKTOP && sidebar) {
     return (
       <>
-        <SiteSidebarPortal>
-          <SiteSidebarDocuments {...props} />
-        </SiteSidebarPortal>
+        <SiteSidebarPortal>{props.hideBrowser ? null : <SiteSidebarDocuments {...props} />}</SiteSidebarPortal>
         {props.children}
       </>
     )
@@ -40,6 +40,7 @@ function WebSiteSidebarLayout({
   mobileOpen,
   onMobileOpenChange,
   siteName,
+  hideBrowser,
   ...props
 }: SiteFileBrowserLayoutProps) {
   const media = useMedia()
@@ -79,14 +80,16 @@ function WebSiteSidebarLayout({
       onNavigate={props.onNavigate}
       onAfterNavigate={closeDrawer}
     >
-      <SiteSidebarDocuments
-        {...props}
-        onNavigate={(id) => {
-          closeDrawer()
-          props.onNavigate(id)
-        }}
-        onCreate={closeDrawer}
-      />
+      {hideBrowser ? null : (
+        <SiteSidebarDocuments
+          {...props}
+          onNavigate={(id) => {
+            closeDrawer()
+            props.onNavigate(id)
+          }}
+          onCreate={closeDrawer}
+        />
+      )}
     </SiteSidebar>
   )
   const updateOpen = (value: boolean) => {

@@ -17,6 +17,19 @@ describe('splitResponsiveItems', () => {
     expect(result.overflowItems.map((item) => item.key)).toEqual(['blog'])
   })
 
+  it('does not let a shorter item jump ahead of one that overflowed', () => {
+    const widths: Record<string, number> = {home: 50, about: 100, blog: 30}
+    const result = splitResponsiveItems({
+      items,
+      containerWidth: 120,
+      overflowTriggerWidth: 30,
+      getWidth: (item) => widths[item.key]!,
+    })
+
+    expect(result.visibleItems.map((item) => item.key)).toEqual(['home'])
+    expect(result.overflowItems.map((item) => item.key)).toEqual(['about', 'blog'])
+  })
+
   it('allows Home to overflow like other inactive items', () => {
     const result = splitResponsiveItems({
       items,
