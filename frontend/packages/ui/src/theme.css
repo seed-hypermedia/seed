@@ -324,3 +324,22 @@
     animation: none;
   }
 }
+
+/* tw-animate-css enter/exit: keep the opacity fade, drop the movement. The
+   attribute selector also catches `data-[state=…]:animate-in` variants, whose
+   compiled class name contains the substring but not the literal class. */
+@media (prefers-reduced-motion: reduce) {
+  [class*='animate-in'],
+  [class*='animate-out'] {
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-enter-rotate: 0;
+    --tw-enter-blur: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-exit-scale: 1;
+    --tw-exit-rotate: 0;
+    --tw-exit-blur: 0;
+  }
+}

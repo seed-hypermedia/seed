@@ -99,7 +99,7 @@ export default function OnboardingPage() {
                 </div>
                 <button
                   onClick={() => createAccountDialog.open({})}
-                  className="flex items-center gap-4 rounded-lg border p-4 shadow-sm transition-all hover:shadow-lg"
+                  className="flex items-center gap-4 rounded-lg border p-4 shadow-sm transition-shadow duration-150 hover:shadow-md"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-dotted border-neutral-400 bg-white">
                     <User className="size-6 text-neutral-400" />

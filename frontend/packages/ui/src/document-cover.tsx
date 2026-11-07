@@ -95,7 +95,7 @@ export function DocumentCover({cover, className, onRemove, onChangeCover}: Docum
         <img
           alt="Document cover"
           src={imageUrl(cover, 'L')}
-          className={cn('object-contain', modalState === 'opening' ? 'animate-in zoom-in-50 duration-300' : '')}
+          className={cn('object-contain', modalState === 'opening' ? 'animate-in zoom-in-95 duration-300' : '')}
           style={{
             maxWidth: '90vw',
             maxHeight: '90vh',

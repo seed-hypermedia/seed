@@ -33,12 +33,6 @@ BASIC STYLES
  * lets em-based margins on h1/p/pre/etc. scale with their own
  * font-size instead of being overridden by a wrapper-level rule. */
 
-.blockContent::before {
-  /* content: ""; */
-  transition: all 0.2s;
-  /*margin: 0px;*/
-}
-
 .blockContent[data-content-type='slot'] {
   display: none;
 }
@@ -114,7 +108,7 @@ NESTED BLOCKS
   position: absolute;
   left: -20px;
   height: 100%;
-  transition: all 0.2s 0.1s;
+  transition: height 0.2s 0.1s;
 }
 
 .blockChildren[data-list-type='Blockquote'] {

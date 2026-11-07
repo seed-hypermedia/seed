@@ -22,7 +22,7 @@ function AddBlockButton({
       size="icon"
       variant="outline"
       className={cn(
-        'text-muted-foreground hover:bg-primary flex size-6 h-7 w-7 min-w-6 scale-95 items-center justify-center rounded-full transition-all hover:scale-110 hover:text-white active:scale-95',
+        'text-muted-foreground hover:bg-primary flex size-6 h-7 w-7 min-w-6 items-center justify-center rounded-full transition-[color,background-color,transform] duration-150 hover:text-white active:scale-95',
         className,
       )}
       onClick={onClick}
