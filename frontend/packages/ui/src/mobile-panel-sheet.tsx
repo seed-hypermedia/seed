@@ -24,7 +24,7 @@ export interface MobilePanelSheetProps {
   resizable?: boolean
   /** Return from a thread to the comments list. */
   onBack?: () => void
-  /** Let simple panels scroll here; comments and feeds own their scroll area. */
+  /** Let simple panels scroll here; comments own their scroll area. */
   scrollContent?: boolean
 }
 
@@ -381,11 +381,16 @@ export function MobilePanelSheet({
           {/* Content */}
           <div
             className={cn(
-              'flex min-h-0 flex-1 flex-col overscroll-contain pb-[env(safe-area-inset-bottom)]',
-              scrollContent ? 'overflow-y-auto' : 'overflow-hidden',
+              'min-h-0 flex-1 overscroll-contain',
+              scrollContent ? 'overflow-y-auto' : 'flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]',
             )}
           >
-            {children}
+            {scrollContent ? (
+              // Children that fill their parent's height would clip to it; an auto-height parent lets them grow so this scrolls.
+              <div className="flex min-h-full flex-col pb-[env(safe-area-inset-bottom)]">{children}</div>
+            ) : (
+              children
+            )}
           </div>
         </Dialog.Content>
       </div>

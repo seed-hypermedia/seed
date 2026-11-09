@@ -3461,7 +3461,7 @@ function DocumentBody({
             onClose={handlePanelClose}
             header={documentPanelHeader ?? activityPanelHeader}
             resizable
-            scrollContent={panelKey !== 'comments' && panelKey !== 'feed'}
+            scrollContent={panelKey !== 'comments'}
             onBack={
               panelRoute?.key === 'comments' && panelRoute.openComment && 'panel' in route
                 ? () => replaceRoute({...route, panel: {key: 'comments', id: commentsPanelTarget.docId}})
