@@ -1,6 +1,11 @@
 import type {HMDocumentInfo} from '@seed-hypermedia/client/hm-types'
 import {describe, expect, it} from 'vitest'
-import {filterQueryBlockDocuments, getQueryBlockFilterOptions, matchesQueryFilterEquality} from '../query-block-filter'
+import {
+  filterQueryBlockDocuments,
+  getQueryBlockFilterOptions,
+  getQueryBlockRefKey,
+  matchesQueryFilterEquality,
+} from '../query-block-filter'
 
 function item(name: string, metadata: Record<string, unknown> = {}): HMDocumentInfo {
   return {
@@ -115,5 +120,110 @@ describe('getQueryBlockFilterOptions', () => {
         filters: [{columnId: 'created', operator: 'equals', value: options.created!.values[0]!}],
       }),
     ).toEqual([doc])
+  })
+})
+
+describe('getQueryBlockRefKey', () => {
+  it.each([
+    ['hm://owneruid', 'hm://owneruid'],
+    ['hm://owneruid?v=abc123', 'hm://owneruid'],
+    ['hm://owneruid/:profile', 'hm://owneruid'],
+    ['hm://docuid/a/b', 'hm://docuid/a/b'],
+    ['hm://docuid/a/b?v=abc123#block1', 'hm://docuid/a/b'],
+  ])('canonicalizes %s to %s', (value, expected) => {
+    expect(getQueryBlockRefKey(value)).toBe(expected)
+  })
+
+  it.each([['plain text'], ['123'], [undefined], [null], [{uid: 'x'}], [['hm://owneruid']]])(
+    'returns null for non-reference %j',
+    (value) => {
+      expect(getQueryBlockRefKey(value)).toBeNull()
+    },
+  )
+
+  it('rejects gateway URLs unless allowed', () => {
+    expect(getQueryBlockRefKey('https://hyper.media/hm/owneruid')).toBeNull()
+    expect(getQueryBlockRefKey('https://hyper.media/hm/owneruid', {allowWebUrls: true})).toBe('hm://owneruid')
+    expect(getQueryBlockRefKey('https://hyper.media/hm/docuid/a/b?v=x', {allowWebUrls: true})).toBe('hm://docuid/a/b')
+    expect(getQueryBlockRefKey('https://hyper.media/other/path', {allowWebUrls: true})).toBeNull()
+  })
+})
+
+describe('reference labels in search and filters', () => {
+  const labels = new Map([
+    ['hm://owneruid', 'horacio'],
+    ['hm://docuid/spec/one', 'Spec Document'],
+  ])
+
+  it('matches the search against resolved reference names', () => {
+    const items = [item('One', {owner: 'hm://owneruid'}), item('Two', {owner: 'hm://otheruid'})]
+    expect(filterQueryBlockDocuments(items, {search: 'horac'}, labels).map((entry) => entry.metadata.name)).toEqual([
+      'One',
+    ])
+  })
+
+  it('matches reference searches by ref key for hm://, versioned, and gateway URLs', () => {
+    const items = [item('One', {owner: 'hm://owneruid'}), item('Two', {owner: 'hm://otheruid'})]
+    for (const search of ['hm://owneruid', 'hm://owneruid?v=abc', 'https://hyper.media/hm/owneruid']) {
+      expect(filterQueryBlockDocuments(items, {search}, labels).map((entry) => entry.metadata.name)).toEqual(['One'])
+    }
+  })
+
+  it('matches document reference labels inside array attributes', () => {
+    const items = [item('One', {specs: ['hm://docuid/spec/one', 'Draft']}), item('Two', {specs: ['Other']})]
+    expect(filterQueryBlockDocuments(items, {search: 'spec doc'}, labels).map((entry) => entry.metadata.name)).toEqual([
+      'One',
+    ])
+    expect(
+      filterQueryBlockDocuments(items, {search: 'hm://docuid/spec/one?v=z'}, labels).map(
+        (entry) => entry.metadata.name,
+      ),
+    ).toEqual(['One'])
+  })
+
+  it('matches contains filters against reference labels and ref keys', () => {
+    const items = [item('One', {owner: 'hm://owneruid'}), item('Two', {owner: 'hm://otheruid'})]
+    expect(
+      filterQueryBlockDocuments(
+        items,
+        {filters: [{columnId: 'metadata:owner', operator: 'contains', value: 'horac'}]},
+        labels,
+      ).map((entry) => entry.metadata.name),
+    ).toEqual(['One'])
+    expect(
+      filterQueryBlockDocuments(
+        items,
+        {filters: [{columnId: 'metadata:owner', operator: 'contains', value: 'hm://owneruid?v=x'}]},
+        labels,
+      ).map((entry) => entry.metadata.name),
+    ).toEqual(['One'])
+  })
+
+  it('keeps equals comparisons on raw values', () => {
+    const items = [item('One', {owner: 'hm://owneruid'})]
+    expect(
+      filterQueryBlockDocuments(
+        items,
+        {filters: [{columnId: 'metadata:owner', operator: 'equals', value: 'hm://owneruid'}]},
+        labels,
+      ),
+    ).toEqual(items)
+    expect(
+      filterQueryBlockDocuments(
+        items,
+        {filters: [{columnId: 'metadata:owner', operator: 'equals', value: 'horacio'}]},
+        labels,
+      ),
+    ).toEqual([])
+  })
+
+  it('adds resolved labels to filter options', () => {
+    const options = getQueryBlockFilterOptions([item('One', {owner: 'hm://owneruid', status: 'Ready'})], labels)
+    expect(options['metadata:owner']).toEqual({
+      type: 'text',
+      values: ['hm://owneruid'],
+      labels: {'hm://owneruid': 'horacio'},
+    })
+    expect(options['metadata:status']).toEqual({type: 'text', values: ['Ready']})
   })
 })

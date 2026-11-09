@@ -214,3 +214,41 @@ describe('query block table model', () => {
     ])
   })
 })
+
+describe('account reference fallback matching', () => {
+  const context = {
+    accountsMetadata: {owneruid: {id: hmId('owneruid'), metadata: {name: 'horacio'}}},
+  }
+
+  it('searches rows by the resolved account name of bare account refs', () => {
+    const descriptors = buildQueryTableColumns()
+    expect(queryTableItemMatchesSearch(item('One', {owner: 'hm://owneruid'}), 'horac', descriptors, context)).toBe(true)
+    expect(queryTableItemMatchesSearch(item('One', {owner: 'hm://otheruid'}), 'horac', descriptors, context)).toBe(
+      false,
+    )
+  })
+
+  it('matches reference URL searches by ref equality', () => {
+    const descriptors = buildQueryTableColumns()
+    const row = item('One', {owner: 'hm://owneruid'})
+    expect(queryTableItemMatchesSearch(row, 'hm://owneruid?v=abc', descriptors, context)).toBe(true)
+    expect(queryTableItemMatchesSearch(row, 'https://hyper.media/hm/owneruid', descriptors, context)).toBe(true)
+    expect(queryTableItemMatchesSearch(row, 'hm://otheruid', descriptors, context)).toBe(false)
+  })
+
+  it('matches contains filters by account name and ref key', () => {
+    const rows = [item('One', {owner: 'hm://owneruid'}), item('Two', {owner: 'hm://otheruid'})]
+    expect(
+      filterQueryTableItems(rows, [{columnId: 'metadata:owner', operator: 'contains', value: 'horac'}], context).map(
+        (entry) => entry.metadata.name,
+      ),
+    ).toEqual(['One'])
+    expect(
+      filterQueryTableItems(
+        rows,
+        [{columnId: 'metadata:owner', operator: 'contains', value: 'hm://owneruid?v=x'}],
+        context,
+      ).map((entry) => entry.metadata.name),
+    ).toEqual(['One'])
+  })
+})

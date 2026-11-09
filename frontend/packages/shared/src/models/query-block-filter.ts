@@ -5,6 +5,39 @@ import {
   type HMQueryBlockFilterOptions,
 } from '@seed-hypermedia/client/hm-types'
 import {normalizeDate} from '../utils/date'
+import {unpackHmId} from '../utils/entity-id-url'
+
+/** Display names for Hypermedia references stored in metadata values, keyed by ref key. */
+export type QueryBlockRefLabels = Map<string, string>
+
+/**
+ * Canonicalizes a Hypermedia reference (account or document link) to a stable
+ * key (`hm://<uid>` or `hm://<uid>/<path>`) so links that differ only by
+ * version, blockRef, or other query params compare equal. Returns null for
+ * non-reference values. `allowWebUrls` also accepts `http(s)://<host>/hm/...`
+ * gateway URLs; stored metadata values are always `hm://` links.
+ */
+export function getQueryBlockRefKey(value: unknown, opts?: {allowWebUrls?: boolean}): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  const isHmUrl = /^hm:\/\//i.test(trimmed)
+  const isWebUrl = /^https?:\/\//i.test(trimmed)
+  if (!isHmUrl && !(opts?.allowWebUrls && isWebUrl)) return null
+  const id = unpackHmId(trimmed)
+  if (!id?.uid) return null
+  const path = id.path ?? []
+  if (!path.length || (path.length === 1 && path[0] === ':profile')) return `hm://${id.uid}`
+  return `hm://${id.uid}/${path.join('/')}`
+}
+
+function refKeysForValue(value: unknown): string[] {
+  const keys: string[] = []
+  for (const candidate of Array.isArray(value) ? value : [value]) {
+    const key = getQueryBlockRefKey(candidate)
+    if (key) keys.push(key)
+  }
+  return keys
+}
 
 /** Temporary viewer search and filters. */
 export type QueryBlockViewer = NonNullable<HMQueryBlockInput['viewer']>
@@ -39,7 +72,7 @@ function comparable(value: unknown, columnId: string): string | number {
   return text(value).toLocaleLowerCase()
 }
 
-function matchesFilter(item: HMDocumentInfo, filter: QueryBlockViewerFilter): boolean {
+function matchesFilter(item: HMDocumentInfo, filter: QueryBlockViewerFilter, refLabels?: QueryBlockRefLabels): boolean {
   const value = valueFor(item, filter.columnId)
   const needle = filter.value.trim().toLocaleLowerCase()
   if (!needle) return true
@@ -56,7 +89,13 @@ function matchesFilter(item: HMDocumentInfo, filter: QueryBlockViewerFilter): bo
     const matches = matchesQueryFilterEquality(comparableValue, filter.value)
     return filter.operator === 'equals' ? matches : !matches
   }
-  if (filter.operator === 'contains') return text(value).toLocaleLowerCase().includes(needle)
+  if (filter.operator === 'contains') {
+    if (text(value).toLocaleLowerCase().includes(needle)) return true
+    const refKeys = refKeysForValue(value)
+    const needleRefKey = getQueryBlockRefKey(filter.value, {allowWebUrls: true})
+    if (needleRefKey && refKeys.includes(needleRefKey)) return true
+    return refKeys.some((key) => refLabels?.get(key)?.toLocaleLowerCase().includes(needle))
+  }
   const left = comparable(value, filter.columnId)
   const right = comparable(filter.value, filter.columnId)
   if (typeof left === 'number' && typeof right === 'number' && (!Number.isFinite(left) || !Number.isFinite(right))) {
@@ -78,7 +117,10 @@ export function matchesQueryFilterEquality(value: unknown, expected: string): bo
 }
 
 /** Collects existing filter values and column types from all documents in the collection scope. */
-export function getQueryBlockFilterOptions(items: HMDocumentInfo[]): HMQueryBlockFilterOptions {
+export function getQueryBlockFilterOptions(
+  items: HMDocumentInfo[],
+  refLabels?: QueryBlockRefLabels,
+): HMQueryBlockFilterOptions {
   const columns: Record<string, HMQueryBlockFilterOptions[string]['type']> = {
     title: 'text',
     path: 'text',
@@ -111,6 +153,7 @@ export function getQueryBlockFilterOptions(items: HMDocumentInfo[]): HMQueryBloc
   return Object.fromEntries(
     Object.entries(columns).map(([columnId, type]) => {
       const values: string[] = []
+      const labels: Record<string, string> = {}
       const seen = new Set<string>()
       for (const item of items) {
         let raw = valueFor(item, columnId)
@@ -126,27 +169,43 @@ export function getQueryBlockFilterOptions(items: HMDocumentInfo[]): HMQueryBloc
           if (value === undefined || seen.has(value.toLocaleLowerCase())) continue
           seen.add(value.toLocaleLowerCase())
           values.push(value)
+          const label = refLabels?.get(getQueryBlockRefKey(entry) ?? '')
+          if (label) labels[value] = label
         }
       }
-      return [columnId, {type, values}]
+      return [columnId, Object.keys(labels).length ? {type, values, labels} : {type, values}]
     }),
   )
 }
 
 /** Applies temporary viewer search and filters to a complete Query Block result set. */
-export function filterQueryBlockDocuments(items: HMDocumentInfo[], viewer?: QueryBlockViewer): HMDocumentInfo[] {
+export function filterQueryBlockDocuments(
+  items: HMDocumentInfo[],
+  viewer?: QueryBlockViewer,
+  refLabels?: QueryBlockRefLabels,
+): HMDocumentInfo[] {
   const search = viewer?.search?.trim().toLocaleLowerCase()
+  const searchRefKey = viewer?.search?.trim() ? getQueryBlockRefKey(viewer.search, {allowWebUrls: true}) : null
   const filters = viewer?.filters ?? []
   if (!search && !filters.some((filter) => filter.value.trim())) return items
 
   return items.filter((item) => {
     if (search) {
-      const searchable = [item.metadata.name, item.path.join('/'), ...Object.values(item.metadata)]
+      const labels: string[] = []
+      const refKeys: string[] = []
+      for (const value of Object.values(item.metadata)) {
+        for (const key of refKeysForValue(value)) {
+          refKeys.push(key)
+          const label = refLabels?.get(key)
+          if (label) labels.push(label)
+        }
+      }
+      const searchable = [item.metadata.name, item.path.join('/'), ...Object.values(item.metadata), ...labels]
         .map(text)
         .join('\n')
         .toLocaleLowerCase()
-      if (!searchable.includes(search)) return false
+      if (!searchable.includes(search) && !(searchRefKey && refKeys.includes(searchRefKey))) return false
     }
-    return filters.every((filter) => matchesFilter(item, filter))
+    return filters.every((filter) => matchesFilter(item, filter, refLabels))
   })
 }

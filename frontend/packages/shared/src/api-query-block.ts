@@ -9,12 +9,16 @@ import {
 import {GRPCClient} from './grpc-client'
 import {hmIdPathToEntityQueryPath} from './utils/path-api'
 import {entityQueryPathToHmIdPath, hmId} from './utils'
-import {unpackHmId} from './utils/entity-id-url'
 import {HMRequestImplementation} from './api-types'
 import {queryToQueryDocumentsRequest} from './models/query-block-sort'
 import {prepareHMDocumentInfo} from './models/entity'
 import {loadAccount} from './api-account'
-import {filterQueryBlockDocuments, getQueryBlockFilterOptions} from './models/query-block-filter'
+import {
+  filterQueryBlockDocuments,
+  getQueryBlockFilterOptions,
+  getQueryBlockRefKey,
+  type QueryBlockRefLabels,
+} from './models/query-block-filter'
 
 function readMetadataStringField(
   metadata: {toJson: (opts: {emitDefaultValues: boolean; enumAsInteger: boolean}) => unknown} | undefined,
@@ -109,12 +113,75 @@ function getMetadataAccountUids(metadata: HMDocumentInfo['metadata']): string[] 
   const uids: string[] = []
   for (const value of Object.values(metadata ?? {})) {
     for (const candidate of Array.isArray(value) ? value : [value]) {
-      if (typeof candidate !== 'string' || !candidate) continue
-      const id = unpackHmId(candidate)
-      if (id && !id.path?.length) uids.push(id.uid)
+      const key = getQueryBlockRefKey(candidate)
+      // Bare account refs have no path segment after the uid.
+      if (key && !key.slice('hm://'.length).includes('/')) uids.push(key.slice('hm://'.length))
     }
   }
   return uids
+}
+
+/**
+ * Resolves display names for every Hypermedia reference stored in the
+ * collection's metadata (accounts via batchGetAccounts, documents via
+ * batchGetDocumentInfo) so search, filters, and filter options can match names
+ * instead of raw `hm://` links. Runs over ALL resolved results, before the
+ * limit is applied.
+ */
+async function resolveMetadataRefLabels(
+  grpcClient: GRPCClient,
+  results: HMDocumentInfo[],
+): Promise<{labels: QueryBlockRefLabels; accountsMetadata: HMAccountsMetadata; fallbackCount: number}> {
+  const labels: QueryBlockRefLabels = new Map()
+  const accountUids = new Set<string>()
+  const docRefs = new Map<string, {uid: string; path: string}>()
+  for (const item of results) {
+    for (const value of Object.values(item.metadata ?? {})) {
+      for (const candidate of Array.isArray(value) ? value : [value]) {
+        const key = getQueryBlockRefKey(candidate)
+        if (!key) continue
+        const rest = key.slice('hm://'.length)
+        const slash = rest.indexOf('/')
+        if (slash === -1) {
+          accountUids.add(rest)
+        } else if (!docRefs.has(key)) {
+          docRefs.set(key, {uid: rest.slice(0, slash), path: rest.slice(slash)})
+        }
+      }
+    }
+  }
+
+  const {accountsMetadata, fallbackCount} = await loadVisibleAccountsMetadata(grpcClient, Array.from(accountUids))
+  for (const [uid, account] of Object.entries(accountsMetadata)) {
+    const name = account.metadata?.name
+    if (name) labels.set(`hm://${uid}`, name)
+  }
+
+  if (docRefs.size) {
+    const requests = Array.from(docRefs, ([key, ref]) => ({key, account: ref.uid, path: ref.path}))
+    const collectLabel = (key: string | undefined, metadata: Parameters<typeof readMetadataStringField>[0]) => {
+      if (!key) return
+      const name = readMetadataStringField(metadata, 'name')
+      if (name) labels.set(key, name)
+    }
+    try {
+      const response = await grpcClient.documents.batchGetDocumentInfo({
+        requests: requests.map(({account, path}) => ({account, path})),
+      })
+      // The server answers in request order and fails the whole batch when any
+      // single document is missing, so fall back to per-document lookups.
+      ;(response.documents ?? []).forEach((doc, index) => collectLabel(requests[index]?.key, doc?.metadata))
+    } catch {
+      await Promise.allSettled(
+        requests.map(async (request) => {
+          const doc = await grpcClient.documents.getDocumentInfo({account: request.account, path: request.path})
+          collectLabel(request.key, doc.metadata)
+        }),
+      )
+    }
+  }
+
+  return {labels, accountsMetadata, fallbackCount}
 }
 
 async function loadVisibleAccountsMetadata(
@@ -218,6 +285,7 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
       fallbackAccountCount: 0,
       phaseDurationsMs: {
         queryResolver: 0,
+        metadataRefLabels: 0,
         queryTargetName: 0,
         itemSummaries: 0,
         accountsMetadata: 0,
@@ -237,8 +305,14 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
       }
 
       perf.resolvedItemCount = queryResult.results.length
-      const filterOptions = getQueryBlockFilterOptions(queryResult.results)
-      const matchingResults = filterQueryBlockDocuments(queryResult.results, input.viewer)
+
+      const metadataRefLabelsStartedAt = now()
+      const refLabelsResult = await resolveMetadataRefLabels(instrumentedGrpcClient, queryResult.results)
+      perf.phaseDurationsMs.metadataRefLabels += now() - metadataRefLabelsStartedAt
+      perf.fallbackAccountCount += refLabelsResult.fallbackCount
+
+      const filterOptions = getQueryBlockFilterOptions(queryResult.results, refLabelsResult.labels)
+      const matchingResults = filterQueryBlockDocuments(queryResult.results, input.viewer, refLabelsResult.labels)
       const limit = input.query.limit
       const results = limit && limit > 0 ? matchingResults.slice(0, limit) : matchingResults
       perf.returnedItemCount = results.length
@@ -263,12 +337,19 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
       perf.visibleContributorCount = visibleContributorUids.size
 
       const accountsMetadataStartedAt = now()
-      const {accountsMetadata, fallbackCount} = await loadVisibleAccountsMetadata(
+      const missingUids = Array.from(visibleContributorUids).filter((uid) => !refLabelsResult.accountsMetadata[uid])
+      const {accountsMetadata: extraAccountsMetadata, fallbackCount} = await loadVisibleAccountsMetadata(
         instrumentedGrpcClient,
-        Array.from(visibleContributorUids),
+        missingUids,
       )
+      const mergedAccountsMetadata = {...refLabelsResult.accountsMetadata, ...extraAccountsMetadata}
+      const accountsMetadata: HMAccountsMetadata = {}
+      for (const uid of Array.from(visibleContributorUids)) {
+        const account = mergedAccountsMetadata[uid]
+        if (account) accountsMetadata[uid] = account
+      }
       perf.phaseDurationsMs.accountsMetadata += now() - accountsMetadataStartedAt
-      perf.fallbackAccountCount = fallbackCount
+      perf.fallbackAccountCount += fallbackCount
 
       return {
         queryTargetName,
@@ -307,6 +388,7 @@ export const QueryBlock: HMRequestImplementation<HMQueryBlockRequest> = {
           phaseDurationsMs: {
             total: roundMs(totalMs),
             queryResolver: roundMs(perf.phaseDurationsMs.queryResolver),
+            metadataRefLabels: roundMs(perf.phaseDurationsMs.metadataRefLabels),
             queryTargetName: roundMs(perf.phaseDurationsMs.queryTargetName),
             itemSummaries: roundMs(perf.phaseDurationsMs.itemSummaries),
             accountsMetadata: roundMs(perf.phaseDurationsMs.accountsMetadata),

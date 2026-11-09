@@ -2219,6 +2219,7 @@ export const HMQueryBlockFilterOptionsSchema = z.record(
   z.object({
     values: z.array(z.string()),
     type: z.enum(['text', 'number', 'boolean', 'date', 'list']),
+    labels: z.record(z.string(), z.string()).optional(),
   }),
 )
 /** Filter choices available before viewer search, filters, and display limits. */

@@ -791,3 +791,48 @@ describe('QueryBlockContent item icons', () => {
     expect(container.querySelectorAll('[aria-label="Document"]')).toHaveLength(1)
   })
 })
+
+describe('QueryBlockContent filter value labels', () => {
+  it('shows resolved names for reference options and keeps the raw URL as the filter value', () => {
+    const onViewerFiltersChange = vi.fn()
+    const items = makeItems(1)
+    items[0].metadata.owner = 'hm://owneruid'
+
+    act(() => {
+      root.render(
+        <QueryBlockContent
+          items={items}
+          style="Table"
+          accountsMetadata={{}}
+          viewerFilters={[{columnId: 'metadata:owner', operator: 'equals', value: 'hm://owneruid'}]}
+          onViewerFiltersChange={onViewerFiltersChange}
+          filterOptions={{
+            'metadata:owner': {
+              type: 'text',
+              values: ['hm://owneruid'],
+              labels: {'hm://owneruid': 'horacio'},
+            },
+          }}
+        />,
+      )
+    })
+
+    act(() => (container.querySelector('button[aria-label="Filters: 1 applied"]') as HTMLButtonElement).click())
+
+    const trigger = document.querySelector('button[aria-label="Filter value"]') as HTMLButtonElement
+    expect(trigger).toBeTruthy()
+    expect(trigger.textContent).toContain('horacio')
+
+    act(() => trigger.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    const option = Array.from(document.querySelectorAll('[role="option"]')).find(
+      (element) => element.textContent === 'horacio',
+    ) as HTMLElement
+    expect(option).toBeTruthy()
+    act(() => option.dispatchEvent(new MouseEvent('click', {bubbles: true})))
+
+    expect(onViewerFiltersChange).toHaveBeenCalledWith([
+      {columnId: 'metadata:owner', operator: 'equals', value: 'hm://owneruid'},
+    ])
+  })
+})
