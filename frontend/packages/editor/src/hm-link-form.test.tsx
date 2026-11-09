@@ -4,7 +4,15 @@ import {act} from 'react-dom/test-utils'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 
-import {LinkTypeDropdown} from './hm-link-form'
+// Pass an empty object for search results.
+vi.mock('@shm/shared/models/search', () => ({useSearch: () => ({data: undefined})}))
+vi.mock('@shm/shared/models/entity', () => ({
+  useResource: () => ({data: undefined}),
+  useAccount: () => ({data: undefined}),
+}))
+vi.mock('@shm/ui/highlight-context', () => ({useHighlighter: () => () => ({})}))
+
+import {HypermediaLinkForm, LinkTypeDropdown} from './hm-link-form'
 
 let container: HTMLDivElement
 let root: Root
@@ -85,5 +93,36 @@ describe('LinkTypeDropdown', () => {
     dispatchClick(getDropdownTrigger())
     dispatchMouseDown(getPortalOption('Discussions Embed'))
     expect(onSelect).toHaveBeenCalledWith('comments')
+  })
+})
+
+describe('HypermediaLinkForm button alignment', () => {
+  it('highlights a clicked alignment before the toolbar reports the new value', () => {
+    const editor = {updateBlock: vi.fn(), hyperlinkToolbar: {updatePosition: vi.fn()}}
+
+    act(() => {
+      root.render(
+        <HypermediaLinkForm
+          editor={editor as any}
+          id="button-1"
+          url="https://example.com"
+          text="Go"
+          isHmLink={false}
+          type="button"
+          hasName
+          updateLink={vi.fn()}
+          resetLink={vi.fn()}
+          toolbarProps={{alignment: 'flex-start'}}
+        />,
+      )
+    })
+
+    const center = container.querySelector('button[aria-label="Align center"]')
+    if (!center) throw new Error('Alignment buttons not rendered')
+    dispatchClick(center)
+
+    expect(center.getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('button[aria-label="Align left"]')?.getAttribute('aria-pressed')).toBe('false')
+    expect(editor.updateBlock).toHaveBeenCalledWith('button-1', {props: {alignment: 'center'}})
   })
 })

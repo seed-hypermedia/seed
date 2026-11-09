@@ -44,6 +44,12 @@ const LINK_TYPES = [
   {value: 'embed-link', label: 'Embed Link', icon: ExternalLink},
 ]
 
+const ALIGNMENT_OPTIONS = [
+  {value: 'flex-start', label: 'Align left', Icon: AlignLeft},
+  {value: 'center', label: 'Align center', Icon: AlignCenter},
+  {value: 'flex-end', label: 'Align right', Icon: AlignRight},
+] as const
+
 export type HypermediaLinkFormProps = {
   editor: BlockNoteEditor<HMBlockSchema>
   children?: ReactNode
@@ -68,6 +74,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   const [_url, setUrl] = useState(props.url || '')
   const [_text, setText] = useState(props.text || '')
   const [selectedType, setSelectedType] = useState(props.type)
+  const [alignment, setAlignment] = useState(props.toolbarProps?.alignment)
   const unpacked = unpackHmId(_url)
   const isSeedLink = !!unpacked
   const isLatestVersion = isSeedLink ? unpacked.latest !== false : false
@@ -75,6 +82,10 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
   useEffect(() => {
     setSelectedType(props.type)
   }, [props.type])
+
+  useEffect(() => {
+    setAlignment(props.toolbarProps?.alignment)
+  }, [props.toolbarProps?.alignment])
 
   function handleKeydown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (event.key === 'Escape' || event.key == 'Enter') {
@@ -95,11 +106,12 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
         isHmLink={props.isHmLink}
       />
       {props.hasName && (
-        <div className="bg-background border-border hover:border-muted focus:border-muted flex items-center gap-2 rounded-md px-2">
+        <label className={linkFormFieldClass}>
           <TextCursorInput size={16} />
           <Input
             data-testid="link-text-input"
-            className="flex-1"
+            variant="unstyled"
+            className={linkFormInputClass}
             placeholder={`${props.type} text`}
             id="link-text"
             value={_text}
@@ -109,9 +121,9 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
               props.updateLink(_url, val, false)
             }}
           />
-        </div>
+        </label>
       )}
-      <div className="bg-background border-border hover:border-muted focus:border-muted flex items-center gap-2 rounded-md px-2">
+      <label className={linkFormFieldClass}>
         <Search size={16} />
         <SearchInput
           updateLink={props.updateLink}
@@ -121,7 +133,7 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           setLink={setUrl}
           title={props.type === 'inline-embed' ? true : false}
         />
-      </div>
+      </label>
 
       {(props.type === 'embed' || props.type === 'card' || props.type === 'inline-embed') && isSeedLink && (
         <div className="my-3 flex flex-col gap-3">
@@ -166,46 +178,26 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
           )}
         </div>
       )}
-      {props.toolbarProps?.alignment && (
+      {alignment && (
         <div className="mt-2 flex justify-between gap-1 pl-1">
           <Label>Alignment</Label>
           <div className="flex gap-3">
-            <Button
-              size="icon"
-              onClick={() => {
-                props.editor.updateBlock(props.id, {
-                  props: {alignment: 'flex-start'},
-                })
-                props.editor.hyperlinkToolbar!.updatePosition()
-              }}
-              variant={props.toolbarProps.alignment === 'flex-start' ? 'default' : 'ghost'}
-            >
-              <AlignLeft className="size-3" />
-            </Button>
-            <Button
-              size="icon"
-              onClick={() => {
-                props.editor.updateBlock(props.id, {
-                  props: {alignment: 'center'},
-                })
-                props.editor.hyperlinkToolbar!.updatePosition()
-              }}
-              variant={props.toolbarProps.alignment === 'center' ? 'default' : 'ghost'}
-            >
-              <AlignCenter className="size-3" />
-            </Button>
-            <Button
-              size="icon"
-              onClick={() => {
-                props.editor.updateBlock(props.id, {
-                  props: {alignment: 'flex-end'},
-                })
-                props.editor.hyperlinkToolbar!.updatePosition()
-              }}
-              variant={props.toolbarProps.alignment === 'flex-end' ? 'default' : 'ghost'}
-            >
-              <AlignRight className="size-3" />
-            </Button>
+            {ALIGNMENT_OPTIONS.map(({value, label, Icon}) => (
+              <Button
+                key={value}
+                size="icon"
+                aria-label={label}
+                aria-pressed={alignment === value}
+                onClick={() => {
+                  setAlignment(value)
+                  props.editor.updateBlock(props.id, {props: {alignment: value}})
+                  props.editor.hyperlinkToolbar!.updatePosition()
+                }}
+                variant={alignment === value ? 'default' : 'ghost'}
+              >
+                <Icon className="size-3" />
+              </Button>
+            ))}
           </div>
         </div>
       )}
@@ -271,6 +263,10 @@ export function HypermediaLinkForm(props: HypermediaLinkFormProps) {
     </div>
   )
 }
+
+const linkFormFieldClass =
+  'bg-background text-muted-foreground flex items-center gap-2 rounded-md px-2 transition-[box-shadow] focus-within:ring-ring/50 focus-within:ring-[3px]'
+const linkFormInputClass = 'h-8 flex-1 border-0 bg-transparent px-0 dark:bg-transparent'
 
 const SearchInput = ({
   updateLink,
@@ -394,7 +390,8 @@ const SearchInput = ({
       <Input
         data-testid="link-search-input"
         ref={inputRef}
-        className="flex-1"
+        variant="unstyled"
+        className={linkFormInputClass}
         onFocus={() => {
           setFocused(true)
         }}
@@ -413,7 +410,9 @@ const SearchInput = ({
           }
         }}
         placeholder="Open Seed Document…"
+        // Don't pass resource id so the input is not highlighted.
         {...highlight(highlightId)}
+        data-resourceid={undefined}
         onKeyDown={(e) => {
           if (e.nativeEvent.key === 'Escape') {
             setFocused(false)
