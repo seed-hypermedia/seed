@@ -66,8 +66,16 @@ import {AccountProfileButton} from '../titlebar-common'
 
 let container: HTMLDivElement
 let root: Root
+let animationStyle: HTMLStyleElement
 beforeEach(() => {
   localStorage.clear()
+  document.body.style.pointerEvents = ''
+  // Gives closed dropdown contents an animation name so Radix Presence takes the
+  // ANIMATION_OUT path like a real browser instead of unmounting immediately.
+  animationStyle = document.createElement('style')
+  animationStyle.textContent = '[data-slot="dropdown-menu-content"][data-state="closed"]{animation-name:exit}'
+  document.head.append(animationStyle)
+  ;(globalThis as any).CSS ??= {escape: (value: string) => value}
   accountFixture.names = {}
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
@@ -77,6 +85,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount())
   container.remove()
+  animationStyle.remove()
 })
 
 function renderAccountMenu() {
@@ -226,6 +235,7 @@ describe('titlebar account switching', () => {
     const submenu = document.querySelector<HTMLElement>('[aria-label="Accounts"]')!
     act(() => submenu.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})))
     await act(async () => {})
+    finishExitAnimations()
     expect(header.getAttribute('aria-expanded')).toBe('false')
     await vi.waitFor(() => expect(document.activeElement).toBe(header))
     expect(state.get().routes).toEqual([{key: 'document', id: hmId('site-1')}])
@@ -251,6 +261,53 @@ describe('titlebar account switching', () => {
     selectAccount('account-2')
     expect(state.get().selectedIdentity).toBe('account-2')
     expect(state.get().routes[state.get().routeIndex]).toEqual({key: 'document', id: hmId('account-2')})
+  })
+
+  function finishExitAnimations() {
+    for (const content of Array.from(document.querySelectorAll<HTMLElement>('[data-slot="dropdown-menu-content"]'))) {
+      const event = new Event('animationend', {bubbles: true})
+      Object.defineProperty(event, 'animationName', {value: 'exit'})
+      act(() => content.dispatchEvent(event))
+    }
+  }
+
+  it('restores pointer events after selecting an account and the menu can reopen', () => {
+    renderAccountMenu()
+    selectAccount('account-2')
+    expect(document.body.style.pointerEvents).toBe('')
+    finishExitAnimations()
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(0)
+    expect(document.body.style.pointerEvents).toBe('')
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>('[data-slot="dropdown-menu-trigger"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true})),
+    )
+    expect(document.querySelector('[aria-label="Switch account"]')).toBeTruthy()
+  })
+
+  it('restores pointer events when both menus close on an outside pointerdown', async () => {
+    renderAccountMenu()
+    act(() =>
+      container
+        .querySelector<HTMLElement>('[data-slot="dropdown-menu-trigger"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true})),
+    )
+    act(() =>
+      document
+        .querySelector<HTMLElement>('[aria-label="Switch account"]')!
+        .dispatchEvent(new MouseEvent('pointerdown', {button: 0, bubbles: true})),
+    )
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(2)
+    // Radix registers its outside-pointerdown document listener on a 0ms timeout,
+    // and only the highest layer dismisses per outside pointerdown.
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 0)))
+    act(() => document.body.dispatchEvent(new MouseEvent('pointerdown', {button: 0, bubbles: true})))
+    finishExitAnimations()
+    act(() => document.body.dispatchEvent(new MouseEvent('pointerdown', {button: 0, bubbles: true})))
+    finishExitAnimations()
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(0)
+    expect(document.body.style.pointerEvents).toBe('')
   })
 
   it('keeps the current page when opening the account switcher', () => {

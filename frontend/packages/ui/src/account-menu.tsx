@@ -88,7 +88,7 @@ export function AccountMenuScrollArea({children}: {children: ReactNode}) {
 /** A click-controlled account dropdown nested in the main account menu. */
 export function AccountMenuSwitcher({identity, children}: {identity: ReactNode; children: ReactNode}) {
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <MenuItem
           aria-label="Switch account"
@@ -101,6 +101,7 @@ export function AccountMenuSwitcher({identity, children}: {identity: ReactNode; 
       </DropdownMenuTrigger>
       <DropdownMenuContent
         aria-label="Accounts"
+        onFocusOutside={(event) => event.preventDefault()}
         side="left"
         align="start"
         sideOffset={4}
