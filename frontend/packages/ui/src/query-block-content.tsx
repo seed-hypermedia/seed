@@ -697,6 +697,7 @@ function FilterPopover({
                     key={filter.columnId}
                     value={filter.value}
                     options={filterOptions[filter.columnId]?.values ?? []}
+                    labels={filterOptions[filter.columnId]?.labels}
                     onValue={(value) => setFilters(filters.map((f, i) => (i === index ? {...f, value} : f)))}
                   />
                 ) : (
@@ -736,16 +737,23 @@ function FilterPopover({
 function FilterValuePicker({
   value,
   options,
+  labels,
   onValue,
 }: {
   value: string
   options: string[]
+  labels?: Record<string, string>
   onValue: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const combobox = Ariakit.useComboboxStore({value: search, setValue: setSearch, open, setOpen})
-  const matchingOptions = options.filter((option) => option.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
+  const normalizedSearch = search.toLocaleLowerCase()
+  const matchingOptions = options.filter(
+    (option) =>
+      option.toLocaleLowerCase().includes(normalizedSearch) ||
+      labels?.[option]?.toLocaleLowerCase().includes(normalizedSearch),
+  )
   const unavailable = value && !options.some((option) => matchesQueryFilterEquality(option, value))
 
   return (
@@ -763,7 +771,7 @@ function FilterValuePicker({
           aria-label="Filter value"
         >
           <span className={cn('min-w-0 truncate', !value && 'text-muted-foreground')}>
-            {value || 'Select value…'}
+            {(value && labels?.[value]) || value || 'Select value…'}
             {unavailable ? ' (unavailable)' : ''}
           </span>
           <ChevronDown className="size-4 shrink-0 opacity-50" />
@@ -790,7 +798,7 @@ function FilterValuePicker({
                 setOpen(false)
               }}
             >
-              <span className="min-w-0">{option}</span>
+              <span className="min-w-0">{labels?.[option] ?? option}</span>
               {matchesQueryFilterEquality(option, value) ? <Check className="size-4 shrink-0" /> : null}
             </Ariakit.ComboboxItem>
           ))}

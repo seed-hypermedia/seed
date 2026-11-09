@@ -297,11 +297,13 @@ describe('QueryBlock.getData', () => {
       },
       errors: {},
     })
+    const batchGetDocumentInfo = vi.fn().mockResolvedValue({documents: []})
     const grpcClient = {
       documents: {
         queryDocuments: vi.fn().mockResolvedValue({documents: [owned], nextPageToken: ''}),
         getDocumentInfo: vi.fn().mockResolvedValue({metadata: {toJson: () => ({name: 'Projects'})}}),
         batchGetAccounts,
+        batchGetDocumentInfo,
       },
     } as any
     const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
@@ -312,12 +314,147 @@ describe('QueryBlock.getData', () => {
       undefined as any,
     )
 
-    expect(batchGetAccounts).toHaveBeenCalledWith({ids: ['author-a', 'owner-only', 'reviewer']})
+    // Metadata account refs are resolved first (for labels), then any missing
+    // accounts referenced by the visible results.
+    expect(batchGetAccounts.mock.calls.map((call) => call[0])).toEqual([
+      {ids: ['owner-only', 'reviewer']},
+      {ids: ['author-a']},
+    ])
+    expect(batchGetDocumentInfo).toHaveBeenCalledWith({requests: [{account: 'alice', path: '/projects/spec'}]})
     expect(result?.accountsMetadata['owner-only']).toEqual({
       id: hmId('owner-only', {version: 'vo'}),
       metadata: {name: 'Owner'},
     })
     expect(result?.accountsMetadata.reviewer?.metadata?.name).toBe('Reviewer')
+    consoleInfoSpy.mockRestore()
+  })
+
+  it('searches by resolved account names across the whole collection, beyond the visible page', async () => {
+    const ownedA = {...resultA, metadata: {name: 'Doc A', Owner: 'hm://owner-a'}}
+    const ownedB = {...resultB, metadata: {name: 'Doc B', Owner: 'hm://owner-b'}}
+    const names: Record<string, string> = {
+      'owner-a': 'Alice',
+      'owner-b': 'Horacio',
+      'author-a': 'Author A',
+      'author-b': 'Author B',
+    }
+    const batchGetAccounts = vi.fn().mockImplementation(({ids}: {ids: string[]}) =>
+      Promise.resolve({
+        accounts: Object.fromEntries(ids.map((id) => [id, {profile: {name: names[id]}, homeDocumentInfo: {}}])),
+        errors: {},
+      }),
+    )
+    const grpcClient = {
+      documents: {
+        queryDocuments: vi.fn().mockResolvedValue({documents: [ownedA, ownedB], nextPageToken: ''}),
+        getDocumentInfo: vi.fn().mockResolvedValue({metadata: {toJson: () => ({name: 'Projects'})}}),
+        batchGetAccounts,
+      },
+    } as any
+    const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const result = await QueryBlock.getData(
+      grpcClient,
+      {
+        query: {includes: [{space: 'alice', path: '/projects', mode: 'Children'}], limit: 1},
+        viewer: {search: 'horac'},
+      },
+      undefined as any,
+    )
+
+    expect(result?.results).toEqual([ownedB])
+    expect(result?.totalMatches).toBe(1)
+    expect(result?.filterOptions?.['metadata:Owner']).toEqual({
+      type: 'text',
+      values: ['hm://owner-a', 'hm://owner-b'],
+      labels: {'hm://owner-a': 'Alice', 'hm://owner-b': 'Horacio'},
+    })
+    // Only the visible result's authors and account refs are returned.
+    expect(Object.keys(result?.accountsMetadata ?? {}).sort()).toEqual(['author-b', 'owner-b'])
+    consoleInfoSpy.mockRestore()
+  })
+
+  it('resolves document reference labels via batchGetDocumentInfo', async () => {
+    const owned = {...resultA, metadata: {name: 'Doc A', Spec: 'hm://alice/projects/spec'}}
+    const batchGetDocumentInfo = vi.fn().mockResolvedValue({
+      documents: [
+        {
+          account: 'alice',
+          path: '/projects/spec',
+          metadata: {toJson: () => ({name: 'Spec Document'})},
+        },
+      ],
+    })
+    const batchGetAccounts = vi.fn().mockImplementation(({ids}: {ids: string[]}) =>
+      Promise.resolve({
+        accounts: Object.fromEntries(ids.map((id) => [id, {profile: {name: id}, homeDocumentInfo: {}}])),
+        errors: {},
+      }),
+    )
+    const grpcClient = {
+      documents: {
+        queryDocuments: vi.fn().mockResolvedValue({documents: [owned], nextPageToken: ''}),
+        getDocumentInfo: vi.fn().mockResolvedValue({metadata: {toJson: () => ({name: 'Projects'})}}),
+        batchGetAccounts,
+        batchGetDocumentInfo,
+      },
+    } as any
+    const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const result = await QueryBlock.getData(
+      grpcClient,
+      {
+        query: {includes: [{space: 'alice', path: '/projects', mode: 'Children'}]},
+        viewer: {search: 'spec doc'},
+      },
+      undefined as any,
+    )
+
+    expect(batchGetDocumentInfo).toHaveBeenCalledWith({requests: [{account: 'alice', path: '/projects/spec'}]})
+    expect(result?.results).toEqual([owned])
+    expect(result?.filterOptions?.['metadata:Spec']?.labels).toEqual({'hm://alice/projects/spec': 'Spec Document'})
+    consoleInfoSpy.mockRestore()
+  })
+
+  it('falls back to per-document lookups and keeps resolvable labels when the batch fails', async () => {
+    const owned = {
+      ...resultA,
+      metadata: {name: 'Doc A', Spec: 'hm://alice/projects/spec', Related: 'hm://alice/projects/missing'},
+    }
+    const batchGetAccounts = vi.fn().mockImplementation(({ids}: {ids: string[]}) =>
+      Promise.resolve({
+        accounts: Object.fromEntries(ids.map((id) => [id, {profile: {name: id}, homeDocumentInfo: {}}])),
+        errors: {},
+      }),
+    )
+    // getDocumentInfo also serves the query target name, so distinguish by path.
+    const getDocumentInfo = vi.fn().mockImplementation(({path}: {path: string}) => {
+      if (path === '/projects') return Promise.resolve({metadata: {toJson: () => ({name: 'Projects'})}})
+      if (path === '/projects/spec') return Promise.resolve({metadata: {toJson: () => ({name: 'Spec Document'})}})
+      return Promise.reject(new Error('not found'))
+    })
+    const grpcClient = {
+      documents: {
+        queryDocuments: vi.fn().mockResolvedValue({documents: [owned], nextPageToken: ''}),
+        getDocumentInfo,
+        batchGetAccounts,
+        batchGetDocumentInfo: vi.fn().mockRejectedValue(new Error('batch unavailable')),
+      },
+    } as any
+    const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+
+    const result = await QueryBlock.getData(
+      grpcClient,
+      {
+        query: {includes: [{space: 'alice', path: '/projects', mode: 'Children'}]},
+        viewer: {search: 'spec doc'},
+      },
+      undefined as any,
+    )
+
+    expect(result?.results).toEqual([owned])
+    expect(result?.filterOptions?.['metadata:Spec']?.labels).toEqual({'hm://alice/projects/spec': 'Spec Document'})
+    expect(result?.filterOptions?.['metadata:Related']).toEqual({type: 'text', values: ['hm://alice/projects/missing']})
     consoleInfoSpy.mockRestore()
   })
 
