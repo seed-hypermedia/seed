@@ -75,8 +75,11 @@ export function DiscussionsPageContent({
   // comment list contains it, so the reply target comes from the comment itself.
   const pendingThreadId = openComment && !root ? commentIdToHmId(openComment) : null
   const pendingThread = useResource(pendingThreadId, {subscribed: true})
-  const pendingComment = pendingThread.data?.type === 'comment' ? pendingThread.data.comment : undefined
-  const replyTarget = getThreadReplyTarget({docId, root, fallbackComment: pendingComment})
+  const pendingComment =
+    pendingThreadId && pendingThread.data?.type === 'comment' && pendingThread.data.comment.id === openComment
+      ? pendingThread.data.comment
+      : undefined
+  const replyTarget = openComment ? getThreadReplyTarget({docId, root, fallbackComment: pendingComment}) : undefined
   const commentsContext = useCommentsServiceContext()
   const draftReferences = useCommentDraftReferences()
   const appendReference = draftReferences?.appendReference

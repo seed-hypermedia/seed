@@ -12,7 +12,11 @@ import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const state = vi.hoisted(() => ({comments: [] as HMComment[], detachedComments: [] as HMComment[]}))
+const state = vi.hoisted(() => ({
+  comments: [] as HMComment[],
+  detachedComments: [] as HMComment[],
+  previousResource: {type: 'not-found'} as {type: string; comment?: HMComment},
+}))
 vi.mock('@shm/shared', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@shm/shared')>()),
   useRouteLink: () => ({href: '#'}),
@@ -25,6 +29,7 @@ vi.mock('@shm/shared/comments-service-provider', async (importOriginal) => ({
 }))
 vi.mock('@shm/shared/models/comments', () => ({
   useDocumentComments: () => ({data: {comments: state.comments, authors: {}}, isLoading: false}),
+  useDocumentDiscussions: () => ({data: {discussions: []}, isLoading: false}),
   useCommentReplyCount: () => ({data: 0}),
   useCommentVersions: () => ({data: {versions: []}, isLoading: false}),
 }))
@@ -33,12 +38,17 @@ vi.mock('@shm/shared/models/entity', () => ({
   useAccounts: (ids: Array<string | null>) => ids.map(() => ({data: {metadata: {name: 'Alice'}}})),
   useIsCurrentUser: () => false,
   useResources: () => [],
+  useDocumentCollaborators: () => ({data: [], isLoading: false, isError: false}),
   useResource: (id: {uid: string; path?: string[]} | null) => {
-    if (!id) return {data: {type: 'not-found'}, isLoading: false}
+    // The app's query client keeps previous data while the next resource loads.
+    if (!id) return {data: state.previousResource, isLoading: false}
     const key = `${id.uid}/${id.path?.[0] ?? ''}`
     const found = [...state.comments, ...state.detachedComments].find((comment) => comment.id === key)
-    if (found) return {data: {type: 'comment', comment: found}, isLoading: false}
-    return {data: {type: 'not-found'}, isLoading: false}
+    if (found) {
+      state.previousResource = {type: 'comment', comment: found}
+      return {data: state.previousResource, isLoading: false}
+    }
+    return {data: state.previousResource, isLoading: true}
   },
 }))
 vi.mock('@shm/shared/document-actions-context', () => ({
@@ -103,7 +113,7 @@ function ReferenceProbe() {
   references = useCommentDraftReferences()
   return null
 }
-function render(isPanel: boolean, replyCommentId?: string, openComment: string = rootComment.id) {
+function render(isPanel: boolean, replyCommentId?: string, openComment: string | null = rootComment.id) {
   act(() => {
     root.render(
       <CommentDraftReferenceProvider>
@@ -112,7 +122,7 @@ function render(isPanel: boolean, replyCommentId?: string, openComment: string =
           <DiscussionsPageContent
             docId={docId}
             isPanel={isPanel}
-            openComment={openComment}
+            openComment={openComment ?? undefined}
             replyCommentId={replyCommentId}
             commentEditor={<DraftEditor docId={docId} />}
           />
@@ -137,6 +147,7 @@ beforeEach(() => {
   )
   state.comments = [rootComment, reply]
   state.detachedComments = []
+  state.previousResource = {type: 'not-found'}
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
@@ -259,6 +270,30 @@ for (const isPanel of [true, false]) {
       expect(editorProps.commentId).toBe(rootComment.id)
       expect(editorProps.replyCommentVersion).toBe(rootComment.version)
       expect(editorProps.rootReplyCommentVersion).toBe(rootComment.version)
+    })
+
+    it('publishes root comments after leaving a thread that loaded before its list', () => {
+      state.comments = []
+      state.detachedComments = [rootComment]
+      render(isPanel)
+      expect(editorProps.commentId).toBe(rootComment.id)
+      state.comments = [rootComment, reply]
+      state.detachedComments = []
+      render(isPanel)
+      render(isPanel, undefined, null)
+      expect(editorProps.commentId).toBeUndefined()
+      expect(editorProps.replyCommentVersion).toBeUndefined()
+      expect(editorProps.rootReplyCommentVersion).toBeUndefined()
+      expect(container.querySelector('textarea')).not.toBeNull()
+    })
+
+    it('does not reply to the previous thread while the next one loads', () => {
+      state.comments = []
+      state.detachedComments = [rootComment]
+      render(isPanel)
+      expect(editorProps.commentId).toBe(rootComment.id)
+      render(isPanel, undefined, 'alice/other-root')
+      expect(container.querySelector('textarea')).toBeNull()
     })
 
     it('hides the reply editor when the opened comment belongs to another document', () => {
