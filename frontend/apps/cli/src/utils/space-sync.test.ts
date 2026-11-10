@@ -264,3 +264,48 @@ describe('swapAuthority', () => {
     }
   })
 })
+
+describe('importSpace transient read errors', () => {
+  const source = '# Page\n\nBody.\n'
+  const error = {type: 'error', id: {}, message: 'daemon timed out'}
+  const document = {type: 'document', document: documentFromMarkdown(source)}
+
+  /** A client that answers `Resource` reads with `answers` in order, repeating the last one. */
+  function scriptedClient(answers: unknown[]) {
+    const client = {calls: 0, request: async () => answers[Math.min(client.calls++, answers.length - 1)]}
+    return client
+  }
+
+  test('withResourceRetry retries an error answer and returns the first real one', async () => {
+    const {withResourceRetry} = await import('./space-sync')
+    const client = scriptedClient([error, error, document])
+    expect(await withResourceRetry(client as any, [0, 0, 0]).request('Resource', {} as any)).toBe(document as any)
+    expect(client.calls).toBe(3)
+  })
+
+  test('withResourceRetry gives up after its retries and returns the error', async () => {
+    const {withResourceRetry} = await import('./space-sync')
+    const client = scriptedClient([error])
+    expect(await withResourceRetry(client as any, [0, 0]).request('Resource', {} as any)).toBe(error as any)
+    expect(client.calls).toBe(3)
+  })
+
+  test('importSpace syncs a page whose first read fails, and names the server error when every read does', async () => {
+    const {importSpace} = await import('./space-sync')
+    const dir = mkdtempSync(join(tmpdir(), 'space-sync-retry-'))
+    const realSetTimeout = globalThis.setTimeout
+    globalThis.setTimeout = ((fn: () => void) => realSetTimeout(fn, 0)) as typeof setTimeout
+    try {
+      writeFileSync(join(dir, 'index.md'), source)
+      const opts = {signer: {} as any, account: 'z6MkTest', dir, dryRun: true}
+      const flaky = await importSpace({...opts, client: scriptedClient([error, document]) as any})
+      expect(flaky.unchanged).toEqual(['index.md'])
+      await expect(importSpace({...opts, client: scriptedClient([error]) as any})).rejects.toThrow(
+        'Cannot read hm://z6MkTest from the server: daemon timed out',
+      )
+    } finally {
+      globalThis.setTimeout = realSetTimeout
+      rmSync(dir, {recursive: true, force: true})
+    }
+  })
+})
