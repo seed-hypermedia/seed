@@ -101,6 +101,11 @@ export type Config = {
      */
     minFreeDiskBytes: number
   }
+  /**
+   * How often the exec canary boots a fresh sandbox to prove code execution works end to end
+   * (`/api/metrics`, `/api/health`). Zero disables it; the hosted server turns it on.
+   */
+  execCanaryIntervalMs: number
 }
 
 /** Parsed command-line flags accepted by the Agents service. */
@@ -140,6 +145,7 @@ export type Flags = {
   'max-concurrent-model-runs': number
   'max-concurrent-workflows': number
   'min-free-disk-mib': number
+  'exec-canary-secs': number
   'log-level': string
 }
 
@@ -185,6 +191,7 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
       env.SEED_AGENTS_MIN_FREE_DISK_MIB === undefined || env.SEED_AGENTS_MIN_FREE_DISK_MIB === ''
         ? 512
         : Number(env.SEED_AGENTS_MIN_FREE_DISK_MIB),
+    'exec-canary-secs': Number(env.SEED_AGENTS_EXEC_CANARY_SECS) || 0,
     'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
   }
 }
@@ -226,7 +233,7 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
       key === 'max-concurrent-workflows'
     ) {
       parsed[key] = parsePositiveInteger(value, key)
-    } else if (key === 'min-free-disk-mib') {
+    } else if (key === 'min-free-disk-mib' || key === 'exec-canary-secs') {
       parsed[key] = parseNonNegativeInteger(value, key)
     } else {
       parsed[key] = value as never
@@ -302,6 +309,7 @@ export function create(pflags: Flags): Config {
     },
     subscriptionAuth: pflags['subscription-auth'],
     titleGeneration: pflags['session-title-generation'],
+    execCanaryIntervalMs: parseNonNegativeInteger(String(pflags['exec-canary-secs']), 'exec-canary-secs') * 1000,
   }
 }
 

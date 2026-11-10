@@ -5,6 +5,8 @@ import {getBuildInfo} from '@/build-info'
 import {installHmServerAuth} from '@/hm-server-auth'
 import {configureDocsSpace, docsSpaceAccount} from '@/docs-space'
 import {log, setLogLevel} from '@/log'
+import {ExecCanary} from '@/exec-canary'
+import {METRICS_CONTENT_TYPE, renderMetrics} from '@/metrics'
 import {loopLagHealth, loopLagSnapshot, perfSnapshot, startLoopLagGauge, stopLoopLagGauge} from '@/perf'
 import {PollLoop, withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
@@ -57,7 +59,11 @@ function upgradeWebSocket(req: BunRequest, srv: Server<WSData>) {
 }
 
 /** Creates Bun route handlers for the Agents signed CBOR API. */
-export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string): Bun.Serve.Routes<undefined, string> {
+export function createAPIRoutes(
+  svc: apisvc.Service,
+  defaultPromptUrl?: string,
+  canary: ExecCanary = new ExecCanary({probe: () => svc.probeCodeExec(), intervalMs: 0}),
+): Bun.Serve.Routes<undefined, string> {
   const message = async (req: Request, server?: Server<undefined>) => {
     if (!isCBORRequest(req)) {
       return cbor.response({_: 'Error', message: 'Content-Type must be application/cbor'} satisfies api.ErrorResponse, {
@@ -165,6 +171,10 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
         // Which runtimes this server can actually run: `ts` needs an image with bun, so an
         // operator can see at a glance whether TypeScript execution is on here.
         codeExecRuntimes: codeExec.runtimes,
+        // Whether a freshly booted sandbox last ran code (null until the canary has probed, or when
+        // it is off). Informational: a restart does not fix a broken sandbox runtime, so this never
+        // turns health 503 — the alert on /api/metrics is what pages.
+        execCanary: execCanaryHealth(canary),
         // Free space where the database lives, against the floor new runs require (null when the
         // check is off), and whether the queue is claiming runs right now. A full disk shows up
         // here before it shows up as failed turns.
@@ -178,6 +188,18 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
   // Aggregate latency stats (metric names and millisecond percentiles only — no ids, no content),
   // so "is this server slow, and where" is one curl away. Same exposure class as /api/health.
   const perf = () => Response.json(perfSnapshot(), {headers: corsHeaders()})
+  // The same aggregates plus the exec canary in Prometheus text format, for the metrics collector
+  // and the alert rules (SeedInfra `seed_infra/monitoring`).
+  const metrics = () =>
+    new Response(
+      renderMetrics({
+        perf: perfSnapshot(),
+        canary: canary.status(),
+        build: {version: buildInfo.version, protocol: buildInfo.protocol},
+        uptimeSeconds: process.uptime(),
+      }),
+      {headers: {...corsHeaders(), 'content-type': METRICS_CONTENT_TYPE}},
+    )
   // Per-session timing rollup (tool names, counts, and milliseconds only — no content, no
   // arguments). The full session UUID is required and unguessable; unknown ids 404.
   const sessionPerf = (req: BunRequest) => {
@@ -194,6 +216,7 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
     [`${AGENTS_API_PREFIX}/health`]: {GET: health},
     [`${AGENTS_API_PREFIX}/version`]: {GET: version},
     [`${AGENTS_API_PREFIX}/perf`]: {GET: perf},
+    [`${AGENTS_API_PREFIX}/metrics`]: {GET: metrics},
     [`${AGENTS_API_PREFIX}/perf/sessions/:sessionId`]: {GET: sessionPerf},
     // Legacy routes, kept for the standalone host (agentic.seed.hyper.media), older clients and
     // webhook URLs already handed out.
@@ -207,9 +230,20 @@ export function createAPIRoutes(svc: apisvc.Service, defaultPromptUrl?: string):
     '/agents/api/version': {GET: version},
     '/api/perf': {GET: perf},
     '/agents/api/perf': {GET: perf},
+    '/api/metrics': {GET: metrics},
+    '/agents/api/metrics': {GET: metrics},
     '/api/perf/sessions/:sessionId': {GET: sessionPerf},
     '/agents/api/perf/sessions/:sessionId': {GET: sessionPerf},
   }
+}
+
+/** The canary summary for health: the last outcome and when, without the raw error text. */
+function execCanaryHealth(
+  canary: ExecCanary,
+): {ok: boolean | null; lastRunAt: number | null; consecutiveFailures: number} | null {
+  const status = canary.status()
+  if (!status.enabled) return null
+  return {ok: status.lastOk, lastRunAt: status.lastRunAt, consecutiveFailures: status.consecutiveFailures}
 }
 
 /** The free-space figures for health, without the directory they were read from. */
@@ -495,6 +529,10 @@ async function main(): Promise<void> {
   // enforced by /api/health.
   startLoopLagGauge()
   mountNameSync.start()
+  // Proves a cold sandbox boot still works on a timer (SEED_AGENTS_EXEC_CANARY_SECS; off by default,
+  // on for the hosted server). See exec-canary.ts for the outage that motivated it.
+  const execCanary = new ExecCanary({probe: () => svc.probeCodeExec(), intervalMs: cfg.execCanaryIntervalMs})
+  execCanary.start()
 
   const server = serve({
     port: cfg.http.port,
@@ -503,7 +541,7 @@ async function main(): Promise<void> {
     maxRequestBodySize: Number.MAX_SAFE_INTEGER,
     error: handleError,
     routes: {
-      ...createAPIRoutes(svc, cfg.defaultPromptUrl),
+      ...createAPIRoutes(svc, cfg.defaultPromptUrl, execCanary),
       [AGENTS_WS_PATHS[0]]: upgradeWebSocket,
       [AGENTS_WS_PATHS[1]]: upgradeWebSocket,
     },
@@ -577,6 +615,7 @@ async function main(): Promise<void> {
     console.log('Shutting down gracefully...')
     shuttingDown = true
     stopLoopLagGauge()
+    execCanary.stop()
     activityMonitor.stop()
     scheduleMonitor.stop()
     mountNameSync.stop()

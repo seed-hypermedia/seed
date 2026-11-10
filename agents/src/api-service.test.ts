@@ -2245,6 +2245,7 @@ describe('api service', () => {
         codeExecutor: {
           enabled: true,
           drain: async () => {},
+          probe: async () => ({ok: true, bootMs: 0, durationMs: 0}),
           runtimes: ['python', 'shell'],
           availability: async () => ({available: true, runtimes: ['python', 'shell']}),
           execute: async () => {
@@ -2257,6 +2258,7 @@ describe('api service', () => {
         codeExecutor: {
           enabled: false,
           drain: async () => {},
+          probe: async () => ({ok: true, bootMs: 0, durationMs: 0}),
           runtimes: [],
           availability: async () => ({available: false, reason: 'disabled', runtimes: []}),
           execute: async () => {
@@ -9733,6 +9735,7 @@ describe('api service', () => {
         codeExecutor: {
           enabled: true,
           drain: async () => {},
+          probe: async () => ({ok: true, bootMs: 0, durationMs: 0}),
           runtimes: ['ts'],
           availability: async () => ({available: true, runtimes: ['ts']}),
           execute: async () => {

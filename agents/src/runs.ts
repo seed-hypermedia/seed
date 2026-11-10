@@ -993,6 +993,9 @@ export class RunQueue {
     const updated = rowToRun(row)
     this.#onRunChanged?.(updated)
     if (TERMINAL_RUN_STATUSES.includes(updated.status)) {
+      // `run.succeeded` / `run.failed` / `run.canceled`: the failure ratio is what an alert watches,
+      // since a broken tool fails runs while every request and health probe still looks fine.
+      recordPerfCount(`run.${updated.status}`)
       if (updated.parentRunId) this.#rollupChildUsage(updated)
       this.#onRunFinalized?.(updated)
     }

@@ -46,6 +46,7 @@ import {
   parseLambdaResult,
   type CodeExecAvailability,
   type CodeExecConfig,
+  type CodeExecProbeResult,
   type CodeExecResult,
   type CodeExecutor,
   type LambdaRuntime,
@@ -1244,6 +1245,14 @@ export class Service {
   /** Whether this server offers sandboxed code execution, for client capability display. */
   async codeExecAvailability(): Promise<CodeExecAvailability> {
     return await this.#codeExec.availability()
+  }
+
+  /**
+   * Boots a fresh sandbox and runs one command in it; the exec canary's probe. Never throws. Its
+   * scratch workspace lives in the data directory, next to agent memory, and is removed after.
+   */
+  async probeCodeExec(): Promise<CodeExecProbeResult> {
+    return await this.#codeExec.probe(path.join(this.#dataDir, 'exec-probe'))
   }
 
   /** Verifies an envelope's signature and delegation, mapping every failure to 401. */

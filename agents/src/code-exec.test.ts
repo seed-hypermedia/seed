@@ -519,6 +519,50 @@ describe('code exec', () => {
     expect(parseLambdaResult(`${LAMBDA_RESULT_PREFIX}not-json\n`).hasResult).toBe(false)
   })
 
+  test('probe boots a fresh sandbox outside any agent memory and tears it down', async () => {
+    resetPerfForTests()
+    const call: FakeCall = {mounts: []}
+    const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+      fakeSdk(call, {output: {stdoutText: 'seed-exec-probe-ok\n'}}),
+    )
+    const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'probe-parent-')))
+    const result = await executor.probe(parent)
+    expect(result.ok).toBe(true)
+    expect(result.error).toBeUndefined()
+    expect(call.exec).toMatchObject({cmd: '/bin/sh', args: ['-c', 'echo seed-exec-probe-ok']})
+    expect(call.ephemeral).toBe(true)
+    expect(call.stopped).toBe(true)
+    // Its workspace is a throwaway directory, removed once the probe is done.
+    expect(path.dirname(call.mounts[0]!.host!)).toBe(parent)
+    expect(fs.existsSync(call.mounts[0]!.host!)).toBe(false)
+    fs.rmSync(parent, {recursive: true, force: true})
+  })
+
+  test('probe reports a failed boot without throwing and counts it', async () => {
+    resetPerfForTests()
+    const executor = createCodeExecutor(defaultCodeExecConfig(), async () =>
+      fakeSdk(
+        {mounts: []},
+        {createError: new Error('sandbox process exited (signal: 6 (SIGABRT)) before agent relay became available')},
+      ),
+    )
+    const result = await executor.probe(os.tmpdir())
+    expect(result.ok).toBe(false)
+    expect(result.error).toContain('SIGABRT')
+    expect(perfSnapshot().counters['exec.boot_failed']?.count).toBe(1)
+
+    const wrongOutput = createCodeExecutor(defaultCodeExecConfig(), async () =>
+      fakeSdk({mounts: []}, {output: {stdoutText: '', stderrText: 'sh: not found', code: 127, success: false}}),
+    )
+    expect(await wrongOutput.probe(os.tmpdir())).toMatchObject({
+      ok: false,
+      error: 'Probe command exited 127: sh: not found',
+    })
+
+    const disabled = createCodeExecutor({...defaultCodeExecConfig(), backend: ''}, async () => fakeSdk({mounts: []}))
+    expect((await disabled.probe(os.tmpdir())).ok).toBe(false)
+  })
+
   test('rejects when disabled, empty code, an unknown runtime, or SDK unavailable', async () => {
     await withStateDir(async (stateDir) => {
       const disabled = createCodeExecutor({...defaultCodeExecConfig(), backend: ''}, async () => fakeSdk({mounts: []}))
