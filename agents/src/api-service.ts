@@ -6409,6 +6409,13 @@ export class Service {
         `UPDATE runs SET status = 'queued', wait_cbor = NULL, not_before = NULL, updated_at = ? WHERE id = ?`,
       ).run([now, run.id])
       stmt(this.#db, `DELETE FROM run_event_waits WHERE run_id = ?`).run([run.id])
+      // Same commit as the entry; the run-append emitted after it finds the row current.
+      this.#browserPrivacy.recordRunEntry({
+        runId: run.id,
+        seq,
+        entry: entry as unknown as Record<string, unknown>,
+        createdAt: now,
+      })
       appended = {seq, entry}
       return true
     })
@@ -7191,18 +7198,18 @@ export class Service {
             journalBytes += encoded.byteLength
             const seq = journalCount
             const createdAt = Date.now()
-            stmt(this.#db, `INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`).run([
-              run.id,
-              seq,
-              encoded,
-              createdAt,
-            ])
-            this.#emit({
-              type: 'run-append',
-              accountId: run.accountId,
-              rootRunId: run.rootRunId,
-              entry: {runId: run.id, seq, entry: entry as unknown as Record<string, unknown>, createdAt},
-            })
+            const appended = {runId: run.id, seq, entry: entry as unknown as Record<string, unknown>, createdAt}
+            // One commit for the entry and its privacy row; #emit's own record is then a no-op.
+            this.#db.transaction(() => {
+              stmt(this.#db, `INSERT INTO run_journal (run_id, seq, entry_cbor, created_at) VALUES (?, ?, ?, ?)`).run([
+                run.id,
+                seq,
+                encoded,
+                createdAt,
+              ])
+              this.#browserPrivacy.recordRunEntry(appended)
+            })()
+            this.#emit({type: 'run-append', accountId: run.accountId, rootRunId: run.rootRunId, entry: appended})
           },
         },
         effects: {
@@ -9288,12 +9295,16 @@ export class Service {
         `SELECT COALESCE(MAX(seq), 0) + 1 as seq FROM session_events WHERE session_id = ?`,
       ).get(sessionId)?.seq ?? 1
     const id = crypto.randomUUID()
-    stmt(
-      this.#db,
-      `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at, pi_entry_id) VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run([id, sessionId, seq, cbor.encode(event), now, piEntryId ?? null])
     const info = {id, sessionId, seq, event, createdAt: now}
-    this.#browserPrivacy.recordSessionEvent(info)
+    // One commit for the event and its privacy row: two autocommit writes doubled the WAL fsyncs
+    // per appended event (nests as a savepoint when a caller already holds a transaction).
+    this.#db.transaction(() => {
+      stmt(
+        this.#db,
+        `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at, pi_entry_id) VALUES (?, ?, ?, ?, ?, ?)`,
+      ).run([id, sessionId, seq, cbor.encode(event), now, piEntryId ?? null])
+      this.#browserPrivacy.recordSessionEvent(info)
+    })()
     this.#recordAgentActivity(agentId, sessionId, event, now)
     // Content stream: every event reaches the open session view immediately.
     this.#emit({type: 'session-event', accountId, agentId, event: info})
