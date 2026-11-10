@@ -38,7 +38,7 @@
     "acorn": "8.16.0",
     "linkedom": "0.18.12",
     "mermaid": "^11.4.0",
-    "microsandbox": "0.6.8",
+    "microsandbox": "0.6.18",
     "multiformats": "^13.4.1",
     "quickjs-emscripten-core": "0.32.0",
     "react": "^19",
