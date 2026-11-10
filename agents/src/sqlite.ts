@@ -441,13 +441,36 @@ export const schema = stripSQLComments(schemaSQL).trim()
 /** Result of opening the database. */
 export type OpenResult = {ok: true; db: Database} | {ok: false; current: number; desired: number}
 
+/**
+ * Memory and durability settings for one connection. The defaults suit the hosted server's 4 GB
+ * container; `config.ts` reads overrides from the environment.
+ */
+export type ConnectionTuning = {
+  /** SQLite's own page cache: private heap memory, counted against the container's memory limit. */
+  cacheBytes: number
+  /**
+   * Memory-mapped reads. The mapping is file-backed page cache, which the kernel reclaims under
+   * pressure, so it costs no private memory. SQLite caps it at its compiled maximum; the value in
+   * effect is logged at startup.
+   */
+  mmapBytes: number
+  /** The WAL file is truncated back to this after a checkpoint; without a limit it keeps its peak size. */
+  walLimitBytes: number
+}
+
+export const DEFAULT_CONNECTION_TUNING: ConnectionTuning = {
+  cacheBytes: 256 * 1_048_576,
+  mmapBytes: 1024 * 1_048_576,
+  walLimitBytes: 64 * 1_048_576,
+}
+
 /** Opens or creates the SQLite database, initializing schema if needed. */
-export function open(dbPath: string): OpenResult {
+export function open(dbPath: string, tuning: ConnectionTuning = DEFAULT_CONNECTION_TUNING): OpenResult {
   if (dbPath !== ':memory:') {
     fs.mkdirSync(path.dirname(dbPath), {recursive: true})
   }
   const db = new Database(dbPath, {create: true, strict: true})
-  const result = openWithDatabase(db)
+  const result = openWithDatabase(db, tuning)
   if (!result.ok) {
     db.close()
     return result
@@ -462,17 +485,10 @@ export function closeDatabase(db: Database): void {
 }
 
 /** Initializes or validates an already-open database. */
-export function openWithDatabase(db: Database): OpenResult {
+export function openWithDatabase(db: Database, tuning: ConnectionTuning = DEFAULT_CONNECTION_TUNING): OpenResult {
   db.run('PRAGMA journal_mode = WAL')
   db.run('PRAGMA foreign_keys = ON')
-  // bun:sqlite is synchronous on the server's only thread, so every page-cache miss is a pread64
-  // on the event loop. The default 2MB page cache thrashes once session_events outgrows it (a
-  // 288MB production database sustained ~17k preads/sec rebuilding the same hot pages); a larger
-  // cache plus mmap keeps hot reads in memory, and in-memory temp stores keep ORDER BY spills off
-  // the loop too.
-  db.run('PRAGMA cache_size = -65536') // 64MB
-  db.run('PRAGMA mmap_size = 536870912') // 512MB
-  db.run('PRAGMA temp_store = MEMORY')
+  applyConnectionTuning(db, tuning)
 
   if (isEmptyDatabase(db)) {
     initializeEmptyDatabase(db)
@@ -507,6 +523,41 @@ export function openWithDatabase(db: Database): OpenResult {
   ensureBaselineTables(db)
   analyzePlannerTables(db)
   return {ok: true, db}
+}
+
+/**
+ * bun:sqlite is synchronous on the server's only thread, so every page-cache miss is a pread64 on
+ * the event loop. The default 2MB page cache thrashes once session_events outgrows it (a 288MB
+ * production database sustained ~17k preads/sec rebuilding the same hot pages); a larger cache plus
+ * mmap keeps hot reads in memory, and in-memory temp stores keep ORDER BY spills off the loop too.
+ * `synchronous = NORMAL` is the standard setting for WAL: commits stay atomic and survive a process
+ * crash, and only a power loss can roll back the newest ones. It saves an fsync per commit, on a
+ * disk that streaming turns commit to several times a second.
+ */
+export function applyConnectionTuning(db: Database, tuning: ConnectionTuning): void {
+  db.run(`PRAGMA cache_size = ${-Math.max(2048, Math.floor(tuning.cacheBytes / 1024))}`)
+  db.run(`PRAGMA mmap_size = ${Math.max(0, Math.floor(tuning.mmapBytes))}`)
+  db.run(`PRAGMA journal_size_limit = ${Math.max(0, Math.floor(tuning.walLimitBytes))}`)
+  db.run('PRAGMA synchronous = NORMAL')
+  db.run('PRAGMA temp_store = MEMORY')
+}
+
+/** The settings in effect (SQLite caps mmap at its compiled maximum) and the file's shape, for the startup log. */
+export function connectionSettings(db: Database): Record<string, number> {
+  const read = (pragma: string) => {
+    const row = db.query<Record<string, unknown>, []>(`PRAGMA ${pragma}`).get()
+    return Number(row ? Object.values(row)[0] : NaN)
+  }
+  return {
+    cacheSize: read('cache_size'),
+    mmapSize: read('mmap_size'),
+    journalSizeLimit: read('journal_size_limit'),
+    synchronous: read('synchronous'),
+    autoVacuum: read('auto_vacuum'),
+    pageSize: read('page_size'),
+    pageCount: read('page_count'),
+    freelistCount: read('freelist_count'),
+  }
 }
 
 /**

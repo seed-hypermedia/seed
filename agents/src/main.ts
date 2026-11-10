@@ -12,6 +12,7 @@ import {PollLoop, withTimeout} from '@/poll-loop'
 import {ScheduleMonitor} from '@/schedule-monitor'
 import * as cbor from '@/cbor'
 import * as config from '@/config'
+import * as retention from '@/db-retention'
 import * as sqlite from '@/sqlite'
 import {type BunRequest, type Server, type ServerWebSocket, serve} from 'bun'
 import * as fs from 'node:fs'
@@ -436,7 +437,11 @@ async function main(): Promise<void> {
   await yieldToEventLoop()
 
   let stepStartedAt = performance.now()
-  const result = sqlite.open(cfg.dbPath)
+  const result = sqlite.open(cfg.dbPath, {
+    cacheBytes: cfg.database.cacheBytes,
+    mmapBytes: cfg.database.mmapBytes,
+    walLimitBytes: cfg.database.walLimitBytes,
+  })
   logBootStep('open database (migrations, planner statistics)', stepStartedAt)
 
   if (!result.ok) {
@@ -456,6 +461,8 @@ async function main(): Promise<void> {
   await yieldToEventLoop()
 
   const db = result.db
+  console.log('[agents/sqlite] connection settings', sqlite.connectionSettings(db))
+  retention.setPersistedToolOutputLimit(cfg.database.toolOutputStoreLimitChars)
   const clients = new Set<ServerWebSocket<WSData>>()
   const publish = (event: apisvc.ServiceEvent) => {
     // Truncated once per publish, not per client: a giant tool result would otherwise be encoded
@@ -605,6 +612,13 @@ async function main(): Promise<void> {
   // on for the hosted server). See exec-canary.ts for the outage that motivated it.
   const execCanary = new ExecCanary({probe: () => svc.probeCodeExec(), intervalMs: cfg.execCanaryIntervalMs})
   execCanary.start()
+  // Bounds the database's growth: drops durable stores of long-idle sessions and compacts the
+  // journals of long-finished runs, in throttled steps (see db-retention.ts).
+  const retentionTask = new retention.RetentionTask(db, {
+    ...retention.DEFAULT_RETENTION_POLICY,
+    ...cfg.database.retention,
+  })
+  retentionTask.start()
 
   server.reload({
     error: handleError,
@@ -687,6 +701,7 @@ async function main(): Promise<void> {
     activityMonitor.stop()
     scheduleMonitor.stop()
     mountNameSync.stop()
+    await withTimeout(retentionTask.stop(), 2_000, 'stop retention').catch(() => {})
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
     // stop() waits for every open connection; clients whose sockets never finish closing would keep

@@ -106,6 +106,31 @@ export type Config = {
    * (`/api/metrics`, `/api/health`). Zero disables it; the hosted server turns it on.
    */
   execCanaryIntervalMs: number
+  /** SQLite connection tuning and the data-retention policy (see db-retention.ts). */
+  database: {
+    /** SQLite page cache (private memory). */
+    cacheBytes: number
+    /** Memory-mapped reads (reclaimable page cache), capped by SQLite's compiled maximum. */
+    mmapBytes: number
+    /** Size the WAL is truncated back to after a checkpoint. */
+    walLimitBytes: number
+    retention: {
+      /** `on` removes, `report` only logs what it would remove, `off` never runs. */
+      mode: 'on' | 'report' | 'off'
+      /** Idle time after which a session's durable store is dropped (rebuilt on its next turn); 0 disables. */
+      durableIdleMs: number
+      /** Age after a run finished at which its journal's large payloads are compacted; 0 disables. */
+      journalAgeMs: number
+      /** Disk budget for retention work; 0 is unthrottled. */
+      bytesPerSecond: number
+      /** Durable stores larger than this are left for an offline pass. */
+      maxStoreBytes: number
+      /** Time between retention passes. */
+      intervalMs: number
+    }
+    /** Cap on one string inside a stored tool output, in characters; 0 disables. */
+    toolOutputStoreLimitChars: number
+  }
 }
 
 /** Parsed command-line flags accepted by the Agents service. */
@@ -147,6 +172,34 @@ export type Flags = {
   'min-free-disk-mib': number
   'exec-canary-secs': number
   'log-level': string
+  'sqlite-cache-mib': number
+  'sqlite-mmap-mib': number
+  'sqlite-wal-limit-mib': number
+  retention: string
+  'retention-durable-idle-days': number
+  'retention-journal-days': number
+  'retention-mib-per-sec': number
+  'retention-max-store-mib': number
+  'retention-interval-mins': number
+  'tool-output-store-limit-kib': number
+}
+
+/** Flags that take a non-negative number (fractions allowed). */
+const NON_NEGATIVE_NUMBER_FLAGS = [
+  'sqlite-cache-mib',
+  'sqlite-mmap-mib',
+  'sqlite-wal-limit-mib',
+  'retention-durable-idle-days',
+  'retention-journal-days',
+  'retention-mib-per-sec',
+  'retention-max-store-mib',
+  'retention-interval-mins',
+  'tool-output-store-limit-kib',
+] as const satisfies readonly (keyof Flags)[]
+
+/** An unset or empty variable takes the default; anything else must parse (checked in {@link create}). */
+function numberFromEnv(value: string | undefined, fallback: number): number {
+  return value === undefined || value.trim() === '' ? fallback : Number(value)
 }
 
 /** Creates default flag values from the current environment. */
@@ -193,6 +246,16 @@ export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
         : Number(env.SEED_AGENTS_MIN_FREE_DISK_MIB),
     'exec-canary-secs': Number(env.SEED_AGENTS_EXEC_CANARY_SECS) || 0,
     'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
+    'sqlite-cache-mib': numberFromEnv(env.SEED_AGENTS_SQLITE_CACHE_MIB, 256),
+    'sqlite-mmap-mib': numberFromEnv(env.SEED_AGENTS_SQLITE_MMAP_MIB, 1024),
+    'sqlite-wal-limit-mib': numberFromEnv(env.SEED_AGENTS_SQLITE_WAL_LIMIT_MIB, 64),
+    retention: env.SEED_AGENTS_RETENTION || 'on',
+    'retention-durable-idle-days': numberFromEnv(env.SEED_AGENTS_RETENTION_DURABLE_IDLE_DAYS, 14),
+    'retention-journal-days': numberFromEnv(env.SEED_AGENTS_RETENTION_JOURNAL_DAYS, 30),
+    'retention-mib-per-sec': numberFromEnv(env.SEED_AGENTS_RETENTION_MIB_PER_SEC, 2),
+    'retention-max-store-mib': numberFromEnv(env.SEED_AGENTS_RETENTION_MAX_STORE_MIB, 32),
+    'retention-interval-mins': numberFromEnv(env.SEED_AGENTS_RETENTION_INTERVAL_MINS, 360),
+    'tool-output-store-limit-kib': numberFromEnv(env.SEED_AGENTS_TOOL_OUTPUT_STORE_LIMIT_KIB, 128),
   }
 }
 
@@ -235,6 +298,8 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
       parsed[key] = parsePositiveInteger(value, key)
     } else if (key === 'min-free-disk-mib' || key === 'exec-canary-secs') {
       parsed[key] = parseNonNegativeInteger(value, key)
+    } else if ((NON_NEGATIVE_NUMBER_FLAGS as readonly string[]).includes(key)) {
+      parsed[key] = parseNonNegativeNumber(value, key) as never
     } else {
       parsed[key] = value as never
     }
@@ -307,6 +372,32 @@ export function create(pflags: Flags): Config {
     storage: {
       minFreeDiskBytes: parseNonNegativeInteger(String(pflags['min-free-disk-mib']), 'min-free-disk-mib') * 1_048_576,
     },
+    database: {
+      cacheBytes: Math.floor(parseNonNegativeNumber(String(pflags['sqlite-cache-mib']), 'sqlite-cache-mib') * MIB),
+      mmapBytes: Math.floor(parseNonNegativeNumber(String(pflags['sqlite-mmap-mib']), 'sqlite-mmap-mib') * MIB),
+      walLimitBytes: Math.floor(
+        parseNonNegativeNumber(String(pflags['sqlite-wal-limit-mib']), 'sqlite-wal-limit-mib') * MIB,
+      ),
+      retention: {
+        mode: parseRetentionMode(pflags.retention),
+        durableIdleMs:
+          parseNonNegativeNumber(String(pflags['retention-durable-idle-days']), 'retention-durable-idle-days') * DAY,
+        journalAgeMs: parseNonNegativeNumber(String(pflags['retention-journal-days']), 'retention-journal-days') * DAY,
+        bytesPerSecond: Math.floor(
+          parseNonNegativeNumber(String(pflags['retention-mib-per-sec']), 'retention-mib-per-sec') * MIB,
+        ),
+        maxStoreBytes: Math.floor(
+          parseNonNegativeNumber(String(pflags['retention-max-store-mib']), 'retention-max-store-mib') * MIB,
+        ),
+        intervalMs: Math.max(
+          60_000,
+          parseNonNegativeNumber(String(pflags['retention-interval-mins']), 'retention-interval-mins') * 60_000,
+        ),
+      },
+      toolOutputStoreLimitChars: Math.floor(
+        parseNonNegativeNumber(String(pflags['tool-output-store-limit-kib']), 'tool-output-store-limit-kib') * 1024,
+      ),
+    },
     subscriptionAuth: pflags['subscription-auth'],
     titleGeneration: pflags['session-title-generation'],
     execCanaryIntervalMs: parseNonNegativeInteger(String(pflags['exec-canary-secs']), 'exec-canary-secs') * 1000,
@@ -371,6 +462,24 @@ function parseNonNegativeInteger(value: string, label: string): number {
   const parsed = Number(value)
   if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`Invalid ${label}: ${value}`)
   return parsed
+}
+
+const MIB = 1_048_576
+const DAY = 86_400_000
+
+function parseNonNegativeNumber(value: string, label: string): number {
+  const parsed = Number(value)
+  if (value.trim() === '' || !Number.isFinite(parsed) || parsed < 0) throw new Error(`Invalid ${label}: ${value}`)
+  return parsed
+}
+
+/** `on` (default), `report` (log only), or `off`; the usual boolean spellings map to on/off. */
+function parseRetentionMode(value: string): 'on' | 'report' | 'off' {
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'report' || normalized === 'dry-run') return 'report'
+  if (['', 'on', '1', 'true', 'yes'].includes(normalized)) return 'on'
+  if (['off', '0', 'false', 'no', 'none'].includes(normalized)) return 'off'
+  throw new Error(`Invalid retention mode: ${value} (expected on, report or off)`)
 }
 
 function parsePort(value: string): number {

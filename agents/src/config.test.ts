@@ -57,4 +57,30 @@ describe('config', () => {
     expect(() => config.parseArgs(['--min-free-disk-mib=-1'], {} as NodeJS.ProcessEnv)).toThrow()
     expect(() => config.parseArgs(['--min-free-disk-mib=lots'], {} as NodeJS.ProcessEnv)).toThrow()
   })
+  test('database tuning and retention default to the hosted values and honor env and flags', () => {
+    const defaults = config.create(config.flags({} as NodeJS.ProcessEnv)).database
+    expect(defaults).toMatchObject({
+      cacheBytes: 256 * 1_048_576,
+      mmapBytes: 1024 * 1_048_576,
+      walLimitBytes: 64 * 1_048_576,
+      toolOutputStoreLimitChars: 128 * 1024,
+      retention: {mode: 'on', durableIdleMs: 14 * 86_400_000, journalAgeMs: 30 * 86_400_000},
+    })
+    const tuned = config.create(
+      config.parseArgs(['--retention', 'report', '--retention-journal-days=0.5'], {
+        SEED_AGENTS_SQLITE_CACHE_MIB: '512',
+        SEED_AGENTS_RETENTION_DURABLE_IDLE_DAYS: '0',
+        SEED_AGENTS_TOOL_OUTPUT_STORE_LIMIT_KIB: '0',
+      } as NodeJS.ProcessEnv),
+    ).database
+    expect(tuned.cacheBytes).toBe(512 * 1_048_576)
+    expect(tuned.toolOutputStoreLimitChars).toBe(0)
+    expect(tuned.retention).toMatchObject({mode: 'report', durableIdleMs: 0, journalAgeMs: 43_200_000})
+    expect(
+      config.create(config.flags({SEED_AGENTS_RETENTION: 'off'} as NodeJS.ProcessEnv)).database.retention.mode,
+    ).toBe('off')
+    expect(() => config.create(config.flags({SEED_AGENTS_RETENTION: 'maybe'} as NodeJS.ProcessEnv))).toThrow()
+    expect(() => config.create(config.flags({SEED_AGENTS_SQLITE_CACHE_MIB: 'lots'} as NodeJS.ProcessEnv))).toThrow()
+    expect(() => config.parseArgs(['--retention-mib-per-sec=-1'], {} as NodeJS.ProcessEnv)).toThrow()
+  })
 })

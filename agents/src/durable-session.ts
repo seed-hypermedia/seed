@@ -215,6 +215,20 @@ const storesKey = Symbol.for('seed.agents.open-durable-stores')
 const shared = globalThis as typeof globalThis & {[storesKey]?: Map<Database | string, Set<string>>}
 const openStores = (shared[storesKey] ??= new Map())
 
+/** The key a database's open stores are registered under (its real path, or the handle itself in memory). */
+function storesKeyOf(db: Database): Database | string {
+  return db.filename === ':memory:' || !db.filename ? db : fs.realpathSync(db.filename)
+}
+
+/**
+ * Whether a turn in this process holds the session's store open. Retention (db-retention.ts) never
+ * drops a store that is open; together with the live-run check this keeps it from deleting rows a
+ * turn is about to read or append to.
+ */
+export function isSessionStorageOpen(db: Database, sessionId: string): boolean {
+  return openStores.get(storesKeyOf(db))?.has(sessionId) ?? false
+}
+
 /** Serialize commits and recover known sequence corruption from the canonical log, retaining damaged files. */
 export async function openSessionStorage(
   db: Database,
@@ -222,7 +236,7 @@ export async function openSessionStorage(
   onFailure: (error: unknown) => void = () => {},
   onRecovery: (archive: string) => void = () => {},
 ) {
-  const database = db.filename === ':memory:' || !db.filename ? db : fs.realpathSync(db.filename)
+  const database = storesKeyOf(db)
   let sessions = openStores.get(database)
   if (!sessions) openStores.set(database, (sessions = new Set()))
   if (sessions.has(sessionId))
