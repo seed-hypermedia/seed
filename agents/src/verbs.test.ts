@@ -1203,13 +1203,16 @@ describe('thread listing and search', () => {
       )
     addSession('s1', 'Launch planning', now - 1000)
     addSession('s2', 'Weekly review', now)
+    const message = {type: 'message', role: 'user', content: 'let us discuss the pelican rodeo budget'}
     context.db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
       'e1',
       's1',
       1,
-      cborEncode({type: 'message', role: 'user', content: 'let us discuss the pelican rodeo budget'}),
+      cborEncode(message),
       now,
     ])
+    // The service records every append's privacy as it writes the event.
+    context.browserPrivacy.recordSessionEvent({id: 'e1', sessionId: 's1', seq: 1, createdAt: now, event: message})
 
     const listing = await executeReadVerb(context, {address: 'thread:'})
     const threads = listing.threads as Array<{thread: string; snippet?: string}>
@@ -1242,7 +1245,7 @@ describe('thread listing and search', () => {
     expect((byAgent.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2', 'thread:s1'])
   })
 
-  test('reader listings and thread reads scan each transcript once through the shared privacy projection', async () => {
+  test('reader listings hide unscanned transcripts until the backfill has scanned each one once', async () => {
     const context = makeContext()
     const now = Date.now()
     const sessions = 6
@@ -1281,12 +1284,18 @@ describe('thread listing and search', () => {
     const decode = spyOn(cbor, 'decode')
     try {
       const reader = () => agentMemory.withOwnerAccess(false, () => executeReadVerb(context, {address: 'thread:'}))
+      // Written without their append notifications (history from before transcript_privacy): a
+      // reader's listing fails closed and reads no transcript to decide it.
+      expect((await reader()).threads).toEqual([])
+      expect(decode.mock.calls.length).toBeLessThan(eventsPerSession)
+      context.browserPrivacy.drainBackfill()
+      expect(decode.mock.calls.length).toBeGreaterThanOrEqual(sessions * eventsPerSession)
+      decode.mockClear()
       const first = await reader()
       const threads = (first.threads as Array<{thread: string}>).map((t) => t.thread)
       expect(threads).toHaveLength(sessions)
       expect(threads).not.toContain('thread:browser-thread')
-      const scanned = decode.mock.calls.length
-      expect(scanned).toBeGreaterThanOrEqual(sessions * eventsPerSession)
+      expect(decode.mock.calls.length).toBeLessThan(eventsPerSession)
       decode.mockClear()
       expect((await reader()).threads).toEqual(first.threads)
       const transcript = await agentMemory.withOwnerAccess(false, () =>

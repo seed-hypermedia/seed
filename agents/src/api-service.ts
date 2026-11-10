@@ -164,7 +164,7 @@ import * as piOpenAIResponses from '@earendil-works/pi-ai/api/openai-responses.l
 import * as piOpenAICodexCatalog from '@earendil-works/pi-ai/providers/openai-codex.models'
 import * as durable from '@earendil-works/pi-durable'
 import * as durableSession from '@/durable-session'
-import {providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
+import {loopLagSnapshot, providerErrorReason, recordPerf, recordPerfCount, startPerfSpan} from '@/perf'
 import {sessionPerfRollup, type SessionPerfRollup} from '@/session-perf'
 import {
   OAUTH_PROVIDER_TYPES,
@@ -1070,7 +1070,14 @@ export class Service {
     } = {},
   ) {
     this.#db = db
-    this.#browserPrivacy = new BrowserPrivacy(db)
+    this.#browserPrivacy = new BrowserPrivacy(db, {
+      backfill: true,
+      // The backfill reads transcript bodies from disk; it slows to a trickle while the loop is busy.
+      loopLagging: () => {
+        const lag = loopLagSnapshot()
+        return lag.p95 > 50 || lag.last > 100
+      },
+    })
     for (const agent of stmt<{state_dir: string}, []>(db, 'SELECT state_dir FROM agents').all())
       agentMemory.migratePrivateMemory(agent.state_dir)
     this.#dataDir = dataDir
@@ -1213,6 +1220,7 @@ export class Service {
   /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
   stopRunQueue(): void {
     this.#runQueue.stop()
+    this.#browserPrivacy.stop()
     if (this.#outboxPruneTimer) clearInterval(this.#outboxPruneTimer)
     this.#outboxPruneTimer = undefined
     this.#browserTools.close()
@@ -3586,6 +3594,7 @@ export class Service {
     const transaction = this.#db.transaction(() => {
       for (const sessionId of sessionIds) {
         stmt(this.#db, `DELETE FROM session_events WHERE session_id = ?`).run([sessionId])
+        this.#browserPrivacy.forgetSession(sessionId)
       }
       // Continuations stay inside one agent, so they all go with it.
       stmt(this.#db, `DELETE FROM session_continuations WHERE account_id = ? AND agent_id = ?`).run([
@@ -4286,6 +4295,7 @@ export class Service {
         sessionId,
       ])
       stmt(this.#db, `DELETE FROM session_events WHERE session_id = ?`).run([sessionId])
+      this.#browserPrivacy.forgetSession(sessionId)
       // A continuation is a link between two sessions and has nothing to say once either is gone.
       // The session at the other end stays, without the link.
       for (const other of linkedByContinuation) this.#forgetSessionDerived(accountId, other)
@@ -7981,7 +7991,7 @@ export class Service {
     const turnStateMessages = (): piAi.UserMessage[] => {
       // A reader's turn in a browser or private-memory session must not see the owner's plan or
       // status text; the private stub stands in for them.
-      const privateHistory = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.sessionIsPrivate(sessionId)
+      const privateHistory = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
       const blocks = [
         buildSpaceIndex({
           db: this.#db,
@@ -8870,7 +8880,7 @@ export class Service {
     // A session that used the browser or private memory is rebuilt from the log on every turn:
     // the durable conversation would otherwise carry owner-only content into a reader's turn
     // (or a reader's redacted copy into the owner's). #piMessages redacts by the run's access.
-    if (this.#browserPrivacy.sessionIsPrivate(sessionId)) appendable = false
+    if (this.#browserPrivacy.scanSessionIsPrivate(sessionId)) appendable = false
     let interrupted = false
     for (const event of pending) {
       const value = event.event as {
@@ -9080,7 +9090,7 @@ export class Service {
    * `left` names events to leave out: messages another run will put to the model itself.
    */
   #piMessages(sessionId: string, left: ReadonlySet<string> = new Set()): unknown[] {
-    const privateSession = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.sessionIsPrivate(sessionId)
+    const privateSession = !agentMemory.hasOwnerAccess() && this.#browserPrivacy.scanSessionIsPrivate(sessionId)
     const events = stmt<SessionEventRow, [string, number]>(
       this.#db,
       `SELECT id, session_id, seq, event_cbor, created_at FROM session_events WHERE session_id = ? AND seq > ? ORDER BY seq ASC`,

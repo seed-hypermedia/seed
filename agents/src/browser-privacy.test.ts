@@ -2,7 +2,7 @@ import {Database} from 'bun:sqlite'
 import {afterEach, beforeEach, expect, spyOn, test} from 'bun:test'
 import type * as api from '@seed-hypermedia/agents-protocol'
 import * as cbor from '@/cbor'
-import {BrowserPrivacy, containsPrivateData} from '@/browser-privacy'
+import {BrowserPrivacy, containsPrivateData, privateStub} from '@/browser-privacy'
 import {stmt} from '@/statements'
 
 let db: Database
@@ -17,10 +17,15 @@ beforeEach(() => {
     CREATE TABLE run_journal (run_id TEXT, seq INTEGER, entry_cbor BLOB, PRIMARY KEY (run_id, seq));
     INSERT INTO sessions VALUES ('browser-session', 'owner', NULL), ('successor', 'owner', NULL), ('child', 'owner', 'browser-session'), ('other', 'owner', NULL);
     INSERT INTO session_continuations VALUES ('successor', 'browser-session');
+    CREATE TABLE transcript_privacy (kind TEXT NOT NULL, id TEXT NOT NULL, scanned_seq INTEGER NOT NULL,
+      private INTEGER NOT NULL, sessions_json TEXT, runs_json TEXT, PRIMARY KEY (kind, id)) WITHOUT ROWID;
   `)
   privacy = new BrowserPrivacy(db)
 })
-afterEach(() => db.close())
+afterEach(() => {
+  privacy.stop()
+  db.close()
+})
 
 test('redacts typed input, screenshots, unsigned child prompts, continuation projections and manifests', () => {
   const call = {
@@ -142,6 +147,9 @@ test('cross-thread reads propagate privacy and canonical private-memory aliases 
     event: {type: 'tool_result', toolCallId: 'read', name: 'read', output: {markdown: 'private page'}},
   }
   expect(privacy.forViewer(result, 'reader')).toMatchObject({event: {output: {redacted: true}}})
+  privacy.drainBackfill()
+  expect(privacy.isScanned('session', 'other')).toBe(true)
+  expect(privacy.forViewer(result, 'reader')).toMatchObject({event: {output: {redacted: true}}})
   expect(privacy.forViewer(result, 'owner')).toEqual(result)
 })
 
@@ -158,6 +166,9 @@ test('ordinary prose and unrelated paths do not make a session private', () => {
   expect(containsPrivateData({name: 'search', input: {path: 'private/file.md'}})).toBe(false)
   expect(containsPrivateData({path: 'private/file.md'})).toBe(false)
   expect(containsPrivateData({name: 'write', input: {path: 'private-notes.md'}})).toBe(false)
+  // Rows written without an append notification are unscanned: private until the backfill reads them.
+  expect(privacy.sessionIsPrivate('other')).toBe(true)
+  privacy.drainBackfill()
   expect(privacy.sessionIsPrivate('other')).toBe(false)
   const frame = {_: 'appendPartial', key: 'sessions/other', patch: {textDelta: 'keep this private'}}
   expect(privacy.forViewer(frame, 'reader')).toEqual(frame)
@@ -189,9 +200,13 @@ test('negative session and journal caches scan new sequences and propagate late 
     'other',
     cbor.encode({type: 'tool_call', name: 'read', input: {address: 'thread:browser-session'}}),
   ])
+  for (const id of ['other', 'child', 'successor']) privacy.sessionIsPrivate(id)
+  privacy.runIsPrivate('workflow')
+  privacy.drainBackfill()
   for (const id of ['other', 'child', 'successor']) expect(privacy.sessionIsPrivate(id)).toBe(false)
   expect(privacy.runIsPrivate('workflow')).toBe(false)
-  // A new row must be discovered even without an eager notification (e.g. cold history reads).
+  // A new row without an eager notification is noticed from its sequence alone (fail closed),
+  // and the backfill confirms it.
   db.run('INSERT INTO session_events VALUES (?, 1, ?)', [
     'browser-session',
     cbor.encode({type: 'tool_call', name: 'browser', input: {action: 'snapshot'}}),
@@ -200,6 +215,11 @@ test('negative session and journal caches scan new sequences and propagate late 
     'root',
     cbor.encode({kind: 'call', tool: 'memory_read', input: {path: 'private/file.md'}}),
   ])
+  for (const id of ['other', 'child', 'successor']) expect(privacy.sessionIsPrivate(id)).toBe(true)
+  expect(privacy.runIsPrivate('workflow')).toBe(true)
+  privacy.drainBackfill()
+  expect(privacy.isScanned('session', 'browser-session')).toBe(true)
+  expect(privacy.isScanned('run', 'root')).toBe(true)
   for (const id of ['other', 'child', 'successor']) expect(privacy.sessionIsPrivate(id)).toBe(true)
   expect(privacy.runIsPrivate('workflow')).toBe(true)
 })
@@ -239,6 +259,9 @@ test('eager appends do not skip unscanned history, and late continuation links a
   expect(privacy.sessionIsPrivate('browser-session')).toBe(false)
   db.run('INSERT INTO session_continuations VALUES (?, ?)', ['browser-session', 'other'])
   expect(privacy.sessionIsPrivate('browser-session')).toBe(true)
+  privacy.drainBackfill()
+  expect(privacy.isScanned('session', 'other')).toBe(true)
+  expect(privacy.sessionIsPrivate('browser-session')).toBe(true)
 })
 
 test('owners return their original session and run responses without scanning history', () => {
@@ -264,7 +287,7 @@ test('owners return their original session and run responses without scanning hi
   }
 })
 
-test('thousands of historical events are decoded once across repeated reader partial frames', () => {
+test('thousands of historical events are decoded once, by the backfill, never by reader frames', () => {
   const count = 5000
   const encoded = cbor.encode({type: 'message', role: 'assistant', content: 'Ordinary public text. '.repeat(20)})
   db.run('INSERT INTO runs VALUES (?, ?, NULL, NULL, ?, NULL)', ['workflow', 'owner', cbor.encode({})])
@@ -282,14 +305,23 @@ test('thousands of historical events are decoded once across repeated reader par
   const sessionOwner = spyOn(stmt(db, 'SELECT account_id FROM sessions WHERE id = ?'), 'get')
   const runOwner = spyOn(stmt(db, 'SELECT account_id FROM runs WHERE id = ?'), 'get')
   try {
-    expect(privacy.forViewer(sessionFrame, 'reader')).toEqual(sessionFrame)
-    expect(privacy.forViewer(runFrame, 'reader')).toEqual(runFrame)
+    // Unscanned history: readers get the fail-closed projection and nothing is decoded.
+    expect(privacy.forViewer(sessionFrame, 'reader') as unknown).toEqual({
+      ...sessionFrame,
+      patch: {textDelta: '', done: true},
+    })
+    expect(privacy.forViewer(runFrame, 'reader')).toMatchObject({textDelta: String(privateStub().summary)})
+    expect(decode).not.toHaveBeenCalled()
+    expect(privacy.backfillQueued).toBe(2)
+    privacy.drainBackfill()
+    expect(privacy.backfillQueued).toBe(0)
+    // Each body once, plus the run's creation-time input.
     expect(decode).toHaveBeenCalledTimes(count * 2 + 1)
     decode.mockClear()
     const started = performance.now()
     for (let i = 0; i < 200; i++) {
-      privacy.forViewer(sessionFrame, 'reader')
-      privacy.forViewer(runFrame, 'reader')
+      expect(privacy.forViewer(sessionFrame, 'reader')).toEqual(sessionFrame)
+      expect(privacy.forViewer(runFrame, 'reader')).toEqual(runFrame)
     }
     const elapsed = performance.now() - started
     expect(decode).not.toHaveBeenCalled()
@@ -321,24 +353,154 @@ test('thousands of historical events are decoded once across repeated reader par
     )
     expect(sessionOwner).toHaveBeenCalledTimes(1)
     expect(runOwner).toHaveBeenCalledTimes(1)
+    // Eagerly observed appends advance the persisted row without a decode or a pending window.
     const event = {type: 'message', role: 'assistant', content: 'new text'}
     db.run('INSERT INTO session_events VALUES (?, ?, ?)', ['other', count + 1, cbor.encode(event)])
     db.run('INSERT INTO run_journal VALUES (?, ?, ?)', ['workflow', count + 1, cbor.encode(event)])
-    privacy.forViewer(sessionFrame, 'reader')
-    privacy.forViewer(runFrame, 'reader')
-    expect(decode).toHaveBeenCalledTimes(2)
-    decode.mockClear()
-    // Ordinary eagerly observed appends advance the cursor without a redundant decode either.
-    db.run('INSERT INTO session_events VALUES (?, ?, ?)', ['other', count + 2, cbor.encode(event)])
-    db.run('INSERT INTO run_journal VALUES (?, ?, ?)', ['workflow', count + 2, cbor.encode(event)])
-    privacy.recordSessionEvent({id: 'new', sessionId: 'other', seq: count + 2, createdAt: 1, event})
-    privacy.recordRunEntry({runId: 'workflow', seq: count + 2, createdAt: 1, entry: event})
-    privacy.forViewer(sessionFrame, 'reader')
-    privacy.forViewer(runFrame, 'reader')
+    privacy.recordSessionEvent({id: 'new', sessionId: 'other', seq: count + 1, createdAt: 1, event})
+    privacy.recordRunEntry({runId: 'workflow', seq: count + 1, createdAt: 1, entry: event})
+    expect(privacy.forViewer(sessionFrame, 'reader')).toEqual(sessionFrame)
+    expect(privacy.forViewer(runFrame, 'reader')).toEqual(runFrame)
     expect(decode).not.toHaveBeenCalled()
+    // A row written without its notification is pending again until the backfill reads just that row.
+    db.run('INSERT INTO session_events VALUES (?, ?, ?)', ['other', count + 2, cbor.encode(event)])
+    expect(privacy.sessionIsPrivate('other')).toBe(true)
+    expect(decode).not.toHaveBeenCalled()
+    privacy.drainBackfill()
+    expect(decode).toHaveBeenCalledTimes(1)
+    expect(privacy.sessionIsPrivate('other')).toBe(false)
   } finally {
     decode.mockRestore()
     sessionOwner.mockRestore()
     runOwner.mockRestore()
   }
+})
+
+test('appends persist the flag and its dependencies, and a restart reads them without rescanning', () => {
+  const row = (kind: string, id: string) =>
+    db
+      .query('SELECT scanned_seq, private, sessions_json FROM transcript_privacy WHERE kind = ? AND id = ?')
+      .get(kind, id)
+  const call = {type: 'tool_call', name: 'read', input: {address: 'thread:browser-session'}}
+  db.run('INSERT INTO session_events VALUES (?, 1, ?)', ['other', cbor.encode(call)])
+  privacy.recordSessionEvent({id: 'one', sessionId: 'other', seq: 1, createdAt: 1, event: call})
+  expect(row('session', 'other')).toEqual({scanned_seq: 1, private: 0, sessions_json: '["browser-session"]'})
+  const browser = {type: 'tool_call', name: 'browser', input: {action: 'snapshot'}}
+  db.run('INSERT INTO session_events VALUES (?, 1, ?)', ['browser-session', cbor.encode(browser)])
+  privacy.recordSessionEvent({id: 'two', sessionId: 'browser-session', seq: 1, createdAt: 1, event: browser})
+  expect(row('session', 'browser-session')).toMatchObject({scanned_seq: 1, private: 1})
+  expect(privacy.sessionIsPrivate('other')).toBe(true)
+
+  privacy.stop()
+  const restarted = new BrowserPrivacy(db)
+  const decode = spyOn(cbor, 'decode')
+  try {
+    for (const id of ['other', 'browser-session', 'child', 'successor'])
+      expect(restarted.sessionIsPrivate(id)).toBe(true)
+    expect(restarted.backfillQueued).toBe(0)
+    expect(decode).not.toHaveBeenCalled()
+  } finally {
+    decode.mockRestore()
+  }
+})
+
+test('a cold unscanned transcript is redacted for readers, whole for its owner, until the backfill scans it', () => {
+  const message = {type: 'message', role: 'assistant', content: 'public answer'}
+  db.run('INSERT INTO session_events VALUES (?, 1, ?)', ['other', cbor.encode(message)])
+  const response = {
+    session: {id: 'other', agentId: 'agent', title: 'Public chat'},
+    events: [{id: 'one', sessionId: 'other', seq: 1, createdAt: 1, event: message}],
+  }
+  expect(privacy.forViewer(response, 'owner')).toBe(response)
+  const cold = privacy.forViewer(response, 'reader')
+  expect(JSON.stringify(cold)).not.toContain('public answer')
+  expect(cold.session.title).toBe(String(privateStub().summary))
+  privacy.drainBackfill()
+  expect(privacy.forViewer(response, 'reader')).toEqual(response)
+})
+
+test('the timer backfill scans in bounded slices and settles requested transcripts', async () => {
+  const background = new BrowserPrivacy(db, {backfill: true, loopLagging: () => false})
+  try {
+    const encoded = cbor.encode({type: 'message', role: 'assistant', content: 'hello'})
+    db.transaction(() => {
+      for (let seq = 1; seq <= 200; seq++)
+        db.run('INSERT INTO session_events VALUES (?, ?, ?)', ['other', seq, encoded])
+    })()
+    // A slice whose deadline already passed still advances by exactly one body and persists it.
+    expect(background.sessionIsPrivate('other')).toBe(true)
+    background.drainBackfill(0)
+    expect(
+      db.query(`SELECT scanned_seq FROM transcript_privacy WHERE kind = 'session' AND id = 'other'`).get(),
+    ).toEqual({scanned_seq: 1})
+    const deadline = Date.now() + 5_000
+    while (background.backfillQueued && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(background.sessionIsPrivate('other')).toBe(false)
+  } finally {
+    background.stop()
+  }
+})
+
+test('reader projections never read event or journal bodies (response and WebSocket path)', () => {
+  // Record every statement executed on this database from here on.
+  const executed: string[] = []
+  const prepare = db.prepare.bind(db)
+  db.prepare = ((sql: string) => {
+    const statement = prepare(sql)
+    for (const verb of ['get', 'all', 'run', 'values', 'iterate'] as const) {
+      const original = (statement as any)[verb]?.bind(statement)
+      if (original)
+        (statement as any)[verb] = (...args: unknown[]) => {
+          executed.push(sql)
+          return original(...args)
+        }
+    }
+    return statement
+  }) as typeof db.prepare
+  const fresh = new BrowserPrivacy(db)
+  const browser = cbor.encode({type: 'tool_call', name: 'browser', input: {action: 'snapshot'}})
+  const ordinary = cbor.encode({type: 'message', role: 'assistant', content: 'hello'})
+  db.run('INSERT INTO session_events VALUES (?, 1, ?)', ['browser-session', browser])
+  db.run('INSERT INTO session_events VALUES (?, 1, ?)', ['other', ordinary])
+  db.run('INSERT INTO runs VALUES (?, ?, ?, NULL, ?, NULL)', ['workflow', 'owner', 'other', cbor.encode({})])
+  db.run('INSERT INTO run_journal VALUES (?, 1, ?)', ['workflow', ordinary])
+  const frames = [
+    {_: 'appendPartial', key: 'sessions/browser-session', patch: {textDelta: 'x'}},
+    {_: 'appendPartial', key: 'sessions/child', patch: {textDelta: 'x'}},
+    {_: 'appendPartial', key: 'sessions/successor', patch: {textDelta: 'x'}},
+    {id: 'e', sessionId: 'other', seq: 1, createdAt: 1, event: {type: 'message', content: 'hello'}},
+    {runId: 'workflow', entries: [{runId: 'workflow', seq: 1, entry: {kind: 'result'}, createdAt: 1}]},
+  ]
+  const bodyReads = () => executed.filter((sql) => /event_cbor|entry_cbor/.test(sql))
+  const decode = spyOn(cbor, 'decode')
+  try {
+    // Cold (nothing scanned yet), then after the backfill, then after a restart.
+    for (const frame of frames) fresh.forViewer(frame, 'reader')
+    expect(bodyReads()).toEqual([])
+    expect(decode).not.toHaveBeenCalled()
+    fresh.drainBackfill()
+    executed.length = 0
+    decode.mockClear()
+    for (const frame of frames) fresh.forViewer(frame, 'reader')
+    for (const frame of frames) new BrowserPrivacy(db).forViewer(frame, 'reader')
+    expect(bodyReads()).toEqual([])
+    expect(decode).not.toHaveBeenCalled()
+  } finally {
+    decode.mockRestore()
+  }
+})
+
+test("the runtime's exact check scans an unscanned session and its sources instead of failing closed", () => {
+  const ordinary = cbor.encode({type: 'message', role: 'assistant', content: 'hello'})
+  db.run('INSERT INTO session_events VALUES (?, 1, ?)', ['successor', ordinary])
+  db.run('INSERT INTO session_events VALUES (?, 1, ?)', ['browser-session', ordinary])
+  expect(privacy.sessionIsPrivate('successor')).toBe(true)
+  expect(privacy.scanSessionIsPrivate('successor')).toBe(false)
+  expect(privacy.isScanned('session', 'browser-session')).toBe(true)
+  db.run('INSERT INTO session_events VALUES (?, 2, ?)', [
+    'browser-session',
+    cbor.encode({type: 'tool_call', name: 'browser', input: {action: 'snapshot'}}),
+  ])
+  expect(privacy.scanSessionIsPrivate('successor')).toBe(true)
+  expect(privacy.backfillQueued).toBe(0)
 })

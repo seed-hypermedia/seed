@@ -63,6 +63,26 @@ Browser results stay with the owner:
 - The assistant message context only names the website (origin and path, no query or fragment) while access is
   connected. Otherwise it says a website is open without naming it.
 
+### How privacy is decided (`transcript_privacy`)
+
+Whether a session or run is private is stored as data, one `transcript_privacy` row per transcript: the last sequence
+scanned, the flag, and the sessions and runs its tool calls read from (privacy is inherited from those, and from a
+session's parent and continuation predecessor, through primary-key lookups). The row is updated as each event or journal
+entry is appended, so deciding privacy for an API response or a WebSocket frame never reads a `session_events` or
+`run_journal` body (`agents/src/browser-privacy.ts`). Before 2026-11-10 the first non-owner frame touching a transcript
+decoded its whole history and kept the answer only in memory; on the production database every restart re-read every
+visible transcript and the server stopped answering.
+
+A transcript whose row is missing or behind its last sequence (written before the table existed, or by a process that
+died between the append and the flag write) fails closed: until it is scanned, readers, collaborators and public viewers
+get it **redacted, not hidden**. Its title, description and events are replaced by the private stub exactly as for a
+browser session, and it still appears in lists. The one exception is the agent-facing `thread:` listing, which omits
+private threads from a non-owner run, so a pending thread is omitted there too. Owners always see everything. Reading a
+pending transcript queues it for a background backfill that scans the most recently requested transcripts first, in 20
+ms slices with 50 ms pauses (5 ms a second while event-loop lag is high), persisting progress as it goes. The agent
+runtime, which reads a session's whole log for a turn anyway, scans that session synchronously instead of failing closed
+(`scanSessionIsPrivate`), so a run never sees stubs in its own context.
+
 ## Other website protections
 
 - The website runs in a `WebContentsView` owned by the main process. The app page never holds a web view: it asks for a
