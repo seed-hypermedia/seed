@@ -344,6 +344,53 @@ export function clearExploreConditions(ast: ExploreQueryNode | null): ExploreQue
   if (retained.length === 1) return retained[0]!
   return ast.kind === 'not' ? {kind: 'and', children: retained} : {...ast, children: retained}
 }
+
+/** A query as the Explore search box holds it: the text it shows, and the rest, shown only as filter chips. */
+export type ExploreSearchBox = {text: string; hidden: string}
+
+/**
+ * Splits a query into what the search box content and pill filters. Filters joined by AND, and the view, column and
+ * sort directives, are hidden. OR and NOT groups stay in the box whole, since taking a filter out of one would change
+ * what the query means.
+ */
+export function splitExploreSearchBox(parsed: ParsedExploreQuery): ExploreSearchBox {
+  const andParts = (node: ExploreQueryNode): ExploreQueryNode[] =>
+    node.kind === 'and' ? node.children.flatMap(andParts) : [node]
+  const parts = parsed.ast ? andParts(parsed.ast) : []
+  const filters = parts.filter((part) => part.kind === 'predicate')
+  const words = parts.filter((part) => part.kind !== 'predicate')
+  const filterAst: ExploreQueryNode | null = filters.length > 1 ? {kind: 'and', children: filters} : filters[0] ?? null
+  // Adjacent words already mean AND, so the box keeps them space-separated, the way people type them.
+  const text = words
+    .map((part) => {
+      const value = serializeExploreQuery(part)
+      return part.kind === 'or' && words.length > 1 ? `(${value})` : value
+    })
+    .join(' ')
+  return {text, hidden: serializeExploreQuery(filterAst, parsed.presentation)}
+}
+
+/** Joins the search box's text and the pill filters back into one query string. */
+export function joinExploreSearchBox({text, hidden}: ExploreSearchBox): string {
+  if (!hidden) return text
+  const typed = text.trim()
+  if (!typed) return hidden
+  // Grouped, so an OR typed in the box can't take the pill filters into one of its branches.
+  return `(${typed}) ${hidden}`
+}
+
+/**
+ * Moves the filters typed into the search box out of it, so they show only as chips. Text that doesn't parse cleanly,
+ * such as a filter still being typed, stays as it is, so nothing typed is ever dropped.
+ */
+export function moveTypedExploreFilters(box: ExploreSearchBox): ExploreSearchBox {
+  const parsed = parseExploreQuery(box.text)
+  if (parsed.diagnostics.length) return box
+  const typed = splitExploreSearchBox(parsed)
+  if (!typed.hidden) return box
+  return {text: typed.text, hidden: [box.hidden, typed.hidden].filter(Boolean).join(' ')}
+}
+
 /** Converts the existing SearchResultItem shape into a typed Explore result. */
 export function searchResultItemToExploreResult(item: SearchResultItem): HMExploreResult | null {
   if (item.type === 'contact')
