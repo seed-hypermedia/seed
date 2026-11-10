@@ -246,11 +246,14 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
   "codeExecReasonCode": "…",
   "codeExecRuntimes": ["ts", "python", "shell"],
   "disk": {"path": "/data", "freeBytes": 123456789, "minFreeBytes": 536870912, "ok": true},
-  "dispatch": {"paused": false}
+  "dispatch": {"paused": false},
+  "bootRecovery": {"state": "done", "ms": 412}
 }
 ```
 
 `ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS publication itself chunks [UnixFS](../protocol/files.md) blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from `SEED_AGENTS_SEARXNG_URL` and `SEED_AGENTS_CRAWLER_URL`. `codeExec` derives from the exec backend probe, and `codeExecReason` and `codeExecReasonCode` explain an unavailable sandbox. `codeExecRuntimes` says which runtimes this host offers. `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here. Clients read these fields to grey out what the server cannot run. `disk` is the free space where the database lives against the floor new runs require (`null` when the check is off), and `dispatch` says whether the queue is claiming runs; `{paused: true, reason}` names what stopped it. See the [effect outbox](./effect-outbox.md). <!-- id:5FIU-ofh -->
+
+The server binds its port before it opens the database. Until it is ready, every health path answers `503` with `{"status": "starting", "phase": "…", "reason": "…"}` and a `Retry-After`, and every other path answers `503`. The phases are opening the database (migrations, planner statistics), starting the run queue (the boot sweeps), and starting monitors. Each step logs `[agents/boot] step finished` with its duration, and `Agents server running` carries the total `bootMs`. A step is synchronous on the only thread, so a request that arrives during it is answered when it ends. The parked-run reconcile and receipt pruning run after the server is ready, one run at a time with the event loop given back in between; `bootRecovery` reports them as `pending`, `running`, `done` (with `ms`) or `failed` (with `error`). The container healthcheck allows a ten-minute start period for a cold boot on a large database.
 
 # Code execution backend <!-- id:VLdUUR8z -->
 
@@ -433,6 +436,7 @@ Run, runtime, and script diagnostics: <!-- id:0OVrLoWY -->
   - `[agents/runs] dispatch paused` / `[agents/runs] dispatch resumed`
   - `[agents/runtime] tool call answered from its receipt` / `tool call answered as interrupted` / `recording a tool effect failed`
   - `[agents/runs] boot reconcile: replaying finished child into parked parent` <!-- id:_RsqNClX -->
+  - `[agents/boot] step finished` / `[agents/boot] recovery finished` / `[agents/boot] recovery failed`
   - `[agents/runs] activity woke a waiting run` <!-- id:tpFxLg1i -->
   - `[agents/runtime] sending provider request` <!-- id:C2_CfkIS -->
   - `[agents/runtime] ending turn after tool batch` <!-- id:qZT_X9Yq -->

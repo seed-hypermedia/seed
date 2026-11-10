@@ -55,6 +55,11 @@ EXPOSE 3050
 # threshold in perf.ts, and does not answer at all while the loop is stalled outright; both read
 # as unhealthy here, so `docker ps`, Watchtower and compose see a stalled server instead of "Up".
 # The image has no curl; bun's fetch with a 4 s abort stays inside the 5 s timeout.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+# The port is bound before any database work and health answers 503 `starting` until the service
+# is ready, but migrations and the run-queue sweep still hold the only thread while they run: a
+# cold boot on the production file took ~100 s (2026-11-10), and a boot that builds a new index on
+# `runs` reads that whole table first. The start period covers that, so a slow but healthy boot
+# is not counted against the retries; the first passing check ends it early.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=600s --retries=3 \
   CMD ["bun", "-e", "fetch(`http://127.0.0.1:${process.env.SEED_AGENTS_HTTP_PORT || 3050}/api/health`, {signal: AbortSignal.timeout(4000)}).then((res) => process.exit(res.ok ? 0 : 1), () => process.exit(1))"]
 CMD ["bun", "run", "--no-install", "main.js"]

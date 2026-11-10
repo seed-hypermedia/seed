@@ -1042,6 +1042,8 @@ export class Service {
    */
   readonly #oauthStores = new Map<string, PersistedOAuthStore>()
 
+  #bootRecovery: BootRecoveryStatus = {state: 'pending'}
+
   constructor(
     db: Database,
     dataDir: string,
@@ -1111,12 +1113,15 @@ export class Service {
     // Crash recovery: runs a dead process left claimed/running go back to queued (the sweep wakes
     // the loop when it found any); their sessions' dangling tool calls are repaired on resume, and
     // parked parents whose children finalized before the crash get their resolutions replayed.
+    // This sweep stays in the constructor, before the queue can claim anything: it requeues every
+    // claimed/running row, so run any later it would also take back work this process claimed.
+    // Both it and the outbox sweep below are single indexed statements (see `runs_live`). The
+    // parked-parent reconcile and receipt pruning wait for {@link Service.recoverAfterBoot}, which
+    // the server runs after it is listening.
     this.#runQueue.sweepAtBoot()
-    this.#reconcileWaitingRunsAtBoot()
-    // Effects a dead process left mid-flight are settled before any turn can ask about them, and
-    // receipts nobody can ask about any more are dropped (see effect-outbox.ts).
+    // Effects a dead process left mid-flight are settled before any turn can ask about them (see
+    // effect-outbox.ts).
     effectOutbox.sweepAtBoot(db)
-    effectOutbox.prune(db)
     this.#outboxPruneTimer = setInterval(
       () => {
         try {
@@ -1188,34 +1193,84 @@ export class Service {
   }
 
   /**
+   * Boot work that does not have to finish before the server listens, run in steps that each give
+   * the event loop back. `main.ts` starts it once the HTTP server is serving; a server that waits
+   * for it instead answers nothing, health included, for as long as it takes (about 100 s on the
+   * 46 GB production file, 2026-11-10). Resolves when the work is done; a failure is logged and
+   * reported by {@link Service.bootRecoveryStatus}, never thrown, so the server keeps serving.
+   *
+   * Safe alongside live dispatch: it only touches runs in `waiting`, which the queue never
+   * claims, re-reads each run right before acting on it, and every step it takes is the same
+   * idempotent, synchronous resolution the live path uses (see #reconcileWaitingRunsAtBoot).
+   */
+  async recoverAfterBoot(options: {yieldEvery?: number} = {}): Promise<void> {
+    if (this.#bootRecovery.state !== 'pending') return
+    const startedAt = performance.now()
+    this.#bootRecovery = {state: 'running'}
+    try {
+      const parked = await this.#reconcileWaitingRunsAtBoot(options.yieldEvery ?? 1)
+      await yieldToEventLoop()
+      const pruned = effectOutbox.prune(this.#db)
+      const ms = Math.round(performance.now() - startedAt)
+      this.#bootRecovery = {state: 'done', ms}
+      console.info('[agents/boot] recovery finished', {ms, parkedRunsChecked: parked, outboxReceiptsPruned: pruned})
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.#bootRecovery = {state: 'failed', error: message}
+      console.error('[agents/boot] recovery failed', message)
+    }
+  }
+
+  /** Where {@link Service.recoverAfterBoot} is, for the health endpoint. */
+  bootRecoveryStatus(): BootRecoveryStatus {
+    return this.#bootRecovery
+  }
+
+  /**
    * Boot pass closing the crash window between a child's terminal commit and its parent's
    * wait-resolution (separate transactions): any waiting-on-children run whose child already
    * finished gets the resolution replayed now, so no run stays `waiting` forever.
+   *
+   * The id list comes from the `runs_live` partial index alone. Each parked run is then handled
+   * synchronously from a fresh read (a live child finalization or a cancel between steps shows as
+   * a status that is no longer `waiting`, or a wait set without that call), and the loop yields
+   * every `yieldEvery` runs. Returns how many waiting runs it looked at.
    */
-  #reconcileWaitingRunsAtBoot(): void {
+  async #reconcileWaitingRunsAtBoot(yieldEvery: number): Promise<number> {
     const waiting = stmt<{id: string; account_id: string}, []>(
       this.#db,
       `SELECT id, account_id FROM runs WHERE status = 'waiting' AND not_before IS NULL`,
     ).all()
+    let sinceYield = 0
     for (const row of waiting) {
-      const run = runs.getRun(this.#db, row.account_id, row.id)
-      if (!run || run.wait?.reason !== 'children') continue
-      const children = stmt<{id: string}, [string]>(this.#db, `SELECT id FROM runs WHERE parent_run_id = ?`).all(run.id)
-      for (const childRow of children) {
-        const child = runs.getRun(this.#db, run.accountId, childRow.id)
-        if (!child || !runs.TERMINAL_RUN_STATUSES.includes(child.status)) continue
-        const input = child.input as {parentToolCallId?: string; parentToolName?: string} | null
-        if (typeof input?.parentToolCallId === 'string' && run.wait.toolCallIds.includes(input.parentToolCallId)) {
-          console.info('[agents/runs] boot reconcile: replaying finished child into parked parent', {
-            parentRunId: run.id,
-            childRunId: child.id,
-          })
-          this.#resolveSubSessionResult(child, run.id, input.parentToolCallId, input.parentToolName)
-        }
+      if (sinceYield >= yieldEvery) {
+        sinceYield = 0
+        await yieldToEventLoop()
       }
-      const refreshed = runs.getRun(this.#db, run.accountId, run.id)
-      if (refreshed?.status === 'waiting') this.#reconcileParkedRun(refreshed)
+      sinceYield += 1
+      this.#reconcileWaitingRun(row.account_id, row.id)
     }
+    return waiting.length
+  }
+
+  #reconcileWaitingRun(accountId: string, runId: string): void {
+    const run = runs.getRun(this.#db, accountId, runId)
+    if (!run || run.status !== 'waiting' || run.wait?.reason !== 'children') return
+    const children = stmt<{id: string}, [string]>(this.#db, `SELECT id FROM runs WHERE parent_run_id = ?`).all(run.id)
+    for (const childRow of children) {
+      const child = runs.getRun(this.#db, run.accountId, childRow.id)
+      if (!child || !runs.TERMINAL_RUN_STATUSES.includes(child.status)) continue
+      const input = child.input as {parentToolCallId?: string; parentToolName?: string} | null
+      if (typeof input?.parentToolCallId === 'string' && run.wait.toolCallIds.includes(input.parentToolCallId)) {
+        console.info('[agents/runs] boot reconcile: replaying finished child into parked parent', {
+          parentRunId: run.id,
+          childRunId: child.id,
+        })
+        this.#resolveSubSessionResult(child, run.id, input.parentToolCallId, input.parentToolName)
+      }
+    }
+    const refreshed = runs.getRun(this.#db, run.accountId, run.id)
+    if (refreshed?.status === 'waiting') this.#reconcileParkedRun(refreshed)
   }
 
   /** Stops queue timers so tests and graceful shutdown do not leak intervals. */
@@ -6859,11 +6914,30 @@ export class Service {
    */
   #reconcileParkedRun(run: runs.RunRecord): void {
     if (run.status !== 'waiting' || run.wait?.reason !== 'children' || !run.sessionId) return
-    for (const toolCallId of run.wait.toolCallIds) {
-      if (this.#sessionHasToolResult(run.sessionId, toolCallId)) {
-        this.#runQueue.resolveChildWait(run.id, toolCallId)
-      }
+    // One read of the transcript for the whole wait set, not one per pending call.
+    for (const toolCallId of this.#answeredToolCalls(run.sessionId, run.wait.toolCallIds)) {
+      this.#runQueue.resolveChildWait(run.id, toolCallId)
     }
+  }
+
+  /** The ids among `toolCallIds` that already have a durable tool_result in the session, newest events first. */
+  #answeredToolCalls(sessionId: string, toolCallIds: readonly string[]): string[] {
+    const pending = new Set(toolCallIds)
+    const answered: string[] = []
+    if (pending.size === 0) return answered
+    const rows = stmt<{event_cbor: Uint8Array}, [string]>(
+      this.#db,
+      `SELECT event_cbor FROM session_events WHERE session_id = ? ORDER BY seq DESC`,
+    ).all(sessionId)
+    for (const row of rows) {
+      const value = cbor.decode(row.event_cbor) as {type?: string; toolCallId?: string}
+      if (value?.type !== 'tool_result' || typeof value.toolCallId !== 'string' || !pending.has(value.toolCallId))
+        continue
+      pending.delete(value.toolCallId)
+      answered.push(value.toolCallId)
+      if (pending.size === 0) break
+    }
+    return answered
   }
 
   /** Resolves when the run reaches a terminal status (resolved by the finalizer, race-safe). */
@@ -13067,6 +13141,18 @@ type SeedRuntimeTool = {
 
 /** Free space where the agents database lives, against the floor new runs require. */
 type DiskStatus = {path: string; freeBytes: number; minFreeBytes: number; ok: boolean}
+
+/** Progress of {@link Service.recoverAfterBoot}: not started, in progress, finished (with its wall time), or failed. */
+export type BootRecoveryStatus =
+  | {state: 'pending'}
+  | {state: 'running'}
+  | {state: 'done'; ms: number}
+  | {state: 'failed'; error: string}
+
+/** Resolves on a later macrotask, so pending I/O and timers (HTTP accepts, health checks) run first. */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
 
 /**
  * What the effect outbox keeps of a tool result (see effect-outbox.ts): the text the model read and

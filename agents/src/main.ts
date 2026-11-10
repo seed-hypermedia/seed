@@ -180,6 +180,9 @@ export function createAPIRoutes(
         // here before it shows up as failed turns.
         disk: healthDisk(svc.diskStatus()),
         dispatch: svc.dispatchStatus(),
+        // The boot passes that run after the server listens (parked-run reconcile, receipt
+        // pruning): `running` right after a restart, then `done` with how long they took.
+        bootRecovery: svc.bootRecoveryStatus(),
       },
       {status: lag.ok ? 200 : 503, headers: corsHeaders()},
     )
@@ -333,6 +336,50 @@ function corsHeaders(): HeadersInit {
   return cbor.corsHeaders('GET, POST, OPTIONS')
 }
 
+/** Paths that answer health while the server is still starting. */
+const HEALTH_PATHS = [`${AGENTS_API_PREFIX}/health`, '/api/health', '/agents/api/health'] as const
+
+/**
+ * Routes served from the moment the process binds its port until the service is ready: health
+ * answers 503 `starting` with the boot phase and how long it has run, and everything else 503
+ * with a Retry-After. Without them a slow boot (migrations, the run-queue sweeps on a large
+ * database) left the port closed, so the container healthcheck, Caddy and an operator saw nothing
+ * at all, not even that the server was starting.
+ *
+ * Synchronous database work still blocks the only thread, so a request that arrives during a
+ * long step is answered when the step ends; `main` yields between steps so those answers go out.
+ */
+export function createBootRoutes(boot: {phase: string}): Bun.Serve.Routes<WSData, string> {
+  const buildInfo = getBuildInfo()
+  const health = () =>
+    Response.json(
+      {
+        status: 'starting',
+        reason: `server is starting: ${boot.phase}`,
+        phase: boot.phase,
+        uptime: process.uptime(),
+        version: buildInfo.version,
+        protocol: buildInfo.protocol,
+        minClientProtocol: buildInfo.minClientProtocol,
+      },
+      {status: 503, headers: {...corsHeaders(), 'Retry-After': '5'}},
+    )
+  return Object.fromEntries(HEALTH_PATHS.map((path) => [path, {GET: health}]))
+}
+
+/** The answer to every non-health request while the server is starting. */
+function startingResponse(): Response {
+  return Response.json(
+    {_: 'Error', message: 'Agents server is starting; retry shortly'},
+    {status: 503, headers: {...corsHeaders(), 'Retry-After': '5'}},
+  )
+}
+
+/** Resolves on a later macrotask, so the HTTP server can answer what arrived during a synchronous boot step. */
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 async function main(): Promise<void> {
   if (process.argv.includes('--exec-selfcheck')) {
     // Verifies the microsandbox SDK is loadable through the same path execute_code uses. The SDK
@@ -370,22 +417,43 @@ async function main(): Promise<void> {
   setLogLevel(cfg.logLevel)
   // A members-only (Enterprise) site lets this service in by a shared secret instead of a session.
   installHmServerAuth([cfg.activity.hmServerUrl, cfg.activity.ipfsServerUrl], process.env.SEED_AGENTS_HM_SERVER_SECRET)
+
+  // Bind the port before any database work, answering health with `starting` until the service
+  // is ready; the full routes replace these with server.reload below.
+  const boot = {phase: 'opening the database'}
+  const bootStartedAt = performance.now()
+  const logBootStep = (step: string, since: number) =>
+    console.info('[agents/boot] step finished', {step, ms: Math.round(performance.now() - since)})
+  const server = serve<WSData, string>({
+    port: cfg.http.port,
+    hostname: cfg.http.hostname,
+    // Agent memory accepts files of any size, so uploads must not hit Bun's 128MB default cap.
+    maxRequestBodySize: Number.MAX_SAFE_INTEGER,
+    error: handleError,
+    routes: createBootRoutes(boot),
+    fetch: startingResponse,
+  })
+  await yieldToEventLoop()
+
+  let stepStartedAt = performance.now()
   const result = sqlite.open(cfg.dbPath)
+  logBootStep('open database (migrations, planner statistics)', stepStartedAt)
 
   if (!result.ok) {
     console.error(
       `❌ Database schema mismatch: stored version is ${result.current}, but server expects ${result.desired}.`,
     )
     console.error(`   Delete the database file (rm ${cfg.dbPath}*) and restart the server.`)
-    const server = serve({
-      port: cfg.http.port,
-      hostname: cfg.http.hostname,
+    server.reload({
       routes: {'/*': Response.json({error: 'schema mismatch'}, {status: 500})},
+      fetch: () => Response.json({error: 'schema mismatch'}, {status: 500}),
     })
     const hostname = cfg.http.hostname === '0.0.0.0' ? 'localhost' : cfg.http.hostname
     console.error(`   Server running at http://${hostname}:${server.port} (schema mismatch mode)`)
     return
   }
+  boot.phase = 'starting the run queue'
+  await yieldToEventLoop()
 
   const db = result.db
   const clients = new Set<ServerWebSocket<WSData>>()
@@ -498,6 +566,7 @@ async function main(): Promise<void> {
     }
   }
   configureDocsSpace(cfg.docs)
+  stepStartedAt = performance.now()
   const svc = new apisvc.Service(db, cfg.dataDir, {
     onEvent: publish,
     hmServerUrl: cfg.activity.hmServerUrl,
@@ -509,6 +578,9 @@ async function main(): Promise<void> {
     runQueue: cfg.runQueue,
     storage: {path: filepath.dirname(filepath.resolve(cfg.dbPath)), minFreeBytes: cfg.storage.minFreeDiskBytes},
   })
+  logBootStep('service (run and effect sweeps)', stepStartedAt)
+  boot.phase = 'starting monitors'
+  await yieldToEventLoop()
   const activityMonitor = new ActivityMonitor(db, svc, cfg.activity)
   const scheduleMonitor = new ScheduleMonitor(svc, {pollIntervalMs: cfg.activity.pollIntervalMs})
   // A mounted agent is named by its document: the first tick migrates agents adopted before that
@@ -534,11 +606,7 @@ async function main(): Promise<void> {
   const execCanary = new ExecCanary({probe: () => svc.probeCodeExec(), intervalMs: cfg.execCanaryIntervalMs})
   execCanary.start()
 
-  const server = serve({
-    port: cfg.http.port,
-    hostname: cfg.http.hostname,
-    // Agent memory accepts files of any size, so uploads must not hit Bun's 128MB default cap.
-    maxRequestBodySize: Number.MAX_SAFE_INTEGER,
+  server.reload({
     error: handleError,
     routes: {
       ...createAPIRoutes(svc, cfg.defaultPromptUrl, execCanary),
@@ -636,7 +704,9 @@ async function main(): Promise<void> {
   process.once('SIGTERM', shutdown)
 
   const hostname = cfg.http.hostname === '0.0.0.0' ? 'localhost' : cfg.http.hostname
-  console.log(`Agents server running at http://${hostname}:${server.port}`)
+  console.log(`Agents server running at http://${hostname}:${server.port}`, {
+    bootMs: Math.round(performance.now() - bootStartedAt),
+  })
   console.log(`  Database: ${cfg.dbPath}`)
   console.log(`  WebSocket endpoint: ws://${hostname}:${server.port}${AGENTS_WS_PATHS[0]} (legacy /agents/ws)`)
   console.log(`  API: http://${hostname}:${server.port}/api/message`)
@@ -652,6 +722,8 @@ async function main(): Promise<void> {
       cfg.web.crawlerUrl ? 'static+crawl4ai' : 'static-only'
     }`,
   )
+  // Serving already; the parked-run reconcile and receipt pruning run now, a step at a time.
+  void svc.recoverAfterBoot()
 }
 
 function isCBORRequest(req: Request): boolean {

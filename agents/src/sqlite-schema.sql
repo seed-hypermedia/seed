@@ -158,6 +158,9 @@ CREATE INDEX sessions_top_by_agent ON sessions (agent_id, parent_session_id, upd
 
 CREATE INDEX sessions_top_by_time ON sessions (parent_session_id, updated_at DESC, id DESC);
 
+-- GetAgent's top-level session count, per (account, agent), from the index alone.
+CREATE INDEX sessions_top_by_account_agent ON sessions (account_id, agent_id, parent_session_id);
+
 -- A continuation edge: an agent carried a conversation from the predecessor into a fresh
 -- successor session (continue_session). Distinct from parent/child (delegation that returns):
 -- the successor becomes the foreground conversation. The manifest is the successor's exact
@@ -282,6 +285,11 @@ CREATE INDEX runs_by_session ON runs (session_id, created_at DESC);
 CREATE INDEX runs_by_account ON runs (account_id, created_at DESC);
 -- Live-run flag per agent (`busy` in agentActivityColumns): answered from the index alone.
 CREATE INDEX runs_by_agent_status ON runs (agent_id, status);
+-- Unfinished runs only (a few dozen against every run ever made): the queue's and the boot passes'
+-- `status = '<live status>'` lookups, which `sqlite_stat1` averages otherwise steer onto a
+-- skip-scan of runs_dispatch. A query's `status = 'x'` implies one arm of the OR.
+CREATE INDEX runs_live ON runs (status, not_before, account_id)
+    WHERE status = 'queued' OR status = 'claimed' OR status = 'running' OR status = 'waiting';
 
 CREATE TABLE run_journal (
     run_id TEXT NOT NULL REFERENCES runs (id),

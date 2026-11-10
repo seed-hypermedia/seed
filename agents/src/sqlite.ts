@@ -30,6 +30,19 @@ export const migrations: string[] = [
       runs_json TEXT,
       PRIMARY KEY (kind, id)
   ) WITHOUT ROWID;`,
+  // `runs_live` holds only the runs that are not finished (a few dozen on production against
+  // every run ever made), keyed for the queue's and the boot passes' `status = '<live status>'`
+  // lookups. Without it those went through `runs_dispatch (status, queue, not_before, ...)`, and
+  // because `sqlite_stat1` averages away the skew (one `status` value covers most of the table,
+  // and most rows share `not_before IS NULL`) the planner preferred a skip-scan that ignored the
+  // status equality: the boot's waiting-runs select took 67 s on the 46 GB production file
+  // (2026-11-10). The query's `status = 'x'` implies one arm of the OR, so the planner can use
+  // this index for every equality lookup on a live status. `account_id` makes the boot select
+  // covering. The second index answers GetAgent's top-level session COUNT from the index alone;
+  // `sessions_top_by_agent` has no account column, so it read every session row of the agent.
+  `CREATE INDEX runs_live ON runs (status, not_before, account_id)
+    WHERE status = 'queued' OR status = 'claimed' OR status = 'running' OR status = 'waiting';
+  CREATE INDEX sessions_top_by_account_agent ON sessions (account_id, agent_id, parent_session_id);`,
   // Mounting, orphaning or deleting an agent rewrites or removes its row in `agents`, and every
   // table whose agent_id references it is rewritten too. SQLite checks the foreign key on each
   // child table for the old and the new key, and the mount rewrites each child with
