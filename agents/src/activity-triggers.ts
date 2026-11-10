@@ -116,16 +116,30 @@ export function matchesActivityCriteria(
   return true
 }
 
+/** Who is asking whether an event matches: what the matcher knows about the trigger's own agent. */
+export type TriggerMatchContext = {
+  /**
+   * Account uids the trigger's agent signs as. A `site-update` source skips activity these accounts
+   * authored (unless it sets `includeOwnActivity`), so an agent writing under a prefix it watches
+   * does not start itself again. Omitted, nothing is treated as the agent's own.
+   */
+  ownAccounts?: readonly string[]
+}
+
 /** Returns true when an HM activity event matches a saved agent trigger source. */
-export function activityMatchesTriggerSource(source: api.AgentTriggerSource, event: ActivityFeedEvent): boolean {
+export function activityMatchesTriggerSource(
+  source: api.AgentTriggerSource,
+  event: ActivityFeedEvent,
+  context: TriggerMatchContext = {},
+): boolean {
   if (source.type === 'activity') {
-    return source.conditions.some((condition) => activityMatchesTriggerSource(condition.source, event))
+    return source.conditions.some((condition) => activityMatchesTriggerSource(condition.source, event, context))
   }
   if (source.type === 'document-comment') return matchesDocumentComment(source, event)
   if (source.type === 'user-mention') return matchesUserMention(source, event)
   if (source.type === 'comment-reply') return matchesCommentReply(source, event)
   if (source.type === 'document-author-comment') return matchesDocumentAuthorComment(source, event)
-  if (source.type === 'site-update') return matchesSiteUpdate(source, event)
+  if (source.type === 'site-update') return matchesSiteUpdate(source, event, context)
   return false
 }
 
@@ -467,10 +481,21 @@ function mentionMatchesResourcePrefix(event: ActivityFeedEvent, resourcePrefix: 
   return jsonContainsString(event, resourcePrefix)
 }
 
+/**
+ * Matches any activity under a resource prefix. Activity the trigger's own agent authored never
+ * matches unless the source opts in with `includeOwnActivity`: otherwise an agent whose automation
+ * writes or comments under the prefix it watches would start itself again, with nothing to stop
+ * the loop.
+ */
 function matchesSiteUpdate(
   source: Extract<api.AgentTriggerSource, {type: 'site-update'}>,
   event: ActivityFeedEvent,
+  context: TriggerMatchContext,
 ): boolean {
+  if (!source.includeOwnActivity && context.ownAccounts?.length) {
+    const author = activityAuthorUid(event)
+    if (author && context.ownAccounts.includes(author)) return false
+  }
   const resource = siteUpdateResource(event)
   if (resource) {
     if (!resource.startsWith(source.resourcePrefix)) return false
@@ -481,6 +506,33 @@ function matchesSiteUpdate(
   if (!source.eventTypes?.length) return true
   const eventTypes = siteUpdateEventTypes(event)
   return source.eventTypes.some((eventType) => eventTypes.some((actual) => activityTypeMatches(eventType, actual)))
+}
+
+/**
+ * The account uid that authored an activity event, or null when the event does not say. Reads the
+ * resolved `/api/ListEvents` shape (`author.id.uid`, or the comment's own `author`) and the raw
+ * feed shape (the new blob's `author`).
+ */
+export function activityAuthorUid(event: ActivityFeedEvent): string | null {
+  const authorRecord = recordField(event, 'author')
+  const authorId = authorRecord ? recordField(authorRecord, 'id') : null
+  const resolved = authorId ? stringField(authorId, 'uid') : undefined
+  if (resolved) return resolved
+  const direct = stringField(event, 'author')
+  if (direct) return accountUidOf(direct)
+  const comment = recordField(event, 'comment')
+  const commentAuthor = comment ? stringField(comment, 'author') : undefined
+  if (commentAuthor) return accountUidOf(commentAuthor)
+  const blob = activityEventBlob(event)
+  const blobAuthor = blob ? stringField(blob, 'author') : undefined
+  if (blobAuthor) return accountUidOf(blobAuthor)
+  return null
+}
+
+/** Reduces an account reference (`z6Mk…` or `hm://z6Mk…`) to its bare uid. */
+function accountUidOf(value: string): string {
+  const trimmed = value.trim()
+  return trimmed.startsWith('hm://') ? trimmed.slice('hm://'.length).split(/[/?#]/)[0] ?? trimmed : trimmed
 }
 
 function siteUpdateResource(event: ActivityFeedEvent): string | null {

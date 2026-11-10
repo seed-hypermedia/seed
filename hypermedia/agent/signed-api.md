@@ -484,7 +484,7 @@ type AgentActivitySource =
   | {type: 'user-mention'; mentionedAccounts: string[]; resourcePrefix?: string}
   | {type: 'comment-reply'; repliedToAccounts: string[]; resourcePrefix?: string}
   | {type: 'document-author-comment'; documentAuthors: string[]; resourcePrefix?: string}
-  | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
+  | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]; includeOwnActivity?: boolean}
 
 type AgentTriggerSource =
   | AgentActivitySource

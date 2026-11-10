@@ -650,7 +650,11 @@ export type AgentActivitySource =
   | {type: 'comment-reply'; repliedToAccounts: string[]; resourcePrefix?: string}
   /** A comment on a document authored by one of these accounts, excluding their own comments. */
   | {type: 'document-author-comment'; documentAuthors: string[]; resourcePrefix?: string}
-  | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]}
+  /**
+   * Activity under a resource prefix. Activity the trigger's own agent authored (anything signed by
+   * one of its signing identities) is skipped unless `includeOwnActivity` is true.
+   */
+  | {type: 'site-update'; resourcePrefix: string; eventTypes?: string[]; includeOwnActivity?: boolean}
 
 /** A stable alternative within an activity trigger. */
 export type AgentActivityCondition = {id: string; source: AgentActivitySource}

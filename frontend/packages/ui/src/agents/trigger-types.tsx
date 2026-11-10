@@ -434,6 +434,8 @@ function SingleTriggerSourceFields({
                   type: 'site-update',
                   resourcePrefix: resource,
                   eventTypes: [value.slice('site-event:'.length)],
+                  // Changing which activity is watched keeps an explicit opt-in to the agent's own.
+                  ...(source.type === 'site-update' && source.includeOwnActivity ? {includeOwnActivity: true} : {}),
                 })
               } else if (value === 'document-comment') {
                 onChange({type: 'document-comment', resource})

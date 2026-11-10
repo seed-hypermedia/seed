@@ -1072,6 +1072,7 @@
         "site-update": {
           "fields": {
             "eventTypes?": "string[]",
+            "includeOwnActivity?": "boolean",
             "resourcePrefix": "string",
             "type": "\"site-update\""
           }
@@ -1347,6 +1348,7 @@
         "site-update": {
           "fields": {
             "eventTypes?": "string[]",
+            "includeOwnActivity?": "boolean",
             "resourcePrefix": "string",
             "type": "\"site-update\""
           }
