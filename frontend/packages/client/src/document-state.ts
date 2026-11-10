@@ -203,6 +203,7 @@ export async function followToDocument(client: SeedClient, id: UnpackedHypermedi
   if (followed.resource.type !== 'document') {
     throw new Error(
       `Cannot edit ${packHmId(followed.targetId)}: resource is ${followed.resource.type}` +
+        (followed.resource.type === 'error' ? ` (${followed.resource.message})` : '') +
         (first ? ` (followed redirect from ${packHmId(id)})` : ''),
     )
   }

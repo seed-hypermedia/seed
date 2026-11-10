@@ -52,7 +52,7 @@ import {
 } from '@seed-hypermedia/client/block-diff'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import * as dagCbor from '@ipld/dag-cbor'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {hmId, packHmId} from '@shm/shared/utils/entity-id-url'
 import {CID} from 'multiformats/cid'
 import {sha256} from 'multiformats/hashes/sha2'
 import {hmBlockNodeToBlockNode} from './block-diff'
@@ -78,6 +78,30 @@ async function mapPool<T, R>(items: T[], limit: number, fn: (item: T, index: num
 
 /** How many documents are fetched or published at once. */
 const CONCURRENCY = 6
+
+/** Delays before each retry of a `Resource` read the server answered with `type: 'error'`. */
+const RESOURCE_RETRY_DELAYS_MS = [500, 2000, 5000]
+
+/**
+ * Wraps a client so a `Resource` read that comes back as `type: 'error'` is retried with backoff.
+ * A site reports any unexpected daemon failure (a timeout, an overloaded node) that way, and one
+ * such read used to abort a whole sync, even on a page that had not changed. Not-found, tombstone
+ * and redirect are real answers and pass straight through; the last error is returned as is.
+ */
+export function withResourceRetry(client: SeedClient, delaysMs: number[] = RESOURCE_RETRY_DELAYS_MS): SeedClient {
+  // One cast: TS cannot tie the retried output back to the generic request key.
+  const request = (async (key, input, options) => {
+    const read = () => client.request(key, input, options)
+    let output = await read()
+    for (const delay of delaysMs) {
+      if (key !== 'Resource' || (output as {type?: string}).type !== 'error') break
+      await new Promise((r) => setTimeout(r, delay))
+      output = await read()
+    }
+    return output
+  }) as SeedClient['request']
+  return {...client, request}
+}
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
 
@@ -880,6 +904,7 @@ export function checkLinks(
 }
 
 export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
+  opts = {...opts, client: withResourceRetry(opts.client)}
   const layout = opts.layout || defaultLayout
   const log = opts.log || (() => {})
   const result: ImportResult = {created: [], updated: [], unchanged: [], skipped: [], moved: []}
@@ -936,6 +961,9 @@ export async function importSpace(opts: ImportOptions): Promise<ImportResult> {
 
     const existing = await opts.client.request('Resource', id)
     const label = path || '(home)'
+    if (existing.type === 'error') {
+      throw new Error(`Cannot read ${packHmId(id)} from the server: ${existing.message}`)
+    }
     // The directory is the truth about what lives at a path: a deleted document
     // (tombstone) or a redirect there is replaced by a fresh one. The new Ref's
     // generation is later than theirs, which is what takes the path over.
