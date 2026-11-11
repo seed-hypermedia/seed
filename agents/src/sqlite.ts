@@ -14,6 +14,22 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 /** Prepend-only database migrations. */
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
+  // Reader privacy of each transcript (see browser-privacy.ts), kept as data so no read ever scans a
+  // transcript to decide it. Before this, BrowserPrivacy decoded a session's whole event log (and a
+  // run's whole journal) the first time any non-owner frame touched it, and the result lived only
+  // in memory: on the 46 GB production file every restart re-read every visible transcript and the
+  // event loop never got a turn (agents-stable unresponsive, 2026-11-10). A row is written as events
+  // and journal entries are appended, and by a throttled backfill for transcripts older than this
+  // migration; a transcript without an up-to-date row reads as private to non-owners until then.
+  `CREATE TABLE transcript_privacy (
+      kind TEXT NOT NULL,
+      id TEXT NOT NULL,
+      scanned_seq INTEGER NOT NULL,
+      private INTEGER NOT NULL,
+      sessions_json TEXT,
+      runs_json TEXT,
+      PRIMARY KEY (kind, id)
+  ) WITHOUT ROWID;`,
   // Mounting, orphaning or deleting an agent rewrites or removes its row in `agents`, and every
   // table whose agent_id references it is rewritten too. SQLite checks the foreign key on each
   // child table for the old and the new key, and the mount rewrites each child with

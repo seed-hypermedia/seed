@@ -291,6 +291,19 @@ CREATE TABLE run_journal (
     PRIMARY KEY (run_id, seq)
 ) WITHOUT ROWID;
 
+-- Reader privacy per transcript (`kind` session or run; see browser-privacy.ts): `private` once any
+-- event/journal entry up to `scanned_seq` carried browser or private-memory data, and the sessions
+-- and runs the scanned entries read from (JSON arrays), whose privacy this transcript inherits.
+CREATE TABLE transcript_privacy (
+    kind TEXT NOT NULL,
+    id TEXT NOT NULL,
+    scanned_seq INTEGER NOT NULL,
+    private INTEGER NOT NULL,
+    sessions_json TEXT,
+    runs_json TEXT,
+    PRIMARY KEY (kind, id)
+) WITHOUT ROWID;
+
 CREATE TABLE run_event_waits (
     run_id TEXT NOT NULL REFERENCES runs (id),
     wait_id TEXT NOT NULL,
