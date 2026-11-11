@@ -26,7 +26,8 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {CircleUserRound, Plus, Settings, Trash} from 'lucide-react'
+import {CircleUserRound, Package, Plus, Settings, Trash} from 'lucide-react'
+import {AppsDialog} from './apps'
 import {useState} from 'react'
 import {useSelectedAccountId} from './account'
 import {ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
@@ -64,10 +65,12 @@ export function AgentServersSettings() {
   const selectedAccountId = useSelectedAccountId()
   const providersDialog = useAppDialog(ModelProvidersDialog)
   const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
+  const appsDialog = useAppDialog(AppsDialog)
   const serverDialogs = selectedAccountId
     ? {
         onOpenAccounts: (serverUrl: string) => manageAccountsDialog.open({serverUrl, selectedAccountId}),
         onOpenProviders: (serverUrl: string) => providersDialog.open({serverUrl, selectedAccountId}),
+        onOpenApps: (serverUrl: string) => appsDialog.open({serverUrl, selectedAccountId}),
       }
     : {}
 
@@ -109,6 +112,7 @@ export function AgentServersSettings() {
       </SizableText>
       {providersDialog.content}
       {manageAccountsDialog.content}
+      {appsDialog.content}
       <div className="flex flex-col gap-2">
         {localServerUrl.data ? (
           <AgentServerSettingsRow
@@ -223,6 +227,7 @@ function AgentServerSettingsRow({
   onRemove,
   onOpenAccounts,
   onOpenProviders,
+  onOpenApps,
 }: {
   serverUrl: string
   isDefault: boolean
@@ -234,6 +239,8 @@ function AgentServerSettingsRow({
   onOpenAccounts?: (serverUrl: string) => void
   /** The server's model providers dialog; absent without an account to sign with. */
   onOpenProviders?: (serverUrl: string) => void
+  /** The apps installed on this environment, the installs the account sees and the catalog; absent without an account. */
+  onOpenApps?: (serverUrl: string) => void
 }) {
   const health = useAgentServerHealth(serverUrl)
   return (
@@ -264,6 +271,12 @@ function AgentServerSettingsRow({
           <Button variant="outline" size="sm" onClick={() => onOpenProviders(serverUrl)}>
             <Settings className="size-4" />
             Providers
+          </Button>
+        ) : null}
+        {onOpenApps ? (
+          <Button variant="outline" size="sm" onClick={() => onOpenApps(serverUrl)}>
+            <Package className="size-4" />
+            Apps
           </Button>
         ) : null}
         {isDefault ? null : (
