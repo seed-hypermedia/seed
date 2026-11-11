@@ -20,7 +20,7 @@ import {setupTestEnv, type TestEnv} from './integration'
 
 const REPO = path.resolve(__dirname, '..')
 const CLI = path.join(REPO, 'frontend/apps/cli')
-const AGENTS = path.join(REPO, 'agents')
+const AGENTS = path.join(REPO, 'apps')
 const LIBRARY = 'hm://hyper.media'
 const KIND = (k: string) => `${LIBRARY}/${k}`
 const TIMEOUT = 180_000

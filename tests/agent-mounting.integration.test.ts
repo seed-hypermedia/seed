@@ -56,7 +56,7 @@ beforeAll(async () => {
   })
   agentDataDir = mkdtempSync(path.join(tmpdir(), 'seed-agent-mount-'))
   agentProcess = spawn('bun', ['src/main.ts'], {
-    cwd: path.resolve(__dirname, '../agents'),
+    cwd: path.resolve(__dirname, '../apps'),
     env: {
       ...process.env,
       SEED_APPS_HTTP_HOSTNAME: '127.0.0.1',

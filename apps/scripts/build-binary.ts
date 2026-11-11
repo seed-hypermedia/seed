@@ -66,7 +66,7 @@ const bunTarget = BUN_TARGETS[triple]
 if (!bunTarget) {
   throw new Error(`Unknown target triple ${triple}. Known: ${Object.keys(BUN_TARGETS).join(', ')}`)
 }
-const outdir = path.resolve(argValue('outdir') || path.join(agentsDir, '..', 'plz-out', 'bin', 'agents'))
+const outdir = path.resolve(argValue('outdir') || path.join(agentsDir, '..', 'plz-out', 'bin', 'apps'))
 const fileName = `seed-apps-${triple}${triple.includes('windows') ? '.exe' : ''}`
 const outfile = path.join(outdir, fileName)
 
