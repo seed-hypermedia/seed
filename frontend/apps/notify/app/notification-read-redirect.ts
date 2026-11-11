@@ -1,10 +1,5 @@
-import {
-  getEmailWithToken,
-  getNotificationConfig,
-  getNotificationReadState,
-  getSubscription,
-  mergeNotificationReadState,
-} from './db'
+import {getEmailWithToken, getNotificationConfig, getNotificationReadState, getSubscription} from './db'
+import {applyNotificationActionsForAccount} from './notification-state'
 import {buildNotificationReadRedirectUrl as buildReadRedirectUrl, getNotifyEmailOrigin} from '@shm/emails/notify-links'
 
 /** Email link that marks a notification read and then redirects to `redirectTo` (`/hm/api/notify/read-redirect`). */
@@ -31,7 +26,11 @@ export function getSafeNotificationRedirectTarget(redirectTo: string | null): st
   }
 }
 
-export function applyNotificationReadFromEmailLink(input: {
+/**
+ * Marks one notification read from an email link. It goes through the same actions path as the apps, so every
+ * other read mark of the account is kept: a snapshot merge here would replace them all with this one event.
+ */
+export async function applyNotificationReadFromEmailLink(input: {
   token: string
   accountId: string
   eventId: string
@@ -60,13 +59,10 @@ export function applyNotificationReadFromEmailLink(input: {
     }
   }
 
-  const currentReadState = getNotificationReadState(input.accountId)
-  const nextStateUpdatedAtMs = Math.max(Date.now(), currentReadState.stateUpdatedAtMs + 1)
-  const mergedReadState = mergeNotificationReadState(input.accountId, {
-    markAllReadAtMs: currentReadState.markAllReadAtMs,
-    stateUpdatedAtMs: nextStateUpdatedAtMs,
-    readEvents: [{eventId: input.eventId, eventAtMs: input.eventAtMs}],
-  })
+  await applyNotificationActionsForAccount(input.accountId, [
+    {type: 'mark-event-read', eventId: input.eventId, eventAtMs: input.eventAtMs},
+  ])
+  const mergedReadState = getNotificationReadState(input.accountId)
 
   return {
     applied: true,
