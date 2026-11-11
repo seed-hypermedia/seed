@@ -145,10 +145,10 @@ describe('bookmarks panel', () => {
 
 describe('comments icons', () => {
   it('uses MessagesSquare in bookmarks and document tools', () => {
-    const popover = readFileSync('src/components/bookmarks-panel.tsx', 'utf8')
+    const panel = readFileSync('src/components/bookmarks-panel.tsx', 'utf8')
     const documentTools = readFileSync('../../packages/ui/src/document-tools.tsx', 'utf8')
 
-    expect(popover).toContain("':comments': MessagesSquare")
+    expect(panel).toContain("':comments': MessagesSquare")
     expect(documentTools).not.toMatch(/\bMessageSquare\b/)
   })
 })
@@ -170,11 +170,11 @@ describe('comment bookmarks', () => {
   })
 
   it('renders the author avatar with a comment badge', () => {
-    const popover = readFileSync('src/components/bookmarks-panel.tsx', 'utf8')
+    const panel = readFileSync('src/components/bookmarks-panel.tsx', 'utf8')
 
-    expect(popover).toContain('<AccountAvatar')
-    expect(popover).toContain('id={authorId}')
-    expect(popover).toContain('<MessageSquare className="text-foreground size-3" />')
+    expect(panel).toContain('<AccountAvatar')
+    expect(panel).toContain('id={authorId}')
+    expect(panel).toContain('<MessageSquare className="text-foreground size-3" />')
   })
 })
 

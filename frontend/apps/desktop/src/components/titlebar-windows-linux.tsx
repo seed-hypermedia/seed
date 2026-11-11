@@ -38,9 +38,7 @@ export default function TitleBarWindows(props: TitleBarProps) {
           sidebarControl={<SiteSidebarToggle />}
           navigation={<NavigationButtons />}
           omnibar={<Omnibar />}
-          actions={
-            <PageActionButtons assistantOpen={props.assistantOpen} onToggleAssistant={props.onToggleAssistant} />
-          }
+          actions={<PageActionButtons />}
         />
       }
     />

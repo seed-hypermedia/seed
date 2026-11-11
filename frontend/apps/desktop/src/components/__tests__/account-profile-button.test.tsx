@@ -49,7 +49,8 @@ vi.mock('@/models/drafts', () => ({}))
 vi.mock('@/models/notification-inbox', () => ({}))
 vi.mock('@shm/ui/agents/models', () => ({}))
 vi.mock('../bookmarking', () => ({}))
-vi.mock('../bookmarks-panel', () => ({useBookmarksPanel: () => ({open: () => {}})}))
+const bookmarksPanel = vi.hoisted(() => ({isOpen: false, open: vi.fn(), close: vi.fn()}))
+vi.mock('../bookmarks-panel', () => ({useBookmarksPanel: () => bookmarksPanel}))
 vi.mock('../create-space-dialog', () => ({useCreateSpaceDialog: () => ({open: () => {}})}))
 vi.mock('@shm/shared/models/capabilities', () => ({
   useSelectedAccountCapability: () => null,
@@ -62,7 +63,7 @@ vi.mock('../search-input', () => ({}))
 vi.mock('@shm/ui/activity-panel', () => ({}))
 vi.mock('@shm/ui/agents/activity', () => ({}))
 
-import {AccountProfileButton} from '../titlebar-common'
+import {AccountProfileButton, BookmarksButton} from '../titlebar-common'
 
 let container: HTMLDivElement
 let root: Root
@@ -77,6 +78,9 @@ beforeEach(() => {
   document.head.append(animationStyle)
   ;(globalThis as any).CSS ??= {escape: (value: string) => value}
   accountFixture.names = {}
+  bookmarksPanel.isOpen = false
+  vi.mocked(bookmarksPanel.open).mockClear()
+  vi.mocked(bookmarksPanel.close).mockClear()
   ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.append(container)
@@ -241,6 +245,17 @@ describe('titlebar account switching', () => {
     expect(state.get().routes).toEqual([{key: 'document', id: hmId('site-1')}])
   })
 
+  it('does not list Bookmarks in the account menu', () => {
+    renderAccountMenu()
+    act(() =>
+      container
+        .querySelector<HTMLElement>('[data-slot="dropdown-menu-trigger"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowDown', bubbles: true})),
+    )
+    const items = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+    expect(items.find((item) => item.textContent === 'Bookmarks')).toBeUndefined()
+  })
+
   it('opens Drafts from the account menu without changing identity', () => {
     const state = renderAccountMenu()
     act(() =>
@@ -321,5 +336,35 @@ describe('titlebar account switching', () => {
     act(() => header.dispatchEvent(new MouseEvent('pointerdown', {button: 0, bubbles: true})))
     expect(state.get().routes).toEqual([{key: 'document', id: hmId('site-1')}])
     expect(state.get().routeIndex).toBe(0)
+  })
+})
+
+describe('space header bookmarks button', () => {
+  function renderBookmarksButton() {
+    act(() =>
+      root.render(
+        <TooltipProvider>
+          <BookmarksButton />
+        </TooltipProvider>,
+      ),
+    )
+    return container.querySelector<HTMLButtonElement>('[aria-label="Bookmarks"]')!
+  }
+
+  it('opens the panel when closed', () => {
+    const button = renderBookmarksButton()
+    expect(button.getAttribute('aria-pressed')).toBe('false')
+    act(() => button.click())
+    expect(bookmarksPanel.open).toHaveBeenCalledTimes(1)
+    expect(bookmarksPanel.close).not.toHaveBeenCalled()
+  })
+
+  it('closes the panel when already open', () => {
+    bookmarksPanel.isOpen = true
+    const button = renderBookmarksButton()
+    expect(button.getAttribute('aria-pressed')).toBe('true')
+    act(() => button.click())
+    expect(bookmarksPanel.close).toHaveBeenCalledTimes(1)
+    expect(bookmarksPanel.open).not.toHaveBeenCalled()
   })
 })

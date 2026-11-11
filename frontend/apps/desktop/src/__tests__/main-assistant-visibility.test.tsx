@@ -5,8 +5,7 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 const mockState = vi.hoisted(() => ({
   assistantPanelProps: null as null | Record<string, unknown>,
-  footerProps: null as null | Record<string, unknown>,
-  titlebarProps: null as null | Record<string, unknown>,
+  assistantToggle: null as null | {isOpen: boolean; toggle: () => void},
   ipcSend: vi.fn(),
   serverUrls: ['http://localhost:3050'] as undefined | string[],
   /** Whether every agent list has resolved; 'pending' means we cannot yet say "no agents". */
@@ -15,6 +14,9 @@ const mockState = vi.hoisted(() => ({
   currentRoute: {key: 'missing'} as any,
   documentMounts: 0,
   documentUnmounts: 0,
+  bookmarksOpen: false,
+  bookmarksClose: vi.fn(),
+  navigate: vi.fn(),
 }))
 
 vi.mock('@/app-context', () => ({
@@ -110,7 +112,7 @@ vi.mock('@/sidebar-context', async () => {
 })
 
 vi.mock('@/utils/useNavigate', () => ({
-  useNavigate: () => vi.fn(),
+  useNavigate: () => mockState.navigate,
 }))
 
 vi.mock('@/utils/window-events', () => ({
@@ -214,21 +216,27 @@ vi.mock('../components/desktop-notification-inbox', () => ({
 vi.mock('@/components/bookmarks-panel', () => ({
   BookmarksPanelProvider: ({children}: {children: React.ReactNode}) => children,
   BookmarksPanel: () => null,
-  useBookmarksPanel: () => ({isOpen: false, open: () => {}, close: () => {}}),
+  useBookmarksPanel: () => ({isOpen: mockState.bookmarksOpen, open: () => {}, close: mockState.bookmarksClose}),
 }))
 
 vi.mock('@shm/ui/activity-panel', () => ({
   NotificationInboxProvider: ({children}: {children: React.ReactNode}) => children,
 }))
 
+vi.mock('@shm/ui/activity-panel-layout', async () => {
+  const React = await import('react')
+
+  return {
+    ActivityPanelProvider: ({children}: {children: React.ReactNode}) => children,
+    ActivityPanelOutlet: () => React.createElement('div', {'data-testid': 'activity-outlet'}),
+  }
+})
+
 vi.mock('../components/footer', async () => {
   const React = await import('react')
 
   return {
-    default: (props: Record<string, unknown>) => {
-      mockState.footerProps = props
-      return React.createElement('div', {'data-testid': 'footer'})
-    },
+    default: () => React.createElement('div', {'data-testid': 'footer'}),
   }
 })
 
@@ -252,10 +260,7 @@ vi.mock('../components/titlebar', async () => {
   const React = await import('react')
 
   return {
-    TitleBar: (props: Record<string, unknown>) => {
-      mockState.titlebarProps = props
-      return React.createElement('div', {'data-testid': 'titlebar'})
-    },
+    TitleBar: () => React.createElement('div', {'data-testid': 'titlebar'}),
   }
 })
 
@@ -265,10 +270,14 @@ vi.mock('../components/window-title', () => ({
 
 vi.mock('../pages/base', async () => {
   const React = await import('react')
+  const {useAssistantPanelToggle} = await import('@shm/ui/assistant-panel-toggle')
 
   return {
     BaseLoading: () => React.createElement('div', null, 'Loading'),
-    NotFoundPage: () => React.createElement('div', {'data-testid': 'not-found'}, 'Not Found'),
+    NotFoundPage: () => {
+      mockState.assistantToggle = useAssistantPanelToggle()
+      return React.createElement('div', {'data-testid': 'not-found'}, 'Not Found')
+    },
   }
 })
 
@@ -282,9 +291,11 @@ vi.mock('../pages/document-placeholder', async () => {
 
 vi.mock('../pages/desktop-resource', async () => {
   const React = await import('react')
+  const {useAssistantPanelToggle} = await import('@shm/ui/assistant-panel-toggle')
 
   return {
     default: function DesktopResourceMock() {
+      mockState.assistantToggle = useAssistantPanelToggle()
       React.useEffect(() => {
         mockState.documentMounts += 1
         return () => {
@@ -338,14 +349,16 @@ describe('Main assistant visibility', () => {
   beforeEach(() => {
     ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
     mockState.assistantPanelProps = null
-    mockState.footerProps = null
-    mockState.titlebarProps = null
+    mockState.assistantToggle = null
     mockState.ipcSend.mockReset()
     mockState.hasAgents = false
     mockState.agentsStatus = 'success'
     mockState.currentRoute = {key: 'missing'}
     mockState.documentMounts = 0
     mockState.documentUnmounts = 0
+    mockState.bookmarksOpen = false
+    mockState.bookmarksClose.mockReset()
+    mockState.navigate.mockReset()
     ;(window as any).initNavState = {
       assistantOpen: true,
       assistantSessionId: 'session-1',
@@ -360,7 +373,7 @@ describe('Main assistant visibility', () => {
   it('keeps the main panel group stretched to the window height', () => {
     const {container, root} = renderMain()
 
-    expect(container.querySelector('[data-testid="panel-group"]')?.className).toContain('flex-1')
+    expect(container.querySelector('.window-container')?.firstElementChild?.className).toContain('flex-1')
 
     cleanupRendered(root, container)
   })
@@ -370,7 +383,7 @@ describe('Main assistant visibility', () => {
 
     await flushEffects()
 
-    expect(mockState.titlebarProps?.onToggleAssistant).toBeUndefined()
+    expect(mockState.assistantToggle).toBeNull()
     expect(container.querySelector('[data-testid="assistant-panel"]')).toBeNull()
     expect(mockState.ipcSend).toHaveBeenCalledWith('windowAssistantState', {
       assistantOpen: false,
@@ -388,10 +401,8 @@ describe('Main assistant visibility', () => {
 
     await flushEffects()
 
-    expect(typeof mockState.titlebarProps?.onToggleAssistant).toBe('function')
-    expect(mockState.titlebarProps?.assistantOpen).toBe(true)
-    expect(mockState.footerProps?.onToggleAssistant).toBeUndefined()
-    expect(mockState.footerProps?.onNewAssistantChat).toBeUndefined()
+    expect(typeof mockState.assistantToggle?.toggle).toBe('function')
+    expect(mockState.assistantToggle?.isOpen).toBe(true)
     expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
     expect(mockState.ipcSend).not.toHaveBeenCalled()
 
@@ -412,16 +423,16 @@ describe('Main assistant visibility', () => {
 
     expect(container.querySelector('[data-testid="assistant-panel"]')).toBeNull()
 
-    expect(mockState.titlebarProps?.assistantOpen).toBe(false)
+    expect(mockState.assistantToggle?.isOpen).toBe(false)
 
     act(() => {
-      ;(mockState.titlebarProps?.onToggleAssistant as undefined | (() => void))?.()
+      mockState.assistantToggle?.toggle()
     })
 
     await flushEffects()
 
     expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
-    expect(mockState.titlebarProps?.assistantOpen).toBe(true)
+    expect(mockState.assistantToggle?.isOpen).toBe(true)
     expect(mockState.assistantPanelProps?.initialSessionId).toBe('session-1')
     expect(mockState.assistantPanelProps?.newChatRequest).toBeUndefined()
     expect(mockState.ipcSend).toHaveBeenCalledWith('windowAssistantState', {
@@ -492,5 +503,131 @@ describe('Main assistant visibility', () => {
 
     cleanupRendered(root, container)
     expect(mockState.documentUnmounts).toBe(1)
+  })
+
+  it('closes Bookmarks when Agents opens', async () => {
+    mockState.hasAgents = true
+    mockState.agentsStatus = 'success'
+    mockState.bookmarksOpen = true
+    ;(window as any).initNavState = {
+      assistantOpen: false,
+      assistantSessionId: 'session-1',
+    }
+
+    const {container, root} = renderMain()
+    await flushEffects()
+
+    act(() => {
+      mockState.assistantToggle?.toggle()
+    })
+    await flushEffects()
+
+    expect(mockState.bookmarksClose).toHaveBeenCalled()
+
+    mockState.bookmarksOpen = false
+    act(() => {
+      root.render(renderMainTree())
+    })
+    await flushEffects()
+
+    expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
+    expect(mockState.assistantPanelProps?.visible).toBe(true)
+
+    cleanupRendered(root, container)
+  })
+
+  it('closes Agents when Bookmarks opens', async () => {
+    mockState.hasAgents = true
+    mockState.agentsStatus = 'success'
+
+    const {container, root} = renderMain()
+    await flushEffects()
+
+    expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
+
+    mockState.bookmarksOpen = true
+    act(() => {
+      root.render(renderMainTree())
+    })
+    await flushEffects()
+
+    expect(mockState.ipcSend).toHaveBeenCalledWith('windowAssistantState', {
+      assistantOpen: false,
+      assistantSessionId: 'session-1',
+    })
+    expect(mockState.assistantToggle?.isOpen).toBe(false)
+
+    cleanupRendered(root, container)
+  })
+
+  it('closes Agents when Activity opens', async () => {
+    mockState.hasAgents = true
+    mockState.agentsStatus = 'success'
+    mockState.currentRoute = {key: 'document', id: {uid: 'site-1', path: []}, panel: null}
+
+    const {container, root} = renderMain()
+    await flushEffects()
+
+    expect(container.querySelector('[data-testid="assistant-panel"]')).not.toBeNull()
+
+    mockState.currentRoute = {...mockState.currentRoute, panel: {key: 'feed', tab: 'to-you'}}
+    act(() => {
+      root.render(renderMainTree())
+    })
+    await flushEffects()
+
+    expect(mockState.ipcSend).toHaveBeenCalledWith('windowAssistantState', {
+      assistantOpen: false,
+      assistantSessionId: 'session-1',
+    })
+    expect(container.querySelector('[data-testid="activity-outlet"]')).not.toBeNull()
+
+    cleanupRendered(root, container)
+  })
+
+  it('clears the route panel when Agents opens over Activity', async () => {
+    mockState.hasAgents = true
+    mockState.agentsStatus = 'success'
+    mockState.currentRoute = {
+      key: 'document',
+      id: {uid: 'site-1', path: []},
+      panel: {key: 'feed', tab: 'to-you'},
+    }
+    ;(window as any).initNavState = {
+      assistantOpen: false,
+      assistantSessionId: 'session-1',
+    }
+
+    const {container, root} = renderMain()
+    await flushEffects()
+
+    act(() => {
+      mockState.assistantToggle?.toggle()
+    })
+    await flushEffects()
+
+    expect(mockState.navigate).toHaveBeenCalledWith({...mockState.currentRoute, panel: null})
+
+    cleanupRendered(root, container)
+  })
+
+  it('lets a restored Activity panel win over a restored assistant at launch', async () => {
+    mockState.hasAgents = true
+    mockState.agentsStatus = 'success'
+    mockState.currentRoute = {
+      key: 'document',
+      id: {uid: 'site-1', path: []},
+      panel: {key: 'feed', tab: 'to-you'},
+    }
+
+    const {container, root} = renderMain()
+    await flushEffects()
+
+    expect(mockState.ipcSend).toHaveBeenCalledWith('windowAssistantState', {
+      assistantOpen: false,
+      assistantSessionId: 'session-1',
+    })
+
+    cleanupRendered(root, container)
   })
 })

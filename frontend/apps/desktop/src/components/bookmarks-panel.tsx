@@ -99,7 +99,7 @@ export function BookmarksPanelProvider({children}: {children?: React.ReactNode})
   return <BookmarksPanelContext.Provider value={value}>{children}</BookmarksPanelContext.Provider>
 }
 
-/** Opens the global bookmark panel from the account menu or closes the current panel. */
+/** Opens or closes the global bookmark panel from the space header. */
 export function useBookmarksPanel() {
   return useContext(BookmarksPanelContext)
 }

@@ -23,7 +23,7 @@ export type AssistantPanelToggle = {
  * with at least one mounted agent their account can see (owner, accepted collaborator, or public
  * agent), or owning orphan agents to adopt. Absent — the default — otherwise, and the header shows
  * no button: a reader the space's agents are not shared with gets no way into an empty panel.
- * Desktop has its own toggle in the window title bar.
+ * Desktop provides it to the space header too.
  */
 export const AssistantPanelToggleContext = createContext<AssistantPanelToggle | null>(null)
 

@@ -76,11 +76,9 @@ import {
   ChevronDown,
   LayoutList,
   Link2,
-  Maximize,
   Maximize2,
   MoreHorizontal,
   Trash2,
-  X,
 } from 'lucide-react'
 import React, {Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {
@@ -114,6 +112,7 @@ import {
 import {getAgentsPlatform, type AgentsRichEditorSubmitHandle} from './platform'
 import {RunRecordCard, SessionRunCard} from './run-card'
 import {DelayedSpinner, SessionModelBadge} from './header'
+import {PanelHeader} from '../panel-header'
 import {SessionSummaryBanner} from './session-children'
 import {NewSessionComposer} from './new-session-composer'
 import {AgentMountReminder} from './mount-reminder'
@@ -134,9 +133,10 @@ function isTriggeredSession(session: SessionInfo): boolean {
  * until the first send, which creates the session and opens it here. Agents are not created here:
  * an agent is a document, made from the New menu of a space's home document.
  *
- * Shared between desktop (mounted in the main window beside the page, toggled from the footer) and
- * web (mounted beside the site page, toggled from the account menu). Everything host-specific —
- * signing, navigation, the account, the rich editor — comes through the agents platform seam.
+ * Shared between desktop (mounted in the window's side panel, which it shares with Bookmarks and
+ * Activity, toggled from the space header) and web (mounted beside the site page, toggled from the
+ * account menu). Everything host-specific — signing, navigation, the account, the rich editor —
+ * comes through the agents platform seam.
  */
 /** A stable empty server list, so hooks keyed on it never see a fresh array per render. */
 const NO_SERVERS: string[] = []
@@ -462,48 +462,24 @@ export function AssistantPanel({
       {/* Account-wide live updates are mounted by the shell (desktop title bar, web assistant host)
           so they also run while this panel is closed, feeding the unread indicator. */}
       {deleteDialog.content}
-      <div className="border-border window-drag flex h-[41px] items-center justify-between gap-1 border-b px-2 py-2">
-        <AssistantAgentPicker
-          agents={agents}
-          activeAgent={filterAgent}
-          pending={selection.filterPending}
-          rowActivities={rowActivities}
-          localServerUrl={localServerUrl.data ?? null}
-          currentSpaceUid={currentSpaceUid}
-          onSelect={(key) => {
-            // Choosing whose chats to see always lands on that list, as on the Agents page.
-            setChosenAgent(key)
-            setStored(null)
-          }}
-        />
-        {/* Same buttons as the main panel's header (PanelHeader). */}
-        <div className="no-window-drag flex shrink-0 items-center gap-1">
-          {expandRoute ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full"
-              aria-label="Expand to full screen"
-              title="Expand to full screen"
-              onClick={() => navigate(expandRoute)}
-            >
-              <Maximize className="size-4" />
-            </Button>
-          ) : null}
-          {onClose ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full"
-              aria-label="Close agents panel"
-              title="Close agents panel"
-              onClick={onClose}
-            >
-              <X className="size-4" />
-            </Button>
-          ) : null}
+      <PanelHeader title="Agents" onExpand={expandRoute ? () => navigate(expandRoute) : undefined} onClose={onClose} />
+      {activeSession ? null : (
+        <div className="border-border shrink-0 border-b px-4 py-2 md:px-5">
+          <AssistantAgentPicker
+            agents={agents}
+            activeAgent={filterAgent}
+            pending={selection.filterPending}
+            rowActivities={rowActivities}
+            localServerUrl={localServerUrl.data ?? null}
+            currentSpaceUid={currentSpaceUid}
+            onSelect={(key) => {
+              // Choosing whose chats to see always lands on that list, as on the Agents page.
+              setChosenAgent(key)
+              setStored(null)
+            }}
+          />
         </div>
-      </div>
+      )}
       {activeSession ? (
         <>
           <div className="border-border flex items-center gap-1 border-b px-1 py-1">
@@ -681,7 +657,7 @@ export function AssistantPanel({
 }
 
 /**
- * Agent-context dropdown at the very top of the sidebar.
+ * Agent filter shown under the panel header while the chat list is showing.
  *
  * Filters the chat list below to one agent, or to all of them ("All agents", the default); the
  * composer under the list follows the choice. Agents are grouped under the space they live in,
@@ -725,16 +701,13 @@ function AssistantAgentPicker({
     <div data-agent-picker className="flex max-w-full min-w-0 items-center">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="no-window-drag hover:bg-muted flex max-w-full min-w-0 items-center gap-2 rounded px-1.5 py-1"
-          >
-            <Bot className="text-muted-foreground size-4 shrink-0" />
-            <SizableText size="sm" className="min-w-0 truncate font-medium">
+          <Button size="sm" variant="outline" className="max-w-full min-w-0 rounded-full">
+            <Bot className="size-3.5 shrink-0" aria-hidden />
+            <span className="min-w-0 truncate">
               {activeAgent ? activeAgent.agent.definition.name : pending ? 'Loading…' : 'All agents'}
-            </SizableText>
-            <ChevronDown className="text-muted-foreground size-3 shrink-0" />
-          </button>
+            </span>
+            <ChevronDown className="text-muted-foreground size-3 shrink-0" aria-hidden />
+          </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="max-h-96 w-72 overflow-y-auto p-1">
           {groups.length ? (

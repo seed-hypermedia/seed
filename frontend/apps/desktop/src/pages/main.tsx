@@ -33,7 +33,7 @@ import {TitlebarWrapper, TitleText} from '@shm/ui/titlebar'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
 import {cn} from '@shm/ui/utils'
-import {lazy, ReactElement, ReactNode, Suspense, useCallback, useEffect, useMemo, useState} from 'react'
+import {lazy, ReactElement, ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {ErrorBoundary} from 'react-error-boundary'
 import {Group, Panel} from 'react-resizable-panels'
 import {AppErrorPage, RootAppError} from '../components/app-error'
@@ -105,7 +105,18 @@ function DraftRouteRedirect() {
   return <DocumentPlaceholder />
 }
 
-/** Renders the main desktop app window and optional assistant sidebar. */
+/** The window's assistant state, shown in the shared accessory slot. */
+type AccessoryAssistant = {
+  /** Agents exist (or are still loading), so the panel may be shown. */
+  available: boolean
+  /** The user has the assistant open (`shouldRenderAssistantPanel`). */
+  open: boolean
+  sessionId: string | null
+  onSessionChange: (sessionId: string | null) => void
+  onClose: () => void
+}
+
+/** Renders the main desktop app window; Agents, Bookmarks and Activity share one side panel. */
 export default function Main({className}: {className?: string}) {
   const navR = useNavRoute()
   const navigate = useNavigate()
@@ -123,7 +134,6 @@ export default function Main({className}: {className?: string}) {
   useListenAppEvent('create_new_document', () => {
     void createNewDocument()
   })
-  const assistantLayout = useSavedPanelLayout('main-assistant', ['app-content', 'assistant'])
   const initNavState = (window as any).initNavState
   const [assistantOpen, setAssistantOpen] = useState(initNavState?.assistantOpen || false)
   const [assistantSessionId, setAssistantSessionId] = useState<string | null>(initNavState?.assistantSessionId || null)
@@ -197,16 +207,21 @@ export default function Main({className}: {className?: string}) {
     },
     [navigate],
   )
+  const accessoryAssistant = useMemo<AccessoryAssistant>(
+    () => ({
+      available: isAssistantAvailable,
+      open: shouldRenderAssistantPanel,
+      sessionId: assistantSessionId,
+      onSessionChange: handleSessionChange,
+      onClose: handleCloseAssistant,
+    }),
+    [isAssistantAvailable, shouldRenderAssistantPanel, assistantSessionId, handleSessionChange, handleCloseAssistant],
+  )
   const windowType = getWindowType()
   let titlebar: ReactElement | null = null
   let sidebar: ReactElement | null = null
   if (windowType === 'main') {
-    titlebar = (
-      <TitleBar
-        assistantOpen={assistantOpen}
-        onToggleAssistant={isAssistantAvailable ? handleToggleAssistant : undefined}
-      />
-    )
+    titlebar = <TitleBar />
     sidebar = <AppSidebar />
   } else if (windowType === 'settings') {
     titlebar = (
@@ -258,110 +273,122 @@ export default function Main({className}: {className?: string}) {
   return (
     <div className={cn(windowContainerStyles, 'p-0', className)}>
       <WindowTitle />
-      <Group
-        orientation="horizontal"
-        className="min-h-0 flex-1"
-        onLayoutChanged={(layout, meta) => {
-          assistantLayout.onLayoutChanged(layout, meta)
-          if (meta.isUserInteraction && layout.assistant === 0 && assistantOpen) {
-            setAssistantOpen(false)
-            sendAssistantState(false, assistantSessionId)
-          }
-        }}
-      >
-        <Panel id="app-content">
-          <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto]">
-            <ActivityPanelProvider>
-              <BookmarksPanelProvider>
-                <SidebarContextProvider>
-                  {titlebar}
-                  <PanelContent>
-                    {sidebar}
-                    <Panel id="page">
-                      <div className="flex h-full min-h-0 flex-col">
-                        <div className="min-h-0 flex-1">
-                          <ErrorBoundary
-                            resetKeys={[routeKey]}
-                            FallbackComponent={RootAppError}
-                            onReset={() => {
-                              window.location.reload()
-                            }}
-                          >
-                            {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
+      <div className="min-h-0 flex-1">
+        <div className="grid h-full min-h-0 grid-cols-1 grid-rows-[auto_minmax(0,1fr)_auto]">
+          <ActivityPanelProvider>
+            <BookmarksPanelProvider>
+              <SidebarContextProvider>
+                {titlebar}
+                <PanelContent assistant={accessoryAssistant}>
+                  {sidebar}
+                  <Panel id="page">
+                    <div className="flex h-full min-h-0 flex-col">
+                      <div className="min-h-0 flex-1">
+                        <ErrorBoundary
+                          resetKeys={[routeKey]}
+                          FallbackComponent={RootAppError}
+                          onReset={() => {
+                            window.location.reload()
+                          }}
+                        >
+                          {/* Route-scoped suspense: a page chunk still loading shows its own placeholder
                         inside the panel. Without this, the lazy import suspends all the way to the
                         root boundary and the whole window — chrome included — becomes a spinner. */}
-                            <Suspense fallback={<Fallback />}>
-                              {(browserMounted || navR.key === 'web') && <WebBrowser />}
-                              {navR.key !== 'web' && (
-                                <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
-                                  <NotificationInboxProvider value={DesktopNotificationInbox}>
-                                    <PageComponent />
-                                  </NotificationInboxProvider>
-                                </AssistantPanelToggleContext.Provider>
-                              )}
-                            </Suspense>
-                          </ErrorBoundary>
-                        </div>
+                          <Suspense fallback={<Fallback />}>
+                            {(browserMounted || navR.key === 'web') && <WebBrowser />}
+                            {navR.key !== 'web' && (
+                              <AssistantPanelToggleContext.Provider value={assistantPanelToggle}>
+                                <NotificationInboxProvider value={DesktopNotificationInbox}>
+                                  <PageComponent />
+                                </NotificationInboxProvider>
+                              </AssistantPanelToggleContext.Provider>
+                            )}
+                          </Suspense>
+                        </ErrorBoundary>
                       </div>
-                    </Panel>
-                    <DesktopAccessoryPanel />
-                  </PanelContent>
+                    </div>
+                  </Panel>
+                  <DesktopAccessoryPanel assistant={accessoryAssistant} />
+                </PanelContent>
 
-                  <Footer />
+                <Footer />
 
-                  <AutoUpdater />
-                  <ConfirmConnectionDialog />
-                  <HypermediaHighlight />
-                </SidebarContextProvider>
-              </BookmarksPanelProvider>
-            </ActivityPanelProvider>
-          </div>
-        </Panel>
-        <PanelSeparator open={shouldRenderAssistantPanel} onCollapse={handleToggleAssistant} />
-        <AnimatedPanel
-          id="assistant"
-          open={shouldRenderAssistantPanel}
-          keepMounted={isAssistantAvailable}
-          minSize="15%"
-          maxSize="40%"
-          defaultSize={`${assistantLayout.expanded?.assistant ?? 25}%`}
-          className="border-l"
-        >
-          <AssistantPanel
-            initialSessionId={assistantSessionId}
-            visible={shouldRenderAssistantPanel}
-            onSessionChange={handleSessionChange}
-            onClose={handleCloseAssistant}
-          />
-        </AnimatedPanel>
-      </Group>
+                <AutoUpdater />
+                <ConfirmConnectionDialog />
+                <HypermediaHighlight />
+              </SidebarContextProvider>
+            </BookmarksPanelProvider>
+          </ActivityPanelProvider>
+        </div>
+      </div>
     </div>
   )
 }
 
-function DesktopAccessoryPanel() {
+/** Keeps Agents, Bookmarks and Activity in one slot: whichever opens last closes the others. */
+function useExclusiveAccessory(assistant: AccessoryAssistant) {
+  const bookmarks = useBookmarksPanel()
+  const route = useNavRoute()
+  const navigate = useNavigate('replace')
+  const activityOpen = getRoutePanel(route)?.key === 'feed'
+  // Activity starts as "closed" so a restored Activity panel wins over a restored assistant at launch.
+  const previous = useRef({assistant: assistant.open, bookmarks: false, activity: false})
+  useEffect(() => {
+    const prev = previous.current
+    previous.current = {assistant: assistant.open, bookmarks: bookmarks.isOpen, activity: activityOpen}
+    if ((bookmarks.isOpen && !prev.bookmarks) || (activityOpen && !prev.activity)) {
+      if (assistant.open) assistant.onClose()
+    } else if (assistant.open && !prev.assistant) {
+      bookmarks.close()
+      if (activityOpen && 'panel' in route) navigate({...route, panel: null})
+    }
+  }, [assistant, bookmarks, activityOpen, route, navigate])
+}
+
+function DesktopAccessoryPanel({assistant}: {assistant: AccessoryAssistant}) {
   const saved = useSavedPanelLayout('desktop-accessory', ['page', 'bookmarks'])
   const bookmarks = useBookmarksPanel()
   const route = useNavRoute()
   const navigate = useNavigate()
   const activityOpen = getRoutePanel(route)?.key === 'feed'
-  const isOpen = bookmarks.isOpen || activityOpen
+  useExclusiveAccessory(assistant)
+  const assistantVisible = assistant.open && !bookmarks.isOpen && !activityOpen
+  const active = activityOpen ? 'activity' : bookmarks.isOpen ? 'bookmarks' : assistantVisible ? 'assistant' : null
+  // While the slot animates closed it keeps showing whatever was last in it.
+  const lastActive = useRef(active)
+  if (active) lastActive.current = active
+  const shown = active ?? lastActive.current
+  // The assistant stays mounted once opened so its chat survives switching to Bookmarks or Activity.
+  const assistantMounted = useRef(false)
+  if (assistantVisible) assistantMounted.current = true
   const close = () => {
     if (activityOpen && 'panel' in route) navigate({...route, panel: null})
-    else bookmarks.close()
+    else if (bookmarks.isOpen) bookmarks.close()
+    else assistant.onClose()
   }
   return (
     <>
-      <PanelSeparator open={isOpen} onCollapse={close} />
+      <PanelSeparator open={active !== null} onCollapse={close} />
       <AnimatedPanel
         id="bookmarks"
-        open={isOpen}
+        open={active !== null}
+        keepMounted={assistant.available}
         minSize="240px"
         maxSize="45%"
         defaultSize={saved.expanded?.bookmarks ? `${saved.expanded.bookmarks}%` : '320px'}
         className="border-border overflow-hidden rounded-lg border"
       >
-        {activityOpen ? <ActivityPanelOutlet /> : <BookmarksPanel />}
+        {shown === 'activity' ? <ActivityPanelOutlet /> : shown === 'bookmarks' ? <BookmarksPanel /> : null}
+        {assistant.available && assistantMounted.current ? (
+          <div className={cn('h-full min-h-0', shown !== 'assistant' && 'hidden')}>
+            <AssistantPanel
+              initialSessionId={assistant.sessionId}
+              visible={assistantVisible}
+              onSessionChange={assistant.onSessionChange}
+              onClose={assistant.onClose}
+            />
+          </div>
+        ) : null}
       </AnimatedPanel>
     </>
   )
@@ -407,7 +434,7 @@ function ConfirmConnectionDialog() {
   return dialog.content
 }
 
-function PanelContent({children}: {children: ReactNode}) {
+function PanelContent({children, assistant}: {children: ReactNode; assistant: AccessoryAssistant}) {
   const saved = useSavedPanelLayout('desktop-accessory', ['page', 'bookmarks'])
   const ctx = useSidebarContext()
   const bookmarksPanel = useBookmarksPanel()
@@ -448,6 +475,7 @@ function PanelContent({children}: {children: ReactNode}) {
         if (layout.bookmarks === 0) {
           if (activityOpen && 'panel' in route) navigate({...route, panel: null})
           else if (bookmarksPanel.isOpen) bookmarksPanel.close()
+          else if (assistant.open) assistant.onClose()
         }
         const width = (meta.requestedLayout ?? layout).sidebar
         if (width && width > 0) ctx.onSidebarResize(width)

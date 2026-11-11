@@ -293,6 +293,28 @@ describe('assistant sidebar', () => {
     expect(composer()).not.toBeNull()
   })
 
+  it('titles the header Agents and closes from its close button', () => {
+    const onClose = vi.fn()
+    act(() => {
+      root.render(<AssistantPanel onClose={onClose} />)
+    })
+    expect(document.body.textContent).toContain('Agents')
+    click(document.body.querySelector('button[aria-label="Close panel"]') as HTMLButtonElement)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the agent picker on the list but not while a chat is open', () => {
+    act(() => {
+      root.render(<AssistantPanel />)
+    })
+    expect(pickerTrigger()).toBeTruthy()
+    clickText('Doc questions')
+    expect(hasActiveSession()).toBe(true)
+    expect(pickerTrigger()).toBeNull()
+    click(buttonByTitle('Back to chats'))
+    expect(pickerTrigger()).toBeTruthy()
+  })
+
   it('restores the remembered chat on mount, with a way back to the list', () => {
     act(() => {
       root.render(<AssistantPanel initialSessionId={`${LOCAL} | s-a1`} />)
@@ -477,8 +499,7 @@ describe('assistant sidebar', () => {
     })
     expect(hasActiveSession()).toBe(true)
     expect(buttonByTitle('New chat')).toBeFalsy()
-    const expand = buttonByTitle('Expand to full screen')
-    expect(expand?.closest('.window-drag')).toBeTruthy()
+    const expand = buttonByTitle('Expand agents')
     click(expand)
     expect(mockState.navigate).toHaveBeenCalledWith(expect.objectContaining({key: 'agent-session', sessionId: 's-a1'}))
   })
@@ -499,7 +520,7 @@ describe('assistant sidebar', () => {
     act(() => {
       root.render(<AssistantPanel />)
     })
-    expect(buttonByTitle('Expand to full screen')).toBeFalsy()
+    expect(buttonByTitle('Expand agents')).toBeFalsy()
   })
 
   it('with no agents, the body says so and points at the home document New menu, with no composer', () => {

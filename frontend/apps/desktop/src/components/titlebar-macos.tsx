@@ -7,7 +7,7 @@ import {NavigationButtons, Omnibar, PageActionButtons} from './titlebar-common'
 import {TitlebarMainRow} from './titlebar-layout'
 
 export default function TitleBarMacos(props: TitleBarProps) {
-  const {clean, cleanTitle, assistantOpen, onToggleAssistant, ...restProps} = props
+  const {clean, cleanTitle, ...restProps} = props
   const sidebarWidth = useSidebarWidth()
   const sidebarContext = useSidebarContext()
   const isSidebarLocked = !!useStream(sidebarContext.isLocked)
@@ -34,7 +34,7 @@ export default function TitleBarMacos(props: TitleBarProps) {
         }
         navigation={<NavigationButtons />}
         omnibar={<Omnibar />}
-        actions={<PageActionButtons assistantOpen={assistantOpen} onToggleAssistant={onToggleAssistant} />}
+        actions={<PageActionButtons />}
       />
     </TitlebarWrapper>
   )

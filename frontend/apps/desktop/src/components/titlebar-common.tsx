@@ -111,23 +111,6 @@ import {useCreateAccountDialog} from './create-account'
 import {useDesktopAuthDialog} from './desktop-auth-dialog'
 import {usePublishSite} from './publish-site'
 import {SearchInput, SearchInputHandle} from './search-input'
-import {TitleBarProps} from './titlebar'
-
-// Route keys that have an id and support DocOptionsButton
-const DOC_OPTIONS_ROUTE_KEYS = [
-  'document',
-  'feed',
-  'activity',
-  'comments',
-  'directory',
-  'collaborators',
-  'inspect',
-  'all-documents',
-  'metadata',
-] as const
-
-type DocOptionsRouteKey = (typeof DOC_OPTIONS_ROUTE_KEYS)[number]
-
 const OMNIBAR_DOMAIN_STALE_TIME_MS = 3 * 60 * 60 * 1000
 
 function getUrlHostname(url?: string | null): string | null {
@@ -137,16 +120,6 @@ function getUrlHostname(url?: string | null): string | null {
   } catch {
     return null
   }
-}
-
-function isDocOptionsRoute(route: NavRoute): route is NavRoute & {key: DocOptionsRouteKey; id: UnpackedHypermediaId} {
-  return DOC_OPTIONS_ROUTE_KEYS.includes(route.key as DocOptionsRouteKey) && 'id' in route
-}
-
-export function DocOptionsButton(_props: {
-  onPublishSite: (input: {id: UnpackedHypermediaId; step?: 'seed-host-custom-domain'}) => void
-}) {
-  return null
 }
 
 // The bell belongs to a space, so it only shows on pages inside one.
@@ -207,7 +180,6 @@ export function AccountProfileButton() {
   const {isPending: isForceVaultSyncPending, mutate: forceVaultSync} = useForceVaultSync()
   const remoteVaultConnected = vaultStatus.data?.connectionStatus === VaultConnectionStatus.CONNECTED
   const vaultEmail = useVaultEmail({enabled: remoteVaultConnected})
-  const bookmarksPanel = useBookmarksPanel()
   const createSpaceDialog = useCreateSpaceDialog()
   const accountHome = useResource(accountUid ? hmId(accountUid) : undefined)
   const canLogOut = vaultStatus.data?.backendMode === VaultBackendMode.REMOTE
@@ -454,10 +426,6 @@ export function AccountProfileButton() {
               Space settings
             </DropdownMenuItem>
           ) : null}
-          <DropdownMenuItem onSelect={() => bookmarksPanel.open()}>
-            <Bookmark className="size-5" />
-            Bookmarks
-          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => navigate({key: 'drafts'})}>
             <SquarePen className="size-5" />
             Drafts
@@ -580,7 +548,30 @@ function AssistantChatButton() {
     </Tooltip>
   )
 }
-export function PageActionButtons(_props: TitleBarProps) {
+
+/** Space header toggle for the global bookmarks side panel. */
+export function BookmarksButton() {
+  const bookmarksPanel = useBookmarksPanel()
+  const isActive = bookmarksPanel.isOpen
+  return (
+    <Tooltip content="Bookmarks" asChild>
+      <Button
+        className={cn(
+          'window-no-drag relative h-8 w-8 rounded-full border p-0',
+          isActive
+            ? 'border-black/15 bg-black/10 shadow-xs hover:border-black/20 hover:bg-black/15 dark:border-white/15 dark:bg-white/10 dark:hover:border-white/20 dark:hover:bg-white/15'
+            : 'border-transparent',
+        )}
+        aria-label="Bookmarks"
+        aria-pressed={isActive}
+        onClick={isActive ? bookmarksPanel.close : bookmarksPanel.open}
+      >
+        <Bookmark className="size-4" />
+      </Button>
+    </Tooltip>
+  )
+}
+export function PageActionButtons() {
   return (
     <TitlebarSection>
       <AgentActivityConnection />
@@ -589,11 +580,12 @@ export function PageActionButtons(_props: TitleBarProps) {
   )
 }
 
-/** The space's own tools in its header: Agents and the Activity bell. */
+/** The space's own tools in its header: Agents, Bookmarks, and the Activity bell. */
 export function SpaceHeaderTools() {
   return (
     <div className="flex items-center gap-1">
       <AssistantChatButton />
+      <BookmarksButton />
       <NotificationButton />
     </div>
   )
@@ -1047,28 +1039,6 @@ function getRouteId(route: NavRoute): UnpackedHypermediaId | null {
     return route.accountUid ? hmId(route.accountUid) : null
   }
   return null
-}
-
-/**
- * Check if current route has a document that can show URL
- */
-function isUrlDisplayableRoute(route: NavRoute): boolean {
-  return (
-    route.key === 'document' ||
-    route.key === 'feed' ||
-    route.key === 'inspect' ||
-    route.key === 'inspect-ipfs' ||
-    route.key === 'activity' ||
-    route.key === 'directory' ||
-    route.key === 'collaborators' ||
-    route.key === 'comments' ||
-    route.key === 'all-documents' ||
-    route.key === 'metadata' ||
-    (route.key === 'explore' && route.context.type === 'site') ||
-    route.key === 'site-profile' ||
-    route.key === 'site-settings-emails' ||
-    route.key === 'site-settings'
-  )
 }
 
 /**
