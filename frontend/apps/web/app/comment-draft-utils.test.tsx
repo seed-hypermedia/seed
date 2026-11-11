@@ -1,65 +1,75 @@
 // @vitest-environment jsdom
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {createRoot, type Root} from 'react-dom/client'
-import {act} from 'react-dom/test-utils'
-import {afterEach, beforeEach, expect, it, vi} from 'vitest'
-import {useCommentDraftPersistence, listWebCommentDrafts} from './comment-draft-utils'
-;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
-let persistence: ReturnType<typeof useCommentDraftPersistence>
-let root: Root
-let container: HTMLDivElement
+import {beforeEach, expect, it} from 'vitest'
+import {
+  injectMediaRefs,
+  getDraftKey,
+  listWebCommentDrafts,
+  loadWebCommentDraft,
+  removeWebCommentDraft,
+  saveWebCommentDraft,
+} from './comment-draft-utils'
+
 const blocks: HMBlockNode[] = [{block: {id: 'text', type: 'Paragraph', text: 'Unsent reply', attributes: {}}}]
+const emptyBlocks: HMBlockNode[] = [{block: {id: 'text', type: 'Paragraph', text: '', attributes: {}}}]
 const mediaRefs = {image: '{"url":"blob:upload"}'}
-function Draft({parent = 'parent'}: {parent?: string}) {
-  persistence = useCommentDraftPersistence('hm://doc', parent)
-  return null
-}
+const target = {docId: 'hm://doc', replyCommentId: 'parent'}
+
 beforeEach(() => {
-  vi.useFakeTimers()
   localStorage.clear()
-  container = document.createElement('div')
-  root = createRoot(container)
-  act(() => root.render(<Draft />))
 })
-afterEach(() => {
-  act(() => root.unmount())
-  vi.useRealTimers()
+
+it('round-trips a draft through save and load', () => {
+  const key = getDraftKey('hm://doc', 'parent')
+  saveWebCommentDraft(key, target, {blocks, mediaRefs})
+  const loaded = loadWebCommentDraft(key)
+  expect(loaded?.blocks).toEqual(blocks)
+  expect(loaded?.mediaRefs).toEqual(mediaRefs)
 })
-it('restores unsaved text and media when the editor moves between panels', () => {
-  persistence.saveDraft(blocks, mediaRefs)
-  act(() => root.render(null))
-  act(() => root.render(<Draft />))
-  expect(persistence.draft).toEqual(blocks)
-  expect(persistence.draftMediaRefs).toEqual(mediaRefs)
+
+it('re-injects stored mediaRefs into block attributes on load', () => {
+  const key = getDraftKey('hm://doc', 'parent')
+  const withImage: HMBlockNode[] = [
+    {block: {id: 'image', type: 'Image', link: 'ipfs://x', attributes: {}}, children: []} as unknown as HMBlockNode,
+  ]
+  saveWebCommentDraft(key, target, {blocks: withImage, mediaRefs: {image: '{"url":"blob:upload"}'}})
+  const loaded = loadWebCommentDraft(key)
+  expect((loaded?.blocks[0]?.block as any).attributes.mediaRef).toEqual({url: 'blob:upload'})
+  expect(loaded?.mediaRefs).toEqual({image: '{"url":"blob:upload"}'})
 })
-it('flushes a pending save to its original parent when the target changes', () => {
-  persistence.saveDraft(blocks, mediaRefs)
-  act(() => root.render(<Draft parent="other" />))
-  expect(persistence.draft).toBeNull()
-  act(() => root.render(<Draft />))
-  expect(persistence.draft).toEqual(blocks)
-  expect(persistence.draftMediaRefs).toEqual(mediaRefs)
+
+it('returns null when no draft is stored', () => {
+  expect(loadWebCommentDraft(getDraftKey('hm://doc', 'parent'))).toBeNull()
 })
-it('persists a final editor callback after the persistence cleanup', () => {
-  const save = persistence.saveDraft
-  act(() => root.render(null))
-  save(blocks, mediaRefs)
-  act(() => root.render(<Draft />))
-  expect(persistence.draft).toEqual(blocks)
-  expect(persistence.draftMediaRefs).toEqual(mediaRefs)
+
+it('removes the stored draft instead of saving empty content', () => {
+  const key = getDraftKey('hm://doc', 'parent')
+  saveWebCommentDraft(key, target, {blocks})
+  saveWebCommentDraft(key, target, {blocks: emptyBlocks})
+  expect(localStorage.getItem(key)).toBeNull()
+  expect(loadWebCommentDraft(key)).toBeNull()
 })
-it('does not restore a submitted draft during cleanup or a later timer', () => {
-  persistence.saveDraft(blocks, mediaRefs)
-  act(() => persistence.removeDraft())
-  act(() => root.render(null))
-  act(() => vi.runAllTimers())
-  act(() => root.render(<Draft />))
-  expect(persistence.draft).toBeNull()
-  expect(persistence.draftMediaRefs).toBeNull()
+
+it('removes a stored draft', () => {
+  const key = getDraftKey('hm://doc', 'parent')
+  saveWebCommentDraft(key, target, {blocks})
+  removeWebCommentDraft(key)
+  expect(localStorage.getItem(key)).toBeNull()
 })
 
 it('saves explicit targets so the Drafts page can resume a local reply', () => {
-  persistence.saveDraft(blocks, mediaRefs)
-  act(() => root.render(null))
+  const key = getDraftKey('hm://doc', 'parent')
+  saveWebCommentDraft(key, target, {blocks, mediaRefs})
   expect(listWebCommentDrafts()).toMatchObject([{docId: 'hm://doc', replyCommentId: 'parent', blocks, mediaRefs}])
+})
+
+it('injectMediaRefs maps serialized mediaRefs back onto block attributes', () => {
+  const blocks = [
+    {block: {id: 'image', type: 'Image', link: 'ipfs://x', attributes: {}}, children: []},
+    {block: {id: 'text', type: 'Paragraph', text: 'hello', attributes: {}}, children: []},
+  ] as unknown as HMBlockNode[]
+  const injected = injectMediaRefs({blocks, mediaRefs: {image: '{"url":"blob:upload"}'}})
+  expect((injected[0]!.block as any).attributes.mediaRef).toEqual({url: 'blob:upload'})
+  expect((injected[1]!.block as any).attributes.mediaRef).toBeUndefined()
+  expect(injectMediaRefs({blocks})).toBe(blocks)
 })

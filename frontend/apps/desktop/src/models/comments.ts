@@ -1,17 +1,16 @@
 import {client} from '@/trpc'
-import {HMCommentDraftSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {queryKeys} from '@shm/shared/models/query-keys'
-import {useQuery} from '@tanstack/react-query'
 
-export function useCommentDraft(
+/** Query key + fetcher shared by the draft hook and the composer machine's load effect. */
+export function commentDraftQueryOptions(
   targetDocId: UnpackedHypermediaId,
   commentId: string | undefined,
   quotingBlockId: string | undefined,
   quotingRange: {start: number; end: number} | undefined,
   context: 'accessory' | 'feed' | 'document-content' | undefined,
-  opts?: {enabled?: boolean},
 ) {
-  const comment = useQuery({
+  return {
     queryKey: [
       queryKeys.COMMENT_DRAFT,
       targetDocId.id,
@@ -29,10 +28,5 @@ export function useCommentDraft(
         quotingRange: quotingRange,
         context: context,
       }),
-    enabled: opts?.enabled,
-  })
-  return {
-    ...comment,
-    data: comment.data ? HMCommentDraftSchema.parse(comment.data) : undefined,
   }
 }

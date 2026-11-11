@@ -1,6 +1,6 @@
 import {hasBlockContent} from '@shm/shared/content'
 import {HMBlockNode} from '@seed-hypermedia/client/hm-types'
-import {useEffect, useRef, useState} from 'react'
+import type {CommentComposerContent} from '@shm/shared/models/comment-composer-machine'
 
 interface CommentDraft {
   docId?: string
@@ -15,8 +15,8 @@ interface CommentDraft {
 /** Range of a quoted fragment within a block, in codepoint offsets. */
 export type QuotingRange = {start: number; end: number}
 
-// Generate a unique key for storing drafts
-function getDraftKey(
+/** Storage key for one draft target. */
+export function getDraftKey(
   docId: string,
   replyCommentId?: string | null,
   quotingBlockId?: string,
@@ -60,127 +60,72 @@ function cleanupOldDrafts() {
   keysToRemove.forEach((key) => localStorage.removeItem(key))
 }
 
-export function useCommentDraftPersistence(
-  docId: string,
-  replyCommentId?: string | null,
-  quotingBlockId?: string,
-  quotingRange?: QuotingRange,
-) {
-  const draftKey = getDraftKey(docId, replyCommentId, quotingBlockId, quotingRange)
-  const [draft, setDraftState] = useState<CommentDraft | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const saveTimeoutRef = useRef<NodeJS.Timeout>()
-  const pendingSaveRef = useRef<{key: string; draft: CommentDraft} | null>(null)
-  const activeDraftKeyRef = useRef<string | null>(draftKey)
-
-  const flushPendingSave = () => {
-    clearTimeout(saveTimeoutRef.current)
-    saveTimeoutRef.current = undefined
-    const pending = pendingSaveRef.current
-    pendingSaveRef.current = null
-    if (!pending) return
-    try {
-      localStorage.setItem(pending.key, JSON.stringify(pending.draft))
-    } catch (error) {
-      console.error('Failed to save comment draft:', error)
-    }
-  }
-
-  // Load draft on mount
-  useEffect(() => {
-    try {
-      const savedDraft = localStorage.getItem(draftKey)
-      if (savedDraft) {
-        const parsed = JSON.parse(savedDraft) as CommentDraft
-        setDraftState(parsed)
-      } else {
-        setDraftState(null)
-      }
-    } catch (error) {
-      console.error('Failed to load comment draft:', error)
-    } finally {
-      setIsLoading(false)
-    }
-
-    // Clean up old drafts periodically
-    cleanupOldDrafts()
-  }, [draftKey])
-
-  const saveDraft = (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => {
-    // Clear any pending save
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-
-    pendingSaveRef.current = null
-
-    // Check if content is empty
-    const hasContent = blocks.some(hasBlockContent)
-
-    if (!hasContent) {
-      // If content is empty and there's an existing draft, remove it
-      const existingDraft = localStorage.getItem(draftKey)
-      if (existingDraft) {
-        localStorage.removeItem(draftKey)
-        setDraftState(null)
-      }
-      return
-    }
-
-    pendingSaveRef.current = {
-      key: draftKey,
-      draft: {
-        blocks,
-        docId,
-        replyCommentId,
-        quotingBlockId,
-        quotingRange,
-        timestamp: Date.now(),
-        ...(mediaRefs && Object.keys(mediaRefs).length ? {mediaRefs} : {}),
+/** Re-inject serialized mediaRefs into block attributes so the editor can rehydrate media. */
+export function injectMediaRefs(content: CommentComposerContent): HMBlockNode[] {
+  const mediaRefs = content.mediaRefs
+  if (!mediaRefs) return content.blocks
+  return content.blocks.map((node) => {
+    const block = node.block as any
+    const blockId = block?.id
+    if (!blockId || !mediaRefs[blockId]) return node
+    return {
+      ...node,
+      block: {
+        ...block,
+        attributes: {
+          ...block.attributes,
+          mediaRef: JSON.parse(mediaRefs[blockId]),
+        },
       },
     }
-    // The editor can emit its final content during child cleanup after this
-    // hook has unmounted. Save that content before the next editor loads it.
-    if (activeDraftKeyRef.current !== draftKey) {
-      flushPendingSave()
-    } else {
-      saveTimeoutRef.current = setTimeout(flushPendingSave, 500)
-    }
-  }
+  }) as HMBlockNode[]
+}
 
-  const removeDraft = () => {
-    pendingSaveRef.current = null
-    clearTimeout(saveTimeoutRef.current)
-    saveTimeoutRef.current = undefined
-    try {
-      localStorage.removeItem(draftKey)
-      setDraftState(null)
-      // Clear any pending save
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current)
-      }
-    } catch (error) {
-      console.error('Failed to remove comment draft:', error)
-    }
+/** Load a stored draft, re-injecting serialized mediaRefs into block attributes. */
+export function loadWebCommentDraft(key: string): CommentComposerContent | null {
+  cleanupOldDrafts()
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return null
+    const draft = JSON.parse(raw) as CommentDraft
+    if (!Array.isArray(draft.blocks)) return null
+    const mediaRefs = draft.mediaRefs
+    return {blocks: injectMediaRefs({blocks: draft.blocks, mediaRefs}), ...(mediaRefs ? {mediaRefs} : {})}
+  } catch {
+    return null
   }
+}
 
-  // Preserve drafts when the editor moves between the main view and panel,
-  // or when a new reply target replaces the current editor.
-  useEffect(() => {
-    activeDraftKeyRef.current = draftKey
-    return () => {
-      activeDraftKeyRef.current = null
-      flushPendingSave()
-    }
-  }, [draftKey])
-
-  return {
-    draft: draft?.blocks || null,
-    draftMediaRefs: draft?.mediaRefs || null,
-    isLoading,
-    saveDraft,
-    removeDraft,
+/** Persist a composer draft under `key`, dropping it when the content is empty. */
+export function saveWebCommentDraft(
+  key: string,
+  target: {
+    docId: string
+    replyCommentId?: string | null
+    quotingBlockId?: string
+    quotingRange?: QuotingRange
+  },
+  content: CommentComposerContent,
+): void {
+  if (!content.blocks.some(hasBlockContent)) {
+    if (localStorage.getItem(key)) localStorage.removeItem(key)
+    return
   }
+  const draft: CommentDraft = {
+    blocks: content.blocks,
+    docId: target.docId,
+    replyCommentId: target.replyCommentId ?? undefined,
+    quotingBlockId: target.quotingBlockId,
+    quotingRange: target.quotingRange,
+    timestamp: Date.now(),
+    ...(content.mediaRefs && Object.keys(content.mediaRefs).length ? {mediaRefs: content.mediaRefs} : {}),
+  }
+  localStorage.setItem(key, JSON.stringify(draft))
+}
+
+/** Remove a stored composer draft. */
+export function removeWebCommentDraft(key: string): void {
+  localStorage.removeItem(key)
 }
 
 /** A local comment draft and its exact storage key, used to resume or discard it. */

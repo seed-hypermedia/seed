@@ -112,9 +112,13 @@ function ReferenceControls() {
 function renderCommentEditor({
   submitButton = () => <></>,
   referenceTarget,
+  readOnly,
+  onEditorBlur,
 }: {
   submitButton?: React.ComponentProps<typeof CommentEditor>['submitButton']
   referenceTarget?: React.ComponentProps<typeof CommentEditor>['referenceTarget']
+  readOnly?: boolean
+  onEditorBlur?: () => void
 } = {}) {
   act(() => {
     root.render(
@@ -132,6 +136,8 @@ function renderCommentEditor({
             handleSubmit={vi.fn()}
             submitButton={submitButton}
             onContentChange={onContentChange}
+            readOnly={readOnly}
+            onEditorBlur={onEditorBlur}
             submitHandleRef={submitHandleRef as any}
           />
         </CommentDraftReferenceProvider>
@@ -276,5 +282,50 @@ describe('CommentEditor reply references', () => {
     act(() => references!.appendReference({...reference}))
     expect(fake.editor.topLevelBlocks).toHaveLength(1)
     expect(references!.references).toEqual([reference])
+  })
+})
+
+describe('CommentEditor readOnly and blur callback', () => {
+  it('makes the editor non-editable when readOnly and calls onEditorBlur on blur', () => {
+    const onEditorBlur = vi.fn()
+    renderCommentEditor({readOnly: true, onEditorBlur})
+    expect(fake.editor.isEditable).toBe(false)
+
+    act(() => {
+      fake.emit('update')
+      fake.emit('blur')
+    })
+    expect(onContentChange).toHaveBeenCalledTimes(1)
+    expect(onEditorBlur).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays editable by default and calls onEditorBlur without onContentChange', () => {
+    const onEditorBlur = vi.fn()
+    act(() => {
+      root.render(
+        <UniversalAppProvider
+          originHomeId={hmId('uid1')}
+          openUrl={vi.fn()}
+          openRoute={vi.fn()}
+          openRouteNewWindow={vi.fn()}
+          universalClient={{request: vi.fn(), publish: vi.fn()} as any}
+        >
+          <CommentDraftReferenceProvider>
+            <CommentEditor
+              handleSubmit={vi.fn()}
+              submitButton={() => <></>}
+              onEditorBlur={onEditorBlur}
+              submitHandleRef={submitHandleRef as any}
+            />
+          </CommentDraftReferenceProvider>
+        </UniversalAppProvider>,
+      )
+    })
+    expect(fake.editor.isEditable).toBe(true)
+
+    act(() => {
+      fake.emit('blur')
+    })
+    expect(onEditorBlur).toHaveBeenCalledTimes(1)
   })
 })

@@ -300,6 +300,8 @@ export function CommentEditor({
   referenceTarget,
   initialBlocks,
   onContentChange,
+  onEditorBlur,
+  readOnly,
   onAvatarPress,
   importWebFile,
   handleFileAttachment,
@@ -353,6 +355,10 @@ export function CommentEditor({
   referenceTarget?: {documentId: string; commentId?: string}
   initialBlocks?: HMBlockNode[]
   onContentChange?: (blocks: HMBlockNode[], mediaRefs?: Record<string, string>) => void
+  /** Called after the pending content change is flushed when the editor loses focus. */
+  onEditorBlur?: () => void
+  /** Makes the editor non-editable (e.g. while a submission is in flight). */
+  readOnly?: boolean
   onAvatarPress?: () => void
   importWebFile?: (url: string) => Promise<{
     displaySrc: string
@@ -487,6 +493,9 @@ export function CommentEditor({
       console.error('Failed to emit content change:', error)
     }
   }
+
+  const flushContentChangeRef = useRef(flushContentChange)
+  flushContentChangeRef.current = flushContentChange
 
   const insertDroppedFiles = async ({
     files,
@@ -715,6 +724,26 @@ export function CommentEditor({
       flushContentChange()
     }
   }, [editor, onContentChange])
+
+  const onEditorBlurRef = useRef(onEditorBlur)
+  useEffect(() => {
+    onEditorBlurRef.current = onEditorBlur
+  }, [onEditorBlur])
+
+  useEffect(() => {
+    const handleBlur = () => {
+      flushContentChangeRef.current()
+      onEditorBlurRef.current?.()
+    }
+    editor._tiptapEditor.on('blur', handleBlur)
+    return () => {
+      editor._tiptapEditor.off('blur', handleBlur)
+    }
+  }, [editor])
+
+  useEffect(() => {
+    editor.isEditable = !readOnly
+  }, [editor, readOnly])
 
   useEffect(() => {
     if (!referenceTarget || !draftReferences || !isDraftReady) return
