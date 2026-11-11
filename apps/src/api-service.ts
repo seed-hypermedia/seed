@@ -625,16 +625,30 @@ export function narrowDefinitionTools(base: string[], specTools: string[], lambd
 function enabledCallableTools(
   definition: api.AgentDefinition,
   codeExecAvailable: boolean,
-  appTools: string[],
+  appTools: appInstalls.AppToolGrant[],
 ): string[] {
-  // Builtins are apps that happen to be installed already: the tools of the apps installed for the
-  // account join the service callables, and the grant list filters both by name.
+  // The grant list narrows the service callables. Installed means granted: the tools of the apps
+  // installed for the account are offered to every agent of it, minus the apps the agent switched
+  // off, so installing an app is all it takes for the agents of a space to use it.
   const serviceCallables = serviceCallableNames()
-  const offered = [...serviceCallables, ...appTools.filter((name) => !serviceCallables.includes(name))]
   const requested = definition.tools?.map(normalizeSeedToolName)
-  const enabled = requested === undefined ? offered : offered.filter((name) => requested.includes(name))
+  const service =
+    requested === undefined ? serviceCallables : serviceCallables.filter((name) => requested.includes(name))
+  const enabled = [...service, ...grantedAppToolNames(definition, appTools)]
   // A tool this server cannot run is not offered at all, so the model never sees it in <space>.
   return enabled.filter((name) => name !== callableToolRegistry.execute.name || codeExecAvailable)
+}
+
+/**
+ * The tools of the installed apps an agent uses: every app the account sees, minus the agent's
+ * `disabledApps`. A name a builtin holds stays the builtin's.
+ */
+export function grantedAppToolNames(definition: api.AgentDefinition, appTools: appInstalls.AppToolGrant[]): string[] {
+  const serviceCallables = serviceCallableNames()
+  const disabled = new Set(definition.disabledApps ?? [])
+  return appTools
+    .filter((tool) => !disabled.has(tool.slug) && !serviceCallables.includes(tool.name))
+    .map((tool) => tool.name)
 }
 
 /** Validates sub_session/ctx.agent input into the stored spec shape (shared by chat and workflows). */
@@ -3692,8 +3706,8 @@ export class Service {
   }
 
   /** The tool names of the apps installed for an account, the server-wide ones and its own, offered as callables. */
-  #appToolNames(accountId: string): string[] {
-    return appInstalls.visibleAppToolNames(this.#db, accountId)
+  #appTools(accountId: string): appInstalls.AppToolGrant[] {
+    return appInstalls.visibleAppTools(this.#db, accountId)
   }
 
   #appResolver(accountId: string): AgentServicePiToolContext['apps'] {
@@ -3955,7 +3969,7 @@ export class Service {
     const agent = this.#getAgentInfo(accountId, agentId)
     if (!agent) throw new APIError(404, 'Agent not found')
     const codeExecAvailable = (await this.#codeExec.availability()).available
-    const callables = enabledCallableTools(agent.definition, codeExecAvailable, this.#appToolNames(accountId))
+    const callables = enabledCallableTools(agent.definition, codeExecAvailable, this.#appTools(accountId))
     toolDocs.ensureBuiltinToolDocuments(this.#db, accountId, agentId)
     this.#syncAgentTools(accountId, agentId, agent.definition)
     const tools = toolDocs.listToolDocuments(this.#db, accountId, agentId).map(
@@ -3973,7 +3987,8 @@ export class Service {
         runtime: row.doc.runtime,
         cid: row.cid,
         enabled: row.enabled,
-        granted: row.doc.kind !== 'builtin' || callables.includes(row.doc.name),
+        // A builtin is granted by name; an app's tool by its app being installed and not switched off.
+        granted: row.doc.kind === 'builtin' || row.doc.app ? callables.includes(row.doc.name) : true,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       }),
@@ -5518,7 +5533,7 @@ export class Service {
       },
       onToolProgress: () => {},
       codeExec: this.#codeExec,
-      callableTools: enabledCallableTools(definition, codeExecAvailable, this.#appToolNames(accountId)),
+      callableTools: enabledCallableTools(definition, codeExecAvailable, this.#appTools(accountId)),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
       startSession: () => {
@@ -5826,9 +5841,10 @@ export class Service {
       // Undefined parent tools means "all callables plus the publish grant" — narrowing must
       // intersect against that full set, not a stale minimal default, or the child loses tools
       // the parent granted.
-      const base = (
-        definition.tools ?? [...serviceCallableNames(), ...this.#appToolNames(run.accountId), 'publish']
-      ).map(normalizeSeedToolName)
+      const base = [
+        ...(definition.tools ?? [...serviceCallableNames(), 'publish']),
+        ...grantedAppToolNames(definition, this.#appTools(run.accountId)),
+      ].map(normalizeSeedToolName)
       const lambdaTools = toolDocs
         .listToolDocuments(this.#db, run.accountId, run.agentId)
         .filter((row) => row.enabled && row.doc.kind === 'lambda')
@@ -7379,7 +7395,7 @@ export class Service {
     const allowedTools = new Set([
       seedVerbRegistry.read.name,
       seedVerbRegistry.write.name,
-      ...enabledCallableTools(definition, codeExecAvailable, this.#appToolNames(run.accountId)),
+      ...enabledCallableTools(definition, codeExecAvailable, this.#appTools(run.accountId)),
       ...documentTools,
     ])
     const mcpPool = this.#createMcpPool(run.accountId)
@@ -7440,7 +7456,7 @@ export class Service {
             outputTail: progress.outputTail,
           },
         }),
-      callableTools: enabledCallableTools(definition, codeExecAvailable, this.#appToolNames(run.accountId)),
+      callableTools: enabledCallableTools(definition, codeExecAvailable, this.#appTools(run.accountId)),
       publishEnabled: publishGrantEnabled(definition),
       mcp: mcpPool,
       startSession: () => {
@@ -8070,7 +8086,7 @@ export class Service {
     // Touch-expand is durable: any transcript read of ~/tools/<name> (or a call-miss that returned
     // the contract) promotes that callable to a first-class provider tool for the rest of the
     // thread — resume, park, and restart reconstruct the same set from the same events.
-    const enabledCallables = enabledCallableTools(definition, codeExecAvailable, this.#appToolNames(accountId))
+    const enabledCallables = enabledCallableTools(definition, codeExecAvailable, this.#appTools(accountId))
     // The agent's own documents — authored lambdas and the tools of its enabled MCP servers — are
     // promotable too; the projection is re-derived here so it matches the definition being run.
     const endToolSyncSpan = startPerfSpan('prep.tool_sync')
@@ -9824,7 +9840,7 @@ export class Service {
       callableTools: enabledCallableTools(
         definition,
         (await this.#codeExec.availability()).available,
-        this.#appToolNames(accountId),
+        this.#appTools(accountId),
       ),
     })}`
     return {...this.#readSession(accountId, sessionId, afterSeq, beforeSeq, limit), systemPromptMarkdown}
@@ -12159,6 +12175,17 @@ function normalizeDefinition(raw: api.AgentDefinition): api.AgentDefinition {
       return tool
     })
     definition.tools = tools
+  }
+
+  if (raw.disabledApps !== undefined) {
+    if (!Array.isArray(raw.disabledApps)) throw new APIError(400, 'Disabled apps must be an array of app slugs')
+    const slugs = raw.disabledApps.map((slug) => {
+      if (typeof slug !== 'string' || !appInstalls.SLUG_PATTERN.test(slug)) {
+        throw new APIError(400, 'Disabled apps must be app slugs')
+      }
+      return slug
+    })
+    definition.disabledApps = [...new Set(slugs)]
   }
 
   if (raw.mcpServers !== undefined) {

@@ -1129,6 +1129,7 @@
     },
     "AgentDefinition": {
       "fields": {
+        "disabledApps?": "string[]",
         "enabledModels?": "AgentModelRef[]",
         "mcpServers?": "string[]",
         "metadata?": "Record<string, unknown>",

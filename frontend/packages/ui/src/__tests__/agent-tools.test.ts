@@ -8,17 +8,14 @@ import {
 } from '../agents/agent-tools'
 
 describe('agent tool grants', () => {
-  test('a stored tools array is read back as today’s grants, with the tools of installed apps kept by name', () => {
+  test('a stored tools array is read back as today’s grants; an app tool named there is inert', () => {
     expect(DEFAULT_AGENT_TOOLS).not.toContain('convert')
-    // The whitelist decides what the UI reads back and re-saves: a name missing here is silently
-    // dropped from the agent's grants on the next save, so an app's tool must be named to survive.
+    // Installed apps are granted by being installed, not by name in this list: a grant list from
+    // before that still naming an app's tool loses the name, and the tool stays available.
     expect(normalizeStoredAgentTools(['execute_code', 'convert', 'write', 'search', 'memory_read'])).toEqual([
       AGENT_EXECUTE_TOOL,
       AGENT_PUBLISH_GRANT,
       AGENT_SEARCH_TOOL,
     ])
-    expect(
-      normalizeStoredAgentTools(['execute_code', 'convert', 'write', 'search', 'memory_read'], ['convert', 'go']),
-    ).toEqual([AGENT_EXECUTE_TOOL, 'convert', AGENT_PUBLISH_GRANT, AGENT_SEARCH_TOOL])
   })
 })

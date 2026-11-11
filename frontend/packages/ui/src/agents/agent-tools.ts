@@ -62,8 +62,8 @@ export function appToolContract(
 /**
  * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution and
  * publishing. Reading, memory, delegation, and planning are verbs — always available. The tools
- * of installed apps are granted per agent in the Tools tab, by their own names. The server silently
- * drops execute from sessions when it cannot run it.
+ * of installed apps reach every agent of the space; the permissions page switches an app off per
+ * agent (`disabledApps`). The server silently drops execute from sessions when it cannot run it.
  */
 export const DEFAULT_AGENT_TOOLS = [AGENT_SEARCH_TOOL, AGENT_WEB_SEARCH_TOOL, AGENT_EXECUTE_TOOL, AGENT_PUBLISH_GRANT]
 
@@ -73,21 +73,16 @@ const LEGACY_PUBLISH_TOOL_NAMES = ['write', 'memory_publish_document', 'ipfs_wri
 /**
  * Maps a stored (possibly pre-verbs) tools array onto today's grants so the UI reads and writes
  * the truth the server acts on: execute_code → execute, the old write group → publish, names
- * absorbed into verbs dropped. `appTools` are the names of the tools of the apps installed for the
- * account: a grant by one of those names is kept, since the server offers it under that name.
+ * absorbed into verbs dropped. An app's tool is never in this list: installed apps are granted by
+ * being installed, and switched off per agent through `disabledApps`.
  */
-export function normalizeStoredAgentTools(tools: string[], appTools: string[] = []): string[] {
+export function normalizeStoredAgentTools(tools: string[]): string[] {
   const normalized = new Set<string>()
   for (const tool of tools) {
     if (tool === 'execute_code' || tool === AGENT_EXECUTE_TOOL) normalized.add(AGENT_EXECUTE_TOOL)
     else if (tool === AGENT_PUBLISH_GRANT || LEGACY_PUBLISH_TOOL_NAMES.includes(tool))
       normalized.add(AGENT_PUBLISH_GRANT)
-    else if (
-      tool === AGENT_SEARCH_TOOL ||
-      tool === AGENT_WEB_SEARCH_TOOL ||
-      tool === AGENT_BROWSER_TOOL ||
-      appTools.includes(tool)
-    )
+    else if (tool === AGENT_SEARCH_TOOL || tool === AGENT_WEB_SEARCH_TOOL || tool === AGENT_BROWSER_TOOL)
       normalized.add(tool)
     // Everything else was absorbed into the always-on verbs and is inert.
   }

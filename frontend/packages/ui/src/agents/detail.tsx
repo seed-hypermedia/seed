@@ -1726,23 +1726,32 @@ function AuthorIdentityChip({
 function useAgentDefinitionPatch(
   definition: AgentDefinition,
   onSave: (definition: AgentDefinition) => Promise<unknown>,
-  /** The names an app grant may carry; a stored grant by one of them must survive normalization. */
-  appToolNames: string[] = [],
 ) {
-  const storedTools = () =>
-    definition.tools ? normalizeStoredAgentTools(definition.tools, appToolNames) : [...DEFAULT_AGENT_TOOLS]
+  const storedTools = () => (definition.tools ? normalizeStoredAgentTools(definition.tools) : [...DEFAULT_AGENT_TOOLS])
   const storedSigningKeys = () => definition.signingKeys || (definition.signingKey ? [definition.signingKey] : [])
   const [enabledTools, setEnabledTools] = useState<string[]>(storedTools)
   const [signingKeys, setSigningKeys] = useState<string[]>(storedSigningKeys)
   const [mcpServers, setMcpServers] = useState<string[]>(definition.mcpServers ?? [])
+  const [disabledApps, setDisabledApps] = useState<string[]>(definition.disabledApps ?? [])
 
   useEffect(() => {
     setEnabledTools(storedTools())
     setSigningKeys(storedSigningKeys())
     setMcpServers(definition.mcpServers ?? [])
-    // The app names arrive with the apps list, after the definition; the grants are read again then.
+    setDisabledApps(definition.disabledApps ?? [])
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [definition, appToolNames.join('\n')])
+  }, [definition])
+
+  /** Installed apps reach every agent; this is the agent's opt-out, one app at a time. */
+  async function saveDisabledApps(next: string[]) {
+    setDisabledApps(next)
+    try {
+      await onSave({...definition, disabledApps: next})
+    } catch (error) {
+      setDisabledApps(definition.disabledApps ?? [])
+      toast.error(error instanceof Error ? error.message : 'Could not update the apps this agent uses')
+    }
+  }
 
   /** Which of the account's MCP servers this agent may call; the server re-projects their tools. */
   async function saveMcpServers(next: string[]) {
@@ -1773,7 +1782,7 @@ function useAgentDefinitionPatch(
     }
   }
 
-  return {enabledTools, signingKeys, mcpServers, saveTools, saveMcpServers}
+  return {enabledTools, signingKeys, mcpServers, disabledApps, saveTools, saveMcpServers, saveDisabledApps}
 }
 
 /** Settings > Permissions: the grant toggles and the authored tools. */
@@ -1807,47 +1816,19 @@ function AgentPermissionsPage({
   const appsDialog = useAppDialog(AppsDialog)
   const agentTools = useAgentTools(serverUrl, accountUid, agentId)
   const apps = useApps(serverUrl, accountUid)
-  // One row per tool of every app installed for the account, after the fixed callables. An install
-  // that is not working (a missing key, an app page that does not hold up) keeps its rows, greyed,
-  // with the reason, so the missing tool and its fix are on the same screen.
-  const toolOptions: {
-    names: string[]
-    title: string
-    description?: string
-    infoTool?: string
-    app?: string
-    contract?: ToolContractView
-    problem?: string
-  }[] = [
-    ...AGENT_TOOL_OPTIONS,
-    ...(apps.data?.apps ?? []).flatMap((app) =>
-      app.tools.map((tool) => ({
-        names: [tool.tool],
-        title: `${tool.tool} · ${app.name}`,
-        infoTool: tool.tool,
-        app: app.slug,
-        contract: appToolContract(
-          app,
-          tool,
-          agentTools.data?.tools.find((document) => document.app?.slug === app.slug && document.name === tool.tool),
-        ),
-        ...(app.status.state === 'error' ? {problem: app.status.error ?? 'This install offers no tools.'} : {}),
-      })),
-    ),
-  ]
   // An app's tool is a lambda too, but it is the app's page, not the agent's to edit here.
   const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda' && !tool.app)
-  const appToolNames = (apps.data?.apps ?? []).flatMap((app) => app.tools.map((tool) => tool.tool))
-  const {enabledTools, signingKeys, saveTools} = useAgentDefinitionPatch(definition, onSave, appToolNames)
+  const {enabledTools, signingKeys, disabledApps, saveTools, saveDisabledApps} = useAgentDefinitionPatch(
+    definition,
+    onSave,
+  )
   const grantedIdentities = identities.filter((identity) => signingKeys.includes(identity.name))
 
   return (
     <section className="flex max-w-3xl flex-col gap-4">
       <div className="grid gap-2">
-        {toolOptions.map((group) => {
-          const availability = group.problem
-            ? [{available: false, note: group.problem}]
-            : group.names.map((name) => getToolAvailability(name, webCapabilities))
+        {AGENT_TOOL_OPTIONS.map((group) => {
+          const availability = group.names.map((name) => getToolAvailability(name, webCapabilities))
           const groupAvailable = availability.some((entry) => entry.available)
           // Unavailability the user can fix locally (e.g. turn on a Windows feature): keep the
           // checkbox clickable and answer the click with setup instructions instead of a save.
@@ -1885,11 +1866,6 @@ function AgentPermissionsPage({
                   <SizableText size="sm" weight="bold" className="truncate">
                     {group.title}
                   </SizableText>
-                  {group.app ? (
-                    <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
-                      App
-                    </span>
-                  ) : null}
                   {!groupAvailable ? (
                     <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
                       {setupAction ? 'Setup required' : 'Unavailable'}
@@ -1901,12 +1877,7 @@ function AgentPermissionsPage({
                   size="iconSm"
                   className="opacity-0 group-hover/tool:opacity-100 max-sm:size-10 max-sm:opacity-100"
                   aria-label={`About ${group.title}`}
-                  onClick={() =>
-                    toolInfoDialog.open({
-                      toolName: group.infoTool ?? group.names[0]!,
-                      ...(group.contract ? {contract: group.contract} : {}),
-                    })
-                  }
+                  onClick={() => toolInfoDialog.open({toolName: group.infoTool ?? group.names[0]!})}
                 >
                   <Info className="size-3.5" />
                 </Button>
@@ -1928,15 +1899,6 @@ function AgentPermissionsPage({
                       Show me how
                     </button>
                   ) : null}
-                  {group.app && serverUrl ? (
-                    <button
-                      type="button"
-                      className="text-primary cursor-pointer underline underline-offset-2"
-                      onClick={() => appsDialog.open({serverUrl, selectedAccountId: accountUid})}
-                    >
-                      Open Apps
-                    </button>
-                  ) : null}
                 </SizableText>
               ) : null}
               {isPublishGroup && checked ? (
@@ -1955,6 +1917,82 @@ function AgentPermissionsPage({
                     <ArrowRight className="size-3.5" />
                   </Button>
                 </div>
+              ) : null}
+            </div>
+          )
+        })}
+        {(apps.data?.apps ?? []).map((app) => {
+          // Installed means granted: the app's tools reach this agent unless it is switched off here.
+          const enabled = !disabledApps.includes(app.slug)
+          const problem = app.status.state === 'error' ? app.status.error ?? 'This install offers no tools.' : null
+          return (
+            <div
+              key={app.slug}
+              className={`group/tool border-border bg-card flex flex-col gap-3 rounded-xl border px-4 py-3 ${
+                problem ? 'opacity-60' : ''
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={enabled}
+                  disabled={readOnly}
+                  aria-label={`${app.name}: ${enabled ? 'used by this agent' : 'not used by this agent'}`}
+                  onCheckedChange={(checked) =>
+                    void saveDisabledApps(
+                      checked ? disabledApps.filter((slug) => slug !== app.slug) : [...disabledApps, app.slug],
+                    )
+                  }
+                />
+                <SizableText size="sm" weight="bold" className="truncate">
+                  {app.name}
+                </SizableText>
+                <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                  App
+                </span>
+                {problem ? (
+                  <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                    Not working
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pl-10">
+                {app.tools.map((tool) => (
+                  <button
+                    key={tool.tool}
+                    type="button"
+                    className="bg-muted hover:bg-accent flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs"
+                    aria-label={`About ${tool.tool}`}
+                    onClick={() =>
+                      toolInfoDialog.open({
+                        toolName: tool.tool,
+                        contract: appToolContract(
+                          app,
+                          tool,
+                          agentTools.data?.tools.find(
+                            (document) => document.app?.slug === app.slug && document.name === tool.tool,
+                          ),
+                        ),
+                      })
+                    }
+                  >
+                    {tool.tool}
+                    <Info className="size-3" />
+                  </button>
+                ))}
+              </div>
+              {problem ? (
+                <SizableText size="xs" color="muted" className="pl-10">
+                  {problem}{' '}
+                  {serverUrl ? (
+                    <button
+                      type="button"
+                      className="text-primary cursor-pointer underline underline-offset-2"
+                      onClick={() => appsDialog.open({serverUrl, selectedAccountId: accountUid})}
+                    >
+                      Open Apps
+                    </button>
+                  ) : null}
+                </SizableText>
               ) : null}
             </div>
           )

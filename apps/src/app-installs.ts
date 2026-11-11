@@ -51,7 +51,8 @@ export const SERVER_SCOPE_ACCOUNT = ''
 /** The secret an account kept its own Datalab key under before installs existed; still honored as an install of `convert`. */
 export const LEGACY_DATALAB_SECRET = 'datalab-api-key'
 
-const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,31}$/
+/** What an app's slug may look like, on its page and in an agent's `disabledApps`. */
+export const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,31}$/
 const TOOL_PATTERN = /^[a-z][a-z0-9_-]{1,63}$/
 const MAX_QUERY_PAGES = 20
 const MAX_TOOLS_PER_APP = 32
@@ -1148,10 +1149,20 @@ export function listVisibleAppInstalls(db: Database, accountId: string): AppInst
 }
 
 /** The tool names an account's agents may call through its visible, working installs. */
-export function visibleAppToolNames(db: Database, accountId: string): string[] {
+/** One tool an installed app offers an account, with the app it comes from. */
+export type AppToolGrant = {name: string; slug: string}
+
+/** The tools of every working install the account sees, each with its app's slug. */
+export function visibleAppTools(db: Database, accountId: string): AppToolGrant[] {
   return listVisibleAppInstalls(db, accountId).flatMap((row) =>
-    row.status.state === 'ok' && row.snapshot ? row.snapshot.tools.map((appTool) => appTool.tool) : [],
+    row.status.state === 'ok' && row.snapshot
+      ? row.snapshot.tools.map((appTool) => ({name: appTool.tool, slug: row.slug}))
+      : [],
   )
+}
+
+export function visibleAppToolNames(db: Database, accountId: string): string[] {
+  return visibleAppTools(db, accountId).map((tool) => tool.name)
 }
 
 /** The working install that serves `slug` for an account, with the space's own first. */

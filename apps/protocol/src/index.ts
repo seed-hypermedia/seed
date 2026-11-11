@@ -77,6 +77,12 @@ export type AgentDefinition = {
   enabledModels?: AgentModelRef[]
   tools?: string[]
   /**
+   * Slugs of the installed apps this agent does not use. Installed means granted: every tool of
+   * every app installed for the account is offered to every agent of it, and this list is the
+   * agent's opt-out, app by app. Absent means every installed app.
+   */
+  disabledApps?: string[]
+  /**
    * Names of the account's MCP servers this agent may call. Each enabled server's tools are
    * projected into the agent's `~/tools/` as `mcp` tool documents named `<server>__<tool>`, so
    * they flow through `call`, the Space index, and promotion exactly like builtins and lambdas.

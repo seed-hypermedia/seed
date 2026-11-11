@@ -10788,6 +10788,57 @@ describe('app installs (signed API)', () => {
     }
   }
 
+  test('installed means granted: an agent with its own grant list gets the tools of installed apps, until it switches an app off', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    const svc = new apisvc.Service(db, dataDir, {apps: {serverArgs: {CONVERT_APIKEY: 'shared-key'}}})
+    const restore = bindSpaces(svc.serverUid)
+    try {
+      const owner = blobs.generateNobleKeyPair()
+      const sendAs = async (
+        key: blobs.NobleKeyPair,
+        action: Parameters<typeof apisvc.createSignedEnvelope>[1]['action'],
+      ) => svc.message(await apisvc.createSignedEnvelope(key, {action}))
+      installConvert(db)
+      await sendAs(owner, {_: 'SetSecret', name: 'openai-key', value: new TextEncoder().encode('sk-test')})
+      await sendAs(owner, {
+        _: 'SetModelProvider',
+        name: 'openai',
+        provider: {type: 'openai', secretRefs: {apiKey: 'openai-key'}},
+      })
+      const created = (await sendAs(owner, {
+        _: 'CreateAgent',
+        clientRequestId: 'granted-by-install',
+        definition: {
+          name: 'Narrow',
+          systemPrompt: 'Test',
+          modelProvider: 'openai',
+          model: 'gpt-test',
+          tools: ['search'],
+        },
+      })) as {agentId: string}
+      const agentId = created.agentId
+      const listed = (await sendAs(owner, {_: 'ListAgentTools', agentId})) as import('@/api').ListAgentToolsResponse
+      expect(listed.tools.find((tool) => tool.name === 'convert')).toMatchObject({
+        app: {slug: 'convert'},
+        granted: true,
+      })
+      expect(listed.tools.find((tool) => tool.name === 'web_search')).toMatchObject({granted: false})
+
+      const {agent} = (await sendAs(owner, {_: 'GetAgent', agentId})) as {
+        agent: {definition: import('@/api').AgentDefinition}
+      }
+      await sendAs(owner, {_: 'UpdateAgent', agentId, definition: {...agent.definition, disabledApps: ['convert']}})
+      const after = (await sendAs(owner, {_: 'ListAgentTools', agentId})) as import('@/api').ListAgentToolsResponse
+      expect(after.tools.find((tool) => tool.name === 'convert')).toMatchObject({granted: false})
+      await expect(
+        sendAs(owner, {_: 'UpdateAgent', agentId, definition: {...agent.definition, disabledApps: ['Not A Slug']}}),
+      ).rejects.toThrow('app slugs')
+    } finally {
+      restore()
+      cleanup()
+    }
+  })
+
   test('ListApps shows the mounts an account sees with its binding, never a secret value', async () => {
     const {db, dataDir, cleanup} = createTestState()
     const svc = new apisvc.Service(db, dataDir, {apps: {serverArgs: {CONVERT_APIKEY: 'shared-key'}}})
