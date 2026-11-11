@@ -306,6 +306,41 @@ describe('activity trigger matching', () => {
     )
   })
 
+  test('site-update skips activity authored by the trigger agent’s own accounts unless opted in', () => {
+    const source = {type: 'site-update' as const, resourcePrefix: 'hm://z6Mksite'}
+    const own = {ownAccounts: ['z6Mkagent']}
+    const resolved = (author: string) => ({
+      type: 'doc-update',
+      author: {id: {uid: author, id: `hm://${author}`, path: []}},
+      docId: {id: 'hm://z6Mksite/docs/spec'},
+    })
+    const commentOnly = (author: string) => ({
+      type: 'comment',
+      target: {id: {id: 'hm://z6Mksite/docs/spec'}},
+      comment: {author, content: []},
+    })
+    const raw = (author: string) => ({
+      new_blob: {cid: 'bafyref', blob_type: 'Ref', resource: 'hm://z6Mksite/docs/spec', author},
+    })
+
+    for (const shape of [resolved, commentOnly, raw]) {
+      expect(triggers.activityAuthorUid(shape('z6Mkagent'))).toBe('z6Mkagent')
+      expect(triggers.activityMatchesTriggerSource(source, shape('z6Mkagent'), own)).toBe(false)
+      expect(triggers.activityMatchesTriggerSource(source, shape('z6Mkuser'), own)).toBe(true)
+      expect(
+        triggers.activityMatchesTriggerSource({...source, includeOwnActivity: true}, shape('z6Mkagent'), own),
+      ).toBe(true)
+      // With no agent in the picture there is nothing to exclude.
+      expect(triggers.activityMatchesTriggerSource(source, shape('z6Mkagent'))).toBe(true)
+    }
+    // An event that does not name its author cannot be the agent's own.
+    expect(triggers.activityAuthorUid({type: 'doc-update', docId: {id: 'hm://z6Mksite/docs/spec'}})).toBeNull()
+    expect(
+      triggers.activityMatchesTriggerSource(source, {type: 'doc-update', docId: {id: 'hm://z6Mksite/docs/spec'}}, own),
+    ).toBe(true)
+    expect(triggers.activityAuthorUid({author: 'hm://z6Mkagent/notes'})).toBe('z6Mkagent')
+  })
+
   test('matches modern document update feed events for site-update triggers', () => {
     const event = {
       id: 'bafyupdate',

@@ -10263,11 +10263,29 @@ export class Service {
     let fired = 0
     let skipped = 0
     let errors = 0
+    // An agent's own writes must not fire its site-update triggers. Resolved once per agent per
+    // activity, and only for agents that have such a trigger.
+    const ownAccountsByAgent = new Map<string, string[]>()
+    const ownAccountsOf = (agentId: string): string[] => {
+      let ownAccounts = ownAccountsByAgent.get(agentId)
+      if (!ownAccounts) {
+        const definition = this.#getAgentInfo(accountId, agentId)?.definition
+        ownAccounts = definition ? agentSigningAccountUids(this.#db, accountId, definition) : []
+        ownAccountsByAgent.set(agentId, ownAccounts)
+      }
+      return ownAccounts
+    }
     for (const trigger of triggers) {
       checked += 1
-      const matchedConditions = protocol
-        .activityConditions(trigger.source, trigger.id)
-        .filter(({source}) => activityTriggers.activityMatchesTriggerSource(source, event))
+      const conditions = protocol.activityConditions(trigger.source, trigger.id)
+      const matchContext: activityTriggers.TriggerMatchContext = conditions.some(
+        ({source}) => source.type === 'site-update',
+      )
+        ? {ownAccounts: ownAccountsOf(trigger.agentId)}
+        : {}
+      const matchedConditions = conditions.filter(({source}) =>
+        activityTriggers.activityMatchesTriggerSource(source, event, matchContext),
+      )
       const matches = matchedConditions.length > 0
       // Per trigger per activity: thousands of multi-line dumps an hour on production. Debug only.
       if (log.debugEnabled) {
@@ -11340,6 +11358,25 @@ function matchesRunCompleted(
   return true
 }
 
+/**
+ * The HM account uids an agent signs as: the accounts behind its granted signing keys. Activity
+ * these accounts author is the agent's own, which is what a site-update trigger must not fire on.
+ */
+function agentSigningAccountUids(db: Database, accountId: string, definition: api.AgentDefinition): string[] {
+  const signingKeys = definition.signingKeys ?? (definition.signingKey ? [definition.signingKey] : [])
+  const uids = new Set<string>()
+  for (const name of signingKeys) {
+    const row = stmt<{metadata_cbor: Uint8Array | null}, [string, string]>(
+      db,
+      `SELECT metadata_cbor FROM secrets WHERE account_id = ? AND name = ?`,
+    ).get(accountId, name)
+    if (!row?.metadata_cbor) continue
+    const metadata = cbor.decode<Record<string, unknown>>(row.metadata_cbor)
+    if (metadata.kind === 'hm-account-key' && typeof metadata.accountId === 'string') uids.add(metadata.accountId)
+  }
+  return [...uids]
+}
+
 function agentTriggerRowToInfo(row: AgentTriggerRow): api.AgentTriggerInfo {
   return {
     id: row.id,
@@ -12027,6 +12064,13 @@ function normalizeAgentTriggerSource(raw: api.AgentTriggerSource): api.AgentTrig
         }
         return normalized
       })
+    }
+    if (raw.includeOwnActivity !== undefined) {
+      if (typeof raw.includeOwnActivity !== 'boolean') {
+        throw new APIError(400, 'Trigger includeOwnActivity must be a boolean')
+      }
+      // Stored only when set: the default (skip the agent's own activity) needs no field.
+      if (raw.includeOwnActivity) source.includeOwnActivity = true
     }
     return source
   }
@@ -13899,7 +13943,7 @@ function triggersListing(context: AgentServicePiToolContext): Record<string, unk
       '  someone replies directly to a comment by an account → {type: "comment-reply", repliedToAccounts: [uid], resourcePrefix?} (never fires on the account replying to itself)',
       '  someone comments on any document an account authored, wherever it lives → {type: "document-author-comment", documentAuthors: [uid], resourcePrefix?} (never fires on the author\'s own comments)',
       '  any new comment on a document or everything under it → {type: "document-comment", resource, author?}',
-      '  other changes under a document or space → {type: "site-update", resourcePrefix, eventTypes?} with eventTypes from doc-update, comment, citation, capability, contact',
+      '  other changes under a document or space → {type: "site-update", resourcePrefix, eventTypes?} with eventTypes from doc-update, comment, citation, capability, contact (never fires on what this agent itself wrote or commented, unless includeOwnActivity: true)',
       '  a time → {type: "schedule", schedule: {kind: "interval", every, unit: "minutes"|"hours"} | {kind: "weekly", daysOfWeek: [0-6], timeOfDay: "HH:MM", timezone} | {kind: "once", runAt: epochMs}}',
       '  another run finishing → {type: "run-completed", agentId?, status?, titleMatch?} · an HTTP request → {type: "webhook"}',
       'resource and resourcePrefix are hm://<account uid>[/path]; there are no wildcards and no "everything" filter. Account fields take bare account uids.',
@@ -14086,8 +14130,14 @@ async function dryRunTriggerWrite(
   // Firings collapse sibling events (a comment and its mention citation) the same way the monitor does.
   const firings = new Map<string, {activity: string; time: number | null; conditions: Set<string>}>()
   const perCondition: Record<string, number> = Object.fromEntries(conditions.map(({id}) => [id, 0]))
+  // The same own-activity rule the monitor applies, so the count is what would really fire.
+  const matchContext: activityTriggers.TriggerMatchContext = {
+    ownAccounts: agentSigningAccountUids(context.db, context.accountId, context.definition),
+  }
   for (const event of events) {
-    const matched = conditions.filter(({source}) => activityTriggers.activityMatchesTriggerSource(source, event))
+    const matched = conditions.filter(({source}) =>
+      activityTriggers.activityMatchesTriggerSource(source, event, matchContext),
+    )
     if (!matched.length) continue
     const key = activityTriggers.activityFiringKey(event) ?? `event-${firings.size}`
     const firing = firings.get(key) ?? {
