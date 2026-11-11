@@ -1,4 +1,4 @@
-import {Bot, ChevronDown, FilePlus2, FolderPlus, Grid3X3, Import, Plus} from 'lucide-react'
+import {Blocks, Bot, ChevronDown, FilePlus2, FolderPlus, Grid3X3, Import, Plus} from 'lucide-react'
 import {Button} from './button'
 import {
   DropdownMenu,
@@ -16,6 +16,7 @@ export function DocumentCreateButton({
   importLabel = 'Import',
   onCreate,
   onCreateAgent,
+  onCreateApp,
   onImport,
 }: {
   hidden?: boolean
@@ -25,6 +26,8 @@ export function DocumentCreateButton({
   onCreate: (kind: 'document' | 'collection' | 'subdocument') => void
   /** Opens agent creation at the same destination; omitted when no agent server is available. */
   onCreateAgent?: () => void
+  /** Opens app creation at the same destination. */
+  onCreateApp?: () => void
   onImport: () => void
 }) {
   if (hidden) return null
@@ -66,6 +69,12 @@ export function DocumentCreateButton({
             <DropdownMenuItem onSelect={onCreateAgent}>
               <Bot className="size-4" />
               Agent
+            </DropdownMenuItem>
+          ) : null}
+          {onCreateApp ? (
+            <DropdownMenuItem onSelect={onCreateApp}>
+              <Blocks className="size-4" />
+              App
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuSeparator />

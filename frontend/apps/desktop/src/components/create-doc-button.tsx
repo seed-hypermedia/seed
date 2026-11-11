@@ -277,6 +277,7 @@ function DesktopActorButton({
   })
   const createDraft = useCreateDraft()
   const createAgent = useCreateAgentAtLocation(destination, !locationId.path?.length)
+  const createApp = useAppDialog(CreateAppDialog)
   const importStarted = useRef(false)
   const importing = useImporting(destination, schema, onImportFinished)
   const importDialog = useImportDialog(() => {
@@ -340,6 +341,7 @@ function DesktopActorButton({
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
         onCreateAgent={createAgent.open}
+        onCreateApp={() => createApp.open({location: destination})}
         onImport={() => {
           actor.send({type: 'import.requested'})
           if (actor.getSnapshot().output?.type !== 'import') return
@@ -374,6 +376,7 @@ function DesktopActorButton({
       {importDialog.content}
       {importing.content}
       {createAgent.content}
+      {createApp.content}
     </>
   )
 }
