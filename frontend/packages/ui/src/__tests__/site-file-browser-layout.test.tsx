@@ -6,12 +6,22 @@ import {renderToString} from 'react-dom/server'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {hmId} from '@shm/shared'
 import {SiteFileBrowserLayout} from '../site-file-browser-layout'
-import {SiteSidebarToggle} from '../site-sidebar-context'
+import {SiteSidebarProvider, SiteSidebarToggle, useSiteSidebar} from '../site-sidebar-context'
 import {TooltipProvider} from '../tooltip'
 ;(globalThis as any).IS_REACT_ACT_ENVIRONMENT = true
 const media = vi.hoisted(() => ({xs: false}))
 const navigation = vi.hoisted(() => ({path: 'one'}))
+const platform = vi.hoisted(() => ({desktop: false}))
 vi.mock('../use-media', () => ({useMedia: () => media}))
+vi.mock('@shm/shared/constants', async () => {
+  const actual = await vi.importActual<typeof import('@shm/shared/constants')>('@shm/shared/constants')
+  return {
+    ...actual,
+    get IS_DESKTOP() {
+      return platform.desktop
+    },
+  }
+})
 vi.mock('@shm/shared/utils/navigation', async () => {
   const actual = await vi.importActual<typeof import('@shm/shared/utils/navigation')>('@shm/shared/utils/navigation')
   return {
@@ -32,6 +42,7 @@ let root: Root
 beforeEach(() => {
   media.xs = false
   navigation.path = 'one'
+  platform.desktop = false
   localStorage.clear()
   container = document.createElement('div')
   document.body.append(container)
@@ -47,18 +58,19 @@ afterEach(() => {
   container.remove()
 })
 
-function Page() {
+function Page({space = 'site', showDocumentBrowser}: {space?: string; showDocumentBrowser?: boolean}) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [path, setPath] = useState('Home')
   return (
     <TooltipProvider>
       <SiteFileBrowserLayout
-        siteId={hmId('site')}
+        siteId={hmId(space)}
         activeDocumentId={null}
         siteName="Site"
         mobileOpen={mobileOpen}
         onMobileOpenChange={setMobileOpen}
         onNavigate={(id) => setPath(id.path!.join('/'))}
+        showDocumentBrowser={showDocumentBrowser}
       >
         <SiteSidebarToggle />
         <main>{path}</main>
@@ -121,5 +133,63 @@ describe('unified site sidebar layout', () => {
     act(() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})))
     expect(document.querySelector('[role="dialog"]')).toBeNull()
     await vi.waitFor(() => expect(document.activeElement).toBe(toggle))
+  })
+
+  it('starts collapsed in a space whose browser is off, and reopens on arriving at one where it is on', () => {
+    localStorage.setItem('seed.site-sidebar.open', 'true')
+    act(() => root.render(<Page space="closed-space" showDocumentBrowser={false} />))
+    expect(container.querySelector('[aria-label="Open sidebar"]')).not.toBeNull()
+
+    act(() => root.render(<Page space="open-space" showDocumentBrowser />))
+    expect(container.querySelector('[aria-label="Close sidebar"]')).not.toBeNull()
+    expect(container.textContent).toContain('Open document')
+  })
+
+  it('leaves the sidebar as the reader set it once they open it in that space', () => {
+    localStorage.setItem('seed.site-sidebar.open', 'true')
+    act(() => root.render(<Page space="reader-space" showDocumentBrowser={false} />))
+    clickToggle()
+    expect(container.querySelector('[aria-label="Close sidebar"]')).not.toBeNull()
+    clickToggle()
+
+    act(() => root.render(<Page space="next-open-space" showDocumentBrowser />))
+    expect(container.querySelector('[aria-label="Open sidebar"]')).not.toBeNull()
+  })
+
+  it('waits for the space settings before collapsing the sidebar', () => {
+    localStorage.setItem('seed.site-sidebar.open', 'true')
+    act(() => root.render(<Page space="loading-space" />))
+    expect(container.querySelector('[aria-label="Close sidebar"]')).not.toBeNull()
+
+    act(() => root.render(<Page space="loading-space" showDocumentBrowser={false} />))
+    expect(container.querySelector('[aria-label="Open sidebar"]')).not.toBeNull()
+  })
+
+  it('keeps the phone drawer and the saved preference as they are', () => {
+    localStorage.setItem('seed.site-sidebar.open', 'true')
+    media.xs = true
+    act(() => root.render(<Page space="phone-space" showDocumentBrowser={false} />))
+    expect(localStorage.getItem('seed.site-sidebar.open')).toBe('true')
+    clickToggle()
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Open document')
+  })
+
+  it('collapses the desktop app sidebar on arriving at a space whose browser is off', () => {
+    platform.desktop = true
+    const setOpen = vi.fn()
+    function AppSidebar() {
+      const sidebar = useSiteSidebar()!
+      return <div ref={sidebar.setTarget} />
+    }
+    act(() =>
+      root.render(
+        <SiteSidebarProvider open setOpen={setOpen}>
+          <AppSidebar />
+          <Page space="desktop-closed-space" showDocumentBrowser={false} />
+        </SiteSidebarProvider>,
+      ),
+    )
+    expect(setOpen).toHaveBeenCalledWith(false)
+    expect(container.textContent).toContain('Open document')
   })
 })

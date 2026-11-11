@@ -15,6 +15,7 @@ type ValidatedRouteLinkOpts = {
   onClick?: MouseEventHandler<HTMLElement>
   origin?: string | null
   originHomeId?: UnpackedHypermediaId
+  newWindow?: boolean
 }
 
 type ParsedSeedLink = {
@@ -214,6 +215,7 @@ export function useValidatedWebRouteLink(route: NavRoute | string | null, opts?:
       if (event.defaultPrevented) return
       if (
         !candidateExternalHref ||
+        opts?.newWindow ||
         event.button !== 0 ||
         event.metaKey ||
         event.ctrlKey ||
@@ -238,6 +240,7 @@ export function useValidatedWebRouteLink(route: NavRoute | string | null, opts?:
         href: linkState.href || candidateExternalHref,
         tag: 'a' as const,
         onClick: verifiedOnClick,
+        ...(opts?.newWindow ? {target: '_blank', rel: 'noopener noreferrer'} : {}),
       },
       isSeedLink: true,
     }

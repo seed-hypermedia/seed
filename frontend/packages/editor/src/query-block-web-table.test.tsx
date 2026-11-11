@@ -52,6 +52,15 @@ vi.mock('@tanstack/react-query', async (importOriginal) => {
     }),
   }
 })
+// Every setting on, as for a space that never changed them.
+vi.mock('@shm/ui/space-settings', () => ({
+  useSpaceSettings: () => ({
+    showConversations: true,
+    showActivity: true,
+    showDocumentBrowser: true,
+    showCollectionControls: true,
+  }),
+}))
 vi.mock('@shm/ui/query-block-content', () => ({
   QueryBlockContent: ({style, items, onTableSortingChange}: any) => (
     <div data-style={style}>

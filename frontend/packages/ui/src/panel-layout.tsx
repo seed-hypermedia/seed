@@ -64,8 +64,6 @@ function getPanelTitle(panelKey: PanelSelectionOptions | null): string {
       return 'Sub documents'
     case 'collaborators':
       return 'Collaborators'
-    case 'options':
-      return 'Draft Options'
     case 'metadata':
       return 'Attributes'
     case 'feed':

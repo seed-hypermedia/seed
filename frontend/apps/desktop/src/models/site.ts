@@ -1,7 +1,7 @@
 import {desktopUniversalClient} from '@/desktop-universal-client'
-import {fetchResource} from '@/models/entities'
 import {reportError} from '@/errors'
 import {grpcClient} from '@/grpc-client'
+import {fetchResource} from '@/models/entities'
 import {client} from '@/trpc'
 import {toPlainMessage} from '@bufbuild/protobuf'
 import {HMMetadata, HMNavigationItem, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -111,9 +111,18 @@ export function useUpdateHomeDocument(accountUid: string) {
   const entity = useResource(accountId)
   const document = entity.data?.type === 'document' ? entity.data.document : undefined
   return useMutation({
-    mutationFn: async ({metadata, navigation}: {metadata?: HMMetadata; navigation?: HMNavigationItem[]}) => {
+    mutationFn: async ({
+      metadata,
+      updateMetadata,
+      navigation,
+    }: {
+      metadata?: HMMetadata
+      updateMetadata?: (current: HMMetadata) => HMMetadata
+      navigation?: HMNavigationItem[]
+    }) => {
+      const nextMetadata = updateMetadata ? updateMetadata(document?.metadata ?? {}) : metadata
       const changes = [
-        ...(metadata ? getDocAttributeChanges(metadata, document?.metadata) : []),
+        ...(nextMetadata ? getDocAttributeChanges(nextMetadata, document?.metadata) : []),
         ...getNavigationChanges(navigation, document?.detachedBlocks?.navigation),
       ]
       if (!changes.length) return

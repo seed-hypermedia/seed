@@ -157,7 +157,7 @@ export function isViewTermPath(pathOrUrl: string): boolean {
     )
 }
 
-// Route keys that correspond to view terms (excludes 'options' which is panel-only)
+// Route keys that correspond to view terms
 export type ViewRouteKey =
   | 'activity'
   | 'comments'
@@ -172,7 +172,7 @@ export type ViewRouteKey =
   | SiteProfileTab
 
 // Panel keys that can be encoded in URL query param
-export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'options' | 'feed'
+export type PanelQueryKey = 'activity' | 'comments' | 'collaborators' | 'directory' | 'feed'
 
 function extractInspectPrefixFromUrl(url: string): {url: string; isInspect: boolean} {
   const hmInspectMatch = url.match(/^(hm:\/\/)inspect(?:\/(.*))?$/)

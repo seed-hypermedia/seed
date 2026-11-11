@@ -10,6 +10,8 @@ import {useResource} from '@shm/shared/models/entity'
 import {HypermediaHostBanner} from '@shm/ui/hm-host-banner'
 import {DocNavigationItem, isValidSiteHeaderItem} from '@shm/ui/navigation'
 import {AutoHideSiteHeaderClassName, SiteHeader} from '@shm/ui/site-header'
+import {readSpaceSettings} from '@shm/shared/space-settings'
+import {useSpaceHome} from '@shm/ui/space-settings'
 
 /** Picks explicit top-navigation items, returning [] while the home resource is still loading to prevent flash. */
 export function resolveNavigationItems({
@@ -107,6 +109,7 @@ export function WebSiteHeader({origin, ...props}: React.PropsWithChildren<WebSit
 export function WebSidebarLayout({siteHomeId, children}: {siteHomeId: UnpackedHypermediaId; children: ReactNode}) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const navigate = useNavigate()
+  const home = useSpaceHome(siteHomeId.uid)
   const {canEdit, signingAccountId, capability} = useWebCanEdit(siteHomeId)
   const {menuItem, content} = useWebCreateDocumentMenuItem({
     locationId: siteHomeId,
@@ -123,6 +126,7 @@ export function WebSidebarLayout({siteHomeId, children}: {siteHomeId: UnpackedHy
         mobileOpen={mobileOpen}
         onMobileOpenChange={setMobileOpen}
         createMenuItem={menuItem}
+        showDocumentBrowser={home ? readSpaceSettings(home.metadata).showDocumentBrowser : undefined}
         onNavigate={(id) => {
           setMobileOpen(false)
           navigate({key: 'document', id})

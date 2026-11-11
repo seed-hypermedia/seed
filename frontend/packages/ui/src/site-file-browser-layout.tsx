@@ -5,9 +5,9 @@ import {Group, Panel} from 'react-resizable-panels'
 import {Dialog, DialogContent, DialogTitle} from './components/dialog'
 import {focusExploreSearch} from './explore-search-focus'
 import {AnimatedPanel, PanelSeparator, useSavedPanelLayout} from './resizable-panels'
+import type {SiteFileBrowserProps} from './site-file-browser'
 import {SiteSidebar, SiteSidebarDocuments} from './site-sidebar'
 import {SiteSidebarPortal, SiteSidebarProvider, usePersistedSidebarOpen, useSiteSidebar} from './site-sidebar-context'
-import type {SiteFileBrowserProps} from './site-file-browser'
 import {useMedia} from './use-media'
 
 /** Page-owned browser data; desktop renders it in the existing application sidebar. */
@@ -16,12 +16,14 @@ export interface SiteFileBrowserLayoutProps
   siteName: string
   mobileOpen: boolean
   onMobileOpenChange: (open: boolean) => void
+  showDocumentBrowser?: boolean
   children: ReactNode
 }
 
 /** Consolidates the file browser into the application sidebar on both platforms. */
 export function SiteFileBrowserLayout(props: SiteFileBrowserLayoutProps) {
   const sidebar = useSiteSidebar()
+  useCollapseOnArrival(props.siteId.uid, props.showDocumentBrowser, IS_DESKTOP ? sidebar : null)
   if (IS_DESKTOP && sidebar) {
     return (
       <>
@@ -35,17 +37,52 @@ export function SiteFileBrowserLayout(props: SiteFileBrowserLayoutProps) {
   return <WebSiteSidebarLayout {...props} />
 }
 
+// The space the sidebar last arrived at, and whether it collapsed there. Kept outside React because a page's
+// layout remounts as the reader moves between pages, while arriving at a space happens once per visit.
+const arrival: {spaceUid: string | null; collapsed: boolean} = {spaceUid: null, collapsed: false}
+
+/**
+ * Collapses the sidebar on arriving at a space whose document browser is off, and reopens it on leaving for a space
+ * where it's on, unless the reader opened it themselves in between.
+ */
+function useCollapseOnArrival(
+  spaceUid: string,
+  showDocumentBrowser: boolean | undefined,
+  sidebar: {open: boolean; setOpen: (open: boolean) => void} | null,
+) {
+  const open = sidebar?.open
+  // Opening the sidebar is the reader's choice, so it isn't undone on leaving the space.
+  useEffect(() => {
+    if (open) arrival.collapsed = false
+  }, [open])
+  useEffect(() => {
+    if (!sidebar || showDocumentBrowser === undefined || arrival.spaceUid === spaceUid) return
+    arrival.spaceUid = spaceUid
+    if (!showDocumentBrowser) {
+      if (sidebar.open) {
+        sidebar.setOpen(false)
+        arrival.collapsed = true
+      }
+    } else if (arrival.collapsed) {
+      arrival.collapsed = false
+      if (!sidebar.open) sidebar.setOpen(true)
+    }
+  }, [spaceUid, showDocumentBrowser, sidebar])
+}
+
 function WebSiteSidebarLayout({
   children,
   mobileOpen,
   onMobileOpenChange,
   siteName,
+  showDocumentBrowser,
   ...props
 }: SiteFileBrowserLayoutProps) {
   const media = useMedia()
   const isMobile = media.xs && !IS_DESKTOP
   const [open, setOpen] = usePersistedSidebarOpen(IS_DESKTOP)
   const [hydrated, setHydrated] = useState(false)
+  useCollapseOnArrival(props.siteId.uid, showDocumentBrowser, hydrated && !isMobile ? {open, setOpen} : null)
   const layout = useSavedPanelLayout('site-sidebar', ['site-sidebar', 'site-main-content'])
   const navigate = useNavigate()
   const route = useNavRouteOrNull()

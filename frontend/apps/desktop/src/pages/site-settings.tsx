@@ -1,39 +1,47 @@
 import {MembersSettings} from '@/components/site-settings-members'
-import {NavigationSettings} from '@/components/site-settings-navigation'
 import {WebDomainSettings} from '@/components/site-settings-web-domain'
 import {useUpdateHomeDocument} from '@/models/site'
 import {fileUpload} from '@/utils/file-upload'
-import {AVATAR_IMAGE_POLICY, COVER_IMAGE_POLICY, type ImageProcessingPolicy} from '@shm/ui/image-processing'
 import {useNavigate} from '@/utils/useNavigate'
-import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import type {HMDocument, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
+import {hmId} from '@shm/shared'
 import {useIsSiteOwner} from '@shm/shared/models/capabilities'
 import {useResource} from '@shm/shared/models/entity'
 import type {SiteSettingsTab} from '@shm/shared/routes'
-import {useNavRoute} from '@shm/shared/utils/navigation'
-import {Button} from '@shm/ui/button'
-import {Input} from '@shm/ui/components/input'
+import {
+  findLastRouteInSpace,
+  useNavigationDispatch,
+  useNavigationState,
+  useNavRoute,
+} from '@shm/shared/utils/navigation'
+import {UIAvatar} from '@shm/ui/avatar'
 import {ScrollArea} from '@shm/ui/components/scroll-area'
 import {panelContainerStyles, windowContainerStyles} from '@shm/ui/container'
-import {getDaemonFileUrl} from '@shm/ui/get-file-url'
-import type {ImageCropConfig} from '@shm/ui/image-crop-dialog'
-import {ImageForm} from '@shm/ui/image-form'
+import {
+  DiscardChangesDialog,
+  SpaceSettingsBackLink,
+  SpaceSettingsGeneralTab,
+  SpaceSettingsNav,
+} from '@shm/ui/space-settings'
+import {SpaceSettingsIdentity} from '@shm/ui/space-settings-identity'
+import {SpaceSettingsNavigation} from '@shm/ui/space-settings-navigation'
 import {Spinner} from '@shm/ui/spinner'
 import {SizableText} from '@shm/ui/text'
-import {toast} from '@shm/ui/toast'
 import {cn} from '@shm/ui/utils'
-import {Globe, Image as ImageIcon, Navigation as NavigationIcon, Users} from 'lucide-react'
-import {type ReactNode, useEffect, useState} from 'react'
+import {Globe, Image as ImageIcon, MonitorCog, Navigation as NavigationIcon, Users, type LucideIcon} from 'lucide-react'
+import {type ReactNode, useState} from 'react'
 
 // Tabs of the site settings page
-type SiteSettingsSection = 'identity' | 'navigation' | 'web-domain' | 'members'
+type SiteSettingsSection = 'general' | 'identity' | 'navigation' | 'web-domain' | 'members'
 
 type SiteSettingsTabConfig = {
   key: SiteSettingsSection
-  icon: any
+  icon: LucideIcon
   label: string
 }
 
 const SITE_SETTINGS_TAB_CONFIG: SiteSettingsTabConfig[] = [
+  {key: 'general', icon: MonitorCog, label: 'General'},
   {key: 'identity', icon: ImageIcon, label: 'Identity'},
   {key: 'navigation', icon: NavigationIcon, label: 'Navigation'},
   {key: 'web-domain', icon: Globe, label: 'Web Domain'},
@@ -42,43 +50,82 @@ const SITE_SETTINGS_TAB_CONFIG: SiteSettingsTabConfig[] = [
 
 /** Map a URL subpath to its tab. */
 function sectionForTab(tab: SiteSettingsTab | undefined): SiteSettingsSection {
+  if (tab === 'identity') return 'identity'
   if (tab === 'navigation') return 'navigation'
   if (tab === 'web-domain') return 'web-domain'
   if (tab === 'members' || tab === 'writers' || tab === 'email-subscribers') return 'members'
-  return 'identity'
+  return 'general'
 }
 
 export default function SiteSettings() {
   const route = useNavRoute()
   const navigate = useNavigate('replace')
+  const pushRoute = useNavigate('push')
+  const navState = useNavigationState()
+  const dispatch = useNavigationDispatch()
+  // Whether the open tab has unsaved edits.
+  const [isDirty, setIsDirty] = useState(false)
+  const [pendingDiscard, setPendingDiscard] = useState<(() => void) | null>(null)
   if (route.key !== 'site-settings') return null
   const activeSection = sectionForTab(route.tab)
-  const setActiveTab = (tab: SiteSettingsTab) => navigate({key: 'site-settings', id: route.id, tab})
+  // Leaving a tab drops its edits, so show confirm discard dialog.
+  const leave = (action: () => void) => (isDirty ? setPendingDiscard(() => action) : action())
+  const setActiveTab = (tab: SiteSettingsTab) => leave(() => navigate({key: 'site-settings', id: route.id, tab}))
+  const backToSpace = () =>
+    leave(() => {
+      // Redirect back to where the user was in the space.
+      const last = navState ? findLastRouteInSpace(navState, route.id.uid) : null
+      if (last && last.index === navState!.routeIndex - 1) dispatch({type: 'pop'})
+      else pushRoute(last?.route ?? {key: 'document', id: hmId(route.id.uid)})
+    })
   return (
     <div className={cn(windowContainerStyles, 'h-full max-h-full min-h-0 w-full overflow-hidden pt-0')}>
       <div className={panelContainerStyles}>
         <div className="flex flex-1 overflow-hidden">
           <div className="flex flex-1 overflow-hidden rounded-lg">
             {/* Sidebar */}
-            <div className="border-border flex w-[220px] shrink-0 flex-col gap-1 border-r p-2">
-              <SizableText size="xs" weight="bold" color="muted" className="px-3 py-2 uppercase">
-                Space Settings
-              </SizableText>
-              {SITE_SETTINGS_TAB_CONFIG.map((tab) => (
-                <SidebarTab
-                  key={tab.key}
-                  active={activeSection === tab.key}
-                  icon={tab.icon}
-                  label={tab.label}
-                  onClick={() => setActiveTab(tab.key)}
-                />
-              ))}
-            </div>
+            <SpaceSettingsNav
+              tabs={SITE_SETTINGS_TAB_CONFIG}
+              activeTab={activeSection}
+              onSelect={setActiveTab}
+              className="border-border w-[220px] shrink-0 border-r"
+            />
             {/* Content */}
             <ScrollArea className="flex-1">
               <div className="flex flex-col gap-6 p-6">
-                {activeSection === 'identity' && <IdentityTab siteId={route.id} />}
-                {activeSection === 'navigation' && <NavigationSettings siteId={route.id} />}
+                <SpaceSettingsBackLink onClick={backToSpace} />
+                {activeSection === 'general' && (
+                  <OwnerTab siteId={route.id} title="General">
+                    {(_document, updateHome) => (
+                      <SpaceSettingsGeneralTab siteId={route.id} updateHome={updateHome} onDirtyChange={setIsDirty} />
+                    )}
+                  </OwnerTab>
+                )}
+                {activeSection === 'identity' && (
+                  <OwnerTab siteId={route.id} title="Identity">
+                    {(document, updateHome) => (
+                      <SpaceSettingsIdentity
+                        siteId={route.id}
+                        metadata={document.metadata}
+                        updateHome={updateHome}
+                        uploadImage={fileUpload}
+                        onDirtyChange={setIsDirty}
+                      />
+                    )}
+                  </OwnerTab>
+                )}
+                {activeSection === 'navigation' && (
+                  <OwnerTab siteId={route.id} title="Navigation">
+                    {(document, updateHome) => (
+                      <SpaceSettingsNavigation
+                        siteId={route.id}
+                        document={document}
+                        updateHome={updateHome}
+                        onDirtyChange={setIsDirty}
+                      />
+                    )}
+                  </OwnerTab>
+                )}
                 {activeSection === 'web-domain' && <WebDomainSettings siteId={route.id} />}
                 {activeSection === 'members' && <MembersSettings siteId={route.id} activeTab={route.tab} />}
               </div>
@@ -86,26 +133,25 @@ export default function SiteSettings() {
           </div>
         </div>
       </div>
+      <DiscardChangesDialog onDiscard={pendingDiscard} onCancel={() => setPendingDiscard(null)} />
     </div>
   )
 }
 
-/** A picked image is either an existing metadata value or a freshly selected file. */
-type ImageValue = string | File | null
-
-function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
-  const accountUid = siteId.uid
+/** Loads the home document and limits a tab to the space's owner. */
+function OwnerTab({
+  siteId,
+  title,
+  children,
+}: {
+  siteId: UnpackedHypermediaId
+  title: string
+  children: (document: HMDocument, updateHome: ReturnType<typeof useUpdateHomeDocument>) => ReactNode
+}) {
   const resource = useResource(siteId)
   const document = resource.data?.type === 'document' ? resource.data.document : undefined
-  const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(accountUid)
-  const updateHome = useUpdateHomeDocument(accountUid)
-
-  // Form state, seeded from the published metadata once loaded.
-  const [name, setName] = useState<string | null>(null)
-  const [logo, setLogo] = useState<ImageValue | undefined>(undefined)
-  const [cover, setCover] = useState<ImageValue | undefined>(undefined)
-  const [logoProcessing, setLogoProcessing] = useState(false)
-  const [coverProcessing, setCoverProcessing] = useState(false)
+  const {isSiteOwner, isLoading: isOwnerLoading} = useIsSiteOwner(siteId.uid)
+  const updateHome = useUpdateHomeDocument(siteId.uid)
 
   if (resource.isInitialLoading || isOwnerLoading) {
     return (
@@ -121,175 +167,11 @@ function IdentityTab({siteId}: {siteId: UnpackedHypermediaId}) {
     return (
       <>
         <SizableText size="2xl" weight="bold">
-          Identity
+          {title}
         </SizableText>
         <SizableText color="muted">Only the space owner can edit these settings.</SizableText>
       </>
     )
   }
-
-  const metadata = document.metadata
-  // Fall back to the published value until the field has been edited.
-  const nameValue = name ?? metadata.name ?? ''
-  const logoValue = logo === undefined ? metadata.icon || null : logo
-  const coverValue = cover === undefined ? metadata.cover || null : cover
-
-  const isDirty = name !== null || logo !== undefined || cover !== undefined
-  const canSave = isDirty && nameValue.trim().length > 0 && !updateHome.isPending && !logoProcessing && !coverProcessing
-
-  async function handleSave() {
-    if (!canSave) return
-    try {
-      // Pass full desired metadata. The hook diffs against the published values.
-      const nextMetadata: HMMetadata = {
-        ...metadata,
-        name: nameValue.trim(),
-        icon: logo !== undefined ? await resolveImageValue(logo, AVATAR_IMAGE_POLICY) : metadata.icon,
-        cover: cover !== undefined ? await resolveImageValue(cover, COVER_IMAGE_POLICY) : metadata.cover,
-      }
-      await updateHome.mutateAsync({metadata: nextMetadata})
-      toast.success('Space identity updated')
-      setName(null)
-      setLogo(undefined)
-      setCover(undefined)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update space identity')
-    }
-  }
-
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <SizableText size="2xl" weight="bold">
-          Identity
-        </SizableText>
-        <Button variant="default" disabled={!canSave} onClick={handleSave}>
-          {updateHome.isPending ? 'Saving…' : 'Save'}
-        </Button>
-      </div>
-
-      <SettingsField label="Space name">
-        <Input value={nameValue} onChange={(e) => setName(e.target.value)} placeholder="Your space name" />
-      </SettingsField>
-
-      <SettingsField label="Space logo" hint="100px height JPG or PNG.">
-        <ImagePicker
-          value={logoValue}
-          onProcessingChange={setLogoProcessing}
-          onChange={setLogo}
-          onClear={() => setLogo(null)}
-          height={100}
-          width={100}
-          crop={{aspect: 1, maxDimension: 512}}
-        />
-      </SettingsField>
-
-      <SettingsField label="Home cover image" hint="Recommended 1600 × 400px. JPG or PNG.">
-        <div className="max-w-2xl">
-          <ImagePicker
-            value={coverValue}
-            onProcessingChange={setCoverProcessing}
-            onChange={setCover}
-            onClear={() => setCover(null)}
-            height={160}
-            crop={{aspect: 4, maxDimension: 1600, format: 'image/jpeg'}}
-          />
-        </div>
-      </SettingsField>
-    </>
-  )
-}
-
-/** Upload a picked file and return its ipfs ref, or pass through an existing ref. */
-async function resolveImageValue(value: ImageValue, policy: ImageProcessingPolicy): Promise<string> {
-  if (value instanceof File) {
-    const cid = await fileUpload(value, policy)
-    return `ipfs://${cid}`
-  }
-  return value ?? ''
-}
-
-function SettingsField({label, hint, children}: {label: string; hint?: string; children: ReactNode}) {
-  return (
-    <div className="flex flex-col gap-2">
-      <SizableText weight="medium">{label}</SizableText>
-      {children}
-      {hint ? (
-        <SizableText size="xs" color="muted">
-          {hint}
-        </SizableText>
-      ) : null}
-    </div>
-  )
-}
-
-function ImagePicker({
-  value,
-  onProcessingChange,
-  onChange,
-  onClear,
-  height,
-  width,
-  crop,
-}: {
-  value: ImageValue
-  onProcessingChange: (processing: boolean) => void
-  onChange: (file: File) => void
-  onClear: () => void
-  height: number
-  width?: number
-  crop?: ImageCropConfig
-}) {
-  // Created inside the effect so React's development double mount, which runs
-  // the cleanup once before settling, cannot leave a revoked URL behind.
-  const [pickedUrl, setPickedUrl] = useState('')
-  useEffect(() => {
-    if (!(value instanceof File)) {
-      setPickedUrl('')
-      return
-    }
-    const objectUrl = URL.createObjectURL(value)
-    setPickedUrl(objectUrl)
-    return () => URL.revokeObjectURL(objectUrl)
-  }, [value])
-  const previewUrl = value instanceof File ? pickedUrl : value ? getDaemonFileUrl(value) : ''
-  return (
-    <ImageForm
-      url={previewUrl}
-      height={height}
-      width={width}
-      uploadOnChange={false}
-      crop={crop}
-      onPendingChange={onProcessingChange}
-      onImageUpload={(file) => {
-        if (file instanceof File) onChange(file)
-      }}
-      onRemove={onClear}
-    />
-  )
-}
-
-function SidebarTab({
-  active,
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  active: boolean
-  icon: any
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      className={cn(
-        'flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors',
-        active ? 'bg-brand/10 text-brand-2 font-medium' : 'text-muted-foreground hover:bg-muted',
-      )}
-      onClick={onClick}
-    >
-      <Icon className="size-4" />
-      {label}
-    </button>
-  )
+  return <>{children(document, updateHome)}</>
 }
