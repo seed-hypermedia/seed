@@ -28,7 +28,7 @@ A value that names an account or a document is a link. A bare account id (`z6Mkâ
 | `showOutline` | boolean | whether to show the document outline <!-- id:lWBPOths --> |
 | `showActivity` | boolean | whether to show the document's activity and tools <!-- id:f9udrNO4 --> |
 | `showConversations` | boolean | whether readers may start and join conversations on the space's documents; set on a space home document, absent means they may |
-| `showDocumentBrowser` | boolean | whether to show the space's document browser beside its documents; set on a space home document, absent means it shows |
+| `showDocumentBrowser` | boolean | whether the sidebar with the space's document browser starts open when readers arrive; when false it starts collapsed and readers can still open it; set on a space home document, absent means it starts open |
 | `showCollectionControls` | boolean | whether collections offer readers search, filter, sort and view controls; set on a space home document, absent means they do |
 | `contentWidth` | `S`, `M` or `L` | the width of the content column <!-- id:hwmbFhVl --> |
 | `childrenType` | string | the layout of the root-level blocks, a [children type](./block/children-type.md) <!-- id:hwzmGVIF --> |

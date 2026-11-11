@@ -1798,7 +1798,11 @@ export function PageShell({
         createMenuItem={fileBrowserCreateMenuItem}
         onIncludeDocument={fileBrowserOnIncludeDocument}
         getIncludeDocumentState={fileBrowserGetIncludeDocumentState}
-        hideBrowser={!readSpaceSettings(headerData.siteHomeDocument?.metadata ?? undefined).showDocumentBrowser}
+        showDocumentBrowser={
+          headerData.siteHomeDocument
+            ? readSpaceSettings(headerData.siteHomeDocument.metadata).showDocumentBrowser
+            : undefined
+        }
         onNavigate={(id) => {
           setIsFileBrowserOpen(false)
           navigate({key: 'document', id})

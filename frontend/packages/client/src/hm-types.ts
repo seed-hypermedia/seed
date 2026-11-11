@@ -652,7 +652,7 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   showOutline: 'Whether to show the document outline.',
   showActivity: 'Whether to show document activity and tools.',
   showConversations: 'Whether readers may start and join conversations on the space’s documents.',
-  showDocumentBrowser: 'Whether to show the space’s document browser beside its documents.',
+  showDocumentBrowser: 'Whether the sidebar with the space’s document browser starts open when readers arrive.',
   showCollectionControls: 'Whether collections offer readers search, filter, sort and view controls.',
   contentWidth: 'Width of the document content area.',
   childrenType: 'Layout of the document’s root-level blocks.',

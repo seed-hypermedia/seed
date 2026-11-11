@@ -58,19 +58,19 @@ afterEach(() => {
   container.remove()
 })
 
-function Page({hideBrowser}: {hideBrowser?: boolean}) {
+function Page({space = 'site', showDocumentBrowser}: {space?: string; showDocumentBrowser?: boolean}) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [path, setPath] = useState('Home')
   return (
     <TooltipProvider>
       <SiteFileBrowserLayout
-        siteId={hmId('site')}
+        siteId={hmId(space)}
         activeDocumentId={null}
         siteName="Site"
         mobileOpen={mobileOpen}
         onMobileOpenChange={setMobileOpen}
         onNavigate={(id) => setPath(id.path!.join('/'))}
-        hideBrowser={hideBrowser}
+        showDocumentBrowser={showDocumentBrowser}
       >
         <SiteSidebarToggle />
         <main>{path}</main>
@@ -135,38 +135,61 @@ describe('unified site sidebar layout', () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(toggle))
   })
 
-  it('leaves the documents out of the open sidebar when the space hides the browser', () => {
+  it('starts collapsed in a space whose browser is off, and reopens on arriving at one where it is on', () => {
     localStorage.setItem('seed.site-sidebar.open', 'true')
-    act(() => root.render(<Page hideBrowser />))
-    expect(container.querySelector('aside')).not.toBeNull()
-    expect(container.textContent).not.toContain('Open document')
+    act(() => root.render(<Page space="closed-space" showDocumentBrowser={false} />))
+    expect(container.querySelector('[aria-label="Open sidebar"]')).not.toBeNull()
+
+    act(() => root.render(<Page space="open-space" showDocumentBrowser />))
+    expect(container.querySelector('[aria-label="Close sidebar"]')).not.toBeNull()
+    expect(container.textContent).toContain('Open document')
   })
 
-  it('keeps the desktop app sidebar from falling back to its own documents when the space hides the browser', () => {
+  it('leaves the sidebar as the reader set it once they open it in that space', () => {
+    localStorage.setItem('seed.site-sidebar.open', 'true')
+    act(() => root.render(<Page space="reader-space" showDocumentBrowser={false} />))
+    clickToggle()
+    expect(container.querySelector('[aria-label="Close sidebar"]')).not.toBeNull()
+    clickToggle()
+
+    act(() => root.render(<Page space="next-open-space" showDocumentBrowser />))
+    expect(container.querySelector('[aria-label="Open sidebar"]')).not.toBeNull()
+  })
+
+  it('waits for the space settings before collapsing the sidebar', () => {
+    localStorage.setItem('seed.site-sidebar.open', 'true')
+    act(() => root.render(<Page space="loading-space" />))
+    expect(container.querySelector('[aria-label="Close sidebar"]')).not.toBeNull()
+
+    act(() => root.render(<Page space="loading-space" showDocumentBrowser={false} />))
+    expect(container.querySelector('[aria-label="Open sidebar"]')).not.toBeNull()
+  })
+
+  it('keeps the phone drawer and the saved preference as they are', () => {
+    localStorage.setItem('seed.site-sidebar.open', 'true')
+    media.xs = true
+    act(() => root.render(<Page space="phone-space" showDocumentBrowser={false} />))
+    expect(localStorage.getItem('seed.site-sidebar.open')).toBe('true')
+    clickToggle()
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Open document')
+  })
+
+  it('collapses the desktop app sidebar on arriving at a space whose browser is off', () => {
     platform.desktop = true
-    // Mirrors the desktop app sidebar, which lists documents itself unless a page fills its slot.
+    const setOpen = vi.fn()
     function AppSidebar() {
       const sidebar = useSiteSidebar()!
-      return <div ref={sidebar.setTarget}>{sidebar.hasPageContent ? null : 'Fallback documents'}</div>
+      return <div ref={sidebar.setTarget} />
     }
     act(() =>
       root.render(
-        <SiteSidebarProvider open setOpen={() => {}}>
+        <SiteSidebarProvider open setOpen={setOpen}>
           <AppSidebar />
-          <Page hideBrowser />
+          <Page space="desktop-closed-space" showDocumentBrowser={false} />
         </SiteSidebarProvider>,
       ),
     )
-    expect(container.textContent).not.toContain('Fallback documents')
-    expect(container.textContent).not.toContain('Open document')
-    expect(container.querySelector('main')).not.toBeNull()
-  })
-
-  it('leaves the documents out of the mobile drawer when the space hides the browser', () => {
-    media.xs = true
-    act(() => root.render(<Page hideBrowser />))
-    clickToggle()
-    expect(document.querySelector('[role="dialog"] aside')).not.toBeNull()
-    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain('Open document')
+    expect(setOpen).toHaveBeenCalledWith(false)
+    expect(container.textContent).toContain('Open document')
   })
 })

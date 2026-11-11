@@ -120,7 +120,7 @@
       "value": {
         "type": "hm://hyper.media/boolean"
       },
-      "description": "Whether to show the space's document browser beside its documents. Set on a space home document; absent means it shows."
+      "description": "Whether the sidebar with the space's document browser starts open when readers arrive; when false it starts collapsed and readers can still open it. Set on a space home document; absent means it starts open."
     },
     "showCollectionControls": {
       "value": {

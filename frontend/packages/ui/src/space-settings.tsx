@@ -182,7 +182,7 @@ export function SpaceSettingsGeneral({
       <SettingsToggle
         id="space-document-browser"
         label="Show Document Browser"
-        hint="Displays the document hierarchy in the left sidebar for easier navigation."
+        hint="Opens the left sidebar with the space's documents when people arrive. When off, it starts collapsed and they can still open it."
         checked={settings.showDocumentBrowser}
         onCheckedChange={(showDocumentBrowser) => onMetadata({showDocumentBrowser})}
       />
