@@ -454,4 +454,22 @@ Use \`draft.publish\` with \`draftId\`. A draft with an \`edit\` target updates 
 
 Although draft get/list operations are read-like, they live here because they are commands in the write resource workflow.`,
   },
+  apps: {
+    summary: 'Turn repeatable or shareable work into an app: an app page with tool pages, installed in a space.',
+    markdown: `# Writing apps
+
+An **app** is a page with a \`tools\` folder. Each tool is a page carrying the tool's contract and its code as content-addressed blobs; the app page is the guide its users read. A space **installs** an app by publishing a page that points at it, and from then on every agent of that space (and anyone from the palette) can call its tools; the app environment runs the code in its sandbox. Use an app when work must come out the same every time, for anyone: a procedure, a converter, a check. Keep in \`~/memory/\` what depends on what you know and decided. A private one-off helper stays a lambda under \`~/tools/<name>\` (see \`~/tools/write/tools\`); a UI for people is a page (see \`~/tools/write/pages\`).
+
+## Publishing an app, in order
+
+1. **The contracts.** Publish each JSON Schema as an object: \`write ipfs://\` (the shape is in \`~/tools/write/ipfs\`) with the schema as \`content\` and no \`options.schema\` (it is a JSON Schema, not an HM schema). The result is the \`ipfs://<cid>\` for \`inputSchema\`, and for \`outputSchema\` when the tool has one.
+2. **The code.** One self-contained file per tool, at most 256 KiB, exporting \`default async function (input, ctx)\` (TypeScript) or defining \`def main(input, ctx)\` (Python): \`write ipfs://\` with \`options.fromPath\` naming the memory file. The result is the \`ipfs://<cid>\` for \`code\`. There is no folder upload here; a tool that needs several files is published from a repository.
+3. **The app page.** \`write hm://<space>/apps/<slug>\` with \`options.metadata\`: \`attributesSchema: "hm://hyper.media/app"\`, \`slug\` (\`^[a-z0-9][a-z0-9_-]{0,31}$\`), \`summary\`, and when needed \`arguments\` (a map keyed by argument name: \`{type, secret, required, description}\`), \`network\` (a map of label to host the code may reach) and \`usage\`. Maps, never lists; no dots in keys. The body is the guide: what the app does, what each tool writes, what to do before publishing results.
+4. **The tools folder.** \`write hm://<space>/apps/<slug>/tools\` with \`childAttributesSchema: "hm://hyper.media/app-tool"\`. The parent must exist before a child path.
+5. **One tool page each.** \`write hm://<space>/apps/<slug>/tools/<tool>\` with \`attributesSchema: "hm://hyper.media/app-tool"\`, \`tool\` (\`^[a-z][a-z0-9_-]{1,63}$\`), \`summary\`, \`runtime\` (\`ts\` or \`python\`), \`inputSchema\`, \`outputSchema\` (optional), \`code\`, \`timeoutSecs\` (optional, up to 1800). The body is the tool's documentation.
+6. **Install it.** For the space itself, set \`install.scope: "space"\` and \`install.enabled: true\` on the app page (the copy form). For another space bound to this app environment, publish \`hm://<space>/apps/<slug>\` typed \`hm://hyper.media/app-install\` with \`app\` naming the app page and \`?v=<version>\` pinning its version, \`scope: "space"\`, \`enabled: true\`, and the non-secret \`arguments\`. The environment looks at the space every five minutes, or at once when someone presses Refresh in the Apps dialog.
+
+Use \`dryRun: true\` on each hm write first and read back the \`schema\` warnings. Secrets are declared on the app page and stored by a person in the Apps dialog, never written into a page. Egress from the code is limited to the hosts in \`network\`. To change a tool, update its page in place; a new version of the app is a new version of its pages. An installed app's tools reach every agent of the space; an agent that should not use one switches it off on its permissions page.
+`,
+  },
 } satisfies Record<string, WriteGuide>

@@ -197,6 +197,7 @@ describe('read verb', () => {
       'contacts',
       'profiles',
       'drafts',
+      'apps',
     ]) {
       const guide = await executeReadVerb(context, {address: `~/tools/write/${guideName}`})
       expect(guide.name).toBe(`write/${guideName}`)
@@ -206,6 +207,11 @@ describe('read verb', () => {
     expect(String(capabilityGuide.markdown)).toContain('capability.grant')
     expect(String(capabilityGuide.markdown)).toContain('delegate')
     expect(String(capabilityGuide.markdown)).not.toContain('contact.create')
+
+    const appsGuide = await executeReadVerb(context, {address: '~/tools/write/apps'})
+    expect(String(appsGuide.markdown)).toContain('hm://hyper.media/app-install')
+    expect(String(appsGuide.markdown)).toContain('~/tools/write/ipfs')
+    expect(String(appsGuide.markdown)).toContain('childAttributesSchema')
 
     const unknownGuide = await executeReadVerb(context, {address: '~/tools/write/unknown'})
     expect(String(unknownGuide.summary)).toContain('No write guide named unknown')

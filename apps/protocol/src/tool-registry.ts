@@ -167,6 +167,7 @@ const writeVerb = {
     '  - `~/tools/write/contacts` — create named contacts or delete contact records.',
     '  - `~/tools/write/profiles` — update a profile name, description, or icon; publish profile aliases.',
     '  - `~/tools/write/drafts` — stage, inspect, list, revise, delete, or publish document drafts.',
+    '  - `~/tools/write/apps` — turn repeatable or shareable work into an app: an app page with tool pages whose contract and code are content-addressed, installed in a space for every agent there.',
     'Writing to hm:// or ipfs:// publishes content other people can see. The resource guides document exact action names, fields, examples, signer behavior, and dry-run support without loading unrelated details here.',
   ].join('\n'),
   inputSchema: {
