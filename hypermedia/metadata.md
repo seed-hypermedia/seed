@@ -20,8 +20,11 @@ A value that names an account or a document is a link. A bare account id (`z6Mkâ
 | `thumbnail` | `ipfs://` | deprecated image field kept for older documents; use `icon` or `cover` <!-- id:Wdqe6bUa --> |
 | `siteUrl` | URL | the web address a space is published at; set on the home document when a site is registered, see [Sites](./protocol/sites.md) <!-- id:AyiR8yjR --> |
 | `agentServerUrl` | URL | the agents server that hosts the agent this document mounts (an http(s) origin), set together with `type: hm://hyper.media/agent`; the document's versionless id is the agent's id, and a space's agents are found by querying its documents for that type, see [Agents](./agent.md) <!-- id:Y7jh1Rjp --> |
-| `type` | URL | the resource type; custom HTML pages declare [hm://hyper.media/page](./page.md) <!-- id:3-HON7jT --> |
-| `inputSchema` | URL | a published HM struct defining a custom HTML page's URL input; see [Page input](./page-input.md) <!-- id:lGfreYXM --> |
+| `type` | URL | the resource type; custom HTML pages declare [hm://hyper.media/page](./page.md), [apps](./apps/apps-and-tools.md) `hm://hyper.media/app` and their tools `hm://hyper.media/tool` <!-- id:3-HON7jT --> |
+| `inputSchema` | URL | a published HM struct defining a custom HTML page's URL input (see [Page input](./page-input.md)) or what an [app tool](./apps/apps-and-tools.md) takes <!-- id:lGfreYXM --> |
+| `outputSchema` | URL | a published HM struct defining what an [app tool](./apps/apps-and-tools.md) returns |
+| `code` | `ipfs://` | an [app tool](./apps/apps-and-tools.md)'s code: a UnixFS folder whose `index.ts` default-exports the tool's async function |
+| `homePage` | URL | the hm:// URL of one of an [app](./apps/apps-and-tools.md)'s own pages, which its Home tab shows |
 | `html` | `ipfs://` | a [custom HTML page](./apps/document-pages.md): a UnixFS folder whose `index.html` is a self-contained HTML page that Seed opens in place of the document body, sandboxed, with a bridge to read Hypermedia as the viewer |
 | `displayPublishTime` | string | the publication date shown to readers, when it differs from the change history <!-- id:0GpDlsoW --> |
 | `displayAuthor` | string | an author byline shown to readers <!-- id:EErr-5X_ --> |

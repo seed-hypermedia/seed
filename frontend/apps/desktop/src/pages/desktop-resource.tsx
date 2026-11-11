@@ -9,6 +9,7 @@ import {useAppContext} from '@/app-context'
 import {CommentBox, renderDesktopInlineEditor, triggerCommentDraftFocus} from '@/components/commenting'
 import {useCopyReferenceUrl} from '@/components/copy-reference-url'
 import {DesktopDocumentCreateButton, useCreateDocumentMenuItem} from '@/components/create-doc-button'
+import {appResourceKind} from '@shm/ui/apps/tabs'
 import {useDeleteDialog} from '@/components/delete-dialog'
 import {DesktopDraftActionsProvider} from '@/components/desktop-draft-actions-provider'
 import {DesktopDraftBreadcrumbProvider} from '@/components/desktop-draft-breadcrumb-provider'
@@ -1212,7 +1213,10 @@ export default function DesktopResourcePage() {
   const showPublishToolbar = route.key === 'document' || route.key === 'metadata'
   // An agent page is the agent, so Publish only appears once attributes or content are dirty.
   // The base URL (no agentView) opens the agent's sessions, so the document's type decides too.
-  const isAgentPage = route.key === 'document' && (!!route.agentView || doc?.metadata.type === 'hm://hyper.media/agent')
+  // Agents, apps and tools publish from their own tabs, so a clean toolbar shows no Publish button.
+  const isAgentPage =
+    route.key === 'document' &&
+    (!!route.agentView || doc?.metadata.type === 'hm://hyper.media/agent' || !!appResourceKind(doc?.metadata.type))
 
   // Walk the editor's blocks for embed blocks with a draftId.
   // Called at Publish click time so the popover always opens

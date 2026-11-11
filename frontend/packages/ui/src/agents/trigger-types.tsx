@@ -1,4 +1,5 @@
 import {type AgentSessionTriggerContext, type AgentTriggerSource, type TriggerContinuation} from './client'
+import {CodeTextArea} from '../code-text-area'
 import {activityConditions, type AgentActivitySource, type AgentToolInfo} from '@seed-hypermedia/agents-protocol'
 import {Button} from '@shm/ui/button'
 import {Dialog, DialogContent, DialogFooter, DialogTitle} from '@shm/ui/components/dialog'
@@ -1441,12 +1442,11 @@ export function TriggerContinuationFields({
             <SizableText size="sm" weight="bold">
               Script
             </SizableText>
-            <Textarea
-              className="min-h-56 font-mono text-xs"
+            <CodeTextArea
+              className="min-h-56"
               value={current.script}
               onChange={(event) => onChange({...current, script: event.target.value})}
               disabled={disabled}
-              spellCheck={false}
             />
             <SizableText size="xs" color="muted">
               A workflow module: <code>export default async function (input, ctx)</code> with{' '}

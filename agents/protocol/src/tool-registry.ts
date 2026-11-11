@@ -161,6 +161,7 @@ const writeVerb = {
     '- `ipfs://` — publish a memory file or attachment, or a JSON object given as `content` (a schema, an object that follows one, a signed blob). Details: `~/tools/write/ipfs`.',
     '- `hm://<account>/<path>` — signed Seed resources. Features are grouped below; read the exact guide before an unfamiliar operation:',
     '  - `~/tools/write/pages` — build custom HTML pages: define HM schemas and Seed resources first, then connect and test the UI; local storage is only for optional UI state.',
+    '  - `~/tools/write/apps` — build an app: an app document plus its tools (schemas and an index.ts) and pages, listed by card embeds.',
     '  - `~/tools/write/documents` — create, replace, rename, move, redirect, fork, or delete documents; metadata and memory-file publishing.',
     '  - `~/tools/write/comments` — comment, reply, edit, or delete comments.',
     '  - `~/tools/write/capabilities` — grant WRITER or AGENT access to an account or path.',

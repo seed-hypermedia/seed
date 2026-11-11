@@ -82,7 +82,7 @@ export async function freezeSchemaDraft<M extends Record<string, unknown> | unde
 }
 
 /** Publish a schema object as a DAG-CBOR blob; its CID. */
-async function publishSchemaObject(client: {request: UniversalClient['request']}, schema: Record<string, any>) {
+export async function publishSchemaObject(client: {request: UniversalClient['request']}, schema: Record<string, any>) {
   const data = cbor.encode(dagJsonToIpld(schema) as any)
   const digest = await sha256.digest(data)
   const cid = CID.createV1(DAG_CBOR_CODE, digest).toString()

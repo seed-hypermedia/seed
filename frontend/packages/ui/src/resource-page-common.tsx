@@ -1,4 +1,7 @@
 import {ActivityPanelPortal, WebActivityPanelLayout} from './activity-panel-layout'
+import {AppDocumentView} from './apps/app-view'
+import {appResourceKind, appResourceTabs} from './apps/tabs'
+import {ToolDocumentView} from './apps/tool-view'
 import {ConnectionsPanel} from './connections-panel'
 import {PanelHeader} from './panel-header'
 import {groupDocumentConnections} from '@shm/shared/connections'
@@ -2285,10 +2288,17 @@ function DocumentBody({
   // A mounted agent's document is the agent: no cover, icon, title, byline or timestamp above
   // its tabs, which are the whole page.
   const isAgentDocument = document.metadata.type === 'hm://hyper.media/agent'
+  // Apps and tools are typed resources with their own tabs in place of the document body, like agents.
+  const appKind = appResourceKind(document.metadata.type)
+  const appTabs = useMemo(
+    () =>
+      appKind && route.key === 'document' ? appResourceTabs(appKind, docId, route.appView, panelRoute) : undefined,
+    [appKind, route, docId, panelRoute],
+  )
   // An agent view (sessions, settings, ...) scrolls inside its own pane with a pinned composer, so
   // the page around it stops scrolling and hands it the remaining height, as a document page does.
   // An agent document's base URL opens its sessions, so it lays out like any agent view.
-  const isAgentView = route.key === 'document' && (!!route.agentView || isAgentDocument)
+  const isAgentView = route.key === 'document' && (!!route.agentView || isAgentDocument || !!appKind)
   const fixedHeightMain = !!documentPage || isAgentView
 
   // Extract blockRef from route for scroll-to-block and highlighting
@@ -2909,14 +2919,14 @@ function DocumentBody({
 
   const convertToCollectionMenuItem = useMemo<MenuItemType | null>(() => {
     // An agent's document is the agent, never a collection.
-    if (isCollection || !canEditCurrentRoute || isAgentDocument) return null
+    if (isCollection || !canEditCurrentRoute || isAgentDocument || appKind) return null
     return {
       key: 'convert-to-collection',
       label: 'Convert to Collection',
       icon: <Grid3X3 className="size-4" />,
       onClick: () => setPendingDocumentConversion('collection'),
     }
-  }, [canEditCurrentRoute, isAgentDocument, isCollection])
+  }, [appKind, canEditCurrentRoute, isAgentDocument, isCollection])
 
   // The schema actions (New Document / New Collection / Extend / New Raw Value) ride in the
   // regular options menu; the list is empty unless the document defines a schema.
@@ -3124,7 +3134,7 @@ function DocumentBody({
       )}
     >
       {documentConversionDialog}
-      {!isAgentDocument && (
+      {!isAgentDocument && !appKind && (
         <DocumentCover
           cover={metadata?.cover}
           onRemove={canEditCurrentRoute && metadata?.cover ? removeCover : undefined}
@@ -3159,6 +3169,7 @@ function DocumentBody({
             )}
             {!isHomeDoc &&
               !isAgentDocument &&
+              !appKind &&
               (canEditCurrentRoute ? (
                 <EditableDocumentHeader
                   docId={docId}
@@ -3196,6 +3207,7 @@ function DocumentBody({
           )}
           {!isHomeDoc &&
             !isAgentDocument &&
+            !appKind &&
             (canEditCurrentRoute ? (
               <EditableDocumentHeader
                 docId={docId}
@@ -3247,10 +3259,11 @@ function DocumentBody({
         showDocumentChrome && (
           <AgentDocumentView document={document} route={{key: 'document', id: docId}}>
             {(hasAgent) =>
-              (showActivity || hasAgent) && (
+              (showActivity || hasAgent || !!appTabs) && (
                 <div className="px-5 py-1">
                   <DocumentTools
                     id={docId}
+                    resourceTabs={appTabs}
                     hasAgent={hasAgent}
                     agentHome={isAgentDocument}
                     activeAgentView={route.key === 'document' ? route.agentView : undefined}
@@ -3300,7 +3313,11 @@ function DocumentBody({
           isMobile && !expandedPanel && 'px-4',
         )}
       >
-        {route.key === 'document' && (route.agentView || isAgentDocument) ? (
+        {route.key === 'document' && appKind === 'app' ? (
+          <AppDocumentView docId={docId} document={document} appView={route.appView} canEdit={!!canEditCurrentRoute} />
+        ) : route.key === 'document' && appKind === 'tool' ? (
+          <ToolDocumentView docId={docId} document={document} appView={route.appView} canEdit={!!canEditCurrentRoute} />
+        ) : route.key === 'document' && (route.agentView || isAgentDocument) ? (
           <AgentDocumentView document={document} route={route} contentMaxWidth={contentMaxWidth} />
         ) : (
           <DocumentViewContent

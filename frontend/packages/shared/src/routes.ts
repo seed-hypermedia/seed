@@ -324,6 +324,8 @@ export const documentRouteSchema = z.object({
       'access',
     ])
     .optional(),
+  /** The tab of an app (`hm://hyper.media/app`) or the Settings tab of a tool; Home / Tool when absent. */
+  appView: z.enum(['tools', 'pages', 'settings']).optional(),
   agentSessionId: z.string().optional(),
   agentTriggerId: z.string().optional(),
   agentMemoryPath: z.string().optional(),

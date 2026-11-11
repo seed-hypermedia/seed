@@ -1,4 +1,5 @@
 import type {AgentMemoryEntry, AgentMemoryFile} from './client'
+import {CodeTextArea} from '../code-text-area'
 import {
   uploadFileToAgentServer,
   useAgentMemoryDirs,
@@ -584,18 +585,17 @@ export function AgentMemoryTab({
             </div>
           ) : null}
           {file.data.encoding === 'utf8' ? (
-            <textarea
+            <CodeTextArea
+              bare
               ref={fileScrollRef}
               onScroll={(event) => {
                 scrollTopsRef.current.file = event.currentTarget.scrollTop
                 persistTabStateSoon()
               }}
               aria-label={`Memory file ${selectedPath}`}
-              className="focus:ring-primary/25 min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-sm outline-none focus:ring-2"
               value={draftText ?? file.data.content ?? ''}
               onChange={(event) => setDraftText(event.currentTarget.value)}
               readOnly={readOnly}
-              spellCheck={false}
             />
           ) : (
             <BinaryFilePreview file={file.data} onDownload={() => file.data && saveFileToDisk(file.data)} />

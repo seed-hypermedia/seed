@@ -172,6 +172,18 @@ export function collectDocumentPageFiles(
   stateDir: string,
   rawPath: string,
 ): {files: IpfsDirectoryFile[]; bytes: number} {
+  return collectMemoryFolderFiles(stateDir, rawPath, {kind: 'page', entry: 'index.html', singleFile: /\.html?$/i})
+}
+
+/**
+ * Collects a folder (or one file, which becomes `entry`) from agent memory for publishing as a
+ * UnixFS folder: dotfiles are skipped, nested folders are kept, and `entry` must be at the root.
+ */
+export function collectMemoryFolderFiles(
+  stateDir: string,
+  rawPath: string,
+  {kind, entry, singleFile}: {kind: string; entry: string; singleFile: RegExp},
+): {files: IpfsDirectoryFile[]; bytes: number} {
   const root = rawPath.replace(/^(~\/memory\/|\/workspace\/)/, '').replace(/\/+$/, '')
   let listing: ReturnType<typeof memory.listMemoryDir> | null = null
   try {
@@ -181,36 +193,38 @@ export function collectDocumentPageFiles(
   }
   if (!listing) {
     const file = memory.readMemoryFile(stateDir, root)
-    if (file.encoding !== 'utf8' || !/\.html?$/i.test(root)) throw new Error('A single-file page must be an HTML file')
+    if (file.encoding !== 'utf8' || !singleFile.test(root))
+      throw new Error(
+        kind === 'page' ? 'A single-file page must be an HTML file' : `A single-file ${kind} must be ${entry}`,
+      )
     const content = new TextEncoder().encode(file.content ?? '')
     if (content.byteLength > MAX_DOCUMENT_PAGE_BYTES)
-      throw new Error(`A page may hold at most ${MAX_DOCUMENT_PAGE_BYTES} bytes`)
-    return {files: [{path: 'index.html', content}], bytes: content.byteLength}
+      throw new Error(`A ${kind} may hold at most ${MAX_DOCUMENT_PAGE_BYTES} bytes`)
+    return {files: [{path: entry, content}], bytes: content.byteLength}
   }
   const files: IpfsDirectoryFile[] = []
   let bytes = 0
   const prefix = listing.path ? `${listing.path}/` : ''
   const walk = (entries: typeof listing.entries) => {
-    for (const entry of entries) {
-      const name = entry.path.slice(entry.path.lastIndexOf('/') + 1)
+    for (const item of entries) {
+      const name = item.path.slice(item.path.lastIndexOf('/') + 1)
       if (name.startsWith('.')) continue
-      if (entry.type === 'dir') {
-        walk(memory.listMemoryDir(stateDir, entry.path).entries)
+      if (item.type === 'dir') {
+        walk(memory.listMemoryDir(stateDir, item.path).entries)
         continue
       }
       if (files.length >= MAX_DOCUMENT_PAGE_FILES)
-        throw new Error(`A page folder may hold at most ${MAX_DOCUMENT_PAGE_FILES} files`)
-      const file = memory.readMemoryFile(stateDir, entry.path)
+        throw new Error(`A ${kind} folder may hold at most ${MAX_DOCUMENT_PAGE_FILES} files`)
+      const file = memory.readMemoryFile(stateDir, item.path)
       const content =
         file.encoding === 'binary' ? file.data ?? new Uint8Array() : new TextEncoder().encode(file.content ?? '')
       bytes += content.byteLength
       if (bytes > MAX_DOCUMENT_PAGE_BYTES)
-        throw new Error(`A page folder may hold at most ${MAX_DOCUMENT_PAGE_BYTES} bytes`)
-      files.push({path: entry.path.slice(prefix.length), content})
+        throw new Error(`A ${kind} folder may hold at most ${MAX_DOCUMENT_PAGE_BYTES} bytes`)
+      files.push({path: item.path.slice(prefix.length), content})
     }
   }
   walk(listing.entries)
-  if (!files.some((file) => file.path === 'index.html'))
-    throw new Error('A page folder needs an index.html at its root')
+  if (!files.some((file) => file.path === entry)) throw new Error(`A ${kind} folder needs an ${entry} at its root`)
   return {files, bytes}
 }
