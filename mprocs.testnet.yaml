@@ -26,11 +26,11 @@ procs:
       cmd: 'docker compose -f apps/dev/web-backends/docker-compose.yml down'
     autostart: true
 
-  # Agents server (:3051 via SEED_AGENTS_HTTP_PORT in .env.vars; release builds
+  # Agents server (:3051 via SEED_APPS_HTTP_PORT in .env.vars; release builds
   # keep 3050), bun --hot. Defaults to the backends above and the testnet gateway.
   # Separate Bun workspace — install its deps before starting (fast if satisfied).
   agents:
-    shell: 'cd apps && bun install && SEED_AGENTS_HM_SERVER_URL=https://dev.hyper.media bun run dev'
+    shell: 'cd apps && bun install && SEED_APPS_HM_SERVER_URL=https://dev.hyper.media bun run dev'
     autostart: true
 
   # Remix/Vite web app (:3000). Talks to the daemon the desktop app spawns (:58001).

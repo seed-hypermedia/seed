@@ -468,7 +468,7 @@ const server = Bun.serve({
 
     if (request.method === 'OPTIONS') return new Response(null, {headers: CORS_HEADERS})
 
-    if (url.pathname === '/agents/ws' || url.pathname === '/hm/api/agents/ws') {
+    if (url.pathname === '/agents/ws' || url.pathname === '/hm/api/agents/ws' || url.pathname === '/hm/api/apps/ws') {
       if (server.upgrade(request)) return undefined
       return new Response('Expected a WebSocket upgrade', {status: 400})
     }
@@ -476,7 +476,8 @@ const server = Bun.serve({
     if (
       url.pathname === '/agents/api/health' ||
       url.pathname === '/api/health' ||
-      url.pathname === '/hm/api/agents/health'
+      url.pathname === '/hm/api/agents/health' ||
+      url.pathname === '/hm/api/apps/health'
     ) {
       return Response.json(
         {
@@ -496,7 +497,8 @@ const server = Bun.serve({
     if (
       url.pathname === '/api/message' ||
       url.pathname === '/agents/api/message' ||
-      url.pathname === '/hm/api/agents/message'
+      url.pathname === '/hm/api/agents/message' ||
+      url.pathname === '/hm/api/apps/message'
     ) {
       const envelope = cbor.decode<any>(new Uint8Array(await request.arrayBuffer()))
       const response = handleAction(envelope.action ?? {}, accountFromEnvelope(envelope))

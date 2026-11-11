@@ -1,4 +1,5 @@
 import * as publicationAssets from '@/publication-assets'
+import {envVar} from '@/config'
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
 import {
@@ -7584,7 +7585,7 @@ export class Service {
       // SEED_AGENTS_WORKFLOW_WORKER=1 to run the QuickJS VM off the main event loop. Off by default,
       // the in-process path is byte-for-byte unchanged.
       outcome =
-        process.env.SEED_AGENTS_WORKFLOW_WORKER === '1'
+        envVar(process.env, 'WORKFLOW_WORKER') === '1'
           ? await runWorkflowInWorker(workflowAdapters, {emitPartial: (patch) => emitRunPartial(patch as never)})
           : await runWorkflowVM(workflowAdapters)
     } finally {

@@ -22,7 +22,7 @@ procs:
       cmd: 'docker compose -f apps/dev/web-backends/docker-compose.yml down'
     autostart: true
 
-  # Agents server (:3051 via SEED_AGENTS_HTTP_PORT in .env.vars; release builds
+  # Agents server (:3051 via SEED_APPS_HTTP_PORT in .env.vars; release builds
   # keep 3050), bun --watch. Full restarts release queues and journal writers.
   # Separate Bun workspace: `dev` wraps the server in scripts/watch-file-deps.ts,
   # which installs deps and re-syncs + restarts when the copied file: packages

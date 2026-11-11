@@ -3,7 +3,7 @@
 #   cd apps/dev/web-backends && docker compose up -d
 #   cd ../.. && bun run dev   # the dev script already targets these endpoints by default
 #
-# `bun run dev` defaults SEED_AGENTS_SEARXNG_URL / SEED_AGENTS_CRAWLER_URL / SEED_AGENTS_CRAWLER_TOKEN to the values
+# `bun run dev` defaults SEED_APPS_SEARXNG_URL / SEED_APPS_CRAWLER_URL / SEED_APPS_CRAWLER_TOKEN to the values
 # below; export those env vars to override. These are dev defaults bound to loopback — do not reuse them in production.
 services:
   searxng:

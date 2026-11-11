@@ -880,6 +880,7 @@ var DEFAULT_COMPOSE_URL = `${OPS_BASE_URL}/docker-compose.yml`;
 var NOTIFY_SERVICE_HOST = "https://hyper.media/hm/api/notify";
 var DEFAULT_UPSTREAM_API_URL = "https://hyper.media";
 var AGENTS_API_PATH = "/hm/api/agents";
+var APPS_API_PATH = "/hm/api/apps";
 var NOTIFY_API_PATH = "/hm/api/notify";
 var LIGHTNING_URL_MAINNET = "https://ln.seed.hyper.media";
 var LIGHTNING_URL_TESTNET = "https://ln.testnet.seed.hyper.media";
@@ -2020,7 +2021,7 @@ function agentsWebhookBlock(config) {
     return "";
   return `	@agents_webhook {
 		method POST
-		path ${AGENTS_API_PATH}/webhooks/*
+		path ${AGENTS_API_PATH}/webhooks/* ${APPS_API_PATH}/webhooks/*
 	}
 	handle @agents_webhook {
 		reverse_proxy seed-agents:3050
@@ -2031,7 +2032,7 @@ function agentsGatedBlock(config) {
   if (!config.agents)
     return "";
   return `
-	@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*
+	@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/* ${APPS_API_PATH} ${APPS_API_PATH}/*
 	handle @agents {
 		import gate
 		reverse_proxy seed-agents:3050
@@ -2130,7 +2131,7 @@ function generateCaddyfile(config) {
     return generateEnterpriseCaddyfile(config);
   const agents = config.agents ? `
 @agentsroute {
-	path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*
+	path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/* ${APPS_API_PATH} ${APPS_API_PATH}/*
 }
 
 reverse_proxy @agentsroute seed-agents:3050
@@ -4311,5 +4312,6 @@ export {
   CLI_INSTALLED,
   BOOTSTRAP_RETRY_MS,
   BOOTSTRAP_ATTEMPTS,
+  APPS_API_PATH,
   AGENTS_API_PATH
 };

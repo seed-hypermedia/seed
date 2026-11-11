@@ -212,59 +212,67 @@ function numberFromEnv(value: string | undefined, fallback: number): number {
 }
 
 /** Creates default flag values from the current environment. */
+/**
+ * One environment setting of the app environment: `SEED_APPS_<NAME>`, or `SEED_AGENTS_<NAME>`, the
+ * agents server's spelling, which deployments from before the rename still set. The new name wins
+ * when both are present.
+ */
+export function envVar(env: NodeJS.ProcessEnv, name: string): string | undefined {
+  return env[`SEED_APPS_${name}`] ?? env[`SEED_AGENTS_${name}`]
+}
+
 export function flags(env: NodeJS.ProcessEnv = process.env): Flags {
+  const v = (name: string) => envVar(env, name)
   return {
-    'server-hostname': env.SEED_AGENTS_HTTP_HOSTNAME || '0.0.0.0',
-    'server-port': Number(env.SEED_AGENTS_HTTP_PORT) || 3050,
-    'db-path': env.SEED_AGENTS_DB_PATH || './data/agents.sqlite',
-    'data-dir': env.SEED_AGENTS_DATA_DIR || './data',
-    'hm-server-url': env.SEED_AGENTS_HM_SERVER_URL || 'https://hyper.media',
-    'ipfs-server-url': env.SEED_AGENTS_IPFS_SERVER_URL || '',
+    'server-hostname': v('HTTP_HOSTNAME') || '0.0.0.0',
+    'server-port': Number(v('HTTP_PORT')) || 3050,
+    'db-path': v('DB_PATH') || './data/agents.sqlite',
+    'data-dir': v('DATA_DIR') || './data',
+    'hm-server-url': v('HM_SERVER_URL') || 'https://hyper.media',
+    'ipfs-server-url': v('IPFS_SERVER_URL') || '',
     'default-prompt-url':
-      env.SEED_AGENTS_DEFAULT_PROMPT_URL || 'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/agent/guide',
-    'docs-account': env.SEED_AGENTS_DOCS_ACCOUNT || '',
-    'docs-account-file': env.SEED_AGENTS_DOCS_ACCOUNT_FILE || '',
-    'activity-poll-interval-ms': Number(env.SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS) || 5_000,
-    'activity-page-size': Number(env.SEED_AGENTS_ACTIVITY_PAGE_SIZE) || 50,
-    'activity-max-pages': Number(env.SEED_AGENTS_ACTIVITY_MAX_PAGES) || 5,
-    'searxng-url': env.SEED_AGENTS_SEARXNG_URL || '',
-    'crawler-url': env.SEED_AGENTS_CRAWLER_URL || '',
-    'crawler-token': env.SEED_AGENTS_CRAWLER_TOKEN || '',
-    'exec-backend': env.SEED_AGENTS_EXEC_BACKEND ?? 'microsandbox',
-    'subscription-auth': isTruthyFlag(env.SEED_AGENTS_SUBSCRIPTION_AUTH ?? ''),
-    'session-title-generation': env.SEED_AGENTS_SESSION_TITLE_GENERATION !== 'false',
-    'exec-image': env.SEED_AGENTS_EXEC_IMAGE || 'python',
-    'exec-ts-image': env.SEED_AGENTS_EXEC_TS_IMAGE ?? 'oven/bun',
-    'exec-cpus': Number(env.SEED_AGENTS_EXEC_CPUS) || 1,
-    'exec-memory-mib': Number(env.SEED_AGENTS_EXEC_MEMORY_MIB) || 512,
-    'exec-timeout-secs': Number(env.SEED_AGENTS_EXEC_TIMEOUT_SECS) || 60,
-    'exec-allow-network': env.SEED_AGENTS_EXEC_ALLOW_NETWORK ?? '',
-    'exec-dns': env.SEED_AGENTS_EXEC_DNS || '',
-    'exec-warm-pool': env.SEED_AGENTS_EXEC_WARM_POOL ?? '',
-    'exec-max-vms': Number(env.SEED_AGENTS_EXEC_MAX_VMS) || 3,
-    'exec-pool-idle-ttl-secs': Number(env.SEED_AGENTS_EXEC_POOL_IDLE_TTL_SECS) || 180,
-    'exec-pool-max-age-secs': Number(env.SEED_AGENTS_EXEC_POOL_MAX_AGE_SECS) || 1800,
-    'exec-max-concurrent': Number(env.SEED_AGENTS_EXEC_MAX_CONCURRENT) || defaultExecMaxConcurrent(),
-    'exec-acquire-wait-secs': Number(env.SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS) || 30,
-    'exec-memory-root-wait-secs': Number(env.SEED_AGENTS_EXEC_MEMORY_ROOT_WAIT_SECS) || 300,
-    'max-concurrent-model-runs': Number(env.SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS) || 8,
-    'max-concurrent-workflows': Number(env.SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS) || 32,
+      v('DEFAULT_PROMPT_URL') || 'hm://z6MkfzKMhF9k1oPaQsShWAg8xJzbWf5kaZgn1MkeZvhcAsmB/agent/guide',
+    'docs-account': v('DOCS_ACCOUNT') || '',
+    'docs-account-file': v('DOCS_ACCOUNT_FILE') || '',
+    'activity-poll-interval-ms': Number(v('ACTIVITY_POLL_INTERVAL_MS')) || 5_000,
+    'activity-page-size': Number(v('ACTIVITY_PAGE_SIZE')) || 50,
+    'activity-max-pages': Number(v('ACTIVITY_MAX_PAGES')) || 5,
+    'searxng-url': v('SEARXNG_URL') || '',
+    'crawler-url': v('CRAWLER_URL') || '',
+    'crawler-token': v('CRAWLER_TOKEN') || '',
+    'exec-backend': v('EXEC_BACKEND') ?? 'microsandbox',
+    'subscription-auth': isTruthyFlag(v('SUBSCRIPTION_AUTH') ?? ''),
+    'session-title-generation': v('SESSION_TITLE_GENERATION') !== 'false',
+    'exec-image': v('EXEC_IMAGE') || 'python',
+    'exec-ts-image': v('EXEC_TS_IMAGE') ?? 'oven/bun',
+    'exec-cpus': Number(v('EXEC_CPUS')) || 1,
+    'exec-memory-mib': Number(v('EXEC_MEMORY_MIB')) || 512,
+    'exec-timeout-secs': Number(v('EXEC_TIMEOUT_SECS')) || 60,
+    'exec-allow-network': v('EXEC_ALLOW_NETWORK') ?? '',
+    'exec-dns': v('EXEC_DNS') || '',
+    'exec-warm-pool': v('EXEC_WARM_POOL') ?? '',
+    'exec-max-vms': Number(v('EXEC_MAX_VMS')) || 3,
+    'exec-pool-idle-ttl-secs': Number(v('EXEC_POOL_IDLE_TTL_SECS')) || 180,
+    'exec-pool-max-age-secs': Number(v('EXEC_POOL_MAX_AGE_SECS')) || 1800,
+    'exec-max-concurrent': Number(v('EXEC_MAX_CONCURRENT')) || defaultExecMaxConcurrent(),
+    'exec-acquire-wait-secs': Number(v('EXEC_ACQUIRE_WAIT_SECS')) || 30,
+    'exec-memory-root-wait-secs': Number(v('EXEC_MEMORY_ROOT_WAIT_SECS')) || 300,
+    'max-concurrent-model-runs': Number(v('MAX_CONCURRENT_MODEL_RUNS')) || 8,
+    'max-concurrent-workflows': Number(v('MAX_CONCURRENT_WORKFLOWS')) || 32,
     'min-free-disk-mib':
-      env.SEED_AGENTS_MIN_FREE_DISK_MIB === undefined || env.SEED_AGENTS_MIN_FREE_DISK_MIB === ''
-        ? 512
-        : Number(env.SEED_AGENTS_MIN_FREE_DISK_MIB),
-    'exec-canary-secs': Number(env.SEED_AGENTS_EXEC_CANARY_SECS) || 0,
-    'log-level': env.SEED_AGENTS_LOG_LEVEL || 'info',
-    'sqlite-cache-mib': numberFromEnv(env.SEED_AGENTS_SQLITE_CACHE_MIB, 256),
-    'sqlite-mmap-mib': numberFromEnv(env.SEED_AGENTS_SQLITE_MMAP_MIB, 1024),
-    'sqlite-wal-limit-mib': numberFromEnv(env.SEED_AGENTS_SQLITE_WAL_LIMIT_MIB, 64),
-    retention: env.SEED_AGENTS_RETENTION || 'on',
-    'retention-durable-idle-days': numberFromEnv(env.SEED_AGENTS_RETENTION_DURABLE_IDLE_DAYS, 14),
-    'retention-journal-days': numberFromEnv(env.SEED_AGENTS_RETENTION_JOURNAL_DAYS, 30),
-    'retention-mib-per-sec': numberFromEnv(env.SEED_AGENTS_RETENTION_MIB_PER_SEC, 2),
-    'retention-max-store-mib': numberFromEnv(env.SEED_AGENTS_RETENTION_MAX_STORE_MIB, 32),
-    'retention-interval-mins': numberFromEnv(env.SEED_AGENTS_RETENTION_INTERVAL_MINS, 360),
-    'tool-output-store-limit-kib': numberFromEnv(env.SEED_AGENTS_TOOL_OUTPUT_STORE_LIMIT_KIB, 128),
+      v('MIN_FREE_DISK_MIB') === undefined || v('MIN_FREE_DISK_MIB') === '' ? 512 : Number(v('MIN_FREE_DISK_MIB')),
+    'exec-canary-secs': Number(v('EXEC_CANARY_SECS')) || 0,
+    'log-level': v('LOG_LEVEL') || 'info',
+    'sqlite-cache-mib': numberFromEnv(v('SQLITE_CACHE_MIB'), 256),
+    'sqlite-mmap-mib': numberFromEnv(v('SQLITE_MMAP_MIB'), 1024),
+    'sqlite-wal-limit-mib': numberFromEnv(v('SQLITE_WAL_LIMIT_MIB'), 64),
+    retention: v('RETENTION') || 'on',
+    'retention-durable-idle-days': numberFromEnv(v('RETENTION_DURABLE_IDLE_DAYS'), 14),
+    'retention-journal-days': numberFromEnv(v('RETENTION_JOURNAL_DAYS'), 30),
+    'retention-mib-per-sec': numberFromEnv(v('RETENTION_MIB_PER_SEC'), 2),
+    'retention-max-store-mib': numberFromEnv(v('RETENTION_MAX_STORE_MIB'), 32),
+    'retention-interval-mins': numberFromEnv(v('RETENTION_INTERVAL_MINS'), 360),
+    'tool-output-store-limit-kib': numberFromEnv(v('TOOL_OUTPUT_STORE_LIMIT_KIB'), 128),
   }
 }
 
@@ -324,7 +332,8 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
  */
 export function serverAppArgs(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const out: Record<string, string> = {}
-  if (env.SEED_AGENTS_DATALAB_API_KEY?.trim()) out.CONVERT_APIKEY = env.SEED_AGENTS_DATALAB_API_KEY.trim()
+  const datalabKey = envVar(env, 'DATALAB_API_KEY')?.trim()
+  if (datalabKey) out.CONVERT_APIKEY = datalabKey
   for (const [key, value] of Object.entries(env)) {
     if (key.startsWith('SEED_AGENTS_APP_') && value) out[key.slice('SEED_AGENTS_APP_'.length)] = value
   }

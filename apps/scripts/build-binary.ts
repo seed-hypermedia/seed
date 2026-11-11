@@ -88,7 +88,7 @@ const result = await Bun.build({
     'process.env.NODE_ENV': JSON.stringify('production'),
     // Compiled executables don't reliably set import.meta.main (false on Windows in bun 1.3,
     // oven-sh/bun#6009) — this tells main.ts to start unconditionally.
-    'process.env.SEED_AGENTS_STANDALONE': JSON.stringify('1'),
+    'process.env.SEED_APPS_STANDALONE': JSON.stringify('1'),
   },
   root: './src',
   // Bundling `microsandbox` breaks it: its napi binding, `msb` hypervisor helper, and libkrunfw

@@ -4,7 +4,14 @@ import * as apisvc from '@/api-service'
 import type * as api from '@/api'
 import * as cbor from '@/cbor'
 import {ExecCanary} from '@/exec-canary'
-import {AGENTS_API_PREFIX, AGENTS_WS_PATHS, createAPIRoutes, wsShouldDeliver, type WSData} from '@/main'
+import {
+  AGENTS_API_PREFIX,
+  APPS_API_PREFIX,
+  AGENTS_WS_PATHS,
+  createAPIRoutes,
+  wsShouldDeliver,
+  type WSData,
+} from '@/main'
 import {LOOP_LAG_UNHEALTHY_P95_MS, perfSnapshot, recordLoopLag, resetPerfForTests} from '@/perf'
 import * as sqlite from '@/sqlite'
 import * as blobs from '@shm/shared/blobs'
@@ -67,12 +74,16 @@ describe('main routes', () => {
         ['/version', '/agents/api/version'],
         ['/perf', '/agents/api/perf'],
       ] as const) {
-        for (const route of [`${AGENTS_API_PREFIX}${canonical}`, legacy]) {
+        for (const route of [`${APPS_API_PREFIX}${canonical}`, `${AGENTS_API_PREFIX}${canonical}`, legacy]) {
           const res = await getGetHandler(routes, route)()
           expect(res.status).toBe(200)
         }
       }
-      for (const route of [`${AGENTS_API_PREFIX}/perf/sessions/:sessionId`, '/agents/api/perf/sessions/:sessionId']) {
+      for (const route of [
+        `${APPS_API_PREFIX}/perf/sessions/:sessionId`,
+        `${AGENTS_API_PREFIX}/perf/sessions/:sessionId`,
+        '/agents/api/perf/sessions/:sessionId',
+      ]) {
         expect(routes[route]).toBeDefined()
       }
       for (const route of [
@@ -83,7 +94,7 @@ describe('main routes', () => {
       ]) {
         expect(typeof getPostHandler(routes, route)).toBe('function')
       }
-      expect(AGENTS_WS_PATHS).toEqual(['/hm/api/agents/ws', '/agents/ws'])
+      expect(AGENTS_WS_PATHS).toEqual(['/hm/api/apps/ws', '/hm/api/agents/ws', '/agents/ws'])
     } finally {
       sqlite.closeDatabase(db)
       cleanup()

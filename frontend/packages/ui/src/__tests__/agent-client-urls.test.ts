@@ -12,6 +12,14 @@ import {
 } from '../agents/client'
 
 describe('agent server URLs', () => {
+  it('treats the app environment path as canonical, like the agents path it replaces', () => {
+    expect(isCanonicalAgentServerUrl('https://site.example/hm/api/apps')).toBe(true)
+    expect(isCanonicalAgentServerUrl('https://site.example/hm/api/agents')).toBe(true)
+    expect(agentServerEndpoint('https://site.example/hm/api/apps', 'message')).toBe(
+      'https://site.example/hm/api/apps/message',
+    )
+    expect(getAgentWebSocketUrl('https://site.example/hm/api/apps')).toBe('wss://site.example/hm/api/apps/ws')
+  })
   it('shares mounted sessions through the document UI on the configured gateway', () => {
     expect(
       buildAgentSessionUrl('https://api.example', 'hm://alice/team/helper', 'session-1', 'https://seed.example'),

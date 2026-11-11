@@ -145,7 +145,16 @@ class FakeNetwork {
   /** A space bound to an agents server by its home document, with a reference-form install of the app. */
   putTenant(
     account: string,
-    options: {server?: string; siteUrl?: string; scope?: string; args?: unknown; enabled?: boolean; usage?: unknown},
+    options: {
+      server?: string
+      /** The binding under its name since the rename, `appEnvironmentUrl`. */
+      environment?: string
+      siteUrl?: string
+      scope?: string
+      args?: unknown
+      enabled?: boolean
+      usage?: unknown
+    },
   ) {
     this.put({
       account,
@@ -153,6 +162,7 @@ class FakeNetwork {
       metadata: {
         name: account,
         ...(options.server ? {agentServerUrl: options.server} : {}),
+        ...(options.environment ? {appEnvironmentUrl: options.environment} : {}),
         ...(options.siteUrl ? {siteUrl: options.siteUrl} : {}),
       },
     })
@@ -455,6 +465,38 @@ describe('app installs', () => {
     net.json.set('https://site.test/hm/api/config', {
       registeredAccountUid: 'z6MkSiteSpace',
       agentServerUrl: THIS_SERVER,
+    })
+    const db = makeDb(['z6MkSiteSpace'])
+    storeSecret(db, 'z6MkSiteSpace', 'app-convert-apiKey')
+    await appInstalls.refreshAppInstalls(deps(db, net))
+    expect(rows(db)).toEqual([
+      {account_id: 'z6MkSiteSpace', scope: 'space', slug: 'convert', mount_id: 'hm://z6MkSiteSpace/apps/convert'},
+    ])
+    const client = {request: () => Promise.reject(new Error('unused'))} as never
+    void client
+  })
+
+  test('binds a space by the appEnvironmentUrl on its home document, the name since the rename', async () => {
+    const net = new FakeNetwork()
+    await net.putConvertApp()
+    net.putTenant('z6MkSiteSpace', {environment: THIS_SERVER})
+    const db = makeDb(['z6MkSiteSpace'])
+    storeSecret(db, 'z6MkSiteSpace', 'app-convert-apiKey')
+    await appInstalls.refreshAppInstalls(deps(db, net))
+    expect(rows(db)).toEqual([
+      {account_id: 'z6MkSiteSpace', scope: 'space', slug: 'convert', mount_id: 'hm://z6MkSiteSpace/apps/convert'},
+    ])
+    const client = {request: () => Promise.reject(new Error('unused'))} as never
+    void client
+  })
+
+  test('binds a space through a site config that advertises appEnvironmentUrl', async () => {
+    const net = new FakeNetwork()
+    await net.putConvertApp()
+    net.putTenant('z6MkSiteSpace', {siteUrl: 'https://site.test'})
+    net.json.set('https://site.test/hm/api/config', {
+      registeredAccountUid: 'z6MkSiteSpace',
+      appEnvironmentUrl: THIS_SERVER,
     })
     const db = makeDb(['z6MkSiteSpace'])
     storeSecret(db, 'z6MkSiteSpace', 'app-convert-apiKey')

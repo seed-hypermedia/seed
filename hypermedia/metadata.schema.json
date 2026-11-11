@@ -37,6 +37,12 @@
       },
       "description": "The web address a space is published at; set on the home document when a site is registered."
     },
+    "appEnvironmentUrl": {
+      "value": {
+        "type": "hm://hyper.media/url"
+      },
+      "description": "The app environment a space is bound to, set on the home document: the server that runs the apps installed in the space. Read before `agentServerUrl`, the older name of the same binding."
+    },
     "agentServerUrl": {
       "value": {
         "type": "hm://hyper.media/url"

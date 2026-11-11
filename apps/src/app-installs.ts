@@ -10,7 +10,8 @@
  * those types and keeps the ones that are its own to act on.
  *
  * Which server an install belongs to follows from a binding the space declares and this server proves.
- * A space names its agents server in its home document (`agentServerUrl`), or its site does in
+ * A space names its app environment in its home document (`appEnvironmentUrl`, or the older
+ * `agentServerUrl`), or its site does in
  * `/hm/api/config`; a server believes a URL is itself only after fetching that URL's `/health` and
  * seeing its own `serverUid` come back, the way a custom domain is proven by what DNS points at.
  * The same handshake names the operator's space: the one registered on the site this server reads
@@ -277,8 +278,9 @@ export async function isThisServer(deps: AppInstallDeps, url: string): Promise<b
 export type SpaceBindingResult = api.SpaceBinding & {siteUrl?: string}
 
 /**
- * Which agents server a space is bound to: its home document's `agentServerUrl`, else the
- * `agentServerUrl` its site advertises at `<siteUrl>/hm/api/config`, and whether that is this server.
+ * Which app environment a space is bound to: its home document's `appEnvironmentUrl` (or the older
+ * `agentServerUrl`), else the one its site advertises at `<siteUrl>/hm/api/config`, and whether that
+ * is this server.
  */
 export async function spaceBinding(
   deps: AppInstallDeps,
@@ -289,12 +291,16 @@ export async function spaceBinding(
   const home = homeId ? await client.request('Resource', homeId).catch(() => undefined) : undefined
   const metadata = home?.type === 'document' ? (home.document.metadata as Record<string, unknown>) : undefined
   const siteUrl = typeof metadata?.siteUrl === 'string' && metadata.siteUrl ? metadata.siteUrl : undefined
-  let agentServerUrl = typeof metadata?.agentServerUrl === 'string' ? metadata.agentServerUrl.trim() : ''
+  // `appEnvironmentUrl` is the binding's name since the app environment rename; `agentServerUrl`
+  // is the one spaces bound before it carry, and released clients still write.
+  const declared = metadata?.appEnvironmentUrl ?? metadata?.agentServerUrl
+  let agentServerUrl = typeof declared === 'string' ? declared.trim() : ''
   let source: api.SpaceBinding['source'] = agentServerUrl ? 'home' : 'none'
   if (!agentServerUrl && siteUrl) {
     const config = await fetchJson(deps, `${siteUrl.replace(/\/+$/, '')}/hm/api/config`).catch(() => undefined)
-    if (typeof config?.agentServerUrl === 'string' && config.agentServerUrl) {
-      agentServerUrl = config.agentServerUrl
+    const advertised = config?.appEnvironmentUrl ?? config?.agentServerUrl
+    if (typeof advertised === 'string' && advertised) {
+      agentServerUrl = advertised
       source = 'site'
     }
   }
@@ -315,7 +321,8 @@ export async function spaceBinding(
 export async function operatorSpace(deps: AppInstallDeps): Promise<string | null> {
   const config = await fetchJson(deps, `${deps.hmServerUrl.replace(/\/+$/, '')}/hm/api/config`).catch(() => undefined)
   const registered = typeof config?.registeredAccountUid === 'string' ? config.registeredAccountUid : ''
-  const advertised = typeof config?.agentServerUrl === 'string' ? config.agentServerUrl : ''
+  const declared = config?.appEnvironmentUrl ?? config?.agentServerUrl
+  const advertised = typeof declared === 'string' ? declared : ''
   if (!registered || !advertised) return null
   return (await isThisServer(deps, advertised)) ? registered : null
 }

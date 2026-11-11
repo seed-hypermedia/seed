@@ -29,11 +29,11 @@ export type BuildInfo = {
 
 export function getBuildInfo(): BuildInfo {
   return {
-    version: process.env.SEED_AGENTS_VERSION || 'dev',
+    version: (process.env.SEED_APPS_VERSION ?? process.env.SEED_AGENTS_VERSION) || 'dev',
     protocol: AGENTS_PROTOCOL_VERSION,
     minClientProtocol: MIN_CLIENT_PROTOCOL,
-    commit: process.env.SEED_AGENTS_COMMIT || 'unknown',
-    branch: process.env.SEED_AGENTS_BRANCH || 'unknown',
-    date: process.env.SEED_AGENTS_DATE || 'unknown',
+    commit: (process.env.SEED_APPS_COMMIT ?? process.env.SEED_AGENTS_COMMIT) || 'unknown',
+    branch: (process.env.SEED_APPS_BRANCH ?? process.env.SEED_AGENTS_BRANCH) || 'unknown',
+    date: (process.env.SEED_APPS_DATE ?? process.env.SEED_AGENTS_DATE) || 'unknown',
   }
 }

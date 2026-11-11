@@ -584,6 +584,7 @@ export const HMDocumentMetadataSchema = z
      * agent's id, and that server must register it under exactly that id. A space's agents are
      * found by querying its documents for this type; nothing else registers an agent with a space.
      */
+    appEnvironmentUrl: z.string().optional(),
     agentServerUrl: z.string().optional(),
     /** Resource type; custom HTML pages use hm://hyper.media/page. */
     type: z.string().optional(),
@@ -643,6 +644,7 @@ export const DOCUMENT_ATTRIBUTE_DESCRIPTIONS: Readonly<Record<string, string>> =
   thumbnail: 'Deprecated image field kept for older documents.',
   cover: 'Wide cover image shown in headers and cards.',
   siteUrl: 'Published website URL for a space.',
+  appEnvironmentUrl: 'App environment a space is bound to, on its home document; read before agentServerUrl.',
   agentServerUrl: 'Agents server that hosts the agent this document mounts.',
   layout: 'Legacy space header layout setting.',
   displayPublishTime: 'Publication date shown to readers.',

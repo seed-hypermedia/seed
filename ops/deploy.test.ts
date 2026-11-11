@@ -418,7 +418,7 @@ describe('generateCaddyfile', () => {
   test('routes /hm/api/agents to the agents service only when enabled, open like the site', () => {
     expect(generateCaddyfile(makeTestConfig())).not.toContain('seed-agents')
     const caddy = generateCaddyfile(makeTestConfig({agents: true}))
-    expect(caddy).toMatch(/@agentsroute \{\n\tpath \/hm\/api\/agents \/hm\/api\/agents\/\*\n\}/)
+    expect(caddy).toMatch(/@agentsroute \{\n\tpath \/hm\/api\/agents \/hm\/api\/agents\/\* \/hm\/api\/apps \/hm\/api\/apps\/\*\n\}/)
     expect(caddy).toContain('reverse_proxy @agentsroute seed-agents:3050')
     expect(caddy.indexOf('reverse_proxy @agentsroute')).toBeLessThan(caddy.indexOf('reverse_proxy * seed-web'))
     expect(caddy).not.toContain('forward_auth')
@@ -2991,10 +2991,10 @@ describe('enterprise: generateCaddyfile', () => {
     const webhook = caddy.indexOf('@agents_webhook {')
     expect(webhook).toBeGreaterThan(0)
     expect(webhook).toBeLessThan(gateStart)
-    expect(caddy).toMatch(/@agents_webhook \{\n\t\tmethod POST\n\t\tpath \/hm\/api\/agents\/webhooks\/\*\n/)
+    expect(caddy).toMatch(/@agents_webhook \{\n\t\tmethod POST\n\t\tpath \/hm\/api\/agents\/webhooks\/\* \/hm\/api\/apps\/webhooks\/\*\n/)
 
     // Members only: /hm/api/agents (API and WebSocket) sits behind the gate, before the catch-all.
-    const gated = caddy.indexOf('@agents path /hm/api/agents /hm/api/agents/*')
+    const gated = caddy.indexOf('@agents path /hm/api/agents /hm/api/agents/* /hm/api/apps /hm/api/apps/*')
     expect(gated).toBeGreaterThan(gateStart)
     expect(caddy.slice(gated, caddy.indexOf('}', gated + 30) + 1)).toMatch(
       /handle @agents \{\s*import gate\s*reverse_proxy seed-agents:3050/,
