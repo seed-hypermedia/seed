@@ -92,6 +92,57 @@ export function MountAgentDialog({
 export type PreparedAgentMount = {id: string; blobs: {cid: string; data: Uint8Array}[]}
 
 /**
+ * Signs a document at `to` whose attributes are `attrs` and whose body, when given, is a column of
+ * paragraphs, without publishing it: the blobs of the document, preceded by the writer capability
+ * when `to` is outside the signer's own space. Throws when the location is taken or the signer
+ * cannot write there.
+ */
+export async function signDocumentAttributes({
+  client,
+  accountUid,
+  to,
+  attrs,
+  paragraphs = [],
+}: {
+  client: ReturnType<typeof useUniversalClient>
+  accountUid: string
+  to: UnpackedHypermediaId
+  attrs: {key: string[]; value: string | boolean | number}[]
+  paragraphs?: {id: string; text: string}[]
+}): Promise<PreparedAgentMount> {
+  if (!client.getSigner) throw new Error('Signing is unavailable')
+  const existing = await client.request('Resource', to)
+  if (!canUseDocumentDestination(existing)) throw new Error('A document already exists here. Choose a different path.')
+  const signer = client.getSigner(accountUid)
+  const signerUid = base58btc.encode(new Uint8Array(await signer.getPublicKey()))
+  const path = '/' + to.path!.join('/')
+  const grants = to.uid === signerUid ? [] : (await client.request('ListCapabilities', {targetId: to})).capabilities
+  const capability = grants.find((cap) => cap.delegate === signerUid && (cap.role === 'WRITER' || cap.role === 'AGENT'))
+    ?.id
+  if (to.uid !== signerUid && !capability) throw new Error('Your signing identity needs write access to this location')
+  const document = await createDocumentBlobs(signer, {
+    space: to.uid,
+    path,
+    capability,
+    ops: [
+      {type: 'SetAttributes', attrs},
+      ...paragraphs.map((paragraph) => ({
+        type: 'ReplaceBlock' as const,
+        block: {type: 'Paragraph', id: paragraph.id, text: paragraph.text, annotations: []},
+      })),
+      ...(paragraphs.length ? [{type: 'MoveBlocks' as const, blocks: paragraphs.map((p) => p.id), parent: ''}] : []),
+    ],
+  })
+  const blobs = document.blobs.map((blob) => ({...blob, cid: blob.cid!}))
+  if (capability) {
+    const {data} = await encodeDagCbor((await client.request('GetCID', {cid: capability})).value)
+    // Preserve the grant's hash algorithm; the receiving node verifies its CID and signature.
+    blobs.unshift({cid: capability, data})
+  }
+  return {id: to.id, blobs}
+}
+
+/**
  * Signs the agent mount document at `to` without publishing it: a bodiless document whose `type` and
  * `agentServerUrl` attributes name the mount, plus the writer capability when `to` is outside the
  * signer's own space. Throws when the location is taken or the signer cannot write there.
@@ -111,38 +162,16 @@ export async function prepareAgentMount({
 }): Promise<PreparedAgentMount> {
   if (!isMountableAgentServerUrl(serverUrl))
     throw new Error('Use an HTTP or HTTPS app environment address without credentials')
-  if (!client.getSigner) throw new Error('Signing is unavailable')
-  const existing = await client.request('Resource', to)
-  if (!canUseDocumentDestination(existing)) throw new Error('A document already exists here. Choose a different path.')
-  const signer = client.getSigner(accountUid)
-  const signerUid = base58btc.encode(new Uint8Array(await signer.getPublicKey()))
-  const path = '/' + to.path!.join('/')
-  const grants = to.uid === signerUid ? [] : (await client.request('ListCapabilities', {targetId: to})).capabilities
-  const capability = grants.find((cap) => cap.delegate === signerUid && (cap.role === 'WRITER' || cap.role === 'AGENT'))
-    ?.id
-  if (to.uid !== signerUid && !capability) throw new Error('Your signing identity needs write access to this location')
-  const document = await createDocumentBlobs(signer, {
-    space: to.uid,
-    path,
-    capability,
-    ops: [
-      {
-        type: 'SetAttributes',
-        attrs: [
-          {key: ['name'], value: name},
-          {key: ['type'], value: 'hm://hyper.media/agent'},
-          {key: ['agentServerUrl'], value: serverUrl},
-        ],
-      },
+  return signDocumentAttributes({
+    client,
+    accountUid,
+    to,
+    attrs: [
+      {key: ['name'], value: name},
+      {key: ['type'], value: 'hm://hyper.media/agent'},
+      {key: ['agentServerUrl'], value: serverUrl},
     ],
   })
-  const blobs = document.blobs.map((blob) => ({...blob, cid: blob.cid!}))
-  if (capability) {
-    const {data} = await encodeDagCbor((await client.request('GetCID', {cid: capability})).value)
-    // Preserve the grant's hash algorithm; the receiving node verifies its CID and signature.
-    blobs.unshift({cid: capability, data})
-  }
-  return {id: to.id, blobs}
 }
 
 /**

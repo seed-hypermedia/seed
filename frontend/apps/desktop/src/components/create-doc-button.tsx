@@ -13,6 +13,7 @@ import {queryQueryBlock} from '@shm/shared/models/queries'
 import {useUniversalClient} from '@shm/shared/routing'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {hmIdPathToEntityQueryPath} from '@shm/shared/utils/path-api'
+import {CreateAppDialog} from '@shm/ui/agents/create-app-dialog'
 import {CreateAgentDialog} from '@shm/ui/agents/dialogs'
 import {useAgentServerUrls} from '@shm/ui/agents/models'
 import {Button} from '@shm/ui/button'
@@ -29,7 +30,7 @@ import {Add} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {emptyStructSchema} from '@shm/ui/schema/schema-editor'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {Bot, FileCode2, FilePlus2, Grid3X3, Import} from 'lucide-react'
+import {Bot, FileCode2, FilePlus2, Grid3X3, Import, Package} from 'lucide-react'
 import {nanoid} from 'nanoid'
 import {ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useActorRef, useSelector} from '@xstate/react'
@@ -60,6 +61,7 @@ export function useCreateDocumentMenuItem({
   const importing = useImporting(locationId)
   const importDialog = useImportDialog()
   const createAgent = useCreateAgentAtLocation(locationId, !locationId.path?.length)
+  const createApp = useCreateAppAtLocation(locationId)
 
   const openImportDialog = useCallback(() => {
     importDialog.open({
@@ -122,6 +124,16 @@ export function useCreateDocumentMenuItem({
               },
             ]
           : []),
+        ...(createApp.open
+          ? [
+              {
+                key: 'new-app',
+                label: 'App',
+                icon: <Package className="size-4" />,
+                onClick: createApp.open,
+              },
+            ]
+          : []),
         {
           key: 'import',
           label: 'Import',
@@ -133,6 +145,7 @@ export function useCreateDocumentMenuItem({
   }, [
     canCreateChildren,
     canEdit,
+    createApp.open,
     createAgent.open,
     createDraft,
     myAccountIds.data?.length,
@@ -147,6 +160,7 @@ export function useCreateDocumentMenuItem({
         {importDialog.content}
         {importing.content}
         {createAgent.content}
+        {createApp.content}
       </>
     ),
   }
@@ -158,6 +172,22 @@ export function useCreateDocumentMenuItem({
  * Agents are only ever children of a home document, so the entry is also hidden under any other
  * document.
  */
+/**
+ * New → App under the document on screen, for someone who can publish there. An app is a page with
+ * a tools folder, so it can live anywhere a document can; installing it is a separate page.
+ */
+function useCreateAppAtLocation(locationId: UnpackedHypermediaId): {open?: () => void; content: ReactNode} {
+  const dialog = useAppDialog(CreateAppDialog)
+  const selectedAccountId = useSelectedAccountId()
+  const capability = useSelectedAccountCapability(locationId)
+  const canEdit = roleCanWrite(capability?.role)
+  const open = useMemo(() => {
+    if (!selectedAccountId || !canEdit) return undefined
+    return () => dialog.open({accountUid: selectedAccountId, location: locationId})
+  }, [canEdit, dialog.open, locationId, selectedAccountId])
+  return {open, content: dialog.content}
+}
+
 function useCreateAgentAtLocation(
   locationId: UnpackedHypermediaId,
   /** Whether the document on screen is the home document; the entry is only offered there. */
@@ -240,6 +270,7 @@ function DesktopActorButton({
   })
   const createDraft = useCreateDraft()
   const createAgent = useCreateAgentAtLocation(destination, !locationId.path?.length)
+  const createApp = useCreateAppAtLocation(destination)
   const importStarted = useRef(false)
   const importing = useImporting(destination, schema, onImportFinished)
   const importDialog = useImportDialog(() => {
@@ -303,6 +334,7 @@ function DesktopActorButton({
         showSubdocument={snapshot.can({type: 'create.requested', kind: 'subdocument'})}
         onCreate={(kind) => actor.send({type: 'create.requested', kind})}
         onCreateAgent={createAgent.open}
+        onCreateApp={createApp.open}
         onImport={() => {
           actor.send({type: 'import.requested'})
           if (actor.getSnapshot().output?.type !== 'import') return
@@ -337,6 +369,7 @@ function DesktopActorButton({
       {importDialog.content}
       {importing.content}
       {createAgent.content}
+      {createApp.content}
     </>
   )
 }

@@ -28,6 +28,9 @@ import {getAgentsPlatform} from './platform'
 /** The app type, spelled the way the schema library names it; the bundled registry resolves it. */
 export const APP_TYPE = 'hm://hyper.media/app'
 /** The app install type, the page a space publishes to install an app. */
+/** The page type of one tool of an app, under the app page's `tools` folder. */
+export const APP_TOOL_TYPE = 'hm://hyper.media/app-tool'
+
 export const APP_INSTALL_TYPE = 'hm://hyper.media/app-install'
 
 const CHIP_CLASS = 'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase'
