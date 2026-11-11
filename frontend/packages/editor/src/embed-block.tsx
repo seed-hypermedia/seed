@@ -1,9 +1,9 @@
+import {type DomainResolverFn, extractCommentIdFromUrl, resolveHypermediaUrl} from '@seed-hypermedia/client'
 import {hmDomainUrlToWebUrl} from '@seed-hypermedia/client/hm-resolver'
-import {extractCommentIdFromUrl, resolveHypermediaUrl, type DomainResolverFn} from '@seed-hypermedia/client'
 import {HMBlockEmbed, HMEmbedViewSchema, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {useRouteLink} from '@shm/shared'
 import {useGatewayUrlStream} from '@shm/shared/gateway-url'
-import {useResource, useResolvedHmId} from '@shm/shared/models/entity'
+import {useResolvedHmId, useResource} from '@shm/shared/models/entity'
 import {useRecents} from '@shm/shared/models/recents'
 import {useSearch} from '@shm/shared/models/search'
 import {useEditorGate} from '@shm/shared/models/use-editor-gate'
@@ -30,9 +30,9 @@ import {
   BetweenHorizontalStart,
   CreditCard,
   ExternalLink as ExternalLinkIcon,
+  Forward,
   Link2,
   Pencil,
-  Forward,
   SquareMinus,
   SquarePen,
   Trash2,
@@ -44,7 +44,6 @@ import {
   type SyntheticEvent,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -445,7 +444,9 @@ const EmbedDisplay = ({editor, block, assign}: DisplayComponentProps) => {
           }}
         />
       )}
-      {showActions ? <SelectedEmbedActions editor={editor} block={block} isSelected={isSelected} /> : null}
+      {showActions ? (
+        <SelectedEmbedActions editor={editor} block={block} isSelected={isSelected} inline={isLinkView} />
+      ) : null}
     </MediaContainer>
   )
   return content
@@ -563,16 +564,17 @@ function SubdocumentMenu({
   )
 }
 
-/** Floating action bar on the bottom right
- * of a Card and Link embeds in edit mode. */
+/** Floating action bar for Card and Link embeds. */
 function SelectedEmbedActions({
   editor,
   block,
   isSelected,
+  inline,
 }: {
   editor: BlockNoteEditor<HMBlockSchema>
   block: Block<HMBlockSchema>
   isSelected: boolean
+  inline: boolean
 }) {
   const url = block.props.url as string
   const {id: docId} = useResolvedHmId(url)
@@ -588,8 +590,10 @@ function SelectedEmbedActions({
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       className={cn(
-        'absolute right-2 bottom-2 z-10 flex items-center gap-1 rounded-md',
-        'border-border bg-background border px-1 py-0.5 shadow-sm',
+        'absolute z-10 flex items-center gap-1 rounded-md',
+        inline
+          ? 'bg-background top-1/2 right-1 -translate-y-1/2'
+          : 'border-border bg-background right-2 bottom-2 border px-1 py-0.5 shadow-sm',
         'opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100',
         isSelected && 'opacity-100',
       )}

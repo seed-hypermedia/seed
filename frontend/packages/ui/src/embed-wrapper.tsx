@@ -1,16 +1,16 @@
-import './blocks-content.css'
 import {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {getRoutePanel, type DocumentPanelRoute, type DocumentRoute, type NavRoute} from '@shm/shared'
 import {useRouteLink} from '@shm/shared/routing'
-import {useNavRoute} from '@shm/shared/utils/navigation'
 import {packHmId} from '@shm/shared/utils/entity-id-url'
+import {useNavRoute} from '@shm/shared/utils/navigation'
+import {ChevronDown, ChevronUp} from 'lucide-react'
 import {HTMLAttributes, MouseEvent, PropsWithChildren, ReactNode, useMemo, useRef} from 'react'
 import {blockStyles} from './blocks-content-utils'
-import {useHighlighter} from './highlight-context'
-import {cn} from './utils'
-import {ChevronDown, ChevronUp} from 'lucide-react'
+import './blocks-content.css'
 import {Button} from './button'
+import {useHighlighter} from './highlight-context'
 import {Tooltip} from './tooltip'
+import {cn} from './utils'
 
 function isInteractiveEmbedClickTarget(event: MouseEvent<HTMLElement>) {
   const target = event.target as HTMLElement | null
@@ -138,7 +138,9 @@ export function EmbedWrapper({
         'block-embed hm-prose flex flex-col',
         blockStyles,
         !hideBorder && 'border-l-primary border-l-3',
-        'focus-within:outline-ring m-0 rounded-none focus-within:outline-2 focus-within:outline-offset-2',
+        'focus-within:outline-ring m-0 focus-within:outline-2 focus-within:outline-offset-2',
+        // Hover highlight for link view is rounded.
+        viewType === 'Link' ? 'rounded-md' : 'rounded-none',
         openOnClick && effectiveRoute && 'cursor-pointer text-inherit no-underline',
       )}
       data-is-range={isRange ? 'true' : undefined}

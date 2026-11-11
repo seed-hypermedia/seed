@@ -8,33 +8,32 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   abbreviateUid,
-  getRoutePanel,
   getCommentTargetId,
   getDocumentTitle,
+  getRoutePanel,
   RenderResourceProvider,
   shouldBlockEmbeddedResource,
   useRenderResourceStack,
   useRouteLink,
   useUniversalClient,
 } from '@shm/shared'
-import {useAccount, useResource, useResources, useResolvedHmId} from '@shm/shared/models/entity'
-import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
 import {commentThreadSelection} from '@shm/shared/comments'
-import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useAccount, useResolvedHmId, useResource, useResources} from '@shm/shared/models/entity'
 import type {DocumentPanelRoute} from '@shm/shared/routes'
+import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
+import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
 import {AlertCircle, FileSymlink as FileSymlinkIcon, FileText as FileTextIcon, Globe} from 'lucide-react'
 import React, {ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
 import {Discussions} from './comments'
+import {ContentEmbed} from './content-embed'
 import {copyUrlToClipboardWithFeedback} from './copy-to-clipboard'
 import {EmbedWrapper, getEmbedDocumentRoute} from './embed-wrapper'
-import {ContentEmbed} from './content-embed'
 import {DocumentCard} from './newspaper'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
 import {Tooltip} from './tooltip'
-import {cn} from './utils'
 
 /** Props shared by embed block renderers. */
 type BlockContentProps<BlockType extends HMBlock = HMBlock> = {
@@ -239,9 +238,8 @@ export function BlockEmbedLink({
   return <ExternalLinkEmbed url={url} parentBlockId={parentBlockId} openOnClick={openOnClick} />
 }
 
-/** HM-link variant: loads the target doc, picks the subdoc vs cross-doc icon,
- *  and renders a compact horizontal "card" with the same visual treatment as
- *  Card view. */
+/** HM-link variant: a small document tile (subdoc vs cross-doc icon) and the target
+ *  document's live title as link text. */
 function HmLinkEmbed({
   id,
   parentBlockId,
@@ -258,8 +256,7 @@ function HmLinkEmbed({
   const renderStack = useRenderResourceStack()
   const parentDocId =
     [...renderStack].reverse().find((entry) => entry.kind === 'document' && entry.id.id !== id.id)?.id ?? null
-  const isSubdoc = isHmDescendantOf(id, parentDocId)
-  const Icon = isSubdoc ? FileTextIcon : FileSymlinkIcon
+  const Icon = isHmDescendantOf(id, parentDocId) ? FileTextIcon : FileSymlinkIcon
   const documentRoute = useMemo(() => getEmbedDocumentRoute(id, currentRoute), [id, currentRoute])
   const titleLink = useRouteLink(openOnClick ? null : documentRoute)
   const titleIsLink = !openOnClick && !!titleLink.href
@@ -273,42 +270,31 @@ function HmLinkEmbed({
       openOnClick={openOnClick}
       viewType="Link"
     >
-      <div
-        className={cn(
-          'hover:bg-accent dark:hover:bg-accent flex w-full items-center gap-3 overflow-hidden rounded-lg',
-          'bg-white shadow-md transition-colors duration-300 dark:bg-black',
-          'px-3 py-2',
+      <div className="flex w-full items-center gap-2 overflow-hidden">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-emerald-100 dark:bg-emerald-900/30">
+          <Icon className="size-4 text-emerald-700 dark:text-emerald-400" strokeWidth={1.75} />
+        </div>
+        {titleIsLink ? (
+          <a
+            href={titleLink.href}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              titleLink.onClick?.(e)
+            }}
+            className={linkViewTextClass}
+          >
+            {title}
+          </a>
+        ) : (
+          <span className={linkViewTextClass}>{title}</span>
         )}
-      >
-        {/* Green icon placeholder, mirrors DocumentCard's no-cover variant. */}
-        <div className="flex aspect-square size-10 shrink-0 items-center justify-center rounded-md bg-emerald-100 dark:bg-emerald-900/30">
-          <Icon className="size-5 text-emerald-700 dark:text-emerald-400" strokeWidth={1.5} />
-        </div>
-        <div className="min-w-0 flex-1 overflow-hidden">
-          {titleIsLink ? (
-            <a
-              href={titleLink.href}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation()
-                titleLink.onClick?.(e)
-              }}
-              className="line-clamp-2 max-w-full font-sans text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
-            >
-              {title}
-            </a>
-          ) : (
-            <span className="line-clamp-2 max-w-full font-sans text-base font-bold text-blue-600 dark:text-blue-400">
-              {title}
-            </span>
-          )}
-        </div>
       </div>
     </EmbedWrapper>
   )
 }
 
-/** Non-HM-link variant: shows site favicon or blue-globe fallback and link text. */
+/** Non-HM-link variant: the site's favicon (or a globe) and the link's domain as link text. */
 function ExternalLinkEmbed({
   url,
   parentBlockId,
@@ -320,76 +306,42 @@ function ExternalLinkEmbed({
 }) {
   const domain = useMemo(() => safeUrlHostname(url), [url])
   const [faviconFailed, setFaviconFailed] = useState(false)
-  // Try the site's own favicon directly via <img> tag
   const faviconSrc = domain ? `https://${domain}/favicon.ico` : null
   const linkText = domain || url
   const link = useRouteLink(url)
-  const sharedAttrs = {
-    'data-content-type': 'embed',
-    'data-url': url,
-    'data-view': 'Link',
-    'data-parent-block-id': parentBlockId ?? undefined,
-  }
-  const icon =
-    faviconSrc && !faviconFailed ? (
-      <img src={faviconSrc} alt="" className="size-5 shrink-0" onError={() => setFaviconFailed(true)} />
-    ) : (
-      <Globe className="size-5 shrink-0 text-blue-600 dark:text-blue-400" />
-    )
-
-  if (openOnClick) {
-    // Published view - whole row navigates.
-    return (
-      <a
-        {...sharedAttrs}
-        href={link.href}
-        onClick={link.onClick}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={cn(
-          'hover:bg-accent dark:hover:bg-accent flex w-full items-center gap-3 overflow-hidden rounded-lg',
-          'bg-white shadow-md transition-colors duration-300 dark:bg-black',
-          'px-3 py-2 no-underline',
-        )}
-      >
-        {icon}
-        <div className="min-w-0 flex-1 overflow-hidden">
-          <span className="line-clamp-2 max-w-full font-sans text-base font-bold text-blue-600 dark:text-blue-400">
-            {linkText}
-          </span>
-        </div>
-      </a>
-    )
-  }
-  // Edit mode - only the title text navigates, the rest stays selectable.
   return (
     <div
-      {...sharedAttrs}
-      className={cn(
-        'hover:bg-accent dark:hover:bg-accent flex w-full items-center gap-3 overflow-hidden rounded-lg',
-        'bg-white shadow-md transition-colors duration-300 dark:bg-black',
-        'px-3 py-2',
-      )}
+      data-content-type="embed"
+      data-url={url}
+      data-view="Link"
+      data-parent-block-id={parentBlockId ?? undefined}
+      className="flex w-full items-center gap-2 overflow-hidden"
     >
-      {icon}
-      <div className="min-w-0 flex-1 overflow-hidden">
-        <a
-          href={link.href}
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={(e) => {
-            e.stopPropagation()
-            link.onClick?.(e)
-          }}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="line-clamp-2 max-w-full font-sans text-base font-bold text-blue-600 no-underline hover:underline dark:text-blue-400"
-        >
-          {linkText}
-        </a>
-      </div>
+      {faviconSrc && !faviconFailed ? (
+        <img src={faviconSrc} alt="" className="size-4 shrink-0" onError={() => setFaviconFailed(true)} />
+      ) : (
+        <Globe className="text-link size-4 shrink-0" />
+      )}
+      <a
+        href={link.href}
+        // In the editor only the text navigates, so the rest of the block stays selectable.
+        onMouseDown={openOnClick ? undefined : (e) => e.stopPropagation()}
+        onClick={(e) => {
+          if (!openOnClick) e.stopPropagation()
+          link.onClick?.(e)
+        }}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={linkViewTextClass}
+      >
+        {linkText}
+      </a>
     </div>
   )
 }
+
+/** Link view text styled like an inline hyperlink in the document body. */
+const linkViewTextClass = 'link text-link hover:text-link-hover line-clamp-2 max-w-full'
 
 function safeUrlHostname(url: string): string | null {
   try {
