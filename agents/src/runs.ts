@@ -456,7 +456,7 @@ export class RunQueue {
     const swept = stmt<{id: string}, [number]>(
       this.#db,
       `UPDATE runs SET status = 'queued', lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
-         WHERE status IN ('claimed', 'running') RETURNING id`,
+         WHERE status = 'claimed' OR status = 'running' RETURNING id`,
     ).all(now)
     if (swept.length > 0) {
       console.info('[agents/runs] boot sweep requeued interrupted runs', {count: swept.length})
