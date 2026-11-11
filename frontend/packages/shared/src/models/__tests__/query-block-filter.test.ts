@@ -169,6 +169,22 @@ describe('reference labels in search and filters', () => {
     }
   })
 
+  it('matches reference searches only by exact ref key, never as a substring', () => {
+    const items = [
+      item('Owner', {owner: 'hm://owneruid'}),
+      item('Spec', {spec: 'hm://owneruid/docs/x'}),
+      item('Plain', {}),
+    ]
+    expect(
+      filterQueryBlockDocuments(items, {search: 'hm://owneruid'}, labels).map((entry) => entry.metadata.name),
+    ).toEqual(['Owner'])
+    expect(
+      filterQueryBlockDocuments(items, {search: 'hm://owneruid/docs/x?v=1'}, labels).map(
+        (entry) => entry.metadata.name,
+      ),
+    ).toEqual(['Spec'])
+  })
+
   it('matches document reference labels inside array attributes', () => {
     const items = [item('One', {specs: ['hm://docuid/spec/one', 'Draft']}), item('Two', {specs: ['Other']})]
     expect(filterQueryBlockDocuments(items, {search: 'spec doc'}, labels).map((entry) => entry.metadata.name)).toEqual([

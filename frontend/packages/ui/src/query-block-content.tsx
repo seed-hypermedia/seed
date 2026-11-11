@@ -3,15 +3,26 @@ import * as Ariakit from '@ariakit/react'
 import {
   HMAccountsMetadata,
   HMDocumentInfo,
+  HMMentionCandidate,
   HMQueryBlockItemSummary,
   HMQueryBlockFilterOptions,
   HMQueryTableConfig,
 } from '@seed-hypermedia/client/hm-types'
 import {formattedDate, getMetadataName, useRouteLink} from '@shm/shared'
+import {useInlineMentions} from '@shm/shared/models/inline-mentions'
 import {useInteractionSummaries} from '@shm/shared/models/interaction-summary'
-import {getQueryBlockFilterOptions, matchesQueryFilterEquality} from '@shm/shared/models/query-block-filter'
-import {useNavigate} from '@shm/shared/utils/navigation'
+import {
+  getQueryBlockFilterOptions,
+  getQueryBlockRefKey,
+  matchesQueryFilterEquality,
+} from '@shm/shared/models/query-block-filter'
+import {useUniversalAppContext} from '@shm/shared/routing'
+import {useStream} from '@shm/shared/use-stream'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {useNavigate, useNavRouteOrNull} from '@shm/shared/utils/navigation'
 import {type SortingState} from '@tanstack/react-table'
+import {useActorRef, useSelector} from '@xstate/react'
+import {type ActorRefFrom} from 'xstate'
 import {
   ArrowDown,
   ArrowUp,
@@ -27,15 +38,18 @@ import {
   SlidersHorizontal,
   X,
 } from 'lucide-react'
-import {ReactNode, useCallback, useEffect, useMemo, useReducer, useRef, useState} from 'react'
+import {ReactNode, useCallback, useEffect, useId, useMemo, useReducer, useRef, useState} from 'react'
 import {Button} from './button'
 import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
 import {badgeVariants} from './components/badge'
 import {Input} from './components/input'
-import {Popover, PopoverContent, PopoverTrigger} from './components/popover'
+import {Popover, PopoverAnchor, PopoverContent, PopoverTrigger} from './components/popover'
 import {Switch} from './components/switch'
 import {ActiveFilterChip, ActiveFilterChipRow} from './explore-filters'
 import {SelectField} from './form-fields'
+import {HMEntityLink} from './hm-entity-field'
+import {MentionResults} from './mention-results'
+import {parseQueryBlockSearchMention, queryBlockSearchMachine} from './query-block-search-machine'
 import {DocumentCard} from './newspaper'
 import {QueryBlockTable} from './query-block-table'
 import {
@@ -410,6 +424,85 @@ export function QueryBlockContent({
   )
 }
 
+/**
+ * Mention suggestions for the collection search. Mounted only while the menu is
+ * open so the universal app context and mention query are optional for the
+ * surrounding toolbar. react-query stays the data layer; results are reported
+ * to the search machine as `mention.results`.
+ */
+function QueryBlockSearchMentionMenu({
+  mode,
+  query,
+  listId,
+  actor,
+}: {
+  mode: 'account' | 'document'
+  query: string
+  listId: string
+  actor: ActorRefFrom<typeof queryBlockSearchMachine>
+}) {
+  const selected = useSelector(actor, (snapshot) => snapshot.context.selected)
+  const {selectedIdentity, originHomeId} = useUniversalAppContext()
+  const perspectiveAccountUid = useStream(selectedIdentity)
+  const route = useNavRouteOrNull()
+  const documentId =
+    route?.key === 'document'
+      ? route.id
+      : route?.key === 'draft' && route.editUid
+        ? hmId(route.editUid, {path: route.editPath})
+        : undefined
+  const mentions = useInlineMentions(query, {
+    mode,
+    perspectiveAccountUid,
+    siteUid: documentId?.uid ?? originHomeId?.uid,
+    documentId,
+  })
+  const index = Math.min(selected, mentions.suggestions.length - 1)
+  // The empty suggestions fallback is a fresh array each render; only report
+  // actual changes so the machine update cannot loop.
+  const lastReported = useRef<{
+    suggestions: HMMentionCandidate[]
+    isFetching: boolean
+    isError: boolean
+  } | null>(null)
+  useEffect(() => {
+    const prev = lastReported.current
+    if (
+      prev &&
+      prev.isFetching === mentions.isFetching &&
+      prev.isError === mentions.isError &&
+      prev.suggestions.length === mentions.suggestions.length &&
+      prev.suggestions.every((suggestion, i) => suggestion === mentions.suggestions[i])
+    ) {
+      return
+    }
+    lastReported.current = {
+      suggestions: mentions.suggestions,
+      isFetching: mentions.isFetching,
+      isError: mentions.isError,
+    }
+    actor.send({
+      type: 'mention.results',
+      suggestions: mentions.suggestions,
+      isFetching: mentions.isFetching,
+      isError: mentions.isError,
+    })
+  }, [mentions.suggestions, mentions.isFetching, mentions.isError, actor])
+  return (
+    <MentionResults
+      id={listId}
+      mode={mode}
+      suggestions={mentions.suggestions}
+      selected={index}
+      loading={mentions.isFetching}
+      error={mentions.isError}
+      onRetry={() => void mentions.refetch()}
+      onSelect={(candidate) => actor.send({type: 'mention.picked', candidate})}
+      className="max-w-[90vw]"
+    />
+  )
+}
+
 function QueryBlockToolbar({
   actions,
   descriptors,
@@ -453,7 +546,17 @@ function QueryBlockToolbar({
   loadedCount: number
   isUpdating?: boolean
 }) {
-  const [searchExpanded, setSearchExpanded] = useState(false)
+  const searchActor = useActorRef(queryBlockSearchMachine)
+  const searchSnapshot = useSelector(searchActor, (snapshot) => snapshot)
+  useEffect(() => {
+    const subscription = searchActor.on('search.applied', (event) => setSearch(event.value))
+    return () => subscription.unsubscribe()
+  }, [searchActor, setSearch])
+  const searchExpanded = searchSnapshot.matches('editing')
+  const mentionOpen = searchSnapshot.hasTag('menuOpen')
+  const mentionListId = useId()
+  const mentionTrigger = mentionOpen ? parseQueryBlockSearchMention(searchSnapshot.context.draft) : null
+  const searchRefKey = getQueryBlockRefKey(search)
   return (
     <div
       data-query-block-toolbar
@@ -469,29 +572,105 @@ function QueryBlockToolbar({
         <div
           className={cn(
             'relative min-w-0 shrink transition-[width] duration-(--duration-normal) ease-(--ease-out-smooth) motion-reduce:transition-none',
-            searchExpanded ? 'w-64' : search ? 'w-40' : 'w-24',
+            searchExpanded ? 'w-64' : searchRefKey ? 'w-48' : search ? 'w-40' : 'w-24',
           )}
         >
           {searchExpanded ? (
             <>
-              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-              <Input
-                autoFocus
-                value={search}
-                onChangeText={setSearch}
-                onBlur={() => setSearchExpanded(false)}
-                placeholder="Search documents…"
-                aria-label="Search documents"
-                className="bg-background h-8 pl-8"
-              />
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 z-10 size-4 -translate-y-1/2" />
+              <Popover open={mentionOpen}>
+                <PopoverAnchor>
+                  <Input
+                    autoFocus
+                    value={searchSnapshot.context.draft}
+                    onChangeText={(value) => searchActor.send({type: 'input.changed', value})}
+                    onKeyDown={(event) => {
+                      if (!mentionOpen) return
+                      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                        event.preventDefault()
+                        searchActor.send({type: event.key === 'ArrowDown' ? 'key.down' : 'key.up'})
+                        return
+                      }
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        searchActor.send({type: 'key.enter'})
+                        return
+                      }
+                      if (event.key === 'Escape') {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        searchActor.send({type: 'key.escape'})
+                        return
+                      }
+                    }}
+                    onBlur={(event) => {
+                      // Clicking a mention result blurs the input; let the click win.
+                      const next = event.relatedTarget as HTMLElement | null
+                      if (next?.closest('[data-hm-search-results]')) return
+                      searchActor.send({type: 'input.blurred'})
+                    }}
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded={mentionOpen}
+                    aria-controls={mentionOpen ? mentionListId : undefined}
+                    aria-activedescendant={
+                      mentionOpen &&
+                      !searchSnapshot.context.isFetching &&
+                      !searchSnapshot.context.isError &&
+                      searchSnapshot.context.suggestions.length > 0
+                        ? `${mentionListId}-${searchSnapshot.context.selected}`
+                        : undefined
+                    }
+                    placeholder="Search, @ people, [[ documents"
+                    aria-label="Search documents"
+                    className="bg-background h-8 w-full pl-8"
+                  />
+                </PopoverAnchor>
+                <PopoverContent
+                  align="start"
+                  className="w-auto border-0 bg-transparent p-0 shadow-none"
+                  onOpenAutoFocus={(event) => event.preventDefault()}
+                >
+                  {mentionOpen && mentionTrigger ? (
+                    <div data-hm-search-results>
+                      <QueryBlockSearchMentionMenu
+                        mode={mentionTrigger.mode}
+                        query={mentionTrigger.query}
+                        listId={mentionListId}
+                        actor={searchActor}
+                      />
+                    </div>
+                  ) : null}
+                </PopoverContent>
+              </Popover>
             </>
+          ) : searchRefKey ? (
+            <div className="border-border bg-background flex h-8 w-48 min-w-0 items-center gap-0.5 rounded-md border pr-0.5 pl-2">
+              <button
+                type="button"
+                aria-label="Search documents"
+                className="focus-visible:border-ring focus-visible:ring-ring/50 flex min-w-0 flex-1 items-center rounded-md outline-none focus-visible:ring-[3px]"
+                onClick={() => searchActor.send({type: 'search.expanded', search})}
+              >
+                <HMEntityLink url={search} />
+              </button>
+              <Button
+                variant="ghost"
+                size="iconSm"
+                aria-label="Clear search"
+                className="text-muted-foreground shrink-0"
+                onClick={() => searchActor.send({type: 'search.cleared'})}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
           ) : (
             <Button
               variant="outline"
               size="sm"
               className="w-full min-w-0 justify-start"
               aria-label="Search documents"
-              onClick={() => setSearchExpanded(true)}
+              onClick={() => searchActor.send({type: 'search.expanded', search})}
             >
               <Search className="size-4" />
               <span className="truncate">{search || 'Search'}</span>

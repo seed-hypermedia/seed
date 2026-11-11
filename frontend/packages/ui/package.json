@@ -72,6 +72,7 @@
     "@tailwindcss/vite": "^4.1.8",
     "@tanstack/react-query": "^4.36.1",
     "@tanstack/react-table": "^8.21.3",
+    "@xstate/react": "4.1.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "heic-to": "^1.5.2",
@@ -93,7 +94,8 @@
     "tailwind-merge": "^3.3.0",
     "tailwindcss": "^4.1.8",
     "tw-animate-css": "^1.3.0",
-    "vaul": "^1.1.2"
+    "vaul": "^1.1.2",
+    "xstate": "5.19.2"
   },
   "devDependencies": {
     "@ipld/dag-cbor": "^9.2.5",

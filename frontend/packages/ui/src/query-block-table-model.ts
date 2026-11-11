@@ -220,12 +220,15 @@ export function queryTableItemMatchesSearch(
     refKeys.push(...keys)
     refNames.push(...names)
   }
+  // An hm:// search is an exact ref match, not text: an account ref is a URL
+  // prefix of its documents' refs and would otherwise substring-match them.
+  if (searchRefKey) return refKeys.includes(searchRefKey)
   const text = descriptors
     .map((column) => queryTableValueToString(getQueryTableValue(item, column.id, context)).toLocaleLowerCase())
     .concat(queryTableValueToString(item.metadata).toLocaleLowerCase())
     .concat(refNames.map((name) => name.toLocaleLowerCase()))
     .join('\n')
-  return text.includes(normalized) || (!!searchRefKey && refKeys.includes(searchRefKey))
+  return text.includes(normalized)
 }
 
 /** Returns the display name for a bare account ref key, when account metadata is available. */

@@ -200,11 +200,17 @@ export function filterQueryBlockDocuments(
           if (label) labels.push(label)
         }
       }
-      const searchable = [item.metadata.name, item.path.join('/'), ...Object.values(item.metadata), ...labels]
-        .map(text)
-        .join('\n')
-        .toLocaleLowerCase()
-      if (!searchable.includes(search) && !(searchRefKey && refKeys.includes(searchRefKey))) return false
+      // An hm:// search is an exact ref match, not text: an account ref is a URL
+      // prefix of its documents' refs and would otherwise substring-match them.
+      if (searchRefKey) {
+        if (!refKeys.includes(searchRefKey)) return false
+      } else {
+        const searchable = [item.metadata.name, item.path.join('/'), ...Object.values(item.metadata), ...labels]
+          .map(text)
+          .join('\n')
+          .toLocaleLowerCase()
+        if (!searchable.includes(search)) return false
+      }
     }
     return filters.every((filter) => matchesFilter(item, filter, refLabels))
   })

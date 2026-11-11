@@ -12,8 +12,16 @@ vi.mock('@shm/shared/models/interaction-summary', () => ({
 const navigate = vi.hoisted(() => vi.fn())
 vi.mock('@shm/shared/utils/navigation', () => ({
   useNavigate: () => navigate,
+  useNavRouteOrNull: () => null,
 }))
 
+import type {HMMentionCandidate} from '@seed-hypermedia/client/hm-types'
+import {queryClient} from '@shm/shared/models/query-client'
+import {UniversalAppProvider} from '@shm/shared/routing'
+import type {UniversalClient} from '@shm/shared/universal-client'
+import {hmId} from '@shm/shared/utils/entity-id-url'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
+import {parseQueryBlockSearchMention} from '../query-block-search-machine'
 import {QueryBlockContent as QueryBlockContentImpl, type QueryBlockContentProps} from '../query-block-content'
 import {TooltipProvider} from '../tooltip'
 
@@ -29,6 +37,7 @@ function QueryBlockContent(props: QueryBlockContentProps) {
 
 let container: HTMLDivElement
 let root: Root
+let mentionQueryClient: QueryClient
 let observers: MockIntersectionObserver[] = []
 
 class MockIntersectionObserver {
@@ -56,6 +65,7 @@ beforeEach(() => {
   container = document.createElement('div')
   document.body.appendChild(container)
   root = createRoot(container)
+  mentionQueryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
 })
 
 afterEach(() => {
@@ -63,6 +73,8 @@ afterEach(() => {
     root.unmount()
   })
   container.remove()
+  mentionQueryClient.clear()
+  queryClient.clear()
 })
 
 function renderQueryBlock(style: 'Card' | 'List' | 'Table') {
@@ -863,5 +875,186 @@ describe('QueryBlockContent filter value labels', () => {
     expect(onViewerFiltersChange).toHaveBeenCalledWith([
       {columnId: 'metadata:owner', operator: 'equals', value: 'hm://owneruid'},
     ])
+  })
+})
+
+const mentionAccounts: HMMentionCandidate[] = [
+  {
+    id: hmId('bea', {path: [':profile'], version: 'version'}),
+    type: 'account',
+    title: 'Bea',
+    icon: '',
+    parentNames: [],
+    searchQuery: '',
+    sameSite: false,
+    issuedContact: false,
+  },
+]
+
+const mentionDocuments: HMMentionCandidate[] = [
+  {
+    id: hmId('docuid', {path: ['spec', 'one'], version: 'version'}),
+    type: 'document',
+    title: 'Spec One',
+    icon: '',
+    parentNames: [],
+    searchQuery: '',
+    sameSite: false,
+    issuedContact: false,
+  },
+]
+
+function makeMentionSearchItems() {
+  return [
+    {
+      id: {id: 'hm://a/1', uid: 'a', path: ['1']},
+      path: ['1'],
+      metadata: {name: 'Owned doc', owner: 'hm://bea'},
+      authors: [],
+    },
+    {
+      id: {id: 'hm://a/2', uid: 'a', path: ['2']},
+      path: ['2'],
+      metadata: {name: 'Spec doc', spec: 'hm://docuid/spec/one'},
+      authors: [],
+    },
+    {
+      id: {id: 'hm://a/3', uid: 'a', path: ['3']},
+      path: ['3'],
+      metadata: {name: 'Plain doc'},
+      authors: [],
+    },
+  ] as any
+}
+
+function renderMentionSearchBlock(items = makeMentionSearchItems()) {
+  const universalClient = {
+    request: async (key: string, params?: {mode?: string}) =>
+      key === 'MentionCandidates' ? (params?.mode === 'document' ? mentionDocuments : mentionAccounts) : null,
+    fetchRecents: async () => [],
+  } as unknown as UniversalClient
+  act(() => {
+    root.render(
+      <QueryClientProvider client={mentionQueryClient}>
+        <UniversalAppProvider openUrl={() => {}} openRoute={null} universalClient={universalClient}>
+          <QueryBlockContent items={items} style="List" accountsMetadata={{}} />
+        </UniversalAppProvider>
+      </QueryClientProvider>,
+    )
+  })
+  const searchButton = container.querySelector('button[aria-label="Search documents"]') as HTMLButtonElement
+  act(() => searchButton.click())
+  return container.querySelector('input[aria-label="Search documents"]') as HTMLInputElement
+}
+
+function enterSearchText(input: HTMLInputElement, text: string) {
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, text)
+    input.dispatchEvent(new Event('input', {bubbles: true}))
+  })
+}
+
+function pressSearchKey(input: HTMLInputElement, key: string) {
+  act(() => input.dispatchEvent(new KeyboardEvent('keydown', {key, bubbles: true})))
+}
+
+function mentionListbox() {
+  return document.body.querySelector('[role="listbox"]')
+}
+
+async function waitForMentionOptions(count: number) {
+  await vi.waitFor(async () => {
+    await act(async () => {})
+    expect(document.body.querySelectorAll('[role="option"]:not(:disabled)')).toHaveLength(count)
+  })
+}
+
+describe('parseQueryBlockSearchMention', () => {
+  it('parses account and document triggers only at the start of the text', () => {
+    expect(parseQueryBlockSearchMention('@be')).toEqual({mode: 'account', query: 'be'})
+    expect(parseQueryBlockSearchMention('  @be')).toEqual({mode: 'account', query: 'be'})
+    expect(parseQueryBlockSearchMention('[[spec')).toEqual({mode: 'document', query: 'spec'})
+    expect(parseQueryBlockSearchMention('@')).toEqual({mode: 'account', query: ''})
+    expect(parseQueryBlockSearchMention('foo @bar')).toBeNull()
+    expect(parseQueryBlockSearchMention('')).toBeNull()
+    expect(parseQueryBlockSearchMention('search term')).toBeNull()
+  })
+})
+
+describe('QueryBlockContent mention search', () => {
+  it('typing @ opens the Accounts listbox without applying the draft as a filter, and Enter selects the account', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '@be')
+    await waitForMentionOptions(1)
+    expect(input.getAttribute('aria-expanded')).toBe('true')
+    expect(mentionListbox()?.getAttribute('aria-label')).toBe('Accounts')
+    // The draft must not filter the collection while the mention is being composed.
+    expect(container.textContent).toContain('Owned doc')
+    expect(container.textContent).toContain('Spec doc')
+    expect(container.textContent).toContain('Plain doc')
+    pressSearchKey(input, 'Enter')
+    expect(container.textContent).toContain('Owned doc')
+    expect(container.textContent).not.toContain('Spec doc')
+    expect(container.textContent).not.toContain('Plain doc')
+    expect(mentionListbox()).toBeNull()
+  })
+
+  it('typing [[ opens the Documents listbox and clicking an option filters by that document ref', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '[[spec')
+    await waitForMentionOptions(1)
+    expect(mentionListbox()?.getAttribute('aria-label')).toBe('Documents')
+    act(() => (document.body.querySelector('[role="option"]') as HTMLButtonElement).click())
+    expect(container.textContent).toContain('Spec doc')
+    expect(container.textContent).not.toContain('Owned doc')
+    expect(container.textContent).not.toContain('Plain doc')
+    // The collapsed control shows the entity pill for the stored document ref (no version).
+    expect(container.querySelector('[data-testid="hm-entity-pill"]')).toBeTruthy()
+  })
+
+  it('Escape dismisses the menu and keeps the draft as a literal search', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '@be')
+    await waitForMentionOptions(1)
+    pressSearchKey(input, 'Escape')
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(mentionListbox()).toBeNull()
+    expect(input.value).toBe('@be')
+  })
+
+  it('shows the selected ref as a pill and Clear search resets it', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '@be')
+    await waitForMentionOptions(1)
+    pressSearchKey(input, 'Enter')
+    expect(container.querySelector('[data-testid="hm-entity-pill"]')).toBeTruthy()
+    act(() => (container.querySelector('button[aria-label="Clear search"]') as HTMLButtonElement).click())
+    expect(container.querySelector('[data-testid="hm-entity-pill"]')).toBeNull()
+    expect(container.textContent).toContain('Owned doc')
+    expect(container.textContent).toContain('Spec doc')
+    expect(container.textContent).toContain('Plain doc')
+  })
+
+  it('reopens the menu for a new trigger after Escape and re-expanding the search', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, '@be')
+    await waitForMentionOptions(1)
+    pressSearchKey(input, 'Escape')
+    expect(mentionListbox()).toBeNull()
+    act(() => input.blur())
+    act(() => (container.querySelector('button[aria-label="Search documents"]') as HTMLButtonElement).click())
+    const reopened = container.querySelector('input[aria-label="Search documents"]') as HTMLInputElement
+    enterSearchText(reopened, '@bea')
+    await waitForMentionOptions(1)
+    expect(reopened.getAttribute('aria-expanded')).toBe('true')
+    expect(mentionListbox()?.getAttribute('aria-label')).toBe('Accounts')
+  })
+
+  it('does not open the menu when the trigger is not at the start of the text', async () => {
+    const input = renderMentionSearchBlock()
+    enterSearchText(input, 'foo @bar')
+    await act(async () => {})
+    expect(input.getAttribute('aria-expanded')).toBe('false')
+    expect(mentionListbox()).toBeNull()
   })
 })

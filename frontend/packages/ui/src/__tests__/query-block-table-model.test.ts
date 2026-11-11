@@ -236,6 +236,17 @@ describe('account reference fallback matching', () => {
     expect(queryTableItemMatchesSearch(row, 'hm://otheruid', descriptors, context)).toBe(false)
   })
 
+  it('matches reference searches only by exact ref key, never as a substring', () => {
+    const descriptors = buildQueryTableColumns()
+    const owner = item('Owner', {owner: 'hm://owneruid'})
+    const spec = item('Spec', {spec: 'hm://owneruid/docs/x'})
+    const plain = item('Plain', {})
+    for (const row of [owner, spec, plain]) {
+      expect(queryTableItemMatchesSearch(row, 'hm://owneruid', descriptors, context)).toBe(row === owner)
+      expect(queryTableItemMatchesSearch(row, 'hm://owneruid/docs/x?v=1', descriptors, context)).toBe(row === spec)
+    }
+  })
+
   it('matches contains filters by account name and ref key', () => {
     const rows = [item('One', {owner: 'hm://owneruid'}), item('Two', {owner: 'hm://otheruid'})]
     expect(
