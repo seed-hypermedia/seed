@@ -14,7 +14,7 @@ import {SeedAgentsView} from '../view'
 
 /**
  * The whole package from the host's side: the real provider, platform adapter, pages, models and
- * signing, against a fake agents server that checks every envelope's signature. Only the wire is
+ * signing, against a fake app environment that checks every envelope's signature. Only the wire is
  * faked.
  */
 const key = blobs.nobleKeyPairFromSeed(new Uint8Array(32).fill(7))

@@ -47,7 +47,7 @@ const daemonBinaryPath = path.join(
   `plz-out/bin/backend/seed-daemon-${getPlatformTriple()}`,
 )
 
-// The local agents server: a `bun build --compile` binary staged by
+// The local app environment: a `bun build --compile` binary staged by
 // `apps/scripts/build-binary.ts` together with its package.json and staged node_modules. The whole
 // directory ships so it lands as `<resources>/apps/`, which is where
 // `src/agents-server-path.ts` looks for it in a packaged app.
@@ -59,11 +59,11 @@ if (!hasAgentsBinary) {
   if (process.env.CI) {
     // Fail loudly rather than notarize and ship an app whose assistant cannot start.
     throw new Error(
-      `Missing agents server binary at ${agentsBinaryPath} (build it with \`cd apps && bun run build:binary\`)`,
+      `Missing app environment binary at ${agentsBinaryPath} (build it with \`cd apps && bun run build:binary\`)`,
     )
   }
   console.warn(
-    `[FORGE CONFIG]: ⚠️ No agents server binary at ${agentsBinaryPath} — packaging WITHOUT a local agents server. Build it with \`cd apps && bun run build:binary\`.`,
+    `[FORGE CONFIG]: ⚠️ No app environment binary at ${agentsBinaryPath} — packaging WITHOUT a local app environment. Build it with \`cd apps && bun run build:binary\`.`,
   )
 }
 

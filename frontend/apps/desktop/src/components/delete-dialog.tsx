@@ -52,7 +52,7 @@ export function DeleteDocumentDialog({
   const parentId = parentDocumentId(id)
   const parent = useResource(parentId)
   const appsPublisher = useAppsPublisher()
-  // A mounted agent goes with its document; the agent server call is signed by the same account.
+  // A mounted agent goes with its document; the app environment call is signed by the same account.
   const agentDeletion = useMountedAgentDeletion(
     id,
     doc.data?.type === 'document' ? doc.data.document.metadata : undefined,

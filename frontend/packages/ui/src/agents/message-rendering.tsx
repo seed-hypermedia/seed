@@ -100,7 +100,7 @@ export const ChatMessageBubble = React.memo(function ChatMessageBubble({
    * model's next message lands.
    */
   isLiveTail?: boolean
-  /** Agent server URL, needed to resolve session attachment images for display. */
+  /** App environment URL, needed to resolve session attachment images for display. */
   serverUrl?: string
   /** Signing account for server-side record queries (delegate work views). */
   accountUid?: string | null
@@ -323,7 +323,7 @@ export const AssistantMessageParts = React.memo(function AssistantMessageParts({
   /** See ChatMessageBubble: keeps a trailing thinking group live between tool calls. */
   isLiveTail?: boolean
   rawMarkdownButton?: React.ReactNode
-  /** Agent server the parts' tool calls ran on, for tools that link to server-side records. */
+  /** App environment the parts' tool calls ran on, for tools that link to server-side records. */
   serverUrl?: string
   /** Signing account for server-side record queries (the delegate work view needs it). */
   accountUid?: string | null
@@ -682,7 +682,7 @@ export function AgentErrorRow({
 
 /**
  * Resolves `attachment://<id>` links in a user message's blocks to displayable `data:` URLs by
- * fetching the session-private attachment bytes from the agent server. Blocks pass through
+ * fetching the session-private attachment bytes from the app environment. Blocks pass through
  * untouched while the fetch is in flight or when the message has no attachments.
  */
 function useAttachmentResolvedBlocks(
@@ -995,7 +995,7 @@ function TruncatedPayloadNotice({
 
 /**
  * Which machines a tool call touched, for the inspector. A timed-out publish reads the same as a
- * timed-out read unless the dialog says where the request went: the agent server that ran the tool,
+ * timed-out read unless the dialog says where the request went: the app environment that ran the tool,
  * and the Seed HM server that server publishes to and reads from (per its health endpoint). Every
  * `read`/`write` hits that HM server — a write may only target it — so the row is named for what
  * the operator has to go look at, not for the tool.
@@ -1012,7 +1012,7 @@ function ToolCallServersSection({args}: {args: ChatToolPart['args'] | undefined}
           : undefined
       : undefined
   const rows: {label: string; value: string}[] = [
-    {label: 'Agent server', value: serverUrl || 'Unknown'},
+    {label: 'App environment', value: serverUrl || 'Unknown'},
     {
       label: 'Hypermedia server',
       value: health.data?.hmServerUrl || (health.isError ? 'Unreachable' : health.isLoading ? 'Loading…' : 'Unknown'),
@@ -2407,7 +2407,7 @@ export function ToolCallLine({
 }: {
   item: ChatToolPart
   liveActivity?: AgentRunActivity
-  /** Agent server the run lives on; without it the embedded run record cannot be loaded. */
+  /** App environment the run lives on; without it the embedded run record cannot be loaded. */
   serverUrl?: string
   /** Signing account for server-side queries; without it the delegate work view falls back to raw details. */
   accountUid?: string | null

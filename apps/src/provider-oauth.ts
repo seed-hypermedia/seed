@@ -4,7 +4,7 @@
  * Currently one flow exists: OpenAI "Sign in with ChatGPT" (the Codex CLI OAuth
  * client). The client's registered redirect URI is fixed at
  * `http://localhost:1455/auth/callback` — localhost of the machine running the
- * user's *browser*, which is not the agents server for remote deployments. The
+ * user's *browser*, which is not the app environment for remote deployments. The
  * server therefore never binds a loopback listener: it builds the PKCE
  * authorization URL, hands it to the client, and waits for the authorization
  * code to come back through the signed `SubmitProviderOAuthCode` action. The

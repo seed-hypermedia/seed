@@ -122,7 +122,7 @@ export type ModelProviderType =
 type AgentAction = AgentsProtocol.UnsignedAgentAction
 type AgentsResponse = AgentsProtocol.AgentResponse
 
-/** Health payload returned by the agent server status route. */
+/** Health payload returned by the app environment status route. */
 export type AgentServerHealth = {
   status: string
   uptime: number
@@ -151,20 +151,20 @@ export type AgentServerHealth = {
 /** Canonical path of the app environment's API, on a standalone host or on a site's own origin. */
 export const APPS_API_PREFIX = '/hm/api/apps'
 
-/** The agents server's path for the same API; every environment still answers it, and published bindings still name it. */
+/** The app environment's path for the same API; every environment still answers it, and published bindings still name it. */
 export const AGENTS_API_PREFIX = '/hm/api/agents'
 
 /**
- * Normalizes an agent server URL for storage and fetch calls. A canonical base (path ending in
+ * Normalizes an app environment URL for storage and fetch calls. A canonical base (path ending in
  * `/hm/api/apps` or `/hm/api/agents`) is kept as is; a bare `/agents` suffix (the old way of naming the legacy
  * mount) is stripped back to the origin.
  */
 export function normalizeAgentServerUrl(input: string): string {
   const value = input.trim().replace(/\/+$/, '')
-  if (!value) throw new Error('Agent server URL is required')
+  if (!value) throw new Error('App environment URL is required')
   const url = new URL(value)
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Agent server URL must start with http:// or https://')
+    throw new Error('App environment URL must start with http:// or https://')
   }
   if (url.pathname === '/agents' || url.pathname === '/agents/') {
     url.pathname = '/'
@@ -221,10 +221,10 @@ export function isSafeAgentServerSecretTarget(serverUrl: string): boolean {
   return ['localhost', '127.0.0.1', '::1'].includes(url.hostname)
 }
 
-/** Fetches agent server health from the built-in status endpoint. */
+/** Fetches app environment health from the built-in status endpoint. */
 export async function getAgentServerHealth(serverUrl: string): Promise<AgentServerHealth> {
   const res = await fetch(agentServerEndpoint(serverUrl, 'health'))
-  if (!res.ok) throw new Error(`Agent server health failed: HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`App environment health failed: HTTP ${res.status}`)
   return res.json()
 }
 
@@ -293,7 +293,7 @@ function omitUndefined<T>(value: T): T {
 }
 
 /**
- * An error the agent server answered with (as opposed to a failed connection).
+ * An error the app environment answered with (as opposed to a failed connection).
  *
  * Callers that hold onto a remembered resource across transient outages use the distinction: a
  * server that replied "not found" or "forbidden" has settled the question, while a fetch that never
@@ -362,7 +362,7 @@ export async function postSignedAgentAction(
       throw new AgentProtocolError(decoded.message, res.status)
     }
     throw new AgentServerError(
-      decoded._ === 'Error' ? decoded.message : `Agent server request failed: HTTP ${res.status}`,
+      decoded._ === 'Error' ? decoded.message : `App environment request failed: HTTP ${res.status}`,
       res.status,
       decoded._ === 'Error' ? decoded.code : undefined,
     )

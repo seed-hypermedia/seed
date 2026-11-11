@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Live UI↔server integration: the REAL agents server (spawned `bun src/main.ts`), the REAL signed
+ * Live UI↔server integration: the REAL app environment (spawned `bun src/main.ts`), the REAL signed
  * CBOR protocol, and the REAL desktop data hooks — only the Electron-main signing boundary is
  * shimmed (grpcClient.daemon.signData signs locally with a test keypair).
  *
@@ -129,7 +129,7 @@ describe.skipIf(!agentsServerAvailable)('agents live integration: session titlin
     })
     await new Promise<void>((resolve) => providerServer!.listen(PROVIDER_PORT, '127.0.0.1', resolve))
 
-    // 2. The real agents server binary, title generation at its real-server default (on).
+    // 2. The real app environment binary, title generation at its real-server default (on).
     dataDir = mkdtempSync(path.join(tmpdir(), 'agents-ui-int-'))
     agentsServer = spawn('bun', ['src/main.ts'], {
       cwd: REPO_AGENTS_DIR,
@@ -151,7 +151,7 @@ describe.skipIf(!agentsServerAvailable)('agents live integration: session titlin
       } catch {}
       if (!healthy) await new Promise((resolve) => setTimeout(resolve, 250))
     }
-    if (!healthy) throw new Error('agents server never became healthy')
+    if (!healthy) throw new Error('app environment never became healthy')
 
     // 3. Real signed setup through the real client code path.
     // `custom` providers require no API key, which keeps byte payloads out of the jsdom realm.

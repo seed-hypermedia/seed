@@ -2,7 +2,7 @@
  * Agents protocol versioning.
  *
  * Clients and servers are built from the same repository but are not deployed together: a desktop
- * release stays in use for weeks, while the hosted agents servers redeploy on every push to main.
+ * release stays in use for weeks, while the hosted app environments redeploy on every push to main.
  * The shared TypeScript types therefore only prove that client and server agree *at one commit*.
  * Across commits, this number is the contract.
  *

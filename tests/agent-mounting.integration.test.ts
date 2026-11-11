@@ -51,7 +51,7 @@ beforeAll(async () => {
     daemonGrpcPort: 59412,
     daemonP2pPort: 59413,
     skipBuild: process.env.SKIP_BUILD === 'true',
-    // The web app's default agents server, which the New menu's Create Agent dialog targets.
+    // The web app's default app environment, which the New menu's Create Agent dialog targets.
     agentServerUrl: localServerUrl,
   })
   agentDataDir = mkdtempSync(path.join(tmpdir(), 'seed-agent-mount-'))

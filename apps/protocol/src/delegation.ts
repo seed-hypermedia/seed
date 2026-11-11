@@ -1,5 +1,5 @@
 /**
- * Delegation budgets shared by the agents server and every settings UI.
+ * Delegation budgets shared by the app environment and every settings UI.
  *
  * A run tree can fan out (children per run) and nest (delegation depth). Both are bounded by a
  * budget the root run is created with and every child inherits. "Thoroughness" is the

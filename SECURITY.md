@@ -15,7 +15,7 @@ or the hosted services.
 
 - The desktop app (`frontend/apps/desktop`), including the experimental web pane and the agent browser tool.
 - The daemon (`backend`), its HTTP and gRPC APIs, and the Hypermedia protocol implementation.
-- The web app, the notify service, the vault, and the agents server.
+- The web app, the notify service, the vault, and the app environment.
 
 ## How security work is recorded
 

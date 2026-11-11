@@ -1,5 +1,5 @@
 /**
- * A scripted OpenAI-compatible provider, so a REAL running Agents server can be driven through a
+ * A scripted OpenAI-compatible provider, so a REAL running App environment can be driven through a
  * REAL HTTP request/response cycle with a deterministic "model".
  *
  * The live gate proper needs a live model; this is the other half of the same question — does the

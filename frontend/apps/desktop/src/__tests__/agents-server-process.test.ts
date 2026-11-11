@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 
 /**
- * Resolution order for the local agents server.
+ * Resolution order for the local app environment.
  *
  * This runs in the Electron main process, so nothing here is exercised by rendering tests — yet it
  * decides whether the app has a local server at all, and therefore whether "Local Agents" ever
@@ -87,7 +87,7 @@ afterEach(() => {
   process.env = {...ORIGINAL_ENV}
 })
 
-describe('local agents server resolution', () => {
+describe('local app environment resolution', () => {
   it('skips entirely when disabled by env', async () => {
     process.env.SEED_NO_AGENTS_SPAWN = '1'
 

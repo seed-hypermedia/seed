@@ -1,5 +1,5 @@
 /**
- * Model reasoning knowledge shared by the agents server and every model-picker UI.
+ * Model reasoning knowledge shared by the app environment and every model-picker UI.
  *
  * The level lists are empirically verified against the live provider APIs (see the
  * per-provider notes below) rather than scraped from a catalog, because providers
@@ -9,7 +9,7 @@
  *
  * The matrix is a first guess, not the last word: the server also learns from a
  * provider's own rejection of an effort value at run time (see
- * `learnReasoningEffortSupport` in the agents server), so a model this file does not
+ * `learnReasoningEffortSupport` in the app environment), so a model this file does not
  * know yet degrades to a corrected request rather than a permanently failing agent.
  */
 

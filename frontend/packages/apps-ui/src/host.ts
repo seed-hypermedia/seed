@@ -3,7 +3,7 @@ import type * as React from 'react'
 /**
  * Signs agent actions for one Seed account.
  *
- * Every request to an agents server is a signed envelope. The host owns the key: it may hold it in
+ * Every request to an app environment is a signed envelope. The host owns the key: it may hold it in
  * the page (a WebCrypto or noble key pair) or keep it elsewhere and sign remotely (a local daemon
  * that only answers its own authenticated UI). The kit never sees key material, only signatures.
  */
@@ -25,7 +25,7 @@ export type SeedAgentsSigner = {
 export type SeedAgentsDelegation = {
   /** CID of the Capability blob. */
   capabilityCid: string
-  /** The Capability blob's raw bytes, so the agents server need not fetch it. */
+  /** The Capability blob's raw bytes, so the app environment need not fetch it. */
   capabilityBlob?: Uint8Array
 }
 
@@ -89,7 +89,7 @@ export type SeedAgentsHost = {
    * `/hm/api/apps` or `/hm/api/agents` (a site serving it on its own origin, or `https://agentic.seed.hyper.media/hm/api/agents`)
    * and the kit calls `<serverUrl>/message`, `/ws` and `/health`. Any other base is a legacy server:
    * the kit calls `<serverUrl>/api/message`, `<serverUrl>/agents/ws` and `<serverUrl>/agents/api/*`,
-   * so a host may point this at its own reverse proxy of an agents server.
+   * so a host may point this at its own reverse proxy of an app environment.
    */
   serverUrl: string
   /** Signs agent actions. `null` while the host has no account; the kit then shows a sign-in notice. */

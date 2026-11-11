@@ -1,5 +1,5 @@
 /**
- * Model input-capability knowledge shared by the agents server and clients.
+ * Model input-capability knowledge shared by the app environment and clients.
  *
  * Mirrors the approach of `reasoning.ts`: provider-specific model-id heuristics
  * rather than a scraped catalog, so the server can decide whether to send image
@@ -36,7 +36,7 @@ function googleSupportsImageInput(modelId: string): boolean {
 
 /**
  * Whether a model accepts image content in user messages. `providerType` is the
- * agents server provider type ('openai' | 'anthropic' | 'google' | ...); unknown
+ * app environment provider type ('openai' | 'anthropic' | 'google' | ...); unknown
  * providers return false so image attachments fall back to metadata text.
  */
 export function modelSupportsImageInput(providerType: string, modelId: string): boolean {

@@ -9,7 +9,7 @@
  *     envelopes *as the account* — the same position desktop is in with its daemon. `registerSigner`
  *     is therefore omitted; only web needs it, to prove that its delegated device key may act for
  *     the account.
- *   - **No local node.** Like web, mobile runs no HM daemon and no app-managed agents server, so
+ *   - **No local node.** Like web, mobile runs no HM daemon and no app-managed app environment, so
  *     `getLocalServerUrl`, `discoverEntity`, `subscribeToEntity` and `connectToHmServer` are all
  *     omitted. Every consumer guards on their absence.
  *   - **No block editor.** The shared rich composer is a web component; mobile writes its own
@@ -29,7 +29,7 @@ import {openDocument} from '../components/doc-navigation'
 import {unpackHmId} from '@shm/shared/utils/entity-id-url'
 
 /**
- * Built-in agents server for this build.
+ * Built-in app environment for this build.
  *
  * `SEED_AGENT_SERVER_URL` in @shm/shared/constants falls back to `http://localhost:3051` outside
  * production, which is meaningless on a phone — loopback there is the device itself. Mobile takes
@@ -44,7 +44,7 @@ const SETTING_KEY_PREFIX = 'agents_setting:'
  * The account that signs agent actions: the vault's active identity.
  *
  * Re-reads on every vault change, so switching identity in the sidebar re-points the whole agents
- * UI at that account's agents — the agent server scopes all state by signing account.
+ * UI at that account's agents — the app environment scopes all state by signing account.
  */
 function useVaultAccountUid(): string | null | undefined {
   // `undefined` means "still loading" and `null` means "no identity"; the shared UI distinguishes

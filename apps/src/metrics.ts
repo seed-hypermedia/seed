@@ -27,7 +27,7 @@ export function renderMetrics({perf, canary, build, uptimeSeconds}: MetricsInput
     for (const [labels, value] of samples) out.push(`${name}${labels} ${formatValue(value)}`)
   }
 
-  family('seed_agents_info', 'gauge', 'Build of this agents server.', [
+  family('seed_agents_info', 'gauge', 'Build of this app environment.', [
     [labels({version: build.version, protocol: String(build.protocol)}), 1],
   ])
   family('seed_agents_uptime_seconds', 'gauge', 'Seconds since this process started.', [['', uptimeSeconds]])

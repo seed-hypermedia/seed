@@ -629,7 +629,7 @@ export function AgentDetailPage({
                 <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm break-words whitespace-pre-wrap">
                   {!canWrite
                     ? promptBlocksToMarkdown(systemPrompt) || 'No system prompt configured.'
-                    : 'Connect to the agent server to edit this prompt.'}
+                    : 'Connect to the app environment to edit this prompt.'}
                 </pre>
               ) : (
                 <AgentPromptEditor
@@ -1294,8 +1294,8 @@ function DeleteAgentDialog({
     <div className="flex flex-col gap-4 rounded-lg p-4">
       <AlertDialogTitle>Delete agent?</AlertDialogTitle>
       <AlertDialogDescription>
-        This will permanently delete “{input.agentName}” and its sessions, triggers, and drafts from the agent server.
-        This action cannot be undone.
+        This will permanently delete “{input.agentName}” and its sessions, triggers, and drafts from the app
+        environment. This action cannot be undone.
       </AlertDialogDescription>
       <AlertDialogFooter>
         <AlertDialogCancel asChild>
@@ -3283,7 +3283,7 @@ export default function AgentDetailRoutePage() {
   // immediately mentionable and openable elsewhere in the app.
   useAgentAccountsSync()
   if (route.key !== 'agent') return null
-  // Agent servers reject unauthenticated requests, so without an active account this page cannot
+  // App environments reject unauthenticated requests, so without an active account this page cannot
   // load the agent — gate it entirely (the back stack can land here after a sign-out).
   if (!selectedAccountId) return <AgentsNoAccountPage />
   return (

@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react'
 
 /**
- * The agents server's clock, as this client sees it.
+ * The app environment's clock, as this client sees it.
  *
  * Every duration the UI ticks is anchored on a stamp the server wrote — a run's `startedAt`, a
  * tool call's `calledAt` — so the "now" it counts up to has to be the server's now as well.

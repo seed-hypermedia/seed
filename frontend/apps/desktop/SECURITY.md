@@ -13,7 +13,7 @@ pnpm exec ts-node scripts/electron-fuses.ts out/Seed-darwin-arm64/Seed.app
 npx @electron/fuses read --app out/Seed-darwin-arm64/Seed.app
 ```
 
-The desktop and agents sources do not use ELECTRON_RUN_AS_NODE or child_process.fork. The agents server is a compiled
+The desktop and agents sources do not use ELECTRON_RUN_AS_NODE or child_process.fork. The app environment is a compiled
 Bun executable, and microsandbox runs its own `msb` helper. Playwright tests copy the verified package into an OS
 temporary directory, enable the inspector only in that disposable copy, and remove it on exit. Packaged release
 artifacts always retain the hardened fuses.
@@ -24,7 +24,7 @@ The frontend has no getUserMedia, geolocation, Web Bluetooth, Web USB or print c
 they do not capture camera images. Camera, microphone, Bluetooth, USB, location and print grants have been removed.
 
 V8/Bun retain JIT and unsigned executable memory, and microsandbox's `msb` retains the hypervisor entitlement. Library
-validation remains enabled: the agents server, `msb`, `libkrunfw.5.dylib`, and both copies of
+validation remains enabled: the app environment, `msb`, `libkrunfw.5.dylib`, and both copies of
 `microsandbox.darwin-arm64.node` are signed with Seed's identity before the containing app is signed. The copied binding
 under `microsandbox/native` is used by the compiled Bun server and must be signed as well as the binding in the platform
 package. `optionsForFile` continues to supply the entitlements to osx-sign. Verify `execute_code` and notarization in

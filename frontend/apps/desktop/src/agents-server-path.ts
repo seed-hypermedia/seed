@@ -21,7 +21,7 @@ export function getAgentsServerBinaryPath(): string {
 }
 
 /**
- * Directory the agents server must run from.
+ * Directory the app environment must run from.
  *
  * The binary runs from its own directory, beside the files it ships with — the same arrangement
  * `apps/Dockerfile` uses. (The agent runtime no longer reads `package.json` at startup; that

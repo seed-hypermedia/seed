@@ -898,8 +898,8 @@ function BinaryFilePreview({file, onDownload}: {file: AgentMemoryFile; onDownloa
           </>
         ) : (
           <SizableText size="xs" color="muted" className="text-center">
-            The file content could not be loaded for preview. If this agent server was recently updated, restart it and
-            reopen the file.
+            The file content could not be loaded for preview. If this app environment was recently updated, restart it
+            and reopen the file.
           </SizableText>
         )}
       </div>

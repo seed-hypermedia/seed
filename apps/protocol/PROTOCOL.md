@@ -1,6 +1,6 @@
 # Agents protocol versioning
 
-The client (desktop, web, mobile) and the agents server share the TypeScript types in `apps/protocol/src`, but they are
+The client (desktop, web, mobile) and the app environment share the TypeScript types in `apps/protocol/src`, but they are
 not deployed together. A desktop release stays in use for weeks; the hosted servers (`agents-stable`, `agents-dev`)
 redeploy on every push. The types prove that both sides agree at one commit. Across commits, the rules below are the
 contract.

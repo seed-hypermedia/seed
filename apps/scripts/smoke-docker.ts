@@ -55,7 +55,7 @@ async function waitForHealth(port: number): Promise<void> {
     await Bun.sleep(250)
   }
   throw new Error(
-    `Docker agents server did not become healthy: ${lastError instanceof Error ? lastError.message : lastError}`,
+    `Docker app environment did not become healthy: ${lastError instanceof Error ? lastError.message : lastError}`,
   )
 }
 

@@ -1,5 +1,5 @@
 /**
- * Model providers for one agent server.
+ * Model providers for one app environment.
  *
  * Lists what is configured (always redacted — the server never returns a key) and adds one. The
  * desktop dialog additionally offers OAuth subscription sign-in; that flow needs the app to catch a

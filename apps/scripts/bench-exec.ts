@@ -1,6 +1,6 @@
 /**
  * Measures execute_code sandbox latency on this host: boot, run, and teardown per execution,
- * through the exact same executor the agents server uses. This is the probe behind the warm-pool
+ * through the exact same executor the app environment uses. This is the probe behind the warm-pool
  * workstream in docs/exec-warm-pool.md — run it before and after to prove the boot cost moved.
  *
  * Usage: bun scripts/bench-exec.ts [--runs=5] [--runtime=shell|python|ts] [--warm-pool]

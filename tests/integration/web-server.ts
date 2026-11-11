@@ -15,7 +15,7 @@ export type WebServerConfig = {
   notifyServiceHost?: string
   /** Secret of the gateway admin API (/hm/api/admin), which the hosting service uses to create sites. */
   serviceAdminSecret?: string
-  /** The agents server the web app offers by default (SEED_AGENT_SERVER_URL), such as a test server. */
+  /** The app environment the web app offers by default (SEED_AGENT_SERVER_URL), such as a test server. */
   agentServerUrl?: string
 }
 

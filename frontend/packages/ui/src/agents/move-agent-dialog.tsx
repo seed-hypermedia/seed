@@ -22,7 +22,7 @@ import {AddModelProviderDialog} from './dialogs'
 import {ProviderSelect} from './provider-select'
 
 /**
- * Moves an agent to another configured agent server. The dialog picks the destination, preflights
+ * Moves an agent to another configured app environment. The dialog picks the destination, preflights
  * what the destination can honor (reachability, a model provider for the agent), spells out what
  * moves and what stays, and then runs the copy-then-delete orchestration with live progress.
  */
@@ -110,7 +110,8 @@ export function MoveAgentDialog({
       <div className="flex min-w-[420px] flex-col gap-4">
         <DialogTitle>Move “{input.agentName}”</DialogTitle>
         <DialogDescription>
-          This is the only agent server configured. Add another server from the Agents page, then move the agent there.
+          This is the only app environment configured. Add another server from the Agents page, then move the agent
+          there.
         </DialogDescription>
         <div className="flex justify-end">
           <Button variant="ghost" onClick={onClose}>

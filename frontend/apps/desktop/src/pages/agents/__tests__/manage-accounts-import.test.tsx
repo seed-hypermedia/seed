@@ -4,7 +4,7 @@
  *
  * The dialog consumes the same `.hmkey.json` files that account settings and the CLI export:
  * the file is parsed and decrypted in the renderer (shared `keyfile` module) and only the raw
- * seed travels to the agent server. These tests build a real key file fixture, drive the dialog,
+ * seed travels to the app environment. These tests build a real key file fixture, drive the dialog,
  * and assert what reaches the import mutation — plus the remote-server warning gating.
  */
 import React from 'react'

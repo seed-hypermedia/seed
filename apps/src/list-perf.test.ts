@@ -10,7 +10,7 @@ import * as path from 'node:path'
 /**
  * Production-shaped regression guard for the account listing path.
  *
- * On 2026-11-03 the agents server went dark with its one thread at 90% CPU inside ListSessions:
+ * On 2026-11-03 the app environment went dark with its one thread at 90% CPU inside ListSessions:
  * the `busy` flag on every agent row ran a correlated EXISTS over `runs` that was pinned to
  * `runs_dispatch`, an index without an agent column, so every non-busy agent re-walked every live
  * run (120–200 ms per ListAgents on the 36 GB production file, paid again by GetAgent, by every
