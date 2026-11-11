@@ -13,7 +13,7 @@
             "value": {
               "type": "hm://hyper.media/block/children-type"
             },
-            "description": "How this block lays out its children — a children type such as `Unordered` or `Grid`."
+            "description": "How this block lays out its children \u2014 a children type such as `Unordered` or `Grid`."
           },
           "columnCount": {
             "value": {
@@ -25,7 +25,7 @@
             "value": {
               "type": "hm://hyper.media/block/text-alignment"
             },
-            "description": "Horizontal alignment of the block's text — a text alignment such as `center`; omitted for the default `left`."
+            "description": "Horizontal alignment of the block's text \u2014 a text alignment such as `center`; omitted for the default `left`."
           },
           "style": {
             "value": {
@@ -51,6 +51,12 @@
               "type": "hm://hyper.media/query/table-config"
             },
             "description": "Column settings for the `Table` style."
+          },
+          "view": {
+            "value": {
+              "type": "hm://hyper.media/query/view"
+            },
+            "description": "Shared default filters for all presentation styles; absent on older documents."
           }
         }
       },

@@ -13,9 +13,12 @@ export function useInteractionSummary(docId?: UnpackedHypermediaId | null, {enab
 }
 
 /** Batch-fetch interaction summaries for multiple documents. React Query deduplicates with per-component calls. */
-export function useInteractionSummaries(ids: (UnpackedHypermediaId | null)[]) {
+export function useInteractionSummaries(ids: (UnpackedHypermediaId | null)[], {enabled}: {enabled?: boolean} = {}) {
   const client = useUniversalClient()
   return useQueries({
-    queries: ids.map((id) => queryInteractionSummary(client, id)),
+    queries: ids.map((id) => {
+      const query = queryInteractionSummary(client, id)
+      return {...query, enabled: enabled !== false && query.enabled}
+    }),
   })
 }

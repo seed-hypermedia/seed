@@ -17,6 +17,7 @@ vi.mock('@shm/shared/routing', () => ({
 }))
 vi.mock('@shm/shared/models/use-editor-gate', () => ({
   useEditorGate: () => ({canEdit: false, beginEditIfNeeded: vi.fn()}),
+  useCanEditCurrentRoute: () => false,
 }))
 vi.mock('@tanstack/react-query', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@tanstack/react-query')>()

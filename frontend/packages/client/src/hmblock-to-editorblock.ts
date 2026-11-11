@@ -239,6 +239,7 @@ export function hmBlockToEditorBlock(block: HMBlock): EditorBlock {
     queryProps.queryIncludes = JSON.stringify(block.attributes?.query?.includes || [])
     queryProps.querySort = JSON.stringify(block.attributes?.query?.sort || {})
     queryProps.queryFilters = JSON.stringify(getSupportedHMQueryFilters(block.attributes?.query?.filters))
+    if (block.attributes?.view) queryProps.queryView = JSON.stringify(block.attributes.view)
     queryProps.banner = block.attributes?.banner ? 'true' : 'false'
     queryProps.queryLimit = String(block.attributes?.query?.limit || '')
     if (block.attributes?.table) queryProps.tableConfig = JSON.stringify(block.attributes.table)
