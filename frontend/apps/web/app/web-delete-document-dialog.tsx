@@ -22,6 +22,7 @@ import {enqueueWebDocumentCardCleanup, releaseWebDocumentCardCleanup} from './do
 export type WebDeleteDocumentDialogInput = {
   id: UnpackedHypermediaId
   onSuccess?: () => void
+  onMoveChildren?: () => void
 }
 
 export type WebDeleteDocumentDialogOptions = {
@@ -38,7 +39,7 @@ export function useWebDeleteDocumentDialog(options: WebDeleteDocumentDialogOptio
 }
 
 function WebDeleteDocumentDialog({
-  input: {id, onSuccess},
+  input: {id, onSuccess, onMoveChildren},
   onClose,
   signingAccountId,
   capabilityId,
@@ -97,6 +98,8 @@ function WebDeleteDocumentDialog({
           capabilityId,
         })
       }}
+      // Moving children requires the same delete permission: it still tombstones the parent.
+      onMoveChildren={canDelete ? onMoveChildren : undefined}
       onClose={onClose}
       onSuccess={onSuccess}
     />

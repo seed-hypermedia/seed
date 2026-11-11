@@ -1,4 +1,8 @@
-import {canUseDocumentDestination} from '@shm/shared/utils/document-actions'
+import {
+  canUseDocumentDestination,
+  getChildMoveDestinationPath,
+  getChildMoveRoots,
+} from '@shm/shared/utils/document-actions'
 import {toast} from '@shm/ui/toast'
 import {createRedirectRef, createVersionRef, followToDocument, packHmId, type SeedClient} from '@seed-hypermedia/client'
 import type {HMDocumentInfo, HMSigner, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -27,6 +31,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useMemo} from 'react'
 import {useNavigate} from '@shm/shared/utils/navigation'
 import {enqueueWebDocumentCardCleanup, releaseWebDocumentCardCleanup} from './document-edit/web-document-card-cleanup'
+import {deleteWebDocuments} from './web-delete-document-dialog'
 import {
   getLatestWebDocDraftForDoc,
   getWebDocDraft,
@@ -77,6 +82,17 @@ export function WebDocumentDestinationDialog({
   const writableDocuments = useWebWritableDestinations(input.id, signingAccountId, writableLocationId)
 
   async function onSubmit(submitInput: DocumentDestinationSubmitInput) {
+    if (submitInput.mode === 'move-children') {
+      if (!canMove) throw new Error('You are not allowed to move these documents')
+      await moveChildrenAndDeleteWebDocument(client, {
+        parent: submitInput.from,
+        target: submitInput.to,
+        descendants: childDocuments,
+        signingAccountId: submitInput.signingAccountId,
+        capabilityId,
+      })
+      return
+    }
     if (submitInput.mode === 'move') {
       if (!canMove) throw new Error('You are not allowed to move this document')
       if (submitInput.draft?.draftId) {
@@ -112,7 +128,7 @@ export function WebDocumentDestinationDialog({
       onClose={onClose || (() => {})}
       selectedAccountUid={signingAccountId}
       writableDocuments={writableDocuments}
-      enabledModes={['move', 'republish']}
+      enabledModes={['move', 'republish', 'move-children']}
       onSubmit={onSubmit}
       onSuccess={({to}) => navigate({key: 'document', id: to})}
     />
@@ -294,6 +310,73 @@ export async function moveWebDocuments(
   for (const jobId of pendingJobs) await releaseWebDocumentCardCleanup(jobId).catch(console.error)
   invalidateMoveQueries(moves)
   return moves.map(({from, to}) => ({from, to}))
+}
+
+/**
+ * Moves the shallowest non-redirect children of `parent` under `target` — each move recursively
+ * relocates its subtree and leaves a redirect at the old path — then deletes only `parent`.
+ * The parent is never deleted if a move fails partway.
+ */
+export async function moveChildrenAndDeleteWebDocument(
+  client: Pick<UniversalClient, 'request' | 'publish' | 'getSigner' | 'deleteRecent'>,
+  input: {
+    parent: UnpackedHypermediaId
+    /** The parent each child root moves under (`target/<last segment>`). */
+    target: UnpackedHypermediaId
+    descendants: HMDocumentInfo[]
+    signingAccountId: string
+    capabilityId?: string
+  },
+): Promise<void> {
+  const parentPath = input.parent.path || []
+  const rootPaths = getChildMoveRoots(
+    parentPath,
+    (input.descendants || [])
+      .filter((item) => item.path?.length)
+      .map((item) => ({path: item.path, isRedirect: !!item.redirectInfo})),
+  )
+  if (!rootPaths.length) throw new Error('This document has no child documents to move.')
+  const targetPath = input.target.path || []
+  const moves = rootPaths.map((rootPath) => ({
+    from: hmId(input.parent.uid, {path: rootPath}),
+    to: hmId(input.target.uid, {path: getChildMoveDestinationPath(rootPath, targetPath)}),
+  }))
+  // Precheck every destination before publishing anything.
+  for (const move of moves) {
+    const destination = await client.request('Resource', move.to)
+    if (!canUseDocumentDestination(destination, move.from))
+      throw new Error(`A document already exists at ${move.to.id}. Choose a different location.`)
+  }
+  const parentInfo = input.descendants?.find((doc) => pathsEqual(doc.path, parentPath))
+  const parentTitle = (parentInfo?.metadata?.name as string) || packHmId(input.parent)
+  for (let i = 0; i < moves.length; i++) {
+    const move = moves[i]!
+    const rootPath = move.from.path || []
+    // Redirects stay put: `moveWebDocuments` rejects a non-republish redirect source.
+    const childDocuments = (input.descendants || []).filter(
+      (doc) =>
+        !doc.redirectInfo &&
+        doc.path?.length > rootPath.length &&
+        rootPath.every((segment, index) => doc.path[index] === segment),
+    )
+    try {
+      await moveWebDocuments(client, {
+        from: move.from,
+        to: move.to,
+        childDocuments,
+        signingAccountId: input.signingAccountId,
+        capabilityId: input.capabilityId,
+      })
+    } catch (error) {
+      const cause = error instanceof Error ? error.message : String(error)
+      throw new Error(`Moved ${i} of ${moves.length} child documents. "${parentTitle}" was not deleted. ${cause}`)
+    }
+  }
+  await deleteWebDocuments(client, {
+    ids: [input.parent],
+    signingAccountId: input.signingAccountId,
+    capabilityId: input.capabilityId,
+  })
 }
 
 /** Republishes a web document by publishing a republish redirect at the destination. */

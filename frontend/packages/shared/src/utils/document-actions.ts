@@ -61,6 +61,36 @@ export function canUseMoveTargetParent(sourceId: UnpackedHypermediaId, targetPar
   return isMoveTargetSameSite(sourceId, targetParentId) && !isMoveTargetParentBlocked(sourceId, targetParentId)
 }
 
+/** Shallowest non-redirect descendants of `parent`: moving each (recursively) relocates the whole subtree.
+ * Redirects are pointers to already-moved documents and stay where they are. */
+export function getChildMoveRoots(
+  parentPath: string[],
+  descendants: Array<{path: string[]; isRedirect: boolean}>,
+): string[][] {
+  const realPaths = new Set(descendants.filter((item) => !item.isRedirect).map((item) => item.path.join('/')))
+  const roots = descendants
+    .filter((item) => {
+      if (item.isRedirect) return false
+      const path = item.path
+      if (path.length <= parentPath.length) return false
+      if (!parentPath.every((segment, index) => path[index] === segment)) return false
+      // A root has no real ancestor strictly between it and the parent — a real
+      // document under a redirect path is still a root.
+      for (let depth = parentPath.length + 1; depth < path.length; depth++) {
+        if (realPaths.has(path.slice(0, depth).join('/'))) return false
+      }
+      return true
+    })
+    .map((item) => item.path)
+  return roots.sort((a, b) => a.join('/').localeCompare(b.join('/')))
+}
+
+/** Destination path for a moved root: `target/<last segment>`. */
+export function getChildMoveDestinationPath(rootPath: string[], targetPath: string[]): string[] {
+  const last = rootPath[rootPath.length - 1]
+  return last === undefined ? [...targetPath] : [...targetPath, last]
+}
+
 /** Allows empty destinations, or a move back over a direct move redirect to its current source. */
 export function canUseDocumentDestination(resource: HMResource | null | undefined, moveSource?: UnpackedHypermediaId) {
   if (resource?.type === 'not-found' || resource?.type === 'tombstone') return true

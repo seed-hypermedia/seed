@@ -1,4 +1,8 @@
-import {canUseDocumentDestination} from '@shm/shared/utils/document-actions'
+import {
+  canUseDocumentDestination,
+  getChildMoveDestinationPath,
+  getChildMoveRoots,
+} from '@shm/shared/utils/document-actions'
 import {editorBlocksToHMBlockNodes} from '@seed-hypermedia/client/editorblock-to-hmblock'
 import {toast} from '@shm/ui/toast'
 import {desktopUniversalClient} from '@/desktop-universal-client'
@@ -1374,7 +1378,7 @@ async function createDocumentMoveRefs({
   }
 }
 
-async function resolveWriteCapabilityId(signingAccountId: string, id: UnpackedHypermediaId) {
+export async function resolveWriteCapabilityId(signingAccountId: string, id: UnpackedHypermediaId) {
   if (signingAccountId === id.uid) return ''
   const capabilities = await grpcClient.accessControl.listCapabilities({
     account: id.uid,

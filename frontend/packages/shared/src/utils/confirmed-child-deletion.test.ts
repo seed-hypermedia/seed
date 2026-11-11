@@ -170,6 +170,56 @@ describe('confirmed child deletion safety', () => {
       },
     ])
   })
+  it('skips redirects inside the subtree instead of failing the inspection', async () => {
+    const moved = hmId('account', {path: ['parent', 'child', 'moved']})
+    const client = clientWith(
+      new Map([
+        [childId.id, 'v1'],
+        [grandchild.id, 'v2'],
+        [moved.id, 'v3'],
+      ]),
+      new Set([moved.id]),
+    )
+    expect(await inspectChildDeletions(client, {parentId, childIds: [childId]})).toEqual([
+      {
+        childId,
+        documents: [
+          {id: childId.id, version: 'v1'},
+          {id: grandchild.id, version: 'v2'},
+        ],
+      },
+    ])
+  })
+  it('skips a direct child that is now a redirect when reviewing a removed self-query', async () => {
+    const movedChild = hmId('account', {path: ['parent', 'moved']})
+    const client = clientWith(new Map(), new Set([movedChild.id]))
+    const request = client.request
+    client.request = (async (type: string, input: any) => {
+      if (type === 'Query' && input.includes[0].mode === 'Children') {
+        return {results: [{id: movedChild}]}
+      }
+      return request(type as any, input)
+    }) as typeof client.request
+    expect(await inspectChildDeletions(client, {parentId, childIds: [], removedSelfQuery: true})).toEqual([])
+  })
+  it('still rejects when an approved document became a redirect', async () => {
+    const client = clientWith(new Map([[childId.id, 'v1']]), new Set([grandchild.id]))
+    await expect(
+      validateConfirmedChildDeletions(client, {
+        parentId,
+        content: [],
+        confirmations: [
+          {
+            childId,
+            documents: [
+              {id: childId.id, version: 'v1'},
+              {id: grandchild.id, version: 'v2'},
+            ],
+          },
+        ],
+      }),
+    ).rejects.toThrow('an approved document moved or is unavailable')
+  })
   it('rejects targets outside the direct-parent relationship', async () => {
     await expect(inspectChildDeletions(clientWith(new Map()), {parentId, childIds: [grandchild]})).rejects.toThrow(
       'direct child',

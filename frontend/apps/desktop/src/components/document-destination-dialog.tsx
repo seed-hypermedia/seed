@@ -1,5 +1,6 @@
 import {useSelectedAccountWritableDocuments} from '@/models/access-control'
 import {useCreateDraft, useMoveDocument, useMoveDraft, useRepublishDocument} from '@/models/documents'
+import {useMoveChildrenAndDeleteDocument} from '@/models/entities'
 import {useSelectedAccount} from '@/selected-account'
 import {useNavigate} from '@/utils/useNavigate'
 import type {UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
@@ -28,6 +29,7 @@ export function DocumentDestinationDialog({
   const moveDocument = useMoveDocument()
   const moveDraft = useMoveDraft()
   const republishDocument = useRepublishDocument()
+  const moveChildrenAndDelete = useMoveChildrenAndDeleteDocument()
   const navigate = useNavigate()
   const createDraft = useCreateDraft()
 
@@ -56,6 +58,14 @@ export function DocumentDestinationDialog({
       })
       return
     }
+    if (submitInput.mode === 'move-children') {
+      await moveChildrenAndDelete.mutateAsync({
+        parent: submitInput.from,
+        target: submitInput.to,
+        signingAccountId: submitInput.signingAccountId,
+      })
+      return
+    }
     if (submitInput.draft?.draftId) {
       await moveDraft.mutateAsync({
         draftId: submitInput.draft.draftId,
@@ -81,7 +91,14 @@ export function DocumentDestinationDialog({
       onClose={onClose}
       selectedAccountUid={selectedAccountUid}
       writableDocuments={writableDocuments.map(toWritableDestination)}
-      enabledModes={['move', 'republish', 'extend-schema', 'new-typed-document', 'new-typed-collection']}
+      enabledModes={[
+        'move',
+        'republish',
+        'move-children',
+        'extend-schema',
+        'new-typed-document',
+        'new-typed-collection',
+      ]}
       onSubmit={onSubmit}
       // create modes: useCreateDraft already navigated to the new draft; `to` is the final
       // published path, which does not exist yet.

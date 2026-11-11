@@ -476,6 +476,7 @@ export type DocumentMachineEvent =
       pathOverride?: string[]
     }
   | {type: 'publish.confirmChildDeletion'}
+  | {type: 'publish.skipChildDeletion'}
   | {type: 'publish.cancelChildDeletion'}
   | {type: 'document.remoteUpdate'; document: HMDocument}
   | {type: 'edit.discard'}
@@ -2239,6 +2240,10 @@ export const documentMachine = setup({
         confirmingChildDeletion: {
           on: {
             'publish.confirmChildDeletion': {target: 'inProgress'},
+            'publish.skipChildDeletion': {
+              target: 'inProgress',
+              actions: assign({confirmedChildDeletions: [], childDeletionError: null}),
+            },
             'publish.cancelChildDeletion': {
               target: '#DocumentLifecycle.editing.draft.idle',
               actions: ['clearPathOverride'],
@@ -2247,6 +2252,10 @@ export const documentMachine = setup({
         },
         childDeletionFailed: {
           on: {
+            'publish.skipChildDeletion': {
+              target: 'inProgress',
+              actions: assign({confirmedChildDeletions: [], childDeletionError: null}),
+            },
             'publish.cancelChildDeletion': {
               target: '#DocumentLifecycle.editing.draft.idle',
               actions: ['clearPathOverride'],

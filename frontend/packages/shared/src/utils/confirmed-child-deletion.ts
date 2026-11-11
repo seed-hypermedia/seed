@@ -52,7 +52,8 @@ async function resolveReferenceTargets(
   return Array.from(resolved.values())
 }
 
-/** Reads a fresh deletion scope, resolving authored aliases before approval and avoiding cached directory data. */
+/** Reads a fresh deletion scope, resolving authored aliases before approval and avoiding cached directory data.
+ * Redirects inside the subtree are skipped — they point to moved documents and are neither followed nor deleted. */
 export async function inspectChildDeletions(
   client: Pick<UniversalClient, 'request'>,
   {parentId, childIds, removedReferenceTargets, content, removedSelfQuery}: ConfirmChildDeletionInput,
@@ -135,7 +136,7 @@ export async function inspectChildDeletions(
     for (const id of ids) {
       const canonical = hmId(id.uid, {path: id.path})
       const resource = await client.request('Resource', canonical)
-      if (resource.type === 'tombstone') continue
+      if (resource.type === 'tombstone' || resource.type === 'redirect') continue
       if (resource.type !== 'document')
         throw new Error(`Confirmation required: ${canonical.id} is no longer the same document (${resource.type})`)
       if (!resource.document.version) throw new Error('Could not determine child document version')

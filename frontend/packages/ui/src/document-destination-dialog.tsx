@@ -15,6 +15,8 @@ import {
   canUseDocumentAsDestinationParent,
   canUseDocumentDestination,
   canUseMoveTargetParent,
+  getChildMoveDestinationPath,
+  getChildMoveRoots,
   isMoveTargetParentBlocked,
   isMoveTargetSameSite,
   type DocumentCardActionOrigin,
@@ -41,6 +43,7 @@ export type DocumentDestinationMode =
   | 'create-agent'
   | 'move'
   | 'republish'
+  | 'move-children'
   | 'extend-schema'
   | 'new-typed-document'
   | 'new-typed-collection'
@@ -83,6 +86,7 @@ export type WritableDocumentDestination = {
 /** Payload submitted by the shared document destination dialog. */
 export type DocumentDestinationSubmitInput = {
   from: UnpackedHypermediaId
+  /** For 'move-children' this is the target parent; each child root keeps its last path segment below it. */
   to: UnpackedHypermediaId
   mode: DocumentDestinationMode
   signingAccountId: string
@@ -99,6 +103,11 @@ const modeCopy: Record<DocumentDestinationMode, {eyebrow: string; action: string
   'mount-agent': {eyebrow: 'Adopt Agent', action: 'Adopt Agent', success: 'Agent adopted'},
   move: {eyebrow: 'Move', action: 'Move', success: 'Document moved'},
   republish: {eyebrow: 'Republish', action: 'Republish', success: 'Document republished'},
+  'move-children': {
+    eyebrow: 'Move children, then delete',
+    action: 'Move and delete',
+    success: 'Children moved and document deleted',
+  },
   'extend-schema': {eyebrow: 'Extend Schema', action: 'Create Draft', success: 'Draft created'},
   'new-typed-document': {eyebrow: 'New Document', action: 'Create Draft', success: 'Draft created'},
   'new-typed-collection': {eyebrow: 'New Collection', action: 'Create Draft', success: 'Draft created'},
@@ -160,6 +169,38 @@ export function DocumentDestinationDialog({
     setIsSubmitting(false)
   }, [initialTargetParent, initialSlug, input.mode])
 
+  const isMoveChildren = input.mode === 'move-children'
+  const moveChildrenDirectory = useDirectory(isMoveChildren ? input.id : null, {mode: 'AllDescendants'})
+  const childMoveRoots = useMemo(
+    () =>
+      getChildMoveRoots(
+        sourceId.path || [],
+        (moveChildrenDirectory.data || [])
+          .filter((item) => item.path?.length)
+          .map((item) => ({path: item.path, isRedirect: !!item.redirectInfo})),
+      ),
+    [sourceId.id, moveChildrenDirectory.data],
+  )
+  const childMoveDestinations = useMemo(() => {
+    if (!isMoveChildren || !targetParent) return []
+    const targetPath = targetParent.path || []
+    return childMoveRoots.map((rootPath) => ({
+      from: hmId(sourceId.uid, {path: rootPath}),
+      to: hmId(targetParent.uid, {path: getChildMoveDestinationPath(rootPath, targetPath)}),
+    }))
+  }, [isMoveChildren, targetParent, childMoveRoots, sourceId.uid])
+  const childMoveDuplicate = useMemo(
+    () => new Set(childMoveDestinations.map((move) => move.to.path?.join('/'))).size !== childMoveDestinations.length,
+    [childMoveDestinations],
+  )
+  const childMoveResources = useResources(childMoveDestinations.map((move) => move.to))
+  const childMoveResourcesLoading = childMoveResources.some((result) => result.isLoading)
+  const childMoveConflictIndex = childMoveResources.findIndex(
+    (result, index) => !canUseDocumentDestination(result.data, childMoveDestinations[index]?.from),
+  )
+  const childMoveConflictPath =
+    childMoveConflictIndex >= 0 ? childMoveDestinations[childMoveConflictIndex]?.to.path : null
+
   const destinationId = useMemo(() => {
     if (!targetParent || !slug) return null
     return hmId(targetParent.uid, {path: [...(targetParent.path || []), slug]})
@@ -176,38 +217,62 @@ export function DocumentDestinationDialog({
     [destinationId?.id],
   )
   const modeDisabled = !enabledModes.includes(input.mode)
-  const moveTargetWrongSite = input.mode === 'move' && !!targetParent && !isMoveTargetSameSite(sourceId, targetParent)
-  const moveTargetBlocked = input.mode === 'move' && isMoveTargetParentBlocked(sourceId, targetParent)
+  const moveTargetWrongSite =
+    (input.mode === 'move' || isMoveChildren) && !!targetParent && !isMoveTargetSameSite(sourceId, targetParent)
+  const moveTargetBlocked =
+    (input.mode === 'move' || isMoveChildren) && isMoveTargetParentBlocked(sourceId, targetParent)
   const sourceIsHomeDocument = !isCreate && !sourceId.path?.length
   const destinationExists =
     destinationId?.id !== resumableDestination &&
     !canUseDocumentDestination(destinationResource.data, input.mode === 'move' && !isDraftSource ? sourceId : undefined)
   const validationMessage = modeDisabled
     ? `${modeCopy[input.mode].action} is not available here.`
-    : sourceIsHomeDocument
-      ? 'Home documents cannot be moved or republished.'
-      : !targetParent
+    : isMoveChildren
+      ? !targetParent
         ? 'Choose a destination location.'
         : !targetCanWrite
           ? 'You are not allowed to write to this location.'
           : targetParentIsPrivate
             ? 'Private documents cannot contain child documents.'
-            : !slug
-              ? 'Enter a URL path.'
-              : moveTargetWrongSite
-                ? 'Moves must stay inside the current space.'
-                : moveTargetBlocked
-                  ? 'Choose a location outside this document subtree.'
-                  : pathInvalid
-                    ? pathInvalid.error
-                    : destinationId?.id === sourceId.id
-                      ? 'Choose a new location or URL path.'
-                      : destinationResource.isLoading
-                        ? 'Checking destination availability…'
-                        : destinationExists
-                          ? 'A document already exists at this URL. Choose a different path.'
-                          : null
-  const canSubmit = !!destinationId && !validationMessage && !isSubmitting
+            : moveTargetWrongSite
+              ? 'Moves must stay inside the current space.'
+              : moveTargetBlocked
+                ? 'Choose a location outside this document subtree.'
+                : moveChildrenDirectory.isLoading || childMoveResourcesLoading
+                  ? 'Checking destination availability…'
+                  : !childMoveRoots.length
+                    ? 'This document has no child documents to move.'
+                    : childMoveDuplicate
+                      ? 'Two child documents would move to the same path. Move one of them first.'
+                      : childMoveConflictPath
+                        ? `A document already exists at /${childMoveConflictPath.join(
+                            '/',
+                          )}. Choose a different location.`
+                        : null
+      : sourceIsHomeDocument
+        ? 'Home documents cannot be moved or republished.'
+        : !targetParent
+          ? 'Choose a destination location.'
+          : !targetCanWrite
+            ? 'You are not allowed to write to this location.'
+            : targetParentIsPrivate
+              ? 'Private documents cannot contain child documents.'
+              : !slug
+                ? 'Enter a URL path.'
+                : moveTargetWrongSite
+                  ? 'Moves must stay inside the current space.'
+                  : moveTargetBlocked
+                    ? 'Choose a location outside this document subtree.'
+                    : pathInvalid
+                      ? pathInvalid.error
+                      : destinationId?.id === sourceId.id
+                        ? 'Choose a new location or URL path.'
+                        : destinationResource.isLoading
+                          ? 'Checking destination availability…'
+                          : destinationExists
+                            ? 'A document already exists at this URL. Choose a different path.'
+                            : null
+  const canSubmit = (isMoveChildren ? !!targetParent : !!destinationId) && !validationMessage && !isSubmitting
 
   if (!selectedAccountUid) {
     return <DialogError message="Select an account before moving or republishing documents." />
@@ -224,10 +289,11 @@ export function DocumentDestinationDialog({
   }
 
   async function submit() {
-    if (!destinationId || !canSubmit || !selectedAccountUid) return
+    const to = isMoveChildren ? targetParent : destinationId
+    if (!to || !canSubmit || !selectedAccountUid) return
     const submitInput = {
       from: sourceId,
-      to: destinationId,
+      to,
       mode: input.mode,
       signingAccountId: selectedAccountUid,
       origin: input.origin,
@@ -326,38 +392,62 @@ export function DocumentDestinationDialog({
             />
           </div>
         ) : null}
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2">
+        {isMoveChildren ? (
+          <div className="flex flex-col gap-2" data-testid="move-children-destinations">
             <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-              URL Path
+              {childMoveRoots.length
+                ? `${childMoveRoots.length} document${childMoveRoots.length === 1 ? '' : 's'} will move to:`
+                : 'Child documents'}
             </SizableText>
-            <Tooltip content="This edits only the final URL segment. Choose the parent location above.">
-              <Help className="text-muted-foreground size-4" />
-            </Tooltip>
+            {childMoveDestinations.length ? (
+              <ScrollArea className="max-h-40">
+                <ul className="flex flex-col gap-1" data-testid="move-children-destination-list">
+                  {childMoveDestinations.map((move) => (
+                    <li key={move.from.id} className="text-sm break-all">
+                      /{move.to.path?.join('/')}
+                    </li>
+                  ))}
+                </ul>
+              </ScrollArea>
+            ) : null}
+            {validationMessage ? (
+              <SizableText className="text-destructive text-sm">{validationMessage}</SizableText>
+            ) : null}
           </div>
-          {isDraftSource ? (
-            <SizableText className="text-muted-foreground text-sm">
-              Draft moves keep the draft placeholder path until publish.
-            </SizableText>
-          ) : (
-            <PathInput
-              className="h-11 rounded-xl text-base"
-              value={slug}
-              onValueChange={setSlug}
-              placeholder="url-path"
-            />
-          )}
-          {destinationUrl ? (
-            <SizableText
-              className={cn('text-sm break-all', validationMessage ? 'text-muted-foreground' : 'text-primary')}
-            >
-              {destinationUrl}
-            </SizableText>
-          ) : null}
-          {validationMessage ? (
-            <SizableText className="text-destructive text-sm">{validationMessage}</SizableText>
-          ) : null}
-        </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
+                URL Path
+              </SizableText>
+              <Tooltip content="This edits only the final URL segment. Choose the parent location above.">
+                <Help className="text-muted-foreground size-4" />
+              </Tooltip>
+            </div>
+            {isDraftSource ? (
+              <SizableText className="text-muted-foreground text-sm">
+                Draft moves keep the draft placeholder path until publish.
+              </SizableText>
+            ) : (
+              <PathInput
+                className="h-11 rounded-xl text-base"
+                value={slug}
+                onValueChange={setSlug}
+                placeholder="url-path"
+              />
+            )}
+            {destinationUrl ? (
+              <SizableText
+                className={cn('text-sm break-all', validationMessage ? 'text-muted-foreground' : 'text-primary')}
+              >
+                {destinationUrl}
+              </SizableText>
+            ) : null}
+            {validationMessage ? (
+              <SizableText className="text-destructive text-sm">{validationMessage}</SizableText>
+            ) : null}
+          </div>
+        )}
       </fieldset>
 
       <div className="flex items-center justify-end gap-3 pt-1">

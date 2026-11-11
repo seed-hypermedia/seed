@@ -29,10 +29,10 @@ export function useDeleteDialog() {
 }
 
 export function DeleteDocumentDialog({
-  input: {id, onSuccess},
+  input: {id, onSuccess, onMoveChildren},
   onClose,
 }: {
-  input: {id: UnpackedHypermediaId; onSuccess?: () => void}
+  input: {id: UnpackedHypermediaId; onSuccess?: () => void; onMoveChildren?: () => void}
   onClose?: () => void
 }) {
   const list = useListSite(id)
@@ -88,6 +88,7 @@ export function DeleteDocumentDialog({
           capabilityId: cap!.capabilityId,
         })
       }}
+      onMoveChildren={onMoveChildren}
       onClose={onClose}
       onSuccess={onSuccess}
     />
