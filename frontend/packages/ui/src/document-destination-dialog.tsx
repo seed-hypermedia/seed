@@ -24,12 +24,14 @@ import {
 import {validatePath} from '@shm/shared/utils/document-path'
 import {pathNameify} from '@shm/shared/utils/path'
 import {useEffect, useMemo, useState} from 'react'
+import {CircleAlert} from 'lucide-react'
 import {Button} from './button'
-import {DialogTitle} from './components/dialog'
+import {DialogDescription, DialogTitle} from './components/dialog'
 import {Input} from './components/input'
 import {ScrollArea} from './components/scroll-area'
 import {HMIcon} from './hm-icon'
 import {Back, FileText, Forward, Help, Search as SearchIcon} from './icons'
+import {DeletionDocumentList} from './deletion-document-list'
 import {PathInput} from './path-input'
 import {Spinner} from './spinner'
 import {SizableText} from './text'
@@ -319,66 +321,85 @@ export function DocumentDestinationDialog({
     }
   }
 
+  const browserHidden = spacesOnly && !!targetParent
   return (
-    <div className="flex min-h-0 flex-col gap-5">
+    <div className="flex min-h-0 flex-col gap-6">
       <div className="flex flex-col gap-1 pr-8">
-        <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.18em] uppercase">
-          {modeCopy[input.mode].eyebrow}
-        </SizableText>
-        <DialogTitle className="flex items-center gap-2 text-2xl leading-tight font-semibold">
-          <HMIcon id={sourceId} name={sourceTitle} icon={sourceIcon} size={30} />
-          <span className="min-w-0 truncate">{sourceTitle}</span>
-        </DialogTitle>
+        {isMoveChildren ? (
+          <>
+            <DialogTitle className="flex items-center gap-2 text-xl leading-tight font-semibold">
+              <HMIcon id={sourceId} name={sourceTitle} icon={sourceIcon} size={24} />
+              <span className="min-w-0 text-balance">{`Move children of "${sourceTitle}"`}</span>
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground text-sm leading-relaxed">
+              {`Choose where to move its child documents. "${sourceTitle}" is deleted after they have all moved. Each move leaves a redirect, so existing links keep working.`}
+            </DialogDescription>
+          </>
+        ) : (
+          <>
+            <SizableText className="text-muted-foreground text-sm font-medium">
+              {modeCopy[input.mode].eyebrow}
+            </SizableText>
+            <DialogTitle className="flex items-center gap-2 text-2xl leading-tight font-semibold">
+              <HMIcon id={sourceId} name={sourceTitle} icon={sourceIcon} size={30} />
+              <span className="min-w-0 truncate">{sourceTitle}</span>
+            </DialogTitle>
+          </>
+        )}
       </div>
 
       <fieldset disabled={isSubmitting || !!resumableDestination} className="flex min-w-0 flex-col gap-5">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-              {targetParent ? (spacesOnly ? 'Space' : 'Location') : 'Choose a space'}
-            </SizableText>
-            {targetParent ? (
-              spacesOnly ? (
-                <SelectedSpaceRow location={targetParent} onChange={() => setTargetParent(null)} />
-              ) : (
-                <LocationBreadcrumb location={targetParent} onSelect={setTargetParent} />
-              )
-            ) : null}
-          </div>
-          {spacesOnly ? null : (
-            <div className="relative">
-              <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
-              <Input
-                className="h-11 rounded-xl pl-10 text-base"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search location…"
-              />
-            </div>
-          )}
+        <div className="flex flex-col gap-1.5">
+          <SizableText className="text-foreground text-sm font-semibold">
+            {targetParent ? (spacesOnly ? 'Space' : 'Location') : 'Choose a space'}
+          </SizableText>
+          {targetParent ? (
+            spacesOnly ? (
+              <SelectedSpaceRow location={targetParent} onChange={() => setTargetParent(null)} />
+            ) : (
+              <LocationBreadcrumb location={targetParent} onSelect={setTargetParent} />
+            )
+          ) : null}
         </div>
 
-        <DestinationBrowser
-          mode={input.mode}
-          sourceId={sourceId}
-          targetParent={targetParent}
-          spacesOnly={spacesOnly}
-          searchQuery={searchQuery}
-          writableDocuments={writableDocuments}
-          selectedAccountUid={selectedAccountUid}
-          onSelect={(location) => {
-            setTargetParent(location)
-            setSearchQuery('')
-          }}
-          onClear={() => {
-            setTargetParent(null)
-            setSearchQuery('')
-          }}
-        />
+        {browserHidden ? null : (
+          <div className="bg-card overflow-hidden rounded-lg border shadow-xs">
+            {spacesOnly ? null : (
+              <div className="border-border border-b p-2">
+                <div className="relative">
+                  <SearchIcon className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+                  <Input
+                    className="h-9 pl-10"
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    placeholder="Search location…"
+                  />
+                </div>
+              </div>
+            )}
+            <DestinationBrowser
+              mode={input.mode}
+              sourceId={sourceId}
+              targetParent={targetParent}
+              spacesOnly={spacesOnly}
+              searchQuery={searchQuery}
+              writableDocuments={writableDocuments}
+              selectedAccountUid={selectedAccountUid}
+              onSelect={(location) => {
+                setTargetParent(location)
+                setSearchQuery('')
+              }}
+              onClear={() => {
+                setTargetParent(null)
+                setSearchQuery('')
+              }}
+            />
+          </div>
+        )}
 
         {isCreate && !isMount ? (
           <div className="flex flex-col gap-2">
-            <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
+            <SizableText className="text-foreground text-sm font-semibold">
               {isExtend ? 'New Schema Name' : 'Name'}
             </SizableText>
             <Input
@@ -393,33 +414,30 @@ export function DocumentDestinationDialog({
           </div>
         ) : null}
         {isMoveChildren ? (
-          <div className="flex flex-col gap-2" data-testid="move-children-destinations">
-            <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-              {childMoveRoots.length
-                ? `${childMoveRoots.length} document${childMoveRoots.length === 1 ? '' : 's'} will move to:`
-                : 'Child documents'}
-            </SizableText>
+          <div data-testid="move-children-destinations">
             {childMoveDestinations.length ? (
-              <ScrollArea className="max-h-40">
-                <ul className="flex flex-col gap-1" data-testid="move-children-destination-list">
-                  {childMoveDestinations.map((move) => (
-                    <li key={move.from.id} className="text-sm break-all">
-                      /{move.to.path?.join('/')}
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
-            ) : null}
-            {validationMessage ? (
-              <SizableText className="text-destructive text-sm">{validationMessage}</SizableText>
+              <DeletionDocumentList
+                tone="neutral"
+                label={`${childMoveDestinations.length} document${
+                  childMoveDestinations.length === 1 ? '' : 's'
+                } will move`}
+                documents={childMoveDestinations.map((move) => {
+                  const info = (moveChildrenDirectory.data || []).find(
+                    (item) => item.path?.join('/') === move.from.path?.join('/'),
+                  )
+                  return {
+                    key: move.from.id,
+                    title: (info?.metadata?.name as string) || move.from.path?.at(-1) || move.from.id,
+                    path: move.to.path,
+                  }
+                })}
+              />
             ) : null}
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <SizableText className="text-muted-foreground text-xs font-semibold tracking-[0.16em] uppercase">
-                URL Path
-              </SizableText>
+              <SizableText className="text-foreground text-sm font-semibold">URL Path</SizableText>
               <Tooltip content="This edits only the final URL segment. Choose the parent location above.">
                 <Help className="text-muted-foreground size-4" />
               </Tooltip>
@@ -450,11 +468,28 @@ export function DocumentDestinationDialog({
         )}
       </fieldset>
 
-      <div className="flex items-center justify-end gap-3 pt-1">
+      {isMoveChildren && validationMessage ? (
+        moveChildrenDirectory.isLoading || childMoveResourcesLoading ? (
+          <div role="status" className="text-muted-foreground flex items-center gap-2 text-sm">
+            <Spinner />
+            {validationMessage}
+          </div>
+        ) : (
+          <div
+            role="alert"
+            className="border-destructive/30 bg-destructive/5 text-destructive flex items-start gap-2 rounded-md border px-3 py-2 text-sm"
+          >
+            <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span className="min-w-0 break-words">{validationMessage}</span>
+          </div>
+        )
+      ) : null}
+
+      <div className="flex flex-wrap justify-end gap-3 pt-2">
         <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button disabled={!canSubmit} onClick={submit}>
+        <Button variant={isMoveChildren ? 'destructive' : 'default'} disabled={!canSubmit} onClick={submit}>
           {isSubmitting ? <Spinner /> : null}
           {modeCopy[input.mode].action}
         </Button>
@@ -612,8 +647,8 @@ function ChildLocations({
   const parentLocation = parent.path?.length ? hmId(parent.uid, {path: parent.path.slice(0, -1)}) : null
   return (
     <LocationList emptyLabel={isLoading ? 'Loading locations…' : 'No subdocuments in this location.'}>
-      <div className="bg-muted/30 border-border border-b p-4">
-        <Button variant="outline" size="sm" onClick={() => (parentLocation ? onSelect(parentLocation) : onClear())}>
+      <div className="border-border bg-muted/40 flex items-center gap-2 border-b px-2 py-1.5">
+        <Button variant="ghost" size="sm" onClick={() => (parentLocation ? onSelect(parentLocation) : onClear())}>
           <Back className="size-4" />
           Back
         </Button>
@@ -638,9 +673,9 @@ function ChildLocations({
 function LocationList({children, emptyLabel}: {children: React.ReactNode; emptyLabel: string}) {
   const hasChildren = Array.isArray(children) ? children.length > 0 : !!children
   return (
-    <ScrollArea className="border-border -mx-5 h-60 border-y">
+    <ScrollArea className="h-56">
       <div className="flex min-h-40 flex-col">
-        {hasChildren ? children : <SizableText className="text-muted-foreground p-5 text-sm">{emptyLabel}</SizableText>}
+        {hasChildren ? children : <SizableText className="text-muted-foreground p-4 text-sm">{emptyLabel}</SizableText>}
       </div>
     </ScrollArea>
   )
@@ -663,11 +698,11 @@ function LocationRow({
     <button
       type="button"
       onClick={() => onSelect(id)}
-      className="hover:bg-muted/70 focus-visible:ring-ring border-border flex min-h-14 items-center gap-3 border-b px-5 text-left transition-colors focus-visible:ring-2 focus-visible:outline-none"
+      className="hover:bg-muted/70 focus-visible:ring-ring border-border flex min-h-12 items-center gap-3 border-b px-4 text-left transition-colors last:border-b-0 focus-visible:ring-2 focus-visible:outline-none"
     >
-      <HMIcon id={id} name={title} icon={icon} size={28} />
+      <HMIcon id={id} name={title} icon={icon} size={24} />
       <div className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
-        <SizableText className="truncate text-base font-medium">{title}</SizableText>
+        <SizableText className="truncate text-sm font-medium">{title}</SizableText>
         {suffix ? <SizableText className="text-muted-foreground truncate text-xs">{suffix}</SizableText> : null}
       </div>
       <Forward className="text-muted-foreground size-4" />

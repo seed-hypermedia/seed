@@ -59,6 +59,9 @@ vi.mock('../components/dialog', () => ({
   DialogTitle: ({children, className}: {children: React.ReactNode; className?: string}) => (
     <h2 className={className}>{children}</h2>
   ),
+  DialogDescription: ({children, className}: {children: React.ReactNode; className?: string}) => (
+    <p className={className}>{children}</p>
+  ),
 }))
 
 vi.mock('../tooltip', () => ({
@@ -211,7 +214,7 @@ describe('DocumentDestinationDialog', () => {
     await clearToWritableRoots()
 
     expect(hmIconMock).toHaveBeenCalledWith(
-      expect.objectContaining({id: siteId, name: 'Docs', icon: 'site-icon', size: 28}),
+      expect.objectContaining({id: siteId, name: 'Docs', icon: 'site-icon', size: 24}),
       expect.anything(),
     )
   })
@@ -272,11 +275,19 @@ describe('DocumentDestinationDialog', () => {
         ],
       })
 
+      expect(container.textContent).toContain('Move children of "Move me"')
       expect(container.textContent).not.toContain('URL Path')
       expect(container.querySelector('input[placeholder="url-path"]')).toBeNull()
-      expect(container.textContent).toContain('2 documents will move to:')
-      expect(container.textContent).toContain('/old-parent/a')
-      expect(container.textContent).toContain('/old-parent/b')
+      expect(container.textContent).toContain('2 documents will move')
+
+      const showButton = Array.from(container.querySelectorAll('button')).find(
+        (button) => button.textContent?.trim() === 'Show',
+      ) as HTMLButtonElement
+      await act(async () => {
+        showButton.click()
+      })
+      expect(container.textContent).toContain('old-parent/a')
+      expect(container.textContent).toContain('old-parent/b')
 
       const submitButton = Array.from(container.querySelectorAll('button')).find(
         (button) => button.textContent === 'Move and delete',

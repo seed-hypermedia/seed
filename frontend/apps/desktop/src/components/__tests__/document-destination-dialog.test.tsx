@@ -77,6 +77,9 @@ vi.mock('@shm/ui/components/dialog', () => ({
   DialogTitle: ({children, className}: {children: React.ReactNode; className?: string}) => (
     <h2 className={className}>{children}</h2>
   ),
+  DialogDescription: ({children, className}: {children: React.ReactNode; className?: string}) => (
+    <p className={className}>{children}</p>
+  ),
 }))
 
 vi.mock('@shm/ui/components/scroll-area', () => ({
@@ -288,8 +291,13 @@ describe('DocumentDestinationDialog', () => {
     try {
       // The URL Path section is replaced by the destination list.
       expect(container.querySelector('input[placeholder="url-path"]')).toBeNull()
-      expect(container.textContent).toContain('1 document will move to:')
-      expect(container.textContent).toContain('/docs/child')
+      expect(container.textContent).toContain('1 document will move')
+      const showButton = findButtonExact(container, 'Show')
+      expect(showButton).toBeTruthy()
+      await act(async () => {
+        showButton?.click()
+      })
+      expect(container.textContent).toContain('docs/child')
 
       const submit = findButtonExact(container, 'Move and delete')
       expect(submit?.disabled).toBe(false)
