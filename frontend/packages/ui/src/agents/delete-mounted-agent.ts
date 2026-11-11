@@ -1,4 +1,4 @@
-import {isMountableAgentServerUrl} from '@seed-hypermedia/agents-protocol'
+import {isMountableAgentServerUrl} from '@seed-hypermedia/apps-protocol'
 import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {AgentServerError} from './client'

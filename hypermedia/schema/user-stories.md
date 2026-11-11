@@ -172,7 +172,7 @@ These are the things a person should be able to do with the type system, written
 
 All three surfaces now cover all eight stories. The resolver, validator and signing rule live in `@seed-hypermedia/client` (`schema-engine`, `schema-resolve`, `signed-blob`). The app, the CLI and the agents service share that code, so the three agree about what a schema means. See the [SDK](../build/sdk.md). <!-- id:YzHMO1GS -->
 
-The CLI and agent columns are fully automated. Every CLI and agent step above runs in `tests/user-stories.integration.test.ts`, against a real daemon and the web app. The agent steps run through `agents/scripts/user-stories.ts`, which calls the same `read` and `write` verbs a person uses from the agent UI. The app column automates stories 1 and 2 in `frontend/apps/desktop/tests/user-stories/`. The rest of the app column is tested by hand with the steps above. An isolated test daemon cannot browse the public library, and the desktop unit tests already cover the schema and blob editors. <!-- id:P7-KXoKT -->
+The CLI and agent columns are fully automated. Every CLI and agent step above runs in `tests/user-stories.integration.test.ts`, against a real daemon and the web app. The agent steps run through `apps/scripts/user-stories.ts`, which calls the same `read` and `write` verbs a person uses from the agent UI. The app column automates stories 1 and 2 in `frontend/apps/desktop/tests/user-stories/`. The rest of the app column is tested by hand with the steps above. An isolated test daemon cannot browse the public library, and the desktop unit tests already cover the schema and blob editors. <!-- id:P7-KXoKT -->
 
 # See also <!-- id:WvQ9u3os -->
 

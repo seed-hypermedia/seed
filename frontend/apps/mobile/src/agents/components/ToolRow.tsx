@@ -10,7 +10,7 @@
  * Tapping expands the raw input and output — the phone's stand-in for the desktop's debug dialog.
  */
 
-import {getSeedTool, normalizeSeedToolName} from '@seed-hypermedia/agents-protocol'
+import {getSeedTool, normalizeSeedToolName} from '@seed-hypermedia/apps-protocol'
 import type {ChatToolPart} from '@shm/ui/agents/chat-parts'
 import {resolveToolRowSummary, toolRowSourceChip} from '@shm/ui/agents/tool-summary'
 import React, {useMemo, useState} from 'react'

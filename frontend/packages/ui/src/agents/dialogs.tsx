@@ -1,4 +1,4 @@
-import type {CreateAgent} from '@seed-hypermedia/agents-protocol'
+import type {CreateAgent} from '@seed-hypermedia/apps-protocol'
 import type {DocumentDestinationSubmitInput} from '../document-destination-dialog'
 import {AgentMountDestination, findFreeAgentMountPath, prepareAgentMount, type PreparedAgentMount} from './mount'
 import {type AgentModelRef, type ModelProviderType, type SigningIdentity} from './client'

@@ -105,7 +105,7 @@ import {
 import {AccountAvatar} from '@shm/ui/account-avatar'
 import {SigningIdentityIcon} from './signing-identity-icon'
 import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
-import {activityConditions, getSeedTool} from '@seed-hypermedia/agents-protocol'
+import {activityConditions, getSeedTool} from '@seed-hypermedia/apps-protocol'
 import {
   AGENT_PUBLISH_GRANT,
   DEFAULT_AGENT_TOOLS,
@@ -142,7 +142,7 @@ import {
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {writeStickyAgentSession} from './sticky-session'
 import {MoveAgentDialog} from './move-agent-dialog'
-import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/agents-protocol'
+import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/apps-protocol'
 import {ProviderModelSelect} from './provider-model-select'
 import {coerceReasoningLevel, ReasoningSlider} from './reasoning-select'
 import {ThoroughnessPicker} from './thoroughness-select'

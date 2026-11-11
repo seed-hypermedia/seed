@@ -4,7 +4,7 @@
  * metro.config.js / jest.config.js / tsconfig.json rather than reimplemented here.
  *
  * These are the three layers mobile depends on:
- *   - `@seed-hypermedia/agents-protocol` — the tool registry and action types (no dependencies);
+ *   - `@seed-hypermedia/apps-protocol` — the tool registry and action types (no dependencies);
  *   - `@shm/ui/agents/client` — signed DAG-CBOR envelopes over the platform seam;
  *   - `@shm/ui/agents/agent-session-rows` + `tool-summary` — durable events to chat rows.
  *
@@ -12,8 +12,8 @@
  */
 
 import {nobleKeyPairFromSeed, principalToString, verify} from '@seed-hypermedia/client/blobs'
-import type {SessionEvent} from '@seed-hypermedia/agents-protocol'
-import {getSeedTool, normalizeSeedToolName, toolSummaryLine} from '@seed-hypermedia/agents-protocol'
+import type {SessionEvent} from '@seed-hypermedia/apps-protocol'
+import {getSeedTool, normalizeSeedToolName, toolSummaryLine} from '@seed-hypermedia/apps-protocol'
 import {buildAgentSessionChatRows, buildAgentSessionUrl} from '@shm/ui/agents/agent-session-rows'
 import {isSafeAgentServerSecretTarget, normalizeAgentServerUrl, signAgentAction} from '@shm/ui/agents/client'
 import {setAgentsPlatform} from '@shm/ui/agents/platform'

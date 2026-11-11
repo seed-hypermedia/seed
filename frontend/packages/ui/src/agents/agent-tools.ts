@@ -1,4 +1,4 @@
-import {callableToolRegistry} from '@seed-hypermedia/agents-protocol'
+import {callableToolRegistry} from '@seed-hypermedia/apps-protocol'
 
 /**
  * The five verbs (read, write, call, delegate, plan) are always on and are not configuration.

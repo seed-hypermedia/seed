@@ -10,7 +10,7 @@ import {
 import {type ChatBubbleMessage} from './chat-parts'
 import {isContinuationProjection, parseContinuationProjection, type ContinuationProjectionView} from './continuation'
 import {isPendingToolPart, isThinkingToolPart, type ChatToolChild, type ChatToolPart} from './chat-parts'
-import {sessionEventActor} from '@seed-hypermedia/agents-protocol'
+import {sessionEventActor} from '@seed-hypermedia/apps-protocol'
 import type {HMBlockNode} from '@seed-hypermedia/client/hm-types'
 import {routeToUrl} from '@shm/shared/utils/entity-id-url'
 import {DEFAULT_GATEWAY_URL} from '@shm/shared/constants'

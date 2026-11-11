@@ -8,7 +8,7 @@ A mounted agent is a resource with `type: hm://hyper.media/agent` and an `agentS
 
 # What it is <!-- id:leJIxF2G -->
 
-An agents server is a standalone service. It is a Bun process, shipped as the `seedhypermedia/agents` Docker image and embedded in the [desktop app](./apps/desktop.md). It keeps account-scoped state in SQLite: model providers and their encrypted secrets, agent definitions, sessions, triggers, tool documents, and every run that ever executed. Clients drive it through a signed DAG-CBOR HTTP API and subscribe to live updates over a signed WebSocket. The server has no browser UI. The Seed app and the Seed web app are its clients, and so is any program that holds a Seed [key](./build/keys.md). The [agents service](./apps/agents.md) page describes the software. <!-- id:3UeuZ8RQ -->
+An agents server is a standalone service. It is a Bun process, shipped as the `seedhypermedia/agents` Docker image and embedded in the [desktop app](./apps/desktop.md). It keeps account-scoped state in SQLite: model providers and their encrypted secrets, agent definitions, sessions, triggers, tool documents, and every run that ever executed. Clients drive it through a signed DAG-CBOR HTTP API and subscribe to live updates over a signed WebSocket. The server has no browser UI. The Seed app and the Seed web app are its clients, and so is any program that holds a Seed [key](./build/keys.md). The [agents service](./apps/app-environment.md) page describes the software. <!-- id:3UeuZ8RQ -->
 
 The runtime has three nouns and five verbs. The nouns are: <!-- id:N8Qe0rh- -->
   - the agent's [Space](./agent/space.md): the tree of everything it has (memory files, tools, triggers, its own definition), <!-- id:nD0DoAo1 -->
@@ -46,7 +46,7 @@ The control plane is signed the same way. Every request to an agents server is a
 
 # See also <!-- id:DjNqP3PQ -->
 
-- [Agents service](./apps/agents.md) for the software and how it ships. <!-- id:C9tvvzFn -->
+- [Agents service](./apps/app-environment.md) for the software and how it ships. <!-- id:C9tvvzFn -->
 - [Building agents on Seed](./build/agents.md) for external agents that use the CLI. <!-- id:IT0c7_0G -->
 - [Permissions](./protocol/permissions.md) for the `WRITER` and `AGENT` roles an agent receives. <!-- id:tsaPdU6_ -->
 - [Identity](./protocol/identity.md) for accounts and keys. <!-- id:qx-0dmsn -->

@@ -5,7 +5,7 @@ import {
   type AgentToolInput,
   type AgentTriggerInput,
 } from './client'
-import {modelReasoningSupport} from '@seed-hypermedia/agents-protocol'
+import {modelReasoningSupport} from '@seed-hypermedia/apps-protocol'
 import {pickDefaultProviderModel} from './model-utils'
 import {randomUUID} from './random-id'
 

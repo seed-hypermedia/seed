@@ -28,7 +28,7 @@ but confirm the version number with the user before pushing it.
        `agents/`, then `vault/` with `&&` — later groups are masked until earlier ones pass, so only the root script
        proves all of them.
      - Unit tests for packages touched since the last green CI run (e.g.
-       `cd frontend/apps/desktop && pnpm exec vitest run`; `cd agents && bun test`).
+       `cd frontend/apps/desktop && pnpm exec vitest run`; `cd apps && bun test`).
      - Skip slow suites (e2e, backend, builds) — the release workflow runs full CI anyway; the local pass only exists to
        avoid tagging a commit that is dead on arrival.
 4. **Confirm** the version and the commit to be tagged with the user.

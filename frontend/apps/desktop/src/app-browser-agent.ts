@@ -1,4 +1,4 @@
-import type {BrowserCommand} from '@seed-hypermedia/agents-protocol'
+import type {BrowserCommand} from '@seed-hypermedia/apps-protocol'
 import {blocksToMarkdown} from '@seed-hypermedia/client/blocks-to-markdown'
 import type {HMBlockNode, HMDocument, HMMetadata} from '@seed-hypermedia/client/hm-types'
 import {htmlToBlocks} from '@shm/shared/html-to-blocks'

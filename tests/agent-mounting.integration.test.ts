@@ -22,7 +22,7 @@ import {createSignerFromKey} from '../frontend/apps/cli/src/utils/signer'
 import {createDocumentUpdate, generateTestAccount, registerAccount} from '../frontend/apps/cli/src/test/account-helpers'
 import {FIXTURE_ACCOUNT} from '../frontend/apps/cli/src/test/fixture-seed'
 import {postSignedAgentAction, signAgentActionWith} from '../frontend/packages/ui/src/agents/client'
-import type {UnsignedAgentAction} from '../agents/protocol/src'
+import type {UnsignedAgentAction} from '../apps/protocol/src'
 import {setupTestEnv, type TestEnv} from './integration'
 
 let env: TestEnv | undefined
