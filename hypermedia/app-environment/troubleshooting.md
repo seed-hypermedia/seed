@@ -1,6 +1,6 @@
 ---
 name: Troubleshooting
-summary: "A symptom-first guide to agents server problems: missing streams, signature errors, failed reads, stuck or orphaned runs, and a server that stops responding."
+summary: "A symptom-first guide to app environment problems: missing streams, signature errors, failed reads, stuck or orphaned runs, and a server that stops responding."
 ---
 A quick diagnostic guide for the [Seed Agents](../agent.md) server, organized by symptom. [Operations](./operations.md) has more operational detail. <!-- id:nOzjb6a5 -->
 
@@ -43,7 +43,7 @@ Current mitigation: <!-- id:uFxBgjdT -->
 
 If it happens again: <!-- id:-DfwmYgp -->
   1. log the action shape before signing, without private content; <!-- id:bZIKsUfX -->
-  2. check that the client and server agree on the protocol version (`X-Agents-Protocol`), since both import their types from `agents/protocol` (see the [signed API](./signed-api.md)); <!-- id:73KJw0uG -->
+  2. check that the client and server agree on the protocol version (`X-Agents-Protocol`), since both import their types from `apps/protocol` (see the [signed API](./signed-api.md)); <!-- id:73KJw0uG -->
   3. check CBOR encoding behavior (see [blobs](../protocol/blobs.md) for DAG-CBOR); <!-- id:SNdy4U9O -->
   4. add a regression test. <!-- id:q4NRYIhg -->
 

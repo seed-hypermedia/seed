@@ -10,9 +10,9 @@ Agents can call tools from remote [Model Context Protocol](https://modelcontextp
 
 Hypermedia content must be [signed](../protocol/blobs.md) on the device that holds the key, and the [SDK](../build/sdk.md) or the [CLI](../build/cli.md) built on it does that signing. A hosted MCP server takes plain tool calls and acts on them remotely, so it would need your private key. Keys should never leave your device. The full reasoning, and how to run an MCP interface locally on the SDK, is in [Why there is no Seed MCP server](../build/agents.md). <!-- id:cjYyi-9w -->
 
-An agents server does sign content, and that fits the same rule. The keys it signs with are the agent's own. `CreateSigningIdentity` generates a new key on that server, publishes a [profile](../protocol/identity.md) for it, and stores the key encrypted. Your account key stays on your device. For the agent to publish in your space, you delegate a `WRITER` or `AGENT` [capability](../protocol/permissions.md) to the agent's key. <!-- id:Q7N_J4rc -->
+An app environment does sign content, and that fits the same rule. The keys it signs with are the agent's own. `CreateSigningIdentity` generates a new key on that server, publishes a [profile](../protocol/identity.md) for it, and stores the key encrypted. Your account key stays on your device. For the agent to publish in your space, you delegate a `WRITER` or `AGENT` [capability](../protocol/permissions.md) to the agent's key. <!-- id:Q7N_J4rc -->
 
-Agent keys are less secure than your personal identity by design, because the agents server holds them. That is one reason to give an agent its own key instead of your personal one. `ImportSigningIdentity`, the Import key button in the accounts dialog, sends the seed of an existing `.hmkey.json` [key](../build/keys.md) to the server, so only import a key made for the agent. If you don't want a hosted server to hold your agent keys, [self-host the agents server](../apps/agents.md). <!-- id:LrPb8BxH -->
+Agent keys are less secure than your personal identity by design, because the app environment holds them. That is one reason to give an agent its own key instead of your personal one. `ImportSigningIdentity`, the Import key button in the accounts dialog, sends the seed of an existing `.hmkey.json` [key](../build/keys.md) to the server, so only import a key made for the agent. If you don't want a hosted server to hold your agent keys, [self-host the app environment](../apps/agents.md). <!-- id:LrPb8BxH -->
 
 # Scope and transports <!-- id:S2QKCy5- -->
 
@@ -24,7 +24,7 @@ When `transport` is unset, the service tries Streamable HTTP first and falls bac
 
 Authentication uses **static request headers**, usually `Authorization: Bearer …`, stored as encrypted account secrets. There is no interactive OAuth flow. You cannot connect an MCP server that needs a browser login unless you can paste a token you already have in as a header. <!-- id:yI5pbk6f -->
 
-Code: `agents/src/mcp.ts` (connect, discover, proxy, the per-run connection pool), `agents/src/tool-documents.ts` (`syncMcpToolDocuments`, the projection), `agents/src/api-service.ts` (actions and runtime wiring). The client is `@modelcontextprotocol/sdk`. <!-- id:8Uz98Y4J -->
+Code: `apps/src/mcp.ts` (connect, discover, proxy, the per-run connection pool), `apps/src/tool-documents.ts` (`syncMcpToolDocuments`, the projection), `apps/src/api-service.ts` (actions and runtime wiring). The client is `@modelcontextprotocol/sdk`. <!-- id:8Uz98Y4J -->
 
 # The model <!-- id:1RSrme3h -->
 
@@ -100,16 +100,16 @@ A session calling a remote tool through `call`, and a later turn using the promo
 # Security notes <!-- id:fiOE6Odd -->
 
 - The service reaches a server with URLs and headers the account configured. The same outbound-network rules as `read https://…` apply. There is no private-network allow or deny list yet ([security](./security.md)). <!-- id:_CkkzuvV -->
-- Header values are encrypted at rest and redacted everywhere. The client refuses to send one to a remote agents server that is not on HTTPS. <!-- id:D1pDTsHJ -->
+- Header values are encrypted at rest and redacted everywhere. The client refuses to send one to a remote app environment that is not on HTTPS. <!-- id:D1pDTsHJ -->
 - An enabled server's tools can do whatever the remote server can do. Enabling a server is a grant as strong as `execute`, so the owner should trust the server. <!-- id:ebC4wvxV -->
 - The projection is never the authority. `executeMcpTool` checks the grant again, and promotion is filtered against the agent's own enabled documents. <!-- id:jJUfsRjO -->
 
 # Tests <!-- id:5L5OTGEm -->
 
-- `agents/src/mcp.test.ts`: naming, headers, result flattening, a real Streamable HTTP round trip (auth header included), discovery, and the pool (one handshake per server, shared by concurrent calls, closed together). `agents/src/mcp-test-server.ts` is the throwaway server the tests start. <!-- id:fWdWlKKb -->
-- `agents/src/tool-documents.test.ts`: the projection: sync, CID bump on a contract change, removal when disabled, lambda-name conflicts, refusal to delete or replace a remote tool. <!-- id:N1jdjOQv -->
-- `agents/src/verbs.test.ts`: `call` dispatch to a remote tool, touch-expand on a miss, thrown server and transport errors, the grant check, image content, index and listing tags, and the per-server collapse. <!-- id:zF_OhFKt -->
-- `agents/src/api-service.test.ts`: the actions end to end against a live test server. It covers discovery on save, invalid names, URLs, and headers, a saved but unreachable server, projection onto agents through `CreateAgent`/`UpdateAgent`, and delete scrubbing agents and secrets. It also runs a full session: the user calls a remote tool from the palette, the agent calls it through `call`, and the tool is promoted on the next turn. <!-- id:-mezCZ8h -->
+- `apps/src/mcp.test.ts`: naming, headers, result flattening, a real Streamable HTTP round trip (auth header included), discovery, and the pool (one handshake per server, shared by concurrent calls, closed together). `apps/src/mcp-test-server.ts` is the throwaway server the tests start. <!-- id:fWdWlKKb -->
+- `apps/src/tool-documents.test.ts`: the projection: sync, CID bump on a contract change, removal when disabled, lambda-name conflicts, refusal to delete or replace a remote tool. <!-- id:N1jdjOQv -->
+- `apps/src/verbs.test.ts`: `call` dispatch to a remote tool, touch-expand on a miss, thrown server and transport errors, the grant check, image content, index and listing tags, and the per-server collapse. <!-- id:zF_OhFKt -->
+- `apps/src/api-service.test.ts`: the actions end to end against a live test server. It covers discovery on save, invalid names, URLs, and headers, a saved but unreachable server, projection onto agents through `CreateAgent`/`UpdateAgent`, and delete scrubbing agents and secrets. It also runs a full session: the user calls a remote tool from the palette, the agent calls it through `call`, and the tool is promoted on the next turn. <!-- id:-mezCZ8h -->
 
 # See also <!-- id:TndNkW8b -->
 

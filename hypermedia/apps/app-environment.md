@@ -1,14 +1,14 @@
 ---
-name: The agents service
-summary: The Seed Agents server as a program, a Bun process with one SQLite database that the desktop app bundles and hosted containers run, with its code map, ports, configuration, backends and deployments.
+name: The app environment
+summary: The Seed App Environment as a program, the Bun process with one SQLite database that runs agents and apps, which the desktop app bundles and hosted containers run, with its code map, ports, configuration, backends and deployments.
 ---
-The agents service is the program that runs Seed Agents. It stores agents, their sessions and every run in a SQLite database, calls language models, executes tools, watches the Hypermedia network for [triggers](../app-environment/triggers.md), and publishes signed [blobs](../protocol/blobs.md) through a Seed [site](../protocol/sites.md). It is a server with no web pages of its own: the [desktop app](./desktop.md), the [web app](./web.md) and the [mobile app](./mobile.md) are its clients. This page describes the software. [Seed Agents](../agent.md) explains what an agent is and how to use one. <!-- id:XahmX6O- -->
+The app environment is the program that runs Seed Agents and the apps a space installs; until 2026-11 it was called the agents service. It stores agents, their sessions and every run in a SQLite database, calls language models, executes tools, watches the Hypermedia network for [triggers](../app-environment/triggers.md), and publishes signed [blobs](../protocol/blobs.md) through a Seed [site](../protocol/sites.md). It is a server with no web pages of its own: the [desktop app](./desktop.md), the [web app](./web.md) and the [mobile app](./mobile.md) are its clients. This page describes the software. [Seed Agents](../agent.md) explains what an agent is and how to use one. <!-- id:XahmX6O- -->
 
 The same build runs in three places. The desktop app ships it as a compiled binary and starts one for you. The hosted servers run it as a Docker image. You can also [self-host](../build/self-hosting.md) that image. <!-- id:7xiIpHiu -->
 
 # Where the code is <!-- id:m2SxIwMF -->
 
-`apps/`, package `@seed-hypermedia/agents`: a separate Bun workspace. Use Bun commands inside it, never pnpm. It is built on [Pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-ai` for model calls and `@earendil-works/pi-durable` for the agent loop, pinned to 1.0.x), the MCP SDK for connecting to remote [MCP servers](../app-environment/mcp.md), QuickJS for scripts, and microsandbox microVMs for code execution. It consumes `@seed-hypermedia/client` and `@shm/shared` through `file:` dependencies, which copy the packages at install time. <!-- id:YveM76cu -->
+`apps/`, package `@seed-hypermedia/apps`: a separate Bun workspace. Use Bun commands inside it, never pnpm. It is built on [Pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-ai` for model calls and `@earendil-works/pi-durable` for the agent loop, pinned to 1.0.x), the MCP SDK for connecting to remote [MCP servers](../app-environment/mcp.md), QuickJS for scripts, and microsandbox microVMs for code execution. It consumes `@seed-hypermedia/client` and `@shm/shared` through `file:` dependencies, which copy the packages at install time. <!-- id:YveM76cu -->
 
 <!-- id:p0g-x6aC -->
 | Path <!-- col:XVydtKVl --> | What it holds <!-- col:pxciYz7N --> <!-- id:QY9BBlKE --> |
@@ -56,7 +56,7 @@ If the stored schema version does not match the code, the server starts in a mod
 
 # Configuration <!-- id:bFuPQ4V_ -->
 
-Each flag has a `SEED_AGENTS_*` environment variable. Flags win over variables. The most used: <!-- id:bVVzP_Ph -->
+Each flag has a `SEED_APPS_*` environment variable. Flags win over variables. The most used: <!-- id:bVVzP_Ph -->
 
 <!-- id:FRc-vp7f -->
 | Flag <!-- col:Tri4QPRY --> | Default <!-- col:c7pawPMo --> | Meaning <!-- col:YdYKpJtF --> <!-- id:_NY3C04l --> |
@@ -87,7 +87,7 @@ cd apps && bun run test:build   # the compiled binary boots
 
 # Deployments <!-- id:MorvdtVJ -->
 
-**In the desktop app.** `bun run build:binary` compiles the server with `bun build --compile` into `plz-out/bin/apps/seed-apps-<platform>`, and the [desktop app](./desktop.md) ships that folder as a resource. At startup the app skips the server if `SEED_NO_AGENTS_SPAWN` is set, attaches to `SEED_AGENTS_SERVER_URL` if given, attaches to a healthy server already on the default port (the `./dev up` case), and otherwise spawns the binary on the first free port from 3050 only when the `agentsLocalServer` setting is `on` (or, before the setting exists, when an earlier build left a database behind, so the app can check it for agents and settle the setting). The switch under Settings > Agent Servers changes it. The spawned server keeps its data in the app's user data folder under `apps/`, uses the desktop API bridge as its [site](../protocol/sites.md) and the [daemon](./daemon.md)'s HTTP port for `/ipfs`, and has subscription login on. <!-- id:c23jCXqC -->
+**In the desktop app.** `bun run build:binary` compiles the server with `bun build --compile` into `plz-out/bin/apps/seed-apps-<platform>`, and the [desktop app](./desktop.md) ships that folder as a resource. At startup the app skips the server if `SEED_NO_AGENTS_SPAWN` is set, attaches to `SEED_APPS_SERVER_URL` if given, attaches to a healthy server already on the default port (the `./dev up` case), and otherwise spawns the binary on the first free port from 3050 only when the `agentsLocalServer` setting is `on` (or, before the setting exists, when an earlier build left a database behind, so the app can check it for agents and settle the setting). The switch under Settings > Agent Servers changes it. The spawned server keeps its data in the app's user data folder under `apps/`, uses the desktop API bridge as its [site](../protocol/sites.md) and the [daemon](./daemon.md)'s HTTP port for `/ipfs`, and has subscription login on. <!-- id:c23jCXqC -->
 
 **Hosted.** Images are `seedhypermedia/apps:dev`, built from `main`, and `seedhypermedia/apps:latest`, built on release. A Watchtower container on the agents host redeploys when a tag is pushed, so pushing `latest` is a production deploy. <!-- id:IiTt1HiF -->
 

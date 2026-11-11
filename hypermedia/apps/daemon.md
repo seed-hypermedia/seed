@@ -74,7 +74,7 @@ Server mode (`-server-mode`, or `SEED_SERVER_MODE=true`) trusts the deployment n
 
 ## In the Seed app <!-- id:CHRc9FS5 -->
 
-The [desktop app](./desktop.md) starts the daemon, waits for `/debug/version`, and then starts its own API bridge and the local [agents server](./agents.md). Its settings show the daemon's peer id and addresses. <!-- id:vJuF9ms7 -->
+The [desktop app](./desktop.md) starts the daemon, waits for `/debug/version`, and then starts its own API bridge and the local [app environment](./agents.md). Its settings show the daemon's peer id and addresses. <!-- id:vJuF9ms7 -->
 
 ## CLI <!-- id:y6L_c2bq -->
 

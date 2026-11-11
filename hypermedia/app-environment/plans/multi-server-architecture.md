@@ -23,7 +23,7 @@ This phase lets ion "ramp up" without touching anyone's chat latency. One exec h
 
 # Phase 3: shard the control plane by account <!-- id:CPMiVq2m -->
 
-When one control plane saturates (thousands of accounts, or heavy WS fan-out), run N agents servers. Each owns a subset of accounts with its own SQLite and data dir. A routing layer (a Caddy `map` on account id, or a 20-line router service) sends signed envelopes and WS subscriptions to the owning shard. To move an account, copy its rows and state dir, then flip the route. There is no shared state and no cross-shard traffic. [Triggers](../trigger.md) and [runs](../runs.md) are already scoped to accounts. <!-- id:uCO2S7E7 -->
+When one control plane saturates (thousands of accounts, or heavy WS fan-out), run N app environments. Each owns a subset of accounts with its own SQLite and data dir. A routing layer (a Caddy `map` on account id, or a 20-line router service) sends signed envelopes and WS subscriptions to the owning shard. To move an account, copy its rows and state dir, then flip the route. There is no shared state and no cross-shard traffic. [Triggers](../trigger.md) and [runs](../runs.md) are already scoped to accounts. <!-- id:uCO2S7E7 -->
 
 # Scaling and cost model (Hetzner-style pricing, 2026) <!-- id:e0FqsDYx -->
 

@@ -2,7 +2,7 @@
 name: Effect Outbox
 summary: "Every side effect a tool call performs is recorded before it begins and receipted when it ends, so a turn resumed after a restart knows whether a cut-off call never began, finished, or is unknown, and never performs the effect twice."
 ---
-The **effect outbox** is the agents server's record of what a tool call did to the world. A row is committed before the effect begins and settled when it ends. When a turn resumes after a process death, the call is run again, and the row says what to do: run the effect, answer from its receipt, or report it interrupted. The table is `effect_outbox` in [persistence](./persistence.md); the code is `agents/src/effect-outbox.ts`.
+The **effect outbox** is the app environment's record of what a tool call did to the world. A row is committed before the effect begins and settled when it ends. When a turn resumes after a process death, the call is run again, and the row says what to do: run the effect, answer from its receipt, or report it interrupted. The table is `effect_outbox` in [persistence](./persistence.md); the code is `apps/src/effect-outbox.ts`.
 
 # Why
 

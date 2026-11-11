@@ -6,10 +6,10 @@ The [Seed Agents](../agent.md) security model rests on five things: signed accou
 
 # Trust boundaries <!-- id:rNafV-CT -->
 
-- Desktop app ↔ agents server. <!-- id:29Vx2kId -->
-- Agents server ↔ model providers. <!-- id:bWnYZ3vp -->
-- Agents server ↔ Seed Hypermedia and content servers. <!-- id:aVxHgfoN -->
-- Agents server ↔ SQLite storage. <!-- id:MvH0stZj -->
+- Desktop app ↔ app environment. <!-- id:29Vx2kId -->
+- App environment ↔ model providers. <!-- id:bWnYZ3vp -->
+- App environment ↔ Seed Hypermedia and content servers. <!-- id:aVxHgfoN -->
+- App environment ↔ SQLite storage. <!-- id:MvH0stZj -->
 - Desktop renderer ↔ desktop daemon signing API. <!-- id:zozDhJUY -->
 - Agent runtime ↔ sandbox microVM (the only place model-written code runs). <!-- id:-X9dRIVd -->
 
@@ -73,7 +73,7 @@ Agents of the same account do not read each other's state. The `thread:` address
 
 # Secrets <!-- id:SgQVhqL8 -->
 
-`SetSecret` accepts key bytes, encrypts them, and returns only redacted metadata. `CreateSigningIdentity` generates a new Ed25519 account key on the server for the agent, publishes its [profile](../profile.md), and stores the raw seed through the same encrypted secret path. The owner's own key stays on their device and grants the agent a [capability](../protocol/permissions.md). `ImportSigningIdentity` accepts the seed of an existing key, decrypted on the client. Agent keys live on the server, so treat them as less secure than a personal identity. Use a [key](../build/keys.md) made for the agent, and [self-host](../build/self-hosting.md) the agents server if you don't want a hosted server to hold it. `ListSigningIdentities` returns only redacted metadata for account-scoped secrets tagged with `kind: 'hm-account-key'`. Plaintext key material is never returned, and cross-account keys are not visible. <!-- id:5DSi0bnT -->
+`SetSecret` accepts key bytes, encrypts them, and returns only redacted metadata. `CreateSigningIdentity` generates a new Ed25519 account key on the server for the agent, publishes its [profile](../profile.md), and stores the raw seed through the same encrypted secret path. The owner's own key stays on their device and grants the agent a [capability](../protocol/permissions.md). `ImportSigningIdentity` accepts the seed of an existing key, decrypted on the client. Agent keys live on the server, so treat them as less secure than a personal identity. Use a [key](../build/keys.md) made for the agent, and [self-host](../build/self-hosting.md) the app environment if you don't want a hosted server to hold it. `ListSigningIdentities` returns only redacted metadata for account-scoped secrets tagged with `kind: 'hm-account-key'`. Plaintext key material is never returned, and cross-account keys are not visible. <!-- id:5DSi0bnT -->
 
 The shared client refuses to send secrets to non-local plain HTTP servers (`isSafeAgentServerSecretTarget()`, `frontend/packages/ui/src/agents/client.ts`). Remote servers must use HTTPS. <!-- id:SvO1iUID -->
 
@@ -101,11 +101,11 @@ Future production work should add: <!-- id:tdt3q72j -->
 
 # Provider endpoint safety <!-- id:LxjFNwif -->
 
-Each provider type has a code-owned spec in `PROVIDER_SPECS` (`agents/src/api-service.ts`) with a fixed default base URL and an `allowCustomBaseUrl` flag. The base URL is resolved by `resolveProviderBaseUrl()`: <!-- id:A7x92_IY -->
+Each provider type has a code-owned spec in `PROVIDER_SPECS` (`apps/src/api-service.ts`) with a fixed default base URL and an `allowCustomBaseUrl` flag. The base URL is resolved by `resolveProviderBaseUrl()`: <!-- id:A7x92_IY -->
   - **Pinned providers** (`openai`, `anthropic`, `google`, `openrouter`, `deepseek`, `groq`, `xai`): the spec default base URL always wins, and any stored `baseUrl` override is ignored. This keeps a stored API key from being redirected to an arbitrary host. <!-- id:Z7EuhaCE -->
-  - **Self-hosted and custom providers** (`ollama`, `custom`): the user-supplied `baseUrl` is honored, because pointing at a local or private endpoint is the whole purpose. These accept requests without an API key. The base-URL value is set by the authenticated account owner through signed `SetModelProvider` actions, so the endpoint and any key it carries share a single trust owner. The desktop save flow still refuses to send an API key to a remote plain-HTTP **agent server**. Outbound SSRF to whatever a custom `baseUrl` names is accepted by design. Tightening this (for example, blocking link-local ranges for non-local custom endpoints) is future hardening. <!-- id:wI6Dm9fI -->
+  - **Self-hosted and custom providers** (`ollama`, `custom`): the user-supplied `baseUrl` is honored, because pointing at a local or private endpoint is the whole purpose. These accept requests without an API key. The base-URL value is set by the authenticated account owner through signed `SetModelProvider` actions, so the endpoint and any key it carries share a single trust owner. The desktop save flow still refuses to send an API key to a remote plain-HTTP **app environment**. Outbound SSRF to whatever a custom `baseUrl` names is accepted by design. Tightening this (for example, blocking link-local ranges for non-local custom endpoints) is future hardening. <!-- id:wI6Dm9fI -->
 
-Subscription ("Sign in with ChatGPT") providers hold OAuth credentials in place of an API key. pi-ai re-resolves and refreshes them per request through the persisted credential store. An expired or revoked sign-in fails the run with an explicit re-auth message, never a cryptic provider 401 (`api-service.ts`). The flow is off unless the operator opts in with `SEED_AGENTS_SUBSCRIPTION_AUTH`, because it needs a client that can catch the provider's localhost redirect (`agents/src/config.ts`). <!-- id:_cTbxDWl -->
+Subscription ("Sign in with ChatGPT") providers hold OAuth credentials in place of an API key. pi-ai re-resolves and refreshes them per request through the persisted credential store. An expired or revoked sign-in fails the run with an explicit re-auth message, never a cryptic provider 401 (`api-service.ts`). The flow is off unless the operator opts in with `SEED_APPS_SUBSCRIPTION_AUTH`, because it needs a client that can catch the provider's localhost redirect (`apps/src/config.ts`). <!-- id:_cTbxDWl -->
 
 Adding a pinned provider type needs only a `PROVIDER_SPECS` entry. It inherits the pinned-URL policy automatically. See [model providers](./model-providers.md). <!-- id:xuEyWxUM -->
 
@@ -132,7 +132,7 @@ The promotion filter admits the enabled callable set **and** the agent's own ena
 
 # MCP server safety <!-- id:Vu4WkGXX -->
 
-A connected MCP server is reached with account-configured URLs and headers from the agents host (`agents/src/mcp.ts`). Only `http(s)` remote transports exist. The service never spawns stdio processes. <!-- id:tBT0Wu3e -->
+A connected MCP server is reached with account-configured URLs and headers from the agents host (`apps/src/mcp.ts`). Only `http(s)` remote transports exist. The service never spawns stdio processes. <!-- id:tBT0Wu3e -->
 
 Risks: <!-- id:m4T6j5YR -->
   - **SSRF and private-network access**: the same unmitigated posture as web reading. An owner can point a server record at any reachable address. Loopback is allowed on purpose, because local MCP proxies are common in development. <!-- id:KT52H4iu -->
@@ -140,7 +140,7 @@ Risks: <!-- id:m4T6j5YR -->
   - **Prompt injection**: tool results are untrusted text, exactly like fetched web pages. See the [prompt injection map](./prompt-injection-map.md). <!-- id:T9GTfukQ -->
 
 Mitigations present: <!-- id:PtUHslMF -->
-  - header values are encrypted account secrets, redacted from every response. The desktop refuses to send one to a non-HTTPS remote agent server; <!-- id:KtK34BUu -->
+  - header values are encrypted account secrets, redacted from every response. The desktop refuses to send one to a non-HTTPS remote app environment; <!-- id:KtK34BUu -->
   - server names are slugs and tool names are sanitized to `[A-Za-z0-9_-]` and capped at 64 characters, so a remote name can never collide with a verb, shadow a builtin, or break a provider's tool-name rules. An authored lambda keeps its name against a remote tool of the same name; <!-- id:mLjHfMUi -->
   - input is validated against the projected contract before a call leaves the host, and a miss returns the contract; <!-- id:TLAD4kkE -->
   - results are bounded (256 KiB text, 4 MiB per inline image) and server errors become `tool_result.error`; <!-- id:1_EpLlOF -->
@@ -205,7 +205,7 @@ Future mitigations: <!-- id:I9-vG9WC -->
 
 # Web reading safety <!-- id:2keSU_sJ -->
 
-Reading `https://` addresses performs a server-side `fetch` (the static tier) and, when configured, has Crawl4AI fetch the page in a real browser (`agents/src/web-tools.ts`). `web_search` is backed by self-hosted SearXNG. Neither carries a third-party API key. <!-- id:jL4ctP0I -->
+Reading `https://` addresses performs a server-side `fetch` (the static tier) and, when configured, has Crawl4AI fetch the page in a real browser (`apps/src/web-tools.ts`). `web_search` is backed by self-hosted SearXNG. Neither carries a third-party API key. <!-- id:jL4ctP0I -->
 
 Risks: <!-- id:m87AsTyx -->
   - **SSRF and private-network access.** On a host with access to a private network or cloud metadata endpoint, a model could request internal addresses. This is **unmitigated** beyond `http(s)` scheme enforcement. Before exposing this on a sensitive network, add a private-network and metadata blocklist and an outbound allow and deny policy. <!-- id:VOFf1cSK -->
@@ -216,20 +216,20 @@ Mitigations present: <!-- id:bz47yFmI -->
   - `http` and `https` scheme enforcement and URL validation; <!-- id:eimGF8jE -->
   - bounded markdown output (200 KiB, truncated on a byte boundary); <!-- id:dDYgEB82 -->
   - raw mode refuses non-text content types; <!-- id:fsh-KI62 -->
-  - the Crawl4AI shared token (`SEED_AGENTS_CRAWLER_TOKEN`) gates the crawler so only the agents service can use it; <!-- id:GHxiL2lw -->
+  - the Crawl4AI shared token (`SEED_APPS_CRAWLER_TOKEN`) gates the crawler so only the agents service can use it; <!-- id:GHxiL2lw -->
   - `web_search` is a granted callable (it is not an always-on verb) and throws a clean error when no SearXNG backend is configured; <!-- id:rIwi_Gnj -->
   - `convert` is the one tool that carries a third-party key, and the key never leaves the server: the shared key lives in the server's environment, an account's own key in the encrypted secrets table, and both are read only for the duration of the call (`executeConvert`, `api-service.ts`). The model sees the result files, never the request. Spend on the shared key is bounded before each call by the ledger reservation sent to Datalab as `max_pages`, so a runaway document cannot run up the bill. Error messages never echo a key;
   - failures degrade to `tool_result.error` (or a `partial` flag for incomplete search coverage). Nothing is silently made up. <!-- id:i1gzDqSt -->
 
 # Agent memory safety <!-- id:lSwfN2YZ -->
 
-Agent memory (`agents/src/agent-memory.ts`) exposes a real filesystem directory to model-controlled input, so path handling is strict: <!-- id:APChYsrg -->
+Agent memory (`apps/src/agent-memory.ts`) exposes a real filesystem directory to model-controlled input, so path handling is strict: <!-- id:APChYsrg -->
   - every path is validated before use: string-only, no null bytes, no `..` segments, backslashes normalized, depth (16) and length (512 bytes) bounded, and the resolved absolute path re-verified to sit inside `<stateDir>/memory`; <!-- id:dC2437Id -->
   - symlinks are refused as read and write targets and skipped in listings, so memory operations cannot follow a planted link out of the sandbox; <!-- id:jjO2uEQq -->
   - ownership is checked through the agent row before any filesystem operation, so accounts cannot touch other accounts' memory; <!-- id:s6XqDvic -->
   - binary memory files are never sent to the model: a memory read returns only metadata for binary content. Their raw bytes are returned to the owning user over the signed API for preview and download; <!-- id:mVO90UmT -->
   - memory content is visible to the model and the user by design. Do not store secrets in agent memory; <!-- id:Gt-nn0ZR -->
-  - `write ipfs://` and `UploadAgentMemoryFileToIpfs` chunk files as [UnixFS](../protocol/files.md) and publish the blocks through the typed HM API. The daemon stores the blocks, but its gateway refuses them (`blob … is not public`) until public Hypermedia content links to the [CID](../protocol/blobs.md). DagPB [visibility](../protocol/privacy.md) propagates from a referencing [Change](../change.md), [Comment](../comment.md), or [Profile](../profile.md) (`backend/storage/schema.sql` visibility rules). So a standalone `write ipfs://` is not retrievable yet. It becomes retrievable the moment any public blob references it. `SEED_AGENTS_IPFS_SERVER_URL` only selects the gateway for later reads. Treat publishing as irreversible disclosure anyway. Showing a memory file to the owner in chat does not go through IPFS: the transcript renders `![…](../agent/~/memory/path)` over the signed API; <!-- id:BArm8mQq -->
+  - `write ipfs://` and `UploadAgentMemoryFileToIpfs` chunk files as [UnixFS](../protocol/files.md) and publish the blocks through the typed HM API. The daemon stores the blocks, but its gateway refuses them (`blob … is not public`) until public Hypermedia content links to the [CID](../protocol/blobs.md). DagPB [visibility](../protocol/privacy.md) propagates from a referencing [Change](../change.md), [Comment](../comment.md), or [Profile](../profile.md) (`backend/storage/schema.sql` visibility rules). So a standalone `write ipfs://` is not retrievable yet. It becomes retrievable the moment any public blob references it. `SEED_APPS_IPFS_SERVER_URL` only selects the gateway for later reads. Treat publishing as irreversible disclosure anyway. Showing a memory file to the owner in chat does not go through IPFS: the transcript renders `![…](../agent/~/memory/path)` over the signed API; <!-- id:BArm8mQq -->
   - a session's [durable store](./durable-sessions.md) is in the agents database. It holds the same conversation as the log, in the form the model reads it, including provider reasoning the log does not keep. It is not in the agent's state directory, so neither the model's verbs nor sandboxed code can reach it, and it is deleted with the session; <!-- id:MaQG6cw9 -->
   - session [attachments](./attachment.md) (files dropped into the chat composer) are session-private: stored under `<stateDir>/session-attachments/<sessionId>/`, keyed by content SHA-256, capped at 100 MiB each, never auto-copied into cross-session memory or published, deleted with the session, and exposed to the model as metadata until it reads one by address. <!-- id:LnfnVLp1 -->
 
@@ -237,21 +237,21 @@ Agent memory (`agents/src/agent-memory.ts`) exposes a real filesystem directory 
 
 # Code execution safety <!-- id:mIs-6SHz -->
 
-`execute` and every authored lambda run model-written code, so isolation comes from hardware virtualization. Process sandboxing is not used (`agents/src/code-exec.ts`): <!-- id:VPSYqRA7 -->
-  - each execution runs in a microVM that is fresh by default, or, when the warm pool is enabled (`SEED_AGENTS_EXEC_WARM_POOL=1`), one reused only by the same principal (account, agent, session, image); no VM is ever shared across principals. The VM runs the (embedded `microsandbox` runtime: libkrun on macOS/Linux, WHP on Windows) with the `restricted` in-guest security profile. The VM boundary is the isolation line. Seccomp and containers are not; <!-- id:YwAmk-Tb -->
+`execute` and every authored lambda run model-written code, so isolation comes from hardware virtualization. Process sandboxing is not used (`apps/src/code-exec.ts`): <!-- id:VPSYqRA7 -->
+  - each execution runs in a microVM that is fresh by default, or, when the warm pool is enabled (`SEED_APPS_EXEC_WARM_POOL=1`), one reused only by the same principal (account, agent, session, image); no VM is ever shared across principals. The VM runs the (embedded `microsandbox` runtime: libkrun on macOS/Linux, WHP on Windows) with the `restricted` in-guest security profile. The VM boundary is the isolation line. Seccomp and containers are not; <!-- id:YwAmk-Tb -->
   - the only host filesystem exposure is the agent's own memory directory, bind-mounted at `/workspace`. Code cannot see other agents' memory, the SQLite DB, or secrets; <!-- id:ilw1LQ5e -->
   - guest-created symlinks inside the memory directory cannot trick host-side reads. Memory reads refuse symlinks and listings skip them; <!-- id:-VQDLseP -->
   - nothing is interpreted by a shell unless the runtime _is_ the shell. The sandbox takes an argv array, so model code containing quotes, newlines, or `$` needs no escaping (`code-exec.ts`); <!-- id:oxwzfHCg -->
-  - sandbox networking is on by default but constrained to a **non-local egress policy** (`NetworkPolicy.fromProfiles(['public'])`, with `nonLocal()` as the older-SDK dialect, `code-exec.ts`). Code reaches the public internet but not the host's private network or cloud-metadata endpoints. DNS uses an explicit resolver set (`SEED_AGENTS_EXEC_DNS`) and never the host's. `SEED_AGENTS_EXEC_ALLOW_NETWORK=false` removes the NIC entirely. On-by-default egress widens the exfiltration surface compared to an offline sandbox. The isolation is the non-local policy plus the memory-only mount. There is no air gap; <!-- id:rVcD6uqo -->
+  - sandbox networking is on by default but constrained to a **non-local egress policy** (`NetworkPolicy.fromProfiles(['public'])`, with `nonLocal()` as the older-SDK dialect, `code-exec.ts`). Code reaches the public internet but not the host's private network or cloud-metadata endpoints. DNS uses an explicit resolver set (`SEED_APPS_EXEC_DNS`) and never the host's. `SEED_APPS_EXEC_ALLOW_NETWORK=false` removes the NIC entirely. On-by-default egress widens the exfiltration surface compared to an offline sandbox. The isolation is the non-local policy plus the memory-only mount. There is no air gap; <!-- id:rVcD6uqo -->
   - CPU count, guest memory, per-exec timeout (clamped to ≤ 300s) and total sandbox lifetime (`timeout + 30s`) are capped server-side. stdout and stderr are bounded to 64 KiB each before reaching the model; <!-- id:V1pbuaC_ -->
   - a lambda's input is baked into its program as a double-`JSON.stringify` literal, so no call input can escape into code (`code-exec.ts`); <!-- id:JI7bmi1s -->
   - an app's tool runs its page's code with the install's arguments in the process environment (`SEED_APP_CONTEXT`), never in the program text, which a failed call reports; its egress is limited to the hosts the app page declares (deny by default, DNS allowed, one allow rule per host, or no NIC when it names none; a staged SDK too old to express that refuses the run rather than widening it); it runs under a principal of its own (`app:<slug>:<session>`), so a warm pooled VM never carries a secret into the agent's own code; and it may run up to the page's `timeoutSecs`, at most 30 minutes. It needs no `execute` grant: the install is the consent and the agent cannot write the code;
   - an authored lambda rides on the **same grant** the `execute` tool needs, or on its own name being listed in the agent's `tools` (how a narrowed child keeps one authored tool without general code execution; see above). Without that check, writing a tool document would be a way around an owner who turned code execution off; <!-- id:5h1AAOPn -->
-  - resource note: each concurrent execution boots a microVM with its configured guest memory. There is no per-account concurrency limit yet. A host-wide cap, `SEED_AGENTS_EXEC_MAX_CONCURRENT` (default `CPUs - 2`, at least 1), queues executions first-in first-out and answers 503 after `SEED_AGENTS_EXEC_ACQUIRE_WAIT_SECS` (30 s). <!-- id:pU1Hj4Fe -->
+  - resource note: each concurrent execution boots a microVM with its configured guest memory. There is no per-account concurrency limit yet. A host-wide cap, `SEED_APPS_EXEC_MAX_CONCURRENT` (default `CPUs - 2`, at least 1), queues executions first-in first-out and answers 503 after `SEED_APPS_EXEC_ACQUIRE_WAIT_SECS` (30 s). <!-- id:pU1Hj4Fe -->
 
 # Script (workflow) safety <!-- id:fcE-ASsj -->
 
-[Script](./script.md) children are untrusted, model-authored JavaScript. The posture is defense in depth (`agents/src/workflow-host.ts`): <!-- id:Mi-PBDI- -->
+[Script](./script.md) children are untrusted, model-authored JavaScript. The posture is defense in depth (`apps/src/workflow-host.ts`): <!-- id:Mi-PBDI- -->
   - **Zero-ambient-authority realm**: each run gets a fresh QuickJS-WASM context with no `Date`, `Math.random`, timers, `fetch`, imports, or process access. A submission-time lint rejects those tokens up front, and the realm removes them at runtime. The only way to affect the world is the journaled `ctx` bridge. <!-- id:mvCxlsOc -->
   - **Every effect is validated, bounded, and journaled**: `ctx.call` is checked against the read and write verbs plus the agent's enabled callables (`api-service.ts`) and the tool's input schema. Results are size-bounded by the tool caps. The [journal](./journal.md) is a flight recorder: you can list every external effect after the fact via `GetRunJournal`. <!-- id:BNwxImA5 -->
   - **No new authority**: a script can do exactly what its agent could do call-by-call in chat, under the agent's own signing identities and configured HM server. The new factor is scale, bounded by spawn depth and fan-out (the thoroughness preset: quick 1/4, normal 3/10, deep 5/16), the separate workflow concurrency pool, compute fuel between awaits, VM memory, and journal caps. <!-- id:lvFcXqNY -->
@@ -272,7 +272,7 @@ Several behaviors keep the log from quietly disagreeing with reality. That is a 
 Implemented: <!-- id:6yUGwnPB -->
   - idempotency for create and message actions with client IDs; <!-- id:wLMm9_EJ -->
   - every signed action carries a signed `action.ts` Unix epoch millisecond timestamp; <!-- id:3GaTvXWk -->
-  - HTTP and WebSocket envelopes are rejected when `action.ts` is missing, invalid, or more than five minutes from server local time (`MAX_ACTION_CLOCK_SKEW_MS` in `agents/src/auth.ts`). The window bounds both clock skew and time spent queued behind a busy server. <!-- id:lPu7yc3v -->
+  - HTTP and WebSocket envelopes are rejected when `action.ts` is missing, invalid, or more than five minutes from server local time (`MAX_ACTION_CLOCK_SKEW_MS` in `apps/src/auth.ts`). The window bounds both clock skew and time spent queued behind a busy server. <!-- id:lPu7yc3v -->
 
 Not implemented: <!-- id:DEdO-lj6 -->
   - nonce caching, so a captured request can still be replayed within the five-minute timestamp window. <!-- id:JO8PA4PF -->
@@ -307,7 +307,7 @@ For every new action: <!-- id:axAWn385 -->
   9. Update docs. <!-- id:3sTUI4X9 -->
 
 For every new tool or address form: <!-- id:CwIdOyUb -->
-  1. Add or update the canonical registry entry in `agents/protocol/src/tool-registry.ts` so prompt metadata, input schema, and rendering metadata are reviewed together. <!-- id:QKpeyRPQ -->
+  1. Add or update the canonical registry entry in `apps/protocol/src/tool-registry.ts` so prompt metadata, input schema, and rendering metadata are reviewed together. <!-- id:QKpeyRPQ -->
   2. Decide the grant: callable set, publish, or ungated. <!-- id:YbrvNPlW -->
   3. Validate inputs at the runtime boundary and return the contract on a miss. <!-- id:6-8VGr0S -->
   4. Bound output size. <!-- id:A6KLJ63H -->

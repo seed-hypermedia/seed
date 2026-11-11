@@ -10,15 +10,15 @@ This page lists every place model-facing text is defined, assembled, or handed t
 
 ## Shared assistant instructions <!-- id:f8iaAGxd -->
 
-File: `agents/protocol/src/index.ts` <!-- id:lqdhE1St -->
+File: `apps/protocol/src/index.ts` <!-- id:lqdhE1St -->
   - `seedAssistantSystemPrompt({currentTime?, contextLines?})` (line 14) holds the shared Seed instructions: HM resource types, [hm:// link](../protocol/urls.md) formatting, the exact-block-ID rule, [profile](../protocol/identity.md) and `:profile` reads, `:attributes`, reading the activity feed with `read activity:`, and directory-then-children exploration. <!-- id:56_qVS9y -->
   - It takes no tool-specific options. There is no title-tool instruction. A separate model call generates session titles, and the agent holds no tool for it. <!-- id:_fKTuXFj -->
 
 ## Agent system prompt assembly <!-- id:w4IWxXTE -->
 
-File: `agents/src/api-service.ts`, `Service.#agentSystemPrompt()` (line 4169). In order: <!-- id:JwABxkZY -->
+File: `apps/src/api-service.ts`, `Service.#agentSystemPrompt()` (line 4169). In order: <!-- id:JwABxkZY -->
   1. the user-configured `AgentDefinition.systemPrompt`, stored as Seed [blocks](../protocol/blocks.md) and converted to resolved markdown; <!-- id:iORcX3ZN -->
-  2. `seedAssistantSystemPrompt()`. The agents server passes no `currentTime`: the clock reaches the model as a per-turn block (below), so the system prompt stays byte for byte the same between turns and the provider's prompt cache holds; <!-- id:z67VE1ZB -->
+  2. `seedAssistantSystemPrompt()`. The app environment passes no `currentTime`: the clock reaches the model as a per-turn block (below), so the system prompt stays byte for byte the same between turns and the provider's prompt cache holds; <!-- id:z67VE1ZB -->
   3. the **memory prompt** (line 4184). It is always included, because memory is a [read](./read.md) and [write](./write.md) address and belongs to no tool group. It describes `~/memory/`, the check-memory-first habit, whole-file rewrites, `{fromUrl}` downloads, `read ipfs://`, `write ipfs://` publishing, and that chat attachments are session-private and read with `read attachment:<id>`; <!-- id:g-QiS7CE -->
   4. the **user-actions prompt** (line 4190): "Your user holds the same verbs you do… entries tagged `<user_action>`/`<user_action_result>` are actions the user ran themselves — read their results as shared ground truth"; <!-- id:g-pL5KLj -->
   5. `<available_signing_identities>` JSON plus signing and publishing instructions, only when the agent has signing keys. This includes the publish recipe and the parent-must-exist rule. <!-- id:J0uQfOR5 -->
@@ -27,7 +27,7 @@ Nothing in this prompt depends on what the session has done or on the state of t
 
 ## The Space index <!-- id:DTNSen_I -->
 
-File: `agents/src/api-service.ts`, `buildSpaceIndex()` (line 5900). <!-- id:xgw7pHEV -->
+File: `apps/src/api-service.ts`, `buildSpaceIndex()` (line 5900). <!-- id:xgw7pHEV -->
 
 Every turn's input is followed by a `<space>` block, the [Space index](./space-index.md). It is one of the per-turn state blocks, not part of the system prompt: it changes whenever the agent writes a memory file or gains a tool, and a system prompt that changed with it would lose the provider's prompt cache for the whole conversation. It has one line per enabled [tool document](./tool-document.md) (`- name — summary`, with authored tools tagged `(authored)`), a one-line summary of the memory top level, and the names of active [triggers](./triggers.md). It is cached per `(account, agent, callable set)`, invalidated on memory and tool writes, and collapsed to counts above 2048 bytes. <!-- id:KVIlLiaC -->
 
@@ -54,7 +54,7 @@ These are written as real events with `actor: 'system'` (see [actor](./actor.md)
 
 ## Trigger-created sessions <!-- id:MTzbxedf -->
 
-File: `agents/src/api-service.ts`, `triggerPromptMessage()` (line 6138). The first user message of a triggered session carries three things. The first is the [trigger](./trigger.md) prompt as resolved markdown. The second is a `<trigger_context>` JSON block with trigger, [firing](./firing.md), and activity details. The third is a `<trigger_instructions>` block. It tells the agent to reply as a **threaded** comment with the write verb, and names where in the context to find the target [document](../protocol/documents.md) id and `replyTo`. <!-- id:9jZ_eqB1 -->
+File: `apps/src/api-service.ts`, `triggerPromptMessage()` (line 6138). The first user message of a triggered session carries three things. The first is the [trigger](./trigger.md) prompt as resolved markdown. The second is a `<trigger_context>` JSON block with trigger, [firing](./firing.md), and activity details. The third is a `<trigger_instructions>` block. It tells the agent to reply as a **threaded** comment with the write verb, and names where in the context to find the target [document](../protocol/documents.md) id and `replyTo`. <!-- id:9jZ_eqB1 -->
 
 This is not a system prompt. It is model-facing prompt text built from **activity that other people wrote**, so review it together with system-prompt changes. <!-- id:CDpgBhXZ -->
 
@@ -66,7 +66,7 @@ This is not a system prompt. It is model-facing prompt text built from **activit
 
 ## Tool contracts <!-- id:5Saehe2I -->
 
-File: `agents/protocol/src/tool-registry.ts` <!-- id:RtGb7Fu6 -->
+File: `apps/protocol/src/tool-registry.ts` <!-- id:RtGb7Fu6 -->
 
 A tool's `description` and its JSON-schema field descriptions are model-facing instructions. For the five verbs they are long. The [delegate](./delegate.md) description alone carries the parallelism rules and the whole `ctx` surface. The registry is shared with the desktop assistant runtime where the runtimes overlap. [Contracts](./contract.md) also reach the model at runtime through `read ~/tools/<name>` and through touch-expand misses on [call](./call.md). <!-- id:mbfTk_xI -->
 
@@ -94,7 +94,7 @@ Ranked by exposure. Everything here is untrusted content that reaches the model.
 # App surfaces <!-- id:vMAEIwUn -->
 
 - **Assistant panel** (`frontend/packages/ui/src/agents/assistant-panel.tsx`, shared by the [Seed app](../apps/desktop.md) and the [Seed web app](../apps/web.md)) is a client of the [agents service](../apps/agents.md). It builds no system prompt of its own. It adds window context as `context` content parts on the first message. The old `app-chat.ts` / `chat-provider-options.ts` local-assistant prompt path is gone. See [desktop UI](./desktop-ui.md). <!-- id:B_kzpqgq -->
-- **Default new-agent prompt**: a single [Embed](../protocol/blocks.md) block of the [Agent Guide](./guide.md) (`hm://hyper.media/app-environment/guide`). See `defaultAgentSystemPrompt` in `frontend/packages/ui/src/agents/dialogs.tsx`. The user can edit it, and it becomes `AgentDefinition.systemPrompt`. When the service resolves the prompt, `agents/src/docs-space.ts` rewrites `hm://hyper.media` to the configured knowledge base account, and the service inlines the page. Agents created before the guide moved embed the old seed.hyper.media skill document, and that URL maps to the guide too. Anyone who can publish to the knowledge base space shapes every new agent's prompt. <!-- id:Xsbs2TBc -->
+- **Default new-agent prompt**: a single [Embed](../protocol/blocks.md) block of the [Agent Guide](./guide.md) (`hm://hyper.media/app-environment/guide`). See `defaultAgentSystemPrompt` in `frontend/packages/ui/src/agents/dialogs.tsx`. The user can edit it, and it becomes `AgentDefinition.systemPrompt`. When the service resolves the prompt, `apps/src/docs-space.ts` rewrites `hm://hyper.media` to the configured knowledge base account, and the service inlines the page. Agents created before the guide moved embed the old seed.hyper.media skill document, and that URL maps to the guide too. Anyone who can publish to the knowledge base space shapes every new agent's prompt. <!-- id:Xsbs2TBc -->
 - **Prompt tab** (`frontend/packages/ui/src/agents/detail.tsx`) edits those blocks with the Seed block editor. The server normalizes them and resolves them to markdown before use. <!-- id:DkIerr6J -->
 - **System prompt dialog** (`frontend/packages/ui/src/agents/session.tsx`) shows `systemPromptMarkdown`, the exact prompt that would be used to continue the session. <!-- id:zUoF2iV9 -->
 
@@ -104,7 +104,7 @@ Ranked by exposure. Everything here is untrusted content that reaches the model.
 2. Keep `#agentSystemPrompt()` assembly small and ordered. Every block you add costs context on every turn. <!-- id:UDqqI0c9 -->
 3. Use an ephemeral per-turn block for a reminder of current state. Use a durable event for a record of something that happened. <!-- id:sSf6minb -->
 4. If a new block frames text written by anyone but us, escape it and add it to the untrusted list above. <!-- id:kiJ8l6rA -->
-5. Update tool descriptions in `agents/protocol/src/tool-registry.ts` when behavior depends on tool use. <!-- id:PjDSTL-L -->
+5. Update tool descriptions in `apps/protocol/src/tool-registry.ts` when behavior depends on tool use. <!-- id:PjDSTL-L -->
 6. Inspect a live session through `GetSession.systemPromptMarkdown` or the session UI dialog. <!-- id:Owoth1sD -->
 7. Update this page if a prompt source is added, removed, or moved. <!-- id:-jQUo6Jc -->
 

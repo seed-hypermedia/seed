@@ -2,7 +2,7 @@
 name: System Overview
 summary: "How the pieces of Seed Agents fit together: the signed control plane, per-account storage, durable sessions and runs, live subscriptions, and the clients that drive them."
 ---
-[Seed Agents](../agent.md) is a local-first, account-scoped agent system. The [desktop app](../apps/desktop.md) uses it to configure an agent server, store provider secrets, create agents, work in durable sessions, stream model responses, [delegate](./delegate.md) work to children, and inspect everything that executed. <!-- id:j6gFhd29 -->
+[Seed Agents](../agent.md) is a local-first, account-scoped agent system. The [desktop app](../apps/desktop.md) uses it to configure an app environment, store provider secrets, create agents, work in durable sessions, stream model responses, [delegate](./delegate.md) work to children, and inspect everything that executed. <!-- id:j6gFhd29 -->
 
 # Design principles <!-- id:bHJBP28f -->
 
@@ -26,7 +26,7 @@ Each term above has its own page, listed in the [Agents glossary](./glossary.md)
 
 ```text <!-- id:9rdPDFNJ -->
 Seed app (desktop) and Seed web app, sharing frontend/packages/ui/src/agents
-  ├─ Local agents server subprocess (desktop only; same artifact as the Docker image)
+  ├─ Local app environment subprocess (desktop only; same artifact as the Docker image)
   │    configured with the desktop's typed HM API bridge plus its daemon's direct IPFS endpoint
   ├─ Agents routes: list, server, detail, session, run
   ├─ Assistant sidebar: sessions of any agent on any configured server
@@ -60,7 +60,7 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 # End-to-end user flow <!-- id:29tMaHyG -->
 
 1. User opens the desktop **Agents** page. <!-- id:1xHbNrzu -->
-2. Desktop reads the default agent server URL and checks `/agents/api/health`. <!-- id:iJTq1h2g -->
+2. Desktop reads the default app environment URL and checks `/agents/api/health`. <!-- id:iJTq1h2g -->
 3. Desktop opens a signed WebSocket subscription for the selected account. <!-- id:tn8sA958 -->
 4. User configures a model provider in the **Model providers** dialog. <!-- id:Ckat4Ybf -->
 5. Desktop sends signed `SetSecret` and `SetModelProvider` actions. <!-- id:TNB496ji -->
@@ -121,7 +121,7 @@ The desktop app signs through the [Seed daemon](../apps/daemon.md). The service 
 ## Seed app and web UI <!-- id:HoIeFoE4 -->
 
 - Agents list, server, detail, and session routes with sidebar, menu, and shortcut integration. See [desktop and web UI](./desktop-ui.md). <!-- id:KVIyJNrf -->
-- Local agents server lifecycle: attaches to an already-running server in development, and spawns the bundled binary in a packaged app. <!-- id:o29cW4lm -->
+- Local app environment lifecycle: attaches to an already-running server in development, and spawns the bundled binary in a packaged app. <!-- id:o29cW4lm -->
 - Assistant sidebar backed by agent sessions, with no separate chat runtime. It lists sessions from every configured server, including the local one. <!-- id:KM6x2pZe -->
 - Default and multi-server settings. <!-- id:OuuPfvPJ -->
 - Provider management dialog for every provider type in the registry, with API-key and ChatGPT-subscription sign-in. <!-- id:5OYSu8Vw -->

@@ -6,28 +6,28 @@ This page is for people and coding agents changing [Seed Agents](../agent.md). I
 
 # Commands <!-- id:72a6F9hI -->
 
-The whole stack in one mprocs TUI (Docker web backends, desktop, web, and the agents server, one pane per process; `q` stops everything): <!-- id:45rcP_oD -->
+The whole stack in one mprocs TUI (Docker web backends, desktop, web, and the app environment, one pane per process; `q` stops everything): <!-- id:45rcP_oD -->
 
 ```bash <!-- id:kTpugFCl -->
 ./dev up
 ```
 
-The agents server alone: <!-- id:iBra6R5G -->
+The app environment alone: <!-- id:iBra6R5G -->
 
 ```bash <!-- id:4pr04rmj -->
-direnv exec . bash -lc 'cd agents && bun src/main.ts'   # plain
-direnv exec . bash -lc 'cd agents && bun run dev'       # hot reload, dev web backends, subscription auth on
+direnv exec . bash -lc 'cd apps && bun src/main.ts'   # plain
+direnv exec . bash -lc 'cd apps && bun run dev'       # hot reload, dev web backends, subscription auth on
 ```
 
 Validate the service: <!-- id:w21cku7O -->
 
 ```bash <!-- id:92q4r3gT -->
-direnv exec . bash -lc 'cd agents && bun check && bun test'   # typecheck + formatter, then the suite
-direnv exec . bash -lc 'cd agents && bun run test:build'      # the compiled binary boots
-direnv exec . bash -lc 'cd agents && bun run test:docker'     # the image boots
-direnv exec . bash -lc 'cd agents && bun run test:trigger'    # real daemon, mention trigger fires once
-direnv exec . bash -lc 'cd agents && bun run test:outbox'     # real daemon, effect outbox across kill -9, disk floor, ENOSPC
-direnv exec . bash -lc 'cd agents && bun run protocol:check'  # the protocol surface did not change silently
+direnv exec . bash -lc 'cd apps && bun check && bun test'   # typecheck + formatter, then the suite
+direnv exec . bash -lc 'cd apps && bun run test:build'      # the compiled binary boots
+direnv exec . bash -lc 'cd apps && bun run test:docker'     # the image boots
+direnv exec . bash -lc 'cd apps && bun run test:trigger'    # real daemon, mention trigger fires once
+direnv exec . bash -lc 'cd apps && bun run test:outbox'     # real daemon, effect outbox across kill -9, disk floor, ENOSPC
+direnv exec . bash -lc 'cd apps && bun run protocol:check'  # the protocol surface did not change silently
 ```
 
 Validate the frontend: <!-- id:z1RLpVSN -->
@@ -41,7 +41,7 @@ direnv exec . bash -lc 'pnpm format:check'
 Build the deployment image and run the desktop: <!-- id:LXwDSl2S -->
 
 ```bash <!-- id:L-JSfuz3 -->
-docker build -t seedhypermedia/agents:dev . -f ./agents/Dockerfile
+docker build -t seedhypermedia/agents:dev . -f ./apps/Dockerfile
 direnv exec . bash -lc './dev run-desktop'
 ```
 
@@ -63,7 +63,7 @@ The dev shell sets `SEED_AGENTS_HTTP_PORT=3051` in `.env.vars`, so the dev serve
 
 # Code map <!-- id:l1qGFiv- -->
 
-The service, in `agents/`: <!-- id:I1toG_st -->
+The service, in `apps/`: <!-- id:I1toG_st -->
   - `src/main.ts`: the Bun HTTP and WebSocket server, CORS, the webhook route, health and version, live event fan-out. <!-- id:6Mgrjc3y -->
   - `src/api-service.ts`: the heart of the service: action dispatch, persistence operations, the model turn on Pi Durable (`#runPiAgent`), the verb implementations, the Space index, trigger firing, subscription verification. <!-- id:3mdc_Y9h -->
   - `src/durable-session.ts`: the per-session Pi Durable store: the file system that keeps it in the database, how a harness is opened over it, the sync document, and the tracker that turns committed partials into text deltas. See [durable sessions](./durable-sessions.md). <!-- id:5hgrcO27 -->
@@ -84,7 +84,7 @@ The service, in `agents/`: <!-- id:I1toG_st -->
   - `src/json-schema.ts`: the bounded JSON Schema validator for typed results and authored contracts. <!-- id:4scILU9z -->
   - `src/perf.ts`, `src/session-perf.ts`: the latency recorder behind `/api/perf`. <!-- id:66v3Od0T -->
   - `src/protocol-compat.ts`, `src/protocol-surface.ts`: shims for older clients and the surface snapshot the CI gate diffs. <!-- id:jf1NH6Pm -->
-  - `protocol/src/index.ts`: the canonical protocol types for actions, responses, session events, and WebSocket events, published as the private package `@seed-hypermedia/agents-protocol`; `protocol/PROTOCOL.md` holds the versioning rules and changelog. <!-- id:wuXFGuu3 -->
+  - `protocol/src/index.ts`: the canonical protocol types for actions, responses, session events, and WebSocket events, published as the private package `@seed-hypermedia/apps-protocol`; `protocol/PROTOCOL.md` holds the versioning rules and changelog. <!-- id:wuXFGuu3 -->
   - `protocol/src/tool-registry.ts`: the verbs and the callable tools: model-facing descriptions, JSON schemas, render metadata. Every word of a description is prompt. <!-- id:m4xyW-wr -->
   - `protocol/src/write-guides.ts`: the per-resource guides an agent reads at `~/tools/write/<resource>`. <!-- id:ljPi4l8J -->
   - `protocol/src/delegation.ts`, `protocol/src/reasoning.ts`, `protocol/src/model-capabilities.ts`: thoroughness presets, the reasoning-level matrix, image-input support. <!-- id:sbhHJvWe -->
@@ -96,7 +96,7 @@ Shared Hypermedia behaviour the service reuses from [`@seed-hypermedia/client`](
 
 # Test map <!-- id:nszQ78y6 -->
 
-The whole service suite runs from `agents/` with `bun test`: <!-- id:QcZ8YChE -->
+The whole service suite runs from `apps/` with `bun test`: <!-- id:QcZ8YChE -->
   - `api-service.test.ts`: the big one: actions, ownership, sessions, delegation, obligations, plans. <!-- id:v1WA7PUZ -->
   - `durable-session.test.ts`: the durable session runtime: one conversation across turns, the byte-stable prompt prefix, a turn resumed from its checkpoint after a process death, a lost store rebuilt from the log. <!-- id:Bad3WLee -->
   - `verbs.test.ts`: the five verbs: address dispatch, touch-expand, promotion, user-invoked verbs. <!-- id:IEq07SB6 -->
@@ -115,13 +115,13 @@ Frontend: the shared UI's agents tests live in `frontend/packages/ui/src/__tests
 - Normalize user and network input at API boundaries. Internal APIs expect normalized values. <!-- id:RS0y-zWC -->
 - Never hold a SQLite write transaction around a model, provider, or tool network call. <!-- id:TACnz28O -->
 - Never log secrets, signed bodies, or full session or model content. <!-- id:bdGZN4X_ -->
-- Protocol types live in `agents/protocol/src/index.ts`. Do not recreate mirrors in the desktop or the service. A change to the surface must pass `bun run protocol:check`, and a breaking one bumps the protocol version per `protocol/PROTOCOL.md`. <!-- id:oaOlwOvA -->
+- Protocol types live in `apps/protocol/src/index.ts`. Do not recreate mirrors in the desktop or the service. A change to the surface must pass `bun run protocol:check`, and a breaking one bumps the protocol version per `protocol/PROTOCOL.md`. <!-- id:oaOlwOvA -->
 - Provider responses stay redacted. <!-- id:v1_cpG9V -->
 - Prefer broad tests that exercise real behaviour, and existing files over tiny one-off modules. <!-- id:GMnMav_E -->
 
 # Adding an API action <!-- id:Yusrx60B -->
 
-1. Add the request and response types to `agents/protocol/src/index.ts`. <!-- id:68bp4RE3 -->
+1. Add the request and response types to `apps/protocol/src/index.ts`. <!-- id:68bp4RE3 -->
 2. Dispatch it in `Service.message()` with validation and account-ownership checks. <!-- id:ABZN2ZuZ -->
 3. Add idempotency if client retries could duplicate side effects. <!-- id:iKsv7l1o -->
 4. Emit service events if live clients need updates. <!-- id:CROBrqV1 -->

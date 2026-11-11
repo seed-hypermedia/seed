@@ -9,7 +9,7 @@ Status: historical record, traced against the live incident of 29 June 2026 on `
 One comment that mentions an account becomes two events in the Hypermedia activity feed (`/api/ListEvents`): a `comment` event and a `citation` event that share the same comment version CID. Both flow through the same path, and there were two places an event could be dropped before it ever fired. <!-- id:Epc2Wv0v -->
 
 ``` <!-- id:pHOKKnJP -->
-// per account, every ~5 s — agents/src/activity-monitor.ts
+// per account, every ~5 s — apps/src/activity-monitor.ts
 ListEvents(currentAccount)  →  activityEventKey()  →  [DROP 1] staleness filter  →
    Service.processActivityEvent()  →  activityMatchesTriggerSource()  →
       [DROP 2] citation suppression  →  activityFiringKey() dedup  →

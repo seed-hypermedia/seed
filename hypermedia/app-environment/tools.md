@@ -6,14 +6,14 @@ An agent's whole model-facing tool surface is **five verbs**, [`read`](./read.md
 
 # The registry <!-- id:-aLT2u3W -->
 
-The canonical registry is `agents/protocol/src/tool-registry.ts`. The Agents service executes from it and the desktop renders from it, so a tool's prompt text, schemas, chat bubble, and HM-reference extraction cannot drift apart. It exports three tables: <!-- id:5JGudaAa -->
+The canonical registry is `apps/protocol/src/tool-registry.ts`. The Agents service executes from it and the desktop renders from it, so a tool's prompt text, schemas, chat bubble, and HM-reference extraction cannot drift apart. It exports three tables: <!-- id:5JGudaAa -->
   - `seedVerbRegistry`: the five verbs, `status`, `continue_session`, and the hidden `return_result` mechanism. This is the **only** provider-facing toolset. A leaf run gets no `delegate`, a delegated child gets no `continue_session`, and only a typed child gets `return_result`. <!-- id:cpDWf5e4 -->
   - `callableToolRegistry`: `search`, `query`, `attributes`, `web_search`, `navigate`, `execute`, `convert`. By default these are never handed to the provider as tools. `call` dispatches them (`callableToolRegistry`). <!-- id:Z3ye-2G4 -->
   - `seedToolRegistry`: both, merged, for renderers and validation lookups (`seedToolRegistry`). <!-- id:lnALDCIy -->
 
 Each entry owns the model-facing name, label, prompt description, JSON input schema, optional output schema, runtime availability (`assistant` or `agent-service`), rendering metadata, and an optional `getReferencedUrls` extractor. The extractor lists the `hm://` resources a call touched so they can [sync](../protocol/network.md). Write results include [document](../protocol/documents.md) versions and [comment](../protocol/comments.md) and target URLs in this extraction. An open desktop session can then keep newly published content subscribed on its local node before the user follows the result link. Server runtimes only add execution functions around registry entries. Chat UIs pick their bubble renderer from the same metadata. <!-- id:Io_jNF7p -->
 
-`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it. `serviceCallableNames()` (in `agents/src/api-service.ts`) filters on `runtimes.includes('agent-service')`, which leaves the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`, `convert`. Nothing on this branch runs the `assistant` runtime, so `navigate` does nothing today. It stays as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
+`navigate` is marked `runtimes: ['assistant']`, so the agent service never offers it. `serviceCallableNames()` (in `apps/src/api-service.ts`) filters on `runtimes.includes('agent-service')`, which leaves the service's callable set as `search`, `query`, `attributes`, `web_search`, `execute`, `convert`. Nothing on this branch runs the `assistant` runtime, so `navigate` does nothing today. It stays as the registry entry a desktop-side executor would bind to. <!-- id:hZYGek_X -->
 
 ## Legacy names <!-- id:xGuoC4hF -->
 
@@ -21,7 +21,7 @@ Each entry owns the model-facing name, label, prompt description, JSON input sch
 
 # Tools are documents <!-- id:SM16VRI3 -->
 
-Every tool an agent holds is a content-addressed [tool document](./tool-document.md) in its [Space](./space.md), stored per agent in the `tool_documents` table (`agents/src/tool-documents.ts`). A document's [CID](../protocol/blobs.md) is computed over its canonical DAG-CBOR encoding, the same encoding the hypermedia network uses for blobs. So you can always answer "what exactly can this agent run", and publishing a tool to the network later means publishing bytes that already exist. <!-- id:Tt3S2vFy -->
+Every tool an agent holds is a content-addressed [tool document](./tool-document.md) in its [Space](./space.md), stored per agent in the `tool_documents` table (`apps/src/tool-documents.ts`). A document's [CID](../protocol/blobs.md) is computed over its canonical DAG-CBOR encoding, the same encoding the hypermedia network uses for blobs. So you can always answer "what exactly can this agent run", and publishing a tool to the network later means publishing bytes that already exist. <!-- id:Tt3S2vFy -->
 
 ```ts <!-- id:uGnR-4qi -->
 type ToolDocument = {
@@ -119,7 +119,7 @@ Unrecognized addresses fail with the supported list (`api-service.ts`). The `hm:
 
 **Web escalation.** An `https://` address is tried as hypermedia first. It falls through to the web reader only when the resolver says the URL is not hypermedia, or the resource 404s. Every other failure surfaces: transient daemon errors, too-large, network. Scraped page HTML never silently replaces a document's real content (`api-service.ts`). <!-- id:V1SnC19P -->
 
-**Web reading tiers.** `executeWebRead` (`agents/src/web-tools.ts`) runs a cheapest-first chain and returns the first tier that yields ≥ 200 characters: <!-- id:XauDXdGs -->
+**Web reading tiers.** `executeWebRead` (`apps/src/web-tools.ts`) runs a cheapest-first chain and returns the first tier that yields ≥ 200 characters: <!-- id:XauDXdGs -->
   1. **MediaWiki API** for wiki-shaped URLs. It probes the host once via `api.php?meta=siteinfo` (cached per host) and fetches Parsoid HTML. <!-- id:LvDhX5Wk -->
   2. **In-process static extraction**: plain `fetch`, Mozilla Readability on a `linkedom` DOM, Turndown to markdown. <!-- id:iREwMBdU -->
   3. **Crawl4AI** (`POST /md`, Bearer token) when `SEED_AGENTS_CRAWLER_URL` is configured. This is the backstop for JS-heavy and anti-bot pages. <!-- id:rl1exd6I -->
@@ -228,7 +228,7 @@ The implementation matches the registry contract exactly. `timeRange` goes in (f
 
 ## `execute` <!-- id:5dic_Cn3 -->
 
-Runs TypeScript, Python, or shell code in a hardware-isolated microVM with the agent's memory bind-mounted at `/workspace`, which is also the working directory (`agents/src/code-exec.ts`). <!-- id:nU6Y8gV3 -->
+Runs TypeScript, Python, or shell code in a hardware-isolated microVM with the agent's memory bind-mounted at `/workspace`, which is also the working directory (`apps/src/code-exec.ts`). <!-- id:nU6Y8gV3 -->
 
 ```ts <!-- id:sz2X8H0e -->
 type ExecuteInput = {
@@ -265,7 +265,7 @@ The tools of an installed [app](./agent-apps.md) are lambdas too: each is projec
 
 - **Input** is validated against the page's `inputSchema`; a miss returns the contract.
 - **The install** is resolved for the account with its argument values and secrets (`resolveAppInstall`, `app-installs.ts`); an app no longer installed answers an error.
-- **Usage**: on a metered server-wide install, `min(callCap, allowance remaining, ceiling remaining)` units are reserved in `app_usage` (`agents/src/app-usage.ts`) before the run and handed to the tool as `ctx.usage.reserved`; the tool's `usage.units` settles the reservation, a failure releases it, a tool that reports nothing is charged what it was given, and the result's `usage` becomes `{unit, charged, remainingThisPeriod}`.
+- **Usage**: on a metered server-wide install, `min(callCap, allowance remaining, ceiling remaining)` units are reserved in `app_usage` (`apps/src/app-usage.ts`) before the run and handed to the tool as `ctx.usage.reserved`; the tool's `usage.units` settles the reservation, a failure releases it, a tool that reports nothing is charged what it was given, and the result's `usage` becomes `{unit, charged, remainingThisPeriod}`.
 - **The run** is the lambda path below with the install's context as environment (`SEED_APP_CONTEXT`), egress limited to the app's `network` hosts, a principal of its own (`app:<slug>:<session>`) and a timeout up to the page's `timeoutSecs` (at most 30 minutes). No `execute` grant is needed: the install is the consent, and the agent cannot write the code.
 - **Result**: the lambda wrapper's `{summary, result, logs?, changedFiles?, durationMs}`, with the tool's own `summary` lifted to the top when it returns one.
 
@@ -311,11 +311,11 @@ A child always runs as the delegating agent. Direct agent-to-agent delegation (`
 
 `output` declares a JSON schema for a validated [typed result](./typed-result.md), delivered through `return_result`. Without it the result is `{text}`. `normalizeSubSessionSpec()` (`api-service.ts`) accepts `input` as an alias for `brief`, and reads a bare `prompt` as the brief instead of bouncing the call. Models write the task into `prompt` often enough that a retry is worse than a rescue. <!-- id:_j0ELcwy -->
 
-**Script child.** Pass `script`, a self-contained module `export default async function (input, ctx) {…}` run in an in-process QuickJS-WASM realm (`agents/src/workflow-host.ts`). See [script](./script.md). Everything external crosses through `ctx`: `ctx.call(tool, input, {description})`, `ctx.delegate` (alias `ctx.agent`), `ctx.parallel` and `ctx.parallelSettled`, `ctx.sleep` (a sleep of 60 seconds or more parks the run; shorter ones hold the VM), `ctx.minutes` and `ctx.hours`, `ctx.waitForEvent(match, {timeoutMs, label})` (resolves `null` on timeout), `ctx.continueAsNew` (never resolves), `ctx.step`, `ctx.plan`, `ctx.now`, `ctx.log`, `ctx.progress`, `ctx.input`, `ctx.runId`, plus `TextEncoder` and `TextDecoder`. A child that is canceled or fails rejects `ctx.delegate` with an error whose code is `canceled` or `agent-failed`. Scripts hold the read and write verbs plus the agent's callable set (`api-service.ts`), including enabled authored lambda tools created earlier in the same parent turn. Every effect goes into the [journal](./journal.md), so resume after a crash or a timer wake replays from the top and completed work never re-executes. Detached script children are rejected outright. Scripts are always awaited. <!-- id:pnR_U13Y -->
+**Script child.** Pass `script`, a self-contained module `export default async function (input, ctx) {…}` run in an in-process QuickJS-WASM realm (`apps/src/workflow-host.ts`). See [script](./script.md). Everything external crosses through `ctx`: `ctx.call(tool, input, {description})`, `ctx.delegate` (alias `ctx.agent`), `ctx.parallel` and `ctx.parallelSettled`, `ctx.sleep` (a sleep of 60 seconds or more parks the run; shorter ones hold the VM), `ctx.minutes` and `ctx.hours`, `ctx.waitForEvent(match, {timeoutMs, label})` (resolves `null` on timeout), `ctx.continueAsNew` (never resolves), `ctx.step`, `ctx.plan`, `ctx.now`, `ctx.log`, `ctx.progress`, `ctx.input`, `ctx.runId`, plus `TextEncoder` and `TextDecoder`. A child that is canceled or fails rejects `ctx.delegate` with an error whose code is `canceled` or `agent-failed`. Scripts hold the read and write verbs plus the agent's callable set (`api-service.ts`), including enabled authored lambda tools created earlier in the same parent turn. Every effect goes into the [journal](./journal.md), so resume after a crash or a timer wake replays from the top and completed work never re-executes. Detached script children are rejected outright. Scripts are always awaited. <!-- id:pnR_U13Y -->
 
 **Parallelism.** Spawn independent children together. Every `delegate` call in one reply runs at the same time. The turn then [parks](./park.md) (cheaply, and restart-proof) until all of them resolve, and each call receives its own result. `await: false` detaches: the child runs with the brief as its first message and returns nothing. `output` and `tools` are then rejected loudly, never silently discarded (`api-service.ts`). `model` is still honored, resolved against the agent's enabled models. <!-- id:2N0kICDu -->
 
-**Budget.** Depth and fan-out are a per-tree budget, set per run. Every root run (a user's turn, a trigger firing, a continuation successor, a retry) is created with `budget.maxDepth` and `budget.maxChildren`. The values come from the session's `thoroughness` override, or else from the agent definition. Every child copies its parent's budget, so a whole tree follows one setting even if the user changes it mid-run. The presets (`THOROUGHNESS_PRESETS` in `agents/protocol/src/delegation.ts`) are quick (depth 1, 4 children per run), normal (3, 10), and deep (5, 16). `normal` is the default. Depth counts model children only. A script child does not count (`#delegationDepth`), so root, script, worker, sub-worker is depth 2, and the tree the user sees matches what the limit counts. (The `depth` on a run row counts every ancestor, scripts included; the budget's depth is this model-only count.) <!-- id:OzDe9cN0 -->
+**Budget.** Depth and fan-out are a per-tree budget, set per run. Every root run (a user's turn, a trigger firing, a continuation successor, a retry) is created with `budget.maxDepth` and `budget.maxChildren`. The values come from the session's `thoroughness` override, or else from the agent definition. Every child copies its parent's budget, so a whole tree follows one setting even if the user changes it mid-run. The presets (`THOROUGHNESS_PRESETS` in `apps/protocol/src/delegation.ts`) are quick (depth 1, 4 children per run), normal (3, 10), and deep (5, 16). `normal` is the default. Depth counts model children only. A script child does not count (`#delegationDepth`), so root, script, worker, sub-worker is depth 2, and the tree the user sees matches what the limit counts. (The `depth` on a run row counts every ancestor, scripts included; the budget's depth is this model-only count.) <!-- id:OzDe9cN0 -->
 
 **Leaves.** A run at the budget's depth is a leaf. It gets **no delegate verb at all** and no spawn handlers (`#delegationStatus`, `canDelegate`), and its system prompt says so ("You are a leaf worker…"). It never gets a verb whose every call is refused and costs a turn. <!-- id:44rasYwX -->
 
@@ -355,7 +355,7 @@ The verb is available to a foreground conversation with a live run. It is never 
 
 # The user holds the same verbs <!-- id:dwr2ygva -->
 
-`InvokeSessionTool` (`agents/protocol/src/index.ts`) runs `read`, `write`, or `call` **as the user** on the session's shared log (`#invokeSessionTool`, `api-service.ts`). The call and its result append as actor-`user` events, so the agent reads them on its next turn exactly as it reads its own. The log is the interface. There is no side channel. In the app this is the [wrench palette](./wrench-palette.md). <!-- id:yY41iY_5 -->
+`InvokeSessionTool` (`apps/protocol/src/index.ts`) runs `read`, `write`, or `call` **as the user** on the session's shared log (`#invokeSessionTool`, `api-service.ts`). The call and its result append as actor-`user` events, so the agent reads them on its next turn exactly as it reads its own. The log is the interface. There is no side channel. In the app this is the [wrench palette](./wrench-palette.md). <!-- id:yY41iY_5 -->
   - `delegate` and `plan` are rejected. Delegation is a conversational ask, so the user messages the agent instead. <!-- id:GGnI4jWM -->
   - The request is rejected with 409 while the session has a live run. <!-- id:Pyr3dfgV -->
   - Execution failures are log entries too (a failed attempt is context) and come back in the response. Only pre-execution validation rejects the request outright. <!-- id:HXdtpBjo -->
@@ -396,7 +396,7 @@ Durable session events and the desktop UI keep the tool's full output. Only the 
 
 # Adding or changing a tool <!-- id:uKwdCMoS -->
 
-1. Update the canonical entry in `agents/protocol/src/tool-registry.ts`: prompt metadata, JSON schema, render metadata. The contract is what the model reads. <!-- id:1szaBnqq -->
+1. Update the canonical entry in `apps/protocol/src/tool-registry.ts`: prompt metadata, JSON schema, render metadata. The contract is what the model reads. <!-- id:1szaBnqq -->
 2. Add the runtime executor in `executeCallVerb` (callables) or the verb dispatcher (address forms). Do not duplicate descriptions or schemas. <!-- id:KYMu7zib -->
 3. Validate model-supplied input at the boundary. On a miss, return the contract, not an error. <!-- id:sSNEFpY5 -->
 4. Bound output size. <!-- id:9XX-XBuu -->

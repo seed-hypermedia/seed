@@ -24,7 +24,7 @@ An entry is one JSON value with a `kind`. Every entry also carries `callSeq`, th
 | `step` | `ctx.step` starts or ends a plan step | `stepId`, the label, `phase` (`start` or `end`) and whether it succeeded <!-- id:Q8f-ESXc --> |
 | `plan` | the script edits its checklist | the whole plan snapshot <!-- id:kXWm2rC5 --> |
 
-The entry types are `WorkflowJournalEntry` in `agents/src/workflow-host.ts`. Narration (the `description` on a call) is display data and is not part of the replay key. <!-- id:uyx1PtbG -->
+The entry types are `WorkflowJournalEntry` in `apps/src/workflow-host.ts`. Narration (the `description` on a call) is display data and is not part of the replay key. <!-- id:uyx1PtbG -->
 
 # Limits <!-- id:jGYB8TEa -->
 

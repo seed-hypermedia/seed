@@ -1,12 +1,12 @@
 ---
 name: Model Providers
-summary: How an account tells its agents server which language-model backends to call, how provider credentials are stored encrypted, and how models and reasoning levels are chosen.
+summary: How an account tells its app environment which language-model backends to call, how provider credentials are stored encrypted, and how models and reasoning levels are chosen.
 ---
 A model provider is a record, scoped to an [account](../protocol/identity.md), that tells the [Seed Agents](../agent.md) server how to call an LLM backend. Provider credentials are stored separately and encrypted. The record holds only a reference to them. <!-- id:F5iAgtU4 -->
 
 # Provider record <!-- id:y4bEdiBm -->
 
-The record is stored in `model_providers.config_cbor` (see [persistence](./persistence.md)) (`agents/protocol/src/index.ts`): <!-- id:oMY1mTll -->
+The record is stored in `model_providers.config_cbor` (see [persistence](./persistence.md)) (`apps/protocol/src/index.ts`): <!-- id:oMY1mTll -->
 
 ```ts <!-- id:pMz4s74H -->
 type ModelProviderConfig = {
@@ -75,7 +75,7 @@ Errors: a missing key on a `requireApiKey` provider fails with 400 before any fe
 
 # Supported provider types <!-- id:dO5T0qHa -->
 
-Provider behavior is driven by one code-owned registry, `PROVIDER_SPECS` (`agents/src/api-service.ts`). Adding a provider is usually one entry there plus a matching `PROVIDER_METADATA` entry in `frontend/packages/ui/src/agents/provider-registry.ts`. Most providers are OpenAI-compatible. They use the same `openai-completions` execution and `GET /models` list path and differ only by base URL. <!-- id:0Licoykk -->
+Provider behavior is driven by one code-owned registry, `PROVIDER_SPECS` (`apps/src/api-service.ts`). Adding a provider is usually one entry there plus a matching `PROVIDER_METADATA` entry in `frontend/packages/ui/src/agents/provider-registry.ts`. Most providers are OpenAI-compatible. They use the same `openai-completions` execution and `GET /models` list path and differ only by base URL. <!-- id:0Licoykk -->
 
 <!-- id:CaCYyomB -->
 | type <!-- col:rIZ8I7hq --> | Pi API <!-- col:y_MYituR --> | default base URL <!-- col:D3AxfQ-x --> | base URL editable <!-- col:5q6PJbaj --> | API key <!-- col:T-SLNGtx --> | model list <!-- col:VzlfocgI --> <!-- id:c7jSC36w --> |
@@ -99,8 +99,8 @@ Provider behavior is driven by one code-owned registry, `PROVIDER_SPECS` (`agent
 # Subscription auth ("Sign in with ChatGPT") <!-- id:_snc8urm -->
 
 An OpenAI provider can authenticate with the user's ChatGPT plan instead of an API key. <!-- id:qXlToTAw -->
-  - **Gated by the operator.** The flow is offered only when the server sets `SEED_AGENTS_SUBSCRIPTION_AUTH` (`config.subscriptionAuth`, `agents/src/config.ts`). It needs a client that can catch the provider's localhost redirect, which is the [desktop app](../apps/desktop.md), or a user willing to paste the redirect URL. The desktop checks the server's health flag before offering the option. <!-- id:BX2XRnyz -->
-  - **The flow** lives in `agents/src/provider-oauth.ts`: PKCE against `https://auth.openai.com/oauth/authorize` and `/oauth/token`, client id `app_EMoamEEZ73f0CkXaXp7hrann`, redirect `http://localhost:1455/auth/callback`, scope `openid profile email offline_access`. One login per account runs at a time. `parseAuthorizationInput()` accepts either a bare code or the full pasted redirect URL. Credentials land in a stable per-account secret named `<type>-subscription-oauth`, so re-login overwrites in place. <!-- id:tSDG11fW -->
+  - **Gated by the operator.** The flow is offered only when the server sets `SEED_AGENTS_SUBSCRIPTION_AUTH` (`config.subscriptionAuth`, `apps/src/config.ts`). It needs a client that can catch the provider's localhost redirect, which is the [desktop app](../apps/desktop.md), or a user willing to paste the redirect URL. The desktop checks the server's health flag before offering the option. <!-- id:BX2XRnyz -->
+  - **The flow** lives in `apps/src/provider-oauth.ts`: PKCE against `https://auth.openai.com/oauth/authorize` and `/oauth/token`, client id `app_EMoamEEZ73f0CkXaXp7hrann`, redirect `http://localhost:1455/auth/callback`, scope `openid profile email offline_access`. One login per account runs at a time. `parseAuthorizationInput()` accepts either a bare code or the full pasted redirect URL. Credentials land in a stable per-account secret named `<type>-subscription-oauth`, so re-login overwrites in place. <!-- id:tSDG11fW -->
   - **Execution** re-points the provider entirely (`api-service.ts`): the Pi provider id becomes `openai-codex` (`SUBSCRIPTION_PI_PROVIDER_ID`), the base URL becomes `https://chatgpt.com/backend-api` (`SUBSCRIPTION_CODEX_BASE_URL`), and the API becomes `openai-codex-responses`. Credentials live in a credential store (`PersistedOAuthStore`) rather than as a fixed API key, so pi-ai re-resolves them per request and refreshes an expired access token under the store's lock (`openaiCodexSubscriptionAuth`). Rotated tokens are written back to the encrypted secret for future runs. <!-- id:i17XC_-M -->
   - **Failure is explicit.** The access token is resolved, and refreshed if needed, up front. If that fails, the secret is marked `needs-reauth` and the run fails with "Your OpenAI subscription sign-in has expired or was revoked. Open model provider settings and sign in with ChatGPT again." The user sees this message instead of a cryptic mid-stream 401 (`api-service.ts`). <!-- id:JGWi-2ic -->
   - **Models** come from the same ChatGPT backend endpoint the Codex CLI fills its picker from (`fetchCodexSubscriptionModels`): `GET {SUBSCRIPTION_CODEX_BASE_URL}/codex/models?client_version=…` with the access token as bearer auth and the workspace id in `ChatGPT-Account-Id`. The backend has no public docs for this; the response is `{models: [{slug, display_name, visibility, priority, supported_reasoning_levels, context_window, …}]}`. Entries with `visibility: "hide"` (internal review models) are dropped and the rest keep `priority` order. <!-- id:Zlrkeuct -->
@@ -118,11 +118,11 @@ For everything else: <!-- id:bGOJ6vf9 -->
   - `reasoning` is set when the agent selected a level **or** when the model needs an explicit "no reasoning" value. Pi only sends reasoning parameters for models flagged `reasoning`. OpenAI's newer chat models turn reasoning on by default server-side and reject function tools unless it is explicitly disabled. So the flag has to be on to send `effort: 'none'`. <!-- id:Sc89-Xri -->
   - `api` is `openai-responses` for reasoning-flagged OpenAI models, and the spec's API otherwise. OpenAI's gpt-5.1+ models reject function tools on `/v1/chat/completions` unless reasoning is explicitly disabled, and reject tools entirely once an effort is set there. The Responses API is the supported path for tools plus reasoning. <!-- id:UKxLkNYj -->
   - `input` is `['text', 'image']` when `modelSupportsImageInput()` says so. This decides whether image attachments reach the model as image parts or as metadata text (`protocol/src/model-capabilities.ts`). <!-- id:KxXI7lQq -->
-  - For non-subscription models, `cost` is zeroed and `maxTokens` is a fixed 16384 while `contextWindow` comes from `modelContextWindow()` in `agents/protocol/src/model-capabilities.ts` per model family (for example 400k for gpt-5 and later, 200k or 1M for Claude, 128k for gpt-4o); a subscription model's synthesized entry uses 272000/128000. Token counts are real, but dollar figures are not yet. <!-- id:jgZ3Sgim -->
+  - For non-subscription models, `cost` is zeroed and `maxTokens` is a fixed 16384 while `contextWindow` comes from `modelContextWindow()` in `apps/protocol/src/model-capabilities.ts` per model family (for example 400k for gpt-5 and later, 200k or 1M for Claude, 128k for gpt-4o); a subscription model's synthesized entry uses 272000/128000. Token counts are real, but dollar figures are not yet. <!-- id:jgZ3Sgim -->
 
 ## Reasoning levels <!-- id:cAV_thkI -->
 
-`agents/protocol/src/reasoning.ts` is shared by the server and every model picker. Levels are `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Providers gate levels per model generation, so the lists below were **tested against live provider APIs** instead of copied from provider docs: <!-- id:o0RRTzN9 -->
+`apps/protocol/src/reasoning.ts` is shared by the server and every model picker. Levels are `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Providers gate levels per model generation, so the lists below were **tested against live provider APIs** instead of copied from provider docs: <!-- id:o0RRTzN9 -->
 
 <!-- id:w2DBomCg -->
 | family <!-- col:TbnFySPL --> | levels <!-- col:sraKZh6w --> | leaving it unset <!-- col:KEjviHEU --> <!-- id:fkOMp1v4 --> |

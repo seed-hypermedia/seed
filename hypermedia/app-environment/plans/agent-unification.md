@@ -2,7 +2,7 @@
 name: Agent Unification Plan
 summary: The July 2026 plan that replaced the desktop app's separate assistant with the Agents service running as a local subprocess, kept as a historical record of the decisions and their reasons.
 ---
-Status: historical record, July 2026. The unification it describes shipped: the desktop app embeds the agents server and there is one agent runtime, one protocol and one UI. Read the [system overview](../system-overview.md) and [desktop and web UI](../desktop-ui.md) for how things are today; the [roadmap](../roadmap.md) is the only live forward-looking page. <!-- id:2sdHpRSG -->
+Status: historical record, July 2026. The unification it describes shipped: the desktop app embeds the app environment and there is one agent runtime, one protocol and one UI. Read the [system overview](../system-overview.md) and [desktop and web UI](../desktop-ui.md) for how things are today; the [roadmap](../roadmap.md) is the only live forward-looking page. <!-- id:2sdHpRSG -->
 
 Replace the desktop's bespoke assistant stack with the Agents service, running locally as a subprocess of the desktop app. One agent runtime, one protocol, one UI — everywhere. <!-- id:l7yPy1uK -->
 
@@ -15,7 +15,7 @@ Branch: `feat/agent-unification` <!-- id:c0WQn503 -->
 Two complete, independent AI stacks: <!-- id:_zHP0qRI -->
 
 <!-- id:2jKTHxXx -->
-| Concern <!-- col:lW4gIBlf --> | Desktop assistant (`app-chat.ts`) <!-- col:8pYR1wQ6 --> | Agents service (`agents/`) <!-- col:0ui9YUxn --> <!-- id:WpjZbMfK --> |
+| Concern <!-- col:lW4gIBlf --> | Desktop assistant (`app-chat.ts`) <!-- col:8pYR1wQ6 --> | Agents service (`apps/`) <!-- col:0ui9YUxn --> <!-- id:WpjZbMfK --> |
 | --- | --- | --- |
 | Runtime | Electron main process, Vercel AI SDK `streamText` | Bun service, Pi SDK (`@mariozechner/pi-coding-agent`) <!-- id:jqS7afe0 --> |
 | Persistence | `chat-sessions/*.json` files, whole-session rewrite | SQLite, append-only event log with `seq` replay <!-- id:9HZ152Kx --> |
@@ -37,13 +37,13 @@ The Agents service is a strict superset of the assistant except for four things 
 
 These are the findings that make this tractable — each was verified against the code, not assumed. <!-- id:Keu-4Vic -->
 
-**F1 — The desktop already exposes the exact HTTP API the agent service consumes.** `frontend/apps/desktop/src/app-http-server.ts` serves `@shm/shared/api-server`'s `handleApiRequest`/`handleApiAction` on `localhost:56004` (`API_HTTP_PORT`), backed by the local daemon via `grpcClient`. That is the same `/api/<Key>` protocol `createSeedClient(baseUrl)` speaks (`frontend/packages/client/src/client.ts`), including `Search`, `ListEvents`, `Resource`, `PublishBlobs`, and `PrepareDocumentChange`. **A local agent server pointed at `--hm-server-url=http://localhost:56004` gets full read _and_ write access to the user's own node with zero new plumbing.** This is the single biggest unlock. <!-- id:kNm0UQdg -->
+**F1 — The desktop already exposes the exact HTTP API the agent service consumes.** `frontend/apps/desktop/src/app-http-server.ts` serves `@shm/shared/api-server`'s `handleApiRequest`/`handleApiAction` on `localhost:56004` (`API_HTTP_PORT`), backed by the local daemon via `grpcClient`. That is the same `/api/<Key>` protocol `createSeedClient(baseUrl)` speaks (`frontend/packages/client/src/client.ts`), including `Search`, `ListEvents`, `Resource`, `PublishBlobs`, and `PrepareDocumentChange`. **A local app environment pointed at `--hm-server-url=http://localhost:56004` gets full read _and_ write access to the user's own node with zero new plumbing.** This is the single biggest unlock. <!-- id:kNm0UQdg -->
 
-**F2 — The agent server compiles to a standalone binary today.** Verified end-to-end (§10): `bun build --compile` produces an 80 MB single-file binary that serves `/agents/api/health`, `/agents/api/status`, and the embedded inspector UI. All four cross-targets build correctly too. For scale, the app already ships a 201 MB `seed-daemon`, and `daemon.ts`/`daemon-path.ts` are a ready-made pattern for spawning a per-platform binary from `process.resourcesPath`. <!-- id:2R7N_q4a -->
+**F2 — The app environment compiles to a standalone binary today.** Verified end-to-end (§10): `bun build --compile` produces an 80 MB single-file binary that serves `/agents/api/health`, `/agents/api/status`, and the embedded inspector UI. All four cross-targets build correctly too. For scale, the app already ships a 201 MB `seed-daemon`, and `daemon.ts`/`daemon-path.ts` are a ready-made pattern for spawning a per-platform binary from `process.resourcesPath`. <!-- id:2R7N_q4a -->
 
 **F3 — The Bun coupling is shallow.** Across \~11k lines of `agents/src`, Bun-specific usage is: `bun:sqlite` (only `db.run`, `db.query`, `db.transaction`, `db.close`), `Bun.serve` routes in `main.ts`, `Bun.file`, and `import.meta.main`. So a Node port stays a live option if we ever want in-process execution, but it is not needed to unify. <!-- id:AtVj2_ri -->
 
-**F4 — The tool registry already models the split.** `agents/protocol/src/tool-registry.ts` tags every tool with `runtimes: ('assistant' | 'agent-service')[]`. Only `navigate` is assistant-only. So "which tools does a local agent get" is already a first-class, declarative concept. <!-- id:hDKri6_H -->
+**F4 — The tool registry already models the split.** `apps/protocol/src/tool-registry.ts` tags every tool with `runtimes: ('assistant' | 'agent-service')[]`. Only `navigate` is assistant-only. So "which tools does a local agent get" is already a first-class, declarative concept. <!-- id:hDKri6_H -->
 
 **F5 — `navigate` does not need a callback channel.** The desktop is already a live WebSocket subscriber to every session. When a `tool_call` for `navigate` arrives, the desktop can execute the navigation itself from the event stream; the server returns "navigation requested" to the model immediately. No reverse RPC, no port negotiation. <!-- id:b-xU2waw -->
 
@@ -99,7 +99,7 @@ Hosted agents write via server-held signing identities. A local agent should be 
 
 # 5. Phases <!-- id:-lvUbaxR -->
 
-**Phase 0 — Prove the loop (no packaging).** Run `bun run dev` in `agents/` with `--hm-server-url=http://localhost:56004` against a running desktop. Confirm `read`, `search`, `list_activity_feed`, and `write` all work against the local node. This validates F1 end-to-end before any code is written. _Deliverable: findings note, no code._ <!-- id:-K9DBal- -->
+**Phase 0 — Prove the loop (no packaging).** Run `bun run dev` in `apps/` with `--hm-server-url=http://localhost:56004` against a running desktop. Confirm `read`, `search`, `list_activity_feed`, and `write` all work against the local node. This validates F1 end-to-end before any code is written. _Deliverable: findings note, no code._ <!-- id:-K9DBal- -->
 
 **Phase 1 — Packaging.** `bun build --compile` in CI for all 5 platform triples; ship to `resourcesPath` alongside `seed-daemon` (+ the `package.json` from F2). New `agents-process.ts` modeled on `daemon.ts`: spawn, health-poll, log-pipe, graceful shutdown, port selection. Register `http://localhost:<port>` as a built-in server URL. <!-- id:FQL9d6rj -->
 
@@ -112,7 +112,7 @@ Hosted agents write via server-held signing identities. A local agent should be 
 # 6. Parity gaps to close <!-- id:9S9W584T -->
 
 1. **ChatGPT OAuth login.** ~~The one genuine feature gap.~~ **Downgraded after research — see [pi-chatgpt-oauth.md](https://github.com/seed-hypermedia/seed/blob/4af3478e9599cdd7f8f32536b2f701d2effbdf5b/docs/plans/pi-chatgpt-oauth.md) (removed from the tree, kept in history).** Pi already ships `openaiCodexOAuthProvider` (login, refresh, `chatgpt-account-id` header, `instructions`/`store:false` Responses semantics — everything `chat-provider-options.ts` hand-rolls). The agents service simply never wires pi's OAuth layer to its provider model: \~1 provider type + 3 protocol actions. Pi's login is loopback-only (`localhost:1455`), which is fine for the **local** server, so this no longer blocks phase 3. Device-auth login — which our `app-ai-config.ts` already implements and pi lacks — is needed only for the **hosted** server, and is a clean upstream contribution. <!-- id:FqxexUVe -->
-2. **Secret storage strength.** Old path uses Electron `safeStorage` (OS keychain); the agent server uses AES-GCM with the key in SQLite next to the ciphertext. For a local server on the user's own disk this is a real downgrade. Fix: have the desktop supply the encryption key from `safeStorage` at spawn time. <!-- id:c4Vdgii_ -->
+2. **Secret storage strength.** Old path uses Electron `safeStorage` (OS keychain); the app environment uses AES-GCM with the key in SQLite next to the ciphertext. For a local server on the user's own disk this is a real downgrade. Fix: have the desktop supply the encryption key from `safeStorage` at spawn time. <!-- id:c4Vdgii_ -->
 3. **Session migration.** Existing `chat-sessions/*.json` need importing into the local SQLite or an explicit "old chats are archived" decision. <!-- id:WOsU7pVk -->
 4. **Icon upload.** `uploadIconToHmNode` POSTs to `<hmServerUrl>/ipfs/file-upload`, which the local API server on :56004 does not serve (the daemon does, on its own port). Needs a proxy route or a separate flag. <!-- id:NqU_P1k0 -->
 
@@ -136,7 +136,7 @@ Removed outright: <!-- id:c6DywnCU -->
 
 Tests deleted with them: `app-ai-config.test.ts` (162), `assistant-providers-settings.test.tsx` (666), `chat-search.test.ts` (119), `chat-parts.test.ts` (66), `chat-provider-options.test.ts` (48), `openai-models.test.ts` (38), `chat-stream-error.test.ts` (30) — **1129**. <!-- id:FeoauTEs -->
 
-Shrunk substantially: `components/assistant-panel.tsx` (521 → \~120), the "Agent Assistant Providers" section of `pages/settings.tsx` (\~300 → 0, subsumed by the Agents server provider dialog), `app-api.ts` chat router wiring, plus rewrites of `assistant-panel.test.tsx` (534) and `main-assistant-visibility.test.tsx` (447). <!-- id:x9e0gelH -->
+Shrunk substantially: `components/assistant-panel.tsx` (521 → \~120), the "Agent Assistant Providers" section of `pages/settings.tsx` (\~300 → 0, subsumed by the App environment provider dialog), `app-api.ts` chat router wiring, plus rewrites of `assistant-panel.test.tsx` (534) and `main-assistant-visibility.test.tsx` (447). <!-- id:x9e0gelH -->
 
 Dependencies dropped from `@shm/desktop`: `ai`, `@ai-sdk/openai`, `@ai-sdk/anthropic`, `@ai-sdk/google` — the entire Vercel AI SDK, used nowhere else in the app. <!-- id:I6RaG1q8 -->
 
@@ -152,7 +152,7 @@ Dependencies dropped from `@shm/desktop`: `ai`, `@ai-sdk/openai`, `@ai-sdk/anthr
 
 # 9. Environments, dev loop, and packaging — verified <!-- id:tLpcgTNX -->
 
-Everything in this section was tested, not assumed. Commands and outputs are reproducible from `agents/`. <!-- id:Tu-Mljyu -->
+Everything in this section was tested, not assumed. Commands and outputs are reproducible from `apps/`. <!-- id:Tu-Mljyu -->
 
 ## 9.1 Does the compiled binary actually work? <!-- id:Hc2pWNG7 -->
 
@@ -189,11 +189,11 @@ Specific concerns, checked: <!-- id:GaFn8SS_ -->
 
 ## 9.3 Dev loop — hot reload already exists <!-- id:q7K_wqmj -->
 
-**Yes, editing agent server code hot-reloads, and no new mechanism is needed.** `mprocs.yaml` (`./dev up`) already runs the agents server as its own pane: <!-- id:VMAk48WU -->
+**Yes, editing app environment code hot-reloads, and no new mechanism is needed.** `mprocs.yaml` (`./dev up`) already runs the app environment as its own pane: <!-- id:VMAk48WU -->
 
 ```yaml <!-- id:NcluVlR7 -->
 agents:
-  shell: 'cd agents && bun run dev'   # watch-file-deps.ts + bun --hot src/main.ts
+  shell: 'cd apps && bun run dev'   # watch-file-deps.ts + bun --hot src/main.ts
 ```
 
 `bun --hot` re-evaluates on save and `watch-file-deps.ts` re-syncs the `file:` deps (`frontend/packages/*`) so they never go stale. Sessions live in SQLite so they survive a reload, and the desktop's WebSocket client already has exponential-backoff reconnect (`models/agents.ts`). <!-- id:9n9viiR8 -->
@@ -208,7 +208,7 @@ There is already a precedent for exactly this toggle: `SEED_NO_DAEMON_SPAWN` (`d
 
 **Bun is not installed in the desktop pipeline.** `.github/actions/ci-setup/action.yml` installs Go, pnpm, Node 22, Vulkan, and llama.cpp — no Bun. (`release-desktop.yml` matches `bun` only inside the word "u_bun_tu".) Needs `oven-sh/setup-bun@v2` added to `ci-setup`, plus a build step per runner mirroring the existing daemon build steps, and the artifact added to the Sentry symbol upload list alongside `seed-daemon-*`. <!-- id:KMgPo41p -->
 
-The Docker path (`release-docker-images.yml`, `hotfix-agents-image.yml`) is untouched — it keeps using `agents/Dockerfile` and `bun run build`, not `--compile`. <!-- id:8WUd9WOu -->
+The Docker path (`release-docker-images.yml`, `hotfix-agents-image.yml`) is untouched — it keeps using `apps/Dockerfile` and `bun run build`, not `--compile`. <!-- id:8WUd9WOu -->
 
 ## 9.5 Net answer <!-- id:cpYLf5sQ -->
 
@@ -223,7 +223,7 @@ The Docker path (`release-docker-images.yml`, `hotfix-agents-image.yml`) is unto
 
 # 10. Risks <!-- id:UQm3n_3X -->
 
-- **Startup ordering.** The agent server needs the local API server, which needs the daemon. A three-stage boot with health gates; the agent process must tolerate its HM backend being briefly absent. <!-- id:qlki1-wT -->
+- **Startup ordering.** The app environment needs the local API server, which needs the daemon. A three-stage boot with health gates; the agent process must tolerate its HM backend being briefly absent. <!-- id:qlki1-wT -->
 - **Port collisions.** :3050 may be taken (including by a dev instance). Needs dynamic port selection reported back to the renderer, like `local-server.ts` already does. <!-- id:q0fBdtS8 -->
-- **Runtime verification on Linux and Windows.** All targets compile and darwin x64/arm64 were executed successfully, but the linux and windows binaries have not been _run_ — only format-verified. Needs a CI smoke test (`agents/scripts/smoke-build.ts` already exists for this). <!-- id:B2s3YuQl -->
-- **Bundling `agents/` in CI.** It is a Bun workspace deliberately isolated from the pnpm workspaces (`agents/AGENTS.md`); the desktop build must invoke it without violating that boundary. <!-- id:wNYoCdDE -->
+- **Runtime verification on Linux and Windows.** All targets compile and darwin x64/arm64 were executed successfully, but the linux and windows binaries have not been _run_ — only format-verified. Needs a CI smoke test (`apps/scripts/smoke-build.ts` already exists for this). <!-- id:B2s3YuQl -->
+- **Bundling `apps/` in CI.** It is a Bun workspace deliberately isolated from the pnpm workspaces (`agents/AGENTS.md`); the desktop build must invoke it without violating that boundary. <!-- id:wNYoCdDE -->

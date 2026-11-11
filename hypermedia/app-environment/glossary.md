@@ -76,7 +76,7 @@ The words the [Seed Agents](../agent.md) pages use, one line each, linked to the
 # Control plane <!-- id:rFeEtwox -->
 
 - signed envelope: the DAG-CBOR wrapper around every action, signed by the [account key](../build/keys.md) or a delegated key; see the [signed API](./signed-api.md). <!-- id:fbaNIuz4 -->
-- signing identity: the agent's own Ed25519 account key, created on the agents server and given a [capability](../protocol/permissions.md) by the owner's account, which the agent signs its Hypermedia writes with; see [tools](./tools.md) and [security](./security.md). <!-- id:bUGOLQpg -->
+- signing identity: the agent's own Ed25519 account key, created on the app environment and given a [capability](../protocol/permissions.md) by the owner's account, which the agent signs its Hypermedia writes with; see [tools](./tools.md) and [security](./security.md). <!-- id:bUGOLQpg -->
 - subscription: a signed `Subscribe` action over the WebSocket that streams account, agent, session, or run changes; see [WebSocket subscriptions](./websocket-subscriptions.md). <!-- id:3jgvKjkR -->
 - collaborator: a Seed account invited to an agent as `reader` or `writer`; `publicRead` and `publicChat` open an agent to any signed account; see the [signed API](./signed-api.md). <!-- id:If4Yghpa -->
 

@@ -79,7 +79,7 @@ On the [Seed API](../build/web-api.md), `GET /api/GetCID?cid=…` returns a blob
 
 ## Agents <!-- id:Fjnb0lul -->
 
-[Seed Agents](../agent.md) read through the same site APIs and can inspect a blob with [`read`](../app-environment/read.md) on an `ipfs://<cid>` address. When an agent publishes, the agent server signs with the agent's own key. For delegated writes it attaches the capability CID so a receiving node can re-verify authority. The runtime's own signed envelope uses the same blob signing scheme with a time window; see [Signed API](../app-environment/signed-api.md). <!-- id:V4Dws-X9 -->
+[Seed Agents](../agent.md) read through the same site APIs and can inspect a blob with [`read`](../app-environment/read.md) on an `ipfs://<cid>` address. When an agent publishes, the app environment signs with the agent's own key. For delegated writes it attaches the capability CID so a receiving node can re-verify authority. The runtime's own signed envelope uses the same blob signing scheme with a time window; see [Signed API](../app-environment/signed-api.md). <!-- id:V4Dws-X9 -->
 
 # See also <!-- id:4Wlg7DZR -->
 

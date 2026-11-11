@@ -1,6 +1,6 @@
 ---
 name: Datalab converter
-summary: Converts PDFs, office documents, EPUBs and images from agent memory into reviewable markdown with the Datalab document parser, on the agents server, without the agent ever holding an API key.
+summary: Converts PDFs, office documents, EPUBs and images from agent memory into reviewable markdown with the Datalab document parser, on the app environment, without the agent ever holding an API key.
 attributesSchema: hm://hyper.media/app
 slug: convert
 arguments:
@@ -52,10 +52,10 @@ Datalab bills per page. Every conversion has a page cap: the smaller of `max_pag
 
 The install the space sees decides whose key a conversion runs on:
 
-1. The space's own install of this app, with its `apiKey` argument stored on the agents server from the Apps dialog. Pages on it are not counted against anything, and any `mode` goes through.
+1. The space's own install of this app, with its `apiKey` argument stored on the app environment from the Apps dialog. Pages on it are not counted against anything, and any `mode` goes through.
 2. The server-wide install's shared key, metered per space per UTC month against the allowance and ceiling the operator's install page declares (`usage.allowance`, `usage.ceiling`). Before each call the server sets pages aside within the per-call cap (`usage.callCap`) and tells the tool its budget; a `mode` more expensive than the install's is lowered to it, and the result says so.
 
-Without an install the tool is not offered at all, so the model never sees a tool that can only fail. An exhausted allowance answers with how much was used and that installing the app with an own key lifts the cap. A space whose agents server has no sandbox, or no key of its own and no server-wide install, has no `convert`.
+Without an install the tool is not offered at all, so the model never sees a tool that can only fail. An exhausted allowance answers with how much was used and that installing the app with an own key lifts the cap. A space whose app environment has no sandbox, or no key of its own and no server-wide install, has no `convert`.
 
 # See also
 
