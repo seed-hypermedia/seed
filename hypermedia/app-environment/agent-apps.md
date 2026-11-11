@@ -2,17 +2,17 @@
 name: Agent Apps
 summary: How an app for Seed Agents is a typed Seed page whose tools carry their own code, how a space installs it by publishing a page, how the server finds the install and proves the space is bound to it, and how the tools run for the agents.
 ---
-An **app** gives a space's agents a capability. It is a page typed [app](./app.md) whose attributes declare it and whose body is the skill doc the model reads, with one [app-tool](./app-tool.md) page per tool under its `tools` folder, each carrying the tool's contract and its code. A space installs it by publishing a page typed [app-install](./app-install.md), by convention at `/apps/<slug>`, that links the app's page. The agents server the space is bound to finds that page, reads the app page, and runs the tools' code for the space's agents in its sandbox. The design and the later phases are on the [design page](./plans/app-bundles.md).
+An **app** gives a space's agents a capability. It is a page typed [app](../app.md) whose attributes declare it and whose body is the skill doc the model reads, with one [app-tool](../app-tool.md) page per tool under its `tools` folder, each carrying the tool's contract and its code. A space installs it by publishing a page typed [app-install](../app-install.md), by convention at `/apps/<slug>`, that links the app's page. The agents server the space is bound to finds that page, reads the app page, and runs the tools' code for the space's agents in its sandbox. The design and the later phases are on the [design page](./plans/app-bundles.md).
 
 There is one kind of tool: a page with code, run on the server for the spaces that installed it. The [Datalab converter](./apps/convert.md) is one, installed server-wide from the operator's space on the hosted server with the operator's key, and its usage on that key is what the Apps dialog shows.
 
 # The model
 
 ```
-app page (agent/app)                       slug, arguments, permissions, network, usage; body = skill doc
-  tools/ (childAttributesSchema)           one agent/app-tool page per tool: tool, summary, runtime,
+app page (app)                       slug, arguments, permissions, network, usage; body = skill doc
+  tools/ (childAttributesSchema)           one app-tool page per tool: tool, summary, runtime,
                                            inputSchema, outputSchema, code as ipfs:// references; body = documentation
-install page (agent/app-install)               app link (version pinned), scope, enabled, arguments, usage
+install page (app-install)               app link (version pinned), scope, enabled, arguments, usage
 ```
 
 An install has a **scope**. `space` installs the app for the space the page is published in. `server` installs it for every space the server serves, and is honored only in the operator's space (below). A space install shadows a server install of the same slug, which is the "own key beats the shared key" rule in general form.
@@ -88,6 +88,6 @@ The **Apps** dialog, from the Apps button on the server page and the servers men
 # See also
 
 - [Agent apps design](./plans/app-bundles.md): the whole model and the phases.
-- [app](./app.md), [app-tool](./app-tool.md), [app-install](./app-install.md).
+- [app](../app.md), [app-tool](../app-tool.md), [app-install](../app-install.md).
 - [Datalab converter](./apps/convert.md).
 - [Tools](./tools.md), [Grants](./grants.md), [Security](./security.md), [Persistence](./persistence.md).

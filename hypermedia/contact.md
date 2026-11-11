@@ -8,7 +8,7 @@ A **contact** is a public, signed statement by one [account](./protocol/identity
 
 The [subscribe](./contact/subscribe.md) flags mean: `site: true`, I joined this [site](./protocol/sites.md); `profile: true`, I follow this person. A legacy contact with neither flag counts as a follow. Joining a site is publishing such a contact, and the site's members list is derived from them. The daemon only echoes these flags. The client decides whether a join becomes a [sync subscription](./protocol/network.md) or a notification preference. <!-- id:4eXue5uk -->
 
-Create and remove contacts with `seed-cli contact create --subject <uid> --name "…"` and `seed-cli contact delete <id>` in the [CLI](./build/cli.md), with `createContact` and `deleteContact` in the [SDK](./build/sdk.md), with the Join and Follow buttons in the [Seed app](./apps/desktop.md), or with the agent [write](./agent/write.md) actions `contact.create` and `contact.delete`. <!-- id:uH8Ag0hn -->
+Create and remove contacts with `seed-cli contact create --subject <uid> --name "…"` and `seed-cli contact delete <id>` in the [CLI](./build/cli.md), with `createContact` and `deleteContact` in the [SDK](./build/sdk.md), with the Join and Follow buttons in the [Seed app](./apps/desktop.md), or with the agent [write](./app-environment/write.md) actions `contact.create` and `contact.delete`. <!-- id:uH8Ag0hn -->
 
 # See also <!-- id:C9ofKsUO -->
 

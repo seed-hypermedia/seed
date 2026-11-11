@@ -1,7 +1,7 @@
-// The `convert` tool of the Datalab converter app. It runs in the agents server's sandbox with the
+// The `convert` tool of the Datalab converter app. It runs in the app environment's sandbox with the
 // agent's memory mounted at /workspace, sends each document to the Datalab document parser with
 // the key the mount provides, and writes the markdown and the extracted figures back next to the
-// source. Nothing here talks to the agents server: the input is the call, the context is the
+// source. Nothing here talks to the app environment: the input is the call, the context is the
 // install (its arguments, the page budget of a metered install, the app), and the return value is the
 // result the model reads.
 import * as fs from 'node:fs'

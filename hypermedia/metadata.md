@@ -6,7 +6,7 @@ A document's **metadata** is the map of attributes its [Changes](./change.md) se
 
 Any other key is allowed; its value is a [value](./value.md). <!-- id:oALOK8WB -->
 
-A value that names an account or a document is a link. A bare account id (`z6Mk…`), an account's home URL (`hm://<uid>`), a `:profile` URL or any other `hm://` document URL set as an attribute, such as `owner`, is indexed as a [citation](./protocol/comments.md) of type `metadata/Link` whose anchor is the attribute key, attributed to the document that set it. It appears among the target's citations like a link in the body, and when the target is an account it counts as a mention of that account: the notification server emails them and a `user-mention` [trigger](./agent/triggers.md) fires. A URL whose authority is not an account, such as the `type` key's `hm://hyper.media/page`, is not a link.
+A value that names an account or a document is a link. A bare account id (`z6Mk…`), an account's home URL (`hm://<uid>`), a `:profile` URL or any other `hm://` document URL set as an attribute, such as `owner`, is indexed as a [citation](./protocol/comments.md) of type `metadata/Link` whose anchor is the attribute key, attributed to the document that set it. It appears among the target's citations like a link in the body, and when the target is an account it counts as a mention of that account: the notification server emails them and a `user-mention` [trigger](./app-environment/triggers.md) fires. A URL whose authority is not an account, such as the `type` key's `hm://hyper.media/page`, is not a link.
 
 # The keys Seed understands <!-- id:O1w2gINW -->
 
@@ -52,7 +52,7 @@ Older documents may still carry `title` (now `name`), and old profiles `alias` a
 
 # Working with metadata <!-- id:9_Lec_uh -->
 
-In the [Seed app](./apps/desktop.md) the Attributes tab edits every key, with the required fields of a bound schema pinned at the top. The [CLI](./build/cli.md) sets keys with `document create --metadata` and with the frontmatter of a markdown file, which lists every key in a fixed order. The [SDK](./build/sdk.md)'s `HMDocumentMetadataSchema` parses the known keys and passes the rest through. The [Seed API](./build/web-api.md)'s `ResourceMetadata` request returns only the metadata, and `QueryDocuments` filters documents by any key. Agents [read](./agent/read.md) `hm://…/:attributes` and [write](./agent/write.md) `options.metadata`. See [the query grammar](./build/query-grammar.md). <!-- id:09DUk8Zl -->
+In the [Seed app](./apps/desktop.md) the Attributes tab edits every key, with the required fields of a bound schema pinned at the top. The [CLI](./build/cli.md) sets keys with `document create --metadata` and with the frontmatter of a markdown file, which lists every key in a fixed order. The [SDK](./build/sdk.md)'s `HMDocumentMetadataSchema` parses the known keys and passes the rest through. The [Seed API](./build/web-api.md)'s `ResourceMetadata` request returns only the metadata, and `QueryDocuments` filters documents by any key. Agents [read](./app-environment/read.md) `hm://…/:attributes` and [write](./app-environment/write.md) `options.metadata`. See [the query grammar](./build/query-grammar.md). <!-- id:09DUk8Zl -->
 
 # See also <!-- id:xkWCsJm3 -->
 

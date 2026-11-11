@@ -75,7 +75,7 @@ Everything the Explorer shows comes from `/api/<Key>` on the configured host. Th
 
 ## Agents <!-- id:U8BsP4ZH -->
 
-[Seed Agents](../agent.md) do not use the Explorer. An agent reads the same data with its [`read`](../agent/read.md) verb or through the [CLI](./cli.md). Explorer URLs are still a convenient thing to hand a person when an agent reports what it found. <!-- id:yelCJZGK -->
+[Seed Agents](../agent.md) do not use the Explorer. An agent reads the same data with its [`read`](../app-environment/read.md) verb or through the [CLI](./cli.md). Explorer URLs are still a convenient thing to hand a person when an agent reports what it found. <!-- id:yelCJZGK -->
 
 # See also <!-- id:tvQxRhhJ -->
 

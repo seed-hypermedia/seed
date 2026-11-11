@@ -1,10 +1,10 @@
 /**
  * App installs: which apps are installed for which spaces on this server, found from typed documents.
  *
- * An app is a page typed `agent/app` whose attributes declare its slug, arguments and usage,
- * whose body is the skill doc the model reads, and whose `tools` folder holds one `agent/app-tool`
+ * An app is a page typed `app` whose attributes declare its slug, arguments and usage,
+ * whose body is the skill doc the model reads, and whose `tools` folder holds one `app-tool`
  * page per tool, each carrying its contract and its code in its attributes and its documentation in
- * its body. A space installs an app by publishing a page typed `agent/app-install` that links the
+ * its body. A space installs an app by publishing a page typed `app-install` that links the
  * app's page (the reference form), or a copy of that page with its `install` attributes set (the copy
  * form). Nobody tells this server about either: every pass asks the daemon for all documents of
  * those types and keeps the ones that are its own to act on.
@@ -20,7 +20,7 @@
  *
  * What a pass stores is a snapshot of the app and its tools, so projection and execution never
  * read the network, and the secret arguments it pairs with the install stay on this server
- * (`app-<slug>-<arg>` in `secrets`), never in a document. See hypermedia/agent/agent-apps.md.
+ * (`app-<slug>-<arg>` in `secrets`), never in a document. See hypermedia/app-environment/agent-apps.md.
  */
 import type {Database} from 'bun:sqlite'
 import type * as api from '@/api'
@@ -41,9 +41,9 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 
 /** The library names of the three types, as the schema registry spells them. */
-export const APP_SCHEMA = 'hm://hyper.media/agent/app'
-export const APP_TOOL_SCHEMA = 'hm://hyper.media/agent/app-tool'
-export const APP_INSTALL_SCHEMA = 'hm://hyper.media/agent/app-install'
+export const APP_SCHEMA = 'hm://hyper.media/app'
+export const APP_TOOL_SCHEMA = 'hm://hyper.media/app-tool'
+export const APP_INSTALL_SCHEMA = 'hm://hyper.media/app-install'
 
 /** `account_id` of a server-wide install row. */
 export const SERVER_SCOPE_ACCOUNT = ''

@@ -31,12 +31,12 @@ export type HMAgent = {
 
 /**
  * App
- * The page type of a Seed Agents app, whose attributes declare its slug, the arguments an install takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads.
- * A Seed Agents app: the home page of an app, whose attributes declare its name, the arguments an install takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads. Its `tools` folder holds one app-tool document per tool, each carrying its own code.
- * Schema: hm://hyper.media/agent/app
+ * The page type of an app, whose attributes declare its slug, the arguments an install takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads.
+ * The page of an app: the home page of an app, whose attributes declare its name, the arguments an install takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads. Its `tools` folder holds one app-tool document per tool, each carrying its own code.
+ * Schema: hm://hyper.media/app
  */
-export type HMAgentApp = {
-  /** The app's short name, unique among the apps installed on one agents server. It names the install, the tool documents it projects and the secrets that belong to it. · pattern: "^[a-z0-9][a-z0-9_-]{0,31}$" */
+export type HMApp = {
+  /** The app's short name, unique among the apps installed on one app environment. It names the install, the tool documents it projects and the secrets that belong to it. · pattern: "^[a-z0-9][a-z0-9_-]{0,31}$" */
   slug: string
   /** One sentence on what the app does, shown in the Apps dialog and in the model's Space index. */
   summary: string
@@ -45,7 +45,7 @@ export type HMAgentApp = {
     [key: string]: {
       /** The kind of value the argument takes. */
       type: 'string' | 'integer' | 'boolean'
-      /** A secret argument (an API key, a token) is never written into a document. The person installing the app stores it on the agents server, where it is encrypted and paired with the install. */
+      /** A secret argument (an API key, a token) is never written into a document. The person installing the app stores it on the app environment, where it is encrypted and paired with the install. */
       secret?: boolean
       /** An install without this argument offers no tools until it is provided. */
       required?: boolean
@@ -74,7 +74,7 @@ export type HMAgentApp = {
   }
   /** Set when the app page is published into a space to be installed there, the copy form of an install. An app published as a library entry leaves it unset, and spaces install it through an app-install document instead. */
   install?: {
-    /** `space` installs the app for the space the bundle is published in. `server` installs it for every space on the agents server, and is honored only in the server operator's space. */
+    /** `space` installs the app for the space the bundle is published in. `server` installs it for every space on the app environment, and is honored only in the server operator's space. */
     scope: 'space' | 'server'
     /** A disabled install keeps its arguments but offers no tools. */
     enabled?: boolean
@@ -85,18 +85,18 @@ export type HMAgentApp = {
 
 /**
  * App Install
- * The page type a space publishes to install a Seed Agents app authored elsewhere, naming the app, the scope and the non-secret argument values.
- * An install of a Seed Agents app: a page a space publishes to install an app authored elsewhere, naming the app's page and the argument values. Which agents server acts on it follows from the server the space is bound to.
- * Schema: hm://hyper.media/agent/app-install
+ * The page type a space publishes to install an app authored elsewhere, naming the app, the scope and the non-secret argument values.
+ * An install of an app: a page a space publishes to install an app authored elsewhere, naming the app's page and the argument values. Which app environment acts on it follows from the server the space is bound to.
+ * Schema: hm://hyper.media/app-install
  */
-export type HMAgentAppInstall = {
-  /** The app to install, a page typed by agent/app. `?v=` pins the version whose code the space consented to; without a version the install follows the app's page as it changes. */
+export type HMAppInstall = {
+  /** The app to install, a page typed by app. `?v=` pins the version whose code the space consented to; without a version the install follows the app's page as it changes. */
   app: HMHmUrl
-  /** `space`, the default, installs the app for the space this document is published in. `server` installs it for every space on the agents server, and is honored only in the server operator's space. */
+  /** `space`, the default, installs the app for the space this document is published in. `server` installs it for every space on the app environment, and is honored only in the server operator's space. */
   scope?: 'space' | 'server'
   /** A disabled install keeps its arguments but offers no tools. */
   enabled?: boolean
-  /** Values for the bundle's non-secret arguments, keyed by argument name. A secret argument never goes here: it is stored on the agents server and paired with the install by the app's slug. */
+  /** Values for the bundle's non-secret arguments, keyed by argument name. A secret argument never goes here: it is stored on the app environment and paired with the install by the app's slug. */
   arguments?: {[key: string]: HMValue}
   /** What a `scope: server` install of a metered app gives away: the allowance per space and the ceiling for the whole server, in the app's unit and period. Ignored on a space install, which spends the space's own key. */
   usage?: {
@@ -109,16 +109,16 @@ export type HMAgentAppInstall = {
 
 /**
  * App Tool
- * The page type of one tool of a Seed Agents app, whose attributes name the tool and its runtime and reference its contract and its code by content id, and whose body is the tool's documentation, the instructions the model reads.
- * One tool of a Seed Agents app: a page under the app page's `tools` folder whose attributes name the tool, say what runtime its code needs, and reference the contract (`inputSchema`, `outputSchema`) and the code the agents server runs, each an `ipfs://` content id. The body is the tool's documentation, the instructions the model reads with the contract.
- * Schema: hm://hyper.media/agent/app-tool
+ * The page type of one tool of an app, whose attributes name the tool and its runtime and reference its contract and its code by content id, and whose body is the tool's documentation, the instructions the model reads.
+ * One tool of an app: a page under the app page's `tools` folder whose attributes name the tool, say what runtime its code needs, and reference the contract (`inputSchema`, `outputSchema`) and the code the app environment runs, each an `ipfs://` content id. The body is the tool's documentation, the instructions the model reads with the contract.
+ * Schema: hm://hyper.media/app-tool
  */
-export type HMAgentAppTool = {
+export type HMAppTool = {
   /** The name the model calls the tool by, the same rules as an authored tool's name. It is unique among the tools of one agent, so an app must not pick a verb's name. · pattern: "^[a-z][a-z0-9_-]{1,63}$" */
   tool: string
   /** One sentence on what the tool does, the line the model sees in its Space index. */
   summary: string
-  /** The language of `code`: `ts` runs with bun, `python` with the python interpreter, in the agents server's sandbox. A server that cannot run the runtime refuses the install and says so. */
+  /** The language of `code`: `ts` runs with bun, `python` with the python interpreter, in the app environment's sandbox. A server that cannot run the runtime refuses the install and says so. */
   runtime: 'ts' | 'python'
   /** How long one call may run, in seconds, up to the server's cap for app tools (thirty minutes). Without it the server's default execution timeout applies. */
   timeoutSecs?: number
@@ -126,7 +126,7 @@ export type HMAgentAppTool = {
   inputSchema: HMIpfsUrl
   /** Likewise, what the tool returns, when the result is to be checked. */
   outputSchema?: HMIpfsUrl
-  /** The tool's code: an `ipfs://<cid>` naming one file, or a UnixFS folder whose entry is `index.ts` (`runtime: ts`) or `main.py` (`runtime: python`). The agents server fetches it at install, checks every file against its content id, and runs the entry in its sandbox for the spaces that installed the app. The entry follows the lambda ABI with a second argument: `export default async function (input, ctx)` in TypeScript, `def main(input, ctx)` in Python. */
+  /** The tool's code: an `ipfs://<cid>` naming one file, or a UnixFS folder whose entry is `index.ts` (`runtime: ts`) or `main.py` (`runtime: python`). The app environment fetches it at install, checks every file against its content id, and runs the entry in its sandbox for the spaces that installed the app. The entry follows the lambda ABI with a second argument: `export default async function (input, ctx)` in TypeScript, `def main(input, ctx)` in Python. */
   code: HMIpfsUrl
 }
 
@@ -1361,7 +1361,7 @@ export type HMMetadata = {
   siteUrl?: HMUrl
   /** The app environment a space is bound to, set on the home document: the server that runs the apps installed in the space. Read before `agentServerUrl`, the older name of the same binding. */
   appEnvironmentUrl?: HMUrl
-  /** The agents server that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`. */
+  /** The app environment that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`. */
   agentServerUrl?: HMUrl
   /** The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes. */
   attributesSchema?: HMHmUrl

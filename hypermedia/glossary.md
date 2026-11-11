@@ -153,15 +153,15 @@ Hypermedia is the protocol and Seed is the software that implements it. When an 
 
 # Seed Agents <!-- id:zTbkpg3w -->
 
-Seed Agents has its own vocabulary, defined once in the [Agents glossary](./agent/glossary.md). The terms you meet most often from the rest of the site are these. <!-- id:p4unACr4 -->
+Seed Agents has its own vocabulary, defined once in the [Agents glossary](./app-environment/glossary.md). The terms you meet most often from the rest of the site are these. <!-- id:p4unACr4 -->
   - **Seed Agents.** The hosted agent runtime, which reads and writes Hypermedia through the Seed API with keys the owner delegates. See [Seed Agents](./agent.md). <!-- id:3iLepJog -->
-  - **Agent space.** Everything one agent has as an addressable tree of memory, tools, triggers and its own definition. It is a different thing from a protocol space. See [Space](./agent/space.md). <!-- id:HJOKTVDM -->
-  - **The five verbs.** [read](./agent/read.md), [write](./agent/write.md), [call](./agent/call.md), [delegate](./agent/delegate.md) and [plan](./agent/plan.md), the whole model-facing tool surface. <!-- id:uWLm_jV4 -->
-  - **Trigger.** Standing configuration that starts or wakes an agent on a schedule, a comment, a mention, a site update, a webhook or another run finishing. See [Trigger](./agent/trigger.md). <!-- id:5mQOFGu3 -->
-  - **Grants.** An agent's permissions: the callable tools, the publish grant and the enabled MCP servers. See [Grants](./agent/grants.md). <!-- id:aIa42PgS -->
-  - **MCP server.** A Model Context Protocol server that Seed Agents connects to as a client. Its tools appear in the agent's space. No first-party MCP server exposes Seed itself. See [MCP](./agent/mcp.md). <!-- id:1769lNvE -->
-  - **App.** A page typed `agent/app` that declares an app for Seed Agents: its arguments, permissions, hosts and usage, with the skill doc as its body and one tool page per tool beneath it. See [Agent apps](./agent/agent-apps.md).
-  - **App install.** A page a space publishes to install an app, or an app page copied into the space with its install attributes set. The agents server the space is bound to finds it and offers the app's actions to the space's agents. See [Agent apps](./agent/agent-apps.md).
+  - **Agent space.** Everything one agent has as an addressable tree of memory, tools, triggers and its own definition. It is a different thing from a protocol space. See [Space](./app-environment/space.md). <!-- id:HJOKTVDM -->
+  - **The five verbs.** [read](./app-environment/read.md), [write](./app-environment/write.md), [call](./app-environment/call.md), [delegate](./app-environment/delegate.md) and [plan](./app-environment/plan.md), the whole model-facing tool surface. <!-- id:uWLm_jV4 -->
+  - **Trigger.** Standing configuration that starts or wakes an agent on a schedule, a comment, a mention, a site update, a webhook or another run finishing. See [Trigger](./app-environment/trigger.md). <!-- id:5mQOFGu3 -->
+  - **Grants.** An agent's permissions: the callable tools, the publish grant and the enabled MCP servers. See [Grants](./app-environment/grants.md). <!-- id:aIa42PgS -->
+  - **MCP server.** A Model Context Protocol server that Seed Agents connects to as a client. Its tools appear in the agent's space. No first-party MCP server exposes Seed itself. See [MCP](./app-environment/mcp.md). <!-- id:1769lNvE -->
+  - **App.** A page typed `app` that declares an app for Seed Agents: its arguments, permissions, hosts and usage, with the skill doc as its body and one tool page per tool beneath it. See [Agent apps](./app-environment/agent-apps.md).
+  - **App install.** A page a space publishes to install an app, or an app page copied into the space with its install attributes set. The agents server the space is bound to finds it and offers the app's actions to the space's agents. See [Agent apps](./app-environment/agent-apps.md).
   - **seed-cli skill.** The agent skill that lets an external agent, such as Claude Code, use the Seed CLI to read and publish. See [Building with agents](./build/agents.md). <!-- id:RUsX_znS -->
 
 # Software and process <!-- id:yWwG-PYb -->
@@ -199,6 +199,6 @@ These names appear in old documents, commit messages, team notes and a few code 
 # See also <!-- id:kJk74Vnq -->
 
 - [The Hypermedia protocol](./protocol.md), the layered tour these terms come from. <!-- id:gVMgrctA -->
-- [Agents glossary](./agent/glossary.md), for every Seed Agents term. <!-- id:joAFt8D_ -->
+- [Agents glossary](./app-environment/glossary.md), for every Seed Agents term. <!-- id:joAFt8D_ -->
 - [Why Hypermedia](./why.md), the motivation behind these terms, for any reader. <!-- id:ExOLt8Sa -->
 - [Building on Hypermedia](./build.md), for task guides that use them. <!-- id:n38_BPBT -->

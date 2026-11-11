@@ -192,7 +192,7 @@ A comment pins the target `docVersion` it was written against. `quoting: {blockI
 
 `blocksToMarkdown(doc)` and `parseMarkdown(md)` are a lossless pair: every [block](../protocol/blocks.md) type, [annotation](../protocol/blocks.md), attribute and [metadata](../metadata.md) key survives a round trip. The frontmatter is YAML with every metadata key. Each block ends in an `<!-- id:X -->` comment, with `type:` and `attrs:` in the same comment for what markdown cannot express. Nesting is indentation. `parseMarkdown` returns `{tree, metadata}` and `flattenToOperations` turns the tree into `DocumentOperation`s. `markdownBlockNodesToHMBlockNodes` converts the parsed tree to the API shape. `parseMarkdown` throws `MarkdownFrontmatterError` on frontmatter whose YAML does not parse (pass `{strictFrontmatter: false}` on a display path that must render anything). `assertValidMermaid(nodes, parser)` rejects with `InvalidMermaidError` when a mermaid Code block does not parse; `loadMermaidParser()` from `@seed-hypermedia/client/mermaid-parser` supplies the parser in a browser, Node or Bun (with `mermaid`, plus `linkedom` outside a browser, installed by the caller). [Publish a folder](./publish-a-folder.md) describes the dialect as a writer sees it. <!-- id:WvgA5VpZ -->
 
-For display, `documentToResolvedMarkdown(doc, {client, maxDepth?})`, `commentToResolvedMarkdown` and `contentToResolvedMarkdown` fetch embeds, [mentions](../protocol/comments.md) and [query blocks](../protocol/blocks.md) over the network and inline them. The web `.md` export and the agents' [`read`](../agent/read.md) verb return this form. <!-- id:60n-DBmo -->
+For display, `documentToResolvedMarkdown(doc, {client, maxDepth?})`, `commentToResolvedMarkdown` and `contentToResolvedMarkdown` fetch embeds, [mentions](../protocol/comments.md) and [query blocks](../protocol/blocks.md) over the network and inline them. The web `.md` export and the agents' [`read`](../app-environment/read.md) verb return this form. <!-- id:60n-DBmo -->
 
 Drafts: `slugify(title)`, `draftFilename(slug, id)` (`<slug>_<id>.md`) and `parseDraftFilename` name draft files the way the CLI and the desktop app do. <!-- id:wxZ_H1P7 -->
 
@@ -226,7 +226,7 @@ The client is a thin layer over the [Seed API](./web-api.md). Anything the SDK d
 
 ## Agents <!-- id:RZwid2d1 -->
 
-Seed Agents call these same functions when an agent's [`write`](../agent/write.md) verb publishes to an `hm://` address, signing with server-held identities. Its `read` verb returns resolved markdown from this package. An external agent that scripts against Seed (a Claude Code session, a bot) should prefer the CLI for one-off commands and this package for anything long-running. See [Using Seed from your own agent](./agents.md). <!-- id:H20iogTF -->
+Seed Agents call these same functions when an agent's [`write`](../app-environment/write.md) verb publishes to an `hm://` address, signing with server-held identities. Its `read` verb returns resolved markdown from this package. An external agent that scripts against Seed (a Claude Code session, a bot) should prefer the CLI for one-off commands and this package for anything long-running. See [Using Seed from your own agent](./agents.md). <!-- id:H20iogTF -->
 
 # See also <!-- id:WLNqrO8T -->
 

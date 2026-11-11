@@ -1,4 +1,5 @@
 import {afterEach, describe, expect, test} from 'bun:test'
+import {movedDocsPaths} from '../sync-hypermedia'
 import {decode as decodeCbor} from '@ipld/dag-cbor'
 import {markdownBlockNodesToHMBlockNodes, parseMarkdown, type SeedClient} from '@seed-hypermedia/client'
 import type {HMDocument} from '@seed-hypermedia/client/hm-types'
@@ -473,4 +474,14 @@ describe('a running dev sync owns the files a page names', () => {
     await sync.tick()
     expect(published).toEqual(['/tool'])
   }, 30_000)
+})
+
+describe('movedDocsPaths', () => {
+  test("names the page's address from before the app environment rename, in the caller's path form", () => {
+    expect(movedDocsPaths('app-environment/guide')).toEqual(['agent/guide'])
+    expect(movedDocsPaths('/app-environment/plans/app-bundles')).toEqual(['/agent/plans/app-bundles'])
+    expect(movedDocsPaths('app-install')).toEqual(['agent/app-install'])
+    expect(movedDocsPaths('apps/desktop')).toEqual([])
+    expect(movedDocsPaths('')).toEqual([])
+  })
 })

@@ -1,7 +1,7 @@
 ---
 name: convert
 summary: Convert documents from agent memory into markdown with the Datalab parser.
-attributesSchema: hm://hyper.media/agent/app-tool
+attributesSchema: hm://hyper.media/app-tool
 tool: convert
 runtime: ts
 timeoutSecs: 1800
@@ -40,7 +40,7 @@ datalab-imports/<slug>/
 `seed.md` is `raw.md` after the tool's post-processing, which does the mechanical part of a good import so the review does not have to:
 
 - Markers Datalab left unpaired are repaired first, because one of them is not local damage: a code fence that never closes swallows the rest of the document, a `$$` block that never closes does the same, and a stray `**` or backtick runs to the end of its paragraph. A fence with no closing fence is dropped, an open `$$` block is closed at the end of its paragraph, and a paragraph, list item, heading or table row with an odd number of `**` or backticks loses the last one. `manifest.json` lists every repair under `markersRepaired` with its line in `raw.md` and the text it touched, and the result counts them.
-- Every image reference is a paragraph of its own, `![alt](assets/<file>)`. The markdown parser keeps only standalone image lines as image blocks, and `write ... fromPath` uploads exactly those files, so publishing `seed.md` carries the figures along.
+- Every image reference is a paragraph of its own, `![alt](../../../../agent/apps/convert/tools/assets/<file>)`. The markdown parser keeps only standalone image lines as image blocks, and `write ... fromPath` uploads exactly those files, so publishing `seed.md` carries the figures along.
 - A `Figure N: …` (or `Fig.`, `Table`) paragraph next to a figure becomes the figure's caption, the alt text of the image line, and the loose paragraph is gone. A figure has exactly one caption, in the image itself.
 - Entries of the references section get block ids (`<!-- id:ref-3 -->`, `<!-- id:ref-meyrowitz-1986 -->`), and bracketed citations in the text become links to them: numeric ones, `[3]`, `[1, 2]`, `[4-6]`, and labelled ones, `[Meyrowitz 1986]`, `[Langston 1988, Ogura & Robertson 1989]`, written as `[[3](#ref-3)]`. Publishing resolves those `#ref-…` links to the document's own address, so readers jump from a citation to its entry. Citations with no matching entry, and parenthesised ones like `(Meyrowitz, 1986)`, are left as text and the former are counted in the result (`citationsUnlinked`); link those by hand only when the entry is unambiguous.
 - Links the PDF itself carried (`extract_links` keeps them as `[\[49\].](#block-9-2)` with `<a id>` anchors) are reduced to their text, because the anchors do not survive publishing; the citations among them get the precise `#ref-…` links above instead. One-line display math `$$…$$` becomes a fenced `$$` block, which is the only form the markdown dialect reads.

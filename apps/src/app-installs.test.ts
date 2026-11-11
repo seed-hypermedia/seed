@@ -24,9 +24,9 @@ const THIS_UID = 'z6MkThisServer'
 const DOCS = 'z6MkDocsSpace'
 const OPERATOR = 'z6MkOperatorSpace'
 const CONVERT_APP = `hm://${DOCS}/agent/apps/convert`
-const APP = 'hm://hyper.media/agent/app'
-const APP_TOOL = 'hm://hyper.media/agent/app-tool'
-const APP_INSTALL = 'hm://hyper.media/agent/app-install'
+const APP = 'hm://hyper.media/app'
+const APP_TOOL = 'hm://hyper.media/app-tool'
+const APP_INSTALL = 'hm://hyper.media/app-install'
 
 type Doc = {account: string; path: string; metadata: Record<string, unknown>; body?: string; version?: string}
 

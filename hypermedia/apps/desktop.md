@@ -108,7 +108,7 @@ endpoint. <!-- id:0nrximg2 -->
 
 ## Agents <!-- id:n3tPWtmN -->
 
-The desktop app starts a local [agents server](./agents.md) and shows the agents interface. You can configure hosted or self-hosted agent servers in its place. The chat, tools and [triggers](../agent/triggers.md) are described under <!-- id:tUaDmTAs -->
+The desktop app starts a local [agents server](./agents.md) and shows the agents interface. You can configure hosted or self-hosted agent servers in its place. The chat, tools and [triggers](../app-environment/triggers.md) are described under <!-- id:tUaDmTAs -->
 
 [Seed Agents](../agent.md). <!-- id:OQnaBari -->
 

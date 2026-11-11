@@ -15,7 +15,7 @@ import {parseFrontmatter} from '@seed-hypermedia/client'
  * path, not imported as modules.
  */
 
-const TOOL_DIR = path.resolve(import.meta.dir, '../../hypermedia/agent/apps/convert/tools')
+const TOOL_DIR = path.resolve(import.meta.dir, '../../hypermedia/app-environment/apps/convert/tools')
 // The frontmatter is parsed the way the docs sync parses it when it publishes the page.
 const page = parseFrontmatter(fs.readFileSync(path.join(TOOL_DIR, 'convert.md'), 'utf8'))
 const metadata = page.metadata as Record<string, unknown>
@@ -137,7 +137,7 @@ const read = (dir: string, rel: string) => fs.readFileSync(path.join(dir, rel), 
 describe('the convert tool page', () => {
   test('declares its runtime and a sound contract, carries its code, and documents itself in the body', () => {
     expect(metadata).toMatchObject({
-      attributesSchema: 'hm://hyper.media/agent/app-tool',
+      attributesSchema: 'hm://hyper.media/app-tool',
       tool: 'convert',
       runtime: 'ts',
       timeoutSecs: 1800,

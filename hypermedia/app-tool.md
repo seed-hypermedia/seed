@@ -1,8 +1,8 @@
 ---
 name: App Tool
-summary: The page type of one tool of a Seed Agents app, whose attributes name the tool and its runtime and reference its contract and its code by content id, and whose body is the tool's documentation, the instructions the model reads.
+summary: The page type of one tool of an app, whose attributes name the tool and its runtime and reference its contract and its code by content id, and whose body is the tool's documentation, the instructions the model reads.
 ---
-An **app tool** is one tool of an [app](./app.md). It lives under the app page's `tools` folder, which types its children with this schema, so adding a tool to an app is publishing one more page. Its [attributes](../schema/typed-documents.md) are the tool: `tool`, the name the model calls; `summary`, the line in the model's Space index; `runtime`, the language of the code (`ts`, run with bun, or `python`); `timeoutSecs`, optionally, how long a call may run (up to thirty minutes); `inputSchema`, the contract a call is validated against, an [`ipfs://` reference](../ipfs-url.md) to a DAG-CBOR object holding a JSON Schema, object-rooted and in the subset the server validates, the same an authored lambda's schema follows; `outputSchema`, optional, likewise, what the tool returns; and `code`, an `ipfs://` reference to the source the agents server runs: one file, or a UnixFS folder whose entry is `index.ts` (`ts`) or `main.py` (`python`). The schemas are objects because a JSON Schema needs lists (`required`, `enum`) and a document's attributes hold scalars and maps. All three are references because a page should carry content ids, not payloads: an attribute's text is indexed with every version of the page, and a folder of code has no place in a string.
+An **app tool** is one tool of an [app](./app.md). It lives under the app page's `tools` folder, which types its children with this schema, so adding a tool to an app is publishing one more page. Its [attributes](./schema/typed-documents.md) are the tool: `tool`, the name the model calls; `summary`, the line in the model's Space index; `runtime`, the language of the code (`ts`, run with bun, or `python`); `timeoutSecs`, optionally, how long a call may run (up to thirty minutes); `inputSchema`, the contract a call is validated against, an [`ipfs://` reference](./ipfs-url.md) to a DAG-CBOR object holding a JSON Schema, object-rooted and in the subset the server validates, the same an authored lambda's schema follows; `outputSchema`, optional, likewise, what the tool returns; and `code`, an `ipfs://` reference to the source the agents server runs: one file, or a UnixFS folder whose entry is `index.ts` (`ts`) or `main.py` (`python`). The schemas are objects because a JSON Schema needs lists (`required`, `enum`) and a document's attributes hold scalars and maps. All three are references because a page should carry content ids, not payloads: an attribute's text is indexed with every version of the page, and a folder of code has no place in a string.
 
 The body is the tool's documentation: the instructions the model reads with the contract, written as ordinary blocks. The server reads nothing from it.
 
@@ -24,13 +24,13 @@ A server that cannot run the runtime, or whose sandbox is off, refuses the insta
 
 # Writing one
 
-In a markdown folder, the page names its files by relative path, and the [folder sync](../build/publish-a-folder.md) publishes them as the blobs the attributes reference, writing them back when the app changes them. The Datalab converter's tool page is laid out this way, with `convert.ts` and the two schema files beside it:
+In a markdown folder, the page names its files by relative path, and the [folder sync](./build/publish-a-folder.md) publishes them as the blobs the attributes reference, writing them back when the app changes them. The Datalab converter's tool page is laid out this way, with `convert.ts` and the two schema files beside it:
 
 ```yaml
 ---
 name: convert
 summary: Convert documents from agent memory into markdown with the Datalab parser.
-attributesSchema: hm://hyper.media/agent/app-tool
+attributesSchema: hm://hyper.media/app-tool
 tool: convert
 runtime: ts
 timeoutSecs: 1800
@@ -42,13 +42,13 @@ code: ./convert.ts
 
 In the app, the Attributes panel shows each reference as a pill: open it to read the code or the schema (a folder lists its files), or upload a file to replace it. An agent publishes a memory file with `write ipfs://` and sets the attribute to the address it gets back.
 
-This page describes the **agent/app-tool** type. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type.
+This page describes the **app-tool** type. The formal schema is attached as the `schemaDefinition` in this page's metadata, so the app can show it and create values of this type.
 
 # See also
 
 - [app](./app.md): the app the tool belongs to, which declares the arguments its code receives and the hosts it may reach.
-- [Datalab converter: convert](./apps/convert/tools/convert.md): a tool page, whose contract and code are the files beside it.
-- [Tool document](./tool-document.md): what an app tool becomes on the agents server.
-- [Tools](./tools.md): the lambda ABI the code follows.
-- [IPFS URL](../ipfs-url.md): the reference type the three attributes use.
-- [Typed documents](../schema/typed-documents.md): how a folder types its children.
+- [Datalab converter: convert](./app-environment/apps/convert/tools/convert.md): a tool page, whose contract and code are the files beside it.
+- [Tool document](./app-environment/tool-document.md): what an app tool becomes on the agents server.
+- [Tools](./app-environment/tools.md): the lambda ABI the code follows.
+- [IPFS URL](./ipfs-url.md): the reference type the three attributes use.
+- [Typed documents](./schema/typed-documents.md): how a folder types its children.

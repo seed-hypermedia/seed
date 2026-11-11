@@ -4,10 +4,10 @@
     "app": {
       "value": {
         "type": "hm://hyper.media/hm-url",
-        "target": "hm://hyper.media/agent/app"
+        "target": "hm://hyper.media/app"
       },
       "required": true,
-      "description": "The app to install, a page typed by agent/app. `?v=` pins the version whose code the space consented to; without a version the install follows the app's page as it changes."
+      "description": "The app to install, a page typed by app. `?v=` pins the version whose code the space consented to; without a version the install follows the app's page as it changes."
     },
     "scope": {
       "value": {
@@ -16,7 +16,7 @@
           "server"
         ]
       },
-      "description": "`space`, the default, installs the app for the space this document is published in. `server` installs it for every space on the agents server, and is honored only in the server operator's space."
+      "description": "`space`, the default, installs the app for the space this document is published in. `server` installs it for every space on the app environment, and is honored only in the server operator's space."
     },
     "enabled": {
       "value": {
@@ -31,7 +31,7 @@
           "type": "hm://hyper.media/value"
         }
       },
-      "description": "Values for the bundle's non-secret arguments, keyed by argument name. A secret argument never goes here: it is stored on the agents server and paired with the install by the app's slug."
+      "description": "Values for the bundle's non-secret arguments, keyed by argument name. A secret argument never goes here: it is stored on the app environment and paired with the install by the app's slug."
     },
     "usage": {
       "value": {
@@ -54,5 +54,5 @@
       "description": "What a `scope: server` install of a metered app gives away: the allowance per space and the ceiling for the whole server, in the app's unit and period. Ignored on a space install, which spends the space's own key."
     }
   },
-  "description": "An install of a Seed Agents app: a page a space publishes to install an app authored elsewhere, naming the app's page and the argument values. Which agents server acts on it follows from the server the space is bound to."
+  "description": "An install of an app: a page a space publishes to install an app authored elsewhere, naming the app's page and the argument values. Which app environment acts on it follows from the server the space is bound to."
 }

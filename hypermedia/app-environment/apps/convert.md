@@ -1,7 +1,7 @@
 ---
 name: Datalab converter
 summary: Converts PDFs, office documents, EPUBs and images from agent memory into reviewable markdown with the Datalab document parser, on the agents server, without the agent ever holding an API key.
-attributesSchema: hm://hyper.media/agent/app
+attributesSchema: hm://hyper.media/app
 slug: convert
 arguments:
   apiKey:
@@ -34,7 +34,7 @@ usage:
   period: month
   callCap: 200
 ---
-This [app](../app.md) has one tool, `convert`. It sends a document from `~/memory/` to the Datalab document parser and writes the markdown and the extracted figures back into memory, next to the source. The agent reviews the markdown, adds metadata, and publishes it with `write ... fromPath`, like any other memory file. The agent never talks to Datalab and never sees a key. How to call it is on the [tool's page](./convert/tools/convert.md), which also carries the code that does it.
+This [app](../../app.md) has one tool, `convert`. It sends a document from `~/memory/` to the Datalab document parser and writes the markdown and the extracted figures back into memory, next to the source. The agent reviews the markdown, adds metadata, and publishes it with `write ... fromPath`, like any other memory file. The agent never talks to Datalab and never sees a key. How to call it is on the [tool's page](./convert/tools/convert.md), which also carries the code that does it.
 
 # Supported documents
 
@@ -62,5 +62,5 @@ Without an install the tool is not offered at all, so the model never sees a too
 - [convert](./convert/tools/convert.md): the tool: its inputs, what it writes, how to review the result, and its code.
 - [Agent Guide](../guide.md)
 - [Tools](../tools.md)
-- [App](../app.md): the type this page follows.
+- [App](../../app.md): the type this page follows.
 - [Agent apps](../agent-apps.md): how an app is installed and run.

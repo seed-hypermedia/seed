@@ -7,7 +7,7 @@
         "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
       },
       "required": true,
-      "description": "The app's short name, unique among the apps installed on one agents server. It names the install, the tool documents it projects and the secrets that belong to it."
+      "description": "The app's short name, unique among the apps installed on one app environment. It names the install, the tool documents it projects and the secrets that belong to it."
     },
     "summary": {
       "value": {
@@ -37,7 +37,7 @@
               "value": {
                 "type": "hm://hyper.media/boolean"
               },
-              "description": "A secret argument (an API key, a token) is never written into a document. The person installing the app stores it on the agents server, where it is encrypted and paired with the install."
+              "description": "A secret argument (an API key, a token) is never written into a document. The person installing the app stores it on the app environment, where it is encrypted and paired with the install."
             },
             "required": {
               "value": {
@@ -139,7 +139,7 @@
               ]
             },
             "required": true,
-            "description": "`space` installs the app for the space the bundle is published in. `server` installs it for every space on the agents server, and is honored only in the server operator's space."
+            "description": "`space` installs the app for the space the bundle is published in. `server` installs it for every space on the app environment, and is honored only in the server operator's space."
           },
           "enabled": {
             "value": {
@@ -161,5 +161,5 @@
       "description": "Set when the app page is published into a space to be installed there, the copy form of an install. An app published as a library entry leaves it unset, and spaces install it through an app-install document instead."
     }
   },
-  "description": "A Seed Agents app: the home page of an app, whose attributes declare its name, the arguments an install takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads. Its `tools` folder holds one app-tool document per tool, each carrying its own code."
+  "description": "The page of an app: the home page of an app, whose attributes declare its name, the arguments an install takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads. Its `tools` folder holds one app-tool document per tool, each carrying its own code."
 }

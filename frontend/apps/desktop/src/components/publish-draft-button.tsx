@@ -56,8 +56,7 @@ export default function PublishDraftButton() {
   const draftType = draft.data?.metadata.attributesSchema
   const draftTypeKey = typeof draftType === 'string' ? schemaRefKey(draftType) : null
   const isAppInstall =
-    draftTypeKey !== null &&
-    (draftTypeKey === schemaRefKey(APP_INSTALL_TYPE) || draftTypeKey.endsWith('/agent/app-install'))
+    draftTypeKey !== null && (draftTypeKey === schemaRefKey(APP_INSTALL_TYPE) || draftTypeKey.endsWith('/app-install'))
 
   const deleteDraft = useMutation({
     mutationFn: (draftId: string) => client.drafts.delete.mutate(draftId),

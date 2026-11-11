@@ -261,7 +261,7 @@ type ExecuteInput = {
 
 ## App tools
 
-The tools of an installed [app](./agent-apps.md) are lambdas too: each is projected from the app's [tool page](./app-tool.md) with the page's `code` attribute as `source`, its `inputSchema` and `outputSchema`, and `app: {slug, version, scope}` as provenance. They are granted by their own names like any callable, and run through `executeAppTool` (`api-service.ts`):
+The tools of an installed [app](./agent-apps.md) are lambdas too: each is projected from the app's [tool page](../app-tool.md) with the page's `code` attribute as `source`, its `inputSchema` and `outputSchema`, and `app: {slug, version, scope}` as provenance. They are granted by their own names like any callable, and run through `executeAppTool` (`api-service.ts`):
 
 - **Input** is validated against the page's `inputSchema`; a miss returns the contract.
 - **The install** is resolved for the account with its argument values and secrets (`resolveAppInstall`, `app-installs.ts`); an app no longer installed answers an error.
