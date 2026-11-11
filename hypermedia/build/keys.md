@@ -110,7 +110,7 @@ The API itself has no key operations. A daemon bearer token, obtained by signing
 
 ## Agents <!-- id:6jkHLbzL -->
 
-Seed Agents keep signing identities as encrypted per-account secrets on the agents server, one or more per account, and an agent's definition lists which of them it may sign with. An external agent should use a bot key delegated as above, held in `SEED_CLI_KEYFILE` for the CLI or loaded through `keyfile` for the SDK. See [Using Seed from your own agent](./agents.md). <!-- id:hZ3ZrE3A -->
+Seed Agents keep signing identities as encrypted per-account secrets on the app environment, one or more per account, and an agent's definition lists which of them it may sign with. An external agent should use a bot key delegated as above, held in `SEED_CLI_KEYFILE` for the CLI or loaded through `keyfile` for the SDK. See [Using Seed from your own agent](./agents.md). <!-- id:hZ3ZrE3A -->
 
 # See also <!-- id:Z5lNFKnj -->
 

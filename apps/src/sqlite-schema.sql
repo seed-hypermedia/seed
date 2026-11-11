@@ -1,0 +1,457 @@
+CREATE TABLE accounts (
+    id TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE TABLE account_authorizations (
+    account_id TEXT NOT NULL,
+    signer TEXT NOT NULL,
+    role TEXT NOT NULL,
+    capability TEXT,
+    created_at INTEGER NOT NULL,
+    capability_cid TEXT,
+    PRIMARY KEY (account_id, signer),
+    FOREIGN KEY (account_id) REFERENCES accounts (id)
+) WITHOUT ROWID;
+
+CREATE TABLE model_providers (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    config_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (account_id, name)
+) WITHOUT ROWID;
+
+CREATE TABLE secrets (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    name TEXT NOT NULL,
+    ciphertext BLOB NOT NULL,
+    metadata_cbor BLOB,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (account_id, name)
+) WITHOUT ROWID;
+
+CREATE TABLE mcp_servers (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    name TEXT NOT NULL,
+    config_cbor BLOB NOT NULL,
+    tools_cbor BLOB,
+    status_cbor BLOB,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (account_id, name)
+) WITHOUT ROWID;
+
+CREATE INDEX mcp_servers_by_account ON mcp_servers (account_id, name);
+
+CREATE TABLE agents (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    definition_cbor BLOB NOT NULL,
+    state_dir TEXT NOT NULL,
+    status TEXT NOT NULL,
+    -- 1 when any signed account may read the agent (definition, memory, tools, sessions) by id.
+    public_read INTEGER NOT NULL DEFAULT 0,
+    public_chat INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    -- Latest transcript activity across the agent's sessions (see AgentActivity in the protocol).
+    -- Written on every appended session event; NULL until the first one.
+    activity_at INTEGER,
+    activity_kind TEXT,
+    message_at INTEGER,
+    message_from TEXT,
+    activity_session_id TEXT
+) WITHOUT ROWID;
+
+CREATE INDEX agents_by_account ON agents (account_id, updated_at DESC);
+
+CREATE TABLE agent_id_aliases (
+    alias TEXT PRIMARY KEY,
+    agent_id TEXT NOT NULL REFERENCES agents (id) ON DELETE CASCADE
+) WITHOUT ROWID;
+
+CREATE INDEX agent_id_aliases_by_agent ON agent_id_aliases (agent_id);
+
+CREATE TABLE agent_collaborators (
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    role TEXT NOT NULL,
+    status TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    accepted_at INTEGER,
+    PRIMARY KEY (agent_id, account_id)
+) WITHOUT ROWID;
+
+CREATE INDEX agent_collaborators_by_account ON agent_collaborators (account_id, status, updated_at DESC);
+
+CREATE TABLE agent_triggers (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    name TEXT NOT NULL,
+    enabled INTEGER NOT NULL,
+    source_cbor BLOB NOT NULL,
+    prompt TEXT NOT NULL,
+    continuation_cbor BLOB,
+    cooldown_ms INTEGER,
+    merged_into TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    last_checked_at INTEGER,
+    last_fired_at INTEGER,
+    last_error TEXT
+) WITHOUT ROWID;
+
+CREATE INDEX agent_triggers_by_agent ON agent_triggers (agent_id, updated_at DESC);
+
+CREATE TABLE trigger_event_claims (
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    trigger_id TEXT NOT NULL REFERENCES agent_triggers (id),
+    activity_key TEXT NOT NULL,
+    PRIMARY KEY (account_id, trigger_id, activity_key)
+) WITHOUT ROWID;
+
+CREATE TABLE webhook_trigger_credentials (
+    trigger_id TEXT PRIMARY KEY REFERENCES agent_triggers (id),
+    secret_hash BLOB NOT NULL,
+    secret_ciphertext BLOB,
+    created_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE TABLE sessions (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    title TEXT,
+    title_source TEXT NOT NULL DEFAULT 'system',
+    status TEXT NOT NULL,
+    parent_session_id TEXT REFERENCES sessions (id),
+    run_id TEXT,
+    plan_cbor BLOB,
+    model_override_cbor BLOB,
+    description TEXT,
+    thoroughness TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    -- Latest message from a person, a trigger or the agent (see SessionActivity in the protocol).
+    -- Tool activity never moves these; delegated child sessions never set them.
+    message_at INTEGER,
+    message_from TEXT
+) WITHOUT ROWID;
+
+CREATE INDEX sessions_by_agent ON sessions (agent_id, updated_at DESC);
+
+CREATE INDEX sessions_by_parent ON sessions (parent_session_id, created_at);
+
+-- Top-level listings: `parent_session_id IS NULL ORDER BY updated_at DESC, id DESC`, per agent and
+-- account-wide, without sorting every top-level session on the server.
+CREATE INDEX sessions_top_by_agent ON sessions (agent_id, parent_session_id, updated_at DESC, id DESC);
+
+CREATE INDEX sessions_top_by_time ON sessions (parent_session_id, updated_at DESC, id DESC);
+
+-- GetAgent's top-level session count, per (account, agent), from the index alone.
+CREATE INDEX sessions_top_by_account_agent ON sessions (account_id, agent_id, parent_session_id);
+
+-- A continuation edge: an agent carried a conversation from the predecessor into a fresh
+-- successor session (continue_session). Distinct from parent/child (delegation that returns):
+-- the successor becomes the foreground conversation. The manifest is the successor's exact
+-- starting point — handoff, cited sources, what was loaded and what was left cold.
+CREATE TABLE session_continuations (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    predecessor_session_id TEXT NOT NULL REFERENCES sessions (id),
+    successor_session_id TEXT NOT NULL UNIQUE REFERENCES sessions (id),
+    origin_session_id TEXT NOT NULL,
+    tool_call_id TEXT NOT NULL,
+    initiating_event_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    manifest_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE (predecessor_session_id, tool_call_id)
+) WITHOUT ROWID;
+
+CREATE INDEX session_continuations_by_agent ON session_continuations (agent_id);
+
+CREATE INDEX session_continuations_by_predecessor ON session_continuations (predecessor_session_id, created_at DESC);
+
+CREATE TABLE trigger_firings (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    trigger_id TEXT NOT NULL REFERENCES agent_triggers (id),
+    activity_key TEXT NOT NULL,
+    session_id TEXT REFERENCES sessions (id),
+    activity_cbor BLOB NOT NULL,
+    body_digest BLOB,
+    context_cbor BLOB,
+    run_id TEXT,
+    status TEXT NOT NULL,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    UNIQUE (account_id, trigger_id, activity_key)
+) WITHOUT ROWID;
+
+CREATE INDEX trigger_firings_by_trigger ON trigger_firings (trigger_id, created_at DESC);
+
+CREATE INDEX trigger_firings_by_session ON trigger_firings (account_id, session_id, created_at);
+CREATE INDEX trigger_firings_by_agent ON trigger_firings (agent_id);
+
+CREATE TABLE activity_watermarks (
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    server_url TEXT NOT NULL,
+    cursor_cbor BLOB NOT NULL,
+    last_poll_at INTEGER,
+    last_success_at INTEGER,
+    last_error TEXT,
+    PRIMARY KEY (account_id, server_url)
+) WITHOUT ROWID;
+
+CREATE TABLE session_events (
+    id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES sessions (id),
+    seq INTEGER NOT NULL,
+    event_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    -- Durable transcript entry (Pi Durable) this event was projected from; NULL for events written
+    -- by anything else, which a turn imports into the session's durable conversation.
+    pi_entry_id INTEGER,
+    UNIQUE (session_id, seq)
+) WITHOUT ROWID;
+
+CREATE INDEX session_events_by_created ON session_events (created_at DESC);
+
+-- A session's Pi Durable store: the model-facing transcript and the checkpoints of a turn in
+-- flight, in Pi Durable's own append-only JSONL files. A file is its rows concatenated in `seq`
+-- order; an append is one inserted row. Rebuilt from session_events when missing.
+CREATE TABLE session_durable_files (
+    session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+    file TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    data BLOB NOT NULL,
+    PRIMARY KEY (session_id, file, seq)
+);
+
+CREATE TABLE runs (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    root_run_id TEXT NOT NULL,
+    parent_run_id TEXT REFERENCES runs (id),
+    parent_tool_call_id TEXT,
+    continued_from_run_id TEXT,
+    depth INTEGER NOT NULL DEFAULT 0,
+    kind TEXT NOT NULL,
+    agent_id TEXT REFERENCES agents (id),
+    session_id TEXT REFERENCES sessions (id),
+    trigger_firing_id TEXT REFERENCES trigger_firings (id),
+    origin TEXT NOT NULL,
+    title TEXT,
+    model TEXT,
+    source_cid TEXT,
+    source_text TEXT,
+    input_cbor BLOB NOT NULL,
+    output_cbor BLOB,
+    error_cbor BLOB,
+    status TEXT NOT NULL,
+    wait_cbor BLOB,
+    attempt INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL DEFAULT 1,
+    not_before INTEGER,
+    queue TEXT NOT NULL DEFAULT 'background',
+    lease_owner TEXT,
+    lease_expires_at INTEGER,
+    budget_cbor BLOB,
+    usage_cbor BLOB,
+    plan_cbor BLOB,
+    created_at INTEGER NOT NULL,
+    started_at INTEGER,
+    finished_at INTEGER,
+    updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX runs_dispatch ON runs (status, queue, not_before, created_at);
+CREATE INDEX runs_by_root ON runs (root_run_id, created_at);
+CREATE INDEX runs_by_parent ON runs (parent_run_id);
+CREATE INDEX runs_by_session ON runs (session_id, created_at DESC);
+CREATE INDEX runs_by_account ON runs (account_id, created_at DESC);
+-- Live-run flag per agent (`busy` in agentActivityColumns): answered from the index alone.
+CREATE INDEX runs_by_agent_status ON runs (agent_id, status);
+-- Unfinished runs only (a few dozen against every run ever made): the queue's and the boot passes'
+-- `status = '<live status>'` lookups, which `sqlite_stat1` averages otherwise steer onto a
+-- skip-scan of runs_dispatch. A query's `status = 'x'` implies one arm of the OR.
+CREATE INDEX runs_live ON runs (status, not_before, account_id)
+    WHERE status = 'queued' OR status = 'claimed' OR status = 'running' OR status = 'waiting';
+
+CREATE TABLE run_journal (
+    run_id TEXT NOT NULL REFERENCES runs (id),
+    seq INTEGER NOT NULL,
+    entry_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (run_id, seq)
+) WITHOUT ROWID;
+
+-- Reader privacy per transcript (`kind` session or run; see browser-privacy.ts): `private` once any
+-- event/journal entry up to `scanned_seq` carried browser or private-memory data, and the sessions
+-- and runs the scanned entries read from (JSON arrays), whose privacy this transcript inherits.
+CREATE TABLE transcript_privacy (
+    kind TEXT NOT NULL,
+    id TEXT NOT NULL,
+    scanned_seq INTEGER NOT NULL,
+    private INTEGER NOT NULL,
+    sessions_json TEXT,
+    runs_json TEXT,
+    PRIMARY KEY (kind, id)
+) WITHOUT ROWID;
+
+CREATE TABLE run_event_waits (
+    run_id TEXT NOT NULL REFERENCES runs (id),
+    wait_id TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    match_cbor BLOB NOT NULL,
+    timeout_at INTEGER,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (run_id, wait_id)
+) WITHOUT ROWID;
+
+CREATE INDEX run_event_waits_by_account ON run_event_waits (account_id, created_at);
+
+CREATE TABLE agent_drafts (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT REFERENCES agents (id),
+    signer_secret_name TEXT,
+    title TEXT,
+    content_format TEXT NOT NULL,
+    content_cbor BLOB NOT NULL,
+    metadata_cbor BLOB,
+    edit_target TEXT,
+    location_target TEXT,
+    path_name TEXT,
+    visibility TEXT,
+    status TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    published_at INTEGER,
+    published_id TEXT,
+    published_version TEXT
+) WITHOUT ROWID;
+
+CREATE INDEX agent_drafts_account_updated_idx ON agent_drafts (account_id, updated_at DESC);
+CREATE INDEX agent_drafts_agent_updated_idx ON agent_drafts (account_id, agent_id, updated_at DESC);
+CREATE INDEX agent_drafts_status_idx ON agent_drafts (account_id, status);
+CREATE INDEX agent_drafts_by_agent ON agent_drafts (agent_id);
+
+CREATE TABLE action_idempotency (
+    account_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    client_request_id TEXT NOT NULL,
+    request_cbor BLOB NOT NULL,
+    response_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (account_id, action, client_request_id)
+) WITHOUT ROWID;
+
+-- The intent and receipt of every side effect a tool call performs (see effect-outbox.ts): a
+-- row is inserted before the effect begins and settled when it ends, keyed by session and tool
+-- call id. `status` is running, succeeded, failed, or interrupted; `response_cbor` is what the
+-- tool returned. Settled rows are pruned after two days.
+CREATE TABLE effect_outbox (
+    id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+    run_id TEXT,
+    tool_call_id TEXT NOT NULL,
+    tool TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    input_digest TEXT NOT NULL,
+    status TEXT NOT NULL,
+    lease_owner TEXT,
+    response_cbor BLOB,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    completed_at INTEGER
+);
+
+CREATE INDEX effect_outbox_by_session ON effect_outbox (session_id, created_at);
+CREATE INDEX effect_outbox_by_status ON effect_outbox (status, completed_at);
+
+CREATE TABLE tool_documents (
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT NOT NULL REFERENCES agents (id),
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    cid TEXT NOT NULL,
+    doc_cbor BLOB NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (account_id, agent_id, name)
+) WITHOUT ROWID;
+
+CREATE INDEX tool_documents_by_agent ON tool_documents (account_id, agent_id, updated_at DESC);
+CREATE INDEX tool_documents_by_agent_id ON tool_documents (agent_id);
+
+-- Apps installed for a space (account_id) or server-wide from the operator's space (account_id ''),
+-- with a snapshot of the app and its tools, and the usage a server-wide mount page gives away. server_bindings caches which agents-server URLs
+-- proved to be this server.
+CREATE TABLE app_mounts (
+    account_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    mount_id TEXT NOT NULL,
+    bundle_id TEXT NOT NULL, -- the app page; the column kept the name from before the type was called app
+    version TEXT,
+    snapshot_cbor BLOB,
+    args_cbor BLOB,
+    secret_refs_cbor BLOB,
+    status_cbor BLOB NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    usage_cbor BLOB,
+    PRIMARY KEY (account_id, slug)
+) WITHOUT ROWID;
+
+CREATE INDEX app_mounts_by_slug ON app_mounts (slug, account_id);
+
+CREATE TABLE server_bindings (
+    url TEXT PRIMARY KEY,
+    server_uid TEXT,
+    checked_at INTEGER NOT NULL,
+    error TEXT
+) WITHOUT ROWID;
+
+-- Units (pages, calls, whatever the app's usage block names) consumed on a metered app's
+-- server-wide install, per account and UTC period. A row is reserved before the tool runs (and is
+-- the budget the tool is told), settled to what the tool reports on success, released on failure.
+-- A space's own mount is not recorded.
+CREATE TABLE app_usage (
+    id TEXT PRIMARY KEY,
+    slug TEXT NOT NULL,
+    account_id TEXT NOT NULL REFERENCES accounts (id),
+    agent_id TEXT,
+    period TEXT NOT NULL,
+    units_reserved INTEGER NOT NULL,
+    units_charged INTEGER NOT NULL DEFAULT 0,
+    state TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+) WITHOUT ROWID;
+
+CREATE INDEX app_usage_by_account ON app_usage (slug, account_id, period, state);
+
+CREATE INDEX app_usage_by_period ON app_usage (slug, period, state);
+
+CREATE TABLE server_config (
+    key TEXT PRIMARY KEY,
+    value BLOB NOT NULL
+) WITHOUT ROWID;

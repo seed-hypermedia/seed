@@ -31,7 +31,7 @@ function registerPlatform(overrides: Partial<AgentsPlatform>) {
 
 /**
  * Subscription sign-in ("Sign in with ChatGPT") ends in a redirect to localhost:1455 that only the
- * desktop main process can catch. The hosted agent servers enable the flow for desktop clients, so
+ * desktop main process can catch. The hosted app environments enable the flow for desktop clients, so
  * a browser must not offer it merely because the server reports `subscriptionAuth`.
  */
 describe('isSubscriptionSignInAvailable', () => {

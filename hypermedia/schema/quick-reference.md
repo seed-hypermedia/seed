@@ -106,7 +106,7 @@ documentMetadataSchema(metadataSchemaOf(person.schema))                   // the
 
 ## Through an agent <!-- id:Ey4TdXUX -->
 
-The [Seed Agents](../agent.md) verbs ([read](../agent/read.md), [write](../agent/write.md), [call](../agent/call.md)) expose the same checks. A document that does not conform gets a warning. A raw object that does not conform is refused. <!-- id:Guzac8bT -->
+The [Seed Agents](../agent.md) verbs ([read](../app-environment/read.md), [write](../app-environment/write.md), [call](../app-environment/call.md)) expose the same checks. A document that does not conform gets a warning. A raw object that does not conform is refused. <!-- id:Guzac8bT -->
   - `read hm://acme/people/bob`: a typed document returns a `schema` block: `{schema, via, required, missing, violations}`. `/:attributes` reads only the metadata. <!-- id:RvJqxIgz -->
   - `read ipfs://<cid>`: a DAG-CBOR object decodes to `value`, `signature` (who signed, whether it verifies), and `schema` (violations against the schema it links to, or `options: {schema}`). <!-- id:aOFSWTfh -->
   - `write hm://acme/people/bob` with `options.metadata: {surname: "Smith", attributesSchema: "hm://acme/person"}`. Any key is allowed. The result reports `schema` and `warnings` beside the published id. `options.metadata.childAttributesSchema` types a folder, and `options.metadata.schemaDefinition` makes a page a type. `dryRun: true` returns the same report without publishing. <!-- id:jlfZ4SiX -->

@@ -646,7 +646,7 @@ export async function embeddedPdfToBlocks(pdfData: ArrayBuffer): Promise<Embedde
   // pdfjs-dist is an optional peer dependency; types are defined locally above. The specifier is
   // deliberately not a string literal: a literal makes TypeScript resolve the module at check time,
   // which fails in consumers that link this package's sources without installing the optional peer
-  // (agents/ does, via `file:`, and its typecheck broke on this line). A non-literal import types as
+  // (apps/ does, via `file:`, and its typecheck broke on this line). A non-literal import types as
   // Promise<any>, assigned to the local shape above; runtime behavior is unchanged.
   let pdfjsLib: {getDocument: (params: {data: Uint8Array}) => {promise: Promise<unknown>}}
   const pdfjsSpecifier = 'pdfjs-dist'

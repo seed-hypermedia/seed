@@ -1,4 +1,5 @@
-import {callableToolRegistry} from '@seed-hypermedia/agents-protocol'
+import {callableToolRegistry, type AppInstallInfo, type AppToolInfo} from '@seed-hypermedia/apps-protocol'
+import type {AgentToolInfo} from './client'
 
 /**
  * The five verbs (read, write, call, delegate, plan) are always on and are not configuration.
@@ -16,10 +17,53 @@ export const AGENT_BROWSER_TOOL = callableToolRegistry.browser.name
 /** Pseudo-grant: signed public publishing (hm:// documents/comments, IPFS uploads). */
 export const AGENT_PUBLISH_GRANT = 'publish'
 
+/** What the Tools tab's info dialog shows for one tool: the text and the contract the model gets. */
+export type ToolContractView = {
+  label: string
+  /** The line under the label: a builtin's registry name, or the app and runtime an app tool comes from. */
+  name: string
+  description: string
+  inputSchema?: unknown
+  outputSchema?: unknown
+  /** Why the contract is not there: the mount offers no tool, or the server has not projected it yet. */
+  note?: string
+}
+
 /**
- * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution, and
- * publishing. Reading, memory, delegation, and planning are verbs — always available. The server
- * silently drops execute from sessions when the host cannot run sandboxes.
+ * The contract of an installed app's tool. The registry knows no app tool; the contract is the tool
+ * page's, read by the server and projected into the agent's `~/tools` once the mount works, so it
+ * comes from that document. Until it exists the view carries what the mount lists and why.
+ */
+export function appToolContract(
+  app: AppInstallInfo,
+  tool: AppToolInfo,
+  document: AgentToolInfo | undefined,
+): ToolContractView {
+  const version = app.version ? ` · version ${app.version.slice(0, 12)}` : ''
+  return {
+    label: tool.tool,
+    name: `${app.name} · ${tool.runtime}${version}`,
+    description: document?.description ?? tool.summary,
+    ...(document ? {inputSchema: document.input, ...(document.output ? {outputSchema: document.output} : {})} : {}),
+    ...(app.status.state === 'error'
+      ? {
+          note: `This mount offers no tools (${
+            app.status.error ?? 'unknown reason'
+          }), so the agent has no contract for it yet.`,
+        }
+      : document
+        ? {}
+        : {
+            note: 'The server has not projected this tool for the agent yet. Refresh in the Apps dialog asks it to look now.',
+          }),
+  }
+}
+
+/**
+ * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution and
+ * publishing. Reading, memory, delegation, and planning are verbs — always available. The tools
+ * of installed apps reach every agent of the space; the permissions page switches an app off per
+ * agent (`disabledApps`). The server silently drops execute from sessions when it cannot run it.
  */
 export const DEFAULT_AGENT_TOOLS = [AGENT_SEARCH_TOOL, AGENT_WEB_SEARCH_TOOL, AGENT_EXECUTE_TOOL, AGENT_PUBLISH_GRANT]
 
@@ -29,7 +73,8 @@ const LEGACY_PUBLISH_TOOL_NAMES = ['write', 'memory_publish_document', 'ipfs_wri
 /**
  * Maps a stored (possibly pre-verbs) tools array onto today's grants so the UI reads and writes
  * the truth the server acts on: execute_code → execute, the old write group → publish, names
- * absorbed into verbs dropped.
+ * absorbed into verbs dropped. An app's tool is never in this list: installed apps are granted by
+ * being installed, and switched off per agent through `disabledApps`.
  */
 export function normalizeStoredAgentTools(tools: string[]): string[] {
   const normalized = new Set<string>()
@@ -85,7 +130,7 @@ export function getToolAvailability(
   }
   if (toolName === AGENT_EXECUTE_TOOL && caps && caps.codeExec === false) {
     if (!caps.local) {
-      return {available: false, note: 'This agent server does not support code execution.'}
+      return {available: false, note: 'This app environment does not support code execution.'}
     }
     if (caps.codeExecReasonCode === 'whp-disabled') {
       return {

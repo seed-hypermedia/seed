@@ -16,7 +16,7 @@ Windows and Linux and is downloadable from seed.hyper.media. <!-- id:PTCFN6-q --
 
 The app is four processes. The main process spawns the [daemon](./daemon.md) with `-http.port`, `-grpc.port`, `-p2p.port` and `-data-dir`, waits for `/debug/version`, then starts its own HTTP server and finally a local <!-- id:Ih-hbijp -->
 
-[agents server](./agents.md). <!-- id:xI63BhMX -->
+[app environment](./agents.md). <!-- id:xI63BhMX -->
 
 <!-- id:JxLy__4e type:Table -->
 
@@ -25,10 +25,10 @@ The app is four processes. The main process spawns the [daemon](./daemon.md) wit
 | --- | --- | --- |
 | Daemon P2P / HTTP / gRPC / metrics | 56000 / 56001 / 56002 / 56003 | 58000 / 58001 / 58002 / 58003 <!-- id:pfSgGZBl --> |
 | Desktop API bridge | 56004 | 58004 <!-- id:Uej7oqAh --> |
-| Agents server | 3050 | 3051 <!-- id:p5cNV7sO --> |
+| App environment | 3050 | 3051 <!-- id:p5cNV7sO --> |
 | Electron user data | `Seed` | `Seed-local` <!-- id:b3AXGUKt --> |
 
-The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on 56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local agents server and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge <!-- id:vBQ_4i5w -->
+The renderer and the main process both talk to the daemon over gRPC-web on the HTTP port. TypeScript does not use the native [gRPC](../build/grpc.md) port. The renderer and main process talk to each other over tRPC. The API bridge on 56004 serves the same typed `/api/<Key>` protocol as a web site, from the same code. So the [CLI](./cli.md), the local app environment and the renderer itself can use the [Seed API](../build/web-api.md) against the local node. The bridge <!-- id:vBQ_4i5w -->
 
 refuses cross-site browser requests. <!-- id:0UKp_9Fm -->
 
@@ -102,13 +102,13 @@ with the daemon's `SignData` RPC, so the private key never enters the renderer. 
 
 ## Web API <!-- id:N56osENV -->
 
-`http://localhost:56004/api/<Key>` is the local [Seed API](../build/web-api.md). The bundled agents server uses this <!-- id:9yPbD6dG -->
+`http://localhost:56004/api/<Key>` is the local [Seed API](../build/web-api.md). The bundled app environment uses this <!-- id:9yPbD6dG -->
 
 endpoint. <!-- id:0nrximg2 -->
 
 ## Agents <!-- id:n3tPWtmN -->
 
-The desktop app starts a local [agents server](./agents.md) and shows the agents interface. You can configure hosted or self-hosted agent servers in its place. The chat, tools and [triggers](../agent/triggers.md) are described under <!-- id:tUaDmTAs -->
+The desktop app starts a local [app environment](./agents.md) and shows the agents interface. You can configure hosted or self-hosted app environments in its place. The chat, tools and [triggers](../app-environment/triggers.md) are described under <!-- id:tUaDmTAs -->
 
 [Seed Agents](../agent.md). <!-- id:OQnaBari -->
 

@@ -1,10 +1,10 @@
-import {isMountableAgentServerUrl} from '@seed-hypermedia/agents-protocol'
+import {isMountableAgentServerUrl} from '@seed-hypermedia/apps-protocol'
 import type {HMMetadata, UnpackedHypermediaId} from '@seed-hypermedia/client/hm-types'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {AgentServerError} from './client'
 import {useDeleteAgent} from './models'
 
-/** The agents server a document's metadata mounts an agent on, or undefined for any other document. */
+/** The app environment a document's metadata mounts an agent on, or undefined for any other document. */
 export function mountedAgentServerUrl(metadata: HMMetadata | undefined): string | undefined {
   const serverUrl = metadata?.agentServerUrl
   if (metadata?.type !== 'hm://hyper.media/agent' || typeof serverUrl !== 'string') return undefined

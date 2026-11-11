@@ -20,7 +20,7 @@ Seed does not run a hosted MCP server for its network, and this is on purpose. E
 
 Signing happens where the key lives. The [SDK](./sdk.md) and the [CLI](./cli.md), which is built on the SDK, build and sign blobs locally. They then publish them to any [site](../protocol/sites.md) through the [Seed API](./web-api.md). An agent should use one of those, with a key of its own that the account owner delegates to (see below). Reads need no key at all, so a read-only integration can call the Seed API over plain HTTP. <!-- id:eb6o5ENX -->
 
-If you still want an MCP interface for your own assistant, run it locally on the SDK, next to the key, so tools sign on your machine. [Seed Agents](../agent.md) works the other way. It is an MCP _client_, and its agents can call tools from any remote MCP server an account connects ([MCP servers](../agent/mcp.md)). <!-- id:K9_KLFQw -->
+If you still want an MCP interface for your own assistant, run it locally on the SDK, next to the key, so tools sign on your machine. [Seed Agents](../agent.md) works the other way. It is an MCP _client_, and its agents can call tools from any remote MCP server an account connects ([MCP servers](../app-environment/mcp.md)). <!-- id:K9_KLFQw -->
 
 # Reading <!-- id:3HxQjXS3 -->
 
@@ -63,9 +63,9 @@ Both skills predate parts of the current CLI. When a skill and this documentatio
 
 # Seed Agents, from the outside <!-- id:6GNyqSnP -->
 
-For an agent that lives on the network, use [Seed Agents](../agent.md). Its agents address the same things this page does through the five verbs `read`, `write`, `call`, `delegate` and `plan`, plus the session verbs `status` and `continue_session`. [`read`](../agent/read.md) takes `hm://`, `ipfs://`, `https://` and the agent's own `~/memory/…`, `~/tools/…` and `~/triggers/…` addresses. [`write`](../agent/write.md) takes the same except `https://`. [`call`](../agent/call.md) invokes `search`, `query`, `attributes`, `web_search`, `execute` or a tool projected from an MCP server. [`delegate`](../agent/delegate.md) spawns a child run, and [`plan`](../agent/plan.md) keeps a checklist. Writes to `hm://` go through the same SDK builders the CLI uses, with `options.action` choosing the operation: omitted for a new document, then `update`, `move`, `redirect`, `fork`, `delete`, `comment`, `capability.grant`, `contact.create` and the rest. See [tools](../agent/tools.md). <!-- id:FtnpXIEO -->
+For an agent that lives on the network, use [Seed Agents](../agent.md). Its agents address the same things this page does through the five verbs `read`, `write`, `call`, `delegate` and `plan`, plus the session verbs `status` and `continue_session`. [`read`](../app-environment/read.md) takes `hm://`, `ipfs://`, `https://` and the agent's own `~/memory/…`, `~/tools/…` and `~/triggers/…` addresses. [`write`](../app-environment/write.md) takes the same except `https://`. [`call`](../app-environment/call.md) invokes `search`, `query`, `attributes`, `web_search`, `execute` or a tool projected from an MCP server. [`delegate`](../app-environment/delegate.md) spawns a child run, and [`plan`](../app-environment/plan.md) keeps a checklist. Writes to `hm://` go through the same SDK builders the CLI uses, with `options.action` choosing the operation: omitted for a new document, then `update`, `move`, `redirect`, `fork`, `delete`, `comment`, `capability.grant`, `contact.create` and the rest. See [tools](../app-environment/tools.md). <!-- id:FtnpXIEO -->
 
-You can talk to a Seed Agents server from your own code through its signed API: a DAG-CBOR envelope signed by an account key or a delegated key, posted to `/api/message`. There is no standalone client library outside the Seed monorepo yet. The envelope and every action are documented in [the signed API](../agent/signed-api.md). A site advertises its agents to readers with the `agentServerUrl` and `spaceAgents` keys of its home document. See [Metadata](../metadata.md). <!-- id:vZNAJ4Hl -->
+You can talk to a Seed Agents server from your own code through its signed API: a DAG-CBOR envelope signed by an account key or a delegated key, posted to `/api/message`. There is no standalone client library outside the Seed monorepo yet. The envelope and every action are documented in [the signed API](../app-environment/signed-api.md). A site advertises its agents to readers with the `agentServerUrl` and `spaceAgents` keys of its home document. See [Metadata](../metadata.md). <!-- id:vZNAJ4Hl -->
 
 # What to avoid <!-- id:2IhpxHDA -->
 
@@ -100,10 +100,10 @@ In [Seed Agents](../agent.md), this page's operations are the `read`, `write` an
 
 # See also <!-- id:1SUsy3GP -->
 
-- [Seed Agents](../agent.md) and its [tools](../agent/tools.md) <!-- id:iC-sBE-r -->
+- [Seed Agents](../agent.md) and its [tools](../app-environment/tools.md) <!-- id:iC-sBE-r -->
 - [Keys](./keys.md) <!-- id:4qZxnnqx -->
-- [The signed API](../agent/signed-api.md) <!-- id:L7hM8ozn -->
-- [MCP servers](../agent/mcp.md) <!-- id:HPP-Hx1k -->
+- [The signed API](../app-environment/signed-api.md) <!-- id:L7hM8ozn -->
+- [MCP servers](../app-environment/mcp.md) <!-- id:HPP-Hx1k -->
 - [Sign in with Seed](./sign-in.md) <!-- id:2TC5K8BN -->
 - [Query grammar](./query-grammar.md) <!-- id:CaBSHL7I -->
 - [Seed CLI](./cli.md) <!-- id:9XraUbPK -->

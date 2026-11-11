@@ -267,7 +267,7 @@ These routes exist so that a site can be a site. Most are called by the Seed app
 <!-- id:PKELLSlU -->
 | Route <!-- col:UhI8xWLl --> | Method <!-- col:mznQCc-8 --> | Purpose <!-- col:tXMDDkZA --> <!-- id:17H0puft --> |
 | --- | --- | --- |
-| `/hm/api/config` | GET | `{registeredAccountUid, siteUrl, peerId, protocolId, signerAccountUid, addrs, hostname, isGateway, notifyServiceUrl, notifyServiceHost, agentServerUrl, requireSignIn}`; CORS open, no auth. `notifyServiceUrl` is the notify service's base URL (canonically `<origin>/hm/api/notify`) and `notifyServiceHost` its origin, kept for older clients; `agentServerUrl` is the agent server the web app uses, or null. The one call to learn which space a domain publishes and how to reach its daemon. `siteUrl` is what the registered space's home document says its address is (null when unregistered), so an operator can see when it has fallen behind `hostname`. <!-- id:EdR0gB7w --> |
+| `/hm/api/config` | GET | `{registeredAccountUid, siteUrl, peerId, protocolId, signerAccountUid, addrs, hostname, isGateway, notifyServiceUrl, notifyServiceHost, appEnvironmentUrl, agentServerUrl, requireSignIn}`; CORS open, no auth. `notifyServiceUrl` is the notify service's base URL (canonically `<origin>/hm/api/notify`) and `notifyServiceHost` its origin, kept for older clients; `agentServerUrl` is the app environment the web app uses, or null. The one call to learn which space a domain publishes and how to reach its daemon. `siteUrl` is what the registered space's home document says its address is (null when unregistered), so an operator can see when it has fallen behind `hostname`. <!-- id:EdR0gB7w --> |
 | `/hm/api/auth` | POST, DELETE, OPTIONS | protobuf `AuthenticateRequest` in, bearer cookie out; DELETE clears it <!-- id:DylsGsu- --> |
 | `/hm/api/version` | GET | `{web: {commit, branch, date}, daemon: {commit, branch, date}}` <!-- id:RTaB8Y2L --> |
 | `/hm/api/file/<cid>` | GET | streams `/ipfs/<cid>` through the web server, forwarding `Range` and the visitor's cookie <!-- id:inUY6yej --> |
@@ -293,7 +293,7 @@ Email notification endpoints (`/hm/api/notify/*`, and the older `/hm/api/notific
 
 # The desktop bridge differs in two ways <!-- id:407ymi_o -->
 
-The Seed desktop app serves the same keys on `http://localhost:56004/api/*` for local tools such as the CLI's `space dev` and the bundled agents server. It refuses requests whose `Sec-Fetch-Site` header marks them cross-site, so a web page cannot call it. It also lacks the pass-through special case. `POST /api/QueryDocuments` answers superjson there, and POST `ListAccounts` and `ListUnreferencedDocuments` answer `404`. <!-- id:iCa7w_8g -->
+The Seed desktop app serves the same keys on `http://localhost:56004/api/*` for local tools such as the CLI's `space dev` and the bundled app environment. It refuses requests whose `Sec-Fetch-Site` header marks them cross-site, so a web page cannot call it. It also lacks the pass-through special case. `POST /api/QueryDocuments` answers superjson there, and POST `ListAccounts` and `ListUnreferencedDocuments` answer `404`. <!-- id:iCa7w_8g -->
 
 # Working with it <!-- id:XHbbjtMm -->
 
@@ -307,7 +307,7 @@ The [Seed CLI](./cli.md) is a Seed API client. `seed-cli --server https://exampl
 
 ## Agents <!-- id:_2P6hGy6 -->
 
-Seed Agents read and write hypermedia through this API with delegated keys. Their `search`, `query` and `attributes` tools map to the `Search`, `Query`/`QueryDocuments` and attribute keys, and their [`write`](../agent/write.md) verb ends in `PublishBlobs`. An external agent, such as Claude Code with the seed-cli skill, uses the CLI or `curl` exactly as above. An agent with no key of its own can read everything public. To write, it needs a key and a capability from the space owner, which [Using Seed from your own agent](./agents.md) walks through. <!-- id:vvHfEBMh -->
+Seed Agents read and write hypermedia through this API with delegated keys. Their `search`, `query` and `attributes` tools map to the `Search`, `Query`/`QueryDocuments` and attribute keys, and their [`write`](../app-environment/write.md) verb ends in `PublishBlobs`. An external agent, such as Claude Code with the seed-cli skill, uses the CLI or `curl` exactly as above. An agent with no key of its own can read everything public. To write, it needs a key and a capability from the space owner, which [Using Seed from your own agent](./agents.md) walks through. <!-- id:vvHfEBMh -->
 
 # See also <!-- id:ueo6GDk6 -->
 

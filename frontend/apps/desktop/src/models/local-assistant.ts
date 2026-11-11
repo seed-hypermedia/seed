@@ -85,7 +85,7 @@ export function resolveLocalAssistantProvisioning(input: LocalAssistantProvision
 }
 
 /**
- * Ensures the local agents server has the built-in Assistant for the selected account.
+ * Ensures the local app environment has the built-in Assistant for the selected account.
  *
  * Mounted once per window from the main page. At most one creation attempt per mount: on failure
  * (including losing the race to another window) the agent lists are refreshed and the outcome is

@@ -1,9 +1,5 @@
-import type * as AgentsProtocol from '@seed-hypermedia/agents-protocol'
-import {
-  AGENTS_PROTOCOL_HEADER,
-  AGENTS_PROTOCOL_VERSION,
-  declaredProtocolVersion,
-} from '@seed-hypermedia/agents-protocol'
+import type * as AgentsProtocol from '@seed-hypermedia/apps-protocol'
+import {AGENTS_PROTOCOL_HEADER, AGENTS_PROTOCOL_VERSION, declaredProtocolVersion} from '@seed-hypermedia/apps-protocol'
 import * as blobs from '@shm/shared/blobs'
 import * as cbor from '@shm/shared/cbor'
 import {getAgentsPlatform, type AgentsSignerDelegation} from './platform'
@@ -85,6 +81,16 @@ export type McpServerTransport = AgentsProtocol.McpServerTransport
 export type McpToolInfo = AgentsProtocol.McpToolInfo
 /** What the last discovery of an MCP server found. */
 export type McpServerStatus = AgentsProtocol.McpServerStatus
+/** An installed app as the server shows it: the app page's declaration and the install's state, never a secret value. */
+export type AppInstallInfo = AgentsProtocol.AppInstallInfo
+/** One argument an app declares. */
+export type AppArgumentInfo = AgentsProtocol.AppArgumentInfo
+/** Which app environment an account's space is bound to. */
+export type SpaceBinding = AgentsProtocol.SpaceBinding
+/** An account's consumption of a metered app this period. */
+export type AppUsageInfo = AgentsProtocol.AppUsageInfo
+/** The answer to `ListApps` and `RefreshApps`. */
+export type ListAppsResponse = AgentsProtocol.ListAppsResponse
 /** Every editable field submitted when creating or updating an authored tool. */
 export type AgentToolInput = AgentsProtocol.AgentToolInput
 /** One file or directory inside an agent's private memory filesystem. */
@@ -126,7 +132,7 @@ export type ModelProviderType =
 type AgentAction = AgentsProtocol.UnsignedAgentAction
 type AgentsResponse = AgentsProtocol.AgentResponse
 
-/** Health payload returned by the agent server status route. */
+/** Health payload returned by the app environment status route. */
 export type AgentServerHealth = {
   status: string
   uptime: number
@@ -146,26 +152,31 @@ export type AgentServerHealth = {
   codeExecReason?: string
   /** Machine-readable cause when codeExec is false (e.g. 'whp-disabled'), for targeted help UI. */
   codeExecReasonCode?: string
-  /** Wire protocol the server speaks; absent on servers from before protocol 2 (see agents/protocol/PROTOCOL.md). */
+  /** The server's identity principal, what a space's agents-server binding must prove to be. Absent on older servers. */
+  serverUid?: string
+  /** Wire protocol the server speaks; absent on servers from before protocol 2 (see apps/protocol/PROTOCOL.md). */
   protocol?: number
   /** Oldest client protocol the server still answers. Absent on servers from before protocol 2. */
   minClientProtocol?: number
 }
 
-/** Canonical path of the agents API, on a standalone agents host or on a site's own origin. */
+/** Canonical path of the app environment's API, on a standalone host or on a site's own origin. */
+export const APPS_API_PREFIX = '/hm/api/apps'
+
+/** The app environment's path for the same API; every environment still answers it, and published bindings still name it. */
 export const AGENTS_API_PREFIX = '/hm/api/agents'
 
 /**
- * Normalizes an agent server URL for storage and fetch calls. A canonical base (path ending in
- * `/hm/api/agents`) is kept as is; a bare `/agents` suffix (the old way of naming the legacy
+ * Normalizes an app environment URL for storage and fetch calls. A canonical base (path ending in
+ * `/hm/api/apps` or `/hm/api/agents`) is kept as is; a bare `/agents` suffix (the old way of naming the legacy
  * mount) is stripped back to the origin.
  */
 export function normalizeAgentServerUrl(input: string): string {
   const value = input.trim().replace(/\/+$/, '')
-  if (!value) throw new Error('Agent server URL is required')
+  if (!value) throw new Error('App environment URL is required')
   const url = new URL(value)
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Agent server URL must start with http:// or https://')
+    throw new Error('App environment URL must start with http:// or https://')
   }
   if (url.pathname === '/agents' || url.pathname === '/agents/') {
     url.pathname = '/'
@@ -175,9 +186,10 @@ export function normalizeAgentServerUrl(input: string): string {
   return url.toString().replace(/\/+$/, '')
 }
 
-/** True when the server URL names the canonical mount (`…/hm/api/agents`) rather than a legacy origin. */
+/** True when the server URL names the canonical API path (`…/hm/api/apps` or `…/hm/api/agents`) rather than a legacy origin. */
 export function isCanonicalAgentServerUrl(serverUrl: string): boolean {
-  return new URL(normalizeAgentServerUrl(serverUrl)).pathname.endsWith(AGENTS_API_PREFIX)
+  const {pathname} = new URL(normalizeAgentServerUrl(serverUrl))
+  return pathname.endsWith(APPS_API_PREFIX) || pathname.endsWith(AGENTS_API_PREFIX)
 }
 
 /** The agents service endpoints a client calls. `webhooks`, `perf/sessions` take a trailing path. */
@@ -221,10 +233,10 @@ export function isSafeAgentServerSecretTarget(serverUrl: string): boolean {
   return ['localhost', '127.0.0.1', '::1'].includes(url.hostname)
 }
 
-/** Fetches agent server health from the built-in status endpoint. */
+/** Fetches app environment health from the built-in status endpoint. */
 export async function getAgentServerHealth(serverUrl: string): Promise<AgentServerHealth> {
   const res = await fetch(agentServerEndpoint(serverUrl, 'health'))
-  if (!res.ok) throw new Error(`Agent server health failed: HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`App environment health failed: HTTP ${res.status}`)
   return res.json()
 }
 
@@ -272,7 +284,7 @@ export async function signAgentActionWith(input: {
         }
       : {}),
     // Signed with the rest: the server answers in this protocol's shape, or refuses if it no
-    // longer serves it (see `agents/protocol/PROTOCOL.md`).
+    // longer serves it (see `apps/protocol/PROTOCOL.md`).
     protocol: AGENTS_PROTOCOL_VERSION,
     action: {...omitUndefined(input.action), ts: Date.now()},
   } as unknown as blobs.Blob)
@@ -293,7 +305,7 @@ function omitUndefined<T>(value: T): T {
 }
 
 /**
- * An error the agent server answered with (as opposed to a failed connection).
+ * An error the app environment answered with (as opposed to a failed connection).
  *
  * Callers that hold onto a remembered resource across transient outages use the distinction: a
  * server that replied "not found" or "forbidden" has settled the question, while a fetch that never
@@ -327,7 +339,7 @@ export class AgentProtocolError extends AgentServerError {
 /**
  * The protocol version a server advertised on a response, read from its header. Servers from
  * before protocol 2 send no header, which counts as protocol 1. For display and diagnostics: the
- * client does not refuse older servers (see `agents/protocol/src/version.ts`).
+ * client does not refuse older servers (see `apps/protocol/src/version.ts`).
  */
 export function serverProtocolOf(headers: Headers): number {
   return declaredProtocolVersion(Number(headers.get(AGENTS_PROTOCOL_HEADER)))
@@ -362,7 +374,7 @@ export async function postSignedAgentAction(
       throw new AgentProtocolError(decoded.message, res.status)
     }
     throw new AgentServerError(
-      decoded._ === 'Error' ? decoded.message : `Agent server request failed: HTTP ${res.status}`,
+      decoded._ === 'Error' ? decoded.message : `App environment request failed: HTTP ${res.status}`,
       res.status,
       decoded._ === 'Error' ? decoded.code : undefined,
     )

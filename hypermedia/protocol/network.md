@@ -257,7 +257,7 @@ grpcurl -plaintext -d '{"id":"hm://ACC/notes/foo"}' localhost:56002 \
 
 ## Agents <!-- id:oUrThvEg -->
 
-[Seed Agents](../agent.md) read and write through a site's Seed API, like the CLI. [`read`](../agent/read.md) of `hm://ACC/notes/foo` asks the configured site, and that site's daemon discovers what it lacks. Hosted agents use `https://hyper.media`. The desktop's built-in agent uses the app's own daemon through its local bridge. An agent never sees peers, relays or reconciliation. An agent that drives a site with `curl` can use the same `DiscoveryStatus` and `/hm/api/discover` calls. External agents using the `seed-cli` skill inherit the CLI's behaviour above. See [using Seed from your own agent](../build/agents.md). <!-- id:g3tI7XJo -->
+[Seed Agents](../agent.md) read and write through a site's Seed API, like the CLI. [`read`](../app-environment/read.md) of `hm://ACC/notes/foo` asks the configured site, and that site's daemon discovers what it lacks. Hosted agents use `https://hyper.media`. The desktop's built-in agent uses the app's own daemon through its local bridge. An agent never sees peers, relays or reconciliation. An agent that drives a site with `curl` can use the same `DiscoveryStatus` and `/hm/api/discover` calls. External agents using the `seed-cli` skill inherit the CLI's behaviour above. See [using Seed from your own agent](../build/agents.md). <!-- id:g3tI7XJo -->
 
 # Where this is going <!-- id:KowfZ7Nb -->
 

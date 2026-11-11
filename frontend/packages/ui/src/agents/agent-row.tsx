@@ -1,4 +1,4 @@
-import type {AgentActivity} from '@seed-hypermedia/agents-protocol'
+import type {AgentActivity} from '@seed-hypermedia/apps-protocol'
 import {agentRowActivity, useAgentActivityReadState} from './activity'
 import {useNavigate} from './navigation'
 import {SizableText} from '@shm/ui/text'

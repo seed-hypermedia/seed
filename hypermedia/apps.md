@@ -12,14 +12,14 @@ Everything lives in one repository, [github.com/seed-hypermedia/seed](https://gi
 | Program <!-- col:HH5RAFlH --> | What it is <!-- col:wsZIACh8 --> | Where <!-- col:kLQrfXn9 --> | Talks to the daemon over <!-- col:RFDWKkfG --> <!-- id:h_RP8pxI --> |
 | --- | --- | --- | --- |
 | [Daemon](./apps/daemon.md) | The Go node: storage, indexing, signing, libp2p [sync](./protocol/network.md), [gRPC](./build/grpc.md) and HTTP. | `backend/` | It is the daemon. <!-- id:JFJ4yZUc --> |
-| [Desktop app](./apps/desktop.md) | The Electron app: browser, editor, archive and a full peer. Spawns its own daemon and a local agents server. | `frontend/apps/desktop` | gRPC-web on the daemon's HTTP port. <!-- id:9TzkAsra --> |
+| [Desktop app](./apps/desktop.md) | The Electron app: browser, editor, archive and a full peer. Spawns its own daemon and a local app environment. | `frontend/apps/desktop` | gRPC-web on the daemon's HTTP port. <!-- id:9TzkAsra --> |
 | [Web app](./apps/web.md) | The site server and gateway: server-rendered pages, the [Seed API](./build/web-api.md), site services, browser signing. | `frontend/apps/web` | gRPC-web on the daemon's HTTP port, with a per-request bearer token. <!-- id:uwYteixI --> |
 | [CLI](./apps/cli.md) | The command-line client for documents, comments, contacts, capabilities and keys, and the tool that publishes this folder. | `frontend/apps/cli` | The Seed API of a site over HTTPS; optionally a local daemon. <!-- id:DaFYsl_H --> |
 | [Notify](./apps/notify.md) | The notifications and email service. | `frontend/apps/notify` and `frontend/apps/emails` | The daemon's activity feed over gRPC-web. <!-- id:WQ3HmGIZ --> |
 | [Vault](./apps/vault.md) | The zero-knowledge identity vault that keeps account keys and delegates [session keys](./build/sign-in.md) to browsers. | `vault/` | gRPC-web to the site's daemon for account lookups and signing, and `/ipfs` uploads of [profile](./protocol/identity.md) and [capability](./protocol/permissions.md) blobs. <!-- id:3PPrdujc --> |
 | [Mobile app](./apps/mobile.md) | The Expo app for iOS, Android and web. | `frontend/apps/mobile` | The Seed API of a site. <!-- id:Dlw0ycZV --> |
 | [Explorer](./apps/explorer.md) | A raw-data browser for the network: [documents](./protocol/documents.md), [blobs](./protocol/blobs.md), feeds, an API lab. | `frontend/apps/explore` | The Seed API of a site. <!-- id:3eLF4nKi --> |
-| [Seed Agents](./apps/agents.md) | The agent runtime: a signed action API, sessions, tools and [triggers](./agent/triggers.md). | `agents/` | The Seed API, as a client with delegated keys. <!-- id:tD5uUn5J --> |
+| [Seed Agents](./apps/app-environment.md) | The agent runtime: a signed action API, sessions, tools and [triggers](./app-environment/triggers.md). | `apps/` | The Seed API, as a client with delegated keys. <!-- id:tD5uUn5J --> |
 
 # The shared packages <!-- id:evdyBAUd -->
 
@@ -54,7 +54,7 @@ For a repeatable visual review, run `direnv exec . node frontend/packages/editor
 | Daemon native gRPC | 56002 | 58002 | daemon, unused by the TypeScript apps <!-- id:So3JimZb --> |
 | Daemon metrics | 56003 | 58003 | daemon <!-- id:KJp_L1eE --> |
 | Desktop API bridge, `/api/*` | 56004 | 58004 | desktop app <!-- id:xh4k7Zhf --> |
-| Agents server | 3050 | 3051 | agents <!-- id:RGYFw4bQ --> |
+| App environment | 3050 | 3051 | agents <!-- id:RGYFw4bQ --> |
 | Vault |  | 3030 | vault <!-- id:0VCPAXei --> |
 | Web app |  | 3000 | web <!-- id:CpVjVDrJ --> |
 | Notify |  | 3060 | notify <!-- id:I6y43K8- --> |

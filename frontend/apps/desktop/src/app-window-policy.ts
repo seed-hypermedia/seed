@@ -52,7 +52,7 @@ export function isAllowedFrameURL(value: string, policy: AppWindowPolicy): boole
   )
 }
 
-/** Build the app response policy for configured services and user-selected agent servers. */
+/** Build the app response policy for configured services and user-selected app environments. */
 export function appContentSecurityPolicy(policy: AppWindowPolicy): string {
   const contentOrigins = Array.from(new Set([policy.daemonOrigin, policy.fileOrigin]))
   const connectOrigins = Array.from(new Set([...contentOrigins, ...policy.connectOrigins]))

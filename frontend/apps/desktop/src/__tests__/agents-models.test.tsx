@@ -132,7 +132,7 @@ async function waitForCondition(predicate: () => boolean) {
   }
 }
 
-describe('agent server models', () => {
+describe('app environment models', () => {
   const originalNodeEnv = process.env.NODE_ENV
 
   beforeEach(() => {
@@ -261,7 +261,7 @@ describe('agent server models', () => {
     cleanupRendered(rendered.root, rendered.container, rendered.queryClient)
   })
 
-  it('uses the production default agent server in production builds', async () => {
+  it('uses the production default app environment in production builds', async () => {
     process.env.NODE_ENV = 'production'
 
     vi.resetModules()

@@ -78,14 +78,15 @@ const LIBRARY_AUTHORITY = 'hyper.media'
 /**
  * How documents of the space map onto hypermedia/: every page publishes at its path.
  *   index.md      → the home document
- *   README.md     → not published (it describes the folder on GitHub)
+ *   README.md     → not published, at any depth (it describes its folder on GitHub)
  *   <x>.md        → /<x>         (block/image.md → /schema/block/image)
  * A schema file sits beside its document as <basename>.schema.json.
  */
 export const layout: SpaceLayout = {
   pathForFile(file) {
     if (file === 'index.md') return ''
-    if (file === 'README.md') return null
+    // A README describes its folder on GitHub, at the root or beside a tool's code; none publishes.
+    if (file === 'README.md' || file.endsWith('/README.md')) return null
     return '/' + file.replace(/\.md$/, '')
   },
   fileForPath(path) {
@@ -187,6 +188,7 @@ async function pushTo(serverUrl: string, signer: HMSigner, account: string, dryR
     layout,
     dryRun,
     metadataFor: publicationMetadataFor(serverUrl),
+    movedFromFor: movedDocsPaths,
     log: (line) => console.log('  ' + line),
   })
   const movedFrom = new Set(result.moved.map((m) => m.split(' -> ')[0]!))
@@ -208,6 +210,19 @@ async function pushTo(serverUrl: string, signer: HMSigner, account: string, dryR
     } updated, ${result.unchanged.length} unchanged, ${retired.length} retired.`,
   )
   return result
+}
+
+/**
+ * Where a page lived before the app environment rename moved the environment's pages from `agent/`
+ * to `app-environment/` and its three app types to the root. Block ids identify a moved page on
+ * their own; this covers a page that has none yet, so the old address still becomes a redirect.
+ */
+export function movedDocsPaths(path: string): string[] {
+  const slash = path.startsWith('/') ? '/' : ''
+  const clean = path.replace(/^\//, '')
+  if (clean === 'app' || clean === 'app-tool' || clean === 'app-install') return [`${slash}agent/${clean}`]
+  if (clean.startsWith('app-environment/')) return [`${slash}agent/${clean.slice('app-environment/'.length)}`]
+  return []
 }
 
 /** `main`, unless the environment supplies the key (CI), in which case the environment's key is used. */

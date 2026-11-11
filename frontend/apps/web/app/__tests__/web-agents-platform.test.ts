@@ -119,7 +119,7 @@ describe('web agents platform', () => {
     expect(platform.useGatewayUrl?.()).toBeUndefined()
   })
 
-  it('defaults to the configured Seed agent server', async () => {
+  it('defaults to the configured Seed app environment', async () => {
     const {SEED_AGENT_SERVER_URL} = await import('@shm/shared/constants')
     const platform = await loadPlatform()
 
@@ -228,7 +228,7 @@ describe('web agents platform', () => {
   })
 
   it('hands out the CID alone for sessions delegated before the blob was stored, without fetching', async () => {
-    // The agent server resolves the published blob from its own HM node; a fetch from the browser
+    // The app environment resolves the published blob from its own HM node; a fetch from the browser
     // through this site's file proxy would fail for any visitor whose auth cookie the daemon rejects.
     const {keyPair} = await makeDeviceIdentity()
     const fetchSpy = vi.fn()

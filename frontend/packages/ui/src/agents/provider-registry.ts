@@ -3,7 +3,7 @@ import type {ModelProviderType} from './client'
 /**
  * Single source of truth for per-provider desktop metadata. Adding a provider is
  * usually one entry here (plus a matching backend `PROVIDER_SPECS` entry in
- * `agents/src/api-service.ts`). Model-curation priorities and add-provider form
+ * `apps/src/api-service.ts`). Model-curation priorities and add-provider form
  * behavior are all derived from this map.
  */
 export type ProviderMetadata = {

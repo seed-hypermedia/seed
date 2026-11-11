@@ -76,7 +76,7 @@ The [Seed API](../build/web-api.md) on a site returns private resources only to 
 
 ## Agents <!-- id:QTt0AM6M -->
 
-[Seed Agents](../agent.md) publish documents as public. The runtime's document writes do not pass a visibility through to the Ref, even though an agent draft can record a `visibility` field. A comment written by an agent inherits the visibility of the document or comment it replies to, as the daemon's own comment RPC does. The agent server reads through the site's public API. So an agent that holds a root WRITER grant for a space can read that space's private documents only if its requests carry a bearer token for its key. The runtime does not send one today. External agents using the CLI are in the same position. <!-- id:nO9rFdOk -->
+[Seed Agents](../agent.md) publish documents as public. The runtime's document writes do not pass a visibility through to the Ref, even though an agent draft can record a `visibility` field. A comment written by an agent inherits the visibility of the document or comment it replies to, as the daemon's own comment RPC does. The app environment reads through the site's public API. So an agent that holds a root WRITER grant for a space can read that space's private documents only if its requests carry a bearer token for its key. The runtime does not send one today. External agents using the CLI are in the same position. <!-- id:nO9rFdOk -->
 
 # Where this is going <!-- id:KkHkvjI3 -->
 

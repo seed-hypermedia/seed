@@ -122,7 +122,7 @@ On the [Seed API](../build/web-api.md), `GET /api/Account?id=<uid>` returns the 
 
 ## Agents <!-- id:stqMvWqm -->
 
-[Seed Agents](../agent.md) hold their own account keys. An agent's signing identity is a server-held Ed25519 key created with `CreateSigningIdentity` or imported from a seed. Creating one publishes a profile so the agent has a name. An agent writes as itself and publishes into a person's space only when that space delegated it a capability. Through the [write](../agent/write.md) verb an agent updates its profile with the `profile.update` action and can publish an alias with `profile.alias`; both accept `dryRun`. See [Write](../agent/write.md). <!-- id:ExPgZnOJ -->
+[Seed Agents](../agent.md) hold their own account keys. An agent's signing identity is a server-held Ed25519 key created with `CreateSigningIdentity` or imported from a seed. Creating one publishes a profile so the agent has a name. An agent writes as itself and publishes into a person's space only when that space delegated it a capability. Through the [write](../app-environment/write.md) verb an agent updates its profile with the `profile.update` action and can publish an alias with `profile.alias`; both accept `dryRun`. See [Write](../app-environment/write.md). <!-- id:ExPgZnOJ -->
 
 An external agent such as Claude Code with the seed-cli skill uses the CLI commands above: generate a key once, keep it in the keyring or a key file, and ask the human to grant it a capability. It should never borrow the human's key. [Building agents](../build/agents.md) walks through it. <!-- id:oxeYf-LV -->
 

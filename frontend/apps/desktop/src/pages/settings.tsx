@@ -98,7 +98,7 @@ const SETTINGS_TAB_CONFIG: SettingsTabConfig[] = [
   {key: 'general', icon: Cog, label: 'General settings'},
   {key: 'sync', icon: RadioTower, label: 'Sync options'},
   {key: 'app-info', icon: Info, label: 'App info'},
-  {key: 'agent-servers', icon: Server, label: 'Agent Servers'},
+  {key: 'agent-servers', icon: Server, label: 'App environments'},
   {key: 'advanced', icon: Code2, label: 'Advanced'},
 ]
 
@@ -207,7 +207,7 @@ function AgentServersSettingsPage() {
   return (
     <>
       <SizableText size="2xl" weight="bold">
-        Agent Servers
+        App environments
       </SizableText>
       <AgentServersSettings />
     </>

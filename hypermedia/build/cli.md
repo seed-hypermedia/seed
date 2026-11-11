@@ -182,7 +182,7 @@ The CLI is a client of the [Seed API](./web-api.md) and nothing else, except `sp
 
 ## Agents <!-- id:4PWuqJLM -->
 
-The CLI is the recommended way for an external agent to touch Seed. Run it as `npx -y @seed-hypermedia/cli@latest …`, keep a bot key with a delegated capability, and prefer `draft create` when a person should review before anything is published. [Using Seed from your own agent](./agents.md) has the workflow. [Seed Agents](../agent.md) expose the same operations through their [`read`](../agent/read.md) and [`write`](../agent/write.md) verbs. <!-- id:bSJNd5GE -->
+The CLI is the recommended way for an external agent to touch Seed. Run it as `npx -y @seed-hypermedia/cli@latest …`, keep a bot key with a delegated capability, and prefer `draft create` when a person should review before anything is published. [Using Seed from your own agent](./agents.md) has the workflow. [Seed Agents](../agent.md) expose the same operations through their [`read`](../app-environment/read.md) and [`write`](../app-environment/write.md) verbs. <!-- id:bSJNd5GE -->
 
 # See also <!-- id:lZnXkUAB -->
 

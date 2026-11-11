@@ -6,7 +6,7 @@ A **profile** attaches human-facing information to an [account](./protocol/ident
 
 `account` is set only when a delegated key signs the profile on behalf of another account. The daemon accepts that only if the account issued the signer an AGENT [capability](./capability.md). `alias` turns the blob into an identity redirect: a profile with `alias` must carry no other field, and it says "this key is really that account". It is accepted only if the aliased account issued the signer an AGENT capability. Otherwise the blob waits until such a capability arrives. Once an alias exists, asking for the delegated account returns only the account it points at. This is how a browser session key or a second device becomes part of one identity, and it is the only migration path the protocol offers between keys. <!-- id:q1UPvUeR -->
 
-Set a profile with `seed-cli account profile set --name … --icon ipfs://… --description …` in the [CLI](./build/cli.md), with `createProfile` and `createProfileAlias` from the [SDK](./build/sdk.md)'s `blobs` module, in the [Seed app](./apps/desktop.md)'s settings, or with the agent [write](./agent/write.md) actions `profile.update` and `profile.alias`. <!-- id:2jXsuUZx -->
+Set a profile with `seed-cli account profile set --name … --icon ipfs://… --description …` in the [CLI](./build/cli.md), with `createProfile` and `createProfileAlias` from the [SDK](./build/sdk.md)'s `blobs` module, in the [Seed app](./apps/desktop.md)'s settings, or with the agent [write](./app-environment/write.md) actions `profile.update` and `profile.alias`. <!-- id:2jXsuUZx -->
 
 # See also <!-- id:FtxIRJ-W -->
 

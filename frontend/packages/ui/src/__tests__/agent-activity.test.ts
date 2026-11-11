@@ -1,5 +1,5 @@
 import {describe, expect, test} from 'vitest'
-import type {AgentInfo} from '@seed-hypermedia/agents-protocol'
+import type {AgentInfo} from '@seed-hypermedia/apps-protocol'
 import {
   agentActivityReadKey,
   agentRowActivity,

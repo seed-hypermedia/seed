@@ -30,7 +30,7 @@ vi.mock('@shm/ui/agents/platform', () => ({getAgentsPlatform: () => mockPlatform
 
 vi.mock('@shm/ui/agents/models', () => ({
   getDefaultAgentServerUrl: () => 'http://localhost:3050',
-  LOCAL_AGENT_SERVER_LABEL: 'Local Agents',
+  LOCAL_AGENT_SERVER_LABEL: 'Local app environment',
   useAgentServerHealth: () => ({isError: true, isLoading: false}),
   useAgentServerUrl: () => ({data: mockDefaultServer}),
   useConfiguredAgentServerUrls: () => ({data: mockServers}),
@@ -43,6 +43,9 @@ vi.mock('@shm/ui/agents/models', () => ({
 
 let mockAccountId: string | null = 'z6MkAlice'
 vi.mock('@shm/ui/agents/account', () => ({useSelectedAccountId: () => mockAccountId}))
+vi.mock('@shm/ui/agents/apps', () => ({
+  AppsDialog: () => <div>APPS DIALOG</div>,
+}))
 vi.mock('@shm/ui/agents/dialogs', () => ({
   ManageAgentAccountsDialog: () => <div>ACCOUNTS DIALOG</div>,
   ModelProvidersDialog: () => <div>PROVIDERS DIALOG</div>,
@@ -154,35 +157,40 @@ describe('AgentServersSettings', () => {
     cleanupRendered(root, container)
   })
 
-  it("opens each server's Accounts and Providers dialogs, the only place they live now", () => {
+  it("opens each server's Accounts, Providers and Apps dialogs, the only place they live now", () => {
     const {container, root} = renderSettings()
     const buttons = Array.from(container.querySelectorAll('button'))
     const accounts = buttons.find((button) => button.textContent?.trim() === 'Accounts')
     const providers = buttons.find((button) => button.textContent?.trim() === 'Providers')
+    const apps = buttons.find((button) => button.textContent?.trim() === 'Apps')
     expect(accounts).toBeTruthy()
     expect(providers).toBeTruthy()
+    expect(apps).toBeTruthy()
     act(() => providers!.click())
     expect(document.body.textContent).toContain('PROVIDERS DIALOG')
     act(() => accounts!.click())
     expect(document.body.textContent).toContain('ACCOUNTS DIALOG')
+    act(() => apps!.click())
+    expect(document.body.textContent).toContain('APPS DIALOG')
     cleanupRendered(root, container)
   })
 
-  it('hides Accounts and Providers without an account to sign their requests', () => {
+  it('hides Accounts, Providers and Apps without an account to sign their requests', () => {
     mockAccountId = null
     const {container, root} = renderSettings()
     expect(container.textContent).not.toContain('Accounts')
     expect(container.textContent).not.toContain('Providers')
+    expect(container.textContent).not.toContain('Apps')
     mockAccountId = 'z6MkAlice'
     cleanupRendered(root, container)
   })
 
-  it('shows an empty state when no agent servers are configured', () => {
+  it('shows an empty state when no app environments are configured', () => {
     mockServers = []
 
     const {container, root} = renderSettings()
 
-    expect(container.textContent).toContain('No agent servers configured.')
+    expect(container.textContent).toContain('No app environments configured.')
 
     cleanupRendered(root, container)
   })
@@ -207,7 +215,7 @@ describe('AgentServersSettings', () => {
     const toggle = container.querySelector<HTMLButtonElement>('button[role="switch"]')!
     expect(toggle.getAttribute('aria-checked')).toBe('true')
     expect(toggle.disabled).toBe(true)
-    expect(container.textContent).toContain('Attached to the agents server already running')
+    expect(container.textContent).toContain('Attached to the app environment already running')
     act(() => root.unmount())
 
     mockPlatform = {}
@@ -225,8 +233,8 @@ describe('AgentServersSettings', () => {
 
     const {container, root} = renderSettings()
 
-    expect(container.textContent).toContain('Local Agents')
-    // "Local Agents" alone says it; a "Built-in" tag next to it was redundant.
+    expect(container.textContent).toContain('Local app environment')
+    // "Local app environment" alone says it; a "Built-in" tag next to it was redundant.
     expect(container.textContent).not.toContain('Built-in')
     expect(container.textContent).toContain('https://agentic.seed.hyper.media')
 
@@ -245,8 +253,8 @@ describe('AgentServersSettings', () => {
 
     const {container, root} = renderSettings()
 
-    expect(container.textContent).toContain('Local Agents')
-    expect(container.textContent).not.toContain('No agent servers configured.')
+    expect(container.textContent).toContain('Local app environment')
+    expect(container.textContent).not.toContain('No app environments configured.')
 
     cleanupRendered(root, container)
   })

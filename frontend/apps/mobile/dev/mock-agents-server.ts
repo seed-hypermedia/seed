@@ -1,5 +1,5 @@
 /**
- * A mock agents server for developing and demoing the mobile agents UI without a model.
+ * A mock app environment for developing and demoing the mobile agents UI without a model.
  *
  * It speaks the real protocol — the same signed DAG-CBOR action API and WebSocket subscription
  * protocol the Bun service implements — so the app under test is entirely real: the real signed
@@ -12,7 +12,7 @@
  * is scripted and deterministic, so the same prompt produces the same demo every time.
  *
  * Deliberately NOT implemented: signature verification. This process accepts any well-formed
- * envelope and trusts the account it names. That is exactly what a real agents server must never
+ * envelope and trusts the account it names. That is exactly what a real app environment must never
  * do, which is why this lives under `dev/`, binds to loopback, and prints a warning on boot. Do not
  * deploy it, and do not copy its request handling into the service.
  *
@@ -29,7 +29,7 @@ import type {
   SessionEvent,
   SessionEventPayload,
   SessionInfo,
-} from '@seed-hypermedia/agents-protocol'
+} from '@seed-hypermedia/apps-protocol'
 
 const PORT = Number(process.env.MOCK_AGENTS_PORT ?? 3052)
 const BOOT_TIME = Date.now()
@@ -57,7 +57,7 @@ function agentFor(account: string): AgentInfo {
       systemPrompt: 'A scripted agent used to demo the mobile UI without spending a model call.',
       modelProvider: 'Mock provider',
       model: 'mock-1',
-      tools: ['search', 'web_search', 'execute', 'publish'],
+      tools: ['search', 'web_search', 'execute', 'convert', 'publish'],
     },
     stateDir: '/tmp/mock-agent',
     status: 'idle',
@@ -290,6 +290,10 @@ function handleAction(action: Record<string, any>, account: string): Record<stri
         sessionCount: [...sessions.values()].filter((session) => !session.info.parentSessionId).length,
       }
 
+    case 'ListApps':
+    case 'RefreshApps':
+      return {_: 'ListAppsResponse', apps: [], binding: {source: 'none', isThisServer: false}}
+
     case 'ListModelProviders':
       return {
         _: 'ListModelProvidersResponse',
@@ -464,7 +468,7 @@ const server = Bun.serve({
 
     if (request.method === 'OPTIONS') return new Response(null, {headers: CORS_HEADERS})
 
-    if (url.pathname === '/agents/ws' || url.pathname === '/hm/api/agents/ws') {
+    if (url.pathname === '/agents/ws' || url.pathname === '/hm/api/agents/ws' || url.pathname === '/hm/api/apps/ws') {
       if (server.upgrade(request)) return undefined
       return new Response('Expected a WebSocket upgrade', {status: 400})
     }
@@ -472,16 +476,19 @@ const server = Bun.serve({
     if (
       url.pathname === '/agents/api/health' ||
       url.pathname === '/api/health' ||
-      url.pathname === '/hm/api/agents/health'
+      url.pathname === '/hm/api/agents/health' ||
+      url.pathname === '/hm/api/apps/health'
     ) {
       return Response.json(
         {
           status: 'ok',
           uptime: (Date.now() - BOOT_TIME) / 1000,
           version: 'mock',
+          serverUid: 'z6MkMockAgentsServer',
           webTools: {search: true, readBrowser: true},
           codeExec: false,
           codeExecReason: 'The mock server does not run sandboxes.',
+          convert: {available: false, source: 'none'},
         },
         {headers: CORS_HEADERS},
       )
@@ -490,7 +497,8 @@ const server = Bun.serve({
     if (
       url.pathname === '/api/message' ||
       url.pathname === '/agents/api/message' ||
-      url.pathname === '/hm/api/agents/message'
+      url.pathname === '/hm/api/agents/message' ||
+      url.pathname === '/hm/api/apps/message'
     ) {
       const envelope = cbor.decode<any>(new Uint8Array(await request.arrayBuffer()))
       const response = handleAction(envelope.action ?? {}, accountFromEnvelope(envelope))
@@ -546,7 +554,7 @@ const server = Bun.serve({
   },
 })
 
-console.log(`Mock agents server on http://localhost:${server.port}`)
+console.log(`Mock app environment on http://localhost:${server.port}`)
 console.log('  WARNING: signatures are NOT verified. Development only; never expose this port.')
 console.log('  Point the mobile app at this URL, then try:')
 console.log('    "what are the three nouns?"  → a streamed markdown reply')

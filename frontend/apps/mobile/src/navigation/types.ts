@@ -11,7 +11,7 @@ export type RootStackParamList = {
     accountId: string
   }
   Notifications: undefined
-  /** The agents index: the configured agent server and its agents. */
+  /** The agents index: the configured app environment and its agents. */
   Agents: undefined
   /** One agent: its configuration and its conversations. */
   Agent: {

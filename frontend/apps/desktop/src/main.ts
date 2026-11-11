@@ -327,10 +327,10 @@ app.whenReady().then(async () => {
       logger.info('DaemonStarted')
       startApiServer()
         .then(() => {
-          // Ordered after the API server on purpose: the agents server is configured to use it as
+          // Ordered after the API server on purpose: the app environment is configured to use it as
           // its HM backend, so starting earlier would just make its first requests fail.
           return startLocalAgentsServer().then((url) => {
-            logger.info('[MAIN]: Local agents server ' + (url ? `ready at ${url}` : 'not running'))
+            logger.info('[MAIN]: Local app environment ' + (url ? `ready at ${url}` : 'not running'))
           })
         })
         .catch((err) => {

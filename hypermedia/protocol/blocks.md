@@ -154,7 +154,7 @@ The SDK exports the zod schemas for every block type (`HMBlockSchema` with a pas
 
 ## Agents <!-- id:ydxPrUaK -->
 
-[Seed Agents](../agent.md) and external agents read and write blocks as markdown. They do not send raw operations. The [read](../agent/read.md) verb returns a document as resolved markdown. The [write](../agent/write.md) verb accepts the dialect above and updates a document in place. An agent that edits a table must keep the `<!-- col:… -->` and row `<!-- id:… -->` comments so the table's identity survives. Claude Code with the seed-cli skill uses the CLI commands above. [Building with agents](../build/agents.md) has the workflow. <!-- id:iY-h20Xf -->
+[Seed Agents](../agent.md) and external agents read and write blocks as markdown. They do not send raw operations. The [read](../app-environment/read.md) verb returns a document as resolved markdown. The [write](../app-environment/write.md) verb accepts the dialect above and updates a document in place. An agent that edits a table must keep the `<!-- col:… -->` and row `<!-- id:… -->` comments so the table's identity survives. Claude Code with the seed-cli skill uses the CLI commands above. [Building with agents](../build/agents.md) has the workflow. <!-- id:iY-h20Xf -->
 
 # See also <!-- id:BMxeMIXC -->
 

@@ -3,10 +3,10 @@
  *
  * The OpenAI Codex OAuth client's registered redirect URI is fixed at
  * `http://localhost:1455/auth/callback` — localhost of the machine running the
- * user's browser, which is this machine. The agent server (possibly remote)
+ * user's browser, which is this machine. The app environment (possibly remote)
  * never binds this port; while a sign-in is pending, the desktop main process
  * listens here, serves a Seed-branded success/error page, and stores the
- * redirect URL for the renderer to pick up and submit to the agent server via
+ * redirect URL for the renderer to pick up and submit to the app environment via
  * the signed `SubmitProviderOAuthCode` action.
  */
 import http from 'http'

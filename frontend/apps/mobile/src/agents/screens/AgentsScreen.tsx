@@ -45,7 +45,7 @@ export function AgentsScreen({navigation}: Props) {
     return (
       <StatePanel
         title="No identity yet"
-        detail="Agent servers only accept signed requests, so agents need an identity to act as."
+        detail="App environments only accept signed requests, so agents need an identity to act as."
         action={
           <Button variant="primary" onPress={() => navigation.navigate('CreateIdentity')}>
             Create an identity
@@ -74,7 +74,7 @@ export function AgentsScreen({navigation}: Props) {
         }
       >
         <Section
-          title="Agent server"
+          title="App environment"
           action={
             <Button size="sm" variant="ghost" onPress={() => setShowServerSheet(true)}>
               Change
@@ -203,7 +203,7 @@ function ServerSheet({visible, onClose, currentUrl}: {visible: boolean; onClose:
     <Sheet
       visible={visible}
       onClose={onClose}
-      title="Agent server"
+      title="App environment"
       footer={
         <Button variant="primary" onPress={save} busy={setServerUrl.isLoading}>
           Save

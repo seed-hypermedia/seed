@@ -1,0 +1,1683 @@
+import {Database} from 'bun:sqlite'
+import {afterEach, describe, expect, mock, spyOn, test} from 'bun:test'
+import * as fs from 'node:fs'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import {serialize} from 'superjson'
+import {unpackHmId} from '@seed-hypermedia/client'
+import {CID} from 'multiformats/cid'
+import * as apisvc from '@/api-service'
+import {executeCallVerb, executeReadVerb, executeWriteVerb, type AgentServicePiToolContext} from '@/api-service'
+import * as cbor from '@/cbor'
+import {decode as cborDecode, encode as cborEncode} from '@/cbor'
+import {LAMBDA_RESULT_PREFIX} from '@/code-exec'
+import * as toolDocs from '@/tool-documents'
+import * as agentMemory from '@/agent-memory'
+import {BrowserPrivacy} from '@/browser-privacy'
+import * as sqlite from '@/sqlite'
+import type {CodeExecutor} from '@/code-exec'
+
+/**
+ * Unit tests for the verb dispatchers with hand-built mocks: a fake context (temp memory dir,
+ * in-memory db, spy callbacks, fake code executor) and per-test fetch mocks. No model in the loop.
+ */
+
+const cleanups: Array<() => void> = []
+afterEach(() => {
+  while (cleanups.length) cleanups.pop()?.()
+})
+
+function makeContext(overrides: Partial<AgentServicePiToolContext> = {}): AgentServicePiToolContext {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'verbs-test-'))
+  const db = new Database(':memory:')
+  sqlite.openWithDatabase(db)
+  const now = Date.now()
+  db.run(`INSERT INTO accounts (id, created_at, updated_at) VALUES (?, ?, ?)`, ['test-account', now, now])
+  db.run(
+    `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ['test-agent', 'test-account', new Uint8Array([160]), 'x', 'ready', now, now],
+  )
+  cleanups.push(() => {
+    sqlite.closeDatabase(db)
+    fs.rmSync(dataDir, {recursive: true, force: true})
+  })
+  const fakeExec: CodeExecutor = {
+    runtimes: ['ts', 'python', 'shell'],
+    availability: async () => ({available: true, runtimes: ['ts', 'python', 'shell']}),
+    execute: async () => ({
+      exitCode: 0,
+      success: true,
+      stdout: 'fake stdout',
+      stderr: '',
+      truncated: false,
+      durationMs: 1,
+      changedFiles: [],
+      changedFilesTotal: 0,
+    }),
+  } as unknown as CodeExecutor
+  return {
+    db,
+    browserPrivacy: new BrowserPrivacy(db),
+    accountId: 'test-account',
+    agentId: 'test-agent',
+    definition: {name: 'Test', systemPrompt: '', modelProvider: 'p', model: 'm'} as never,
+    hmServerUrl: 'https://hm.example',
+    ipfsServerUrl: 'https://hm.example',
+    web: {},
+    apps: {resolve: () => undefined, codeRoot: async () => dataDir},
+    stateDir: dataDir,
+    sessionId: 'session-1',
+    modelAcceptsImages: false,
+    onMemoryChange: mock(() => {}),
+    onTriggersChange: mock(() => {}),
+    onToolProgress: mock(() => {}),
+    codeExec: fakeExec,
+    callableTools: ['search', 'web_search', 'execute'],
+    publishEnabled: true,
+    startSession: mock(() => ({sessionId: 'child-session', title: 'Child'})),
+    setSessionPlan: mock(() => ({plan: {steps: []}}) as never),
+    spawnSubSession: mock(() => ({status: 'spawned', sessionId: 'sub-1', title: 'Sub'})),
+    spawnWorkflow: mock(() => ({status: 'spawned', runId: 'wf-1'})),
+    ...overrides,
+  }
+}
+
+describe('browser callable', () => {
+  test('discovers the contract through the normal tool documents', async () => {
+    const context = makeContext({callableTools: ['browser']})
+    const listing = await executeReadVerb(context, {address: '~/tools/'})
+    expect(JSON.stringify(listing)).toContain('browser')
+    const contract = await executeReadVerb(context, {address: '~/tools/browser'})
+    expect(JSON.stringify(contract)).toContain('editable local Seed draft')
+  })
+
+  test('archives privately without requiring or invoking publication', async () => {
+    const context = makeContext({
+      callableTools: ['browser'],
+      publishEnabled: false,
+      browser: async () => ({
+        draftId: 'desktop-draft',
+        markdown: '---\nname: Article\nsourceUrl: https://example.com\n---\nArchived content.',
+      }),
+    })
+    // Browser archives land in owner-only memory, so the call runs as the owner's interactive run.
+    const output = await agentMemory.withOwnerAccess(true, () =>
+      executeCallVerb(context, {tool: 'browser', input: {action: 'archive', document: 'observed'}}, 'call-1'),
+    )
+    expect(output.draftId).toBe('desktop-draft')
+    expect(output.markdown).toBeUndefined()
+    expect(output.memoryPath).toMatch(/^~\/memory\/private\/browser\/archive-/)
+    const saved = await agentMemory.withOwnerAccess(true, () => executeReadVerb(context, {address: output.memoryPath}))
+    expect(JSON.stringify(saved)).toContain('Archived content.')
+    expect(JSON.stringify(saved)).toContain('sourceUrl')
+    expect(output.publishInstructions).toContain('nothing was published')
+  })
+
+  test('delivers private screenshots as model image content and respects tool grants', async () => {
+    const browser = mock(async () => ({
+      summary: 'Captured page',
+      screenshot: {mimeType: 'image/jpeg', data: 'image-base64'},
+    }))
+    const context = makeContext({callableTools: ['browser'], browser, modelAcceptsImages: true})
+    const output = await executeCallVerb(
+      context,
+      {tool: 'browser', input: {action: 'screenshot', document: 'observed'}},
+      'call-1',
+    )
+    expect(output.screenshot).toBeUndefined()
+    expect(output.piContent).toContainEqual({type: 'image', mimeType: 'image/jpeg', data: 'image-base64'})
+    await executeCallVerb({...context, callableTools: []}, {tool: 'browser', input: {action: 'snapshot'}}, 'call-2')
+    expect(browser).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('read verb', () => {
+  test('reads and lists memory addresses, including dir fallback without trailing slash', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {address: '~/memory/notes/a.md', content: 'hello world'})
+    const file = await executeReadVerb(context, {address: '~/memory/notes/a.md'})
+    expect(file.content).toBe('hello world')
+
+    const listed = await executeReadVerb(context, {address: '~/memory/notes/'})
+    expect(Array.isArray(listed.entries)).toBe(true)
+    expect((listed.entries as Array<{path: string}>).some((entry) => entry.path.endsWith('a.md'))).toBe(true)
+
+    // Dir address without a trailing slash answers with the listing instead of erroring.
+    const fallback = await executeReadVerb(context, {address: '~/memory/notes'})
+    expect(Array.isArray(fallback.entries)).toBe(true)
+
+    const root = await executeReadVerb(context, {address: '~/memory/'})
+    expect(Array.isArray(root.entries)).toBe(true)
+  })
+
+  test('reading a binary memory file says how to show it in chat, not just how to publish it', async () => {
+    const context = makeContext()
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0])
+    agentMemory.writeMemoryFile(context.stateDir, 'ads/one.png', png)
+    const file = await executeReadVerb(context, {address: '~/memory/ads/one.png'})
+    expect(file.encoding).toBe('binary')
+    expect(file.mimeType).toBe('image/png')
+    // Bytes never reach the model; the summary points at the chat-rendered memory path first.
+    expect(file.data).toBeUndefined()
+    expect(String(file.summary)).toContain('Show it in chat with ![caption](~/memory/ads/one.png)')
+    expect(String(file.summary)).toContain('write ipfs://')
+
+    // The ipfs guide is honest about what an ipfs:// URL can and cannot do.
+    const guide = await executeReadVerb(context, {address: '~/tools/write/ipfs'})
+    expect(String(guide.markdown)).toContain('does not display anywhere yet')
+    expect(String(guide.markdown)).toContain('![caption](~/memory/path/to/image.png)')
+  })
+
+  test('~/tools lists verbs and callables; ~/tools/<name> returns the contract', async () => {
+    const context = makeContext()
+    const listing = await executeReadVerb(context, {address: '~/tools/'})
+    expect(String(listing.markdown)).toContain('read —')
+    expect(String(listing.markdown)).toContain('web_search —')
+    expect(listing.tools).toEqual(['execute', 'search', 'web_search'])
+
+    const contract = await executeReadVerb(context, {address: '~/tools/web_search'})
+    expect(String(contract.markdown)).toContain('## Input schema')
+    expect(String(contract.markdown)).toContain('web_search')
+
+    const writeIndex = await executeReadVerb(context, {address: '~/tools/write'})
+    expect(String(writeIndex.markdown)).toContain('~/tools/write/capabilities')
+    expect(String(writeIndex.markdown)).toContain('grant WRITER or AGENT access')
+    expect(String(writeIndex.markdown)).not.toContain('capability.grant')
+
+    for (const guideName of [
+      'memory',
+      'tools',
+      'triggers',
+      'ipfs',
+      'documents',
+      'pages',
+      'comments',
+      'capabilities',
+      'contacts',
+      'profiles',
+      'drafts',
+      'apps',
+    ]) {
+      const guide = await executeReadVerb(context, {address: `~/tools/write/${guideName}`})
+      expect(guide.name).toBe(`write/${guideName}`)
+      expect(guide.kind).toBe('guide')
+    }
+    const capabilityGuide = await executeReadVerb(context, {address: '~/tools/write/capabilities'})
+    expect(String(capabilityGuide.markdown)).toContain('capability.grant')
+    expect(String(capabilityGuide.markdown)).toContain('delegate')
+    expect(String(capabilityGuide.markdown)).not.toContain('contact.create')
+
+    const appsGuide = await executeReadVerb(context, {address: '~/tools/write/apps'})
+    expect(String(appsGuide.markdown)).toContain('hm://hyper.media/app-install')
+    expect(String(appsGuide.markdown)).toContain('~/tools/write/ipfs')
+    expect(String(appsGuide.markdown)).toContain('childAttributesSchema')
+
+    const unknownGuide = await executeReadVerb(context, {address: '~/tools/write/unknown'})
+    expect(String(unknownGuide.summary)).toContain('No write guide named unknown')
+    expect(String(unknownGuide.markdown)).toContain('~/tools/write/documents')
+
+    // The execute contract is the one a server can honor only partly, so reading it shows the
+    // runtimes THIS server offers rather than everything the shipped document lists.
+    const narrowed = await executeReadVerb(makeContext({codeExec: {runtimes: ['python', 'shell']} as never}), {
+      address: '~/tools/execute',
+    })
+    expect(String(narrowed.markdown)).toContain('"python"')
+    expect(String(narrowed.markdown)).not.toContain('"ts"')
+    expect(String(narrowed.markdown)).toContain('narrowed to what it can actually run')
+
+    // Unknown tool answers with the listing, not an error.
+    const unknown = await executeReadVerb(context, {address: '~/tools/nope'})
+    expect(String(unknown.summary)).toContain('No tool named nope')
+    expect(unknown.tools).toEqual(['execute', 'search', 'web_search'])
+  })
+
+  test('hm:// addresses resolve through the hypermedia reader on the configured HM server', async () => {
+    const context = makeContext()
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    const requests: string[] = []
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      requests.push(href)
+      if (href.includes('/api/Resource')) {
+        return Response.json(
+          serialize({
+            type: 'document',
+            id: unpackHmId('hm://z6MkDoc/notes'),
+            document: {
+              content: [{block: {id: 'b1', type: 'Paragraph', text: 'Doc body'}, children: []}],
+              version: 'v1',
+              account: 'z6MkDoc',
+              authors: [],
+              path: '/notes',
+              createTime: '',
+              updateTime: '',
+              metadata: {name: 'Notes'},
+              genesis: 'genesis',
+              visibility: 'PUBLIC',
+            },
+          }),
+        )
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+    const result = await executeReadVerb(context, {address: 'hm://z6MkDoc/notes'})
+    expect(String(result.markdown)).toContain('Doc body')
+    // hm:// reads must hit the server this agent service is configured with — the local node in
+    // desktop environments — never a hardcoded public gateway.
+    expect(requests.length).toBeGreaterThan(0)
+    for (const href of requests) expect(href.startsWith('https://hm.example/')).toBe(true)
+  })
+
+  test('activity: hits ListEvents with mapped filters', async () => {
+    const context = makeContext()
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    const requests: string[] = []
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      requests.push(href)
+      if (href.includes('ListEvents')) return Response.json(serialize({events: [{id: 'e1'}], nextPageToken: ''}))
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+    const result = await executeReadVerb(context, {address: 'activity:', options: {pageSize: 5}})
+    expect(String(result.summary)).toContain('1 activity feed event')
+    expect(requests.some((href) => href.includes('ListEvents'))).toBe(true)
+  })
+
+  test('unknown addresses fail with the supported-forms message', async () => {
+    const context = makeContext()
+    await expect(executeReadVerb(context, {address: 'gopher://old'})).rejects.toThrow('Unrecognized address')
+    await expect(executeReadVerb(context, {})).rejects.toThrow('read requires an address')
+  })
+
+  test('thread: renders a transcript for an owned session and 404s otherwise', async () => {
+    const context = makeContext()
+    const now = Date.now()
+    context.db.run(
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['thread-1', 'test-account', 'test-agent', 'My thread', 'system', 'idle', now, now],
+    )
+    await expect(executeReadVerb(context, {address: 'thread:none'})).rejects.toThrow('No thread')
+    const result = await executeReadVerb(context, {address: 'thread:thread-1'})
+    expect(String(result.summary)).toContain('My thread')
+  })
+})
+
+describe('write verb', () => {
+  test('memory writes, deletes, and rejects contentless writes', async () => {
+    const context = makeContext()
+    const written = await executeWriteVerb(context, {address: '~/memory/a.txt', content: 'abc'})
+    expect(String(written.summary)).toContain('Wrote')
+    expect(context.onMemoryChange).toHaveBeenCalled()
+
+    await expect(executeWriteVerb(context, {address: '~/memory/b.txt'})).rejects.toThrow('requires content')
+
+    const deleted = await executeWriteVerb(context, {address: '~/memory/a.txt', options: {delete: true}})
+    expect(String(deleted.summary)).toContain('Deleted')
+  })
+
+  test('memory fromUrl downloads through fetch', async () => {
+    const context = makeContext()
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    globalThis.fetch = mock(
+      async () => new Response('downloaded bytes', {headers: {'content-type': 'text/plain'}}),
+    ) as unknown as typeof fetch
+
+    const result = await executeWriteVerb(context, {
+      address: '~/memory/dl.txt',
+      options: {fromUrl: 'https://files.example/x.txt'},
+    })
+    expect(String(result.summary)).toContain('Downloaded')
+    const back = await executeReadVerb(context, {address: '~/memory/dl.txt'})
+    expect(back.content).toBe('downloaded bytes')
+  })
+
+  test('unknown write addresses and unknown hm actions fail clearly', async () => {
+    const context = makeContext()
+    await expect(executeWriteVerb(context, {address: 'ftp://x', content: 'x'})).rejects.toThrow(
+      'Unrecognized write address',
+    )
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {action: 'explode'}}),
+    ).rejects.toThrow('Unknown write action')
+  })
+
+  test('write ipfs:// publishes a large file in several requests under the gRPC message limit', async () => {
+    const context = makeContext()
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    // A 7 MiB image: bigger than the daemon's 4 MiB per-message cap, as the GPU-rendered
+    // avatars were, so a single PublishBlobs call would be refused outright.
+    // Distinct bytes throughout: the chunker deduplicates identical 256 KiB chunks, so a
+    // repetitive buffer would collapse to a single blob and prove nothing.
+    const big = new Uint8Array(7 * 1024 * 1024)
+    for (let i = 0, x = 1; i < big.length; i++) {
+      x = (x * 1103515245 + 12345) >>> 0
+      big[i] = x >>> 24
+    }
+    const publishBodies: Uint8Array[] = []
+    globalThis.fetch = mock(async (url: string | URL, init?: RequestInit) => {
+      const href = String(url)
+      if (href.startsWith('https://files.example/')) {
+        return new Response(big, {headers: {'content-type': 'image/png'}})
+      }
+      if (href.includes('/api/PublishBlobs')) {
+        const body = new Uint8Array(init?.body as ArrayBuffer)
+        publishBodies.push(body)
+        const {blobs} = cborDecode<{blobs: Array<{cid: string}>}>(body)
+        return Response.json(serialize({cids: blobs.map((blob) => blob.cid)}))
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+
+    await executeWriteVerb(context, {address: '~/memory/big.png', options: {fromUrl: 'https://files.example/big.png'}})
+    const result = await executeWriteVerb(context, {address: 'ipfs://', options: {fromPath: '~/memory/big.png'}})
+    expect(String(result.cid)).toMatch(/^baf/)
+    expect(String(result.summary)).toContain('~/memory/big.png')
+
+    expect(publishBodies.length).toBeGreaterThan(1)
+    const seenCids = new Set<string>()
+    for (const body of publishBodies) {
+      const {blobs} = cborDecode<{blobs: Array<{cid: string; data: Uint8Array}>}>(body)
+      const bytes = blobs.reduce((sum, blob) => sum + blob.data.byteLength, 0)
+      expect(bytes).toBeLessThanOrEqual(apisvc.PUBLISH_BLOBS_BATCH_BYTES)
+      for (const blob of blobs) seenCids.add(blob.cid)
+    }
+    // Every chunk arrived exactly once across the batches, the root included. The blockstore hands
+    // the root back under a raw-codec CID while the returned root is dag-pb; both name the same
+    // block, so match on the multihash.
+    const multihashHex = (cid: string) => Buffer.from(CID.parse(cid).multihash.bytes).toString('hex')
+    expect(Array.from(seenCids, multihashHex)).toContain(multihashHex(String(result.cid)))
+    expect(seenCids.size).toBe(
+      publishBodies.reduce((n, body) => n + cborDecode<{blobs: unknown[]}>(body).blobs.length, 0),
+    )
+  })
+
+  test('batchBlobsForPublish keeps order and never splits a single oversized blob', () => {
+    const blob = (n: number, size: number) => ({cid: `c${n}`, data: new Uint8Array(size)})
+    const batches = apisvc.batchBlobsForPublish([blob(1, 4), blob(2, 4), blob(3, 20), blob(4, 1), blob(5, 9)], 10)
+    expect(batches.map((batch) => batch.map((b) => b.cid))).toEqual([['c1', 'c2'], ['c3'], ['c4', 'c5']])
+    expect(apisvc.batchBlobsForPublish([], 10)).toEqual([])
+  })
+
+  test('write ipfs:// requires a source', async () => {
+    const context = makeContext()
+    await expect(executeWriteVerb(context, {address: 'ipfs://'})).rejects.toThrow('requires options.fromPath')
+  })
+
+  // The real incident behind these: a model passed {metadata} on an hm:// document write, the
+  // envelope did not know the key, and it was silently dropped — the doc published "successfully"
+  // with no metadata. Unknown option keys must refuse loudly so the model can self-correct.
+  test('unknown write option keys are refused with the supported set, never silently dropped', async () => {
+    const context = makeContext()
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {metdata: {a: 1}}}),
+    ).rejects.toThrow(/does not understand option "metdata".*name, metadata/)
+    await expect(
+      executeWriteVerb(context, {
+        address: 'hm://z6MkDoc/notes',
+        content: 'x',
+        options: {action: 'comment', name: 'X'},
+      }),
+    ).rejects.toThrow(/does not understand option "name".*target, replyTo/)
+    await expect(
+      executeWriteVerb(context, {address: '~/memory/a.txt', content: 'x', options: {metadata: {a: 1}}}),
+    ).rejects.toThrow(/does not understand option "metadata"/)
+    await expect(
+      executeWriteVerb(context, {address: 'ipfs://', options: {fromPths: '~/memory/a.txt'}}),
+    ).rejects.toThrow(/does not understand option "fromPths"/)
+    await expect(
+      executeWriteVerb(context, {address: '~/tools/thing', content: '{}', options: {overwrite: true}}),
+    ).rejects.toThrow(/does not understand option "overwrite"/)
+  })
+
+  // title and dryRun used to be loose option keys; the refusal points at where each concept
+  // lives now so a model trained on the old contract self-corrects in one round trip.
+  test('retired option spellings are refused with a pointer to the new home', async () => {
+    const context = makeContext()
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {title: 'X'}}),
+    ).rejects.toThrow(/name lives in metadata\.name/)
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {dryRun: true}}),
+    ).rejects.toThrow(/dryRun is a top-level field/)
+  })
+
+  test('write dryRun is strict: boolean only, hm:// only', async () => {
+    const context = makeContext()
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', dryRun: 'true'}),
+    ).rejects.toThrow('write dryRun must be a boolean')
+    await expect(executeWriteVerb(context, {address: '~/memory/a.txt', content: 'x', dryRun: true})).rejects.toThrow(
+      'dryRun applies only to hm://, ipfs:// object and ~/triggers/ writes',
+    )
+  })
+
+  test('write hm:// options.metadata must be an object', async () => {
+    const context = makeContext()
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {metadata: 'draft'}}),
+    ).rejects.toThrow('options.metadata must be an object')
+  })
+})
+
+describe('call verb', () => {
+  test('unknown or missing tool answers with the callable listing', async () => {
+    const context = makeContext()
+    const missing = await executeCallVerb(context, {}, undefined)
+    expect(String(missing.summary)).toContain('call requires a tool name')
+    expect(missing.tools).toEqual(['execute', 'search', 'web_search'])
+
+    const unknown = await executeCallVerb(context, {tool: 'navigate'}, undefined)
+    expect(String(unknown.summary)).toContain('No callable tool named navigate')
+  })
+
+  test('invalid input returns the contract instead of failing (touch-expand)', async () => {
+    const context = makeContext()
+    const result = await executeCallVerb(context, {tool: 'web_search', input: {}}, undefined)
+    expect(String(result.summary)).toContain('did not match its contract')
+    expect(String(result.contract)).toContain('## Input schema')
+    expect(Array.isArray(result.validationErrors)).toBe(true)
+  })
+
+  test('execute dispatches to the code executor with runtime mapped', async () => {
+    const executeSpy = mock(async () => ({
+      exitCode: 0,
+      success: true,
+      stdout: 'ran',
+      stderr: '',
+      truncated: false,
+      durationMs: 3,
+      changedFiles: [{path: 'x', change: 'added'}],
+      changedFilesTotal: 1,
+    }))
+    const context = makeContext({
+      codeExec: {
+        runtimes: ['python', 'shell'],
+        availability: async () => ({available: true, runtimes: ['python', 'shell']}),
+        execute: executeSpy,
+      } as never,
+    })
+    // No description: the contract comes back and nothing runs — the row the user reads is the
+    // description, so a run without one is a run the user cannot follow.
+    const undescribed = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {runtime: 'python', code: 'print(1)'}},
+      'tc0',
+    )
+    expect(String(undescribed.summary)).toContain('did not match its contract')
+    expect(undescribed.validationErrors).toEqual(['$.description: required property is missing'])
+    expect(executeSpy).not.toHaveBeenCalled()
+
+    const result = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {description: 'Count the words in notes', runtime: 'python', code: 'print(1)'}},
+      'tc1',
+    )
+    // The summary leads with the agent's own account of the run, then only what changed the picture.
+    expect(result.summary).toBe('Count the words in notes · 1 memory file changed')
+    expect(executeSpy).toHaveBeenCalledTimes(1)
+    expect(context.onMemoryChange).toHaveBeenCalled()
+  })
+
+  test('a failed execute keeps the description and adds the exit code', async () => {
+    const context = makeContext({
+      codeExec: {
+        runtimes: ['python', 'shell'],
+        availability: async () => ({available: true, runtimes: ['python', 'shell']}),
+        execute: async () => ({
+          exitCode: 2,
+          success: false,
+          stdout: '',
+          stderr: 'boom',
+          truncated: false,
+          durationMs: 5,
+          changedFiles: [],
+          changedFilesTotal: 0,
+        }),
+      } as never,
+    })
+    const result = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {description: 'Validate the CSV', runtime: 'python', code: 'raise SystemExit(2)'}},
+      'tc2',
+    )
+    expect(result.summary).toBe('Validate the CSV · exit 2')
+  })
+
+  test('the execute contract offers only the runtimes this server can actually run', async () => {
+    const context = makeContext({
+      codeExec: {
+        runtimes: ['python', 'shell'],
+        availability: async () => ({available: true, runtimes: ['python', 'shell']}),
+        execute: async () => {
+          throw new Error('unused')
+        },
+      } as never,
+    })
+    // A model asking for TypeScript on a server with no bun image gets the contract back — with ts
+    // absent from the enum — instead of a sandbox failure it cannot diagnose.
+    const result = await executeCallVerb(
+      context,
+      {tool: 'execute', input: {description: 'Try TypeScript', runtime: 'ts', code: 'x'}},
+      undefined,
+    )
+    expect(String(result.summary)).toContain('did not match its contract')
+    expect(String(result.contract)).toContain('"python"')
+    expect(String(result.contract)).not.toContain('"ts"')
+  })
+
+  test('an authored lambda runs its source, and its return value is the result', async () => {
+    const context = makeContext()
+    const programs: string[] = []
+    ;(context.codeExec as {execute: unknown}).execute = mock(async (request: {code: string; runtime: string}) => {
+      programs.push(request.code)
+      return {
+        exitCode: 0,
+        success: true,
+        stdout: `working\n${LAMBDA_RESULT_PREFIX}{"tempC":21}\n`,
+        stderr: '',
+        truncated: false,
+        durationMs: 7,
+        changedFiles: [{path: 'weather.json', change: 'added'}],
+        changedFilesTotal: 1,
+      }
+    })
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: 21})',
+    })
+
+    const result = await executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, 'tc-lambda')
+    expect(result.result).toEqual({tempC: 21})
+    // What it printed comes back as logs, kept apart from what it returned.
+    expect(result.logs).toBe('working')
+    expect(String(result.summary)).toContain('Ran weather')
+    // The validated input reached the program, and memory changes were announced.
+    expect(programs[0]).toContain('{\\"city\\":\\"Lisbon\\"}')
+    expect(context.onMemoryChange).toHaveBeenCalled()
+  })
+
+  test('a delegated child runs a lambda its spec carried without the general execute grant', async () => {
+    // Regression: the sandbox gate only honored 'execute' in callableTools, so a child narrowed to
+    // exactly the lambda it was handed could never run it.
+    const context = makeContext({
+      callableTools: ['search'],
+      definition: {name: 'Test', systemPrompt: '', modelProvider: 'p', model: 'm', tools: ['weather']} as never,
+    })
+    ;(context.codeExec as {execute: unknown}).execute = mock(async () => ({
+      exitCode: 0,
+      success: true,
+      stdout: `${LAMBDA_RESULT_PREFIX}{"tempC":18}\n`,
+      stderr: '',
+      truncated: false,
+      durationMs: 2,
+      changedFiles: [],
+      changedFilesTotal: 0,
+    }))
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: 18})',
+    })
+
+    const result = await executeCallVerb(context, {tool: 'weather', input: {city: 'Porto'}}, 'tc-lambda-narrow')
+    expect(result.result).toEqual({tempC: 18})
+
+    // Without either the execute grant or the lambda's own name, the gate still refuses.
+    const ungranted = makeContext({callableTools: ['search']})
+    toolDocs.saveLambdaToolDocument(ungranted.db, ungranted.accountId, ungranted.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: 18})',
+    })
+    await expect(executeCallVerb(ungranted, {tool: 'weather', input: {city: 'Porto'}}, undefined)).rejects.toThrow(
+      'runs code in the sandbox',
+    )
+  })
+
+  test('a lambda call validates both edges and surfaces its failures', async () => {
+    const context = makeContext()
+    const behavior = {stdout: `${LAMBDA_RESULT_PREFIX}{"tempC":"warm"}\n`, success: true, exitCode: 0}
+    ;(context.codeExec as {execute: unknown}).execute = mock(async () => ({
+      exitCode: behavior.exitCode,
+      success: behavior.success,
+      stdout: behavior.stdout,
+      stderr: behavior.success ? '' : 'Traceback: boom',
+      truncated: false,
+      durationMs: 3,
+      changedFiles: [],
+      changedFilesTotal: 0,
+    }))
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+      output: {type: 'object', properties: {tempC: {type: 'number'}}, required: ['tempC']},
+      source: 'export default (input) => ({tempC: "warm"})',
+    })
+
+    // Bad input answers with the tool's own contract, exactly like a builtin does.
+    const miss = await executeCallVerb(context, {tool: 'weather', input: {}}, undefined)
+    expect(String(miss.summary)).toContain('did not match its contract')
+    expect(String(miss.contract)).toContain('# weather')
+
+    // A return value the tool's own output schema rejects is the tool's bug, and it says so.
+    await expect(executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, undefined)).rejects.toThrow(
+      'output schema rejects',
+    )
+
+    // A crash surfaces with the tail of what the runtime said.
+    behavior.success = false
+    behavior.exitCode = 1
+    behavior.stdout = ''
+    await expect(executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, undefined)).rejects.toThrow(
+      'Traceback: boom',
+    )
+
+    // A tool that finishes without returning anything is broken, not empty.
+    behavior.success = true
+    behavior.exitCode = 0
+    behavior.stdout = 'printed but never returned\n'
+    await expect(executeCallVerb(context, {tool: 'weather', input: {city: 'Lisbon'}}, undefined)).rejects.toThrow(
+      'without returning a value',
+    )
+  })
+
+  test('an authored lambda cannot run code the owner did not grant', async () => {
+    // Authoring a tool must not be a way around an owner who turned code execution off.
+    const context = makeContext({callableTools: ['search', 'web_search']})
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object'},
+      source: 'export default () => ({})',
+    })
+    await expect(executeCallVerb(context, {tool: 'weather', input: {}}, undefined)).rejects.toThrow(
+      'not enabled for this agent',
+    )
+  })
+
+  test('a python lambda cannot run where code execution is unavailable', async () => {
+    const context = makeContext({
+      codeExec: {
+        runtimes: [],
+        availability: async () => ({available: false, runtimes: [], reason: 'no virtualization'}),
+        execute: async () => {
+          throw new Error('unused')
+        },
+      } as never,
+    })
+    toolDocs.saveLambdaToolDocument(context.db, context.accountId, context.agentId, {
+      name: 'weather',
+      description: 'Look up the temperature for a city.',
+      input: {type: 'object'},
+      source: 'def main(input):\n    return {}',
+      runtime: 'python',
+    })
+    await expect(executeCallVerb(context, {tool: 'weather', input: {}}, undefined)).rejects.toThrow(
+      'this server cannot run',
+    )
+  })
+
+  test('search dispatches through the Search API', async () => {
+    const context = makeContext()
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      if (href.includes('/api/Search'))
+        return Response.json(serialize({entities: [], nextPageToken: '', searchQuery: 'hello'}))
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+    const result = await executeCallVerb(context, {tool: 'search', input: {query: 'hello'}}, undefined)
+    expect(String(result.summary)).toContain('No results')
+  })
+
+  test('query compiles the Explore grammar into a DocumentFilter and lists matches with their attributes', async () => {
+    const context = makeContext({callableTools: ['query', 'attributes']})
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    let sent: Record<string, unknown> = {}
+    globalThis.fetch = mock(async (url: string | URL, init?: RequestInit) => {
+      const href = String(url)
+      if (href.includes('/api/QueryDocuments')) {
+        sent = cborDecode(init?.body as Uint8Array)
+        return Response.json({
+          documents: [
+            {
+              account: 'z6MkAlice',
+              path: '/people/bob',
+              metadata: {name: 'Bob', surname: 'Smith', attributesSchema: 'hm://z6MkAlice/types/person'},
+              updateTime: '2026-09-16T00:00:00Z',
+            },
+          ],
+          nextPageToken: '',
+        })
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+    const result = await executeCallVerb(
+      context,
+      {
+        tool: 'query',
+        input: {
+          q: 'in:z6MkAlice attributesSchema=hm://z6MkAlice/types/person AND has:surname',
+          sort: [{attribute: 'UPDATE_TIME', descending: true}],
+        },
+      },
+      undefined,
+    )
+    expect(sent.filter).toEqual({
+      and: {
+        filters: [
+          {spaceMatch: {space: 'z6MkAlice'}},
+          {
+            comparison: {
+              key: 'attributesSchema',
+              operator: 'EQUAL',
+              value: {stringValue: 'hm://z6MkAlice/types/person'},
+            },
+          },
+          {exists: {key: 'surname'}},
+        ],
+      },
+    })
+    expect(sent.sort).toEqual([{attribute: 'BUILTIN_SORT_ATTRIBUTE_UPDATE_TIME', descending: true}])
+    const results = result.results as Array<Record<string, unknown>>
+    expect(results[0]?.url).toBe('hm://z6MkAlice/people/bob')
+    expect((results[0]?.attributes as Record<string, unknown>).surname).toBe('Smith')
+    expect(String(result.markdown)).toContain('surname: Smith')
+    expect(String(result.summary)).toContain('Found 1 document')
+  })
+
+  test('attributes lists the names documents use with their kinds, and the values of one key', async () => {
+    const context = makeContext({callableTools: ['query', 'attributes']})
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    const valueRequests: Array<Record<string, unknown>> = []
+    globalThis.fetch = mock(async (url: string | URL, init?: RequestInit) => {
+      const href = String(url)
+      if (href.includes('/api/ListDocumentAttributeNames')) {
+        return Response.json({
+          names: [
+            {name: 'status', kinds: [{kind: 'DOCUMENT_ATTRIBUTE_KIND_STRING'}]},
+            {name: 'priority', kinds: [{kind: 'DOCUMENT_ATTRIBUTE_KIND_INT'}]},
+          ],
+        })
+      }
+      if (href.includes('/api/ListDocumentAttributeValues')) {
+        valueRequests.push(cborDecode(init?.body as Uint8Array))
+        return Response.json({values: [{value: {stringValue: 'draft'}}, {value: {stringValue: 'published'}}]})
+      }
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+    const names = await executeCallVerb(context, {tool: 'attributes', input: {account: 'z6MkAlice'}}, undefined)
+    expect(names.names).toEqual([
+      {name: 'status', kinds: ['string']},
+      {name: 'priority', kinds: ['int']},
+    ])
+    const values = await executeCallVerb(context, {tool: 'attributes', input: {key: 'status'}}, undefined)
+    expect(valueRequests).toEqual([{path: ['status'], kind: 'DOCUMENT_ATTRIBUTE_KIND_STRING', pageSize: 50}])
+    expect(values.values).toEqual([
+      {kind: 'string', value: 'draft'},
+      {kind: 'string', value: 'published'},
+    ])
+    expect(String(values.markdown)).toContain('- draft (string)')
+  })
+})
+
+describe('space index and touch-expand pins', () => {
+  test('index stays under budget, lists tools and memory, and caches until invalidated', async () => {
+    // Exercise the cheap-walk branch deterministically; slow filesystem scheduling otherwise
+    // selects the intentional stale-summary cooldown instead of the invalidation behavior.
+    const clock = spyOn(performance, 'now').mockReturnValue(0)
+    try {
+      const context = makeContext()
+      await executeWriteVerb(context, {address: '~/memory/notes/a.md', content: 'x'})
+      const index = apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: 'test-account',
+        agentId: 'test-agent',
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+      expect(index.length).toBeLessThanOrEqual(2048)
+      expect(index).toContain('<space>')
+      expect(index).toContain('search —')
+      expect(index).toContain('notes/(1)')
+
+      // Cached: a memory write without invalidation returns the same bytes; invalidation refreshes.
+      await executeWriteVerb(context, {address: '~/memory/notes/b.md', content: 'y'})
+      const stale = apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: 'test-account',
+        agentId: 'test-agent',
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+      expect(stale).toBe(index)
+      apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+      const fresh = apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: 'test-account',
+        agentId: 'test-agent',
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+      expect(fresh).toContain('notes/(2)')
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  test('owner and reader Space indexes never share private memory summaries', async () => {
+    const context = makeContext()
+    apisvc.invalidateSpaceIndex(context.accountId, context.agentId)
+    agentMemory.withOwnerAccess(true, () =>
+      agentMemory.writeMemoryFile(context.stateDir, 'private/secret.md', 'private content'),
+    )
+    agentMemory.writeMemoryFile(context.stateDir, 'shared.md', 'shared content')
+    const index = () =>
+      apisvc.buildSpaceIndex({
+        db: context.db,
+        accountId: context.accountId,
+        agentId: context.agentId,
+        stateDir: context.stateDir,
+        callableTools: context.callableTools,
+      })
+    const owner = agentMemory.withOwnerAccess(true, index)
+    expect(owner).toContain('private/(')
+    const reader = agentMemory.withOwnerAccess(false, index)
+    expect(reader).not.toContain('private/(')
+    expect(reader).toContain('shared.md')
+    expect(reader).toContain('search —')
+    expect(agentMemory.withOwnerAccess(true, index)).toBe(owner)
+    // No scope at all is the reader view, never the owner's.
+    expect(index()).toBe(reader)
+  })
+
+  test('authored lambda appears in the index and the listing', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {
+      address: '~/tools/word_count',
+      content: JSON.stringify({
+        description: 'Count words in a text.',
+        input: {type: 'object', properties: {text: {type: 'string'}}, required: ['text']},
+        source: 'export default async ({text}) => ({words: text.split(/\\s+/).length})',
+      }),
+    })
+    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+    const index = apisvc.buildSpaceIndex({
+      db: context.db,
+      accountId: 'test-account',
+      agentId: 'test-agent',
+      stateDir: context.stateDir,
+      callableTools: context.callableTools,
+    })
+    expect(index).toContain('word_count')
+    const listing = await executeReadVerb(context, {address: '~/tools/'})
+    expect(String(listing.markdown)).toContain('word_count — Count words in a text. (authored)')
+    const contract = await executeReadVerb(context, {address: '~/tools/word_count'})
+    expect(String(contract.markdown)).toContain('## Source')
+    expect(String(contract.cid)).toStartWith('b')
+  })
+
+  test('expanded set derives from durable read/call events', () => {
+    const context = makeContext()
+    const now = Date.now()
+    context.db.run(
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['s1', 'test-account', 'test-agent', null, 'system', 'idle', now, now],
+    )
+    const append = (seq: number, event: unknown) =>
+      context.db.run(
+        `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+        [`e${seq}`, 's1', seq, cborEncode(event), now],
+      )
+    append(1, {type: 'message', role: 'user', content: 'hi'})
+    append(2, {type: 'tool_call', id: 't1', name: 'read', input: {address: '~/tools/web_search'}})
+    append(3, {type: 'tool_call', id: 't2', name: 'call', input: {tool: 'execute', input: {}}})
+    append(4, {type: 'tool_call', id: 't3', name: 'read', input: {address: '~/memory/x'}})
+    append(5, {type: 'tool_call', id: 't4', name: 'read', input: {address: '~/tools/write/capabilities'}})
+    expect(apisvc.expandedCallablesFromEvents(context.db, 's1').sort()).toEqual(['execute', 'web_search'])
+    expect(apisvc.expandedCallablesFromEvents(context.db, 'missing')).toEqual([])
+  })
+})
+
+describe('trigger introspection (~/triggers/ and ~/self)', () => {
+  const scheduleTrigger = JSON.stringify({
+    source: {type: 'schedule', schedule: {kind: 'interval', every: 30, unit: 'minutes'}},
+    prompt: 'Check the news and summarize.',
+    enabled: true,
+  })
+
+  test('trigger writes take effect immediately and default to enabled', async () => {
+    const context = makeContext()
+    const saved = await executeWriteVerb(context, {address: '~/triggers/morning-brief', content: scheduleTrigger})
+    expect(saved.enabled).toBe(true)
+    expect(context.onTriggersChange).toHaveBeenCalled()
+    const row = context.db
+      .query<{enabled: number}, []>(`SELECT enabled FROM agent_triggers WHERE name = 'morning-brief'`)
+      .get()
+    expect(row?.enabled).toBe(1)
+
+    const listing = await executeReadVerb(context, {address: '~/triggers/'})
+    expect(String(listing.summary)).toContain('1 trigger')
+    const one = await executeReadVerb(context, {address: '~/triggers/morning-brief'})
+    expect(one.enabled).toBe(true)
+    expect(String(one.summary)).toContain('active')
+    expect(String(one.prompt)).toContain('Check the news')
+    expect((one.source as {type: string}).type).toBe('schedule')
+  })
+
+  test('the agent can disable and re-enable a trigger by writing it', async () => {
+    const context = makeContext()
+    const mentionTrigger = (enabled: boolean) =>
+      JSON.stringify({
+        source: {type: 'user-mention', mentionedAccounts: ['z6MkMe']},
+        prompt: 'Reply politely.',
+        enabled,
+      })
+    const saved = await executeWriteVerb(context, {address: '~/triggers/mentions', content: mentionTrigger(true)})
+    expect(saved.enabled).toBe(true)
+
+    const disabled = await executeWriteVerb(context, {address: '~/triggers/mentions', content: mentionTrigger(false)})
+    expect(disabled.enabled).toBe(false)
+    expect(String(disabled.summary)).toContain('disabled')
+
+    const reenabled = await executeWriteVerb(context, {address: '~/triggers/mentions', content: mentionTrigger(true)})
+    expect(reenabled.enabled).toBe(true)
+    const rows = context.db.query<{id: string}, []>(`SELECT id FROM agent_triggers`).all()
+    expect(rows.length).toBe(1)
+  })
+
+  test('agents can combine activity conditions and cannot reactivate a retired trigger', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {
+      address: '~/triggers/mentions',
+      content: JSON.stringify({source: {type: 'user-mention', mentionedAccounts: ['z6MkMe']}, prompt: 'Reply.'}),
+    })
+    await executeWriteVerb(context, {
+      address: '~/triggers/comments',
+      content: JSON.stringify({source: {type: 'document-comment', resource: 'hm://site'}, prompt: 'Triage.'}),
+    })
+    await executeWriteVerb(context, {address: '~/triggers/mentions', options: {combineWith: 'comments'}})
+    const combined = await executeReadVerb(context, {address: '~/triggers/mentions'})
+    expect(combined.source).toMatchObject({
+      type: 'activity',
+      conditions: [{source: {type: 'user-mention'}}, {source: {type: 'document-comment'}}],
+    })
+    expect(combined.prompt).toBe('Reply.')
+    const retired = await executeReadVerb(context, {address: '~/triggers/comments'})
+    expect(retired.enabled).toBe(false)
+    expect(retired.mergedInto).toBe(combined.id)
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/comments',
+        content: JSON.stringify({
+          source: {type: 'document-comment', resource: 'hm://site'},
+          prompt: 'Restart',
+          enabled: true,
+        }),
+      }),
+    ).rejects.toThrow('cannot be edited')
+  })
+
+  test('headless continuations are validated when written and explained when read', async () => {
+    const context = makeContext()
+    const schedule = {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'hours'}}
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/nope',
+        content: JSON.stringify({source: schedule, continuation: {kind: 'tool', tool: 'no-such-tool'}}),
+      }),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining("not one of this agent's tools")})
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/nope',
+        content: JSON.stringify({
+          source: schedule,
+          continuation: {kind: 'script', script: 'export default async function () { return fetch("x") }'},
+        }),
+      }),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining('Trigger script rejected')})
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/nope',
+        content: JSON.stringify({source: schedule, continuation: {kind: 'tool', tool: 'read', onFailure: 'shout'}}),
+      }),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining('onFailure')})
+    // A thread trigger still needs its prompt.
+    await expect(
+      executeWriteVerb(context, {address: '~/triggers/nope', content: JSON.stringify({source: schedule})}),
+    ).rejects.toMatchObject({status: 400, message: expect.stringContaining('prompt')})
+
+    const created = await executeWriteVerb(context, {
+      address: '~/triggers/hourly-read',
+      content: JSON.stringify({
+        source: schedule,
+        continuation: {kind: 'tool', tool: 'read', input: {address: '~/tools/'}, onFailure: 'thread'},
+      }),
+    })
+    expect(created.summary).toContain('calls tool "read" headlessly')
+    const read = await executeReadVerb(context, {address: '~/triggers/hourly-read'})
+    expect(read.continuation).toEqual({kind: 'tool', tool: 'read', input: {address: '~/tools/'}, onFailure: 'thread'})
+    expect(read.summary).toContain('starts a thread from the prompt if that fails')
+    // The stored recovery prompt is the default one, since none was written.
+    expect(String(read.prompt)).toContain('automation on this trigger failed')
+    const listing = await executeReadVerb(context, {address: '~/triggers/'})
+    const entry = (listing.triggers as Array<Record<string, unknown>>).find((row) => row.name === 'hourly-read')
+    expect(entry?.does).toContain('calls tool "read" headlessly')
+    expect(String(listing.contract)).toContain('{kind: "tool", tool, input?, onFailure?}')
+    expect(String(listing.contract)).toContain('{kind: "script", script, input?, onFailure?}')
+  })
+
+  test('agents create and edit webhook triggers with a customizable prompt and one-time credential', async () => {
+    const context = makeContext()
+    const created = await executeWriteVerb(context, {
+      address: '~/triggers/inbound',
+      content: JSON.stringify({
+        source: {type: 'webhook'},
+        prompt: 'Summarize the posted deployment event.',
+        enabled: true,
+      }),
+    })
+    const webhook = created.webhook as {
+      endpointPath: string
+      secret: string
+      alternative: string
+      requiredHeaders: Record<string, string>
+      optionalHeaders: Record<string, string>
+    }
+    expect(created.prompt).toBe('Summarize the posted deployment event.')
+    expect(webhook.secret).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(webhook.endpointPath).toBe(`/hm/api/agents/webhooks/${created.id}/${webhook.secret}`)
+    expect(webhook.alternative).toContain(`Bearer ${webhook.secret}`)
+    expect(webhook.requiredHeaders).toEqual({'Content-Type': 'application/json'})
+    expect(webhook.optionalHeaders['Idempotency-Key']).toContain('unique')
+
+    const stored = context.db
+      .query<{secret_hash: Uint8Array}, [string]>(
+        `SELECT secret_hash FROM webhook_trigger_credentials WHERE trigger_id = ?`,
+      )
+      .get(String(created.id))
+    expect(stored?.secret_hash.byteLength).toBe(32)
+    expect(new TextDecoder().decode(stored!.secret_hash)).not.toContain(webhook.secret)
+
+    const read = await executeReadVerb(context, {address: '~/triggers/inbound'})
+    expect(read.prompt).toBe('Summarize the posted deployment event.')
+    expect((read.webhook as {endpointPath: string}).endpointPath).toBe(webhook.endpointPath)
+    expect((read.webhook as {secret: string}).secret).toBe(webhook.secret)
+
+    const edited = await executeWriteVerb(context, {
+      address: '~/triggers/inbound',
+      content: JSON.stringify({
+        source: {type: 'webhook'},
+        prompt: 'Route the posted event by severity.',
+        enabled: true,
+      }),
+    })
+    expect(edited.prompt).toBe('Route the posted event by severity.')
+    expect(edited.webhook).toBeUndefined()
+    expect(
+      context.db.query<{count: number}, []>(`SELECT count(*) AS count FROM webhook_trigger_credentials`).get()?.count,
+    ).toBe(1)
+  })
+
+  test('delete, unknown options, and bad JSON are handled loudly', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {address: '~/triggers/x', content: scheduleTrigger})
+    await expect(executeWriteVerb(context, {address: '~/triggers/x', content: 'not json'})).rejects.toThrow(
+      'expects JSON content',
+    )
+    await expect(
+      executeWriteVerb(context, {address: '~/triggers/x', content: scheduleTrigger, options: {overwrite: true}}),
+    ).rejects.toThrow('does not understand')
+    const missing = await executeWriteVerb(context, {address: '~/triggers/nope', options: {delete: true}})
+    expect(missing.deleted).toBe(false)
+    const deleted = await executeWriteVerb(context, {address: '~/triggers/x', options: {delete: true}})
+    expect(deleted.deleted).toBe(true)
+    const listing = await executeReadVerb(context, {address: '~/triggers/'})
+    expect((listing.triggers as unknown[]).length).toBe(0)
+  })
+
+  test('read ~/self reports definition, grants, triggers, and guidance', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {address: '~/triggers/morning', content: scheduleTrigger})
+    const self = await executeReadVerb(context, {address: '~/self'})
+    expect(self.agentId).toBe('test-agent')
+    expect(self.name).toBe('Test')
+    expect((self.grants as {publish: boolean}).publish).toBe(true)
+    expect((self.grants as {callableTools: string[]}).callableTools).toContain('search')
+    expect((self.triggers as unknown[]).length).toBe(1)
+    expect(String(self.guidance)).toContain('~/triggers/')
+  })
+
+  test('space index advertises the triggers affordance and lists active triggers', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {address: '~/triggers/nightly', content: scheduleTrigger})
+    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+    const index = apisvc.buildSpaceIndex({
+      db: context.db,
+      accountId: 'test-account',
+      agentId: 'test-agent',
+      stateDir: context.stateDir,
+      callableTools: context.callableTools,
+    })
+    expect(index).toContain('write ~/triggers/<name>')
+    expect(index).toContain('active: nightly')
+  })
+})
+
+describe('thread listing and search', () => {
+  test('thread: lists sessions newest-first and searches titles and message text', async () => {
+    const context = makeContext()
+    const now = Date.now()
+    const addSession = (id: string, title: string, updatedAt: number) =>
+      context.db.run(
+        `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [id, 'test-account', 'test-agent', title, 'system', 'idle', now, updatedAt],
+      )
+    addSession('s1', 'Launch planning', now - 1000)
+    addSession('s2', 'Weekly review', now)
+    const message = {type: 'message', role: 'user', content: 'let us discuss the pelican rodeo budget'}
+    context.db.run(`INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`, [
+      'e1',
+      's1',
+      1,
+      cborEncode(message),
+      now,
+    ])
+    // The service records every append's privacy as it writes the event.
+    context.browserPrivacy.recordSessionEvent({id: 'e1', sessionId: 's1', seq: 1, createdAt: now, event: message})
+
+    const listing = await executeReadVerb(context, {address: 'thread:'})
+    const threads = listing.threads as Array<{thread: string; snippet?: string}>
+    expect(threads.length).toBe(2)
+    expect(threads[0]?.thread).toBe('thread:s2')
+
+    const byTitle = await executeReadVerb(context, {address: 'thread:', options: {query: 'weekly'}})
+    expect((byTitle.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2'])
+
+    const byContent = await executeReadVerb(context, {address: 'thread:', options: {query: 'pelican rodeo'}})
+    const contentThreads = byContent.threads as Array<{thread: string; snippet?: string}>
+    expect(contentThreads[0]?.thread).toBe('thread:s1')
+    expect(String(contentThreads[0]?.snippet)).toContain('pelican rodeo')
+
+    // Another agent's sessions never appear, and the legacy {agentId} option is inert: the
+    // listing is always scoped to the calling agent (agents do not read each other's state).
+    context.db.run(
+      `INSERT INTO agents (id, account_id, definition_cbor, state_dir, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ['other-agent', 'test-account', new Uint8Array([160]), 'y', 'ready', now, now],
+    )
+    context.db.run(
+      `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ['s3', 'test-account', 'other-agent', 'Other agent thread', 'system', 'idle', now, now + 1000],
+    )
+    const scoped = await executeReadVerb(context, {address: 'thread:'})
+    expect((scoped.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2', 'thread:s1'])
+    const byAgent = await executeReadVerb(context, {address: 'thread:', options: {agentId: 'other-agent'}})
+    expect((byAgent.threads as Array<{thread: string}>).map((t) => t.thread)).toEqual(['thread:s2', 'thread:s1'])
+  })
+
+  test('reader listings hide unscanned transcripts until the backfill has scanned each one once', async () => {
+    const context = makeContext()
+    const now = Date.now()
+    const sessions = 6
+    const eventsPerSession = 40
+    const encoded = cborEncode({type: 'message', role: 'assistant', content: 'Ordinary public text.'})
+    context.db.transaction(() => {
+      for (let index = 0; index < sessions; index++) {
+        const id = `thread-${index}`
+        context.db.run(
+          `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [id, 'test-account', 'test-agent', `Thread ${index}`, 'system', 'idle', now, now + index],
+        )
+        for (let seq = 1; seq <= eventsPerSession; seq++)
+          context.db.run(
+            `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+            [`${id}-${seq}`, id, seq, encoded, now],
+          )
+      }
+      context.db.run(
+        `INSERT INTO sessions (id, account_id, agent_id, title, title_source, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        ['browser-thread', 'test-account', 'test-agent', 'Browsing', 'system', 'idle', now, now + sessions],
+      )
+      context.db.run(
+        `INSERT INTO session_events (id, session_id, seq, event_cbor, created_at) VALUES (?, ?, ?, ?, ?)`,
+        [
+          'browser-1',
+          'browser-thread',
+          1,
+          cborEncode({type: 'tool_call', id: 'c', name: 'call', input: {tool: 'browser', input: {action: 'snapshot'}}}),
+          now,
+        ],
+      )
+    })()
+    const decode = spyOn(cbor, 'decode')
+    try {
+      const reader = () => agentMemory.withOwnerAccess(false, () => executeReadVerb(context, {address: 'thread:'}))
+      // Written without their append notifications (history from before transcript_privacy): a
+      // reader's listing fails closed and reads no transcript to decide it.
+      expect((await reader()).threads).toEqual([])
+      expect(decode.mock.calls.length).toBeLessThan(eventsPerSession)
+      context.browserPrivacy.drainBackfill()
+      expect(decode.mock.calls.length).toBeGreaterThanOrEqual(sessions * eventsPerSession)
+      decode.mockClear()
+      const first = await reader()
+      const threads = (first.threads as Array<{thread: string}>).map((t) => t.thread)
+      expect(threads).toHaveLength(sessions)
+      expect(threads).not.toContain('thread:browser-thread')
+      expect(decode.mock.calls.length).toBeLessThan(eventsPerSession)
+      decode.mockClear()
+      expect((await reader()).threads).toEqual(first.threads)
+      const transcript = await agentMemory.withOwnerAccess(false, () =>
+        executeReadVerb(context, {address: 'thread:thread-0', options: {limit: 1}}),
+      )
+      expect(transcript.sessionId).toBe('thread-0')
+      // The second listing and the thread read reuse the first scan: no transcript is decoded again.
+      expect(decode.mock.calls.length).toBeLessThan(eventsPerSession)
+    } finally {
+      decode.mockRestore()
+    }
+  })
+})
+
+describe('publish grant', () => {
+  test('ungranted agents write memory freely but cannot publish hm:// or ipfs://', async () => {
+    const context = makeContext({publishEnabled: false})
+    const memoryWrite = await executeWriteVerb(context, {address: '~/memory/ok.txt', content: 'fine'})
+    expect(String(memoryWrite.summary)).toContain('Wrote')
+    await expect(
+      executeWriteVerb(context, {address: 'hm://z6MkDoc/notes', content: 'x', options: {name: 'X'}}),
+    ).rejects.toThrow('Publishing is not enabled')
+    await expect(
+      executeWriteVerb(context, {address: 'ipfs://', options: {fromPath: '~/memory/ok.txt'}}),
+    ).rejects.toThrow('Publishing is not enabled')
+  })
+})
+
+describe('mcp tools through the call verb', () => {
+  function seedMcp(
+    context: AgentServicePiToolContext,
+    server: string,
+    tools: Array<{name: string; description?: string; inputSchema?: unknown}>,
+  ) {
+    const now = Date.now()
+    context.db.run(
+      `INSERT INTO mcp_servers (id, account_id, name, config_cbor, tools_cbor, status_cbor, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, NULL, ?, ?)`,
+      [
+        `id-${server}`,
+        context.accountId,
+        server,
+        cborEncode({url: 'http://127.0.0.1:1/mcp'}),
+        cborEncode(tools.map((tool) => toolDocs.mcpToolInfoFromDescriptor(server, tool as never))),
+        now,
+        now,
+      ],
+    )
+    ;(context.definition as {mcpServers?: string[]}).mcpServers = [
+      ...((context.definition as {mcpServers?: string[]}).mcpServers ?? []),
+      server,
+    ]
+    toolDocs.syncMcpToolDocuments(
+      context.db,
+      context.accountId,
+      context.agentId,
+      (context.definition as never as {mcpServers: string[]}).mcpServers,
+    )
+  }
+
+  const forecastTool = {
+    name: 'forecast',
+    description: 'Forecast for a city.',
+    inputSchema: {type: 'object', properties: {city: {type: 'string'}}, required: ['city']},
+  }
+
+  test('call proxies to the server over the run pool and returns text, structured, and progress', async () => {
+    const calls: unknown[] = []
+    const context = makeContext({
+      mcp: {
+        callTool: mock(async (server: string, tool: string, args: unknown) => {
+          calls.push([server, tool, args])
+          return {text: 'Sunny, 24°C', structured: {tempC: 24}, images: [], isError: false}
+        }),
+      },
+    })
+    seedMcp(context, 'weather', [forecastTool])
+
+    const result = await executeCallVerb(
+      context,
+      {tool: 'weather__forecast', input: {city: 'Lisbon'}, description: 'Check the weather for the trip'},
+      'tc-mcp',
+    )
+    // The call-level description never reaches the server; the row reads it from the event.
+    expect(calls).toEqual([['weather', 'forecast', {city: 'Lisbon'}]])
+    expect(result.text).toBe('Sunny, 24°C')
+    expect(result.result).toEqual({tempC: 24})
+    // The summary names the call by its first short argument; a promoted row reads `argument` alone.
+    expect(result.summary).toBe('forecast · Lisbon')
+    expect(result.argument).toBe('Lisbon')
+    expect(context.onToolProgress).toHaveBeenCalledWith('call', expect.objectContaining({toolCallId: 'tc-mcp'}))
+  })
+
+  test('a call whose arguments are long or non-string falls back to naming the server', async () => {
+    const context = makeContext({
+      mcp: {callTool: mock(async () => ({text: 'ok', images: [], isError: false}))},
+    })
+    seedMcp(context, 'notes', [{name: 'append'}])
+    const result = await executeCallVerb(
+      context,
+      {tool: 'notes__append', input: {count: 3, body: 'x'.repeat(200)}},
+      'tc-long',
+    )
+    expect(result.summary).toBe('Ran append on the notes MCP server')
+    expect(result.argument).toBeUndefined()
+    expect(apisvc.firstShortStringArgument({a: '  spaced   out  ', b: 'second'})).toBe('spaced out')
+    expect(apisvc.firstShortStringArgument({a: '', b: 'second'})).toBe('second')
+  })
+
+  test('a miss answers with the contract; server errors and transport failures are thrown', async () => {
+    const context = makeContext({
+      mcp: {
+        callTool: mock(async (_server: string, tool: string) => {
+          if (tool === 'broken') return {text: 'boom', images: [], isError: true}
+          throw new Error('connection refused')
+        }),
+      },
+    })
+    seedMcp(context, 'weather', [forecastTool, {name: 'broken'}, {name: 'down'}])
+
+    const miss = await executeCallVerb(context, {tool: 'weather__forecast', input: {}}, 'tc-miss')
+    expect(String(miss.summary)).toContain('did not match its contract')
+    expect(String(miss.contract)).toContain('# weather__forecast')
+    expect(miss.validationErrors).toBeArray()
+
+    await expect(executeCallVerb(context, {tool: 'weather__broken', input: {}}, 'tc-err')).rejects.toThrow(
+      /reported an error: boom/,
+    )
+    await expect(executeCallVerb(context, {tool: 'weather__down', input: {}}, 'tc-down')).rejects.toThrow(
+      /could not run down: connection refused/,
+    )
+  })
+
+  test('a server the agent no longer enables cannot be reached, and a context without a pool refuses', async () => {
+    const context = makeContext({mcp: {callTool: mock(async () => ({text: '', images: [], isError: false}))}})
+    seedMcp(context, 'weather', [forecastTool])
+    ;(context.definition as {mcpServers?: string[]}).mcpServers = []
+    // The stale document is still present here (sync has not run); the grant check is the guard.
+    await expect(executeCallVerb(context, {tool: 'weather__forecast', input: {city: 'x'}}, 'tc')).rejects.toThrow(
+      /not enabled for this agent/,
+    )
+    ;(context.definition as {mcpServers?: string[]}).mcpServers = ['weather']
+    delete context.mcp
+    await expect(executeCallVerb(context, {tool: 'weather__forecast', input: {city: 'x'}}, 'tc')).rejects.toThrow(
+      /cannot open/,
+    )
+  })
+
+  test('image results ride to vision models only', async () => {
+    const pool = {
+      callTool: mock(async () => ({
+        text: 'a chart',
+        structured: undefined,
+        images: [{data: 'AAAA', mimeType: 'image/png'}],
+        isError: false,
+      })),
+    }
+    const blind = makeContext({mcp: pool, modelAcceptsImages: false})
+    seedMcp(blind, 'charts', [{name: 'render'}])
+    const blindResult = await executeCallVerb(blind, {tool: 'charts__render', input: {}}, 'tc')
+    expect(blindResult.images).toBe(1)
+    expect(blindResult.piContent).toBeUndefined()
+
+    const seeing = makeContext({mcp: pool, modelAcceptsImages: true})
+    seedMcp(seeing, 'charts', [{name: 'render'}])
+    const seeingResult = await executeCallVerb(seeing, {tool: 'charts__render', input: {}}, 'tc')
+    expect(seeingResult.piContent).toEqual([
+      {type: 'text', text: 'a chart'},
+      {type: 'image', data: 'AAAA', mimeType: 'image/png'},
+    ])
+  })
+
+  test('remote tools appear in the index and listing with their server, and collapse past a handful', async () => {
+    const context = makeContext()
+    seedMcp(context, 'weather', [forecastTool])
+    seedMcp(
+      context,
+      'github',
+      Array.from({length: 9}, (_, index) => ({name: `tool_${index}`, description: `Tool ${index}.`})),
+    )
+    apisvc.invalidateSpaceIndex('test-account', 'test-agent')
+    const index = apisvc.buildSpaceIndex({
+      db: context.db,
+      accountId: 'test-account',
+      agentId: 'test-agent',
+      stateDir: context.stateDir,
+      callableTools: context.callableTools,
+    })
+    expect(index).toContain('- weather__forecast — Forecast for a city. (weather MCP)')
+    expect(index).toContain('- github__* — 9 tools from the github MCP server')
+    expect(index).not.toContain('github__tool_3')
+
+    const listing = await executeReadVerb(context, {address: '~/tools/'})
+    expect(String(listing.markdown)).toContain('weather__forecast — Forecast for a city. (weather MCP)')
+    expect(String(listing.markdown)).toContain('github__tool_3 — Tool 3. (github MCP)')
+
+    const contract = await executeReadVerb(context, {address: '~/tools/weather__forecast'})
+    expect(contract.kind).toBe('mcp')
+    expect(String(contract.markdown)).toContain('`forecast` on the weather MCP server')
+    expect(String(contract.markdown)).toContain('"required"')
+  })
+})
+
+describe('trigger write safeguards', () => {
+  const me = 'z6MkAgentUid'
+  const mentions = {type: 'user-mention', mentionedAccounts: [me]}
+  const reply = (id: string, author: string, parentAuthor: string) => ({
+    id,
+    type: 'comment',
+    feedEventId: `blob-${id}`,
+    author: {id: {uid: author, id: `hm://${author}`, path: []}},
+    comment: {author, targetAccount: 'z6MkSite', targetPath: '/notes', content: []},
+    replyParentAuthor: {id: {uid: parentAuthor, id: `hm://${parentAuthor}`, path: []}},
+    target: {id: {id: 'hm://z6MkSite/notes', uid: 'z6MkSite', path: ['notes']}},
+  })
+
+  function mockActivity(events: unknown[]) {
+    const originalFetch = globalThis.fetch
+    cleanups.push(() => {
+      globalThis.fetch = originalFetch
+    })
+    globalThis.fetch = mock(async (url: string | URL) => {
+      const href = decodeURIComponent(String(url))
+      if (href.includes('ListEvents')) return Response.json(serialize({events, nextPageToken: ''}))
+      throw new Error(`Unexpected fetch: ${href}`)
+    }) as unknown as typeof fetch
+  }
+
+  test('dryRun replays recent activity without saving, so agents never need test triggers', async () => {
+    const context = makeContext()
+    mockActivity([reply('bafyA', 'z6MkUser', me), reply('bafyB', 'z6MkUser', 'z6MkOther'), reply('bafyC', me, me)])
+    const content = JSON.stringify({
+      source: {
+        type: 'activity',
+        conditions: [
+          {id: 'mention', source: mentions},
+          {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: [me]}},
+        ],
+      },
+      prompt: 'Respond.',
+    })
+    const result = await executeWriteVerb(context, {address: '~/triggers/respond', content, options: {dryRun: true}})
+    expect(result).toMatchObject({dryRun: true, saved: false, scannedEvents: 3, wouldFire: 1})
+    expect(result.matchesPerCondition).toEqual({mention: 0, reply: 1})
+    expect(String(result.summary)).toContain('Nothing was saved')
+    // The top-level dryRun flag works too.
+    const topLevel = await executeWriteVerb(context, {address: '~/triggers/respond', content, dryRun: true})
+    expect(topLevel.wouldFire).toBe(1)
+    expect(context.db.query('SELECT id FROM agent_triggers').all()).toHaveLength(0)
+    expect(context.onTriggersChange).not.toHaveBeenCalled()
+  })
+
+  test('dryRun flags filters that match most activity', async () => {
+    const context = makeContext()
+    mockActivity(Array.from({length: 20}, (_, index) => reply(`bafy${index}`, 'z6MkUser', 'z6MkOther')))
+    const result = await executeWriteVerb(context, {
+      address: '~/triggers/all-comments',
+      content: JSON.stringify({source: {type: 'document-comment', resource: 'hm://z6MkSite'}, prompt: 'x'}),
+      options: {dryRun: true},
+    })
+    expect(result.wouldFire).toBe(20)
+    expect(String(result.summary)).toContain('too broad')
+  })
+
+  test('rejects wildcard documents and unknown event types', async () => {
+    const context = makeContext()
+    for (const source of [
+      {type: 'document-comment', resource: 'hm://*'},
+      {type: 'site-update', resourcePrefix: 'hm://', eventTypes: ['comment']},
+    ]) {
+      await expect(
+        executeWriteVerb(context, {address: '~/triggers/bad', content: JSON.stringify({source, prompt: 'x'})}),
+      ).rejects.toThrow('must name an account or document')
+    }
+    await expect(
+      executeWriteVerb(context, {
+        address: '~/triggers/bad',
+        content: JSON.stringify({
+          source: {type: 'site-update', resourcePrefix: 'hm://z6MkSite', eventTypes: ['comment-reply']},
+          prompt: 'x',
+        }),
+      }),
+    ).rejects.toThrow('Unknown site-update event type "comment-reply"')
+  })
+
+  test('edits cannot silently turn an activity trigger into a frequent schedule', async () => {
+    const context = makeContext()
+    await executeWriteVerb(context, {
+      address: '~/triggers/mentions',
+      content: JSON.stringify({source: mentions, prompt: 'Reply.'}),
+    })
+    const everyMinute = JSON.stringify({
+      source: {type: 'schedule', schedule: {kind: 'interval', every: 1, unit: 'minutes'}},
+      prompt: 'Check for failures.',
+    })
+    await expect(executeWriteVerb(context, {address: '~/triggers/mentions', content: everyMinute})).rejects.toThrow(
+      'options {replaceSource: true}',
+    )
+    await expect(
+      executeWriteVerb(context, {address: '~/triggers/mentions', content: everyMinute, options: {replaceSource: true}}),
+    ).rejects.toThrow('options {frequentSchedule: true}')
+    await expect(executeWriteVerb(context, {address: '~/triggers/poll', content: everyMinute})).rejects.toThrow(
+      'fires 60 times an hour',
+    )
+    const replaced = await executeWriteVerb(context, {
+      address: '~/triggers/mentions',
+      content: everyMinute,
+      options: {replaceSource: true, frequentSchedule: true},
+    })
+    expect((replaced.source as {type: string}).type).toBe('schedule')
+    // Adding a condition keeps the activity kind, so it needs no option.
+    await executeWriteVerb(context, {
+      address: '~/triggers/replies',
+      content: JSON.stringify({source: mentions, prompt: 'Reply.'}),
+    })
+    const extended = await executeWriteVerb(context, {
+      address: '~/triggers/replies',
+      content: JSON.stringify({
+        source: {
+          type: 'activity',
+          conditions: [
+            {id: 'mention', source: mentions},
+            {id: 'reply', source: {type: 'comment-reply', repliedToAccounts: [me]}},
+          ],
+        },
+        prompt: 'Reply.',
+      }),
+    })
+    expect((extended.source as {type: string}).type).toBe('activity')
+  })
+
+  test('the listing tells agents which source fits which request', async () => {
+    const context = makeContext()
+    const listing = await executeReadVerb(context, {address: '~/triggers/'})
+    const contract = String(listing.contract)
+    expect(contract).toContain('replies directly to a comment by an account → {type: "comment-reply"')
+    expect(contract).toContain('options {dryRun: true}')
+    expect(contract).toContain('never create test triggers')
+    expect(contract).toContain('no wildcards')
+  })
+})
+
+describe('metadata attributes', () => {
+  type Metadata = Parameters<typeof apisvc.metadataToWriteSetAttributes>[0]
+
+  test('a nested map becomes one SetAttributes leaf per key path', () => {
+    // The daemon indexes attributes by key path. A map written as one value stays in the document
+    // but never reaches the index, so an app's `arguments.apiKey.secret` would be invisible to
+    // `query` and to the typed-document listings.
+    const metadata = {
+      name: 'Datalab converter',
+      slug: 'convert',
+      arguments: {apiKey: {type: 'string', secret: true, order: 1}},
+      usage: {meter: 'per-unit'},
+      cover: null,
+    } as unknown as Metadata
+    expect(apisvc.metadataToWriteSetAttributes(metadata)).toEqual([
+      {
+        type: 'SetAttributes',
+        attrs: [
+          {key: ['name'], value: 'Datalab converter'},
+          {key: ['slug'], value: 'convert'},
+          {key: ['arguments', 'apiKey', 'type'], value: 'string'},
+          {key: ['arguments', 'apiKey', 'secret'], value: true},
+          {key: ['arguments', 'apiKey', 'order'], value: 1},
+          {key: ['usage', 'meter'], value: 'per-unit'},
+          {key: ['cover'], value: null},
+        ],
+      },
+    ])
+  })
+
+  test('undefined values and empty maps set nothing, and a list passes through whole', () => {
+    expect(apisvc.metadataToWriteSetAttributes({name: undefined, empty: {}} as unknown as Metadata)).toEqual([])
+    const ops: unknown = apisvc.metadataToWriteSetAttributes({importTags: ['a', 'b']} as unknown as Metadata)
+    expect(ops).toEqual([{type: 'SetAttributes', attrs: [{key: ['importTags'], value: ['a', 'b']}]}])
+  })
+})

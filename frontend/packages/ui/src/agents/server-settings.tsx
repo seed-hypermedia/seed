@@ -26,7 +26,8 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {Tooltip} from '@shm/ui/tooltip'
 import {useAppDialog} from '@shm/ui/universal-dialog'
-import {CircleUserRound, Plus, Settings, Trash} from 'lucide-react'
+import {CircleUserRound, Package, Plus, Settings, Trash} from 'lucide-react'
+import {AppsDialog} from './apps'
 import {useState} from 'react'
 import {useSelectedAccountId} from './account'
 import {ManageAgentAccountsDialog, ModelProvidersDialog} from './dialogs'
@@ -45,7 +46,7 @@ import {
 import {getAgentsPlatform} from './platform'
 
 /**
- * Manages the configured agent servers: add, remove, pick the default, and open each server's
+ * Manages the configured app environments: add, remove, pick the default, and open each server's
  * Accounts and Providers dialogs. This is the only place those dialogs live; agents themselves
  * are made from a home document's New menu.
  */
@@ -64,10 +65,12 @@ export function AgentServersSettings() {
   const selectedAccountId = useSelectedAccountId()
   const providersDialog = useAppDialog(ModelProvidersDialog)
   const manageAccountsDialog = useAppDialog(ManageAgentAccountsDialog)
+  const appsDialog = useAppDialog(AppsDialog)
   const serverDialogs = selectedAccountId
     ? {
         onOpenAccounts: (serverUrl: string) => manageAccountsDialog.open({serverUrl, selectedAccountId}),
         onOpenProviders: (serverUrl: string) => providersDialog.open({serverUrl, selectedAccountId}),
+        onOpenApps: (serverUrl: string) => appsDialog.open({serverUrl, selectedAccountId}),
       }
     : {}
 
@@ -77,9 +80,9 @@ export function AgentServersSettings() {
       await setServers.mutateAsync(next)
       setDraftUrl(builtInDefaultUrl ?? '')
       setIsAddOpen(false)
-      toast.success('Agent server added')
+      toast.success('App environment added')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not add agent server')
+      toast.error(error instanceof Error ? error.message : 'Could not add app environment')
     }
   }
 
@@ -87,28 +90,29 @@ export function AgentServersSettings() {
     try {
       const next = (servers.data || []).filter((url) => url !== serverUrl)
       await setServers.mutateAsync(next)
-      toast.success('Agent server removed')
+      toast.success('App environment removed')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not remove agent server')
+      toast.error(error instanceof Error ? error.message : 'Could not remove app environment')
     }
   }
 
   async function makeDefault(serverUrl: string) {
     try {
       await setDefaultServer.mutateAsync(serverUrl)
-      toast.success('Default agent server updated')
+      toast.success('Default app environment updated')
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Could not update default agent server')
+      toast.error(error instanceof Error ? error.message : 'Could not update default app environment')
     }
   }
 
   return (
     <div className="flex flex-col gap-3 py-3">
       <SizableText size="sm" className="text-muted-foreground">
-        The AI agent servers your agents can run on. New agents are created from a home document's New menu.
+        The AI app environments your agents can run on. New agents are created from a home document's New menu.
       </SizableText>
       {providersDialog.content}
       {manageAccountsDialog.content}
+      {appsDialog.content}
       <div className="flex flex-col gap-2">
         {localServerUrl.data ? (
           <AgentServerSettingsRow
@@ -132,7 +136,7 @@ export function AgentServersSettings() {
         ))}
         {!servers.data?.length && !localServerUrl.data ? (
           <SizableText size="sm" className="text-muted-foreground">
-            No agent servers configured.
+            No app environments configured.
           </SizableText>
         ) : null}
       </div>
@@ -146,8 +150,8 @@ export function AgentServersSettings() {
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add agent server</DialogTitle>
-            <DialogDescription>Enter the URL of the agent server you want to connect to.</DialogDescription>
+            <DialogTitle>Add app environment</DialogTitle>
+            <DialogDescription>Enter the URL of the app environment you want to connect to.</DialogDescription>
           </DialogHeader>
           <Input
             value={draftUrl}
@@ -172,7 +176,7 @@ export function AgentServersSettings() {
 }
 
 /**
- * Desktop only: runs or stops the bundled local agents server. Off unless the user (or an upgrade
+ * Desktop only: runs or stops the bundled local app environment. Off unless the user (or an upgrade
  * that found agents in it) turned it on; the dev server the app attaches to cannot be switched.
  */
 function LocalAgentServerSwitch() {
@@ -188,26 +192,26 @@ function LocalAgentServerSwitch() {
     <div className="border-border flex items-center justify-between gap-3 rounded-lg border px-3 py-2">
       <div className="flex min-w-0 flex-col gap-0.5">
         <SizableText size="sm" weight="bold">
-          Local agents server
+          Local app environment
         </SizableText>
         <SizableText size="xs" className="text-muted-foreground">
           {attached
-            ? 'Attached to the agents server already running on this computer.'
+            ? 'Attached to the app environment already running on this computer.'
             : state.data?.t === 'error'
               ? `Could not start: ${state.data.message}`
-              : `Runs an agents server on this computer. Off by default${
+              : `Runs an app environment on this computer. Off by default${
                   defaultHost ? `; agents normally run on ${defaultHost}` : ''
                 }.`}
         </SizableText>
       </div>
       <Switch
-        aria-label="Run a local agents server"
+        aria-label="Run a local app environment"
         checked={running}
         disabled={attached || state.isLoading || setEnabled.isLoading}
         onCheckedChange={(checked) =>
           setEnabled.mutate(checked, {
             onError: (error) =>
-              toast.error(error instanceof Error ? error.message : 'Could not change the local agents server'),
+              toast.error(error instanceof Error ? error.message : 'Could not change the local app environment'),
           })
         }
       />
@@ -223,6 +227,7 @@ function AgentServerSettingsRow({
   onRemove,
   onOpenAccounts,
   onOpenProviders,
+  onOpenApps,
 }: {
   serverUrl: string
   isDefault: boolean
@@ -234,6 +239,8 @@ function AgentServerSettingsRow({
   onOpenAccounts?: (serverUrl: string) => void
   /** The server's model providers dialog; absent without an account to sign with. */
   onOpenProviders?: (serverUrl: string) => void
+  /** The apps installed on this environment, the installs the account sees and the catalog; absent without an account. */
+  onOpenApps?: (serverUrl: string) => void
 }) {
   const health = useAgentServerHealth(serverUrl)
   return (
@@ -266,6 +273,12 @@ function AgentServerSettingsRow({
             Providers
           </Button>
         ) : null}
+        {onOpenApps ? (
+          <Button variant="outline" size="sm" onClick={() => onOpenApps(serverUrl)}>
+            <Package className="size-4" />
+            Apps
+          </Button>
+        ) : null}
         {isDefault ? null : (
           <Button
             variant="outline"
@@ -278,7 +291,7 @@ function AgentServerSettingsRow({
         )}
         {isLocal ? null : (
           <AlertDialog>
-            <Tooltip content="Remove agent server">
+            <Tooltip content="Remove app environment">
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="icon">
                   <Trash className="size-4" />
@@ -288,7 +301,7 @@ function AgentServerSettingsRow({
             </Tooltip>
             <AlertDialogPortal>
               <AlertDialogContent className="max-w-[500px] gap-4">
-                <AlertDialogTitle className="text-2xl font-bold">Remove Agent Server</AlertDialogTitle>
+                <AlertDialogTitle className="text-2xl font-bold">Remove app environment</AlertDialogTitle>
                 <AlertDialogDescription>
                   Are you sure you want to remove {serverUrl}? You can add it back later.
                 </AlertDialogDescription>
@@ -318,7 +331,7 @@ function AgentServerSettingsRow({
 export function AgentServersDialog({}: {input: true; onClose: () => void}) {
   return (
     <div className="flex max-h-[78vh] w-full flex-col gap-1 overflow-y-auto">
-      <DialogTitle>Agent Servers</DialogTitle>
+      <DialogTitle>App environments</DialogTitle>
       <AgentServersSettings />
     </div>
   )

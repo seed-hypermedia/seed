@@ -29,14 +29,14 @@ These pages are markdown files in the Seed repository under `hypermedia/`. A com
 | Term pages | Each blob and value type has its own page with the formal schema attached: [blob](./blob.md), [change](./change.md), [ref](./ref.md), [document](./document.md), [block](./block.md), [comment](./comment.md), [capability](./capability.md), [contact](./contact.md), [profile](./profile.md), [metadata](./metadata.md), [query](./query.md), [cid](./cid.md), [principal](./principal.md), [visibility](./visibility.md) and more. <!-- id:tCyoXf1D --> |
 | [Schemas](./schema.md) | Hypermedia Schemas, the self-describing type system for content-addressed data, and how documents bind to a schema. <!-- id:Nvjpu90L --> |
 | [Build](./build.md) | Task guides: [getting started](./build/getting-started.md), [the web API](./build/web-api.md), [gRPC](./build/grpc.md), [the SDK](./build/sdk.md), [the CLI](./build/cli.md), [agents](./build/agents.md), [keys](./build/keys.md), [sign in with Seed](./build/sign-in.md), [publish a folder](./build/publish-a-folder.md), [self-hosting](./build/self-hosting.md), [the query grammar](./build/query-grammar.md), [contributing](./build/contributing.md). <!-- id:YvFfuP_o --> |
-| [Agents](./agent.md) | Seed Agents, the hosted agent runtime. An agent has a [space](./agent/space.md), tools and [triggers](./agent/triggers.md), and reads and writes Hypermedia through the Seed API with delegated keys. <!-- id:Jyf-DAx2 --> |
+| [Agents](./agent.md) | Seed Agents and the app environment that runs them: an agent is an [app](./app.md) with a model, and a space [installs apps](./app-environment/agent-apps.md) for its agents. An agent has a [space](./app-environment/space.md), tools and [triggers](./app-environment/triggers.md), and reads and writes Hypermedia through the Seed API with delegated keys. <!-- id:Jyf-DAx2 --> |
 | [Apps](./apps.md) | The Seed software, one page per program. <!-- id:IUS1Ivva --> |
 | [Examples](./example.md) | Example schemas and typed instances. <!-- id:xVNduUPu --> |
 | [Glossary](./glossary.md) | Every term in one line, with a table of retired names. <!-- id:dvqdYbSA --> |
 
 # Where this is going <!-- id:dP4wg_p_ -->
 
-The protocol is in active design. Concept pages describe what the daemon does today. Direction that is decided but not built lives on one dated page, [Where this is going](./protocol/roadmap.md), and the pages it affects link to it. Seed Agents keeps its own live [roadmap](./agent/roadmap.md). <!-- id:yJc-YqvE -->
+The protocol is in active design. Concept pages describe what the daemon does today. Direction that is decided but not built lives on one dated page, [Where this is going](./protocol/roadmap.md), and the pages it affects link to it. Seed Agents keeps its own live [roadmap](./app-environment/roadmap.md). <!-- id:yJc-YqvE -->
 
 # For agents <!-- id:GB3nY3rU -->
 

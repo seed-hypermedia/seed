@@ -3,7 +3,7 @@ import {PenLine, BookOpenText, X} from 'lucide-react'
 import {Button} from '@shm/ui/button'
 import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
-import {getSeedTool, type JsonSchema} from '@seed-hypermedia/agents-protocol'
+import {getSeedTool, type JsonSchema} from '@seed-hypermedia/apps-protocol'
 import {useAgentServerHealth, useInvokeSessionTool} from './models'
 import {
   DEFAULT_AGENT_TOOLS,

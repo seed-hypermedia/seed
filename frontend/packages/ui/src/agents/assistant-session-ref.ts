@@ -1,7 +1,7 @@
 /**
  * Identity of a session shown in the assistant sidebar.
  *
- * Session ids are only unique per agent server, so the sidebar — which lists sessions from every
+ * Session ids are only unique per app environment, so the sidebar — which lists sessions from every
  * configured server at once — must carry the server URL alongside the id. The window state that
  * persists the sidebar selection stores a single string, so the pair is serialized rather than
  * widening that IPC contract.

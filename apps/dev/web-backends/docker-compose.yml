@@ -1,0 +1,32 @@
+# Local development backends for the agents web_search / web_read tools.
+#
+#   cd apps/dev/web-backends && docker compose up -d
+#   cd ../.. && bun run dev   # the dev script already targets these endpoints by default
+#
+# `bun run dev` defaults SEED_APPS_SEARXNG_URL / SEED_APPS_CRAWLER_URL / SEED_APPS_CRAWLER_TOKEN to the values
+# below; export those env vars to override. These are dev defaults bound to loopback — do not reuse them in production.
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: seed-agents-dev-searxng
+    ports:
+      - '127.0.0.1:8899:8080'
+    volumes:
+      # `z` labels the directory for SELinux hosts (Fedora, RHEL); without it the container cannot even read it.
+      - ./searxng:/etc/searxng:rw,z
+    environment:
+      - SEARXNG_SECRET_KEY=dev-secret-key-change-me
+      # The image chowns /etc/searxng to its own user at start, which would take the checked-in settings.yml
+      # away from the developer. It only reads the file, so ownership can stay as it is.
+      - FORCE_OWNERSHIP=false
+    restart: unless-stopped
+
+  crawl4ai:
+    image: unclecode/crawl4ai:0.9.0
+    container_name: seed-agents-dev-crawl4ai
+    ports:
+      - '127.0.0.1:11235:11235'
+    shm_size: '1g'
+    environment:
+      - CRAWL4AI_API_TOKEN=dev-crawl-token
+    restart: unless-stopped

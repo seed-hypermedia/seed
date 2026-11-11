@@ -47,6 +47,7 @@ import {
   useUpdateAgent,
   useUpdateAgentTrigger,
   useUpdateSigningIdentity,
+  useApps,
 } from './models'
 import {describeAgentError} from './errors'
 import {SessionListItem} from './session-list-item'
@@ -84,6 +85,7 @@ import {SizableText} from '@shm/ui/text'
 import {Spinner} from '@shm/ui/spinner'
 import {toast} from '@shm/ui/toast'
 import {useAppDialog} from '@shm/ui/universal-dialog'
+import {AppCatalog, AppsDialog} from './apps'
 import {
   ArrowRight,
   ArrowRightLeft,
@@ -105,13 +107,15 @@ import {
 import {AccountAvatar} from '@shm/ui/account-avatar'
 import {SigningIdentityIcon} from './signing-identity-icon'
 import React, {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
-import {activityConditions, getSeedTool} from '@seed-hypermedia/agents-protocol'
+import {activityConditions, getSeedTool} from '@seed-hypermedia/apps-protocol'
 import {
   AGENT_PUBLISH_GRANT,
   DEFAULT_AGENT_TOOLS,
   normalizeStoredAgentTools,
   getToolAvailability,
+  appToolContract,
   type AgentServerWebCapabilities,
+  type ToolContractView,
 } from './agent-tools'
 import {AgentMemoryTab} from './memory'
 import {
@@ -142,7 +146,7 @@ import {
 import {AgentHeader, AgentSubpageHeader, type AgentPageTab} from './header'
 import {writeStickyAgentSession} from './sticky-session'
 import {MoveAgentDialog} from './move-agent-dialog'
-import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/agents-protocol'
+import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/apps-protocol'
 import {ProviderModelSelect} from './provider-model-select'
 import {coerceReasoningLevel, ReasoningSlider} from './reasoning-select'
 import {ThoroughnessPicker} from './thoroughness-select'
@@ -629,7 +633,7 @@ export function AgentDetailPage({
                 <pre className="border-input bg-muted/40 text-muted-foreground min-h-80 rounded-lg border p-4 text-sm break-words whitespace-pre-wrap">
                   {!canWrite
                     ? promptBlocksToMarkdown(systemPrompt) || 'No system prompt configured.'
-                    : 'Connect to the agent server to edit this prompt.'}
+                    : 'Connect to the app environment to edit this prompt.'}
                 </pre>
               ) : (
                 <AgentPromptEditor
@@ -1294,8 +1298,8 @@ function DeleteAgentDialog({
     <div className="flex flex-col gap-4 rounded-lg p-4">
       <AlertDialogTitle>Delete agent?</AlertDialogTitle>
       <AlertDialogDescription>
-        This will permanently delete “{input.agentName}” and its sessions, triggers, and drafts from the agent server.
-        This action cannot be undone.
+        This will permanently delete “{input.agentName}” and its sessions, triggers, and drafts from the app
+        environment. This action cannot be undone.
       </AlertDialogDescription>
       <AlertDialogFooter>
         <AlertDialogCancel asChild>
@@ -1564,8 +1568,26 @@ function DeleteAuthoredToolDialog({
 }
 
 /** Shows the exact model-facing prompt and JSON schemas for a single tool, for agent-owner transparency. */
-function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: () => void}) {
-  const meta = getSeedTool(input.toolName)
+function ToolInfoDialog({
+  input,
+  onClose,
+}: {
+  input: {toolName: string; contract?: ToolContractView}
+  onClose: () => void
+}) {
+  // An app's tool brings its contract along (see appToolContract); a builtin's is in the registry.
+  const registered = input.contract ? undefined : getSeedTool(input.toolName)
+  const meta: ToolContractView | undefined =
+    input.contract ??
+    (registered
+      ? {
+          label: registered.label,
+          name: registered.name,
+          description: registered.description,
+          inputSchema: registered.inputSchema,
+          ...(registered.outputSchema ? {outputSchema: registered.outputSchema} : {}),
+        }
+      : undefined)
   if (!meta) {
     return (
       <div className="flex flex-col gap-3">
@@ -1584,22 +1606,29 @@ function ToolInfoDialog({input, onClose}: {input: {toolName: string}; onClose: (
           {meta.name}
         </SizableText>
       </div>
+      {meta.note ? (
+        <Notice size="sm" tone="warning">
+          {meta.note}
+        </Notice>
+      ) : null}
       <div className="flex flex-col gap-1">
         <SizableText size="sm" weight="bold">
           Description sent to the model
         </SizableText>
-        <SizableText size="sm" color="muted">
+        <SizableText size="sm" color="muted" className="whitespace-pre-wrap">
           {meta.description}
         </SizableText>
       </div>
-      <div className="flex flex-col gap-1">
-        <SizableText size="sm" weight="bold">
-          Input schema
-        </SizableText>
-        <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
-          {JSON.stringify(meta.inputSchema, null, 2)}
-        </pre>
-      </div>
+      {meta.inputSchema !== undefined ? (
+        <div className="flex flex-col gap-1">
+          <SizableText size="sm" weight="bold">
+            Input schema
+          </SizableText>
+          <pre className="bg-muted overflow-x-auto rounded-lg p-3 text-xs whitespace-pre">
+            {JSON.stringify(meta.inputSchema, null, 2)}
+          </pre>
+        </div>
+      ) : null}
       {meta.outputSchema ? (
         <div className="flex flex-col gap-1">
           <SizableText size="sm" weight="bold">
@@ -1703,13 +1732,26 @@ function useAgentDefinitionPatch(
   const [enabledTools, setEnabledTools] = useState<string[]>(storedTools)
   const [signingKeys, setSigningKeys] = useState<string[]>(storedSigningKeys)
   const [mcpServers, setMcpServers] = useState<string[]>(definition.mcpServers ?? [])
+  const [disabledApps, setDisabledApps] = useState<string[]>(definition.disabledApps ?? [])
 
   useEffect(() => {
     setEnabledTools(storedTools())
     setSigningKeys(storedSigningKeys())
     setMcpServers(definition.mcpServers ?? [])
+    setDisabledApps(definition.disabledApps ?? [])
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [definition])
+
+  /** Installed apps reach every agent; this is the agent's opt-out, one app at a time. */
+  async function saveDisabledApps(next: string[]) {
+    setDisabledApps(next)
+    try {
+      await onSave({...definition, disabledApps: next})
+    } catch (error) {
+      setDisabledApps(definition.disabledApps ?? [])
+      toast.error(error instanceof Error ? error.message : 'Could not update the apps this agent uses')
+    }
+  }
 
   /** Which of the account's MCP servers this agent may call; the server re-projects their tools. */
   async function saveMcpServers(next: string[]) {
@@ -1740,7 +1782,7 @@ function useAgentDefinitionPatch(
     }
   }
 
-  return {enabledTools, signingKeys, mcpServers, saveTools, saveMcpServers}
+  return {enabledTools, signingKeys, mcpServers, disabledApps, saveTools, saveMcpServers, saveDisabledApps}
 }
 
 /** Settings > Permissions: the grant toggles and the authored tools. */
@@ -1771,9 +1813,15 @@ function AgentPermissionsPage({
   const authoredToolDialog = useAppDialog(AuthoredToolDialog, {className: 'w-full max-w-3xl'})
   const deleteAuthoredToolDialog = useAppDialog(DeleteAuthoredToolDialog, {isAlert: true})
   const enableWhpDialog = useAppDialog(EnableWindowsHypervisorDialog)
+  const appsDialog = useAppDialog(AppsDialog)
   const agentTools = useAgentTools(serverUrl, accountUid, agentId)
-  const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda')
-  const {enabledTools, signingKeys, saveTools} = useAgentDefinitionPatch(definition, onSave)
+  const apps = useApps(serverUrl, accountUid)
+  // An app's tool is a lambda too, but it is the app's page, not the agent's to edit here.
+  const authoredTools = (agentTools.data?.tools ?? []).filter((tool) => tool.kind === 'lambda' && !tool.app)
+  const {enabledTools, signingKeys, disabledApps, saveTools, saveDisabledApps} = useAgentDefinitionPatch(
+    definition,
+    onSave,
+  )
   const grantedIdentities = identities.filter((identity) => signingKeys.includes(identity.name))
 
   return (
@@ -1873,6 +1921,100 @@ function AgentPermissionsPage({
             </div>
           )
         })}
+        {(apps.data?.apps ?? []).map((app) => {
+          // Installed means granted: the app's tools reach this agent unless it is switched off here.
+          const enabled = !disabledApps.includes(app.slug)
+          const problem = app.status.state === 'error' ? app.status.error ?? 'This install offers no tools.' : null
+          return (
+            <div
+              key={app.slug}
+              className={`group/tool border-border bg-card flex flex-col gap-3 rounded-xl border px-4 py-3 ${
+                problem ? 'opacity-60' : ''
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={enabled}
+                  disabled={readOnly}
+                  aria-label={`${app.name}: ${enabled ? 'used by this agent' : 'not used by this agent'}`}
+                  onCheckedChange={(checked) =>
+                    void saveDisabledApps(
+                      checked ? disabledApps.filter((slug) => slug !== app.slug) : [...disabledApps, app.slug],
+                    )
+                  }
+                />
+                <SizableText size="sm" weight="bold" className="truncate">
+                  {app.name}
+                </SizableText>
+                <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                  App
+                </span>
+                {problem ? (
+                  <span className="bg-muted text-muted-foreground rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase">
+                    Not working
+                  </span>
+                ) : null}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pl-10">
+                {app.tools.map((tool) => (
+                  <button
+                    key={tool.tool}
+                    type="button"
+                    className="bg-muted hover:bg-accent flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-xs"
+                    aria-label={`About ${tool.tool}`}
+                    onClick={() =>
+                      toolInfoDialog.open({
+                        toolName: tool.tool,
+                        contract: appToolContract(
+                          app,
+                          tool,
+                          agentTools.data?.tools.find(
+                            (document) => document.app?.slug === app.slug && document.name === tool.tool,
+                          ),
+                        ),
+                      })
+                    }
+                  >
+                    {tool.tool}
+                    <Info className="size-3" />
+                  </button>
+                ))}
+              </div>
+              {problem ? (
+                <SizableText size="xs" color="muted" className="pl-10">
+                  {problem}{' '}
+                  {serverUrl ? (
+                    <button
+                      type="button"
+                      className="text-primary cursor-pointer underline underline-offset-2"
+                      onClick={() => appsDialog.open({serverUrl, selectedAccountId: accountUid})}
+                    >
+                      Open Apps
+                    </button>
+                  ) : null}
+                </SizableText>
+              ) : null}
+            </div>
+          )
+        })}
+        {serverUrl ? (
+          <div className="border-border bg-card flex flex-col gap-3 rounded-xl border px-4 py-3">
+            <AppCatalog serverUrl={serverUrl} accountUid={accountUid} />
+            <div className="flex items-center justify-between gap-3">
+              <SizableText size="xs" color="muted">
+                More tools come from apps: a key, a subscription or a service this server does not have on its own.
+              </SizableText>
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => appsDialog.open({serverUrl, selectedAccountId: accountUid})}
+              >
+                Manage apps
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {authoredTools.map((tool) => (
           <div
             key={tool.name}
@@ -1953,6 +2095,7 @@ function AgentPermissionsPage({
       {authoredToolDialog.content}
       {deleteAuthoredToolDialog.content}
       {enableWhpDialog.content}
+      {appsDialog.content}
 
       {saving ? (
         <SizableText size="xs" color="muted">
@@ -3283,7 +3426,7 @@ export default function AgentDetailRoutePage() {
   // immediately mentionable and openable elsewhere in the app.
   useAgentAccountsSync()
   if (route.key !== 'agent') return null
-  // Agent servers reject unauthenticated requests, so without an active account this page cannot
+  // App environments reject unauthenticated requests, so without an active account this page cannot
   // load the agent — gate it entirely (the back stack can land here after a sign-out).
   if (!selectedAccountId) return <AgentsNoAccountPage />
   return (

@@ -7,7 +7,7 @@ const serverUrl = 'https://agents.example'
 const accountUid = 'z6MkViewer'
 const agentId = 'agent-1'
 
-// The web app's query client: nothing refetches on mount, so an invalidation that only refetches
+// The web app's query client: nothing refetches on install, so an invalidation that only refetches
 // active queries leaves a cached-but-unmounted list stale until a full reload.
 function webQueryClient() {
   const client = new QueryClient({

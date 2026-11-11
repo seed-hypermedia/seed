@@ -3,7 +3,7 @@ const {once} = require('node:events')
 const path = require('node:path')
 const {test} = require('node:test')
 
-// Exercise the installed, patched dependency without creating or mounting a DMG.
+// Exercise the installed, patched dependency without creating or installing a DMG.
 for (const [name, background, error] of [
   ['reads the desktop background', 'frontend/apps/desktop/assets/dmg-background.png'],
   ['rejects an invalid image', 'package.json', /unsupported file type/i],

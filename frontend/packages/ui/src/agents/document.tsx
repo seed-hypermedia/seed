@@ -5,7 +5,7 @@ import {Spinner} from '../spinner'
 import {Button} from '../button'
 import {SizableText} from '../text'
 import type {AgentDocumentViewProps} from '../agent-document-view'
-import {isMountableAgentServerUrl} from '@seed-hypermedia/agents-protocol'
+import {isMountableAgentServerUrl} from '@seed-hypermedia/apps-protocol'
 import {AgentDetailPage} from './detail'
 import {AgentSessionPage} from './session'
 import {AgentsNoAccountPage} from './no-account'
@@ -48,7 +48,7 @@ export default function MountedAgentDocument({document, route, children}: AgentD
   if (!validServer)
     return (
       <p role="alert" className="p-5">
-        This document has no valid agent server address.
+        This document has no valid app environment address.
       </p>
     )
   if (!accountUid) return <AgentsNoAccountPage />
@@ -106,9 +106,9 @@ export default function MountedAgentDocument({document, route, children}: AgentD
                 This agent is not shared with your account
               </SizableText>
               <SizableText color="muted" className="break-words">
-                The agent server at {serverHost} has no agent for this document that your signed-in account can see. Ask
-                the agent's owner to share it with you from its Agent access tab, or sign in as the owner. If the agent
-                was orphaned or deleted, the server no longer knows this document.
+                The app environment at {serverHost} has no agent for this document that your signed-in account can see.
+                Ask the agent's owner to share it with you from its Agent access tab, or sign in as the owner. If the
+                agent was orphaned or deleted, the server no longer knows this document.
               </SizableText>
               <SizableText size="xs" color="muted">
                 This page checks again every few seconds.

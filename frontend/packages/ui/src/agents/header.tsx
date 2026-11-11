@@ -20,7 +20,7 @@ import {Badge} from '@shm/ui/components/badge'
 import {OptionsDropdown, type MenuItemType} from '@shm/ui/options-dropdown'
 import {PageTab} from '@shm/ui/page-tabs'
 import {coerceReasoningLevel, ReasoningPie, ReasoningSlider} from './reasoning-select'
-import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/agents-protocol'
+import {modelReasoningSupport, type ReasoningLevel, type Thoroughness} from '@seed-hypermedia/apps-protocol'
 import {ThoroughnessPicker} from './thoroughness-select'
 import {SizableText} from '@shm/ui/text'
 import {

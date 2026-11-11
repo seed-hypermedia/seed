@@ -10,7 +10,7 @@ import {
   flattenTree,
   getAncestorPathKeys,
 } from '@shm/shared/utils/all-documents-tree'
-import {Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X} from 'lucide-react'
+import {Bot, ChevronDown, ChevronRight, FileText, Grid3X3, Home, Lock, Plus, Search, X, Package} from 'lucide-react'
 import {useEffect, useMemo, useRef, useState} from 'react'
 import {Button} from './button'
 import {DocumentKindIcon, getDocumentKind} from './document-kind-icon'
@@ -117,9 +117,14 @@ export function SiteFileBrowser({
   const visibleDocuments = query.trim() ? matches : rows.map((row) => row.doc)
   const rowById = useMemo(() => new Map(rows.map((row) => [row.doc.id.id, row])), [rows])
   const createItems = createMenuItem?.children?.filter((item) =>
-    ['new-document', 'new-document-collection', 'new-collection', 'new-agent', 'new-private-document'].includes(
-      item.key,
-    ),
+    [
+      'new-document',
+      'new-document-collection',
+      'new-collection',
+      'new-agent',
+      'new-app',
+      'new-private-document',
+    ].includes(item.key),
   )
 
   function toggle(pathKey: string) {
@@ -159,6 +164,8 @@ export function SiteFileBrowser({
               <Grid3X3 className="size-4" />
             ) : item.key === 'new-agent' ? (
               <Bot className="size-4" />
+            ) : item.key === 'new-app' ? (
+              <Package className="size-4" />
             ) : (
               <Lock className="size-4" />
             )}

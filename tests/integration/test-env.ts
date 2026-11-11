@@ -53,7 +53,7 @@ export type TestEnvConfig = {
    * with its admin API (/hm/api/admin) open to this secret. The fixture site stays the root site.
    */
   gatewayAdminSecret?: string
-  /** The agents server the web app offers by default (its SEED_AGENT_SERVER_URL). */
+  /** The app environment the web app offers by default (its SEED_AGENT_SERVER_URL). */
   agentServerUrl?: string
 }
 

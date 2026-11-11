@@ -4,7 +4,7 @@ import {AccountAvatar} from '@shm/ui/account-avatar'
 import type {SigningIdentity} from './client'
 
 /**
- * Avatar for a signing identity, read from the account's live profile. The agents server keeps a
+ * Avatar for a signing identity, read from the account's live profile. The app environment keeps a
  * snapshot of the icon on the identity, but the agent (or any other client) can change its avatar
  * without going through UpdateSigningIdentity, so the snapshot is only a fallback.
  */

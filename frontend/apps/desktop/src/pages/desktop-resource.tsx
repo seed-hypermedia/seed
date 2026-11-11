@@ -100,6 +100,7 @@ import {createDocumentVersionsPanelRoute} from '@shm/ui/document-versions-panel'
 import {Download, Trash, UploadCloud} from '@shm/ui/icons'
 import {MenuItemType} from '@shm/ui/options-dropdown'
 import {useMountedAgentProfileMenuItem} from '@shm/ui/agents/mounted-agent-menu'
+import {usePublishAgentAsAppMenu} from '@shm/ui/agents/publish-app'
 import {useOrphanAgentMenu} from '@shm/ui/agents/orphan-agent'
 import {ResourcePage} from '@shm/ui/resource-page-common'
 import type {AttributeAutocomplete, AttributeSuggestionKind} from '@shm/ui/value-editor'
@@ -968,10 +969,13 @@ export default function DesktopResourcePage() {
   const agentProfileMenuItem = useMountedAgentProfileMenuItem(docId, doc?.metadata)
   // Developer mode: undo an adoption.
   const orphanAgent = useOrphanAgentMenu(docId, doc?.metadata)
+  // An owner turns the agent's own tools into an app the space installs.
+  const publishAsApp = usePublishAgentAsAppMenu(docId, doc?.metadata)
 
   const menuItems: MenuItemType[] = []
 
   if (agentProfileMenuItem) menuItems.push(agentProfileMenuItem)
+  if (publishAsApp.item) menuItems.push(publishAsApp.item)
   if (orphanAgent.item) menuItems.push(orphanAgent.item)
   menuItems.push(
     createCopyLinkMenuItem({
@@ -1365,6 +1369,7 @@ export default function DesktopResourcePage() {
       {copySiteUrlContent}
       {deleteEntity.content}
       {orphanAgent.content}
+      {publishAsApp.content}
       {destinationDialog.content}
       {worldBuilderDialog.content}
       {editProfileDialog.content}

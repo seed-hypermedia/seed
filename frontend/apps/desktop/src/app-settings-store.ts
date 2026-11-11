@@ -2,7 +2,7 @@ import {appStore} from './app-store.mts'
 
 /**
  * The persisted settings record, kept apart from app-settings.ts so main-process modules that run
- * before any window exists (the agents server process, daemon startup) can read a setting without
+ * before any window exists (the app environment process, daemon startup) can read a setting without
  * pulling in the window, draft and error-reporting modules app-settings.ts needs for its tRPC
  * router. The desktop security e2e fixtures bundle a bare main process and break on those.
  */
