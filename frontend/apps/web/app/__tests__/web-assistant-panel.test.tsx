@@ -135,6 +135,22 @@ describe('web assistant panel', () => {
     expect(mountCount).toBe(mountsAtStart)
   })
 
+  it('takes the closed divider out of the layout so it cannot widen the page past the viewport', () => {
+    const separatorDisplay = () =>
+      getComputedStyle(container.querySelector<HTMLElement>('[role="separator"][aria-orientation="vertical"]')!).display
+    act(() => root.render(<App />))
+    expect(separatorDisplay()).toBe('none')
+    act(() => controls!.open())
+    expect(separatorDisplay()).not.toBe('none')
+    act(() => controls!.close())
+    expect(separatorDisplay()).toBe('none')
+
+    mockState.isMobile = true
+    act(() => root.render(<App />))
+    act(() => controls!.open())
+    expect(separatorDisplay()).toBe('none')
+  })
+
   it('keeps a focus position when Enter closes the web assistant separator', () => {
     act(() => root.render(<App />))
     act(() => controls!.open())

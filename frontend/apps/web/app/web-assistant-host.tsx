@@ -207,7 +207,7 @@ export function WebAssistantHost({children}: {children: React.ReactNode}) {
           )}
           aria-valuenow={width}
           tabIndex={showSidePanel ? 0 : -1}
-          style={{visibility: showSidePanel ? undefined : 'hidden'}}
+          style={showSidePanel ? undefined : {display: 'none'}}
           onKeyDown={(event) => {
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Enter') return
             event.preventDefault()
