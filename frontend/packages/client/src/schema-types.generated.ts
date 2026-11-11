@@ -1258,6 +1258,8 @@ export type HMMetadata = {
   cover?: HMIpfsUrl
   /** The web address a space is published at; set on the home document when a site is registered. */
   siteUrl?: HMUrl
+  /** The app environment a space is bound to, set on the home document: the server its agents run on. Read before `agentServerUrl`, the older name of the same binding. */
+  appEnvironmentUrl?: HMUrl
   /** The agents server that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`. */
   agentServerUrl?: HMUrl
   /** The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes. */

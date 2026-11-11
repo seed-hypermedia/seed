@@ -18,6 +18,18 @@ describe('config', () => {
     })
   })
 
+  test('SEED_APPS_* names are read, and win over the SEED_AGENTS_* names deployments still set', () => {
+    const both = config.flags({
+      SEED_APPS_HTTP_PORT: '4000',
+      SEED_AGENTS_HTTP_PORT: '5000',
+      SEED_AGENTS_LOG_LEVEL: 'debug',
+    } as NodeJS.ProcessEnv)
+    expect(both['server-port']).toBe(4000)
+    expect(both['log-level']).toBe('debug')
+    expect(config.envVar({SEED_AGENTS_DATA_DIR: '/old'} as NodeJS.ProcessEnv, 'DATA_DIR')).toBe('/old')
+    expect(config.envVar({} as NodeJS.ProcessEnv, 'DATA_DIR')).toBeUndefined()
+  })
+
   test('the IPFS server can be split from the HM API or default to the same origin', () => {
     const fromEnv = config.create(
       config.flags({

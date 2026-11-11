@@ -55,7 +55,7 @@ export async function launchStoryApp(opts: {fresh?: boolean; shots?: string} = {
     VITE_DESKTOP_HTTP_PORT: String(PORTS.http),
     VITE_DESKTOP_GRPC_PORT: String(PORTS.grpc),
     VITE_DESKTOP_API_PORT: String(PORTS.api),
-    VITE_DESKTOP_DEFAULT_AGENTS_URL: `http://localhost:${PORTS.agents}`,
+    VITE_DESKTOP_DEFAULT_APPS_URL: `http://localhost:${PORTS.agents}`,
     VITE_DESKTOP_APPDATA: APPDATA_NAME,
     // Its own renderer static-server port, clear of a production app on the default 17654.
     SEED_LOCAL_SERVER_PORT: '58106',

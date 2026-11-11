@@ -37,7 +37,11 @@ export const DEFAULT_DESKTOP_VAULT_URL: string | undefined =
 // The dev shell redefines the agents server port (.env.vars); the fallback matches the
 // production default baked into apps/src/config.ts.
 export const DEFAULT_DESKTOP_AGENTS_URL: string =
-  IME.VITE_DESKTOP_DEFAULT_AGENTS_URL || process.env.VITE_DESKTOP_DEFAULT_AGENTS_URL || 'http://localhost:3050'
+  IME.VITE_DESKTOP_DEFAULT_APPS_URL ||
+  process.env.VITE_DESKTOP_DEFAULT_APPS_URL ||
+  IME.VITE_DESKTOP_DEFAULT_AGENTS_URL ||
+  process.env.VITE_DESKTOP_DEFAULT_AGENTS_URL ||
+  'http://localhost:3050'
 
 export const P2P_PORT = IME.VITE_DESKTOP_P2P_PORT || process.env.VITE_DESKTOP_P2P_PORT || 56000
 
@@ -181,8 +185,11 @@ export const AGENTS_LOCAL_SERVER_SETTING_KEY = 'agentsLocalServer'
 export const SEED_AGENT_SERVER_URL: string | undefined = (() => {
   // An explicitly empty value means "no agent server" (single-tenant sites set
   // it), so only an unset variable falls back to the shared default.
+  // `SEED_APPS_ENVIRONMENT_URL` is the app environment's name for it; `SEED_AGENT_SERVER_URL` the
+  // agents server's, still set by deployments from before the rename.
   const configured =
-    process.env.SEED_AGENT_SERVER_URL ?? // web server
+    process.env.SEED_APPS_ENVIRONMENT_URL ?? // web server
+    process.env.SEED_AGENT_SERVER_URL ??
     WEB_ENV.SEED_AGENT_SERVER_URL // web client
   if (typeof configured === 'string') return configured || undefined
   return process.env.NODE_ENV === 'production' ? 'https://agentic.seed.hyper.media' : 'http://localhost:3051'

@@ -22,12 +22,12 @@ import {forceKillChildProcess} from './win32-process'
 
 /**
  * Mirrors the agents server's own port default (apps/src/config.ts). Dev redefines it via
- * SEED_AGENTS_HTTP_PORT in .env.vars — like the daemon ports — so a release build's spawned
+ * SEED_APPS_HTTP_PORT in .env.vars — like the daemon ports — so a release build's spawned
  * server and the dev hot-reload server never share a port. Read at call time, not module load,
  * so tests control it per-case.
  */
 function defaultAgentsPort(): number {
-  return Number(process.env.SEED_AGENTS_HTTP_PORT) || 3050
+  return Number(process.env.SEED_APPS_HTTP_PORT ?? process.env.SEED_AGENTS_HTTP_PORT) || 3050
 }
 /** Ports scanned when the default is occupied by something that is not a healthy agents server. */
 const MAX_PORT_PROBES = 20
@@ -119,8 +119,9 @@ export function getLocalAgentsServerUrl(): string | null {
 /** Returns true when a healthy agents server answers at `url`. */
 async function isAgentsServerHealthy(url: string): Promise<boolean> {
   try {
-    // A canonical base (`…/hm/api/agents`) serves `/health`; an origin serves the legacy path.
-    const healthUrl = url.endsWith('/hm/api/agents') ? `${url}/health` : `${url}/agents/api/health`
+    // A canonical base (`…/hm/api/apps` or `…/hm/api/agents`) serves `/health`; an origin serves the legacy path.
+    const healthUrl =
+      url.endsWith('/hm/api/apps') || url.endsWith('/hm/api/agents') ? `${url}/health` : `${url}/agents/api/health`
     const response = await fetch(healthUrl, {
       signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
     })
@@ -155,8 +156,8 @@ async function findFreePort(startPort: number): Promise<number> {
  * Starts or attaches to the local agents server and returns its base URL.
  *
  * Resolution order:
- * 1. `SEED_NO_AGENTS_SPAWN` — skip entirely (the desktop then only talks to configured remote servers).
- * 2. `SEED_AGENTS_SERVER_URL` — attach to an explicitly configured server, failing loudly if unhealthy.
+ * 1. `SEED_NO_APPS_SPAWN` (or the older `SEED_NO_AGENTS_SPAWN`) — skip entirely (the desktop then only talks to configured remote servers).
+ * 2. `SEED_APPS_SERVER_URL` (or `SEED_AGENTS_SERVER_URL`) — attach to an explicitly configured server, failing loudly if unhealthy.
  * 3. A healthy agents server already on the default port — attach (this is the `./dev up` path).
  * 4. Otherwise spawn the bundled binary on the first free port, if the user's setting allows it
  *    (see {@link resolveLocalAgentsServerSpawn}); `force` skips that check for an explicit turn-on.
@@ -167,20 +168,20 @@ export async function startLocalAgentsServer(options?: {force?: boolean}): Promi
     clearInterval(attachRetryTimer)
     attachRetryTimer = undefined
   }
-  if (process.env.SEED_NO_AGENTS_SPAWN) {
-    log.debug('Local agents server disabled by SEED_NO_AGENTS_SPAWN')
+  if (process.env.SEED_NO_APPS_SPAWN ?? process.env.SEED_NO_AGENTS_SPAWN) {
+    log.debug('Local app environment disabled by SEED_NO_APPS_SPAWN')
     state = {t: 'disabled', reason: 'env'}
     return null
   }
 
-  const configuredUrl = process.env.SEED_AGENTS_SERVER_URL?.replace(/\/+$/, '')
+  const configuredUrl = (process.env.SEED_APPS_SERVER_URL ?? process.env.SEED_AGENTS_SERVER_URL)?.replace(/\/+$/, '')
   if (configuredUrl) {
     if (await isAgentsServerHealthy(configuredUrl)) {
       log.info('Attached to configured agents server', {url: configuredUrl})
       state = {t: 'attached', url: configuredUrl}
       return configuredUrl
     }
-    const message = `SEED_AGENTS_SERVER_URL is set to ${configuredUrl} but no healthy agents server answered there`
+    const message = `SEED_APPS_SERVER_URL is set to ${configuredUrl} but no healthy agents server answered there`
     log.error(message)
     state = {t: 'error', message}
     beginAttachRetry(configuredUrl)

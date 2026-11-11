@@ -54,12 +54,12 @@ const server = Bun.spawn(['bun', 'run', 'src/main.ts'], {
   env: {
     ...process.env,
     NODE_ENV: 'development',
-    SEED_AGENTS_DB_PATH: path.join(dataDir, 'agents.sqlite'),
-    SEED_AGENTS_DATA_DIR: dataDir,
-    SEED_AGENTS_HTTP_HOSTNAME: '127.0.0.1',
-    SEED_AGENTS_HTTP_PORT: String(agentPort),
-    SEED_AGENTS_HM_SERVER_URL: hmBase,
-    SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS: '300',
+    SEED_APPS_DB_PATH: path.join(dataDir, 'agents.sqlite'),
+    SEED_APPS_DATA_DIR: dataDir,
+    SEED_APPS_HTTP_HOSTNAME: '127.0.0.1',
+    SEED_APPS_HTTP_PORT: String(agentPort),
+    SEED_APPS_HM_SERVER_URL: hmBase,
+    SEED_APPS_ACTIVITY_POLL_INTERVAL_MS: '300',
   },
 })
 

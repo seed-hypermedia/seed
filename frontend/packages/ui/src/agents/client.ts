@@ -148,12 +148,15 @@ export type AgentServerHealth = {
   minClientProtocol?: number
 }
 
-/** Canonical path of the agents API, on a standalone agents host or on a site's own origin. */
+/** Canonical path of the app environment's API, on a standalone host or on a site's own origin. */
+export const APPS_API_PREFIX = '/hm/api/apps'
+
+/** The agents server's path for the same API; every environment still answers it, and published bindings still name it. */
 export const AGENTS_API_PREFIX = '/hm/api/agents'
 
 /**
  * Normalizes an agent server URL for storage and fetch calls. A canonical base (path ending in
- * `/hm/api/agents`) is kept as is; a bare `/agents` suffix (the old way of naming the legacy
+ * `/hm/api/apps` or `/hm/api/agents`) is kept as is; a bare `/agents` suffix (the old way of naming the legacy
  * mount) is stripped back to the origin.
  */
 export function normalizeAgentServerUrl(input: string): string {
@@ -171,9 +174,10 @@ export function normalizeAgentServerUrl(input: string): string {
   return url.toString().replace(/\/+$/, '')
 }
 
-/** True when the server URL names the canonical mount (`…/hm/api/agents`) rather than a legacy origin. */
+/** True when the server URL names the canonical API path (`…/hm/api/apps` or `…/hm/api/agents`) rather than a legacy origin. */
 export function isCanonicalAgentServerUrl(serverUrl: string): boolean {
-  return new URL(normalizeAgentServerUrl(serverUrl)).pathname.endsWith(AGENTS_API_PREFIX)
+  const {pathname} = new URL(normalizeAgentServerUrl(serverUrl))
+  return pathname.endsWith(APPS_API_PREFIX) || pathname.endsWith(AGENTS_API_PREFIX)
 }
 
 /** The agents service endpoints a client calls. `webhooks`, `perf/sessions` take a trailing path. */

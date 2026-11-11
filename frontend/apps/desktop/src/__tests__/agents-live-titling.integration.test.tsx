@@ -135,12 +135,12 @@ describe.skipIf(!agentsServerAvailable)('agents live integration: session titlin
       cwd: REPO_AGENTS_DIR,
       env: {
         ...process.env,
-        SEED_AGENTS_HTTP_PORT: String(SERVER_PORT),
-        SEED_AGENTS_HTTP_HOSTNAME: '127.0.0.1',
-        SEED_AGENTS_DB_PATH: path.join(dataDir, 'agents.sqlite'),
-        SEED_AGENTS_DATA_DIR: dataDir,
-        SEED_AGENTS_EXEC_BACKEND: 'off',
-        SEED_AGENTS_SESSION_TITLE_GENERATION: 'true',
+        SEED_APPS_HTTP_PORT: String(SERVER_PORT),
+        SEED_APPS_HTTP_HOSTNAME: '127.0.0.1',
+        SEED_APPS_DB_PATH: path.join(dataDir, 'agents.sqlite'),
+        SEED_APPS_DATA_DIR: dataDir,
+        SEED_APPS_EXEC_BACKEND: 'off',
+        SEED_APPS_SESSION_TITLE_GENERATION: 'true',
       },
       stdio: 'ignore',
     })

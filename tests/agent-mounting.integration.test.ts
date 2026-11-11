@@ -59,12 +59,12 @@ beforeAll(async () => {
     cwd: path.resolve(__dirname, '../agents'),
     env: {
       ...process.env,
-      SEED_AGENTS_HTTP_HOSTNAME: '127.0.0.1',
-      SEED_AGENTS_HTTP_PORT: '59415',
-      SEED_AGENTS_DB_PATH: path.join(agentDataDir, 'agents.sqlite'),
-      SEED_AGENTS_DATA_DIR: agentDataDir,
-      SEED_AGENTS_HM_SERVER_URL: env.web.baseUrl,
-      SEED_AGENTS_TITLE_GENERATION: 'false',
+      SEED_APPS_HTTP_HOSTNAME: '127.0.0.1',
+      SEED_APPS_HTTP_PORT: '59415',
+      SEED_APPS_DB_PATH: path.join(agentDataDir, 'agents.sqlite'),
+      SEED_APPS_DATA_DIR: agentDataDir,
+      SEED_APPS_HM_SERVER_URL: env.web.baseUrl,
+      SEED_APPS_TITLE_GENERATION: 'false',
     },
     stdio: 'pipe',
   })

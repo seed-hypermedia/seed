@@ -36,20 +36,20 @@ RUN bun run --no-install main.js --exec-selfcheck
 # Version metadata, surfaced at /api/version and /api/health. Declared after the
 # COPY so changing them only rebuilds this trailing layer, not the app build.
 # COMMIT_HASH/BRANCH/DATE match the web and daemon image build args; VERSION is the
-# image tag. They are mapped to namespaced SEED_AGENTS_* runtime env.
+# image tag. They are mapped to namespaced SEED_APPS_* runtime env (SEED_AGENTS_* is still read).
 ARG VERSION=dev
 ARG COMMIT_HASH=unknown
 ARG BRANCH=unknown
 ARG DATE=unknown
-ENV SEED_AGENTS_VERSION=${VERSION} \
-    SEED_AGENTS_COMMIT=${COMMIT_HASH} \
-    SEED_AGENTS_BRANCH=${BRANCH} \
-    SEED_AGENTS_DATE=${DATE}
+ENV SEED_APPS_VERSION=${VERSION} \
+    SEED_APPS_COMMIT=${COMMIT_HASH} \
+    SEED_APPS_BRANCH=${BRANCH} \
+    SEED_APPS_DATE=${DATE}
 
 VOLUME /data
 ENV NODE_ENV=production
-ENV SEED_AGENTS_DB_PATH=/data/agents.sqlite
-ENV SEED_AGENTS_DATA_DIR=/data
+ENV SEED_APPS_DB_PATH=/data/agents.sqlite
+ENV SEED_APPS_DATA_DIR=/data
 EXPOSE 3050
 # /api/health answers 503 while the event loop's p95 lag over the last minute is above the
 # threshold in perf.ts, and does not answer at all while the loop is stalled outright; both read
@@ -61,5 +61,5 @@ EXPOSE 3050
 # `runs` reads that whole table first. The start period covers that, so a slow but healthy boot
 # is not counted against the retries; the first passing check ends it early.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=600s --retries=3 \
-  CMD ["bun", "-e", "fetch(`http://127.0.0.1:${process.env.SEED_AGENTS_HTTP_PORT || 3050}/api/health`, {signal: AbortSignal.timeout(4000)}).then((res) => process.exit(res.ok ? 0 : 1), () => process.exit(1))"]
+  CMD ["bun", "-e", "fetch(`http://127.0.0.1:${process.env.SEED_APPS_HTTP_PORT || 3050}/api/health`, {signal: AbortSignal.timeout(4000)}).then((res) => process.exit(res.ok ? 0 : 1), () => process.exit(1))"]
 CMD ["bun", "run", "--no-install", "main.js"]

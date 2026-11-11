@@ -5,7 +5,7 @@
  * at a local OpenAI-compatible stand-in, and drives the production path over the wire with the signed
  * CBOR API. Then it does to the daemon what the outbox exists for:
  *
- * 1. (optional) boots on a copy of a real database named by `SEED_AGENTS_SMOKE_REAL_DB`, so the
+ * 1. (optional) boots on a copy of a real database named by `SEED_APPS_SMOKE_REAL_DB`, so the
  *    migration runs against real rows and the boot sweep sees real history;
  * 2. a turn whose tool writes a memory file leaves a `succeeded` receipt;
  * 3. `kill -9` while a memory download is in flight, then a restart: the download is not repeated,
@@ -141,14 +141,14 @@ async function startDaemon(options: {dbPath: string; dataDir: string; env?: Reco
     env: {
       ...process.env,
       NODE_ENV: 'development',
-      SEED_AGENTS_DB_PATH: options.dbPath,
-      SEED_AGENTS_DATA_DIR: options.dataDir,
-      SEED_AGENTS_HTTP_HOSTNAME: '127.0.0.1',
-      SEED_AGENTS_HTTP_PORT: String(port),
-      SEED_AGENTS_HM_SERVER_URL: `http://127.0.0.1:${hmStub.port}`,
-      SEED_AGENTS_ACTIVITY_POLL_INTERVAL_MS: '60000',
-      SEED_AGENTS_SESSION_TITLE_GENERATION: 'false',
-      SEED_AGENTS_EXEC_BACKEND: 'off',
+      SEED_APPS_DB_PATH: options.dbPath,
+      SEED_APPS_DATA_DIR: options.dataDir,
+      SEED_APPS_HTTP_HOSTNAME: '127.0.0.1',
+      SEED_APPS_HTTP_PORT: String(port),
+      SEED_APPS_HM_SERVER_URL: `http://127.0.0.1:${hmStub.port}`,
+      SEED_APPS_ACTIVITY_POLL_INTERVAL_MS: '60000',
+      SEED_APPS_SESSION_TITLE_GENERATION: 'false',
+      SEED_APPS_EXEC_BACKEND: 'off',
       ...options.env,
     },
   })
@@ -292,8 +292,8 @@ function assertWellFormed(events: LogEvent[], label: string): void {
 // Scenarios
 // ---------------------------------------------------------------------------------------------
 
-/** `SEED_AGENTS_SMOKE_ONLY=restart,floor` runs only the scenarios whose names contain a word. */
-const only = (process.env.SEED_AGENTS_SMOKE_ONLY ?? '')
+/** `SEED_APPS_SMOKE_ONLY=restart,floor` runs only the scenarios whose names contain a word. */
+const only = (process.env.SEED_APPS_SMOKE_ONLY ?? '')
   .split(',')
   .map((word) => word.trim())
   .filter(Boolean)
@@ -332,7 +332,7 @@ async function scenario(name: string, run: () => Promise<void>): Promise<void> {
 
 let daemon: Daemon | undefined
 
-const realDb = process.env.SEED_AGENTS_SMOKE_REAL_DB
+const realDb = process.env.SEED_APPS_SMOKE_REAL_DB
 if (realDb) {
   await scenario(`migration 31 and boot sweep on a copy of ${realDb}`, async () => {
     const dataDir = path.join(scratch, 'real')
@@ -482,7 +482,7 @@ if (!isMac || !wantsRamDisk) {
     await scenario(
       'disk floor: a full-ish disk pauses dispatch, a message waits, freeing the disk runs it',
       async () => {
-        daemon = await startDaemon({dbPath: ramDb, dataDir: ramDataDir, env: {SEED_AGENTS_MIN_FREE_DISK_MIB: '8'}})
+        daemon = await startDaemon({dbPath: ramDb, dataDir: ramDataDir, env: {SEED_APPS_MIN_FREE_DISK_MIB: '8'}})
         agentId = await setUpAgent(current())
         const sessionId = await newSession(current(), agentId)
         let h = await health(current())
@@ -535,7 +535,7 @@ if (!isMac || !wantsRamDisk) {
     await scenario(
       'floor off, ENOSPC mid-turn: the run fails, and after recovery the transcript is well-formed',
       async () => {
-        daemon = await startDaemon({dbPath: ramDb, dataDir: ramDataDir, env: {SEED_AGENTS_MIN_FREE_DISK_MIB: '0'}})
+        daemon = await startDaemon({dbPath: ramDb, dataDir: ramDataDir, env: {SEED_APPS_MIN_FREE_DISK_MIB: '0'}})
         const sessionId = await newSession(current(), agentId)
         modelPlan = {text: 'An answer written onto a full disk.'}
         modelRequests = 0
@@ -568,7 +568,7 @@ if (!isMac || !wantsRamDisk) {
         fs.rmSync(filler, {force: true})
         // A restart exercises the sweep over whatever the failed turn left, then the session is retried.
         await current().stop()
-        daemon = await startDaemon({dbPath: ramDb, dataDir: ramDataDir, env: {SEED_AGENTS_MIN_FREE_DISK_MIB: '0'}})
+        daemon = await startDaemon({dbPath: ramDb, dataDir: ramDataDir, env: {SEED_APPS_MIN_FREE_DISK_MIB: '0'}})
         let status = await waitForRun(current(), sessionId)
         if (status !== 'succeeded') {
           const retried = await action(current(), {_: 'RetrySession', sessionId})

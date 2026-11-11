@@ -5,7 +5,7 @@ import * as path from 'node:path'
 import process from 'node:process'
 
 const repoDir = path.resolve(import.meta.dirname, '..', '..')
-const tag = process.env.SEED_AGENTS_DOCKER_TAG || 'seedhypermedia/apps:dev'
+const tag = process.env.SEED_APPS_DOCKER_TAG || 'seedhypermedia/apps:dev'
 const name = `seed-agents-smoke-${process.pid}`
 const dataDir = await mkdtemp(path.join(tmpdir(), 'seed-agents-docker-data-'))
 const port = 42_000 + Math.floor(Math.random() * 1_000)

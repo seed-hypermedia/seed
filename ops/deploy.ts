@@ -73,6 +73,8 @@ export const NOTIFY_SERVICE_HOST = 'https://hyper.media/hm/api/notify'
 export const DEFAULT_UPSTREAM_API_URL = 'https://hyper.media'
 /** Where the agents service answers on a site's own origin. */
 export const AGENTS_API_PATH = '/hm/api/agents'
+/** The app environment's path for the same service; routed alike so either spelling reaches it. */
+export const APPS_API_PATH = '/hm/api/apps'
 /** Where the notify service answers on a site's own origin. */
 export const NOTIFY_API_PATH = '/hm/api/notify'
 export const LIGHTNING_URL_MAINNET = 'https://ln.seed.hyper.media'
@@ -1879,7 +1881,7 @@ function agentsWebhookBlock(config: SeedConfig): string {
   if (!config.agents) return ''
   return `\t@agents_webhook {
 \t\tmethod POST
-\t\tpath ${AGENTS_API_PATH}/webhooks/*
+\t\tpath ${AGENTS_API_PATH}/webhooks/* ${APPS_API_PATH}/webhooks/*
 \t}
 \thandle @agents_webhook {
 \t\treverse_proxy seed-agents:3050
@@ -1891,7 +1893,7 @@ function agentsWebhookBlock(config: SeedConfig): string {
 function agentsGatedBlock(config: SeedConfig): string {
   if (!config.agents) return ''
   return `
-\t@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*
+\t@agents path ${AGENTS_API_PATH} ${AGENTS_API_PATH}/* ${APPS_API_PATH} ${APPS_API_PATH}/*
 \thandle @agents {
 \t\timport gate
 \t\treverse_proxy seed-agents:3050
@@ -2001,7 +2003,7 @@ export function generateCaddyfile(config: SeedConfig): string {
   if (isEnterprise(config)) return generateEnterpriseCaddyfile(config)
   // A public site: the agents service, when enabled, is open like the site.
   const agents = config.agents
-    ? `\n@agentsroute {\n\tpath ${AGENTS_API_PATH} ${AGENTS_API_PATH}/*\n}\n\nreverse_proxy @agentsroute seed-agents:3050\n`
+    ? `\n@agentsroute {\n\tpath ${AGENTS_API_PATH} ${AGENTS_API_PATH}/* ${APPS_API_PATH} ${APPS_API_PATH}/*\n}\n\nreverse_proxy @agentsroute seed-agents:3050\n`
     : ''
   return `{$SEED_SITE_HOSTNAME}
 

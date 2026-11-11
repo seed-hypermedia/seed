@@ -41,11 +41,17 @@ async function handleError(error: unknown): Promise<Response> {
   return cbor.response({_: 'Error', message: 'Internal server error'} satisfies api.ErrorResponse, {status: 500})
 }
 
-/** Canonical path prefix of the agents API, on its own host or on a site's origin. */
+/** Canonical path prefix of the app environment's API, on its own host or on a site's origin. */
+export const APPS_API_PREFIX = '/hm/api/apps'
+
+/** The agents server's prefix for the same API: released clients, published bindings and handed-out webhook URLs name it. */
 export const AGENTS_API_PREFIX = '/hm/api/agents'
 
-/** WebSocket paths: the canonical one and the legacy one. */
-export const AGENTS_WS_PATHS = [`${AGENTS_API_PREFIX}/ws`, '/agents/ws'] as const
+/** Every prefix the API answers under, newest first. */
+export const API_PREFIXES = [APPS_API_PREFIX, AGENTS_API_PREFIX] as const
+
+/** WebSocket paths: the canonical ones and the legacy one. */
+export const AGENTS_WS_PATHS = [`${APPS_API_PREFIX}/ws`, `${AGENTS_API_PREFIX}/ws`, '/agents/ws'] as const
 
 function upgradeWebSocket(req: BunRequest, srv: Server<WSData>) {
   const upgraded = srv.upgrade(req, {
@@ -214,14 +220,18 @@ export function createAPIRoutes(
   return {
     // Canonical mount: everything under one prefix, so a site's reverse proxy can route
     // `/hm/api/agents/*` to this service on the site's own origin.
-    [`${AGENTS_API_PREFIX}/message`]: {OPTIONS: options, POST: message},
-    [`${AGENTS_API_PREFIX}/webhooks/:triggerId`]: {POST: webhook},
-    [`${AGENTS_API_PREFIX}/webhooks/:triggerId/:secret`]: {POST: webhook},
-    [`${AGENTS_API_PREFIX}/health`]: {GET: health},
-    [`${AGENTS_API_PREFIX}/version`]: {GET: version},
-    [`${AGENTS_API_PREFIX}/perf`]: {GET: perf},
-    [`${AGENTS_API_PREFIX}/metrics`]: {GET: metrics},
-    [`${AGENTS_API_PREFIX}/perf/sessions/:sessionId`]: {GET: sessionPerf},
+    ...Object.fromEntries(
+      API_PREFIXES.flatMap((prefix) => [
+        [`${prefix}/message`, {OPTIONS: options, POST: message}],
+        [`${prefix}/webhooks/:triggerId`, {POST: webhook}],
+        [`${prefix}/webhooks/:triggerId/:secret`, {POST: webhook}],
+        [`${prefix}/health`, {GET: health}],
+        [`${prefix}/version`, {GET: version}],
+        [`${prefix}/perf`, {GET: perf}],
+        [`${prefix}/metrics`, {GET: metrics}],
+        [`${prefix}/perf/sessions/:sessionId`, {GET: sessionPerf}],
+      ]),
+    ),
     // Legacy routes, kept for the standalone host (agentic.seed.hyper.media), older clients and
     // webhook URLs already handed out.
     '/api/message': {OPTIONS: options, POST: message},
@@ -417,7 +427,10 @@ async function main(): Promise<void> {
   const cfg = config.create(config.parseArgs())
   setLogLevel(cfg.logLevel)
   // A members-only (Enterprise) site lets this service in by a shared secret instead of a session.
-  installHmServerAuth([cfg.activity.hmServerUrl, cfg.activity.ipfsServerUrl], process.env.SEED_AGENTS_HM_SERVER_SECRET)
+  installHmServerAuth(
+    [cfg.activity.hmServerUrl, cfg.activity.ipfsServerUrl],
+    config.envVar(process.env, 'HM_SERVER_SECRET'),
+  )
 
   // Bind the port before any database work, answering health with `starting` until the service
   // is ready; the full routes replace these with server.reload below.
@@ -624,8 +637,10 @@ async function main(): Promise<void> {
     error: handleError,
     routes: {
       ...createAPIRoutes(svc, cfg.defaultPromptUrl, execCanary),
+      // Spelled out, so Bun.serve keeps inferring the socket's data type from these handlers.
       [AGENTS_WS_PATHS[0]]: upgradeWebSocket,
       [AGENTS_WS_PATHS[1]]: upgradeWebSocket,
+      [AGENTS_WS_PATHS[2]]: upgradeWebSocket,
     },
     // The server has no browser UI: everything outside the signed CBOR API, the health/version
     // probes, and the WebSocket is a 404. Account data is only reachable through signed envelopes.
@@ -723,7 +738,9 @@ async function main(): Promise<void> {
     bootMs: Math.round(performance.now() - bootStartedAt),
   })
   console.log(`  Database: ${cfg.dbPath}`)
-  console.log(`  WebSocket endpoint: ws://${hostname}:${server.port}${AGENTS_WS_PATHS[0]} (legacy /agents/ws)`)
+  console.log(
+    `  WebSocket endpoint: ws://${hostname}:${server.port}${AGENTS_WS_PATHS[0]} (also ${AGENTS_WS_PATHS[1]} and /agents/ws)`,
+  )
   console.log(`  API: http://${hostname}:${server.port}/api/message`)
   console.log(`  HM API: ${cfg.activity.hmServerUrl}`)
   console.log(`  IPFS: ${cfg.activity.ipfsServerUrl}`)
@@ -747,6 +764,6 @@ function isCBORRequest(req: Request): boolean {
 
 // Compiled executables don't reliably set import.meta.main (false on Windows in bun 1.3,
 // oven-sh/bun#6009), so the binary build injects SEED_AGENTS_STANDALONE via define instead.
-if (import.meta.main || process.env.SEED_AGENTS_STANDALONE === '1') {
+if (import.meta.main || config.envVar(process.env, 'STANDALONE') === '1') {
   main()
 }

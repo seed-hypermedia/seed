@@ -13,7 +13,7 @@
  * Opt-in, because it needs a server running:
  *
  *   direnv exec . bash -lc 'cd apps && bun run dev'      # serves :3051
- *   SEED_AGENTS_TEST_SERVER=http://localhost:3051 npm test
+ *   SEED_APPS_TEST_SERVER=http://localhost:3051 npm test
  *
  * Runs in the `node` environment on purpose: jsdom provides no `fetch`, while React Native does —
  * so jsdom would fail here for a reason the real app never hits.
@@ -23,7 +23,7 @@ import {nobleKeyPairFromSeed, principalToString} from '@seed-hypermedia/client/b
 import {getAgentServerHealth, sendAgentAction} from '@shm/ui/agents/client'
 import {setAgentsPlatform} from '@shm/ui/agents/platform'
 
-const SERVER_URL = process.env.SEED_AGENTS_TEST_SERVER
+const SERVER_URL = process.env.SEED_APPS_TEST_SERVER
 const describeLive = SERVER_URL ? describe : describe.skip
 
 // Deterministic, and deliberately an account the dev server has never seen: the assertions below
