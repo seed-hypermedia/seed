@@ -59,6 +59,7 @@ import * as agentMount from '@/agent-mount'
 import * as mcp from '@/mcp'
 import * as runs from '@/runs'
 import * as effectOutbox from '@/effect-outbox'
+import * as retention from '@/db-retention'
 import * as runEvents from '@/run-events'
 import * as toolDocs from '@/tool-documents'
 import {
@@ -8427,8 +8428,9 @@ export class Service {
             details: {[PARKED_TOOL_RESULT_MARKER]: true},
           }
         }
-        // Durable state is strict JSON: no undefined, no class instances.
-        const details = JSON.parse(JSON.stringify(result.details ?? null))
+        // Durable state is strict JSON: no undefined, no class instances. The details are what the
+        // log shows people (the model reads `content`), so they are stored under the same cap.
+        const details = retention.boundPersistedToolOutput(JSON.parse(JSON.stringify(result.details ?? null)))
         if (!result.content.some((part) => part.type === 'image')) return {output: result.content, details}
         turnImages.set(callId, result.content)
         const text = result.content.filter((part) => part.type === 'text')
@@ -9372,6 +9374,13 @@ export class Service {
     /** Durable transcript entry this event is projected from; absent for events written by Seed itself. */
     piEntryId?: number,
   ): api.SessionEvent {
+    // A tool's output is kept for people to inspect; the model never reads more than
+    // MAX_MODEL_TOOL_RESULT_BYTES of it. Strings past the storage cap keep their head and a marker
+    // (see db-retention.ts), so one giant fetch cannot add megabytes to the log.
+    if (event.type === 'tool_result' && event.output !== undefined) {
+      const output = retention.boundPersistedToolOutput(event.output)
+      if (output !== event.output) event = {...event, output}
+    }
     const seq =
       stmt<{seq: number}, [string]>(
         this.#db,

@@ -46,6 +46,8 @@ There are three ways to import: <!-- id:jKER5aNw -->
 
 A store that was lost is rebuilt the same way. A store can also fall behind the log, for example when its rows are restored from an older copy than the log's. Either way the log then names entry ids the store does not hold. Those marks are cleared when the store is opened, so their events are imported like anything else the store has not seen, and no new entry is mistaken for one that was already written to the log. <!-- id:cMCRYXa5 -->
 
+Retention relies on this. The store of a session that has been idle for two weeks (`SEED_AGENTS_RETENTION_DURABLE_IDLE_DAYS`) and has no live run is deleted, and the session's next turn rebuilds it from the log. See [Database size and retention](./operations.md#database-size-and-retention).
+
 # What the model reads <!-- id:X1f6M64f -->
 
 Each request holds, in order: <!-- id:r6_mOHuJ -->
@@ -81,7 +83,7 @@ A process that dies in the middle of a turn leaves the turn's input unsettled in
 
 - A message sent while a turn runs waits for the next turn. Pi Durable can hand it to the running turn at the next tool boundary. <!-- id:d-laOWQ9 -->
 - A turn that is resumed after a restart knows which calls parked it, because their placeholders say so. It does not know that `continue_session` or `return_result` had already ended it, if the process died in the instant between that call and the end of the turn. The resumed turn then asks the model once more. <!-- id:6vlse0bE -->
-- A rebuild writes the whole log into the store again. Rebuilds are rare (a retry, a restart repair), but a session that hits many of them grows its store with each one. <!-- id:0zxuuFiF -->
+- A rebuild writes the whole log into the store again. Rebuilds are rare (a retry, a restart repair), but a session that hits many of them grows its store with each one. A session that used the browser or private memory is rebuilt on every turn, so its store grows with the square of its length until retention drops it. <!-- id:0zxuuFiF -->
 - The store's main file grows with every commit and Pi Durable never compacts it. Thirty turns of streamed answers come to about 200 KB. The durable commit and the log write are still two separate writes, even though they now land in the same database. Putting both in one transaction would remove the reconciliation at open. <!-- id:RAFGicP7 -->
 
 # See also <!-- id:Iw0IBMoI -->

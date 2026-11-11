@@ -11,6 +11,7 @@ import * as blobs from '@shm/shared/blobs'
 import {serialize} from 'superjson'
 import {unpackHmId} from '@seed-hypermedia/client'
 import * as durableSession from '@/durable-session'
+import * as retention from '@/db-retention'
 import * as effectOutbox from '@/effect-outbox'
 import * as sqlite from '@/sqlite'
 import * as cbor from '@/cbor'
@@ -410,6 +411,64 @@ describe('durable sessions', () => {
     const entries = await durableEntries(h)
     expect(entries.filter((entry) => durable.AssistantEntry.is(entry))).toHaveLength(1)
     expect(entries.filter((entry) => durableSession.ReplayEntry.is(entry)).length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('retention drops the store of an idle session, and its next turn rebuilds it from the log', async () => {
+    const h = await createSession()
+    const requests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      requests.push(providerMessages(init))
+      return textReply(`chat-${requests.length}`, `Answer ${requests.length}`)
+    }) as unknown as typeof fetch
+
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'First question'}]})
+    expect(storeRows(h).length).toBeGreaterThan(0)
+    const tally = await retention.retireIdleDurableStores(
+      h.db,
+      {...retention.DEFAULT_RETENTION_POLICY, durableIdleMs: 1_000, bytesPerSecond: 0},
+      {now: Date.now() + 60_000, pause: async () => {}},
+    )
+    expect(tally.items).toBe(1)
+    expect(storeRows(h)).toHaveLength(0)
+
+    await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Second question'}]})
+    const second = (requests[1] ?? []).slice(1).map((message) => String(message.content))
+    expect(second[0]).toContain('First question')
+    expect(second[1]).toBe('Answer 1')
+    expect(second[2]).toContain('Second question')
+    expect(storeRows(h).length).toBeGreaterThan(0)
+  })
+
+  test('a stored tool output is capped, while the model reads the same result as before', async () => {
+    const h = await createSession()
+    const providerRequests: ChatMessage[][] = []
+    globalThis.fetch = mock(async (url: string | URL | Request, init?: RequestInit) => {
+      const href = url instanceof Request ? url.url : String(url)
+      if (href.includes('/api/Resource')) return notesDocumentResponse()
+      if (!href.includes('/chat/completions')) return Response.json(serialize({}))
+      providerRequests.push(providerMessages(init))
+      return providerRequests.length === 1
+        ? toolCallReply('chat-1', 'call-read', 'read', {address: 'hm://z6Mkdoc/notes'})
+        : textReply('chat-2', 'It says: Durable notes.')
+    }) as unknown as typeof fetch
+    const limit = retention.persistedToolOutputLimit()
+    retention.setPersistedToolOutputLimit(8)
+    try {
+      await h.send({_: 'MessageSession', sessionId: h.sessionId, content: [{type: 'text', text: 'Read the notes'}]})
+    } finally {
+      retention.setPersistedToolOutputLimit(limit)
+    }
+    // The model got the whole (short) result text, bounded only by its own 8 KiB rule.
+    const toolResult = (providerRequests[1] ?? []).find((message) => message.role === 'tool')
+    expect(String(toolResult?.content)).toContain('Durable notes')
+    // What the log keeps for people is capped: no stored string is longer than the cap plus its marker.
+    const stored = h.db
+      .query<{event_cbor: Uint8Array}, [string]>(`SELECT event_cbor FROM session_events WHERE session_id = ?`)
+      .all(h.sessionId)
+      .map((row) => cbor.decode<{type: string; output?: unknown}>(row.event_cbor))
+      .find((event) => event.type === 'tool_result')
+    expect(JSON.stringify(stored?.output)).toContain('[truncated for storage:')
+    expect(JSON.stringify(stored?.output)).not.toContain('Durable notes')
   })
 
   test('a store that lost its newest commits catches up from the log', async () => {
