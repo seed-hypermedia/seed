@@ -33,7 +33,7 @@ export const MAX_EXEC_OUTPUT_BYTES = 64 * 1024
 export const MAX_EXEC_TIMEOUT_SECS = 300
 /**
  * The upper bound an app tool may ask for instead. A space consented to the tool's code when it
- * mounted the app, and a tool like a document converter spends its run waiting on a remote
+ * installed the app, and a tool like a document converter spends its run waiting on a remote
  * service, so it gets more wall-clock than code the model wrote a moment ago.
  */
 export const MAX_APP_EXEC_TIMEOUT_SECS = 1800
@@ -171,13 +171,13 @@ export type CodeExecRequest = {
   maxTimeoutSecs?: number
   /**
    * Environment variables of the program's process, set on the exec and never logged: how an app
-   * tool receives its mount's arguments (see LAMBDA_CONTEXT_ENV).
+   * tool receives its install's arguments (see LAMBDA_CONTEXT_ENV).
    */
   env?: Record<string, string>
   /**
    * Egress limited to exactly these hosts, plus DNS; an empty list is no network at all. Absent,
    * the execution gets the server's policy for model-written code (`allowNetwork`). An app tool
-   * declares its hosts on its bundle, so a tool gets what the person mounting the app saw.
+   * declares its hosts on its bundle, so a tool gets what the person installing the app saw.
    */
   network?: {hosts: string[]}
   /**
@@ -1414,7 +1414,7 @@ function runtimeCommand(runtime: CodeExecRuntime, code: string): ExecCommand {
  * Places a host directory in the guest, file by file, each parent made first. The SDK's file
  * API is the only way in that needs neither a mount (fixed at boot, so unusable with a pooled
  * VM) nor the program text (argv-bound). The staged tree is small by construction: an app
- * tool's code is bounded at mount (see app-mounts.ts).
+ * tool's code is bounded at install (see app-installs.ts).
  */
 async function stageDirectory(sandbox: SandboxLike, stage: {hostDir: string; guestDir: string}): Promise<void> {
   if (!sandbox.fs) throw new CodeExecError(502, 'The sandbox SDK cannot place files in the guest')
@@ -1469,7 +1469,7 @@ export type LambdaRuntime = 'ts' | 'python'
  * The environment variable that carries a lambda's context, the second argument of its entry
  * point, as JSON: for an app tool `{args, usage, app}` (see executeAppTool in api-service.ts). It
  * travels in the process environment rather than in the program text because the arguments
- * include the mount's secrets, and the program text is what a failed call reports.
+ * include the install's secrets, and the program text is what a failed call reports.
  */
 export const LAMBDA_CONTEXT_ENV = 'SEED_APP_CONTEXT'
 

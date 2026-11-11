@@ -511,7 +511,7 @@ export type RefreshMcpServer = {
 }
 
 /**
- * Lists the app mounts visible to the account: the server-wide ones and the account's own, with
+ * Lists the app installs visible to the account: the server-wide ones and the account's own, with
  * how the account's space is bound to an agents server. Reader level.
  */
 export type ListApps = {
@@ -519,14 +519,14 @@ export type ListApps = {
 }
 
 /**
- * Looks for mount documents in the account's space now instead of waiting for the next pass, and
+ * Looks for install pages in the account's space now instead of waiting for the next pass, and
  * answers like `ListApps`. Writer level.
  */
 export type RefreshApps = {
   _: 'RefreshApps'
 }
 
-/** How much of a metered app the account has used this period, when the serving mount is metered. */
+/** How much of a metered app the account has used this period, when the serving install is metered. */
 export type GetAppUsage = {
   _: 'GetAppUsage'
   slug: string
@@ -1915,13 +1915,13 @@ export type AppArgumentInfo = {
   order?: number
   description?: string
   choices?: Record<string, string>
-  /** For a secret argument: whether the account has stored a value for this mount. */
+  /** For a secret argument: whether the account has stored a value for this install. */
   hasValue?: boolean
-  /** For a non-secret argument: the value the mount document carries. */
+  /** For a non-secret argument: the value the install page carries. */
   value?: string | number | boolean | null
 }
 
-/** One tool of a mounted app, as the tool document the agents of the space receive. */
+/** One tool of an installed app, as the tool document the agents of the space receive. */
 export type AppToolInfo = {
   tool: string
   summary: string
@@ -1936,21 +1936,21 @@ export type AppToolInfo = {
 }
 
 /** What the last pass over a mount found. */
-export type AppMountStatus = {
+export type AppInstallStatus = {
   state: 'pending' | 'ok' | 'error'
   /** Why the mount offers no tools, when `state` is `error`. */
   error?: string
   checkedAt?: number
 }
 
-/** A mounted app as clients see it: the app page's declaration and the mount's state, never a secret value. */
-export type AppMountInfo = {
+/** An installed app as clients see it: the app page's declaration and the install's state, never a secret value. */
+export type AppInstallInfo = {
   slug: string
-  /** `server`: mounted from the operator's space for every space on this server; `space`: this account's own mount. */
+  /** `server`: installed from the operator's space for every space on this server; `space`: this account's own install. */
   scope: 'server' | 'space'
-  /** The mount document, or the app page itself in the copy form. Absent for the legacy key shim. */
-  mountId?: string
-  /** The app page the mount installs. */
+  /** The install page, or the app page itself in the copy form. Absent for the legacy key shim. */
+  installId?: string
+  /** The app page the install installs. */
   app: string
   /** The app page's version the snapshot was taken from. */
   version?: string
@@ -1962,7 +1962,7 @@ export type AppMountInfo = {
   network: Record<string, string>
   /**
    * Declared by the app when the server counts what it consumes, with the allowance per
-   * space and the ceiling for the server that a server-wide mount page sets.
+   * space and the ceiling for the server that a server-wide install page sets.
    */
   usage?: {
     meter: 'none' | 'per-unit'
@@ -1973,14 +1973,14 @@ export type AppMountInfo = {
     ceiling?: number
   }
   enabled: boolean
-  status: AppMountStatus
+  status: AppInstallStatus
   createdAt: number
   updatedAt: number
 }
 
 /**
  * Which agents server an account's space is bound to: the one its home document names as
- * `agentServerUrl`, else the one its site advertises. Mounts in the space belong to that server.
+ * `agentServerUrl`, else the one its site advertises. Installs in the space belong to that server.
  */
 export type SpaceBinding = {
   agentServerUrl?: string
@@ -2151,11 +2151,11 @@ export type DeleteMcpServerResponse = {
 /** Successful response for `ListApps` and `RefreshApps`. */
 export type ListAppsResponse = {
   _: 'ListAppsResponse'
-  apps: AppMountInfo[]
+  apps: AppInstallInfo[]
   binding: SpaceBinding
 }
 
-/** Successful response for `GetAppUsage`; `usage` is absent when the serving mount is not metered. */
+/** Successful response for `GetAppUsage`; `usage` is absent when the serving install is not metered. */
 export type GetAppUsageResponse = {
   _: 'GetAppUsageResponse'
   usage?: AppUsageInfo
@@ -2339,7 +2339,7 @@ export type ListAgentMemoryDirResponse = {
   totals?: {files: number; bytes: number; truncated: boolean}
 }
 
-/** Which mounted app a tool document was projected from. */
+/** Which installed app a tool document was projected from. */
 export type AppToolProvenance = {
   slug: string
   version?: string
@@ -2356,7 +2356,7 @@ export type AgentToolInfo = {
   server?: string
   /** MCP tools: the tool's name on that server (the document name is `<server>__<remoteName>`). */
   remoteName?: string
-  /** App tools: the mounted app the tool is projected from. */
+  /** App tools: the installed app the tool is projected from. */
   app?: AppToolProvenance
   /** One line for listings and the Space index. */
   summary: string

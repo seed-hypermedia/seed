@@ -10,8 +10,8 @@ At mount, the server fetches the code into a cache under its content id and chec
 
 ```ts
 export default async function (input, ctx) {
-  // ctx.args: the mount's argument values, secrets included
-  // ctx.usage: {unit, reserved} on a metered server-wide mount, the budget this call may spend
+  // ctx.args: the install's argument values, secrets included
+  // ctx.usage: {unit, reserved} on a metered server-wide install, the budget this call may spend
   // ctx.app: {slug, scope}; ctx.workspace: where memory is mounted, /workspace in the sandbox
   // lines written to stderr show as live progress in the chat
   return {summary: 'what happened', usage: {units: 3}}
@@ -20,7 +20,7 @@ export default async function (input, ctx) {
 
 A Python tool defines `main(input, ctx)`, or `main(input)` when it needs no context. A folder's other files import beside the entry. The return value is the tool's result, checked against `outputSchema` when there is one. A metered tool reports what it spent as `usage.units`, and the server settles the call's reservation to that.
 
-A server that cannot run the runtime, or whose sandbox is off, refuses the mount and says so. So does a page whose references do not hold up: no `inputSchema`, an object that is not a schema in the subset, no `code`, a file whose bytes do not hash to its id, a folder without its entry. The Apps dialog shows the reason, and links each tool's code and contract, so a person can read what will run before trusting it.
+A server that cannot run the runtime, or whose sandbox is off, refuses the install and says so. So does a page whose references do not hold up: no `inputSchema`, an object that is not a schema in the subset, no `code`, a file whose bytes do not hash to its id, a folder without its entry. The Apps dialog shows the reason, and links each tool's code and contract, so a person can read what will run before trusting it.
 
 # Writing one
 

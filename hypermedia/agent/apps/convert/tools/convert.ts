@@ -2,7 +2,7 @@
 // agent's memory mounted at /workspace, sends each document to the Datalab document parser with
 // the key the mount provides, and writes the markdown and the extracted figures back next to the
 // source. Nothing here talks to the agents server: the input is the call, the context is the
-// mount (its arguments, the page budget of a metered mount, the app), and the return value is the
+// install (its arguments, the page budget of a metered install, the app), and the return value is the
 // result the model reads.
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -19,7 +19,7 @@ type Input = {
 }
 
 type Context = {
-  /** The mount's arguments: `apiKey` is the Datalab key, `mode` the default and, on a metered mount, the ceiling. */
+  /** The install's arguments: `apiKey` is the Datalab key, `mode` the default and, on a metered install, the ceiling. */
   args: {apiKey?: string; mode?: string; extras?: string; baseUrl?: string; pollIntervalMs?: number}
   /** Present on a metered mount: the pages this call may spend, reserved by the server before the run. */
   usage?: {unit: string; reserved: number}
@@ -817,7 +817,7 @@ export default async function convert(input: Input, ctx: Context) {
   const apiKey = typeof ctx.args.apiKey === 'string' ? ctx.args.apiKey.trim() : ''
   if (!apiKey) {
     throw new Error(
-      'Document conversion is not available: the convert app is mounted without a Datalab key. Mount the app with your own key from the Apps dialog, or ask the server operator to provide one.',
+      'Document conversion is not available: the convert app is installed without a Datalab key. Install the app with your own key from the Apps dialog, or ask the server operator to provide one.',
     )
   }
   const baseUrl = (
@@ -827,7 +827,7 @@ export default async function convert(input: Input, ctx: Context) {
   const extras = typeof ctx.args.extras === 'string' ? ctx.args.extras : ''
   const mountMode = parseMode(ctx.args.mode) ?? 'accurate'
   const requestedMode = parseMode(input.mode)
-  // On a metered mount the mount's mode is a ceiling, so a tenant cannot make the operator's key
+  // On a metered install the install's mode is a ceiling, so a tenant cannot make the operator's key
   // pay for a mode the operator did not choose; a space's own key runs any mode it asks for.
   const metered = ctx.usage !== undefined
   const mode =
@@ -909,7 +909,7 @@ export default async function convert(input: Input, ctx: Context) {
       failures.push({
         source,
         error:
-          'No shared pages left for this document in this call; convert it in another call, or mount the convert app with your own Datalab key',
+          'No shared pages left for this document in this call; convert it in another call, or install the convert app with your own Datalab key',
       })
       continue
     }
@@ -954,7 +954,7 @@ export default async function convert(input: Input, ctx: Context) {
         fatal = new Error(
           keySource === 'server'
             ? 'Datalab rejected this server’s key; tell the operator'
-            : 'Datalab rejected the mounted key; replace it from the Apps dialog',
+            : 'Datalab rejected the installed key; replace it from the Apps dialog',
         )
         return
       }

@@ -3,7 +3,7 @@ import {expect, test, type Page} from '@playwright/test'
 /**
  * E2E suite for the Hypermedia schema-editor UI (DocumentMetadataView + the struct
  * SchemaEditorDialog + the value-editor add-field flow). Runs against the
- * isolated @shm/ui Vite harness (e2e/test-app), which mounts the REAL
+ * isolated @shm/ui Vite harness (e2e/test-app), which installs the REAL
  * components with a local metadata state and a mock universal client.
  *
  * Tests read/mutate the harness through window hooks exposed by TestSchemaEditor:

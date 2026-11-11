@@ -1,10 +1,10 @@
 /**
  * The usage ledger of metered apps: the units (pages, calls, whatever an app's `usage` block
- * names) an account consumed on a server-wide mount, per UTC period. A space's own mount spends
+ * names) an account consumed on a server-wide install, per UTC period. A space's own install spends
  * the space's own key and is never recorded here.
  *
  * Every metered run reserves units before the tool runs, in the same transaction that checks the
- * account's allowance and the server's ceiling, both set on the operator's mount page. The
+ * account's allowance and the server's ceiling, both set on the operator's install page. The
  * reservation is the budget the tool is told (`ctx.usage.reserved`), so the spend of a call is
  * bounded before any money moves. On success the row settles to what the tool reports it used;
  * on failure it is released. Reserved rows count as used until settled, so concurrent calls

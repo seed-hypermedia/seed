@@ -6,7 +6,7 @@
  * them for local development and deployments.
  *
  * `SEED_AGENTS_APP_<SLUG>_<ARG>` variables have no flag: each is the value of one server-scope
- * app argument (a shared API key the operator provides for an app mounted server-wide), keyed by
+ * app argument (a shared API key the operator provides for an app installed server-wide), keyed by
  * that suffix in `apps.serverArgs`. `SEED_AGENTS_DATALAB_API_KEY` remains the older spelling of
  * the convert app's `apiKey`.
  */
@@ -319,7 +319,7 @@ export function parseArgs(argv: string[] = process.argv.slice(2), env: NodeJS.Pr
 
 /**
  * `SEED_AGENTS_APP_<SLUG>_<ARG>` variables, keyed by that suffix: the server-scope app arguments
- * the operator provides. `SEED_AGENTS_DATALAB_API_KEY`, the spelling from before mounts existed,
+ * the operator provides. `SEED_AGENTS_DATALAB_API_KEY`, the spelling from before installs existed,
  * still provides the convert app's key.
  */
 export function serverAppArgs(env: NodeJS.ProcessEnv = process.env): Record<string, string> {

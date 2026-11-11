@@ -86,7 +86,7 @@ export type AgentsSignInPrompt = {
   hasAccounts: boolean
   /** Opens the app's sign-in flow. Omitted when the app offers none. */
   signIn?: () => void
-  /** Dialog element the app needs mounted for {@link signIn} to render. */
+  /** Dialog element the app needs installed for {@link signIn} to render. */
   dialog?: React.ReactNode
 }
 
@@ -218,7 +218,7 @@ export type AgentsPlatform = {
   /**
    * Hook returning a function that starts a draft typed by `schemaUrl` in the selected account's
    * space, with its attributes pre-filled, and opens it in the editor; null while no account is
-   * selected. The Apps dialog mounts an app this way: a mount is a page, and the draft carries the
+   * selected. The Apps dialog installs an app this way: an install is a page, and the draft carries the
    * app's address so the person only has to publish. Omitted when the app has no typed-draft
    * flow; the dialog then leads to the app's page instead.
    */

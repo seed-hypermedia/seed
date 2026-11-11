@@ -2302,7 +2302,7 @@ export function useDeleteMcpServer(serverUrl: string | undefined, accountUid: st
   })
 }
 
-/** The apps mounted for the account on this server, with how the account's space is bound to an agents server. */
+/** The apps installed for the account on this server, with how the account's space is bound to an agents server. */
 export function useApps(serverUrl: string | undefined, accountUid: string | null | undefined) {
   return useQuery({
     queryKey: ['agents', 'apps', serverUrl, accountUid],
@@ -2336,7 +2336,7 @@ export function useRefreshApps(serverUrl: string | undefined, accountUid: string
   })
 }
 
-/** What the account has used of a metered app this period; null when its mount is not metered. */
+/** What the account has used of a metered app this period; null when its install is not metered. */
 export function useAppUsage(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
@@ -2357,8 +2357,8 @@ export function useAppUsage(
 }
 
 /**
- * Stores a secret argument of the account's own mount on the server, under the `app-<slug>-<arg>`
- * name the server pairs with the mount, then has it re-read the space's mounts so the app starts
+ * Stores a secret argument of the account's own install on the server, under the `app-<slug>-<arg>`
+ * name the server pairs with the install, then has it re-read the space's installs so the app starts
  * offering its tools.
  */
 export function useSaveAppSecret(serverUrl: string | undefined, accountUid: string | null | undefined) {

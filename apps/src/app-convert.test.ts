@@ -8,7 +8,7 @@ import type {JsonSchema} from '@seed-hypermedia/apps-protocol'
 import {parseFrontmatter} from '@seed-hypermedia/client'
 
 /**
- * The Datalab converter's tool page, read the way a mount reads it and run the way the sandbox runs
+ * The Datalab converter's tool page, read the way an install reads it and run the way the sandbox runs
  * it: the page's `code` names the tool's file and `inputSchema` its contract, and the docs sync
  * publishes the files beside the page as the blobs those attributes reference. The page lives in
  * the repo's `hypermedia/` library, outside this workspace; its files are read here as fixtures by
@@ -261,7 +261,7 @@ describe('the convert tool page', () => {
     expect(result.summary).toContain('2 cut at the page cap')
   })
 
-  test("a space's own key is unmetered and runs any mode; the shared key lowers a mode above the mount's", async () => {
+  test("a space's own key is unmetered and runs any mode; the shared key lowers a mode above the install's", async () => {
     const convert = await loadConvert()
     const datalab = fakeDatalab()
     const dir = workspace({'a.pdf': PDF, 'b.pdf': PDF})
@@ -335,7 +335,7 @@ describe('the convert tool page', () => {
           workspace: dir,
         },
       ),
-    ).rejects.toThrow('Datalab rejected the mounted key; replace it from the Apps dialog')
+    ).rejects.toThrow('Datalab rejected the installed key; replace it from the Apps dialog')
     await expect(
       convert(
         {files: ['a.pdf']},
@@ -349,7 +349,7 @@ describe('the convert tool page', () => {
     ).rejects.toThrow('Datalab rejected this server’s key; tell the operator')
     await expect(
       convert({files: ['a.pdf']}, {args: {}, app: {slug: 'convert', scope: 'space'}, workspace: dir}),
-    ).rejects.toThrow('mounted without a Datalab key')
+    ).rejects.toThrow('installed without a Datalab key')
   })
 
   test('runs under bun through the lambda wrapper with the context from the environment, as the sandbox runs it', async () => {

@@ -1,10 +1,10 @@
 import type {Database} from 'bun:sqlite'
 import * as cbor from '@/cbor'
-import type {AppSnapshot} from '@/app-mounts'
+import type {AppSnapshot} from '@/app-installs'
 
 /**
- * Test fixture: the Datalab converter mounted the way a pass over the mount documents would mount
- * it, without the network. Detection itself is covered in app-mounts.test.ts; the tests that need
+ * Test fixture: the Datalab converter installed the way a pass over the install pages would install
+ * it, without the network. Detection itself is covered in app-installs.test.ts; the tests that need
  * a working `convert` seed these rows and get on with it.
  */
 
@@ -45,16 +45,16 @@ export const CONVERT_SNAPSHOT: AppSnapshot = {
 }
 
 /**
- * Mounts the converter: a server-wide row (the shared key, with the allowance and ceiling the
+ * Installs the converter: a server-wide row (the shared key, with the allowance and ceiling the
  * operator's page sets), or a space's own row paired with the secret it keeps its key under.
  */
-export function mountConvert(
+export function installConvert(
   db: Database,
   options: {accountId?: string; secret?: string; allowance?: number; ceiling?: number} = {},
 ) {
   const now = Date.now()
   const accountId = options.accountId ?? ''
-  const mountId = accountId ? `hm://${accountId}/apps/convert` : 'hm://operator/apps/convert'
+  const installId = accountId ? `hm://${accountId}/apps/convert` : 'hm://operator/apps/convert'
   const usage = accountId ? null : {allowance: options.allowance ?? 1000, ceiling: options.ceiling ?? 20000}
   db.run(
     `INSERT OR REPLACE INTO app_mounts (account_id, scope, slug, mount_id, bundle_id, version, snapshot_cbor, args_cbor, secret_refs_cbor, usage_cbor, status_cbor, created_at, updated_at)
@@ -62,7 +62,7 @@ export function mountConvert(
     [
       accountId,
       accountId ? 'space' : 'server',
-      mountId,
+      installId,
       cbor.encode(CONVERT_SNAPSHOT),
       cbor.encode({}),
       cbor.encode(options.secret ? {apiKey: options.secret} : {}),

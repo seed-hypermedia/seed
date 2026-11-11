@@ -169,7 +169,7 @@ describe('main routes', () => {
       // No storage configured: the disk check is off and the queue is claiming.
       expect(offBody.disk).toBeNull()
       expect(offBody.dispatch).toEqual({paused: false})
-      // The identity a space's agents-server binding must prove to be (see app-mounts.ts).
+      // The identity a space's agents-server binding must prove to be (see app-installs.ts).
       expect(offBody.serverUid).toMatch(/^z6Mk/)
 
       const roomy = getGetHandler(

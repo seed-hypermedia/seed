@@ -3,7 +3,7 @@
  * stored per agent in `tool_documents`. Builtins are documents whose implementation is a runtime
  * binding; lambdas carry TypeScript/Python source, run in the execute sandbox when called by name
  * through the `call` verb (see the ABI on {@link ToolDocument}), whether the agent authored them
- * or a mounted app's tool page did; MCP documents are projections of the tools a remote MCP server
+ * or an installed app's tool page did; MCP documents are projections of the tools a remote MCP server
  * advertises, proxied to that server when called.
  * A document's CID is computed over its canonical DAG-CBOR encoding — the same encoding the
  * hypermedia network uses for blobs — so "what exactly can this agent run" is always answerable
@@ -19,7 +19,7 @@ import {
   type McpToolInfo,
   type SeedToolMetadata,
 } from '@seed-hypermedia/apps-protocol'
-import {listVisibleAppMounts, type AppToolSnapshot, type AppMountRow} from '@/app-mounts'
+import {listVisibleAppInstalls, type AppToolSnapshot, type AppInstallRow} from '@/app-installs'
 import {validateJsonSchemaShape} from '@/json-schema'
 import {mcpToolDocumentName} from '@/mcp'
 import {stmt} from '@/statements'
@@ -31,8 +31,8 @@ import {stmt} from '@/statements'
  * warm same-principal one when pooling is enabled — never shared across principals), with the
  * agent's memory mounted at `/workspace` (the working directory), so a tool can read and write the
  * agent's own files. It receives the call input, already validated against the document's
- * `input` schema, and for an app's tool a second argument, the context: the mount's arguments
- * (secrets included), the usage budget of a metered mount, the app, and where memory is mounted
+ * `input` schema, and for an app's tool a second argument, the context: the install's arguments
+ * (secrets included), the usage budget of a metered install, the app, and where memory is installed
  * (see LAMBDA_CONTEXT_ENV in code-exec.ts). Its RETURN VALUE is the tool's result, validated
  * against the `output` schema when the document declares one.
  *
@@ -73,7 +73,7 @@ export type ToolDocument = {
   /** MCP tools: the tool's name on that server. */
   remoteName?: string
   /**
-   * App tools: the mounted app the document is projected from, and where the tool page's code is
+   * App tools: the installed app the document is projected from, and where the tool page's code is
    * (`code`, the `ipfs://` reference and the entry file), run for that mount; such a document carries no `source`.
    */
   app?: {slug: string; version?: string; scope: 'server' | 'space'; code?: {url: string; entry: string}}
@@ -132,8 +132,8 @@ function builtinDocument(tool: SeedToolMetadata): ToolDocument {
 export function ensureBuiltinToolDocuments(db: Database, accountId: string, agentId: string): void {
   const now = Date.now()
   const registry = callableToolRegistry as Record<string, SeedToolMetadata>
-  // A builtin row whose executor left the registry (`convert`, now a mounted app's tool) would
-  // list a ghost tool; it goes, and the app's own projection takes the name if the app is mounted.
+  // A builtin row whose executor left the registry (`convert`, now an installed app's tool) would
+  // list a ghost tool; it goes, and the app's own projection takes the name if the app is installed.
   for (const row of stmt<{name: string; doc_cbor: Uint8Array}, [string, string]>(
     db,
     `SELECT name, doc_cbor FROM tool_documents WHERE account_id = ? AND agent_id = ? AND kind = 'builtin'`,
@@ -239,9 +239,9 @@ export function mcpToolInfoFromDescriptor(
 
 /**
  * The document an app's tool projects to: a lambda whose code is the tool page's `code` reference,
- * cached by the server and run for the mount; the contract and the app's text come with it.
+ * cached by the server and run for the install; the contract and the app's text come with it.
  */
-function appToolDocument(row: AppMountRow, appTool: AppToolSnapshot): ToolDocument | undefined {
+function appToolDocument(row: AppInstallRow, appTool: AppToolSnapshot): ToolDocument | undefined {
   if (!row.snapshot) return undefined
   const description = [appTool.instructions.trim(), row.snapshot.skillDoc.trim()].filter(Boolean).join('\n\n')
   return {
@@ -262,9 +262,9 @@ function appToolDocument(row: AppMountRow, appTool: AppToolSnapshot): ToolDocume
 }
 
 /**
- * Reconciles one agent's app tool documents with the mounts its account sees: one document per
- * tool of every working mount (rewritten only when its CID changed, so a new app version is a
- * visible version bump), and documents of apps no longer mounted go away. An authored lambda or a
+ * Reconciles one agent's app tool documents with the installs its account sees: one document per
+ * tool of every working install (rewritten only when its CID changed, so a new app version is a
+ * visible version bump), and documents of apps no longer installed go away. An authored lambda or a
  * plain builtin of the same name wins and the collision is reported; an MCP projection yields,
  * which the MCP sync then reports from its side.
  */
@@ -275,7 +275,7 @@ export function syncAppToolDocuments(
 ): {changed: boolean; conflicts: string[]} {
   const now = Date.now()
   const desired = new Map<string, ToolDocument>()
-  for (const row of listVisibleAppMounts(db, accountId)) {
+  for (const row of listVisibleAppInstalls(db, accountId)) {
     if (row.status.state !== 'ok' || !row.snapshot) continue
     for (const appTool of row.snapshot.tools) {
       const doc = appToolDocument(row, appTool)
@@ -514,14 +514,14 @@ export function saveLambdaToolDocument(
   return getToolDocument(db, accountId, agentId, name)!
 }
 
-/** Deletes an authored tool document. Builtins are bound at boot, and an app's tools come with the mount; neither can be deleted. */
+/** Deletes an authored tool document. Builtins are bound at boot, and an app's tools come with the install; neither can be deleted. */
 export function deleteToolDocument(db: Database, accountId: string, agentId: string, name: string): boolean {
   const existing = getToolDocument(db, accountId, agentId, name)
   if (!existing) return false
   if (existing.doc.app) {
     throw new ToolDocumentError(
       400,
-      `"${name}" comes from the ${existing.doc.app.slug} app; unmount the app or disable it via the agent's tool grants instead`,
+      `"${name}" comes from the ${existing.doc.app.slug} app; uninstall the app or disable it via the agent's tool grants instead`,
     )
   }
   if (existing.doc.kind === 'builtin') {
@@ -548,7 +548,7 @@ export function toolDocumentContractMarkdown(row: ToolDocumentRow): string {
     doc.kind === 'mcp'
       ? `> mcp tool · \`${doc.remoteName ?? doc.name}\` on the ${doc.server} MCP server · version \`${row.cid}\``
       : doc.app
-        ? `> app tool · the ${doc.app.slug} app (${doc.app.scope} mount${
+        ? `> app tool · the ${doc.app.slug} app (${doc.app.scope} install${
             doc.app.version ? `, app version \`${doc.app.version}\`` : ''
           }) · version \`${row.cid}\``
         : `> ${doc.kind} tool · version \`${row.cid}\`${doc.runtime ? ` · ${doc.runtime}` : ''}`
@@ -570,7 +570,7 @@ export function toolDocumentContractMarkdown(row: ToolDocumentRow): string {
   if (doc.app?.code) {
     parts.push(
       '',
-      `> Runs in the execute sandbox for the mount: the code is \`${doc.app.code.url}\`, entry \`${doc.app.code.entry}\`.`,
+      `> Runs in the execute sandbox for the install: the code is \`${doc.app.code.url}\`, entry \`${doc.app.code.entry}\`.`,
     )
   } else if (doc.source) {
     parts.push(

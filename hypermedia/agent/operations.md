@@ -134,11 +134,11 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_SEARXNG_URL` | _(unset)_ | Self-hosted SearXNG base URL. Enables the `web_search` tool. <!-- id:r7A0bkD3 --> |
 | `SEED_AGENTS_CRAWLER_URL` | _(unset)_ | Self-hosted Crawl4AI base URL. Enables browser-render escalation for web reads. <!-- id:0R7M1OGu --> |
 | `SEED_AGENTS_CRAWLER_TOKEN` | _(unset)_ | Bearer token for Crawl4AI (required by Crawl4AI >= 0.9). <!-- id:ABE0a0Tv --> |
-| `SEED_AGENTS_DATALAB_API_KEY` | _(unset)_ | The older spelling of `SEED_AGENTS_APP_CONVERT_APIKEY`: the shared Datalab key of the converter app's server-wide mount. Set it on the hosted server only. The converter's mode, extras and the pages it gives away are on the operator's mount page, not here. |
-| `SEED_AGENTS_APP_<SLUG>_<ARG>` | _(unset)_ | The value of one server-scope app argument, such as a shared API key for an app mounted server-wide from the operator\'s space. See [agent apps](./agent-apps.md). |
+| `SEED_AGENTS_DATALAB_API_KEY` | _(unset)_ | The older spelling of `SEED_AGENTS_APP_CONVERT_APIKEY`: the shared Datalab key of the converter app's server-wide install. Set it on the hosted server only. The converter's mode, extras and the pages it gives away are on the operator's install page, not here. |
+| `SEED_AGENTS_APP_<SLUG>_<ARG>` | _(unset)_ | The value of one server-scope app argument, such as a shared API key for an app installed server-wide from the operator\'s space. See [agent apps](./agent-apps.md). |
 | `SEED_AGENTS_SUBSCRIPTION_AUTH` | _(off)_ | Offer provider OAuth sign-in ("Sign in with ChatGPT"). Only `1`/`true`/`yes`/`on` enables it. <!-- id:Sv4pKPqe --> |
 | `SEED_AGENTS_SESSION_TITLE_GENERATION` | `true` | Name untitled sessions with a dedicated model call. Set exactly `false` to disable. <!-- id:ED7y2rAF --> |
-| `SEED_AGENTS_EXEC_BACKEND` | `microsandbox` | Code-execution backend for `execute`, authored lambda tools and the tools of mounted apps. Set empty/`off`/`none` to disable; a server without it mounts no app. <!-- id:81BYtsXO --> |
+| `SEED_AGENTS_EXEC_BACKEND` | `microsandbox` | Code-execution backend for `execute`, authored lambda tools and the tools of installed apps. Set empty/`off`/`none` to disable; a server without it installs no app. <!-- id:81BYtsXO --> |
 | `SEED_AGENTS_EXEC_IMAGE` | `python` | OCI image used for execution sandboxes. <!-- id:QRvggCQy --> |
 | `SEED_AGENTS_EXEC_TS_IMAGE` | `oven/bun` | OCI image for the `ts` runtime (needs bun). Set empty to withhold ts. <!-- id:yQbjzCnq --> |
 | `SEED_AGENTS_EXEC_CPUS` | `1` | Virtual CPUs per execution sandbox. <!-- id:QRuJer3f --> |
@@ -252,7 +252,7 @@ environment:
   SEED_AGENTS_DATALAB_API_KEY: ${DATALAB_API_KEY}
 ```
 
-The key is the only converter setting the server takes: the mode, the extras and the allowance and ceiling the server gives away are attributes of the operator's mount page of the [Datalab converter](./apps/convert.md), and the tool's code is the converter's tool page. A server without a key, or without a sandbox, offers no `convert`.
+The key is the only converter setting the server takes: the mode, the extras and the allowance and ceiling the server gives away are attributes of the operator's install page of the [Datalab converter](./apps/convert.md), and the tool's code is the converter's tool page. A server without a key, or without a sandbox, offers no `convert`.
 
 Capacity note: Crawl4AI runs a headless Chromium and documents a >=4 GB RAM minimum plus 1 GB shared memory. Size the host accordingly. The SearXNG and in-process static reader path is lightweight. Crawl4AI is the heavy escalation tier. <!-- id:U9QXiKwN -->
 

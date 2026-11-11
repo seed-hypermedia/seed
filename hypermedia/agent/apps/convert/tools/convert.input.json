@@ -28,7 +28,7 @@
     "mode": {
       "type": "string",
       "enum": ["fast", "balanced", "accurate"],
-      "description": "Datalab mode. Leave unset unless the user asks for a specific one: the mount's mode is already the best it offers, and on the shared key a more expensive mode is lowered to it anyway."
+      "description": "Datalab mode. Leave unset unless the user asks for a specific one: the install's mode is already the best it offers, and on the shared key a more expensive mode is lowered to it anyway."
     },
     "overwrite": {
       "type": "boolean",

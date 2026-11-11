@@ -401,7 +401,7 @@ CREATE TABLE tool_documents (
 CREATE INDEX tool_documents_by_agent ON tool_documents (account_id, agent_id, updated_at DESC);
 CREATE INDEX tool_documents_by_agent_id ON tool_documents (agent_id);
 
--- Apps mounted for a space (account_id) or server-wide from the operator's space (account_id ''),
+-- Apps installed for a space (account_id) or server-wide from the operator's space (account_id ''),
 -- with a snapshot of the app and its tools, and the usage a server-wide mount page gives away. server_bindings caches which agents-server URLs
 -- proved to be this server.
 CREATE TABLE app_mounts (
@@ -431,7 +431,7 @@ CREATE TABLE server_bindings (
 ) WITHOUT ROWID;
 
 -- Units (pages, calls, whatever the app's usage block names) consumed on a metered app's
--- server-wide mount, per account and UTC period. A row is reserved before the tool runs (and is
+-- server-wide install, per account and UTC period. A row is reserved before the tool runs (and is
 -- the budget the tool is told), settled to what the tool reports on success, released on failure.
 -- A space's own mount is not recorded.
 CREATE TABLE app_usage (

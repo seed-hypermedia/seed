@@ -845,7 +845,7 @@
     "ListAppsResponse": {
       "fields": {
         "_": "\"ListAppsResponse\"",
-        "apps": "AppMountInfo[]",
+        "apps": "AppInstallInfo[]",
         "binding": "SpaceBinding"
       }
     },
@@ -1410,18 +1410,18 @@
         "value?": "false | null | number | string | true"
       }
     },
-    "AppMountInfo": {
+    "AppInstallInfo": {
       "fields": {
         "app": "string",
         "arguments": "AppArgumentInfo[]",
         "createdAt": "number",
         "enabled": "boolean",
-        "mountId?": "string",
+        "installId?": "string",
         "name": "string",
         "network": "Record<string, string>",
         "scope": "\"server\" | \"space\"",
         "slug": "string",
-        "status": "AppMountStatus",
+        "status": "AppInstallStatus",
         "summary": "string",
         "tools": "AppToolInfo[]",
         "updatedAt": "number",
@@ -1429,7 +1429,7 @@
         "version?": "string"
       }
     },
-    "AppMountStatus": {
+    "AppInstallStatus": {
       "fields": {
         "checkedAt?": "number",
         "error?": "string",

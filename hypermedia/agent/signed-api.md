@@ -407,15 +407,15 @@ type RedactedMcpServer = {
 
 ## Apps
 
-Account-scoped, like MCP servers. Full behavior is in [agent apps](./agent-apps.md): mounting is publishing a page in the space, so there is no mount or unmount action.
+Account-scoped, like MCP servers. Full behavior is in [agent apps](./agent-apps.md): installing is publishing a page in the space, so there is no install or uninstall action.
 
 ```
-{_: 'ListApps'}                       → {_: 'ListAppsResponse'; apps: AppMountInfo[]; binding: SpaceBinding}
+{_: 'ListApps'}                       → {_: 'ListAppsResponse'; apps: AppInstallInfo[]; binding: SpaceBinding}
 {_: 'RefreshApps'}                    → {_: 'ListAppsResponse'; …}   (after a pass over the caller's space)
 {_: 'GetAppUsage'; slug: string}      → {_: 'GetAppUsageResponse'; usage?: AppUsageInfo}
 ```
 
-`AppMountInfo` is `{slug, scope: 'server' | 'space', mountId?, app, version?, name, summary, arguments: AppArgumentInfo[], tools: {tool, summary, runtime: 'ts' | 'python'}[], network: Record<label, host>, usage?: {meter, unit?, period?, callCap?, allowance?, ceiling?}, enabled, status: {state: 'pending' | 'ok' | 'error', error?, checkedAt?}, createdAt, updatedAt}`; a secret argument carries `hasValue`, never its value. `SpaceBinding` is `{agentServerUrl?, source: 'home' | 'site' | 'none', isThisServer}`. `GetAppUsage` answers `usage` (`{slug, unit, period, used, allowance, remaining, serverRemaining?}`) only for a metered server-wide mount, and 404 when the app is not mounted for the account. `ListApps` and `GetAppUsage` are reader level, `RefreshApps` writer level. A pass that changed something emits `account-change` with reason `apps-changed`, plus `agent-tools-changed` per re-projected agent. `AgentToolInfo.app?: {slug, version?, scope}` names the mounted app a tool document was projected from.
+`AppInstallInfo` is `{slug, scope: 'server' | 'space', installId?, app, version?, name, summary, arguments: AppArgumentInfo[], tools: {tool, summary, runtime: 'ts' | 'python'}[], network: Record<label, host>, usage?: {meter, unit?, period?, callCap?, allowance?, ceiling?}, enabled, status: {state: 'pending' | 'ok' | 'error', error?, checkedAt?}, createdAt, updatedAt}`; a secret argument carries `hasValue`, never its value. `SpaceBinding` is `{agentServerUrl?, source: 'home' | 'site' | 'none', isThisServer}`. `GetAppUsage` answers `usage` (`{slug, unit, period, used, allowance, remaining, serverRemaining?}`) only for a metered server-wide mount, and 404 when the app is not mounted for the account. `ListApps` and `GetAppUsage` are reader level, `RefreshApps` writer level. A pass that changed something emits `account-change` with reason `apps-changed`, plus `agent-tools-changed` per re-projected agent. `AgentToolInfo.app?: {slug, version?, scope}` names the mounted app a tool document was projected from.
 
 ## `SetSecret` <!-- id:Lwc2nC08 -->
 
@@ -626,7 +626,7 @@ type AgentToolInfo = {
   cid: string // DAG-CBOR CIDv1 of the document; changes on every edit
   enabled: boolean
   granted: boolean // builtins: whether the agent's grant set offers it. Lambdas: always true
-  app?: {slug: string; version?: string; scope: 'server' | 'space'} // the mounted app a lambda was projected from
+  app?: {slug: string; version?: string; scope: 'server' | 'space'} // the installed app a lambda was projected from
   createdAt: number
   updatedAt: number
 }

@@ -45,7 +45,7 @@ function registerStartMock() {
   }))
 }
 
-/** Mounts the app at the current window URL with `client`, in invite-only mode. */
+/** Installs the app at the current window URL with `client`, in invite-only mode. */
 async function renderApp(client: ReturnType<typeof createMockClient>, relyingPartyName = 'Acme Vault') {
   const store = createStore(client, createMockBlockstore(), '', '', '', true, relyingPartyName)
   const router = createRouter()

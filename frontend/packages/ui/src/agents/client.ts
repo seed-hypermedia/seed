@@ -81,8 +81,8 @@ export type McpServerTransport = AgentsProtocol.McpServerTransport
 export type McpToolInfo = AgentsProtocol.McpToolInfo
 /** What the last discovery of an MCP server found. */
 export type McpServerStatus = AgentsProtocol.McpServerStatus
-/** A mounted app as the server shows it: the app page's declaration and the mount's state, never a secret value. */
-export type AppMountInfo = AgentsProtocol.AppMountInfo
+/** An installed app as the server shows it: the app page's declaration and the install's state, never a secret value. */
+export type AppInstallInfo = AgentsProtocol.AppInstallInfo
 /** One argument an app declares. */
 export type AppArgumentInfo = AgentsProtocol.AppArgumentInfo
 /** Which agents server an account's space is bound to. */

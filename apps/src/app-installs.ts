@@ -1,24 +1,24 @@
 /**
- * App mounts: which apps are installed for which spaces on this server, found from typed documents.
+ * App installs: which apps are installed for which spaces on this server, found from typed documents.
  *
  * An app is a page typed `agent/app` whose attributes declare its slug, arguments and usage,
  * whose body is the skill doc the model reads, and whose `tools` folder holds one `agent/app-tool`
  * page per tool, each carrying its contract and its code in its attributes and its documentation in
- * its body. A space installs an app by publishing a page typed `agent/app-mount` that links the
- * app's page (the reference form), or a copy of that page with its `mount` attributes set (the copy
+ * its body. A space installs an app by publishing a page typed `agent/app-install` that links the
+ * app's page (the reference form), or a copy of that page with its `install` attributes set (the copy
  * form). Nobody tells this server about either: every pass asks the daemon for all documents of
  * those types and keeps the ones that are its own to act on.
  *
- * Which server a mount belongs to follows from a binding the space declares and this server proves.
+ * Which server an install belongs to follows from a binding the space declares and this server proves.
  * A space names its agents server in its home document (`agentServerUrl`), or its site does in
  * `/hm/api/config`; a server believes a URL is itself only after fetching that URL's `/health` and
  * seeing its own `serverUid` come back, the way a custom domain is proven by what DNS points at.
  * The same handshake names the operator's space: the one registered on the site this server reads
- * through, whose advertised agents server proves to be this one. A mount with `scope: server` is
+ * through, whose advertised agents server proves to be this one. An install with `scope: server` is
  * honored there and nowhere else, and applies to every space the server serves.
  *
  * What a pass stores is a snapshot of the app and its tools, so projection and execution never
- * read the network, and the secret arguments it pairs with the mount stay on this server
+ * read the network, and the secret arguments it pairs with the install stay on this server
  * (`app-<slug>-<arg>` in `secrets`), never in a document. See hypermedia/agent/agent-apps.md.
  */
 import type {Database} from 'bun:sqlite'
@@ -42,12 +42,12 @@ import * as path from 'node:path'
 /** The library names of the three types, as the schema registry spells them. */
 export const APP_SCHEMA = 'hm://hyper.media/agent/app'
 export const APP_TOOL_SCHEMA = 'hm://hyper.media/agent/app-tool'
-export const APP_MOUNT_SCHEMA = 'hm://hyper.media/agent/app-mount'
+export const APP_INSTALL_SCHEMA = 'hm://hyper.media/agent/app-install'
 
-/** `account_id` of a server-wide mount row. */
+/** `account_id` of a server-wide install row. */
 export const SERVER_SCOPE_ACCOUNT = ''
 
-/** The secret an account kept its own Datalab key under before mounts existed; still honored as a mount of `convert`. */
+/** The secret an account kept its own Datalab key under before installs existed; still honored as an install of `convert`. */
 export const LEGACY_DATALAB_SECRET = 'datalab-api-key'
 
 const SLUG_PATTERN = /^[a-z0-9][a-z0-9_-]{0,31}$/
@@ -91,7 +91,7 @@ export type AppToolRuntime = 'ts' | 'python'
 /**
  * Where a tool's code is: the page's `code` reference, its CID, and the entry file the sandbox
  * runs (`index.ts` or `main.py` of a folder, or the single file under that name). The bytes sit in
- * the server's cache under the CID (see appCodePath), fetched at mount and checked against it.
+ * the server's cache under the CID (see appCodePath), fetched at install and checked against it.
  */
 export type AppToolCode = {url: string; cid: string; entry: string}
 
@@ -113,7 +113,7 @@ export type AppToolSnapshot = {
   instructions: string
 }
 
-/** Everything a pass took from an app page and its tools, kept on the mount row. */
+/** Everything a pass took from an app page and its tools, kept on the install row. */
 export type AppSnapshot = {
   slug: string
   name: string
@@ -127,31 +127,31 @@ export type AppSnapshot = {
   tools: AppToolSnapshot[]
 }
 
-/** What a server-wide mount page gives away of a metered app: units per space and for the whole server, per period. */
-export type AppMountUsage = {allowance?: number; ceiling?: number}
+/** What a server-wide install page gives away of a metered app: units per space and for the whole server, per period. */
+export type AppInstallUsage = {allowance?: number; ceiling?: number}
 
-export type AppMountRow = {
+export type AppInstallRow = {
   accountId: string
   scope: AppScope
   slug: string
-  /** The mount document (or the app page, in the copy form); `legacy:<secret>` for the shim. */
-  mountId: string
+  /** The install page (or the app page, in the copy form); `legacy:<secret>` for the shim. */
+  installId: string
   appId: string
   version?: string
   snapshot?: AppSnapshot
-  /** Non-secret argument values the mount carries. */
+  /** Non-secret argument values the install carries. */
   args: Record<string, string | number | boolean | null>
   /** Argument name → secret name on this server, for the app's secret arguments. */
   secretRefs: Record<string, string>
-  /** The allowance and ceiling a server-wide mount page sets; absent on a space mount. */
-  usage?: AppMountUsage
-  status: api.AppMountStatus
+  /** The allowance and ceiling a server-wide install page sets; absent on a space install. */
+  usage?: AppInstallUsage
+  status: api.AppInstallStatus
   createdAt: number
   updatedAt: number
 }
 
 /** What the pass needs from the server that runs it. */
-export type AppMountDeps = {
+export type AppInstallDeps = {
   db: Database
   hmServerUrl: string
   /** The endpoint serving `/ipfs/<cid>`: where a tool's code and schemas are fetched from. */
@@ -162,7 +162,7 @@ export type AppMountDeps = {
   serverUid: string
   /** The fetch every network call goes through (deadlines and test stubs live here). */
   fetch: typeof fetch
-  /** The runtimes this server's sandbox offers; a tool written in another is refused at mount. Empty when code execution is off. */
+  /** The runtimes this server's sandbox offers; a tool written in another is refused at install. Empty when code execution is off. */
   runtimes: readonly CodeExecRuntime[]
   /** A server-scope secret argument's value from this server's own configuration, when it has one. */
   serverArgValue: (slug: string, arg: string) => string | undefined
@@ -170,7 +170,7 @@ export type AppMountDeps = {
   now?: number
 }
 
-/** The secret name a mount's secret argument is stored under. */
+/** The secret name an install's secret argument is stored under. */
 export function appSecretName(slug: string, arg: string): string {
   return `app-${slug}-${arg}`
 }
@@ -189,7 +189,7 @@ export function normalizeAgentServerUrl(input: string): string {
   return url.toString().replace(/\/+$/, '')
 }
 
-/** The URL of one public endpoint of an agents server, on the canonical mount or the legacy host layout. */
+/** The URL of one public endpoint of an agents server, on the canonical install or the legacy host layout. */
 export function agentServerEndpointUrl(serverUrl: string, endpoint: 'health'): string {
   const base = normalizeAgentServerUrl(serverUrl)
   return new URL(base).pathname.endsWith('/hm/api/agents') ? `${base}/${endpoint}` : `${base}/agents/api/${endpoint}`
@@ -230,7 +230,7 @@ async function queryAll(client: SeedClient, filter: HMDocumentFilter): Promise<D
   return out
 }
 
-async function fetchJson(deps: AppMountDeps, url: string): Promise<Record<string, unknown>> {
+async function fetchJson(deps: AppInstallDeps, url: string): Promise<Record<string, unknown>> {
   const response = await deps.fetch(url, {signal: deps.signal, headers: {accept: 'application/json'}})
   if (!response.ok) throw new Error(`${url} answered ${response.status}`)
   const body = (await response.json()) as unknown
@@ -242,7 +242,7 @@ async function fetchJson(deps: AppMountDeps, url: string): Promise<Record<string
  * Whether `url` is this server: the answer `/health` gives, remembered in `server_bindings` for a
  * day (ten minutes after a failed probe). A server cannot claim a URL it does not answer at.
  */
-export async function isThisServer(deps: AppMountDeps, url: string): Promise<boolean> {
+export async function isThisServer(deps: AppInstallDeps, url: string): Promise<boolean> {
   let normalized: string
   try {
     normalized = normalizeAgentServerUrl(url)
@@ -281,7 +281,7 @@ export type SpaceBindingResult = api.SpaceBinding & {siteUrl?: string}
  * `agentServerUrl` its site advertises at `<siteUrl>/hm/api/config`, and whether that is this server.
  */
 export async function spaceBinding(
-  deps: AppMountDeps,
+  deps: AppInstallDeps,
   client: SeedClient,
   accountId: string,
 ): Promise<SpaceBindingResult> {
@@ -312,7 +312,7 @@ export async function spaceBinding(
  * server that site advertises proves to be this one. Null when the site names no space (the
  * desktop's local daemon) or advertises another server.
  */
-export async function operatorSpace(deps: AppMountDeps): Promise<string | null> {
+export async function operatorSpace(deps: AppInstallDeps): Promise<string | null> {
   const config = await fetchJson(deps, `${deps.hmServerUrl.replace(/\/+$/, '')}/hm/api/config`).catch(() => undefined)
   const registered = typeof config?.registeredAccountUid === 'string' ? config.registeredAccountUid : ''
   const advertised = typeof config?.agentServerUrl === 'string' ? config.agentServerUrl : ''
@@ -320,8 +320,8 @@ export async function operatorSpace(deps: AppMountDeps): Promise<string | null> 
   return (await isThisServer(deps, advertised)) ? registered : null
 }
 
-/** Why a mount offers nothing; carries the app's slug once its page has said it, so the row can still name the app. */
-class MountProblem extends Error {
+/** Why an install offers nothing; carries the app's slug once its page has said it, so the row can still name the app. */
+class InstallProblem extends Error {
   slug?: string
 }
 
@@ -368,13 +368,13 @@ function documentUrl(info: DocumentInfo): string {
 /** Parses the app page's attributes into the snapshot's declaration half. */
 function parseAppAttributes(metadata: Record<string, unknown>): Omit<AppSnapshot, 'skillDoc' | 'tools'> {
   const slug = typeof metadata.slug === 'string' ? metadata.slug : ''
-  if (!SLUG_PATTERN.test(slug)) throw new MountProblem('The app page has no valid slug')
+  if (!SLUG_PATTERN.test(slug)) throw new InstallProblem('The app page has no valid slug')
   const args: Record<string, AppArgumentDeclaration> = {}
   for (const [name, raw] of Object.entries(asRecord(metadata.arguments) ?? {})) {
     const decl = asRecord(raw)
     const type = decl?.type
     if (!decl || (type !== 'string' && type !== 'integer' && type !== 'boolean')) {
-      throw new MountProblem(`Argument ${name} has no valid type`)
+      throw new InstallProblem(`Argument ${name} has no valid type`)
     }
     const choices = asRecord(decl.choices)
     args[name] = {
@@ -400,7 +400,7 @@ function parseAppAttributes(metadata: Record<string, unknown>): Omit<AppSnapshot
   const network: Record<string, string> = {}
   for (const [label, host] of Object.entries(asRecord(metadata.network) ?? {})) {
     if (typeof host !== 'string' || !/^[a-z0-9.-]+$/i.test(host)) {
-      throw new MountProblem(`Network entry ${label} is not a host name`)
+      throw new InstallProblem(`Network entry ${label} is not a host name`)
     }
     network[label] = host.toLowerCase()
   }
@@ -408,7 +408,7 @@ function parseAppAttributes(metadata: Record<string, unknown>): Omit<AppSnapshot
   const meter = usageRaw?.meter
   const callCap = usageRaw?.callCap
   if (callCap !== undefined && !(Number.isInteger(callCap) && (callCap as number) > 0)) {
-    throw new MountProblem('usage.callCap must be a positive integer')
+    throw new InstallProblem('usage.callCap must be a positive integer')
   }
   const usage: AppSnapshot['usage'] =
     meter === 'none' || meter === 'per-unit'
@@ -439,12 +439,12 @@ async function assertTyped(
   what: string,
 ): Promise<void> {
   const check = await checkDocumentSchema(client, id, document.metadata as Record<string, unknown>)
-  if (check.error) throw new MountProblem(`${what} ${packHmId(id)}: ${check.error}`)
+  if (check.error) throw new InstallProblem(`${what} ${packHmId(id)}: ${check.error}`)
   if (!check.schema || !schemaSpellings(typeName).includes(check.schema)) {
-    throw new MountProblem(`${what} ${packHmId(id)} is not typed by ${typeName}`)
+    throw new InstallProblem(`${what} ${packHmId(id)} is not typed by ${typeName}`)
   }
   if (check.violations.length) {
-    throw new MountProblem(`${what} ${packHmId(id)} does not satisfy ${typeName}: ${check.violations.join('; ')}`)
+    throw new InstallProblem(`${what} ${packHmId(id)} does not satisfy ${typeName}: ${check.violations.join('; ')}`)
   }
 }
 
@@ -453,17 +453,17 @@ async function readDocument(
   url: string,
 ): Promise<{id: UnpackedHypermediaId; document: HMDocument}> {
   const id = unpackHmId(resolveDocsUrl(url))
-  if (!id) throw new MountProblem(`${url} is not a document address`)
+  if (!id) throw new InstallProblem(`${url} is not a document address`)
   const resource = await client.request('Resource', id).catch((error: unknown) => {
-    throw new MountProblem(`Could not read ${url}: ${error instanceof Error ? error.message : String(error)}`)
+    throw new InstallProblem(`Could not read ${url}: ${error instanceof Error ? error.message : String(error)}`)
   })
-  if (resource.type !== 'document') throw new MountProblem(`${url} is not a document`)
+  if (resource.type !== 'document') throw new InstallProblem(`${url} is not a document`)
   return {id, document: resource.document as HMDocument}
 }
 
 /** Reads an app page and its tools folder into a snapshot, refusing anything the server will not run. */
 async function readAppSnapshot(
-  deps: AppMountDeps,
+  deps: AppInstallDeps,
   client: SeedClient,
   appUrl: string,
 ): Promise<{snapshot: AppSnapshot; version?: string}> {
@@ -473,7 +473,7 @@ async function readAppSnapshot(
   try {
     return await readAppTools(deps, client, id, document, declared)
   } catch (error) {
-    if (error instanceof MountProblem) error.slug = declared.slug
+    if (error instanceof InstallProblem) error.slug = declared.slug
     throw error
   }
 }
@@ -489,14 +489,14 @@ const sameBytes = (a: Uint8Array, b: Uint8Array) => Buffer.compare(Buffer.from(a
 /** The CID an `ipfs://<cid>` attribute names; a missing or malformed value is the tool's problem, named. */
 function ipfsReference(tool: string, attribute: string, value: unknown): CID {
   if (value === undefined || value === null || (typeof value === 'string' && !value.trim())) {
-    throw new MountProblem(`Tool ${tool} has no ${attribute}`)
+    throw new InstallProblem(`Tool ${tool} has no ${attribute}`)
   }
   const match = typeof value === 'string' ? /^ipfs:\/\/([A-Za-z0-9]+)$/.exec(value.trim()) : null
-  if (!match) throw new MountProblem(`Tool ${tool}'s ${attribute} must be an ipfs:// reference`)
+  if (!match) throw new InstallProblem(`Tool ${tool}'s ${attribute} must be an ipfs:// reference`)
   try {
     return CID.parse(match[1]!)
   } catch {
-    throw new MountProblem(`Tool ${tool}'s ${attribute} is not a valid ipfs:// reference`)
+    throw new InstallProblem(`Tool ${tool}'s ${attribute} is not a valid ipfs:// reference`)
   }
 }
 
@@ -509,15 +509,15 @@ async function readSchemaReference(
 ): Promise<JsonSchema> {
   const cid = ipfsReference(tool, attribute, value)
   if (cid.code !== DAG_CBOR_CODEC) {
-    throw new MountProblem(`Tool ${tool}'s ${attribute} must name a DAG-CBOR object, not a file`)
+    throw new InstallProblem(`Tool ${tool}'s ${attribute} must name a DAG-CBOR object, not a file`)
   }
   const got = await client.request('GetCID', {cid: cid.toString()}).catch((error: unknown) => {
-    throw new MountProblem(`Tool ${tool}'s ${attribute} ipfs://${cid} could not be read: ${describe(error)}`)
+    throw new InstallProblem(`Tool ${tool}'s ${attribute} ipfs://${cid} could not be read: ${describe(error)}`)
   })
   const schema = (got as {value?: unknown} | undefined)?.value
   const errors = validateJsonSchemaShape(schema)
   if (errors.length) {
-    throw new MountProblem(
+    throw new InstallProblem(
       `Tool ${tool}'s ${attribute}: ${errors.map((error) => `${error.path}: ${error.message}`).join('; ')}`,
     )
   }
@@ -525,19 +525,19 @@ async function readSchemaReference(
 }
 
 /** A raw block by CID from the IPFS endpoint, proven: the bytes must hash to the CID. */
-async function fetchRawBlock(deps: AppMountDeps, cid: CID, what: string): Promise<Uint8Array> {
+async function fetchRawBlock(deps: AppInstallDeps, cid: CID, what: string): Promise<Uint8Array> {
   const url = `${deps.ipfsServerUrl.replace(/\/+$/, '')}/ipfs/${cid}`
   const response = await deps.fetch(url, {signal: deps.signal}).catch((error: unknown) => {
-    throw new MountProblem(`${what} ipfs://${cid} could not be fetched: ${describe(error)}`)
+    throw new InstallProblem(`${what} ipfs://${cid} could not be fetched: ${describe(error)}`)
   })
-  if (!response.ok) throw new MountProblem(`${what} ipfs://${cid} could not be fetched (${response.status})`)
+  if (!response.ok) throw new InstallProblem(`${what} ipfs://${cid} could not be fetched (${response.status})`)
   const bytes = new Uint8Array(await response.arrayBuffer())
   if (bytes.byteLength > MAX_TOOL_FILE_BYTES) {
-    throw new MountProblem(`${what} is larger than ${MAX_TOOL_FILE_BYTES / 1024} KiB`)
+    throw new InstallProblem(`${what} is larger than ${MAX_TOOL_FILE_BYTES / 1024} KiB`)
   }
   const digest = await sha256.digest(bytes)
   if (cid.multihash.code !== SHA256_CODE || !sameBytes(digest.digest, cid.multihash.digest)) {
-    throw new MountProblem(`${what} ipfs://${cid} does not match its content id`)
+    throw new InstallProblem(`${what} ipfs://${cid} does not match its content id`)
   }
   return bytes
 }
@@ -549,24 +549,24 @@ async function fetchFolderListing(
   what: string,
 ): Promise<Array<{name: string; cid: CID}>> {
   const got = await client.request('GetCID', {cid: cid.toString()}).catch((error: unknown) => {
-    throw new MountProblem(`${what} ipfs://${cid} could not be listed: ${describe(error)}`)
+    throw new InstallProblem(`${what} ipfs://${cid} could not be listed: ${describe(error)}`)
   })
   const links = asRecord((got as {value?: unknown} | undefined)?.value)?.Links
-  if (!Array.isArray(links) || !links.length) throw new MountProblem(`${what} ipfs://${cid} is an empty folder`)
+  if (!Array.isArray(links) || !links.length) throw new InstallProblem(`${what} ipfs://${cid} is an empty folder`)
   return links.map((link) => {
     const record = asRecord(link)
     const name = record?.Name
     const hash = asRecord(record?.Hash)?.['/']
     if (typeof name !== 'string' || !name) {
-      throw new MountProblem(
+      throw new InstallProblem(
         `${what} ipfs://${cid} is a file in several blocks, larger than ${MAX_TOOL_FILE_BYTES / 1024} KiB`,
       )
     }
-    if (typeof hash !== 'string') throw new MountProblem(`${what} ipfs://${cid} has an entry without a content id`)
+    if (typeof hash !== 'string') throw new InstallProblem(`${what} ipfs://${cid} has an entry without a content id`)
     try {
       return {name, cid: CID.parse(hash)}
     } catch {
-      throw new MountProblem(`${what} ipfs://${cid} has an entry with an invalid content id`)
+      throw new InstallProblem(`${what} ipfs://${cid} has an entry with an invalid content id`)
     }
   })
 }
@@ -575,34 +575,34 @@ const ENTRY_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
 
 /** Every file of a tool's code, fetched and proven: the one raw file a CID names, or a folder walked to its leaves. */
 async function fetchToolTree(
-  deps: AppMountDeps,
+  deps: AppInstallDeps,
   client: SeedClient,
   tool: string,
   cid: CID,
 ): Promise<{kind: 'file' | 'folder'; files: Array<{path: string; bytes: Uint8Array}>}> {
   const what = `Tool ${tool}'s code`
   if (cid.code === RAW_CODEC) return {kind: 'file', files: [{path: '', bytes: await fetchRawBlock(deps, cid, what)}]}
-  if (cid.code !== DAG_PB_CODEC) throw new MountProblem(`${what} must name a file or a folder`)
+  if (cid.code !== DAG_PB_CODEC) throw new InstallProblem(`${what} must name a file or a folder`)
   const files: Array<{path: string; bytes: Uint8Array}> = []
   let total = 0
   const walk = async (folder: CID, prefix: string, depth: number): Promise<void> => {
     if (depth > MAX_TOOL_FOLDER_DEPTH) {
-      throw new MountProblem(`${what} nests folders deeper than ${MAX_TOOL_FOLDER_DEPTH}`)
+      throw new InstallProblem(`${what} nests folders deeper than ${MAX_TOOL_FOLDER_DEPTH}`)
     }
     for (const entry of await fetchFolderListing(client, folder, what)) {
       const entryPath = prefix ? `${prefix}/${entry.name}` : entry.name
       if (!ENTRY_NAME.test(entry.name))
-        throw new MountProblem(`${what} has an entry with an unusable name: ${entryPath}`)
+        throw new InstallProblem(`${what} has an entry with an unusable name: ${entryPath}`)
       if (entry.cid.code === DAG_PB_CODEC) {
         await walk(entry.cid, entryPath, depth + 1)
         continue
       }
-      if (entry.cid.code !== RAW_CODEC) throw new MountProblem(`${what}: ${entryPath} is neither a file nor a folder`)
-      if (files.length >= MAX_TOOL_FILES) throw new MountProblem(`${what} has more than ${MAX_TOOL_FILES} files`)
+      if (entry.cid.code !== RAW_CODEC) throw new InstallProblem(`${what}: ${entryPath} is neither a file nor a folder`)
+      if (files.length >= MAX_TOOL_FILES) throw new InstallProblem(`${what} has more than ${MAX_TOOL_FILES} files`)
       const bytes = await fetchRawBlock(deps, entry.cid, `${what}: ${entryPath}`)
       total += bytes.byteLength
       if (total > MAX_TOOL_CODE_BYTES) {
-        throw new MountProblem(`${what} is larger than ${MAX_TOOL_CODE_BYTES / 1024 / 1024} MiB`)
+        throw new InstallProblem(`${what} is larger than ${MAX_TOOL_CODE_BYTES / 1024 / 1024} MiB`)
       }
       files.push({path: entryPath, bytes})
     }
@@ -645,10 +645,10 @@ const inflightToolCode = new Map<string, Promise<void>>()
  * Resolves a tool page's `code` reference: the code is fetched into the server's cache under its
  * CID, every file proven against its content id and the whole held to the bounds above, and the
  * entry the sandbox will run is found. A CID already in the cache is not fetched again, whoever
- * mounted it: content never changes under a CID.
+ * installed it: content never changes under a CID.
  */
 async function fetchToolCode(
-  deps: AppMountDeps,
+  deps: AppInstallDeps,
   client: SeedClient,
   tool: string,
   runtime: AppToolRuntime,
@@ -666,7 +666,7 @@ async function fetchToolCode(
         const tree = await fetchToolTree(deps, client, tool, cid)
         const files = tree.kind === 'file' ? [{path: entry, bytes: tree.files[0]!.bytes}] : tree.files
         if (!files.some((file) => file.path === entry)) {
-          throw new MountProblem(`Tool ${tool}'s code folder has no ${entry}`)
+          throw new InstallProblem(`Tool ${tool}'s code folder has no ${entry}`)
         }
         writeToolTree(dir, files)
       })().finally(() => inflightToolCode.delete(key))
@@ -678,11 +678,11 @@ async function fetchToolCode(
 }
 
 /**
- * The cache directory of a tool's code, for a run about to start: the one the mount pass filled,
- * fetched again when the data directory lost it. Throws the mount's problem when the code cannot
+ * The cache directory of a tool's code, for a run about to start: the one the install pass filled,
+ * fetched again when the data directory lost it. Throws the install's problem when the code cannot
  * be had.
  */
-export async function ensureToolCode(deps: AppMountDeps, tool: string, code: AppToolCode): Promise<string> {
+export async function ensureToolCode(deps: AppInstallDeps, tool: string, code: AppToolCode): Promise<string> {
   const dir = appCodePath(deps.dataDir, code.cid)
   if (!fs.existsSync(path.join(dir, code.entry))) {
     const client = createSeedClient(deps.hmServerUrl, {fetch: deps.fetch})
@@ -693,7 +693,7 @@ export async function ensureToolCode(deps: AppMountDeps, tool: string, code: App
 }
 
 async function readAppTools(
-  deps: AppMountDeps,
+  deps: AppInstallDeps,
   client: SeedClient,
   id: UnpackedHypermediaId,
   document: HMDocument,
@@ -711,22 +711,22 @@ async function readAppTools(
       ],
     },
   })
-  if (toolInfos.length > MAX_TOOLS_PER_APP) throw new MountProblem('The app declares too many tools')
+  if (toolInfos.length > MAX_TOOLS_PER_APP) throw new InstallProblem('The app declares too many tools')
   const tools: AppToolSnapshot[] = []
   for (const info of toolInfos.sort((a, b) => (a.path ?? '').localeCompare(b.path ?? ''))) {
     const page = await readDocument(client, documentUrl(info))
     await assertTyped(client, page.id, page.document, APP_TOOL_SCHEMA, 'The tool')
     const metadata = page.document.metadata as Record<string, unknown>
     const tool = typeof metadata.tool === 'string' ? metadata.tool : ''
-    if (!TOOL_PATTERN.test(tool)) throw new MountProblem(`Tool ${documentUrl(info)} has no valid tool name`)
+    if (!TOOL_PATTERN.test(tool)) throw new InstallProblem(`Tool ${documentUrl(info)} has no valid tool name`)
     if (tool in callableToolRegistry || tool in seedVerbRegistry) {
-      throw new MountProblem(`Tool ${tool} takes the name of a builtin tool or verb`)
+      throw new InstallProblem(`Tool ${tool} takes the name of a builtin tool or verb`)
     }
-    if (tools.some((other) => other.tool === tool)) throw new MountProblem(`Tool ${tool} is declared twice`)
+    if (tools.some((other) => other.tool === tool)) throw new InstallProblem(`Tool ${tool} is declared twice`)
     const runtime = metadata.runtime
-    if (runtime !== 'ts' && runtime !== 'python') throw new MountProblem(`Tool ${tool} names no runtime`)
+    if (runtime !== 'ts' && runtime !== 'python') throw new InstallProblem(`Tool ${tool} names no runtime`)
     if (!runtimes.includes(runtime)) {
-      throw new MountProblem(
+      throw new InstallProblem(
         runtimes.length
           ? `Tool ${tool} is written in ${runtime}, which this server cannot run`
           : `Tool ${tool} needs code execution, which this server does not offer`,
@@ -741,7 +741,7 @@ async function readAppTools(
         (timeoutSecs as number) <= MAX_APP_EXEC_TIMEOUT_SECS
       )
     ) {
-      throw new MountProblem(`Tool ${tool} asks for a timeout outside 1..${MAX_APP_EXEC_TIMEOUT_SECS} seconds`)
+      throw new InstallProblem(`Tool ${tool} asks for a timeout outside 1..${MAX_APP_EXEC_TIMEOUT_SECS} seconds`)
     }
     const input = await readSchemaReference(client, tool, 'inputSchema', metadata.inputSchema)
     const outputSchema = metadata.outputSchema
@@ -766,9 +766,9 @@ async function readAppTools(
   return {snapshot: {...declared, skillDoc, tools}, version: document.version}
 }
 
-type ArgumentCheck = {args: AppMountRow['args']; secretRefs: Record<string, string>}
+type ArgumentCheck = {args: AppInstallRow['args']; secretRefs: Record<string, string>}
 
-/** The mount's argument values against the app's declarations; a secret in a document is refused. */
+/** The install's argument values against the app's declarations; a secret in a document is refused. */
 function checkArguments(
   snapshot: AppSnapshot,
   rawValues: Record<string, unknown>,
@@ -776,20 +776,20 @@ function checkArguments(
   secretAvailable: (secretName: string) => boolean,
   serverArgValue: (arg: string) => string | undefined,
 ): ArgumentCheck {
-  const args: AppMountRow['args'] = {}
+  const args: AppInstallRow['args'] = {}
   const secretRefs: Record<string, string> = {}
   for (const [name, value] of Object.entries(rawValues)) {
     const decl = snapshot.arguments[name]
-    if (!decl) throw new MountProblem(`The mount sets an argument the app does not declare: ${name}`)
-    if (decl.secret) throw new MountProblem(`The secret argument ${name} must not be written into a document`)
+    if (!decl) throw new InstallProblem(`The install sets an argument the app does not declare: ${name}`)
+    if (decl.secret) throw new InstallProblem(`The secret argument ${name} must not be written into a document`)
     const ok =
       value === null ||
       (decl.type === 'string' && typeof value === 'string') ||
       (decl.type === 'integer' && typeof value === 'number' && Number.isInteger(value)) ||
       (decl.type === 'boolean' && typeof value === 'boolean')
-    if (!ok) throw new MountProblem(`Argument ${name} must be a ${decl.type}`)
+    if (!ok) throw new InstallProblem(`Argument ${name} must be a ${decl.type}`)
     if (decl.choices && typeof value === 'string' && !(value in decl.choices)) {
-      throw new MountProblem(`Argument ${name} must be one of ${Object.keys(decl.choices).join(', ')}`)
+      throw new InstallProblem(`Argument ${name} must be one of ${Object.keys(decl.choices).join(', ')}`)
     }
     args[name] = value as string | number | boolean | null
   }
@@ -798,9 +798,9 @@ function checkArguments(
       const secretName = appSecretName(snapshot.slug, name)
       const present = scope === 'space' ? secretAvailable(secretName) : serverArgValue(name) !== undefined
       if (present) secretRefs[name] = secretName
-      else if (decl.required) throw new MountProblem(`missing secret ${name}`)
+      else if (decl.required) throw new InstallProblem(`missing secret ${name}`)
     } else if (decl.required && (args[name] === undefined || args[name] === null)) {
-      throw new MountProblem(`missing argument ${name}`)
+      throw new InstallProblem(`missing argument ${name}`)
     }
   }
   return {args, secretRefs}
@@ -825,25 +825,25 @@ type RowRecord = {
 const ROW_COLUMNS =
   'account_id, scope, slug, mount_id, bundle_id, version, snapshot_cbor, args_cbor, secret_refs_cbor, usage_cbor, status_cbor, created_at, updated_at'
 
-function rowToRecord(row: RowRecord): AppMountRow {
+function rowToRecord(row: RowRecord): AppInstallRow {
   return {
     accountId: row.account_id,
     scope: row.scope as AppScope,
     slug: row.slug,
-    mountId: row.mount_id,
+    installId: row.mount_id,
     appId: row.bundle_id,
     ...(row.version ? {version: row.version} : {}),
     ...(row.snapshot_cbor ? {snapshot: cbor.decode<AppSnapshot>(row.snapshot_cbor)} : {}),
-    args: row.args_cbor ? cbor.decode<AppMountRow['args']>(row.args_cbor) : {},
+    args: row.args_cbor ? cbor.decode<AppInstallRow['args']>(row.args_cbor) : {},
     secretRefs: row.secret_refs_cbor ? cbor.decode<Record<string, string>>(row.secret_refs_cbor) : {},
-    ...(row.usage_cbor ? {usage: cbor.decode<AppMountUsage>(row.usage_cbor)} : {}),
-    status: cbor.decode<api.AppMountStatus>(row.status_cbor),
+    ...(row.usage_cbor ? {usage: cbor.decode<AppInstallUsage>(row.usage_cbor)} : {}),
+    status: cbor.decode<api.AppInstallStatus>(row.status_cbor),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
 }
 
-function getRow(db: Database, accountId: string, slug: string): AppMountRow | undefined {
+function getRow(db: Database, accountId: string, slug: string): AppInstallRow | undefined {
   const row = stmt<RowRecord, [string, string]>(
     db,
     `SELECT ${ROW_COLUMNS} FROM app_mounts WHERE account_id = ? AND slug = ?`,
@@ -851,8 +851,8 @@ function getRow(db: Database, accountId: string, slug: string): AppMountRow | un
   return row ? rowToRecord(row) : undefined
 }
 
-/** Writes a mount row, reporting whether anything a reader could see changed. */
-function upsertRow(db: Database, next: Omit<AppMountRow, 'createdAt' | 'updatedAt'>, now: number): boolean {
+/** Writes an install row, reporting whether anything a reader could see changed. */
+function upsertRow(db: Database, next: Omit<AppInstallRow, 'createdAt' | 'updatedAt'>, now: number): boolean {
   const current = getRow(db, next.accountId, next.slug)
   const encoded = {
     snapshot: next.snapshot ? cbor.encode(next.snapshot) : null,
@@ -864,7 +864,7 @@ function upsertRow(db: Database, next: Omit<AppMountRow, 'createdAt' | 'updatedA
   const unchanged =
     current &&
     current.scope === next.scope &&
-    current.mountId === next.mountId &&
+    current.installId === next.installId &&
     current.appId === next.appId &&
     current.version === next.version &&
     (current.snapshot
@@ -886,7 +886,7 @@ function upsertRow(db: Database, next: Omit<AppMountRow, 'createdAt' | 'updatedA
     next.accountId,
     next.scope,
     next.slug,
-    next.mountId,
+    next.installId,
     next.appId,
     next.version ?? null,
     encoded.snapshot,
@@ -900,21 +900,21 @@ function upsertRow(db: Database, next: Omit<AppMountRow, 'createdAt' | 'updatedA
   return !unchanged
 }
 
-/** What one pass found: the accounts whose visible mounts changed; `serverChanged` means every account's did. */
+/** What one pass found: the accounts whose visible installs changed; `serverChanged` means every account's did. */
 export type RefreshResult = {serverChanged: boolean; changedAccounts: Set<string>}
 
 type Candidate = {
   accountId: string
   scope: AppScope
-  mountId: string
+  installId: string
   appUrl: string
   enabled: boolean
   values: Record<string, unknown>
-  usage?: AppMountUsage
+  usage?: AppInstallUsage
 }
 
-/** The allowance and ceiling a mount page sets, each a positive integer or left out. */
-function mountUsageOf(raw: unknown): AppMountUsage | undefined {
+/** The allowance and ceiling an install page sets, each a positive integer or left out. */
+function installUsageOf(raw: unknown): AppInstallUsage | undefined {
   const record = asRecord(raw)
   const pick = (value: unknown) => (Number.isInteger(value) && (value as number) > 0 ? (value as number) : undefined)
   const allowance = pick(record?.allowance)
@@ -923,44 +923,47 @@ function mountUsageOf(raw: unknown): AppMountUsage | undefined {
   return {...(allowance !== undefined ? {allowance} : {}), ...(ceiling !== undefined ? {ceiling} : {})}
 }
 
-/** Turns a document of either form into what to mount; null when it is neither. */
-function candidateOf(info: DocumentInfo, mountRefs: string[], appRefs: string[]): Candidate | null {
+/** Turns a document of either form into what to install; null when it is neither. */
+function candidateOf(info: DocumentInfo, installRefs: string[], appRefs: string[]): Candidate | null {
   const metadata = info.metadata ?? {}
   const typed = typeof metadata.attributesSchema === 'string' ? metadata.attributesSchema : ''
   const url = documentUrl(info)
-  if (mountRefs.includes(typed)) {
+  if (installRefs.includes(typed)) {
     if (typeof metadata.app !== 'string' || !metadata.app) return null
     return {
       accountId: info.account,
       scope: metadata.scope === 'server' ? 'server' : 'space',
-      mountId: url,
+      installId: url,
       appUrl: metadata.app,
       enabled: metadata.enabled !== false,
       values: asRecord(metadata.arguments) ?? {},
-      ...(mountUsageOf(metadata.usage) ? {usage: mountUsageOf(metadata.usage)} : {}),
+      ...(installUsageOf(metadata.usage) ? {usage: installUsageOf(metadata.usage)} : {}),
     }
   }
-  const mount = asRecord(metadata.mount)
-  if (appRefs.includes(typed) && mount && (mount.scope === 'space' || mount.scope === 'server')) {
+  const install = asRecord(metadata.install)
+  if (appRefs.includes(typed) && install && (install.scope === 'space' || install.scope === 'server')) {
     return {
       accountId: info.account,
-      scope: mount.scope,
-      mountId: url,
+      scope: install.scope,
+      installId: url,
       appUrl: url,
-      enabled: mount.enabled !== false,
-      values: asRecord(mount.arguments) ?? {},
-      ...(mountUsageOf(mount.usage) ? {usage: mountUsageOf(mount.usage)} : {}),
+      enabled: install.enabled !== false,
+      values: asRecord(install.arguments) ?? {},
+      ...(installUsageOf(install.usage) ? {usage: installUsageOf(install.usage)} : {}),
     }
   }
   return null
 }
 
 /**
- * One pass: finds every mount document this server is bound to act on, reads and validates what it
+ * One pass: finds every install page this server is bound to act on, reads and validates what it
  * mounts, and brings `app_mounts` in line with it. With `accountId`, only that space is looked at
- * (the Apps dialog's refresh); server-wide mounts and the legacy shim run on full passes.
+ * (the Apps dialog's refresh); server-wide installs and the legacy shim run on full passes.
  */
-export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?: string} = {}): Promise<RefreshResult> {
+export async function refreshAppInstalls(
+  deps: AppInstallDeps,
+  options: {accountId?: string} = {},
+): Promise<RefreshResult> {
   const now = deps.now ?? Date.now()
   const client = createSeedClient(deps.hmServerUrl, {fetch: deps.fetch})
   const result: RefreshResult = {serverChanged: false, changedAccounts: new Set()}
@@ -968,12 +971,12 @@ export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?:
     if (accountId === SERVER_SCOPE_ACCOUNT) result.serverChanged = true
     else result.changedAccounts.add(accountId)
   }
-  const mountRefs = schemaSpellings(APP_MOUNT_SCHEMA)
+  const installRefs = schemaSpellings(APP_INSTALL_SCHEMA)
   const appRefs = schemaSpellings(APP_SCHEMA)
   const scopeTo = options.accountId ? [{spaceMatch: {space: options.accountId}} as HMDocumentFilter] : []
   const found = [
-    ...(await queryAll(client, {and: {filters: [...scopeTo, typedBy(mountRefs)]}})),
-    ...(await queryAll(client, {and: {filters: [...scopeTo, typedBy(appRefs), {exists: {key: 'mount.scope'}}]}})),
+    ...(await queryAll(client, {and: {filters: [...scopeTo, typedBy(installRefs)]}})),
+    ...(await queryAll(client, {and: {filters: [...scopeTo, typedBy(appRefs), {exists: {key: 'install.scope'}}]}})),
   ]
   const operator = await operatorSpace(deps)
   const bindings = new Map<string, Promise<SpaceBindingResult>>()
@@ -996,7 +999,7 @@ export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?:
   const keyOf = (accountId: string, slug: string) => `${accountId}\n${slug}`
 
   for (const info of found) {
-    const candidate = candidateOf(info, mountRefs, appRefs)
+    const candidate = candidateOf(info, installRefs, appRefs)
     if (!candidate || !candidate.enabled) continue
     if (candidate.scope === 'server') {
       if (!operator || candidate.accountId !== operator) continue
@@ -1013,12 +1016,12 @@ export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?:
     const base = {
       accountId: rowAccount,
       scope: candidate.scope,
-      mountId: candidate.mountId,
+      installId: candidate.installId,
       appId: previous.appId,
       // Only the operator's page says what is given away; a tenant's page cannot raise its own allowance.
       ...(candidate.scope === 'server' && candidate.usage ? {usage: candidate.usage} : {}),
     }
-    let next: Omit<AppMountRow, 'createdAt' | 'updatedAt'>
+    let next: Omit<AppInstallRow, 'createdAt' | 'updatedAt'>
     try {
       const {snapshot, version} = await readAppSnapshot(deps, client, candidate.appUrl)
       const slug = snapshot.slug
@@ -1041,8 +1044,8 @@ export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?:
           status: {state: 'ok'},
         }
       } catch (error) {
-        if (!(error instanceof MountProblem)) throw error
-        // The app holds up but the mount's arguments do not: keep the declaration so the Apps
+        if (!(error instanceof InstallProblem)) throw error
+        // The app holds up but the install's arguments do not: keep the declaration so the Apps
         // dialog can show what is missing, and offer no tools until it is provided.
         next = {
           ...base,
@@ -1055,15 +1058,15 @@ export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?:
         }
       }
     } catch (error) {
-      if (!(error instanceof MountProblem)) throw error
+      if (!(error instanceof InstallProblem)) throw error
       // An app page that cannot be read or does not hold up offers nothing, but the row stays so the
       // Apps dialog can say why. The slug is the one the page declared before failing, the one an
-      // existing row carries, or the mount document's own slug attribute (the copy form).
+      // existing row carries, or the install page's own slug attribute (the copy form).
       const metadataSlug = typeof info.metadata?.slug === 'string' ? info.metadata.slug : ''
       const existing = stmt<{slug: string}, [string, string]>(
         deps.db,
         `SELECT slug FROM app_mounts WHERE account_id = ? AND mount_id = ?`,
-      ).get(rowAccount, candidate.mountId)
+      ).get(rowAccount, candidate.installId)
       const slug = error.slug || existing?.slug || (SLUG_PATTERN.test(metadataSlug) ? metadataSlug : '')
       if (!slug || seen.has(keyOf(rowAccount, slug))) continue
       next = {...base, slug, args: {}, secretRefs: {}, status: {state: 'error', error: error.message}}
@@ -1072,7 +1075,7 @@ export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?:
     if (upsertRow(deps.db, next, now)) noteChange(rowAccount)
   }
 
-  // Accounts that kept their own Datalab key before mounts existed hold a mount of `convert`
+  // Accounts that kept their own Datalab key before installs existed hold an install of `convert`
   // without a document: the server-wide app with their secret, until the Apps dialog turns it
   // into a real one.
   const serverConvert = getRow(deps.db, SERVER_SCOPE_ACCOUNT, 'convert')
@@ -1090,7 +1093,7 @@ export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?:
           accountId,
           scope: 'space',
           slug: 'convert',
-          mountId: `legacy:${LEGACY_DATALAB_SECRET}`,
+          installId: `legacy:${LEGACY_DATALAB_SECRET}`,
           appId: serverConvert.appId,
           ...(serverConvert.version ? {version: serverConvert.version} : {}),
           snapshot: serverConvert.snapshot,
@@ -1118,18 +1121,18 @@ export async function refreshAppMounts(deps: AppMountDeps, options: {accountId?:
 }
 
 /**
- * The mounts an account's agents see: its own space mounts and the server-wide ones, a space mount
- * shadowing a server mount of the same slug (an own key beats the shared one). Only mounts that
+ * The installs an account's agents see: its own space installs and the server-wide ones, a space install
+ * shadowing a server install of the same slug (an own key beats the shared one). Only installs that
  * hold up (`ok`) offer tools.
  */
-export function listVisibleAppMounts(db: Database, accountId: string): AppMountRow[] {
+export function listVisibleAppInstalls(db: Database, accountId: string): AppInstallRow[] {
   const rows = stmt<RowRecord, [string, string]>(
     db,
     `SELECT ${ROW_COLUMNS} FROM app_mounts WHERE account_id IN (?, ?) ORDER BY slug, account_id DESC`,
   )
     .all(SERVER_SCOPE_ACCOUNT, accountId)
     .map(rowToRecord)
-  const bySlug = new Map<string, AppMountRow>()
+  const bySlug = new Map<string, AppInstallRow>()
   for (const row of rows) {
     const current = bySlug.get(row.slug)
     if (!current || (current.scope === 'server' && row.scope === 'space')) bySlug.set(row.slug, row)
@@ -1137,21 +1140,21 @@ export function listVisibleAppMounts(db: Database, accountId: string): AppMountR
   return [...bySlug.values()]
 }
 
-/** The tool names an account's agents may call through its visible, working mounts. */
+/** The tool names an account's agents may call through its visible, working installs. */
 export function visibleAppToolNames(db: Database, accountId: string): string[] {
-  return listVisibleAppMounts(db, accountId).flatMap((row) =>
+  return listVisibleAppInstalls(db, accountId).flatMap((row) =>
     row.status.state === 'ok' && row.snapshot ? row.snapshot.tools.map((appTool) => appTool.tool) : [],
   )
 }
 
-/** The working mount that serves `slug` for an account, with the space's own first. */
-export function visibleAppMount(db: Database, accountId: string, slug: string): AppMountRow | undefined {
-  const row = listVisibleAppMounts(db, accountId).find((candidate) => candidate.slug === slug)
+/** The working install that serves `slug` for an account, with the space's own first. */
+export function visibleAppInstall(db: Database, accountId: string, slug: string): AppInstallRow | undefined {
+  const row = listVisibleAppInstalls(db, accountId).find((candidate) => candidate.slug === slug)
   return row?.status.state === 'ok' && row.snapshot ? row : undefined
 }
 
-/** A mount row as clients see it: the declaration, the values a document carries, and whether secrets are stored. */
-export function appMountInfo(row: AppMountRow): api.AppMountInfo {
+/** An install row as clients see it: the declaration, the values a document carries, and whether secrets are stored. */
+export function appInstallInfo(row: AppInstallRow): api.AppInstallInfo {
   const snapshot = row.snapshot
   const declarations = Object.entries(snapshot?.arguments ?? {}).sort(
     ([, a], [, b]) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER),
@@ -1159,7 +1162,7 @@ export function appMountInfo(row: AppMountRow): api.AppMountInfo {
   return {
     slug: row.slug,
     scope: row.scope,
-    ...(row.mountId.startsWith('legacy:') ? {} : {mountId: row.mountId}),
+    ...(row.installId.startsWith('legacy:') ? {} : {installId: row.installId}),
     app: row.appId,
     ...(row.version ? {version: row.version} : {}),
     name: snapshot?.name ?? row.slug,
@@ -1192,19 +1195,19 @@ export function appMountInfo(row: AppMountRow): api.AppMountInfo {
   }
 }
 
-/** A mount with every argument value in hand, secrets included, for the executor about to run. */
-export type ResolvedAppMount = {
+/** An install with every argument value in hand, secrets included, for the executor about to run. */
+export type ResolvedAppInstall = {
   slug: string
   scope: AppScope
   version?: string
   args: Record<string, string | number | boolean | null>
-  /** The allowance and ceiling of a server-wide mount, from its page. */
-  usage?: AppMountUsage
+  /** The allowance and ceiling of a server-wide install, from its page. */
+  usage?: AppInstallUsage
   snapshot: AppSnapshot
 }
 
-/** Resolves a visible mount's arguments: document values, then secrets decrypted from the store or read from the server's own configuration. */
-export function resolveAppMount(
+/** Resolves a visible install's arguments: document values, then secrets decrypted from the store or read from the server's own configuration. */
+export function resolveAppInstall(
   db: Database,
   accountId: string,
   slug: string,
@@ -1212,10 +1215,10 @@ export function resolveAppMount(
     decrypt: (accountId: string, secretName: string) => string | undefined
     serverArgValue: (slug: string, arg: string) => string | undefined
   },
-): ResolvedAppMount | undefined {
-  const row = visibleAppMount(db, accountId, slug)
+): ResolvedAppInstall | undefined {
+  const row = visibleAppInstall(db, accountId, slug)
   if (!row?.snapshot) return undefined
-  const args: ResolvedAppMount['args'] = {...row.args}
+  const args: ResolvedAppInstall['args'] = {...row.args}
   for (const [name, decl] of Object.entries(row.snapshot.arguments)) {
     if (!decl.secret) {
       if (args[name] === undefined && row.scope === 'server') {

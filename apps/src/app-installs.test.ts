@@ -2,7 +2,7 @@ import {Database} from 'bun:sqlite'
 import {afterEach, describe, expect, test} from 'bun:test'
 import {serialize} from 'superjson'
 import {unpackHmId} from '@seed-hypermedia/client/hm-types'
-import * as appMounts from '@/app-mounts'
+import * as appInstalls from '@/app-installs'
 import {decode as cborDecode, encode as cborEncode} from '@/cbor'
 import * as sqlite from '@/sqlite'
 import * as toolDocs from '@/tool-documents'
@@ -26,7 +26,7 @@ const OPERATOR = 'z6MkOperatorSpace'
 const CONVERT_APP = `hm://${DOCS}/agent/apps/convert`
 const APP = 'hm://hyper.media/agent/app'
 const APP_TOOL = 'hm://hyper.media/agent/app-tool'
-const APP_MOUNT = 'hm://hyper.media/agent/app-mount'
+const APP_INSTALL = 'hm://hyper.media/agent/app-install'
 
 type Doc = {account: string; path: string; metadata: Record<string, unknown>; body?: string; version?: string}
 
@@ -142,7 +142,7 @@ class FakeNetwork {
     })
   }
 
-  /** A space bound to an agents server by its home document, with a reference-form mount of the app. */
+  /** A space bound to an agents server by its home document, with a reference-form install of the app. */
   putTenant(
     account: string,
     options: {server?: string; siteUrl?: string; scope?: string; args?: unknown; enabled?: boolean; usage?: unknown},
@@ -161,7 +161,7 @@ class FakeNetwork {
       path: 'apps/convert',
       metadata: {
         name: 'Datalab converter',
-        attributesSchema: APP_MOUNT,
+        attributesSchema: APP_INSTALL,
         app: CONVERT_APP,
         ...(options.scope ? {scope: options.scope} : {}),
         ...(options.enabled === false ? {enabled: false} : {}),
@@ -312,12 +312,16 @@ function storeSecret(db: Database, accountId: string, name: string): void {
 
 /** A data directory for the code cache, removed after the test. */
 function makeDataDir(): string {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'app-mounts-test-'))
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'app-installs-test-'))
   cleanups.push(() => fs.rmSync(dir, {recursive: true, force: true}))
   return dir
 }
 
-function deps(db: Database, net: FakeNetwork, extra: Partial<appMounts.AppMountDeps> = {}): appMounts.AppMountDeps {
+function deps(
+  db: Database,
+  net: FakeNetwork,
+  extra: Partial<appInstalls.AppInstallDeps> = {},
+): appInstalls.AppInstallDeps {
   return {
     db,
     hmServerUrl: 'https://hm.test',
@@ -338,7 +342,7 @@ const rows = (db: Database) =>
     )
     .all()
 
-describe('app mounts', () => {
+describe('app installs', () => {
   test("mounts a space's reference-form mount when its home document binds the space to this server", async () => {
     const net = new FakeNetwork()
     await net.putConvertApp()
@@ -349,21 +353,21 @@ describe('app mounts', () => {
     storeSecret(db, 'z6MkTenant', 'app-convert-apiKey')
 
     const serverDeps = deps(db, net)
-    const result = await appMounts.refreshAppMounts(serverDeps)
+    const result = await appInstalls.refreshAppInstalls(serverDeps)
     expect(result.serverChanged).toBe(true)
     expect([...result.changedAccounts]).toEqual(['z6MkTenant'])
     expect(rows(db)).toEqual([
       {account_id: '', scope: 'server', slug: 'convert', mount_id: `hm://${OPERATOR}/apps/convert`},
       {account_id: 'z6MkTenant', scope: 'space', slug: 'convert', mount_id: 'hm://z6MkTenant/apps/convert'},
     ])
-    const mount = appMounts.visibleAppMount(db, 'z6MkTenant', 'convert')
-    expect(mount?.scope).toBe('space')
-    expect(mount?.version).toBe('app-v1')
-    expect(mount?.secretRefs).toEqual({apiKey: 'app-convert-apiKey'})
-    expect(mount?.usage).toBeUndefined()
+    const install = appInstalls.visibleAppInstall(db, 'z6MkTenant', 'convert')
+    expect(install?.scope).toBe('space')
+    expect(install?.version).toBe('app-v1')
+    expect(install?.secretRefs).toEqual({apiKey: 'app-convert-apiKey'})
+    expect(install?.usage).toBeUndefined()
     const codeUrl = await net.putFile(TOOL_CODE)
     const codeCid = codeUrl.replace('ipfs://', '')
-    expect(mount?.snapshot).toMatchObject({
+    expect(install?.snapshot).toMatchObject({
       slug: 'convert',
       name: 'Datalab converter',
       skillDoc: 'Review seed.md before publishing.',
@@ -380,17 +384,17 @@ describe('app mounts', () => {
         },
       ],
     })
-    expect(mount?.snapshot?.tools[0]?.output).toBeUndefined()
+    expect(install?.snapshot?.tools[0]?.output).toBeUndefined()
     // The code was fetched once, proven against its CID and cached under it for the sandbox to stage.
-    expect(fs.readFileSync(path.join(appMounts.appCodePath(serverDeps.dataDir, codeCid), 'index.ts'), 'utf8')).toBe(
+    expect(fs.readFileSync(path.join(appInstalls.appCodePath(serverDeps.dataDir, codeCid), 'index.ts'), 'utf8')).toBe(
       TOOL_CODE,
     )
     expect(net.requests.filter((url) => url.includes(`/ipfs/${codeCid}`))).toHaveLength(1)
-    expect(appMounts.visibleAppToolNames(db, 'z6MkTenant')).toEqual(['convert'])
-    // The operator's page says what the server-wide mount gives away.
-    const serverMount = appMounts.visibleAppMount(db, 'z6MkOther', 'convert')
-    expect(serverMount?.usage).toEqual({allowance: 500, ceiling: 5000})
-    expect(appMounts.appMountInfo(serverMount!).usage).toEqual({
+    expect(appInstalls.visibleAppToolNames(db, 'z6MkTenant')).toEqual(['convert'])
+    // The operator's page says what the server-wide install gives away.
+    const serverInstall = appInstalls.visibleAppInstall(db, 'z6MkOther', 'convert')
+    expect(serverInstall?.usage).toEqual({allowance: 500, ceiling: 5000})
+    expect(appInstalls.appInstallInfo(serverInstall!).usage).toEqual({
       meter: 'per-unit',
       unit: 'pages',
       period: 'month',
@@ -400,7 +404,7 @@ describe('app mounts', () => {
     })
 
     // The client's view never carries a secret value, only that one is stored.
-    const info = appMounts.appMountInfo(mount!)
+    const info = appInstalls.appInstallInfo(install!)
     expect(info.arguments).toEqual([
       {name: 'apiKey', type: 'string', secret: true, required: true, order: 1, hasValue: true},
       {name: 'mode', type: 'string', secret: false, required: false, order: 2},
@@ -437,10 +441,10 @@ describe('app mounts', () => {
     expect(doc?.doc.binding).toBeUndefined()
     expect(doc?.doc.description).toBe('Pass memory paths in `files`.\n\nReview seed.md before publishing.')
     expect((doc?.doc.input as {properties: Record<string, unknown>}).properties.files).toBeDefined()
-    expect(toolDocs.toolDocumentContractMarkdown(doc!)).toContain('app tool · the convert app (space mount')
+    expect(toolDocs.toolDocumentContractMarkdown(doc!)).toContain('app tool · the convert app (space install')
     // A second sync changes nothing, and a pass that finds the same documents reports no change.
     expect(toolDocs.syncAppToolDocuments(db, 'z6MkTenant', 'agent').changed).toBe(false)
-    const again = await appMounts.refreshAppMounts(deps(db, net))
+    const again = await appInstalls.refreshAppInstalls(deps(db, net))
     expect(again).toEqual({serverChanged: false, changedAccounts: new Set()})
   })
 
@@ -454,7 +458,7 @@ describe('app mounts', () => {
     })
     const db = makeDb(['z6MkSiteSpace'])
     storeSecret(db, 'z6MkSiteSpace', 'app-convert-apiKey')
-    await appMounts.refreshAppMounts(deps(db, net))
+    await appInstalls.refreshAppInstalls(deps(db, net))
     expect(rows(db)).toEqual([
       {account_id: 'z6MkSiteSpace', scope: 'space', slug: 'convert', mount_id: 'hm://z6MkSiteSpace/apps/convert'},
     ])
@@ -469,11 +473,11 @@ describe('app mounts', () => {
     net.putTenant('z6MkAmbitious', {server: THIS_SERVER, scope: 'server'})
     net.putTenant('z6MkUnbound', {})
     const db = makeDb()
-    await appMounts.refreshAppMounts(deps(db, net))
+    await appInstalls.refreshAppInstalls(deps(db, net))
     expect(rows(db)).toEqual([])
   })
 
-  test('copy form: an app page published with its mount attributes mounts itself in its space', async () => {
+  test('copy form: an app page published with its install attributes installs itself in its space', async () => {
     const net = new FakeNetwork()
     net.put({account: 'z6MkAuthor', path: '', metadata: {name: 'Author', agentServerUrl: THIS_SERVER}})
     net.put({
@@ -489,7 +493,7 @@ describe('app mounts', () => {
           apiKey: {type: 'string', secret: true},
           mode: {type: 'string', choices: {fast: 'Fast', slow: 'Slow'}},
         },
-        mount: {scope: 'space', arguments: {mode: 'fast'}},
+        install: {scope: 'space', arguments: {mode: 'fast'}},
       },
       body: 'Mine.',
     })
@@ -513,19 +517,19 @@ describe('app mounts', () => {
       body: 'Go.',
     })
     const db = makeDb(['z6MkAuthor'])
-    await appMounts.refreshAppMounts(deps(db, net))
-    const mount = appMounts.visibleAppMount(db, 'z6MkAuthor', 'mine')
-    expect(mount).toMatchObject({
-      mountId: 'hm://z6MkAuthor/apps/mine',
+    await appInstalls.refreshAppInstalls(deps(db, net))
+    const install = appInstalls.visibleAppInstall(db, 'z6MkAuthor', 'mine')
+    expect(install).toMatchObject({
+      installId: 'hm://z6MkAuthor/apps/mine',
       appId: 'hm://z6MkAuthor/apps/mine',
       version: 'mine-v3',
     })
-    expect(mount?.args).toEqual({mode: 'fast'})
-    expect(mount?.snapshot?.network).toEqual({})
-    expect(mount?.snapshot?.tools).toMatchObject([
+    expect(install?.args).toEqual({mode: 'fast'})
+    expect(install?.snapshot?.network).toEqual({})
+    expect(install?.snapshot?.tools).toMatchObject([
       {tool: 'go', runtime: 'python', code: {entry: 'main.py'}, output: {type: 'object'}},
     ])
-    expect(appMounts.appMountInfo(mount!).arguments.find((arg) => arg.name === 'mode')).toMatchObject({
+    expect(appInstalls.appInstallInfo(install!).arguments.find((arg) => arg.name === 'mode')).toMatchObject({
       value: 'fast',
       choices: {fast: 'Fast', slow: 'Slow'},
     })
@@ -540,9 +544,9 @@ describe('app mounts', () => {
     const db = makeDb(['z6MkLeaky', 'z6MkForgetful', 'z6MkWrong'])
     storeSecret(db, 'z6MkLeaky', 'app-convert-apiKey')
     storeSecret(db, 'z6MkWrong', 'app-convert-apiKey')
-    await appMounts.refreshAppMounts(deps(db, net))
+    await appInstalls.refreshAppInstalls(deps(db, net))
     const statusOf = (account: string) =>
-      appMounts.listVisibleAppMounts(db, account).find((row) => row.slug === 'convert')?.status
+      appInstalls.listVisibleAppInstalls(db, account).find((row) => row.slug === 'convert')?.status
     expect(statusOf('z6MkLeaky')).toMatchObject({
       state: 'error',
       error: 'The secret argument apiKey must not be written into a document',
@@ -550,7 +554,7 @@ describe('app mounts', () => {
     expect(statusOf('z6MkForgetful')).toMatchObject({state: 'error', error: 'missing secret apiKey'})
     expect(statusOf('z6MkWrong')).toMatchObject({state: 'error', error: 'Argument mode must be a string'})
     for (const account of ['z6MkLeaky', 'z6MkForgetful', 'z6MkWrong']) {
-      expect(appMounts.visibleAppToolNames(db, account)).toEqual([])
+      expect(appInstalls.visibleAppToolNames(db, account)).toEqual([])
     }
   })
 
@@ -560,7 +564,7 @@ describe('app mounts', () => {
       RAW_CODEC,
       await sha256.digest(new TextEncoder().encode('never published')),
     ).toString()}`
-    const problems: Array<[(net: FakeNetwork) => Promise<Options>, Partial<appMounts.AppMountDeps>, string]> = [
+    const problems: Array<[(net: FakeNetwork) => Promise<Options>, Partial<appInstalls.AppInstallDeps>, string]> = [
       [async () => ({}), {runtimes: ['python']}, 'Tool convert is written in ts, which this server cannot run'],
       [async () => ({}), {runtimes: []}, 'Tool convert needs code execution, which this server does not offer'],
       [async () => ({timeoutSecs: 100_000}), {}, 'Tool convert asks for a timeout outside 1..1800 seconds'],
@@ -628,8 +632,8 @@ describe('app mounts', () => {
       const db = makeDb(['z6MkTenant'])
       storeSecret(db, 'z6MkTenant', 'app-convert-apiKey')
       const serverDeps = deps(db, net, extra)
-      await appMounts.refreshAppMounts(serverDeps)
-      const row = appMounts.listVisibleAppMounts(db, 'z6MkTenant')[0]
+      await appInstalls.refreshAppInstalls(serverDeps)
+      const row = appInstalls.listVisibleAppInstalls(db, 'z6MkTenant')[0]
       expect(row?.status.state).toBe('error')
       expect(row?.status.error).toContain(message)
       expect(row?.snapshot).toBeUndefined()
@@ -638,7 +642,7 @@ describe('app mounts', () => {
     }
   })
 
-  test("a tool's code may be a folder: its files land in the cache under the CID, fetched once for every mount", async () => {
+  test("a tool's code may be a folder: its files land in the cache under the CID, fetched once for every install", async () => {
     const net = new FakeNetwork()
     const lib = await net.putFolder({'util.ts': await net.putFile('export const x = 1')})
     const folder = await net.putFolder({'index.ts': await net.putFile('import {x} from "./lib/util"'), lib})
@@ -649,21 +653,21 @@ describe('app mounts', () => {
     storeSecret(db, 'z6MkTenant', 'app-convert-apiKey')
     const serverDeps = deps(db, net)
     // Two passes at once, then one more: the folder is fetched a single time.
-    await Promise.all([appMounts.refreshAppMounts(serverDeps), appMounts.refreshAppMounts(serverDeps)])
-    await appMounts.refreshAppMounts(serverDeps)
-    const mount = appMounts.visibleAppMount(db, 'z6MkTenant', 'convert')
+    await Promise.all([appInstalls.refreshAppInstalls(serverDeps), appInstalls.refreshAppInstalls(serverDeps)])
+    await appInstalls.refreshAppInstalls(serverDeps)
+    const install = appInstalls.visibleAppInstall(db, 'z6MkTenant', 'convert')
     const cid = folder.replace('ipfs://', '')
-    expect(mount?.snapshot?.tools[0]?.code).toEqual({url: folder, cid, entry: 'index.ts'})
-    const cache = appMounts.appCodePath(serverDeps.dataDir, cid)
+    expect(install?.snapshot?.tools[0]?.code).toEqual({url: folder, cid, entry: 'index.ts'})
+    const cache = appInstalls.appCodePath(serverDeps.dataDir, cid)
     expect(fs.readFileSync(path.join(cache, 'index.ts'), 'utf8')).toBe('import {x} from "./lib/util"')
     expect(fs.readFileSync(path.join(cache, 'lib', 'util.ts'), 'utf8')).toBe('export const x = 1')
     expect(net.requests.filter((url) => url.includes('/ipfs/')).length).toBe(2)
     expect(net.requests.filter((url) => url.includes('/api/GetCID?cid=' + cid)).length).toBe(1)
     // A run finds the cache where the pass left it, and fetches again only when it is gone.
-    const code = mount!.snapshot!.tools[0]!.code
-    expect(await appMounts.ensureToolCode(serverDeps, 'convert', code)).toBe(cache)
+    const code = install!.snapshot!.tools[0]!.code
+    expect(await appInstalls.ensureToolCode(serverDeps, 'convert', code)).toBe(cache)
     fs.rmSync(cache, {recursive: true, force: true})
-    expect(await appMounts.ensureToolCode(serverDeps, 'convert', code)).toBe(cache)
+    expect(await appInstalls.ensureToolCode(serverDeps, 'convert', code)).toBe(cache)
     expect(fs.readFileSync(path.join(cache, 'lib', 'util.ts'), 'utf8')).toBe('export const x = 1')
   })
 
@@ -680,7 +684,7 @@ describe('app mounts', () => {
       '````',
       'after <!-- id:BBBBBBBB -->',
     ].join('\n')
-    expect(appMounts.stripBlockIds(page)).toBe(
+    expect(appInstalls.stripBlockIds(page)).toBe(
       [
         '# Code',
         '',
@@ -696,7 +700,7 @@ describe('app mounts', () => {
     )
   })
 
-  test('removes a mount whose document was deleted or disabled by the next pass', async () => {
+  test('removes an install whose document was deleted or disabled by the next pass', async () => {
     const net = new FakeNetwork()
     await net.putConvertApp()
     net.putTenant('z6MkTenant', {server: THIS_SERVER})
@@ -704,56 +708,56 @@ describe('app mounts', () => {
     const db = makeDb(['z6MkTenant', 'z6MkOther'])
     storeSecret(db, 'z6MkTenant', 'app-convert-apiKey')
     storeSecret(db, 'z6MkOther', 'app-convert-apiKey')
-    await appMounts.refreshAppMounts(deps(db, net))
+    await appInstalls.refreshAppInstalls(deps(db, net))
     expect(rows(db).map((row) => row.account_id)).toEqual(['z6MkOther', 'z6MkTenant'])
     net.docs.delete('hm://z6MkTenant/apps/convert')
     net.putTenant('z6MkOther', {server: THIS_SERVER, enabled: false})
-    const result = await appMounts.refreshAppMounts(deps(db, net))
+    const result = await appInstalls.refreshAppInstalls(deps(db, net))
     expect([...result.changedAccounts].sort()).toEqual(['z6MkOther', 'z6MkTenant'])
     expect(rows(db)).toEqual([])
   })
 
-  test("keeps serving an account's legacy Datalab key as its own mount of convert", async () => {
+  test("keeps serving an account's legacy Datalab key as its own install of convert", async () => {
     const net = new FakeNetwork()
     await net.putConvertApp()
     net.putTenant(OPERATOR, {server: THIS_SERVER, scope: 'server'})
     const db = makeDb(['z6MkOldTimer'])
-    storeSecret(db, 'z6MkOldTimer', appMounts.LEGACY_DATALAB_SECRET)
-    await appMounts.refreshAppMounts(deps(db, net))
-    const mount = appMounts.visibleAppMount(db, 'z6MkOldTimer', 'convert')
-    expect(mount).toMatchObject({
+    storeSecret(db, 'z6MkOldTimer', appInstalls.LEGACY_DATALAB_SECRET)
+    await appInstalls.refreshAppInstalls(deps(db, net))
+    const install = appInstalls.visibleAppInstall(db, 'z6MkOldTimer', 'convert')
+    expect(install).toMatchObject({
       scope: 'space',
-      mountId: 'legacy:datalab-api-key',
+      installId: 'legacy:datalab-api-key',
       secretRefs: {apiKey: 'datalab-api-key'},
     })
     db.run(`DELETE FROM secrets WHERE account_id = ?`, ['z6MkOldTimer'])
-    await appMounts.refreshAppMounts(deps(db, net))
-    expect(appMounts.visibleAppMount(db, 'z6MkOldTimer', 'convert')?.scope).toBe('server')
+    await appInstalls.refreshAppInstalls(deps(db, net))
+    expect(appInstalls.visibleAppInstall(db, 'z6MkOldTimer', 'convert')?.scope).toBe('server')
   })
 
-  test('a space mount shadows the server-wide one, and resolving it brings the secret along', async () => {
+  test('a space install shadows the server-wide one, and resolving it brings the secret along', async () => {
     const net = new FakeNetwork()
     await net.putConvertApp()
     net.putTenant(OPERATOR, {server: THIS_SERVER, scope: 'server'})
     net.putTenant('z6MkTenant', {server: THIS_SERVER})
     const db = makeDb(['z6MkTenant'])
     storeSecret(db, 'z6MkTenant', 'app-convert-apiKey')
-    await appMounts.refreshAppMounts(deps(db, net))
+    await appInstalls.refreshAppInstalls(deps(db, net))
     const secrets = {
       decrypt: (account: string, name: string) =>
         account === 'z6MkTenant' && name === 'app-convert-apiKey' ? 'own-key' : undefined,
       serverArgValue: (slug: string, arg: string) =>
         slug === 'convert' && arg === 'apiKey' ? 'shared-key' : undefined,
     }
-    expect(appMounts.resolveAppMount(db, 'z6MkTenant', 'convert', secrets)).toMatchObject({
+    expect(appInstalls.resolveAppInstall(db, 'z6MkTenant', 'convert', secrets)).toMatchObject({
       scope: 'space',
       args: {apiKey: 'own-key'},
     })
-    expect(appMounts.resolveAppMount(db, 'z6MkVisitor', 'convert', secrets)).toMatchObject({
+    expect(appInstalls.resolveAppInstall(db, 'z6MkVisitor', 'convert', secrets)).toMatchObject({
       scope: 'server',
       args: {apiKey: 'shared-key'},
     })
-    expect(appMounts.listVisibleAppMounts(db, 'z6MkTenant').map((row) => row.scope)).toEqual(['space'])
+    expect(appInstalls.listVisibleAppInstalls(db, 'z6MkTenant').map((row) => row.scope)).toEqual(['space'])
   })
 
   test('remembers whether a URL is this server instead of asking on every pass', async () => {
@@ -762,10 +766,10 @@ describe('app mounts', () => {
     net.putTenant('z6MkTenant', {server: THIS_SERVER})
     const db = makeDb(['z6MkTenant'])
     storeSecret(db, 'z6MkTenant', 'app-convert-apiKey')
-    await appMounts.refreshAppMounts(deps(db, net))
-    await appMounts.refreshAppMounts(deps(db, net))
+    await appInstalls.refreshAppInstalls(deps(db, net))
+    await appInstalls.refreshAppInstalls(deps(db, net))
     expect(net.requests.filter((href) => href.endsWith('/health'))).toHaveLength(1)
-    expect(await appMounts.isThisServer(deps(db, net), 'https://agents.test/hm/api/agents/')).toBe(true)
-    expect(await appMounts.isThisServer(deps(db, net), 'not a url')).toBe(false)
+    expect(await appInstalls.isThisServer(deps(db, net), 'https://agents.test/hm/api/agents/')).toBe(true)
+    expect(await appInstalls.isThisServer(deps(db, net), 'not a url')).toBe(false)
   })
 })

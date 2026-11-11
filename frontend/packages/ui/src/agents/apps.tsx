@@ -1,11 +1,11 @@
 /**
- * The Apps dialog: the apps mounted for the selected account on one agents server, and the apps it
- * could mount. A server-wide mount is provided by the server (the Datalab converter on the hosted
- * one, with its usage on the shared key); the account's own mounts are pages it published in its
+ * The Apps dialog: the apps installed for the selected account on one agents server, and the apps it
+ * could install. A server-wide install is provided by the server (the Datalab converter on the hosted
+ * one, with its usage on the shared key); the account's own installs are pages it published in its
  * space, each with the arguments the app declares. Secret arguments are stored here, on the
- * server, never in a page. Mounting is publishing, and it is consent: the catalog says what the
+ * server, never in a page. Installing is publishing, and it is consent: the catalog says what the
  * app's code gets (the secrets, the hosts, the agent's memory, the server it runs on), and where
- * the platform can start a typed draft the Mount button opens the mount page pre-filled with the
+ * the platform can start a typed draft the Install button opens the install page pre-filled with the
  * app's address and version, and the person publishes it; elsewhere it leads to the app's
  * page. The catalog of apps is also what the agent's Tools tab shows under its rows, so apps
  * are found where their tools are missed.
@@ -20,20 +20,20 @@ import {SizableText} from '@shm/ui/text'
 import {toast} from '@shm/ui/toast'
 import {ExternalLink, KeyRound, Package, Plus, RefreshCw} from 'lucide-react'
 import React, {useState} from 'react'
-import type {AppArgumentInfo, AppMountInfo, SpaceBinding} from './client'
+import type {AppArgumentInfo, AppInstallInfo, SpaceBinding} from './client'
 import {useAppUsage, useApps, useRefreshApps, useSaveAppSecret} from './models'
 import {useOpenUrl} from './navigation'
 import {getAgentsPlatform} from './platform'
 
 /** The app type, spelled the way the schema library names it; the bundled registry resolves it. */
 export const APP_TYPE = 'hm://hyper.media/agent/app'
-/** The app mount type, the page a space publishes to install an app. */
-export const APP_MOUNT_TYPE = 'hm://hyper.media/agent/app-mount'
+/** The app install type, the page a space publishes to install an app. */
+export const APP_INSTALL_TYPE = 'hm://hyper.media/agent/app-install'
 
 const CHIP_CLASS = 'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase'
 
 /**
- * What to tell the person when mounts published in the space are not this server's: the space
+ * What to tell the person when installs published in the space are not this server's: the space
  * names another server, or none at all. Null when the space is bound to this server.
  */
 export function bindingNotice(binding: SpaceBinding | undefined): {title: string; body: string} | null {
@@ -41,33 +41,33 @@ export function bindingNotice(binding: SpaceBinding | undefined): {title: string
   if (binding.source === 'none' || !binding.agentServerUrl) {
     return {
       title: 'This space names no agents server yet',
-      body: 'Neither its home document nor its site names one, so a mount published in it belongs to no server. Choose this server in the space’s settings, under Agents, then mount.',
+      body: 'Neither its home document nor its site names one, so an install published in it belongs to no server. Choose this server in the space’s settings, under Agents, then install.',
     }
   }
   return {
     title: 'This space is bound to another agents server',
     body: `Its ${binding.source === 'home' ? 'home document' : 'site'} names ${
       binding.agentServerUrl
-    }, so mounts published in it are that server’s. Choose this server in the space’s settings, under Agents, to mount apps here.`,
+    }, so installs published in it are that server’s. Choose this server in the space’s settings, under Agents, to install apps here.`,
   }
 }
 
-/** An app this node knows, with the account's mount of it when one exists. */
+/** An app this node knows, with the account's install of it when one exists. */
 export type AppCatalogEntry = {
-  /** The app page's address, what a mount's `app` names. */
+  /** The app page's address, what an install's `app` names. */
   url: string
-  /** The app page's current version, which a new mount pins: the code consented to is the code that runs. */
+  /** The app page's current version, which a new install pins: the code consented to is the code that runs. */
   version?: string
   name: string
   summary: string
-  /** What the app declares its code gets, for the person to see before mounting. */
+  /** What the app declares its code gets, for the person to see before installing. */
   needs: AppNeeds
-  mount?: AppMountInfo
+  install?: AppInstallInfo
 }
 
-/** What an app's code receives once mounted, read from its page's attributes. */
+/** What an app's code receives once installed, read from its page's attributes. */
 export type AppNeeds = {
-  /** The arguments a mount takes, secret ones first; a choice argument lists the values it accepts. */
+  /** The arguments an install takes, secret ones first; a choice argument lists the values it accepts. */
   arguments: {name: string; secret: boolean; required: boolean; choices?: string[]}[]
   /** The hosts the code may reach; none means it runs without network. */
   hosts: string[]
@@ -97,7 +97,7 @@ export function appNeedsOf(metadata: Record<string, unknown>): AppNeeds {
   return {arguments: arguments_, hosts}
 }
 
-/** One line on what mounting an app hands its code, shown before the person publishes the mount. */
+/** One line on what installing an app hands its code, shown before the person publishes the install. */
 export function appConsentLine(needs: AppNeeds, serverUrl: string | undefined): string {
   const secrets = needs.arguments.filter((arg) => arg.secret).map((arg) => arg.name)
   const parts = [
@@ -109,33 +109,35 @@ export function appConsentLine(needs: AppNeeds, serverUrl: string | undefined): 
 }
 
 /**
- * One line on the settings a mount page may carry for an app: its non-secret arguments, each with
- * the values it accepts. Null when the app takes none. They are attributes of the mount page, not
+ * One line on the settings an install page may carry for an app: its non-secret arguments, each with
+ * the values it accepts. Null when the app takes none. They are attributes of the install page, not
  * fields of this dialog, so the person learns here what the page can say.
  */
 export function appSettingsLine(needs: AppNeeds): string | null {
   const settings = needs.arguments.filter((arg) => !arg.secret)
   if (!settings.length) return null
   const list = settings.map((arg) => (arg.choices?.length ? `${arg.name} (${arg.choices.join(', ')})` : arg.name))
-  return `Settings its mount page may carry under arguments: ${list.join(', ')}. Left unset, the app's defaults apply.`
+  return `Settings its install page may carry under arguments: ${list.join(
+    ', ',
+  )}. Left unset, the app's defaults apply.`
 }
 
 /**
- * The account's mounts keyed by the page each installs, without the version a mount page pins,
- * so the catalog recognizes a mounted app whatever version its mount names.
+ * The account's installs keyed by the page each installs, without the version an install page pins,
+ * so the catalog recognizes an installed app whatever version its install names.
  */
-export function mountsByApp(mounts: AppMountInfo[]): Map<string, AppMountInfo> {
-  return new Map(mounts.map((mount) => [mount.app.replace(/[?#].*$/, ''), mount]))
+export function installsByApp(installs: AppInstallInfo[]): Map<string, AppInstallInfo> {
+  return new Map(installs.map((install) => [install.app.replace(/[?#].*$/, ''), install]))
 }
 
-/** The apps this node knows, found by their type, paired with the mounts the account sees. */
+/** The apps this node knows, found by their type, paired with the installs the account sees. */
 export function useAppCatalog(
   serverUrl: string | undefined,
   accountUid: string | null | undefined,
 ): {entries: AppCatalogEntry[]; isLoading: boolean; binding?: SpaceBinding; error?: string} {
   const apps = useApps(serverUrl, accountUid)
   const pages = useTypedDocumentSearch(APP_TYPE, '', {pageSize: 24})
-  const mounted = mountsByApp(apps.data?.apps ?? [])
+  const installed = installsByApp(apps.data?.apps ?? [])
   const entries = (pages.data ?? []).map((info): AppCatalogEntry => {
     const url = `hm://${info.id.uid}${info.path.length ? `/${info.path.join('/')}` : ''}`
     return {
@@ -144,7 +146,7 @@ export function useAppCatalog(
       name: info.metadata.name || info.path[info.path.length - 1] || url,
       summary: info.metadata.summary ?? '',
       needs: appNeedsOf(info.metadata as Record<string, unknown>),
-      mount: mounted.get(url),
+      install: installed.get(url),
     }
   })
   return {
@@ -156,24 +158,24 @@ export function useAppCatalog(
 }
 
 /**
- * Mounts an app: starts the mount page as a pre-filled draft in the selected account's space
- * where the platform can, else opens the app's page so the person can publish a mount by hand.
+ * Installs an app: starts the install page as a pre-filled draft in the selected account's space
+ * where the platform can, else opens the app's page so the person can publish an install by hand.
  */
-export function useMountApp(onStarted?: () => void) {
+export function useInstallApp(onStarted?: () => void) {
   const createTyped = (getAgentsPlatform().useCreateTypedDocument ?? (() => null))()
   const openUrl = useOpenUrl()
   return {
     canDraft: !!createTyped,
-    mount: async (entry: AppCatalogEntry) => {
+    install: async (entry: AppCatalogEntry) => {
       if (!createTyped) {
         openUrl(entry.url)
         return
       }
       try {
         // The version is pinned: what the person saw and consented to is what runs, until they
-        // edit the mount page to a newer version.
+        // edit the install page to a newer version.
         await createTyped({
-          schemaUrl: APP_MOUNT_TYPE,
+          schemaUrl: APP_INSTALL_TYPE,
           name: entry.name,
           metadata: {
             app: entry.version ? `${entry.url}?v=${entry.version}` : entry.url,
@@ -183,13 +185,13 @@ export function useMountApp(onStarted?: () => void) {
         })
         onStarted?.()
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : `Could not start a mount of ${entry.name}`)
+        toast.error(error instanceof Error ? error.message : `Could not start an install of ${entry.name}`)
       }
     },
   }
 }
 
-/** The apps the account has not mounted, each with a Mount button. Renders nothing when there are none. */
+/** The apps the account has not installed, each with a Install button. Renders nothing when there are none. */
 export function AppCatalog({
   serverUrl,
   accountUid,
@@ -200,19 +202,19 @@ export function AppCatalog({
   onStarted?: () => void
 }) {
   const catalog = useAppCatalog(serverUrl, accountUid)
-  const {canDraft, mount} = useMountApp(onStarted)
+  const {canDraft, install} = useInstallApp(onStarted)
   const openUrl = useOpenUrl()
-  const unmounted = catalog.entries.filter((entry) => !entry.mount)
-  // A server that does not offer apps (one from before them) cannot mount anything, and neither
+  const uninstalled = catalog.entries.filter((entry) => !entry.install)
+  // A server that does not offer apps (one from before them) cannot install anything, and neither
   // can a space that is not bound to this server: the page would belong to no server.
-  if (!unmounted.length || catalog.error) return null
-  const mountable = catalog.binding?.isThisServer === true
+  if (!uninstalled.length || catalog.error) return null
+  const installable = catalog.binding?.isThisServer === true
   return (
     <div className="flex flex-col gap-2">
       <SizableText size="sm" weight="bold">
-        Apps you can mount
+        Apps you can install
       </SizableText>
-      {unmounted.map((entry) => {
+      {uninstalled.map((entry) => {
         const settings = appSettingsLine(entry.needs)
         return (
           <div key={entry.url} className="border-border flex items-center gap-3 rounded-lg border p-3">
@@ -243,21 +245,21 @@ export function AppCatalog({
             >
               <ExternalLink className="size-4" />
             </Button>
-            {mountable ? (
-              <Button size="sm" onClick={() => void mount(entry)}>
+            {installable ? (
+              <Button size="sm" onClick={() => void install(entry)}>
                 <Plus className="size-4" />
-                Mount
+                Install
               </Button>
             ) : null}
           </div>
         )
       })}
       <SizableText size="xs" color="muted">
-        {!mountable
-          ? 'Nothing can be mounted until this space is bound to this server: choose it in the space’s settings, under Agents, then come back.'
+        {!installable
+          ? 'Nothing can be installed until this space is bound to this server: choose it in the space’s settings, under Agents, then come back.'
           : canDraft
-            ? 'Mount starts the mount page as a draft in your space with the app filled in. Publish it and the server picks it up: the app then moves up to your mounts, with a field for a secret argument such as an API key, which is stored on the server and never written into the page. Any other argument is an attribute of the mount page: set it in the draft, or edit the page later.'
-            : 'Mounting is publishing a page typed App Mount in your space whose `app` names the app’s page. The app then moves up to your mounts, with a field for a secret argument such as an API key, which is stored on the server and never written into the page. Any other argument is an attribute of the mount page.'}
+            ? 'Install starts the install page as a draft in your space with the app filled in. Publish it and the server picks it up: the app then moves up to your installs, with a field for a secret argument such as an API key, which is stored on the server and never written into the page. Any other argument is an attribute of the install page: set it in the draft, or edit the page later.'
+            : 'Installing is publishing a page typed App Install in your space whose `app` names the app’s page. The app then moves up to your installs, with a field for a secret argument such as an API key, which is stored on the server and never written into the page. Any other argument is an attribute of the install page.'}
       </SizableText>
     </div>
   )
@@ -275,13 +277,13 @@ export function AppsDialog({
   const list = apps.data?.apps ?? []
   const notice = bindingNotice(apps.data?.binding)
   // A server from before apps answers the request with an error; it offers no apps at all, and
-  // the catalog below would only invite a mount nothing acts on.
+  // the catalog below would only invite an install nothing acts on.
   const unsupported = apps.isError ? (apps.error instanceof Error ? apps.error.message : 'unknown error') : null
 
   async function handleRefresh() {
     try {
       const result = await refresh.mutateAsync()
-      toast.success(`${result.apps.length} app${result.apps.length === 1 ? '' : 's'} mounted`)
+      toast.success(`${result.apps.length} app${result.apps.length === 1 ? '' : 's'} installed`)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Could not refresh the apps')
     }
@@ -293,7 +295,7 @@ export function AppsDialog({
         <DialogTitle>Apps</DialogTitle>
         <DialogDescription>
           Your agents' built-in tools need nothing. An app adds a tool that needs something of its own, a key, a
-          subscription or a service, such as the Datalab converter. An app is a page; mounting it for your space is
+          subscription or a service, such as the Datalab converter. An app is a page; installing it for your space is
           publishing a page that names it, and this server reads those pages and offers the app's tools to every agent
           of the space that has them in its grants.
         </DialogDescription>
@@ -301,7 +303,7 @@ export function AppsDialog({
       {unsupported ? (
         <Notice size="sm" tone="warning" title="This agents server does not offer apps">
           It answered the apps request with an error ({unsupported}). It runs a version from before apps; nothing can be
-          mounted on it until it is updated.
+          installed on it until it is updated.
         </Notice>
       ) : notice ? (
         <Notice size="sm" tone="warning" title={notice.title}>
@@ -321,14 +323,14 @@ export function AppsDialog({
           <SizableText color="muted">Loading apps…</SizableText>
         ) : list.length === 0 && !unsupported ? (
           <SizableText color="muted">
-            No app is mounted for this space on this server yet, so your agents have their built-in tools only.
+            No app is installed for this space on this server yet, so your agents have their built-in tools only.
           </SizableText>
         ) : null}
       </div>
       <AppCatalog serverUrl={input.serverUrl} accountUid={input.selectedAccountId} onStarted={onClose} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SizableText size="xs" color="muted">
-          The server looks for new mounts every few minutes. Refresh asks it to look now.
+          The server looks for new installs every few minutes. Refresh asks it to look now.
         </SizableText>
         <Button variant="outline" onClick={() => void handleRefresh()} disabled={refresh.isLoading}>
           {refresh.isLoading ? <Spinner size="small" /> : <RefreshCw className="size-4" />}
@@ -343,7 +345,7 @@ export function AppsDialog({
  * What a tool's page references, for a reader to open: the code, then the contract. Each is an
  * `ipfs://` the app opens in its IPFS page, a text file as text, a folder as its entries.
  */
-export function toolReferenceLinks(tool: AppMountInfo['tools'][number]): Array<{label: string; url: string}> {
+export function toolReferenceLinks(tool: AppInstallInfo['tools'][number]): Array<{label: string; url: string}> {
   return [
     {label: 'code', url: tool.code},
     {label: 'input', url: tool.inputSchema},
@@ -351,8 +353,8 @@ export function toolReferenceLinks(tool: AppMountInfo['tools'][number]): Array<{
   ]
 }
 
-/** One tool of a mount: its name and runtime, and the references a person can read before trusting it. */
-function ToolLine({tool, openUrl}: {tool: AppMountInfo['tools'][number]; openUrl: (url: string) => void}) {
+/** One tool of an install: its name and runtime, and the references a person can read before trusting it. */
+function ToolLine({tool, openUrl}: {tool: AppInstallInfo['tools'][number]; openUrl: (url: string) => void}) {
   return (
     <span className="inline-flex flex-wrap items-center gap-x-2">
       <span className="font-mono">
@@ -378,7 +380,7 @@ function AppCard({
   serverUrl,
   accountUid,
 }: {
-  app: AppMountInfo
+  app: AppInstallInfo
   serverUrl: string
   accountUid: string | null | undefined
 }) {
@@ -389,10 +391,10 @@ function AppCard({
     app.scope === 'server' && app.usage?.meter === 'per-unit' ? app.slug : undefined,
   )
   const secrets = app.arguments.filter((arg) => arg.secret)
-  // Non-secret arguments are attributes of the mount page; the card shows each with its value or
+  // Non-secret arguments are attributes of the install page; the card shows each with its value or
   // default, so a setting the person never set is still known to exist.
   const settings = app.arguments.filter((arg) => !arg.secret)
-  // A space's own mount that only lacks a key it takes right here is not broken, it is unfinished.
+  // A space's own install that only lacks a key it takes right here is not broken, it is unfinished.
   const missing = app.scope === 'space' ? secrets.filter((arg) => arg.required && !arg.hasValue) : []
   const missingNames = missing.map((arg) => arg.name).join(' and ')
   const toolNames = app.tools.map((tool) => tool.tool).join(', ') || 'its tools'
@@ -405,7 +407,7 @@ function AppCard({
             <div className="flex flex-wrap items-center gap-2">
               <SizableText weight="bold">{app.name}</SizableText>
               <span className={`${CHIP_CLASS} bg-muted text-muted-foreground`}>
-                {app.scope === 'server' ? 'Provided by this server' : 'Your mount'}
+                {app.scope === 'server' ? 'Provided by this server' : 'Your install'}
               </span>
               {missing.length ? (
                 <span className={`${CHIP_CLASS} bg-warning/10 text-warning-foreground`}>Needs your {missingNames}</span>
@@ -439,27 +441,32 @@ function AppCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {app.mountId ? (
-            <Button variant="ghost" size="icon" aria-label="Open the mount page" onClick={() => openUrl(app.mountId)}>
+          {app.installId ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label="Open the install page"
+              onClick={() => openUrl(app.installId)}
+            >
               <ExternalLink className="size-4" />
             </Button>
           ) : null}
         </div>
       </div>
       {missing.length ? (
-        <Notice size="sm" tone="warning" title={`Add your ${missingNames} below to finish mounting`}>
-          The mount page is published and this server has read it. Enter the key and press Store: it is kept on the
+        <Notice size="sm" tone="warning" title={`Add your ${missingNames} below to finish installing`}>
+          The install page is published and this server has read it. Enter the key and press Store: it is kept on the
           server, never in the page, and the server then offers {toolNames} to your agents.
         </Notice>
       ) : app.status.state === 'error' ? (
-        <Notice size="sm" tone="warning" title="This mount offers no tools">
+        <Notice size="sm" tone="warning" title="This install offers no tools">
           {app.status.error}
         </Notice>
       ) : null}
       {usage.data ? (
         <SizableText size="sm" color="muted">
           {usage.data.used} of {usage.data.allowance} {usage.data.unit} used this{' '}
-          {usage.data.period.length === 7 ? 'month' : 'period'} on the shared key, {usage.data.remaining} left. Mount
+          {usage.data.period.length === 7 ? 'month' : 'period'} on the shared key, {usage.data.remaining} left. Install
           the app with your own key to lift the cap.
         </SizableText>
       ) : null}
@@ -476,8 +483,8 @@ function AppCard({
           ))}
           <SizableText size="xs" color="muted">
             {app.scope === 'space'
-              ? 'These are the arguments attribute of your mount page: open the page, set a value, publish, then Refresh here.'
-              : 'Set by the operator on the server-wide mount page.'}
+              ? 'These are the arguments attribute of your install page: open the page, set a value, publish, then Refresh here.'
+              : 'Set by the operator on the server-wide install page.'}
           </SizableText>
         </div>
       ) : null}
@@ -492,14 +499,14 @@ function AppCard({
   )
 }
 
-/** One secret argument of the account's own mount: stored or not, and a field to store it. */
+/** One secret argument of the account's own install: stored or not, and a field to store it. */
 function SecretArgumentRow({
   app,
   arg,
   serverUrl,
   accountUid,
 }: {
-  app: AppMountInfo
+  app: AppInstallInfo
   arg: AppArgumentInfo
   serverUrl: string
   accountUid: string | null | undefined

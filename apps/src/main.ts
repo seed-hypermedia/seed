@@ -1,6 +1,6 @@
 import type * as api from '@/api'
 import {ActivityMonitor} from '@/activity-monitor'
-import {AppMountMonitor} from '@/app-mount-monitor'
+import {AppInstallMonitor} from '@/app-install-monitor'
 import * as apisvc from '@/api-service'
 import {getBuildInfo} from '@/build-info'
 import {installHmServerAuth} from '@/hm-server-auth'
@@ -158,7 +158,7 @@ export function createAPIRoutes(
         status: lag.ok ? 'ok' : 'unhealthy',
         ...(lag.ok ? {} : {reason: lag.reason, p95: lag.p95}),
         loop: {lag: {p50: loop.p50, p95: loop.p95, max: loop.max, windowMs: loop.windowMs}},
-        // What a space's agents-server binding must prove to be: see app-mounts.ts.
+        // What a space's agents-server binding must prove to be: see app-installs.ts.
         serverUid: svc.serverUid,
         uptime: process.uptime(),
         version: buildInfo.version,
@@ -625,8 +625,8 @@ async function main(): Promise<void> {
     ...cfg.database.retention,
   })
   retentionTask.start()
-  const appMountMonitor = new AppMountMonitor(svc, {pollIntervalMs: 5 * 60_000})
-  appMountMonitor.start()
+  const appInstallMonitor = new AppInstallMonitor(svc, {pollIntervalMs: 5 * 60_000})
+  appInstallMonitor.start()
 
   server.reload({
     error: handleError,
@@ -710,7 +710,7 @@ async function main(): Promise<void> {
     scheduleMonitor.stop()
     mountNameSync.stop()
     await withTimeout(retentionTask.stop(), 2_000, 'stop retention').catch(() => {})
-    appMountMonitor.stop()
+    appInstallMonitor.stop()
     for (const ws of clients) ws.close(1001, 'Server shutting down')
     clients.clear()
     // stop() waits for every open connection; clients whose sockets never finish closing would keep

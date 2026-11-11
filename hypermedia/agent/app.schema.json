@@ -7,7 +7,7 @@
         "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$"
       },
       "required": true,
-      "description": "The app's short name, unique among the apps mounted on one agents server. It names the mount, the tool documents it projects and the secrets that belong to it."
+      "description": "The app's short name, unique among the apps installed on one agents server. It names the install, the tool documents it projects and the secrets that belong to it."
     },
     "summary": {
       "value": {
@@ -37,19 +37,19 @@
               "value": {
                 "type": "hm://hyper.media/boolean"
               },
-              "description": "A secret argument (an API key, a token) is never written into a document. The person mounting the app stores it on the agents server, where it is encrypted and paired with the mount."
+              "description": "A secret argument (an API key, a token) is never written into a document. The person installing the app stores it on the agents server, where it is encrypted and paired with the install."
             },
             "required": {
               "value": {
                 "type": "hm://hyper.media/boolean"
               },
-              "description": "A mount without this argument offers no tools until it is provided."
+              "description": "An install without this argument offers no tools until it is provided."
             },
             "order": {
               "value": {
                 "type": "hm://hyper.media/integer"
               },
-              "description": "Where the argument sits in the mount form, lowest first."
+              "description": "Where the argument sits in the install form, lowest first."
             },
             "description": {
               "value": {
@@ -69,7 +69,7 @@
           }
         }
       },
-      "description": "The arguments a mount of this app takes, keyed by argument name. Each entry says what the argument is, whether it is secret and whether it is required."
+      "description": "The arguments an install of this app takes, keyed by argument name. Each entry says what the argument is, whether it is secret and whether it is required."
     },
     "permissions": {
       "value": {
@@ -87,7 +87,7 @@
           "type": "hm://hyper.media/string"
         }
       },
-      "description": "The hosts the app's code may reach, keyed by a label because map keys cannot contain dots: `{datalab: www.datalab.to}`. The sandbox lets the code reach exactly these hosts and nothing else, and an app that declares none runs without network. Shown to the person mounting the app."
+      "description": "The hosts the app's code may reach, keyed by a label because map keys cannot contain dots: `{datalab: www.datalab.to}`. The sandbox lets the code reach exactly these hosts and nothing else, and an app that declares none runs without network. Shown to the person installing the app."
     },
     "usage": {
       "value": {
@@ -101,7 +101,7 @@
               ]
             },
             "required": true,
-            "description": "Whether the server counts what the app consumes. `per-unit` means a server-wide mount is metered per space and the Apps dialog shows what is used and what is left."
+            "description": "Whether the server counts what the app consumes. `per-unit` means a server-wide install is metered per space and the Apps dialog shows what is used and what is left."
           },
           "unit": {
             "value": {
@@ -121,13 +121,13 @@
             "value": {
               "type": "hm://hyper.media/integer"
             },
-            "description": "The most units one call may consume. On a metered mount the server reserves up to this many before the run and tells the tool its budget."
+            "description": "The most units one call may consume. On a metered install the server reserves up to this many before the run and tells the tool its budget."
           }
         }
       },
-      "description": "How the app's consumption is counted and shown, so a server can offer the app on a shared key with a monthly allowance and tell people where they stand. The allowance itself is set on the server-wide mount."
+      "description": "How the app's consumption is counted and shown, so a server can offer the app on a shared key with a monthly allowance and tell people where they stand. The allowance itself is set on the server-wide install."
     },
-    "mount": {
+    "install": {
       "value": {
         "type": "hm://hyper.media/struct",
         "properties": {
@@ -139,13 +139,13 @@
               ]
             },
             "required": true,
-            "description": "`space` mounts the app for the space the bundle is published in. `server` mounts it for every space on the agents server, and is honored only in the server operator's space."
+            "description": "`space` installs the app for the space the bundle is published in. `server` installs it for every space on the agents server, and is honored only in the server operator's space."
           },
           "enabled": {
             "value": {
               "type": "hm://hyper.media/boolean"
             },
-            "description": "A disabled mount keeps its arguments but offers no tools."
+            "description": "A disabled install keeps its arguments but offers no tools."
           },
           "arguments": {
             "value": {
@@ -158,8 +158,8 @@
           }
         }
       },
-      "description": "Set when the app page is published into a space to be mounted there, the copy form of a mount. An app published as a library entry leaves it unset, and spaces mount it through an app-mount document instead."
+      "description": "Set when the app page is published into a space to be installed there, the copy form of an install. An app published as a library entry leaves it unset, and spaces install it through an app-install document instead."
     }
   },
-  "description": "A Seed Agents app: the home page of an app, whose attributes declare its name, the arguments a mount takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads. Its `tools` folder holds one app-tool document per tool, each carrying its own code."
+  "description": "A Seed Agents app: the home page of an app, whose attributes declare its name, the arguments an install takes, the grants it needs, the hosts its code reaches and how its usage is counted, and whose body is the skill doc the model reads. Its `tools` folder holds one app-tool document per tool, each carrying its own code."
 }

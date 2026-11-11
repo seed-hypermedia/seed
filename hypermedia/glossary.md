@@ -161,7 +161,7 @@ Seed Agents has its own vocabulary, defined once in the [Agents glossary](./agen
   - **Grants.** An agent's permissions: the callable tools, the publish grant and the enabled MCP servers. See [Grants](./agent/grants.md). <!-- id:aIa42PgS -->
   - **MCP server.** A Model Context Protocol server that Seed Agents connects to as a client. Its tools appear in the agent's space. No first-party MCP server exposes Seed itself. See [MCP](./agent/mcp.md). <!-- id:1769lNvE -->
   - **App.** A page typed `agent/app` that declares an app for Seed Agents: its arguments, permissions, hosts and usage, with the skill doc as its body and one tool page per tool beneath it. See [Agent apps](./agent/agent-apps.md).
-  - **App mount.** A page a space publishes to install an app, or an app page copied into the space with its mount attributes set. The agents server the space is bound to finds it and offers the app's actions to the space's agents. See [Agent apps](./agent/agent-apps.md).
+  - **App install.** A page a space publishes to install an app, or an app page copied into the space with its install attributes set. The agents server the space is bound to finds it and offers the app's actions to the space's agents. See [Agent apps](./agent/agent-apps.md).
   - **seed-cli skill.** The agent skill that lets an external agent, such as Claude Code, use the Seed CLI to read and publish. See [Building with agents](./build/agents.md). <!-- id:RUsX_znS -->
 
 # Software and process <!-- id:yWwG-PYb -->

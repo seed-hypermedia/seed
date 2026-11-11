@@ -9,11 +9,11 @@ arguments:
     secret: true
     required: true
     order: 1
-    description: A Datalab API key. A space's own key is not metered; the key of a server-wide mount is shared with every space and metered.
+    description: A Datalab API key. A space's own key is not metered; the key of a server-wide install is shared with every space and metered.
   mode:
     type: string
     order: 2
-    description: The Datalab mode conversions run in unless the call asks for another. On a server-wide mount it is also the most expensive mode a call may ask for.
+    description: The Datalab mode conversions run in unless the call asks for another. On a server-wide install it is also the most expensive mode a call may ask for.
     choices:
       fast: Fast
       balanced: Balanced
@@ -50,12 +50,12 @@ Datalab bills per page. Every conversion has a page cap: the smaller of `max_pag
 
 # Keys
 
-The mount the space sees decides whose key a conversion runs on:
+The install the space sees decides whose key a conversion runs on:
 
-1. The space's own mount of this app, with its `apiKey` argument stored on the agents server from the Apps dialog. Pages on it are not counted against anything, and any `mode` goes through.
-2. The server-wide mount's shared key, metered per space per UTC month against the allowance and ceiling the operator's mount page declares (`usage.allowance`, `usage.ceiling`). Before each call the server sets pages aside within the per-call cap (`usage.callCap`) and tells the tool its budget; a `mode` more expensive than the mount's is lowered to it, and the result says so.
+1. The space's own install of this app, with its `apiKey` argument stored on the agents server from the Apps dialog. Pages on it are not counted against anything, and any `mode` goes through.
+2. The server-wide install's shared key, metered per space per UTC month against the allowance and ceiling the operator's install page declares (`usage.allowance`, `usage.ceiling`). Before each call the server sets pages aside within the per-call cap (`usage.callCap`) and tells the tool its budget; a `mode` more expensive than the install's is lowered to it, and the result says so.
 
-Without a mount the tool is not offered at all, so the model never sees a tool that can only fail. An exhausted allowance answers with how much was used and that mounting the app with an own key lifts the cap. A space whose agents server has no sandbox, or no key of its own and no server-wide mount, has no `convert`.
+Without an install the tool is not offered at all, so the model never sees a tool that can only fail. An exhausted allowance answers with how much was used and that installing the app with an own key lifts the cap. A space whose agents server has no sandbox, or no key of its own and no server-wide install, has no `convert`.
 
 # See also
 
@@ -63,4 +63,4 @@ Without a mount the tool is not offered at all, so the model never sees a tool t
 - [Agent Guide](../guide.md)
 - [Tools](../tools.md)
 - [App](../app.md): the type this page follows.
-- [Agent apps](../agent-apps.md): how an app is mounted and run.
+- [Agent apps](../agent-apps.md): how an app is installed and run.

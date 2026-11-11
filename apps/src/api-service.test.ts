@@ -23,7 +23,7 @@ import {
 import {createAPIRoutes} from '@/main'
 import {clientProtocolOf, clientProtocolProblem, type GetAgentResponseV1} from '@/protocol-compat'
 import {startTestMcpServer} from '@/mcp-test-server'
-import {mountConvert} from '@/test-app-mounts'
+import {installConvert} from '@/test-app-installs'
 
 /**
  * An event payload with its provenance stamp dropped.
@@ -10748,7 +10748,7 @@ function openAIUsage(): Record<string, number> {
   return {prompt_tokens: 1, completion_tokens: 1, total_tokens: 2}
 }
 
-describe('app mounts (signed API)', () => {
+describe('app installs (signed API)', () => {
   /** A space bound to this server by its home document, and this server answering for itself. */
   function bindSpaces(serverUid: string, query: Record<string, unknown> = {documents: [], nextPageToken: ''}) {
     const originalFetch = globalThis.fetch
@@ -10801,8 +10801,8 @@ describe('app mounts (signed API)', () => {
         action: Parameters<typeof apisvc.createSignedEnvelope>[1]['action'],
       ) => svc.message(await apisvc.createSignedEnvelope(key, {action}))
       await sendAs(owner, {_: 'SetSecret', name: 'app-convert-apiKey', value: new TextEncoder().encode('own-key')})
-      mountConvert(db)
-      mountConvert(db, {accountId: ownerId, secret: 'app-convert-apiKey'})
+      installConvert(db)
+      installConvert(db, {accountId: ownerId, secret: 'app-convert-apiKey'})
 
       const mine = await sendAs(owner, {_: 'ListApps'})
       expect(mine).toMatchObject({
@@ -10812,7 +10812,7 @@ describe('app mounts (signed API)', () => {
           {
             slug: 'convert',
             scope: 'space',
-            mountId: `hm://${ownerId}/apps/convert`,
+            installId: `hm://${ownerId}/apps/convert`,
             name: 'Datalab converter',
             app: 'hm://docs/agent/apps/convert',
             tools: [{tool: 'convert', runtime: 'ts'}],
@@ -10827,7 +10827,7 @@ describe('app mounts (signed API)', () => {
       expect(JSON.stringify(mine)).not.toContain('own-key')
       expect(JSON.stringify(mine)).not.toContain('shared-key')
 
-      // Another account sees the server-wide mount only: a space mount is that space's.
+      // Another account sees the server-wide install only: a space install is that space's.
       const theirs = await sendAs(visitor, {_: 'ListApps'})
       expect((theirs as {apps: Array<{scope: string}>}).apps.map((app) => app.scope)).toEqual(['server'])
 
@@ -10836,7 +10836,7 @@ describe('app mounts (signed API)', () => {
         usage: {slug: 'convert', unit: 'pages', used: 0, allowance: 1000, remaining: 1000, serverRemaining: 20000},
       })
       expect(await sendAs(owner, {_: 'GetAppUsage', slug: 'convert'})).toEqual({_: 'GetAppUsageResponse'})
-      await expect(sendAs(owner, {_: 'GetAppUsage', slug: 'nope'})).rejects.toThrow('App not mounted')
+      await expect(sendAs(owner, {_: 'GetAppUsage', slug: 'nope'})).rejects.toThrow('App not installed')
     } finally {
       restore()
       sqlite.closeDatabase(db)
@@ -10854,10 +10854,10 @@ describe('app mounts (signed API)', () => {
       const ownerId = blobs.principalToString(owner.principal)
       const send = async (action: Parameters<typeof apisvc.createSignedEnvelope>[1]['action']) =>
         svc.message(await apisvc.createSignedEnvelope(owner, {action}))
-      mountConvert(db)
-      mountConvert(db, {accountId: ownerId, secret: 'app-convert-apiKey'})
+      installConvert(db)
+      installConvert(db, {accountId: ownerId, secret: 'app-convert-apiKey'})
       // The space publishes no mount document any more: the pass removes the row and the account
-      // falls back to the server-wide mount.
+      // falls back to the server-wide install.
       const refreshed = await send({_: 'RefreshApps'})
       expect((refreshed as {apps: Array<{scope: string}>}).apps.map((app) => app.scope)).toEqual(['server'])
       expect(events.some((event) => event.type === 'account-change' && event.reason === 'apps-changed')).toBe(true)

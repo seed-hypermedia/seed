@@ -24,7 +24,7 @@
         ]
       },
       "required": true,
-      "description": "The language of `code`: `ts` runs with bun, `python` with the python interpreter, in the agents server's sandbox. A server that cannot run the runtime refuses the mount and says so."
+      "description": "The language of `code`: `ts` runs with bun, `python` with the python interpreter, in the agents server's sandbox. A server that cannot run the runtime refuses the install and says so."
     },
     "timeoutSecs": {
       "value": {
@@ -50,7 +50,7 @@
         "type": "hm://hyper.media/ipfs-url"
       },
       "required": true,
-      "description": "The tool's code: an `ipfs://<cid>` naming one file, or a UnixFS folder whose entry is `index.ts` (`runtime: ts`) or `main.py` (`runtime: python`). The agents server fetches it at mount, checks every file against its content id, and runs the entry in its sandbox for the spaces that mounted the app. The entry follows the lambda ABI with a second argument: `export default async function (input, ctx)` in TypeScript, `def main(input, ctx)` in Python."
+      "description": "The tool's code: an `ipfs://<cid>` naming one file, or a UnixFS folder whose entry is `index.ts` (`runtime: ts`) or `main.py` (`runtime: python`). The agents server fetches it at install, checks every file against its content id, and runs the entry in its sandbox for the spaces that installed the app. The entry follows the lambda ABI with a second argument: `export default async function (input, ctx)` in TypeScript, `def main(input, ctx)` in Python."
     }
   },
   "description": "One tool of a Seed Agents app: a page under the app page's `tools` folder whose attributes name the tool, say what runtime its code needs, and reference the contract (`inputSchema`, `outputSchema`) and the code the agents server runs, each an `ipfs://` content id. The body is the tool's documentation, the instructions the model reads with the contract."

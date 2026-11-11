@@ -66,7 +66,7 @@ import * as runs from '@/runs'
 import * as effectOutbox from '@/effect-outbox'
 import * as retention from '@/db-retention'
 import * as runEvents from '@/run-events'
-import * as appMounts from '@/app-mounts'
+import * as appInstalls from '@/app-installs'
 import * as toolDocs from '@/tool-documents'
 import {
   lintWorkflowSource,
@@ -626,7 +626,7 @@ function enabledCallableTools(
   codeExecAvailable: boolean,
   appTools: string[],
 ): string[] {
-  // Builtins are apps that happen to be mounted already: the tools of the apps mounted for the
+  // Builtins are apps that happen to be installed already: the tools of the apps installed for the
   // account join the service callables, and the grant list filters both by name.
   const serviceCallables = serviceCallableNames()
   const offered = [...serviceCallables, ...appTools.filter((name) => !serviceCallables.includes(name))]
@@ -3632,7 +3632,7 @@ export class Service {
   }
 
   /**
-   * Reconciles one agent's projected tool documents: the tools of the apps mounted for its
+   * Reconciles one agent's projected tool documents: the tools of the apps installed for its
    * account, then the tools of the MCP servers its definition enables. Apps go first so a remote
    * tool of the same name yields to the mounted tool.
    */
@@ -3690,16 +3690,16 @@ export class Service {
     }
   }
 
-  /** The tool names of the apps mounted for an account, the server-wide ones and its own, offered as callables. */
+  /** The tool names of the apps installed for an account, the server-wide ones and its own, offered as callables. */
   #appToolNames(accountId: string): string[] {
-    return appMounts.visibleAppToolNames(this.#db, accountId)
+    return appInstalls.visibleAppToolNames(this.#db, accountId)
   }
 
   #appResolver(accountId: string): AgentServicePiToolContext['apps'] {
     return {
-      resolve: (slug) => appMounts.resolveAppMount(this.#db, accountId, slug, this.#appSecrets()),
+      resolve: (slug) => appInstalls.resolveAppInstall(this.#db, accountId, slug, this.#appSecrets()),
       codeRoot: (tool, code) =>
-        appMounts.ensureToolCode(this.#appMountDeps(), tool, code).catch((error: unknown) => {
+        appInstalls.ensureToolCode(this.#appInstallDeps(), tool, code).catch((error: unknown) => {
           throw new APIError(
             503,
             `The code of ${tool} is not available: ${error instanceof Error ? error.message : String(error)}`,
@@ -3708,7 +3708,7 @@ export class Service {
     }
   }
 
-  #appMountDeps(signal?: AbortSignal): appMounts.AppMountDeps {
+  #appInstallDeps(signal?: AbortSignal): appInstalls.AppInstallDeps {
     return {
       db: this.#db,
       hmServerUrl: this.#hmServerUrl,
@@ -3723,16 +3723,16 @@ export class Service {
   }
 
   /**
-   * One pass over the mount documents this server is bound to act on (see app-mounts.ts), then the
+   * One pass over the install pages this server is bound to act on (see app-installs.ts), then the
    * projection of what changed onto the agents that see it. The monitor runs it every few minutes;
    * `RefreshApps` runs it for one space on demand.
    */
-  async refreshAppMounts(options: {accountId?: string; signal?: AbortSignal} = {}): Promise<void> {
+  async refreshAppInstalls(options: {accountId?: string; signal?: AbortSignal} = {}): Promise<void> {
     // A tool is refused at mount when this host cannot run its runtime, so the probed availability
     // decides, not the configuration alone: a box without KVM mounts nothing it cannot run.
     const {runtimes} = await this.#codeExec.availability()
-    const result = await appMounts.refreshAppMounts(
-      {...this.#appMountDeps(options.signal), runtimes},
+    const result = await appInstalls.refreshAppInstalls(
+      {...this.#appInstallDeps(options.signal), runtimes},
       {accountId: options.accountId},
     )
     if (result.serverChanged) {
@@ -3750,7 +3750,7 @@ export class Service {
     }
   }
 
-  /** Re-projects mounted apps onto every agent of one account, or of all of them. */
+  /** Re-projects installed apps onto every agent of one account, or of all of them. */
   #syncAppsAcrossAgents(accountId?: string): void {
     type AgentRow = {id: string; account_id: string; definition_cbor: Uint8Array}
     const agents = accountId
@@ -3775,10 +3775,10 @@ export class Service {
 
   async #listApps(accountId: string): Promise<api.ListAppsResponse> {
     const client = createSeedClient(this.#hmServerUrl, {fetch: fetchWithReadDeadline})
-    const binding = await appMounts.spaceBinding(this.#appMountDeps(), client, accountId)
+    const binding = await appInstalls.spaceBinding(this.#appInstallDeps(), client, accountId)
     return {
       _: 'ListAppsResponse',
-      apps: appMounts.listVisibleAppMounts(this.#db, accountId).map(appMounts.appMountInfo),
+      apps: appInstalls.listVisibleAppInstalls(this.#db, accountId).map(appInstalls.appInstallInfo),
       binding: {
         ...(binding.agentServerUrl ? {agentServerUrl: binding.agentServerUrl} : {}),
         source: binding.source,
@@ -3788,27 +3788,27 @@ export class Service {
   }
 
   async #refreshApps(accountId: string): Promise<api.ListAppsResponse> {
-    await this.refreshAppMounts({accountId})
+    await this.refreshAppInstalls({accountId})
     return this.#listApps(accountId)
   }
 
   #getAppUsage(accountId: string, rawSlug: string): api.GetAppUsageResponse {
     const slug = normalizeBoundedString(rawSlug, 'App slug', MAX_NAME_BYTES)
-    const mount = appMounts.visibleAppMount(this.#db, accountId, slug)
-    if (!mount) throw new APIError(404, 'App not mounted')
-    // Only a server-wide mount is counted: a space's own mount spends the space's own key.
-    const allowance = mount.usage?.allowance
-    if (mount.scope !== 'server' || mount.snapshot?.usage?.meter !== 'per-unit' || allowance === undefined) {
+    const install = appInstalls.visibleAppInstall(this.#db, accountId, slug)
+    if (!install) throw new APIError(404, 'App not installed')
+    // Only a server-wide install is counted: a space's own install spends the space's own key.
+    const allowance = install.usage?.allowance
+    if (install.scope !== 'server' || install.snapshot?.usage?.meter !== 'per-unit' || allowance === undefined) {
       return {_: 'GetAppUsageResponse'}
     }
     const period = appUsage.periodOf(Date.now())
     const used = appUsage.unitsUsed(this.#db, {slug, accountId, period})
-    const ceiling = mount.usage?.ceiling
+    const ceiling = install.usage?.ceiling
     return {
       _: 'GetAppUsageResponse',
       usage: {
         slug,
-        unit: mount.snapshot.usage.unit ?? 'units',
+        unit: install.snapshot.usage.unit ?? 'units',
         period,
         used,
         allowance,
@@ -11438,7 +11438,7 @@ function scheduleMemorySummaryRefresh(stateDir: string): void {
   })()
 }
 
-/** Drops every cached Space index: a server-wide mount changed, so every agent's tool list did. */
+/** Drops every cached Space index: a server-wide install changed, so every agent's tool list did. */
 export function invalidateAllSpaceIndexes(): void {
   spaceIndexCache.clear()
 }
@@ -13257,13 +13257,13 @@ export type AgentServicePiToolContext = WriteToolContext & {
   browserPrivacy: BrowserPrivacy
   web: WebToolsConfig
   /**
-   * The apps mounted for this account, resolved with their argument values for a tool about to
+   * The apps installed for this account, resolved with their argument values for a tool about to
    * run, and the host directory a tool's code is cached in (fetched again when the data directory
    * lost it), for the sandbox to stage.
    */
   apps: {
-    resolve: (slug: string) => appMounts.ResolvedAppMount | undefined
-    codeRoot: (tool: string, code: appMounts.AppToolCode) => Promise<string>
+    resolve: (slug: string) => appInstalls.ResolvedAppInstall | undefined
+    codeRoot: (tool: string, code: appInstalls.AppToolCode) => Promise<string>
   }
   /** Called after a write mutates the agent's triggers, so clients watching the Triggers tab refresh. */
   onTriggersChange?: () => void
@@ -15770,8 +15770,8 @@ async function executeLambdaTool(
 
 /**
  * Runs a tool document's source in the sandbox and hands back what it returned: the one path
- * behind an authored lambda and a mounted app's tool. `run` says whose sandbox and with what; the
- * app path adds the mount's context as environment, the app's hosts and the longer timeout cap.
+ * behind an authored lambda and an installed app's tool. `run` says whose sandbox and with what; the
+ * app path adds the install's context as environment, the app's hosts and the longer timeout cap.
  *
  * Failures are thrown rather than returned: a tool that crashes, returns nothing, or returns
  * something its own output schema rejects is a broken tool, and whoever wrote it is the one who
@@ -16015,11 +16015,11 @@ function readSecretString(db: Database, accountId: string, name: string): string
 }
 
 /**
- * Runs a mounted app's tool: the tool page's code in the sandbox, for the mount the account sees.
- * The mount is the consent, so no `execute` grant is needed: the agent cannot write the code, and
- * the space's writers chose to run it. The run gets the mount's arguments and the app's hosts and
+ * Runs an installed app's tool: the tool page's code in the sandbox, for the install the account sees.
+ * The install is the consent, so no `execute` grant is needed: the agent cannot write the code, and
+ * the space's writers chose to run it. The run gets the install's arguments and the app's hosts and
  * nothing else, under a principal of its own so a pooled VM never carries a secret into the
- * agent's own code. A metered server-wide mount reserves the call's budget first and settles it
+ * agent's own code. A metered server-wide install reserves the call's budget first and settles it
  * to what the tool reports as `usage.units`; a tool that reports nothing is charged what it was
  * given, and the result's `usage` then says what was charged and what is left this period.
  */
@@ -16040,22 +16040,22 @@ async function executeAppTool(
     }
   }
   const slug = doc.app?.slug ?? ''
-  const mount = context.apps.resolve(slug)
-  if (!mount) {
-    throw new APIError(400, `The ${slug} app is no longer mounted for this account, so ${doc.name} cannot run`)
+  const install = context.apps.resolve(slug)
+  if (!install) {
+    throw new APIError(400, `The ${slug} app is no longer installed for this account, so ${doc.name} cannot run`)
   }
-  const appTool = mount.snapshot.tools.find((tool) => tool.tool === doc.name)
+  const appTool = install.snapshot.tools.find((tool) => tool.tool === doc.name)
   if (!appTool) throw new APIError(400, `The ${slug} app no longer has a tool named ${doc.name}`)
 
-  const declaredUsage = mount.snapshot.usage
+  const declaredUsage = install.snapshot.usage
   const unit = declaredUsage?.unit ?? 'units'
-  const allowance = mount.usage?.allowance
+  const allowance = install.usage?.allowance
   let reservation: appUsage.Reservation | undefined
-  if (mount.scope === 'server' && declaredUsage?.meter === 'per-unit') {
+  if (install.scope === 'server' && declaredUsage?.meter === 'per-unit') {
     if (allowance === undefined) {
       throw new APIError(
         503,
-        `The ${slug} app is metered, but the server-wide mount sets no allowance; the operator has to set one on the mount page`,
+        `The ${slug} app is metered, but the server-wide install sets no allowance; the operator has to set one on the install page`,
       )
     }
     try {
@@ -16066,26 +16066,26 @@ async function executeAppTool(
         unit,
         callCap: declaredUsage.callCap ?? allowance,
         allowance,
-        ceiling: mount.usage?.ceiling ?? Number.MAX_SAFE_INTEGER,
+        ceiling: install.usage?.ceiling ?? Number.MAX_SAFE_INTEGER,
         now: Date.now(),
       })
     } catch (error) {
       if (!(error instanceof appUsage.UsageQuotaError)) throw error
       throw new APIError(
         429,
-        `${error.message}. Mount the ${slug} app with your own key from the Apps dialog to keep going, or wait for the next period.`,
+        `${error.message}. Install the ${slug} app with your own key from the Apps dialog to keep going, or wait for the next period.`,
       )
     }
   }
   const appContext = {
-    args: mount.args,
+    args: install.args,
     ...(reservation ? {usage: {unit, reserved: reservation.units}} : {}),
-    app: {slug, scope: mount.scope},
+    app: {slug, scope: install.scope},
     workspace: EXEC_WORKSPACE_GUEST_PATH,
   }
   let wrapped: Record<string, unknown>
   try {
-    // The code the mount pass fetched and proved, from the server's cache; the sandbox stages it.
+    // The code the install pass fetched and proved, from the server's cache; the sandbox stages it.
     const codeRoot = await context.apps.codeRoot(doc.name, appTool.code)
     wrapped = await runLambdaSource(context, document, toolInput, toolCallId, {
       principal: {
@@ -16094,7 +16094,7 @@ async function executeAppTool(
         sessionId: `app:${slug}:${context.sessionId}`,
       },
       env: {[LAMBDA_CONTEXT_ENV]: JSON.stringify(appContext)},
-      network: {hosts: Object.values(mount.snapshot.network)},
+      network: {hosts: Object.values(install.snapshot.network)},
       ...(appTool.timeoutSecs !== undefined ? {timeoutSecs: appTool.timeoutSecs} : {}),
       maxTimeoutSecs: MAX_APP_EXEC_TIMEOUT_SECS,
       code: {root: codeRoot, entry: appTool.code.entry},

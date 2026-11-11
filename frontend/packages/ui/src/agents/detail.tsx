@@ -1807,7 +1807,7 @@ function AgentPermissionsPage({
   const appsDialog = useAppDialog(AppsDialog)
   const agentTools = useAgentTools(serverUrl, accountUid, agentId)
   const apps = useApps(serverUrl, accountUid)
-  // One row per tool of every app mounted for the account, after the fixed callables. A mount
+  // One row per tool of every app installed for the account, after the fixed callables. An install
   // that is not working (a missing key, an app page that does not hold up) keeps its rows, greyed,
   // with the reason, so the missing tool and its fix are on the same screen.
   const toolOptions: {
@@ -1831,7 +1831,7 @@ function AgentPermissionsPage({
           tool,
           agentTools.data?.tools.find((document) => document.app?.slug === app.slug && document.name === tool.tool),
         ),
-        ...(app.status.state === 'error' ? {problem: app.status.error ?? 'This mount offers no tools.'} : {}),
+        ...(app.status.state === 'error' ? {problem: app.status.error ?? 'This install offers no tools.'} : {}),
       })),
     ),
   ]

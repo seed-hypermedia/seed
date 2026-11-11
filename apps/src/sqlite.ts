@@ -15,7 +15,7 @@ export const BASELINE_SCHEMA_MIGRATION_VERSION = 0
 export const migrations: string[] = [
   // ======= IMPORTANT: Add new migrations below this line. =======
   // App tools carry their own code, and any app may be metered: the conversion ledger becomes the
-  // usage ledger of every metered app, keyed by the app's slug, and a server-wide mount page may
+  // usage ledger of every metered app, keyed by the app's slug, and a server-wide install page may
   // set the allowance and ceiling it gives away (usage_cbor).
   `CREATE TABLE app_usage (
       id TEXT PRIMARY KEY,
@@ -36,7 +36,7 @@ export const migrations: string[] = [
     FROM conversion_usage;
   DROP TABLE conversion_usage;
   ALTER TABLE app_mounts ADD COLUMN usage_cbor BLOB;`,
-  // App mounts: the apps the server found mounted for a space (account_id) or server-wide from the
+  // App installs: the apps the server found installed for a space (account_id) or server-wide from the
   // operator's space (account_id ''), with a snapshot of the bundle and its actions so projection
   // and execution never read the network. server_bindings remembers which agents-server URLs
   // proved to be this server, so a binding is checked once a day and not once per mount.

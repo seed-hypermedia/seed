@@ -1159,7 +1159,7 @@ function AssistantSessionChat({
           }
         />
 
-        {/* No focus-on-mount here: session chats mount with the panel itself (e.g. on app launch),
+        {/* No focus-on-install here: session chats install with the panel itself (e.g. on app launch),
           where stealing focus from the document would be wrong. Focus is imperative, via the
           panel's new-chat flows. */}
         <AgentRichMessageComposer

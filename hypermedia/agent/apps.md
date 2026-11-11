@@ -10,4 +10,4 @@ Every page in this folder is an [app](./app.md): the home page of an app, whose 
 # See also
 
 - [app](./app.md): the type every page here follows.
-- [app-mount](./app-mount.md): how a space installs one of these.
+- [app-install](./app-install.md): how a space installs one of these.

@@ -1,4 +1,4 @@
-import {callableToolRegistry, type AppMountInfo, type AppToolInfo} from '@seed-hypermedia/apps-protocol'
+import {callableToolRegistry, type AppInstallInfo, type AppToolInfo} from '@seed-hypermedia/apps-protocol'
 import type {AgentToolInfo} from './client'
 
 /**
@@ -30,12 +30,12 @@ export type ToolContractView = {
 }
 
 /**
- * The contract of a mounted app's tool. The registry knows no app tool; the contract is the tool
+ * The contract of an installed app's tool. The registry knows no app tool; the contract is the tool
  * page's, read by the server and projected into the agent's `~/tools` once the mount works, so it
  * comes from that document. Until it exists the view carries what the mount lists and why.
  */
 export function appToolContract(
-  app: AppMountInfo,
+  app: AppInstallInfo,
   tool: AppToolInfo,
   document: AgentToolInfo | undefined,
 ): ToolContractView {
@@ -62,7 +62,7 @@ export function appToolContract(
 /**
  * Tools granted to a newly created agent: Seed search, web search, sandboxed code execution and
  * publishing. Reading, memory, delegation, and planning are verbs — always available. The tools
- * of mounted apps are granted per agent in the Tools tab, by their own names. The server silently
+ * of installed apps are granted per agent in the Tools tab, by their own names. The server silently
  * drops execute from sessions when it cannot run it.
  */
 export const DEFAULT_AGENT_TOOLS = [AGENT_SEARCH_TOOL, AGENT_WEB_SEARCH_TOOL, AGENT_EXECUTE_TOOL, AGENT_PUBLISH_GRANT]
@@ -73,7 +73,7 @@ const LEGACY_PUBLISH_TOOL_NAMES = ['write', 'memory_publish_document', 'ipfs_wri
 /**
  * Maps a stored (possibly pre-verbs) tools array onto today's grants so the UI reads and writes
  * the truth the server acts on: execute_code → execute, the old write group → publish, names
- * absorbed into verbs dropped. `appTools` are the names of the tools of the apps mounted for the
+ * absorbed into verbs dropped. `appTools` are the names of the tools of the apps installed for the
  * account: a grant by one of those names is kept, since the server offers it under that name.
  */
 export function normalizeStoredAgentTools(tools: string[], appTools: string[] = []): string[] {

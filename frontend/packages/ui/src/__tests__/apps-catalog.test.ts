@@ -1,9 +1,9 @@
 import {describe, expect, test} from 'vitest'
-import {appNeedsOf, appSettingsLine, mountsByApp, toolReferenceLinks} from '../agents/apps'
-import type {AppMountInfo} from '../agents/client'
+import {appNeedsOf, appSettingsLine, installsByApp, toolReferenceLinks} from '../agents/apps'
+import type {AppInstallInfo} from '../agents/client'
 
 describe('the Apps dialog catalog', () => {
-  test('a mounted tool links what its page references: the code first, then the contract', () => {
+  test('an installed tool links what its page references: the code first, then the contract', () => {
     const tool = {
       tool: 'convert',
       summary: 'Converts.',
@@ -22,18 +22,18 @@ describe('the Apps dialog catalog', () => {
     ])
   })
 
-  test('recognizes a mounted app by its page whatever version the mount pins', () => {
-    // A mount drafted from the catalog pins the version it consented to, and the server reports
+  test('recognizes an installed app by its page whatever version the install pins', () => {
+    // An install drafted from the catalog pins the version it consented to, and the server reports
     // the app with that version; the catalog knows the page by its address alone. Matching the
-    // two literally listed the app under "Apps you can mount" right after it was mounted.
-    const mount = {slug: 'convert', app: 'hm://z6MkSpace/apps/convert?v=bafyreicg5jl'} as AppMountInfo
-    const mounts = mountsByApp([mount, {slug: 'other', app: 'hm://z6MkSpace/apps/other'} as AppMountInfo])
-    expect(mounts.get('hm://z6MkSpace/apps/convert')).toBe(mount)
-    expect(mounts.get('hm://z6MkSpace/apps/other')?.slug).toBe('other')
-    expect(mounts.has('hm://z6MkSpace/apps/convert?v=bafyreicg5jl')).toBe(false)
+    // two literally listed the app under "Apps you can install" right after it was installed.
+    const install = {slug: 'convert', app: 'hm://z6MkSpace/apps/convert?v=bafyreicg5jl'} as AppInstallInfo
+    const installs = installsByApp([install, {slug: 'other', app: 'hm://z6MkSpace/apps/other'} as AppInstallInfo])
+    expect(installs.get('hm://z6MkSpace/apps/convert')).toBe(install)
+    expect(installs.get('hm://z6MkSpace/apps/other')?.slug).toBe('other')
+    expect(installs.has('hm://z6MkSpace/apps/convert?v=bafyreicg5jl')).toBe(false)
   })
 
-  test('names the settings a mount page may carry, with the values a choice accepts, and never a secret', () => {
+  test('names the settings an install page may carry, with the values a choice accepts, and never a secret', () => {
     const needs = appNeedsOf({
       arguments: {
         apiKey: {type: 'string', secret: true, required: true, order: 1},
@@ -42,7 +42,7 @@ describe('the Apps dialog catalog', () => {
       },
     })
     expect(appSettingsLine(needs)).toBe(
-      "Settings its mount page may carry under arguments: mode (fast, balanced, accurate), extras. Left unset, the app's defaults apply.",
+      "Settings its install page may carry under arguments: mode (fast, balanced, accurate), extras. Left unset, the app's defaults apply.",
     )
     expect(appSettingsLine(appNeedsOf({arguments: {apiKey: {type: 'string', secret: true}}}))).toBeNull()
   })

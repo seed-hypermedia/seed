@@ -16,7 +16,7 @@ import {useQuery} from '@tanstack/react-query'
 import {useCallback, useMemo, useState} from 'react'
 import {setPendingIntent} from './local-db'
 
-/** Publishes a signed-in account's home draft while keeping app-level dialogs mounted. */
+/** Publishes a signed-in account's home draft while keeping app-level dialogs installed. */
 export function usePublishSpaceDraft() {
   const navigate = useNavigate()
   const {originHomeId} = useUniversalAppContext()
