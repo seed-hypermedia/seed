@@ -151,6 +151,7 @@ Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
 | `SEED_AGENTS_EXEC_MAX_VMS` | `3` | Warm pool only: pooled VMs retained; extra concurrent calls boot transient VMs rather than wait. <!-- id:8tLQhClP --> |
 | `SEED_AGENTS_EXEC_POOL_IDLE_TTL_SECS` | `180` | Warm pool only: how long a parked VM may sit idle before it is disposed. <!-- id:pZDEsB5o --> |
 | `SEED_AGENTS_EXEC_POOL_MAX_AGE_SECS` | `1800` | Warm pool only: maximum age of a pooled VM, enforced between calls. <!-- id:yTmSdS1y --> |
+| `SEED_AGENTS_EXEC_CANARY_SECS` | `0` (off) | How often the exec canary boots a fresh sandbox and runs one command, to prove code execution still works. The hosted servers set `300`. See [Is code execution working](#is-code-execution-working). |
 | `SEED_AGENTS_MIN_FREE_DISK_MIB` | `512` | Free space the database's file system must have before the queue starts another run; below it runs stay queued and `/api/health` reports `dispatch.paused`. `0` disables the check. See the [effect outbox](./effect-outbox.md). |
 | `SEED_AGENTS_LOG_LEVEL` | `info` | Minimum log level (`debug`, `info`, `warn`, `error`). `debug` re-enables hot-path lines. <!-- id:5TX4N4wb --> |
 
@@ -285,7 +286,7 @@ Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service
 | --- | --- | --- |
 | `/hm/api/agents/message` | `POST` | Signed CBOR action API (canonical). <!-- id:zX6SdlMV --> |
 | `/hm/api/agents/ws` | WebSocket | Signed live subscriptions (canonical). <!-- id:8py3ZRIE --> |
-| `/hm/api/agents/health`, `/version`, `/perf`, `/perf/sessions/<sessionId>` | `GET` | Health, build metadata, timing counters (canonical). <!-- id:546OlRfm --> |
+| `/hm/api/agents/health`, `/version`, `/perf`, `/perf/sessions/<sessionId>`, `/metrics` | `GET` | Health, build metadata, timing counters, Prometheus metrics (canonical). <!-- id:546OlRfm --> |
 | `/hm/api/agents/webhooks/<triggerId>[/<secret>]` | `POST` | Webhook trigger delivery (canonical). <!-- id:MExnSG43 --> |
 | `/api/message` | `POST` | Signed CBOR action API. <!-- id:D634v2_4 --> |
 | `/agents/api/message` | `POST` | Same action API under `/agents`. <!-- id:0MOz3jtf --> |
@@ -295,7 +296,7 @@ Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service
 | `/agents/api/version` | `GET` | Build metadata under `/agents`. <!-- id:UrIALpko --> |
 | `/agents/ws` | WebSocket | Signed live subscriptions. <!-- id:Em_QCmeP --> |
 
-`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `/api/health` answers 503 with `reason: 'loop-lag'` while the server's event loop is stalled; see [Is the server stalled](#is-the-server-stalled). `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)); a trigger's `endpointPath` names the canonical form. Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on the message endpoint and the WebSocket. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
+`GET /api/perf` and `/agents/api/perf` (and `/api/perf/sessions/<sessionId>`) return per-stage timing counters and are unauthenticated like health. `GET /api/metrics` (and `/agents/api/metrics`) serves the same aggregates and the exec canary in Prometheus text format, for the metrics collector and alert rules; see [Is code execution working](#is-code-execution-working). `/api/health` answers 503 with `reason: 'loop-lag'` while the server's event loop is stalled; see [Is the server stalled](#is-the-server-stalled). `POST /agents/api/webhooks/<triggerId>` and `/<triggerId>/<secret>` deliver webhook triggers (see [triggers](./triggers.md)); a trigger's `endpointPath` names the canonical form. Everything else is a 404. The server has no browser UI and no unauthenticated data routes. Account-owned state (agents, triggers, sessions, events, memory) is reachable only through signed envelopes on the message endpoint and the WebSocket. Use the desktop app, or the signed API (`ListAgents`, `ListSessions`, `GetSession`, `GetAgentTrigger`, `ListRuns`), to inspect a server. <!-- id:cJBkT6iS -->
 
 # Where the service lives <!-- id:CJWNG9gR -->
 
@@ -473,6 +474,18 @@ Everything on this server runs on one thread: HTTP, WebSockets, every SQLite sta
   - **`[agents/sql] slow statement`** at `warn`: any prepared-statement call over 20 ms logs its duration, first keyword and the first 200 characters of the SQL (never the bindings), at most three lines per statement per minute, with the number of suppressed repeats on the next line.
 
 When the lag is high and nothing above names the cause, sample the thread with the inspector. The container must have been started with the inspector listening on its own port (override the command to `bun --inspect=127.0.0.1:9230 run --no-install main.js`; the inspector is unauthenticated, so never bind it to a public interface), and the session id is in the startup log: `docker logs agents-stable | grep ws://`. The protocol is WebKit's: `ScriptProfiler.startTracking {includeSamples: true}`, wait, `ScriptProfiler.stopTracking`; the samples arrive in the `ScriptProfiler.trackingComplete` event as `samples.stackTraces[].stackFrames` with `sourceID`, `line` and `column`. A \~40-line script that opens the WebSocket, sends those two commands, and counts the top frame of every sample is enough: `docker exec agents-stable bun /tmp/prof2.js ws://127.0.0.1:9230/<id> 15` samples for 15 s and prints the hottest frames. The bundle is minified, so map each `line:column` back into `/app/main.js` (`sed -n '<line>p' /app/main.js | cut -c<column-40>-<column+80>`) to read the function that was running; the 2026-11-03 outage was found this way in under a minute once the recipe existed.
+
+## Is code execution working
+
+Code execution can break while everything else stays green. From 2026-11-07 to 2026-11-09 every new sandbox on `agents-stable` aborted at boot (msb 0.6.8 crashed once its sandbox id passed 65,535), so every `execute` and lambda tool failed for 55 hours while `/api/health` answered 200: health does not boot a sandbox, and the warm pool kept serving VMs that were already running.
+
+  - **The exec canary** (`SEED_AGENTS_EXEC_CANARY_SECS`, `300` on the hosted servers) boots a brand-new sandbox on that interval, runs `echo` in it and tears it down. It never takes a warm VM and it skips the host-wide concurrency cap, so neither the pool nor a busy host can hide a broken runtime. Its scratch workspace is a fresh directory under `<data dir>/exec-probe`, never an agent's memory. The first failure and the recovery are logged as `[Exec Canary] Sandbox probe failed` and `recovered`.
+  - **`/api/health`** carries `execCanary: {ok, lastRunAt, consecutiveFailures}` (null when the canary is off). It never turns health 503, since a restart does not fix a broken sandbox runtime.
+  - **`GET /api/metrics`** exposes `seed_agents_exec_canary_up`, `seed_agents_exec_canary_consecutive_failures`, `seed_agents_exec_canary_last_run_timestamp_seconds` and `_last_success_timestamp_seconds`, next to `seed_agents_events_total{event}` (every `/api/perf` counter, including `exec.boot_failed` and the run outcomes `run.succeeded`, `run.failed`, `run.canceled`), `seed_agents_span_total{span}`, `seed_agents_span_p95_milliseconds{span}` and the loop-lag gauges.
+
+On the hosted servers, Grafana Alloy on the agents host scrapes `/api/metrics` for stable, staging and dev every minute, and Grafana alert rules page the ops Discord channel. Both live in SeedInfra: the scrape in `seed_infra/agentic/config/monitoring/agents.alloy`, the rules in `seed_infra/monitoring` (sandbox canary failing, canary not running, metrics missing, sandbox boots failing, run failure rate, event loop stalled, and the agents host's own liveness, disk and memory).
+
+When the canary fails, `docker logs agents-stable 2>&1 | grep -A3 'Exec Canary'` has the boot error, and `msb logs --source system <sandbox>` inside the container has the runtime's side.
 
 # Troubleshooting <!-- id:QDNGqfkn -->
 

@@ -46,6 +46,10 @@ export const EXEC_PROGRESS_INTERVAL_MS = 250
 export const EXEC_TIMEOUT_GRACE_MS = 5_000
 /** How long sandbox teardown may take before escalating from a graceful stop to a hard kill. */
 export const EXEC_TEARDOWN_TIMEOUT_MS = 5_000
+/** How long a health probe's command may run once its sandbox is up. Booting is not counted. */
+export const EXEC_PROBE_TIMEOUT_SECS = 20
+/** What a health probe's guest echoes back; anything else means the sandbox did not really run it. */
+const EXEC_PROBE_TOKEN = 'seed-exec-probe-ok'
 
 /** Code-execution backend configuration. */
 export type CodeExecConfig = {
@@ -298,6 +302,17 @@ export type CodeExecAvailability = {
   runtimes: CodeExecRuntime[]
 }
 
+/** Outcome of one {@link CodeExecutor.probe}: did a freshly booted sandbox run a command. */
+export type CodeExecProbeResult = {
+  ok: boolean
+  /** Milliseconds spent booting; 0 when the boot itself failed. */
+  bootMs: number
+  /** Boot, run and teardown together. */
+  durationMs: number
+  /** Why the probe failed, when it did. */
+  error?: string
+}
+
 /** Executes code in sandboxes for agent memory workspaces. */
 export type CodeExecutor = {
   /** Whether this server is configured to offer code execution. */
@@ -310,6 +325,14 @@ export type CodeExecutor = {
   /** Whether execution can actually work here: config, platform support, loadable runtime. Memoized. */
   availability(): Promise<CodeExecAvailability>
   execute(request: CodeExecRequest): Promise<CodeExecResult>
+  /**
+   * Boots a brand-new sandbox, runs one command in it and tears it down. Never throws. It never
+   * takes a warm VM (a warm pool can keep answering after every new boot has started failing), and
+   * it bypasses the concurrency cap so a saturated host cannot hide a broken one. The sandbox
+   * mounts a fresh empty directory created under `workspaceParent`, which should sit on the same
+   * file system as agent memory so the probe exercises the same mount path real executions take.
+   */
+  probe(workspaceParent: string): Promise<CodeExecProbeResult>
   /** Settles any asynchronously disposed sandboxes; shutdown and tests await it for determinism. */
   drain(): Promise<void>
 }
@@ -452,6 +475,9 @@ export type SandboxSource = {
   drain(): Promise<void>
 }
 
+/** Who a health probe runs as: no account owns it, so it can never share a VM with real work. */
+const EXEC_PROBE_PRINCIPAL: ExecPrincipal = {accountId: '_probe', agentId: '_probe', sessionId: '_probe'}
+
 /** Builds a source from executor internals; injectable so tests can substitute a fake source. */
 export type SandboxSourceFactory = (config: CodeExecConfig, getSdk: () => Promise<SandboxSdk>) => SandboxSource
 
@@ -491,6 +517,7 @@ async function bootSandboxVm(
     }
     sandbox = await builder.create()
   } catch (error) {
+    recordPerfCount('exec.boot_failed')
     throw new CodeExecError(
       502,
       `Could not start the code sandbox: ${error instanceof Error ? error.message : String(error)}`,
@@ -1156,6 +1183,50 @@ export function createCodeExecutor(
     runtimes: configuredRuntimes,
     availability: () => (availabilityPromise ??= probeAvailability()),
     drain: () => source.drain(),
+    async probe(workspaceParent) {
+      const startedAt = Date.now()
+      const failed = (error: unknown, bootMs = 0): CodeExecProbeResult => ({
+        ok: false,
+        bootMs,
+        durationMs: Date.now() - startedAt,
+        error: error instanceof Error ? error.message : String(error),
+      })
+      if (config.backend !== 'microsandbox') return failed('Code execution is not enabled on this server')
+      // The probe's own empty workspace: an agent's memory must never be mounted for a health check.
+      let memoryRoot: string
+      try {
+        fs.mkdirSync(workspaceParent, {recursive: true})
+        // Resolved: msb cannot bind-mount through a symlink (macOS /tmp and /var are symlinks).
+        memoryRoot = fs.realpathSync(fs.mkdtempSync(resolvePath(workspaceParent, 'probe-')))
+      } catch (error) {
+        return failed(error)
+      }
+      let booted: {sandbox: SandboxLike; bootMs: number} | undefined
+      try {
+        booted = await bootSandboxVm(
+          config,
+          getSdk,
+          {principal: EXEC_PROBE_PRINCIPAL, image: config.image, memoryRoot, timeoutSecs: EXEC_PROBE_TIMEOUT_SECS},
+          EXEC_PROBE_TIMEOUT_SECS + 30,
+        )
+        const output = await runBufferedExec(
+          booted.sandbox,
+          {cmd: '/bin/sh', args: ['-c', `echo ${EXEC_PROBE_TOKEN}`]},
+          EXEC_PROBE_TIMEOUT_SECS,
+          EXEC_PROBE_TIMEOUT_SECS * 1000 + (config.timeoutGraceMs ?? EXEC_TIMEOUT_GRACE_MS),
+        )
+        if (output.success && output.stdout.includes(EXEC_PROBE_TOKEN)) {
+          return {ok: true, bootMs: booted.bootMs, durationMs: Date.now() - startedAt}
+        }
+        const detail = (output.stderr || output.stdout).trim().slice(0, 200)
+        return failed(`Probe command exited ${output.code}${detail ? `: ${detail}` : ''}`, booted.bootMs)
+      } catch (error) {
+        return failed(error, booted?.bootMs)
+      } finally {
+        if (booted) await teardownSandbox(booted.sandbox, config.teardownTimeoutMs ?? EXEC_TEARDOWN_TIMEOUT_MS)
+        fs.rmSync(memoryRoot, {recursive: true, force: true})
+      }
+    },
     async execute(request) {
       if (config.backend !== 'microsandbox') {
         throw new CodeExecError(400, 'Code execution is not enabled on this server')

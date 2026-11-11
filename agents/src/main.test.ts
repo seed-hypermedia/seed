@@ -3,6 +3,7 @@ import {describe, expect, test} from 'bun:test'
 import * as apisvc from '@/api-service'
 import type * as api from '@/api'
 import * as cbor from '@/cbor'
+import {ExecCanary} from '@/exec-canary'
 import {AGENTS_API_PREFIX, AGENTS_WS_PATHS, createAPIRoutes, wsShouldDeliver, type WSData} from '@/main'
 import {LOOP_LAG_UNHEALTHY_P95_MS, perfSnapshot, recordLoopLag, resetPerfForTests} from '@/perf'
 import * as sqlite from '@/sqlite'
@@ -212,6 +213,38 @@ describe('main routes', () => {
       )
       const searchOnlyBody = await (await searchOnly()).json()
       expect(searchOnlyBody.webTools).toEqual({search: true, readBrowser: false})
+    } finally {
+      sqlite.closeDatabase(db)
+      cleanup()
+    }
+  })
+
+  test('GET metrics serves Prometheus text on every mount, and health reports the canary without failing', async () => {
+    const {db, dataDir, cleanup} = createTestState()
+    resetPerfForTests()
+    try {
+      const svc = new apisvc.Service(db, dataDir)
+      const canary = new ExecCanary({
+        probe: async () => ({ok: false, bootMs: 0, durationMs: 5, error: 'SIGABRT'}),
+        intervalMs: 300_000,
+      })
+      await canary.runOnce()
+      const routes = createAPIRoutes(svc, undefined, canary)
+      for (const route of [`${AGENTS_API_PREFIX}/metrics`, '/api/metrics', '/agents/api/metrics']) {
+        const res = await getGetHandler(routes, route)()
+        expect(res.status).toBe(200)
+        expect(res.headers.get('content-type')).toBe('text/plain; version=0.0.4; charset=utf-8')
+        const text = await res.text()
+        expect(text).toContain('seed_agents_exec_canary_up 0')
+        expect(text).toContain('seed_agents_events_total{event="exec.canary_failed"} 1')
+      }
+      // A broken sandbox runtime is not something a restart fixes, so health stays 200.
+      const health = await getGetHandler(routes, '/api/health')()
+      expect(health.status).toBe(200)
+      expect((await health.json()).execCanary).toMatchObject({ok: false, consecutiveFailures: 1})
+      // Off by default: no canary block in health.
+      const off = await getGetHandler(createAPIRoutes(svc), '/api/health')()
+      expect((await off.json()).execCanary).toBeNull()
     } finally {
       sqlite.closeDatabase(db)
       cleanup()
