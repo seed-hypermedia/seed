@@ -187,4 +187,53 @@ describe('embed reference routes', () => {
     })
     expect(route.id.blockRef).toBeNull()
   })
+
+  it('keeps the embed version on the same document when keepVersion is set', () => {
+    const id = hmId('alice', {path: ['notes'], latest: true})
+    const panel = {key: 'comments' as const, id, openComment: 'thread'}
+    const route = {key: 'document' as const, id, panel}
+    const reference = hmId('alice', {
+      path: ['notes'],
+      version: 'quoted-version',
+      blockRef: 'block',
+      blockRange: {start: 2, end: 8},
+    })
+    expect(getEmbedDocumentRoute(reference, route, {keepVersion: true})).toEqual({
+      ...route,
+      id: {
+        ...id,
+        version: 'quoted-version',
+        latest: false,
+        blockRef: 'block',
+        blockRange: {start: 2, end: 8},
+      },
+    })
+  })
+
+  it('keeps the embed version and panel on the comments route when keepVersion is set', () => {
+    const id = hmId('alice', {path: ['notes'], latest: true})
+    const reference = hmId('alice', {
+      path: ['notes'],
+      version: 'quoted-version',
+      blockRef: 'block',
+      blockRange: {start: 2, end: 8},
+    })
+    expect(
+      getEmbedDocumentRoute(
+        reference,
+        {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'},
+        {keepVersion: true},
+      ),
+    ).toEqual({
+      key: 'document',
+      id: {
+        ...id,
+        version: 'quoted-version',
+        latest: false,
+        blockRef: 'block',
+        blockRange: {start: 2, end: 8},
+      },
+      panel: {key: 'comments', id, openComment: 'root', replyCommentId: 'reply'},
+    })
+  })
 })

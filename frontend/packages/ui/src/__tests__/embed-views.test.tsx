@@ -5,15 +5,20 @@ import {act} from 'react-dom/test-utils'
 import type {HMBlockEmbed, HMComment} from '@seed-hypermedia/client/hm-types'
 import type {NavRoute} from '@shm/shared'
 import {hmId, packHmId, unpackHmId} from '@shm/shared/utils/entity-id-url'
+import {QueryClient, QueryClientProvider} from '@tanstack/react-query'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {BlockEmbedCard, BlockEmbedContentComment, BlockEmbedLink} from '../embed-views'
+import {BlockEmbedCard, BlockEmbedContent, BlockEmbedContentComment, BlockEmbedLink} from '../embed-views'
 import {TooltipProvider} from '../tooltip'
 ;(globalThis as typeof globalThis & {React?: typeof React; IS_REACT_ACT_ENVIRONMENT?: boolean}).React = React
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {currentRoute, resourceId, routeLinkMock} = vi.hoisted(() => ({
+const {currentRoute, resourceId, routeLinkMock, blockNode} = vi.hoisted(() => ({
   currentRoute: {
     value: null as unknown as NavRoute,
+  },
+  blockNode: {
+    block: {id: 'block-1', type: 'Paragraph', text: 'quoted block', attributes: {}, annotations: []},
+    children: [],
   },
   resourceId: {
     id: 'hm://uid-1/doc',
@@ -37,20 +42,44 @@ vi.mock('@shm/shared', async (importOriginal) => {
       routeLinkMock(route)
       return {href: '#embed-target', onClick: vi.fn()}
     },
+    useUniversalClient: () => ({}),
+    queryChanges: () => ({
+      queryKey: ['CHANGES', 'hm://uid-1/doc'],
+      queryFn: async () => ({
+        changes: [
+          {id: 'A', deps: [], createTime: '2024-01-01'},
+          {id: 'B', deps: ['A'], createTime: '2024-01-02'},
+          {id: 'C', deps: ['B'], createTime: '2024-01-03'},
+        ],
+        latestVersion: 'C',
+      }),
+    }),
+    queryResource: (_client: unknown, requestedId: {id?: string; version?: string | null} | null) => ({
+      queryKey: ['ENTITY', requestedId?.id, requestedId?.version],
+      queryFn: async () =>
+        requestedId?.version === 'B'
+          ? {
+              type: 'document',
+              id: requestedId,
+              document: {content: [blockNode], metadata: {}, authors: [], version: 'B'},
+            }
+          : null,
+    }),
   }
 })
 
 vi.mock('@shm/shared/models/entity', () => ({
   useResolvedHmId: (url: string) => ({id: unpackHmId(url), isLoading: false, error: null}),
-  useResource: () => ({
+  useResource: (id: {version?: string | null} | null) => ({
     data: {
       type: 'document',
       id: resourceId,
       document: {
         metadata: {name: 'Embedded document card'},
         authors: [],
-        content: [],
-        version: 'version-1',
+        // The pinned version still has the quoted block; the latest version does not.
+        content: id?.version ? [blockNode] : [],
+        version: id?.version ?? 'version-1',
         visibility: 'PUBLIC',
       },
     },
@@ -58,6 +87,7 @@ vi.mock('@shm/shared/models/entity', () => ({
     isError: false,
     isTombstone: false,
   }),
+  useAccount: () => ({data: null, isLoading: false}),
   useResources: () => [],
 }))
 
@@ -69,13 +99,20 @@ vi.mock('../embed-wrapper', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../embed-wrapper')>()
   return {
     ...actual,
-    EmbedWrapper: ({children, openOnClick, route, viewType}: React.PropsWithChildren<EmbedWrapperTestProps>) => (
+    EmbedWrapper: ({
+      children,
+      openOnClick,
+      route,
+      viewType,
+      keepVersion,
+    }: React.PropsWithChildren<EmbedWrapperTestProps>) => (
       <div
         data-testid="embed-wrapper"
         data-open-on-click={String(openOnClick)}
         data-route-key={route?.key ?? ''}
         data-route={JSON.stringify(route ?? null)}
         data-view={viewType}
+        data-keep-version={String(keepVersion ?? false)}
       >
         {children}
       </div>
@@ -116,6 +153,7 @@ type EmbedWrapperTestProps = {
   openOnClick?: boolean
   route?: NavRoute
   viewType?: string
+  keepVersion?: boolean
 }
 
 type DocumentCardTestProps = {
@@ -385,6 +423,41 @@ describe('comment fragment destinations', () => {
       openCommentVersion: 'comment-version',
       blockId: 'comment-block',
       blockRange: {start: 2, end: 8},
+    })
+  })
+})
+
+describe('BlockEmbedContent pinned block version', () => {
+  it('points the source link at the newest version still containing a block missing from latest', async () => {
+    const embedId = hmId('uid-1', {path: ['doc'], version: 'A', blockRef: 'block-1'})
+    const queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+    const block: HMBlockEmbed = {
+      id: 'embed-1',
+      type: 'Embed',
+      text: '',
+      attributes: {view: 'Content', childrenType: 'Group'},
+      annotations: [],
+      link: packHmId(embedId),
+    }
+
+    act(() => {
+      root.render(
+        <QueryClientProvider client={queryClient}>
+          <BlockEmbedContent block={block} parentBlockId={null} />
+        </QueryClientProvider>,
+      )
+    })
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    const wrapper = container.querySelector('[data-testid="embed-wrapper"]') as HTMLElement | null
+    expect(wrapper).toBeTruthy()
+    expect(wrapper?.dataset.keepVersion).toBe('true')
+    expect(JSON.parse(wrapper?.dataset.route ?? 'null')).toMatchObject({
+      key: 'document',
+      id: {version: 'B', latest: false, blockRef: 'block-1'},
     })
   })
 })

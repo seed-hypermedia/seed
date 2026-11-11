@@ -63,6 +63,7 @@ export function ContentEmbed({
   sourceLabel = 'block',
   resourceKind = 'document',
   isStaleVersion = false,
+  keepVersion = false,
 }: {
   id: UnpackedHypermediaId
   blocks: HMBlockNode[]
@@ -77,6 +78,8 @@ export function ContentEmbed({
   sourceLabel?: 'block' | 'comment'
   resourceKind?: RenderResourceKind
   isStaleVersion?: boolean
+  /** Keep the route id's pinned version when navigating to the currently shown document. */
+  keepVersion?: boolean
 }) {
   const inComment = useContext(CommentContentContext)
   const Viewer = useReadOnlyViewer()
@@ -180,6 +183,7 @@ export function ContentEmbed({
       viewType={viewType}
       openOnClick={openOnClick}
       isRange={!!quote}
+      keepVersion={keepVersion}
     >
       <div
         className={cn(

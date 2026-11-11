@@ -60,6 +60,7 @@ export const queryKeys = {
 
   // changes
   CHANGE: 'CHANGE', //, changeId: string
+  EMBED_BLOCK_VERSION: 'EMBED_BLOCK_VERSION', //, docId.id: string, blockRef: string, pinnedVersion: string
 
   // cid
   BLOB_DATA: 'BLOB_DATA', //, cid: string

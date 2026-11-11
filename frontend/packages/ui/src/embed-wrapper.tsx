@@ -24,14 +24,32 @@ function isInteractiveEmbedClickTarget(event: MouseEvent<HTMLElement>) {
   return !!interactiveEl && interactiveEl !== embedEl
 }
 
-/** Builds a document route for an embed while retaining the currently active panel. */
-export function getEmbedDocumentRoute(id: UnpackedHypermediaId, currentRoute: NavRoute): DocumentRoute {
+/**
+ * Builds a document route for an embed while retaining the currently active panel.
+ * When `options.keepVersion` is true, same-document block references keep the embed's
+ * pinned version instead of dropping it onto the current (latest) route — used when the
+ * referenced block no longer exists in the latest version.
+ */
+export function getEmbedDocumentRoute(
+  id: UnpackedHypermediaId,
+  currentRoute: NavRoute,
+  options: {keepVersion?: boolean} = {},
+): DocumentRoute {
+  const keepVersionId = (routeId: UnpackedHypermediaId) => ({
+    ...routeId,
+    version: id.version,
+    latest: false,
+    blockRef: id.blockRef,
+    blockRange: id.blockRange,
+  })
   if (currentRoute.key === 'comments' && currentRoute.openComment) {
     return {
       key: 'document',
       id:
         currentRoute.id.id === id.id && id.blockRef
-          ? {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange}
+          ? options.keepVersion
+            ? keepVersionId(currentRoute.id)
+            : {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange}
           : id,
       panel: {
         key: 'comments',
@@ -43,7 +61,12 @@ export function getEmbedDocumentRoute(id: UnpackedHypermediaId, currentRoute: Na
   }
   if (currentRoute.key === 'document' && currentRoute.id.id === id.id) {
     return id.blockRef
-      ? {...currentRoute, id: {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange}}
+      ? {
+          ...currentRoute,
+          id: options.keepVersion
+            ? keepVersionId(currentRoute.id)
+            : {...currentRoute.id, blockRef: id.blockRef, blockRange: id.blockRange},
+        }
       : currentRoute
   }
   const panel = getRoutePanel(currentRoute) as DocumentPanelRoute | null
@@ -61,6 +84,7 @@ export function EmbedWrapper({
   isRange = false,
   route,
   openOnClick = true,
+  keepVersion = false,
   ...props
 }: PropsWithChildren<
   {
@@ -72,6 +96,8 @@ export function EmbedWrapper({
     isRange?: boolean
     route?: NavRoute
     openOnClick?: boolean
+    /** Keep the route id's pinned version when it targets the currently shown document. */
+    keepVersion?: boolean
   } & Omit<HTMLAttributes<HTMLElement>, 'id'>
 >) {
   const highlight = useHighlighter()
@@ -81,10 +107,10 @@ export function EmbedWrapper({
   const effectiveRoute = useMemo(() => {
     if (!route) return route
     if (route.key === 'document' && !route.panel) {
-      return getEmbedDocumentRoute(route.id, currentRoute)
+      return getEmbedDocumentRoute(route.id, currentRoute, {keepVersion})
     }
     return route
-  }, [route, currentRoute])
+  }, [route, currentRoute, keepVersion])
 
   const linkProps = useRouteLink(effectiveRoute ?? null, {replace: !!id?.blockRef})
   const {onClick: routeOnClick, tag: _routeTag, ...linkAttributes} = linkProps

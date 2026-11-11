@@ -8,9 +8,14 @@ import {
 } from '@seed-hypermedia/client/hm-types'
 import {
   abbreviateUid,
+  findContentBlock,
+  findLatestVersionWithBlock,
   getCommentTargetId,
   getDocumentTitle,
   getRoutePanel,
+  queryChanges,
+  queryKeys,
+  queryResource,
   RenderResourceProvider,
   shouldBlockEmbeddedResource,
   useRenderResourceStack,
@@ -23,6 +28,7 @@ import type {DocumentPanelRoute} from '@shm/shared/routes'
 import {isHmDescendantOf} from '@shm/shared/utils/breadcrumbs'
 import {hmId} from '@shm/shared/utils/entity-id-url'
 import {useNavRoute} from '@shm/shared/utils/navigation'
+import {useQuery, useQueryClient} from '@tanstack/react-query'
 import {AlertCircle, FileSymlink as FileSymlinkIcon, FileText as FileTextIcon, Globe} from 'lucide-react'
 import React, {ReactNode, useMemo, useState} from 'react'
 import {Button} from './button'
@@ -407,6 +413,37 @@ export function BlockEmbedContent({
     latestCheck.data?.type === 'tombstone' ||
     latestCheck.isTombstone
 
+  const client = useUniversalClient()
+  const queryClient = useQueryClient()
+  const latestDoc = latestCheck.data?.type === 'document' ? latestCheck.data.document : undefined
+  const blockMissingInLatest = !!(
+    id?.blockRef &&
+    id.version &&
+    !id.latest &&
+    latestDoc &&
+    !findContentBlock(latestDoc.content, id.blockRef)
+  )
+  // Versions are immutable, so a resolved lookup never goes stale.
+  const resolvedBlockVersion = useQuery({
+    queryKey: [queryKeys.EMBED_BLOCK_VERSION, id?.id, id?.blockRef, id?.version],
+    enabled: blockMissingInLatest,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const targetId = hmId(id!.uid, {path: id!.path})
+      const changesOutput = await queryClient.fetchQuery(queryChanges(client, targetId))
+      return findLatestVersionWithBlock({
+        changes: changesOutput.changes,
+        latestVersion: changesOutput.latestVersion || latestDoc?.version || '',
+        knownVersion: id!.version!,
+        blockId: id!.blockRef!,
+        loadContent: async (version) => {
+          const res = await queryClient.fetchQuery(queryResource(client, hmId(id!.uid, {path: id!.path, version})))
+          return res?.type === 'document' ? res.document.content : null
+        },
+      })
+    },
+  })
+
   if (resolved.isLoading) return <Spinner />
   if (resolved.error) return <ErrorBlock message={`Could not resolve embed: ${String(resolved.error)}`} />
   if (!id) return <ErrorBlock message="Invalid embed link" />
@@ -469,6 +506,9 @@ export function BlockEmbedContent({
     return commentContent
   }
 
+  // While the lookup runs (and as its fallback) the route uses the pinned version,
+  // which is known to contain the block.
+  const navId = blockMissingInLatest ? {...id, version: resolvedBlockVersion.data ?? id.version, latest: false} : id
   const embedContent = resource.isLoading ? (
     <Spinner />
   ) : document ? (
@@ -476,7 +516,8 @@ export function BlockEmbedContent({
       key={block.link}
       id={id}
       blocks={document.content}
-      route={{key: 'document', id}}
+      route={{key: 'document', id: navId}}
+      keepVersion={blockMissingInLatest}
       viewType={block.attributes?.view}
       parentBlockId={parentBlockId}
       openOnClick={openOnClick}

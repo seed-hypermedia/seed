@@ -6,7 +6,7 @@ An **embed block** shows another Hypermedia resource in place. `link` is require
 
 # Opening an embed
 
-In desktop and web readers, including mobile web, clicking a document block embed opens its document if needed and scrolls to the referenced block. This also applies to document embeds inside comments. Clicking the same reference again scrolls to the block again, even when the URL has not changed.
+In desktop and web readers, including mobile web, clicking a document block embed opens its document if needed and scrolls to the referenced block. This also applies to document embeds inside comments. Clicking the same reference again scrolls to the block again, even when the URL has not changed. If the referenced block no longer exists in the latest version, the reader opens the newest version that still contains it, or the version the embed pins.
 
 A document embed without a block reference opens the document if needed. If that document is already open, the reader keeps its current scroll position.
 
