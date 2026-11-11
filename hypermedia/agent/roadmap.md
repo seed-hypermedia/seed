@@ -23,7 +23,7 @@ These parts are complete enough to build on: <!-- id:hpRRD8nC -->
   - the symmetric [log](./log.md) with the [wrench palette](./wrench-palette.md); <!-- id:zXT4FBKY -->
   - [session continuation](./session-continuation.md) in place of compaction; <!-- id:To2Kiz9e -->
   - per-agent memory, attachments, self-hosted web search and reading, and sandboxed execution with an opt-in warm microVM pool; <!-- id:-0Ua771M -->
-  - the shared desktop and web UI ([desktop UI](./desktop-ui.md)), and the local agents server embedded in the [desktop app](../apps/desktop.md); <!-- id:AL5v7MlM -->
+  - the shared desktop and web UI ([desktop UI](./desktop-ui.md)), and the local app environment embedded in the [desktop app](../apps/desktop.md); <!-- id:AL5v7MlM -->
   - delegated signers proven by a published [capability](../protocol/permissions.md) blob. <!-- id:JFhuHOFY -->
 
 # Highest priority <!-- id:kVLJTyIl -->
@@ -57,7 +57,7 @@ Anthropic and Google run through Pi with mocked coverage only. They need real-pr
 
 ## 6. Live-model gates <!-- id:KyOePz72 -->
 
-The deterministic gates pass, but the recorded cassettes predate the verb collapse (`agents/e2e/recordings/STALE.md`), so `e2e-replay.test.ts` skips and no scenario has run against a real model since the surface changed. Re-record, and write the missing battery scenarios. <!-- id:vZSPV0j8 -->
+The deterministic gates pass, but the recorded cassettes predate the verb collapse (`apps/e2e/recordings/STALE.md`), so `e2e-replay.test.ts` skips and no scenario has run against a real model since the surface changed. Re-record, and write the missing battery scenarios. <!-- id:vZSPV0j8 -->
 
 ## 7. Plan settlement <!-- id:u6kTcJHV -->
 
@@ -89,7 +89,7 @@ Signed-envelope examples as runnable scripts, the delegated-signer flow end to e
 
 # Finished projects <!-- id:0BWMjs4l -->
 
-Each of these was a plan page. The plan is in git, and the result is in the reference pages. Shared protocol package (`agents/protocol`). Pi SDK migration (every turn runs through Pi). Pi 1.0 and Pi Durable (one durable conversation per session, replacing the in-memory Pi session rebuilt from the log on every turn). Anthropic and Google backends (through Pi). Stop and cancel (`StopSession`, `CancelRun` over subtrees). Run records and the runs tree. Domain-aware reads (`resolveIdWithClient` with a domain resolver). Desktop agent unification (the local server as a desktop subprocess; the old assistant runtime deleted). Agent triggers phases 1 to 3, the event-bus first slice, the introspection slice, and headless continuations ([triggers](./triggers.md)). Workflows v1 (runs, children, scripts, progress UI). The five-verb harness and tools as documents. The write tool with CLI parity (now the `write` verb). Tables round-tripping through markdown. The warm microVM pool. Execution timeouts, leveled logging, session wire-size caps, and fair-share dispatch after the 2026-09-07 queue-wait incident. <!-- id:lzEGClKd -->
+Each of these was a plan page. The plan is in git, and the result is in the reference pages. Shared protocol package (`apps/protocol`). Pi SDK migration (every turn runs through Pi). Pi 1.0 and Pi Durable (one durable conversation per session, replacing the in-memory Pi session rebuilt from the log on every turn). Anthropic and Google backends (through Pi). Stop and cancel (`StopSession`, `CancelRun` over subtrees). Run records and the runs tree. Domain-aware reads (`resolveIdWithClient` with a domain resolver). Desktop agent unification (the local server as a desktop subprocess; the old assistant runtime deleted). Agent triggers phases 1 to 3, the event-bus first slice, the introspection slice, and headless continuations ([triggers](./triggers.md)). Workflows v1 (runs, children, scripts, progress UI). The five-verb harness and tools as documents. The write tool with CLI parity (now the `write` verb). Tables round-tripping through markdown. The warm microVM pool. Execution timeouts, leveled logging, session wire-size caps, and fair-share dispatch after the 2026-09-07 queue-wait incident. <!-- id:lzEGClKd -->
 
 # Definition of done <!-- id:Kv6fICmJ -->
 

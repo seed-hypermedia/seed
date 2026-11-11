@@ -2,7 +2,7 @@
 name: The Seed daemon
 summary: The Go node at the centre of every Seed installation, where it stores data, what it listens on, which flags matter, and what its local API does and does not protect.
 ---
-The Seed daemon, `seed-daemon`, is the program that implements the [Hypermedia protocol](../protocol.md). It stores signed [blobs](../protocol/blobs.md), verifies and indexes them, keeps [account](../protocol/identity.md) keys, [syncs](../protocol/network.md) with other nodes over libp2p, and serves everything to the apps through [gRPC](../build/grpc.md) and HTTP. The [desktop app](./desktop.md) spawns one for you. A [site](../protocol/sites.md) runs one in a container. The [CLI](./cli.md) and the [agents service](./agents.md) never need one, because they talk to a site's [Seed API](../build/web-api.md). <!-- id:HHflIUFA -->
+The Seed daemon, `seed-daemon`, is the program that implements the [Hypermedia protocol](../protocol.md). It stores signed [blobs](../protocol/blobs.md), verifies and indexes them, keeps [account](../protocol/identity.md) keys, [syncs](../protocol/network.md) with other nodes over libp2p, and serves everything to the apps through [gRPC](../build/grpc.md) and HTTP. The [desktop app](./desktop.md) spawns one for you. A [site](../protocol/sites.md) runs one in a container. The [CLI](./cli.md) and the [app environment](./app-environment.md) never need one, because they talk to a site's [Seed API](../build/web-api.md). <!-- id:HHflIUFA -->
 
 # Where the code is <!-- id:WZpCS4xs -->
 
@@ -74,7 +74,7 @@ Server mode (`-server-mode`, or `SEED_SERVER_MODE=true`) trusts the deployment n
 
 ## In the Seed app <!-- id:CHRc9FS5 -->
 
-The [desktop app](./desktop.md) starts the daemon, waits for `/debug/version`, and then starts its own API bridge and the local [agents server](./agents.md). Its settings show the daemon's peer id and addresses. <!-- id:vJuF9ms7 -->
+The [desktop app](./desktop.md) starts the daemon, waits for `/debug/version`, and then starts its own API bridge and the local [app environment](./app-environment.md). Its settings show the daemon's peer id and addresses. <!-- id:vJuF9ms7 -->
 
 ## CLI <!-- id:y6L_c2bq -->
 

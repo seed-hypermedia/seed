@@ -1,8 +1,8 @@
 ---
 name: Signed API
-summary: The reference for the agents server HTTP API, where every request is a signed DAG-CBOR action envelope, including versioning, authorization, and every action.
+summary: The reference for the app environment HTTP API, where every request is a signed DAG-CBOR action envelope, including versioning, authorization, and every action.
 ---
-The [Seed Agents](../agent.md) HTTP API is a signed action API encoded as [DAG-CBOR](../protocol/blobs.md). Every request is signed with a Seed [account](../protocol/identity.md) key, or with a key that account has authorized. Canonical protocol types live in `agents/protocol/src/index.ts` and are re-exported from `agents/src/api.ts`. Dispatch lives in `agents/src/api-service.ts`. HTTP routing lives in `agents/src/main.ts`. <!-- id:g-EvU-a4 -->
+The [Seed Agents](../agent.md) HTTP API is a signed action API encoded as [DAG-CBOR](../protocol/blobs.md). Every request is signed with a Seed [account](../protocol/identity.md) key, or with a key that account has authorized. Canonical protocol types live in `apps/protocol/src/index.ts` and are re-exported from `apps/src/api.ts`. Dispatch lives in `apps/src/api-service.ts`. HTTP routing lives in `apps/src/main.ts`. <!-- id:g-EvU-a4 -->
 
 # Endpoint <!-- id:pbaO7izF -->
 
@@ -23,7 +23,7 @@ Responses are DAG-CBOR encoded `AgentResponse` values. Every response carries th
 
 # Protocol versioning <!-- id:XZricGGS -->
 
-Clients and servers are deployed independently, so the wire surface is versioned by a single integer, `AGENTS_PROTOCOL_VERSION` in `agents/protocol/src/version.ts`. A client declares the version it speaks in `envelope.protocol`. The server answers in that version's shape (shims in `agents/src/protocol-compat.ts`). Below `MIN_CLIENT_PROTOCOL` it refuses with HTTP 426 and `{_: 'Error', code: 'protocol_too_old'}`. `bun run protocol:check` in CI fails any change to the surface that would break a released client without a version bump. The rules, the table of what counts as breaking, and the per-version changelog are in `agents/protocol/PROTOCOL.md`. <!-- id:PAx965qL -->
+Clients and servers are deployed independently, so the wire surface is versioned by a single integer, `AGENTS_PROTOCOL_VERSION` in `apps/protocol/src/version.ts`. A client declares the version it speaks in `envelope.protocol`. The server answers in that version's shape (shims in `apps/src/protocol-compat.ts`). Below `MIN_CLIENT_PROTOCOL` it refuses with HTTP 426 and `{_: 'Error', code: 'protocol_too_old'}`. `bun run protocol:check` in CI fails any change to the surface that would break a released client without a version bump. The rules, the table of what counts as breaking, and the per-version changelog are in `apps/protocol/PROTOCOL.md`. <!-- id:PAx965qL -->
 
 # Signed envelope <!-- id:gGou4ap_ -->
 
@@ -55,8 +55,8 @@ type AgentAction = UnsignedAgentAction & {
 Every verification failure is HTTP 401. A body that is not `application/cbor` is 415, and undecodable CBOR is 400. <!-- id:HxBosWOL -->
 
 Implementation: <!-- id:siTzEryg -->
-  - `agents/src/auth.ts`: shape/signature/authorization. <!-- id:ifLx8GI- -->
-  - `agents/src/api-service.ts`: action dispatch and ownership checks. <!-- id:KxS_yJfG -->
+  - `apps/src/auth.ts`: shape/signature/authorization. <!-- id:ifLx8GI- -->
+  - `apps/src/api-service.ts`: action dispatch and ownership checks. <!-- id:KxS_yJfG -->
   - `frontend/packages/ui/src/agents/client.ts`: `signAgentAction()` and `sendAgentAction()`, shared by both apps. The desktop's platform (`frontend/apps/desktop/src/agents-platform.ts`) supplies a signer backed by the [Seed daemon](../apps/daemon.md). <!-- id:XxzGLFqk -->
 
 # Signing caveat: omit undefined <!-- id:asgFXeqf -->
@@ -69,7 +69,7 @@ Keep this rule: **never sign action objects containing explicit `undefined` fiel
 
 # Actions <!-- id:vqBlDC63 -->
 
-Current `AgentAction` union (`UnsignedAgentAction` in `agents/protocol/src/index.ts`, dispatched by the `#dispatch` switch after `Service.message()` has checked the protocol and verified the envelope): <!-- id:dUWGdW72 -->
+Current `AgentAction` union (`UnsignedAgentAction` in `apps/protocol/src/index.ts`, dispatched by the `#dispatch` switch after `Service.message()` has checked the protocol and verified the envelope): <!-- id:dUWGdW72 -->
   - `ListAgents` <!-- id:qai6nbcf -->
   - `ListAgentInvites` <!-- id:uUf6bK4N -->
   - `ListAgentCollaborators` <!-- id:aoMnBkFu -->
@@ -356,7 +356,7 @@ Deletes the named provider record for the account, plus every secret it referenc
 
 ## Provider OAuth actions ("Sign in with ChatGPT") <!-- id:zc68Rblr -->
 
-Subscription-authenticated providers use a four-action login flow in place of a pasted API key. The flow is offered only when the server runs with `SEED_AGENTS_SUBSCRIPTION_AUTH` enabled (shown as `subscriptionAuth` on `/api/health`). Otherwise `StartProviderOAuth` returns `403`. Implementation lives in `agents/src/provider-oauth.ts`. <!-- id:EoQaHbog -->
+Subscription-authenticated providers use a four-action login flow in place of a pasted API key. The flow is offered only when the server runs with `SEED_AGENTS_SUBSCRIPTION_AUTH` enabled (shown as `subscriptionAuth` on `/api/health`). Otherwise `StartProviderOAuth` returns `403`. Implementation lives in `apps/src/provider-oauth.ts`. <!-- id:EoQaHbog -->
   - `StartProviderOAuth {providerType}` → `{_: 'StartProviderOAuthResponse'; loginId; authUrl; expiresAt}`. Only `openai` is supported. Starting a new login cancels the account's previous pending one. <!-- id:GezKgzV8 -->
   - `GetProviderOAuthStatus {loginId}` → `{_: 'ProviderOAuthStatusResponse'; loginId; status: 'pending' | 'completed' | 'failed'; secretName?; error?}`. On `completed`, `secretName` is the stored credentials secret to reference as `secretRefs.oauth`. <!-- id:vPtRT8RQ -->
   - `SubmitProviderOAuthCode {loginId, code}` → `{_: 'SubmitProviderOAuthCodeResponse'}`. For deployments where the provider's localhost redirect cannot reach the server, the client pastes the code (or the full redirect URL). <!-- id:sewo852w -->
@@ -575,7 +575,7 @@ Actions: <!-- id:dRAJrWd3 -->
   - `DownloadAgentMemoryFile {agentId, url, path?}` server-side fetches a public http(s) URL into memory (streamed, with a 60-second idle timeout) and returns `{_: 'DownloadAgentMemoryFileResponse'; agentId; entry; finalUrl; contentType?}`. Omitting `path` stores the file under `downloads/`, named from the URL. Extension-less paths gain an extension from the response content type. <!-- id:iCJPpKHx -->
   - `UploadAgentMemoryFileToIpfs {agentId, path}` chunks the file as [UnixFS](../protocol/files.md) and publishes its blocks through the typed HM API's `PublishBlobs` action, then returns `{_: 'UploadAgentMemoryFileToIpfsResponse'; agentId; path; cid; url; size; mimeType?}`, where `url` is the `ipfs://<cid>` URL usable from Hypermedia content. Publishing makes the file publicly retrievable. <!-- id:b7BdF2s4 -->
 
-Path limits (`agents/src/agent-memory.ts`): 512 bytes per normalized relative path, 16 levels of nesting. Memory itself has no per-file or per-agent size cap (only the listing is capped at 2000 entries). The server accepts uploads of any size (`main.ts` raises Bun's request-body limit for this). The 256 KiB `MAX_WRITE_CONTENT_BYTES` bound in `api-service.ts` applies only to hypermedia content the `write` verb publishes. It does not apply to memory files. <!-- id:eXN97pf8 -->
+Path limits (`apps/src/agent-memory.ts`): 512 bytes per normalized relative path, 16 levels of nesting. Memory itself has no per-file or per-agent size cap (only the listing is capped at 2000 entries). The server accepts uploads of any size (`main.ts` raises Bun's request-body limit for this). The 256 KiB `MAX_WRITE_CONTENT_BYTES` bound in `api-service.ts` applies only to hypermedia content the `write` verb publishes. It does not apply to memory files. <!-- id:eXN97pf8 -->
 
 ## `ListAgentTools` <!-- id:mFvD0Lfj -->
 
@@ -767,7 +767,7 @@ Flow: <!-- id:yODE0MM7 -->
 
 So several writers may submit to one session at once. Their messages are saved and broadcast in append order, and nobody gets a `409` while the agent is streaming. Model turns stay serialized. A queued turn gets an in-memory handoff that names the exact message events that arrived during the preceding response. Later assistant events from that preceding turn are then not mistaken for answers to the newly queued messages. <!-- id:B6IH4P5t -->
 
-Internally each turn is a durable run row in the dispatch queue (`agents/src/runs.ts`). `MessageSessionResponse.assistantEventId` is an **empty string** when the request returned before a final assistant event existed. That happens for concurrent and background enqueues (including triggers and agent-started sessions), and for turns that parked on children spawned with `delegate`. The rest of the turn streams over WebSocket. <!-- id:12QoX7ZX -->
+Internally each turn is a durable run row in the dispatch queue (`apps/src/runs.ts`). `MessageSessionResponse.assistantEventId` is an **empty string** when the request returned before a final assistant event existed. That happens for concurrent and background enqueues (including triggers and agent-started sessions), and for turns that parked on children spawned with `delegate`. The rest of the turn streams over WebSocket. <!-- id:12QoX7ZX -->
 
 Idempotent through `clientMessageId` (a `text` part may carry its own `clientMessageId` too). The response also carries `continuedToSessionId` when the turn ended by `continue_session`, so the client can follow the conversation into its successor. It avoids one long SQLite transaction around network calls, on purpose. <!-- id:0xWuAdF5 -->
 
@@ -805,7 +805,7 @@ Execution failures are log entries too, because the user's failed attempt is con
 ## Session attachments and chunked uploads <!-- id:2JNT-ocN -->
 
 <!-- id:yaivXodZ -->
-- `UploadSessionAttachment {sessionId, name, mimeType?, content}` → `{_: 'UploadSessionAttachmentResponse'; attachment: SessionAttachmentInfo}`. The attachment id is the SHA-256 hex of the bytes, so re-uploading the same file returns the same id. Caps: 100 MiB per attachment and 200 attachments per session (`agents/src/session-attachments.ts`), stored under `<stateDir>/session-attachments/<sessionId>/`. <!-- id:-ax7SDcO -->
+- `UploadSessionAttachment {sessionId, name, mimeType?, content}` → `{_: 'UploadSessionAttachmentResponse'; attachment: SessionAttachmentInfo}`. The attachment id is the SHA-256 hex of the bytes, so re-uploading the same file returns the same id. Caps: 100 MiB per attachment and 200 attachments per session (`apps/src/session-attachments.ts`), stored under `<stateDir>/session-attachments/<sessionId>/`. <!-- id:-ax7SDcO -->
 - `ReadSessionAttachment {sessionId, attachmentId}` → `{_: 'ReadSessionAttachmentResponse'; attachment; data}` for rendering an attachment back in the thread. <!-- id:GDrE1qlb -->
 
 Large files upload in bounded chunks, so each signed action stays small and clients can show progress: <!-- id:NWuxtcq2 -->
@@ -954,7 +954,7 @@ type AgentPromptBlock = {
 
 `systemPrompt` is normalized to Seed [block nodes](../block/node.md) on create and update. Legacy string input is parsed as markdown first. Before a model run, the server converts the stored blocks back to markdown and appends the shared runtime instructions and the agent's `<space>` index. <!-- id:lhfIMIOl -->
 
-`reasoningLevel` applies to reasoning-capable models and must be one of the levels `modelReasoningSupport` reports for the model (`agents/protocol/src/reasoning.ts`). Absent means off, or the provider default where reasoning cannot be disabled. <!-- id:MeW0UZKi -->
+`reasoningLevel` applies to reasoning-capable models and must be one of the levels `modelReasoningSupport` reports for the model (`apps/protocol/src/reasoning.ts`). Absent means off, or the provider default where reasoning cannot be disabled. <!-- id:MeW0UZKi -->
 
 `tools` is a **grant list**. It does not define the tool surface. The verbs (`read`, `write`, `call`, `delegate`, `plan`, `status`, and `continue_session`) are never granted or revoked. See [grants](./grants.md) and [the glossary](./glossary.md). When a verb is missing, the reason is the run's shape: `delegate` is omitted for a runless invocation and for a leaf at its delegation budget's depth, and `continue_session` is omitted for delegated children. `tools` narrows two things: <!-- id:69h9HRvq -->
   - the **callable set** dispatched through `call` (today `search`, `query`, `attributes`, `web_search`, `execute`; `navigate` is registered for the assistant runtime only and never offered by the service). An omitted `tools` array grants every service-runtime callable. An explicit array keeps only the names it lists. Unknown and legacy names are ignored, and `execute_code` normalizes to `execute` (`normalizeSeedToolName`). `execute` is dropped silently on hosts that cannot run sandboxes, so the model never sees a tool that can only fail. <!-- id:zNYgtpXZ -->
@@ -964,7 +964,7 @@ type AgentPromptBlock = {
 
 # Protocol sync <!-- id:7-eqGvuo -->
 
-The apps and the server consume the same private package, `@seed-hypermedia/agents-protocol`. Nobody maintains manual protocol mirrors. Change protocol action, response, session-event, or WebSocket-event types in `agents/protocol/src/index.ts`. `agents/src/api.ts` re-exports those types for service-local imports, and `frontend/packages/ui/src/agents/client.ts` aliases them for the shared UI. <!-- id:Cn08kTEd -->
+The apps and the server consume the same private package, `@seed-hypermedia/apps-protocol`. Nobody maintains manual protocol mirrors. Change protocol action, response, session-event, or WebSocket-event types in `apps/protocol/src/index.ts`. `apps/src/api.ts` re-exports those types for service-local imports, and `frontend/packages/ui/src/agents/client.ts` aliases them for the shared UI. <!-- id:Cn08kTEd -->
 
 When changing the protocol package, update service dispatch, desktop behavior, and docs in the same change. <!-- id:mj-buzJQ -->
 

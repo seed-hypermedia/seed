@@ -2,11 +2,11 @@
 name: Triggers
 summary: "The reference for agent triggers: the sources that fire one, the continuations a firing runs, how monitors match and deduplicate events, and where triggers are edited."
 ---
-A [trigger](./trigger.md) lets an agent act when nobody is talking to it. It binds a **source** to a **continuation**. The source is something that happens: a [comment](../protocol/comments.md), a mention, a reply, a comment on a document the agent's account wrote, a [site](../protocol/sites.md) update, any list of those as alternative **conditions**, a schedule, a webhook delivery, or another [run](./runs.md) finishing. The continuation is what to do about it: start a conversation, wake a [parked](./park.md) run, or run a tool or [script](./script.md) with no model at all. Triggers belong to one agent and live on its agents server. They are the one piece of standing authority an agent holds, so the [security](./security.md) page covers them too. <!-- id:89o2eplg -->
+A [trigger](./trigger.md) lets an agent act when nobody is talking to it. It binds a **source** to a **continuation**. The source is something that happens: a [comment](../protocol/comments.md), a mention, a reply, a comment on a document the agent's account wrote, a [site](../protocol/sites.md) update, any list of those as alternative **conditions**, a schedule, a webhook delivery, or another [run](./runs.md) finishing. The continuation is what to do about it: start a conversation, wake a [parked](./park.md) run, or run a tool or [script](./script.md) with no model at all. Triggers belong to one agent and live on its app environment. They are the one piece of standing authority an agent holds, so the [security](./security.md) page covers them too. <!-- id:89o2eplg -->
 
 # The data model <!-- id:G5lPmDWS -->
 
-A trigger is a row with a name, an enabled flag, a source, an optional prompt, and an optional continuation. The protocol types are in `agents/protocol/src/index.ts`: <!-- id:x0qddyHJ -->
+A trigger is a row with a name, an enabled flag, a source, an optional prompt, and an optional continuation. The protocol types are in `apps/protocol/src/index.ts`: <!-- id:x0qddyHJ -->
 
 ```ts <!-- id:viN8eyx_ -->
 type AgentTriggerInput = {

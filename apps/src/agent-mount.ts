@@ -245,7 +245,7 @@ export async function verifyMountDocument(
   if (resource.document.content?.length)
     throw new Error('Agent mount documents must have no content; edit the agent home instead')
   if (!api.isMountableAgentServerUrl(resource.document.metadata.agentServerUrl)) {
-    throw new Error('Use an HTTP or HTTPS agent server address without credentials.')
+    throw new Error('Use an HTTP or HTTPS app environment address without credentials.')
   }
   if (target.uid !== accountId) {
     const {capabilities} = await client.request('ListCapabilities', {targetId: target})

@@ -92,9 +92,9 @@ The agents screens (`src/agents/`) are the mobile port of the Seed Agents runtim
 itself. The platform-neutral half of the shared implementation is reused as-is from `@shm/ui/agents`: the signed client,
 the React Query models, the chat row model and the tool summaries. Only the views are rewritten for React Native.
 
-### Developing against a mock agent server
+### Developing against a mock app environment
 
-Talking to a real agent server needs a configured model provider and spends real tokens, and the interesting states — a
+Talking to a real app environment needs a configured model provider and spends real tokens, and the interesting states — a
 reply streaming in, a tool call sitting pending, a checklist advancing, a run parked waiting for you — are hard to
 trigger on demand. `dev/mock-agents-server.ts` speaks the real protocol (signed DAG-CBOR actions and the WebSocket
 subscription protocol) with scripted, deterministic responses:
@@ -103,7 +103,7 @@ subscription protocol) with scripted, deterministic responses:
 npm run mock-agents          # serves http://localhost:3052
 ```
 
-Then point the app's agent server at `http://localhost:3052` (Agents → Agent server → Change) and try:
+Then point the app's app environment at `http://localhost:3052` (Agents → App environment → Change) and try:
 
 | message                    | what it demonstrates                                       |
 | -------------------------- | ---------------------------------------------------------- |

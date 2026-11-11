@@ -16,7 +16,7 @@ export type BrowserRequest = {id: string; command: BrowserCommand}
 export type ConnectSessionBrowser = {_: 'ConnectSessionBrowser'; sessionId: string; connectionId: string}
 /** Waits for the next command; an empty response is a lease heartbeat. */
 export type PollSessionBrowser = {_: 'PollSessionBrowser'; sessionId: string; connectionId: string}
-/** Completes one command. Page content remains private to the session/agent server. */
+/** Completes one command. Page content remains private to the session/app environment. */
 export type ResolveSessionBrowser = {
   _: 'ResolveSessionBrowser'
   sessionId: string

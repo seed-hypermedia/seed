@@ -1,10 +1,10 @@
 ---
 name: Worker-Isolated Run Execution
-summary: A plan to move agent run execution off the agents server's single event loop into worker threads, so heavy runs stop stalling the API and live updates.
+summary: A plan to move agent run execution off the app environment's single event loop into worker threads, so heavy runs stop stalling the API and live updates.
 ---
 # The problem <!-- id:W48hvbe4 -->
 
-The [agents server](../../apps/agents.md) runs everything on one JavaScript event loop: the HTTP API, the WebSocket broadcast fan-out, the background poll loops, **and** the execution of every agent [run](../runs.md) and workflow. That loop is a single thread, so any CPU-bound stretch of run execution blocks the API and [WebSocket](../websocket-subscriptions.md) for its whole duration. <!-- id:NHUP7Imx -->
+The [app environment](../../apps/app-environment.md) runs everything on one JavaScript event loop: the HTTP API, the WebSocket broadcast fan-out, the background poll loops, **and** the execution of every agent [run](../runs.md) and workflow. That loop is a single thread, so any CPU-bound stretch of run execution blocks the API and [WebSocket](../websocket-subscriptions.md) for its whole duration. <!-- id:NHUP7Imx -->
 
 Production profiling (bun's JSC sampler, symbolized through the build's source map) showed that under real load the loop is **CPU-saturated**: about 95% userspace JS, with one core pinned. `/api/health`, a handler that only replies, stalled for **6 to 23 seconds** while 2 agent runs and 1 workflow were active. The costs are spread across the run path: CBOR encode and decode of session events, `#piMessages` re-decoding the whole session each turn, per-session serialization, and the QuickJS workflow VM. <!-- id:Xi65ElOc -->
 
@@ -94,4 +94,4 @@ This proves the effect bridge and `SharedArrayBuffer` cancel pattern end to end 
 - [Runs](../runs.md) <!-- id:_rqv04fN -->
 - [Script / ctx](../script.md) <!-- id:DZEG8kK0 -->
 - [Persistence](../persistence.md) <!-- id:7HCRcOWl -->
-- [Agents service](../../apps/agents.md) <!-- id:pvowYZVZ -->
+- [Agents service](../../apps/app-environment.md) <!-- id:pvowYZVZ -->

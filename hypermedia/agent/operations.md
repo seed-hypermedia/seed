@@ -1,8 +1,8 @@
 ---
 name: Operations
-summary: How to build, configure, deploy, observe, and troubleshoot an agents server, including every environment variable, endpoint, and background loop.
+summary: How to build, configure, deploy, observe, and troubleshoot an app environment, including every environment variable, endpoint, and background loop.
 ---
-How to run, inspect, and troubleshoot a [Seed Agents](../agent.md) server. The [agents service](../apps/agents.md) page describes the software, and [environments](./environments.md) lists the hosted deployments. <!-- id:nR-WGkJx -->
+How to run, inspect, and troubleshoot a [Seed Agents](../agent.md) server. The [app environment](../apps/app-environment.md) page describes the software, and [environments](./environments.md) lists the hosted deployments. <!-- id:nR-WGkJx -->
 
 # Runtime and package boundary <!-- id:unUpYzoN -->
 
@@ -11,18 +11,18 @@ How to run, inspect, and troubleshoot a [Seed Agents](../agent.md) server. The [
 From repo root: <!-- id:cvH06CGz -->
 
 ```bash <!-- id:QPisRTbW -->
-direnv exec . bash -lc 'cd agents && bun install'
-direnv exec . bash -lc 'cd agents && bun src/main.ts'
+direnv exec . bash -lc 'cd apps && bun install'
+direnv exec . bash -lc 'cd apps && bun src/main.ts'
 ```
 
 Validation: <!-- id:AamjsE1v -->
 
 ```bash <!-- id:rosEGSrU -->
-direnv exec . bash -lc 'cd agents && bun check && bun test'
-direnv exec . bash -lc 'cd agents && bun run test:build'
-direnv exec . bash -lc 'cd agents && bun run test:docker'
-direnv exec . bash -lc 'cd agents && bun run test:trigger'
-direnv exec . bash -lc 'cd agents && bun run test:outbox'
+direnv exec . bash -lc 'cd apps && bun check && bun test'
+direnv exec . bash -lc 'cd apps && bun run test:build'
+direnv exec . bash -lc 'cd apps && bun run test:docker'
+direnv exec . bash -lc 'cd apps && bun run test:trigger'
+direnv exec . bash -lc 'cd apps && bun run test:outbox'
 ```
 
 `test:trigger` boots the real daemon against a local stand-in for hyper.media's `/api/ListEvents`, creates an agent and a user-mention trigger over the [signed API](./signed-api.md), and asserts that a comment mention fires exactly one session. It guards the comment and citation sibling race. See [triggers](./triggers.md). <!-- id:PN41rCE- -->
@@ -38,13 +38,13 @@ direnv exec . bash -lc './dev run-desktop'
 Build the deployment image from the repo root: <!-- id:UjHaLIjM -->
 
 ```bash <!-- id:-i1uRyfu -->
-docker build -t seedhypermedia/agents:dev . -f ./agents/Dockerfile
+docker build -t seedhypermedia/apps:dev . -f ./apps/Dockerfile
 ```
 
 Run the image with persistent state mounted at `/data`: <!-- id:sY0rShW2 -->
 
 ```bash <!-- id:jq6Wn7cW -->
-docker run --rm -p 3050:3050 -v seed-agents-data:/data seedhypermedia/agents:dev
+docker run --rm -p 3050:3050 -v seed-agents-data:/data seedhypermedia/apps:dev
 ```
 
 # Versioning, build, and deploy <!-- id:cVmqN7IW -->
@@ -61,21 +61,21 @@ The `commit`, `branch`, and `date` fields mirror the [daemon](../apps/daemon.md)
 curl -s https://agentic.seed.hyper.media/agents/api/version
 ```
 
-The values come from `agents/src/build-info.ts`, populated by Docker build args (`VERSION`, `COMMIT_HASH`, `BRANCH`, `DATE`; the web and daemon images use the same `COMMIT_HASH`, `BRANCH`, and `DATE` names). `agents/Dockerfile` maps them to namespaced `SEED_AGENTS_*` runtime `ENV`. Without build args (for example local `bun dev` or a plain `docker build`) they fall back to `dev` or `unknown`. <!-- id:3EKhBIqX -->
+The values come from `apps/src/build-info.ts`, populated by Docker build args (`VERSION`, `COMMIT_HASH`, `BRANCH`, `DATE`; the web and daemon images use the same `COMMIT_HASH`, `BRANCH`, and `DATE` names). `apps/Dockerfile` maps them to namespaced `SEED_AGENTS_*` runtime `ENV`. Without build args (for example local `bun dev` or a plain `docker build`) they fall back to `dev` or `unknown`. <!-- id:3EKhBIqX -->
 
 ## CI build and push <!-- id:TT-1OVn2 -->
 
-`agents/Dockerfile` is built and pushed by three GitHub Actions workflows, all of which also accept a manual `workflow_dispatch` run from the Actions tab: <!-- id:9ag8Sj9F -->
+`apps/Dockerfile` is built and pushed by three GitHub Actions workflows, all of which also accept a manual `workflow_dispatch` run from the Actions tab: <!-- id:9ag8Sj9F -->
   - `.github/workflows/release-docker-images.yml`: on a `*.*.*` release tag push (or manual dispatch), pushes `seedhypermedia/agents:<tag>`. The resolved tag is the version (`latest` for a manual run with no tag). `agents-stable` on the host tracks `:latest`. <!-- id:dqZxrWX0 -->
-  - `.github/workflows/dev-docker-images.yml`: on push to `main` touching `agents/**` (or manual dispatch), pushes `seedhypermedia/agents:dev`, which **both** `agents-staging` and `agents-dev` track. While this workflow is red on `main`, `:dev` stops moving, and staging silently keeps validating an older commit than the one you are about to release. `/api/version` on staging is the check that catches it. <!-- id:-c40zu4a -->
-  - `.github/workflows/hotfix-agents-image.yml`: manual dispatch only, from `main` only. Runs the agents test gate and pushes ONLY `seedhypermedia/agents:latest`. Use this to hotfix the production agent server without cutting a full release of every image. <!-- id:i8GnJuWs -->
+  - `.github/workflows/dev-docker-images.yml`: on push to `main` touching `apps/**` (or manual dispatch), pushes `seedhypermedia/apps:dev`, which **both** `agents-staging` and `agents-dev` track. While this workflow is red on `main`, `:dev` stops moving, and staging silently keeps validating an older commit than the one you are about to release. `/api/version` on staging is the check that catches it. <!-- id:-c40zu4a -->
+  - `.github/workflows/hotfix-agents-image.yml`: manual dispatch only, from `main` only. Runs the agents test gate and pushes ONLY `seedhypermedia/agents:latest`. Use this to hotfix the production app environment without cutting a full release of every image. <!-- id:i8GnJuWs -->
 
 ## Manual build and push from a workstation <!-- id:g7mprK3Z -->
 
 To build and push an image yourself with correct version metadata baked in: <!-- id:t63K_Lee -->
 
 ```bash <!-- id:XeudkRfN -->
-agents/scripts/build-and-push.sh dev      # or: latest
+apps/scripts/build-and-push.sh dev      # or: latest
 ```
 
 It stamps the current git `HEAD` (commit, branch, date) into the image and pushes `seedhypermedia/agents:<tag>`. <!-- id:zH3oxaoU -->
@@ -114,7 +114,7 @@ Watchtower reads `com.centurylinklabs.watchtower.enable` off the **running conta
 
 # Configuration <!-- id:07ntysg_ -->
 
-Config source: `agents/src/config.ts`. <!-- id:Woltv7hS -->
+Config source: `apps/src/config.ts`. <!-- id:Woltv7hS -->
 
 <!-- id:IA0NLgts -->
 | Environment variable <!-- col:k4r6o34C --> | Default <!-- col:7jsKg_9k --> | Purpose <!-- col:1XR71v9t --> <!-- id:th_kSyA7 --> |
@@ -181,7 +181,7 @@ Every environment variable in the table has a matching flag (`--searxng-url`, `-
 
 # Database size and retention
 
-The service keeps everything in one SQLite file, and on the hosted server every read that misses the cache is a random read on a slow volume. Three things keep the file from growing without bound (`agents/src/db-retention.ts`):
+The service keeps everything in one SQLite file, and on the hosted server every read that misses the cache is a random read on a slow volume. Three things keep the file from growing without bound (`apps/src/db-retention.ts`):
 
 - **Stored tool output is capped.** A tool result's output is stored for people to inspect; strings past `SEED_AGENTS_TOOL_OUTPUT_STORE_LIMIT_KIB` keep their head and a `[truncated for storage: …]` marker. The model's view is unchanged: it never reads more than 8 KiB of a result. Workflow scripts still receive whole results.
 - **Durable stores of idle sessions are dropped.** A session's [durable store](./durable-sessions.md) is a second, model-facing copy of its transcript. Once the session has been idle for `SEED_AGENTS_RETENTION_DURABLE_IDLE_DAYS` and has no live run, the store is deleted in one transaction; the session's next turn rebuilds it from the log, as it does for a lost store. Nothing in the transcript changes.
@@ -189,20 +189,20 @@ The service keeps everything in one SQLite file, and on the hosted server every 
 
 The last two run as a background task every `SEED_AGENTS_RETENTION_INTERVAL_MINS`, in small steps throttled to `SEED_AGENTS_RETENTION_MIB_PER_SEC`, and log a line per day of data they touched plus a summary per pass (`[agents/retention]`). Set `SEED_AGENTS_RETENTION=report` to see what would go without removing anything.
 
-Deleting rows frees pages for reuse but does not shrink the file. Shrinking a database that grew before retention existed is a planned maintenance step: stop the service, run `agents/scripts/db-retention.ts` (one unthrottled pass, with `--report` to preview), then `VACUUM INTO` a new file and swap it in. `agents/scripts/db-size-report.ts` estimates where the bytes are without reading the whole file and is safe on a live server. The full runbook, with sizing and durations, is in [Agents database growth and retention](https://hyper.media/hm/z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/notes/agents-db-growth).
+Deleting rows frees pages for reuse but does not shrink the file. Shrinking a database that grew before retention existed is a planned maintenance step: stop the service, run `apps/scripts/db-retention.ts` (one unthrottled pass, with `--report` to preview), then `VACUUM INTO` a new file and swap it in. `apps/scripts/db-size-report.ts` estimates where the bytes are without reading the whole file and is safe on a live server. The full runbook, with sizing and durations, is in [Agents database growth and retention](https://hyper.media/hm/z6MkiAKDcRSzQ4zPZfnJcS5HYx5MwgN6MU9foHihJGrhqNBj/notes/agents-db-growth).
 
 # Web research backends <!-- id:ww1gPvmR -->
 
-Web research is fully self-hosted and uses no third-party API keys. It covers the `web_search` callable tool and the tiered reader behind `read https://…` (MediaWiki, then in-process static Readability+Turndown, then Crawl4AI). See [tools](./tools.md). Both backends are optional. Without configuration, `web_search` errors and web reads fall back to the MediaWiki and static tiers. To enable them, run the backends as sidecar containers on the same internal network and point the agents service at them. <!-- id:6w4jARt9 -->
+Web research is fully self-hosted and uses no third-party API keys. It covers the `web_search` callable tool and the tiered reader behind `read https://…` (MediaWiki, then in-process static Readability+Turndown, then Crawl4AI). See [tools](./tools.md). Both backends are optional. Without configuration, `web_search` errors and web reads fall back to the MediaWiki and static tiers. To enable them, run the backends as sidecar containers on the same internal network and point the app environment at them. <!-- id:6w4jARt9 -->
 
-For local development a ready-to-run compose and SearXNG config live at `agents/dev/web-backends/`. Start the containers, then run the service. `bun run dev` already points at these dev endpoints by default: <!-- id:ylFQ-SIc -->
+For local development a ready-to-run compose and SearXNG config live at `apps/dev/web-backends/`. Start the containers, then run the service. `bun run dev` already points at these dev endpoints by default: <!-- id:ylFQ-SIc -->
 
 ```bash <!-- id:ObEJf9WQ -->
-cd agents/dev/web-backends && docker compose up -d   # SearXNG on :8899, Crawl4AI on :11235
+cd apps/dev/web-backends && docker compose up -d   # SearXNG on :8899, Crawl4AI on :11235
 cd ../.. && bun run dev                               # auto-targets the dev backends
 ```
 
-The `dev` script defaults `SEED_AGENTS_SEARXNG_URL` (`http://127.0.0.1:8899`), `SEED_AGENTS_CRAWLER_URL` (`http://127.0.0.1:11235`), and `SEED_AGENTS_CRAWLER_TOKEN` (`dev-crawl-token`) to the compose values. Export those env vars to override them. The same script also turns `SEED_AGENTS_SUBSCRIPTION_AUTH` on for local development. The startup log prints `Web tools: search=on reader=static+crawl4ai` when wired. The reader's MediaWiki and static tiers still work if the containers are not running. Only `web_search` and the browser escalation need them. Stop the backends with `docker compose down` in `agents/dev/web-backends/`. <!-- id:sU3Ky-PV -->
+The `dev` script defaults `SEED_AGENTS_SEARXNG_URL` (`http://127.0.0.1:8899`), `SEED_AGENTS_CRAWLER_URL` (`http://127.0.0.1:11235`), and `SEED_AGENTS_CRAWLER_TOKEN` (`dev-crawl-token`) to the compose values. Export those env vars to override them. The same script also turns `SEED_AGENTS_SUBSCRIPTION_AUTH` on for local development. The startup log prints `Web tools: search=on reader=static+crawl4ai` when wired. The reader's MediaWiki and static tiers still work if the containers are not running. Only `web_search` and the browser escalation need them. Stop the backends with `docker compose down` in `apps/dev/web-backends/`. <!-- id:sU3Ky-PV -->
 
 For production the same two containers run as internal sidecars: <!-- id:HEFIWVDD -->
 
@@ -275,7 +275,7 @@ The health endpoints (`/api/health`, `/agents/api/health`) report what this serv
 
 `ipfsServerUrl` defaults to `hmServerUrl`, which is correct for hosted all-in-one origins. Local desktop environments set them separately because the desktop bridge owns `/api/*` while the daemon owns gateway reads under `/ipfs/*`. IPFS publication itself chunks [UnixFS](../protocol/files.md) blocks and uses `PublishBlobs` on `hmServerUrl`. `webTools` derives from `SEED_AGENTS_SEARXNG_URL` and `SEED_AGENTS_CRAWLER_URL`. `codeExec` derives from the exec backend probe, and `codeExecReason` and `codeExecReasonCode` explain an unavailable sandbox. `codeExecRuntimes` says which runtimes this host offers. `ts` needs an image with bun, so an operator can see at a glance whether TypeScript execution is on here. Clients read these fields to grey out what the server cannot run. `disk` is the free space where the database lives against the floor new runs require (`null` when the check is off), and `dispatch` says whether the queue is claiming runs; `{paused: true, reason}` names what stopped it. See the [effect outbox](./effect-outbox.md). <!-- id:5FIU-ofh -->
 
-The server binds its port before it opens the database. Until it is ready, every health path answers `503` with `{"status": "starting", "phase": "…", "reason": "…"}` and a `Retry-After`, and every other path answers `503`. The phases are opening the database (migrations, planner statistics), starting the run queue (the boot sweeps), and starting monitors. Each step logs `[agents/boot] step finished` with its duration, and `Agents server running` carries the total `bootMs`. A step is synchronous on the only thread, so a request that arrives during it is answered when it ends. The parked-run reconcile and receipt pruning run after the server is ready, one run at a time with the event loop given back in between; `bootRecovery` reports them as `pending`, `running`, `done` (with `ms`) or `failed` (with `error`). The container healthcheck allows a ten-minute start period for a cold boot on a large database.
+The server binds its port before it opens the database. Until it is ready, every health path answers `503` with `{"status": "starting", "phase": "…", "reason": "…"}` and a `Retry-After`, and every other path answers `503`. The phases are opening the database (migrations, planner statistics), starting the run queue (the boot sweeps), and starting monitors. Each step logs `[agents/boot] step finished` with its duration, and `App environment running` carries the total `bootMs`. A step is synchronous on the only thread, so a request that arrives during it is answered when it ends. The parked-run reconcile and receipt pruning run after the server is ready, one run at a time with the event loop given back in between; `bootRecovery` reports them as `pending`, `running`, `done` (with `ms`) or `failed` (with `error`). The container healthcheck allows a ten-minute start period for a cold boot on a large database.
 
 # Code execution backend <!-- id:VLdUUR8z -->
 
@@ -283,11 +283,11 @@ The `execute` tool, and every authored lambda tool (which runs in the same sandb
 
 On a host that cannot run sandboxes, the tool is withheld so it never fails at call time. `enabledCallableTools` drops `execute` from the agent's callable set when the availability probe says no, so the model never sees a tool that can only error. `SEED_AGENTS_EXEC_BACKEND=off` disables the backend outright. <!-- id:EmHP7rkO -->
 
-When the agents service runs inside a container, the container needs access to the host virtualization device (on Linux, `--device /dev/kvm`). Without it, executions fail with the backend-unavailable error, and the rest of the service keeps working. <!-- id:1nsXcwQ3 -->
+When the app environment runs inside a container, the container needs access to the host virtualization device (on Linux, `--device /dev/kvm`). Without it, executions fail with the backend-unavailable error, and the rest of the service keeps working. <!-- id:1nsXcwQ3 -->
 
 Sandbox networking is **on by default** so agents can install packages and fetch data. The runtime gives each sandbox an explicit DNS resolver (`SEED_AGENTS_EXEC_DNS`, default `1.1.1.1,8.8.8.8`; a guest has no resolver otherwise) and a non-local egress policy. The sandbox reaches the public internet but not the host's private network or cloud-metadata endpoints (for example `169.254.169.254`). Set `SEED_AGENTS_EXEC_ALLOW_NETWORK=false` to cut the sandbox off entirely. Installed packages do not survive between calls, because each call runs in a fresh microVM. The tool prompt tells agents to `pip install --target /workspace/pylibs <pkg>` so packages persist in memory and can be re-imported later. <!-- id:OYeHVeib -->
 
-Production deployment of these sidecars on the hosted agent server is handled in the `mintterteam/infrastructure` repo (the `seed_infra/agentic` Terraform stack adds the `searxng` and `crawl4ai` containers and wires the env vars). It is not in this repo. [Security](./security.md) covers the sandbox threat model. <!-- id:mmGE05vJ -->
+Production deployment of these sidecars on the hosted app environment is handled in the `mintterteam/infrastructure` repo (the `seed_infra/agentic` Terraform stack adds the `searxng` and `crawl4ai` containers and wires the env vars). It is not in this repo. [Security](./security.md) covers the sandbox threat model. <!-- id:mmGE05vJ -->
 
 # Local files <!-- id:cXgkgXPk -->
 
@@ -325,13 +325,13 @@ Every endpoint lives under the canonical prefix `/hm/api/agents`, so the service
 
 # Where the service lives <!-- id:CJWNG9gR -->
 
-A client holds one base URL per agents server and picks the endpoint paths from its shape (`agentServerEndpoint()` in `frontend/packages/ui/src/agents/client.ts`): <!-- id:_3fqlgq8 -->
+A client holds one base URL per app environment and picks the endpoint paths from its shape (`agentServerEndpoint()` in `frontend/packages/ui/src/agents/client.ts`): <!-- id:_3fqlgq8 -->
   - **Canonical**: the path ends in `/hm/api/agents`, for example `https://site.example/hm/api/agents`. The client calls `<base>/message`, `<base>/ws`, `<base>/health` and `<base>/webhooks/…`. <!-- id:p4SQmeaZ -->
   - **Legacy**: an origin only, for example `https://agentic.seed.hyper.media` (a trailing `/agents` is stripped). The client calls `/api/message`, `/agents/ws` and `/agents/api/*` under it. <!-- id:hS7cHZfj -->
 
-Production stays standalone at `https://agentic.seed.hyper.media`, and the desktop, web and mobile defaults keep its legacy form; `https://agentic.seed.hyper.media/hm/api/agents` reaches the same server. A site may instead serve agents on its own origin: the reverse proxy routes `/hm/api/agents/*` (API and WebSocket) to the agents container, and the site advertises `<site>/hm/api/agents` as its agent server URL (`SEED_AGENT_SERVER_URL`, surfaced as `agentServerUrl` in `/hm/api/config`). The web app never proxies agents traffic. Pointing a client at a bare site origin does not work: `<origin>/api/message` is the site's own API, not the agents service. <!-- id:6Hg8hKZ9 -->
+Production stays standalone at `https://agentic.seed.hyper.media`, and the desktop, web and mobile defaults keep its legacy form; `https://agentic.seed.hyper.media/hm/api/agents` reaches the same server. A site may instead serve agents on its own origin: the reverse proxy routes `/hm/api/agents/*` (API and WebSocket) to the agents container, and the site advertises `<site>/hm/api/agents` as its app environment URL (`SEED_AGENT_SERVER_URL`, surfaced as `agentServerUrl` in `/hm/api/config`). The web app never proxies agents traffic. Pointing a client at a bare site origin does not work: `<origin>/api/message` is the site's own API, not the app environment. <!-- id:6Hg8hKZ9 -->
 
-On an Enterprise (members-only) site, `/hm/api/agents/*` sits behind the same sign-in gate as the rest of the site, except `POST /hm/api/agents/webhooks/*`, which outside services call with the trigger secret and which stays open. The agents service reads its members-only site with the deployment's service secret (`SEED_AGENTS_HM_SERVER_SECRET`, sent as `X-Seed-Service-Secret` only to that site's origin; `agents/src/hm-server-auth.ts`), so mention triggers keep firing behind the gate. <!-- id:oNdAu6c9 -->
+On an Enterprise (members-only) site, `/hm/api/agents/*` sits behind the same sign-in gate as the rest of the site, except `POST /hm/api/agents/webhooks/*`, which outside services call with the trigger secret and which stays open. The app environment reads its members-only site with the deployment's service secret (`SEED_AGENTS_HM_SERVER_SECRET`, sent as `X-Seed-Service-Secret` only to that site's origin; `apps/src/hm-server-auth.ts`), so mention triggers keep firing behind the gate. <!-- id:oNdAu6c9 -->
 
 # Trigger monitors <!-- id:KlGKY3Ne -->
 
@@ -343,7 +343,7 @@ The server also starts a background schedule monitor. It evaluates enabled `sche
 
 # Run queue and workflow engine <!-- id:jIKj9Ovy -->
 
-Every agent execution is a durable row in the `runs` table, which is also the dispatch queue (`agents/src/runs.ts`). See [Runs](./runs.md): <!-- id:Cdw3Ljyi -->
+Every agent execution is a durable row in the `runs` table, which is also the dispatch queue (`apps/src/runs.ts`). See [Runs](./runs.md): <!-- id:Cdw3Ljyi -->
   - **Queues**: interactive user turns are claimed inline by `MessageSession` (unchanged latency). Everything else (trigger firings, agent-started sessions, delegated model children, script children) dispatches on the `background` queue. Agent runs are capped at `SEED_AGENTS_MAX_CONCURRENT_MODEL_RUNS` (default 8, flag `--max-concurrent-model-runs`) concurrent provider streams. Script runs get their own pool, `SEED_AGENTS_MAX_CONCURRENT_WORKFLOWS` (default 32, `--max-concurrent-workflows`; they hold no provider stream). `SEED_AGENTS_WORKFLOW_WORKER=1` runs scripts in the isolated worker process described in the [worker plan](./plans/worker-isolated-execution.md); `SEED_AGENTS_STANDALONE` is injected into the desktop's bundled binary at build time, so a script awaiting its children can never starve them. <!-- id:db3BA2As -->
   - **One live agent run per session** is enforced at claim time (lease-based). This replaced the old racy status-column 409. <!-- id:ST5DHKVV -->
   - **Boot sweep**: on service construction, runs a dead process left `claimed` or `running` are requeued, and any queued backlog resumes. Agent runs resume by replaying their durable session events. A crash between a persisted `tool_call` and its `tool_result` is answered from the [effect outbox](./effect-outbox.md): the receipt when the effect finished, an interrupted result naming the effect when it did not, so the provider request is well-formed and the model knows what to check. The same sweep marks every effect the dead process left running as interrupted. Script runs resume by [journal](./journal.md) replay. <!-- id:fGRoe2ad -->
@@ -353,12 +353,12 @@ Every agent execution is a durable row in the `runs` table, which is also the di
   - **Leases** are recorded for 60 seconds on claim but not enforced: with one service process, the boot sweep requeues every run the previous process left claimed or running. <!-- id:YD2c9GyO -->
   - Tests and shutdown wait for the queue via `Service.drainTriggerSessions()`. `awaitQueueIdle()` is an alias for it under the name the runs feature documents. <!-- id:TebiC9QK -->
 
-[Script](./script.md) execution bounds (see `agents/src/workflow-host.ts`): QuickJS-WASM realm per run, 64 MiB memory cap, 2s pure-compute fuel between awaits, 256 KiB source cap, and journal caps of 5,000 entries / 8 MiB per run (`WORKFLOW_JOURNAL_MAX_ENTRIES` / `WORKFLOW_JOURNAL_MAX_BYTES` in `api-service.ts`). A long-lived loop escapes the journal cap with [`ctx.continueAsNew`](./continue-as-new.md), which ends the run and starts a successor carrying only the declared state. <!-- id:4CrPGBii -->
+[Script](./script.md) execution bounds (see `apps/src/workflow-host.ts`): QuickJS-WASM realm per run, 64 MiB memory cap, 2s pure-compute fuel between awaits, 256 KiB source cap, and journal caps of 5,000 entries / 8 MiB per run (`WORKFLOW_JOURNAL_MAX_ENTRIES` / `WORKFLOW_JOURNAL_MAX_BYTES` in `api-service.ts`). A long-lived loop escapes the journal cap with [`ctx.continueAsNew`](./continue-as-new.md), which ends the run and starts a successor carrying only the declared state. <!-- id:4CrPGBii -->
 
 # Model-gate harness (record and replay) <!-- id:igk3vJ3Z -->
 
 <!-- id:KG9dahM9 -->
-> **The cassettes are stale and the replay gate is currently skipping.** `agents/e2e/recordings/STALE.md` records why: <!-- id:wGkVe2-l -->
+> **The cassettes are stale and the replay gate is currently skipping.** `apps/e2e/recordings/STALE.md` records why: <!-- id:wGkVe2-l -->
 > every cassette was recorded against the pre-harness tool surface (`sub_session`, `run_workflow`, `update_plan`, <!-- id:-ODKf326 -->
 > `memory_*`, `execute_code`), and the verb collapse changed both the tool names and the system prompt, so every replay <!-- id:Oaw4aeTS -->
 > fingerprint is invalid. While that file exists, `bun e2e/run.ts` prints `recordings are STALE … skipping replay`, <!-- id:x9OWGhJO -->
@@ -367,29 +367,29 @@ Every agent execution is a durable row in the `runs` table, which is also the di
 > re-recording (below), verifying every scenario, then deleting `STALE.md` and any cassette the re-record did not <!-- id:4bl5Ybnn -->
 > overwrite. <!-- id:JHraQnEw -->
 
-`agents/e2e/run.ts` drives the real Service through six behavioral gates. By default it **replays** recorded gpt-5-mini responses from `agents/e2e/recordings/`: full service and tool loop, no network, no API key. `agents/src/e2e-replay.test.ts` runs that replay as part of the regular `bun test` suite. Pass `--record` to hit the live OpenAI API and refresh the cassettes. That spends real tokens, so run it manually and never in CI: <!-- id:PaO3tHE2 -->
+`apps/e2e/run.ts` drives the real Service through six behavioral gates. By default it **replays** recorded gpt-5-mini responses from `apps/e2e/recordings/`: full service and tool loop, no network, no API key. `apps/src/e2e-replay.test.ts` runs that replay as part of the regular `bun test` suite. Pass `--record` to hit the live OpenAI API and refresh the cassettes. That spends real tokens, so run it manually and never in CI: <!-- id:PaO3tHE2 -->
 
 ```bash <!-- id:uOMnss2O -->
-cd agents && bun e2e/run.ts all              # replay all scenarios from recordings (offline)
+cd apps && bun e2e/run.ts all              # replay all scenarios from recordings (offline)
 bun e2e/run.ts wf-hello --record             # re-record one scenario live (needs OPENAI_API_KEY)
 ```
 
-Recording proxies provider traffic through a local server that captures each response keyed by a request fingerprint (model + system-prompt head + last user message + tool names + tool-result count). Replay matches the same fingerprints, so cassettes survive tool-description edits but need re-recording when system prompts or conversation flow change. Only a passing run overwrites a scenario's cassette. The live key comes from `OPENAI_API_KEY` or the repo-root `.keys` file (never committed). Every scenario asserts on durable state (runs, journals, session events) and dumps full transcripts to `agents/e2e-artifacts/<timestamp>/` for prompt autopsies. Scenarios: `chat-smoke`, `sub-basic`, `sub-typed`, `sub-restraint`, `wf-hello`, `todo-adoption`. <!-- id:sqsL6jBF -->
+Recording proxies provider traffic through a local server that captures each response keyed by a request fingerprint (model + system-prompt head + last user message + tool names + tool-result count). Replay matches the same fingerprints, so cassettes survive tool-description edits but need re-recording when system prompts or conversation flow change. Only a passing run overwrites a scenario's cassette. The live key comes from `OPENAI_API_KEY` or the repo-root `.keys` file (never committed). Every scenario asserts on durable state (runs, journals, session events) and dumps full transcripts to `apps/e2e-artifacts/<timestamp>/` for prompt autopsies. Scenarios: `chat-smoke`, `sub-basic`, `sub-typed`, `sub-restraint`, `wf-hello`, `todo-adoption`. <!-- id:sqsL6jBF -->
 
 Status: the cassettes on disk were last recorded from live gpt-5-mini before the verb collapse and are now stale (see the note at the top of this section). The scenario code itself still exercises the current Service. The last live recording pass found and fixed three real-model defects: top-level-array output schemas now rejected at spawn time with a self-correctable message, `functions.`-prefixed tool names normalized in scripts' `ctx.call`, and the standard `minItems`/`maxItems`/`maxLength`/`maximum` keywords added to the schema subset. <!-- id:iuku-qNG -->
 
 # Live gate (real server, real model) <!-- id:W2IDueL_ -->
 
-`agents/e2e/live-gate.ts` is the other half. It is a pure client that signs envelopes with the desktop daemon's key over grpc-web, exactly as the desktop app does, and talks CBOR to an already-running server. So it gates the server an operator actually uses, and not an in-process Service. It creates a throwaway `NightGate` agent mirroring an existing agent's provider/model/tools, runs the scenarios, writes full transcripts to an artifact directory, and deletes the agent again. <!-- id:09iIG175 -->
+`apps/e2e/live-gate.ts` is the other half. It is a pure client that signs envelopes with the desktop daemon's key over grpc-web, exactly as the desktop app does, and talks CBOR to an already-running server. So it gates the server an operator actually uses, and not an in-process Service. It creates a throwaway `NightGate` agent mirroring an existing agent's provider/model/tools, runs the scenarios, writes full transcripts to an artifact directory, and deletes the agent again. <!-- id:09iIG175 -->
 
 ```bash <!-- id:JWUffEVV -->
-cd agents
+cd apps
 bun e2e/live-gate.ts                                  # every scenario against http://localhost:3051
 bun e2e/live-gate.ts trivial memory                   # a subset
 bun e2e/live-gate.ts --base http://localhost:3099 --out /tmp/gate --keep
 ```
 
-Flags: `--base` (agents server), `--daemon` (Seed daemon grpc-web, default `http://localhost:56001`), `--account` (uid to sign as), `--provider` / `--model`, `--like` (agent id to mirror), `--out`, `--timeout` (per-scenario ms, default 600000), `--keep` (leave the NightGate agent behind). <!-- id:2tWMRgpD -->
+Flags: `--base` (app environment), `--daemon` (Seed daemon grpc-web, default `http://localhost:56001`), `--account` (uid to sign as), `--provider` / `--model`, `--like` (agent id to mirror), `--out`, `--timeout` (per-scenario ms, default 600000), `--keep` (leave the NightGate agent behind). <!-- id:2tWMRgpD -->
 
 Scenarios: `trivial` (restraint plus self-naming: arithmetic must be answered directly, with no delegation, and the session still ends up model-titled), `memory` (a fact written to `~/memory` in one session, read back by a second), `parallel-delegate`, `script-parallel`, `script-narration`. Enforced checks are deterministic properties. Model behavior is reported and not asserted. <!-- id:rTsrR0qu -->
 
@@ -401,7 +401,7 @@ Two focused companions live beside it. Both are model-free, so they gate a mecha
 
 ## Simulated-model gates (no API key required) <!-- id:kdX10tm6 -->
 
-When a live gate cannot run, and as a repeatable practice for iterating tool prompts, validation uses **blind simulated-model agents**. A fresh LLM session (a Claude Code subagent) gets ONLY what the runtime model sees (the system prompt plus the registry `description`/`inputSchema` of the tools under test, read from `agents/protocol/src/tool-registry.ts`) and asked to produce its exact assistant turns for scripted scenarios. Its tool calls are then validated mechanically: delegation choices checked against intent, declared output schemas run through `validateJsonSchemaShape`, and authored script source run through `lintWorkflowSource` and executed in the real engine (`runWorkflowVM`) against scripted adapters. The 2026-08-03 pass (against the pre-verb tool names) validated delegation choice (parallel typed fan-out, detached spawning only for fire-and-forget work, no tools at all for trivial input) and script authoring: a \~100-line module that lint-passed and ran correctly, unmodified, first try. The simulators' lists of guessed-at contracts drove the ctx-contract tightening in the tool descriptions and the bare-string `ctx.plan` fix. The simulator must be **blind** for this to be honest: no access to implementation, docs, or tests, only the model-facing prompt surface. <!-- id:fYBpj9CH -->
+When a live gate cannot run, and as a repeatable practice for iterating tool prompts, validation uses **blind simulated-model agents**. A fresh LLM session (a Claude Code subagent) gets ONLY what the runtime model sees (the system prompt plus the registry `description`/`inputSchema` of the tools under test, read from `apps/protocol/src/tool-registry.ts`) and asked to produce its exact assistant turns for scripted scenarios. Its tool calls are then validated mechanically: delegation choices checked against intent, declared output schemas run through `validateJsonSchemaShape`, and authored script source run through `lintWorkflowSource` and executed in the real engine (`runWorkflowVM`) against scripted adapters. The 2026-08-03 pass (against the pre-verb tool names) validated delegation choice (parallel typed fan-out, detached spawning only for fire-and-forget work, no tools at all for trivial input) and script authoring: a \~100-line module that lint-passed and ran correctly, unmodified, first try. The simulators' lists of guessed-at contracts drove the ctx-contract tightening in the tool descriptions and the bare-string `ctx.plan` fix. The simulator must be **blind** for this to be honest: no access to implementation, docs, or tests, only the model-facing prompt surface. <!-- id:fYBpj9CH -->
 
 # Startup behavior <!-- id:AzD4c8yi -->
 
@@ -433,7 +433,7 @@ Health and CBOR API routes return permissive CORS headers. Security comes from [
 
 Logs include IDs, counts, statuses, sizes, timings, trigger sources, and compact activity metadata, on purpose. They never include secrets or full message or session content. <!-- id:sRtUySO2 -->
 
-Logging is leveled (`agents/src/log.ts`, `SEED_AGENTS_LOG_LEVEL` or `--log-level`, default `info`). The per-event hot paths log at `debug` and are silent by default: every WebSocket partial (`publish partial`, `send partial`, `skip partial`) and every no-op activity poll (`Polling feed`, `Feed page received`, `Processing feed events` with nothing new). Measured in production, they were \~90% of \~440k lines/hour. Set the level to `debug` when tracing streaming or trigger delivery. <!-- id:OS2CBsMW -->
+Logging is leveled (`apps/src/log.ts`, `SEED_AGENTS_LOG_LEVEL` or `--log-level`, default `info`). The per-event hot paths log at `debug` and are silent by default: every WebSocket partial (`publish partial`, `send partial`, `skip partial`) and every no-op activity poll (`Polling feed`, `Feed page received`, `Processing feed events` with nothing new). Measured in production, they were \~90% of \~440k lines/hour. Set the level to `debug` when tracing streaming or trigger delivery. <!-- id:OS2CBsMW -->
 
 Activity trigger diagnostics use: <!-- id:LZjDOFOi -->
   - `[Agents Activity] Polling feed` <!-- id:CzKZDYrP -->
@@ -496,7 +496,7 @@ Desktop WebSocket and UI logs: <!-- id:Fmgbj2nL -->
 Everything on this server runs on one thread: HTTP, WebSockets, every SQLite statement, trigger evaluation and the agent runs themselves. When that thread is busy, `/api/health` is late or never answers, Caddy logs dial timeouts, and the provider and tool spans in `/api/perf` look normal because nothing reaches them. Three things make that visible without a profiler:
 
   - **`loop.lag` in `GET /api/perf`** — a 100 ms timer records how late it fires. `p50`, `p95` and `max` cover the last minute (`windowMs`); `maxSinceStart` keeps the worst stall since boot so a spike that already passed is still visible. A healthy server shows single-digit milliseconds. The same snapshot carries `api.<ActionName>` (wall time of every signed action, by name), `sql.<keyword>` (time inside every prepared statement, by its first keyword) and the `sql.slow` counter, so "slow, and where" is one curl: `curl -s http://127.0.0.1:3050/api/perf | jq '.loop, (.metrics | with_entries(select(.key | startswith("api.") or startswith("sql."))))'`.
-  - **`GET /api/health` is 503** with `{status: 'unhealthy', reason: 'loop-lag', p95}` while the p95 lag over the last minute exceeds 250 ms (`LOOP_LAG_UNHEALTHY_P95_MS` in `agents/src/perf.ts`); a healthy answer still carries `loop.lag` with the current numbers. The image's `HEALTHCHECK` fetches it every 30 s with a 5 s timeout and three retries, so a stalled server shows as `unhealthy` in `docker ps` and to Watchtower instead of "Up".
+  - **`GET /api/health` is 503** with `{status: 'unhealthy', reason: 'loop-lag', p95}` while the p95 lag over the last minute exceeds 250 ms (`LOOP_LAG_UNHEALTHY_P95_MS` in `apps/src/perf.ts`); a healthy answer still carries `loop.lag` with the current numbers. The image's `HEALTHCHECK` fetches it every 30 s with a 5 s timeout and three retries, so a stalled server shows as `unhealthy` in `docker ps` and to Watchtower instead of "Up".
   - **`[agents/sql] slow statement`** at `warn`: any prepared-statement call over 20 ms logs its duration, first keyword and the first 200 characters of the SQL (never the bindings), at most three lines per statement per minute, with the number of suppressed repeats on the next line.
 
 When the lag is high and nothing above names the cause, sample the thread with the inspector. The container must have been started with the inspector listening on its own port (override the command to `bun --inspect=127.0.0.1:9230 run --no-install main.js`; the inspector is unauthenticated, so never bind it to a public interface), and the session id is in the startup log: `docker logs agents-stable | grep ws://`. The protocol is WebKit's: `ScriptProfiler.startTracking {includeSamples: true}`, wait, `ScriptProfiler.stopTracking`; the samples arrive in the `ScriptProfiler.trackingComplete` event as `samples.stackTraces[].stackFrames` with `sourceID`, `line` and `column`. A \~40-line script that opens the WebSocket, sends those two commands, and counts the top frame of every sample is enough: `docker exec agents-stable bun /tmp/prof2.js ws://127.0.0.1:9230/<id> 15` samples for 15 s and prints the hottest frames. The bundle is minified, so map each `line:column` back into `/app/main.js` (`sed -n '<line>p' /app/main.js | cut -c<column-40>-<column+80>`) to read the function that was running; the 2026-11-03 outage was found this way in under a minute once the recipe existed.
@@ -526,7 +526,7 @@ curl http://localhost:3051/agents/api/health
 Start the server: <!-- id:5MRKd6bI -->
 
 ```bash <!-- id:OEloZ6RG -->
-direnv exec . bash -lc 'cd agents && bun src/main.ts'
+direnv exec . bash -lc 'cd apps && bun src/main.ts'
 ```
 
 ## WebSocket subscription says `Invalid signature` <!-- id:ivCBxbZ- -->
@@ -582,5 +582,5 @@ Prefer logging IDs, lengths, counts, timings, statuses, and booleans. <!-- id:xo
 - [Model providers](./model-providers.md) <!-- id:eNyxr7eP -->
 - [Persistence](./persistence.md) <!-- id:8R5_7G8N -->
 - [Security](./security.md) <!-- id:0j_VOCY5 -->
-- [Agents service](../apps/agents.md) <!-- id:LI0oZSsG -->
+- [App environment](../apps/app-environment.md) <!-- id:LI0oZSsG -->
 - [Self-hosting](../build/self-hosting.md) <!-- id:RFwTlWLB -->

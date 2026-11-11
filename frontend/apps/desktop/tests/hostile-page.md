@@ -62,10 +62,10 @@ URLs to self. Deliberate exceptions:
 - Styles allow inline styles for Tailwind, React styles, and embed layout.
 - Image/media sources allow HTTP(S), data, and blob URLs for remote content and IPFS media. Fonts allow self/data.
 - Connections allow `http://localhost:* http://127.0.0.1:* https: ws://localhost:* ws://127.0.0.1:* wss:` plus
-  configured service origins. Users can configure agent servers on arbitrary loopback ports (including localhost:3051),
-  so these sources apply to packaged builds as well as development. HTTPS/WSS support remote agents and services;
-  loopback WebSockets also support local agents and Vite HMR. Arbitrary remote HTTP/WS origins remain blocked unless
-  explicitly configured as an app service.
+  configured service origins. Users can configure app environments on arbitrary loopback ports (including
+  localhost:3051), so these sources apply to packaged builds as well as development. HTTPS/WSS support remote agents and
+  services; loopback WebSockets also support local agents and Vite HMR. Arbitrary remote HTTP/WS origins remain blocked
+  unless explicitly configured as an app service.
 - Frames share the navigation allowlist and exact daemon/IPFS gateway origins.
 - Scripts allow self plus the exact Twitter widgets, Instagram embed, and Plausible analytics script URLs already loaded
   by the frontend. Additional scripts dynamically requested by those SDKs may be blocked and need runtime compatibility

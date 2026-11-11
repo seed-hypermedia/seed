@@ -77,7 +77,7 @@ seed-cli blob verify ipfs://<cid>                              # signature + sch
 
 ## From code (`@seed-hypermedia/client`) <!-- id:AYM44IlE -->
 
-The [SDK](../build/sdk.md) holds the one implementation every surface shares. The CLI and the agents service call these same functions. <!-- id:UowHRXUw -->
+The [SDK](../build/sdk.md) holds the one implementation every surface shares. The CLI and the app environment call these same functions. <!-- id:UowHRXUw -->
 
 ```ts <!-- id:wEfsPT8s -->
 import {HM_SCHEMAS, validate, resolveSchema, structFields} from '@seed-hypermedia/client/schema-engine'

@@ -25,7 +25,7 @@ export type HMAccount = string
  */
 export type HMAgent = {
   type: 'hm://hyper.media/agent'
-  /** HTTP(S) agent server registering this resource's exact versionless HMID as the agent ID. */
+  /** HTTP(S) app environment registering this resource's exact versionless HMID as the agent ID. */
   agentServerUrl: HMUrl
 } & {[key: string]: HMValue}
 
@@ -1260,7 +1260,7 @@ export type HMMetadata = {
   siteUrl?: HMUrl
   /** The app environment a space is bound to, set on the home document: the server its agents run on. Read before `agentServerUrl`, the older name of the same binding. */
   appEnvironmentUrl?: HMUrl
-  /** The agents server that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`. */
+  /** The app environment that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`. */
   agentServerUrl?: HMUrl
   /** The attributes schema THIS document conforms to: the hm:// URL of a schema document (or ipfs://<cid> of a schema blob) whose struct describes the document's attributes. */
   attributesSchema?: HMHmUrl

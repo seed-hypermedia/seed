@@ -11,7 +11,7 @@ Three layers run a turn. <!-- id:enaS1ywg -->
   - **Pi Durable** (`@earendil-works/pi-durable`) runs the loop. It asks the model, runs the tool calls of each response, and asks again until the model answers. Every step is committed to storage before anything else sees it: the user input, each model response, each tool result, and the partial text of the response in flight. <!-- id:SfM7dNxT -->
   - **Seed** owns everything around the loop: the [signed API](./signed-api.md), the [runs](./runs.md) queue, the log, the verbs, the prompts, [parking](./park.md), and [session continuation](./session-continuation.md). <!-- id:g7-ae2RB -->
 
-The code that joins them is `#runPiAgent` in `agents/src/api-service.ts` and the helpers in `agents/src/durable-session.ts`. <!-- id:gu8ZNRa9 -->
+The code that joins them is `#runPiAgent` in `apps/src/api-service.ts` and the helpers in `apps/src/durable-session.ts`. <!-- id:gu8ZNRa9 -->
 
 # The store <!-- id:5XC9nmrF -->
 

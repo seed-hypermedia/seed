@@ -47,7 +47,7 @@
       "value": {
         "type": "hm://hyper.media/url"
       },
-      "description": "The agents server that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`."
+      "description": "The app environment that hosts the agent this document mounts (an http(s) origin); set with `type: hm://hyper.media/agent`."
     },
     "attributesSchema": {
       "value": {

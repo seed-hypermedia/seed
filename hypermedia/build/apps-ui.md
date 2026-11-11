@@ -8,8 +8,8 @@ The package bundles Seed's components, its block editor and the [agents protocol
 
 # What the app provides <!-- id:wLw-0kPx -->
 
-Every request to an agents server is a [signed action](../agent/signed-api.md). The app passes two things in a `SeedAgentsHost`: <!-- id:-DShFun1 -->
-  - `serverUrl`, the agents server as the browser reaches it. The UI posts actions to `<serverUrl>/api/message`, subscribes on `<serverUrl>/agents/ws` and reads `<serverUrl>/agents/api/health`. Any path prefix is kept, so the URL can be the app's own reverse proxy of a server it does not expose. <!-- id:Zf-7qugn -->
+Every request to an app environment is a [signed action](../agent/signed-api.md). The app passes two things in a `SeedAgentsHost`: <!-- id:-DShFun1 -->
+  - `serverUrl`, the app environment as the browser reaches it. The UI posts actions to `<serverUrl>/api/message`, subscribes on `<serverUrl>/agents/ws` and reads `<serverUrl>/agents/api/health`. Any path prefix is kept, so the URL can be the app's own reverse proxy of a server it does not expose. <!-- id:Zf-7qugn -->
   - `signer`, an object with the [account](../protocol/identity.md) id and a `sign(bytes)` function that returns the Ed25519 signature over exactly those bytes. The key never has to be in the page: the function may ask a server the app trusts to sign. When the signing key is not the account's own, the signer also names its key and the account's delegating [capability](../protocol/permissions.md). <!-- id:n4_IlMrQ -->
 
 Optional members point names and avatars at a Seed API other than `https://hyper.media` (`hmApiUrl`), choose where settings persist, and replace the editor. <!-- id:a3yNcrq8 -->
@@ -37,7 +37,7 @@ The stylesheet holds compiled utilities for the bundled components, Seed's palet
 
 # An example: Cyberdeck <!-- id:t77-QsBG -->
 
-[Cyberdeck](https://github.com/ericvicenti/cyberdeck), a dashboard for a fleet of machines, embeds the package. Its daemon keeps the account key and signs only agents actions for the page. It serves the agents server and the Seed API behind same-origin proxies, opened by an HttpOnly cookie. The page passes those URLs and a signer that calls the daemon. <!-- id:MHAeyMvR -->
+[Cyberdeck](https://github.com/ericvicenti/cyberdeck), a dashboard for a fleet of machines, embeds the package. Its daemon keeps the account key and signs only agents actions for the page. It serves the app environment and the Seed API behind same-origin proxies, opened by an HttpOnly cookie. The page passes those URLs and a signer that calls the daemon. <!-- id:MHAeyMvR -->
 
 The package's [README](https://github.com/seed-hypermedia/seed/blob/main/frontend/packages/apps-ui/README.md) is the reference for every option, and its source is in [frontend/packages/apps-ui](https://github.com/seed-hypermedia/seed/tree/main/frontend/packages/apps-ui). <!-- id:5cg7AQ8i -->
 

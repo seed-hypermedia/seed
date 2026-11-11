@@ -170,8 +170,8 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
   ) ?? undefined
 
 /**
- * Default agent server for the web app's /hm/agents UI. The site will eventually support several
- * configured agent servers (as desktop does); for now this is the seed of the configured list.
+ * Default app environment for the web app's /hm/agents UI. The site will eventually support several
+ * configured app environments (as desktop does); for now this is the seed of the configured list.
  *
  * The dev fallback matches the harness dev app environment port (see .env.vars), not the
  * packaged binary's 3050 — a stale packaged server on 3050 answers but 400s the runs API.
@@ -183,7 +183,7 @@ export const NOTIFY_SERVICE_HOST: string | undefined =
 export const AGENTS_LOCAL_SERVER_SETTING_KEY = 'agentsLocalServer'
 
 export const SEED_AGENT_SERVER_URL: string | undefined = (() => {
-  // An explicitly empty value means "no agent server" (single-tenant sites set
+  // An explicitly empty value means "no app environment" (single-tenant sites set
   // it), so only an unset variable falls back to the shared default.
   // `SEED_APPS_ENVIRONMENT_URL` is the app environment's name for it; `SEED_AGENT_SERVER_URL` the
   // agents server's name, still set by deployments from before the rename.

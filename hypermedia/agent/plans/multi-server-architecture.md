@@ -2,7 +2,7 @@
 name: Multi-Server Architecture
 summary: A three-phase plan for growing the agents service past one host by separating sandboxed execution from the control plane and then sharding accounts across servers.
 ---
-This plan grows the [agents service](../../apps/agents.md) past one box in three phases. Each phase can stop and hold. It is written against the 2026-08-29 production baseline: one 4-vCPU host running `agents-stable`/`-staging`/`-dev`, Caddy, SearXNG, and Crawl4AI, saturated by a single heavy dev agent. The finished perf-squeeze plan, now in git history, measured this. <!-- id:m4ehHETW -->
+This plan grows the [agents service](../../apps/app-environment.md) past one box in three phases. Each phase can stop and hold. It is written against the 2026-08-29 production baseline: one 4-vCPU host running `agents-stable`/`-staging`/`-dev`, Caddy, SearXNG, and Crawl4AI, saturated by a single heavy dev agent. The finished perf-squeeze plan, now in git history, measured this. <!-- id:m4ehHETW -->
 
 # Why this shape <!-- id:FRElSwuo -->
 
@@ -23,7 +23,7 @@ This phase lets ion "ramp up" without touching anyone's chat latency. One exec h
 
 # Phase 3: shard the control plane by account <!-- id:CPMiVq2m -->
 
-When one control plane saturates (thousands of accounts, or heavy WS fan-out), run N agents servers. Each owns a subset of accounts with its own SQLite and data dir. A routing layer (a Caddy `map` on account id, or a 20-line router service) sends signed envelopes and WS subscriptions to the owning shard. To move an account, copy its rows and state dir, then flip the route. There is no shared state and no cross-shard traffic. [Triggers](../trigger.md) and [runs](../runs.md) are already scoped to accounts. <!-- id:uCO2S7E7 -->
+When one control plane saturates (thousands of accounts, or heavy WS fan-out), run N app environments. Each owns a subset of accounts with its own SQLite and data dir. A routing layer (a Caddy `map` on account id, or a 20-line router service) sends signed envelopes and WS subscriptions to the owning shard. To move an account, copy its rows and state dir, then flip the route. There is no shared state and no cross-shard traffic. [Triggers](../trigger.md) and [runs](../runs.md) are already scoped to accounts. <!-- id:uCO2S7E7 -->
 
 # Scaling and cost model (Hetzner-style pricing, 2026) <!-- id:e0FqsDYx -->
 
@@ -52,5 +52,5 @@ Rules of thumb: <!-- id:dWG-C4EC -->
 - [Worker-isolated execution](./worker-isolated-execution.md) <!-- id:s7OkSwKu -->
 - [Speed](./speed.md) <!-- id:Qw9kMnkl -->
 - [Environments](../environments.md) <!-- id:lIg6OqGp -->
-- [Agents service](../../apps/agents.md) <!-- id:WfDKMo1L -->
+- [Agents service](../../apps/app-environment.md) <!-- id:WfDKMo1L -->
 - [Roadmap](../roadmap.md) <!-- id:uhprhD12 -->

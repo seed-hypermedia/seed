@@ -159,6 +159,7 @@ Seed Agents has its own vocabulary, defined once in the [Agents glossary](./agen
   - **The five verbs.** [read](./agent/read.md), [write](./agent/write.md), [call](./agent/call.md), [delegate](./agent/delegate.md) and [plan](./agent/plan.md), the whole model-facing tool surface. <!-- id:uWLm_jV4 -->
   - **Trigger.** Standing configuration that starts or wakes an agent on a schedule, a comment, a mention, a site update, a webhook or another run finishing. See [Trigger](./agent/trigger.md). <!-- id:5mQOFGu3 -->
   - **Grants.** An agent's permissions: the callable tools, the publish grant and the enabled MCP servers. See [Grants](./agent/grants.md). <!-- id:aIa42PgS -->
+  - **App environment.** The server that runs agents, called the agents server until November 2026: the `apps/` workspace, the `seedhypermedia/apps` image (still pushed as `seedhypermedia/agents`), the hosted servers and the one bundled with the desktop app. Settings lists them under **App environments**.
   - **MCP server.** A Model Context Protocol server that Seed Agents connects to as a client. Its tools appear in the agent's space. No first-party MCP server exposes Seed itself. See [MCP](./agent/mcp.md). <!-- id:1769lNvE -->
   - **seed-cli skill.** The agent skill that lets an external agent, such as Claude Code, use the Seed CLI to read and publish. See [Building with agents](./build/agents.md). <!-- id:RUsX_znS -->
 

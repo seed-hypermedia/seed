@@ -114,7 +114,7 @@ export type AgentMessageBlock = AgentPromptBlock
  * message for the model but keeps it out of the visible transcript content.
  *
  * `attachment` parts reference files previously uploaded with `UploadSessionAttachment`.
- * Attachments are session-private: they live with the session on the agent server, are shown to
+ * Attachments are session-private: they live with the session on the app environment, are shown to
  * the model inline (images, when the model supports image input) or as metadata, and are deleted
  * with the session. They are never copied into agent memory or published to IPFS unless the agent
  * explicitly does so with its attachment tools.

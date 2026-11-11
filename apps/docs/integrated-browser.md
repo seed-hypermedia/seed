@@ -6,7 +6,7 @@ it.
 
 ## Access model
 
-The user's signed-in browser is the thing being protected. The agent server, other people in a session, and every
+The user's signed-in browser is the thing being protected. The app environment, other people in a session, and every
 website are treated as untrusted.
 
 - **Read-only by default.** "Allow on this website" grants `read`: snapshot, screenshot and scroll. "Allow actions on
@@ -15,7 +15,7 @@ website are treated as untrusted.
   commands. Revoke forgets every allowed website.
 - **Owner only.** Only the agent's owner is offered access. Collaborators and public chatters never are. Public agents
   never get the browser, and making an agent public closes any open connection.
-- **Owner-started turns only.** The agent server runs a browser command only inside an interactive turn that the
+- **Owner-started turns only.** The app environment runs a browser command only inside an interactive turn that the
   connected owner started by sending a message. Triggers, delegated and child sessions, workflows, retries and
   continuations cannot use the browser.
 - **Enforced in Electron.** The main process keeps the allowed websites on the grant. It refuses a command when the page
@@ -122,7 +122,7 @@ Network request blocking is on by default for the `persist:seed-web-browser` par
 2.18.2 directly inside its existing request handler, so filtering does not replace the private-network guard or the
 known-bad-site blocklist. The Electron wrapper supports Electron 44, but its automatic session setup would replace those
 handlers. No blocker handler is installed on the app session. Configured daemon, file-service and agent-server origins,
-including the running local agent server, are excluded as both destinations and page sources. Cosmetic filtering and
+including the running local app environment, are excluded as both destinations and page sources. Cosmetic filtering and
 script injection are not enabled.
 
 The shield in the pane header shows the number of requests blocked on the current page. **Allow trackers on a host**
@@ -152,8 +152,8 @@ changes.
 
 ## Transport and verification
 
-Desktop long-polls the existing signed Agents API, so local and remote agent servers use the same path. Connections are
-bound to the session, the owner's account and signer, and a random window connection ID. A second window cannot take
+Desktop long-polls the existing signed Agents API, so local and remote app environments use the same path. Connections
+are bound to the session, the owner's account and signer, and a random window connection ID. A second window cannot take
 over. Commands are delivered once, with leases and execution deadlines; uncertain actions are not replayed.
 
 Coverage includes the signed relay and its authorization, run gating and reader redaction (`apps/src`), the consent

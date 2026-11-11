@@ -1,6 +1,6 @@
 ---
 name: Environments
-summary: The five kinds of environment the agents server runs in, from local development to hosted and self-hosted remotes, and the configuration each one turns on.
+summary: The five kinds of environment the app environment runs in, from local development to hosted and self-hosted remotes, and the configuration each one turns on.
 ---
 A [Seed Agents](../agent.md) server runs in five kinds of environment. The hosted remote is one kind, running as three deployments: production, staging, and dev. The binary logic is the same everywhere. The surroundings differ: what spawns it, what it binds, which HM server it reads and writes through, whether code execution and web tools exist, and how it gets updated. This page describes each environment and the configuration that makes it work. The full env-var reference is in [operations](./operations.md). This page covers which of those settings each environment uses, and why. <!-- id:qqHzmE1k -->
 
@@ -18,7 +18,7 @@ A quick orientation table: <!-- id:13MIJU72 -->
 
 # 1. Dev mode: `./dev up` <!-- id:sFkTQxjN -->
 
-The developer stack. mprocs runs one pane per process. The agents pane is `cd agents && bun run dev`, which wraps `bun --hot src/main.ts` in the repo-root `scripts/watch-file-deps.ts` (invoked as `bun ../scripts/watch-file-deps.ts`). The watcher re-runs `bun install` and restarts the server when a `file:` dependency like `agents/protocol` changes. During heavy protocol editing it flaps and kills in-flight runs. See [development](./development.md). <!-- id:Xn93wACK -->
+The developer stack. mprocs runs one pane per process. The agents pane is `cd apps && bun run dev`, which wraps `bun --hot src/main.ts` in the repo-root `scripts/watch-file-deps.ts` (invoked as `bun ../scripts/watch-file-deps.ts`). The watcher re-runs `bun install` and restarts the server when a `file:` dependency like `apps/protocol` changes. During heavy protocol editing it flaps and kills in-flight runs. See [development](./development.md). <!-- id:Xn93wACK -->
 
 Configuration comes from direnv (`.env.vars`). That layer is what makes dev different from the built-in defaults: <!-- id:ppx-D0aQ -->
   - `SEED_AGENTS_HTTP_PORT=3051`: dev does NOT use the default `3050`, on purpose, so a stale packaged binary (which the desktop app spawns on its own default) cannot shadow the dev server. If `localhost:3051` ever answers with `Unsupported action: ListRuns`-class errors, something else claimed the port. Check `lsof -nP -iTCP:3051 -sTCP:LISTEN`. <!-- id:VvPX6Qkl -->
@@ -29,27 +29,27 @@ Configuration comes from direnv (`.env.vars`). That layer is what makes dev diff
   - `VITE_DESKTOP_DEFAULT_AGENTS_URL=http://localhost:3051`: how the dev desktop app finds this server. It attaches and does not spawn its own binary. See the resolution order in environment 2. <!-- id:qk6SrIpe -->
   - `SEED_AGENTS_SUBSCRIPTION_AUTH=true` and the web-tool URLs are set by the `dev` script itself: `SEED_AGENTS_SEARXNG_URL=http://127.0.0.1:8899`, `SEED_AGENTS_CRAWLER_URL=http://127.0.0.1:11235`. <!-- id:GxBS7_xM -->
 
-**Docker is available here**, and the `backends` mprocs pane runs it: SearXNG and Crawl4AI from `agents/dev/web-backends/docker-compose.yml`, inline. Their logs stream into the pane, and they stop when mprocs quits. That turns on `web_search` and browser-render escalation in dev. <!-- id:W2puy6Vu -->
+**Docker is available here**, and the `backends` mprocs pane runs it: SearXNG and Crawl4AI from `apps/dev/web-backends/docker-compose.yml`, inline. Their logs stream into the pane, and they stop when mprocs quits. That turns on `web_search` and browser-render escalation in dev. <!-- id:W2puy6Vu -->
 
 **Code execution does not use Docker.** The microsandbox runtime (`msb`, libkrun) runs hardware-isolated microVMs directly on the host, with macOS Hypervisor.framework in dev. The `microsandbox` npm package under `agents/node_modules` carries the runtime. msb pulls sandbox rootfs images (`python`, and `oven/bun` for the `ts` runtime) itself on first use, into `~/.microsandbox/`. There are two sharp edges. First, every msb copy on the machine shares that one state directory, and a newer msb that migrates its database silently locks out every older copy (`database schema is newer than this msb binary`), so keep the dependency pinned exactly. Second, the sandbox image pull makes the first execution slow. <!-- id:JhyoO_4y -->
 
 Data lives in `agents/data/` (`agents.sqlite` + per-agent state dirs). It is gitignored and persists across restarts. See [persistence](./persistence.md). <!-- id:j4Xpyvza -->
 
-# 2. Local agents server inside CI-built desktop apps <!-- id:lFxXR6eC -->
+# 2. Local app environment inside CI-built desktop apps <!-- id:lFxXR6eC -->
 
-The [desktop app](../apps/desktop.md) ships its own agents server. In CI (`dev-desktop.yml` for dev builds, `release-desktop.yml` for releases), each platform runner executes: <!-- id:TUxRjJC6 -->
+The [desktop app](../apps/desktop.md) ships its own app environment. In CI (`dev-desktop.yml` for dev builds, `release-desktop.yml` for releases), each platform runner executes: <!-- id:TUxRjJC6 -->
 
 ``` <!-- id:6Bv9VqW- -->
-cd agents
+cd apps
 bun install --frozen-lockfile
 bun scripts/build-binary.ts --target=<llvm-triple> --smoke
 ```
 
-`build-binary.ts` produces a `bun build --compile` single-file binary in `plz-out/bin/agents/`. `forge.config.ts` picks it up as an extraResource and fails loudly in CI when it is missing, so a desktop build cannot silently ship without its agents server. `--smoke` boots the compiled binary and hits `/agents/api/health`, so a binary that compiles but cannot start fails in CI and never reaches user machines. <!-- id:rbNv_dwm -->
+`build-binary.ts` produces a `bun build --compile` single-file binary in `plz-out/bin/apps/`. `forge.config.ts` picks it up as an extraResource and fails loudly in CI when it is missing, so a desktop build cannot silently ship without its app environment. `--smoke` boots the compiled binary and hits `/agents/api/health`, so a binary that compiles but cannot start fails in CI and never reaches user machines. <!-- id:rbNv_dwm -->
 
 The `microsandbox` package cannot live inside the compiled bundle (napi binding, `msb` helper, libkrunfw). The build stages it into a `node_modules/` directory **next to the executable**, and at runtime the server points `MSB_PATH` and `MSB_LIBKRUNFW_PATH` at that staged copy. On macOS the msb binary must be signed with the `com.apple.security.hypervisor` entitlement (handled per-binary via `osxSign.binaries` in `forge.config.ts`), or every sandbox create fails. On Windows, execution needs the Windows Hypervisor Platform feature, and the desktop UI answers the execute toggle with setup instructions when it is off. <!-- id:T2Bsll-v -->
 
-At runtime the app resolves its agents server in this order (`agents-server-process.ts`): <!-- id:O7cFdv9h -->
+At runtime the app resolves its app environment in this order (`agents-server-process.ts`): <!-- id:O7cFdv9h -->
   1. `SEED_NO_AGENTS_SPAWN` set: never spawn. The app only talks to configured remote servers. <!-- id:FHzcCAGI -->
   2. `SEED_AGENTS_SERVER_URL` set: attach to that URL (with retry) and spawn nothing. <!-- id:7leliLB5 -->
   3. A healthy server already answering on the default port: attach to it. This is how the dev app uses env 1. <!-- id:sS4eNf-p -->
@@ -59,13 +59,13 @@ Differences from dev: **no Docker exists here**, so there is no SearXNG or Crawl
 
 # 3. Local desktop builds: `./dev build-desktop` <!-- id:Q_3JaDnK -->
 
-This is the CI packaging path, run locally. The `dev` script executes `cd agents && bun install && bun run build:binary` before invoking forge, because forge only copies whatever is already staged in `plz-out/bin/agents/`. Skipping the step silently packages a stale binary. Everything in environment 2 applies (embedded binary, staged msb runtime, entitlements, no Docker, daemon-backed HM URL), plus two local-only gotchas: <!-- id:EzIxz9Sv -->
+This is the CI packaging path, run locally. The `dev` script executes `cd apps && bun install && bun run build:binary` before invoking forge, because forge only copies whatever is already staged in `plz-out/bin/apps/`. Skipping the step silently packages a stale binary. Everything in environment 2 applies (embedded binary, staged msb runtime, entitlements, no Docker, daemon-backed HM URL), plus two local-only gotchas: <!-- id:EzIxz9Sv -->
   - The renderer build needs a large JS heap (`NODE_OPTIONS=--max-old-space-size=8192`-class). `desktop:make` has been seen to exit 0 even on a fatal OOM, so check that the artifact exists before trusting the exit code. <!-- id:6qF07oSy -->
   - A locally built app spawns its binary on the **default port 3050**, but attaches to anything healthy it finds first. A running `./dev up` stack (port 3051 via `VITE_DESKTOP_DEFAULT_AGENTS_URL`) wins in the dev app, and a stale previously-installed app's binary can hold a port the new build then attaches to. When in doubt, `/api/health` reports the running server's version. <!-- id:KvHiV9ar -->
 
 # 4. Hosted remotes: production, staging, and dev <!-- id:4984BLo_ -->
 
-One Ubuntu 24.04 VM runs all three hosted agents servers. It is on OVH/OpenStack, managed by the Terraform Cloud workspace `SHM-Agentic` in the SeedInfra repo (`seed_infra/agentic`). Terraform provisions a bare Docker host. The service definition is the compose file it writes to `/opt/agentic/docker-compose.yml`. <!-- id:i-Dhbvn7 -->
+One Ubuntu 24.04 VM runs all three hosted app environments. It is on OVH/OpenStack, managed by the Terraform Cloud workspace `SHM-Agentic` in the SeedInfra repo (`seed_infra/agentic`). Terraform provisions a bare Docker host. The service definition is the compose file it writes to `/opt/agentic/docker-compose.yml`. <!-- id:i-Dhbvn7 -->
 
 The three deployments differ in exactly two ways: which image tag they track, and which HM network they read. <!-- id:ORaW2HNY -->
 
@@ -90,7 +90,7 @@ The stack: <!-- id:S14BIIBT -->
     - Named volumes: `agents-*-data:/data` (the sqlite DB + agent state; `SEED_AGENTS_DB_PATH=/data/agents.sqlite` and `SEED_AGENTS_DATA_DIR=/data` are baked into the image) and `agents-*-msb:/root/.microsandbox` (the sandbox image cache, persisted so the first execution after each redeploy does not re-pull rootfs images). <!-- id:TkZJsI2X -->
     - `SEED_AGENTS_SEARXNG_URL=http://searxng:8080`, `SEED_AGENTS_CRAWLER_URL=http://crawl4ai:11235`: compose-internal backends. <!-- id:WbR7Jqh_ -->
   - **SearXNG** (json format enabled, limiter off, which is safe only because it is never published outside the compose network) and **Crawl4AI** (version-pinned, because 0.9.0 changed auth defaults, so it must not float to `:latest`; needs shared memory for Chromium) serve the web tools, internal-only. <!-- id:ru0yEILm -->
-  - **Watchtower** (label-enabled, short poll interval) auto-pulls the agents images. Pushing `seedhypermedia/agents:latest` deploys to `agents-stable`, and pushing `:dev` deploys to **both** `agents-staging` and `agents-dev`, within minutes. The three GitHub workflows described in [operations](./operations.md) push the images (release tags to `:latest`, main pushes touching `agents/**` to `:dev`, plus a manual hotfix path), or you push manually via `agents/scripts/build-and-push.sh`. Make sure the Watchtower container itself has `restart: unless-stopped`. A crashed auto-updater silently stops all deploys, and so does a _stopped_ one: `docker stop` on a container with that policy stays stopped across reboots. That is how the host once went four days without a deploy. <!-- id:F96Vwha9 -->
+  - **Watchtower** (label-enabled, short poll interval) auto-pulls the agents images. Pushing `seedhypermedia/agents:latest` deploys to `agents-stable`, and pushing `:dev` deploys to **both** `agents-staging` and `agents-dev`, within minutes. The three GitHub workflows described in [operations](./operations.md) push the images (release tags to `:latest`, main pushes touching `apps/**` to `:dev`, plus a manual hotfix path), or you push manually via `apps/scripts/build-and-push.sh`. Make sure the Watchtower container itself has `restart: unless-stopped`. A crashed auto-updater silently stops all deploys, and so does a _stopped_ one: `docker stop` on a container with that policy stays stopped across reboots. That is how the host once went four days without a deploy. <!-- id:F96Vwha9 -->
 
     Watchtower reads `com.centurylinklabs.watchtower.enable` from the **running container**, and ignores the compose file, so editing that label only takes effect after `docker compose up -d <service>` recreates the container. <!-- id:053hqR9T -->
 
@@ -98,7 +98,7 @@ Secrets (provider API keys, OAuth credentials) are **not** in the compose enviro
 
 **Code execution inside the image.** The microsandbox runtime cannot be bundled (native binding + `msb` + libkrunfw). So `microsandbox` is `external` in the server bundle (`build.ts`), and the Dockerfile stages the package, plus its linux platform package, into `/app/node_modules` next to `main.js` (`scripts/stage-msb-runtime.ts`). This is the same layout `build-binary.ts` ships beside the desktop binary. The image build runs `--exec-selfcheck`, so a staging regression fails the build and never shows up as `codeExec: false` on the servers. Everything else the runtime needs travels inside the bundle, including `mermaid` and the `linkedom` DOM shim behind the mermaid check on document writes (`src/mermaid-parser.ts`, which imports them by literal specifier where the client package deliberately does not); the same selfcheck parses a diagram so a bundling regression fails the build rather than every write that carries one. With `/dev/kvm` plumbed and the msb cache volumes mounted, executions run in-container. `/api/health` reports the probe result either way. <!-- id:LLspUN31 -->
 
-# 5. Self-hosted remote agents servers <!-- id:MwgU5uAJ -->
+# 5. Self-hosted remote app environments <!-- id:MwgU5uAJ -->
 
 Anyone can run the image. The minimal server: <!-- id:GiuKlBIH -->
 
@@ -120,15 +120,15 @@ What an operator must decide, roughly in order of importance. [Self-hosting](../
   - **Accounts.** The server is multi-account by signature. It trusts any envelope whose signer IS the [account](../protocol/identity.md), or an authorized signer. There is no allowlist today. A reachable server accepts any self-signed account's agents, so do not rely on obscurity. If that matters, gate reachability at the network layer. <!-- id:7AAQLXv1 -->
   - **Updates.** `docker pull` on your schedule, or run Watchtower as production does. `/api/version` tells you what a running server was built from. <!-- id:LRGZT4Im -->
 
-# Which agents server a client connects to <!-- id:xUjvcvQu -->
+# Which app environment a client connects to <!-- id:xUjvcvQu -->
 
 A space's agents are its mount documents: a document with `type: hm://hyper.media/agent` and an `agentServerUrl` ([metadata](../metadata.md)) is an agent, its versionless hm:// id is the agent's id, and the named server must register it under exactly that id. There is no space-level agent registry and no server a space advertises: to find a space's agents a client queries the space's documents for that type (`QueryDocuments` with a `type` comparison, `useSiteAgentMounts` in `@shm/ui/site-agents`). The query runs on the client after the page is up, so a page never waits on it, and the result is cached like any document listing. <!-- id:dOTNHY0y -->
 
 Which servers a client then talks to differs by surface: <!-- id:MXogIsaE -->
-  1. **The web app and the gateway** talk only to the servers those mount documents name, and only about those agents. The assistant panel lists the site's mounted agents and nothing else: no agents from other servers, no orphan agents, and no `ListAgents` call to any server. The header shows the panel's entry point only to a signed-in reader whose account can see at least one of the site's mounted agents: the owner, an accepted collaborator, or anyone once the agent is public. A mount document the agent is not shared with them through shows nothing, and so does a site with no mounts. The one exception is a reader who owns orphan agents (agents from before agents were documents, still under a legacy id): the client asks the deployment's default server and the servers the site's mounts name for the account's own agents, and while any orphan remains the entry point stays visible with a red dot, so the panel's adopt card can be found. Readers who are not signed in get no entry point, since every request to an agents server is signed; a public agent could open that to them later. The deployment default (`SEED_AGENT_SERVER_URL`, read on the server and injected into `window.ENV`) is used for one thing: the server a new agent is created on from a home document's New menu. <!-- id:WFCTSK67 -->
+  1. **The web app and the gateway** talk only to the servers those mount documents name, and only about those agents. The assistant panel lists the site's mounted agents and nothing else: no agents from other servers, no orphan agents, and no `ListAgents` call to any server. The header shows the panel's entry point only to a signed-in reader whose account can see at least one of the site's mounted agents: the owner, an accepted collaborator, or anyone once the agent is public. A mount document the agent is not shared with them through shows nothing, and so does a site with no mounts. The one exception is a reader who owns orphan agents (agents from before agents were documents, still under a legacy id): the client asks the deployment's default server and the servers the site's mounts name for the account's own agents, and while any orphan remains the entry point stays visible with a red dot, so the panel's adopt card can be found. Readers who are not signed in get no entry point, since every request to an app environment is signed; a public agent could open that to them later. The deployment default (`SEED_AGENT_SERVER_URL`, read on the server and injected into `window.ENV`) is used for one thing: the server a new agent is created on from a home document's New menu. <!-- id:WFCTSK67 -->
   2. **The desktop app** adds the account's own agents: the app's own local server first (`getLocalServerUrl` on the platform seam; a space never names it, since only the computer running it can reach it), then the servers the user configured in settings (`agent-server-urls`, electron-store; seeded with the desktop default from `frontend/apps/desktop/src/agents-defaults.ts` on first run, and never re-added once the list has been edited, even to empty). The mounted agents of the space on screen lead the picker, labeled with the space's name. <!-- id:CI-i5FLy -->
 
-The agents server itself needs no per-client configuration for this. It answers signed requests from any origin (`Access-Control-Allow-Origin: *`) and identifies callers by their signed account, never by where the page was served. <!-- id:PeNlJuN5 -->
+The app environment itself needs no per-client configuration for this. It answers signed requests from any origin (`Access-Control-Allow-Origin: *`) and identifies callers by their signed account, never by where the page was served. <!-- id:PeNlJuN5 -->
 
 ## Which agents a reader of a space sees <!-- id:hdQPP4g3 -->
 
@@ -146,4 +146,4 @@ An agent's name, icon, and status are read from the agent itself; the document c
 - [Model providers](./model-providers.md) <!-- id:Ji11frcK -->
 - [Self-hosting](../build/self-hosting.md) <!-- id:SSwXndlB -->
 - [Sites](../protocol/sites.md) <!-- id:-SxSweG5 -->
-- [Agents service](../apps/agents.md) <!-- id:7A-dIiqm -->
+- [App environment](../apps/app-environment.md) <!-- id:7A-dIiqm -->

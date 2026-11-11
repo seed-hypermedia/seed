@@ -18,7 +18,7 @@
  *
  * Usage:
  *   bun frontend/apps/mobile/dev/mock-agents-server.ts        # serves :3052
- *   …then point the app's agent server at http://localhost:3052
+ *   …then point the app's app environment at http://localhost:3052
  */
 
 import * as cbor from '@shm/shared/cbor'

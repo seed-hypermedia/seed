@@ -1,6 +1,6 @@
 ---
 name: WebSocket Subscriptions
-summary: How a client opens a signed WebSocket subscription to an agents server and receives live account, agent, session, and run updates.
+summary: How a client opens a signed WebSocket subscription to an app environment and receives live account, agent, session, and run updates.
 ---
 The [Seed Agents](../agent.md) WebSocket API delivers live account, agent, session, and run updates after a signed subscription handshake. The handshake uses the same signed envelope as the [signed API](./signed-api.md). <!-- id:xPzzllRE -->
 
@@ -145,7 +145,7 @@ Desktop behavior: <!-- id:ofVmfTqC -->
   - inserts the event into the `GetSession` cache; <!-- id:GzSQQzFt -->
   - removes matching optimistic user events; <!-- id:RVwuDBnh -->
   - clears the visible partial for that session, because final durable data arrived; <!-- id:diuPSNYn -->
-  - while that session is open, extracts [`hm://` references](../protocol/urls.md) from structured tool results and assistant messages, and keeps them subscribed through the desktop [sync](../protocol/network.md) service until the session closes. This runs only for the exact mounted `sessions/<id>` socket (a full session page or the selected Assistant-sidebar session). It never runs for account or agent sockets or background sessions. [Comment](../protocol/comments.md) references recursively subscribe to their target [document](../protocol/documents.md). Newly published comments and documents from a remote agent server are then available locally before their links are opened. <!-- id:zNms67AN -->
+  - while that session is open, extracts [`hm://` references](../protocol/urls.md) from structured tool results and assistant messages, and keeps them subscribed through the desktop [sync](../protocol/network.md) service until the session closes. This runs only for the exact mounted `sessions/<id>` socket (a full session page or the selected Assistant-sidebar session). It never runs for account or agent sockets or background sessions. [Comment](../protocol/comments.md) references recursively subscribe to their target [document](../protocol/documents.md). Newly published comments and documents from a remote app environment are then available locally before their links are opened. <!-- id:zNms67AN -->
 
 ## `appendPartial` <!-- id:lCik3Bqk -->
 

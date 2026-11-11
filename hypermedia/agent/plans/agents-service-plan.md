@@ -11,13 +11,13 @@ This is a living implementation plan. The immediate goal is to build a small but
 # Goals <!-- id:J32OToY7 -->
 
 1. Run a standalone Bun service, similar in operational shape to `vault/`. <!-- id:Dgpbks9L -->
-2. Let a Seed account configure model providers/secrets on an agent server. <!-- id:lAWOzsRF -->
+2. Let a Seed account configure model providers/secrets on an app environment. <!-- id:lAWOzsRF -->
 3. Let an account create agents with a system prompt, provider key, and model. <!-- id:VYLFhR4m -->
 4. Let an account create chat-like sessions for an agent. <!-- id:x4XV6iYW -->
 5. Let clients send signed messages to sessions and receive durable streamed responses. <!-- id:nWpZA8KP -->
 6. Persist enough state in SQLite to safely restart and resume. <!-- id:GbTV043x -->
 7. Keep the desktop GUI simple but usable for manual testing. <!-- id:KHP9YYeU -->
-8. Provide a lightweight agent-server frontend for server status and dev diagnostics, so opening the agent server in a browser shows health/connection information before desktop integration is involved. <!-- id:JdMVY1cW -->
+8. Provide a lightweight agent-server frontend for server status and dev diagnostics, so opening the app environment in a browser shows health/connection information before desktop integration is involved. <!-- id:JdMVY1cW -->
 9. Design APIs and route names so the same workflow can later work on web at URLs such as `/hm/agents`. <!-- id:IkRxd3H9 -->
 
 # Non-goals for the first slice <!-- id:QaaYaycV -->
@@ -67,7 +67,7 @@ Seed backend
   └─ authoritative account/capability data, including AGENT capabilities
 ```
 
-The service should be self-hostable. The desktop app stores a list of agent server URLs in advanced settings and can connect to several servers at once. There may also be a default hosted agent server. <!-- id:1-EMxfmi -->
+The service should be self-hostable. The desktop app stores a list of app environment URLs in advanced settings and can connect to several servers at once. There may also be a default hosted app environment. <!-- id:1-EMxfmi -->
 
 ## Service package <!-- id:26e8PFiN -->
 
@@ -477,8 +477,8 @@ Keep the GUI simple. <!-- id:bjsHGFo7 -->
 
 ## Settings <!-- id:WUBUwSyf -->
 
-Add an advanced settings section for agent servers: <!-- id:C7e9rHrc -->
-  - List configured agent server URLs. <!-- id:l4dhc3MW -->
+Add an advanced settings section for app environments: <!-- id:C7e9rHrc -->
+  - List configured app environment URLs. <!-- id:l4dhc3MW -->
   - Add/remove URL. <!-- id:JsDqi9Hw -->
   - Mark default server. <!-- id:oIatgYMR -->
   - Show connection status. <!-- id:m8Ffd9_F -->
@@ -504,7 +504,7 @@ Add a desktop shortcut/menu item for agents, likely in `frontend/apps/desktop/sr
 
 ## Server status frontend <!-- id:bA44t5ig -->
 
-The standalone agent server should continue to serve a minimal frontend at `/agents` for direct browser-based status checks. This page is not the primary product UI, but it should show at least server availability, WebSocket connectivity, and enough diagnostic information to confirm the daemon/service is alive before debugging desktop or web clients. <!-- id:akDYdJZp -->
+The standalone app environment should continue to serve a minimal frontend at `/agents` for direct browser-based status checks. This page is not the primary product UI, but it should show at least server availability, WebSocket connectivity, and enough diagnostic information to confirm the daemon/service is alive before debugging desktop or web clients. <!-- id:akDYdJZp -->
 
 ## UX flow <!-- id:zfroHlN6 -->
 
@@ -527,7 +527,7 @@ The standalone agent server should continue to serve a minimal frontend at `/age
    - stop button <!-- id:eYZLz1BV -->
 7. Model Providers and Secrets page: <!-- id:J95uHMtt -->
    - link from Agents page <!-- id:7BmAvhcg -->
-   - can reuse concepts from existing Assistant Providers UI, but provider secrets should be stored on the selected agent server, not only in desktop local config. <!-- id:ILO8Thg4 -->
+   - can reuse concepts from existing Assistant Providers UI, but provider secrets should be stored on the selected app environment, not only in desktop local config. <!-- id:ILO8Thg4 -->
 
 # Web plan <!-- id:EgRoE1GF -->
 
@@ -555,7 +555,7 @@ Deliverables: <!-- id:xh0lvwK4 -->
 Validation: <!-- id:Vn--6foP -->
 
 ```bash <!-- id:hojO68zg -->
-cd agents
+cd apps
 bun check
 bun test
 ```
@@ -588,7 +588,7 @@ Deliverables: <!-- id:6YikH2ZW -->
 ## Milestone 5 — desktop minimal UI <!-- id:ydeUhg8r -->
 
 Deliverables: <!-- id:cYmF2GdT -->
-  - Agent server URL settings. <!-- id:zcsWq61Z -->
+  - App environment URL settings. <!-- id:zcsWq61Z -->
   - Agents list page. <!-- id:l7p2x2vl -->
   - New agent form. <!-- id:R6o17qAA -->
   - Agent detail/session list. <!-- id:HeviFrsI -->
@@ -631,7 +631,7 @@ Server tests should cover: <!-- id:mAPhidjZ -->
   - Pi SDK loop with a fake model/provider where possible. <!-- id:kdTp1P6L -->
 
 GUI tests should stay focused: <!-- id:gpxJwjex -->
-  - Settings can add/remove an agent server URL. <!-- id:aJuO-ItW -->
+  - Settings can add/remove an app environment URL. <!-- id:aJuO-ItW -->
   - Agents page empty states render. <!-- id:NMCCb0Yj -->
   - New agent form sends expected signed action. <!-- id:PZ8S-Ghx -->
   - Session page appends user message and displays streamed assistant output from a mocked server. <!-- id:R-uYgabH -->
@@ -642,7 +642,7 @@ GUI tests should stay focused: <!-- id:gpxJwjex -->
 2. **Capability validation**: decide whether the agents service queries Seed backend over gRPC/HTTP or consumes published capability blobs directly. <!-- id:bp0yKOV8 -->
 3. **Pi session persistence**: decide whether to mirror Pi JSONL initially or implement a custom SQLite-backed session manager. <!-- id:vZUM4POW -->
 4. **Tool sandboxing**: hosted agents must not get arbitrary host filesystem/shell access. Define first supported tool set explicitly. <!-- id:LVa01YKJ -->
-5. **Provider portability**: desktop currently has local assistant provider config; agent server provider config should be separate but may reuse UI concepts. <!-- id:yrrCb-Ps -->
+5. **Provider portability**: desktop currently has local assistant provider config; app environment provider config should be separate but may reuse UI concepts. <!-- id:yrrCb-Ps -->
 6. **Web auth**: web clients need signing access and a safe subscription-auth story. <!-- id:x0-yrt5r -->
 7. **Multi-server aggregation**: desktop Agents page needs stable IDs that include server URL plus agent/session ID to avoid collisions. <!-- id:uV0ZRa8x -->
 
@@ -653,4 +653,4 @@ Start Milestone 1. Create `agents/` as a Bun service skeleton copied conceptuall
   2. Implement schema initialization and migration versioning. <!-- id:x_ePbhLR -->
   3. Implement signed CBOR envelope verification. <!-- id:JjpEQPXX -->
   4. Implement `POST /api/message` with `ListAgents` and `CreateAgent`. <!-- id:HAnc1DkT -->
-  5. Run `cd agents && bun check && bun test`. <!-- id:Aib2xYW1 -->
+  5. Run `cd apps && bun check && bun test`. <!-- id:Aib2xYW1 -->
